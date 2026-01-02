@@ -1,0 +1,249 @@
+/* ===============================
+   🪄 ListingLayout.module.css
+   Scoped styles for property pages ONLY
+   =============================== */
+
+/* ===============================
+   BASE LAYOUT CONTAINER
+   =============================== */
+.listingLayout {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem; /* ⬅️ reduce TOP padding only */
+  font-family: "Inter", sans-serif;
+}
+
+/* ===============================
+   TWO-COLUMN LAYOUT
+   =============================== */
+.listing-columns {
+  display: flex;
+  align-items: flex-start;
+  gap: 4rem;
+}
+
+.listing-main {
+  flex: 1.5;
+  min-width: 300px;
+}
+
+.listing-sidebar {
+  flex: 1;
+  min-width: 300px;
+  align-self: flex-start;
+  padding-top: 2rem;
+}
+
+/* ===============================
+   MOBILE STACKING
+   =============================== */
+@media (max-width: 900px) {
+  .listing-columns {
+    flex-direction: column;
+    gap: 2rem;
+  }
+
+  .listing-main,
+  .listing-sidebar {
+    width: 100%;
+    min-width: unset;
+    padding-top: 0;
+  }
+}
+
+/* ===============================
+   PROPERTY TITLE + ADDRESS
+   (Fixes centering regression)
+   =============================== */
+.propertyTitle {
+  font-size: 2.4rem;
+  font-weight: 700;
+  color: #111;
+  margin: 0.75rem 0 0.25rem;
+  text-align: left;
+}
+
+.address {
+  font-size: 1.05rem;
+  color: #555;
+  margin-bottom: 1rem;
+  text-align: left;
+}
+
+/* ===============================
+   ICON + TEXT ROWS
+   (Bedrooms, Sqft, Price, etc.)
+   =============================== */
+.infoRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 1rem;
+  color: #333;
+  margin-bottom: 0.5rem;
+}
+
+.infoRow svg {
+  font-size: 1.1rem;
+  color: #222;
+  flex-shrink: 0;
+}
+
+/* ===============================
+   MOVE-IN SPECIAL / REBATE BANNER
+   (Fixes gift icon alignment)
+   =============================== */
+.rebateBox {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: #e8f7ec;
+  border: 1px solid #bde5c8;
+  border-radius: 10px;
+  font-size: 1.05rem;
+  color: #1e7a3c;
+}
+
+.rebateBox svg {
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+
+/* ===============================
+   AGENT CARD
+   (Centers profile image correctly)
+   =============================== */
+.agentCard {
+  text-align: center;
+}
+
+.agentCard img {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin: 0 auto 0.75rem;
+  display: block;
+}
+
+/* ===============================
+   WATERMARK SYSTEM
+   =============================== */
+.watermark {
+  position: relative;
+  display: inline-block;
+}
+
+.watermark::after {
+  content: "";
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  width: 64px;
+  height: 64px;
+  background-image: url("https://res.cloudinary.com/dxtiguwzm/image/upload/v1747932834/lone-star-locators-logo_wn85wu.png");
+  background-size: contain;
+  background-repeat: no-repeat;
+  opacity: 0.12;
+  pointer-events: none;
+}
+
+.gallery-watermark::after {
+  width: 32px;
+  height: 32px;
+  bottom: 6px;
+  right: 6px;
+  opacity: 0.16;
+}
+
+.lightbox-watermark::after {
+  width: 80px;
+  height: 80px;
+  bottom: 20px;
+  right: 20px;
+  opacity: 0.15;
+}
+
+/* ===============================
+   HERO IMAGE CONTROL
+   =============================== */
+.listing-main img {
+  width: 100%;
+  display: block;
+}
+
+.listing-main .watermark.lightbox-watermark img {
+  height: 560px;
+  object-fit: cover;
+}
+
+@media (max-width: 768px) {
+  .listing-main .watermark.lightbox-watermark img {
+    height: 330px;
+  }
+}
+
+/* ===============================
+   IFRAMES (MAP + VIDEO)
+   =============================== */
+.listing-main iframe {
+  width: 100%;
+  max-height: 350px;
+  display: block;
+}
+
+.listing-main iframe[title="Property Location"] {
+  height: 350px;
+  max-height: none;
+}
+
+@media (max-width: 768px) {
+  .listing-main iframe[title="Property Location"] {
+    height: 190px;
+  }
+}
+
+/* ===============================
+   SIDEBAR FORM DEPTH
+   =============================== */
+.listing-sidebar form {
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  background: #ffffff;
+}
+
+/* ===============================
+   AMENITIES
+   =============================== */
+@media (min-width: 768px) {
+  .amenities-list {
+    columns: 2;
+    column-gap: 2rem;
+  }
+
+  .amenities-list li {
+    break-inside: avoid;
+    padding-right: 1rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .amenities-list {
+    columns: 1;
+  }
+}
+
+/* ===============================
+   FAQ VISUAL WEIGHT FIX
+   =============================== */
+.faqSection {
+  font-size: 1.05rem;
+}
+
+.faqSection h2 {
+  font-size: 1.9rem;
+  font-weight: 700;
+}
+
+

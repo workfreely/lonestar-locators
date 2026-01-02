@@ -1,0 +1,122 @@
+"use client";
+
+import React from "react";
+import Link from "next/link";
+import ListingCard from "./ListingCard";
+
+const FeaturedProperties: React.FC = () => {
+  const featuredListings = [
+    {
+      name: "300 Main",
+      slug: "300-main",
+      city: "San Antonio",
+      neighborhood: "Downtown",
+      region: "San Antonio",
+      image: "",
+      price: "$1,650+",
+      priceValue: 1650,
+      beds: "0 - 2",
+      baths: "1 - 2",
+      propertyType: "Apartment",
+      tags: ["Luxury", "Downtown", "High-Rise"],
+      special: "1 Month Free on Select Units!",
+      rebate: "Get a Cash Rebate or Free Movers",
+    },
+    {
+      name: "Oasis at Stone Oak",
+      slug: "oasis-at-stone-oak",
+      href: "/san-antonio/apartments/oasis-at-stone-oak",
+      city: "San Antonio",
+      neighborhood: "Stone Oak",
+      region: "San Antonio",
+      image: "",
+      price: "$1,600+",
+      priceValue: 1600,
+      beds: "2 - 3",
+      baths: "2 - 2.5",
+      propertyType: "Townhome",
+      tags: ["Luxury", "Townhome", "Stone Oak"],
+      special: "8 Weeks free on a 14-month lease!",
+      rebate: "Get a Cash Rebate or Free Movers",
+    },
+    {
+      name: "Collection Schertz Station",
+      slug: "collection-schertz-station",
+      city: "San Antonio",
+      neighborhood: "Schertz",
+      region: "San Antonio",
+      image: "",
+      price: "$1,750+",
+      priceValue: 1750,
+      beds: "2 - 3",
+      baths: "2 - 2.5",
+      propertyType: "Townhome",
+      tags: ["Luxury", "Schertz", "Townhome"],
+      special: "Move-In Specials Available!",
+      rebate: "Get a Cash Rebate or Free Movers",
+    },
+  ];
+
+  const defaultImage =
+    "https://res.cloudinary.com/dxtiguwzm/image/upload/v1748277676/photos-coming-soon-lone-star-locators_be1dyx.jpg";
+
+  return (
+   <section id="featured-wrap">
+
+      <h2
+        style={{
+          fontSize: "2rem",
+          fontWeight: 800,
+          marginBottom: "0.5rem",
+          color: "#222",
+          textAlign: "center",
+        }}
+      >
+        Featured Properties in San Antonio
+      </h2>
+
+      <p
+        style={{
+          fontSize: "1.1rem",
+          color: "#555",
+          marginBottom: "2rem",
+          textAlign: "center",
+        }}
+      >
+        Explore some of the hottest apartment deals in San Antonio!
+      </p>
+
+      {/* ✅ USE GLOBAL GRID — DO NOT OVERRIDE */}
+<div className="card-grid">
+  {featuredListings.map((listing, index) => {
+    const href =
+      listing.href || `/san-antonio/apartments/${listing.slug}`;
+
+    return (
+      <Link
+        key={index}
+        href={href}
+        style={{ textDecoration: "none", color: "inherit" }}
+      >
+        <ListingCard
+          listing={listing}
+          defaultImage={defaultImage}
+        />
+      </Link>
+    );
+  })}
+</div>
+
+      <div style={{ marginTop: "2.5rem", textAlign: "center" }}>
+        <a
+          href="/san-antonio/apartments"
+          className="start-your-search-btn"
+        >
+          View All San Antonio Listings →
+        </a>
+      </div>
+    </section>
+  );
+};
+
+export default FeaturedProperties;

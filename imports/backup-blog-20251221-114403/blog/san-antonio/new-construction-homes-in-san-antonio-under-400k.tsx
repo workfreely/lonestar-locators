@@ -1,0 +1,196 @@
+
+
+const NewConstructionHomesInSanAntonioUnder400k = () => {
+
+  };
+
+    {
+      question: "What types of homes can I expect under $400K in San Antonio?",
+      answer:
+        "In this price range, you’ll find a mix of move-in-ready homes, upgraded new builds, and homes in master-planned communities with amenities. Builders like Lennar, KB Home, and D.R. Horton offer excellent options under $400K.",
+    },
+    {
+      question:
+        "Are there new construction homes near good schools or shopping?",
+      answer:
+        "Yes — many neighborhoods under $400K are in growing suburbs like Alamo Ranch, Westover Hills, and Cibolo that offer great schools, parks, and access to shopping, dining, and entertainment.",
+    },
+    {
+      question: "Is $400K a good budget for new builds in 2025?",
+      answer:
+        "Yes — it opens the door to larger homes, more upgrades, and better locations than entry-level price points. Builders are also offering incentives in this range to attract qualified buyers.",
+    },
+    {
+      question:
+        "Can I still get builder incentives or closing cost assistance?",
+      answer:
+        "Absolutely. Many builders are offering closing cost assistance, rate buydowns, and design upgrades for homes under $400K — especially for first-time buyers or VA/FHA financing.",
+    },
+    {
+      question: "How do I get matched with the right new home?",
+      answer:
+        "Click 'Start Your Search' below, and we’ll send you a curated list of homes, builders, and promotions tailored to your budget and goals.",
+    },
+  ];
+
+  return (
+      title="New Construction Homes in San Antonio Under $400K – Explore Top New Builds for 2025"
+      publishDate="2025-07-06T12:00:00"
+      ctaType="newhome"
+      keywords={[
+        "new homes under 400k San Antonio",
+        "move-in ready homes San Antonio",
+        "San Antonio homes for sale under 400k",
+      ]}
+      content={
+        <>
+          <Helmet>
+            <title>
+              New Construction Homes in San Antonio Under $400K – Explore Top
+              New Builds for 2025
+            </title>
+            <meta
+              name="description"
+              content="Explore top-rated new construction homes in San Antonio under $400K. Discover builder incentives, floor plans, and move-in ready options for 2025."
+            />
+            <meta
+              name="keywords"
+              content="new construction homes in San Antonio under 400k, new builds San Antonio 2025, new homes under 400k in San Antonio, San Antonio builder incentives"
+            />
+            <script type="application/ld+json">
+              {`
+              {
+                "@context": "https://schema.org",
+                "@type": "Article",
+                "headline": "New Construction Homes in San Antonio Under $400K – Explore Top New Builds for 2025",
+                "description": "Explore top-rated new construction homes in San Antonio under $400K. Get expert help finding new builds with incentives and upgrades in 2025.",
+                "author": {
+                  "@type": "Organization",
+                  "name": "Lone Star Locators"
+                },
+                "publisher": {
+                  "@type": "Organization",
+                  "name": "Lone Star Locators",
+                  "logo": {
+                    "@type": "ImageObject",
+                    "url": "https://res.cloudinary.com/dxtiguwzm/image/upload/v1748223464/lone-star-locators-white-logo-footer_dyrwka.png"
+                  }
+                },
+                "datePublished": "2025-06-10",
+                "mainEntityOfPage": {
+                  "@type": "WebPage",
+                  "@id": "https://yourdomain.com/new-construction-homes-in-san-antonio-under-400k"
+                }
+              }
+              `}
+            </script>
+          </Helmet>
+
+          <p>
+            Shopping for new construction homes in San Antonio under $400K? This
+            price range gives you access to a wide variety of newly built homes
+            in some of the most desirable neighborhoods in and around the city —
+            with room for upgrades, larger floor plans, and builder incentives.
+          </p>
+
+          <h2>What You Get for $400K in San Antonio</h2>
+          <p>
+            With up to $400K to work with, you can afford a 3–4 bedroom home,
+            often with upgraded finishes, open layouts, spacious backyards, and
+            community amenities like parks and pools.
+          </p>
+          <ul className="checklist">
+            <li>✅ 1,500–2,400+ sq. ft. modern floor plans</li>
+            <li>✅ Energy-efficient features and smart home technology</li>
+            <li>
+              ✅ Granite countertops, tile floors, and stainless appliances
+            </li>
+            <li>✅ Established or up-and-coming neighborhoods</li>
+            <li>✅ Opportunities for customization or builder upgrades</li>
+          </ul>
+
+          <h2>Top Areas for New Builds Under $400K</h2>
+          <p>
+            San Antonio’s west, northwest, and northeast corridors have
+            experienced rapid growth — and many communities in these areas still
+            offer homes under $400K.
+          </p>
+          <ul className="checklist">
+            <li>✅ Alamo Ranch & Culebra Rd corridor</li>
+            <li>✅ Westover Hills & Luckey Ranch</li>
+            <li>✅ Converse, Schertz, and Cibolo</li>
+            <li>✅ Helotes and Far Northwest San Antonio</li>
+            <li>✅ South Side near Texas A&M-San Antonio</li>
+          </ul>
+
+          <h2>How We Help You Save on Your New Home</h2>
+          <p>
+            We specialize in helping buyers navigate builder promotions, hidden
+            incentives, and limited-time offers. With our free service, you’ll:
+          </p>
+          <ul className="checklist">
+            <li>✅ Receive a custom list of new builds under $400K</li>
+            <li>✅ Get access to move-in ready homes and price drops</li>
+            <li>
+              ✅ Take advantage of builder-paid closing costs and rate buydowns
+            </li>
+            <li>
+              ✅ Work with experts who know the best deals — not just what’s on
+              Zillow
+            </li>
+          </ul>
+
+          <h2>Preview: Our Builder Incentives List</h2>
+          <p>
+            We update our internal list of the top builder incentives,
+            communities, and available homes in real time. You won’t find most
+            of these on public sites.
+          </p>
+          <img
+            src="https://res.cloudinary.com/dxtiguwzm/image/upload/v1760740971/new-construction-homes-list-san-_antonio-austin-dallas-houston_cvp0yz.png"
+            alt="San Antonio New Construction Builder Deals"
+            style={{
+              width: "100%",
+              marginBottom: "20px",
+              borderRadius: "8px",
+              border: "1px solid #ddd",
+            }}
+          />
+
+          <p
+            style={{
+              backgroundColor: "#e6f4ea",
+              padding: "12px",
+              borderRadius: "6px",
+              fontWeight: "bold",
+            }}
+          >
+            <span style={{ fontWeight: "bold" }}>
+              <span style={{ color: "black" }}>
+                <strong>(</strong>
+              </span>
+              <span style={{ color: "#007a38" }}>
+                <strong>Start Your Search</strong>
+              </span>
+              <span style={{ color: "black" }}>
+                <strong>)</strong> below to tell us what you're looking for —
+                we'll send a curated list of new construction homes in San
+                Antonio under $400K.
+              </span>
+            </span>
+          </p>
+
+          <h2>Next Steps</h2>
+          <p>
+            With prices still relatively affordable in San Antonio, homes under
+            $400K represent strong value and long-term upside. Whether you’re a
+            first-time buyer or moving up, we’ll help you compare communities,
+            incentives, and floor plans — all for free.
+          </p>
+          <p>
+            Let’s make your new home dream a reality. Get in touch today and
+            receive a handpicked list of the best new builds available now.
+          </p>
+
+          {/* FAQ Section */}
+          <h2 style={{ marginTop: "50px", fontWeight: "700" }}>

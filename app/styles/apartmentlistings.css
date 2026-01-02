@@ -1,0 +1,238 @@
+/* ================================
+   Apartment Listings Page ONLY
+   ================================ */
+
+.apartment-listings-page .search-bar select,
+.apartment-listings-page .search-bar input {
+  padding: 0.5rem;
+  font-size: 1rem;
+  flex: 1 1 200px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.apartment-listings-page .search-button {
+  background-color: #2e7d32;
+  color: white;
+  padding: 0.6rem 1.2rem;
+  border: none;
+  font-size: 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.apartment-listings-page .search-button:hover {
+  background-color: #1b5e20;
+}
+
+/* 🔒 Scoped grid — does NOT touch global .card-grid */
+.apartment-listings-page .card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 2rem;
+}
+
+/* 🔒 Scoped cards */
+.apartment-listings-page .card {
+  background-color: #ffffff;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.06);
+  transition: transform 0.3s;
+}
+
+.apartment-listings-page .card:hover {
+  transform: scale(1.03);
+}
+
+.apartment-listings-page .card img {
+  width: 100%;
+  height: 330px;
+  object-fit: cover;
+}
+
+.apartment-listings-page .card-body {
+  padding: 1rem;
+}
+
+/* 🔒 Tags */
+.apartment-listings-page .tag {
+  display: inline-block;
+  background-color: #eeeeee;
+  color: #555;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  margin-right: 0.4rem;
+  margin-bottom: 0.3rem;
+}
+
+/* Badges */
+.apartment-listings-page .promo-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background-color: #2e7d32;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  z-index: 2;
+}
+
+.apartment-listings-page .card-neighborhood {
+  font-size: 0.95rem;
+  color: #b71c1c;
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.apartment-listings-page .special-tag {
+  background-color: #e6f0ff;
+  color: #0056b3;
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.apartment-listings-page .rebate-tag {
+  background-color: #e0f7e9;
+  color: #2e7d32;
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.apartment-listings-page .move-in-special {
+  background-color: #e8f0fe;
+  color: #1a73e8;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  font-size: 0.95rem;
+  margin-top: 8px;
+}
+
+
+/* ================================
+   Search Bar Layout
+   ================================ */
+
+/* Desktop: 4 filters in a row */
+.search-bar select,
+.search-bar input {
+  flex: 1 1 calc(3rem);
+  min-width: 10px;
+}
+
+/* Mobile: stack everything */
+@media (max-width: 768px) {
+  .search-bar select,
+  .search-bar input {
+    flex: 1 1 100%;
+  }
+}
+
+/* ================================
+   Reset Filters (Primary Action)
+   ================================ */
+
+.search-bar .search-button {
+  background-color: #2e7d32;
+  color: #ffffff;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.25s ease, transform 0.15s ease;
+}
+
+.search-bar .search-button:hover {
+  background-color: #1b5e20;
+}
+
+.search-bar .search-button:active {
+  transform: translateY(1px);
+}
+
+/* ================================
+   Secondary Buttons (Neutral)
+   ================================ */
+
+.search-bar button[type="button"]:not(.search-button) {
+  background-color: #e1e1e1;   /* darker gray */
+  color: #2b2b2b;
+  border: 1px solid #bcbcbc;
+  padding: 0.55rem 1.1rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.search-bar button[type="button"]:not(.search-button):hover {
+  background-color: #d6d6d6;   /* hover darker */
+  border-color: #a9a9a9;
+}
+
+/* ================================
+   Checkbox spacing fix
+   ================================ */
+.search-bar input[type="checkbox"] {
+  margin-right: 6px;
+}
+
+.search-bar label {
+  font-size: 0.95rem;     /* slightly smaller text */
+  line-height: 1.35;
+  margin-bottom: 4px;
+}
+
+/* ================================
+   Search Bar – Mobile Tightening
+   ================================ */
+@media (max-width: 640px) {
+  .search-bar {
+    padding: 0.9rem 1rem;
+  }
+}
+
+
+/* ================================
+   Apartment Listings Grid (FIXED)
+   Restores old mobile behavior
+   ================================ */
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+
+  /* critical */
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+/* Optional: slightly tighter on very small phones */
+@media (max-width: 480px) {
+  .card-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

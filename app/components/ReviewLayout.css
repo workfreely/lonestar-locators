@@ -1,0 +1,26 @@
+.review-columns {
+  display: flex;
+  gap: 2rem;
+  align-items: flex-start;
+}
+
+.review-main {
+  flex: 2;
+}
+
+.review-sidebar {
+  flex: 1;
+  align-self: flex-start;
+}
+
+/* MOBILE STACKING */
+@media (max-width: 900px) {
+  .review-columns {
+    flex-direction: column;
+  }
+
+  .review-sidebar {
+    width: 100%;
+    margin-top: 2rem;
+  }
+}

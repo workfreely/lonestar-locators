@@ -1,0 +1,46 @@
+/* SidebarLayout.module.css */
+
+/* TWO COLUMN LAYOUT */
+.columns {
+  display: flex;
+  align-items: flex-start;
+  gap: 4rem;
+}
+
+.main {
+  flex: 1.5;
+  min-width: 300px;
+}
+
+.sidebar {
+  flex: 1;
+  min-width: 300px;
+  align-self: flex-start;
+  padding-top: 2rem;
+}
+
+/* SIDEBAR CARD DEPTH */
+.sidebar form {
+  box-shadow: 0 12px 26px rgba(0,0,0,0.06);
+  border: 1px solid rgba(0,0,0,0.04);
+  background: #ffffff;
+}
+
+/* REBATE BOX */
+.rebateBox {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.6rem;
+  text-align: center;
+}
+
+/* AGENT CARD */
+.agentCard {
+  text-align: center;
+}
+
+.agentCard img {
+  display: block;
+  margin: 0 auto 0.75rem;
+}
