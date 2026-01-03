@@ -1,0 +1,109 @@
+import BlogLayout from "@/app/components/BlogLayout";
+import AISchema from "@/app/components/AISchema";
+import JayBotWidget from "@/app/components/JayBotWidget";
+
+export const metadata = {
+  title: "Second Chance Apartments in Dallas, TX | Lone Star Locators",
+  description:
+    "Looking for second chance apartments in Dallas? We help renters with bad credit, broken leases, or past evictions find approved apartments.",
+};
+
+const DallasSecondChanceApartmentsPage = () => {
+  const title = "Second Chance Apartments in Dallas, Texas";
+
+  const keywords = [
+    "second chance apartments Dallas",
+    "bad credit apartments Dallas",
+    "broken lease apartments Dallas",
+    "eviction friendly apartments Dallas",
+    "no credit check apartments Dallas",
+    "Dallas second chance rentals",
+  ];
+
+  const faqs = [
+    {
+      question: "What are second chance apartments?",
+      answer:
+        "Second chance apartments work with renters who have credit challenges, broken leases, evictions, or limited rental history.",
+    },
+    {
+      question: "Can I get approved with bad credit in Dallas?",
+      answer:
+        "Yes. Many Dallas apartment communities offer flexible approval options depending on your income, rental history, and situation.",
+    },
+    {
+      question: "Do second chance apartments require higher deposits?",
+      answer:
+        "Some communities may require a higher deposit or additional conditions, but this varies by property.",
+    },
+    {
+      question: "How can a locator help with second chance apartments?",
+      answer:
+        "A local locator knows which properties are most lenient and can match you with apartments that fit your specific background.",
+    },
+  ];
+
+  const content = (
+    <>
+      <p>
+        Having trouble getting approved? <strong>Second chance apartments in Dallas</strong>{" "}
+        are designed for renters who need flexibility due to past credit or rental issues.
+      </p>
+
+      <p>
+        Lone Star Locators helps renters with bad credit, broken leases, evictions,
+        or limited rental history find apartments that are willing to work with
+        their situation — without judgment.
+      </p>
+
+      <h2>Who Qualifies for Second Chance Apartments?</h2>
+      <ul>
+        <li>Low or no credit history</li>
+        <li>Past evictions or broken leases</li>
+        <li>Collections or charge-offs</li>
+        <li>First-time renters with limited history</li>
+      </ul>
+
+      <h2>Why Use a Local Apartment Locator?</h2>
+      <p>
+        Approval criteria change often and are rarely advertised online. We
+        verify requirements before you apply so you don’t waste money on
+        application fees.
+      </p>
+
+      <div style={{ margin: "2.5rem 0" }}>
+        <h2>Get Help From a Local Dallas Locator</h2>
+        <p>
+          Chat with us to get a personalized list of second chance apartments
+          that fit your income, move-in date, and background.
+        </p>
+        <JayBotWidget />
+      </div>
+
+      <p>
+        Don’t let past issues stop you from moving forward.{" "}
+        <strong>We’ll help you find an apartment in Dallas that gives you a second chance.</strong>
+      </p>
+    </>
+  );
+
+  return (
+    <>
+      <AISchema city="Dallas" />
+      <BlogLayout
+        title={title}
+        content={content}
+        keywords={keywords}
+        faqs={faqs}
+        ctaType="apartment"
+        schemaType="Service"
+        address={{
+          addressLocality: "Dallas",
+          addressRegion: "TX",
+        }}
+      />
+    </>
+  );
+};
+
+export default DallasSecondChanceApartmentsPage;

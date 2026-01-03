@@ -1,12 +1,12 @@
-import ApartmentListingsDallas from "@/app/components/ApartmentListingsDallas";
+import ApartmentListingsAustin from "@/app/components/ApartmentListingsAustin";
 
 export const metadata = {
-  title: "Dallas Apartments | Lone Star Locators",
+  title: "Austin Apartments | Lone Star Locators",
   description:
-    "Browse apartments in Dallas, TX. Filter by neighborhood, price, bedrooms, and move-in specials.",
+    "Browse apartments in Austin, TX. Filter by neighborhood, price, bedrooms, and move-in specials.",
 };
 
-export default function DallasApartmentsPage() {
+export default function AustinApartmentsPage() {
   return (
     <div
       style={{
@@ -24,10 +24,10 @@ export default function DallasApartmentsPage() {
           textAlign: "left",
         }}
       >
-        Apartments in Dallas, Texas
+        Apartments in Austin, Texas
       </h1>
 
-      <ApartmentListingsDallas />
+      <ApartmentListingsAustin />
     </div>
   );
 }

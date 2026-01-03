@@ -53,17 +53,16 @@ const Footer = () => {
   title="Austin"
   links={[
     ["/austin/free-apartment-locator", "Free Apartment Locator"],
-    ["/austin/apartments/reviews", "Austin Apartment Reviews"],
-    ["/austin/neighborhoods", "Austin Neighborhoods"],
-    ["/austin/luxury-apartments", "Austin Luxury Apartments"],
-    ["/austin/events", "Austin Events"],
-    ["/austin/townhomes", "Austin Townhomes"],
-    ["/austin/penthouses", "Austin Penthouses"],
-    ["/austin/first-time-renters", "Austin First-Time Renters"],
-    ["/austin/apartment-rebates", "Austin Apt Rebates"],
-    ["/buy-new-home", "Buy New Home Austin"],
-    ["/austin/new-construction-homes", "New Construction Homes"],
-    ["/austin/second-chance-apartments", "2nd Chance Apts Austin"],
+  ["/austin/apartments/reviews", "Austin Apartment Reviews"],
+  ["/austin/neighborhoods", "Austin Neighborhoods"],
+  ["/austin/luxury-apartments", "Austin Luxury Apartments"],
+  ["/austin/events", "Austin Events"],
+  ["/austin/townhomes", "Austin Townhomes"],
+  ["/austin/penthouses", "Austin Penthouses"],
+  ["/austin/first-time-renters", "Austin First-Time Renters"],
+  ["/austin/new-construction-homes", "New Construction Homes"],
+  ["/austin/second-chance-apartments", "2nd Chance Apts Austin"],
+  ["/buy-new-home", "Buy New Home Austin"],
   ]}
   linkStyle={linkStyle}
 />
@@ -80,7 +79,6 @@ const Footer = () => {
     ["/dallas/townhomes", "Dallas Townhomes"],
     ["/dallas/penthouses", "Dallas Penthouses"],
     ["/dallas/first-time-renters", "Dallas First-Time Renters"],
-    ["/dallas/apartment-rebates", "Dallas Apt Rebates"],
     ["/buy-new-home", "Buy New Home Dallas"],
     ["/dallas/new-construction-homes", "New Construction Homes"],
     ["/dallas/second-chance-apartments", "2nd Chance Apts Dallas"],
