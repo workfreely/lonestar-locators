@@ -1,104 +1,113 @@
+"use client";
+
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
-import JayBotWidget from "@/app/components/JayBotWidget";
 
-export const metadata = {
-  title: "Second Chance Apartments in Dallas, TX | Lone Star Locators",
-  description:
-    "Looking for second chance apartments in Dallas? We help renters with bad credit, broken leases, or past evictions find approved apartments.",
-};
+const SecondChanceApartmentsSanAntonioPage = () => {
+  const title = "Second Chance Apartments in San Antonio";
 
-const DallasSecondChanceApartmentsPage = () => {
-  const title = "Second Chance Apartments in Dallas, Texas";
+  const publishDate = "";
 
   const keywords = [
-    "second chance apartments Dallas",
-    "bad credit apartments Dallas",
-    "broken lease apartments Dallas",
-    "eviction friendly apartments Dallas",
-    "no credit check apartments Dallas",
-    "Dallas second chance rentals",
+    "second chance apartments San Antonio",
+    "San Antonio second chance apartments",
+    "apartments with broken lease San Antonio",
+    "bad credit apartments San Antonio",
+    "San Antonio apartments with evictions",
+    "second chance apartment locator San Antonio",
   ];
 
   const faqs = [
     {
-      question: "What are second chance apartments?",
+      question: "What are second chance apartments in San Antonio?",
       answer:
-        "Second chance apartments work with renters who have credit challenges, broken leases, evictions, or limited rental history.",
+        "Second chance apartments are communities that may work with renters who have prior rental issues such as broken leases, evictions, or low credit, depending on the details.",
     },
     {
-      question: "Can I get approved with bad credit in Dallas?",
+      question: "Can I get approved with a broken lease in San Antonio?",
       answer:
-        "Yes. Many Dallas apartment communities offer flexible approval options depending on your income, rental history, and situation.",
+        "Yes. Some apartments will consider broken leases, especially if they are older, paid off, or explained properly. Each property has different criteria.",
     },
     {
       question: "Do second chance apartments require higher deposits?",
       answer:
-        "Some communities may require a higher deposit or additional conditions, but this varies by property.",
-    },
-    {
-      question: "How can a locator help with second chance apartments?",
-      answer:
-        "A local locator knows which properties are most lenient and can match you with apartments that fit your specific background.",
+        "Some communities may require a higher deposit or additional conditions, but many still offer reasonable approval paths with proper income verification.",
     },
   ];
 
   const content = (
     <>
       <p>
-        Having trouble getting approved? <strong>Second chance apartments in Dallas</strong>{" "}
-        are designed for renters who need flexibility due to past credit or rental issues.
+        Struggling to get approved because of past rental history? Lone Star
+        Locators specializes in helping renters find{" "}
+        <strong>second chance apartments in San Antonio</strong> that are willing
+        to review applications on a case-by-case basis.
       </p>
 
       <p>
-        Lone Star Locators helps renters with bad credit, broken leases, evictions,
-        or limited rental history find apartments that are willing to work with
-        their situation — without judgment.
+        Many renters face challenges such as broken leases, low credit scores,
+        or prior evictions. The good news is that San Antonio has apartment
+        communities that offer more flexible approval criteria when guided
+        properly.
       </p>
 
-      <h2>Who Qualifies for Second Chance Apartments?</h2>
+      <h2>Common Situations We Help With</h2>
       <ul>
-        <li>Low or no credit history</li>
-        <li>Past evictions or broken leases</li>
-        <li>Collections or charge-offs</li>
-        <li>First-time renters with limited history</li>
+        <li>Broken leases</li>
+        <li>Low or limited credit history</li>
+        <li>Evictions that are over a year old</li>
+        <li>Need for a co-signer or guarantor</li>
+        <li>Background issues that require explanation</li>
       </ul>
 
-      <h2>Why Use a Local Apartment Locator?</h2>
       <p>
-        Approval criteria change often and are rarely advertised online. We
-        verify requirements before you apply so you don’t waste money on
-        application fees.
+        Approval depends on several factors including income, time since the
+        issue, and whether any balance is owed. We help you avoid applying to
+        apartments that are unlikely to approve your situation.
       </p>
 
-      <div style={{ margin: "2.5rem 0" }}>
-        <h2>Get Help From a Local Dallas Locator</h2>
-        <p>
-          Chat with us to get a personalized list of second chance apartments
-          that fit your income, move-in date, and background.
-        </p>
-        <JayBotWidget />
-      </div>
+      <h2>Areas With Flexible Leasing Options</h2>
+      <p>
+        Second chance apartments can often be found in areas such as Alamo
+        Ranch, Stone Oak, the Medical Center, North Central San Antonio, and
+        select communities near Loop 1604.
+      </p>
+
+      <h2>How the Process Works</h2>
+      <ol>
+        <li>Share your rental and credit history with us upfront</li>
+        <li>We match you with apartments that fit your situation</li>
+        <li>Tour, apply, and move forward with confidence</li>
+      </ol>
 
       <p>
-        Don’t let past issues stop you from moving forward.{" "}
-        <strong>We’ll help you find an apartment in Dallas that gives you a second chance.</strong>
+        Our goal is to help you{" "}
+        <strong>get approved faster</strong> while saving you time and stress by
+        targeting the right properties from the start.
+      </p>
+
+      <p>
+        <strong>
+          Ready to take the next step toward a fresh start in San Antonio?
+        </strong>{" "}
+        Let us help you find a second chance apartment that works for you.
       </p>
     </>
   );
 
   return (
     <>
-      <AISchema city="Dallas" />
+      <AISchema city="San Antonio" />
       <BlogLayout
         title={title}
         content={content}
+        publishDate={publishDate}
         keywords={keywords}
         faqs={faqs}
         ctaType="apartment"
-        schemaType="Service"
+        schemaType="Article"
         address={{
-          addressLocality: "Dallas",
+          addressLocality: "San Antonio",
           addressRegion: "TX",
         }}
       />
@@ -106,4 +115,4 @@ const DallasSecondChanceApartmentsPage = () => {
   );
 };
 
-export default DallasSecondChanceApartmentsPage;
+export default SecondChanceApartmentsSanAntonioPage;

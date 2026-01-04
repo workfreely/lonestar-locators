@@ -1,110 +1,164 @@
-import BlogLayout from "@/app/components/BlogLayout";
-import AISchema from "@/app/components/AISchema";
-import JayBotWidget from "@/app/components/JayBotWidget";
+"use client";
 
-export const metadata = {
-  title: "Dallas Penthouses for Rent | Lone Star Locators",
-  description:
-    "Explore luxury penthouses for rent in Dallas, TX. High-rise views, premium finishes, and exclusive amenities with help from a free local apartment locator.",
-};
+import { useState } from "react";
+import BlogLayout from "@/app/components/BlogLayout";
 
 const DallasPenthousesPage = () => {
-  const title = "Luxury Penthouses for Rent in Dallas, Texas";
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
-  const keywords = [
-    "Dallas penthouses",
-    "penthouses for rent in Dallas",
-    "luxury penthouses Dallas",
-    "high rise penthouses Dallas",
-    "downtown Dallas penthouses",
-    "Dallas skyline apartments",
-  ];
+  const toggleAccordion = (index: number) => {
+    setActiveIndex(activeIndex === index ? null : index);
+  };
 
   const faqs = [
     {
-      question: "Where are most penthouses located in Dallas?",
+      question: "Are there affordable penthouses for rent in Dallas?",
       answer:
-        "Most Dallas penthouses are located in Downtown Dallas, Rainey Street, Seaholm District, and other high-rise neighborhoods near the city core.",
+        "Yes. While many penthouses are ultra luxury, some buildings offer smaller or more accessible penthouse layouts under $5,000 per month, especially when move in specials are available.",
     },
     {
-      question: "Are penthouses more expensive than luxury apartments?",
+      question: "Where are the best penthouses in Dallas located?",
       answer:
-        "Yes. Penthouses typically cost more due to premium views, top-floor placement, larger layouts, and upgraded finishes.",
+        "Most Dallas penthouses are located in Downtown, Uptown, and the East Quarter, offering skyline views, walkability, and access to top amenities.",
     },
     {
-      question: "Do Dallas penthouses come with private amenities?",
+      question: "Do any Dallas penthouses allow short term or corporate stays?",
       answer:
-        "Many penthouses include private balconies, floor-to-ceiling windows, upgraded appliances, and access to exclusive building amenities.",
+        "Most luxury buildings restrict short term rentals, but some allow three month or longer leases or work with corporate housing providers. We can guide you to the right options.",
     },
     {
-      question: "Can a locator help find off-market penthouses?",
+      question: "What is the difference between a penthouse and a luxury apartment?",
       answer:
-        "Yes. Some penthouse availability is not publicly listed, and a local locator can help uncover private or limited-release units.",
+        "Penthouses are typically located on the top floors and feature larger layouts, higher ceilings, premium finishes, and expansive views. Not all luxury apartments qualify as true penthouses.",
     },
   ];
 
-  const content = (
-    <>
-      <p>
-        Searching for <strong>luxury penthouses in Dallas</strong>? Penthouses
-        offer unmatched views, premium finishes, and exclusive living at the top
-        of Dallas’s most desirable high-rise buildings.
-      </p>
-
-      <p>
-        Whether you want skyline views, private terraces, or modern interiors,
-        Lone Star Locators helps renters access verified penthouse availability
-        across Downtown Dallas, Rainey Street, and surrounding luxury districts.
-      </p>
-
-      <h2>Why Choose a Penthouse in Dallas?</h2>
-      <ul>
-        <li>Top-floor privacy and panoramic views</li>
-        <li>Luxury finishes and upgraded appliances</li>
-        <li>Spacious layouts and high ceilings</li>
-        <li>Access to resort-style amenities</li>
-        <li>Prestigious locations near dining and nightlife</li>
-      </ul>
-
-      <h2>Get Help Finding Dallas Penthouses</h2>
-      <p>
-        Penthouse availability changes quickly and is often limited. We verify
-        pricing, floor plans, and move-in specials before you tour so there are
-        no surprises.
-      </p>
-
-      <div style={{ margin: "2.5rem 0" }}>
-        <h2>Chat With a Local Dallas Luxury Locator</h2>
-        <p>
-          Get personalized penthouse recommendations based on your budget,
-          preferred views, and move-in timeline.
-        </p>
-        <JayBotWidget />
-      </div>
-
-      <p>
-        Ready to experience top-floor living?{" "}
-        <strong>Let us help you find the perfect Dallas penthouse.</strong>
-      </p>
-    </>
-  );
-
   return (
-    <>
-      <AISchema city="Dallas" />
-      <BlogLayout
-        title={title}
-        content={content}
-        keywords={keywords}
-        faqs={faqs}
-        ctaType="apartment"
-        schemaType="Service"
-        address={{
-          addressLocality: "Dallas",
-          addressRegion: "TX",
-        }}
-      />
-    </>
+    <BlogLayout
+      title="Dallas Penthouses for Rent (2026) | Luxury High-Rise Living"
+      content={
+        <>
+          <p>
+            Searching for the best penthouses in Dallas? Whether you want
+            floor-to-ceiling windows, skyline views, or a private terrace, this
+            guide highlights the top penthouse residences in Dallas for 2026,
+            including luxury and more accessible options.
+          </p>
+
+          <h2>Why Rent a Penthouse in Dallas?</h2>
+          <p>
+            Penthouses offer top-tier living with more space, privacy, and
+            elevated views. In Dallas, many are located in high-rise towers
+            surrounded by dining, nightlife, and major employment hubs.
+          </p>
+
+          <div style={{ lineHeight: "1.9", marginTop: "1rem" }}>
+            <div>✅ Expansive layouts with top-floor privacy</div>
+            <div>✅ Sweeping views of the Dallas skyline</div>
+            <div>✅ High-end finishes and premium appliances</div>
+            <div>✅ Concierge services, lounges, and valet access</div>
+          </div>
+
+          <h2>Top Penthouses in Dallas</h2>
+
+          <h3>The National Residences Downtown Dallas</h3>
+          <p>
+            Sitting atop one of the city’s most iconic towers, The National
+            offers true high-rise penthouse living with soaring ceilings,
+            oversized windows, and access to hotel-style amenities including a
+            spa and rooftop pool.
+          </p>
+
+          <h3>East Quarter Residences</h3>
+          <p>
+            East Quarter penthouses feature modern industrial design, chef-style
+            kitchens, and panoramic views of Downtown and Deep Ellum. These homes
+            are ideal for renters who want luxury with a creative edge.
+          </p>
+
+          <h3>Carlisle and Vine Uptown Dallas</h3>
+          <p>
+            Located near Katy Trail and Turtle Creek, Carlisle and Vine offers
+            boutique penthouse layouts with large balconies, smart home
+            features, and spa-inspired bathrooms.
+          </p>
+
+          <h2>Preview Our Curated Dallas Penthouse List</h2>
+          <p>
+            We maintain a private list of Dallas penthouses, including
+            off-market availability, leasing incentives, and priority
+            showings not found on public apartment sites.
+          </p>
+
+          <img
+            src="https://res.cloudinary.com/dxtiguwzm/image/upload/v1758820133/luxury-apartment-locator-list-Dallas-dallas-houston-san-antonio_cfbc0q.png"
+            alt="Dallas Penthouse List Preview"
+            style={{
+              width: "100%",
+              marginBottom: "20px",
+              borderRadius: "8px",
+              border: "1px solid #ddd",
+            }}
+          />
+
+          <p style={{ fontStyle: "italic", color: "#666" }}>
+            This is a preview. Contact us to receive your personalized penthouse
+            matches with current pricing and availability.
+          </p>
+
+          <h2>What You Get When You Work With Us</h2>
+          <div style={{ lineHeight: "1.9" }}>
+            <div>✅ Custom penthouse recommendations based on your goals</div>
+            <div>✅ Access to move in incentives and preferred pricing</div>
+            <div>✅ Help scheduling private tours and negotiations</div>
+            <div>✅ Completely free service with rebates or movers after you lease</div>
+          </div>
+
+          <h2>Ready to Tour a Dallas Penthouse?</h2>
+          <p>
+            Whether you are looking Downtown or Uptown, we will help you secure
+            the right penthouse quickly and with expert guidance at no cost to
+            you.
+          </p>
+
+          <h2 style={{ marginTop: "3rem" }}>Frequently Asked Questions</h2>
+
+          <div style={{ borderTop: "1px solid #ddd", paddingTop: "15px" }}>
+            {faqs.map((faq, index) => (
+              <div key={index} style={{ marginBottom: "15px" }}>
+                <div
+                  onClick={() => toggleAccordion(index)}
+                  style={{
+                    cursor: "pointer",
+                    backgroundColor: "#f1f1f1",
+                    padding: "10px 15px",
+                    borderRadius: "5px",
+                    fontWeight: 600,
+                    color: "#004aad",
+                  }}
+                >
+                  {faq.question}
+                </div>
+
+                {activeIndex === index && (
+                  <div
+                    style={{
+                      backgroundColor: "#fafafa",
+                      padding: "10px 15px",
+                      border: "1px solid #ddd",
+                      borderTop: "none",
+                      color: "#555",
+                    }}
+                  >
+                    {faq.answer}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      }
+    />
   );
 };
 

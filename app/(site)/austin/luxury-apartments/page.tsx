@@ -3,6 +3,7 @@
 import { useState } from "react";
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
+import JayBotWidget from "@/app/components/JayBotWidget";
 
 const LuxuryApartmentsAustinPage = () => {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
@@ -15,7 +16,7 @@ const LuxuryApartmentsAustinPage = () => {
     {
       question: "What are the best luxury apartments in Austin right now?",
       answer:
-        "Broadstone North ATX, Atlas Eastside, and Sienna at the Thompson are some of the top-rated options for 2025.",
+        "Broadstone North ATX, Atlas Eastside, and Sienna at the Thompson are some of the top-rated options for 2026.",
     },
     {
       question: "Are luxury apartments in Austin pet-friendly?",
@@ -50,7 +51,7 @@ const LuxuryApartmentsAustinPage = () => {
             <p>
               Looking for the best luxury apartments in Austin? Whether you’re
               drawn to downtown high-rises, modern North Austin communities, or
-              walkable spots in East or South Austin — we’ve got you covered.
+              walkable spots in East or South Austin. We’ve got you covered.
             </p>
 
             <h2>Why Rent a Luxury Apartment in Austin?</h2>

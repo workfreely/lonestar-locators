@@ -68,14 +68,14 @@ const FreeApartmentLocatorAustin = () => {
       </p>
 
       {/* ✅ Preview Section */}
-      <h2>Preview Our Curated Luxury Apartment List (2025)</h2>
+      <h2>Get Your Free Luxury Apartment List (2026)</h2>
       <p>
         Want a full list of the best luxury apartments in Austin with the best
         move in specials? Here is a preview of what we provide to our clients.
       </p>
 
       <img
-        src="https://res.cloudinary.com/dxtiguwzm/image/upload/v1750015063/how-apartment-locating-works-select-realtor-locator_qm12ei.jpg"
+        src="https://res.cloudinary.com/dxtiguwzm/image/upload/v1758820133/luxury-apartment-locator-list-austin-dallas-houston-san-antonio_cfbc0q.png"
         alt="Curated Luxury Apartment List Austin"
         style={{
           width: "100%",
@@ -91,9 +91,9 @@ const FreeApartmentLocatorAustin = () => {
 
       {/* ✅ JayBot Section */}
       <div style={{ margin: "2.5rem 0" }}>
-        <h2>Chat With a Local Austin Apartment Locator</h2>
+        <h2>Talk With a Local Austin Apartment Locator</h2>
         <p>
-          You can chat or speak with our assistant anytime to get personalized
+          You can talk with Jay anytime to get personalized
           apartment options. Every recommendation is reviewed before you tour to
           ensure accuracy and availability.
         </p>

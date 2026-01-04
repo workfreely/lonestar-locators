@@ -1,109 +1,84 @@
 import BlogLayout from "@/app/components/BlogLayout";
-import AISchema from "@/app/components/AISchema";
-import JayBotWidget from "@/app/components/JayBotWidget";
 
-export const metadata = {
-  title: "Second Chance Apartments in Dallas, TX | Lone Star Locators",
-  description:
-    "Looking for second chance apartments in Dallas? We help renters with bad credit, broken leases, or past evictions find approved apartments.",
-};
-
-const DallasSecondChanceApartmentsPage = () => {
-  const title = "Second Chance Apartments in Dallas, Texas";
-
-  const keywords = [
-    "second chance apartments Dallas",
-    "bad credit apartments Dallas",
-    "broken lease apartments Dallas",
-    "eviction friendly apartments Dallas",
-    "no credit check apartments Dallas",
-    "Dallas second chance rentals",
-  ];
-
-  const faqs = [
-    {
-      question: "What are second chance apartments?",
-      answer:
-        "Second chance apartments work with renters who have credit challenges, broken leases, evictions, or limited rental history.",
-    },
-    {
-      question: "Can I get approved with bad credit in Dallas?",
-      answer:
-        "Yes. Many Dallas apartment communities offer flexible approval options depending on your income, rental history, and situation.",
-    },
-    {
-      question: "Do second chance apartments require higher deposits?",
-      answer:
-        "Some communities may require a higher deposit or additional conditions, but this varies by property.",
-    },
-    {
-      question: "How can a locator help with second chance apartments?",
-      answer:
-        "A local locator knows which properties are most lenient and can match you with apartments that fit your specific background.",
-    },
-  ];
+const SecondChanceApartmentsHouston = () => {
+  const title = "Second Chance Apartments in Houston";
 
   const content = (
     <>
       <p>
-        Having trouble getting approved? <strong>Second chance apartments in Dallas</strong>{" "}
-        are designed for renters who need flexibility due to past credit or rental issues.
+        If you have a broken lease, low credit, or past rental challenges,
+        you’re not alone. We specialize in helping renters find
+        <strong> second chance apartments in Houston</strong> that work with
+        unique approval situations.
       </p>
 
       <p>
-        Lone Star Locators helps renters with bad credit, broken leases, evictions,
-        or limited rental history find apartments that are willing to work with
-        their situation — without judgment.
+        Lone Star Locators partners with apartment communities across Houston
+        that review applications on a case-by-case basis. Many properties offer
+        flexible approval options depending on your income, rental history, and
+        current situation.
       </p>
 
-      <h2>Who Qualifies for Second Chance Apartments?</h2>
+      <h2>Flexible Approval Options</h2>
       <ul>
-        <li>Low or no credit history</li>
-        <li>Past evictions or broken leases</li>
-        <li>Collections or charge-offs</li>
-        <li>First-time renters with limited history</li>
+        <li>Broken leases or prior evictions (case-by-case)</li>
+        <li>Low credit scores or no credit history</li>
+        <li>Options with higher deposits or co-signers</li>
+        <li>Second chance friendly apartment communities</li>
       </ul>
 
-      <h2>Why Use a Local Apartment Locator?</h2>
+      <h2>Where We Can Help in Houston</h2>
       <p>
-        Approval criteria change often and are rarely advertised online. We
-        verify requirements before you apply so you don’t waste money on
-        application fees.
+        We help renters find second chance apartments in areas like Southwest
+        Houston, Katy, Spring Branch, East Houston, and near the Medical Center.
+        Each neighborhood offers different options depending on property
+        management and screening criteria.
       </p>
 
-      <div style={{ margin: "2.5rem 0" }}>
-        <h2>Get Help From a Local Dallas Locator</h2>
-        <p>
-          Chat with us to get a personalized list of second chance apartments
-          that fit your income, move-in date, and background.
-        </p>
-        <JayBotWidget />
-      </div>
+      <p>
+        Our licensed apartment locators guide you through the process, help you
+        avoid automatic denials, and match you with apartments that give you the
+        best chance at approval.
+      </p>
 
       <p>
-        Don’t let past issues stop you from moving forward.{" "}
-        <strong>We’ll help you find an apartment in Dallas that gives you a second chance.</strong>
+        Ready for a fresh start? Let us help you find a second chance apartment
+        in Houston — our service is always 100% free.
       </p>
     </>
   );
 
   return (
-    <>
-      <AISchema city="Dallas" />
-      <BlogLayout
-        title={title}
-        content={content}
-        keywords={keywords}
-        faqs={faqs}
-        ctaType="apartment"
-        schemaType="Service"
-        address={{
-          addressLocality: "Dallas",
-          addressRegion: "TX",
-        }}
-      />
-    </>
+    <BlogLayout
+      title={title}
+      content={content}
+      keywords={[
+        "second chance apartments Houston",
+        "Houston second chance apartments",
+        "bad credit apartments Houston",
+        "broken lease apartments Houston",
+        "Houston apartments with bad credit",
+        "second chance housing Houston",
+      ]}
+      faqs={[
+        {
+          question: "What is a second chance apartment?",
+          answer:
+            "Second chance apartments are communities that work with renters who have credit issues, broken leases, or past rental challenges on a case-by-case basis.",
+        },
+        {
+          question: "Can I get approved with a broken lease in Houston?",
+          answer:
+            "Yes, some Houston apartments work with broken leases depending on how old the balance is, the amount owed, and your current income.",
+        },
+        {
+          question: "Do second chance apartments cost more?",
+          answer:
+            "Some may require a higher deposit, but rent prices are often comparable to standard apartments depending on location and availability.",
+        },
+      ]}
+    />
   );
 };
 
-export default DallasSecondChanceApartmentsPage;
+export default SecondChanceApartmentsHouston;

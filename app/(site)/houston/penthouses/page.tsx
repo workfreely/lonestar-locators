@@ -1,111 +1,69 @@
 import BlogLayout from "@/app/components/BlogLayout";
-import AISchema from "@/app/components/AISchema";
-import JayBotWidget from "@/app/components/JayBotWidget";
 
-export const metadata = {
-  title: "Dallas Penthouses for Rent | Lone Star Locators",
-  description:
-    "Explore luxury penthouses for rent in Dallas, TX. High-rise views, premium finishes, and exclusive amenities with help from a free local apartment locator.",
-};
-
-const DallasPenthousesPage = () => {
-  const title = "Luxury Penthouses for Rent in Dallas, Texas";
-
-  const keywords = [
-    "Dallas penthouses",
-    "penthouses for rent in Dallas",
-    "luxury penthouses Dallas",
-    "high rise penthouses Dallas",
-    "downtown Dallas penthouses",
-    "Dallas skyline apartments",
-  ];
-
-  const faqs = [
-    {
-      question: "Where are most penthouses located in Dallas?",
-      answer:
-        "Most Dallas penthouses are located in Downtown Dallas, Rainey Street, Seaholm District, and other high-rise neighborhoods near the city core.",
-    },
-    {
-      question: "Are penthouses more expensive than luxury apartments?",
-      answer:
-        "Yes. Penthouses typically cost more due to premium views, top-floor placement, larger layouts, and upgraded finishes.",
-    },
-    {
-      question: "Do Dallas penthouses come with private amenities?",
-      answer:
-        "Many penthouses include private balconies, floor-to-ceiling windows, upgraded appliances, and access to exclusive building amenities.",
-    },
-    {
-      question: "Can a locator help find off-market penthouses?",
-      answer:
-        "Yes. Some penthouse availability is not publicly listed, and a local locator can help uncover private or limited-release units.",
-    },
-  ];
+const HoustonPenthouses = () => {
+  const title = "Houston Penthouses for Rent";
 
   const content = (
     <>
       <p>
-        Searching for <strong>luxury penthouses in Dallas</strong>? Penthouses
-        offer unmatched views, premium finishes, and exclusive living at the top
-        of Dallas’s most desirable high-rise buildings.
+        Experience elevated living in one of Houston’s most exclusive penthouse
+        residences. From panoramic skyline views to expansive floor plans and
+        private rooftop terraces, penthouse living offers the ultimate blend of
+        luxury, privacy, and location.
       </p>
 
       <p>
-        Whether you want skyline views, private terraces, or modern interiors,
-        Lone Star Locators helps renters access verified penthouse availability
-        across Downtown Dallas, Rainey Street, and surrounding luxury districts.
+        Houston penthouses are commonly found in Downtown, River Oaks, Uptown,
+        and the Galleria area, offering floor-to-ceiling windows, concierge
+        service, resort-style amenities, and premium finishes.
       </p>
 
-      <h2>Why Choose a Penthouse in Dallas?</h2>
-      <ul>
-        <li>Top-floor privacy and panoramic views</li>
-        <li>Luxury finishes and upgraded appliances</li>
-        <li>Spacious layouts and high ceilings</li>
-        <li>Access to resort-style amenities</li>
-        <li>Prestigious locations near dining and nightlife</li>
-      </ul>
-
-      <h2>Get Help Finding Dallas Penthouses</h2>
       <p>
-        Penthouse availability changes quickly and is often limited. We verify
-        pricing, floor plans, and move-in specials before you tour so there are
-        no surprises.
+        Lone Star Locators connects renters with top-tier penthouses across
+        Houston, including off-market units and buildings that do not advertise
+        publicly. We help you compare layouts, pricing, availability, and
+        incentives so you can tour with confidence.
       </p>
 
-      <div style={{ margin: "2.5rem 0" }}>
-        <h2>Chat With a Local Dallas Luxury Locator</h2>
-        <p>
-          Get personalized penthouse recommendations based on your budget,
-          preferred views, and move-in timeline.
-        </p>
-        <JayBotWidget />
-      </div>
-
       <p>
-        Ready to experience top-floor living?{" "}
-        <strong>Let us help you find the perfect Dallas penthouse.</strong>
+        If you are looking for high-rise living with privacy, views, and upscale
+        amenities, our team can match you with the best penthouse options in
+        Houston.
       </p>
     </>
   );
 
   return (
-    <>
-      <AISchema city="Dallas" />
-      <BlogLayout
-        title={title}
-        content={content}
-        keywords={keywords}
-        faqs={faqs}
-        ctaType="apartment"
-        schemaType="Service"
-        address={{
-          addressLocality: "Dallas",
-          addressRegion: "TX",
-        }}
-      />
-    </>
+    <BlogLayout
+      title={title}
+      content={content}
+      keywords={[
+        "Houston penthouses",
+        "Houston penthouses for rent",
+        "luxury penthouses Houston",
+        "high-rise penthouses Houston",
+        "Downtown Houston penthouses",
+        "Galleria Houston penthouses",
+      ]}
+      faqs={[
+        {
+          question: "Where are most penthouses located in Houston?",
+          answer:
+            "Most Houston penthouses are located in Downtown, Uptown, River Oaks, and the Galleria area, where high-rise luxury buildings are concentrated.",
+        },
+        {
+          question: "Are penthouses in Houston only for long-term leases?",
+          answer:
+            "Most penthouses require standard lease terms, but some buildings offer flexible or corporate leasing options depending on availability.",
+        },
+        {
+          question: "Do Houston penthouses come with private outdoor space?",
+          answer:
+            "Many penthouses feature private balconies, terraces, or rooftop access, though layouts vary by building.",
+        },
+      ]}
+    />
   );
 };
 
-export default DallasPenthousesPage;
+export default HoustonPenthouses;

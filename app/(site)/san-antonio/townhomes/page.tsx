@@ -1,108 +1,107 @@
+"use client";
+
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
-import JayBotWidget from "@/app/components/JayBotWidget";
 
-export const metadata = {
-  title: "Dallas Townhomes for Rent | Lone Star Locators",
-  description:
-    "Browse townhomes for rent in Dallas, TX. Compare layouts, pricing, and availability with help from a free local apartment locator.",
-};
+const SanAntonioTownhomesPage = () => {
+  const title = "San Antonio Townhomes for Rent";
 
-const DallasTownhomesPage = () => {
-  const title = "Townhomes for Rent in Dallas, Texas";
+  const publishDate = "";
 
   const keywords = [
-    "Dallas townhomes",
-    "townhomes for rent in Dallas",
-    "Dallas townhome rentals",
-    "Dallas townhomes near downtown",
-    "new townhomes in Dallas",
-    "pet friendly townhomes Dallas",
+    "San Antonio townhomes",
+    "townhomes for rent in San Antonio",
+    "San Antonio townhome rentals",
+    "townhomes with garages San Antonio",
+    "luxury townhomes San Antonio",
+    "San Antonio multi-level apartments",
   ];
 
   const faqs = [
     {
-      question: "Are townhomes in Dallas more expensive than apartments?",
+      question: "Are townhomes common in San Antonio?",
       answer:
-        "Townhomes in Dallas can cost more than standard apartments, but they often include more space, private entrances, garages, and fewer shared walls.",
+        "Yes. San Antonio has a wide range of townhome-style communities, especially in North Central, West Side, and near Loop 1604.",
     },
     {
-      question: "Where are most townhomes located in Dallas?",
+      question: "Do San Antonio townhomes include garages?",
       answer:
-        "Many townhomes are located in North Dallas, South Dallas, East Dallas, and suburban areas where communities allow more space and parking.",
+        "Many townhomes include attached or detached private garages, which is one of the main benefits compared to traditional apartments.",
     },
     {
-      question: "Do townhomes allow pets?",
+      question: "Are townhomes more expensive than apartments?",
       answer:
-        "Most Dallas townhome communities are pet friendly, but breed restrictions, pet rent, and deposits can vary by property.",
-    },
-    {
-      question: "Can a locator help find townhomes in Dallas?",
-      answer:
-        "Yes. A local apartment locator can help you find townhomes that are not always listed on major apartment websites.",
+        "Townhomes are often slightly higher in price due to added space and privacy, but many are competitively priced compared to luxury apartments.",
     },
   ];
 
   const content = (
     <>
       <p>
-        Looking for <strong>townhomes for rent in Dallas</strong>? Townhomes offer
-        more privacy, extra space, and a home-like feel compared to traditional
-        apartments. Lone Star Locators helps renters find verified townhome
-        communities across Dallas at no cost.
+        Searching for townhomes in San Antonio that offer more privacy and space
+        than a traditional apartment? Townhome-style rentals combine the
+        convenience of apartment living with features you’d expect from a
+        single-family home.
       </p>
 
       <p>
-        Dallas townhomes are popular for renters who want multiple floors,
-        attached garages, private yards, or fewer shared walls. These properties
-        are ideal for families, remote workers, and renters upgrading from
-        apartment living.
+        Many San Antonio townhomes include private garages, multi-level layouts,
+        and outdoor space, making them ideal for families, professionals working
+        from home, or renters who want extra room without purchasing a home.
       </p>
 
-      <h2>Why Rent a Townhome in Dallas?</h2>
+      <h2>Why Rent a Townhome in San Antonio?</h2>
       <ul>
-        <li>More space than standard apartments</li>
-        <li>Private entrances and garages</li>
-        <li>Pet-friendly layouts with yards</li>
-        <li>Quieter living with fewer neighbors</li>
-        <li>Modern finishes and multi-level designs</li>
+        <li>More space and privacy than standard apartments</li>
+        <li>Attached or private garages</li>
+        <li>Multi-level floor plans</li>
+        <li>Ideal for families, roommates, or remote workers</li>
+        <li>Often located in quieter residential areas</li>
       </ul>
 
-      <h2>Get Help Finding Dallas Townhomes</h2>
+      <h2>Popular Areas for Townhomes in San Antonio</h2>
       <p>
-        Not all townhomes are listed online. We work directly with communities
-        and property managers to verify availability, pricing, and move-in
-        specials before you tour.
+        Townhomes are commonly found in North Central San Antonio, Stone Oak,
+        Alamo Ranch, Medical Center areas, and along Loop 1604. Availability
+        varies by neighborhood and budget.
       </p>
 
-      <div style={{ margin: "2.5rem 0" }}>
-        <h2>Chat With a Local Dallas Locator</h2>
-        <p>
-          Get personalized townhome recommendations based on your budget,
-          location, and move-in timeline.
-        </p>
-        <JayBotWidget />
-      </div>
+      <h2>How We Help You Find the Right Townhome</h2>
+      <ul>
+        <li>Personalized list of available townhomes</li>
+        <li>Access to move-in specials and cash rebates</li>
+        <li>Help comparing neighborhoods and layouts</li>
+        <li>Direct scheduling for tours and applications</li>
+        <li>Free representation from start to finish</li>
+      </ul>
 
       <p>
-        Ready to explore townhomes in Dallas?{" "}
-        <strong>Let us help you find the right fit.</strong>
+        If you want the comfort of a home without the commitment of buying, a
+        townhome rental in San Antonio may be the perfect fit.
+      </p>
+
+      <p>
+        <strong>
+          Ready to explore available townhomes in San Antonio?
+        </strong>{" "}
+        Let us help you find the right match.
       </p>
     </>
   );
 
   return (
     <>
-      <AISchema city="Dallas" />
+      <AISchema city="San Antonio" />
       <BlogLayout
         title={title}
         content={content}
+        publishDate={publishDate}
         keywords={keywords}
         faqs={faqs}
         ctaType="apartment"
-        schemaType="Service"
+        schemaType="Article"
         address={{
-          addressLocality: "Dallas",
+          addressLocality: "San Antonio",
           addressRegion: "TX",
         }}
       />
@@ -110,4 +109,4 @@ const DallasTownhomesPage = () => {
   );
 };
 
-export default DallasTownhomesPage;
+export default SanAntonioTownhomesPage;

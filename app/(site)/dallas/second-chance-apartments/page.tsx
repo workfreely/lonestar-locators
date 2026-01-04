@@ -1,109 +1,83 @@
 import BlogLayout from "@/app/components/BlogLayout";
-import AISchema from "@/app/components/AISchema";
-import JayBotWidget from "@/app/components/JayBotWidget";
-
-export const metadata = {
-  title: "Second Chance Apartments in Dallas, TX | Lone Star Locators",
-  description:
-    "Looking for second chance apartments in Dallas? We help renters with bad credit, broken leases, or past evictions find approved apartments.",
-};
 
 const DallasSecondChanceApartmentsPage = () => {
-  const title = "Second Chance Apartments in Dallas, Texas";
+  const title = "Second-Chance Apartments in Dallas (2026)";
 
-  const keywords = [
-    "second chance apartments Dallas",
-    "bad credit apartments Dallas",
-    "broken lease apartments Dallas",
-    "eviction friendly apartments Dallas",
-    "no credit check apartments Dallas",
-    "Dallas second chance rentals",
-  ];
+  const content = (
+    <div>
+      <p>
+        Looking for second-chance apartments in Dallas? You are not alone.
+        Whether you are dealing with bad credit, a broken lease, an eviction, or
+        other rental challenges, there are still options available.
+      </p>
+
+      <p>
+        At <strong>Lone Star Locators</strong>, we specialize in helping renters
+        get approved even when their rental history is not perfect. Dallas has
+        many apartment communities that work with second-chance applicants,
+        especially when you are guided by a licensed apartment locator.
+      </p>
+
+      <h2>Who Qualifies for Second-Chance Apartments in Dallas?</h2>
+      <ul style={{ listStyle: "none", paddingLeft: 0, lineHeight: "1.9" }}>
+        <li>Bad credit or low credit scores</li>
+        <li>Broken lease or eviction more than one to two years old</li>
+        <li>Need for a co-signer or higher deposit</li>
+        <li>Background issues that require explanation</li>
+      </ul>
+
+      <p>
+        Every situation is different. Some communities are more flexible based
+        on how old the issue is or whether there is a balance owed. We focus on
+        matching you with properties that give you the strongest chance of
+        approval.
+      </p>
+
+      <h2>How the Process Works</h2>
+      <ol style={{ lineHeight: "1.9" }}>
+        <li>Share your rental background with us privately</li>
+        <li>Receive a curated list of Dallas apartments with flexible criteria</li>
+        <li>Tour, apply, and move in with confidence</li>
+      </ol>
+
+      <p>
+        Many of our clients also qualify for move-in specials, rebates, or free
+        movers after leasing through us.
+      </p>
+
+      <h2>Get a Fresh Start in Dallas</h2>
+      <p>
+        Past rental challenges do not have to define your future. If you are
+        ready to move forward, we can help you secure a second-chance apartment
+        in Dallas and start your next chapter with confidence.
+      </p>
+    </div>
+  );
 
   const faqs = [
     {
-      question: "What are second chance apartments?",
+      question: "What is a second-chance apartment?",
       answer:
-        "Second chance apartments work with renters who have credit challenges, broken leases, evictions, or limited rental history.",
+        "Second-chance apartments are communities that work with renters who have credit issues, past evictions, or broken leases, often with additional conditions such as higher deposits.",
     },
     {
       question: "Can I get approved with bad credit in Dallas?",
       answer:
-        "Yes. Many Dallas apartment communities offer flexible approval options depending on your income, rental history, and situation.",
+        "Yes. Many Dallas apartments are flexible with credit when other factors like income, rental history, or a co-signer are strong.",
     },
     {
-      question: "Do second chance apartments require higher deposits?",
+      question: "Do second-chance apartments cost more?",
       answer:
-        "Some communities may require a higher deposit or additional conditions, but this varies by property.",
+        "Not always. Some may require higher deposits, but rent prices are often comparable to standard apartments.",
     },
     {
-      question: "How can a locator help with second chance apartments?",
+      question: "Is your apartment locating service free?",
       answer:
-        "A local locator knows which properties are most lenient and can match you with apartments that fit your specific background.",
+        "Yes. Our service is completely free to renters and often includes access to specials or rebates.",
     },
   ];
 
-  const content = (
-    <>
-      <p>
-        Having trouble getting approved? <strong>Second chance apartments in Dallas</strong>{" "}
-        are designed for renters who need flexibility due to past credit or rental issues.
-      </p>
-
-      <p>
-        Lone Star Locators helps renters with bad credit, broken leases, evictions,
-        or limited rental history find apartments that are willing to work with
-        their situation — without judgment.
-      </p>
-
-      <h2>Who Qualifies for Second Chance Apartments?</h2>
-      <ul>
-        <li>Low or no credit history</li>
-        <li>Past evictions or broken leases</li>
-        <li>Collections or charge-offs</li>
-        <li>First-time renters with limited history</li>
-      </ul>
-
-      <h2>Why Use a Local Apartment Locator?</h2>
-      <p>
-        Approval criteria change often and are rarely advertised online. We
-        verify requirements before you apply so you don’t waste money on
-        application fees.
-      </p>
-
-      <div style={{ margin: "2.5rem 0" }}>
-        <h2>Get Help From a Local Dallas Locator</h2>
-        <p>
-          Chat with us to get a personalized list of second chance apartments
-          that fit your income, move-in date, and background.
-        </p>
-        <JayBotWidget />
-      </div>
-
-      <p>
-        Don’t let past issues stop you from moving forward.{" "}
-        <strong>We’ll help you find an apartment in Dallas that gives you a second chance.</strong>
-      </p>
-    </>
-  );
-
-  return (
-    <>
-      <AISchema city="Dallas" />
-      <BlogLayout
-        title={title}
-        content={content}
-        keywords={keywords}
-        faqs={faqs}
-        ctaType="apartment"
-        schemaType="Service"
-        address={{
-          addressLocality: "Dallas",
-          addressRegion: "TX",
-        }}
-      />
-    </>
-  );
+  return <BlogLayout title={title} content={content} faqs={faqs} />;
 };
 
 export default DallasSecondChanceApartmentsPage;

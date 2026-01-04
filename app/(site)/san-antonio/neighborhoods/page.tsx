@@ -1,132 +1,180 @@
 import BlogLayout from "@/app/components/BlogLayout";
+import AISchema from "@/app/components/AISchema";
 
-export const metadata = {
-  title: "Dallas Neighborhoods Map & Guide",
-  description:
-    "Explore Dallas neighborhoods with an interactive map and in-depth guides to Downtown, East Dallas, South Congress, The Domain, Zilker, and more.",
-};
+const SanAntonioNeighborhoodsPage = () => {
+  const title = "San Antonio Neighborhoods Map & Guide";
 
-const DallasNeighborhoodsPage = () => {
   const content = (
     <div>
       <p>
-        Dallas is one of the most diverse and rapidly growing cities in Texas.
-        Whether you’re relocating for work, school, or just a change of scenery,
-        knowing which neighborhood fits your lifestyle is key. In this guide, we
-        break down Dallas’s top neighborhoods and embed a custom interactive map
-        to help you visualize each area.
+        San Antonio is a vibrant city shaped by history, culture, and rapid
+        growth. From the iconic River Walk to quiet, family-friendly suburbs,
+        there’s a neighborhood here for every lifestyle. Use this guide and
+        interactive map to explore the best areas across the city.
       </p>
 
       <div style={{ margin: "40px 0" }}>
         <iframe
-          src="https://www.google.com/maps/d/u/0/embed?mid=1lZDH2sWuzNjSbmHTO0znwdeQGMa1aBI&ehbc=2E312F&noprof=1"
+          src="https://www.google.com/maps/d/u/0/embed?mid=1CPI42z6JgvySuzbhmAvVN7g9zPm4E4k&ehbc=2E312F&noprof=1"
           width="100%"
           height="480"
           style={{ border: 0 }}
           loading="lazy"
+          title="San Antonio Neighborhood Map"
         ></iframe>
       </div>
 
-      <h2>Popular Dallas Neighborhoods</h2>
+      <h2>Popular San Antonio Neighborhoods</h2>
 
-      <h3>Downtown Dallas</h3>
+      <h3>Downtown / River Walk</h3>
       <p>
-        Downtown Dallas is the heart of the city, offering high-rise living,
-        luxury apartments, rooftop pools, nightlife, and immediate access to
-        Lady Bird Lake and the hike-and-bike trail.
+        Downtown San Antonio is anchored by the world-famous River Walk and
+        offers walkable access to restaurants, nightlife, museums, and major
+        events like Fiesta. Apartments here range from historic lofts to modern
+        luxury towers.
       </p>
 
-      <h3>South Congress (SoCo)</h3>
+      <h3>King William</h3>
       <p>
-        Known for vintage shops, trendy restaurants, and walkability, SoCo is
-        ideal for creatives, couples, and anyone who loves Dallas’s culture.
+        Located just south of downtown, King William is known for its historic
+        Victorian homes, art galleries, and strong community vibe. It’s highly
+        walkable and popular with creatives and professionals.
       </p>
 
-      <h3>East Dallas</h3>
+      <h3>Southtown / South Alamo Heights</h3>
       <p>
-        East Dallas blends historic roots with modern growth, featuring
-        breweries, murals, nightlife, and a strong creative scene.
+        Southtown features murals, galleries, coffee shops, and an arts-forward
+        culture. South Alamo Heights is slightly quieter and residential while
+        still offering quick access to central San Antonio.
       </p>
 
-      <h3>Mueller</h3>
+      <h3>Stone Oak / North Central San Antonio</h3>
       <p>
-        A master-planned community offering parks, trails, a farmers market,
-        and family-friendly living just northeast of downtown.
+        Stone Oak is a master-planned area with newer apartments, top-rated
+        schools, shopping centers, and easy access to Loop 1604. It’s a top
+        choice for families and professionals seeking suburban comfort.
       </p>
 
-      <h3>The Domain / North Dallas</h3>
+      <h3>Tobin Hill / Olmos Park</h3>
       <p>
-        A live-work-play district with luxury apartments, shopping, dining, and
-        proximity to major tech employers.
+        Tobin Hill sits just north of the Pearl District and offers a mix of
+        historic homes and modern apartments. Olmos Park provides tree-lined
+        streets and quick access to Olmos Basin Park and downtown.
       </p>
 
-      <h3>Zilker</h3>
+      <h3>The Pearl District</h3>
       <p>
-        Home to Barton Springs Pool and Zilker Park, this area offers outdoor
-        recreation and quick access to festivals like ACL.
+        The Pearl is one of San Antonio’s most desirable neighborhoods, offering
+        upscale apartments, chef-driven restaurants, and a lively riverfront
+        atmosphere. It’s ideal for walkable, modern living.
       </p>
 
-      <h3>Westlake</h3>
+      <h3>Alamo Heights</h3>
       <p>
-        A prestigious area with top-rated schools, large homes, and scenic Hill
-        Country views just west of downtown.
+        Alamo Heights is a centrally located enclave known for excellent
+        schools, quiet streets, and local dining. It’s popular with families
+        seeking a strong community feel.
       </p>
 
-      <h3>Barton Creek</h3>
+      <h3>Castle Hills</h3>
       <p>
-        Luxury living near golf courses, nature trails, and Barton Creek
-        Greenbelt with easy city access.
+        Castle Hills features mid-century homes, golf courses, large yards, and
+        mature trees. It’s a well-established neighborhood with easy access to
+        major highways and schools.
       </p>
 
-      <h3>North Loop</h3>
+      <h3>Medical Center Area</h3>
       <p>
-        A retro, creative neighborhood with dive bars, vintage shops, and more
-        affordable rents than downtown.
+        Near UT Health and major hospitals, this area offers a wide range of
+        apartments for students, medical professionals, and families. It’s
+        highly accessible via I-10 and Loop 410.
       </p>
 
-      <h3>Riverside</h3>
+      <h3>Alamo Ranch / West Side</h3>
       <p>
-        Affordable apartments along Lady Bird Lake popular with UT students and
-        renters who want downtown proximity.
+        Alamo Ranch is one of the fastest-growing areas in San Antonio, offering
+        newer homes, affordable apartments, and expanding retail options. It’s
+        a strong choice for value-focused renters.
+      </p>
+
+      <h2>How to Choose the Right San Antonio Neighborhood</h2>
+      <ul style={{ listStyle: "none", paddingLeft: 0 }}>
+        <li>Commute distance to work, school, or military bases</li>
+        <li>Access to I-10, I-35, Loop 1604, and Hwy 281</li>
+        <li>Walkable urban living vs quiet suburban areas</li>
+        <li>Schools, parks, and family amenities</li>
+        <li>Budget, lease terms, and credit flexibility</li>
+      </ul>
+
+      <h2>Walkable Areas in San Antonio</h2>
+      <ul style={{ listStyle: "none", paddingLeft: 0 }}>
+        <li>Downtown / River Walk</li>
+        <li>King William</li>
+        <li>The Pearl District</li>
+        <li>Southtown / Tobin Hill</li>
+      </ul>
+
+      <h2>Luxury vs Second-Chance Friendly Areas</h2>
+      <p>
+        Luxury renters often gravitate toward Downtown, the Pearl, and Stone
+        Oak. Renters needing more flexible approval options may find better
+        opportunities in Alamo Ranch, the Medical Center area, and parts of the
+        West and South Side.
+      </p>
+
+      <h2>Need Help Choosing?</h2>
+      <p>
+        San Antonio is large and diverse. Our licensed apartment locators help
+        match you with neighborhoods and apartments that fit your budget,
+        lifestyle, and rental history — completely free.
       </p>
     </div>
   );
 
   const faqs = [
     {
-      question: "What are the best neighborhoods in Dallas for young adults?",
+      question: "Which San Antonio neighborhoods are the most walkable?",
       answer:
-        "Popular areas include Downtown, East Dallas, and South Congress for walkability, nightlife, and modern apartments.",
+        "Downtown, King William, the Pearl District, and Southtown are the most walkable areas with dining, entertainment, and river access.",
     },
     {
-      question: "What neighborhoods in Dallas are close to the Riverwalk?",
+      question: "Are Stone Oak schools highly rated?",
       answer:
-        "Downtown Dallas borders Lady Bird Lake and features a scenic hike-and-bike trail similar to a riverwalk.",
+        "Yes. Stone Oak is served by North East ISD, one of the highest-rated school districts in the San Antonio area.",
     },
     {
-      question: "Are there affordable neighborhoods near downtown Dallas?",
+      question: "Can I find second-chance apartments in San Antonio?",
       answer:
-        "Yes — Riverside and parts of East Dallas offer more affordable rent while staying close to downtown.",
+        "Yes. Areas like Alamo Ranch, the Medical Center, and parts of the South Side often offer more flexible leasing options.",
     },
     {
-      question: "What Dallas neighborhoods should I avoid?",
+      question: "Is downtown San Antonio expensive to rent?",
       answer:
-        "Every area has pros and cons, but parts of Rundberg and far southeast Dallas may have higher crime rates. Always check local crime maps.",
+        "Downtown rents tend to be higher due to location and amenities, while suburban areas like Alamo Ranch and Castle Hills offer more affordable options.",
     },
     {
-      question: "Where can I find luxury apartments in Dallas?",
+      question: "Which neighborhoods are best for families?",
       answer:
-        "Luxury apartments are common in Downtown, The Domain, Barton Creek, and Westlake.",
+        "Stone Oak, Alamo Heights, Castle Hills, and parts of the North and West Side are popular with families due to schools and parks.",
     },
   ];
 
   return (
-    <BlogLayout
-      title="Dallas Neighborhoods Map & Guide"
-      content={content}
-      faqs={faqs}
-    />
+    <>
+      <AISchema city="San Antonio" />
+      <BlogLayout
+        title={title}
+        content={content}
+        faqs={faqs}
+        ctaType="apartment"
+        schemaType="Article"
+        address={{
+          addressLocality: "San Antonio",
+          addressRegion: "TX",
+        }}
+      />
+    </>
   );
 };
 
-export default DallasNeighborhoodsPage;
+export default SanAntonioNeighborhoodsPage;

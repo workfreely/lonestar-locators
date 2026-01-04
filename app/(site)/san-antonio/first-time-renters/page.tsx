@@ -1,66 +1,67 @@
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
 
-const DallasFirstTimeRentersPage = () => {
-  const title = "First-Time Renters in Dallas";
+const SanAntonioFirstTimeRentersPage = () => {
+  const title = "First-Time Renters in San Antonio";
 
   const publishDate = "";
 
   const keywords = [
-    "first time renters Dallas",
-    "renting for the first time in Dallas",
-    "Dallas apartment guide",
-    "Dallas rental requirements",
-    "Dallas apartment locator for first time renters",
+    "first time renters San Antonio",
+    "renting for the first time in San Antonio",
+    "San Antonio apartment guide",
+    "San Antonio rental requirements",
+    "San Antonio apartment locator for first time renters",
   ];
 
   const faqs = [
     {
-      question: "Is renting your first apartment in Dallas difficult?",
+      question: "Is renting your first apartment in San Antonio difficult?",
       answer:
-        "It can be confusing without guidance, but working with a local apartment locator makes the process much easier and avoids common mistakes.",
+        "It can feel overwhelming without guidance, but working with a local apartment locator helps first-time renters avoid common mistakes and navigate the process with confidence.",
     },
     {
-      question: "Do first-time renters need good credit in Dallas?",
+      question: "Do first-time renters need good credit in San Antonio?",
       answer:
-        "Not always. Some Dallas apartments offer flexible approval options depending on income, rental history, or guarantors.",
+        "Not always. Many San Antonio apartments offer flexible approval options based on income, employment, rental history, or the use of a guarantor.",
     },
   ];
 
   const content = (
     <>
       <p>
-        Renting your first apartment in Dallas can feel overwhelming, especially
-        with different neighborhoods, pricing ranges, and lease requirements.
-        Our local team helps first-time renters navigate the process with
-        confidence.
+        Renting your first apartment in San Antonio can feel overwhelming,
+        especially with different neighborhoods, pricing ranges, and lease
+        requirements. Our local team helps first-time renters understand the
+        process and find apartments that fit their budget and lifestyle.
       </p>
 
       <p>
-        From understanding application requirements to choosing the right area,
-        we walk you through every step so you can avoid costly mistakes and find
-        a place that fits your budget and lifestyle.
+        From Downtown and the Pearl area to the Medical Center, Stone Oak,
+        Northwest San Antonio, and surrounding neighborhoods, we help you
+        understand which areas and properties are most friendly for first-time
+        renters.
       </p>
 
       <h2>How We Help First-Time Renters</h2>
       <ul>
-        <li>Explain credit and income requirements</li>
-        <li>Match you with beginner-friendly apartments</li>
+        <li>Explain income, credit, and approval requirements</li>
+        <li>Match you with first-time renter-friendly apartments</li>
         <li>Help compare neighborhoods and commute times</li>
-        <li>Guide you from tour to lease signing</li>
+        <li>Guide you from tours through lease signing</li>
       </ul>
 
       <p>
-        If this is your first time renting in Dallas, having a licensed local
-        apartment locator on your side makes the process smoother and stress
-        free.
+        If this is your first time renting in San Antonio, having a licensed
+        local apartment locator on your side makes the process smoother, less
+        stressful, and completely free.
       </p>
     </>
   );
 
   return (
     <>
-      <AISchema city="Dallas" />
+      <AISchema city="San Antonio" />
       <BlogLayout
         title={title}
         content={content}
@@ -70,7 +71,7 @@ const DallasFirstTimeRentersPage = () => {
         ctaType="apartment"
         schemaType="Article"
         address={{
-          addressLocality: "Dallas",
+          addressLocality: "San Antonio",
           addressRegion: "TX",
         }}
       />
@@ -78,4 +79,4 @@ const DallasFirstTimeRentersPage = () => {
   );
 };
 
-export default DallasFirstTimeRentersPage;
+export default SanAntonioFirstTimeRentersPage;

@@ -1,4 +1,3 @@
-import React from "react";
 import { FaTag } from "react-icons/fa";
 import Link from "next/link";
 
@@ -27,11 +26,10 @@ interface ListingCardProps {
 
 const ListingCard: React.FC<ListingCardProps> = ({ listing, defaultImage }) => {
  return (
-   <a
- href={`/${listing.city_slug}/apartments/${listing.slug}`}
- style={{ textDecoration: "none", color: "inherit" }}
+  <Link
+href={`/${listing.city_slug ?? "austin"}/apartments/${listing.slug}`}
+  style={{ textDecoration: "none", color: "inherit" }}
 >
-
 
      <div
        className="card"
@@ -218,7 +216,7 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, defaultImage }) => {
          )}
        </div>
      </div>
-   </a>
+  </Link>
  );
 };
 

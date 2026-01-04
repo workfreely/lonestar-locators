@@ -1,106 +1,108 @@
+"use client";
+
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
-import JayBotWidget from "@/app/components/JayBotWidget";
 
-export const metadata = {
-  title: "Dallas Penthouses for Rent | Lone Star Locators",
-  description:
-    "Explore luxury penthouses for rent in Dallas, TX. High-rise views, premium finishes, and exclusive amenities with help from a free local apartment locator.",
-};
+const SanAntonioPenthousesPage = () => {
+  const title = "San Antonio Penthouses";
 
-const DallasPenthousesPage = () => {
-  const title = "Luxury Penthouses for Rent in Dallas, Texas";
+  const publishDate = "";
 
   const keywords = [
-    "Dallas penthouses",
-    "penthouses for rent in Dallas",
-    "luxury penthouses Dallas",
-    "high rise penthouses Dallas",
-    "downtown Dallas penthouses",
-    "Dallas skyline apartments",
+    "San Antonio penthouses",
+    "penthouses in San Antonio",
+    "San Antonio luxury penthouses",
+    "downtown San Antonio penthouse",
+    "San Antonio high-rise penthouse",
+    "luxury apartments San Antonio penthouse",
   ];
 
   const faqs = [
     {
-      question: "Where are most penthouses located in Dallas?",
+      question: "Are there true penthouses in San Antonio?",
       answer:
-        "Most Dallas penthouses are located in Downtown Dallas, Rainey Street, Seaholm District, and other high-rise neighborhoods near the city core.",
+        "Yes. San Antonio has a limited number of true penthouse residences, primarily in downtown high-rise buildings offering top-floor layouts and premium views.",
     },
     {
-      question: "Are penthouses more expensive than luxury apartments?",
+      question: "Where are most penthouses located in San Antonio?",
       answer:
-        "Yes. Penthouses typically cost more due to premium views, top-floor placement, larger layouts, and upgraded finishes.",
+        "Most penthouses are located in Downtown San Antonio and near The Pearl, with select luxury buildings offering penthouse-style residences.",
     },
     {
-      question: "Do Dallas penthouses come with private amenities?",
+      question: "Do penthouses in San Antonio come with move-in specials?",
       answer:
-        "Many penthouses include private balconies, floor-to-ceiling windows, upgraded appliances, and access to exclusive building amenities.",
-    },
-    {
-      question: "Can a locator help find off-market penthouses?",
-      answer:
-        "Yes. Some penthouse availability is not publicly listed, and a local locator can help uncover private or limited-release units.",
+        "Sometimes. Depending on availability and timing, penthouses may offer lease incentives, rent specials, or cash rebates through a locator.",
     },
   ];
 
   const content = (
     <>
       <p>
-        Searching for <strong>luxury penthouses in Dallas</strong>? Penthouses
-        offer unmatched views, premium finishes, and exclusive living at the top
-        of Dallas’s most desirable high-rise buildings.
+        Elevate your lifestyle with a luxury penthouse in San Antonio. These
+        top-floor residences offer sweeping skyline views, high ceilings, and
+        premium finishes designed for elevated living.
       </p>
 
       <p>
-        Whether you want skyline views, private terraces, or modern interiors,
-        Lone Star Locators helps renters access verified penthouse availability
-        across Downtown Dallas, Rainey Street, and surrounding luxury districts.
+        While penthouses in San Antonio are more limited compared to larger
+        metro cities, there are exclusive opportunities in downtown high-rise
+        buildings and select luxury communities near The Pearl and Alamo
+        Heights.
       </p>
 
-      <h2>Why Choose a Penthouse in Dallas?</h2>
+      <h2>What Defines a San Antonio Penthouse?</h2>
       <ul>
-        <li>Top-floor privacy and panoramic views</li>
-        <li>Luxury finishes and upgraded appliances</li>
-        <li>Spacious layouts and high ceilings</li>
-        <li>Access to resort-style amenities</li>
-        <li>Prestigious locations near dining and nightlife</li>
+        <li>Top-floor or corner residences</li>
+        <li>Panoramic skyline or River Walk views</li>
+        <li>High ceilings and expansive layouts</li>
+        <li>Luxury kitchens and designer finishes</li>
+        <li>Private terraces or oversized balconies</li>
       </ul>
 
-      <h2>Get Help Finding Dallas Penthouses</h2>
+      <h2>Where to Find Penthouses in San Antonio</h2>
       <p>
-        Penthouse availability changes quickly and is often limited. We verify
-        pricing, floor plans, and move-in specials before you tour so there are
-        no surprises.
+        Most penthouse options are located in Downtown San Antonio, with a small
+        number of luxury residences near The Pearl District. Availability
+        changes frequently, and many units are never publicly listed.
       </p>
 
-      <div style={{ margin: "2.5rem 0" }}>
-        <h2>Chat With a Local Dallas Luxury Locator</h2>
-        <p>
-          Get personalized penthouse recommendations based on your budget,
-          preferred views, and move-in timeline.
-        </p>
-        <JayBotWidget />
-      </div>
+      <h2>How We Help You Secure a Penthouse</h2>
+      <ul>
+        <li>Access to off-market and limited-availability penthouses</li>
+        <li>Direct contact with leasing and management teams</li>
+        <li>Verification of views, floor plans, and availability</li>
+        <li>Help securing move-in specials or cash rebates</li>
+        <li>Free representation from search to lease signing</li>
+      </ul>
 
       <p>
-        Ready to experience top-floor living?{" "}
-        <strong>Let us help you find the perfect Dallas penthouse.</strong>
+        If you’re looking for a penthouse in San Antonio, working with a local
+        apartment locator gives you access to exclusive inventory and saves you
+        time navigating limited availability.
+      </p>
+
+      <p>
+        <strong>
+          Ready to explore available penthouses in San Antonio?
+        </strong>{" "}
+        Let us help you find the right fit.
       </p>
     </>
   );
 
   return (
     <>
-      <AISchema city="Dallas" />
+      <AISchema city="San Antonio" />
       <BlogLayout
         title={title}
         content={content}
+        publishDate={publishDate}
         keywords={keywords}
         faqs={faqs}
         ctaType="apartment"
-        schemaType="Service"
+        schemaType="Article"
         address={{
-          addressLocality: "Dallas",
+          addressLocality: "San Antonio",
           addressRegion: "TX",
         }}
       />
@@ -108,4 +110,4 @@ const DallasPenthousesPage = () => {
   );
 };
 
-export default DallasPenthousesPage;
+export default SanAntonioPenthousesPage;
