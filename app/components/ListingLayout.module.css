@@ -9,7 +9,7 @@
 .listingLayout {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 1rem; /* ⬅️ reduce TOP padding only */
+ padding: 0.75rem 1rem 2rem;
   font-family: "Inter", sans-serif;
 }
 

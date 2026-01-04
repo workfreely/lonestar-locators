@@ -151,11 +151,10 @@ const ListingLayout: FC<ListingLayoutProps> = ({
  }`;
 
 
- const autoReviewLink = publishedReviews.includes(generatedSlug)
- ? `/${city_slug}/apartments/reviews/${generatedSlug}`
- : null;
-
-
+// ✅ Supabase-driven review link (single source of truth)
+const autoReviewLink = review_link
+  ? `/${city_slug}/apartments/reviews/${review_link}`
+  : null;
 
 
  // ✅ Force the CTA to use auto link if no manual override exists

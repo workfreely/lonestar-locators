@@ -119,7 +119,7 @@ export default function ApartmentReviewsHouston() {
       setLoading(true);
 
       const { data, error } = await supabase
-        .from("houston_listings")
+        .from("houston_reviews")
         .select("*")
         .order("created_at", { ascending: false });
 
@@ -433,21 +433,22 @@ if (propertyType && propertyType !== "Open to All") {
 
 
       <div className="card-grid">
-        {filteredListings.map((listing, index) => (
-          <ReviewCard
-            key={index}
-            review={{
-              name: listing.name,
-              slug: listing.slug,
-              city_slug: "houston",
-              neighborhood: listing.neighborhood,
-              image: listing.image,
-              property_type: listing.property_type || "",
-            }}
-            defaultImage={defaultImage}
-          />
-        ))}
-      </div>
+  {filteredListings.map((listing) => (
+    <ReviewCard
+      key={listing.id}
+      review={{
+        name: listing.property_name,
+        slug: listing.slug,
+        city_slug: "houston",
+        neighborhood: listing.neighborhood,
+        image: listing.hero_image_url,
+        property_type: listing.review_type,
+      }}
+      defaultImage={defaultImage}
+    />
+  ))}
+</div>
+
     </div>
   );
 }

@@ -114,9 +114,17 @@ export default function ApartmentReviewsSanAntonio() {
 
         // ✅ Fetch all San Antonio listings
         const { data, error } = await supabase
-          .from("san_antonio_listings")
-          .select("*")
-          .order("created_at", { ascending: false });
+          .from("san_antonio_reviews")
+.select(`
+  id,
+  slug,
+  property_name,
+  neighborhood,
+  hero_image_url,
+  review_type
+`)
+.order("published_at", { ascending: false });
+
 
         // 🪵 Log fetch result
         console.log("✅ Fetched listings:", data, error);
@@ -532,19 +540,18 @@ if (propertyType && propertyType !== "Open to All") {
       <div className="card-grid">
   {filteredListings.map((listing, index) => (
     <ReviewCard
-      key={index}
-      review={{
-        name: listing.name,
-        slug: listing.slug,
-        city_slug: "san-antonio",
-        review_link: listing.review_link,
-        neighborhood: listing.neighborhood,
-        image: listing.image,
-        property_type: listing.property_type || "", // ✅ add this line
-        review_link: listing.review_link || null, // ✅ ADD THIS LINE
-      }}
-      defaultImage={defaultImage}
-    />
+  key={listing.id}
+  review={{
+    name: listing.property_name,
+    slug: listing.slug,
+    city_slug: "san-antonio",
+    neighborhood: listing.neighborhood,
+    image: listing.hero_image_url,      // ✅ review image
+    property_type: listing.review_type, // ✅ preserves filtering
+  }}
+  defaultImage={defaultImage}
+/>
+
   ))}
 </div>
 

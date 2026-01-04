@@ -8,7 +8,7 @@ import Image from "next/image";
 
 
 const BlogCard = ({
-  title,
+  title, 
   imageUrl,
   excerpt,
   tags = [],
@@ -85,14 +85,7 @@ const getOptimizedImage = (url?: string) => {
         >
          {/* Image */}
 <img
-  src={
-    typeof imageUrl === "string" &&
-    imageUrl.trim() !== "" &&
-    imageUrl !== "null" &&
-    imageUrl !== "undefined"
-      ? imageUrl
-      : placeholderImage
-  }
+  src={getOptimizedImage(imageUrl)}
   alt={title}
   loading="lazy"
   style={{
@@ -109,8 +102,6 @@ const getOptimizedImage = (url?: string) => {
     }
   }}
 />
-
-
 
           {/* Content */}
           <div style={{ padding: "1rem" }}>

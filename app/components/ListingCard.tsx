@@ -89,7 +89,7 @@ href={`/${listing.city_slug ?? "austin"}/apartments/${listing.slug}`}
            style={{
              fontSize: "1rem",
              color: "#333",
-             margin: "0 0 0.5rem",
+             margin: "0 0 0.25rem",
              lineHeight: 1.4,
            }}
          >
@@ -102,7 +102,7 @@ href={`/${listing.city_slug ?? "austin"}/apartments/${listing.slug}`}
          {(listing.beds || listing.baths) && (
            <p
              style={{
-               margin: "0.3rem 0",
+               margin: "0.1rem 0",
                fontSize: "0.95rem",
                color: "#666",
              }}
@@ -116,7 +116,7 @@ href={`/${listing.city_slug ?? "austin"}/apartments/${listing.slug}`}
          {(listing.neighborhood || listing.submarket) && (
            <p
              style={{
-               margin: "0.5rem 0",
+               margin: "0.2rem 0",
                fontSize: "0.95rem",
                color: "#555",
                fontWeight: 400,

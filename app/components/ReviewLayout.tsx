@@ -996,7 +996,7 @@ useEffect(() => {
        <div
          className="review-sidebar"
          style={{
-           marginTop: "2.25rem", // ✅ Pushes sidebar down to align with title
+           marginTop: "2.5rem", // ✅ Pushes sidebar down to align with title
          }}
        >
          <div
