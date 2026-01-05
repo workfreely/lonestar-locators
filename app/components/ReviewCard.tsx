@@ -16,9 +16,17 @@ interface ReviewCardProps {
 
 const ReviewCard: React.FC<ReviewCardProps> = ({ review, defaultImage }) => {
   // ✅ SINGLE SOURCE OF TRUTH: Supabase
-  const href = review.review_link
-    ? review.review_link
-    : `/${review.city_slug}/apartments/${review.slug}`;
+  const href =
+  review.review_link ??
+  `/${review.city_slug}/apartments/reviews/${review.slug}`;
+
+  // ✅ Normalize + capitalize property type for SEO/UI
+  const displayPropertyType =
+    review.property_type
+      ? review.property_type
+          .replace(/_/g, " ")
+          .replace(/\b\w/g, (c) => c.toUpperCase())
+      : null;
 
   return (
     <Link href={href} style={{ textDecoration: "none", color: "inherit" }}>
@@ -31,9 +39,24 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ review, defaultImage }) => {
           boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
           transition: "transform 0.25s ease, box-shadow 0.25s ease",
         }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = "scale(1.03)";
+          e.currentTarget.style.boxShadow =
+            "0 6px 14px rgba(0, 0, 0, 0.12)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = "scale(1)";
+          e.currentTarget.style.boxShadow =
+            "0 2px 8px rgba(0,0,0,0.06)";
+        }}
       >
+        {/* ✅ Image (safe fallback, same behavior as ListingCard) */}
         <img
-          src={review.image || defaultImage}
+          src={
+            review.image && review.image.trim() !== ""
+              ? review.image
+              : defaultImage
+          }
           alt={review.name}
           loading="lazy"
           className="listing-image"
@@ -45,6 +68,7 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ review, defaultImage }) => {
         />
 
         <div style={{ padding: "1rem 1.25rem" }}>
+          {/* Title */}
           <h3
             style={{
               fontSize: "1.25rem",
@@ -56,6 +80,7 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ review, defaultImage }) => {
             {review.name}
           </h3>
 
+          {/* Neighborhood */}
           <p
             style={{
               margin: "0 0 0.6rem",
@@ -66,13 +91,14 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ review, defaultImage }) => {
             Neighborhood: {review.neighborhood}
           </p>
 
+          {/* Tags */}
           <div style={{ display: "flex", gap: ".4rem", flexWrap: "wrap" }}>
-            {review.property_type && (
-              <span className="tag">{review.property_type}</span>
-            )}
-            <span className="tag">Review</span>
-            <span className="tag">Good/Bad/Ugly</span>
-          </div>
+  {displayPropertyType && (
+    <span className="tag">{displayPropertyType}</span>
+  )}
+  <span className="tag">Review</span>
+  <span className="tag">Good / Bad / Ugly</span>
+</div>
         </div>
       </div>
     </Link>
