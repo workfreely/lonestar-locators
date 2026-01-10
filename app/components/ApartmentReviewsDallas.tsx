@@ -119,9 +119,10 @@ export default function ApartmentReviewsDallas() {
       setLoading(true);
 
       const { data, error } = await supabase
-        .from("dallas_reviews")
-        .select("*")
-        .order("created_at", { ascending: false });
+  .from("property_reviews")
+  .select("*")
+  .eq("city_slug", "dallas")
+  .order("created_at", { ascending: false });
 
       if (error) {
         console.error(error.message);

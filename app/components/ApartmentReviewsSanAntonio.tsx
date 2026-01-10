@@ -112,18 +112,15 @@ export default function ApartmentReviewsSanAntonio() {
         // 🪵 Log connection start
         console.log("🔌 Connecting to Supabase:", supabaseUrl);
 
-        // ✅ Fetch all San Antonio listings
-        const { data, error } = await supabase
-          .from("san_antonio_reviews")
-.select(`
-  id,
-  slug,
-  property_name,
-  neighborhood,
-  hero_image_url,
-  review_type
-`)
-.order("published_at", { ascending: false });
+       // ✅ Fetch San Antonio + nearby sub-markets (metro-aware)
+const { data, error } = await supabase
+  .from("property_reviews")
+  .select("*")
+  .eq("city_slug", "san-antonio")
+  .order("created_at", { ascending: false });
+  console.log("🧮 RAW SUPABASE COUNT:", data?.length);
+
+  if (error) throw error;
 
 
         // 🪵 Log fetch result

@@ -1,7 +1,7 @@
 "use client";
 
-import ApartmentReviewsAustin from "@/app/components/ApartmentReviewsAustin";
+import ApartmentReviewsDallas from "@/app/components/ApartmentReviewsDallas";
 
 export default function Page() {
-  return <ApartmentReviewsAustin />;
+  return <ApartmentReviewsDallas />;
 }

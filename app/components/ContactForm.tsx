@@ -79,6 +79,8 @@ const utmContent = searchParams.get("utm_content");
     foreclosureBalance: "",
     notes: "",
     website: "",
+    sms_consent: false,
+
     
     // ✅ TRACKING
 
@@ -233,6 +235,11 @@ useEffect(() => {
             phone: formData.phone,
             email: formData.email,
             move_date: formData.moveDate,
+            sms_opt_in: formData.sms_consent,
+            sms_consent_at: formData.sms_consent
+            ? new Date().toISOString()
+            : null,
+
             notes: propertyName
               ? `Short Form | Listing: ${propertyName}`
               : "Short Form Submission",
@@ -264,6 +271,24 @@ useEffect(() => {
           propertyName: propertyName || "",
         });
      router.push(`/start-your-search?${params.toString()}`);
+
+     // ------------------------------------------------------
+// Trigger Welcome SMS for short form
+// ------------------------------------------------------
+if (formData.sms_consent && formData.phone) {
+  fetch("/api/sms/send-welcome", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      firstName: formData.firstName,
+      phone: formData.phone,
+      leadType: "short",
+    }),
+  }).catch((err) => {
+    console.error("Welcome SMS trigger failed:", err);
+  });
+}
+
 
         return;
       } catch (err) {
@@ -314,6 +339,8 @@ useEffect(() => {
           foreclosure_balance: formData.foreclosureBalance,
           notes: formData.notes,
           website: formData.website,
+          sms_opt_in: formData.sms_consent,
+          sms_consent_at: new Date().toISOString(),
           lead_type: "full",
         },
       ]);
@@ -327,6 +354,24 @@ useEffect(() => {
       }
 
       console.log("Lead submitted successfully to Supabase!", data);
+
+      // ------------------------------------------------------
+// Trigger Welcome SMS (non-blocking)
+// ------------------------------------------------------
+if (formData.sms_consent && formData.phone) {
+  fetch("/api/sms/send-welcome", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      firstName: formData.firstName,
+      phone: formData.phone,
+      leadType: "full",
+    }),
+  }).catch((err) => {
+    console.error("Welcome SMS trigger failed:", err);
+  });
+}
+
 
  // ======================================================
 // Post-Submit Redirect
@@ -1103,6 +1148,28 @@ useEffect(() => {
         tabIndex={-1}
         autoComplete="off"
       />
+
+{/* SMS & Email Consent */}
+{/* SMS & Email Consent */}
+<div className="consent-row">
+  <input
+    type="checkbox"
+    id="smsConsent"
+    checked={formData.sms_consent}
+    onChange={(e) =>
+      setFormData((prev) => ({
+        ...prev,
+        sms_consent: e.target.checked,
+      }))
+    }
+    required
+  />
+  <label htmlFor="smsConsent">
+    I agree to receive texts and emails about my search and opt out anytime.
+  </label>
+</div>
+
+
       {/* SUBMIT BUTTON */}
       <button
         type="submit"

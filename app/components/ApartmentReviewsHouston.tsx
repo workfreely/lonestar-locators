@@ -118,10 +118,11 @@ export default function ApartmentReviewsHouston() {
     const fetchListings = async () => {
       setLoading(true);
 
-      const { data, error } = await supabase
-        .from("houston_reviews")
-        .select("*")
-        .order("created_at", { ascending: false });
+    const { data, error } = await supabase
+  .from("property_reviews")
+  .select("*")
+  .eq("city_slug", "houston")
+  .order("created_at", { ascending: false });
 
       if (error) {
         console.error(error.message);

@@ -981,3 +981,45 @@ html {
 }
 
 
+/* ======================================================
+   ✅ SMS / EMAIL CONSENT CHECKBOX FIX
+   ------------------------------------------------------
+   Purpose:
+   - Prevent checkbox inputs from inheriting global
+     width: 100% styles meant for text inputs
+   - Ensure checkbox stays LEFT of consent text
+   - Keep consent copy clean, readable, and compliant
+
+   Context:
+   - Global input styles force width: 100%
+   - This breaks checkbox + label alignment
+   - This fix is intentionally scoped and safe
+
+   Used by:
+   - Apartment search forms
+   - Lead capture / contact forms
+   ====================================================== */
+   
+.consent-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  text-align: left;
+  color: #444;
+}
+
+.consent-row input[type="checkbox"] {
+  width: auto !important;
+  padding: 0 !important;
+  margin-top: 2px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.consent-row label {
+  width: auto;
+  cursor: pointer;
+  line-height: 1.35;
+}

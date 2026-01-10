@@ -128,9 +128,10 @@ export default function ApartmentReviewsAustin() {
         console.log("🔌 Connecting to Supabase:", supabaseUrl);
 
         const { data, error } = await supabase
-          .from("austin_reviews")
-          .select("*")
-          .order("created_at", { ascending: false });
+  .from("property_reviews")
+  .select("*")
+  .eq("city_slug", "austin")
+  .order("created_at", { ascending: false });
 
         console.log("✅ Fetched listings:", data, error);
 

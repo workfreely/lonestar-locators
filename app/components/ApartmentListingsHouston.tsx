@@ -120,9 +120,10 @@ export default function ApartmentListingsHouston() {
         // ✅ Fetch all Houston listings
         // IMPORTANT: If your table name is different, change "houston_listings"
         const { data, error } = await supabase
-          .from("houston_listings")
-          .select("*")
-          .order("created_at", { ascending: false });
+  .from("properties")
+  .select("*")
+  .eq("city_slug", "houston")
+  .order("created_at", { ascending: false });
 
         console.log("✅ Fetched listings:", data, error);
 
@@ -532,7 +533,7 @@ export default function ApartmentListingsHouston() {
       <span style={{ color: "#28a745" }}>
         {filteredListings.length}
       </span>{" "}
-      property reviews match your search
+      property properties match your search
     </>
   )}
 </div>

@@ -27,7 +27,7 @@ interface ListingCardProps {
 const ListingCard: React.FC<ListingCardProps> = ({ listing, defaultImage }) => {
  return (
   <Link
-href={`/${listing.city_slug ?? "austin"}/apartments/${listing.slug}`}
+href={`/${listing.city_slug}/apartments/${listing.slug}`}
   style={{ textDecoration: "none", color: "inherit" }}
 >
 

@@ -109,23 +109,28 @@ export default function ApartmentListingsDallas() {
         setLoading(true);
         console.log("🔌 Connecting to Supabase:", supabaseUrl);
 
-        // ✅ Dallas table
-        const { data, error } = await supabase
-          .from("dallas_listings")
-          .select("*")
-          .order("created_at", { ascending: false });
+        // ✅ Fetch all Dallas listings
+       const { data, error } = await supabase
+  .from("properties")
+  .select("*")
+  .eq("city_slug", "dallas")
+  .order("created_at", { ascending: false });
 
-        console.log("✅ Fetched listings:", data, error);
+if (error) throw error;
 
-        if (error) throw error;
+const withDefaults = (data || []).map((listing) => ({
+  ...listing,
 
-        const withDefaults = (data || []).map((listing) => ({
-          ...listing,
-          image: listing.image || defaultImage,
-          gallery_images: listing.gallery_images || defaultImage,
-        }));
+  // ✅ CRITICAL: guarantee routing works
+  city_slug: listing.city_slug,
 
-        setListings(withDefaults);
+  // ✅ image safety
+  image: listing.image || defaultImage,
+  gallery_images: listing.gallery_images || defaultImage,
+}));
+
+setListings(withDefaults);
+
       } catch (err: any) {
         console.error("Error loading listings:", err.message);
         setError(err.message);
@@ -458,7 +463,7 @@ export default function ApartmentListingsDallas() {
       <span style={{ color: "#28a745" }}>
         {filteredListings.length}
       </span>{" "}
-      property reviews match your search
+      properties match your search
     </>
   )}
 </div>

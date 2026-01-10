@@ -115,9 +115,10 @@ export default function ApartmentListingsAustin() {
 
         // ✅ Fetch all Austin listings
         const { data, error } = await supabase
-          .from("austin_listings")
-          .select("*")
-          .order("created_at", { ascending: false });
+  .from("properties")
+  .select("*")
+  .eq("city_slug", "austin")
+  .order("created_at", { ascending: false });
 
         // 🪵 Log fetch result
         console.log("✅ Fetched listings:", data, error);
@@ -551,7 +552,7 @@ export default function ApartmentListingsAustin() {
       <span style={{ color: "#28a745" }}>
         {filteredListings.length}
       </span>{" "}
-      property reviews match your search
+      properties match your search
     </>
   )}
 </div>

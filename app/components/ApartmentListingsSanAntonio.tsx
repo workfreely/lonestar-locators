@@ -116,27 +116,42 @@ export default function ApartmentListingsSanAntonio() {
 
         // ✅ Fetch all San Antonio listings
         const { data, error } = await supabase
-          .from("san_antonio_listings")
-          .select("*")
-          .order("created_at", { ascending: false });
-
-        // 🪵 Log fetch result
-        console.log("✅ Fetched listings:", data, error);
+  .from("properties")
+  .select("*")
+  .eq("city_slug", "san-antonio")
+  .order("created_at", { ascending: false });
 
         if (error) throw error;
 
         // ✅ Apply fallback image if missing
-        const withDefaults = (data || []).map((listing) => ({
-          ...listing,
-          image:
-            listing.image ||
-            "https://res.cloudinary.com/dxtiguwzm/image/upload/v1748277676/photos-coming-soon-lone-star-locators_be1dyx.jpg",
-          gallery_images:
-            listing.gallery_images ||
-            "https://res.cloudinary.com/dxtiguwzm/image/upload/v1748277676/photos-coming-soon-lone-star-locators_be1dyx.jpg",
-        }));
+        const normalized = (data || []).map((listing) => ({
+  ...listing,
 
-        setListings(withDefaults);
+  // 🔑 Normalize pricing fields
+  price: listing.rent,
+  priceValue: listing.price_value,
+
+  // 🔑 Normalize bed / bath naming
+  beds: listing.beds || listing.bedrooms,
+  baths: listing.baths || listing.bathrooms,
+
+  // 🔑 Image fallbacks (DO NOT break default image logic)
+  image:
+    listing.image ||
+    "https://res.cloudinary.com/dxtiguwzm/image/upload/v1748277676/photos-coming-soon-lone-star-locators_be1dyx.jpg",
+
+  gallery_images: listing.gallery_images
+    ? listing.gallery_images
+    : [],
+
+  // 🔑 Normalize tags safely
+  tags:
+    typeof listing.tags === "string"
+      ? listing.tags.split(",").map((t) => t.trim())
+      : listing.tags,
+}));
+
+setListings(normalized);
       } catch (err: any) {
         console.error("Error loading listings:", err.message);
         setError(err.message);
@@ -190,15 +205,17 @@ export default function ApartmentListingsSanAntonio() {
     const numericBaths = baths ? parseInt(baths, 10) : null;
 
     // ✅ PROPER RANGE MATCHING
-    // ✅ OVERRIDE: If Studio is selected, ignore bed filtering
-    const matchBeds =
-      propertyType === "Studio"
-        ? true
-        : numericBeds === null ||
-          (numericBeds >= listingMinBeds && numericBeds <= listingMaxBeds);
+// ✅ Open to All + Studio must ignore bed/bath filtering
+const matchBeds =
+  propertyType === "Open to All" || propertyType === "Studio"
+    ? true
+    : numericBeds === null ||
+      (numericBeds >= listingMinBeds && numericBeds <= listingMaxBeds);
 
-    const matchBaths =
-      numericBaths === null ||
+const matchBaths =
+  propertyType === "Open to All"
+    ? true
+    : numericBaths === null ||
       (numericBaths >= listingMinBaths && numericBaths <= listingMaxBaths);
 
     const matchNeighborhoods =
@@ -206,10 +223,17 @@ export default function ApartmentListingsSanAntonio() {
       neighborhoods.includes("All of San Antonio") ||
       neighborhoods.includes(listing.neighborhood);
 
+      // ✅ Normalize helper so UI labels match DB slugs
+// "New Braunfels" → "new-braunfels"
+const normalize = (val?: string) =>
+  val?.toLowerCase().replace(/\s+/g, "-").trim();
+
     const matchSubmarkets =
-      submarkets.length === 0 ||
-      submarkets.includes("All Submarkets") ||
-      submarkets.includes(listing.submarket);
+  submarkets.length === 0 ||
+  submarkets.includes("All Submarkets") ||
+  submarkets
+    .map((s) => normalize(s))
+    .includes(normalize(listing.submarket));
 
     const matchPrice =
       !price ||
@@ -218,33 +242,35 @@ export default function ApartmentListingsSanAntonio() {
         listing.price_value <= priceRanges[price][1]);
 
     // ✅ PROPERTY TYPE / STUDIO LOGIC
-    let matchPropertyType = true;
+let matchPropertyType = true;
 
-    if (propertyType && propertyType !== "Open to All") {
-      const typeLower = propertyType.toLowerCase();
+if (propertyType && propertyType !== "Open to All") {
+  const typeLower = propertyType.toLowerCase();
 
-      const propertyTypeText = (listing.property_type || "").toLowerCase();
-      const tagsText =
-        typeof listing.tags === "string" ? listing.tags.toLowerCase() : "";
+  const propertyTypeText = (listing.property_type || "").toLowerCase();
+  const tagsText =
+    typeof listing.tags === "string" ? listing.tags.toLowerCase() : "";
 
-      if (propertyType === "Studio") {
-        // ✅ Studio ONLY when beds look like studio
-        const rawBedsText = (listing.beds || listing.bedrooms || "")
-          .toString()
-          .toLowerCase();
+  if (propertyType === "Studio") {
+    // ✅ Studios are apartments with 0-bed layouts
+    const rawBedsText = (listing.beds || listing.bedrooms || "")
+      .toString()
+      .toLowerCase();
 
-        const looksStudio =
-          rawBedsText.includes("studio") ||
-          rawBedsText === "0" ||
-          rawBedsText === "0 beds";
+    const allowsStudio =
+      rawBedsText.includes("studio") || rawBedsText.includes("0");
 
-        matchPropertyType = looksStudio;
-      } else {
-        // ✅ NORMAL PROPERTY TYPE MATCHING (Townhome, Apartment, Penthouse, Rental Home)
-        matchPropertyType =
-          propertyTypeText.includes(typeLower) || tagsText.includes(typeLower);
-      }
-    }
+    const isApartment =
+      propertyTypeText.includes("apartment") ||
+      tagsText.includes("apartment");
+
+    matchPropertyType = allowsStudio && isApartment;
+  } else {
+    // ✅ NORMAL PROPERTY TYPE MATCHING
+    matchPropertyType =
+      propertyTypeText.includes(typeLower) || tagsText.includes(typeLower);
+  }
+}
 
     return (
       matchBeds &&
@@ -552,7 +578,7 @@ export default function ApartmentListingsSanAntonio() {
       <span style={{ color: "#28a745" }}>
         {filteredListings.length}
       </span>{" "}
-      property reviews match your search
+      properties match your search
     </>
   )}
 </div>
