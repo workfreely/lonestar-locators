@@ -1165,7 +1165,7 @@ if (formData.sms_consent && formData.phone) {
     required
   />
   <label htmlFor="smsConsent">
-    I agree to receive texts and emails about my search and opt out anytime.
+    I agree to receive texts & emails about my search and opt-out anytime.
   </label>
 </div>
 

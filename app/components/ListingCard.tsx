@@ -1,5 +1,6 @@
 import { FaTag } from "react-icons/fa";
 import Link from "next/link";
+import { trackEvent } from "@/app/utils/trackEvent";
 
 
 interface ListingCardProps {
@@ -7,6 +8,7 @@ interface ListingCardProps {
    name: string;
    slug: string;
    city_slug?: string;
+   href?: string; // ✅ NEW (optional override)
    submarket?: string; // ✅ NEW FIELD
    neighborhood: string;
    region?: string;
@@ -26,8 +28,25 @@ interface ListingCardProps {
 
 const ListingCard: React.FC<ListingCardProps> = ({ listing, defaultImage }) => {
  return (
-  <Link
-href={`/${listing.city_slug}/apartments/${listing.slug}`}
+ <Link
+  href={
+    listing.href ??
+    `/${listing.city_slug}/apartments/${listing.slug}`
+  }
+  style={{ textDecoration: "none", color: "inherit" }}
+
+  // 📊 Analytics: Track high-intent apartment card clicks
+  // Used to measure listing CTR by city, price, and neighborhood
+  onClick={() => {
+    trackEvent("listing_card_click", {
+      property: listing.name,
+      city: listing.city_slug,
+      neighborhood: listing.neighborhood || listing.submarket,
+      price: listing.price,
+      source: "listing_card",
+    });
+  }}
+
   style={{ textDecoration: "none", color: "inherit" }}
 >
 

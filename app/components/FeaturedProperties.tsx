@@ -9,7 +9,8 @@ const FeaturedProperties: React.FC = () => {
     {
       name: "300 Main",
       slug: "300-main",
-      city: "San Antonio",
+      href: "/san-antonio/apartments/300-main",
+      city_slug: "san-antonio", // ✅ REQUIRED
       neighborhood: "Downtown",
       region: "San Antonio",
       image: "",
@@ -26,7 +27,7 @@ const FeaturedProperties: React.FC = () => {
       name: "Oasis at Stone Oak",
       slug: "oasis-at-stone-oak",
       href: "/san-antonio/apartments/oasis-at-stone-oak",
-      city: "San Antonio",
+        city_slug: "san-antonio", // ✅ REQUIRED
       neighborhood: "Stone Oak",
       region: "San Antonio",
       image: "",
@@ -42,7 +43,8 @@ const FeaturedProperties: React.FC = () => {
     {
       name: "Collection Schertz Station",
       slug: "collection-schertz-station",
-      city: "San Antonio",
+      city_slug: "san-antonio", // ✅ REQUIRED
+      href: "/san-antonio/apartments/collection-schertz-station",
       neighborhood: "Schertz",
       region: "San Antonio",
       image: "",

@@ -1,5 +1,7 @@
 import React from "react";
 import Link from "next/link";
+import { FaStar } from "react-icons/fa";
+import { trackEvent } from "@/app/utils/trackEvent";
 
 interface ReviewCardProps {
   review: {
@@ -33,6 +35,7 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ review, defaultImage }) => {
       <div
         className="card"
         style={{
+          paddingBottom: "0.75rem", // 👈 Same as listing card
           borderRadius: "10px",
           overflow: "hidden",
           backgroundColor: "#fff",
@@ -137,6 +140,41 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ review, defaultImage }) => {
     }}
   >
     Good / Bad / Ugly
+  </span>
+</div>
+
+{/* Review banner — aligned like Move-in Special plus Google Track*/}
+<div
+onClick={(e) => {
+    e.stopPropagation(); // ✅ prevents double firing
+    trackEvent("review_badge_click", {
+      property: review.name,
+      city: review.city_slug,
+      slug: review.slug,
+      source: "review_card",
+    });
+  }}
+  style={{
+    marginTop: "0.6rem",
+    backgroundColor: "#fdecec",
+    border: "1px solid #f3b6b6",
+    color: "#b91c1c",
+    fontWeight: 700,
+    fontSize: "0.9rem",
+    padding: "0.5rem 0.65rem", // ⬅ slightly tighter
+    borderRadius: "8px",
+
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    gap: "6px",
+
+    lineHeight: "1.35",
+  }}
+>
+  <FaStar style={{ flexShrink: 0 }} />
+  <span>
+    <strong>Good, Bad & Ugly Review</strong>
   </span>
 </div>
 
