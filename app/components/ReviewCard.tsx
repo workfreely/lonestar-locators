@@ -92,13 +92,54 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ review, defaultImage }) => {
           </p>
 
           {/* Tags */}
-          <div style={{ display: "flex", gap: ".4rem", flexWrap: "wrap" }}>
-  {displayPropertyType && (
-    <span className="tag">{displayPropertyType}</span>
-  )}
-  <span className="tag">Review</span>
-  <span className="tag">Good / Bad / Ugly</span>
+          <div
+  style={{
+    marginTop: "0.5rem",
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "0.4rem",
+  }}
+>
+  <span
+    className="tag"
+    style={{
+      backgroundColor: "#f5f5f5",
+      color: "#555",
+      fontSize: "0.8rem",
+      padding: "0.25rem 0.5rem",
+      borderRadius: "4px",
+    }}
+  >
+    {displayPropertyType ?? "Apartment"}
+  </span>
+
+  <span
+    className="tag"
+    style={{
+      backgroundColor: "#f5f5f5",
+      color: "#555",
+      fontSize: "0.8rem",
+      padding: "0.25rem 0.5rem",
+      borderRadius: "4px",
+    }}
+  >
+    Review
+  </span>
+
+  <span
+    className="tag"
+    style={{
+      backgroundColor: "#f5f5f5",
+      color: "#555",
+      fontSize: "0.8rem",
+      padding: "0.25rem 0.5rem",
+      borderRadius: "4px",
+    }}
+  >
+    Good / Bad / Ugly
+  </span>
 </div>
+
         </div>
       </div>
     </Link>

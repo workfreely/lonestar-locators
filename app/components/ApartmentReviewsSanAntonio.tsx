@@ -6,6 +6,7 @@ import SchemaItemList from "@/app/components/SchemaItemList";
 import AISchema from "@/app/components/AISchema";
 import ReviewCard from "@/app/components/ReviewCard";
 import { createClient } from "@supabase/supabase-js";
+import { matchReviewQuery } from "@/app/utils/matchReviewQuery";
 
 const supabaseUrl = "https://ukkxisleiprdpptaaxcs.supabase.co";
 const supabaseAnonKey =
@@ -156,9 +157,8 @@ const { data, error } = await supabase
     filters;
 
   // ✅ PROPERTY NAME SEARCH (case-insensitive)
-  const matchQuery =
-    !q ||
-    listing.name?.toLowerCase().includes(q.toLowerCase());
+const matchQuery = matchReviewQuery(q, listing.property_name);
+
 
   // existing logic continues below...
 

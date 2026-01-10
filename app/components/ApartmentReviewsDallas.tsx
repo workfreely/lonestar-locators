@@ -6,6 +6,8 @@ import SchemaItemList from "@/app/components/SchemaItemList";
 import AISchema from "@/app/components/AISchema";
 import ReviewCard from "@/app/components/ReviewCard";
 import { createClient } from "@supabase/supabase-js";
+import { matchReviewQuery } from "@/app/utils/matchReviewQuery";
+
 
 const supabaseUrl = "https://ukkxisleiprdpptaaxcs.supabase.co";
 const supabaseAnonKey =
@@ -149,8 +151,8 @@ export default function ApartmentReviewsDallas() {
   const filteredListings = listings.filter((listing) => {
     const { q, beds, baths, price, propertyType, neighborhoods } = filters;
 
-    const matchQuery =
-      !q || listing.name?.toLowerCase().includes(q.toLowerCase());
+  // ✅ PROPERTY NAME SEARCH (case-insensitive)
+const matchQuery = matchReviewQuery(q, listing.property_name);
 
     const parseRange = (val: any): [number, number] => {
       if (!val) return [0, 0];
