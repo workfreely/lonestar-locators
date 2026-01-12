@@ -54,21 +54,26 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ review, defaultImage }) => {
         }}
       >
         {/* ✅ Image (safe fallback, same behavior as ListingCard) */}
-        <img
-          src={
-            review.image && review.image.trim() !== ""
-              ? review.image
-              : defaultImage
-          }
-          alt={review.name}
-          loading="lazy"
-          className="listing-image"
-          style={{
-            width: "100%",
-            height: "260px",
-            objectFit: "cover",
-          }}
-        />
+  <img
+  src={
+    review.image && review.image.trim() !== ""
+      ? review.image
+      : defaultImage
+  }
+  alt={review.name}
+  loading="lazy"
+  className="listing-image"
+  onError={(e) => {
+    e.currentTarget.onerror = null; // prevent infinite loop
+    e.currentTarget.src = defaultImage;
+  }}
+  style={{
+    width: "100%",
+    height: "260px",
+    objectFit: "cover",
+  }}
+/>
+
 
         <div style={{ padding: "1rem 1.25rem" }}>
           {/* Title */}
@@ -173,9 +178,19 @@ onClick={(e) => {
   }}
 >
   <FaStar style={{ flexShrink: 0 }} />
-  <span>
-    <strong>Good, Bad & Ugly Review</strong>
-  </span>
+ <span
+  style={{
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    maxWidth: "100%",
+    display: "block",
+  }}
+  title={`${review.name} Review`} // ✅ full text on hover + accessibility
+>
+  <strong>{review.name} Review</strong>
+</span>
+
 </div>
 
         </div>

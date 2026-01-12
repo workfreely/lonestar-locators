@@ -221,9 +221,29 @@ export default function HomePage() {
       {/* ================= AI SEARCH ================= */}
 
       <section id="search-section" className="home-section" style={{ textAlign: "center" }}>
-        <h2 id="search-title" style={{ fontSize: "2.2rem", fontWeight: 800 }}>
-          What Are You <span className="break" /> Searching For?
-        </h2>
+        <h2
+  id="search-title"
+  style={{
+    fontSize: "3rem",
+    fontWeight: 900,
+    letterSpacing: "-0.02em",
+    marginBottom: "0.75rem",
+  }}
+>
+  Not Your Ordinary <span className="break" /> Apartment Search
+</h2>
+<p
+  style={{
+    maxWidth: "640px",
+    margin: "0 auto 1.5rem",
+    fontSize: "1.2rem",
+    color: "#555",
+  }}
+>
+  Find apartments based on how you actually want to live.
+</p>
+
+
 
         <div
           style={{
@@ -238,16 +258,17 @@ export default function HomePage() {
           }}
         >
           <TypeAnimation
-            sequence={[
-              "2 bed luxury townhome in Austin",
-              2500,
-              "1 bed high rise apartment in Dallas",
-              2500,
-              "pet friendly apartment in Houston",
-              2500,
-              "modern townhome near the Pearl San Antonio",
-              2500,
-            ]}
+           sequence={[
+            "Luxury townhome with garage in San Antonio",
+  2600,
+  "2 bed luxury townhome with private yard in Austin",
+  2600,
+  "High-rise apartment with city views in Dallas",
+  2600,
+  "Pet-friendly apartment with infinity pool in Houston",
+  2600,
+  
+]}
             speed={45}
             repeat={Infinity}
             deletionSpeed={55}

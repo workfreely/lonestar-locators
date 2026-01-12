@@ -74,7 +74,7 @@ const FeaturedProperties: React.FC = () => {
           textAlign: "center",
         }}
       >
-        Featured Properties in San Antonio
+        Properties We’re Recommending in San Antonio
       </h2>
 
       <p
@@ -85,7 +85,7 @@ const FeaturedProperties: React.FC = () => {
           textAlign: "center",
         }}
       >
-        Explore some of the hottest apartment deals in San Antonio!
+        Hand-picked communities chosen for lifestyle and value. We’ll confirm pricing and incentives before you apply.
       </p>
 
       {/* ✅ USE GLOBAL GRID — DO NOT OVERRIDE */}
