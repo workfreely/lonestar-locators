@@ -15,40 +15,15 @@ function formatDate(dateStr?: string | null) {
   })
 }
 
-function moveWindow(dateStr?: string | null) {
-  if (!dateStr) return ""
-  const today = new Date()
-  const moveDate = new Date(dateStr)
-  if (isNaN(moveDate.getTime())) return ""
-
-  const diffDays = Math.ceil(
-    (moveDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-  )
-
-  if (diffDays <= 30) return "0–30 days"
-  if (diffDays <= 60) return "30–60 days"
-  if (diffDays <= 90) return "60–90 days"
-  return "90+ days"
-}
-
-// ✅ NEW: city → header image mapper
-function getCityHeaderImage(city?: string | null) {
-  if (!city) return null
-  const c = city.toLowerCase()
-
-  if (c.includes("san antonio"))
-    return "https://res.cloudinary.com/dxtiguwzm/image/upload/v1747937030/lone-star-locators-san-antonio-texas-free-apartment-locating_trgkaj.jpg"
-
-  if (c.includes("austin"))
-    return "https://res.cloudinary.com/dxtiguwzm/image/upload/v1747937030/lone-star-locators-austin-texas-free-apartment-locating_ew5tvq.jpg"
-
-  if (c.includes("dallas"))
-    return "https://res.cloudinary.com/dxtiguwzm/image/upload/v1747937029/lone-star-locators-dallas-texas-free-apartment-locating_cdr8z9.jpg"
-
-  if (c.includes("houston"))
-    return "https://res.cloudinary.com/dxtiguwzm/image/upload/v1747937029/lone-star-locators-houston-texas-free-apartment-locating_j63kfq.jpg"
-
-  return null
+const cityHeroImages: Record<string, string> = {
+  Austin:
+    "https://res.cloudinary.com/dxtiguwzm/image/upload/v1747937030/lone-star-locators-austin-texas-free-apartment-locating_ew5tvq.jpg",
+  Dallas:
+    "https://res.cloudinary.com/dxtiguwzm/image/upload/v1747937029/lone-star-locators-dallas-texas-free-apartment-locating_cdr8z9.jpg",
+  Houston:
+    "https://res.cloudinary.com/dxtiguwzm/image/upload/v1747937029/lone-star-locators-houston-texas-free-apartment-locating_j63kfq.jpg",
+  "San Antonio":
+    "https://res.cloudinary.com/dxtiguwzm/image/upload/v1747937030/lone-star-locators-san-antonio-texas-free-apartment-locating_trgkaj.jpg",
 }
 
 const pill = (label: string, value?: string | number | null) => {
@@ -107,7 +82,7 @@ serve(async (req) => {
     )
 
     const { data: lead } = await supabase
-      .from("leads")
+      .from("new_home_leads")
       .select("*")
       .eq("id", lead_id)
       .single()
@@ -116,17 +91,12 @@ serve(async (req) => {
 
     const firstName = String(lead.first_name ?? "").trim()
     const lastName = String(lead.last_name ?? "").trim()
-    const fullName = `${firstName} ${lastName}`.trim() || "New Lead"
+    const fullName = `${firstName} ${lastName}`.trim() || "New Buyer"
+    const city = lead.city ?? "Texas"
 
-    const window = moveWindow(lead.move_date)
-    const strongCredit = lead.credit_score && Number(lead.credit_score) >= 680
-    const hasIncome = !!lead.income
-
-    const newHomeCandidate =
-      strongCredit && hasIncome && window !== "90+ days"
-
-    // ✅ NEW: resolve header image
-    const headerImage = getCityHeaderImage(lead.city)
+    const heroImage =
+      cityHeroImages[city] ??
+      "https://res.cloudinary.com/dxtiguwzm/image/upload/v1747937030/lone-star-locators-san-antonio-texas-free-apartment-locating_trgkaj.jpg"
 
     // --------------------------------------------------
     // Email HTML
@@ -143,76 +113,50 @@ serve(async (req) => {
          font-family:Arial,Helvetica,sans-serif;color:#111;text-align:left;">
 
 <tr>
-<td style="padding:0;">
-${
-  headerImage
-    ? `
-   <img
-  src="${headerImage}"
-  width="600"
-  height="60"
-  style="
-    display:block;
-    width:100%;
-    height:60px;
-    object-fit:cover;
-  "
-/>
-
-    `
-    : `
-    <div style="background:#1f8f4a;height:80px;"></div>
-    `
-}
+<td>
+  <img
+    src="${heroImage}"
+    alt="${city} New Home Lead"
+    style="
+      width:100%;
+      height:60px;
+      object-fit:cover;
+      display:block;
+    "
+  />
 </td>
 </tr>
-
 
 <tr>
 <td style="padding:24px;">
 
-<h2 style="margin-top:0;">
-  New Renter Lead: ${fullName}${lead.city ? ` (${lead.city})` : ""}
-</h2>
+<h2 style="margin-top:0;">New Home Lead: ${fullName} (${city})</h2>
 
-<!-- AI Lead Summary -->
+<!-- Lead Summary -->
 <div style="background:#f1f7ff;border-radius:8px;padding:16px;margin-bottom:24px;">
- <div style="font-size:18px;font-weight:700;color:#0b3a75;margin-bottom:10px;">
-  AI Lead Summary
- </div>
+  <div style="font-size:18px;font-weight:700;color:#0b3a75;margin-bottom:10px;">
+    Lead Summary
+  </div>
 
   <p style="margin:0 0 10px;font-size:14px;line-height:1.5;">
-    This lead is planning a move ${
-      window ? `within ${window}` : "in the future"
-    } and is looking for ${
-      lead.property_type ?? "housing"
-    } in ${lead.city ?? "the area"}.
+    Buyer is looking to purchase a new construction home in ${city}.
+    Timeline: ${lead.purchase_timeline ?? "Not specified"}.
     ${
-      strongCredit
-        ? "Credit appears strong"
-        : "Credit may require additional review"
-    }${
-      hasIncome
-        ? ", and income was provided."
-        : ", though income was not listed."
-    }
-    ${
-      newHomeCandidate
-        ? " This lead may be a potential candidate for new home or builder programs."
-        : ""
+      lead.pre_approved === "Yes"
+        ? "Buyer is pre-approved."
+        : "Buyer is not pre-approved yet."
     }
   </p>
 
-  ${pill("Move", lead.move_date ? `${formatDate(lead.move_date)} (${window})` : null)}
-  ${pill("Beds / Baths", lead.beds && lead.baths ? `${lead.beds} / ${lead.baths}` : null)}
-  ${pill("Rent", lead.desired_rent)}
-  ${pill("Credit", lead.credit_history ? `${lead.credit_history}${lead.credit_score ? ` (${lead.credit_score})` : ""}` : null)}
-  ${pill("City", lead.city)}
-  ${newHomeCandidate ? pill("AI Recommendation", "New Home Candidate") : ""}
+  ${pill("Desired Payment", lead.desired_payment)}
+  ${pill("Loan Type", lead.loan_type)}
+  ${pill("First-Time Buyer", lead.first_time_buyer)}
+  ${pill("Down Payment", lead.down_payment)}
+  ${pill("Credit Score", lead.credit_score)}
 </div>
 
 ${section(
-  "Client",
+  "Buyer Info",
   row("First Name", lead.first_name) +
   row("Last Name", lead.last_name) +
   row("Phone", lead.phone) +
@@ -220,25 +164,19 @@ ${section(
 )}
 
 ${section(
-  "Move Preferences",
-  row("Move Date", lead.move_date ? `${formatDate(lead.move_date)} (${window})` : null) +
+  "Purchase Preferences",
   row("City", lead.city) +
-  row("Neighborhoods", lead.neighborhoods) +
-  row("Submarkets", lead.submarkets)
+  row("Purchase Timeline", lead.purchase_timeline) +
+  row("Preferred Move Date", formatDate(lead.move_date)) +
+  row("Desired Payment", lead.desired_payment)
 )}
 
 ${section(
-  "Housing Preferences",
-  row("Property Type", lead.property_type) +
-  row("Desired Rent", lead.desired_rent) +
-  row("Beds", lead.beds) +
-  row("Baths", lead.baths) +
-  row("Income", lead.income)
-)}
-
-${section(
-  "Screening",
-  row("Credit History", lead.credit_history) +
+  "Financing",
+  row("Pre-Approved", lead.pre_approved) +
+  row("Loan Type", lead.loan_type) +
+  row("First-Time Buyer", lead.first_time_buyer) +
+  row("Down Payment", lead.down_payment) +
   row("Credit Score", lead.credit_score)
 )}
 
@@ -250,8 +188,8 @@ ${
 }
 
 <div style="margin-top:28px;">
-<a href="https://supabase.com/dashboard/project/ukkxisleiprdpptaaxcs/editor/row?table=leads&id=${lead.id}"
-   style="display:inline-block;background:#1f8f4a;color:#ffffff;
+<a href="https://supabase.com/dashboard/project/ukkxisleiprdpptaaxcs/editor/row?table=new_home_leads&id=${lead.id}"
+   style="display:inline-block;background:#1a7f37;color:#ffffff;
           padding:12px 18px;border-radius:6px;
           font-size:14px;text-decoration:none;">
 View Lead in Supabase
@@ -263,7 +201,7 @@ View Lead in Supabase
 
 <tr>
 <td style="background:#f1f3f5;padding:14px 24px;font-size:12px;color:#777;">
-Lead ID: ${lead.id} • Type: ${lead.lead_type} •
+Lead ID: ${lead.id} • Type: New Home Buyer •
 Submitted: ${new Date(lead.created_at).toLocaleString()}
 </td>
 </tr>
@@ -285,7 +223,7 @@ Submitted: ${new Date(lead.created_at).toLocaleString()}
       body: JSON.stringify({
         from: "Jay@LoneStarLocators <onboarding@resend.dev>",
         to: ["workingfreely@gmail.com"],
-        subject: `New Renter Lead: ${fullName}`,
+        subject: `New Home Lead: ${fullName} (${city})`,
         html,
       }),
     })
