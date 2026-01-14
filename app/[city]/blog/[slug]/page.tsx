@@ -1,18 +1,46 @@
 import { notFound } from "next/navigation";
-import { sanAntonioBlogRegistry } from "@/app/content/blog/san-antonio";
+import { supabase } from "@/app/lib/supabaseClient";
+import BlogLayout from "@/app/components/BlogLayout";
 
-export default function CityBlogPostPage({
+export default async function BlogPage({
   params,
 }: {
   params: { city: string; slug: string };
 }) {
   const { city, slug } = params;
 
-  // For now, only San Antonio is wired
-  if (city !== "san-antonio") return notFound();
+  const { data: blog, error } = await supabase
+    .from("blogs")
+    .select("*")
+    .eq("city_slug", city)
+    .eq("slug", slug)
+    .eq("status", "published")
+    .single();
 
-  const BlogComponent = sanAntonioBlogRegistry[slug];
-  if (!BlogComponent) return notFound();
+  if (error || !blog) {
+    return notFound();
+  }
 
-  return <BlogComponent />;
+  // ✅ Normalize keywords (handles array, string, or null)
+  const keywords: string[] = Array.isArray(blog.keywords)
+    ? blog.keywords
+    : typeof blog.keywords === "string"
+    ? blog.keywords.split(",").map((k: string) => k.trim())
+    : [];
+
+  return (
+    <BlogLayout
+      title={blog.title}
+      publishDate={blog.publish_date || undefined}
+      keywords={keywords}
+      content={
+        <div
+          dangerouslySetInnerHTML={{
+            __html: blog.body_html || blog.body_markdown,
+          }}
+        />
+      }
+      faqs={blog.faqs || []}
+    />
+  );
 }

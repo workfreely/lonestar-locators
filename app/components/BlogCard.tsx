@@ -37,8 +37,16 @@ if (postUrl.includes("/san-antonio/")) return "San Antonio";
     Texas: ["Texas", "Luxury", "Pet-Friendly"],
   };
 
-  const displayTags =
-    Array.isArray(tags) && tags.length > 0 ? tags : defaultTagsMap[cityFromUrl];
+ const normalizeTags = (tags: string[], city: string) => {
+  // Always enforce exactly 3 clean UI tags
+  return [
+    "Luxury",
+    "Apartments",
+    city,
+  ];
+};
+
+const displayTags = Array.isArray(tags) ? tags.slice(0, 3) : [];
 
   const schemaId = `blog-schema-${postUrl.replace(/\W+/g, "-")}`;
 
@@ -90,7 +98,7 @@ const getOptimizedImage = (url?: string) => {
   loading="lazy"
   style={{
     width: "100%",
-    height: "200px",
+    height: "150px",
     objectFit: "cover",
     display: "block",
     backgroundColor: "#f0f0f0",
