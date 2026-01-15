@@ -27,7 +27,7 @@ const FeaturedProperties: React.FC = () => {
       name: "Oasis at Stone Oak",
       slug: "oasis-at-stone-oak",
       href: "/san-antonio/apartments/oasis-at-stone-oak",
-        city_slug: "san-antonio", // ✅ REQUIRED
+      city_slug: "san-antonio", // ✅ REQUIRED
       neighborhood: "Stone Oak",
       region: "San Antonio",
       image: "",
@@ -63,8 +63,7 @@ const FeaturedProperties: React.FC = () => {
     "https://res.cloudinary.com/dxtiguwzm/image/upload/v1748277676/photos-coming-soon-lone-star-locators_be1dyx.jpg";
 
   return (
-   <section id="featured-wrap">
-
+    <section id="featured-wrap">
       <h2
         style={{
           fontSize: "2rem",
@@ -89,25 +88,27 @@ const FeaturedProperties: React.FC = () => {
       </p>
 
       {/* ✅ USE GLOBAL GRID — DO NOT OVERRIDE */}
-<div className="card-grid">
-  {featuredListings.map((listing, index) => {
-    const href =
-      listing.href || `/san-antonio/apartments/${listing.slug}`;
+      <div className="card-grid">
+        {featuredListings.map((listing, index) => {
+          const href = listing.href || `/san-antonio/apartments/${listing.slug}`;
 
-    return (
-      <Link
-        key={index}
-        href={href}
-        style={{ textDecoration: "none", color: "inherit" }}
-      >
-        <ListingCard
-          listing={listing}
-          defaultImage={defaultImage}
-        />
-      </Link>
-    );
-  })}
-</div>
+          // ✅ IMPORTANT:
+          // ListingCard already renders a <Link> internally.
+          // Wrapping it with another <Link> creates nested <a> tags:
+          // <a><a>...</a></a> which causes Next.js hydration errors.
+          // So we pass href DOWN and let ListingCard own navigation.
+          return (
+            <ListingCard
+              key={index}
+              listing={{
+                ...listing,
+                href,
+              }}
+              defaultImage={defaultImage}
+            />
+          );
+        })}
+      </div>
 
       <div style={{ marginTop: "2.5rem", textAlign: "center" }}>
         <a

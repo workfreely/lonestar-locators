@@ -28,15 +28,12 @@ interface ListingCardProps {
 
 const ListingCard: React.FC<ListingCardProps> = ({ listing, defaultImage }) => {
  return (
- <Link
+<Link
   href={
     listing.href ??
     `/${listing.city_slug}/apartments/${listing.slug}`
   }
-  style={{ textDecoration: "none", color: "inherit" }}
-
-  // 📊 Analytics: Track high-intent apartment card clicks
-  // Used to measure listing CTR by city, price, and neighborhood
+  className="listing-card-link"
   onClick={() => {
     trackEvent("listing_card_click", {
       property: listing.name,
@@ -46,9 +43,8 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, defaultImage }) => {
       source: "listing_card",
     });
   }}
-
-  style={{ textDecoration: "none", color: "inherit" }}
 >
+
 
      <div
        className="card"
