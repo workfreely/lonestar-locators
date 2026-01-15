@@ -362,6 +362,7 @@ useEffect(() => {
          <h1
  style={{
    fontSize: "2.5rem",
+   marginTop: "-2rem",   // 🔑 KEY FIX
    marginBottom: "1rem",
    textAlign: "left",
    fontWeight: 800,
@@ -996,7 +997,7 @@ useEffect(() => {
        <div
          className="review-sidebar"
          style={{
-           marginTop: "2.5rem", // ✅ Pushes sidebar down to align with title
+            marginTop: "0", // ✅ align with title
          }}
        >
          <div

@@ -146,8 +146,7 @@ export default function CityBlogLayout({
           marginBottom: "2.5rem",
         }}
       >
-        Honest apartment reviews, neighborhood guides, and insider tips for
-        renters in {cityName}.
+        In depth apartment guides and comparisons coming soon in {cityName}.
       </p>
 
       {/* Blog Grid */}

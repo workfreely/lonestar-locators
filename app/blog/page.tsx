@@ -14,17 +14,41 @@ export default function BlogHomePage() {
         fontFamily: "'Inter', sans-serif",
       }}
     >
+
+
+      <nav
+  style={{
+    fontSize: "0.9rem",
+    marginBottom: "1rem",
+    color: "#666",
+  }}
+>
+  <Link
+    href="/"
+    style={{
+      textDecoration: "none",
+      color: "#2e7d32",
+      fontWeight: 600,
+    }}
+  >
+    Home
+  </Link>
+  {" / "}
+  <span style={{ color: "#333", fontWeight: 500 }}>Blog</span>
+</nav>
       {/* Page Title — upper left for consistency */}
       <h1
-        style={{
-          fontSize: "2.5rem",
-          fontWeight: 800,
-          marginBottom: "2rem",
-          color: "#111",
-        }}
-      >
-        Blog
-      </h1>
+  style={{
+    fontSize: "2.5rem",
+    fontWeight: 800,
+    marginBottom: "2rem",
+    color: "#111",
+    textAlign: "left",
+  }}
+>
+  Apartment Blog
+</h1>
+
 
       {/* ================= CITY CARDS (HOMEPAGE MATCH) ================= */}
       <div

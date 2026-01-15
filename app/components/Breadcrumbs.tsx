@@ -12,7 +12,7 @@ interface BreadcrumbsProps {
 
 const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ items }) => {
   return (
-    <nav style={{ fontSize: "14px", margin: "20px 0" }}>
+    <nav style={{ fontSize: "14px", margin: "-8px 0 15px 0" }}>
       {items.map((item, index) => (
         <span key={index}>
           {item.href ? (

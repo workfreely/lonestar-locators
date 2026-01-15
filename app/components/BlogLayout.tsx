@@ -43,6 +43,23 @@ const BlogLayout = ({
     schemaMarkup.datePublished = publishDate;
   }
 
+const faqSchema =
+  faqs.length > 0
+    ? {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        mainEntity: faqs.map((faq) => ({
+          "@type": "Question",
+          name: faq.question,
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: faq.answer,
+          },
+        })),
+      }
+    : null;
+
+
   return (
     
     <div
@@ -65,6 +82,19 @@ const BlogLayout = ({
           __html: JSON.stringify(schemaMarkup),
         }}
       />
+
+
+{/* ✅ FAQ SCHEMA (only when FAQs exist) */}
+{faqSchema && (
+  <Script
+    id="faq-schema"
+    type="application/ld+json"
+    strategy="afterInteractive"
+    dangerouslySetInnerHTML={{
+      __html: JSON.stringify(faqSchema),
+    }}
+  />
+)}
 
       {/* MAIN LAYOUT */}
       <div className="blog-layout">
