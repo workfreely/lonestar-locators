@@ -1,0 +1,113 @@
+=== DATE ===
+Thu Jan 15 13:05:33 CST 2026
+
+=== GIT STATUS (summary) ===
+?? .audit/
+
+=== ROUTABLE PAGES (page.tsx) ===
+app/(footer)/about/page.tsx
+app/(footer)/ai-apartment-locator/page.tsx
+app/(footer)/disclaimer/page.tsx
+app/(footer)/meet-your-locators/page.tsx
+app/(footer)/privacy/page.tsx
+app/(footer)/sitemap/page.tsx
+app/(footer)/terms/page.tsx
+app/(footer)/why-choose-us/page.tsx
+app/(site)/(cities)/[city]/[category]/page.tsx
+app/(site)/(cities)/san-antonio/buy-new-home/page.tsx
+app/(site)/(navigation)/how-it-works/page.tsx
+app/(site)/(navigation)/report-lease/page.tsx
+app/(site)/(navigation)/start-your-search/page.tsx
+app/(site)/[city]/apartments/[slug]/page.tsx
+app/(site)/[city]/apartments/reviews/[slug]/page.tsx
+app/(site)/[city]/apartments/reviews/page.tsx
+app/(site)/austin/apartments/page.tsx
+app/(site)/austin/apartments/reviews/page.tsx
+app/(site)/austin/blog/page.tsx
+app/(site)/austin/events/page.tsx
+app/(site)/austin/first-time-renters/page.tsx
+app/(site)/austin/free-apartment-locator/page.tsx
+app/(site)/austin/luxury-apartments/page.tsx
+app/(site)/austin/neighborhoods/page.tsx
+app/(site)/austin/new-construction-homes/page.tsx
+app/(site)/austin/penthouses/page.tsx
+app/(site)/austin/second-chance-apartments/page.tsx
+app/(site)/austin/townhomes/page.tsx
+app/(site)/dallas/apartments/page.tsx
+app/(site)/dallas/apartments/reviews/page.tsx
+app/(site)/dallas/blog/page.tsx
+app/(site)/dallas/events/page.tsx
+app/(site)/dallas/first-time-renters/page.tsx
+app/(site)/dallas/free-apartment-locator/page.tsx
+app/(site)/dallas/luxury-apartments/page.tsx
+app/(site)/dallas/neighborhoods/page.tsx
+app/(site)/dallas/new-construction-homes/page.tsx
+app/(site)/dallas/penthouses/page.tsx
+app/(site)/dallas/second-chance-apartments/page.tsx
+app/(site)/dallas/townhomes/page.tsx
+app/(site)/houston/apartments/page.tsx
+app/(site)/houston/apartments/reviews/page.tsx
+app/(site)/houston/blog/page.tsx
+app/(site)/houston/events/page.tsx
+app/(site)/houston/first-time-renters/page.tsx
+app/(site)/houston/free-apartment-locator/page.tsx
+app/(site)/houston/luxury-apartments/page.tsx
+app/(site)/houston/neighborhoods/page.tsx
+app/(site)/houston/new-construction-homes/page.tsx
+app/(site)/houston/penthouses/page.tsx
+app/(site)/houston/second-chance-apartments/page.tsx
+app/(site)/houston/townhomes/page.tsx
+app/(site)/san-antonio/apartments/page.tsx
+app/(site)/san-antonio/apartments/reviews/page.tsx
+app/(site)/san-antonio/blog/page.tsx
+app/(site)/san-antonio/events/page.tsx
+app/(site)/san-antonio/first-time-renters/page.tsx
+app/(site)/san-antonio/free-apartment-locator/page.tsx
+app/(site)/san-antonio/luxury-apartments/page.tsx
+app/(site)/san-antonio/neighborhoods/page.tsx
+app/(site)/san-antonio/new-construction-homes/page.tsx
+app/(site)/san-antonio/penthouses/page.tsx
+app/(site)/san-antonio/second-chance-apartments/page.tsx
+app/(site)/san-antonio/townhomes/page.tsx
+app/[city]/blog/[slug]/page.tsx
+app/[city]/blog/page.tsx
+app/app/dallas/page.tsx
+app/app/houston/page.tsx
+app/app/san-antonio/page.tsx
+app/blog/page.tsx
+app/buy-new-home/page.tsx
+app/new-home-thank-you/page.tsx
+app/page.tsx
+app/report-lease-thank-you/page.tsx
+app/thank-you/page.tsx
+
+=== ROUTE GROUP LAYOUTS ===
+app/(site)/layout.tsx
+app/layout.tsx
+
+=== NESTED app/ FOLDERS (should be none) ===
+app
+app/app
+
+=== DUPLICATE CITY FOLDERS (any depth) ===
+app/(site)/(cities)/san-antonio
+app/(site)/austin
+app/(site)/dallas
+app/(site)/houston
+app/(site)/san-antonio
+app/app/dallas
+app/app/houston
+app/app/san-antonio
+app/content/blog/san-antonio
+
+=== DYNAMIC ROUTE SEGMENTS ===
+
+=== TOP-LEVEL NON-app CITY-LIKE FOLDERS (FYI) ===
+./austin
+./dallas
+./houston
+./san-antonio
+
+=== DUPLICATE BASENAMES (potential collisions) ===
+  75 page.tsx
+
