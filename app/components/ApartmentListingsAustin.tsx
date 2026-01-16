@@ -15,6 +15,8 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const defaultImage =
   "https://res.cloudinary.com/dxtiguwzm/image/upload/v1748277676/photos-coming-soon-lone-star-locators_be1dyx.jpg";
+ 
+type Listing = Record<string, unknown>;
 
 export default function ApartmentListingsAustin() {
   const allNeighborhoods = [
@@ -101,7 +103,8 @@ export default function ApartmentListingsAustin() {
   };
 
   // ✅ FETCH LIVE DATA FROM SUPABASE
-  const [listings, setListings] = useState<any[]>([]);
+
+const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -114,16 +117,16 @@ export default function ApartmentListingsAustin() {
         console.log("🔌 Connecting to Supabase:", supabaseUrl);
 
         // ✅ Fetch all Austin listings
-        const { data, error } = await supabase
+        const { data, error: supabaseError } = await supabase
   .from("properties")
   .select("*")
   .eq("city_slug", "austin")
   .order("created_at", { ascending: false });
 
-        // 🪵 Log fetch result
-        console.log("✅ Fetched listings:", data, error);
+console.log("✅ Fetched listings:", data, supabaseError);
 
-        if (error) throw error;
+if (supabaseError) throw supabaseError;
+
 
         // ✅ Apply fallback image if missing
         const withDefaults = (data || []).map((listing) => ({
@@ -136,13 +139,16 @@ export default function ApartmentListingsAustin() {
             "https://res.cloudinary.com/dxtiguwzm/image/upload/v1748277676/photos-coming-soon-lone-star-locators_be1dyx.jpg",
         }));
 
-        setListings(withDefaults);
-      } catch (err: any) {
-        console.error("Error loading listings:", err.message);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
+       setListings(withDefaults);
+} catch (err) {
+  const message =
+    err instanceof Error ? err.message : "Error loading listings";
+  console.error("Error loading listings:", message);
+  setError(message);
+} finally {
+  setLoading(false);
+}
+
     };
 
     fetchListings();
@@ -153,10 +159,10 @@ export default function ApartmentListingsAustin() {
       filters;
 
     // ✅ RANGE-AWARE + STUDIO-SAFE PARSER
-    const parseRange = (val: any): [number, number] => {
+   const parseRange = (val: unknown): [number, number] => {
       if (!val) return [0, 0];
 
-      const str = val.toString().toLowerCase();
+      const str = String(val).toLowerCase();
 
       // ✅ Studio = 0 beds
       if (str.includes("studio")) return [0, 0];
@@ -204,47 +210,57 @@ export default function ApartmentListingsAustin() {
     const matchNeighborhoods =
       neighborhoods.length === 0 ||
       neighborhoods.includes("All of Austin") ||
-      neighborhoods.includes(listing.neighborhood);
+      typeof listing.neighborhood === "string" &&
+neighborhoods.includes(listing.neighborhood);
 
     const matchSubmarkets =
       submarkets.length === 0 ||
       submarkets.includes("All Submarkets") ||
-      submarkets.includes(listing.submarket);
+     typeof listing.submarket === "string" &&
+submarkets.includes(listing.submarket);
+
 
     const matchPrice =
-      !price ||
-      (priceRanges[price] &&
-        listing.price_value >= priceRanges[price][0] &&
-        listing.price_value <= priceRanges[price][1]);
+  !price ||
+  (priceRanges[price] &&
+    typeof listing.price_value === "number" &&
+    listing.price_value >= priceRanges[price][0] &&
+    listing.price_value <= priceRanges[price][1]);
 
-    // ✅ PROPERTY TYPE / STUDIO LOGIC
-    let matchPropertyType = true;
 
-    if (propertyType && propertyType !== "Open to All") {
-      const typeLower = propertyType.toLowerCase();
+     // ✅ PROPERTY TYPE / STUDIO LOGIC
+let matchPropertyType = true;
 
-      const propertyTypeText = (listing.property_type || "").toLowerCase();
-      const tagsText =
-        typeof listing.tags === "string" ? listing.tags.toLowerCase() : "";
+if (propertyType && propertyType !== "Open to All") {
+  const typeLower = propertyType.toLowerCase();
 
-      if (propertyType === "Studio") {
-        // ✅ Studio ONLY when beds look like studio
-        const rawBedsText = (listing.beds || listing.bedrooms || "")
-          .toString()
-          .toLowerCase();
+  const propertyTypeText =
+  typeof listing.property_type === "string"
+    ? listing.property_type.toLowerCase()
+    : "";
+  const tagsText =
+    typeof listing.tags === "string" ? listing.tags.toLowerCase() : "";
 
-        const looksStudio =
-          rawBedsText.includes("studio") ||
-          rawBedsText === "0" ||
-          rawBedsText === "0 beds";
+  if (propertyType === "Studio") {
+    // ✅ Studios are apartments with 0-bed layouts
+    const rawBedsText = (listing.beds || listing.bedrooms || "")
+      .toString()
+      .toLowerCase();
 
-        matchPropertyType = looksStudio;
-      } else {
-        // ✅ NORMAL PROPERTY TYPE MATCHING (Townhome, Apartment, Penthouse, Rental Home)
-        matchPropertyType =
-          propertyTypeText.includes(typeLower) || tagsText.includes(typeLower);
-      }
-    }
+    const allowsStudio =
+      rawBedsText.includes("studio") || rawBedsText.includes("0");
+
+    const isApartment =
+      propertyTypeText.includes("apartment") ||
+      tagsText.includes("apartment");
+
+    matchPropertyType = allowsStudio && isApartment;
+  } else {
+    // ✅ NORMAL PROPERTY TYPE MATCHING
+    matchPropertyType =
+      propertyTypeText.includes(typeLower) || tagsText.includes(typeLower);
+  }
+}
 
     return (
       matchBeds &&
@@ -265,8 +281,9 @@ export default function ApartmentListingsAustin() {
 */}
 
       {/* ✅ Add AI Schema right after SchemaItemList */}
-      <SchemaItemList city="Austin" listings={listings} />
-      <AISchema city="Austin" listings={listings} />
+      <SchemaItemList city="Austin" listings={[]} />
+<AISchema city="Austin" />
+
       {/* Schema Markup */}
       {/* Search Bar */}
       <div
@@ -555,6 +572,21 @@ export default function ApartmentListingsAustin() {
       properties match your search
     </>
   )}
+
+  {error && (
+  <div
+    style={{
+      marginTop: "0.75rem",
+      color: "#c62828",
+      fontSize: "0.95rem",
+      textAlign: "center",
+      fontWeight: 500,
+    }}
+  >
+    {error}
+  </div>
+)}
+
 </div>
 
 
@@ -576,21 +608,23 @@ export default function ApartmentListingsAustin() {
         {" "}
         {/* ← Left/Right padding safely added here */}
         <div className="card-grid">
-          {filteredListings.map((listing, index) => (
-            <ListingCard
-              key={index}
-              listing={{
-                ...listing,
-                price: listing.rent || listing.price,
-                beds: listing.bedrooms || listing.beds,
-                baths: listing.baths || listing.bathrooms,
-                tags:
-                  typeof listing.tags === "string"
-                    ? listing.tags.split(",").map((t) => t.trim())
-                    : listing.tags,
-              }}
-              defaultImage={defaultImage}
-            />
+         {filteredListings.map((listing: Listing, index) => (
+           <ListingCard
+  key={index}
+  listing={{
+    name: String(listing["name"] ?? ""),
+    slug: String(listing["slug"] ?? ""),
+    price: String(listing["rent"] ?? listing["price"] ?? ""),
+    beds: String(listing["bedrooms"] ?? listing["beds"] ?? ""),
+    baths: String(listing["baths"] ?? listing["bathrooms"] ?? ""),
+    tags:
+      typeof listing["tags"] === "string"
+        ? listing["tags"].split(",").map((t: string) => t.trim())
+        : [],
+  }}
+  defaultImage={defaultImage}
+/>
+
           ))}
         </div>
       </div>

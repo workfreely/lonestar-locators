@@ -16,6 +16,18 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const defaultImage =
   "https://res.cloudinary.com/dxtiguwzm/image/upload/v1748277676/photos-coming-soon-lone-star-locators_be1dyx.jpg";
 
+type Listing = Record<string, unknown>;
+
+type SchemaListing = {
+  name: string;
+  slug: string;
+  image: string;
+  beds: string;
+  baths: string;
+  neighborhood: string;
+  price_value?: number;
+};
+
 export default function ApartmentListingsSanAntonio() {
   const allNeighborhoods = [
     "Downtown San Antonio",
@@ -102,9 +114,11 @@ export default function ApartmentListingsSanAntonio() {
   };
 
   // ✅ FETCH LIVE DATA FROM SUPABASE
-  const [listings, setListings] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
+const [listings, setListings] = useState<Listing[]>([]);
+const [loading, setLoading] = useState(true);
+const [error, setError] = useState<string | null>(null);
+
 
   useEffect(() => {
     const fetchListings = async () => {
@@ -144,11 +158,11 @@ export default function ApartmentListingsSanAntonio() {
     ? listing.gallery_images
     : [],
 
-  // 🔑 Normalize tags safely
-  tags:
-    typeof listing.tags === "string"
-      ? listing.tags.split(",").map((t) => t.trim())
-      : listing.tags,
+ // 🔑 Normalize tags safely
+tags:
+  typeof listing.tags === "string"
+    ? listing.tags.split(",").map((t: string) => t.trim())
+    : listing.tags,
 }));
 
 setListings(normalized);
@@ -168,10 +182,12 @@ setListings(normalized);
       filters;
 
     // ✅ RANGE-AWARE + STUDIO-SAFE PARSER
-    const parseRange = (val: any): [number, number] => {
+
+   const parseRange = (val: unknown): [number, number] => {
+
       if (!val) return [0, 0];
 
-      const str = val.toString().toLowerCase();
+      const str = String(val).toLowerCase();
 
       // ✅ Studio = 0 beds
       if (str.includes("studio")) return [0, 0];
@@ -221,7 +237,8 @@ const matchBaths =
     const matchNeighborhoods =
       neighborhoods.length === 0 ||
       neighborhoods.includes("All of San Antonio") ||
-      neighborhoods.includes(listing.neighborhood);
+      typeof listing.neighborhood === "string" &&
+neighborhoods.includes(listing.neighborhood);
 
       // ✅ Normalize helper so UI labels match DB slugs
 // "New Braunfels" → "new-braunfels"
@@ -231,15 +248,17 @@ const normalize = (val?: string) =>
     const matchSubmarkets =
   submarkets.length === 0 ||
   submarkets.includes("All Submarkets") ||
-  submarkets
-    .map((s) => normalize(s))
-    .includes(normalize(listing.submarket));
+  (typeof listing.submarket === "string" &&
+    submarkets
+      .map((s) => normalize(s))
+      .includes(normalize(listing.submarket)));
 
     const matchPrice =
-      !price ||
-      (priceRanges[price] &&
-        listing.price_value >= priceRanges[price][0] &&
-        listing.price_value <= priceRanges[price][1]);
+  !price ||
+  (priceRanges[price] &&
+    typeof listing.price_value === "number" &&
+    listing.price_value >= priceRanges[price][0] &&
+    listing.price_value <= priceRanges[price][1]);
 
     // ✅ PROPERTY TYPE / STUDIO LOGIC
 let matchPropertyType = true;
@@ -247,7 +266,10 @@ let matchPropertyType = true;
 if (propertyType && propertyType !== "Open to All") {
   const typeLower = propertyType.toLowerCase();
 
-  const propertyTypeText = (listing.property_type || "").toLowerCase();
+  const propertyTypeText =
+  typeof listing.property_type === "string"
+    ? listing.property_type.toLowerCase()
+    : "";
   const tagsText =
     typeof listing.tags === "string" ? listing.tags.toLowerCase() : "";
 
@@ -291,8 +313,8 @@ if (propertyType && propertyType !== "Open to All") {
 */}
 
       {/* ✅ Add AI Schema right after SchemaItemList */}
-      <SchemaItemList city="San Antonio" listings={listings} />
-      <AISchema city="San Antonio" listings={listings} />
+<SchemaItemList city="San Antonio" listings={[]} />
+<AISchema city="San Antonio" />
       {/* Schema Markup */}
       {/* Search Bar */}
       <div
@@ -603,20 +625,22 @@ if (propertyType && propertyType !== "Open to All") {
         {/* ← Left/Right padding safely added here */}
         <div className="card-grid">
           {filteredListings.map((listing, index) => (
-            <ListingCard
-              key={index}
-              listing={{
-                ...listing,
-                price: listing.rent || listing.price,
-                beds: listing.bedrooms || listing.beds,
-                baths: listing.baths || listing.bathrooms,
-                tags:
-                  typeof listing.tags === "string"
-                    ? listing.tags.split(",").map((t) => t.trim())
-                    : listing.tags,
-              }}
-              defaultImage={defaultImage}
-            />
+       <ListingCard
+  key={index}
+  listing={{
+    name: String(listing["name"] ?? ""),
+    slug: String(listing["slug"] ?? ""),
+    price: String(listing["rent"] ?? listing["price"] ?? ""),
+    beds: String(listing["bedrooms"] ?? listing["beds"] ?? ""),
+    baths: String(listing["baths"] ?? listing["bathrooms"] ?? ""),
+    tags:
+      typeof listing["tags"] === "string"
+        ? listing["tags"].split(",").map((t) => t.trim())
+        : [],
+  }}
+  defaultImage={defaultImage}
+/>
+
           ))}
         </div>
       </div>

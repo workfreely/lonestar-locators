@@ -15,6 +15,8 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const defaultImage =
   "https://res.cloudinary.com/dxtiguwzm/image/upload/v1748277676/photos-coming-soon-lone-star-locators_be1dyx.jpg";
+  
+type Listing = Record<string, unknown>;
 
 export default function ApartmentListingsHouston() {
   // ✅ Houston neighborhoods
@@ -106,9 +108,10 @@ export default function ApartmentListingsHouston() {
   };
 
   // ✅ FETCH LIVE DATA FROM SUPABASE
-  const [listings, setListings] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
+const [listings, setListings] = useState<Listing[]>([]);
+const [loading, setLoading] = useState(true);
+const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchListings = async () => {
@@ -153,10 +156,11 @@ export default function ApartmentListingsHouston() {
       filters;
 
     // ✅ RANGE-AWARE + STUDIO-SAFE PARSER
-    const parseRange = (val: any): [number, number] => {
+ const parseRange = (val: unknown): [number, number] => {
+
       if (!val) return [0, 0];
 
-      const str = val.toString().toLowerCase();
+      const str = String(val).toLowerCase();
 
       // ✅ Studio = 0 beds
       if (str.includes("studio")) return [0, 0];
@@ -203,45 +207,55 @@ export default function ApartmentListingsHouston() {
     const matchNeighborhoods =
       neighborhoods.length === 0 ||
       neighborhoods.includes("All of Houston") ||
-      neighborhoods.includes(listing.neighborhood);
+      typeof listing.neighborhood === "string" &&
+neighborhoods.includes(listing.neighborhood);
 
     const matchSubmarkets =
       submarkets.length === 0 ||
       submarkets.includes("All Submarkets") ||
-      submarkets.includes(listing.submarket);
+     typeof listing.submarket === "string" &&
+submarkets.includes(listing.submarket);
 
     const matchPrice =
-      !price ||
-      (priceRanges[price] &&
-        listing.price_value >= priceRanges[price][0] &&
-        listing.price_value <= priceRanges[price][1]);
+  !price ||
+  (priceRanges[price] &&
+    typeof listing.price_value === "number" &&
+    listing.price_value >= priceRanges[price][0] &&
+    listing.price_value <= priceRanges[price][1]);
 
-    // ✅ PROPERTY TYPE / STUDIO LOGIC
-    let matchPropertyType = true;
+     // ✅ PROPERTY TYPE / STUDIO LOGIC
+let matchPropertyType = true;
 
-    if (propertyType && propertyType !== "Open to All") {
-      const typeLower = propertyType.toLowerCase();
+if (propertyType && propertyType !== "Open to All") {
+  const typeLower = propertyType.toLowerCase();
 
-      const propertyTypeText = (listing.property_type || "").toLowerCase();
-      const tagsText =
-        typeof listing.tags === "string" ? listing.tags.toLowerCase() : "";
+  const propertyTypeText =
+  typeof listing.property_type === "string"
+    ? listing.property_type.toLowerCase()
+    : "";
+  const tagsText =
+    typeof listing.tags === "string" ? listing.tags.toLowerCase() : "";
 
-      if (propertyType === "Studio") {
-        const rawBedsText = (listing.beds || listing.bedrooms || "")
-          .toString()
-          .toLowerCase();
+  if (propertyType === "Studio") {
+    // ✅ Studios are apartments with 0-bed layouts
+    const rawBedsText = (listing.beds || listing.bedrooms || "")
+      .toString()
+      .toLowerCase();
 
-        const looksStudio =
-          rawBedsText.includes("studio") ||
-          rawBedsText === "0" ||
-          rawBedsText === "0 beds";
+    const allowsStudio =
+      rawBedsText.includes("studio") || rawBedsText.includes("0");
 
-        matchPropertyType = looksStudio;
-      } else {
-        matchPropertyType =
-          propertyTypeText.includes(typeLower) || tagsText.includes(typeLower);
-      }
-    }
+    const isApartment =
+      propertyTypeText.includes("apartment") ||
+      tagsText.includes("apartment");
+
+    matchPropertyType = allowsStudio && isApartment;
+  } else {
+    // ✅ NORMAL PROPERTY TYPE MATCHING
+    matchPropertyType =
+      propertyTypeText.includes(typeLower) || tagsText.includes(typeLower);
+  }
+}
 
     return (
       matchBeds &&
@@ -256,8 +270,8 @@ export default function ApartmentListingsHouston() {
   return (
     <div style={{ padding: ".5rem", fontFamily: "'Inter', sans-serif" }}>
       {/* ✅ AI + SEO Schema (Houston) */}
-      <SchemaItemList city="Houston" listings={listings} />
-      <AISchema city="Houston" listings={listings} />
+      <SchemaItemList city="Houston" listings={[]} />
+<AISchema city="Houston" />
 
       {/* Search Bar */}
       <div
@@ -557,21 +571,23 @@ export default function ApartmentListingsHouston() {
       {/* ✅ Listings */}
       <div style={{ padding: "0rem" }}>
         <div className="card-grid">
-          {filteredListings.map((listing, index) => (
+         {filteredListings.map((listing: Listing, index) => (
             <ListingCard
-              key={index}
-              listing={{
-                ...listing,
-                price: listing.rent || listing.price,
-                beds: listing.bedrooms || listing.beds,
-                baths: listing.baths || listing.bathrooms,
-                tags:
-                  typeof listing.tags === "string"
-                    ? listing.tags.split(",").map((t: string) => t.trim())
-                    : listing.tags,
-              }}
-              defaultImage={defaultImage}
-            />
+  key={index}
+  listing={{
+    name: String(listing["name"] ?? ""),
+    slug: String(listing["slug"] ?? ""),
+    price: String(listing["rent"] ?? listing["price"] ?? ""),
+    beds: String(listing["bedrooms"] ?? listing["beds"] ?? ""),
+    baths: String(listing["baths"] ?? listing["bathrooms"] ?? ""),
+    tags:
+      typeof listing["tags"] === "string"
+        ? listing["tags"].split(",").map((t: string) => t.trim())
+        : [],
+  }}
+  defaultImage={defaultImage}
+/>
+
           ))}
         </div>
       </div>
