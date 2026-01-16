@@ -611,6 +611,7 @@ if (propertyType && propertyType !== "Open to All") {
          {filteredListings.map((listing: Listing, index) => (
            <ListingCard
   key={index}
+  citySlug="austin"   // ✅ REQUIRED
   listing={{
     name: String(listing["name"] ?? ""),
     slug: String(listing["slug"] ?? ""),
@@ -619,11 +620,12 @@ if (propertyType && propertyType !== "Open to All") {
     baths: String(listing["baths"] ?? listing["bathrooms"] ?? ""),
     tags:
       typeof listing["tags"] === "string"
-        ? listing["tags"].split(",").map((t: string) => t.trim())
+        ? listing["tags"].split(",").map((t) => t.trim())
         : [],
   }}
   defaultImage={defaultImage}
 />
+
 
           ))}
         </div>

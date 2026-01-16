@@ -38,27 +38,12 @@ export default async function ApartmentDetailPage({
   const { city, slug } = await params;
 
 
- const tableMap: Record<string, string> = {
-   "san-antonio": "san_antonio_listings",
-   austin: "austin_listings",
-   dallas: "dallas_listings",
-   houston: "houston_listings",
- };
-
-
- const tableName = tableMap[city];
-
-
- if (!tableName) {
-   return <div style={{ padding: 24 }}>City not supported.</div>;
- }
-
-
- const { data: listing, error } = await supabase
-   .from(tableName)
-   .select("*")
-   .eq("slug", slug)
-   .single();
+const { data: listing, error } = await supabase
+  .from("properties")
+  .select("*")
+  .eq("slug", slug)
+  .eq("city_slug", city)
+  .single();
 
 
  if (error || !listing) {

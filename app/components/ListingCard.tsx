@@ -4,47 +4,63 @@ import { trackEvent } from "@/app/utils/trackEvent";
 
 
 interface ListingCardProps {
- listing: {
-   name: string;
-   slug: string;
-   city_slug?: string;
-   href?: string;
-   submarket?: string;
-   neighborhood?: string;
-   region?: string;
-   image?: string;
-   price?: string;
-   priceValue?: number;
-   beds?: string;
-   baths?: string;
-   propertyType?: string;
-   tags?: string | string[];
-   special?: string;
-   rebate?: string;
- };
- defaultImage: string;
+  listing: {
+    name: string;
+    slug: string;
+    city_slug?: string;
+    href?: string;
+    submarket?: string;
+    neighborhood?: string;
+    region?: string;
+    image?: string;
+    price?: string;
+    priceValue?: number;
+    beds?: string;
+    baths?: string;
+    propertyType?: string;
+    tags?: string | string[];
+    special?: string;
+    rebate?: string;
+  };
+  defaultImage: string;
+  citySlug: string; // ✅ ADD THIS
 }
 
 
-const ListingCard: React.FC<ListingCardProps> = ({ listing, defaultImage }) => {
+const ListingCard: React.FC<ListingCardProps> = ({
+  listing,
+  defaultImage,
+  citySlug,
+}) => {
+
+  const resolvedCitySlug =
+  listing.city_slug ||
+  listing.region?.toLowerCase().trim().replace(/\s+/g, "-") ||
+  listing.neighborhood?.toLowerCase().trim().replace(/\s+/g, "-") ||
+  citySlug; // 👈 GUARANTEED
+
+  // 🔍 DEV SAFETY CHECK — warns if listing data is incomplete
+  if (!resolvedCitySlug) {
+    console.warn("Listing missing city info:", listing);
+  }
+  
  return (
 <Link
   href={
     listing.href ??
-    `/${listing.city_slug}/apartments/${listing.slug}`
+    `/${resolvedCitySlug}/apartments/${listing.slug}`
   }
   className="listing-card-link"
   onClick={() => {
     trackEvent("listing_card_click", {
       property: listing.name,
-      city: listing.city_slug,
+      city: resolvedCitySlug,
       neighborhood: listing.neighborhood || listing.submarket,
       price: listing.price,
       source: "listing_card",
     });
   }}
 >
-
 
      <div
        className="card"

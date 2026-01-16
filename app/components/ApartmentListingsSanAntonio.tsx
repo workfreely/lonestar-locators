@@ -625,8 +625,9 @@ if (propertyType && propertyType !== "Open to All") {
         {/* ← Left/Right padding safely added here */}
         <div className="card-grid">
           {filteredListings.map((listing, index) => (
-       <ListingCard
+      <ListingCard
   key={index}
+  citySlug="san-antonio"   // ✅ REQUIRED
   listing={{
     name: String(listing["name"] ?? ""),
     slug: String(listing["slug"] ?? ""),
@@ -640,6 +641,7 @@ if (propertyType && propertyType !== "Open to All") {
   }}
   defaultImage={defaultImage}
 />
+
 
           ))}
         </div>
