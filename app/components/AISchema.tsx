@@ -4,6 +4,10 @@ import Script from "next/script";
 
 interface AISchemaProps {
   city?: string;
+
+  // 👇 experimental / future AI inputs (safe + optional)
+  listings?: unknown;
+  [key: string]: unknown;
 }
 
 export default function AISchema({ city }: AISchemaProps) {

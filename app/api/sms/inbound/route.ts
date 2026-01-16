@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -32,6 +31,7 @@ export async function POST(req: Request) {
     .eq("sms_opt_in", true)
     .eq("sms_replied", false);
 
+  // Twilio requires a valid XML response
   return new Response(
     `<?xml version="1.0" encoding="UTF-8"?><Response></Response>`,
     { headers: { "Content-Type": "text/xml" } }

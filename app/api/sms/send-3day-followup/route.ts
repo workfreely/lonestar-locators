@@ -11,7 +11,7 @@ import { NextResponse } from "next/server";
  * - Logic intentionally disabled until launch
  */
 
-export async function POST(req: Request) {
+export async function POST(_req: Request) {
   try {
     // TODO:
     // 1. Query leads where:

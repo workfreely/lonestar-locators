@@ -12,17 +12,23 @@ import { NextResponse } from "next/server";
  * - Safe placeholder for now
  */
 
-export async function POST(req: Request) {
+export async function POST(_req: Request) {
   try {
     // 🔒 Parse request body (future use)
-    const body = await req.json();
+    const _body = await _req.json();
 
-    // TODO:
-    // 1. Validate lead exists
-    // 2. Check sms_opt_in = true
-    // 3. Check sms_welcome_sent = false
-    // 4. Send SMS via Twilio
-    // 5. Update Supabase flags
+    /**
+     * 🔔 LAUNCH NOTE:
+     * SMS sending logic (Twilio) will be added here.
+     * Variables are prefixed with "_" to avoid ESLint errors pre-launch.
+     *
+     * TODO:
+     * 1. Validate lead exists
+     * 2. Check sms_opt_in = true
+     * 3. Check sms_welcome_sent = false
+     * 4. Send SMS via Twilio
+     * 5. Update Supabase flags
+     */
 
     return NextResponse.json({
       success: true,

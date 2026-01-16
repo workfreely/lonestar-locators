@@ -158,7 +158,7 @@ const autoReviewLink = review_link
 
 
  // ✅ Force the CTA to use auto link if no manual override exists
- review_link = review_link || autoReviewLink;
+ const resolvedReviewLink = review_link || autoReviewLink;
 
 
  // IMAGE + LIGHTBOX
@@ -327,7 +327,7 @@ const faqs = [...filteredFaqs, defaultRebateFAQ];
        <Breadcrumbs
          items={[
            { label: "Home", href: "/" },
-           { label: city, href: `/apartments/${city_slug}` },
+          { label: city || "Apartments", href: `/apartments/${city_slug}` },
 
 
            { label: name },

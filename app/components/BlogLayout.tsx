@@ -13,8 +13,15 @@ interface BlogLayoutProps {
   faqs?: { question: string; answer: string }[];
   publishDate?: string;
   keywords?: string[];
-  ctaType?: "apartment" | "newhome";
-  schemaType?: "BlogPosting" | "ApartmentComplex" | "Place";
+  ctaType?: "apartment" | "newhome" | "home";
+ schemaType?: "BlogPosting" | "Article" | "ApartmentComplex" | "Place" | "Service";
+  address?: {
+    streetAddress?: string;
+    addressLocality: string;
+    addressRegion: string;
+    postalCode?: string;
+    addressCountry?: string;
+  };
 }
 
 const BlogLayout = ({
@@ -25,7 +32,9 @@ const BlogLayout = ({
   keywords = [],
   ctaType = "apartment",
   schemaType = "BlogPosting",
+  address,
 }: BlogLayoutProps) => {
+
   const schemaMarkup: any = {
     "@context": "https://schema.org",
     "@type": schemaType,
@@ -37,6 +46,14 @@ const BlogLayout = ({
     description: `Content titled "${title}" by Jay Morris.`,
     keywords: keywords.join(", "),
   };
+
+  // ✅ Attach address when provided (Service / Place schema support)
+if (address) {
+  schemaMarkup.address = {
+    "@type": "PostalAddress",
+    ...address,
+  };
+}
 
   // ✅ Only include datePublished when it exists
   if (publishDate) {

@@ -184,8 +184,9 @@ featureImage2,
    image && image.trim() !== "" ? image : placeholderImage;
 
 
-   // 🔦 Lightbox state for review hero (NEW)
+// 🔦 Lightbox state for review hero (NEW)
 const [lightboxOpen, setLightboxOpen] = useState(false);
+const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
 // 🎥 Video tracking state
 const playerRef = React.useRef<any>(null);

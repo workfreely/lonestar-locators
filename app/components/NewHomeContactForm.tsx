@@ -205,7 +205,7 @@ website: formData.website, // honeypot
     }
   };
 
-  const inputStyle = {
+ const inputStyle: React.CSSProperties = {
     width: "100%",
     height: "46px", // ✅ Forces same height for ALL fields
     padding: "0 12px", // ✅ Horizontal padding only
@@ -351,7 +351,6 @@ website: formData.website, // honeypot
           placeholderText="Preferred Move-In Date"
           dateFormat="MM/dd/yyyy"
           className="form-input"
-          style={inputStyle}
         />
       </div>
 

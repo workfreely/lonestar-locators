@@ -9,7 +9,23 @@
  * - One place to wire all analytics later
  */
 
-type AnalyticsPayload = Record<string, any>;
+type AnalyticsPayload = Record<string, unknown>;
+
+type GtagFunction = (
+  command: "event",
+  eventName: string,
+  params?: AnalyticsPayload
+) => void;
+
+type FbqFunction = (
+  command: string,
+  eventName: string,
+  params?: AnalyticsPayload
+) => void;
+
+type Posthog = {
+  capture: (eventName: string, properties?: AnalyticsPayload) => void;
+};
 
 export function track(event: string, payload: AnalyticsPayload = {}) {
   // 🚧 Never track in development
@@ -18,18 +34,26 @@ export function track(event: string, payload: AnalyticsPayload = {}) {
     return;
   }
 
+  if (typeof window === "undefined") return;
+
+  const w = window as unknown as {
+    gtag?: GtagFunction;
+    fbq?: FbqFunction;
+    posthog?: Posthog;
+  };
+
   // ✅ GA4
-  if (typeof window !== "undefined" && (window as any).gtag) {
-    (window as any).gtag("event", event, payload);
+  if (w.gtag) {
+    w.gtag("event", event, payload);
   }
 
   // ✅ Meta Pixel
-  if (typeof window !== "undefined" && (window as any).fbq) {
-    (window as any).fbq("trackCustom", event, payload);
+  if (w.fbq) {
+    w.fbq("trackCustom", event, payload);
   }
 
   // ✅ PostHog
-  if (typeof window !== "undefined" && (window as any).posthog) {
-    (window as any).posthog.capture(event, payload);
+  if (w.posthog) {
+    w.posthog.capture(event, payload);
   }
 }

@@ -528,7 +528,6 @@ if (formData.sms_consent && formData.phone) {
           placeholderText="Desired Move-In Date"
           dateFormat="MM/dd/yyyy"
           className="form-input"
-          style={inputStyle}
         />
       </div>
       {/* CITY */}

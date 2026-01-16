@@ -1,20 +1,21 @@
 import ThankYou from "@/app/components/ThankYou";
 
 type ThankYouPageProps = {
-  searchParams: {
+  searchParams: Promise<{
     firstName?: string;
     city?: string;
-  };
+  }>;
 };
 
-export default function ThankYouPage({ searchParams }: ThankYouPageProps) {
-  const firstName = searchParams.firstName || "Friend";
-  const city = searchParams.city || "";
+export default async function ThankYouPage({
+  searchParams,
+}: ThankYouPageProps) {
+  const { firstName, city } = await searchParams;
 
   return (
     <ThankYou
-      firstName={firstName}
-      city={city}
+      firstName={firstName || "Friend"}
+      city={city || ""}
     />
   );
 }

@@ -25,12 +25,17 @@ function prettyCity(slug: string) {
 }
 
 
+interface PageProps {
+  params: Promise<{
+    city: string;
+    slug: string;
+  }>;
+}
+
 export default async function ApartmentDetailPage({
- params,
-}: {
- params: { city: string; slug: string };
-}) {
- const { city, slug } = params;
+  params,
+}: PageProps) {
+  const { city, slug } = await params;
 
 
  const tableMap: Record<string, string> = {

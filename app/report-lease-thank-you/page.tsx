@@ -1,17 +1,21 @@
 import ReportLeaseThankYou from "@/app/components/ReportLeaseThankYou";
 
 type PageProps = {
-  searchParams: {
+  searchParams: Promise<{
     firstName?: string;
     incentive?: "cash" | "movers";
-  };
+  }>;
 };
 
-export default function ReportLeaseThankYouPage({ searchParams }: PageProps) {
+export default async function ReportLeaseThankYouPage({
+  searchParams,
+}: PageProps) {
+  const { firstName, incentive } = await searchParams;
+
   return (
     <ReportLeaseThankYou
-      firstName={searchParams.firstName}
-      incentive={searchParams.incentive}
+      firstName={firstName}
+      incentive={incentive}
     />
   );
 }

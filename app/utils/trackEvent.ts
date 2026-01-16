@@ -1,12 +1,26 @@
+// /app/utils/trackEvent.ts
+
+type EventPayload = Record<string, unknown>;
+
+type GtagFunction = (
+  command: "event",
+  eventName: string,
+  params?: EventPayload
+) => void;
+
 export const trackEvent = (
   event: string,
-  data: Record<string, any> = {}
+  data: EventPayload = {}
 ) => {
   if (typeof window === "undefined") return;
 
+  const w = window as unknown as {
+    gtag?: GtagFunction;
+  };
+
   // Google Analytics (gtag)
-  if ((window as any).gtag) {
-    (window as any).gtag("event", event, data);
+  if (w.gtag) {
+    w.gtag("event", event, data);
   }
 
   // Optional: future tools (PostHog, Meta, etc.)

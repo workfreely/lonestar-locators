@@ -7,14 +7,24 @@ import Script from "next/script";
 import Image from "next/image";
 
 
+interface BlogCardProps {
+  imageUrl: string;
+  title: string;
+  excerpt?: string;
+  tags?: string[];
+  postUrl?: string;
+  date?: string;
+}
+
 const BlogCard = ({
-  title, 
   imageUrl,
+  title,
   excerpt,
   tags = [],
   postUrl = "",
   date,
-}) => {
+}: BlogCardProps) => {
+
   const placeholderImage =
   "https://res.cloudinary.com/dxtiguwzm/image/upload/v1747937030/lone-star-locators-san-antonio-texas-free-apartment-locating_trgkaj.jpg";
 

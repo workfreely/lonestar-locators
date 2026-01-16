@@ -8,17 +8,17 @@ interface ListingCardProps {
    name: string;
    slug: string;
    city_slug?: string;
-   href?: string; // ✅ NEW (optional override)
-   submarket?: string; // ✅ NEW FIELD
-   neighborhood: string;
+   href?: string;
+   submarket?: string;
+   neighborhood?: string;
    region?: string;
    image?: string;
-   price: string;
-   priceValue: number;
-   beds: string;
-   baths: string;
-   propertyType: string;
-   tags?: string[];
+   price?: string;
+   priceValue?: number;
+   beds?: string;
+   baths?: string;
+   propertyType?: string;
+   tags?: string | string[];
    special?: string;
    rebate?: string;
  };
@@ -152,10 +152,10 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, defaultImage }) => {
 
            // Normalize tags into an array
            const tags = Array.isArray(rawTags)
-             ? rawTags
-             : typeof rawTags === "string"
-             ? rawTags.split(",").map((t) => t.trim())
-             : [];
+  ? rawTags
+  : typeof rawTags === "string"
+  ? rawTags.split(",").map((t: string) => t.trim())
+  : [];
 
 
            if (tags.length === 0) return null;
@@ -171,18 +171,18 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, defaultImage }) => {
                  gap: "0.4rem",
                }}
              >
-               {tags.slice(0, 3).map((tag, i) => (
-                 <span
-                   key={i}
-                   className="tag"
-                   style={{
-                     backgroundColor: "#f5f5f5",
-                     color: "#555",
-                     fontSize: "0.8rem",
-                     padding: "0.25rem 0.5rem",
-                     borderRadius: "4px",
-                   }}
-                 >
+               {tags.slice(0, 3).map((tag: string, i: number) => (
+  <span
+    key={i}
+    className="tag"
+    style={{
+      backgroundColor: "#f5f5f5",
+      color: "#555",
+      fontSize: "0.8rem",
+      padding: "0.25rem 0.5rem",
+      borderRadius: "4px",
+    }}
+  >
                    {tag}
                  </span>
                ))}
