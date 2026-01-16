@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import Link from "next/link";
 import ListingCard from "./ListingCard";
 
 const FeaturedProperties: React.FC = () => {
@@ -99,13 +98,13 @@ const FeaturedProperties: React.FC = () => {
           // So we pass href DOWN and let ListingCard own navigation.
           return (
             <ListingCard
-              key={index}
-              listing={{
-                ...listing,
-                href,
-              }}
-              defaultImage={defaultImage}
-            />
+  key={listing.slug}
+  listing={{
+    ...listing,
+    href,
+  }}
+  defaultImage={defaultImage}
+/>
           );
         })}
       </div>

@@ -107,58 +107,30 @@ const ListingLayout: FC<ListingLayoutProps> = ({
  faq5_q,
  faq5_a,
 }) => {
- // ========================================
- // 🔵 AUTO-GENERATE GOOD/BAD/UGLY REVIEW LINK
- // ========================================
 
+// ========================================
+// ✅ REVIEW LINK — SINGLE SOURCE OF TRUTH
+// ========================================
 
- // Published review slugs — add more as you publish
- const publishedReviews = [
-   "park-at-stone-oak",
-   "elmira-flats",
-   "st-marys-flats", 
-   "alaro-luxury-villas",
-   "the-floodgate",
-   "oasis-stone-oak",
-   "300-main",
-   "collection-schertz-station",
-   "collection-gruene",
-   "collection-boerne",
-   "los-cielos-at-brooks",
-   "artesia-at-medina-valley",
-   "infinity-at-the-rim",
-   "the-tobin-estate",
-   "emerald-townes",
-   "caliza-at-the-loop",
-   "hartwin-bulverde",
-   "la-tierna",
-   "palladium-san-antonio",
- ];
+// Supabase should provide ONLY a slug (e.g. "alaro-luxury-villas")
+// This guard prevents duplicated paths if bad data ever slips in
+const resolvedReviewLink =
+  review_link && !review_link.startsWith("/")
+    ? `/${city_slug}/apartments/reviews/${review_link}`
+    : review_link || null;
 
+    // 🚨 DEV WARNING — review_link must be a slug only
+if (process.env.NODE_ENV === "development") {
+  if (review_link?.includes("/")) {
+    console.warn(
+      "[ListingLayout] review_link should be a slug only:",
+      review_link
+    );
+  }
+}
 
- // Create slug from property name
- const generatedSlug = name
-   .toLowerCase()
-   .replace(/\s+/g, "-")
-   .replace(/[^a-z0-9-]/g, "");
-
-
- // Determine if a review exists
- // ✅ AUTO-GENERATE GOOD/BAD/UGLY REVIEW LINK (CITY SAFE)
- // NEW — ensures all listings live under /apartments/{city}
- const cityPath = `apartments/${
-   city_slug || city?.toLowerCase().trim().replace(/\s+/g, "-")
- }`;
-
-
-// ✅ Supabase-driven review link (single source of truth)
-const autoReviewLink = review_link
-  ? `/${city_slug}/apartments/reviews/${review_link}`
-  : null;
-
-
- // ✅ Force the CTA to use auto link if no manual override exists
- const resolvedReviewLink = review_link || autoReviewLink;
+const safeUrl =
+  typeof window !== "undefined" ? window.location.href : "";
 
 
  // IMAGE + LIGHTBOX
@@ -823,43 +795,34 @@ const faqs = [...filteredFaqs, defaultRebateFAQ];
            </div>
 
 
-           {/* GOOD / BAD / UGLY CTA LINK — styled to match Move-in Special */}
-           {review_link && (
-             <div
-               style={{
-                 backgroundColor: "#e8f2ff",
-                 border: "1px solid #c7dbff",
-                 padding: "1rem 1.25rem",
-                 borderRadius: "10px",
-                 color: "#004aad",
-                 fontWeight: "700",
-                 fontSize: "1.05rem",
-                 display: "block",
-                 marginTop: "2rem",
-               marginBottom: "0.75rem",
-                 boxShadow: "0 3px 10px rgba(0,0,0,0.06)",
-                 lineHeight: "1.6",
-                 maxWidth: "850px",
-                 marginInline: "auto",
-                 transition: "transform 0.2s ease, box-shadow 0.2s ease",
-               }}
-               onMouseEnter={(e) => {
-                 e.currentTarget.style.transform = "translateY(-3px)";
-                 e.currentTarget.style.boxShadow =
-                   "0 4px 10px rgba(0,0,0,0.08)";
-               }}
-               onMouseLeave={(e) => {
-                 e.currentTarget.style.transform = "translateY(0)";
-                 e.currentTarget.style.boxShadow =
-                   "0 3px 10px rgba(0,0,0,0.06)";
-               }}
-             >
-               <a
-                 href={review_link}
-                 target="_blank"
-                 rel="noopener noreferrer"
-                 style={{ textDecoration: "none" }}
-               >
+{/* GOOD / BAD / UGLY CTA LINK — styled to match Move-in Special */}
+{resolvedReviewLink && (
+  <div
+    style={{
+      backgroundColor: "#e8f2ff",
+      border: "1px solid #c7dbff",
+      padding: "1rem 1.25rem",
+      borderRadius: "10px",
+      color: "#004aad",
+      fontWeight: "700",
+      fontSize: "1.05rem",
+      display: "block",
+      marginTop: "2rem",
+      marginBottom: "0.75rem",
+      boxShadow: "0 3px 10px rgba(0,0,0,0.06)",
+      lineHeight: "1.6",
+      maxWidth: "850px",
+      marginInline: "auto",
+      transition: "transform 0.2s ease, box-shadow 0.2s ease",
+    }}
+  >
+    <a
+      href={resolvedReviewLink}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{ textDecoration: "none" }}
+    >
+
                  <h3
                    style={{
                      color: "#004aad",
@@ -903,17 +866,17 @@ const faqs = [...filteredFaqs, defaultRebateFAQ];
                >
                  Check out our honest{" "}
                  <a
-                   href={review_link}
-                   target="_blank"
-                   rel="noopener noreferrer"
-                   style={{
-                     color: "#004aad",
-                     fontWeight: "600",
-                     textDecoration: "underline",
-                   }}
-                 >
-                   {name} review.
-                 </a>{" "}
+  href={resolvedReviewLink}
+  target="_blank"
+  rel="noopener noreferrer"
+  style={{
+    color: "#004aad",
+    fontWeight: "600",
+    textDecoration: "underline",
+  }}
+>
+  {name} review.
+</a>{" "}
                  We cover what you need to know before leasing that you won’t
                  find anywhere else. What you learn may surprise you!
                </p>
@@ -932,44 +895,43 @@ const faqs = [...filteredFaqs, defaultRebateFAQ];
          </div>
 
 
-         {/* ✅ #4 — Good / Bad / Ugly SEO Review Schema */}
-         {review_link && (
-           <script type="application/ld+json">
-             {JSON.stringify({
-               "@context": "https://schema.org",
-               "@type": "Review",
-               itemReviewed: {
-                 "@type": "ApartmentComplex",
-                 name: name,
-                 address: address,
-                 url: window.location.href,
-               },
-               author: {
-                 "@type": "Person",
-                 name: "Jay Morris",
-                 jobTitle: "Licensed Real Estate Agent",
-                 worksFor: {
-                   "@type": "Organization",
-                   name: "Lone Star Locators",
-                   url: "https://lonestarlocators.app",
-                 },
-               },
-               reviewBody: `An honest review of ${name} covering the good, bad, and ugly.`,
-               reviewRating: {
-                 "@type": "Rating",
-                 ratingValue: "4",
-                 bestRating: "5",
-                 worstRating: "1",
-               },
-               publisher: {
-                 "@type": "Organization",
-                 name: "Lone Star Locators",
-               },
-               url: review_link,
-             })}
-           </script>
-         )}
-
+        {/* ✅ #4 — Good / Bad / Ugly SEO Review Schema */}
+{resolvedReviewLink && (
+  <script type="application/ld+json">
+    {JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "Review",
+      itemReviewed: {
+        "@type": "ApartmentComplex",
+        name: name,
+        address: address,
+        url: window.location.href,
+      },
+      author: {
+        "@type": "Person",
+        name: "Jay Morris",
+        jobTitle: "Licensed Real Estate Agent",
+        worksFor: {
+          "@type": "Organization",
+          name: "Lone Star Locators",
+          url: "https://lonestarlocators.app",
+        },
+      },
+      reviewBody: `An honest review of ${name} covering the good, bad, and ugly.`,
+      reviewRating: {
+        "@type": "Rating",
+        ratingValue: "4",
+        bestRating: "5",
+        worstRating: "1",
+      },
+      publisher: {
+        "@type": "Organization",
+        name: "Lone Star Locators",
+      },
+      url: resolvedReviewLink,
+    })}
+  </script>
+)}
 
          {/* RIGHT COLUMN (SIDEBAR) */}
          <div
@@ -1075,9 +1037,9 @@ const faqs = [...filteredFaqs, defaultRebateFAQ];
 
 
  {/* ✅ Video Review CTA (Listing Sidebar) */}
-{review_link && agentVideo && (
+{resolvedReviewLink && agentVideo && (
   <div style={{ marginTop: "2rem", textAlign: "center" }}>
-    <a href={review_link} style={{ textDecoration: "none" }}>
+    <a href={resolvedReviewLink} style={{ textDecoration: "none" }}>
       <div
         style={{
           position: "relative",

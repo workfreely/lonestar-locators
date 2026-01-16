@@ -43,25 +43,31 @@ const LegalLayout = ({ title, children }: LegalLayoutProps) => {
           if (!React.isValidElement(child)) return child;
 
           // Force consistent styling for headings and paragraphs
-          if (child.type === "h2") {
-            return React.cloneElement(child as React.ReactElement, {
-              style: {
-                fontSize: "1.3rem",
-                fontWeight: 700,
-                marginTop: "2rem",
-                marginBottom: "0.5rem",
-                color: "#111",
-              },
-            });
-          }
+         if (child.type === "h2") {
+  return React.cloneElement(
+    child as React.ReactElement<React.HTMLAttributes<HTMLHeadingElement>>,
+    {
+      style: {
+        fontSize: "1.3rem",
+        fontWeight: 700,
+        marginTop: "2rem",
+        marginBottom: "0.5rem",
+        color: "#111",
+      },
+    }
+  );
+}
 
           if (child.type === "p") {
-            return React.cloneElement(child as React.ReactElement, {
-              style: {
-                marginBottom: "0.5rem",
-              },
-            });
-          }
+  return React.cloneElement(
+    child as React.ReactElement<React.HTMLAttributes<HTMLParagraphElement>>,
+    {
+      style: {
+        marginBottom: "0.5rem",
+      },
+    }
+  );
+}
 
           return child;
         })}

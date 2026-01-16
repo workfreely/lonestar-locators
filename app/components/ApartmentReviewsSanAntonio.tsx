@@ -37,6 +37,10 @@ export default function ApartmentReviewsSanAntonio() {
   // ✅ state for filters
  const [filters, setFilters] = useState({
   q: "",
+  beds: "",
+  baths: "",
+  price: "",
+  propertyType: "",
   neighborhoods: [] as string[],
   submarkets: [] as string[],
 });
@@ -173,7 +177,8 @@ const matchQuery = matchReviewQuery(q, listing.property_name);
       if (str.includes("studio")) return [0, 0];
 
       // ✅ Extract all numbers in the string
-      const nums = str.match(/\d+/g)?.map((n) => parseInt(n, 10)) || [];
+     const nums =
+  str.match(/\d+/g)?.map((n: string) => parseInt(n, 10)) || [];
 
       if (nums.length === 1) return [nums[0], nums[0]];
       if (nums.length >= 2) return [nums[0], nums[nums.length - 1]];
@@ -366,6 +371,7 @@ if (propertyType && propertyType !== "Open to All") {
           className="search-button"
           onClick={() =>
             setFilters({
+              q: "",
               beds: "",
               baths: "",
               price: "",
@@ -377,6 +383,7 @@ if (propertyType && propertyType !== "Open to All") {
         >
           Reset Filters
         </button>
+
         {/* Neighborhoods */}
         <div style={{ flexBasis: "100%", marginTop: ".25rem" }}>
           <label

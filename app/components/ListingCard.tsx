@@ -1,3 +1,4 @@
+
 import { FaTag } from "react-icons/fa";
 import Link from "next/link";
 import { trackEvent } from "@/app/utils/trackEvent";
@@ -23,7 +24,7 @@ interface ListingCardProps {
     rebate?: string;
   };
   defaultImage: string;
-  citySlug: string; // ✅ ADD THIS
+  citySlug?: string; // ✅ optional
 }
 
 
