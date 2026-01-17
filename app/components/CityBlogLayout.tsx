@@ -51,7 +51,7 @@ export default function CityBlogLayout({
       style={{
         maxWidth: "1200px",
         margin: "0 auto",
-        padding: "2rem 1rem",
+        padding: "0rem 1rem 2rem",
         fontFamily: "'Inter', sans-serif",
       }}
     >
@@ -146,7 +146,7 @@ export default function CityBlogLayout({
           marginBottom: "2.5rem",
         }}
       >
-        In depth apartment guides and comparisons coming soon in {cityName}.
+        In depth apartment guides and comparisons coming soon {cityName}.
       </p>
 
       {/* Blog Grid */}

@@ -56,6 +56,7 @@ const utmContent = params?.get("utm_content");
     timeline: "", // ✅ REQUIRED
     message: "",
     website: "", // ✅ honeypot
+    sms_consent: false, // ✅ ADD
   });
 
   const router = useRouter();
@@ -142,7 +143,12 @@ const leadSource = utmSource ?? "direct";
           down_payment: formData.downPayment,
           credit_score: formData.creditScore,
           source: leadSource,
-          
+
+          sms_opt_in: formData.sms_consent,
+          sms_consent_at: formData.sms_consent
+          ? new Date().toISOString()
+         : null,
+
 // ------------------------
     // Lead Classification
     // ------------------------
@@ -194,6 +200,7 @@ website: formData.website, // honeypot
         creditScore: "",
         message: "",
         website: "",
+        sms_consent: false, // ✅ ADD HERE
       });
 
      router.push(
@@ -485,6 +492,35 @@ website: formData.website, // honeypot
         tabIndex={-1}
         autoComplete="off"
       />
+
+{/* SMS & Email Consent */}
+<div
+  style={{
+    display: "flex",
+    gap: "0.5rem",
+    alignItems: "flex-start",
+    marginTop: "1rem",
+    fontSize: "0.85rem",
+    color: "#444",
+  }}
+>
+  <input
+    type="checkbox"
+    id="smsConsent"
+    checked={formData.sms_consent}
+    onChange={(e) =>
+      setFormData((prev) => ({
+        ...prev,
+        sms_consent: e.target.checked,
+      }))
+    }
+    required
+    style={{ marginTop: "2px" }}
+  />
+  <label htmlFor="smsConsent">
+    I agree to receive texts & emails about my search and opt-out anytime.
+  </label>
+</div>
 
       {/* SUBMIT */}
       <button

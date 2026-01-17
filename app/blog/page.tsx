@@ -10,7 +10,7 @@ export default function BlogHomePage() {
       style={{
         maxWidth: "1200px",
         margin: "0 auto",
-        padding: "3rem 1rem",
+       padding: "0rem 3rem 1rem",
         fontFamily: "'Inter', sans-serif",
       }}
     >

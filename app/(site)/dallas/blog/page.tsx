@@ -13,7 +13,7 @@ export default async function DallasBlogPage() {
       keywords,
       published_at
     `)
-    .eq("city_slug", "dallas")
+    .eq("city", "dallas")
     .eq("status", "published")
     .order("published_at", { ascending: false });
 

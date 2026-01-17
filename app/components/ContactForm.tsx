@@ -1148,25 +1148,26 @@ if (formData.sms_consent && formData.phone) {
         autoComplete="off"
       />
 
-{/* SMS & Email Consent */}
-{/* SMS & Email Consent */}
-<div className="consent-row">
-  <input
-    type="checkbox"
-    id="smsConsent"
-    checked={formData.sms_consent}
-    onChange={(e) =>
-      setFormData((prev) => ({
-        ...prev,
-        sms_consent: e.target.checked,
-      }))
-    }
-    required
-  />
-  <label htmlFor="smsConsent">
-    I agree to receive texts & emails about my search and opt-out anytime.
-  </label>
-</div>
+{/* SMS & Email Consent — FULL FORM ONLY */}
+{!isShortForm && (
+  <div className="consent-row">
+    <input
+      type="checkbox"
+      id="smsConsent"
+      checked={formData.sms_consent}
+      onChange={(e) =>
+        setFormData((prev) => ({
+          ...prev,
+          sms_consent: e.target.checked,
+        }))
+      }
+      required
+    />
+    <label htmlFor="smsConsent">
+      I agree to receive texts & emails about my search and opt-out anytime.
+    </label>
+  </div>
+)}
 
 
       {/* SUBMIT BUTTON */}

@@ -95,7 +95,7 @@ export default function HomePage() {
         <h1 style={{ fontSize: "3.5rem", fontWeight: 800 }}>
           Free Apartment Locator in Texas
         </h1>
-        <p style={{ maxWidth: "900px", margin: "1rem auto", fontSize: "1.25rem" }}>
+        <p style={{ maxWidth: "900px", margin: "0rem auto", fontSize: "1.25rem" }}>
           We help you find, tour and lease luxury apartments, townhomes and penthouses with the best move-in specials.
           <strong> Get free movers or up to $200 cash rebate when you lease through us.</strong>
         </p>

@@ -13,7 +13,7 @@ export default async function SanAntonioBlogPage() {
       keywords,
       published_at
     `)
-    .eq("city_slug", "san-antonio")
+    .eq("city", "san-antonio")
     .eq("status", "published")
     .order("published_at", { ascending: false });
 

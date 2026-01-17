@@ -27,19 +27,26 @@ export default function ReportLeaseForm() {
     website: "", // honeypot
   });
 
-  const handleChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >
-  ) => {
-    const { name, value, type } = e.target;
+const handleChange = (
+  e: React.ChangeEvent<
+    HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+  >
+) => {
+  const target = e.target;
+  const name = target.name;
 
-    if (type === "checkbox" && e.target instanceof HTMLInputElement) {
-      setFormData((prev) => ({ ...prev, [name]: e.target.checked }));
-    } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
-    }
-  };
+  if (target instanceof HTMLInputElement && target.type === "checkbox") {
+    setFormData((prev) => ({
+      ...prev,
+      [name]: target.checked,
+    }));
+  } else {
+    setFormData((prev) => ({
+      ...prev,
+      [name]: target.value,
+    }));
+  }
+};
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
