@@ -79,9 +79,9 @@ const Footer = () => {
     ["/dallas/townhomes", "Dallas Townhomes"],
     ["/dallas/penthouses", "Dallas Penthouses"],
     ["/dallas/first-time-renters", "Dallas First-Time Renters"],
-    ["/buy-new-home", "Buy New Home Dallas"],
     ["/dallas/new-construction-homes", "New Construction Homes"],
     ["/dallas/second-chance-apartments", "2nd Chance Apts Dallas"],
+    ["/buy-new-home", "Buy New Home Dallas"],
   ]}
   linkStyle={linkStyle}
 />
@@ -97,9 +97,9 @@ const Footer = () => {
     ["/houston/townhomes", "Houston Townhomes"],
     ["/houston/penthouses", "Houston Penthouses"],
     ["/houston/first-time-renters", "Houston First-Time Renters"],
-    ["/buy-new-home", "Buy New Home Houston"],
     ["/houston/new-construction-homes", "New Construction Homes"],
     ["/houston/second-chance-apartments", "2nd Chance Apts Houston"],
+    ["/buy-new-home", "Buy New Home Houston"],
   ]}
   linkStyle={linkStyle}
 />
@@ -116,9 +116,9 @@ const Footer = () => {
     ["/san-antonio/townhomes", "San Antonio Townhomes"],
     ["/san-antonio/penthouses", "San Antonio Penthouses"],
     ["/san-antonio/first-time-renters", "SATX First-Time Renters"],
-    ["/buy-new-home", "Buy Home San Antonio"],
     ["/san-antonio/new-construction-homes", "New Construction Homes"],
     ["/san-antonio/second-chance-apartments", "2nd Chance Apts SATX"],
+    ["/buy-new-home", "Buy Home San Antonio"],
   ]}
   linkStyle={linkStyle}
 />

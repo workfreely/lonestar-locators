@@ -627,16 +627,47 @@ if (propertyType && propertyType !== "Open to All") {
           {filteredListings.map((listing, index) => (
       <ListingCard
   key={index}
-  citySlug="san-antonio"   // ✅ REQUIRED
+  citySlug="san-antonio"
   listing={{
     name: String(listing["name"] ?? ""),
     slug: String(listing["slug"] ?? ""),
-    price: String(listing["rent"] ?? listing["price"] ?? ""),
+    city_slug: String(listing["city_slug"] ?? "san-antonio"),
+
+    // 🔑 PRICE
+    price: String(listing["rent"] ?? ""),
+
+    // 🔑 BEDS / BATHS
     beds: String(listing["bedrooms"] ?? listing["beds"] ?? ""),
     baths: String(listing["baths"] ?? listing["bathrooms"] ?? ""),
+
+    // 🔑 LOCATION
+    neighborhood:
+      typeof listing["neighborhood"] === "string"
+        ? listing["neighborhood"]
+        : undefined,
+    submarket:
+      typeof listing["submarket"] === "string"
+        ? listing["submarket"]
+        : undefined,
+
+    // 🔑 IMAGE
+    image:
+      typeof listing["image"] === "string" && listing["image"].trim() !== ""
+        ? listing["image"]
+        : defaultImage,
+
+    // 🔑 MOVE-IN SPECIAL (THIS FIXES THE BLUE BANNER)
+    special:
+      typeof listing["special"] === "string"
+        ? listing["special"]
+        : undefined,
+
+    // 🔑 TAGS
     tags:
       typeof listing["tags"] === "string"
         ? listing["tags"].split(",").map((t) => t.trim())
+        : Array.isArray(listing["tags"])
+        ? listing["tags"]
         : [],
   }}
   defaultImage={defaultImage}

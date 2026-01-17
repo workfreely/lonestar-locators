@@ -172,7 +172,7 @@ featureImage2,
 
  // ✅ Default "Coming Soon" fallback for hero images
  const placeholderImage =
-   "https://ukkxisleiprdpptaaxcs.supabase.co/storage/v1/object/public/property-images/san-antonio/alaro-luxury-villas/hero.webp";
+   "https://res.cloudinary.com/dxtiguwzm/image/upload/v1748277676/photos-coming-soon-lone-star-locators_be1dyx.jpg";
 
 
  // ✅ Agent headshot used in the author box
