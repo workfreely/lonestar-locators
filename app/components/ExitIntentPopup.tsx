@@ -17,6 +17,8 @@ const ExitIntentPopup = () => {
  const [emailSubmitted, setEmailSubmitted] = useState(false);
  const [userEmail, setUserEmail] = useState("");
 
+ const pathname = typeof window !== "undefined" ? window.location.pathname : "";
+
 
  /* ===============================
   POPUP EXCLUSION RULES
@@ -36,13 +38,6 @@ const EXCLUDED_PATHS = [
  "/meet-your-locators",
  "/why-choose-us",
 ];
-
-
-const getPathname = () => {
- if (typeof window === "undefined") return "";
- return window.location.pathname;
-};
-
 
  useEffect(() => {
    const DEV_MODE = true; // ✅ Set false when live (bypasses cooldown logic)
@@ -96,9 +91,8 @@ const getPathname = () => {
           - Used to measure impressions vs submissions
        */
        track("exit_popup_shown", {
-         location: window.location.pathname,
-       });
-
+  location: pathname,
+});
 
        // 🗓️ Save timestamp to prevent re-showing for 30 days
        localStorage.setItem("popupLastShown", Date.now().toString());
@@ -150,10 +144,9 @@ const getPathname = () => {
       - Wire this to GA4 / Meta / Ads
    */
    track("exit_popup_email_submitted", {
-     source: "exit_popup",
-     location: window.location.pathname,
-   });
-
+  source: "exit_popup",
+  location: pathname,
+});
 
    // 🔁 Redirect to search flow
    setTimeout(() => {

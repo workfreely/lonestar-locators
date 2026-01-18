@@ -108,6 +108,16 @@ const ListingLayout: FC<ListingLayoutProps> = ({
  faq5_a,
 }) => {
 
+  // ==========================
+  // ✅ CLIENT-SAFE CURRENT URL
+  // ==========================
+  const [clientUrl, setClientUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    setClientUrl(window.location.href);
+  }, []);
+
+
 // ========================================
 // ✅ REVIEW LINK — SINGLE SOURCE OF TRUTH
 // ========================================
@@ -129,17 +139,10 @@ if (process.env.NODE_ENV === "development") {
   }
 }
 
-const safeUrl =
-  typeof window !== "undefined" ? window.location.href : "";
-
 
  // IMAGE + LIGHTBOX
  const [lightboxOpen, setLightboxOpen] = useState(false);
  const [currentImage, setCurrentImage] = useState(0);
-
- // ✅ SHARE URL (client-safe)
-const shareUrl =
-  typeof window !== "undefined" ? window.location.href : "";
 
  const images = [image, ...gallery];
 
@@ -238,26 +241,27 @@ const faqs = [...filteredFaqs, defaultRebateFAQ];
    setActiveIndex(activeIndex === index ? null : index);
 
 
- // ✅ SHARE HANDLER (Fixes your current error)
- const handleShare = async () => {
-   const shareUrl = window.location.href;
-   const shareTitle = name;
-   const shareText = `Check out ${name} in ${city}`;
+// ✅ SHARE HANDLER (CLIENT-SAFE)
+const handleShare = async () => {
+  if (!clientUrl) return;
 
+  const shareTitle = name;
+  const shareText = `Check out ${name} in ${city}`;
 
-   if (navigator.share) {
-     try {
-       await navigator.share({
-         title: shareTitle,
-         text: shareText,
-         url: shareUrl,
-       });
-     } catch (err) {
-       console.log("Share cancelled", err);
-     }
-   } else {
-     await navigator.clipboard.writeText(shareUrl);
-     alert("Link copied to clipboard");
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: shareTitle,
+        text: shareText,
+        url: clientUrl,
+      });
+    } catch (err) {
+      console.log("Share cancelled", err);
+    }
+  } else {
+    await navigator.clipboard.writeText(clientUrl);
+    alert("Link copied to clipboard");
+
    }
  };
 
@@ -334,16 +338,19 @@ const faqs = [...filteredFaqs, defaultRebateFAQ];
 
 
              {/* ✅ SHARE BUTTON — HERO OVERLAY (TEXT) */}
-<a
-  href={`sms:&body=${encodeURIComponent(
-    `Check out this apartment 👀\n\n${shareUrl}`
-  )}`}
-  className="hero-share-btn"
-  aria-label="Text this listing"
-  onClick={(e) => e.stopPropagation()}
->
-  📲 Text This Listing
-</a>
+{clientUrl && (
+  <a
+    href={`sms:&body=${encodeURIComponent(
+      `Check out this apartment 👀\n\n${clientUrl}`
+    )}`}
+    className="hero-share-btn"
+    aria-label="Text this listing"
+    onClick={(e) => e.stopPropagation()}
+  >
+    📲 Text This Listing
+  </a>
+)}
+
 
            </div>
 
@@ -905,7 +912,7 @@ const faqs = [...filteredFaqs, defaultRebateFAQ];
         "@type": "ApartmentComplex",
         name: name,
         address: address,
-        url: window.location.href,
+       url: clientUrl || resolvedReviewLink,
       },
       author: {
         "@type": "Person",

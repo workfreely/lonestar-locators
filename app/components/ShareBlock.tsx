@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { FaFacebook, FaLink, FaSms } from "react-icons/fa";
 
 type ShareBlockProps = {
@@ -9,32 +9,37 @@ type ShareBlockProps = {
 
 const ShareBlock: React.FC<ShareBlockProps> = ({ url }) => {
   const [copied, setCopied] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
 
-  const shareUrl =
-    url || (typeof window !== "undefined" ? window.location.href : "");
+  // ✅ Run ONLY on client
+  useEffect(() => {
+    setShareUrl(url || window.location.href);
+  }, [url]);
 
- const handleCopy = async () => {
-  try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(shareUrl);
-    } else {
-      const textArea = document.createElement("textarea");
-      textArea.value = shareUrl;
-      textArea.style.position = "fixed";
-      textArea.style.left = "-9999px";
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textArea);
+  const handleCopy = async () => {
+    if (!shareUrl) return;
+
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = shareUrl;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+      }
+
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy link", err);
     }
-
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  } catch (err) {
-    console.error("Failed to copy link", err);
-  }
-};
+  };
 
   return (
     <div
@@ -46,7 +51,6 @@ const ShareBlock: React.FC<ShareBlockProps> = ({ url }) => {
         textAlign: "center",
       }}
     >
-      {/* Subtle helper text (non-competing CTA) */}
       <p
         style={{
           fontSize: "1.05rem",
@@ -67,38 +71,38 @@ const ShareBlock: React.FC<ShareBlockProps> = ({ url }) => {
         }}
       >
         {/* Copy Link */}
-        <button
-          onClick={handleCopy}
-          type="button"
-          style={buttonStyle}
-        >
+        <button onClick={handleCopy} type="button" style={buttonStyle}>
           <FaLink />
           {copied ? "Link Copied ✓" : "Copy Link"}
         </button>
 
-        {/* Text / SMS */}
-        <a
-          href={`sms:?&body=${encodeURIComponent(
-            `Check this out — free apartment locating: ${shareUrl}`
-          )}`}
-          style={buttonStyle}
-        >
-          <FaSms />
-          Text
-        </a>
+        {/* Text / SMS (client-only safe) */}
+        {shareUrl && (
+          <a
+            href={`sms:?&body=${encodeURIComponent(
+              `Check this out — free apartment locating: ${shareUrl}`
+            )}`}
+            style={buttonStyle}
+          >
+            <FaSms />
+            Text
+          </a>
+        )}
 
         {/* Facebook */}
-        <a
-          href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
-            shareUrl
-          )}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ ...buttonStyle, color: "#4267B2" }}
-        >
-          <FaFacebook />
-          Facebook
-        </a>
+        {shareUrl && (
+          <a
+            href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
+              shareUrl
+            )}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ ...buttonStyle, color: "#4267B2" }}
+          >
+            <FaFacebook />
+            Facebook
+          </a>
+        )}
       </div>
     </div>
   );

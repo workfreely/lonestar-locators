@@ -1,0 +1,438 @@
+/* ===============================
+   BASE LAYOUT
+=============================== */
+
+.comparison-layout {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 1.25rem 1.5rem 2.5rem;
+  font-family: "Inter", sans-serif;
+}
+
+/* ===============================
+   TWO-COLUMN LAYOUT
+=============================== */
+
+.comparison-columns {
+  display: flex;
+  align-items: flex-start;
+  gap: 2rem;
+}
+
+.comparison-main {
+  flex: 2.2;
+  min-width: 0;
+}
+
+.comparison-sidebar {
+  flex: 1;
+  min-width: 360px;
+  align-self: flex-start;
+  padding-top: 0;
+}
+
+/* ===============================
+   HEADER
+=============================== */
+
+.comparison-header {
+  margin-bottom: 1.75rem; /* ⬅️ reduced */
+}
+
+.comparison-title {
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: #111;
+  margin-bottom: 0rem;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.comparison-subtitle {
+  font-size: 1.05rem;
+  color: #555;
+}
+
+/* ===============================
+   GRID STRUCTURE
+=============================== */
+
+.comparison-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+/* ===============================
+   TOP PROPERTY CARDS
+=============================== */
+
+.comparison-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1.75rem;
+  background: #ffffff;
+}
+
+.comparison-card-top {
+  margin-bottom: 0.5rem; /* ⬅️ reduces gap before Good */
+}
+
+.comparison-image {
+  width: 100%;
+  height: 260px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.comparison-caption {
+  font-size: 0.95rem;
+  color: #555;
+  margin: 0.5rem 0 1.5rem;
+  line-height: 1.6;
+}
+
+.comparison-property-name {
+  font-size: 1.6rem;
+  font-weight: 800;
+  margin: 0;
+  line-height: 1.05;
+}
+
+.comparison-address {
+  color: #666;
+  margin: 0.1rem 0 0.6rem;
+  line-height: 1.4;
+}
+
+/* ===============================
+   ROW-BASED COMPARISON SECTIONS
+=============================== */
+
+.comparison-row-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1.5rem 1.75rem;
+  background: #ffffff;
+}
+
+.comparison-row-title {
+  font-weight: 800;
+  margin: 0 0 0.6rem 0; /* ⬅️ tight + aligned */
+}
+
+.comparison-row-list {
+  padding-left: 1.1rem; /* ⬅️ pulls bullets left */
+  margin: 0;
+}
+
+.comparison-row-list li {
+  margin-bottom: 0.5rem;
+  line-height: 1.6;
+}
+
+/* ===============================
+   VERDICT ROW
+=============================== */
+
+.comparison-verdict-title {
+  font-weight: 800;
+  margin-bottom: 0.4rem;
+}
+
+.comparison-verdict-text {
+  margin: 0;
+  line-height: 1.6;
+  color: #444;
+}
+
+/* ===============================
+   SIDEBAR
+=============================== */
+
+.comparison-sidebar-card {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.comparison-sidebar form {
+  margin-top: 1rem;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+/* ===============================
+   REBATE BOX
+=============================== */
+
+.rebateBox {
+  background: #e0f7e9;
+  border: 1px solid #cde9d6;
+  border-radius: 8px;
+  padding: 1rem;
+  font-weight: 700;
+  color: #2e7d32;
+  text-align: center;
+  margin-bottom: 0.55rem;
+}
+
+/* ===============================
+   AGENT CARD
+=============================== */
+
+.comparison-definition-box {
+  margin-top: 2rem;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.agentCard img {
+  width: 95px;
+  height: 95px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin: 0 auto 0.75rem;
+  display: block;
+}
+
+.agentName {
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: #222;
+  margin-bottom: 0.25rem;
+}
+
+.agentDesc {
+  font-size: 0.95rem;
+  color: #666;
+}
+
+/* ===============================
+   SHARE BLOCK
+=============================== */
+
+.comparison-share {
+  max-width: 720px;
+  margin-top: 3rem;
+}
+
+/* ===============================
+   MOBILE
+=============================== */
+
+@media (max-width: 900px) {
+  .comparison-columns {
+    flex-direction: column;
+    gap: 2rem;
+  }
+
+  .comparison-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .comparison-sidebar {
+    width: 100%;
+    min-width: unset;
+  }
+}
+
+/* ===============================
+   MOBILE COMPARISON FLOW FIX
+=============================== */
+
+@media (max-width: 900px) {
+  /* Stack each property as a full unit */
+  .comparison-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+
+  /* Ensure sections stay grouped per property */
+  .comparison-card {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .comparison-sections {
+    margin-top: 0.5rem;
+  }
+}
+
+/* DESKTOP: side-by-side stacks */
+.comparison-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+/* MOBILE: stacked by property */
+@media (max-width: 900px) {
+  .comparison-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+}
+
+/* Bigger Good / Bad / Ugly headings (both layouts) */
+.comparison-section h3,
+.comparison-row-title {
+  font-size: 1.35rem;   /* try 1.35rem to start */
+  line-height: 1.15;
+  margin-bottom: 0.6rem;
+}
+
+
+.comparison-verdict-title {
+  font-size: 1.35rem;
+  font-weight: 900;
+  margin-bottom: 0.5rem;
+}
+
+.comparison-verdict-text {
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.comparison-caption {
+  font-size: 0.82rem;          /* smaller = less competition */
+  color: #6b7280;              /* softer gray */
+  line-height: 1.45;
+  margin: 0.5rem 0 1.6rem;     /* ⬅️ key: pushes title down */
+}
+
+
+.comparison-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+ margin-top: 1.5rem; /* ⬅️ increase from 0.75rem */
+}
+
+.comparison-tag {
+  font-size: 0.75rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #444;
+  font-weight: 500;
+}
+
+
+.comparison-tag {
+  font-size: 0.72rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  background: #f5f5f5;
+  color: #555;
+  font-weight: 500;
+}
+
+.comparison-image {
+  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+}
+
+/* ===============================
+   PROPERTY INFO BLOCK (SCAN ZONE)
+=============================== */
+
+.comparison-info-block {
+  background: #f0f6ff;        /* soft blue */
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  margin: 1.1rem 0 1rem;     /* ⬅️ pushes block DOWN from address */
+}
+
+.comparison-info-block p {
+  margin: 0.35rem 0;
+  line-height: 1.55;
+}
+
+/* ===============================
+   INDIVIDUAL DETAIL HIGHLIGHTS
+=============================== */
+
+.comparison-detail {
+  background: #f0f6ff;
+  border-radius: 8px;
+  padding: 0.45rem 0.7rem;
+  margin: 0.45rem 0;
+  line-height: 1.5;
+}
+
+.comparison-detail strong {
+  font-weight: 800;
+}
+
+/* ===============================
+   GOOD / BAD / UGLY COLOR CODING
+=============================== */
+
+.comparison-the-good {
+  background: #f0faf4;        /* soft green */
+  border: 1px solid #cceedd;
+}
+
+.comparison-the-bad {
+  background: #fff7ed;        /* soft orange */
+  border: 1px solid #fed7aa;
+}
+
+.comparison-the-ugly {
+  background: #fef2f2;        /* soft red */
+  border: 1px solid #fecaca;
+}
+
+/* Keep text readable */
+.comparison-the-good li,
+.comparison-the-bad li,
+.comparison-the-ugly li {
+  color: #1f2933;
+}
+
+/* ===============================
+   INDIVIDUAL POINT HIGHLIGHTING
+=============================== */
+
+.comparison-point {
+  padding: 0.45rem 0.6rem;
+  border-radius: 6px;
+  margin-bottom: 0.4rem;
+  line-height: 1.55;
+}
+
+/* GOOD = light green */
+.comparison-the-good-list .comparison-point {
+  background: #ecfdf5;
+  border: 1px solid #bbf7d0;
+}
+
+/* BAD = light orange */
+.comparison-the-bad-list .comparison-point {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+}
+
+/* UGLY = light red */
+.comparison-the-ugly-list .comparison-point {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+/* Force comparison points to align with property details */
+.comparison-row-list {
+  padding-left: 0;        /* remove bullet indent */
+  list-style: none;       /* remove default bullets */
+}
+
+.comparison-point {
+  text-align: left;       /* ⬅️ critical */
+  margin-left: 0;         /* ensure no centering offset */
+}
