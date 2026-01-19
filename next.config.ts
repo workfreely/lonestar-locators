@@ -1,10 +1,12 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
+const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+
   images: {
+    formats: ["image/avif", "image/webp"],
     remotePatterns: [
       {
         protocol: "https",
@@ -12,10 +14,10 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
-  hostname: "**.supabase.co",
+        hostname: "**.supabase.co",
       },
     ],
   },
-};
+} satisfies NextConfig;
 
 export default nextConfig;
