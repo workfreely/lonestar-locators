@@ -1,4 +1,8 @@
+"use client";
+
+import { Suspense } from "react";
 import BlogLayout from "@/app/components/BlogLayout";
+import AISchema from "@/app/components/AISchema";
 
 const HoustonTownhomes = () => {
   const title = "Houston Townhomes for Rent";
@@ -33,36 +37,41 @@ const HoustonTownhomes = () => {
   );
 
   return (
-    <BlogLayout
-      title={title}
-      content={content}
-      keywords={[
-        "Houston townhomes",
-        "Houston townhomes for rent",
-        "townhomes in Houston",
-        "Houston rental townhomes",
-        "townhomes with garage Houston",
-        "Houston townhome communities",
-      ]}
-      faqs={[
-        {
-          question: "Where can I find townhomes for rent in Houston?",
-          answer:
-            "Popular areas for townhome rentals include The Heights, Midtown, Memorial, West Houston, and parts of East Downtown.",
-        },
-        {
-          question: "Do Houston townhomes usually have garages?",
-          answer:
-            "Many townhomes in Houston include attached garages, though features vary by community and layout.",
-        },
-        {
-          question: "Are townhomes more expensive than apartments?",
-          answer:
-            "Townhomes can be slightly higher in price due to added space and privacy, but many offer competitive pricing compared to luxury apartments.",
-        },
-      ]}
-    />
-  );
+  <Suspense fallback={null}>
+    <>
+      <AISchema city="Houston" />
+      <BlogLayout
+        title={title}
+        content={content}
+        keywords={[
+          "Houston townhomes",
+          "Houston townhomes for rent",
+          "townhomes in Houston",
+          "Houston rental townhomes",
+          "townhomes with garage Houston",
+          "Houston townhome communities",
+        ]}
+        faqs={[
+          {
+            question: "Where can I find townhomes for rent in Houston?",
+            answer:
+              "Popular areas for townhome rentals include The Heights, Midtown, Memorial, West Houston, and parts of East Downtown.",
+          },
+          {
+            question: "Do Houston townhomes usually have garages?",
+            answer:
+              "Many townhomes in Houston include attached garages, though features vary by community and layout.",
+          },
+          {
+            question: "Are townhomes more expensive than apartments?",
+            answer:
+              "Townhomes can be slightly higher in price due to added space and privacy, but many offer competitive pricing compared to luxury apartments.",
+          },
+        ]}
+      />
+    </>
+  </Suspense>
+);
 };
 
 export default HoustonTownhomes;

@@ -1,3 +1,6 @@
+"use client";
+
+import React, { Suspense } from "react";
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
 
@@ -60,7 +63,7 @@ const SanAntonioFirstTimeRentersPage = () => {
   );
 
   return (
-    <>
+    <Suspense fallback={null}>
       <AISchema city="San Antonio" />
       <BlogLayout
         title={title}
@@ -75,7 +78,7 @@ const SanAntonioFirstTimeRentersPage = () => {
           addressRegion: "TX",
         }}
       />
-    </>
+    </Suspense>
   );
 };
 

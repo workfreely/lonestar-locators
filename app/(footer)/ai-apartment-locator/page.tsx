@@ -1,3 +1,6 @@
+"use client";
+
+import { Suspense } from "react";
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
 import JayBotWidget from "@/app/components/JayBotWidget";
@@ -71,8 +74,9 @@ const AIApartmentLocator = () => {
       </p>
 
       <p>
-        Whether you are moving to <strong>Austin, Dallas, Houston, or San Antonio</strong>,
-        you receive personalized results backed by local market insight from{" "}
+        Whether you are moving to{" "}
+        <strong>Austin, Dallas, Houston, or San Antonio</strong>, you receive
+        personalized results backed by local market insight from{" "}
         <strong>Jay Morris</strong>, a licensed Texas real estate agent.
       </p>
 
@@ -131,19 +135,21 @@ const AIApartmentLocator = () => {
   return (
     <>
       <AISchema city="Texas" />
-      <BlogLayout
-        title={title}
-        content={content}
-        publishDate={publishDate}
-        keywords={keywords}
-        faqs={faqs}
-        ctaType="apartment"
-        schemaType="Service"
-        address={{
-          addressLocality: "San Antonio",
-          addressRegion: "TX",
-        }}
-      />
+      <Suspense fallback={null}>
+        <BlogLayout
+          title={title}
+          content={content}
+          publishDate={publishDate}
+          keywords={keywords}
+          faqs={faqs}
+          ctaType="apartment"
+          schemaType="Service"
+          address={{
+            addressLocality: "San Antonio",
+            addressRegion: "TX",
+          }}
+        />
+      </Suspense>
     </>
   );
 };

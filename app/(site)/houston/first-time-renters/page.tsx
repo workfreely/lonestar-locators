@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
 import JayBotWidget from "@/app/components/JayBotWidget";
@@ -97,21 +98,23 @@ const HoustonFirstTimeRenters = () => {
   );
 
   return (
-    <>
-      <AISchema city="Houston" />
-      <BlogLayout
-        title={title}
-        content={content}
-        keywords={keywords}
-        faqs={faqs}
-        ctaType="apartment"
-        schemaType="Service"
-        address={{
-          addressLocality: "Houston",
-          addressRegion: "TX",
-        }}
-      />
-    </>
+    <Suspense fallback={null}>
+      <>
+        <AISchema city="Houston" />
+        <BlogLayout
+          title={title}
+          content={content}
+          keywords={keywords}
+          faqs={faqs}
+          ctaType="apartment"
+          schemaType="Service"
+          address={{
+            addressLocality: "Houston",
+            addressRegion: "TX",
+          }}
+        />
+      </>
+    </Suspense>
   );
 };
 

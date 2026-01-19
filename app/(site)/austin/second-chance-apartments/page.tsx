@@ -1,12 +1,9 @@
+"use client";
+
+import { Suspense } from "react";
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
 import JayBotWidget from "@/app/components/JayBotWidget";
-
-export const metadata = {
-  title: "Second Chance Apartments in Austin, TX | Lone Star Locators",
-  description:
-    "Looking for second chance apartments in Austin? We help renters with bad credit, broken leases, or past evictions find approved apartments.",
-};
 
 const AustinSecondChanceApartmentsPage = () => {
   const title = "Second Chance Apartments in Austin, Texas";
@@ -46,7 +43,8 @@ const AustinSecondChanceApartmentsPage = () => {
   const content = (
     <>
       <p>
-        Having trouble getting approved? <strong>Second chance apartments in Austin</strong>{" "}
+        Having trouble getting approved?{" "}
+        <strong>Second chance apartments in Austin</strong>{" "}
         are designed for renters who need flexibility due to past credit or rental issues.
       </p>
 
@@ -82,27 +80,31 @@ const AustinSecondChanceApartmentsPage = () => {
 
       <p>
         Don’t let past issues stop you from moving forward.{" "}
-        <strong>We’ll help you find an apartment in Austin that gives you a second chance.</strong>
+        <strong>
+          We’ll help you find an apartment in Austin that gives you a second chance.
+        </strong>
       </p>
     </>
   );
 
   return (
-    <>
-      <AISchema city="Austin" />
-      <BlogLayout
-        title={title}
-        content={content}
-        keywords={keywords}
-        faqs={faqs}
-        ctaType="apartment"
-        schemaType="Service"
-        address={{
-          addressLocality: "Austin",
-          addressRegion: "TX",
-        }}
-      />
-    </>
+    <Suspense fallback={null}>
+      <>
+        <AISchema city="Austin" />
+        <BlogLayout
+          title={title}
+          content={content}
+          keywords={keywords}
+          faqs={faqs}
+          ctaType="apartment"
+          schemaType="Service"
+          address={{
+            addressLocality: "Austin",
+            addressRegion: "TX",
+          }}
+        />
+      </>
+    </Suspense>
   );
 };
 

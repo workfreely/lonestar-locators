@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
 import JayBotWidget from "@/app/components/JayBotWidget";
@@ -176,20 +176,22 @@ const HoustonLuxuryApartments = () => {
   );
 
   return (
-    <>
-      <AISchema city="Houston" />
-      <BlogLayout
-        title="Best Luxury Apartments in Houston (2026)"
-        content={content}
-        faqs={faqs}
-        ctaType="apartment"
-        schemaType="Service"
-        address={{
-          addressLocality: "Houston",
-          addressRegion: "TX",
-        }}
-      />
-    </>
+    <Suspense fallback={null}>
+      <>
+        <AISchema city="Houston" />
+        <BlogLayout
+          title="Best Luxury Apartments in Houston (2026)"
+          content={content}
+          faqs={faqs}
+          ctaType="apartment"
+          schemaType="Service"
+          address={{
+            addressLocality: "Houston",
+            addressRegion: "TX",
+          }}
+        />
+      </>
+    </Suspense>
   );
 };
 

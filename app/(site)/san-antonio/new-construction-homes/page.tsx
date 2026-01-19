@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { Suspense, useState } from "react";
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
 
@@ -151,7 +151,7 @@ const NewConstructionHomesSanAntonio = () => {
   );
 
   return (
-    <>
+    <Suspense fallback={null}>
       <AISchema city="San Antonio" />
       <BlogLayout
         title="New Construction Homes in San Antonio TX | Best Builder Deals 2026"
@@ -164,7 +164,7 @@ const NewConstructionHomesSanAntonio = () => {
           addressRegion: "TX",
         }}
       />
-    </>
+    </Suspense>
   );
 };
 

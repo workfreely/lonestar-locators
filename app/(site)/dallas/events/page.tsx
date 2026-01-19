@@ -1,6 +1,8 @@
 "use client";
 
+import { Suspense } from "react";
 import BlogLayout from "@/app/components/BlogLayout";
+import AISchema from "@/app/components/AISchema";
 
 const DallasEventsPage = () => {
   const faqs = [
@@ -32,163 +34,171 @@ const DallasEventsPage = () => {
   ];
 
   return (
-    <BlogLayout
-      title="Dallas Events | Best Festivals, Concerts, and Things to Do (2026)"
-      content={
-        <>
-          <p>
-            <strong>Looking for the best events happening in Dallas?</strong>{" "}
-            The city hosts festivals, concerts, parades, and cultural
-            celebrations throughout the year across multiple neighborhoods.
-          </p>
+    <Suspense fallback={null}>
+      <>
+        <AISchema city="Dallas" />
 
-          <p style={{ color: "#555" }}>
-            Below is a curated list of Dallas’s most popular annual events,
-            organized roughly by season.
-          </p>
+        <BlogLayout
+          title="Dallas Events | Best Festivals, Concerts, and Things to Do (2026)"
+          content={
+            <>
+              <p>
+                <strong>Looking for the best events happening in Dallas?</strong>{" "}
+                The city hosts festivals, concerts, parades, and cultural
+                celebrations throughout the year across multiple neighborhoods.
+              </p>
 
-          {/* Event 1 */}
-          <h3>Dallas Blooms Festival</h3>
-          <p>
-            <strong>February to April · Dallas Arboretum</strong>
-          </p>
-          <p>
-            The largest floral festival in the Southwest featuring millions of
-            spring blooms, themed gardens, and seasonal family activities.
-          </p>
-          <a
-            href="https://www.dallasarboretum.org"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Official Website
-          </a>
+              <p style={{ color: "#555" }}>
+                Below is a curated list of Dallas’s most popular annual events,
+                organized roughly by season.
+              </p>
 
-          {/* Event 2 */}
-          <h3 style={{ marginTop: "2rem" }}>
-            St. Patrick’s Parade and Festival
-          </h3>
-          <p>
-            <strong>Mid-March · Greenville Avenue</strong>
-          </p>
-          <p>
-            A long-running Dallas tradition featuring a parade, live
-            entertainment, food vendors, and one of the city’s largest annual
-            celebrations.
-          </p>
-          <a
-            href="https://www.dallasstpatricksparade.com"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Official Website
-          </a>
+              {/* Event 1 */}
+              <h3>Dallas Blooms Festival</h3>
+              <p>
+                <strong>February to April · Dallas Arboretum</strong>
+              </p>
+              <p>
+                The largest floral festival in the Southwest featuring millions of
+                spring blooms, themed gardens, and seasonal family activities.
+              </p>
+              <a
+                href="https://www.dallasarboretum.org"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Official Website
+              </a>
 
-          {/* Event 3 */}
-          <h3 style={{ marginTop: "2rem" }}>
-            Deep Ellum Arts Festival
-          </h3>
-          <p>
-            <strong>Early April · Deep Ellum</strong>
-          </p>
-          <p>
-            A multi-day celebration of local and national artists featuring live
-            music, art installations, food booths, and vendor markets.
-          </p>
-          <a
-            href="https://www.deepellumartsfestival.com"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Official Website
-          </a>
+              {/* Event 2 */}
+              <h3 style={{ marginTop: "2rem" }}>
+                St. Patrick’s Parade and Festival
+              </h3>
+              <p>
+                <strong>Mid-March · Greenville Avenue</strong>
+              </p>
+              <p>
+                A long-running Dallas tradition featuring a parade, live
+                entertainment, food vendors, and one of the city’s largest annual
+                celebrations.
+              </p>
+              <a
+                href="https://www.dallasstpatricksparade.com"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Official Website
+              </a>
 
-          {/* Event 4 */}
-          <h3 style={{ marginTop: "2rem" }}>
-            Dallas Arts District Block Party
-          </h3>
-          <p>
-            <strong>Spring and Fall · Dallas Arts District</strong>
-          </p>
-          <p>
-            A community-focused celebration with open museums, live
-            performances, food trucks, and interactive art experiences.
-          </p>
-          <a
-            href="https://www.dallasartsdistrict.org"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Official Website
-          </a>
+              {/* Event 3 */}
+              <h3 style={{ marginTop: "2rem" }}>
+                Deep Ellum Arts Festival
+              </h3>
+              <p>
+                <strong>Early April · Deep Ellum</strong>
+              </p>
+              <p>
+                A multi-day celebration of local and national artists featuring live
+                music, art installations, food booths, and vendor markets.
+              </p>
+              <a
+                href="https://www.deepellumartsfestival.com"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Official Website
+              </a>
 
-          {/* Event 5 */}
-          <h3 style={{ marginTop: "2rem" }}>
-            Klyde Warren Park Concert Series
-          </h3>
-          <p>
-            <strong>May to September · Klyde Warren Park</strong>
-          </p>
-          <p>
-            A free outdoor concert series in downtown Dallas featuring local and
-            touring musicians throughout the summer.
-          </p>
-          <a
-            href="https://klydewarrenpark.org"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Official Website
-          </a>
+              {/* Event 4 */}
+              <h3 style={{ marginTop: "2rem" }}>
+                Dallas Arts District Block Party
+              </h3>
+              <p>
+                <strong>Spring and Fall · Dallas Arts District</strong>
+              </p>
+              <p>
+                A community-focused celebration with open museums, live
+                performances, food trucks, and interactive art experiences.
+              </p>
+              <a
+                href="https://www.dallasartsdistrict.org"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Official Website
+              </a>
 
-          {/* Event 6 */}
-          <h3 style={{ marginTop: "2rem" }}>
-            Fourth of July Celebration at Klyde Warren Park
-          </h3>
-          <p>
-            <strong>July 4 · Klyde Warren Park</strong>
-          </p>
-          <p>
-            A family-friendly Independence Day celebration featuring fireworks,
-            live music, food vendors, and activities for all ages.
-          </p>
-          <a
-            href="https://klydewarrenpark.org"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Event Page
-          </a>
+              {/* Event 5 */}
+              <h3 style={{ marginTop: "2rem" }}>
+                Klyde Warren Park Concert Series
+              </h3>
+              <p>
+                <strong>May to September · Klyde Warren Park</strong>
+              </p>
+              <p>
+                A free outdoor concert series in downtown Dallas featuring local and
+                touring musicians throughout the summer.
+              </p>
+              <a
+                href="https://klydewarrenpark.org"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Official Website
+              </a>
 
-          {/* Event 7 */}
-          <h3 style={{ marginTop: "2rem" }}>State Fair of Texas</h3>
-          <p>
-            <strong>Late September to Mid-October · Fair Park</strong>
-          </p>
-          <p>
-            One of the most iconic events in the United States featuring rides,
-            classic fair food, live entertainment, livestock shows, and Big Tex.
-          </p>
-          <a
-            href="https://bigtex.com"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Official Website
-          </a>
+              {/* Event 6 */}
+              <h3 style={{ marginTop: "2rem" }}>
+                Fourth of July Celebration at Klyde Warren Park
+              </h3>
+              <p>
+                <strong>July 4 · Klyde Warren Park</strong>
+              </p>
+              <p>
+                A family-friendly Independence Day celebration featuring fireworks,
+                live music, food vendors, and activities for all ages.
+              </p>
+              <a
+                href="https://klydewarrenpark.org"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Event Page
+              </a>
 
-          <h2 style={{ marginTop: "3rem" }}>
-            Where Most Events Take Place
-          </h2>
-          <p>
-            The majority of Dallas events are hosted at Fair Park, Klyde Warren
-            Park, Deep Ellum, the Arts District, and Greenville Avenue. These
-            areas offer year-round entertainment and community gatherings.
-          </p>
-        </>
-      }
-      faqs={faqs}
-    />
+              {/* Event 7 */}
+              <h3 style={{ marginTop: "2rem" }}>
+                State Fair of Texas
+              </h3>
+              <p>
+                <strong>Late September to Mid-October · Fair Park</strong>
+              </p>
+              <p>
+                One of the most iconic events in the United States featuring rides,
+                classic fair food, live entertainment, livestock shows, and Big Tex.
+              </p>
+              <a
+                href="https://bigtex.com"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Official Website
+              </a>
+
+              <h2 style={{ marginTop: "3rem" }}>
+                Where Most Events Take Place
+              </h2>
+              <p>
+                The majority of Dallas events are hosted at Fair Park, Klyde Warren
+                Park, Deep Ellum, the Arts District, and Greenville Avenue. These
+                areas offer year-round entertainment and community gatherings.
+              </p>
+            </>
+          }
+          faqs={faqs}
+        />
+      </>
+    </Suspense>
   );
 };
 

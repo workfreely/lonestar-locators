@@ -1,5 +1,8 @@
-import React from "react";
+"use client";
+
+import React, { Suspense } from "react";
 import BlogLayout from "@/app/components/BlogLayout";
+import AISchema from "@/app/components/AISchema";
 
 const DallasNeighborhoods = () => {
   const title = "Dallas Neighborhoods Map & Guide";
@@ -178,7 +181,14 @@ const DallasNeighborhoods = () => {
     },
   ];
 
-  return <BlogLayout title={title} content={content} faqs={faqs} />;
+  return (
+    <Suspense fallback={null}>
+      <>
+        <AISchema city="Dallas" />
+        <BlogLayout title={title} content={content} faqs={faqs} />
+      </>
+    </Suspense>
+  );
 };
 
 export default DallasNeighborhoods;

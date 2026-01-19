@@ -1,4 +1,8 @@
+"use client";
+
+import { Suspense } from "react";
 import BlogLayout from "@/app/components/BlogLayout";
+import AISchema from "@/app/components/AISchema";
 
 const DallasSecondChanceApartmentsPage = () => {
   const title = "Second-Chance Apartments in Dallas (2026)";
@@ -36,7 +40,9 @@ const DallasSecondChanceApartmentsPage = () => {
       <h2>How the Process Works</h2>
       <ol style={{ lineHeight: "1.9" }}>
         <li>Share your rental background with us privately</li>
-        <li>Receive a curated list of Dallas apartments with flexible criteria</li>
+        <li>
+          Receive a curated list of Dallas apartments with flexible criteria
+        </li>
         <li>Tour, apply, and move in with confidence</li>
       </ol>
 
@@ -77,7 +83,14 @@ const DallasSecondChanceApartmentsPage = () => {
     },
   ];
 
-  return <BlogLayout title={title} content={content} faqs={faqs} />;
+  return (
+    <Suspense fallback={null}>
+      <>
+        <AISchema city="Dallas" />
+        <BlogLayout title={title} content={content} faqs={faqs} />
+      </>
+    </Suspense>
+  );
 };
 
 export default DallasSecondChanceApartmentsPage;

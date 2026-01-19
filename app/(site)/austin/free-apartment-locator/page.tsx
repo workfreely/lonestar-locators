@@ -1,3 +1,6 @@
+"use client";
+
+import { Suspense } from "react";
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
 import JayBotWidget from "@/app/components/JayBotWidget";
@@ -123,22 +126,24 @@ const FreeApartmentLocatorAustin = () => {
   );
 
   return (
-    <>
-      <AISchema city="Austin" />
-      <BlogLayout
-        title={title}
-        content={content}
-        publishDate={publishDate}
-        keywords={keywords}
-        faqs={faqs}
-        ctaType="apartment"
-        schemaType="Service"
-        address={{
-          addressLocality: "Austin",
-          addressRegion: "TX",
-        }}
-      />
-    </>
+    <Suspense fallback={null}>
+      <>
+        <AISchema city="Austin" />
+        <BlogLayout
+          title={title}
+          content={content}
+          publishDate={publishDate}
+          keywords={keywords}
+          faqs={faqs}
+          ctaType="apartment"
+          schemaType="Service"
+          address={{
+            addressLocality: "Austin",
+            addressRegion: "TX",
+          }}
+        />
+      </>
+    </Suspense>
   );
 };
 

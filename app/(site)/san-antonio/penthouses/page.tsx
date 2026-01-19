@@ -2,6 +2,7 @@
 
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
+import ListingSuspense from "@/app/components/ListingSuspense";
 
 const SanAntonioPenthousesPage = () => {
   const title = "San Antonio Penthouses";
@@ -90,8 +91,8 @@ const SanAntonioPenthousesPage = () => {
     </>
   );
 
-  return (
-    <>
+    return (
+    <ListingSuspense>
       <AISchema city="San Antonio" />
       <BlogLayout
         title={title}
@@ -106,7 +107,7 @@ const SanAntonioPenthousesPage = () => {
           addressRegion: "TX",
         }}
       />
-    </>
+    </ListingSuspense>
   );
 };
 

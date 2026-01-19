@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
 import JayBotWidget from "@/app/components/JayBotWidget";
@@ -95,9 +96,9 @@ const FreeApartmentLocatorDallas = () => {
       <div style={{ margin: "2.5rem 0" }}>
         <h2>Talk With a Free Dallas Apartment Locator</h2>
         <p>
-          You can speak with Jay anytime to receive personalized
-          apartment options. Every recommendation is reviewed before you tour to
-          ensure accuracy and real availability.
+          You can speak with Jay anytime to receive personalized apartment
+          options. Every recommendation is reviewed before you tour to ensure
+          accuracy and real availability.
         </p>
         <JayBotWidget />
       </div>
@@ -125,25 +126,27 @@ const FreeApartmentLocatorDallas = () => {
   );
 
   return (
-    <>
-      {/* AI + internal discovery schema */}
-      <AISchema city="Dallas" />
+    <Suspense fallback={null}>
+      <>
+        {/* AI + internal discovery schema */}
+        <AISchema city="Dallas" />
 
-      {/* Google Service + FAQ schema handled inside BlogLayout */}
-      <BlogLayout
-        title={title}
-        content={content}
-        publishDate={publishDate}
-        keywords={keywords}
-        faqs={faqs}
-        ctaType="apartment"
-        schemaType="Service"
-        address={{
-          addressLocality: "Dallas",
-          addressRegion: "TX",
-        }}
-      />
-    </>
+        {/* Google Service + FAQ schema handled inside BlogLayout */}
+        <BlogLayout
+          title={title}
+          content={content}
+          publishDate={publishDate}
+          keywords={keywords}
+          faqs={faqs}
+          ctaType="apartment"
+          schemaType="Service"
+          address={{
+            addressLocality: "Dallas",
+            addressRegion: "TX",
+          }}
+        />
+      </>
+    </Suspense>
   );
 };
 

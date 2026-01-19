@@ -1,7 +1,9 @@
 "use client";
 
+import { Suspense } from "react";
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
+
 
 const SanAntonioTownhomesPage = () => {
   const title = "San Antonio Townhomes for Rent";
@@ -90,6 +92,7 @@ const SanAntonioTownhomesPage = () => {
   );
 
   return (
+  <Suspense fallback={null}>
     <>
       <AISchema city="San Antonio" />
       <BlogLayout
@@ -106,7 +109,8 @@ const SanAntonioTownhomesPage = () => {
         }}
       />
     </>
-  );
+  </Suspense>
+);
 };
 
 export default SanAntonioTownhomesPage;

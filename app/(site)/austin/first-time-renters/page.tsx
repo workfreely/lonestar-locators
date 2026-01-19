@@ -1,3 +1,6 @@
+"use client";
+
+import { Suspense } from "react";
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
 
@@ -59,22 +62,24 @@ const AustinFirstTimeRentersPage = () => {
   );
 
   return (
-    <>
-      <AISchema city="Austin" />
-      <BlogLayout
-        title={title}
-        content={content}
-        publishDate={publishDate}
-        keywords={keywords}
-        faqs={faqs}
-        ctaType="apartment"
-        schemaType="Article"
-        address={{
-          addressLocality: "Austin",
-          addressRegion: "TX",
-        }}
-      />
-    </>
+    <Suspense fallback={null}>
+      <>
+        <AISchema city="Austin" />
+        <BlogLayout
+          title={title}
+          content={content}
+          publishDate={publishDate}
+          keywords={keywords}
+          faqs={faqs}
+          ctaType="apartment"
+          schemaType="Article"
+          address={{
+            addressLocality: "Austin",
+            addressRegion: "TX",
+          }}
+        />
+      </>
+    </Suspense>
   );
 };
 

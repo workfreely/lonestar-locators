@@ -1,5 +1,9 @@
+"use client";
+
+import { Suspense } from "react";
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
+
 
 const SanAntonioNeighborhoodsPage = () => {
   const title = "San Antonio Neighborhoods Map & Guide";
@@ -160,6 +164,7 @@ const SanAntonioNeighborhoodsPage = () => {
   ];
 
   return (
+  <Suspense fallback={null}>
     <>
       <AISchema city="San Antonio" />
       <BlogLayout
@@ -174,7 +179,8 @@ const SanAntonioNeighborhoodsPage = () => {
         }}
       />
     </>
-  );
+  </Suspense>
+);
 };
 
 export default SanAntonioNeighborhoodsPage;

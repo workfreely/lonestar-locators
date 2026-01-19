@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { Suspense, useState } from "react";
 import BlogLayout from "@/app/components/BlogLayout";
 
 const SanAntonioLuxuryApartmentsPage = () => {
@@ -155,16 +155,18 @@ const SanAntonioLuxuryApartmentsPage = () => {
   );
 
   return (
-    <BlogLayout
-      title="Best Luxury Apartments in San Antonio"
-      content={content}
-      ctaType="apartment"
-      schemaType="Article"
-      address={{
-        addressLocality: "San Antonio",
-        addressRegion: "TX",
-      }}
-    />
+    <Suspense fallback={null}>
+      <BlogLayout
+        title="Best Luxury Apartments in San Antonio"
+        content={content}
+        ctaType="apartment"
+        schemaType="Article"
+        address={{
+          addressLocality: "San Antonio",
+          addressRegion: "TX",
+        }}
+      />
+    </Suspense>
   );
 };
 

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import BlogLayout from "@/app/components/BlogLayout";
+import AISchema from "@/app/components/AISchema";
 
 const DallasTownhomesPage = () => {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
@@ -34,131 +35,136 @@ const DallasTownhomesPage = () => {
   ];
 
   return (
-    <BlogLayout
-      title="Dallas Townhomes for Rent (2026) | Luxury and 3-Bedroom Options"
-      content={
-        <>
-          <p>
-            Looking for a luxury or affordable townhome in Dallas? Whether you
-            need a 3-bedroom layout, a private yard, or a quieter neighborhood,
-            we can help you find the right fit.
-          </p>
+    <Suspense fallback={null}>
+      <>
+        <AISchema city="Dallas" />
+        <BlogLayout
+          title="Dallas Townhomes for Rent (2026) | Luxury and 3-Bedroom Options"
+          content={
+            <>
+              <p>
+                Looking for a luxury or affordable townhome in Dallas? Whether you
+                need a 3-bedroom layout, a private yard, or a quieter neighborhood,
+                we can help you find the right fit.
+              </p>
 
-          <h2>Why Choose a Townhome in Dallas?</h2>
-          <p>
-            Townhomes offer a balance of space, privacy, and convenience. They
-            are ideal for renters who want more room than an apartment without
-            the responsibility of owning a home.
-          </p>
+              <h2>Why Choose a Townhome in Dallas?</h2>
+              <p>
+                Townhomes offer a balance of space, privacy, and convenience. They
+                are ideal for renters who want more room than an apartment without
+                the responsibility of owning a home.
+              </p>
 
-          <div style={{ lineHeight: "1.9", marginTop: "1rem" }}>
-            <div>✅ Attached garages or private parking</div>
-            <div>✅ Private yards or fenced patios</div>
-            <div>✅ Two or more stories of living space</div>
-            <div>✅ Easier approval than single-family homes</div>
-          </div>
-
-          <h2>Top Townhome Communities in Dallas</h2>
-
-          <h3>Kessler Bluffs North Oak Cliff</h3>
-          <p>
-            Located in scenic North Oak Cliff, Kessler Bluffs offers gated
-            townhome-style living with oversized 2 and 3-bedroom layouts,
-            private garages, balconies, and downtown views.
-          </p>
-
-          <h3>Echelon at Reverchon Bluffs</h3>
-          <p>
-            Near Bishop Arts and Trinity Groves, Echelon blends classic townhouse
-            design with modern interiors. Many homes include fenced yards,
-            open-concept kitchens, and smart home features.
-          </p>
-
-          <h3>2929 Wycliff Oak Lawn</h3>
-          <p>
-            This boutique community offers luxury townhomes in one of Dallas’s
-            most walkable areas. Residents enjoy high-end finishes and easy
-            access to Uptown dining and nightlife.
-          </p>
-
-          <h2>Preview Our Curated Dallas Townhome List</h2>
-          <p>
-            We maintain a curated list of Dallas townhomes, including off-market
-            rentals, private landlords, and homes with flexible approval
-            options.
-          </p>
-
-          <img
-            src="https://res.cloudinary.com/dxtiguwzm/image/upload/v1758820133/luxury-apartment-locator-list-Dallas-dallas-houston-san-antonio_cfbc0q.png"
-            alt="Curated Dallas Townhome List"
-            style={{
-              width: "100%",
-              marginBottom: "20px",
-              borderRadius: "8px",
-              border: "1px solid #ddd",
-            }}
-          />
-
-          <p style={{ fontStyle: "italic", color: "#666" }}>
-            This is a preview. Contact us to receive your personalized townhome
-            matches with current pricing and availability.
-          </p>
-
-          <h2>What You Get When You Work With Us</h2>
-          <div style={{ lineHeight: "1.9" }}>
-            <div>✅ Custom townhome recommendations</div>
-            <div>✅ Guidance on landlord approvals and applications</div>
-            <div>✅ Access to move-in incentives and rebates</div>
-            <div>✅ Completely free service with local expertise</div>
-          </div>
-
-          <h2>Ready to Tour a Dallas Townhome?</h2>
-          <p>
-            From modern townhomes near Uptown to more affordable options with
-            outdoor space, we will help you lease with confidence. Our service
-            is free and may include cash back or free movers after you lease.
-          </p>
-
-          <h2 style={{ marginTop: "3rem" }}>
-            Frequently Asked Questions
-          </h2>
-
-          <div style={{ borderTop: "1px solid #ddd", paddingTop: "15px" }}>
-            {faqs.map((faq, index) => (
-              <div key={index} style={{ marginBottom: "15px" }}>
-                <div
-                  onClick={() => toggleAccordion(index)}
-                  style={{
-                    cursor: "pointer",
-                    backgroundColor: "#f1f1f1",
-                    padding: "10px 15px",
-                    borderRadius: "5px",
-                    fontWeight: 600,
-                    color: "#004aad",
-                  }}
-                >
-                  {faq.question}
-                </div>
-
-                {activeIndex === index && (
-                  <div
-                    style={{
-                      backgroundColor: "#fafafa",
-                      padding: "10px 15px",
-                      border: "1px solid #ddd",
-                      borderTop: "none",
-                      color: "#555",
-                    }}
-                  >
-                    {faq.answer}
-                  </div>
-                )}
+              <div style={{ lineHeight: "1.9", marginTop: "1rem" }}>
+                <div>✅ Attached garages or private parking</div>
+                <div>✅ Private yards or fenced patios</div>
+                <div>✅ Two or more stories of living space</div>
+                <div>✅ Easier approval than single-family homes</div>
               </div>
-            ))}
-          </div>
-        </>
-      }
-    />
+
+              <h2>Top Townhome Communities in Dallas</h2>
+
+              <h3>Kessler Bluffs North Oak Cliff</h3>
+              <p>
+                Located in scenic North Oak Cliff, Kessler Bluffs offers gated
+                townhome-style living with oversized 2 and 3-bedroom layouts,
+                private garages, balconies, and downtown views.
+              </p>
+
+              <h3>Echelon at Reverchon Bluffs</h3>
+              <p>
+                Near Bishop Arts and Trinity Groves, Echelon blends classic townhouse
+                design with modern interiors. Many homes include fenced yards,
+                open-concept kitchens, and smart home features.
+              </p>
+
+              <h3>2929 Wycliff Oak Lawn</h3>
+              <p>
+                This boutique community offers luxury townhomes in one of Dallas’s
+                most walkable areas. Residents enjoy high-end finishes and easy
+                access to Uptown dining and nightlife.
+              </p>
+
+              <h2>Preview Our Curated Dallas Townhome List</h2>
+              <p>
+                We maintain a curated list of Dallas townhomes, including off-market
+                rentals, private landlords, and homes with flexible approval
+                options.
+              </p>
+
+              <img
+                src="https://res.cloudinary.com/dxtiguwzm/image/upload/v1758820133/luxury-apartment-locator-list-Dallas-dallas-houston-san-antonio_cfbc0q.png"
+                alt="Curated Dallas Townhome List"
+                style={{
+                  width: "100%",
+                  marginBottom: "20px",
+                  borderRadius: "8px",
+                  border: "1px solid #ddd",
+                }}
+              />
+
+              <p style={{ fontStyle: "italic", color: "#666" }}>
+                This is a preview. Contact us to receive your personalized townhome
+                matches with current pricing and availability.
+              </p>
+
+              <h2>What You Get When You Work With Us</h2>
+              <div style={{ lineHeight: "1.9" }}>
+                <div>✅ Custom townhome recommendations</div>
+                <div>✅ Guidance on landlord approvals and applications</div>
+                <div>✅ Access to move-in incentives and rebates</div>
+                <div>✅ Completely free service with local expertise</div>
+              </div>
+
+              <h2>Ready to Tour a Dallas Townhome?</h2>
+              <p>
+                From modern townhomes near Uptown to more affordable options with
+                outdoor space, we will help you lease with confidence. Our service
+                is free and may include cash back or free movers after you lease.
+              </p>
+
+              <h2 style={{ marginTop: "3rem" }}>
+                Frequently Asked Questions
+              </h2>
+
+              <div style={{ borderTop: "1px solid #ddd", paddingTop: "15px" }}>
+                {faqs.map((faq, index) => (
+                  <div key={index} style={{ marginBottom: "15px" }}>
+                    <div
+                      onClick={() => toggleAccordion(index)}
+                      style={{
+                        cursor: "pointer",
+                        backgroundColor: "#f1f1f1",
+                        padding: "10px 15px",
+                        borderRadius: "5px",
+                        fontWeight: 600,
+                        color: "#004aad",
+                      }}
+                    >
+                      {faq.question}
+                    </div>
+
+                    {activeIndex === index && (
+                      <div
+                        style={{
+                          backgroundColor: "#fafafa",
+                          padding: "10px 15px",
+                          border: "1px solid #ddd",
+                          borderTop: "none",
+                          color: "#555",
+                        }}
+                      >
+                        {faq.answer}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
+          }
+        />
+      </>
+    </Suspense>
   );
 };
 

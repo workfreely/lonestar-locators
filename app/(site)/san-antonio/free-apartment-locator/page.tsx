@@ -1,3 +1,6 @@
+"use client";
+
+import React, { Suspense } from "react";
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
 import JayBotWidget from "@/app/components/JayBotWidget";
@@ -127,7 +130,7 @@ const FreeApartmentLocatorSanAntonio = () => {
   );
 
   return (
-    <>
+    <Suspense fallback={null}>
       <AISchema city="San Antonio" />
       <BlogLayout
         title={title}
@@ -142,7 +145,7 @@ const FreeApartmentLocatorSanAntonio = () => {
           addressRegion: "TX",
         }}
       />
-    </>
+    </Suspense>
   );
 };
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
 
@@ -81,9 +82,8 @@ const SecondChanceApartmentsSanAntonioPage = () => {
       </ol>
 
       <p>
-        Our goal is to help you{" "}
-        <strong>get approved faster</strong> while saving you time and stress by
-        targeting the right properties from the start.
+        Our goal is to help you <strong>get approved faster</strong> while saving
+        you time and stress by targeting the right properties from the start.
       </p>
 
       <p>
@@ -96,7 +96,7 @@ const SecondChanceApartmentsSanAntonioPage = () => {
   );
 
   return (
-    <>
+    <Suspense fallback={null}>
       <AISchema city="San Antonio" />
       <BlogLayout
         title={title}
@@ -111,7 +111,7 @@ const SecondChanceApartmentsSanAntonioPage = () => {
           addressRegion: "TX",
         }}
       />
-    </>
+    </Suspense>
   );
 };
 

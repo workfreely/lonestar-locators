@@ -1,3 +1,6 @@
+"use client";
+
+import { Suspense } from "react";
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
 import JayBotWidget from "@/app/components/JayBotWidget";
@@ -31,7 +34,7 @@ const WhyChooseUs = () => {
         apartments that actually match your criteria and not a generic list.
       </p>
 
-      {/* ✅ JayBot Section */}
+      {/* JayBot Section */}
       <div style={{ margin: "2.5rem 0" }}>
         <h2>Chat or Talk With My Assistant 24/7</h2>
         <p>
@@ -54,8 +57,8 @@ const WhyChooseUs = () => {
       <h2>Local Experts, Personalized Support</h2>
       <p>
         We live and work in Texas, so we know which properties offer the best
-        specials, flexible approvals, and real availability. These are insights you
-        won’t find on apartment search sites.
+        specials, flexible approvals, and real availability. These are insights
+        you won’t find on apartment search sites.
       </p>
 
       <p>
@@ -66,7 +69,7 @@ const WhyChooseUs = () => {
   );
 
   return (
-    <>
+    <Suspense fallback={null}>
       <AISchema city="Texas" />
       <BlogLayout
         title={title}
@@ -79,7 +82,7 @@ const WhyChooseUs = () => {
           addressRegion: "TX",
         }}
       />
-    </>
+    </Suspense>
   );
 };
 

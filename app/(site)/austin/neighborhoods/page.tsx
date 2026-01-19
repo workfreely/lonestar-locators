@@ -1,10 +1,8 @@
-import BlogLayout from "@/app/components/BlogLayout";
+"use client";
 
-export const metadata = {
-  title: "Austin Neighborhoods Map & Guide",
-  description:
-    "Explore Austin neighborhoods with an interactive map and in-depth guides to Downtown, East Austin, South Congress, The Domain, Zilker, and more.",
-};
+import { Suspense } from "react";
+import BlogLayout from "@/app/components/BlogLayout";
+import AISchema from "@/app/components/AISchema";
 
 const AustinNeighborhoodsPage = () => {
   const content = (
@@ -24,6 +22,7 @@ const AustinNeighborhoodsPage = () => {
           height="480"
           style={{ border: 0 }}
           loading="lazy"
+          title="Austin Neighborhoods Map"
         ></iframe>
       </div>
 
@@ -121,11 +120,16 @@ const AustinNeighborhoodsPage = () => {
   ];
 
   return (
-    <BlogLayout
-      title="Austin Neighborhoods Map & Guide"
-      content={content}
-      faqs={faqs}
-    />
+    <Suspense fallback={null}>
+      <>
+        <AISchema city="Austin" />
+        <BlogLayout
+          title="Austin Neighborhoods Map & Guide"
+          content={content}
+          faqs={faqs}
+        />
+      </>
+    </Suspense>
   );
 };
 

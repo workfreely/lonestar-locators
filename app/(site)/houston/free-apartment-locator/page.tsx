@@ -1,3 +1,6 @@
+"use client";
+
+import { Suspense } from "react";
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
 import JayBotWidget from "@/app/components/JayBotWidget";
@@ -67,7 +70,6 @@ const FreeApartmentLocatorHouston = () => {
         publicly.
       </p>
 
-      {/* ✅ Preview Section */}
       <h2>Get Your Free Luxury Apartment List (2026)</h2>
       <p>
         Want a full list of the best luxury apartments in Houston with the best
@@ -89,7 +91,6 @@ const FreeApartmentLocatorHouston = () => {
         This is just a preview. Click below to get your free personalized list.
       </p>
 
-      {/* ✅ JayBot Section */}
       <div style={{ margin: "2.5rem 0" }}>
         <h2>Talk With a Local Houston Apartment Locator</h2>
         <p>
@@ -123,22 +124,24 @@ const FreeApartmentLocatorHouston = () => {
   );
 
   return (
-    <>
-      <AISchema city="Houston" />
-      <BlogLayout
-        title={title}
-        content={content}
-        publishDate={publishDate}
-        keywords={keywords}
-        faqs={faqs}
-        ctaType="apartment"
-        schemaType="Service"
-        address={{
-          addressLocality: "Houston",
-          addressRegion: "TX",
-        }}
-      />
-    </>
+    <Suspense fallback={null}>
+      <>
+        <AISchema city="Houston" />
+        <BlogLayout
+          title={title}
+          content={content}
+          publishDate={publishDate}
+          keywords={keywords}
+          faqs={faqs}
+          ctaType="apartment"
+          schemaType="Service"
+          address={{
+            addressLocality: "Houston",
+            addressRegion: "TX",
+          }}
+        />
+      </>
+    </Suspense>
   );
 };
 

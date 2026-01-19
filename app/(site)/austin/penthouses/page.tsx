@@ -1,12 +1,10 @@
+"use client";
+
+import { Suspense } from "react";
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
 import JayBotWidget from "@/app/components/JayBotWidget";
 
-export const metadata = {
-  title: "Austin Penthouses for Rent | Lone Star Locators",
-  description:
-    "Explore luxury penthouses for rent in Austin, TX. High-rise views, premium finishes, and exclusive amenities with help from a free local apartment locator.",
-};
 
 const AustinPenthousesPage = () => {
   const title = "Luxury Penthouses for Rent in Austin, Texas";
@@ -90,21 +88,23 @@ const AustinPenthousesPage = () => {
   );
 
   return (
-    <>
-      <AISchema city="Austin" />
-      <BlogLayout
-        title={title}
-        content={content}
-        keywords={keywords}
-        faqs={faqs}
-        ctaType="apartment"
-        schemaType="Service"
-        address={{
-          addressLocality: "Austin",
-          addressRegion: "TX",
-        }}
-      />
-    </>
+    <Suspense fallback={null}>
+      <>
+        <AISchema city="Austin" />
+        <BlogLayout
+          title={title}
+          content={content}
+          keywords={keywords}
+          faqs={faqs}
+          ctaType="apartment"
+          schemaType="Service"
+          address={{
+            addressLocality: "Austin",
+            addressRegion: "TX",
+          }}
+        />
+      </>
+    </Suspense>
   );
 };
 

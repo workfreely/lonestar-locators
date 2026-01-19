@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, Suspense } from "react";
 import ContactForm from "@/app/components/ContactForm";
 import JayBotWidget from "@/app/components/JayBotWidget";
 
@@ -19,21 +19,20 @@ export default function StartYourSearch() {
       }}
     >
       {/* ================= HEADER ================= */}
-     <h1
-  style={{
-    fontSize: "clamp(2.8rem, 6vw, 3.6rem)",
-    fontWeight: 800,
-    textAlign: "center",
-    marginBottom: "1rem",
-    color: "#111",
-    lineHeight: 1.15,
-  }}
->
-  Start Your{" "}
-  <span className="mobile-break">Apartment</span>{" "}
-  Search
-</h1>
-
+      <h1
+        style={{
+          fontSize: "clamp(2.8rem, 6vw, 3.6rem)",
+          fontWeight: 800,
+          textAlign: "center",
+          marginBottom: "1rem",
+          color: "#111",
+          lineHeight: 1.15,
+        }}
+      >
+        Start Your{" "}
+        <span className="mobile-break">Apartment</span>{" "}
+        Search
+      </h1>
 
       <p
         style={{
@@ -46,20 +45,18 @@ export default function StartYourSearch() {
         }}
       >
         Fill out the form below to receive a personalized list of luxury apartments,
-        townhomes, or rental homes. Second chance and
-        broken lease options available.
+        townhomes, or rental homes. Second chance and broken lease options available.
       </p>
 
       {/* ================= CONTENT GRID ================= */}
       <div
-  style={{
-    display: "grid",
-    gridTemplateColumns: "1fr 420px",
-    gap: "2.5rem",
-    alignItems: "flex-start",
-  }}
->
-
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 420px",
+          gap: "2.5rem",
+          alignItems: "flex-start",
+        }}
+      >
         {/* LEFT: CONTACT FORM */}
         <div
           className="contact-form-shell"
@@ -68,10 +65,12 @@ export default function StartYourSearch() {
             minWidth: "320px",
           }}
         >
-          <ContactForm mode="full" />
+          <Suspense fallback={null}>
+            <ContactForm mode="full" />
+          </Suspense>
         </div>
 
-        {/* RIGHT: VIDEO / INFO */}
+        {/* RIGHT: VIDEO */}
         <div
           style={{
             flex: "1 1 380px",
@@ -81,7 +80,7 @@ export default function StartYourSearch() {
           <div
             style={{
               position: "relative",
-              paddingBottom: "177.78%", // vertical video
+              paddingBottom: "177.78%",
               height: 0,
               overflow: "hidden",
               borderRadius: "12px",
@@ -107,7 +106,9 @@ export default function StartYourSearch() {
       </div>
 
       {/* ================= AI ASSISTANT ================= */}
-      <JayBotWidget delay={15000} />
+      <Suspense fallback={null}>
+        <JayBotWidget delay={15000} />
+      </Suspense>
     </div>
   );
 }

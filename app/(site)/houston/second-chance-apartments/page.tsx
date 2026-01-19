@@ -1,3 +1,6 @@
+"use client";
+
+import React, { Suspense } from "react";
 import BlogLayout from "@/app/components/BlogLayout";
 
 const SecondChanceApartmentsHouston = () => {
@@ -49,35 +52,37 @@ const SecondChanceApartmentsHouston = () => {
   );
 
   return (
-    <BlogLayout
-      title={title}
-      content={content}
-      keywords={[
-        "second chance apartments Houston",
-        "Houston second chance apartments",
-        "bad credit apartments Houston",
-        "broken lease apartments Houston",
-        "Houston apartments with bad credit",
-        "second chance housing Houston",
-      ]}
-      faqs={[
-        {
-          question: "What is a second chance apartment?",
-          answer:
-            "Second chance apartments are communities that work with renters who have credit issues, broken leases, or past rental challenges on a case-by-case basis.",
-        },
-        {
-          question: "Can I get approved with a broken lease in Houston?",
-          answer:
-            "Yes, some Houston apartments work with broken leases depending on how old the balance is, the amount owed, and your current income.",
-        },
-        {
-          question: "Do second chance apartments cost more?",
-          answer:
-            "Some may require a higher deposit, but rent prices are often comparable to standard apartments depending on location and availability.",
-        },
-      ]}
-    />
+    <Suspense fallback={null}>
+      <BlogLayout
+        title={title}
+        content={content}
+        keywords={[
+          "second chance apartments Houston",
+          "Houston second chance apartments",
+          "bad credit apartments Houston",
+          "broken lease apartments Houston",
+          "Houston apartments with bad credit",
+          "second chance housing Houston",
+        ]}
+        faqs={[
+          {
+            question: "What is a second chance apartment?",
+            answer:
+              "Second chance apartments are communities that work with renters who have credit issues, broken leases, or past rental challenges on a case-by-case basis.",
+          },
+          {
+            question: "Can I get approved with a broken lease in Houston?",
+            answer:
+              "Yes, some Houston apartments work with broken leases depending on how old the balance is, the amount owed, and your current income.",
+          },
+          {
+            question: "Do second chance apartments cost more?",
+            answer:
+              "Some may require a higher deposit, but rent prices are often comparable to standard apartments depending on location and availability.",
+          },
+        ]}
+      />
+    </Suspense>
   );
 };
 

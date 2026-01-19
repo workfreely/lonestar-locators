@@ -23,14 +23,14 @@
     }
   },
   "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    "app/(site)/start-your-search"
+  "next-env.d.ts",
+  "app/**/*.ts",
+  "app/**/*.tsx",
+  ".next/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules",
-    "imports/backup-blog-20251221-114403"
+  "node_modules",
+  "supabase/functions",
+  "supabase/.temp"
   ]
 }
