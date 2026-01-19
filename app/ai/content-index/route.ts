@@ -2,12 +2,30 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 export async function GET() {
+  // ---------------------------------------------
+  // Guard: Ensure env vars exist (prevents build crash)
+  // ---------------------------------------------
+  if (
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    !process.env.SUPABASE_SERVICE_ROLE_KEY
+  ) {
+    return NextResponse.json(
+      {
+        error: "Supabase environment variables not configured",
+      },
+      { status: 500 }
+    );
+  }
+
+  // ---------------------------------------------
+  // Create Supabase client lazily (runtime-safe)
+  // ---------------------------------------------
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
+
   try {
     // Apartments
     const { data: apartments } = await supabase
@@ -44,7 +62,10 @@ export async function GET() {
 
         reviews:
           reviews?.map((r) => ({
-            type: r.review_type === "comparison" ? "comparison" : "property-review",
+            type:
+              r.review_type === "comparison"
+                ? "comparison"
+                : "property-review",
             city: r.city_slug,
             url: `${baseUrl}/${r.city_slug}/blog/${r.slug}`,
             updated_at: r.updated_at,
@@ -61,7 +82,10 @@ export async function GET() {
     });
   } catch (error) {
     return NextResponse.json(
-      { error: "AI content index failed", details: error },
+      {
+        error: "AI content index failed",
+        details: error instanceof Error ? error.message : error,
+      },
       { status: 500 }
     );
   }
