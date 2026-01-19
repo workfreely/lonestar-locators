@@ -147,7 +147,7 @@ const Footer = () => {
       >
         <Link href="/privacy" style={{ color: "#ccc", marginRight: "1rem" }}>Privacy</Link>
         <Link href="/terms" style={{ color: "#ccc", marginRight: "1rem" }}>Terms</Link>
-        <Link href="/sitemap" style={{ color: "#ccc", marginRight: "1rem" }}>Sitemap</Link>
+        <Link href="/site-map" style={{ color: "#ccc", marginRight: "1rem" }}>Sitemap</Link>
         <Link href="/disclaimer" style={{ color: "#ccc" }}>Disclaimer</Link>
 
        {/* TREC FORMS */}

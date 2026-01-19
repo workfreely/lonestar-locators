@@ -29,12 +29,7 @@ const Privacy = () => {
         usage. You can disable cookies through your browser settings if you
         prefer.
       </p>
-
-      <h2>Contact Us</h2>
-      <p>
-        If you have questions about this Privacy Policy, contact us at
-        support@lonestarlocators.com.
-      </p>
+      
     </LegalLayout>
   );
 };
