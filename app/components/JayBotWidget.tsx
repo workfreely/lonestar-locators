@@ -49,36 +49,39 @@ const JayBotWidget: React.FC<JayBotWidgetProps> = ({ delay = 3000 }) => {
   // ==========================================
   // Load VAPI script
   // ==========================================
-  useEffect(() => {
-    const script = document.createElement("script");
-    script.src = "https://jsdelivrproxy.glitch.me/https://vapi.ai/widget.js";
-    script.async = true;
+useEffect(() => {
+  const script = document.createElement("script");
+  script.src = "https://jsdelivrproxy.glitch.me/https://vapi.ai/widget.js";
+  script.async = true;
 
-    script.onload = () => {
-      if (!window.vapi) return;
+  script.onload = () => {
+    if (!window.vapi) return;
+    if (!publicKey || !assistantId) return;
 
-      try {
-        if (!publicKey || !assistantId) return;
+    try {
+      window.vapi.init({
+        apiKey: publicKey,
+        assistantId,
+        position: "bottom-right",
+        theme: {
+          brandColor: "#0078d7",
+          title: "Talk to Me 🤠",
+        },
+      });
 
-        window.vapi.init({
-          apiKey: publicKey,
-          assistantId: assistantId,
-          position: "bottom-right",
-          theme: {
-            brandColor: "#0078d7",
-            title: "Talk to Me 🤠",
-          },
-        });
+      setTimeout(() => setIsReady(true), 2000);
+    } catch (err) {
+      console.error("JayBot failed to initialize:", err);
+    }
+  };
 
-        setTimeout(() => setIsReady(true), 2000);
-      } catch (err) {
-        console.error("JayBot failed to initialize:", err);
-      }
-    };
+  document.body.appendChild(script);
 
-    document.body.appendChild(script);
-    return () => document.body.removeChild(script);
-  }, [publicKey, assistantId]);
+  return () => {
+    document.body.removeChild(script);
+  };
+}, [publicKey, assistantId]);
+
 
   if (!showWidget) return null;
 

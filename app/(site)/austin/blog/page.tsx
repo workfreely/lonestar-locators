@@ -3,31 +3,27 @@ import CityBlogLayout from "@/app/components/CityBlogLayout";
 import { resolveBlogTags } from "@/app/lib/seo/blogKeywords";
 
 export default async function AustinBlogPage() {
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from("blogs")
     .select(`
       title,
       slug,
-      excerpt,
-      hero_image_url,
+      meta_description,
+      comparison_image_1,
       keywords,
-      published_at
+      publish_date,
+      created_at
     `)
     .eq("city", "austin")
-    .eq("status", "published")
-    .order("published_at", { ascending: false });
-
-  if (error) {
-    console.error("Austin blog fetch error:", error);
-  }
+    .order("publish_date", { ascending: false });
 
   const posts =
     data?.map((post) => ({
       title: post.title,
-      excerpt: post.excerpt,
-      imageUrl: post.hero_image_url,
+      excerpt: post.meta_description,
+      imageUrl: post.comparison_image_1 || null,
       postUrl: `/austin/blog/${post.slug}`,
-      date: post.published_at,
+      date: post.publish_date || post.created_at,
       tags: resolveBlogTags({
         title: post.title,
         keywords: post.keywords,

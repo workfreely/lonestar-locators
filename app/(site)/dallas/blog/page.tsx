@@ -8,14 +8,14 @@ export default async function DallasBlogPage() {
     .select(`
       title,
       slug,
-      excerpt,
-      hero_image_url,
+      meta_description,
+      comparison_image_1,
       keywords,
-      published_at
+      publish_date,
+      created_at
     `)
     .eq("city", "dallas")
-    .eq("status", "published")
-    .order("published_at", { ascending: false });
+    .order("publish_date", { ascending: false });
 
   if (error) {
     console.error("Dallas blog fetch error:", error);
@@ -24,10 +24,10 @@ export default async function DallasBlogPage() {
   const posts =
     data?.map((post) => ({
       title: post.title,
-      excerpt: post.excerpt,
-      imageUrl: post.hero_image_url,
+      excerpt: post.meta_description,
+      imageUrl: post.comparison_image_1 || null,
       postUrl: `/dallas/blog/${post.slug}`,
-      date: post.published_at,
+      date: post.publish_date || post.created_at,
       tags: resolveBlogTags({
         title: post.title,
         keywords: post.keywords,

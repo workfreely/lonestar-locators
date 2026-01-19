@@ -9,9 +9,9 @@ const supabase = createClient(
 export default async function ReviewPage({
   params,
 }: {
-  params: { city: string; slug: string };
+  params: Promise<{ city: string; slug: string }>;
 }) {
-  const { slug } = params;
+  const { slug } = await params;
 
   const { data: review, error } = await supabase
     .from("property_reviews")
@@ -34,13 +34,11 @@ export default async function ReviewPage({
       image={review.hero_image_url}
       featureImage1={review.feature_image_1_url}
       featureImage2={review.feature_image_2_url}
-
       customIntro={review.custom_intro}
       good={review.good_points || []}
       bad={review.bad_points || []}
       ugly={review.ugly_points || []}
       customOutro={review.custom_outro}
-
       keywords={review.keywords || []}
       neighborhood={review.neighborhood}
       address={{

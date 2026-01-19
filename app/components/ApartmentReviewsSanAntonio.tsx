@@ -370,16 +370,17 @@ if (propertyType && propertyType !== "Open to All") {
           type="button"
           className="search-button"
           onClick={() =>
-            setFilters({
-              q: "",
-              beds: "",
-              baths: "",
-              price: "",
-              propertyType: "",
-              neighborhoods: [],
-              submarkets: [],
-            })
-          }
+  setFilters({
+    q: "",
+    beds: "",
+    baths: "",
+    price: "",
+    propertyType: "",
+    neighborhoods: [],
+    submarkets: [],
+  })
+}
+
         >
           Reset Filters
         </button>

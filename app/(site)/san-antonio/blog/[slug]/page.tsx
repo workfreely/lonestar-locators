@@ -15,8 +15,10 @@ const normalizeArray = (value: unknown): string[] => {
 export default async function BlogPostPage({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }) {
+  const { slug } = await params;
+
   /* ============================
      BASE BLOG (CANONICAL GATE)
   ============================ */
@@ -24,7 +26,7 @@ export default async function BlogPostPage({
   const { data: post, error } = await supabase
     .from("blogs")
     .select("*")
-    .eq("slug", params.slug)
+    .eq("slug", slug)
     .eq("status", "published")
     .single();
 
@@ -38,7 +40,7 @@ export default async function BlogPostPage({
     const { data: cmp, error: cmpErr } = await supabase
       .from("blogs_import")
       .select("*")
-      .eq("slug", params.slug)
+      .eq("slug", slug)
       .single();
 
     if (cmpErr || !cmp) notFound();
