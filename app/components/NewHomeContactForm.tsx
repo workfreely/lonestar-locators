@@ -349,7 +349,7 @@ website: formData.website, // honeypot
       <div style={sectionStyle}>
         <DatePicker
           selected={formData.moveDate ? new Date(formData.moveDate) : null}
-          onChange={(date) =>
+          onChange={(date: Date | null) =>
             setFormData({
               ...formData,
               moveDate: date ? date.toISOString().split("T")[0] : "",
