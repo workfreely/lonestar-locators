@@ -3,6 +3,8 @@ import NavigationBar from "./components/NavigationBar";
 import Footer from "./components/Footer";
 import ClientPopups from "@/app/components/ClientPopups";
 import ClientSecurity from "@/app/components/ClientSecurity";
+import MobileStickyCTA from "@/app/components/MobileStickyCTA";
+
 
 export default function RootLayout({
   children,
@@ -42,6 +44,9 @@ export default function RootLayout({
         {/* Client-only logic */}
 <ClientPopups />
 <ClientSecurity />
+
+{/* Mobile Sticky CTA */}
+        <MobileStickyCTA />
 
         {/* ✅ Exit Intent Popup (client-only, SSR-safe) */}
       </body>
