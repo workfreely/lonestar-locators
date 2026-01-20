@@ -1023,3 +1023,21 @@ html {
   cursor: pointer;
   line-height: 1.35;
 }
+
+/* ======================================================
+   🛑 DISABLE CARD HOVER MOTION — MOBILE ONLY
+   Scope: Homepage Featured Properties
+   ====================================================== */
+
+@media (hover: none), (max-width: 768px) {
+  #featured-wrap .card,
+  #featured-wrap .listing-card,
+  #featured-wrap .card:hover,
+  #featured-wrap .listing-card:hover,
+  #featured-wrap .card:active,
+  #featured-wrap .listing-card:active {
+    transform: none !important;
+    transition: none !important;
+  }
+}
+

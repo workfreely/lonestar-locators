@@ -103,6 +103,16 @@ export default function BuyNewHomePage() {
         </div>
       </div>
 
+            {/* ✅ MOBILE STACKING FIX */}
+      <style jsx>{`
+        @media (max-width: 980px) {
+          div[style*="grid-template-columns: 1fr 420px"] {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
+
+
       {/* ================= AI ASSISTANT ================= */}
       <JayBotWidget delay={15000} />
     </div>
