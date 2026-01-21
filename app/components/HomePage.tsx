@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { FaMapMarkerAlt } from "react-icons/fa";
-import FeaturedProperties from "./FeaturedProperties";
 import TestimonialsSection from "./TestimonialsSection";
+import ListingCard from "@/app/components/ListingCard";
 import JayBotWidget from "./JayBotWidget";
 
 /* ✅ FIXED: Client-only animation */
@@ -323,7 +323,93 @@ export default function HomePage() {
 />
 {/* ================= FEATURED PROPERTIES ================= */}
 
-<FeaturedProperties />
+<section
+  style={{
+    maxWidth: "1200px",
+    margin: "3rem auto",
+    padding: "0 1rem",
+  }}
+>
+  <h2
+    style={{
+      fontSize: "2rem",
+      fontWeight: 800,
+      marginBottom: "0.5rem",
+      color: "#222",
+      textAlign: "center",
+    }}
+  >
+    Properties We’re Recommending in San Antonio
+  </h2>
+
+  <p
+    style={{
+      fontSize: "1.1rem",
+      color: "#555",
+      marginBottom: "2rem",
+      textAlign: "center",
+    }}
+  >
+    Hand-picked communities chosen for lifestyle and value. We’ll confirm
+    pricing and incentives before you apply.
+  </p>
+
+  <div className="card-grid">
+    <ListingCard
+      listing={{
+        name: "300 Main",
+        slug: "300-main",
+        city_slug: "san-antonio",
+        href: "/san-antonio/apartments/300-main",
+        neighborhood: "Downtown",
+        price: "$1,650+",
+        beds: "0 - 2",
+        baths: "1 - 2",
+        tags: ["Luxury", "Downtown", "High-Rise"],
+        special: "1 Month Free on Select Units!",
+      }}
+      defaultImage="https://res.cloudinary.com/dxtiguwzm/image/upload/v1748277676/photos-coming-soon-lone-star-locators_be1dyx.jpg"
+    />
+
+    <ListingCard
+      listing={{
+        name: "Oasis at Stone Oak",
+        slug: "oasis-at-stone-oak",
+        city_slug: "san-antonio",
+        href: "/san-antonio/apartments/oasis-at-stone-oak",
+        neighborhood: "Stone Oak",
+        price: "$1,600+",
+        beds: "2 - 3",
+        baths: "2 - 2.5",
+        tags: ["Luxury", "Townhome", "Stone Oak"],
+        special: "8 Weeks free on a 14-month lease!",
+      }}
+      defaultImage="https://res.cloudinary.com/dxtiguwzm/image/upload/v1748277676/photos-coming-soon-lone-star-locators_be1dyx.jpg"
+    />
+
+    <ListingCard
+      listing={{
+        name: "Collection Schertz Station",
+        slug: "collection-schertz-station",
+        city_slug: "san-antonio",
+        href: "/san-antonio/apartments/collection-schertz-station",
+        neighborhood: "Schertz",
+        price: "$1,750+",
+        beds: "2 - 3",
+        baths: "2 - 2.5",
+        tags: ["Luxury", "Schertz", "Townhome"],
+        special: "Move-In Specials Available!",
+      }}
+      defaultImage="https://res.cloudinary.com/dxtiguwzm/image/upload/v1748277676/photos-coming-soon-lone-star-locators_be1dyx.jpg"
+    />
+  </div>
+
+  <div style={{ marginTop: "2.5rem", textAlign: "center" }}>
+    <a href="/san-antonio/apartments" className="start-your-search-btn">
+      View All San Antonio Listings →
+    </a>
+  </div>
+</section>
 
       <JayBotWidget />
     </div>
