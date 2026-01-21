@@ -5,7 +5,7 @@ const SITE_URL = "https://www.lonestarlocators.app";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SSUPABASE_SERVICE_ROLE_KEY_SERVER!
 );
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
