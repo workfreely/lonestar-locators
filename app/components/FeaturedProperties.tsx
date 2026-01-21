@@ -9,7 +9,7 @@ const FeaturedProperties: React.FC = () => {
       name: "300 Main",
       slug: "300-main",
       href: "/san-antonio/apartments/300-main",
-      city_slug: "san-antonio", // ✅ REQUIRED
+      city_slug: "san-antonio",
       neighborhood: "Downtown",
       region: "San Antonio",
       image: "",
@@ -26,7 +26,7 @@ const FeaturedProperties: React.FC = () => {
       name: "Oasis at Stone Oak",
       slug: "oasis-at-stone-oak",
       href: "/san-antonio/apartments/oasis-at-stone-oak",
-      city_slug: "san-antonio", // ✅ REQUIRED
+      city_slug: "san-antonio",
       neighborhood: "Stone Oak",
       region: "San Antonio",
       image: "",
@@ -42,8 +42,8 @@ const FeaturedProperties: React.FC = () => {
     {
       name: "Collection Schertz Station",
       slug: "collection-schertz-station",
-      city_slug: "san-antonio", // ✅ REQUIRED
       href: "/san-antonio/apartments/collection-schertz-station",
+      city_slug: "san-antonio",
       neighborhood: "Schertz",
       region: "San Antonio",
       image: "",
@@ -62,52 +62,56 @@ const FeaturedProperties: React.FC = () => {
     "https://res.cloudinary.com/dxtiguwzm/image/upload/v1748277676/photos-coming-soon-lone-star-locators_be1dyx.jpg";
 
   return (
-    <section id="featured-wrap">
-      <h2
-        style={{
-          fontSize: "2rem",
-          fontWeight: 800,
-          marginBottom: "0.5rem",
-          color: "#222",
-          textAlign: "center",
-        }}
-      >
-        Properties We’re Recommending in San Antonio
-      </h2>
+    <>
+      {/* ===== HEADER (unchanged) ===== */}
+      <section id="featured-wrap">
+        <h2
+          style={{
+            fontSize: "2rem",
+            fontWeight: 800,
+            marginBottom: "0.5rem",
+            color: "#222",
+            textAlign: "center",
+          }}
+        >
+          Properties We’re Recommending in San Antonio
+        </h2>
 
-      <p
-        style={{
-          fontSize: "1.1rem",
-          color: "#555",
-          marginBottom: "2rem",
-          textAlign: "center",
-        }}
-      >
-        Hand-picked communities chosen for lifestyle and value. We’ll confirm pricing and incentives before you apply.
-      </p>
+        <p
+          style={{
+            fontSize: "1.1rem",
+            color: "#555",
+            marginBottom: "2rem",
+            textAlign: "center",
+          }}
+        >
+          Hand-picked communities chosen for lifestyle and value. We’ll confirm
+          pricing and incentives before you apply.
+        </p>
+      </section>
 
-<div className="apartment-listings-page">
-  <div style={{ padding: ".5rem", fontFamily: "'Inter', sans-serif" }}>
-    <div className="card-grid">
-      {featuredListings.map((listing) => {
-        const href =
-          listing.href || `/san-antonio/apartments/${listing.slug}`;
+      {/* ===== CRITICAL: MATCH LISTINGS PAGE STRUCTURE ===== */}
+      <div className="apartment-listings-page">
+        <div style={{ padding: ".5rem", fontFamily: "'Inter', sans-serif" }}>
+          <div className="card-grid">
+            {featuredListings.map((listing) => {
+              const href =
+                listing.href ||
+                `/san-antonio/apartments/${listing.slug}`;
 
-        return (
-          <ListingCard
-            key={listing.slug}
-            listing={{
-              ...listing,
-              href,
-            }}
-            defaultImage={defaultImage}
-          />
-        );
-      })}
-    </div>
-  </div>
-</div>
+              return (
+                <ListingCard
+                  key={listing.slug}
+                  listing={{ ...listing, href }}
+                  defaultImage={defaultImage}
+                />
+              );
+            })}
+          </div>
+        </div>
+      </div>
 
+      {/* ===== CTA ===== */}
       <div style={{ marginTop: "2.5rem", textAlign: "center" }}>
         <a
           href="/san-antonio/apartments"
@@ -116,7 +120,7 @@ const FeaturedProperties: React.FC = () => {
           View All San Antonio Listings →
         </a>
       </div>
-    </section>
+    </>
   );
 };
 
