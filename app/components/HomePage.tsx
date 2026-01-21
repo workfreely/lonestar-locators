@@ -322,7 +322,9 @@ export default function HomePage() {
   ]}
 />
 
-<FeaturedProperties />
+<div className="apartment-listings-page">
+  <FeaturedProperties />
+</div>
       <JayBotWidget />
     </div>
   );
