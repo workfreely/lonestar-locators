@@ -86,28 +86,27 @@ const FeaturedProperties: React.FC = () => {
         Hand-picked communities chosen for lifestyle and value. We’ll confirm pricing and incentives before you apply.
       </p>
 
-      {/* ✅ USE GLOBAL GRID — DO NOT OVERRIDE */}
-      <div className="card-grid">
-        {featuredListings.map((listing, index) => {
-          const href = listing.href || `/san-antonio/apartments/${listing.slug}`;
+<div className="apartment-listings-page">
+  <div style={{ padding: ".5rem", fontFamily: "'Inter', sans-serif" }}>
+    <div className="card-grid">
+      {featuredListings.map((listing) => {
+        const href =
+          listing.href || `/san-antonio/apartments/${listing.slug}`;
 
-          // ✅ IMPORTANT:
-          // ListingCard already renders a <Link> internally.
-          // Wrapping it with another <Link> creates nested <a> tags:
-          // <a><a>...</a></a> which causes Next.js hydration errors.
-          // So we pass href DOWN and let ListingCard own navigation.
-          return (
-            <ListingCard
-  key={listing.slug}
-  listing={{
-    ...listing,
-    href,
-  }}
-  defaultImage={defaultImage}
-/>
-          );
-        })}
-      </div>
+        return (
+          <ListingCard
+            key={listing.slug}
+            listing={{
+              ...listing,
+              href,
+            }}
+            defaultImage={defaultImage}
+          />
+        );
+      })}
+    </div>
+  </div>
+</div>
 
       <div style={{ marginTop: "2.5rem", textAlign: "center" }}>
         <a
