@@ -63,7 +63,7 @@ const FeaturedProperties: React.FC = () => {
 
   return (
     <>
-      {/* ===== HEADER (unchanged) ===== */}
+      {/* ===== HEADER ===== */}
       <section id="featured-wrap">
         <h2
           style={{
@@ -90,7 +90,7 @@ const FeaturedProperties: React.FC = () => {
         </p>
       </section>
 
-      {/* ===== CRITICAL: MATCH LISTINGS PAGE STRUCTURE ===== */}
+      {/* ===== MATCH LISTINGS PAGE LAYOUT (THIS FIXES MOBILE) ===== */}
       <div className="apartment-listings-page">
         <div style={{ padding: ".5rem", fontFamily: "'Inter', sans-serif" }}>
           <div className="card-grid">
