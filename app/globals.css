@@ -1017,3 +1017,9 @@ html {
   line-height: 1.35;
 }
 
+/* 🔒 HOME FEATURED PROPERTIES — HARD LOCK */
+.home-featured-grid {
+  max-width: 1200px;
+  margin: 0 auto;
+  justify-content: center;
+}
