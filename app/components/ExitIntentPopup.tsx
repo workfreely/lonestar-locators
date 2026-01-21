@@ -168,27 +168,30 @@ const EXCLUDED_PATHS = [
        backgroundColor: "rgba(0,0,0,0.5)",
        display: "flex",
        justifyContent: "center",
-       alignItems: "flex-start",
+      alignItems: "center",
        zIndex: 9999,
        padding: "20px",
      }}
    >
        <div
    style={{
-   animation: "fadeIn 0.6s ease",
-     animationFillMode: "both",
-     position: "relative",
-     backgroundImage:
-       "url('https://res.cloudinary.com/dxtiguwzm/image/upload/v1747937030/lone-star-locators-austin-texas-free-apartment-locating_ew5tvq.jpg')",
-     backgroundSize: "cover",
-     backgroundPosition: "center",
-     padding: "20px",
-     borderRadius: "10px",
-     maxWidth: "520px",
-     minWidth: "520px",
-     textAlign: "center",
-     boxShadow: "0 20px 40px rgba(0,0,0,0.45)",
-   }}
+  animation: "fadeIn 0.6s ease",
+  animationFillMode: "both",
+  position: "relative",
+  backgroundImage:
+    "url('https://res.cloudinary.com/dxtiguwzm/image/upload/v1747937030/lone-star-locators-austin-texas-free-apartment-locating_ew5tvq.jpg')",
+  backgroundSize: "cover",
+  backgroundPosition: "center",
+  padding: "18px",
+  borderRadius: "12px",
+  width: "100%",
+  maxWidth: "520px",          // desktop unchanged
+  textAlign: "center",
+  boxShadow: "0 20px 40px rgba(0,0,0,0.45)",
+  margin: "0 auto",
+  maxHeight: "85vh",          // ✅ prevents overflow on mobile
+  overflowY: "auto",          // ✅ allows scroll if needed
+}}
  >
 
 
@@ -196,18 +199,23 @@ const EXCLUDED_PATHS = [
        <button
          onClick={handleClose}
          aria-label="Close popup"
-         style={{
-           position: "absolute",
-           top: "-25px",
-           right: "-25px",
-           background: "transparent",
-           color: "white",
-           border: "none",
-           fontSize: "2.8rem",
-           fontWeight: 700,
-           cursor: "pointer",
-           marginTop: "0.75rem", // ✅ ADD THIS
-         }}
+        style={{
+  position: "absolute",
+  top: "10px",
+  right: "14px",
+  background: "rgba(0,0,0,0.6)",
+  color: "#fff",
+  border: "none",
+  width: "44px",
+  height: "44px",
+  borderRadius: "50%",
+  fontSize: "1.75rem",
+  fontWeight: 700,
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+}}
        >
          ×
        </button>
