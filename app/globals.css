@@ -1032,3 +1032,22 @@ html {
   max-width: 1200px;
   margin: 0 auto;
 }
+
+/* ======================================
+   📱 City Cards – Mobile Centering Fix
+   ====================================== */
+@media (max-width: 768px) {
+  .city-card h2 {
+    flex-direction: column;      /* stack icon above text */
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    gap: 6px;
+    font-size: 1.6rem;
+  }
+
+  .city-card h2 svg {
+    font-size: 1.4rem;
+    margin-bottom: 2px;
+  }
+}
