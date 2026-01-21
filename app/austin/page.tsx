@@ -1,3 +1,5 @@
+// root city page – austin
+
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
 
