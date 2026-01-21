@@ -14,13 +14,10 @@ const FeaturedProperties: React.FC = () => {
       region: "San Antonio",
       image: "",
       price: "$1,650+",
-      priceValue: 1650,
       beds: "0 - 2",
       baths: "1 - 2",
-      propertyType: "Apartment",
       tags: ["Luxury", "Downtown", "High-Rise"],
       special: "1 Month Free on Select Units!",
-      rebate: "Get a Cash Rebate or Free Movers",
     },
     {
       name: "Oasis at Stone Oak",
@@ -31,13 +28,10 @@ const FeaturedProperties: React.FC = () => {
       region: "San Antonio",
       image: "",
       price: "$1,600+",
-      priceValue: 1600,
       beds: "2 - 3",
       baths: "2 - 2.5",
-      propertyType: "Townhome",
       tags: ["Luxury", "Townhome", "Stone Oak"],
       special: "8 Weeks free on a 14-month lease!",
-      rebate: "Get a Cash Rebate or Free Movers",
     },
     {
       name: "Collection Schertz Station",
@@ -48,13 +42,10 @@ const FeaturedProperties: React.FC = () => {
       region: "San Antonio",
       image: "",
       price: "$1,750+",
-      priceValue: 1750,
       beds: "2 - 3",
       baths: "2 - 2.5",
-      propertyType: "Townhome",
       tags: ["Luxury", "Schertz", "Townhome"],
       special: "Move-In Specials Available!",
-      rebate: "Get a Cash Rebate or Free Movers",
     },
   ];
 
@@ -62,54 +53,51 @@ const FeaturedProperties: React.FC = () => {
     "https://res.cloudinary.com/dxtiguwzm/image/upload/v1748277676/photos-coming-soon-lone-star-locators_be1dyx.jpg";
 
   return (
-    <>
-      {/* ===== HEADER ===== */}
-      <section id="featured-wrap">
-        <h2
-          style={{
-            fontSize: "2rem",
-            fontWeight: 800,
-            marginBottom: "0.5rem",
-            color: "#222",
-            textAlign: "center",
-          }}
-        >
-          Properties We’re Recommending in San Antonio
-        </h2>
+    <section
+      id="featured-wrap"
+      style={{
+        maxWidth: "1200px",
+        margin: "3rem auto",
+        padding: "0 1rem",
+      }}
+    >
+      {/* HEADER */}
+      <h2
+        style={{
+          fontSize: "2rem",
+          fontWeight: 800,
+          marginBottom: "0.5rem",
+          color: "#222",
+          textAlign: "center",
+        }}
+      >
+        Properties We’re Recommending in San Antonio
+      </h2>
 
-        <p
-          style={{
-            fontSize: "1.1rem",
-            color: "#555",
-            marginBottom: "2rem",
-            textAlign: "center",
-          }}
-        >
-          Hand-picked communities chosen for lifestyle and value. We’ll confirm
-          pricing and incentives before you apply.
-        </p>
-      </section>
+      <p
+        style={{
+          fontSize: "1.1rem",
+          color: "#555",
+          marginBottom: "2rem",
+          textAlign: "center",
+        }}
+      >
+        Hand-picked communities chosen for lifestyle and value. We’ll confirm
+        pricing and incentives before you apply.
+      </p>
 
-     {/* ===== FEATURED PROPERTIES GRID ===== */}
-<section id="featured-wrap">
-  <div className="card-grid">
-    {featuredListings.map((listing) => {
-      const href =
-        listing.href ||
-        `/san-antonio/apartments/${listing.slug}`;
+      {/* GRID — THIS IS THE KEY */}
+      <div className="card-grid">
+        {featuredListings.map((listing) => (
+          <ListingCard
+            key={listing.slug}
+            listing={listing}
+            defaultImage={defaultImage}
+          />
+        ))}
+      </div>
 
-      return (
-        <ListingCard
-          key={listing.slug}
-          listing={{ ...listing, href }}
-          defaultImage={defaultImage}
-        />
-      );
-    })}
-  </div>
-</section>
-
-      {/* ===== CTA ===== */}
+      {/* CTA */}
       <div style={{ marginTop: "2.5rem", textAlign: "center" }}>
         <a
           href="/san-antonio/apartments"
@@ -118,7 +106,7 @@ const FeaturedProperties: React.FC = () => {
           View All San Antonio Listings →
         </a>
       </div>
-    </>
+    </section>
   );
 };
 
