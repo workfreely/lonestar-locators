@@ -1023,3 +1023,12 @@ html {
   margin: 0 auto;
   justify-content: center;
 }
+
+/* Homepage featured grid: force listings grid behavior */
+.apartment-listings-page .card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
