@@ -321,6 +321,10 @@ export default function HomePage() {
     },
   ]}
 />
+{/* ================= FEATURED PROPERTIES ================= */}
+
+<FeaturedProperties />
+
       <JayBotWidget />
     </div>
   );
