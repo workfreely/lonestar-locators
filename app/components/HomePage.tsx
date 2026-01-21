@@ -243,8 +243,6 @@ export default function HomePage() {
   Find apartments based on how you actually want to live.
 </p>
 
-
-
        <div
   style={{
     maxWidth: "850px",
@@ -275,7 +273,13 @@ export default function HomePage() {
       deletionSpeed={55}
     />
   </div>
-  
+
+  {/* Mobile-only static search hint */}
+<div className="mobile-search-hint">
+  Luxury penthouse with city views in San Antonio
+</div>
+
+
 </div>
 
         <button
