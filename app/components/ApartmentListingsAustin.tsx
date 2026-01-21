@@ -272,8 +272,9 @@ if (propertyType && propertyType !== "Open to All") {
     );
   });
 
-  return (
-    <div style={{ padding: ".5rem", fontFamily: "'Inter', sans-serif" }}>
+   return (
+    <div className="apartment-listings-page">
+      <div style={{ padding: ".5rem", fontFamily: "'Inter', sans-serif" }}>
       {/*
 <h1 style={{ fontSize: "2rem", marginBottom: "1.5rem", color: "#222" }}>
   Apartments in Austin, Texas
@@ -659,10 +660,10 @@ if (propertyType && propertyType !== "Open to All") {
 
 
 
-          ))}
+         ))}
+          </div>
         </div>
       </div>
     </div>
   );
-};
-
+}

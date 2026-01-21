@@ -267,8 +267,9 @@ if (propertyType && propertyType !== "Open to All") {
     );
   });
 
-  return (
-    <div style={{ padding: ".5rem", fontFamily: "'Inter', sans-serif" }}>
+   return (
+    <div className="apartment-listings-page">
+      <div style={{ padding: ".5rem", fontFamily: "'Inter', sans-serif" }}>
       {/* ✅ AI + SEO Schema (Houston) */}
       <SchemaItemList city="Houston" listings={[]} />
 <AISchema city="Houston" />
@@ -621,7 +622,8 @@ if (propertyType && propertyType !== "Open to All") {
 />
 
 
-          ))}
+  ))}
+          </div>
         </div>
       </div>
     </div>
