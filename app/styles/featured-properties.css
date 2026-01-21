@@ -1,0 +1,61 @@
+/* ======================================================
+   ⭐ FEATURED PROPERTIES — HOMEPAGE ONLY
+   No shared classes
+   ====================================================== */
+
+.featured-properties {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 0.75rem;
+}
+
+.featured-properties-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+/* Tablet */
+@media (max-width: 1024px) {
+  .featured-properties-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  .featured-properties-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Card safety */
+.featured-properties .listing-card-link {
+  display: block;
+  width: 100%;
+}
+
+.featured-properties .card {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Image consistency */
+.featured-properties .listing-image {
+  height: 260px;
+  object-fit: cover;
+}
+
+/* Hover behavior */
+@media (hover: hover) {
+  .featured-properties .card:hover {
+    transform: scale(1.03);
+  }
+}
+
+@media (hover: none) {
+  .featured-properties .card {
+    transform: none !important;
+    transition: none !important;
+  }
+}

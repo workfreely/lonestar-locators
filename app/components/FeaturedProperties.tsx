@@ -53,58 +53,53 @@ const FeaturedProperties: React.FC = () => {
     "https://res.cloudinary.com/dxtiguwzm/image/upload/v1748277676/photos-coming-soon-lone-star-locators_be1dyx.jpg";
 
   return (
-    <section
-      id="featured-wrap"
-      style={{
-        maxWidth: "1200px",
-        margin: "3rem auto",
-        padding: "0 1rem",
-      }}
-    >
-      {/* HEADER */}
-      <h2
-        style={{
-          fontSize: "2rem",
-          fontWeight: 800,
-          marginBottom: "0.5rem",
-          color: "#222",
-          textAlign: "center",
-        }}
-      >
-        Properties We’re Recommending in San Antonio
-      </h2>
-
-      <p
-        style={{
-          fontSize: "1.1rem",
-          color: "#555",
-          marginBottom: "2rem",
-          textAlign: "center",
-        }}
-      >
-        Hand-picked communities chosen for lifestyle and value. We’ll confirm
-        pricing and incentives before you apply.
-      </p>
-
-      {/* GRID — THIS IS THE KEY */}
-      <div className="card-grid">
-        {featuredListings.map((listing) => (
-          <ListingCard
-            key={listing.slug}
-            listing={listing}
-            defaultImage={defaultImage}
-          />
-        ))}
-      </div>
-
-      {/* CTA */}
-      <div style={{ marginTop: "2.5rem", textAlign: "center" }}>
-        <a
-          href="/san-antonio/apartments"
-          className="start-your-search-btn"
+    <section className="apartment-listings-page">
+      <div style={{ padding: ".5rem", fontFamily: "'Inter', sans-serif" }}>
+        {/* HEADER */}
+        <h2
+          style={{
+            fontSize: "2rem",
+            fontWeight: 800,
+            marginBottom: "0.5rem",
+            color: "#222",
+            textAlign: "center",
+          }}
         >
-          View All San Antonio Listings →
-        </a>
+          Properties We’re Recommending in San Antonio
+        </h2>
+
+        <p
+          style={{
+            fontSize: "1.1rem",
+            color: "#555",
+            marginBottom: "2rem",
+            textAlign: "center",
+          }}
+        >
+          Hand-picked communities chosen for lifestyle and value. We’ll confirm
+          pricing and incentives before you apply.
+        </p>
+
+        {/* ✅ SAME GRID AS LISTINGS PAGES */}
+        <div className="card-grid">
+          {featuredListings.map((listing) => (
+            <ListingCard
+              key={listing.slug}
+              listing={listing}
+              defaultImage={defaultImage}
+            />
+          ))}
+        </div>
+
+        {/* CTA */}
+        <div style={{ marginTop: "2.5rem", textAlign: "center" }}>
+          <a
+            href="/san-antonio/apartments"
+            className="start-your-search-btn"
+          >
+            View All San Antonio Listings →
+          </a>
+        </div>
       </div>
     </section>
   );
