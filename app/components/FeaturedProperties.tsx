@@ -90,26 +90,24 @@ const FeaturedProperties: React.FC = () => {
         </p>
       </section>
 
-      {/* ===== MATCH LISTINGS PAGE LAYOUT (THIS FIXES MOBILE) ===== */}
-      <div className="apartment-listings-page">
-        <div style={{ padding: ".5rem", fontFamily: "'Inter', sans-serif" }}>
-          <div className="card-grid">
-            {featuredListings.map((listing) => {
-              const href =
-                listing.href ||
-                `/san-antonio/apartments/${listing.slug}`;
+     {/* ===== FEATURED PROPERTIES GRID ===== */}
+<section id="featured-wrap">
+  <div className="card-grid">
+    {featuredListings.map((listing) => {
+      const href =
+        listing.href ||
+        `/san-antonio/apartments/${listing.slug}`;
 
-              return (
-                <ListingCard
-                  key={listing.slug}
-                  listing={{ ...listing, href }}
-                  defaultImage={defaultImage}
-                />
-              );
-            })}
-          </div>
-        </div>
-      </div>
+      return (
+        <ListingCard
+          key={listing.slug}
+          listing={{ ...listing, href }}
+          defaultImage={defaultImage}
+        />
+      );
+    })}
+  </div>
+</section>
 
       {/* ===== CTA ===== */}
       <div style={{ marginTop: "2.5rem", textAlign: "center" }}>
