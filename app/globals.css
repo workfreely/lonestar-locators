@@ -1041,11 +1041,19 @@ html {
   }
 }
 
-/* ======================================
-   📱 FIX FEATURED CARD IMAGE HEIGHT ONLY
-   ====================================== */
+.show-on-mobile {
+  display: none;
+}
+
 @media (max-width: 768px) {
-  #featured-wrap .listing-image {
-    height: 220px !important;
+  .hide-on-mobile {
+    display: none !important;
+  }
+
+  .show-on-mobile {
+    display: block;
+    font-size: 1.2rem;
+    font-weight: 700;
+    text-align: center;
   }
 }

@@ -245,35 +245,42 @@ export default function HomePage() {
 
 
 
-        <div
-          style={{
-            maxWidth: "850px",
-            margin: "2rem auto",
-            background: "#fff",
-            padding: "1.25rem 2rem",
-            borderRadius: "45px",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
-            fontSize: "1.8rem",
-            fontWeight: 700,
-          }}
-        >
-          <TypeAnimation
-           sequence={[
-            "Luxury townhome with garage in San Antonio",
-  2600,
-  "2 bed luxury townhome with private yard in Austin",
-  2600,
-  "High-rise apartment with city views in Dallas",
-  2600,
-  "Pet-friendly apartment with infinity pool in Houston",
-  2600,
-  
-]}
-            speed={45}
-            repeat={Infinity}
-            deletionSpeed={55}
-          />
-        </div>
+       <div
+  style={{
+    maxWidth: "850px",
+    margin: "2rem auto",
+    background: "#fff",
+    padding: "1.25rem 2rem",
+    borderRadius: "45px",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
+    fontSize: "1.8rem",
+    fontWeight: 700,
+  }}
+>
+  {/* Desktop only animated text */}
+  <div className="hide-on-mobile">
+    <TypeAnimation
+      sequence={[
+        "Luxury townhome with garage in San Antonio",
+        2600,
+        "2 bed luxury townhome with private yard in Austin",
+        2600,
+        "High-rise apartment with city views in Dallas",
+        2600,
+        "Pet-friendly apartment with infinity pool in Houston",
+        2600,
+      ]}
+      speed={45}
+      repeat={Infinity}
+      deletionSpeed={55}
+    />
+  </div>
+
+  {/* Mobile static text (NO animation = NO layout shift) */}
+  <div className="show-on-mobile">
+    Find luxury apartments, townhomes, and high-rise living across Texas.
+  </div>
+</div>
 
         <button
           onClick={() => router.push("/start-your-search")}
