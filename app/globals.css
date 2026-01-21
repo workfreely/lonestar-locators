@@ -1042,27 +1042,34 @@ html {
 }
 
 /* ======================================================
-   LISTING & REVIEW CARD IMAGE HEIGHTS
-   ------------------------------------------------------
-   PURPOSE:
-   - Keep listing cards and review cards visually consistent
-   - Prevent oversized images on mobile
-   - DO NOT use for page layouts or grids
-   ------------------------------------------------------
-   USED BY:
-   - ListingCard.tsx
-   - ReviewCard.tsx
+   📱 MOBILE CARD FIXES — LISTING + REVIEW CARDS
+   Scope: Global (safe, non-breaking)
    ====================================================== */
 
-/* Desktop & tablet default */
-.cardImage {
-  height: 330px;
-}
-
-/* Mobile adjustment */
 @media (max-width: 768px) {
-  .cardImage {
-    height: 260px;
+  /* Prevent cards from stretching full width */
+  .card {
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* Listing & review images — reduce height on mobile */
+  .listing-image {
+    height: 220px !important;
+    object-fit: cover;
+  }
+
+  /* Card body spacing tighten */
+  .card-body {
+    padding: 0.9rem 1rem;
+  }
+
+  /* Titles don’t push layout sideways */
+  .card h3 {
+    font-size: 1.1rem;
+    line-height: 1.25;
   }
 }
+
 
