@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 const SITE_URL = "https://www.lonestarlocators.app";
 
 // ✅ Server-only Supabase setup
-const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // 🔒 Never let sitemap crash the build
