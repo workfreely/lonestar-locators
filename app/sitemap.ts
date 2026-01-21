@@ -3,10 +3,15 @@ import { createClient } from "@supabase/supabase-js";
 
 const SITE_URL = "https://www.lonestarlocators.app";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SSUPABASE_SERVICE_ROLE_KEY_SERVER!
-);
+// ✅ Server-only Supabase setup
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+// 🔒 Never let sitemap crash the build
+const supabase =
+  supabaseUrl && supabaseServiceKey
+    ? createClient(supabaseUrl, supabaseServiceKey)
+    : null;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
@@ -61,9 +66,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
      APARTMENT LISTINGS
   =============================== */
 
-  const { data: listings } = await supabase
-    .from("properties_import")
-    .select("slug, city_slug, updated_at");
+  const { data: listings } = supabase
+  ? await supabase
+      .from("properties_import")
+      .select("slug, city_slug, updated_at")
+  : { data: [] };
 
   const listingPages: MetadataRoute.Sitemap =
     listings?.map((listing) => ({
@@ -77,10 +84,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
      PROPERTY REVIEWS
   =============================== */
 
-  const { data: reviews } = await supabase
-    .from("property_reviews")
-    .select("slug, city_slug, review_type, updated_at, published_at")
-    .not("published_at", "is", null);
+const { data: reviews } = supabase
+  ? await supabase
+      .from("property_reviews")
+      .select("slug, city_slug, review_type, updated_at, published_at")
+      .not("published_at", "is", null)
+  : { data: [] };
 
   const reviewPages: MetadataRoute.Sitemap =
     reviews?.map((review) => {
@@ -107,9 +116,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
      BLOG POSTS
   =============================== */
 
-  const { data: blogs } = await supabase
-    .from("blogs_import")
-    .select("slug, city_slug, updated_at");
+const { data: blogs } = supabase
+  ? await supabase
+      .from("blogs_import")
+      .select("slug, city_slug, updated_at")
+  : { data: [] };
 
   const blogPages: MetadataRoute.Sitemap =
     blogs?.map((blog) => ({
