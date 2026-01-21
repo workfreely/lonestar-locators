@@ -1,4 +1,5 @@
 // root city page – houston
+export const dynamic = "force-dynamic";
 
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
@@ -31,12 +32,36 @@ const HoustonCityPage = () => {
 
       <h2>Explore Houston Apartment Options</h2>
       <ul>
-        <li><a href="/houston/free-apartment-locator">Free Apartment Locator in Houston</a></li>
-        <li><a href="/houston/luxury-apartments">Luxury Apartments in Houston</a></li>
-        <li><a href="/houston/neighborhoods">Houston Neighborhood Guides</a></li>
-        <li><a href="/houston/first-time-renters">First Time Renters in Houston</a></li>
-        <li><a href="/houston/new-construction-homes">New Construction Homes in Houston</a></li>
-        <li><a href="/houston/second-chance-apartments">Second Chance Apartments in Houston</a></li>
+        <li>
+          <a href="/houston/free-apartment-locator">
+            Free Apartment Locator in Houston
+          </a>
+        </li>
+        <li>
+          <a href="/houston/luxury-apartments">
+            Luxury Apartments in Houston
+          </a>
+        </li>
+        <li>
+          <a href="/houston/neighborhoods">
+            Houston Neighborhood Guides
+          </a>
+        </li>
+        <li>
+          <a href="/houston/first-time-renters">
+            First Time Renters in Houston
+          </a>
+        </li>
+        <li>
+          <a href="/houston/new-construction-homes">
+            New Construction Homes in Houston
+          </a>
+        </li>
+        <li>
+          <a href="/houston/second-chance-apartments">
+            Second Chance Apartments in Houston
+          </a>
+        </li>
       </ul>
 
       <p>

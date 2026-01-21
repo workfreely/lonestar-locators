@@ -1,4 +1,5 @@
 // root city page – dallas
+export const dynamic = "force-dynamic";
 
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
@@ -31,12 +32,36 @@ const DallasCityPage = () => {
 
       <h2>Explore Dallas Apartment Options</h2>
       <ul>
-        <li><a href="/dallas/free-apartment-locator">Free Apartment Locator in Dallas</a></li>
-        <li><a href="/dallas/luxury-apartments">Luxury Apartments in Dallas</a></li>
-        <li><a href="/dallas/neighborhoods">Dallas Neighborhood Guides</a></li>
-        <li><a href="/dallas/first-time-renters">First Time Renters in Dallas</a></li>
-        <li><a href="/dallas/new-construction-homes">New Construction Homes in Dallas</a></li>
-        <li><a href="/dallas/second-chance-apartments">Second Chance Apartments in Dallas</a></li>
+        <li>
+          <a href="/dallas/free-apartment-locator">
+            Free Apartment Locator in Dallas
+          </a>
+        </li>
+        <li>
+          <a href="/dallas/luxury-apartments">
+            Luxury Apartments in Dallas
+          </a>
+        </li>
+        <li>
+          <a href="/dallas/neighborhoods">
+            Dallas Neighborhood Guides
+          </a>
+        </li>
+        <li>
+          <a href="/dallas/first-time-renters">
+            First Time Renters in Dallas
+          </a>
+        </li>
+        <li>
+          <a href="/dallas/new-construction-homes">
+            New Construction Homes in Dallas
+          </a>
+        </li>
+        <li>
+          <a href="/dallas/second-chance-apartments">
+            Second Chance Apartments in Dallas
+          </a>
+        </li>
       </ul>
 
       <p>

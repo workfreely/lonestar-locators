@@ -1,4 +1,5 @@
 // root city page – austin
+export const dynamic = "force-dynamic";
 
 import BlogLayout from "@/app/components/BlogLayout";
 import AISchema from "@/app/components/AISchema";
