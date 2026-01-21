@@ -1041,36 +1041,11 @@ html {
   }
 }
 
-/* ======================================================
-   📱 MOBILE CARD FIXES — LISTING + REVIEW CARDS
-   Scope: Global (safe, non-breaking)
-   ====================================================== */
-
+/* ======================================
+   📱 FIX FEATURED CARD IMAGE HEIGHT ONLY
+   ====================================== */
 @media (max-width: 768px) {
-  /* Prevent cards from stretching full width */
-  .card {
-    max-width: 100%;
-    margin-left: auto;
-    margin-right: auto;
-  }
-
-  /* Listing & review images — reduce height on mobile */
-  .listing-image {
+  #featured-wrap .listing-image {
     height: 220px !important;
-    object-fit: cover;
-  }
-
-  /* Card body spacing tighten */
-  .card-body {
-    padding: 0.9rem 1rem;
-  }
-
-  /* Titles don’t push layout sideways */
-  .card h3 {
-    font-size: 1.1rem;
-    line-height: 1.25;
   }
 }
-
-
-/* vercel-sync-test */
