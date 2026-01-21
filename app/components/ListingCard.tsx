@@ -93,7 +93,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
  className="listing-image"
  style={{
    width: "100%",
-   height: "330px",
+   height: "260px",
    objectFit: "cover",
    borderTopLeftRadius: "10px",
    borderTopRightRadius: "10px",

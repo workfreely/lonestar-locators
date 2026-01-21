@@ -1041,3 +1041,28 @@ html {
   }
 }
 
+/* ======================================================
+   LISTING & REVIEW CARD IMAGE HEIGHTS
+   ------------------------------------------------------
+   PURPOSE:
+   - Keep listing cards and review cards visually consistent
+   - Prevent oversized images on mobile
+   - DO NOT use for page layouts or grids
+   ------------------------------------------------------
+   USED BY:
+   - ListingCard.tsx
+   - ReviewCard.tsx
+   ====================================================== */
+
+/* Desktop & tablet default */
+.cardImage {
+  height: 330px;
+}
+
+/* Mobile adjustment */
+@media (max-width: 768px) {
+  .cardImage {
+    height: 260px;
+  }
+}
+
