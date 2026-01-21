@@ -275,11 +275,7 @@ export default function HomePage() {
       deletionSpeed={55}
     />
   </div>
-
-  {/* Mobile static text (NO animation = NO layout shift) */}
-  <div className="show-on-mobile">
-    Find luxury apartments, townhomes, and high-rise living across Texas.
-  </div>
+  
 </div>
 
         <button
