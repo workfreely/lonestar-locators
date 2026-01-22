@@ -1092,16 +1092,18 @@ html {
   /* ----------------------------------
      HERO PARAGRAPH (MOBILE FIXED)
      ---------------------------------- */
-header p {
-  text-align: left;      /* ✅ natural reading */
-  max-width: 96%;        /* ✅ prevents awkward word wrap */
-  margin: 0 auto;
-  line-height: 1.55;
-}
+@media (max-width: 768px) {
+  header p {
+    text-align: left;        /* 👈 cleaner mobile reading */
+    max-width: 92%;          /* 👈 prevents awkward wraps */
+    margin: 0 auto;
+    line-height: 1.6;
+  }
 
-header p strong {
-  display: block;        /* ✅ second line on mobile only */
-  margin-top: 0.35rem;
+  header p strong {
+    display: block;          /* 👈 forces clean second line */
+    margin-top: 0.75rem;     /* 👈 adds breathing room */
+  }
 }
 
   /* ----------------------------------
