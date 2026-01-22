@@ -189,9 +189,8 @@ const EXCLUDED_PATHS = [
     maxWidth: "520px",
 
     /* 📱 Mobile fix */
-    width: "80%",
+    width: "90%",
     boxSizing: "border-box",
-
     textAlign: "center",
     boxShadow: "0 20px 40px rgba(0,0,0,0.45)",
   }}
@@ -233,16 +232,25 @@ const EXCLUDED_PATHS = [
  {!emailSubmitted && (
    <>
      <h2
-       style={{
-         fontSize: "1.4rem",
-         fontWeight: 700,
-         letterSpacing: "0.5px",
-         margin: "0 0 1.4rem 0",
-         color: "#fff",
-       }}
-     >
-       WANT TO PRIORITIZE YOUR SEARCH?
-     </h2>
+  style={{
+    fontSize: "1.4rem",
+    fontWeight: 700,
+    letterSpacing: "0.5px",
+    margin: "0 0 1.4rem 0",
+    color: "#fff",
+    lineHeight: 1.2,
+  }}
+>
+  <span className="exit-title-desktop">
+    WANT TO PRIORITIZE YOUR SEARCH?
+  </span>
+
+  <span className="exit-title-mobile">
+    WANT TO PRIORITIZE
+    <br />
+    YOUR SEARCH?
+  </span>
+</h2>
 
 
      <img

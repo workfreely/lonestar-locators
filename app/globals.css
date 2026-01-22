@@ -1136,3 +1136,45 @@ html {
     padding: 0.5rem 0.75rem;
   }
 }
+
+/* ===============================
+   🔒 MOBILE HARD LOCK (NO SIDE SCROLL)
+   =============================== */
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* ===============================
+   📱 MOBILE ONLY — FORCE STACKED LAYOUT
+   Start Your Search + How It Works
+   =============================== */
+@media (max-width: 980px) {
+  div[style*="grid-template-columns: 1fr 420px"] {
+    grid-template-columns: 1fr !important;
+    width: 100% !important;
+  }
+}
+
+/* ===============================
+   📱 Exit Popup Title — Mobile Only
+   =============================== */
+.exit-title-mobile {
+  display: none;
+}
+
+.exit-title-desktop {
+  display: inline;
+}
+
+@media (max-width: 768px) {
+  .exit-title-desktop {
+    display: none;
+  }
+
+  .exit-title-mobile {
+    display: block;
+    text-align: center;
+  }
+}
