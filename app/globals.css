@@ -1156,27 +1156,3 @@ body {
     width: 100% !important;
   }
 }
-
-/* ===============================
-   📱 Exit Popup Title — Mobile Only
-   =============================== */
-.exit-title-mobile {
-  display: none;
-}
-
-.exit-title-desktop {
-  display: inline;
-}
-
-@media (max-width: 768px) {
-  .exit-title-desktop {
-    display: none;
-  }
-
-  .exit-title-mobile {
-    display: block;
-    text-align: center;
-    width: 100%;
-  }
-}
-
