@@ -1082,33 +1082,38 @@ html {
 }
 
 /* ======================================================
-   📱 HOME PAGE — MOBILE TYPOGRAPHY POLISH (FINAL & SAFE)
-   Scope: Home page text only
-   Affects: Mobile screens only
+   📱 HOME PAGE — HERO DESCRIPTION (MOBILE ONLY)
+   Scope: Hero paragraph only
    Desktop: UNCHANGED
    ====================================================== */
-@media (max-width: 768px) {
 
-  /* ----------------------------------
-     HERO PARAGRAPH (CENTERED & BALANCED)
-     ---------------------------------- */
-  header p {
-    text-align: center;
+/* Desktop default */
+.hero-description {
+  max-width: 900px;
+  margin: 0 auto;
+  font-size: 1.25rem;
+  text-align: center;
+}
+
+/* Mobile behavior */
+@media (max-width: 768px) {
+  .hero-description {
     max-width: 88%;
-    margin: 0 auto;
     line-height: 1.55;
   }
 
-  /* ----------------------------------
-     SECTION TITLES (NATURAL CLEAN WRAP)
-     ---------------------------------- */
+  .hero-description .hero-emphasis {
+    display: block;        /* forces 2nd line */
+    margin-top: 0.5rem;
+    font-weight: 700;      /* bold second line */
+  }
+
+  /* Section titles only (safe + intentional) */
   h2 {
-    max-width: 82%;          /* tighter = cleaner breaks */
+    max-width: 82%;
     margin-left: auto;
     margin-right: auto;
     line-height: 1.15;
     text-align: center;
   }
-
 }
-
