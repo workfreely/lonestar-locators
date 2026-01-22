@@ -242,7 +242,7 @@ const EXCLUDED_PATHS = [
     margin: "0 0 1.4rem 0",
     color: "#fff",
     lineHeight: 1.2,
-    textAlign: isMobile ? "center" : "left",
+    textAlign: isMobile ? "center" : "center",
   }}
 >
   {isMobile ? (
