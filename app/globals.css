@@ -1125,34 +1125,6 @@ html {
   }
 }
 
-/* ===============================
-   📱 Exit Intent Popup — SIGNIFICANTLY Smaller (Mobile)
-   ~35–40% perceived reduction
-   =============================== */
-@media (max-width: 768px) {
-  /* Target the actual popup container */
-  .exit-intent-modal,
-  .exit-popup,
-  .modal-content {
-    max-width: 68vw !important;     /* BIG reduction */
-    padding: 0.85rem !important;    /* much tighter */
-    transform: scale(0.9);          /* key: visual shrink */
-  }
-
-  .exit-intent-modal h2,
-  .exit-popup h2 {
-    font-size: 1.1rem !important;
-    line-height: 1.2;
-    margin-bottom: 0.5rem;
-  }
-
-  .exit-intent-modal p,
-  .exit-popup p {
-    font-size: 0.9rem !important;
-    line-height: 1.4;
-  }
-}
-
 
 /* ===============================
    📱 Header — How It Works (Mobile)

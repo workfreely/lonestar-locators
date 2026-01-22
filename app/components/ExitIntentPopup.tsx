@@ -189,7 +189,7 @@ const EXCLUDED_PATHS = [
     maxWidth: "520px",
 
     /* 📱 Mobile fix */
-    width: "100%",
+    width: "80%",
     boxSizing: "border-box",
 
     textAlign: "center",
