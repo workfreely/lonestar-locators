@@ -174,23 +174,28 @@ const EXCLUDED_PATHS = [
      }}
    >
        <div
-   style={{
-   animation: "fadeIn 0.6s ease",
-     animationFillMode: "both",
-     position: "relative",
-     backgroundImage:
-       "url('https://res.cloudinary.com/dxtiguwzm/image/upload/v1747937030/lone-star-locators-austin-texas-free-apartment-locating_ew5tvq.jpg')",
-     backgroundSize: "cover",
-     backgroundPosition: "center",
-     padding: "20px",
-     borderRadius: "10px",
-     maxWidth: "520px",
-     minWidth: "520px",
-     textAlign: "center",
-     boxShadow: "0 20px 40px rgba(0,0,0,0.45)",
-   }}
- >
+  style={{
+    animation: "fadeIn 0.6s ease",
+    animationFillMode: "both",
+    position: "relative",
+    backgroundImage:
+      "url('https://res.cloudinary.com/dxtiguwzm/image/upload/v1747937030/lone-star-locators-austin-texas-free-apartment-locating_ew5tvq.jpg')",
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    padding: "20px",
+    borderRadius: "10px",
 
+    /* 🔑 Desktop stays 520px */
+    maxWidth: "520px",
+
+    /* 📱 Mobile fix */
+    width: "100%",
+    boxSizing: "border-box",
+
+    textAlign: "center",
+    boxShadow: "0 20px 40px rgba(0,0,0,0.45)",
+  }}
+>
 
        {/* ❌ Close */}
        <button
