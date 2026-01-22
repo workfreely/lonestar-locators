@@ -1051,3 +1051,32 @@ html {
     margin-bottom: 2px;
   }
 }
+
+/* ======================================
+   🔍 Homepage Search Text Control
+   ====================================== */
+
+/* Desktop default */
+.search-animation {
+  display: block;
+}
+
+.mobile-search-hint {
+  display: none; /* 🔒 HIDE ON DESKTOP */
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #333;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* Mobile only */
+@media (max-width: 768px) {
+  .search-animation {
+    display: none; /* 🔒 KILL ANIMATION ON MOBILE */
+  }
+
+  .mobile-search-hint {
+    display: block; /* 🔓 SHOW STATIC TEXT */
+  }
+}

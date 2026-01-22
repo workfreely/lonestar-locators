@@ -255,30 +255,29 @@ export default function HomePage() {
     fontWeight: 700,
   }}
 >
-  {/* Desktop only animated text */}
-  <div className="hide-on-mobile">
-    <TypeAnimation
-      sequence={[
-        "Luxury townhome with garage in San Antonio",
-        2600,
-        "2 bed luxury townhome with private yard in Austin",
-        2600,
-        "High-rise apartment with city views in Dallas",
-        2600,
-        "Pet-friendly apartment with infinity pool in Houston",
-        2600,
-      ]}
-      speed={45}
-      repeat={Infinity}
-      deletionSpeed={55}
-    />
-  </div>
+  {/* Desktop typing animation */}
+<div className="search-animation">
+  <TypeAnimation
+    sequence={[
+      "Luxury townhome with garage in San Antonio",
+      2600,
+      "2 bed luxury townhome with private yard in Austin",
+      2600,
+      "High-rise apartment with city views in Dallas",
+      2600,
+      "Pet-friendly apartment with infinity pool in Houston",
+      2600,
+    ]}
+    speed={45}
+    repeat={Infinity}
+    deletionSpeed={55}
+  />
+</div>
 
-  {/* Mobile-only static search hint */}
+{/* Mobile-only static text */}
 <div className="mobile-search-hint">
   Luxury penthouse with city views in San Antonio
 </div>
-
 
 </div>
 
