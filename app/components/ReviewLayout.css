@@ -35,3 +35,14 @@
     object-fit: cover;
   }
 }
+
+/* ===============================
+   📱 Review Address — Mobile Tighten
+   Prevent ZIP from wrapping awkwardly
+   =============================== */
+@media (max-width: 768px) {
+  .review-main p {
+    font-size: 1.05rem;
+    line-height: 1.45;
+  }
+}
