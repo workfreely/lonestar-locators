@@ -117,7 +117,7 @@ export default function HomePage() {
     }}
   >
     We help you find, tour and lease luxury apartments, townhomes and penthouses
-    with the best move-in specials.
+    with best move-in specials.
     <br />
     <strong style={{ display: "block", marginTop: "0.5rem" }}>
       Get free movers or up to $200 cash rebate when you lease through us.

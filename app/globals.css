@@ -1093,12 +1093,11 @@ html {
      HERO PARAGRAPH (CENTERED & BALANCED)
      ---------------------------------- */
   header p {
-  text-align: center;
-  max-width: 94%;        /* 👈 widen slightly */
-  margin: 0 auto;
-  line-height: 1.5;     /* 👈 tiny tightening */
-  font-size: 1.15rem;   /* 👈 subtle mobile-only reduction */
-}
+    text-align: center;
+    max-width: 88%;
+    margin: 0 auto;
+    line-height: 1.55;
+  }
 
   /* ----------------------------------
      SECTION TITLES (NATURAL CLEAN WRAP)
