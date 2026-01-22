@@ -1112,3 +1112,8 @@ html {
 
 }
 
+@media (min-width: 768px) {
+  .show-on-mobile {
+    display: none !important;
+  }
+}

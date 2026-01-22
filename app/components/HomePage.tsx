@@ -89,30 +89,41 @@ export default function HomePage() {
         })}
       </Script>
 
-      {/* ================= HERO ================= */}
+{/* ================= HERO ================= */}
 
-      <header style={{ textAlign: "center", padding: "1.5rem 1rem" }}>
-        <h1 style={{ fontSize: "3.5rem", fontWeight: 800 }}>
-          Free Apartment Locator in Texas
-        </h1>
-        <p style={{ maxWidth: "900px", margin: "0rem auto", fontSize: "1.25rem" }}>
-          We help you find, tour and lease luxury apartments, townhomes and penthouses with the best move-in specials.
-          <strong> Get free movers or up to $200 cash rebate when you lease through us.</strong>
-        </p>
+<header style={{ textAlign: "center", padding: "1.5rem 1rem" }}>
+  <h1 style={{ fontSize: "3.5rem", fontWeight: 800 }}>
+    Free Apartment Locator in Texas
+  </h1>
 
-        {/* Mobile copy (split + readable) */}
-<p
-  className="show-on-mobile"
-  style={{ maxWidth: "88%", margin: "0 auto", fontSize: "1.15rem", lineHeight: "1.55" }}
->
-  We help you find, tour and lease luxury apartments, townhomes and penthouses
-  with the best move-in specials.
-  <br />
-  <strong style={{ display: "block", marginTop: "0.5rem" }}>
-    Get free movers or up to $200 cash rebate when you lease through us.
-  </strong>
-</p>
-      </header>
+  {/* DESKTOP COPY (unchanged) */}
+  <p
+    className="hide-on-mobile"
+    style={{ maxWidth: "900px", margin: "0rem auto", fontSize: "1.25rem" }}
+  >
+    We help you find, tour and lease luxury apartments, townhomes and penthouses
+    with the best move-in specials.
+    <strong> Get free movers or up to $200 cash rebate when you lease through us.</strong>
+  </p>
+
+  {/* MOBILE COPY (split + readable) */}
+  <p
+    className="show-on-mobile"
+    style={{
+      maxWidth: "88%",
+      margin: "0 auto",
+      fontSize: "1.15rem",
+      lineHeight: "1.55",
+    }}
+  >
+    We help you find, tour and lease luxury apartments, townhomes and penthouses
+    with the best move-in specials.
+    <br />
+    <strong style={{ display: "block", marginTop: "0.5rem" }}>
+      Get free movers or up to $200 cash rebate when you lease through us.
+    </strong>
+  </p>
+</header>
 
       {/* ================= CITY CARDS ================= */}
 
