@@ -1090,14 +1090,19 @@ html {
 @media (max-width: 768px) {
 
   /* ----------------------------------
-     HERO PARAGRAPH (CENTERED & BALANCED)
+     HERO PARAGRAPH (MOBILE FIXED)
      ---------------------------------- */
-  header p {
-    text-align: center;
-    max-width: 88%;
-    margin: 0 auto;
-    line-height: 1.55;
-  }
+header p {
+  text-align: left;      /* ✅ natural reading */
+  max-width: 96%;        /* ✅ prevents awkward word wrap */
+  margin: 0 auto;
+  line-height: 1.55;
+}
+
+header p strong {
+  display: block;        /* ✅ second line on mobile only */
+  margin-top: 0.35rem;
+}
 
   /* ----------------------------------
      SECTION TITLES (NATURAL CLEAN WRAP)
