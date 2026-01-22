@@ -99,6 +99,19 @@ export default function HomePage() {
           We help you find, tour and lease luxury apartments, townhomes and penthouses with the best move-in specials.
           <strong> Get free movers or up to $200 cash rebate when you lease through us.</strong>
         </p>
+
+        {/* Mobile copy (split + readable) */}
+<p
+  className="show-on-mobile"
+  style={{ maxWidth: "88%", margin: "0 auto", fontSize: "1.15rem", lineHeight: "1.55" }}
+>
+  We help you find, tour and lease luxury apartments, townhomes and penthouses
+  with the best move-in specials.
+  <br />
+  <strong style={{ display: "block", marginTop: "0.5rem" }}>
+    Get free movers or up to $200 cash rebate when you lease through us.
+  </strong>
+</p>
       </header>
 
       {/* ================= CITY CARDS ================= */}
