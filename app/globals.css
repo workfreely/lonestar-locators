@@ -1082,7 +1082,7 @@ html {
 }
 
 /* ======================================================
-   📱 HOME PAGE — MOBILE TYPOGRAPHY POLISH (SAFE)
+   📱 HOME PAGE — MOBILE TYPOGRAPHY POLISH (FINAL)
    Scope: Home page text only
    Affects: Mobile screens only
    Desktop: UNCHANGED
@@ -1090,27 +1090,31 @@ html {
 @media (max-width: 768px) {
 
   /* ----------------------------------
-     HERO PARAGRAPH (Better Readability)
+     HERO PARAGRAPH (CENTERED & BALANCED)
      ---------------------------------- */
   header p {
-    text-align: left;        /* natural reading flow */
-    max-width: 92%;          /* cleaner proportions */
+    text-align: center;       /* FIX: center instead of left */
+    max-width: 88%;           /* tighter, more premium */
     margin: 0 auto;
     line-height: 1.55;
   }
 
   /* ----------------------------------
-     SECTION TITLES (Cleaner Wrapping)
-     - What Clients Are Saying
-     - Properties We’re Recommending...
+     SECTION TITLES — CONTROLLED LINE BREAKS
      ---------------------------------- */
   h2 {
-    max-width: 90%;
+    max-width: 85%;
     margin-left: auto;
     margin-right: auto;
-    line-height: 1.2;
-    word-spacing: 0.02em;
+    line-height: 1.15;
     text-align: center;
   }
 
+  /* Force better wrapping ONLY for:
+     "What Clients Are Saying" */
+  h2:contains("What Clients Are Saying") {
+    max-width: 78%;
+  }
+
 }
+
