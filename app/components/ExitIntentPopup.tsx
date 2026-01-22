@@ -17,6 +17,9 @@ const ExitIntentPopup = () => {
  const [emailSubmitted, setEmailSubmitted] = useState(false);
  const [userEmail, setUserEmail] = useState("");
 
+   const isMobile =
+    typeof window !== "undefined" && window.innerWidth <= 768;
+
  const pathname = typeof window !== "undefined" ? window.location.pathname : "";
 
 
@@ -231,7 +234,7 @@ const EXCLUDED_PATHS = [
 <div style={{ position: "relative", zIndex: 2 }}>
  {!emailSubmitted && (
    <>
-     <h2
+ <h2
   style={{
     fontSize: "1.4rem",
     fontWeight: 700,
@@ -239,17 +242,18 @@ const EXCLUDED_PATHS = [
     margin: "0 0 1.4rem 0",
     color: "#fff",
     lineHeight: 1.2,
+    textAlign: isMobile ? "center" : "left",
   }}
 >
-  <span className="exit-title-desktop">
-    WANT TO PRIORITIZE YOUR SEARCH?
-  </span>
-
-  <span className="exit-title-mobile">
-    WANT TO PRIORITIZE
-    <br />
-    YOUR SEARCH?
-  </span>
+  {isMobile ? (
+    <>
+      WANT TO PRIORITIZE
+      <br />
+      YOUR SEARCH?
+    </>
+  ) : (
+    <>WANT TO PRIORITIZE YOUR SEARCH?</>
+  )}
 </h2>
 
 
@@ -272,7 +276,7 @@ const EXCLUDED_PATHS = [
          color: "#fff",
        }}
      >
-       Enter your email — we’ll send your personalized list.
+       Enter your email. We’ll send your personalized list.
      </p>
 
 
