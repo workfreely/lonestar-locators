@@ -24,3 +24,14 @@
     margin-top: 2rem;
   }
 }
+
+/* ===============================
+   📱 Review Hero — Mobile Height Match
+   Matches ListingLayout exactly
+   =============================== */
+@media (max-width: 768px) {
+  .review-main img {
+    height: 330px !important;
+    object-fit: cover;
+  }
+}
