@@ -1080,3 +1080,37 @@ html {
     display: block; /* 🔓 SHOW STATIC TEXT */
   }
 }
+
+/* ======================================================
+   📱 HOME PAGE — MOBILE TYPOGRAPHY POLISH (SAFE)
+   Scope: Home page text only
+   Affects: Mobile screens only
+   Desktop: UNCHANGED
+   ====================================================== */
+@media (max-width: 768px) {
+
+  /* ----------------------------------
+     HERO PARAGRAPH (Better Readability)
+     ---------------------------------- */
+  header p {
+    text-align: left;        /* natural reading flow */
+    max-width: 92%;          /* cleaner proportions */
+    margin: 0 auto;
+    line-height: 1.55;
+  }
+
+  /* ----------------------------------
+     SECTION TITLES (Cleaner Wrapping)
+     - What Clients Are Saying
+     - Properties We’re Recommending...
+     ---------------------------------- */
+  h2 {
+    max-width: 90%;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.2;
+    word-spacing: 0.02em;
+    text-align: center;
+  }
+
+}
