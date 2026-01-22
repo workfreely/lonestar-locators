@@ -1156,3 +1156,10 @@ body {
     width: 100% !important;
   }
 }
+
+/* 📱 Exit Popup Title — Mobile Center Lock */
+@media (max-width: 900px) {
+  .exit-popup-title {
+    text-align: center !important;
+  }
+}
