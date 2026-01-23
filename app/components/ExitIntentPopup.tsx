@@ -336,7 +336,7 @@ const EXCLUDED_PATHS = [
     color: "#ccc",
     cursor: "pointer",
     textDecoration: "underline",
-    fontSize: "0.9rem",
+    fontSize: "0.85rem",
     textAlign: "center",
   }}
 >
@@ -345,7 +345,7 @@ const EXCLUDED_PATHS = [
   </span>
 
   <span className="popup-copy-mobile">
-    No thanks, I’ll pass on free movers or cash back
+    No thanks, I’ll pass on free movers or cash rebate
   </span>
 </button>
    </>
@@ -355,15 +355,26 @@ const EXCLUDED_PATHS = [
  {emailSubmitted && (
    <>
      <h2
-       style={{
-         fontSize: "1.5rem",
-         marginBottom: "1rem",
-         color: "#fff",
-       }}
-     >
-       Almost there! Let's personalize your list…
-     </h2>
+  style={{
+    fontSize: "1.4rem",
+    fontWeight: 700,
+    letterSpacing: "0.5px",
+    margin: "0 0 1.4rem 0",
+    color: "#fff",
+    lineHeight: 1.2,
+    textAlign: "center",
+  }}
+>
+  <span className="popup-title-desktop">
+    WANT TO PRIORITIZE YOUR SEARCH?
+  </span>
 
+  <span className="popup-title-mobile">
+    WANT TO PRIORITIZE
+    <br />
+    YOUR SEARCH?
+  </span>
+</h2>
 
      <img
        src="https://res.cloudinary.com/dxtiguwzm/image/upload/v1758820133/luxury-apartment-locator-list-austin-dallas-houston-san-antonio_cfbc0q.png"

@@ -1157,22 +1157,33 @@ body {
   }
 }
 
-/* Default = desktop */
-.popup-copy-mobile {
-  display: none;
+/* ===============================
+   🖥 Desktop Title (default)
+   - Show single-line title
+   - Hide mobile stacked version
+   =============================== */
+
+.popup-title-mobile {
+  display: none; /* Mobile version hidden on desktop */
 }
 
-.popup-copy-desktop {
-  display: inline;
+.popup-title-desktop {
+  display: inline; /* Desktop title shown as one continuous line */
 }
 
-/* Mobile override */
+/* ===============================
+   📱 Mobile Title Override
+   - Hide desktop version
+   - Show stacked (two-line) title
+   - Improves readability on small screens
+   =============================== */
+
 @media (max-width: 768px) {
-  .popup-copy-desktop {
-    display: none;
+  .popup-title-desktop {
+    display: none; /* Hide single-line desktop title on mobile */
   }
 
-  .popup-copy-mobile {
-    display: inline;
+  .popup-title-mobile {
+    display: inline; /* Show stacked mobile title */
   }
 }
