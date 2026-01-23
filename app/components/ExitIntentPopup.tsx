@@ -17,9 +17,6 @@ const ExitIntentPopup = () => {
  const [emailSubmitted, setEmailSubmitted] = useState(false);
  const [userEmail, setUserEmail] = useState("");
 
-   const isMobile =
-    typeof window !== "undefined" && window.innerWidth <= 768;
-
  const pathname = typeof window !== "undefined" ? window.location.pathname : "";
 
 
@@ -245,17 +242,10 @@ const EXCLUDED_PATHS = [
     textAlign: "center",
   }}
 >
-  {isMobile ? (
-    <>
-      WANT TO PRIORITIZE
-      <br />
-      YOUR SEARCH?
-    </>
-  ) : (
-    <>WANT TO PRIORITIZE YOUR SEARCH?</>
-  )}
+  WANT TO PRIORITIZE
+  <br />
+  YOUR SEARCH?
 </h2>
-
 
      <img
        src="https://res.cloudinary.com/dxtiguwzm/image/upload/v1758820133/luxury-apartment-locator-list-austin-dallas-houston-san-antonio_cfbc0q.png"
