@@ -169,26 +169,35 @@ const ExitIntentPopup = () => {
           {!emailSubmitted && (
             <>
               {/* TITLE */}
-              <h2
-                style={{
-                  fontSize: "1.4rem",
-                  fontWeight: 700,
-                  letterSpacing: "0.5px",
-                  margin: "0 0 1.4rem 0",
-                  color: "#fff",
-                  lineHeight: 1.2,
-                  textAlign: "center",
-                }}
-              >
-                <span className="popup-title-desktop">
-                  WANT TO PRIORITIZE YOUR SEARCH?
-                </span>
-                <span className="popup-title-mobile">
-                  WANT TO PRIORITIZE
-                  <br />
-                  YOUR SEARCH?
-                </span>
-              </h2>
+             <div
+  style={{
+    display: "flex",
+    justifyContent: "center",
+    width: "100%",
+  }}
+>
+  <h2
+    style={{
+      fontSize: "1.4rem",
+      fontWeight: 700,
+      letterSpacing: "0.5px",
+      margin: "0 0 1.4rem 0",
+      color: "#fff",
+      lineHeight: 1.2,
+      textAlign: "center",
+    }}
+  >
+    <span className="popup-title-desktop">
+      WANT TO PRIORITIZE YOUR SEARCH?
+    </span>
+
+    <span className="popup-title-mobile">
+      WANT TO PRIORITIZE
+      <br />
+      YOUR SEARCH?
+    </span>
+  </h2>
+</div>
 
               <img
                 src="https://res.cloudinary.com/dxtiguwzm/image/upload/v1758820133/luxury-apartment-locator-list-austin-dallas-houston-san-antonio_cfbc0q.png"
@@ -247,7 +256,7 @@ const ExitIntentPopup = () => {
                     cursor: "pointer",
                   }}
                 >
-                  Get My Free List
+                  Get My Free Apartment List
                 </button>
               </form>
 
