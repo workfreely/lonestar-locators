@@ -1157,9 +1157,22 @@ body {
   }
 }
 
-/* 📱 Exit Popup Title — Mobile Center Lock */
-@media (max-width: 900px) {
-  .exit-popup-title {
-    text-align: center !important;
+/* Default = desktop */
+.popup-copy-mobile {
+  display: none;
+}
+
+.popup-copy-desktop {
+  display: inline;
+}
+
+/* Mobile override */
+@media (max-width: 768px) {
+  .popup-copy-desktop {
+    display: none;
+  }
+
+  .popup-copy-mobile {
+    display: inline;
   }
 }

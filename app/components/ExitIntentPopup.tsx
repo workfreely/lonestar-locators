@@ -109,6 +109,8 @@ const EXCLUDED_PATHS = [
    };
  }, []);
 
+ const isMobile =
+  typeof window !== "undefined" && window.innerWidth <= 768;
 
  const handleClose = () => {
    setShowPopup(false);
@@ -269,14 +271,21 @@ const EXCLUDED_PATHS = [
 
 
      <p
-       style={{
-         fontSize: "1rem",
-         marginBottom: "1.5rem",
-         color: "#fff",
-       }}
-     >
-       Enter your email. We’ll send your personalized list.
-     </p>
+  style={{
+    fontSize: "1rem",
+    marginBottom: "1.5rem",
+    color: "#fff",
+    textAlign: "center",
+  }}
+>
+  <span className="popup-copy-desktop">
+    Enter your email. We’ll send your personalized list.
+  </span>
+
+  <span className="popup-copy-mobile">
+    Enter your email to get your free list.
+  </span>
+</p>
 
 
      <form onSubmit={handleSubmit}>
@@ -318,20 +327,27 @@ const EXCLUDED_PATHS = [
 
 
      {/* ✅ Opt-out text (this was missing) */}
-     <button
-       onClick={handleClose}
-       style={{
-         marginTop: "1rem",
-         background: "none",
-         border: "none",
-         color: "#ccc",
-         cursor: "pointer",
-         textDecoration: "underline",
-         fontSize: "0.9rem",
-       }}
-     >
-       No thanks, I don’t want free movers or cash rebate
-     </button>
+    <button
+  onClick={handleClose}
+  style={{
+    marginTop: "1rem",
+    background: "none",
+    border: "none",
+    color: "#ccc",
+    cursor: "pointer",
+    textDecoration: "underline",
+    fontSize: "0.9rem",
+    textAlign: "center",
+  }}
+>
+  <span className="popup-copy-desktop">
+    No thanks, I don’t want free movers or a cash rebate
+  </span>
+
+  <span className="popup-copy-mobile">
+    No thanks, I’ll pass on free movers or cash back
+  </span>
+</button>
    </>
  )}
 
