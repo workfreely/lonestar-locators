@@ -231,21 +231,30 @@ const EXCLUDED_PATHS = [
 <div style={{ position: "relative", zIndex: 2 }}>
  {!emailSubmitted && (
    <>
- <h2
+ <div
   style={{
-    fontSize: "1.4rem",
-    fontWeight: 700,
-    letterSpacing: "0.5px",
-    margin: "0 0 1.4rem 0",
-    color: "#fff",
-    lineHeight: 1.2,
-    textAlign: "center",
+    display: "flex",
+    justifyContent: "center",
+    width: "100%",
   }}
 >
-  WANT TO PRIORITIZE
-  <br />
-  YOUR SEARCH?
-</h2>
+  <h2
+    style={{
+      fontSize: "1.4rem",
+      fontWeight: 700,
+      letterSpacing: "0.5px",
+      margin: "0 0 1.4rem 0",
+      color: "#fff",
+      lineHeight: 1.2,
+      textAlign: "center",
+    }}
+  >
+    WANT TO PRIORITIZE
+    <br />
+    YOUR SEARCH?
+  </h2>
+</div>
+
 
      <img
        src="https://res.cloudinary.com/dxtiguwzm/image/upload/v1758820133/luxury-apartment-locator-list-austin-dallas-houston-san-antonio_cfbc0q.png"
