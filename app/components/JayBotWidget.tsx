@@ -17,6 +17,8 @@ const JayBotWidget: React.FC<JayBotWidgetProps> = ({ delay = 3000 }) => {
   const [showWidget, setShowWidget] = useState(false);
   const [showBadge, setShowBadge] = useState(false);
   const [minimized, setMinimized] = useState(false); // bubble hidden, avatar visible
+  const [scriptLoaded, setScriptLoaded] = useState(false);
+
 
   // ==========================================
   // Load environment variables
@@ -46,18 +48,28 @@ const assistantId = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID;
   // Load VAPI script
   // ==========================================
 useEffect(() => {
+  if (!publicKey || !assistantId) {
+    console.warn("Vapi env vars missing");
+    return;
+  }
+
+  if (scriptLoaded) return;
+
   const script = document.createElement("script");
-  script.src = "https://jsdelivrproxy.glitch.me/https://vapi.ai/widget.js";
+  script.src = "https://vapi.ai/widget.js";
   script.async = true;
 
   script.onload = () => {
-    if (!window.vapi) return;
-    if (!publicKey || !assistantId) return;
+    if (!window.vapi) {
+      console.error("Vapi script loaded but window.vapi missing");
+      return;
+    }
 
     try {
       window.vapi.init({
         apiKey: publicKey,
         assistantId,
+        autoOpen: false, // 🔑 REQUIRED
         position: "bottom-right",
         theme: {
           brandColor: "#0078d7",
@@ -65,18 +77,16 @@ useEffect(() => {
         },
       });
 
-      setTimeout(() => setIsReady(true), 2000);
+      console.log("✅ Vapi initialized");
+      setIsReady(true);
+      setScriptLoaded(true);
     } catch (err) {
-      console.error("JayBot failed to initialize:", err);
+      console.error("Vapi init failed:", err);
     }
   };
 
   document.body.appendChild(script);
-
-  return () => {
-    document.body.removeChild(script);
-  };
-}, [publicKey, assistantId]);
+}, [publicKey, assistantId, scriptLoaded]);
 
 
   if (!showWidget) return null;
@@ -84,13 +94,22 @@ useEffect(() => {
   // ==========================================
   // Handle opening chat bubble
   // ==========================================
-  const handleOpen = () => {
-    if (window.vapi?.open) {
-      window.vapi.open();
-      setShowBadge(false);
-      setMinimized(false);
-    }
-  };
+const handleOpen = () => {
+  if (!window.vapi) {
+    console.error("Vapi not loaded");
+    return;
+  }
+
+  if (typeof window.vapi.open !== "function") {
+    console.error("Vapi open() not available");
+    return;
+  }
+
+  window.vapi.open();
+  setShowBadge(false);
+  setMinimized(false);
+};
+
 
   // ==========================================
   // Minimize bubble (avatar stays)
