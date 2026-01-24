@@ -149,18 +149,19 @@ export default function CityBlogLayout({
         In depth apartment guides and comparisons coming soon {cityName}.
       </p>
 
-      {/* Blog Grid */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)", // ✅ 3 per row
-          gap: "1.75rem",
-        }}
-      >
-        {posts.map((post, index) => (
-          <BlogCard key={index} {...post} />
-        ))}
-      </div>
+   {/* Blog Grid */}
+<div
+  className="city-blog-grid"
+  style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(3, 1fr)", // Desktop default
+    gap: "1.75rem",
+  }}
+>
+  {posts.map((post, index) => (
+    <BlogCard key={index} {...post} />
+  ))}
+</div>
     </div>
   );
 }
