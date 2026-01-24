@@ -1156,3 +1156,14 @@ body {
     width: 100% !important;
   }
 }
+
+/* ===============================
+   📱 Footer alignment fix — Mobile Only
+   =============================== */
+@media (max-width: 768px) {
+  footer {
+    width: 100vw;
+    margin-left: calc(-50vw + 50%);
+    left: 0;
+  }
+}
