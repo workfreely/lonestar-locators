@@ -303,24 +303,13 @@ export default function HowItWorks() {
         
 
         {/* ✅ Mobile stacking */}
-       <style jsx>{`
-  /* 📱 Mobile-only: force stacked layout (refresh-safe) */
-  @media (max-width: 980px) {
-    .how-grid {
-      grid-template-columns: 1fr !important;
-      width: 100% !important;
-      max-width: 100% !important;
-    }
-
-    .how-grid > div {
-      width: 100% !important;
-      max-width: 100% !important;
-      min-width: 0 !important;
-    }
-  }
-`}</style>
-
-
+        <style jsx>{`
+          @media (max-width: 980px) {
+            div[style*="grid-template-columns: 1fr 420px"] {
+              grid-template-columns: 1fr !important;
+            }
+          }
+        `}</style>
       </div>
     </>
   );
