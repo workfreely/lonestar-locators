@@ -1147,13 +1147,14 @@ body {
 }
 
 /* ===============================
-   📱 MOBILE ONLY — FORCE STACKED LAYOUT
-   Start Your Search + How It Works
+   📱 How It Works — Mobile Lock
+   Prevents refresh side-scroll
    =============================== */
 @media (max-width: 980px) {
-  div[style*="grid-template-columns: 1fr 420px"] {
+  .how-it-works-grid {
     grid-template-columns: 1fr !important;
     width: 100% !important;
   }
 }
+
 
