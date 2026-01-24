@@ -14,6 +14,14 @@ const JayBotWidget: React.FC<JayBotWidgetProps> = ({ delay = 3000 }) => {
   const [showBadge, setShowBadge] = useState(false);
   const [minimized, setMinimized] = useState(false);
 
+  // 🔁 Text fallback state
+const [showTextFallback, setShowTextFallback] = useState(false);
+const [textInput, setTextInput] = useState("");
+const [messages, setMessages] = useState<
+  { role: "user" | "assistant"; content: string }[]
+>([]);
+
+
   // ==========================================
   // Environment variables (PUBLIC)
   // ==========================================
@@ -58,9 +66,14 @@ const JayBotWidget: React.FC<JayBotWidgetProps> = ({ delay = 3000 }) => {
     });
 
     instance.on("error", (e) => {
-      console.error("Vapi error:", e);
-      setIsReady(false);
-    });
+  console.error("Vapi error:", e);
+  setIsReady(false);
+
+  // 🔁 FALL BACK TO TEXT MODE
+  setShowTextFallback(true);
+  setMinimized(false);
+});
+
 
     setVapi(instance);
 
@@ -75,19 +88,22 @@ const JayBotWidget: React.FC<JayBotWidgetProps> = ({ delay = 3000 }) => {
   // Open voice assistant
   // ==========================================
   const handleOpen = async () => {
-    if (!vapi) {
-      console.error("Vapi not ready");
-      return;
-    }
+  setMinimized(false);
 
-    try {
-      await vapi.start(assistantId);
-      setShowBadge(false);
-      setMinimized(false);
-    } catch (err) {
-      console.error("Failed to start assistant:", err);
-    }
-  };
+  if (!vapi) {
+    setShowTextFallback(true);
+    return;
+  }
+
+  try {
+    await vapi.start(assistantId);
+    setShowBadge(false);
+    setShowTextFallback(false);
+  } catch (err) {
+    console.error("Failed to start assistant:", err);
+    setShowTextFallback(true);
+  }
+};
 
   // ==========================================
   // Minimize bubble
@@ -177,6 +193,93 @@ const JayBotWidget: React.FC<JayBotWidgetProps> = ({ delay = 3000 }) => {
           )}
         </div>
       )}
+
+      {/* 📝 TEXT FALLBACK CHAT */}
+{showTextFallback && !minimized && (
+  <div
+    style={{
+      width: "280px",
+      background: "white",
+      borderRadius: "12px",
+      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+      padding: "10px",
+      marginBottom: "8px",
+      display: "flex",
+      flexDirection: "column",
+      gap: "8px",
+    }}
+  >
+    <div
+      style={{
+        fontSize: "13px",
+        fontWeight: 600,
+        color: "#0078d7",
+      }}
+    >
+      Chat with JayBot
+    </div>
+
+    <div
+      style={{
+        maxHeight: "160px",
+        overflowY: "auto",
+        fontSize: "14px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "6px",
+      }}
+    >
+      {messages.map((m, i) => (
+        <div
+          key={i}
+          style={{
+            alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+            background: m.role === "user" ? "#0078d7" : "#f1f1f1",
+            color: m.role === "user" ? "white" : "black",
+            padding: "6px 10px",
+            borderRadius: "12px",
+            maxWidth: "85%",
+          }}
+        >
+          {m.content}
+        </div>
+      ))}
+    </div>
+
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!textInput.trim()) return;
+
+        setMessages((prev) => [
+          ...prev,
+          { role: "user", content: textInput },
+          {
+            role: "assistant",
+            content:
+              "Thanks! I can help you find apartments. What city and move-in date are you looking for?",
+          },
+        ]);
+
+        setTextInput("");
+      }}
+    >
+      <input
+        value={textInput}
+        onChange={(e) => setTextInput(e.target.value)}
+        placeholder="Type your message..."
+        style={{
+          width: "100%",
+          padding: "8px",
+          borderRadius: "8px",
+          border: "1px solid #ccc",
+          fontSize: "14px",
+        }}
+      />
+    </form>
+  </div>
+)}
+
 
       {/* 🟡 AVATAR */}
       <div
