@@ -303,8 +303,8 @@ export default function HowItWorks() {
         
 
         {/* ✅ Mobile stacking */}
-        <style jsx>{`
-  /* ✅ Mobile-only: force stack, refresh-proof */
+       <style jsx>{`
+  /* 📱 Mobile-only: force stacked layout (refresh-safe) */
   @media (max-width: 980px) {
     .how-grid {
       grid-template-columns: 1fr !important;
@@ -312,13 +312,14 @@ export default function HowItWorks() {
       max-width: 100% !important;
     }
 
-    /* ✅ Prevent any horizontal scroll / layout shift */
     .how-grid > div {
       width: 100% !important;
       max-width: 100% !important;
+      min-width: 0 !important;
     }
   }
 `}</style>
+
 
       </div>
     </>
