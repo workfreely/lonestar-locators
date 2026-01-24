@@ -52,12 +52,13 @@ export default function BlogHomePage() {
 
       {/* ================= CITY CARDS (HOMEPAGE MATCH) ================= */}
       <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(2, 1fr)",
-          gap: "1.5rem",
-        }}
-      >
+  className="blog-page-city-grid"
+  style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(2, 1fr)",
+    gap: "1.5rem",
+  }}
+>
         {/* Austin */}
         <Link href="/austin/blog">
           <div style={{ position: "relative", borderRadius: "12px", overflow: "hidden" }}>

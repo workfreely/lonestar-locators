@@ -1158,3 +1158,26 @@ body {
 }
 
 
+/* ======================================
+   📱 BLOG CITY CARDS — MOBILE MATCH HOMEPAGE
+   Scope: /blog page only
+   Desktop: UNCHANGED
+   ====================================== */
+
+@media (max-width: 768px) {
+  /* Force single-column like homepage */
+  .blog-page-city-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Match homepage card spacing */
+  .blog-page-city-grid .city-card {
+    margin-bottom: 0.5rem;
+  }
+
+  /* Match homepage text sizing */
+  .blog-page-city-grid .city-card h2 {
+    font-size: 1.6rem !important;
+    gap: 6px;
+  }
+}

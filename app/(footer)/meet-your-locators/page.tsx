@@ -78,7 +78,7 @@ export default function MeetYourLocatorsPage() {
               textAlign: "left",
             }}
           >
-            Jay Morris | Licensed Apartment Locator & Agent
+            Jay Morris | Licensed Agent & Apartment Locator
           </h2>
 
           <p style={{ marginBottom: "1.25rem" }}>
