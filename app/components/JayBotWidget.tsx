@@ -1,30 +1,24 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-
-declare global {
-  interface Window {
-    vapi?: any;
-  }
-}
+import Vapi from "@vapi-ai/web";
 
 interface JayBotWidgetProps {
   delay?: number;
 }
 
 const JayBotWidget: React.FC<JayBotWidgetProps> = ({ delay = 3000 }) => {
+  const [vapi, setVapi] = useState<Vapi | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [showWidget, setShowWidget] = useState(false);
   const [showBadge, setShowBadge] = useState(false);
-  const [minimized, setMinimized] = useState(false); // bubble hidden, avatar visible
-  const [scriptLoaded, setScriptLoaded] = useState(false);
-
+  const [minimized, setMinimized] = useState(false);
 
   // ==========================================
-  // Load environment variables
+  // Environment variables (PUBLIC)
   // ==========================================
-  const publicKey = process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY;
-const assistantId = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID;
+  const publicKey = process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY!;
+  const assistantId = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID!;
 
   // ==========================================
   // Delay showing avatar + bubble
@@ -35,86 +29,70 @@ const assistantId = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID;
   }, [delay]);
 
   // ==========================================
-  // Show unread badge AFTER widget appears
+  // Show unread badge after widget appears
   // ==========================================
   useEffect(() => {
     if (!showWidget) return;
-
-    const badgeTimer = setTimeout(() => setShowBadge(true), 30000); // 30 sec
+    const badgeTimer = setTimeout(() => setShowBadge(true), 30000);
     return () => clearTimeout(badgeTimer);
   }, [showWidget]);
 
   // ==========================================
-  // Load VAPI script
+  // Initialize Vapi SDK (THIS IS THE KEY FIX)
   // ==========================================
-useEffect(() => {
-  if (!publicKey || !assistantId) {
-    console.warn("Vapi env vars missing");
-    return;
-  }
-
-  if (scriptLoaded) return;
-
-  const script = document.createElement("script");
-  script.src = "https://vapi.ai/widget.js";
-  script.async = true;
-
-  script.onload = () => {
-    if (!window.vapi) {
-      console.error("Vapi script loaded but window.vapi missing");
+  useEffect(() => {
+    if (!publicKey || !assistantId) {
+      console.error("❌ Missing Vapi env vars");
       return;
     }
 
-    try {
-      window.vapi.init({
-        apiKey: publicKey,
-        assistantId,
-        autoOpen: false, // 🔑 REQUIRED
-        position: "bottom-right",
-        theme: {
-          brandColor: "#0078d7",
-          title: "Talk to Me 🤠",
-        },
-      });
+    const instance = new Vapi(publicKey);
 
-      console.log("✅ Vapi initialized");
+    instance.on("call-start", () => {
       setIsReady(true);
-      setScriptLoaded(true);
-    } catch (err) {
-      console.error("Vapi init failed:", err);
-    }
-  };
+      setShowBadge(false);
+    });
 
-  document.body.appendChild(script);
-}, [publicKey, assistantId, scriptLoaded]);
+    instance.on("call-end", () => {
+      setIsReady(false);
+    });
 
+    instance.on("error", (e) => {
+      console.error("Vapi error:", e);
+      setIsReady(false);
+    });
+
+    setVapi(instance);
+
+    return () => {
+      instance.stop();
+    };
+  }, [publicKey, assistantId]);
 
   if (!showWidget) return null;
 
   // ==========================================
-  // Handle opening chat bubble
+  // Open voice assistant
   // ==========================================
-const handleOpen = () => {
-  if (!window.vapi) {
-    console.error("Vapi not loaded");
-    return;
-  }
+  const handleOpen = async () => {
+    if (!vapi) {
+      console.error("Vapi not ready");
+      return;
+    }
 
-  if (typeof window.vapi.open !== "function") {
-    console.error("Vapi open() not available");
-    return;
-  }
-
-  window.vapi.open();
-  setShowBadge(false);
-  setMinimized(false);
-};
-
+    try {
+      await vapi.start(assistantId);
+      setShowBadge(false);
+      setMinimized(false);
+    } catch (err) {
+      console.error("Failed to start assistant:", err);
+    }
+  };
 
   // ==========================================
-  // Minimize bubble (avatar stays)
+  // Minimize bubble
   // ==========================================
-  const handleMinimize = (e: any) => {
+  const handleMinimize = (e: React.MouseEvent) => {
     e.stopPropagation();
     setMinimized(true);
   };
@@ -134,9 +112,7 @@ const handleOpen = () => {
         alignItems: "center",
       }}
     >
-      {/* ==========================================================
-          🟦 CHAT BUBBLE (Hides when minimized)
-      ========================================================== */}
+      {/* 🟦 CHAT BUBBLE */}
       {!minimized && (
         <div
           onClick={handleOpen}
@@ -150,12 +126,10 @@ const handleOpen = () => {
             fontWeight: 500,
             boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
             marginBottom: "8px",
-            opacity: isReady ? 1 : 0.4,
-            transition: "opacity 0.4s ease",
+            opacity: isReady ? 1 : 0.6,
             cursor: "pointer",
           }}
         >
-          {/* ❌ X (top-left corner) */}
           <span
             onClick={handleMinimize}
             style={{
@@ -173,14 +147,13 @@ const handleOpen = () => {
               alignItems: "center",
               fontWeight: "bold",
               cursor: "pointer",
-              boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
             }}
           >
             ×
           </span>
-          {/* Bubble text */}
+
           💬 Talk to Me
-          {/* 🔴 Unread message badge */}
+
           {showBadge && (
             <div
               style={{
@@ -197,7 +170,6 @@ const handleOpen = () => {
                 display: "flex",
                 justifyContent: "center",
                 alignItems: "center",
-                animation: "pop 0.35s ease-out",
               }}
             >
               1
@@ -206,9 +178,7 @@ const handleOpen = () => {
         </div>
       )}
 
-      {/* ==========================================================
-          🟡 AVATAR (Always visible, even minimized)
-      ========================================================== */}
+      {/* 🟡 AVATAR */}
       <div
         onClick={handleOpen}
         style={{
@@ -228,12 +198,11 @@ const handleOpen = () => {
           animation: isReady ? "none" : "pulse 1.5s infinite",
         }}
       >
-        {/* Small X appears ONLY when minimized */}
         {minimized && (
           <span
             onClick={(e) => {
               e.stopPropagation();
-              setMinimized(false); // restore bubble
+              setMinimized(false);
             }}
             style={{
               position: "absolute",
@@ -250,7 +219,6 @@ const handleOpen = () => {
               justifyContent: "center",
               alignItems: "center",
               cursor: "pointer",
-              boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
             }}
           >
             ×
@@ -259,19 +227,13 @@ const handleOpen = () => {
       </div>
 
       {/* Animations */}
-      <style>
-        {`
-          @keyframes pulse {
-            0% { box-shadow: 0 0 0 rgba(0,120,215,0.4); transform: scale(1); }
-            50% { box-shadow: 0 0 20px rgba(0,120,215,0.8); transform: scale(1.05); }
-            100% { box-shadow: 0 0 0 rgba(0,120,215,0.4); transform: scale(1); }
-          }
-          @keyframes pop {
-            0% { transform: scale(0.5); opacity: 0; }
-            100% { transform: scale(1); opacity: 1; }
-          }
-        `}
-      </style>
+      <style>{`
+        @keyframes pulse {
+          0% { transform: scale(1); box-shadow: 0 0 0 rgba(0,120,215,0.4); }
+          50% { transform: scale(1.05); box-shadow: 0 0 20px rgba(0,120,215,0.8); }
+          100% { transform: scale(1); box-shadow: 0 0 0 rgba(0,120,215,0.4); }
+        }
+      `}</style>
     </div>
   );
 };
