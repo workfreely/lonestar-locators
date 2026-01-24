@@ -21,12 +21,8 @@ const JayBotWidget: React.FC<JayBotWidgetProps> = ({ delay = 3000 }) => {
   // ==========================================
   // Load environment variables
   // ==========================================
-  const publicKey =
-    process.env.NODE_ENV === "development"
-      ? process.env.REACT_APP_VAPI_PUBLIC_KEY_DEV
-      : process.env.REACT_APP_VAPI_PUBLIC_KEY_PROD;
-
-  const assistantId = process.env.REACT_APP_VAPI_ASSISTANT_ID;
+  const publicKey = process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY;
+const assistantId = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID;
 
   // ==========================================
   // Delay showing avatar + bubble
