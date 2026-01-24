@@ -304,12 +304,22 @@ export default function HowItWorks() {
 
         {/* ✅ Mobile stacking */}
         <style jsx>{`
-          @media (max-width: 980px) {
-            div[style*="grid-template-columns: 1fr 420px"] {
-              grid-template-columns: 1fr !important;
-            }
-          }
-        `}</style>
+  /* ✅ Mobile-only: force stack, refresh-proof */
+  @media (max-width: 980px) {
+    .how-grid {
+      grid-template-columns: 1fr !important;
+      width: 100% !important;
+      max-width: 100% !important;
+    }
+
+    /* ✅ Prevent any horizontal scroll / layout shift */
+    .how-grid > div {
+      width: 100% !important;
+      max-width: 100% !important;
+    }
+  }
+`}</style>
+
       </div>
     </>
   );
