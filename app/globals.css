@@ -1127,11 +1127,11 @@ html {
 
 
 /* ===============================
-   📱 Header — How It Works (Mobile)
-   Slight size + tap improvement
+   📱 Header — How It Works (Mobile Only)
+   Scoped safely to header
    =============================== */
 @media (max-width: 768px) {
-  a[href="/how-it-works"] {
+  header a[href="/how-it-works"] {
     font-size: 1rem;
     padding: 0.5rem 0.75rem;
   }
@@ -1157,13 +1157,3 @@ body {
   }
 }
 
-/* ===============================
-   📱 Footer alignment fix — Mobile Only
-   =============================== */
-@media (max-width: 768px) {
-  footer {
-    width: 100vw;
-    margin-left: calc(-50vw + 50%);
-    left: 0;
-  }
-}
