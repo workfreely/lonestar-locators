@@ -32,6 +32,19 @@ const JayBotWidget: React.FC<JayBotWidgetProps> = ({ delay = 3000 }) => {
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
+  useEffect(() => {
+  if (showTextFallback && !minimized) {
+    document.body.style.overflow = "hidden";
+  } else {
+    document.body.style.overflow = "";
+  }
+
+  return () => {
+    document.body.style.overflow = "";
+  };
+}, [showTextFallback, minimized]);
+
+
   /* ===============================
      SHOW WIDGET DELAY
   =============================== */
