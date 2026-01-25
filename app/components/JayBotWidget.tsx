@@ -14,45 +14,47 @@ const JayBotWidget: React.FC<JayBotWidgetProps> = ({ delay = 3000 }) => {
   const [showBadge, setShowBadge] = useState(false);
   const [minimized, setMinimized] = useState(false);
 
-  // 🔁 Text fallback state
-const [showTextFallback, setShowTextFallback] = useState(false);
-const [textInput, setTextInput] = useState("");
-const [messages, setMessages] = useState<
-  { role: "user" | "assistant"; content: string }[]
->([]);
+  // 📝 Text fallback
+  const [showTextFallback, setShowTextFallback] = useState(false);
+  const [textInput, setTextInput] = useState("");
+  const [messages, setMessages] = useState<
+    { role: "user" | "assistant"; content: string }[]
+  >([]);
 
-
-  // ==========================================
-  // Environment variables (PUBLIC)
-  // ==========================================
   const publicKey = process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY!;
   const assistantId = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID!;
 
-  // ==========================================
-  // Delay showing avatar + bubble
-  // ==========================================
+  /* ===============================
+     AUTO-SCROLL TEXT CHAT
+  =============================== */
   useEffect(() => {
-    const timer = setTimeout(() => setShowWidget(true), delay);
-    return () => clearTimeout(timer);
+    const el = document.querySelector(".jaybot-chat-messages");
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages]);
+
+  /* ===============================
+     SHOW WIDGET DELAY
+  =============================== */
+  useEffect(() => {
+    const t = setTimeout(() => setShowWidget(true), delay);
+    return () => clearTimeout(t);
   }, [delay]);
 
-  // ==========================================
-  // Show unread badge after widget appears
-  // ==========================================
+  /* ===============================
+     UNREAD BADGE
+  =============================== */
   useEffect(() => {
     if (!showWidget) return;
-    const badgeTimer = setTimeout(() => setShowBadge(true), 30000);
-    return () => clearTimeout(badgeTimer);
+    const t = setTimeout(() => setShowBadge(true), 30000);
+    return () => clearTimeout(t);
   }, [showWidget]);
 
-  // ==========================================
-  // Initialize Vapi SDK (THIS IS THE KEY FIX)
-  // ==========================================
+  /* ===============================
+     INIT VAPI
+  =============================== */
   useEffect(() => {
-    if (!publicKey || !assistantId) {
-      console.error("❌ Missing Vapi env vars");
-      return;
-    }
+    if (typeof window === "undefined") return;
+    if (!publicKey || !assistantId) return;
 
     const instance = new Vapi(publicKey);
 
@@ -66,56 +68,48 @@ const [messages, setMessages] = useState<
     });
 
     instance.on("error", (e) => {
-  console.error("Vapi error:", e);
-  setIsReady(false);
-
-  // 🔁 FALL BACK TO TEXT MODE
-  setShowTextFallback(true);
-  setMinimized(false);
-});
-
+      console.error("Vapi error:", e);
+      setIsReady(false);
+      setShowTextFallback(true);
+      setMinimized(false);
+    });
 
     setVapi(instance);
 
     return () => {
-      instance.stop();
+      try {
+        instance.stop();
+      } catch {}
     };
   }, [publicKey, assistantId]);
 
   if (!showWidget) return null;
 
-  // ==========================================
-  // Open voice assistant
-  // ==========================================
+  /* ===============================
+     OPEN HANDLER (FIXED)
+  =============================== */
   const handleOpen = async () => {
-  setMinimized(false);
-
-  if (!vapi) {
-    setShowTextFallback(true);
-    return;
-  }
-
-  try {
-    await vapi.start(assistantId);
+    setMinimized(false);
     setShowBadge(false);
-    setShowTextFallback(false);
-  } catch (err) {
-    console.error("Failed to start assistant:", err);
-    setShowTextFallback(true);
-  }
-};
 
-  // ==========================================
-  // Minimize bubble
-  // ==========================================
+    if (!vapi) {
+      setShowTextFallback(true);
+      return;
+    }
+
+    try {
+      await vapi.start(assistantId);
+      setShowTextFallback(false);
+    } catch {
+      setShowTextFallback(true);
+    }
+  };
+
   const handleMinimize = (e: React.MouseEvent) => {
     e.stopPropagation();
     setMinimized(true);
   };
 
-  // ==========================================
-  // UI
-  // ==========================================
   return (
     <div
       style={{
@@ -128,7 +122,7 @@ const [messages, setMessages] = useState<
         alignItems: "center",
       }}
     >
-      {/* 🟦 CHAT BUBBLE */}
+      {/* 💬 CHAT BUBBLE */}
       {!minimized && (
         <div
           onClick={handleOpen}
@@ -136,13 +130,13 @@ const [messages, setMessages] = useState<
             position: "relative",
             background: "#0078d7",
             color: "#fff",
-            padding: "10px 16px",
-            borderRadius: "20px",
+            padding: "12px 18px",
+            borderRadius: "22px",
             fontSize: "15px",
             fontWeight: 500,
             boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
             marginBottom: "8px",
-            opacity: isReady ? 1 : 0.6,
+            opacity: isReady ? 1 : 0.85,
             cursor: "pointer",
           }}
         >
@@ -152,7 +146,6 @@ const [messages, setMessages] = useState<
               position: "absolute",
               top: "-6px",
               left: "-10px",
-              fontSize: "18px",
               background: "white",
               color: "#0078d7",
               borderRadius: "50%",
@@ -162,7 +155,6 @@ const [messages, setMessages] = useState<
               justifyContent: "center",
               alignItems: "center",
               fontWeight: "bold",
-              cursor: "pointer",
             }}
           >
             ×
@@ -182,10 +174,9 @@ const [messages, setMessages] = useState<
                 height: "22px",
                 borderRadius: "50%",
                 fontSize: "12px",
-                fontWeight: "bold",
                 display: "flex",
-                justifyContent: "center",
                 alignItems: "center",
+                justifyContent: "center",
               }}
             >
               1
@@ -194,92 +185,49 @@ const [messages, setMessages] = useState<
         </div>
       )}
 
-      {/* 📝 TEXT FALLBACK CHAT */}
-{showTextFallback && !minimized && (
-  <div
-    style={{
-      width: "280px",
-      background: "white",
-      borderRadius: "12px",
-      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-      padding: "10px",
-      marginBottom: "8px",
-      display: "flex",
-      flexDirection: "column",
-      gap: "8px",
-    }}
-  >
-    <div
-      style={{
-        fontSize: "13px",
-        fontWeight: 600,
-        color: "#0078d7",
-      }}
-    >
-      Chat with JayBot
-    </div>
+      {/* 📝 TEXT CHAT */}
+      {showTextFallback && !minimized && (
+        <div className="jaybot-chat-panel">
+          <div className="jaybot-title">Chat with JayBot</div>
 
-    <div
-      style={{
-        maxHeight: "160px",
-        overflowY: "auto",
-        fontSize: "14px",
-        display: "flex",
-        flexDirection: "column",
-        gap: "6px",
-      }}
-    >
-      {messages.map((m, i) => (
-        <div
-          key={i}
-          style={{
-            alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-            background: m.role === "user" ? "#0078d7" : "#f1f1f1",
-            color: m.role === "user" ? "white" : "black",
-            padding: "6px 10px",
-            borderRadius: "12px",
-            maxWidth: "85%",
-          }}
-        >
-          {m.content}
+          <div className="jaybot-chat-messages">
+            {messages.map((m, i) => (
+              <div
+                key={i}
+                className={`jaybot-bubble ${m.role}`}
+              >
+                {m.content}
+              </div>
+            ))}
+          </div>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!textInput.trim()) return;
+
+              setMessages((prev) => [
+                ...prev,
+                { role: "user", content: textInput },
+                {
+                  role: "assistant",
+                  content:
+                    "Got it. What city are you searching in?",
+                },
+              ]);
+
+              setTextInput("");
+            }}
+          >
+            <input
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              placeholder="Type your message..."
+              className="jaybot-input"
+            />
+          </form>
         </div>
-      ))}
-    </div>
-
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!textInput.trim()) return;
-
-        setMessages((prev) => [
-          ...prev,
-          { role: "user", content: textInput },
-          {
-            role: "assistant",
-            content:
-              "Thanks! I can help you find apartments. What city and move-in date are you looking for?",
-          },
-        ]);
-
-        setTextInput("");
-      }}
-    >
-      <input
-        value={textInput}
-        onChange={(e) => setTextInput(e.target.value)}
-        placeholder="Type your message..."
-        style={{
-          width: "100%",
-          padding: "8px",
-          borderRadius: "8px",
-          border: "1px solid #ccc",
-          fontSize: "14px",
-        }}
-      />
-    </form>
-  </div>
-)}
-
+      )}
 
       {/* 🟡 AVATAR */}
       <div
@@ -294,47 +242,18 @@ const [messages, setMessages] = useState<
           height: "70px",
           border: "3px solid white",
           cursor: "pointer",
-          position: "relative",
           boxShadow: isReady
             ? "0 6px 18px rgba(0,0,0,0.25)"
             : "0 0 25px rgba(0,120,215,0.6)",
           animation: isReady ? "none" : "pulse 1.5s infinite",
         }}
-      >
-        {minimized && (
-          <span
-            onClick={(e) => {
-              e.stopPropagation();
-              setMinimized(false);
-            }}
-            style={{
-              position: "absolute",
-              bottom: "-6px",
-              right: "-6px",
-              background: "white",
-              color: "#0078d7",
-              width: "20px",
-              height: "20px",
-              borderRadius: "50%",
-              fontSize: "14px",
-              fontWeight: "bold",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              cursor: "pointer",
-            }}
-          >
-            ×
-          </span>
-        )}
-      </div>
+      />
 
-      {/* Animations */}
       <style>{`
         @keyframes pulse {
-          0% { transform: scale(1); box-shadow: 0 0 0 rgba(0,120,215,0.4); }
-          50% { transform: scale(1.05); box-shadow: 0 0 20px rgba(0,120,215,0.8); }
-          100% { transform: scale(1); box-shadow: 0 0 0 rgba(0,120,215,0.4); }
+          0% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+          100% { transform: scale(1); }
         }
       `}</style>
     </div>
