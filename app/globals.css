@@ -1202,114 +1202,158 @@ body {
 }
 
 /* =========================================================
-   📱 JAYBOT — MOBILE CHAT (STABLE & APP-LIKE)
+   JAYBOT CHAT PANEL
    Purpose:
-   - Prevent chat jumping when keyboard opens
-   - Stop background scrolling
-   - Keep chat visually anchored
-   - Feel like iMessage / WhatsApp
+   - Desktop is large and readable
+   - Mobile is full screen like a real messaging app
+   - No translucent panel effect
+========================================================= */
+
+.jaybot-chat-container {
+  position: fixed;
+  right: 16px;
+  bottom: 110px;
+  z-index: 9999;
+
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  height: 560px;
+  max-height: calc(100vh - 160px);
+
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.25);
+
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.jaybot-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 12px 14px;
+  background: #ffffff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.jaybot-chat-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0078d7;
+}
+
+.jaybot-chat-close {
+  border: none;
+  background: transparent;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.jaybot-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  font-size: 16px;
+  line-height: 1.45;
+
+  background: #ffffff;
+}
+
+.jaybot-message {
+  padding: 12px 14px;
+  border-radius: 18px;
+  max-width: 88%;
+  word-wrap: break-word;
+}
+
+.jaybot-message.user {
+  align-self: flex-end;
+  background: #0078d7;
+  color: #ffffff;
+}
+
+.jaybot-message.assistant {
+  align-self: flex-start;
+  background: #f1f1f1;
+  color: #000000;
+}
+
+.jaybot-chat-form {
+  padding: 12px;
+  background: #ffffff;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.jaybot-chat-input {
+  width: 100%;
+  padding: 12px 12px;
+  font-size: 16px;
+  border-radius: 10px;
+  border: 1px solid #cccccc;
+  outline: none;
+}
+
+/* Scrollbar polish */
+.jaybot-chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
+.jaybot-chat-messages::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+
+/* =========================================================
+   FULL SCREEN MOBILE MODE (FIXED FOR iOS)
 ========================================================= */
 
 @media (max-width: 640px) {
   .jaybot-chat-container {
     position: fixed;
 
-    /* 🔒 Lock to viewport */
-    top: 0;
-    left: 0;
+    top: env(safe-area-inset-top);
     right: 0;
-    bottom: 0;
+    bottom: env(safe-area-inset-bottom);
+    left: 0;
 
     width: 100vw;
 
-    /* ✅ Critical: NOT full dynamic height */
-    height: 92vh;
+    /* 🔑 CRITICAL FIX */
+    height: auto;
+    min-height: 100svh;
 
     max-width: 100vw;
+    max-height: 100svh;
 
-    background: #ffffff;
     border-radius: 0;
     box-shadow: none;
+    background: #ffffff;
 
     display: flex;
     flex-direction: column;
-
-    /* 🔒 Prevent rubber-band + background scroll */
-    overscroll-behavior: contain;
-    touch-action: manipulation;
   }
 
-  /* Header stays fixed */
-  .jaybot-chat-header {
-    flex-shrink: 0;
-    padding: 14px 16px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-    background: #ffffff;
+  .jaybot-chat-messages {
+    flex: 1;
+    padding: 16px;
+    font-size: 17px;
+    overflow-y: auto;
   }
 
   .jaybot-chat-title {
     font-size: 17px;
-    font-weight: 700;
-    color: #0078d7;
-  }
-
-  /* Message area scrolls, not the page */
-  .jaybot-chat-messages {
-    flex: 1;
-    padding: 16px;
-    font-size: 16px;
-    line-height: 1.45;
-
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-
-    background: #ffffff;
-  }
-
-  /* Input bar pinned to bottom */
-  .jaybot-chat-form {
-    flex-shrink: 0;
-    padding: 12px 14px;
-    border-top: 1px solid rgba(0, 0, 0, 0.08);
-    background: #ffffff;
   }
 
   .jaybot-chat-input {
-    width: 100%;
-    padding: 12px 14px;
-    font-size: 16px;
-    border-radius: 12px;
-    border: 1px solid #cccccc;
-    outline: none;
-  }
-
-  /* Message bubbles */
-  .jaybot-message {
-    padding: 12px 14px;
-    border-radius: 18px;
-    max-width: 88%;
-    word-wrap: break-word;
-  }
-
-  .jaybot-message.user {
-    align-self: flex-end;
-    background: #0078d7;
-    color: #ffffff;
-  }
-
-  .jaybot-message.assistant {
-    align-self: flex-start;
-    background: #f1f1f1;
-    color: #000000;
-  }
-
-  /* Scrollbar polish */
-  .jaybot-chat-messages::-webkit-scrollbar {
-    width: 5px;
-  }
-
-  .jaybot-chat-messages::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 3px;
+    font-size: 17px;
   }
 }

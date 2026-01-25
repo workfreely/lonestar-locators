@@ -32,19 +32,6 @@ const JayBotWidget: React.FC<JayBotWidgetProps> = ({ delay = 3000 }) => {
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
-  useEffect(() => {
-  if (showTextFallback && !minimized) {
-    document.body.style.overflow = "hidden";
-  } else {
-    document.body.style.overflow = "";
-  }
-
-  return () => {
-    document.body.style.overflow = "";
-  };
-}, [showTextFallback, minimized]);
-
-
   /* ===============================
      SHOW WIDGET DELAY
   =============================== */
@@ -216,20 +203,26 @@ const JayBotWidget: React.FC<JayBotWidgetProps> = ({ delay = 3000 }) => {
             ))}
           </div>
 
-<form
+          <form
   className="jaybot-chat-form"
   onSubmit={(e) => {
-    e.preventDefault();
-    if (!textInput.trim()) return;
 
-    setMessages((prev) => [
-      ...prev,
-      { role: "user", content: textInput },
-    ]);
+              e.preventDefault();
+              if (!textInput.trim()) return;
 
-    setTextInput("");
-  }}
->
+              setMessages((prev) => [
+                ...prev,
+                { role: "user", content: textInput },
+                {
+                  role: "assistant",
+                  content:
+                    "Got it. What city are you searching in?",
+                },
+              ]);
+
+              setTextInput("");
+            }}
+          >
             <input
               value={textInput}
               onChange={(e) => setTextInput(e.target.value)}
