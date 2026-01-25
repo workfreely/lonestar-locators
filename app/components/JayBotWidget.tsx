@@ -84,25 +84,60 @@ const JayBotWidget: React.FC<JayBotWidgetProps> = ({ delay = 3000 }) => {
   }, [publicKey, assistantId]);
 
   /* ===============================
-   🔒 LOCK BACKGROUND WHEN CHAT IS OPEN
-   Prevents mobile page scroll + keyboard bleed
-=============================== */
-useEffect(() => {
-  if (typeof document === "undefined") return;
+     🔒 LOCK BACKGROUND WHEN CHAT IS OPEN
+  =============================== */
+  useEffect(() => {
+    if (typeof document === "undefined") return;
 
-  if (showTextFallback && !minimized) {
-    document.body.classList.add("jaybot-open");
-  } else {
-    document.body.classList.remove("jaybot-open");
-  }
+    if (showTextFallback && !minimized) {
+      document.body.classList.add("jaybot-open");
+    } else {
+      document.body.classList.remove("jaybot-open");
+    }
 
-  return () => {
-    document.body.classList.remove("jaybot-open");
-  };
-}, [showTextFallback, minimized]);
+    return () => {
+      document.body.classList.remove("jaybot-open");
+    };
+  }, [showTextFallback, minimized]);
 
-/* ⛔️ NOTHING — NO HOOKS — BELOW THIS LINE */
-if (!showWidget) return null;
+  /* ===============================
+     📱 iOS KEYBOARD FIX (⬅️ ADD THIS HERE)
+  =============================== */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleResize = () => {
+      const messagesEl = document.querySelector(
+        ".jaybot-chat-messages"
+      ) as HTMLElement | null;
+
+      if (!messagesEl) return;
+
+      const visualViewport = window.visualViewport;
+      if (!visualViewport) return;
+
+      const keyboardHeight =
+        window.innerHeight - visualViewport.height;
+
+      messagesEl.style.paddingBottom = `${
+        Math.max(keyboardHeight, 16) + 16
+      }px`;
+
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    };
+
+    window.visualViewport?.addEventListener("resize", handleResize);
+
+    return () => {
+      window.visualViewport?.removeEventListener(
+        "resize",
+        handleResize
+      );
+    };
+  }, []);
+
+  /* ⛔️ NOTHING — NO HOOKS — BELOW THIS LINE */
+  if (!showWidget) return null;
 
   /* ===============================
      OPEN HANDLER (FIXED)

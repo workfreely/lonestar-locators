@@ -1362,6 +1362,12 @@ body {
   }
 }
 
+.jaybot-chat-messages {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+
 /* =========================================================
    🔒 JAYBOT CHAT — LOCK BACKGROUND SCROLL (MOBILE)
 ========================================================= */
