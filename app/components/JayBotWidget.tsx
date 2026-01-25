@@ -83,13 +83,13 @@ const JayBotWidget: React.FC<JayBotWidgetProps> = ({ delay = 3000 }) => {
     };
   }, [publicKey, assistantId]);
 
-  if (!showWidget) return null;
-
   /* ===============================
    🔒 LOCK BACKGROUND WHEN CHAT IS OPEN
    Prevents mobile page scroll + keyboard bleed
 =============================== */
 useEffect(() => {
+  if (typeof document === "undefined") return;
+
   if (showTextFallback && !minimized) {
     document.body.classList.add("jaybot-open");
   } else {
@@ -100,6 +100,9 @@ useEffect(() => {
     document.body.classList.remove("jaybot-open");
   };
 }, [showTextFallback, minimized]);
+
+/* ⛔️ NOTHING — NO HOOKS — BELOW THIS LINE */
+if (!showWidget) return null;
 
   /* ===============================
      OPEN HANDLER (FIXED)
