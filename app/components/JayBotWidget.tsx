@@ -203,26 +203,20 @@ const JayBotWidget: React.FC<JayBotWidgetProps> = ({ delay = 3000 }) => {
             ))}
           </div>
 
-          <form
+<form
   className="jaybot-chat-form"
   onSubmit={(e) => {
+    e.preventDefault();
+    if (!textInput.trim()) return;
 
-              e.preventDefault();
-              if (!textInput.trim()) return;
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: textInput },
+    ]);
 
-              setMessages((prev) => [
-                ...prev,
-                { role: "user", content: textInput },
-                {
-                  role: "assistant",
-                  content:
-                    "Got it. What city are you searching in?",
-                },
-              ]);
-
-              setTextInput("");
-            }}
-          >
+    setTextInput("");
+  }}
+>
             <input
               value={textInput}
               onChange={(e) => setTextInput(e.target.value)}
