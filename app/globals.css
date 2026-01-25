@@ -1357,3 +1357,14 @@ body {
     font-size: 17px;
   }
 }
+
+/* =========================================================
+   🔒 JAYBOT CHAT — LOCK BACKGROUND SCROLL (MOBILE)
+========================================================= */
+
+body.jaybot-open {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  touch-action: none;
+}
