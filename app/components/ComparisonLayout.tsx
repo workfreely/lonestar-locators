@@ -225,44 +225,45 @@ const reviewSchema = {
   }}
 />
 
-          {/* ================= COMPARISON GRID ================= */}
-          <div className="comparison-grid">
-            {/* TOP META CARDS */}
-            <ComparisonTopCard property={left} />
-            <ComparisonTopCard property={right} />
+          {/* ================= DESKTOP COMPARISON GRID ================= */}
+<div className="comparison-grid desktop-only">
+  <ComparisonTopCard property={left} />
+  <ComparisonTopCard property={right} />
 
-            {/* GOOD */}
-            <ComparisonRow
-              title="The Good"
-              color="#2e7d32"
-              leftItems={left.good}
-              rightItems={right.good}
-            />
+  <ComparisonRow
+    title="The Good"
+    color="#2e7d32"
+    leftItems={left.good}
+    rightItems={right.good}
+  />
 
-            {/* BAD */}
-            <ComparisonRow
-              title="The Bad"
-              color="#e67e22"
-              leftItems={left.bad}
-              rightItems={right.bad}
-            />
+  <ComparisonRow
+    title="The Bad"
+    color="#e67e22"
+    leftItems={left.bad}
+    rightItems={right.bad}
+  />
 
-            {/* UGLY */}
-            <ComparisonRow
-              title="The Ugly"
-              color="#c62828"
-              leftItems={left.ugly}
-              rightItems={right.ugly}
-            />
+  <ComparisonRow
+    title="The Ugly"
+    color="#c62828"
+    leftItems={left.ugly}
+    rightItems={right.ugly}
+  />
 
-            {/* VERDICT */}
-            {(left.verdict || right.verdict) && (
-              <ComparisonVerdictRow
-                leftText={left.verdict}
-                rightText={right.verdict}
-              />
-            )}
-          </div>
+  {(left.verdict || right.verdict) && (
+    <ComparisonVerdictRow
+      leftText={left.verdict}
+      rightText={right.verdict}
+    />
+  )}
+</div>
+
+{/* ================= MOBILE COMPARISON ================= */}
+<div className="mobile-only">
+  <MobilePropertyStack property={left} />
+  <MobilePropertyStack property={right} />
+</div>
 
 
 {/* FAQs — SEO + Comparison */}
@@ -455,6 +456,46 @@ const ComparisonVerdictRow = ({
   );
 };
 
+/* =========================================
+   MOBILE PROPERTY STACK (MOBILE ONLY)
+========================================= */
+
+const MobilePropertyStack = ({
+  property,
+}: {
+  property: ComparisonProperty;
+}) => {
+  return (
+    <section className="mobile-property-stack">
+      {/* IMAGE + META */}
+      <ComparisonTopCard property={property} />
+
+      {/* GOOD */}
+      <h3 className="mobile-good">The Good</h3>
+      <ul className="comparison-row-list comparison-the-good-list">
+        {property.good.map((item, i) => (
+          <li key={i} className="comparison-point">{item}</li>
+        ))}
+      </ul>
+
+      {/* BAD */}
+      <h3 className="mobile-bad">The Bad</h3>
+      <ul className="comparison-row-list comparison-the-bad-list">
+        {property.bad.map((item, i) => (
+          <li key={i} className="comparison-point">{item}</li>
+        ))}
+      </ul>
+
+      {/* UGLY */}
+      <h3 className="mobile-ugly">The Ugly</h3>
+      <ul className="comparison-row-list comparison-the-ugly-list">
+        {property.ugly.map((item, i) => (
+          <li key={i} className="comparison-point">{item}</li>
+        ))}
+      </ul>
+    </section>
+  );
+};
 
 
 export default ComparisonLayout;
