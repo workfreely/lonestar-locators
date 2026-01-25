@@ -1254,12 +1254,13 @@ body {
   color: rgba(0, 0, 0, 0.6);
 }
 
+/* ✅ UPDATED: messages area is the ONLY scroll area */
 .jaybot-chat-messages {
   flex: 1;
 
-  /* 🔒 LOCK THE CHAT VIEW */
-  overflow: hidden;        /* ⬅️ removes scrollbar + scrolling */
-  touch-action: none;      /* ⬅️ prevents drag scrolling */
+  overflow-y: auto;                 /* ✅ allow scrolling inside messages only */
+  overscroll-behavior: contain;     /* ✅ prevent page bounce */
+  -webkit-overflow-scrolling: touch;
 
   padding: 14px;
   display: flex;
@@ -1306,15 +1307,6 @@ body {
   outline: none;
 }
 
-/* Scrollbar polish */
-.jaybot-chat-messages::-webkit-scrollbar {
-  width: 6px;
-}
-.jaybot-chat-messages::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 3px;
-}
-
 /* =========================================================
    FULL SCREEN MOBILE MODE (FIXED FOR iOS)
 ========================================================= */
@@ -1325,12 +1317,12 @@ body {
 
     left: 0;
     right: 0;
-    bottom: 0; /* ✅ CRITICAL CHANGE */
+    bottom: 0;
 
     width: 100vw;
     max-width: 100vw;
 
-    height: calc(var(--jaybot-vvh, 1vh) * 100);
+    height: 100dvh; /* ✅ UPDATED: iOS keyboard-safe viewport */
 
     border-radius: 0;
     box-shadow: none;
@@ -1355,22 +1347,14 @@ body {
     background: #ffffff;
     padding-bottom: calc(12px + env(safe-area-inset-bottom));
   }
-
-  .jaybot-chat-messages {
-    flex: 1;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
 }
-
 
 /* =========================================================
    🔒 JAYBOT CHAT — LOCK BACKGROUND SCROLL (MOBILE)
 ========================================================= */
 
+/* ✅ UPDATED: removed position: fixed to prevent iOS jump */
 body.jaybot-open {
   overflow: hidden;
-  position: fixed;
-  width: 100%;
   touch-action: none;
 }
