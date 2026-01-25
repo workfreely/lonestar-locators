@@ -247,7 +247,7 @@ const JayBotWidget: React.FC<JayBotWidgetProps> = ({ delay = 3000 }) => {
   </div>
 
           <div className="jaybot-chat-messages">
-            {messages.map((m, i) => (
+         {messages.slice(-6).map((m, i) => (
               <div
   key={i}
   className={`jaybot-message ${m.role}`}

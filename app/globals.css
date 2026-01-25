@@ -1256,11 +1256,10 @@ body {
 
 .jaybot-chat-messages {
   flex: 1;
-  overflow-y: auto;
 
-  /* 🔒 iOS scroll containment fix */
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
+  /* 🔒 LOCK THE CHAT VIEW */
+  overflow: hidden;        /* ⬅️ removes scrollbar + scrolling */
+  touch-action: none;      /* ⬅️ prevents drag scrolling */
 
   padding: 14px;
   display: flex;
