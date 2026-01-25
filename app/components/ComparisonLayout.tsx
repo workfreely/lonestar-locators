@@ -225,45 +225,44 @@ const reviewSchema = {
   }}
 />
 
-          {/* ================= DESKTOP COMPARISON GRID ================= */}
-<div className="comparison-grid desktop-only">
-  <ComparisonTopCard property={left} />
-  <ComparisonTopCard property={right} />
+          {/* ================= COMPARISON GRID ================= */}
+          <div className="comparison-grid">
+            {/* TOP META CARDS */}
+            <ComparisonTopCard property={left} />
+            <ComparisonTopCard property={right} />
 
-  <ComparisonRow
-    title="The Good"
-    color="#2e7d32"
-    leftItems={left.good}
-    rightItems={right.good}
-  />
+            {/* GOOD */}
+            <ComparisonRow
+              title="The Good"
+              color="#2e7d32"
+              leftItems={left.good}
+              rightItems={right.good}
+            />
 
-  <ComparisonRow
-    title="The Bad"
-    color="#e67e22"
-    leftItems={left.bad}
-    rightItems={right.bad}
-  />
+            {/* BAD */}
+            <ComparisonRow
+              title="The Bad"
+              color="#e67e22"
+              leftItems={left.bad}
+              rightItems={right.bad}
+            />
 
-  <ComparisonRow
-    title="The Ugly"
-    color="#c62828"
-    leftItems={left.ugly}
-    rightItems={right.ugly}
-  />
+            {/* UGLY */}
+            <ComparisonRow
+              title="The Ugly"
+              color="#c62828"
+              leftItems={left.ugly}
+              rightItems={right.ugly}
+            />
 
-  {(left.verdict || right.verdict) && (
-    <ComparisonVerdictRow
-      leftText={left.verdict}
-      rightText={right.verdict}
-    />
-  )}
-</div>
-
-{/* ================= MOBILE COMPARISON ================= */}
-<div className="mobile-only">
-  <MobilePropertyStack property={left} />
-  <MobilePropertyStack property={right} />
-</div>
+            {/* VERDICT */}
+            {(left.verdict || right.verdict) && (
+              <ComparisonVerdictRow
+                leftText={left.verdict}
+                rightText={right.verdict}
+              />
+            )}
+          </div>
 
 
 {/* FAQs — SEO + Comparison */}
