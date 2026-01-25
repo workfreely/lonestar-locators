@@ -187,22 +187,26 @@ const JayBotWidget: React.FC<JayBotWidgetProps> = ({ delay = 3000 }) => {
 
       {/* 📝 TEXT CHAT */}
       {showTextFallback && !minimized && (
-        <div className="jaybot-chat-panel">
-          <div className="jaybot-title">Chat with JayBot</div>
+        <div className="jaybot-chat-container">
+  <div className="jaybot-chat-header">
+    <div className="jaybot-chat-title">Chat with JayBot</div>
+  </div>
 
           <div className="jaybot-chat-messages">
             {messages.map((m, i) => (
               <div
-                key={i}
-                className={`jaybot-bubble ${m.role}`}
-              >
+  key={i}
+  className={`jaybot-message ${m.role}`}
+>
                 {m.content}
               </div>
             ))}
           </div>
 
           <form
-            onSubmit={(e) => {
+  className="jaybot-chat-form"
+  onSubmit={(e) => {
+
               e.preventDefault();
               if (!textInput.trim()) return;
 
@@ -223,7 +227,7 @@ const JayBotWidget: React.FC<JayBotWidgetProps> = ({ delay = 3000 }) => {
               value={textInput}
               onChange={(e) => setTextInput(e.target.value)}
               placeholder="Type your message..."
-              className="jaybot-input"
+               className="jaybot-chat-input"
             />
           </form>
         </div>

@@ -1202,149 +1202,149 @@ body {
 }
 
 /* =========================================================
-   VAPI CHAT FIXES
-   - Ensures chat messages are scrollable
-   - Prevents messages from being hidden behind input
-   - Enables clean auto-scroll behavior
-========================================================= */
-
-.vapi-chat-messages {
-  max-height: 60vh;
-  overflow-y: auto;
-  padding-bottom: 80px; /* space for input box */
-}
-
-/* Optional scrollbar polish */
-.vapi-chat-messages::-webkit-scrollbar {
-  width: 6px;
-}
-
-.vapi-chat-messages::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 3px;
-}
-
-/* =========================================================
-   JayBot Chat UI
+   JAYBOT CHAT PANEL
    Purpose:
-   - Increase chat size & readability
-   - Enable scrolling + auto-scroll
-   - Make chat feel like a real conversation
+   - Desktop is large and readable
+   - Mobile is full screen like a real messaging app
+   - No translucent panel effect
 ========================================================= */
 
-/* Chat container (text fallback panel) */
 .jaybot-chat-container {
-  width: 360px;
-  max-width: 90vw;
+  position: fixed;
+  right: 16px;
+  bottom: 110px;
+  z-index: 9999;
+
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  height: 560px;
+  max-height: calc(100vh - 160px);
+
   background: #ffffff;
-  border-radius: 14px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Scrollable messages area */
-.jaybot-chat-messages {
-  max-height: 320px;
-  overflow-y: auto;
-  font-size: 16px;
-  line-height: 1.4;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-bottom: 80px; /* prevents input overlap */
-}
-
-/* Scrollbar styling (optional but nice) */
-.jaybot-chat-messages::-webkit-scrollbar {
-  width: 6px;
-}
-
-.jaybot-chat-messages::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 3px;
-}
-
-/* Message bubbles */
-.jaybot-message {
-  padding: 10px 14px;
   border-radius: 16px;
-  font-size: 15px;
-  max-width: 85%;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.25);
+
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.jaybot-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 12px 14px;
+  background: #ffffff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.jaybot-chat-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0078d7;
+}
+
+.jaybot-chat-close {
+  border: none;
+  background: transparent;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.jaybot-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  font-size: 16px;
+  line-height: 1.45;
+
+  background: #ffffff;
+}
+
+.jaybot-message {
+  padding: 12px 14px;
+  border-radius: 18px;
+  max-width: 88%;
   word-wrap: break-word;
 }
 
-/* User message */
 .jaybot-message.user {
   align-self: flex-end;
   background: #0078d7;
   color: #ffffff;
 }
 
-/* Assistant message */
 .jaybot-message.assistant {
   align-self: flex-start;
   background: #f1f1f1;
   color: #000000;
 }
 
-/* Text input */
+.jaybot-chat-form {
+  padding: 12px;
+  background: #ffffff;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
 .jaybot-chat-input {
   width: 100%;
-  padding: 10px;
+  padding: 12px 12px;
   font-size: 16px;
-  border-radius: 8px;
-  border: 1px solid #ccc;
+  border-radius: 10px;
+  border: 1px solid #cccccc;
   outline: none;
 }
 
+/* Scrollbar polish */
+.jaybot-chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
+.jaybot-chat-messages::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
 
 /* =========================================================
-   JayBot Mobile Fullscreen Experience
-   Purpose:
-   - Make chat feel like a real messaging app
-   - Eliminate background distractions
-   - Improve engagement & readability on mobile
+   FULL SCREEN MOBILE MODE
 ========================================================= */
 
-@media (max-width: 768px) {
+@media (max-width: 640px) {
   .jaybot-chat-container {
-    position: fixed;
-    inset: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+
     width: 100vw;
     height: 100vh;
     max-width: 100vw;
     max-height: 100vh;
+
     border-radius: 0;
-    padding: 16px;
-    z-index: 10000;
+    box-shadow: none;
+
+    background: #ffffff;
   }
 
   .jaybot-chat-messages {
-    flex: 1;
-    max-height: none;
+    padding: 16px;
     font-size: 17px;
-    line-height: 1.5;
-    padding-bottom: 100px;
+  }
+
+  .jaybot-chat-title {
+    font-size: 17px;
   }
 
   .jaybot-chat-input {
     font-size: 17px;
-    padding: 14px;
   }
 }
 
-/* =========================================================
-   JayBot Desktop Upgrade 
-========================================================= */
-
-@media (min-width: 769px) {
-  .jaybot-chat-container {
-    width: 420px;
-  }
-
-  .jaybot-chat-messages {
-    max-height: 420px;
-  }
-}
