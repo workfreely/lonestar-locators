@@ -436,3 +436,27 @@
   text-align: left;       /* ⬅️ critical */
   margin-left: 0;         /* ensure no centering offset */
 }
+
+/* ===============================
+   MOBILE COMPARISON FLOW (CSS ONLY)
+=============================== */
+
+@media (max-width: 900px) {
+  .comparison-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Order matters: DOM sequence is preserved, but visual flow improves */
+  .comparison-grid > * {
+    grid-column: 1 / -1;
+  }
+
+  /* Add spacing between property sections */
+  .comparison-card-top {
+    margin-bottom: 0.75rem;
+  }
+
+  .comparison-row-card {
+    margin-bottom: 1rem;
+  }
+}
