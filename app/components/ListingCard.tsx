@@ -83,22 +83,33 @@ const ListingCard: React.FC<ListingCardProps> = ({
        }}
      >
       <img
- src={
-   listing.image && listing.image.trim() !== ""
-     ? listing.image
-     : defaultImage
- }
- alt={listing.name}
- loading="lazy"
- className="listing-image"
- style={{
-   width: "100%",
-   height: "260px",
-   objectFit: "cover",
-   borderTopLeftRadius: "10px",
-   borderTopRightRadius: "10px",
- }}
+  src={
+    listing.image && listing.image.trim() !== ""
+      ? listing.image
+      : defaultImage
+  }
+  alt={listing.name}
+  loading="lazy"
+  className="listing-image"
+  onError={(e) => {
+    e.currentTarget.onerror = null;
+    e.currentTarget.src = defaultImage;
+  }}
+  style={{
+    width: "100%",
+    height: "260px",
+
+    // ✅ SHOW FULL IMAGE (no cropping)
+    objectFit: "contain",
+
+    // ✅ Makes the empty space look intentional
+    backgroundColor: "#f4f4f4",
+
+    borderTopLeftRadius: "10px",
+    borderTopRightRadius: "10px",
+  }}
 />
+
 
 
        <div className="card-body" style={{ padding: "1rem 1.25rem" }}>

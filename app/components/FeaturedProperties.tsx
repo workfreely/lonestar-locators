@@ -12,7 +12,7 @@ const FeaturedProperties: React.FC = () => {
       city_slug: "san-antonio",
       neighborhood: "Downtown",
       region: "San Antonio",
-      image: "",
+      image: "https://ukkxisleiprdpptaaxcs.supabase.co/storage/v1/object/public/property-images/san-antonio/300-main/featured/300-main-downtown-san-antonio-high-rise.webp",
       price: "$1,650+",
       beds: "0 - 2",
       baths: "1 - 2",
