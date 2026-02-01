@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import "./globals.css";
 import NavigationBar from "./components/NavigationBar";
 import Footer from "./components/Footer";
@@ -6,6 +7,25 @@ import ClientSecurity from "@/app/components/ClientSecurity";
 import MobileStickyCTA from "@/app/components/MobileStickyCTA";
 import Script from "next/script";
 
+/* ===============================
+   SEO METADATA (SERVER-RENDERED)
+================================ */
+export const metadata: Metadata = {
+  title: "Lone Star Locators | Free Apartment Locator in Texas",
+  description:
+    "Free apartment locator in Texas. We help you find, tour and lease luxury apartments, townhomes and penthouses with the best move-in specials.",
+  openGraph: {
+    title: "Lone Star Locators | Free Apartment Locator in Texas",
+    description:
+      "Free apartment locator in Texas helping renters find luxury apartments, townhomes and penthouses with the best move-in specials.",
+    url: "https://www.lonestarlocators.app",
+    siteName: "Lone Star Locators",
+    type: "website",
+  },
+  alternates: {
+    canonical: "https://www.lonestarlocators.app",
+  },
+};
 
 export default function RootLayout({
   children,

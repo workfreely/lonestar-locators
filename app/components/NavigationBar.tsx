@@ -32,7 +32,7 @@ const NavigationBar = () => {
       >
         <img
           src="https://res.cloudinary.com/dxtiguwzm/image/upload/v1747932834/lone-star-locators-logo_wn85wu.png"
-          alt="Lone Star Locators Logo"
+          alt="Lone Star Locators"
           style={{ height: "50px", marginRight: "0.5rem" }}
         />
       </Link>
