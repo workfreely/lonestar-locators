@@ -3,11 +3,10 @@ import { createClient } from "@supabase/supabase-js";
 
 const SITE_URL = "https://www.lonestarlocators.app";
 
-// ✅ Server-only Supabase setup
+// Server-only Supabase setup
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-// 🔒 Never let sitemap crash the build
 const supabase =
   supabaseUrl && supabaseServiceKey
     ? createClient(supabaseUrl, supabaseServiceKey)
@@ -17,7 +16,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
 
   /* ===============================
-     STATIC CORE PAGES
+     STATIC CORE PAGES (HIGH PRIORITY)
   =============================== */
 
   const staticPages: MetadataRoute.Sitemap = [
@@ -37,26 +36,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   /* ===============================
-     CITY CATEGORY PAGES
+     CITY CATEGORY PAGES (INDEX-WORTHY ONLY)
+     ❌ Removed thin / navigational pages
   =============================== */
 
   const cities = ["san-antonio", "austin", "dallas", "houston"];
-  const categories = [
+
+  const indexableCategories = [
     "apartments",
     "luxury-apartments",
     "second-chance-apartments",
-    "penthouses",
     "townhomes",
     "new-construction-homes",
-    "neighborhoods",
-    "events",
-    "blog",
-    "free-apartment-locator",
-    "first-time-renters",
   ];
 
   const cityCategoryPages: MetadataRoute.Sitemap = cities.flatMap((city) =>
-    categories.map((category) => ({
+    indexableCategories.map((category) => ({
       url: `${SITE_URL}/${city}/${category}`,
       lastModified: now,
     }))
@@ -64,13 +59,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   /* ===============================
      APARTMENT LISTINGS
+     ✅ Active listings only
+     ✅ Crawl pacing friendly
   =============================== */
 
   const { data: listings } = supabase
-  ? await supabase
-      .from("properties_import")
-      .select("slug, city_slug, updated_at")
-  : { data: [] };
+    ? await supabase
+        .from("properties_import")
+        .select("slug, city_slug, updated_at")
+        .eq("status", "active")
+    : { data: [] };
 
   const listingPages: MetadataRoute.Sitemap =
     listings?.map((listing) => ({
@@ -81,15 +79,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })) ?? [];
 
   /* ===============================
-     PROPERTY REVIEWS
+     PROPERTY REVIEWS (PUBLISHED ONLY)
   =============================== */
 
-const { data: reviews } = supabase
-  ? await supabase
-      .from("property_reviews")
-      .select("slug, city_slug, review_type, updated_at, published_at")
-      .not("published_at", "is", null)
-  : { data: [] };
+  const { data: reviews } = supabase
+    ? await supabase
+        .from("property_reviews")
+        .select("slug, city_slug, review_type, updated_at, published_at")
+        .not("published_at", "is", null)
+    : { data: [] };
 
   const reviewPages: MetadataRoute.Sitemap =
     reviews?.map((review) => {
@@ -114,13 +112,14 @@ const { data: reviews } = supabase
 
   /* ===============================
      BLOG POSTS
+     ✅ Posts only, NOT blog hubs
   =============================== */
 
-const { data: blogs } = supabase
-  ? await supabase
-      .from("blogs_import")
-      .select("slug, city_slug, updated_at")
-  : { data: [] };
+  const { data: blogs } = supabase
+    ? await supabase
+        .from("blogs_import")
+        .select("slug, city_slug, updated_at")
+    : { data: [] };
 
   const blogPages: MetadataRoute.Sitemap =
     blogs?.map((blog) => ({
