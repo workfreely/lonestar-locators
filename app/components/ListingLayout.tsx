@@ -349,7 +349,7 @@ const handleShare = async () => {
         width: "100%",
         maxWidth: "100%",
         display: "block",
-        height: isMobile ? "100px" : "560px",
+       height: isMobile ? "100px" : "560px",
         objectFit: "cover",
         borderRadius: "8px",
         marginBottom: "1rem",
