@@ -320,21 +320,25 @@ const handleShare = async () => {
              className="watermark lightbox-watermark"
              style={{ position: "relative" }}
            >
-             <img
-               src={image}
-               alt={name}
-               onClick={() => openLightbox(0)}
-               style={{
-                 width: "100%",
-                 maxWidth: "100%",
-                 display: "block",
-                 height: "560px",
-                 objectFit: "cover",
-                 borderRadius: "8px",
-                 marginBottom: "1rem",
-                 cursor: "pointer",
-               }}
-             />
+             {/* ✅ NEW: wrapper takes the click (more reliable than img click) */}
+  <div
+    onClick={() => openLightbox(0)}
+    style={{ cursor: "zoom-in" }}
+  >
+    <img
+      src={image}
+      alt={name}
+      style={{
+        width: "100%",
+        maxWidth: "100%",
+        display: "block",
+        height: "560px",
+        objectFit: "cover",
+        borderRadius: "8px",
+        marginBottom: "1rem",
+      }}
+    />
+  </div>
 
 
              {/* ✅ SHARE BUTTON — HERO OVERLAY (TEXT) */}
@@ -354,36 +358,34 @@ const handleShare = async () => {
 
            </div>
 
-
-           <div
-             className="gallery-strip"
-             style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}
-           >
-             {gallery.slice(0, 5).map((img, i) => (
-               <div
-                 key={i}
-                 className="watermark gallery-watermark"
-                 style={{ width: "18.9%" }}
-               >
-                 <img
-                   src={img}
-                   alt={`Gallery ${i}`}
-                   onClick={() => openLightbox(i + 1)}
-                   style={{
-                     width: "100%",
-                     height: "100px",
-                     objectFit: "cover",
-                     borderRadius: "6px",
-                     cursor: "pointer",
-                     border:
-                       i + 1 === currentImage
-                         ? "2px solid green"
-                         : "1px solid #ccc",
-                   }}
-                 />
-               </div>
-             ))}
-           </div>
+<div
+  className="gallery-strip"
+  style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}
+>
+  {gallery.slice(0, 5).map((img, i) => (
+    <div
+      key={i}
+      className="watermark gallery-watermark"
+      style={{ width: "18.9%", cursor: "zoom-in" }}
+      onClick={() => openLightbox(i + 1)} // ✅ correct index
+    >
+      <img
+        src={img}
+        alt={`${name} gallery image ${i + 1}`}
+        style={{
+          width: "100%",
+          height: "100px",
+          objectFit: "cover",
+          borderRadius: "6px",
+          border:
+            i + 1 === currentImage
+              ? "2px solid #2e7d32"
+              : "1px solid #ccc",
+        }}
+      />
+    </div>
+  ))}
+</div>
 
 
            {/* TAGS */}
