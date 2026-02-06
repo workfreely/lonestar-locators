@@ -469,10 +469,6 @@ html {
 }
 
 /* ✅ Responsive fix for Listing Layout */
-@media (max-width: 768px) {
-  .listing-layout {
-    flex-direction: column !important;
-  }
 
   .listing-layout > div {
     width: 100% !important;

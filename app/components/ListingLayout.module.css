@@ -178,12 +178,6 @@
   object-fit: cover;
 }
 
-@media (max-width: 768px) {
-  .listing-main .watermark.lightbox-watermark img {
-    height: 330px;
-  }
-}
-
 /* ===============================
    IFRAMES (MAP + VIDEO)
    =============================== */
@@ -253,13 +247,3 @@
   display: block;
 }
 
-/* ===============================
-   MOBILE IMAGE CONSISTENCY FIX
-   Hero = Gallery height on mobile
-   =============================== */
-@media (max-width: 768px) {
-  .listing-main .watermark.lightbox-watermark img {
-    height: 100px;      /* EXACT match to gallery images */
-    object-fit: cover;
-  }
-}
