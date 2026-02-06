@@ -144,6 +144,21 @@ if (process.env.NODE_ENV === "development") {
  const [lightboxOpen, setLightboxOpen] = useState(false);
  const [currentImage, setCurrentImage] = useState(0);
 
+ // ✅ Detect mobile (used to disable lightbox on mobile)
+const [isMobile, setIsMobile] = useState(false);
+
+useEffect(() => {
+  const checkMobile = () => {
+    setIsMobile(window.innerWidth < 768);
+  };
+
+  checkMobile(); // run once on mount
+  window.addEventListener("resize", checkMobile);
+
+  return () => window.removeEventListener("resize", checkMobile);
+}, []);
+
+
  const images = [image, ...gallery];
 
 
@@ -322,7 +337,9 @@ const handleShare = async () => {
            >
              {/* ✅ NEW: wrapper takes the click (more reliable than img click) */}
   <div
-    onClick={() => openLightbox(0)}
+    onClick={() => {
+  if (!isMobile) openLightbox(0);
+}}
     style={{ cursor: "zoom-in" }}
   >
     <img
@@ -367,7 +384,9 @@ const handleShare = async () => {
       key={i}
       className="watermark gallery-watermark"
       style={{ width: "18.9%", cursor: "zoom-in" }}
-      onClick={() => openLightbox(i + 1)} // ✅ correct index
+      onClick={() => {
+  if (!isMobile) openLightbox(i + 1);
+}}
     >
       <img
         src={img}
