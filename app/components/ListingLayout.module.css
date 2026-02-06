@@ -180,7 +180,8 @@
 
 @media (max-width: 768px) {
   .listing-main .watermark.lightbox-watermark img {
-    height: 330px;
+    height: 100px;
+    object-fit: cover;
   }
 }
 
