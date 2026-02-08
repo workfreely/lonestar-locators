@@ -236,10 +236,9 @@ useEffect(() => {
             email: formData.email,
             move_date: formData.moveDate,
             sms_opt_in: formData.sms_consent,
-sms_consent_at: formData.sms_consent
-  ? new Date().toISOString()
-  : null,
-
+            sms_consent_at: formData.sms_consent
+            ? new Date().toISOString()
+            : null,
 
             notes: propertyName
               ? `Short Form | Listing: ${propertyName}`
@@ -317,16 +316,8 @@ if (formData.sms_consent && formData.phone) {
           email: formData.email,
           move_date: formData.moveDate,
           city: formData.city,
-         neighborhoods:
-  formData.neighborhoods.length > 0
-    ? formData.neighborhoods.join(", ")
-    : null,
-
-          submarkets:
-  formData.submarkets && formData.submarkets.length > 0
-    ? formData.submarkets.join(", ")
-    : null,
-
+          neighborhoods: formData.neighborhoods.join(", "),
+          submarkets: formData.submarkets?.join(", "), // ✅ ONLY if you add column
           property_type: formData.propertyType,
           desired_rent: formData.desiredRent,
           beds: formData.beds,
@@ -351,6 +342,7 @@ if (formData.sms_consent && formData.phone) {
           sms_opt_in: formData.sms_consent,
           sms_consent_at: new Date().toISOString(),
           lead_type: "full",
+          lead_category: "renter", // ✅ ADD THIS LINE
         },
       ]);
 
