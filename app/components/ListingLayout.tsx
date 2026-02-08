@@ -318,8 +318,7 @@ const handleShare = async () => {
        <Breadcrumbs
          items={[
            { label: "Home", href: "/" },
-          { label: city || "Apartments", href: `/apartments/${city_slug}` },
-
+        { label: city || "Apartments", href: `/${city_slug}/apartments` },
 
            { label: name },
          ]}
