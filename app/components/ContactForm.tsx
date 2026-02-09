@@ -423,26 +423,25 @@ if (formData.sms_consent && formData.phone) {
 
 
   return (
-    <form
-  onSubmit={handleSubmit}
-  style={{
-    backgroundColor: "#f9f9f9",
-    padding: "1.5rem",
-    borderRadius: "8px",
+  <form
+    onSubmit={handleSubmit}
+    noValidate
+    style={{
+      backgroundColor: "#f9f9f9",
+      padding: "1.5rem",
+      borderRadius: "8px",
+      border: "1px solid #e0e0e0",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+      fontFamily: "'Inter', sans-serif",
+      minWidth: "320px",
+      width: "100%",
+      maxWidth: "540px",
+      margin: "0 auto",
+      boxSizing: "border-box",
+      marginTop: "0rem",
+    }}
+  >
 
-    // ✅ RESTORED border (matches ListingLayout)
-    border: "1px solid #e0e0e0",
-
-    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-    fontFamily: "'Inter', sans-serif",
-    minWidth: "320px",
-    width: "100%",
-    maxWidth: "540px",
-    margin: "0 auto",
-    boxSizing: "border-box",
-    marginTop: "0rem",
-  }}
->
       {/* Dynamic Heading */}
       {isShortForm && (
         <h2
