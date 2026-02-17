@@ -1,44 +1,41 @@
+export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
+import { Resend } from "resend";
 
-/**
- * POST /api/sms/send-welcome
- *
- * Purpose:
- * - Send the initial welcome SMS
- * - Triggered after a lead submits the form
- *
- * Status:
- * - SMS sending logic will be added later
- * - Safe placeholder for now
- */
+const resend = new Resend(process.env.RESEND_API_KEY!);
 
-export async function POST(_req: Request) {
+export async function POST(req: Request) {
   try {
-    // 🔒 Parse request body (future use)
-    const _body = await _req.json();
+    const { to, subject, html } = await req.json();
 
-    /**
-     * 🔔 LAUNCH NOTE:
-     * SMS sending logic (Twilio) will be added here.
-     * Variables are prefixed with "_" to avoid ESLint errors pre-launch.
-     *
-     * TODO:
-     * 1. Validate lead exists
-     * 2. Check sms_opt_in = true
-     * 3. Check sms_welcome_sent = false
-     * 4. Send SMS via Twilio
-     * 5. Update Supabase flags
-     */
+    if (!to || !subject || !html) {
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
 
-    return NextResponse.json({
-      success: true,
-      message: "Welcome SMS route ready",
+    const { error } = await resend.emails.send({
+      from: "Jay Morris <jay@lonestarlocators.app>",
+      to,
+      subject,
+      html,
     });
-  } catch (error) {
-    console.error("Welcome SMS error:", error);
 
+    if (error) {
+      console.error("Resend error:", error);
+      return NextResponse.json(
+        { error: "Email provider error" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("Send email route error:", err);
     return NextResponse.json(
-      { success: false, error: "Failed to process welcome SMS" },
+      { error: "Failed to send email" },
       { status: 500 }
     );
   }

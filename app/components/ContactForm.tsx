@@ -50,47 +50,62 @@ const utmContent = searchParams.get("utm_content");
 // ======================================================
 
   const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    phone: "",
-    email: "",
-    moveDate: "",
-    city: "",
-    neighborhoods: [] as string[],
-    submarkets: [] as string[], // ✅ REQUIRED
-    propertyType: "",
-    desiredRent: "",
-    beds: "",
-    baths: "",
-    income: "",
-    creditHistory: "",
-    creditScore: "",
-    brokenLeaseAge: "",
-    brokenLeaseAmount: "",
-    evictionCourt: "",
-    evictionAge: "",
-    evictionBalance: "",
-    felonyAge: "",
-    felonyCharge: "",
-    misdemeanorAge: "",
-    misdemeanorCharge: "",
-    bankruptcyAge: "",
-    foreclosureAge: "",
-    foreclosureBalance: "",
-    notes: "",
-    website: "",
-    sms_consent: false,
+  // ==========================
+  // USER INPUT
+  // ==========================
+  firstName: "",
+  lastName: "",
+  phone: "",
+  email: "",
+  moveDate: "",
+  city: "",
+  neighborhoods: [] as string[],
+  submarkets: [] as string[],
+  propertyType: "",
+  desiredRent: "",
+  beds: "",
+  baths: "",
+  income: "",
 
-    
-    // ✅ TRACKING
+  // ==========================
+  // CREDIT / SCREENING
+  // ==========================
+  creditHistory: "",
+  creditScore: "",
+  brokenLeaseAge: "",
+  brokenLeaseAmount: "",
+  evictionCourt: "",
+  evictionAge: "",
+  evictionBalance: "",
+  felonyAge: "",
+  felonyCharge: "",
+  misdemeanorAge: "",
+  misdemeanorCharge: "",
+  bankruptcyAge: "",
+  foreclosureAge: "",
+  foreclosureBalance: "",
 
-    page_url: pageUrl,
-    referrer: referrer,
-    utm_source: utmSource,
-    utm_medium: utmMedium,
-    utm_campaign: utmCampaign,
-    utm_content: utmContent,
-  });
+  // ==========================
+  // NOTES / META
+  // ==========================
+  notes: "",
+  website: "",
+
+  // ==========================
+  // CONSENT
+  // ==========================
+  sms_consent: false,
+
+  // ==========================
+  // TRACKING (NOT USER INPUT)
+  // ==========================
+  page_url: pageUrl,
+  referrer: referrer,
+  utm_source: utmSource,
+  utm_medium: utmMedium,
+  utm_campaign: utmCampaign,
+  utm_content: utmContent,
+});
 
 useEffect(() => {
   const emailFromUrl = searchParams.get("email");
@@ -229,31 +244,49 @@ useEffect(() => {
     if (isShortForm) {
       try {
         const { data, error } = await supabase.from("leads").insert([
-          {
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            phone: formData.phone,
-            email: formData.email,
-            move_date: formData.moveDate,
-            sms_opt_in: formData.sms_consent,
-            sms_consent_at: formData.sms_consent
-            ? new Date().toISOString()
-            : null,
+  {
+    // ======================================================
+    // USER INPUT (Short Form)
+    // ======================================================
+    first_name: formData.firstName,
+    last_name: formData.lastName,
+    phone: formData.phone,
+    email: formData.email,
+    move_date: formData.moveDate || null,
 
-            notes: propertyName
-              ? `Short Form | Listing: ${propertyName}`
-              : "Short Form Submission",
-            website: formData.website,
-            lead_type: "short",
-            lead_category: "renter",
-            page_url: pageUrl,
-            referrer: referrer,
-            utm_source: utmSource,
-            utm_medium: utmMedium,
-            utm_campaign: utmCampaign,
-            utm_content: utmContent,
-          },
-        ]);
+    // ======================================================
+    // SMS CONSENT
+    // ======================================================
+    sms_opt_in: formData.sms_consent,
+    sms_consent_at: formData.sms_consent
+      ? new Date().toISOString()
+      : null,
+
+    // ======================================================
+    // INTERNAL NOTES / META
+    // ======================================================
+    notes: propertyName
+      ? `Short Form | Listing: ${propertyName}`
+      : "Short Form Submission",
+    website: formData.website,
+
+    // ======================================================
+    // LEAD CLASSIFICATION
+    // ======================================================
+    lead_type: "short",
+    lead_category: "renter",
+
+    // ======================================================
+    // ATTRIBUTION / TRACKING
+    // ======================================================
+    page_url: pageUrl,
+    referrer: referrer,
+    utm_source: utmSource,
+    utm_medium: utmMedium,
+    utm_campaign: utmCampaign,
+    utm_content: utmContent,
+  },
+]);
 
         if (error) {
           console.error("Error saving short form:", error);
@@ -309,45 +342,71 @@ if (formData.sms_consent && formData.phone) {
    
     try {
       const { data, error } = await supabase.from("leads").insert([
-        {
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          phone: formData.phone,
-          email: formData.email,
-          move_date: formData.moveDate,
-          city: formData.city,
-          neighborhoods: formData.neighborhoods.join(", "),
-          submarkets: formData.submarkets?.join(", "), // ✅ ONLY if you add column
-          property_type: formData.propertyType,
-          desired_rent: formData.desiredRent,
-          beds: formData.beds,
-          baths: formData.baths,
-          income: formData.income,
-          credit_history: formData.creditHistory,
-          credit_score: formData.creditScore,
-          broken_lease_age: formData.brokenLeaseAge,
-          broken_lease_amount: formData.brokenLeaseAmount,
-          eviction_court: formData.evictionCourt,
-          eviction_age: formData.evictionAge,
-          eviction_balance: formData.evictionBalance,
-          felony_age: formData.felonyAge,
-          felony_charge: formData.felonyCharge,
-          misdemeanor_age: formData.misdemeanorAge,
-          misdemeanor_charge: formData.misdemeanorCharge,
-          bankruptcy_age: formData.bankruptcyAge,
-          foreclosure_age: formData.foreclosureAge,
-          foreclosure_balance: formData.foreclosureBalance,
-          notes: formData.notes,
-          website: formData.website,
-          sms_opt_in: formData.sms_consent,
-          sms_consent_at: new Date().toISOString(),
-          lead_type: "full",
-          lead_category: "renter", // ✅ ADD THIS LINE
-        },
-      ]);
+  {
+    // ======================================================
+    // USER INPUT (Renter Profile)
+    // ======================================================
+    first_name: formData.firstName,
+    last_name: formData.lastName,
+    phone: formData.phone,
+    email: formData.email,
+    move_date: formData.moveDate || null, 
+    city: formData.city,
+    neighborhoods: formData.neighborhoods.join(", "),
+    submarkets: formData.submarkets?.join(", "),
+    property_type: formData.propertyType,
+    desired_rent: formData.desiredRent,
+    beds: formData.beds,
+    baths: formData.baths,
+    income: formData.income,
+
+    // ======================================================
+    // CREDIT / SCREENING INFO (Renter-only)
+    // ======================================================
+    credit_history: formData.creditHistory,
+    credit_score: formData.creditScore,
+    broken_lease_age: formData.brokenLeaseAge,
+    broken_lease_amount: formData.brokenLeaseAmount,
+    eviction_court: formData.evictionCourt,
+    eviction_age: formData.evictionAge,
+    eviction_balance: formData.evictionBalance,
+    felony_age: formData.felonyAge,
+    felony_charge: formData.felonyCharge,
+    misdemeanor_age: formData.misdemeanorAge,
+    misdemeanor_charge: formData.misdemeanorCharge,
+    bankruptcy_age: formData.bankruptcyAge,
+    foreclosure_age: formData.foreclosureAge,
+    foreclosure_balance: formData.foreclosureBalance,
+
+    // ======================================================
+    // NOTES / META
+    // ======================================================
+    notes: formData.notes,
+    website: formData.website,
+
+    // ======================================================
+    // SMS CONSENT
+    // ======================================================
+    sms_opt_in: formData.sms_consent,
+    sms_consent_at: formData.sms_consent
+      ? new Date().toISOString()
+      : null,
+
+    // ======================================================
+    // LEAD CLASSIFICATION
+    // ======================================================
+    lead_type: "full",
+    lead_category: "renter",
+
+    // ======================================================
+    // ATTRIBUTION / SOURCE
+    // ======================================================
+    source: utmSource ?? "direct",
+  },
+]);
 
       if (error) {
-        console.error("Error saving full form:", error);
+       console.error("FULL ERROR:", JSON.stringify(error, null, 2));
         alert(
           "Yikes! There was an error submitting the form. Please try again."
         );
@@ -355,6 +414,33 @@ if (formData.sms_consent && formData.phone) {
       }
 
       console.log("Lead submitted successfully to Supabase!", data);
+
+// ------------------------------------------------------
+// Send Confirmation Email to Lead (Non-blocking)
+// ------------------------------------------------------
+if (formData.email) {
+  try {
+    // 1️⃣ Fetch renter template
+    const templateRes = await fetch(
+      `/api/templates/renter?firstName=${encodeURIComponent(formData.firstName)}&city=${encodeURIComponent(formData.city)}&moveDate=${encodeURIComponent(formData.moveDate)}&budget=${encodeURIComponent(formData.desiredRent)}&beds=${encodeURIComponent(formData.beds)}&baths=${encodeURIComponent(formData.baths)}&propertyType=${encodeURIComponent(formData.propertyType)}&neighborhoods=${encodeURIComponent(formData.neighborhoods.join(", "))}&creditScore=${encodeURIComponent(formData.creditScore)}&creditHistory=${encodeURIComponent(formData.creditHistory)}`
+    );
+
+    const templateHtml = await templateRes.text();
+
+    // 2️⃣ Send email using template
+    await fetch("/api/send-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to: formData.email,
+      subject: `${formData.city} Search Update`,
+        html: templateHtml,
+      }),
+    });
+  } catch (err) {
+    console.error("Lead confirmation email failed:", err);
+  }
+}
 
       // ------------------------------------------------------
 // Trigger Welcome SMS (non-blocking)
@@ -423,25 +509,26 @@ if (formData.sms_consent && formData.phone) {
 
 
   return (
-  <form
-    onSubmit={handleSubmit}
-    noValidate
-    style={{
-      backgroundColor: "#f9f9f9",
-      padding: "1.5rem",
-      borderRadius: "8px",
-      border: "1px solid #e0e0e0",
-      boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-      fontFamily: "'Inter', sans-serif",
-      minWidth: "320px",
-      width: "100%",
-      maxWidth: "540px",
-      margin: "0 auto",
-      boxSizing: "border-box",
-      marginTop: "0rem",
-    }}
-  >
+    <form
+  onSubmit={handleSubmit}
+  style={{
+    backgroundColor: "#f9f9f9",
+    padding: "1.5rem",
+    borderRadius: "8px",
 
+    // ✅ RESTORED border (matches ListingLayout)
+    border: "1px solid #e0e0e0",
+
+    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+    fontFamily: "'Inter', sans-serif",
+    minWidth: "320px",
+    width: "100%",
+    maxWidth: "540px",
+    margin: "0 auto",
+    boxSizing: "border-box",
+    marginTop: "0rem",
+  }}
+>
       {/* Dynamic Heading */}
       {isShortForm && (
         <h2

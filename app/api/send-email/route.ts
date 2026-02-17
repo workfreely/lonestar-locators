@@ -1,25 +1,39 @@
+export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
+import { Resend } from "resend";
+
+const resend = new Resend(process.env.RESEND_API_KEY!);
 
 export async function POST(req: Request) {
   try {
-    // Parse request body
-    // These fields are intentionally unused until email provider is wired
-    const {
-      to: _to,
-      subject: _subject,
-      html: _html,
-    } = await req.json();
+    const { to, subject, html } = await req.json();
 
-    /**
-     * 🔔 LAUNCH NOTE:
-     * Email sending logic (SendGrid / Resend / SES) will be added here.
-     * Variables are prefixed with "_" to avoid ESLint errors pre-launch.
-     */
+    if (!to || !subject || !html) {
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
 
-    return NextResponse.json({ success: true });
+    const { data, error } = await resend.emails.send({
+      from: "Jay Morris <jay@lonestarlocators.app>",
+      to,
+      subject,
+      html,
+    });
+
+    if (error) {
+      console.error("Resend error:", error);
+      return NextResponse.json(
+        { error: "Email provider error" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true, data });
   } catch (error) {
-    console.error("Send email error:", error);
-
+    console.error("Send email route error:", error);
     return NextResponse.json(
       { error: "Failed to send email" },
       { status: 500 }
