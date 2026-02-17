@@ -70,29 +70,36 @@ export async function GET() {
 
           <strong>Step 4:</strong> On your application, select “Realtor / Apartment Locator” under “How did you hear about us,” then list “Jay Morris with AptAmigo.”<br/><br/>
 
-          This keeps the service free and qualifies you for your cash rebate or free movers.
-        </div>
-      </div>
+          <div style="margin-top:20px;">
+  <div style="font-size:18px;font-weight:600;color:#0b3a75;">
+    This keeps the service free and qualifies you for your cash rebate or free movers.
+  </div>
+</div>
 
       <!-- VIDEO AUTHORITY SECTION -->
-<h3 style="margin-top:40px; margin-bottom:16px; font-size:19px;">
+<h3 style="margin-top:40px;margin-bottom:16px;font-size:19px;font-weight:700;">
   Watch video walkthroughs before you tour
 </h3>
 
-<div style="font-size:16px; line-height:1.7; color:#444;">
+<p style="margin:0;font-size:16px;line-height:1.7;">
   <a href="https://www.youtube.com/YOUR_CHANNEL_LINK"
      target="_blank"
-     style="color:#0b3a75; font-weight:600; text-decoration:none; display:inline-flex; align-items:center; gap:8px;">
-
+     style="color:#0b3a75;font-weight:600;text-decoration:none;display:inline-block;">
+     
     <img 
-      src="https://upload.wikimedia.org/wikipedia/commons/e/ef/Youtube_logo.png"
+      src="https://res.cloudinary.com/dxtiguwzm/image/upload/youtube-icon_qdqutz.png"
       alt="YouTube"
-      style="width:18px; height:18px; object-fit:contain;"
+      width="18"
+      height="18"
+      style="display:inline-block;vertical-align:middle;margin-right:8px;border:0;"
     />
 
-    Watch apartment video reviews on YouTube
+    <span style="vertical-align:middle;">
+      Watch apartment video reviews on YouTube
+    </span>
+
   </a>
-</div>
+</p>
 
 
       <!-- FOLLOW UP LINE -->
@@ -106,7 +113,7 @@ export async function GET() {
       <div style="display:flex; align-items:center; gap:20px;">
 
         <img
-          src="https://res.cloudinary.com/dxtiguwzm/image/upload/v1748014964/jay-morris-free-apartment-locator-san-antonio-texas_pgf7fs.png"
+          src="https://res.cloudinary.com/dxtiguwzm/image/upload/v1771299227/youtube-icon_qdqutz.png"
           alt="Jay Morris"
           style="width:95px; height:95px; border-radius:50%; object-fit:cover;"
         />

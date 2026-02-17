@@ -422,8 +422,18 @@ if (formData.email) {
   try {
     // 1️⃣ Fetch renter template
     const templateRes = await fetch(
-      `/api/templates/renter?firstName=${encodeURIComponent(formData.firstName)}&city=${encodeURIComponent(formData.city)}&moveDate=${encodeURIComponent(formData.moveDate)}&budget=${encodeURIComponent(formData.desiredRent)}&beds=${encodeURIComponent(formData.beds)}&baths=${encodeURIComponent(formData.baths)}&propertyType=${encodeURIComponent(formData.propertyType)}&neighborhoods=${encodeURIComponent(formData.neighborhoods.join(", "))}&creditScore=${encodeURIComponent(formData.creditScore)}&creditHistory=${encodeURIComponent(formData.creditHistory)}`
-    );
+  `/api/templates/renter?firstName=${encodeURIComponent(formData.firstName)}
+  &city=${encodeURIComponent(formData.city)}
+  &moveDate=${encodeURIComponent(formData.moveDate)}
+  &budget=${encodeURIComponent(formData.desiredRent)}
+  &beds=${encodeURIComponent(formData.beds)}
+  &baths=${encodeURIComponent(formData.baths)}
+  &propertyType=${encodeURIComponent(formData.propertyType)}
+  &neighborhoods=${encodeURIComponent(formData.neighborhoods.join(", "))}
+  &creditScore=${encodeURIComponent(formData.creditScore)}
+  &creditHistory=${encodeURIComponent(formData.creditHistory)}
+  &notes=${encodeURIComponent(formData.notes || "")}`
+);
 
     const templateHtml = await templateRes.text();
 

@@ -213,7 +213,7 @@ const Footer = () => {
       </div>
 
       <p style={{ textAlign: "center", marginTop: "1rem", fontSize: "0.85rem", color: "#aaa" }}>
-        © {new Date().getFullYear()} Lone Star Locators™. All Rights Reserved. Powered by AptAmigo. 
+        © {new Date().getFullYear()} Lone Star Locators™. All Rights Reserved. Powered by AptAmigo Brokerage. 
       </p>
     </footer>
   );
