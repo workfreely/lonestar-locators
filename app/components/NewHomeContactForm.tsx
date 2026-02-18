@@ -100,9 +100,9 @@ const utmContent = params?.get("utm_content");
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+const leadSource = utmSource ?? "direct";
   const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
-const leadSource = utmSource ?? "direct";
 
 // ------------------------------------------------------
 // Honeypot Bot Protection
@@ -202,11 +202,19 @@ if (formData.email) {
       notes: formData.message || "",
     });
 
-    const templateRes = await fetch(
-      `/api/templates/new-home?${emailParams.toString()}`
-    );
+   const baseUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  "https://lonestarlocators.app";
 
-    const templateHtml = await templateRes.text();
+const templateRes = await fetch(
+  `${baseUrl}/api/templates/buyer?${emailParams.toString()}`
+);
+
+    if (!templateRes.ok) {
+  throw new Error("Failed to load buyer email template");
+}
+
+const templateHtml = await templateRes.text();
 
     await fetch("/api/send-email", {
       method: "POST",
