@@ -421,18 +421,35 @@ if (formData.sms_consent && formData.phone) {
 if (formData.email) {
   try {
     // 1️⃣ Fetch renter template
-    const templateRes = await fetch(
-  `/api/templates/renter?firstName=${encodeURIComponent(formData.firstName)}
-  &city=${encodeURIComponent(formData.city)}
-  &moveDate=${encodeURIComponent(formData.moveDate)}
-  &budget=${encodeURIComponent(formData.desiredRent)}
-  &beds=${encodeURIComponent(formData.beds)}
-  &baths=${encodeURIComponent(formData.baths)}
-  &propertyType=${encodeURIComponent(formData.propertyType)}
-  &neighborhoods=${encodeURIComponent(formData.neighborhoods.join(", "))}
-  &creditScore=${encodeURIComponent(formData.creditScore)}
-  &creditHistory=${encodeURIComponent(formData.creditHistory)}
-  &notes=${encodeURIComponent(formData.notes || "")}`
+    const params = new URLSearchParams({
+  firstName: formData.firstName,
+  city: formData.city,
+  moveDate: formData.moveDate,
+  budget: formData.desiredRent,
+  beds: formData.beds,
+  baths: formData.baths,
+  propertyType: formData.propertyType,
+  neighborhoods: formData.neighborhoods.join(", "),
+  submarkets: formData.submarkets?.join(", ") || "",
+  creditScore: formData.creditScore,
+  creditHistory: formData.creditHistory,
+  brokenLeaseAge: formData.brokenLeaseAge || "",
+  brokenLeaseAmount: formData.brokenLeaseAmount || "",
+  evictionCourt: formData.evictionCourt || "",
+  evictionAge: formData.evictionAge || "",
+  evictionBalance: formData.evictionBalance || "",
+  felonyAge: formData.felonyAge || "",
+  felonyCharge: formData.felonyCharge || "",
+  misdemeanorAge: formData.misdemeanorAge || "",
+  misdemeanorCharge: formData.misdemeanorCharge || "",
+  bankruptcyAge: formData.bankruptcyAge || "",
+  foreclosureAge: formData.foreclosureAge || "",
+  foreclosureBalance: formData.foreclosureBalance || "",
+  notes: formData.notes || "",
+});
+
+const templateRes = await fetch(
+  `/api/templates/renter?${params.toString()}`
 );
 
     const templateHtml = await templateRes.text();
@@ -939,28 +956,32 @@ if (formData.sms_consent && formData.phone) {
                 name="beds"
                 value={formData.beds}
                 onChange={(e) => {
-                  const value = e.target.value;
-                  let newBaths = formData.baths;
+  const value = e.target.value;
 
-                  if (value === "1") {
-                    newBaths = "1";
-                  } else if (value === "2") {
-                    newBaths = "2";
-                  } else if (value === "3+") {
-                    newBaths = "2";
-                  }
+  // Always reset baths fresh to prevent stale state
+  let newBaths = "";
 
-                  // Rental Home: lock 3+ beds, default 2 baths
-                  if (formData.propertyType === "Rental Home") {
-                    newBaths = "2";
-                  }
+  // Rental Home: lock 3+ beds, default 2 baths
+  if (formData.propertyType === "Rental Home") {
+    newBaths = "2";
+  } else {
+    // Standard apartment logic
+    if (value === "1") {
+      newBaths = "1";
+    } else if (value === "2") {
+      newBaths = "2";
+    } else if (value === "3+") {
+      newBaths = "2";
+    }
+  }
 
-                  setFormData((prev) => ({
-                    ...prev,
-                    beds: value,
-                    baths: newBaths,
-                  }));
-                }}
+  setFormData((prev) => ({
+    ...prev,
+    beds: value,
+    baths: newBaths,
+  }));
+}}
+
                 style={inputStyle}
                 disabled={formData.propertyType === "Rental Home"} // 🔹 Keep it visible but disabled
               >

@@ -7,16 +7,13 @@ export async function GET(req: NextRequest) {
   // SAFE PARAM HANDLING
   // ==========================
 
-  const firstNameRaw = searchParams.get("firstName");
   const firstName =
-    firstNameRaw && firstNameRaw.trim().length > 1
-      ? firstNameRaw.trim()
-      : "there";
-
+  searchParams.get("firstName")?.trim() || "there";
   const cityRaw = searchParams.get("city");
-const city = cityRaw && cityRaw.trim().length > 1
-  ? cityRaw.trim()
-  : "Texas";
+  const city =
+    cityRaw && cityRaw.trim().length > 1
+      ? cityRaw.trim()
+      : "Texas";
 
   const rawMoveDate = searchParams.get("moveDate");
 
@@ -30,8 +27,8 @@ const city = cityRaw && cityRaw.trim().length > 1
       : "Not specified";
 
   const budget = searchParams.get("budget") || "Flexible";
-  const beds = searchParams.get("beds") || "Flexible";
-  const baths = searchParams.get("baths") || "Flexible";
+  const beds = searchParams.get("beds") || "";
+  const baths = searchParams.get("baths") || "";
   const propertyType = searchParams.get("propertyType") || "Apartment";
   const neighborhoods =
     searchParams.get("neighborhoods") || "Not specified";
@@ -39,6 +36,38 @@ const city = cityRaw && cityRaw.trim().length > 1
     searchParams.get("creditScore") || "Not specified";
   const creditHistory =
     searchParams.get("creditHistory") || "Not specified";
+    const submarkets = searchParams.get("submarkets") || "";
+
+const brokenLeaseAge = searchParams.get("brokenLeaseAge") || "";
+const brokenLeaseAmount = searchParams.get("brokenLeaseAmount") || "";
+
+const evictionCourt = searchParams.get("evictionCourt") || "";
+const evictionAge = searchParams.get("evictionAge") || "";
+const evictionBalance = searchParams.get("evictionBalance") || "";
+
+const felonyAge = searchParams.get("felonyAge") || "";
+const felonyCharge = searchParams.get("felonyCharge") || "";
+
+const misdemeanorAge = searchParams.get("misdemeanorAge") || "";
+const misdemeanorCharge = searchParams.get("misdemeanorCharge") || "";
+
+const bankruptcyAge = searchParams.get("bankruptcyAge") || "";
+
+const foreclosureAge = searchParams.get("foreclosureAge") || "";
+const foreclosureBalance = searchParams.get("foreclosureBalance") || "";
+
+
+  // ==========================
+  // CLEAN LAYOUT LOGIC
+  // ==========================
+
+  let layout = "Flexible";
+
+  if (beds && baths) {
+    const bedLabel = beds === "1" ? "Bed" : "Beds";
+    const bathLabel = baths === "1" ? "Bath" : "Baths";
+    layout = `${beds} ${bedLabel} / ${baths} ${bathLabel}`;
+  }
 
   // ==========================
   // NOTES (SAFE RENDER)
@@ -46,7 +75,6 @@ const city = cityRaw && cityRaw.trim().length > 1
 
   const notesRaw = searchParams.get("notes") || "";
 
-  // Prevent HTML breaking layout
   const notes = notesRaw
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -77,10 +105,8 @@ const city = cityRaw && cityRaw.trim().length > 1
   />
 </div>
 
-<!-- Divider -->
 <div style="height:1px;width:100%;background:#e6e6e6;margin:0 0 32px 0;"></div>
 
-<!-- GREETING -->
 <h2 style="font-size:24px;font-weight:700;margin:0 0 20px 0;color:#111;">
   Hi ${firstName},
 </h2>
@@ -108,12 +134,67 @@ const city = cityRaw && cityRaw.trim().length > 1
   <div style="font-size:16px;line-height:1.8;color:#444;">
     <strong>Move Date:</strong> ${formattedMoveDate}<br/>
     <strong>Budget:</strong> ${budget}<br/>
-    <strong>Bedrooms:</strong> ${beds}<br/>
-    <strong>Bathrooms:</strong> ${baths}<br/>
+    <strong>Layout:</strong> ${layout}<br/>
     <strong>Property Type:</strong> ${propertyType}<br/>
-    <strong>Preferred Areas:</strong> ${neighborhoods}<br/>
+    <strong>Preferred Areas:</strong> ${neighborhoods}
+    ${submarkets ? `<br/><strong>Nearby Areas:</strong> ${submarkets}` : ""}<br/>
     <strong>Estimated Credit Score:</strong> ${creditScore}<br/>
     <strong>Credit Background:</strong> ${creditHistory}
+
+    ${
+      creditHistory === "Broken Lease"
+        ? `
+        ${brokenLeaseAge ? `<br/><strong>Broken Lease Age:</strong> ${brokenLeaseAge}` : ""}
+        ${brokenLeaseAmount ? `<br/><strong>Broken Lease Balance:</strong> ${brokenLeaseAmount}` : ""}
+        `
+        : ""
+    }
+
+    ${
+      creditHistory === "Eviction"
+        ? `
+        ${evictionCourt ? `<br/><strong>Went to Court:</strong> ${evictionCourt}` : ""}
+        ${evictionAge ? `<br/><strong>Eviction Age:</strong> ${evictionAge}` : ""}
+        ${evictionBalance ? `<br/><strong>Eviction Balance:</strong> ${evictionBalance}` : ""}
+        `
+        : ""
+    }
+
+    ${
+      creditHistory === "Felony"
+        ? `
+        ${felonyAge ? `<br/><strong>Felony Age:</strong> ${felonyAge}` : ""}
+        ${felonyCharge ? `<br/><strong>Felony Charge:</strong> ${felonyCharge}` : ""}
+        `
+        : ""
+    }
+
+    ${
+      creditHistory === "Misdemeanor"
+        ? `
+        ${misdemeanorAge ? `<br/><strong>Misdemeanor Age:</strong> ${misdemeanorAge}` : ""}
+        ${misdemeanorCharge ? `<br/><strong>Misdemeanor Charge:</strong> ${misdemeanorCharge}` : ""}
+        `
+        : ""
+    }
+
+    ${
+      creditHistory === "Bankruptcy"
+        ? `
+        ${bankruptcyAge ? `<br/><strong>Bankruptcy Age:</strong> ${bankruptcyAge}` : ""}
+        `
+        : ""
+    }
+
+    ${
+      creditHistory === "Foreclosure"
+        ? `
+        ${foreclosureAge ? `<br/><strong>Foreclosure Age:</strong> ${foreclosureAge}` : ""}
+        ${foreclosureBalance ? `<br/><strong>Foreclosure Balance:</strong> ${foreclosureBalance}` : ""}
+        `
+        : ""
+    }
+
     ${
       notes.length > 5
         ? `
@@ -130,68 +211,58 @@ const city = cityRaw && cityRaw.trim().length > 1
   </div>
 </div>
 
+
 <!-- WHAT HAPPENS NEXT -->
 <div style="margin-top:40px;">
   <h3 style="margin-bottom:20px;font-size:20px;">What Happens Next?</h3>
 
   <div style="font-size:16px;line-height:1.8;color:#444;">
 
-    <strong>Step 1:</strong> I personally review real-time pricing and availability to identify the best options for your approval profile.<br/><br/>
+    <div style="margin-bottom:14px;">
+      <span style="font-size:17px;font-weight:700;color:#111;">
+        Step 1:
+      </span>
+      I personally review real-time pricing and availability to identify the best options for your approval profile.
+    </div>
 
-    <strong>Step 2:</strong> You receive a focused custom list with clear pricing and incentive details.<br/><br/>
+    <div style="margin-bottom:14px;">
+      <span style="font-size:17px;font-weight:700;color:#111;">
+        Step 2:
+      </span>
+      You receive a focused custom list with clear pricing and incentive details.
+    </div>
 
-    <strong>Step 3:</strong> We tour only the properties that make the most sense for you.<br/><br/>
+    <div style="margin-bottom:14px;">
+      <span style="font-size:17px;font-weight:700;color:#111;">
+        Step 3:
+      </span>
+      We tour only the properties that make the most sense for you.
+    </div>
 
-    <strong>Step 4:</strong> On your application, select 
-    <strong>“Realtor / Apartment Locator”</strong> under 
-    <strong>“How did you hear about us”</strong>, then list 
-    <strong>“Jay Morris with AptAmigo.”</strong><br/><br/>
-
-    <strong>This keeps the service free and qualifies you for your cash rebate or free movers.</strong>
+    <div>
+      <span style="font-size:17px;font-weight:700;color:#111;">
+        Step 4:
+      </span>
+      On your application, select 
+      <strong>“Realtor / Apartment Locator”</strong> under 
+      <strong>“How did you hear about us”</strong>, then list 
+      <strong>“Jay Morris with AptAmigo.”</strong><br/><br/>
+      <strong>This keeps the service free and qualifies you for your cash rebate or free movers.</strong>
+    </div>
 
   </div>
 </div>
 
-<!-- VIDEO SECTION -->
-<h3 style="margin-top:40px;margin-bottom:16px;font-size:20px;">
-  Watch Before You Tour
-</h3>
 
-<div style="font-size:17px;line-height:1.7;color:#444;">
-  <a href=""
-     target="_blank"
-     style="
-       color:#0b3a75;
-       font-weight:600;
-       text-decoration:none;
-       display:inline-flex;
-       align-items:center;
-       gap:8px;
-     ">
+<!-- VIDEO SECTION --> <h3 style="margin-top:40px;margin-bottom:16px;font-size:20px;"> Watch Before You Tour </h3> <div style="font-size:17px;line-height:1.7;color:#444;"> <a href="" target="_blank" style=" color:#0b3a75; font-weight:600; text-decoration:none; display:inline-flex; align-items:center; gap:8px; "> <img src="https://res.cloudinary.com/dxtiguwzm/image/upload/v1771299227/youtube-icon_qdqutz.png" alt="YouTube" width="20" height="20" style="display:inline-block;vertical-align:middle;" /> Apartment Reviews Coming Soon </a> </div>
 
-    <img 
-      src="https://res.cloudinary.com/dxtiguwzm/image/upload/v1771299227/youtube-icon_qdqutz.png"
-      alt="YouTube"
-      width="20"
-      height="20"
-      style="display:inline-block;vertical-align:middle;"
-    />
-
-    Apartment Reviews Coming Soon
-  </a>
-</div>
-
-
-<!-- FOLLOW UP -->
 <div style="margin-top:30px;font-size:16px;color:#444;">
   If anything changes with your budget, location, or timeline, just reply to this email and let me know.
 </div>
 
 <hr style="border:none;border-top:1px solid #eee;margin:40px 0;" />
 
-<!-- AGENT -->
 <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
-
   <img
     src="https://res.cloudinary.com/dxtiguwzm/image/upload/v1748014964/jay-morris-free-apartment-locator-san-antonio-texas_pgf7fs.png"
     alt="Jay Morris"
@@ -199,7 +270,6 @@ const city = cityRaw && cityRaw.trim().length > 1
     height="90"
     style="border-radius:50%;object-fit:cover;"
   />
-
   <div style="font-size:14px;color:#555;line-height:1.6;">
     <div style="font-size:16px;font-weight:700;color:#222;">
       Jay Morris
@@ -208,12 +278,10 @@ const city = cityRaw && cityRaw.trim().length > 1
     (210) 895 5766<br/>
     jay.morris@aptamigo.com
   </div>
-
 </div>
 
 </div>
 
-<!-- FOOTER -->
 <div style="max-width:640px;margin:30px auto 0 auto;text-align:center;font-size:12px;color:#777;line-height:1.6;">
   © ${new Date().getFullYear()} Lone Star Locators™ powered by AptAmigo Brokerage<br/>
   San Antonio | Austin | Dallas | Houston
