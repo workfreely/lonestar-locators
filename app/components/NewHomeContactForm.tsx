@@ -202,14 +202,9 @@ if (formData.email) {
       notes: formData.message || "",
     });
 
-   const baseUrl =
-  process.env.NEXT_PUBLIC_SITE_URL ||
-  "https://lonestarlocators.app";
-
 const templateRes = await fetch(
-  `${baseUrl}/api/templates/buyer?${emailParams.toString()}`
+  `/api/templates/buyer?${emailParams.toString()}`
 );
-
     if (!templateRes.ok) {
   throw new Error("Failed to load buyer email template");
 }
