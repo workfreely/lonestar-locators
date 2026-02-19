@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
 <!-- NEW HOME SUMMARY -->
 <div style="margin-top:32px;background:#f8f9fb;padding:24px;border-radius:10px;border:1px solid #eee;">
   <h3 style="margin:0 0 16px 0;font-size:20px;">
-    Your Purchase Summary
+    Your New Home Summary
   </h3>
 
   <div style="font-size:16px;line-height:1.8;color:#444;">
