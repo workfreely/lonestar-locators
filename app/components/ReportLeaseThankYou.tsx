@@ -20,33 +20,34 @@ export default function ReportLeaseThankYou({
       }}
     >
       <h1
-  style={{
-    fontSize: "2.6rem",
-    fontWeight: 800,
-    marginBottom: "1rem",
-    textAlign: "center", // ✅ ONLY THIS LINE
-  }}
->
-  🎉 Lease Reported Successfully
-  {firstName ? `, ${firstName}!` : "!"}
-</h1>
+        style={{
+          fontSize: "2.6rem",
+          fontWeight: 800,
+          marginBottom: "1.5rem",
+          textAlign: "center",
+        }}
+      >
+        🎉 Lease Reported Successfully!
+      </h1>
+
       {incentive === "cash" && (
-        <p style={{ fontSize: "1.25rem", color:  "#333" }}>
-          You selected a <strong>cash rebate!</strong> Once your lease is
-          verified with the property, we’ll confirm eligibility and next steps.
+        <p style={{ fontSize: "1.25rem", color: "#333" }}>
+          {firstName ? `${firstName}, ` : ""}
+          you selected a <strong>cash rebate!</strong> Your rebate will be
+          processed and issued within <strong>90 days of your move-in date.</strong>
+          Please allow time for verification with the apartment community.
+          We’ll be in touch as soon as it’s confirmed. Congrats again on your new home!
         </p>
       )}
 
       {incentive === "movers" && (
         <p style={{ fontSize: "1.25rem", color: "#333" }}>
-          You selected <strong>2 hours of free moving services!</strong>
+          {firstName ? `${firstName}, ` : ""}
+          you selected <strong>2 hours of free moving services!</strong>
+          Please allow time for verification with the apartment community.
+          We’ll be in touch as soon as it’s confirmed. Congrats again on your new home!
         </p>
       )}
-
-      <p style={{ marginTop: "1.1rem", fontSize: "1.25rem", color:  "#333" }}>
-        Please allow time for verification with the apartment community. We’ll
-        be in touch by text or email as soon as it's confirmed. Congrats again on your new home! 
-      </p>
     </div>
   );
 }
