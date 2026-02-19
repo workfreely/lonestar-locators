@@ -40,14 +40,13 @@ export default function ReportLeaseThankYou({
         </p>
       )}
 
-      {incentive === "movers" && (
-        <p style={{ fontSize: "1.25rem", color: "#333" }}>
-          {firstName ? `${firstName}, ` : ""}
-          you selected <strong>2 hours of free moving services!</strong>
-          Please allow time for verification with the apartment community.
-          We’ll be in touch as soon as it’s confirmed. Congrats again on your new home!
-        </p>
-      )}
+    {incentive === "movers" && (
+  <p style={{ fontSize: "1.25rem", color: "#333" }}>
+    {firstName?.trim() || "You"}, you selected{" "}
+    <strong>2 hours of free moving services!</strong>{" "}
+    Please allow time for verification with the apartment community. We’ll be in touch as soon as it’s confirmed. Congrats again on your new home!
+  </p>
+)}
     </div>
   );
 }

@@ -62,25 +62,26 @@ const handleChange = (
 
     const { error } = await supabase.from("reported_leases").insert([
       {
-        first_name: trimmedFirst,
-        last_name: trimmedLast,
-        email: formData.email,
-        phone: formData.phone,
-        city: trimmedCity,
-        property_name: trimmedProperty,
-        unit_number: formData.unitNumber,
-        lease_term: formData.leaseTerm,
-        base_rent: formData.baseRent,
-        move_in_date: formData.moveDate,
-        incentive_selected: formData.rebateChoice,
-        listed_jay_morris: formData.listedJayMorris,
-        notes: formData.notes,
-        page_url:
-          typeof window !== "undefined"
-            ? window.location.pathname
-            : null,
-        lead_type: "lease_report",
-      },
+  first_name: trimmedFirst,
+  last_name: trimmedLast,
+  email: formData.email,
+  phone: formData.phone,
+  city: trimmedCity,
+  property_name: trimmedProperty,
+  unit_number: formData.unitNumber,
+  lease_term: formData.leaseTerm,
+  base_rent: Number(formData.baseRent),  // ✅ Fixed
+  move_in_date: formData.moveDate,
+  incentive_selected: formData.rebateChoice,
+  listed_jay_morris: formData.listedJayMorris,
+  other_applicants: formData.otherApplicants, // ✅ since you added it
+  notes: formData.notes,
+  page_url:
+    typeof window !== "undefined"
+      ? window.location.pathname
+      : null,
+  lead_type: "lease_report",
+},
     ]);
 
     if (error) {
@@ -132,41 +133,39 @@ const handleChange = (
     // ======================================================
     // 2️⃣ INTERNAL NOTIFICATION (FULL BRANDED VERSION)
     // ======================================================
-    try {
-      const internalTemplate = await fetch(
-        `/api/templates/preview-lease-notification?firstName=${encodeURIComponent(
-          trimmedFirst
-        )}&lastName=${encodeURIComponent(
-          trimmedLast
-        )}&city=${encodeURIComponent(
-          trimmedCity
-        )}&propertyName=${encodeURIComponent(
-          trimmedProperty
-        )}&leaseTerm=${encodeURIComponent(
-          formData.leaseTerm
-        )}&baseRent=${encodeURIComponent(
-          formData.baseRent
-        )}&moveDate=${encodeURIComponent(
-          formData.moveDate
-        )}&incentive=${encodeURIComponent(
-          formData.rebateChoice
-        )}`
-      );
+try {
+  await fetch("/api/send-email", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      to: "jay@lonestarlocators.app",
+      subject: `New Lease Report: ${trimmedFirst} ${trimmedLast} (${trimmedCity})`,
+      html: `
+        <h2>New Lease Report Submitted</h2>
 
-      const internalHtml = await internalTemplate.text();
-
-      await fetch("/api/send-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to: "jay@lonestarlocators.app",
-          subject: `New Lease Report: ${trimmedFirst} ${trimmedLast} (${trimmedCity})`,
-          html: internalHtml,
-        }),
-      });
-    } catch (err) {
-      console.error("Internal lease notification failed:", err);
-    }
+        <p><strong>Name:</strong> ${trimmedFirst} ${trimmedLast}</p>
+        <p><strong>Other Applicants:</strong> ${
+          formData.otherApplicants || "None"
+        }</p>
+        <p><strong>Email:</strong> ${formData.email}</p>
+        <p><strong>Phone:</strong> ${formData.phone}</p>
+        <p><strong>City:</strong> ${trimmedCity}</p>
+        <p><strong>Property:</strong> ${trimmedProperty}</p>
+        <p><strong>Unit:</strong> ${formData.unitNumber || "N/A"}</p>
+        <p><strong>Lease Term:</strong> ${formData.leaseTerm} months</p>
+        <p><strong>Base Rent:</strong> $${formData.baseRent}</p>
+        <p><strong>Move-In Date:</strong> ${formData.moveDate}</p>
+        <p><strong>Incentive:</strong> ${formData.rebateChoice}</p>
+        <p><strong>Listed Jay Morris:</strong> ${
+          formData.listedJayMorris ? "Yes" : "No"
+        }</p>
+        <p><strong>Notes:</strong> ${formData.notes || "None"}</p>
+      `,
+    }),
+  });
+} catch (err) {
+  console.error("Internal lease notification failed:", err);
+}
 
     // ======================================================
     // 3️⃣ REDIRECT
