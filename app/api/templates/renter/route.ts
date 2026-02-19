@@ -262,25 +262,31 @@ const foreclosureBalance = searchParams.get("foreclosureBalance") || "";
 
 <hr style="border:none;border-top:1px solid #eee;margin:40px 0;" />
 
-<div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
-  <img
-    src="https://res.cloudinary.com/dxtiguwzm/image/upload/v1748014964/jay-morris-free-apartment-locator-san-antonio-texas_pgf7fs.png"
-    alt="Jay Morris"
-    width="90"
-    height="90"
-    style="border-radius:50%;object-fit:cover;"
-  />
-  <div style="font-size:14px;color:#555;line-height:1.6;">
-    <div style="font-size:16px;font-weight:700;color:#222;">
-      Jay Morris
-    </div>
-    Luxury Apartment Locator<br/>
-    (210) 895 5766<br/>
-    jay.morris@aptamigo.com
-  </div>
-</div>
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr>
+    <td width="110" valign="top">
+      <img
+        src="https://res.cloudinary.com/dxtiguwzm/image/upload/v1748014964/jay-morris-free-apartment-locator-san-antonio-texas_pgf7fs.png"
+        alt="Jay Morris"
+        width="90"
+        height="90"
+        style="border-radius:50%;display:block;"
+      />
+    </td>
 
-</div>
+    <td valign="top" style="font-size:14px;color:#555;line-height:1.6;">
+      <div style="font-size:16px;font-weight:700;color:#222;">
+        Jay Morris
+      </div>
+
+      Luxury Apartment Locator<br/>
+      Lone Star Locators<br/>
+      (210) 895-5766<br/>
+      jay@lonestarlocators.app
+    </td>
+  </tr>
+</table>
+
 
 <div style="max-width:640px;margin:30px auto 0 auto;text-align:center;font-size:12px;color:#777;line-height:1.6;">
   © ${new Date().getFullYear()} Lone Star Locators™ powered by AptAmigo Brokerage<br/>

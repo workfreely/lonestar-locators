@@ -176,19 +176,18 @@ website: formData.website, // honeypot
       // .select();
 
       if (error) {
-  console.error("❌ Error saving lead:", error);
-  alert("Something went wrong. Please try again.");
+  console.error("FULL ERROR:", JSON.stringify(error, null, 2));
+  alert(
+    "Yikes! There was an error submitting the form. Please try again."
+  );
   return;
 }
 
-console.log("✅ Lead submitted to Supabase!", data);
+console.log("Lead submitted successfully to Supabase!", data);
 
-// ------------------------------------------------------
-// Send Confirmation Email to Buyer
-// ------------------------------------------------------
 if (formData.email) {
   try {
-    const emailParams = new URLSearchParams({
+    const params = new URLSearchParams({
       firstName: formData.firstName,
       city: formData.city,
       moveDate: formData.moveDate,
@@ -202,49 +201,25 @@ if (formData.email) {
       notes: formData.message || "",
     });
 
-const templateRes = await fetch(
-  `/api/templates/buyer?${emailParams.toString()}`
-);
-    if (!templateRes.ok) {
-  throw new Error("Failed to load buyer email template");
-}
+    const templateRes = await fetch(
+      `/api/templates/buyer?${params.toString()}`
+    );
 
-const templateHtml = await templateRes.text();
+    const templateHtml = await templateRes.text();
 
     await fetch("/api/send-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         to: formData.email,
-        subject: `${formData.city} New Home Update`,
+        subject: `${formData.city} Search Update`,
         html: templateHtml,
       }),
     });
   } catch (err) {
-    console.error("Buyer confirmation email failed:", err);
+    console.error("Lead confirmation email failed:", err);
   }
 }
-
-
-      // Reset form
-      setFormData({
-        firstName: "",
-        lastName: "",
-        email: "",
-        phone: "",
-       city: defaultCity || "",
-        desiredPayment: "",
-        moveDate: "",
-        preApproved: "",
-        loanType: "",
-        firstTimeBuyer: "",
-        downPayment: "",
-        timeline: "",
-        creditScore: "",
-        message: "",
-        website: "",
-        sms_consent: false, // ✅ ADD HERE
-      });
 
      router.push(
   `/new-home-thank-you?firstName=${encodeURIComponent(formData.firstName)}&city=${encodeURIComponent(formData.city)}&timeline=${encodeURIComponent(formData.timeline)}&desiredPayment=${encodeURIComponent(formData.desiredPayment)}&loanType=${encodeURIComponent(formData.loanType)}&firstTimeBuyer=${encodeURIComponent(formData.firstTimeBuyer)}&creditScore=${encodeURIComponent(formData.creditScore)}&downPayment=${encodeURIComponent(formData.downPayment)}&preApproved=${encodeURIComponent(formData.preApproved)}&notes=${encodeURIComponent(formData.message)}`
