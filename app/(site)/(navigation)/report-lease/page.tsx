@@ -42,7 +42,7 @@ export default function ReportYourLease() {
           color: "#444",
         }}
       >
-        🎉 Congratulations on your new home! Report your lease below to claim your{" "}
+        🎉 Congrats on your new home! Report your lease to claim your{" "}
         <strong>Cash Rebate</strong> or{" "}
         <strong>2 Hours Free Movers</strong>.
       </p>
