@@ -212,7 +212,7 @@ if (formData.email) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         to: formData.email,
-        subject: `${formData.city} Search Update`,
+        subject: `${formData.city} New Home Update`,
         html: templateHtml,
       }),
     });

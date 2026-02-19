@@ -82,7 +82,9 @@ export async function GET(req: NextRequest) {
 </p>
 
 <p style="font-size:16px;line-height:1.7;color:#333;">
-  My role is to protect your interests, your investment, and your long-term equity from start to finish.
+  <strong>
+    My role is to protect your interests, your investment and your long-term equity from start to finish.
+  </strong>
 </p>
 
 <!-- NEW HOME SUMMARY -->
