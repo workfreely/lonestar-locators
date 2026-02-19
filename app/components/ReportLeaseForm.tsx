@@ -49,35 +49,41 @@ const handleChange = (
 };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    // Honeypot
-    if (formData.website) return;
+  // Honeypot
+  if (formData.website) return;
 
-    try {
-     const { error } = await supabase.from("reported_leases").insert([
-  {
-    first_name: formData.firstName,
-    last_name: formData.lastName,
-    email: formData.email,
-    phone: formData.phone,
-    city: formData.city,
-    property_name: formData.propertyName,
-    unit_number: formData.unitNumber,
-    lease_term: formData.leaseTerm,
-    base_rent: formData.baseRent,
-    move_in_date: formData.moveDate,
-    incentive_selected: formData.rebateChoice,
-    listed_jay_morris: formData.listedJayMorris,
-    notes: formData.notes,
-    page_url: typeof window !== "undefined" ? window.location.pathname : null,
-    lead_type: "renter",
-  },
-]);
+  try {
+    const trimmedFirst = formData.firstName.trim();
+    const trimmedLast = formData.lastName.trim();
+    const trimmedProperty = formData.propertyName.trim();
+    const trimmedCity = formData.city.trim();
 
-      // ⬇️ THIS IS WHERE DUPLICATE PROTECTION MESSAGE GOES
+    const { error } = await supabase.from("reported_leases").insert([
+      {
+        first_name: trimmedFirst,
+        last_name: trimmedLast,
+        email: formData.email,
+        phone: formData.phone,
+        city: trimmedCity,
+        property_name: trimmedProperty,
+        unit_number: formData.unitNumber,
+        lease_term: formData.leaseTerm,
+        base_rent: formData.baseRent,
+        move_in_date: formData.moveDate,
+        incentive_selected: formData.rebateChoice,
+        listed_jay_morris: formData.listedJayMorris,
+        notes: formData.notes,
+        page_url:
+          typeof window !== "undefined"
+            ? window.location.pathname
+            : null,
+        lead_type: "lease_report",
+      },
+    ]);
+
     if (error) {
-      // 23505 = unique constraint violation (email + property)
       if (error.code === "23505") {
         alert(
           "It looks like this lease has already been reported for this property. If this is a mistake, please contact us."
@@ -90,82 +96,86 @@ const handleChange = (
       return;
     }
 
- // ------------------------------------------------------
-// Send Confirmation Email (non-blocking)
-// ------------------------------------------------------
-if (formData.email) {
-  try {
-    const templateRes = await fetch(
-  `/api/templates/report-lease?firstName=${encodeURIComponent(
-    formData.firstName.trim()
-  )}&incentive=${encodeURIComponent(
-    formData.rebateChoice
-  )}&propertyName=${encodeURIComponent(
-    formData.propertyName.trim()
-  )}&moveInDate=${encodeURIComponent(
-    formData.moveDate || ""
-  )}`
-);
+    // ======================================================
+    // 1️⃣ CLIENT CONFIRMATION EMAIL
+    // ======================================================
+    if (formData.email) {
+      try {
+        const templateRes = await fetch(
+          `/api/templates/report-lease?firstName=${encodeURIComponent(
+            trimmedFirst
+          )}&incentive=${encodeURIComponent(
+            formData.rebateChoice
+          )}&propertyName=${encodeURIComponent(
+            trimmedProperty
+          )}&moveInDate=${encodeURIComponent(
+            formData.moveDate || ""
+          )}`
+        );
 
-    const templateHtml = await templateRes.text();
+        const templateHtml = await templateRes.text();
 
-    await fetch("/api/send-email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        to: formData.email,
-        subject: "Lease Reported Successfully",
-        html: templateHtml,
-      }),
-    });
-  } catch (err) {
-    console.error("Lease confirmation email failed:", err);
-  }
-}
+        await fetch("/api/send-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: formData.email,
+            subject: "Lease Reported Successfully",
+            html: templateHtml,
+          }),
+        });
+      } catch (err) {
+        console.error("Client confirmation email failed:", err);
+      }
+    }
 
-// ------------------------------------------------------
-// Send INTERNAL Notification (to Jay)
-// ------------------------------------------------------
-try {
-  await fetch("/api/send-email", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      to: "jay@lonestarlocators.app",
-      subject: `New Lease Report: ${formData.firstName.trim()} ${formData.lastName.trim()} (${formData.city})`,
-      html: `
-        <h2>New Lease Report Submitted</h2>
+    // ======================================================
+    // 2️⃣ INTERNAL NOTIFICATION (FULL BRANDED VERSION)
+    // ======================================================
+    try {
+      const internalTemplate = await fetch(
+        `/api/templates/preview-lease-notification?firstName=${encodeURIComponent(
+          trimmedFirst
+        )}&lastName=${encodeURIComponent(
+          trimmedLast
+        )}&city=${encodeURIComponent(
+          trimmedCity
+        )}&propertyName=${encodeURIComponent(
+          trimmedProperty
+        )}&leaseTerm=${encodeURIComponent(
+          formData.leaseTerm
+        )}&baseRent=${encodeURIComponent(
+          formData.baseRent
+        )}&moveDate=${encodeURIComponent(
+          formData.moveDate
+        )}&incentive=${encodeURIComponent(
+          formData.rebateChoice
+        )}`
+      );
 
-        <p><strong>Name:</strong> ${formData.firstName.trim()} ${formData.lastName.trim()}</p>
-        <p><strong>Email:</strong> ${formData.email}</p>
-        <p><strong>Phone:</strong> ${formData.phone}</p>
-        <p><strong>City:</strong> ${formData.city}</p>
-        <p><strong>Property:</strong> ${formData.propertyName}</p>
-        <p><strong>Unit:</strong> ${formData.unitNumber || "N/A"}</p>
-        <p><strong>Lease Term:</strong> ${formData.leaseTerm} months</p>
-        <p><strong>Base Rent:</strong> $${formData.baseRent}</p>
-        <p><strong>Move-In Date:</strong> ${formData.moveDate}</p>
-        <p><strong>Incentive Selected:</strong> ${formData.rebateChoice}</p>
-        <p><strong>Listed Jay Morris:</strong> ${
-          formData.listedJayMorris ? "Yes" : "No"
-        }</p>
-        <p><strong>Notes:</strong> ${formData.notes || "None"}</p>
-      `,
-    }),
-  });
-} catch (err) {
-  console.error("Internal lease notification failed:", err);
-}
+      const internalHtml = await internalTemplate.text();
 
-// ------------------------------------------------------
-// Redirect to Thank You Page
-// ------------------------------------------------------
-router.push(
-  `/report-lease-thank-you?firstName=${encodeURIComponent(
-    formData.firstName
-  )}&incentive=${encodeURIComponent(formData.rebateChoice)}`
-);
+      await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: "jay@lonestarlocators.app",
+          subject: `New Lease Report: ${trimmedFirst} ${trimmedLast} (${trimmedCity})`,
+          html: internalHtml,
+        }),
+      });
+    } catch (err) {
+      console.error("Internal lease notification failed:", err);
+    }
 
+    // ======================================================
+    // 3️⃣ REDIRECT
+    // ======================================================
+    router.push(
+      `/report-lease-thank-you?firstName=${encodeURIComponent(
+        trimmedFirst
+      )}&incentive=${encodeURIComponent(formData.rebateChoice)}`
+    );
   } catch (err) {
     console.error("Unexpected error:", err);
     alert("Unexpected error submitting form.");

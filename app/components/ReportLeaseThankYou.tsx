@@ -39,9 +39,7 @@ export default function ReportLeaseThankYou({
 
       {incentive === "movers" && (
         <p style={{ fontSize: "1.25rem", color: "#333" }}>
-          You selected <strong>free moving services!</strong> Availability
-          depends on the property and lease terms. We’ll confirm after
-          verification.
+          You selected <strong>2 hours of free moving services!</strong>
         </p>
       )}
 

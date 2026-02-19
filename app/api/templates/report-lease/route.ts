@@ -39,14 +39,14 @@ export async function GET(req: NextRequest) {
 <div style="height:1px;width:100%;background:#e6e6e6;margin:0 0 32px 0;"></div>
 
 <h2 style="font-size:24px;font-weight:800;margin:0 0 20px 0;color:#111;">
-  Lease Reported Successfully${firstName ? `, ${firstName}` : ""}!
+  Lease Reported Successfully!
 </h2>
 
 ${
   incentive === "cash"
     ? `
 <p style="font-size:16px;line-height:1.7;color:#333;">
-  You selected a <strong>cash rebate</strong> for <strong>${propertyName}!</strong>
+  ${firstName}, you selected a <strong>cash rebate</strong> for <strong>${propertyName}!</strong>
 </p>
 
 <p style="font-size:16px;line-height:1.7;color:#333;">
@@ -60,7 +60,7 @@ ${
   incentive === "movers"
     ? `
 <p style="font-size:16px;line-height:1.7;color:#333;">
-  You selected <strong>2 Hours Free Movers</strong> for <strong>${propertyName}!</strong>
+  ${firstName}, you selected <strong>2 Hours Free Movers</strong> for <strong>${propertyName}!</strong>
 </p>
 
 ${
@@ -74,14 +74,14 @@ ${
 }
 
 <p style="font-size:16px;line-height:1.7;color:#333;">
-  Once your lease is verified, we'll introduce you to the moving company and help get everything scheduled.
+  Once your lease is verified, we’ll introduce you to the moving company and help get everything scheduled.
 </p>
 `
     : ""
 }
 
 <p style="font-size:16px;line-height:1.7;color:#333;margin-top:16px;">
-  Please allow time for verification with the apartment community. We'll be in touch as soon as it is confirmed.
+  Please allow time for verification with the apartment community. We’ll be in touch as soon as it is confirmed.
 </p>
 
 <p style="font-size:16px;line-height:1.7;color:#333;font-weight:600;margin-top:16px;">
