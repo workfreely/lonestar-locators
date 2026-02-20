@@ -116,6 +116,7 @@ ${
       <div style="font-size:16px;font-weight:700;color:#222;">
         Jay Morris
       </div>
+
       Licensed Real Estate Agent<br/>
       Lone Star Locators<br/>
       (210) 895-5766<br/>
@@ -123,8 +124,6 @@ ${
     </td>
   </tr>
 </table>
-
-</div>
 
 <div style="max-width:640px;margin:30px auto 0 auto;text-align:center;font-size:12px;color:#777;line-height:1.6;">
   © ${new Date().getFullYear()} Lone Star Locators™<br/>
