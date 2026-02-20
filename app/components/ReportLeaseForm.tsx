@@ -60,28 +60,28 @@ const handleChange = (
     const trimmedProperty = formData.propertyName.trim();
     const trimmedCity = formData.city.trim();
 
-        const { error } = await supabase.from("reported_leases").insert([
+    const { error } = await supabase.from("reported_leases").insert([
       {
-        first_name: trimmedFirst,
-        last_name: trimmedLast,
-        email: formData.email,
-        phone: formData.phone,
-        city: trimmedCity,
-        property_name: trimmedProperty,
-        unit_number: formData.unitNumber,
-        lease_term: formData.leaseTerm,
-        base_rent: Number(formData.baseRent),
-        move_in_date: formData.moveDate,
-        incentive_selected: formData.rebateChoice,
-        listed_jay_morris: formData.listedJayMorris,
-        other_applicants: formData.otherApplicants,
-        notes: formData.notes,
-        page_url:
-          typeof window !== "undefined"
-            ? window.location.pathname
-            : null,
-        lead_type: "lease_report",
-      },
+  first_name: trimmedFirst,
+  last_name: trimmedLast,
+  email: formData.email,
+  phone: formData.phone,
+  city: trimmedCity,
+  property_name: trimmedProperty,
+  unit_number: formData.unitNumber,
+  lease_term: formData.leaseTerm,
+  base_rent: Number(formData.baseRent),  // ✅ Fixed
+  move_in_date: formData.moveDate,
+  incentive_selected: formData.rebateChoice,
+  listed_jay_morris: formData.listedJayMorris,
+  other_applicants: formData.otherApplicants, // ✅ since you added it
+  notes: formData.notes,
+  page_url:
+    typeof window !== "undefined"
+      ? window.location.pathname
+      : null,
+  lead_type: "lease_report",
+},
     ]);
 
     if (error) {
@@ -96,10 +96,6 @@ const handleChange = (
       alert("Something went wrong. Please try again.");
       return;
     }
-
-    console.log("Lease submitted successfully to Supabase!");
-
-        console.log("Lease submitted successfully to Supabase!");
 
     // ======================================================
     // 1️⃣ CLIENT CONFIRMATION EMAIL
@@ -134,7 +130,42 @@ const handleChange = (
       }
     }
 
-    
+    // ======================================================
+    // 2️⃣ INTERNAL NOTIFICATION (FULL BRANDED VERSION)
+    // ======================================================
+try {
+  await fetch("/api/send-email", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      to: "jay@lonestarlocators.app",
+      subject: `New Lease Report: ${trimmedFirst} ${trimmedLast} (${trimmedCity})`,
+      html: `
+        <h2>New Lease Report Submitted</h2>
+
+        <p><strong>Name:</strong> ${trimmedFirst} ${trimmedLast}</p>
+        <p><strong>Other Applicants:</strong> ${
+          formData.otherApplicants || "None"
+        }</p>
+        <p><strong>Email:</strong> ${formData.email}</p>
+        <p><strong>Phone:</strong> ${formData.phone}</p>
+        <p><strong>City:</strong> ${trimmedCity}</p>
+        <p><strong>Property:</strong> ${trimmedProperty}</p>
+        <p><strong>Unit:</strong> ${formData.unitNumber || "N/A"}</p>
+        <p><strong>Lease Term:</strong> ${formData.leaseTerm} months</p>
+        <p><strong>Base Rent:</strong> $${formData.baseRent}</p>
+        <p><strong>Move-In Date:</strong> ${formData.moveDate}</p>
+        <p><strong>Incentive:</strong> ${formData.rebateChoice}</p>
+        <p><strong>Listed Jay Morris:</strong> ${
+          formData.listedJayMorris ? "Yes" : "No"
+        }</p>
+        <p><strong>Notes:</strong> ${formData.notes || "None"}</p>
+      `,
+    }),
+  });
+} catch (err) {
+  console.error("Internal lease notification failed:", err);
+}
 
     // ======================================================
     // 3️⃣ REDIRECT
