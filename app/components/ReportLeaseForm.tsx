@@ -27,159 +27,119 @@ export default function ReportLeaseForm() {
     website: "", // honeypot
   });
 
-const handleChange = (
-  e: React.ChangeEvent<
-    HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-  >
-) => {
-  const target = e.target;
-  const name = target.name;
+  const handleChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
+  ) => {
+    const target = e.target;
+    const name = target.name;
 
-  if (target instanceof HTMLInputElement && target.type === "checkbox") {
-    setFormData((prev) => ({
-      ...prev,
-      [name]: target.checked,
-    }));
-  } else {
-    setFormData((prev) => ({
-      ...prev,
-      [name]: target.value,
-    }));
-  }
-};
+    if (target instanceof HTMLInputElement && target.type === "checkbox") {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: target.checked,
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: target.value,
+      }));
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  // Honeypot
-  if (formData.website) return;
+    // Honeypot
+    if (formData.website) return;
 
-  try {
-    const trimmedFirst = formData.firstName.trim();
-    const trimmedLast = formData.lastName.trim();
-    const trimmedProperty = formData.propertyName.trim();
-    const trimmedCity = formData.city.trim();
+    try {
+      const trimmedFirst = formData.firstName.trim();
+      const trimmedLast = formData.lastName.trim();
+      const trimmedProperty = formData.propertyName.trim();
+      const trimmedCity = formData.city.trim();
 
-    const { error } = await supabase.from("reported_leases").insert([
-      {
-  first_name: trimmedFirst,
-  last_name: trimmedLast,
-  email: formData.email,
-  phone: formData.phone,
-  city: trimmedCity,
-  property_name: trimmedProperty,
-  unit_number: formData.unitNumber,
-  lease_term: formData.leaseTerm,
-  base_rent: Number(formData.baseRent),  // ✅ Fixed
-  move_in_date: formData.moveDate,
-  incentive_selected: formData.rebateChoice,
-  listed_jay_morris: formData.listedJayMorris,
-  other_applicants: formData.otherApplicants, // ✅ since you added it
-  notes: formData.notes,
-  page_url:
-    typeof window !== "undefined"
-      ? window.location.pathname
-      : null,
-  lead_type: "lease_report",
-},
-    ]);
+      const { error } = await supabase.from("reported_leases").insert([
+        {
+          first_name: trimmedFirst,
+          last_name: trimmedLast,
+          email: formData.email,
+          phone: formData.phone,
+          city: trimmedCity,
+          property_name: trimmedProperty,
+          unit_number: formData.unitNumber,
+          lease_term: formData.leaseTerm,
+          base_rent: Number(formData.baseRent),
+          move_in_date: formData.moveDate,
+          incentive_selected: formData.rebateChoice,
+          listed_jay_morris: formData.listedJayMorris,
+          other_applicants: formData.otherApplicants,
+          notes: formData.notes,
+          page_url:
+            typeof window !== "undefined" ? window.location.pathname : null,
+          lead_type: "lease_report",
+        },
+      ]);
 
-    if (error) {
-      if (error.code === "23505") {
-        alert(
-          "It looks like this lease has already been reported for this property. If this is a mistake, please contact us."
-        );
+      if (error) {
+        if (error.code === "23505") {
+          alert(
+            "It looks like this lease has already been reported for this property. If this is a mistake, please contact us."
+          );
+          return;
+        }
+
+        console.error("Error saving lease report:", error);
+        alert("Something went wrong. Please try again.");
         return;
       }
 
-      console.error("Error saving lease report:", error);
-      alert("Something went wrong. Please try again.");
-      return;
-    }
+      // ======================================================
+      // 1️⃣ CLIENT CONFIRMATION EMAIL (IDENTICAL STRUCTURE)
+      // ======================================================
+      if (formData.email) {
+        try {
+          const params = new URLSearchParams({
+            firstName: trimmedFirst,
+            incentive: formData.rebateChoice,
+            propertyName: trimmedProperty,
+            moveInDate: formData.moveDate || "",
+          });
 
-    // ======================================================
-    // 1️⃣ CLIENT CONFIRMATION EMAIL
-    // ======================================================
-    if (formData.email) {
-      try {
-        const templateRes = await fetch(
-          `/api/templates/report-lease?firstName=${encodeURIComponent(
-            trimmedFirst
-          )}&incentive=${encodeURIComponent(
-            formData.rebateChoice
-          )}&propertyName=${encodeURIComponent(
-            trimmedProperty
-          )}&moveInDate=${encodeURIComponent(
-            formData.moveDate || ""
-          )}`
-        );
+          const templateRes = await fetch(
+            `/api/templates/report-lease?${params.toString()}`
+          );
 
-        const templateHtml = await templateRes.text();
+          const templateHtml = await templateRes.text();
 
-        await fetch("/api/send-email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            to: formData.email,
-            subject: "Lease Reported Successfully",
-            html: templateHtml,
-          }),
-        });
-      } catch (err) {
-        console.error("Client confirmation email failed:", err);
+          await fetch("/api/send-email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              to: formData.email,
+              subject: "Lease Reported Successfully",
+              html: templateHtml,
+            }),
+          });
+        } catch (err) {
+          console.error("Client confirmation email failed:", err);
+        }
       }
+
+      // ======================================================
+      // 2️⃣ REDIRECT (UNCHANGED)
+      // ======================================================
+      router.push(
+        `/report-lease-thank-you?firstName=${encodeURIComponent(
+          trimmedFirst
+        )}&incentive=${encodeURIComponent(formData.rebateChoice)}`
+      );
+    } catch (err) {
+      console.error("Unexpected error:", err);
+      alert("Unexpected error submitting form.");
     }
-
-    // ======================================================
-    // 2️⃣ INTERNAL NOTIFICATION (FULL BRANDED VERSION)
-    // ======================================================
-try {
-  await fetch("/api/send-email", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      to: "jay@lonestarlocators.app",
-      subject: `New Lease Report: ${trimmedFirst} ${trimmedLast} (${trimmedCity})`,
-      html: `
-        <h2>New Lease Report Submitted</h2>
-
-        <p><strong>Name:</strong> ${trimmedFirst} ${trimmedLast}</p>
-        <p><strong>Other Applicants:</strong> ${
-          formData.otherApplicants || "None"
-        }</p>
-        <p><strong>Email:</strong> ${formData.email}</p>
-        <p><strong>Phone:</strong> ${formData.phone}</p>
-        <p><strong>City:</strong> ${trimmedCity}</p>
-        <p><strong>Property:</strong> ${trimmedProperty}</p>
-        <p><strong>Unit:</strong> ${formData.unitNumber || "N/A"}</p>
-        <p><strong>Lease Term:</strong> ${formData.leaseTerm} months</p>
-        <p><strong>Base Rent:</strong> $${formData.baseRent}</p>
-        <p><strong>Move-In Date:</strong> ${formData.moveDate}</p>
-        <p><strong>Incentive:</strong> ${formData.rebateChoice}</p>
-        <p><strong>Listed Jay Morris:</strong> ${
-          formData.listedJayMorris ? "Yes" : "No"
-        }</p>
-        <p><strong>Notes:</strong> ${formData.notes || "None"}</p>
-      `,
-    }),
-  });
-} catch (err) {
-  console.error("Internal lease notification failed:", err);
-}
-
-    // ======================================================
-    // 3️⃣ REDIRECT
-    // ======================================================
-    router.push(
-      `/report-lease-thank-you?firstName=${encodeURIComponent(
-        trimmedFirst
-      )}&incentive=${encodeURIComponent(formData.rebateChoice)}`
-    );
-  } catch (err) {
-    console.error("Unexpected error:", err);
-    alert("Unexpected error submitting form.");
-  }
-};
+  };
 
   const inputStyle = {
     width: "100%",
@@ -350,37 +310,35 @@ try {
       </div>
 
       <div style={sectionStyle}>
-  <select
-    name="rebateChoice"
-    value={formData.rebateChoice}
-    onChange={handleChange}
-    required
-    style={inputStyle}
-  >
-    <option value="">Select Reward</option>
-    <option value="cash">
-      Cash Rebate (issued within 90 days of move-in)
-    </option>
-    <option value="movers">
-      2 Hours Free Movers
-    </option>
-  </select>
-</div>
+        <select
+          name="rebateChoice"
+          value={formData.rebateChoice}
+          onChange={handleChange}
+          required
+          style={inputStyle}
+        >
+          <option value="">Select Reward</option>
+          <option value="cash">
+            Cash Rebate (issued within 90 days of move-in)
+          </option>
+          <option value="movers">2 Hours Free Movers</option>
+        </select>
+      </div>
 
-{/* Conditional Notes */}
-{formData.rebateChoice === "cash" && (
-  <p style={{ fontSize: "0.9rem", color: "#555", marginBottom: "1rem" }}>
-    Rebate amounts vary by property and lease term. After verification,
-    your rebate will be issued within 90 days of your move-in date.
-  </p>
-)}
+      {/* Conditional Notes */}
+      {formData.rebateChoice === "cash" && (
+        <p style={{ fontSize: "0.9rem", color: "#555", marginBottom: "1rem" }}>
+          Rebate amounts vary by property and lease term. After verification,
+          your rebate will be issued within 90 days of your move-in date.
+        </p>
+      )}
 
-{formData.rebateChoice === "movers" && (
-  <p style={{ fontSize: "0.9rem", color: "#555", marginBottom: "1rem" }}>
-    Once your lease and move-in date are verified, we will coordinate
-    directly with the moving company to schedule your service.
-  </p>
-)}
+      {formData.rebateChoice === "movers" && (
+        <p style={{ fontSize: "0.9rem", color: "#555", marginBottom: "1rem" }}>
+          Once your lease and move-in date are verified, we will coordinate
+          directly with the moving company to schedule your service.
+        </p>
+      )}
 
       <div style={sectionStyle}>
         <DatePicker
@@ -419,9 +377,7 @@ try {
             required
             style={{ marginRight: "0.5rem" }}
           />
-          <strong>
-            I listed Jay Morris with AptAmigo on my application
-          </strong>
+          <strong>I listed Jay Morris with AptAmigo on my application</strong>
         </label>
       </div>
 
