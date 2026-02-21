@@ -54,7 +54,7 @@ const utmContent = params?.get("utm_content");
     creditScore: "",
     downPayment: "", // ✅ REQUIRED
     timeline: "", // ✅ REQUIRED
-    message: "",
+    notes: "",
     website: "", // ✅ honeypot
     sms_consent: false, // ✅ ADD
   });
@@ -166,7 +166,7 @@ const leadSource = utmSource ?? "direct";
  // ------------------------
     // Meta
     // ------------------------
-notes: formData.message || null,
+notes: formData.notes,
 website: formData.website, // honeypot
 
         },
@@ -198,7 +198,7 @@ if (formData.email) {
       firstTimeBuyer: formData.firstTimeBuyer,
       creditScore: formData.creditScore,
       downPayment: formData.downPayment,
-      notes: formData.message || "",
+      notes: formData.notes || "",
     });
 
     const templateRes = await fetch(
@@ -212,7 +212,7 @@ if (formData.email) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         to: formData.email,
-        subject: `${formData.city} New Home Update`,
+        subject: `${formData.city} New Update`,
         html: templateHtml,
       }),
     });
@@ -222,7 +222,7 @@ if (formData.email) {
 }
 
      router.push(
-  `/new-home-thank-you?firstName=${encodeURIComponent(formData.firstName)}&city=${encodeURIComponent(formData.city)}&timeline=${encodeURIComponent(formData.timeline)}&desiredPayment=${encodeURIComponent(formData.desiredPayment)}&loanType=${encodeURIComponent(formData.loanType)}&firstTimeBuyer=${encodeURIComponent(formData.firstTimeBuyer)}&creditScore=${encodeURIComponent(formData.creditScore)}&downPayment=${encodeURIComponent(formData.downPayment)}&preApproved=${encodeURIComponent(formData.preApproved)}&notes=${encodeURIComponent(formData.message)}`
+  `/new-home-thank-you?firstName=${encodeURIComponent(formData.firstName)}&city=${encodeURIComponent(formData.city)}&timeline=${encodeURIComponent(formData.timeline)}&desiredPayment=${encodeURIComponent(formData.desiredPayment)}&loanType=${encodeURIComponent(formData.loanType)}&firstTimeBuyer=${encodeURIComponent(formData.firstTimeBuyer)}&creditScore=${encodeURIComponent(formData.creditScore)}&downPayment=${encodeURIComponent(formData.downPayment)}&preApproved=${encodeURIComponent(formData.preApproved)}&notes=${encodeURIComponent(formData.notes)}`
 );
 
     } catch (err) {
@@ -492,13 +492,17 @@ if (formData.email) {
       {/* MESSAGE */}
       <div style={sectionStyle}>
         <textarea
-          name="message"
-          placeholder="Any additional notes or preferences?"
-          value={formData.message}
-          onChange={handleChange}
-          rows={4}
-          style={{ ...inputStyle, fontFamily: "'Inter', sans-serif" }}
-        />
+  name="notes"
+  placeholder="Any additional notes or preferences?"
+  value={formData.notes}
+  onChange={handleChange}
+  rows={4}
+  style={{
+  ...inputStyle,
+  height: "auto",     // ✅ override fixed height
+  padding: "12px",    // ✅ restore vertical padding for textarea
+}}
+/>
       </div>
 
       {/* Honeypot */}

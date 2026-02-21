@@ -87,7 +87,7 @@ export default function MeetYourLocatorsPage() {
               locator serving San Antonio, Austin, Dallas and Houston.
             </strong>{" "}
             I’ve helped hundreds of renters secure luxury studios, apartments,
-            townhomes and penthouses — including second-chance apartments with
+            townhomes and penthouses including second-chance apartments with
             move-in specials.
           </p>
 
@@ -122,11 +122,11 @@ export default function MeetYourLocatorsPage() {
             marginBottom: "0.75rem",
           }}
         >
-          Follow Me on Instagram
+          Follow Me on YouTube
         </h2>
 
         <a
-          href="https://instagram.com/LoneStarLocators"
+          href="https://www.youtube.com/@lonestarlocators"
           target="_blank"
           rel="noopener noreferrer"
           style={{
@@ -152,19 +152,19 @@ export default function MeetYourLocatorsPage() {
         >
           {[
             {
-              url: "https://www.instagram.com/reel/DGwXTOER4wK/",
+              url: "https://www.youtube.com/@lonestarlocators",
               img: "https://res.cloudinary.com/dxtiguwzm/image/upload/v1765038608/penthouse-jay-morris-apartment-locator_xyjmuy.png",
             },
             {
-              url: "https://www.instagram.com/reel/DCko_ZxxMIb/",
+              url: "https://www.youtube.com/@lonestarlocators",
               img: "https://res.cloudinary.com/dxtiguwzm/image/upload/v1765038608/townhomes-for-rent-jay-morris-apartment-locator_i6g3wb.png",
             },
             {
-              url: "https://www.instagram.com/reel/DCSiC4nRSMf/",
+              url: "https://www.youtube.com/@lonestarlocators",
               img: "https://res.cloudinary.com/dxtiguwzm/image/upload/v1765038608/luxury-penthouse-san-antonio-jay-morris-apartment-locator_gltlsf.png",
             },
             {
-              url: "https://www.instagram.com/reel/DOIFAmBDSlp/",
+              url: "https://www.youtube.com/@lonestarlocators",
               img: "https://res.cloudinary.com/dxtiguwzm/image/upload/v1765341498/san-antonio-townhomes-apartment-locator_a5tkbd.png",
             },
           ].map((post, i) => (
@@ -176,7 +176,7 @@ export default function MeetYourLocatorsPage() {
             >
               <img
                 src={post.img}
-                alt={`Instagram reel ${i + 1}`}
+                alt={`YouTube Shorts ${i + 1}`}
                 style={{
                   width: "100%",
                   height: "340px",
