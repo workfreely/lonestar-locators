@@ -28,8 +28,18 @@ const ExitIntentPopup = () => {
     "/why-choose-us",
   ];
 
-  useEffect(() => {
-    const DEV_MODE = true;
+ useEffect(() => {
+
+  // 🔒 Skip popup on excluded routes
+  if (
+    EXCLUDED_PATHS.some(path =>
+      window.location.pathname.startsWith(path)
+    )
+  ) {
+    return;
+  }
+
+  const DEV_MODE = true;
 
     if (!DEV_MODE) {
       const hasSubmitted = localStorage.getItem("leadSubmitted") === "true";
