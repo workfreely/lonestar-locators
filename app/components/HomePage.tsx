@@ -39,10 +39,8 @@ export default function HomePage() {
             addressCountry: "US",
           },
           sameAs: [
-            "https://www.instagram.com/realestatepro_tx",
-            "https://www.facebook.com/lonestarlocators",
-            "https://www.tiktok.com/@lonestarlocators",
-          ],
+  "https://www.youtube.com/@lonestarlocators",
+],
         })}
       </Script>
 

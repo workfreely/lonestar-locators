@@ -2,13 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import {
-  FaFacebookF,
-  FaInstagram,
-  FaYoutube,
-  FaTiktok,
-  FaCookieBite,
-} from "react-icons/fa";
+import { FaYoutube, FaCookieBite } from "react-icons/fa";
 
 const Footer = () => {
   const linkStyle: React.CSSProperties = {
@@ -203,12 +197,16 @@ const Footer = () => {
           <img src="https://res.cloudinary.com/dxtiguwzm/image/upload/v1748223464/lone-star-locators-white-logo-footer_dyrwka.png" alt="Lone Star Locators" style={{ height: 30 }} />
           <img src="https://res.cloudinary.com/dxtiguwzm/image/upload/v1749327322/new-logo-white_cuz8jv.png" alt="AptAmigo" style={{ height: 30 }} />
 
-          <div style={{ display: "flex" }}>
-            <FaYoutube style={iconStyle} />
-            <FaInstagram style={iconStyle} />
-            <FaFacebookF style={iconStyle} />
-            <FaTiktok style={iconStyle} />
-          </div>
+          <div style={{ display: "flex", gap: "10px" }}>
+  <a
+    href="https://www.youtube.com/@lonestarlocators"
+    target="_blank"
+    rel="noopener noreferrer"
+    aria-label="Lone Star Locators YouTube Channel"
+  >
+    <FaYoutube style={iconStyle} />
+  </a>
+</div>
         </div>
       </div>
 
