@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { supabase } from "@/app/lib/supabaseClient";
 import BlogLayout from "@/app/components/BlogLayout";
 import ComparisonLayout from "@/app/components/ComparisonLayout";
+import ReactMarkdown from "react-markdown";
 
 /* ============================
    HELPERS
@@ -117,5 +118,12 @@ export default async function BlogPostPage({
     .filter(Boolean)
     .join("");
 
-  return <BlogLayout {...post} content={post.content || fallbackBodyParts} />;
+    const markdownBody = post.content || fallbackBodyParts;
+
+  return (
+    <BlogLayout
+      {...post}
+      content={<ReactMarkdown>{markdownBody}</ReactMarkdown>}
+    />
+  );
 }

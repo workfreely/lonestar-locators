@@ -113,7 +113,7 @@ export default function MeetYourLocatorsPage() {
         </a>
       </div>
 
-      {/* ================= INSTAGRAM ================= */}
+      {/* ================= YouTube ================= */}
       <section style={{ textAlign: "center", margin: "3rem 0" }}>
         <h2
           style={{
