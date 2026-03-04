@@ -308,29 +308,31 @@ const ExitIntentPopup = () => {
         </div>
 
         {/* CSS */}
-        <style jsx>{`
-          .popup-title-mobile,
-          .popup-copy-mobile {
-            display: none;
-          }
+<style>
+{`
+  .popup-title-mobile,
+  .popup-copy-mobile {
+    display: none;
+  }
 
-          .popup-title-desktop,
-          .popup-copy-desktop {
-            display: inline;
-          }
+  .popup-title-desktop,
+  .popup-copy-desktop {
+    display: inline;
+  }
 
-          @media (max-width: 768px) {
-            .popup-title-desktop,
-            .popup-copy-desktop {
-              display: none;
-            }
+  @media (max-width: 768px) {
+    .popup-title-desktop,
+    .popup-copy-desktop {
+      display: none;
+    }
 
-            .popup-title-mobile,
-            .popup-copy-mobile {
-              display: inline;
-            }
-          }
-        `}</style>
+    .popup-title-mobile,
+    .popup-copy-mobile {
+      display: inline;
+    }
+  }
+`}
+</style>
       </div>
     </div>
   );

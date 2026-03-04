@@ -106,13 +106,15 @@ export default function StartYourSearch() {
       </div>
 
       {/* ✅ Mobile stacking fix */}
-      <style jsx>{`
-        @media (max-width: 980px) {
-          div[style*="grid-template-columns: 1fr 420px"] {
-            grid-template-columns: 1fr !important;
-          }
-        }
-      `}</style>
+      <style>
+{`
+  @media (max-width: 980px) {
+    div[style*="grid-template-columns: 1fr 420px"] {
+      grid-template-columns: 1fr !important;
+    }
+  }
+`}
+</style>
 
       {/* ================= AI ASSISTANT ================= */}
       <Suspense fallback={null}>
