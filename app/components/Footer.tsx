@@ -139,10 +139,30 @@ const Footer = () => {
           fontSize: "0.9rem",
         }}
       >
-        <Link href="/privacy" style={{ color: "#ccc", marginRight: "1rem" }}>Privacy</Link>
-        <Link href="/terms" style={{ color: "#ccc", marginRight: "1rem" }}>Terms</Link>
-        <Link href="/site-map" style={{ color: "#ccc", marginRight: "1rem" }}>Sitemap</Link>
-        <Link href="/disclaimer" style={{ color: "#ccc" }}>Disclaimer</Link>
+       <Link href="/privacy" style={{ color: "#ccc", marginRight: "1rem" }}>Privacy</Link>
+<Link href="/terms" style={{ color: "#ccc", marginRight: "1rem" }}>Terms</Link>
+<Link href="/site-map" style={{ color: "#ccc", marginRight: "1rem" }}>Sitemap</Link>
+<Link href="/disclaimer" style={{ color: "#ccc" }}>Disclaimer</Link>
+
+<p
+  style={{
+    textAlign: "center",
+    marginTop: "1rem",
+    marginBottom: "1rem",
+    fontSize: "0.9rem",
+    color: "#bbb",
+    maxWidth: "900px",
+    marginLeft: "auto",
+    marginRight: "auto",
+    lineHeight: "1.6",
+  }}
+>
+  Lone Star Locators is a free apartment locating service helping renters find luxury apartments, townhomes, penthouses <br />and second chance apartments in
+  <Link href="/austin" style={{ color: "#ccc" }}> Austin</Link>,{" "}
+  <Link href="/dallas" style={{ color: "#ccc" }}> Dallas</Link>,{" "}
+  <Link href="/houston" style={{ color: "#ccc" }}> Houston</Link> and{" "}
+  <Link href="/san-antonio" style={{ color: "#ccc" }}> San Antonio</Link>.
+</p>
 
        {/* TREC FORMS */}
 <div style={{ marginTop: "0.75rem" }}>
@@ -199,13 +219,17 @@ const Footer = () => {
 
           <div style={{ display: "flex", gap: "10px" }}>
   <a
-    href="https://www.youtube.com/@lonestarlocators"
-    target="_blank"
-    rel="noopener noreferrer"
-    aria-label="Lone Star Locators YouTube Channel"
-  >
-    <FaYoutube style={iconStyle} />
-  </a>
+  href="https://www.youtube.com/@lonestarlocators"
+  target="_blank"
+  rel="noopener noreferrer"
+  aria-label="Lone Star Locators YouTube Channel"
+>
+  <img
+    src="https://upload.wikimedia.org/wikipedia/commons/e/ef/Youtube_logo.png"
+    alt="Lone Star Locators YouTube Channel"
+    style={{ height: "30px" }}
+  />
+</a>
 </div>
         </div>
       </div>
