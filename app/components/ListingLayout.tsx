@@ -313,6 +313,56 @@ const handleShare = async () => {
          ]}
        />
 
+{/* ✅ Video Schema */}
+{video && (
+  <script type="application/ld+json">
+    {JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "VideoObject",
+      name: `${name} Apartment Tour in ${city}`,
+      description: description,
+      thumbnailUrl: [
+        `https://i.ytimg.com/vi/${video.split("/embed/")[1]}/hqdefault.jpg`
+      ],
+      uploadDate: new Date().toISOString(),
+      embedUrl: video,
+      contentUrl: `https://www.youtube.com/watch?v=${video.split("/embed/")[1]}`,
+      publisher: {
+        "@type": "Organization",
+        name: "Lone Star Locators",
+        logo: {
+          "@type": "ImageObject",
+          url: "https://lonestarlocators.app/logo.png",
+        },
+      },
+      mainEntityOfPage: clientUrl,
+    })}
+  </script>
+)}
+
+{/* ✅ Agent Review Video Schema */}
+{agentVideo && (
+  <script type="application/ld+json">
+    {JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "VideoObject",
+      name: `${name} Apartment Review by Jay Morris`,
+      description: `Honest review of ${name} in ${city}. Covering the good, bad, and ugly.`,
+      thumbnailUrl: [
+        `https://i.ytimg.com/vi/${agentVideo.split("/embed/")[1]}/hqdefault.jpg`
+      ],
+      uploadDate: new Date().toISOString(),
+      embedUrl: agentVideo,
+      contentUrl: `https://www.youtube.com/watch?v=${agentVideo.split("/embed/")[1]}`,
+      publisher: {
+        "@type": "Organization",
+        name: "Lone Star Locators",
+      },
+      mainEntityOfPage: clientUrl,
+    })}
+  </script>
+)}
+
 
        {/* Breadcrumbs */}
        <Breadcrumbs
@@ -699,14 +749,14 @@ const handleShare = async () => {
                  }}
                >
                  <FaVideo style={{ marginRight: "8px" }} />
-                 Property Video Tour
+                 {name} Video Tour
                </h2>
                <div style={{ marginTop: "20px" }}>
                  <iframe
                    width="95%"
                    height="400"
                    src={video}
-                   title="Property Tour"
+                   title={`${name} Video Tour`}
                    frameBorder="0"
                    loading="lazy"
                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
