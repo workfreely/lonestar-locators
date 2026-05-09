@@ -15,6 +15,8 @@ const ExitIntentPopup = () => {
      POPUP EXCLUSION RULES
   =============================== */
   const EXCLUDED_PATHS = [
+    "/get-my-list", // 🔥 NEW
+    "/second-chance-apartments", // 🔥 NEW
     "/start-your-search",
     "/buy-new-home",
     "/new-home-thank-you",
@@ -67,9 +69,18 @@ const ExitIntentPopup = () => {
     window.addEventListener("click", markEngaged);
     window.addEventListener("touchstart", markEngaged);
 
-    const popupTimer = setTimeout(() => {
-      if (engaged) {
-        setShowPopup(true);
+ const popupTimer = setTimeout(() => {
+
+  // 🔒 Prevent popup on landing pages
+  if (
+    EXCLUDED_PATHS.some(path =>
+      window.location.pathname.startsWith(path)
+    )
+  ) {
+    return;
+  }
+
+  if (engaged) {
 
         track("exit_popup_shown", { location: pathname });
         localStorage.setItem("popupLastShown", Date.now().toString());

@@ -1372,3 +1372,41 @@ body.jaybot-open {
   overflow: hidden;
   touch-action: none;
 }
+
+/* 
+  NEXT ACTION - OVERDUE PULSE
+  ----------------------------------------
+  Purpose:
+  Visually highlight overdue follow-ups in the Lead Panel.
+
+  Behavior:
+  - Applies ONLY to Next Action badges when status = "overdue"
+  - Creates a soft red pulse/glow using box-shadow
+  - Does NOT affect layout, spacing, or other components
+
+  Safe to use:
+  Only activates when `.next-action-pulse` class is applied
+
+  Used in:
+  - LeadPanel.tsx (Next Action badge)
+  - Future: Kanban cards (optional)
+
+  Admin Note:
+  This helps quickly identify leads that require immediate attention.
+*/
+
+@keyframes pulseGlow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+.next-action-pulse {
+  animation: pulseGlow 1.8s infinite;
+}

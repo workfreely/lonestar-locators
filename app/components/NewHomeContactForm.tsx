@@ -560,7 +560,7 @@ if (formData.email) {
           marginTop: "1rem",
         }}
       >
-        Buy My New Home
+        Send Me Homes
       </button>
     </form>
   );

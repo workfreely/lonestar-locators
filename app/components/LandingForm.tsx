@@ -1,5 +1,5 @@
 /**
- * ContactForm
+ * ContactForm (LandingForm)
  * -----------
  * Primary renter lead capture form.
  * Supports short + full modes.
@@ -20,7 +20,7 @@ interface ContactFormProps {
   propertyName?: string;
 }
 
-const ContactForm: React.FC<ContactFormProps> = ({
+const LandingForm: React.FC<ContactFormProps> = ({
   mode = "full",
   propertyName,
 }) => {
@@ -40,6 +40,7 @@ const referrer =
   typeof document !== "undefined" ? document.referrer : null;
 
 const utmSource = searchParams.get("utm_source");
+console.log("Lead Source:", utmSource);
 const utmMedium = searchParams.get("utm_medium");
 const utmCampaign = searchParams.get("utm_campaign");
 const utmContent = searchParams.get("utm_content");
@@ -81,9 +82,9 @@ const utmContent = searchParams.get("utm_content");
   felonyCharge: "",
   misdemeanorAge: "",
   misdemeanorCharge: "",
-
-  criminalBackground: "",
-  criminalCharge: "",
+  bankruptcyAge: "",
+  foreclosureAge: "",
+  foreclosureBalance: "",
 
   // ==========================
   // NOTES / META
@@ -1068,50 +1069,36 @@ if (formData.sms_consent && formData.phone) {
             </div>
           </div>
 
-{/* RENTAL BACKGROUND */}
-<div style={sectionStyle}>
-  <label
-    style={{
-      fontWeight: "bold",
-      marginBottom: "0.5rem",
-      display: "block",
-    }}
-  >
-    Rental Background
-  </label>
+          {/* CREDIT HISTORY */}
+          <div style={sectionStyle}>
+            <select
+              name="creditHistory"
+              value={formData.creditHistory}
+              onChange={handleChange}
+              style={inputStyle}
+              required
+            >
+              <option value="">Any credit or background issues?</option>
+              <option value="Good Credit">Good Credit</option>
+              <option value="Fair Credit">Fair Credit</option>
+              <option value="Poor Credit">Poor Credit</option>
+              <option value="No Credit">No Credit</option>
+              <option value="Broken Lease">Broken Lease</option>
+              <option value="Eviction">Eviction</option>
+              <option value="Felony">Felony</option>
+              <option value="Misdemeanor">Misdemeanor</option>
+              <option value="Bankruptcy">Bankruptcy</option>
+              <option value="Foreclosure">Foreclosure</option>
+            </select>
+            <div style={noteStyle}>
+              We only ask this to help match you with apartments that will work
+              with your situation.
+            </div>
+          </div>
 
-  <select
-    name="creditHistory"
-    value={formData.creditHistory}
-    onChange={handleChange}
-    style={inputStyle}
-    required
-  >
-    <option value="">Select Rental Background</option>
-    <option value="Clean">No Broken Lease or Eviction</option>
-    <option value="Broken Lease">Broken Lease</option>
-    <option value="Eviction">Eviction</option>
-  </select>
+          {/* CONDITIONAL LOGIC FIELDS */}
 
-  <div
-    style={{
-      background: "#fff8e1",
-      border: "1px solid #f0d98a",
-      padding: "12px",
-      borderRadius: "6px",
-      fontSize: "0.9rem",
-      marginTop: "0.75rem",
-      color: "#555",
-      lineHeight: "1.5",
-    }}
-  >
-    Please answer honestly. Some apartments are flexible depending on
-    the situation, and this helps us match you with communities that
-    are more likely to approve you.
-  </div>
-</div>
-
- {/* Broken Lease */}
+          {/* Broken Lease */}
           {formData.creditHistory === "Broken Lease" && (
             <>
               <div style={sectionStyle}>
@@ -1170,51 +1157,6 @@ if (formData.sms_consent && formData.phone) {
               </div>
             </>
           )}
-
-{/* CRIMINAL BACKGROUND */}
-<div style={sectionStyle}>
-  <label
-    style={{
-      fontWeight: "bold",
-      marginBottom: "0.5rem",
-      display: "block",
-    }}
-  >
-    Criminal Background
-  </label>
-
-  <select
-    name="criminalBackground"
-    value={formData.criminalBackground || ""}
-    onChange={handleChange}
-    style={inputStyle}
-  >
-    <option value="">Select Criminal Background</option>
-    <option value="None">No Criminal Background</option>
-    <option value="Misdemeanor">Misdemeanor</option>
-    <option value="Felony">Felony</option>
-  </select>
-
-  <div style={noteStyle}>
-    Some communities have restrictions based on certain offenses. This helps us avoid wasting your time on properties that may not work.
-  </div>
-</div>
-
-{/* Criminal Charge Details */}
-{formData.criminalBackground &&
-  formData.criminalBackground !== "None" && (
-    <div style={sectionStyle}>
-      <input
-        placeholder="Briefly describe the charge (example: assault, DWI, drug-related)"
-        name="criminalCharge"
-        value={formData.criminalCharge || ""}
-        onChange={handleChange}
-        style={inputStyle}
-      />
-    </div>
-)}
-
-          {/* CONDITIONAL LOGIC FIELDS */}
 
           {/* Felony */}
           {formData.creditHistory === "Felony" && (
@@ -1347,25 +1289,42 @@ if (formData.sms_consent && formData.phone) {
 )}
 
 
-      {/* SUBMIT BUTTON */}
-      <button
-        type="submit"
-        style={{
-          backgroundColor: "#28a745",
-          color: "#fff",
-          padding: "0.75rem",
-          borderRadius: "6px",
-          border: "none",
-          width: "100%",
-          fontSize: "1rem",
-          cursor: "pointer",
-          marginTop: "1rem",
-        }}
-      >
-        Send My List
-      </button>
-      <style>
-        {`
+{/* SUBMIT BUTTON */}
+<button
+  type="submit"
+  style={{
+    backgroundColor: "#28a745",
+    color: "#fff",
+    padding: "0.75rem",
+    borderRadius: "6px",
+    border: "none",
+    width: "100%",
+    fontSize: "1rem",
+    cursor: "pointer",
+    marginTop: "1rem",
+  }}
+>
+  Send My List
+</button>
+
+{/* 🔥 TRUST LINE (ADD THIS RIGHT HERE) */}
+<p
+  style={{
+    textAlign: "center",
+    fontSize: "0.8rem",
+    color: "#888",
+    marginTop: "1rem",
+    lineHeight: 1.4,
+  }}
+>
+  Apartment locating services powered by AptAmigo Brokerage  
+  <br />
+  Jay Morris | Licensed Real Estate Agent | Equal Housing Opportunity
+</p>
+
+{/* KEEP THIS BELOW */}
+<style>
+  {`
     input, select, textarea {
       box-sizing: border-box;
       width: 100% !important;
@@ -1376,9 +1335,9 @@ if (formData.sms_consent && formData.phone) {
       font-family: 'Inter', sans-serif !important;
     }
   `}
-      </style>
+</style>
     </form>
   );
 };
 
-export default ContactForm;
+export default LandingForm;
