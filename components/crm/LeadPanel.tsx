@@ -30,6 +30,8 @@ const [nextActionDate, setNextActionDate] =
   )
 
 useEffect(() => {
+  console.log("HYDRATING FROM DB:", lead.follow_up_count)
+
   setFollowUps(
     Number(lead.follow_up_count || 0)
   )

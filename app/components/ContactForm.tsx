@@ -374,9 +374,6 @@ if (formData.sms_consent && formData.phone) {
     felony_charge: formData.felonyCharge,
     misdemeanor_age: formData.misdemeanorAge,
     misdemeanor_charge: formData.misdemeanorCharge,
-    bankruptcy_age: formData.bankruptcyAge,
-    foreclosure_age: formData.foreclosureAge,
-    foreclosure_balance: formData.foreclosureBalance,
 
     // ======================================================
     // NOTES / META
@@ -442,9 +439,6 @@ if (formData.email) {
   felonyCharge: formData.felonyCharge || "",
   misdemeanorAge: formData.misdemeanorAge || "",
   misdemeanorCharge: formData.misdemeanorCharge || "",
-  bankruptcyAge: formData.bankruptcyAge || "",
-  foreclosureAge: formData.foreclosureAge || "",
-  foreclosureBalance: formData.foreclosureBalance || "",
   notes: formData.notes || "",
 });
 
@@ -1257,43 +1251,6 @@ if (formData.sms_consent && formData.phone) {
                   placeholder="What was the charge?"
                   name="misdemeanorCharge"
                   value={formData.misdemeanorCharge}
-                  onChange={handleChange}
-                  style={inputStyle}
-                />
-              </div>
-            </>
-          )}
-
-          {/* Bankruptcy */}
-          {formData.creditHistory === "Bankruptcy" && (
-            <div style={sectionStyle}>
-              <input
-                placeholder="How old is the bankruptcy?"
-                name="bankruptcyAge"
-                value={formData.bankruptcyAge}
-                onChange={handleChange}
-                style={inputStyle}
-              />
-            </div>
-          )}
-
-          {/* Foreclosure */}
-          {formData.creditHistory === "Foreclosure" && (
-            <>
-              <div style={sectionStyle}>
-                <input
-                  placeholder="How old is the foreclosure?"
-                  name="foreclosureAge"
-                  value={formData.foreclosureAge}
-                  onChange={handleChange}
-                  style={inputStyle}
-                />
-              </div>
-              <div style={sectionStyle}>
-                <input
-                  placeholder="Approximate balance owed"
-                  name="foreclosureBalance"
-                  value={formData.foreclosureBalance}
                   onChange={handleChange}
                   style={inputStyle}
                 />

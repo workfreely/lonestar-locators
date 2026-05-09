@@ -82,9 +82,8 @@ const utmContent = searchParams.get("utm_content");
   felonyCharge: "",
   misdemeanorAge: "",
   misdemeanorCharge: "",
-  bankruptcyAge: "",
-  foreclosureAge: "",
-  foreclosureBalance: "",
+criminalBackground: "",
+criminalCharge: "",
 
   // ==========================
   // NOTES / META
@@ -1047,7 +1046,7 @@ if (formData.sms_consent && formData.phone) {
             </select>
           </div>
 
-          {/* CREDIT SCORE */}
+         {/* CREDIT SCORE */}
           <div style={sectionStyle}>
             <input
               type="number"
@@ -1069,36 +1068,50 @@ if (formData.sms_consent && formData.phone) {
             </div>
           </div>
 
-          {/* CREDIT HISTORY */}
-          <div style={sectionStyle}>
-            <select
-              name="creditHistory"
-              value={formData.creditHistory}
-              onChange={handleChange}
-              style={inputStyle}
-              required
-            >
-              <option value="">Any credit or background issues?</option>
-              <option value="Good Credit">Good Credit</option>
-              <option value="Fair Credit">Fair Credit</option>
-              <option value="Poor Credit">Poor Credit</option>
-              <option value="No Credit">No Credit</option>
-              <option value="Broken Lease">Broken Lease</option>
-              <option value="Eviction">Eviction</option>
-              <option value="Felony">Felony</option>
-              <option value="Misdemeanor">Misdemeanor</option>
-              <option value="Bankruptcy">Bankruptcy</option>
-              <option value="Foreclosure">Foreclosure</option>
-            </select>
-            <div style={noteStyle}>
-              We only ask this to help match you with apartments that will work
-              with your situation.
-            </div>
-          </div>
+{/* RENTAL BACKGROUND */}
+<div style={sectionStyle}>
+  <label
+    style={{
+      fontWeight: "bold",
+      marginBottom: "0.5rem",
+      display: "block",
+    }}
+  >
+    Rental Background
+  </label>
 
-          {/* CONDITIONAL LOGIC FIELDS */}
+  <select
+    name="creditHistory"
+    value={formData.creditHistory}
+    onChange={handleChange}
+    style={inputStyle}
+    required
+  >
+    <option value="">Select Rental Background</option>
+    <option value="Clean">No Broken Lease or Eviction</option>
+    <option value="Broken Lease">Broken Lease</option>
+    <option value="Eviction">Eviction</option>
+  </select>
 
-          {/* Broken Lease */}
+  <div
+    style={{
+      background: "#fff8e1",
+      border: "1px solid #f0d98a",
+      padding: "12px",
+      borderRadius: "6px",
+      fontSize: "0.9rem",
+      marginTop: "0.75rem",
+      color: "#555",
+      lineHeight: "1.5",
+    }}
+  >
+    Please answer honestly. Some apartments are flexible depending on
+    the situation, and this helps us match you with communities that
+    are more likely to approve you.
+  </div>
+</div>
+
+ {/* Broken Lease */}
           {formData.creditHistory === "Broken Lease" && (
             <>
               <div style={sectionStyle}>
@@ -1158,6 +1171,51 @@ if (formData.sms_consent && formData.phone) {
             </>
           )}
 
+{/* CRIMINAL BACKGROUND */}
+<div style={sectionStyle}>
+  <label
+    style={{
+      fontWeight: "bold",
+      marginBottom: "0.5rem",
+      display: "block",
+    }}
+  >
+    Criminal Background
+  </label>
+
+  <select
+    name="criminalBackground"
+    value={formData.criminalBackground || ""}
+    onChange={handleChange}
+    style={inputStyle}
+  >
+    <option value="">Select Criminal Background</option>
+    <option value="None">No Criminal Background</option>
+    <option value="Misdemeanor">Misdemeanor</option>
+    <option value="Felony">Felony</option>
+  </select>
+
+  <div style={noteStyle}>
+    Some communities have restrictions based on certain offenses. This helps us avoid wasting your time on properties that may not work.
+  </div>
+</div>
+
+{/* Criminal Charge Details */}
+{formData.criminalBackground &&
+  formData.criminalBackground !== "None" && (
+    <div style={sectionStyle}>
+      <input
+        placeholder="Briefly describe the charge (example: assault, DWI, drug-related)"
+        name="criminalCharge"
+        value={formData.criminalCharge || ""}
+        onChange={handleChange}
+        style={inputStyle}
+      />
+    </div>
+)}
+
+          {/* CONDITIONAL LOGIC FIELDS */}
+
           {/* Felony */}
           {formData.creditHistory === "Felony" && (
             <>
@@ -1206,43 +1264,10 @@ if (formData.sms_consent && formData.phone) {
             </>
           )}
 
-          {/* Bankruptcy */}
-          {formData.creditHistory === "Bankruptcy" && (
-            <div style={sectionStyle}>
-              <input
-                placeholder="How old is the bankruptcy?"
-                name="bankruptcyAge"
-                value={formData.bankruptcyAge}
-                onChange={handleChange}
-                style={inputStyle}
-              />
-            </div>
-          )}
+          {/* CONDITIONAL LOGIC FIELDS */}
 
-          {/* Foreclosure */}
-          {formData.creditHistory === "Foreclosure" && (
-            <>
-              <div style={sectionStyle}>
-                <input
-                  placeholder="How old is the foreclosure?"
-                  name="foreclosureAge"
-                  value={formData.foreclosureAge}
-                  onChange={handleChange}
-                  style={inputStyle}
-                />
-              </div>
-              <div style={sectionStyle}>
-                <input
-                  placeholder="Approximate balance owed"
-                  name="foreclosureBalance"
-                  value={formData.foreclosureBalance}
-                  onChange={handleChange}
-                  style={inputStyle}
-                />
-              </div>
-            </>
-          )}
-
+         
+        
           {/* NOTES */}
           <div style={sectionStyle}>
             <textarea
