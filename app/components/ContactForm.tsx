@@ -49,6 +49,7 @@ const utmContent = searchParams.get("utm_content");
 // NOTE: Do NOT add tracking fields here
 // ======================================================
 
+const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState({
   // ==========================
   // USER INPUT
@@ -224,16 +225,20 @@ useEffect(() => {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  e.preventDefault();
+
+  if (isSubmitting) return;
+  setIsSubmitting(true);
 
       // ------------------------------------------------------
   // Honeypot Bot Protection
   // Purpose: silently block automated spam submissions
   // ------------------------------------------------------
   if (formData.website) {
-    console.warn("Bot submission blocked.");
-    return;
-  }
+  console.warn("Bot submission blocked.");
+  setIsSubmitting(false);
+  return;
+}
 
     // ======================================================
 // Submission Flow
@@ -303,6 +308,7 @@ useEffect(() => {
           moveDate: formData.moveDate,
           propertyName: propertyName || "",
         });
+        setIsSubmitting(false);
      router.push(`/start-your-search?${params.toString()}`);
 
      // ------------------------------------------------------
@@ -325,10 +331,11 @@ if (formData.sms_consent && formData.phone) {
 
         return;
       } catch (err) {
-        console.error("Unexpected error:", err);
-        alert("Oops! Something went wrong. Please try again.");
-        return;
-      }
+  console.error("Unexpected error:", err);
+  alert("Oops! Something went wrong. Please try again.");
+  setIsSubmitting(false);
+  return;
+}
     }
 
     // ======================================================
@@ -403,14 +410,27 @@ if (formData.sms_consent && formData.phone) {
 ]);
 
       if (error) {
-       console.error("FULL ERROR:", JSON.stringify(error, null, 2));
-        alert(
-          "Yikes! There was an error submitting the form. Please try again."
-        );
-        return;
-      }
+  console.error("FULL ERROR:", JSON.stringify(error, null, 2));
+  alert(
+    "Yikes! There was an error submitting the form. Please try again."
+  );
+  setIsSubmitting(false);
+  return;
+}
 
       console.log("Lead submitted successfully to Supabase!", data);
+      await fetch("/api/google/create-contact", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    firstName: formData.firstName,
+    lastName: formData.lastName,
+    phone: formData.phone,
+    city: formData.city || "Lead",
+  }),
+});
 
 // ------------------------------------------------------
 // Send Confirmation Email to Lead (Non-blocking)
@@ -497,9 +517,10 @@ if (formData.sms_consent && formData.phone) {
         window.scrollTo({ top: 0, behavior: "smooth" });
       }, 200);
     } catch (err) {
-      console.error("Unexpected error:", err);
-      alert("Yikes! There was an error submitting the form. Please try again.");
-    }
+  console.error("Unexpected error:", err);
+  alert("Yikes! There was an error submitting the form. Please try again.");
+  setIsSubmitting(false);
+}
   };
 
   const inputStyle = {
@@ -687,7 +708,8 @@ if (formData.sms_consent && formData.phone) {
                 borderRadius: "4px",
                 border: "1px solid #ccc",
                 background: "#f2f2f2",
-                cursor: "pointer",
+              cursor: isSubmitting ? "not-allowed" : "pointer",
+              opacity: isSubmitting ? 0.7 : 1,
               }}
             >
               Select All
@@ -1040,27 +1062,29 @@ if (formData.sms_consent && formData.phone) {
             </select>
           </div>
 
-          {/* CREDIT SCORE */}
-          <div style={sectionStyle}>
-            <input
-              type="number"
-              name="creditScore"
-              placeholder="Estimated Credit Score"
-              value={formData.creditScore}
-              onChange={handleChange}
-              required
-              style={inputStyle}
-              min="0"
-              max="850"
-              step="1" // ✅ whole numbers only
-              inputMode="numeric" // ✅ mobile shows number keypad
-            />
+         {/* CREDIT SCORE */}
+<div style={sectionStyle}>
+  <select
+    name="creditScore"
+    value={formData.creditScore}
+    onChange={handleChange}
+    required
+    style={inputStyle}
+  >
+    <option value="">Estimated Credit Score</option>
+<option value="700+">700+</option>
+<option value="670-699">670-699</option>
+<option value="620-669">620-669</option>
+<option value="580-619">580-619</option>
+<option value="450-579">450-579</option>
+<option value="Below 450">Below 450</option>
+<option value="Unsure">Unsure</option>
+  </select>
 
-            <div style={noteStyle}>
-              You can check Credit Karma for free. This will help evaluate which
-              properties will accept you and boost your chances of approval!
-            </div>
-          </div>
+  <div style={noteStyle}>
+    You can check Credit Karma for free. This helps us match you with properties that are more likely to approve you.
+  </div>
+</div>
 
 {/* RENTAL BACKGROUND */}
 <div style={sectionStyle}>
@@ -1108,23 +1132,36 @@ if (formData.sms_consent && formData.phone) {
  {/* Broken Lease */}
           {formData.creditHistory === "Broken Lease" && (
             <>
+             <div style={sectionStyle}>
+  <select
+    name="brokenLeaseAge"
+    value={formData.brokenLeaseAge}
+    onChange={handleChange}
+    style={inputStyle}
+  >
+    <option value="">How old is the broken lease?</option>
+    <option value="Less than 1 year">Less than 1 year</option>
+    <option value="1 year">1 year</option>
+    <option value="2 years">2 years</option>
+    <option value="3 years">3 years</option>
+    <option value="5 years">5 years</option>
+    <option value="7+ years">7+ years</option>
+  </select>
+</div>
               <div style={sectionStyle}>
-                <input
-                  placeholder="How old is the broken lease?"
-                  name="brokenLeaseAge"
-                  value={formData.brokenLeaseAge}
-                  onChange={handleChange}
-                  style={inputStyle}
-                />
-              </div>
-              <div style={sectionStyle}>
-                <input
-                  placeholder="Approximate balance owed"
-                  name="brokenLeaseAmount"
-                  value={formData.brokenLeaseAmount}
-                  onChange={handleChange}
-                  style={inputStyle}
-                />
+                <select
+  name="brokenLeaseAmount"
+  value={formData.brokenLeaseAmount}
+  onChange={handleChange}
+  style={inputStyle}
+>
+  <option value="">Approximate balance owed</option>
+  <option value="Less than $500">Less than $500</option>
+  <option value="$500-$1,000">$500-$1,000</option>
+  <option value="$1,000-$2,000">$1,000-$2,000</option>
+  <option value="$2,000-$5,000">$2,000-$5,000</option>
+  <option value="$5,000+">$5,000+</option>
+</select>
               </div>
             </>
           )}
@@ -1145,14 +1182,21 @@ if (formData.sms_consent && formData.phone) {
                 </select>
               </div>
               <div style={sectionStyle}>
-                <input
-                  placeholder="How old is the eviction?"
-                  name="evictionAge"
-                  value={formData.evictionAge}
-                  onChange={handleChange}
-                  style={inputStyle}
-                />
-              </div>
+  <select
+    name="evictionAge"
+    value={formData.evictionAge}
+    onChange={handleChange}
+    style={inputStyle}
+  >
+    <option value="">How old is the eviction?</option>
+    <option value="Less than 1 year">Less than 1 year</option>
+    <option value="1 year">1 year</option>
+    <option value="2 years">2 years</option>
+    <option value="3 years">3 years</option>
+    <option value="5 years">5 years</option>
+    <option value="7+ years">7+ years</option>
+  </select>
+</div>
               <div style={sectionStyle}>
                 <input
                   placeholder="Approximate balance owed"
@@ -1197,66 +1241,69 @@ if (formData.sms_consent && formData.phone) {
 {/* Criminal Charge Details */}
 {formData.criminalBackground &&
   formData.criminalBackground !== "None" && (
-    <div style={sectionStyle}>
-      <input
-        placeholder="Briefly describe the charge (example: assault, DWI, drug-related)"
-        name="criminalCharge"
-        value={formData.criminalCharge || ""}
-        onChange={handleChange}
-        style={inputStyle}
-      />
-    </div>
+ <div style={sectionStyle}>
+  <select
+    name="criminalCharge"
+    value={formData.criminalCharge || ""}
+    onChange={handleChange}
+    style={inputStyle}
+  >
+    <option value="">Select Charge Type</option>
+    <option value="DWI">DWI</option>
+    <option value="Drug Related">Drug Related</option>
+    <option value="Assault">Assault</option>
+    <option value="Theft / Fraud">Theft / Fraud</option>
+    <option value="Sex Offense">Sex Offense</option>
+    <option value="Other">Other</option>
+  </select>
+</div>
 )}
 
           {/* CONDITIONAL LOGIC FIELDS */}
 
           {/* Felony */}
-          {formData.creditHistory === "Felony" && (
-            <>
-              <div style={sectionStyle}>
-                <input
-                  placeholder="How old is the felony?"
-                  name="felonyAge"
-                  value={formData.felonyAge}
-                  onChange={handleChange}
-                  style={inputStyle}
-                />
-              </div>
-              <div style={sectionStyle}>
-                <input
-                  placeholder="What was the charge?"
-                  name="felonyCharge"
-                  value={formData.felonyCharge}
-                  onChange={handleChange}
-                  style={inputStyle}
-                />
-              </div>
-            </>
-          )}
+{formData.criminalBackground === "Felony" && (
+  <>
+    <div style={sectionStyle}>
+      <select
+        name="felonyAge"
+        value={formData.felonyAge}
+        onChange={handleChange}
+        style={inputStyle}
+      >
+        <option value="">How old is the felony?</option>
+        <option value="Less than 1 year">Less than 1 year</option>
+        <option value="1 year">1 year</option>
+        <option value="2 years">2 years</option>
+        <option value="3 years">3 years</option>
+        <option value="5 years">5 years</option>
+        <option value="7+ years">7+ years</option>
+      </select>
+    </div>
+  </>
+)}
 
-          {/* Misdemeanor */}
-          {formData.creditHistory === "Misdemeanor" && (
-            <>
-              <div style={sectionStyle}>
-                <input
-                  placeholder="How old is the misdemeanor?"
-                  name="misdemeanorAge"
-                  value={formData.misdemeanorAge}
-                  onChange={handleChange}
-                  style={inputStyle}
-                />
-              </div>
-              <div style={sectionStyle}>
-                <input
-                  placeholder="What was the charge?"
-                  name="misdemeanorCharge"
-                  value={formData.misdemeanorCharge}
-                  onChange={handleChange}
-                  style={inputStyle}
-                />
-              </div>
-            </>
-          )}
+{/* Misdemeanor */}
+{formData.criminalBackground === "Misdemeanor" && (
+  <>
+    <div style={sectionStyle}>
+      <select
+        name="misdemeanorAge"
+        value={formData.misdemeanorAge}
+        onChange={handleChange}
+        style={inputStyle}
+      >
+        <option value="">How old is the misdemeanor?</option>
+        <option value="Less than 1 year">Less than 1 year</option>
+        <option value="1 year">1 year</option>
+        <option value="2 years">2 years</option>
+        <option value="3 years">3 years</option>
+        <option value="5 years">5 years</option>
+        <option value="7+ years">7+ years</option>
+      </select>
+    </div>
+  </>
+)}
 
           {/* NOTES */}
           <div style={sectionStyle}>
@@ -1305,10 +1352,11 @@ if (formData.sms_consent && formData.phone) {
 
 
       {/* SUBMIT BUTTON */}
-      <button
-        type="submit"
-        style={{
-          backgroundColor: "#28a745",
+<button
+  type="submit"
+  disabled={isSubmitting}
+  style={{
+    backgroundColor: "#28a745",
           color: "#fff",
           padding: "0.75rem",
           borderRadius: "6px",
@@ -1319,7 +1367,7 @@ if (formData.sms_consent && formData.phone) {
           marginTop: "1rem",
         }}
       >
-        Send My List
+    {isSubmitting ? "Submitting..." : "Send My List"}
       </button>
       <style>
         {`

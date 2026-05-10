@@ -80,6 +80,27 @@ const redButton =
 }
 
   function formatDate(date: string) {
+    function formatReceivedDate(date: string) {
+  if (!date) return "Unknown"
+
+  const created = new Date(date)
+  const today = new Date()
+
+  created.setHours(0, 0, 0, 0)
+  today.setHours(0, 0, 0, 0)
+
+  const diff =
+    (today.getTime() - created.getTime()) /
+    (1000 * 60 * 60 * 24)
+
+  if (diff === 0) return "Received Today"
+  if (diff === 1) return "Received Yesterday"
+
+  return `Received ${new Date(date).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  })}`
+}
     if (!date) return "—"
     return new Date(date).toLocaleDateString("en-US", {
       month: "2-digit",
@@ -153,6 +174,17 @@ function getFollowUpStatus(date: string) {
   return "upcoming"
 }
 
+
+const sourceStyles: Record<string, string> = {
+  tiktok: "bg-yellow-100 text-yellow-800 border border-yellow-200",
+  instagram: "bg-purple-100 text-purple-800 border border-purple-200",
+  facebook: "bg-blue-100 text-blue-800 border border-blue-200",
+  youtube: "bg-red-100 text-red-800 border border-red-200",
+  website: "bg-green-100 text-green-800 border border-green-200",
+  referral: "bg-orange-100 text-orange-800 border border-orange-200",
+  direct: "bg-gray-100 text-gray-700 border border-gray-200",
+  manual: "bg-zinc-100 text-zinc-800 border border-zinc-200",
+}
 
 function getStatusStyles(status: string) {
   switch (status) {
@@ -406,6 +438,7 @@ I’ll get tours set up or tweak the list for you`)
               >
                 📱 {lead.phone}
               </a>
+
             )}
           </div>
           
@@ -630,6 +663,20 @@ className={grayButton}
       {lead.credit_score || "—"}
     </span>
   </div>
+  
+  {lead.source && (
+  <div className="mt-2">
+    <span className="text-gray-500">Source:</span>{" "}
+    <span
+      className={`inline-flex items-center px-2 py-[2px] rounded-full text-[11px] font-medium ${
+        sourceStyles[lead.source] || "bg-gray-100 text-gray-700"
+      }`}
+    >
+      {lead.source.charAt(0).toUpperCase() + lead.source.slice(1)}
+    </span>
+  </div>
+  
+)}
 
 </div>
 

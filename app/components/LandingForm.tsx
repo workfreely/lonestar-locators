@@ -414,6 +414,18 @@ if (formData.sms_consent && formData.phone) {
       }
 
       console.log("Lead submitted successfully to Supabase!", data);
+      await fetch("/api/google/create-contact", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    firstName: formData.firstName,
+    lastName: formData.lastName,
+    phone: formData.phone,
+    city: formData.city || "Lead",
+  }),
+});
 
 // ------------------------------------------------------
 // Send Confirmation Email to Lead (Non-blocking)
@@ -1047,26 +1059,28 @@ if (formData.sms_consent && formData.phone) {
           </div>
 
          {/* CREDIT SCORE */}
-          <div style={sectionStyle}>
-            <input
-              type="number"
-              name="creditScore"
-              placeholder="Estimated Credit Score"
-              value={formData.creditScore}
-              onChange={handleChange}
-              required
-              style={inputStyle}
-              min="0"
-              max="850"
-              step="1" // ✅ whole numbers only
-              inputMode="numeric" // ✅ mobile shows number keypad
-            />
+<div style={sectionStyle}>
+  <select
+    name="creditScore"
+    value={formData.creditScore}
+    onChange={handleChange}
+    required
+    style={inputStyle}
+  >
+    <option value="">Estimated Credit Score</option>
+    <option value="700+">700+</option>
+    <option value="670-699">670-699</option>
+    <option value="620-669">620-669</option>
+    <option value="580-619">580-619</option>
+    <option value="450-579">450-579</option>
+    <option value="Below 450">Below 450</option>
+    <option value="Unsure">Unsure</option>
+  </select>
 
-            <div style={noteStyle}>
-              You can check Credit Karma for free. This will help evaluate which
-              properties will accept you and boost your chances of approval!
-            </div>
-          </div>
+  <div style={noteStyle}>
+    You can check Credit Karma for free. This helps us match you with properties that are more likely to approve you.
+  </div>
+</div>
 
 {/* RENTAL BACKGROUND */}
 <div style={sectionStyle}>
@@ -1111,65 +1125,94 @@ if (formData.sms_consent && formData.phone) {
   </div>
 </div>
 
- {/* Broken Lease */}
-          {formData.creditHistory === "Broken Lease" && (
-            <>
-              <div style={sectionStyle}>
-                <input
-                  placeholder="How old is the broken lease?"
-                  name="brokenLeaseAge"
-                  value={formData.brokenLeaseAge}
-                  onChange={handleChange}
-                  style={inputStyle}
-                />
-              </div>
-              <div style={sectionStyle}>
-                <input
-                  placeholder="Approximate balance owed"
-                  name="brokenLeaseAmount"
-                  value={formData.brokenLeaseAmount}
-                  onChange={handleChange}
-                  style={inputStyle}
-                />
-              </div>
-            </>
-          )}
+{/* Broken Lease */}
+{formData.creditHistory === "Broken Lease" && (
+  <>
+    <div style={sectionStyle}>
+      <select
+        name="brokenLeaseAge"
+        value={formData.brokenLeaseAge}
+        onChange={handleChange}
+        style={inputStyle}
+      >
+        <option value="">How old is the broken lease?</option>
+        <option value="Less than 1 year">Less than 1 year</option>
+        <option value="1 year">1 year</option>
+        <option value="2 years">2 years</option>
+        <option value="3 years">3 years</option>
+        <option value="5 years">5 years</option>
+        <option value="7+ years">7+ years</option>
+      </select>
+    </div>
 
-          {/* Eviction */}
-          {formData.creditHistory === "Eviction" && (
-            <>
-              <div style={sectionStyle}>
-                <select
-                  name="evictionCourt"
-                  value={formData.evictionCourt}
-                  onChange={handleChange}
-                  style={inputStyle}
-                >
-                  <option value="">Did it go to court?</option>
-                  <option value="Yes">Yes</option>
-                  <option value="No">No</option>
-                </select>
-              </div>
-              <div style={sectionStyle}>
-                <input
-                  placeholder="How old is the eviction?"
-                  name="evictionAge"
-                  value={formData.evictionAge}
-                  onChange={handleChange}
-                  style={inputStyle}
-                />
-              </div>
-              <div style={sectionStyle}>
-                <input
-                  placeholder="Approximate balance owed"
-                  name="evictionBalance"
-                  value={formData.evictionBalance}
-                  onChange={handleChange}
-                  style={inputStyle}
-                />
-              </div>
-            </>
-          )}
+    <div style={sectionStyle}>
+      <select
+        name="brokenLeaseAmount"
+        value={formData.brokenLeaseAmount}
+        onChange={handleChange}
+        style={inputStyle}
+      >
+        <option value="">Approximate balance owed</option>
+        <option value="Less than $500">Less than $500</option>
+        <option value="$500-$1,000">$500-$1,000</option>
+        <option value="$1,000-$2,000">$1,000-$2,000</option>
+        <option value="$2,000-$5,000">$2,000-$5,000</option>
+        <option value="$5,000+">$5,000+</option>
+      </select>
+    </div>
+  </>
+)}
+
+{/* Eviction */}
+{formData.creditHistory === "Eviction" && (
+  <>
+    <div style={sectionStyle}>
+      <select
+        name="evictionCourt"
+        value={formData.evictionCourt}
+        onChange={handleChange}
+        style={inputStyle}
+      >
+        <option value="">Did it go to court?</option>
+        <option value="Yes">Yes</option>
+        <option value="No">No</option>
+      </select>
+    </div>
+
+    <div style={sectionStyle}>
+      <select
+        name="evictionAge"
+        value={formData.evictionAge}
+        onChange={handleChange}
+        style={inputStyle}
+      >
+        <option value="">How old is the eviction?</option>
+        <option value="Less than 1 year">Less than 1 year</option>
+        <option value="1 year">1 year</option>
+        <option value="2 years">2 years</option>
+        <option value="3 years">3 years</option>
+        <option value="5 years">5 years</option>
+        <option value="7+ years">7+ years</option>
+      </select>
+    </div>
+
+    <div style={sectionStyle}>
+      <select
+        name="evictionBalance"
+        value={formData.evictionBalance}
+        onChange={handleChange}
+        style={inputStyle}
+      >
+        <option value="">Approximate balance owed</option>
+        <option value="Less than $500">Less than $500</option>
+        <option value="$500-$1,000">$500-$1,000</option>
+        <option value="$1,000-$2,000">$1,000-$2,000</option>
+        <option value="$2,000-$5,000">$2,000-$5,000</option>
+        <option value="$5,000+">$5,000+</option>
+      </select>
+    </div>
+  </>
+)}
 
 {/* CRIMINAL BACKGROUND */}
 <div style={sectionStyle}>
@@ -1203,70 +1246,69 @@ if (formData.sms_consent && formData.phone) {
 {/* Criminal Charge Details */}
 {formData.criminalBackground &&
   formData.criminalBackground !== "None" && (
-    <div style={sectionStyle}>
-      <input
-        placeholder="Briefly describe the charge (example: assault, DWI, drug-related)"
-        name="criminalCharge"
-        value={formData.criminalCharge || ""}
-        onChange={handleChange}
-        style={inputStyle}
-      />
-    </div>
+    <>
+      <div style={sectionStyle}>
+        <select
+          name="criminalCharge"
+          value={formData.criminalCharge || ""}
+          onChange={handleChange}
+          style={inputStyle}
+        >
+          <option value="">Select Charge Type</option>
+          <option value="DWI">DWI</option>
+          <option value="Drug Related">Drug Related</option>
+          <option value="Assault">Assault</option>
+          <option value="Theft / Fraud">Theft / Fraud</option>
+          <option value="Sex Offense">Sex Offense</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+    </>
 )}
 
-          {/* CONDITIONAL LOGIC FIELDS */}
+{/* Felony */}
+{formData.criminalBackground === "Felony" && (
+  <>
+    <div style={sectionStyle}>
+      <select
+        name="felonyAge"
+        value={formData.felonyAge}
+        onChange={handleChange}
+        style={inputStyle}
+      >
+        <option value="">How old is the felony?</option>
+        <option value="Less than 1 year">Less than 1 year</option>
+        <option value="1 year">1 year</option>
+        <option value="2 years">2 years</option>
+        <option value="3 years">3 years</option>
+        <option value="5 years">5 years</option>
+        <option value="7+ years">7+ years</option>
+      </select>
+    </div>
+  </>
+)}
 
-          {/* Felony */}
-          {formData.creditHistory === "Felony" && (
-            <>
-              <div style={sectionStyle}>
-                <input
-                  placeholder="How old is the felony?"
-                  name="felonyAge"
-                  value={formData.felonyAge}
-                  onChange={handleChange}
-                  style={inputStyle}
-                />
-              </div>
-              <div style={sectionStyle}>
-                <input
-                  placeholder="What was the charge?"
-                  name="felonyCharge"
-                  value={formData.felonyCharge}
-                  onChange={handleChange}
-                  style={inputStyle}
-                />
-              </div>
-            </>
-          )}
-
-          {/* Misdemeanor */}
-          {formData.creditHistory === "Misdemeanor" && (
-            <>
-              <div style={sectionStyle}>
-                <input
-                  placeholder="How old is the misdemeanor?"
-                  name="misdemeanorAge"
-                  value={formData.misdemeanorAge}
-                  onChange={handleChange}
-                  style={inputStyle}
-                />
-              </div>
-              <div style={sectionStyle}>
-                <input
-                  placeholder="What was the charge?"
-                  name="misdemeanorCharge"
-                  value={formData.misdemeanorCharge}
-                  onChange={handleChange}
-                  style={inputStyle}
-                />
-              </div>
-            </>
-          )}
-
-          {/* CONDITIONAL LOGIC FIELDS */}
-
-         
+{/* Misdemeanor */}
+{formData.criminalBackground === "Misdemeanor" && (
+  <>
+    <div style={sectionStyle}>
+      <select
+        name="misdemeanorAge"
+        value={formData.misdemeanorAge}
+        onChange={handleChange}
+        style={inputStyle}
+      >
+        <option value="">How old is the misdemeanor?</option>
+        <option value="Less than 1 year">Less than 1 year</option>
+        <option value="1 year">1 year</option>
+        <option value="2 years">2 years</option>
+        <option value="3 years">3 years</option>
+        <option value="5 years">5 years</option>
+        <option value="7+ years">7+ years</option>
+      </select>
+    </div>
+  </>
+)}
         
           {/* NOTES */}
           <div style={sectionStyle}>

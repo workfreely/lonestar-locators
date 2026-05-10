@@ -123,6 +123,17 @@ async function copyPhone(e: any) {
     return "text-gray-500"
   }
 
+  const sourceStyles: Record<string, string> = {
+  tiktok: "bg-yellow-100 text-yellow-800 border border-yellow-200",
+  instagram: "bg-purple-100 text-purple-800 border border-purple-200",
+  facebook: "bg-blue-100 text-blue-800 border border-blue-200",
+  youtube: "bg-red-100 text-red-800 border border-red-200",
+  website: "bg-green-100 text-green-800 border border-green-200",
+  referral: "bg-orange-100 text-orange-800 border border-orange-200",
+  direct: "bg-gray-100 text-gray-700 border border-gray-200",
+  manual: "bg-zinc-100 text-zinc-800 border border-zinc-200",
+}
+
   function getStatusStyles(status: string) {
     switch (status) {
       case "new":
@@ -264,7 +275,20 @@ shadow-[0_1px_4px_rgba(0,0,0,0.03)] px-3 py-2 text-[14px]">
               {lead.credit_score || "—"}
             </span>
           </div>
+  {lead.source && (
+  <div className="mt-1.5 flex items-center gap-2">
+    <span className="text-gray-500">Source:</span>
+    <span
+      className={`inline-flex items-center h-[22px] px-2 rounded-full text-[11px] font-semibold leading-none ${
+        sourceStyles[lead.source] || "bg-gray-100 text-gray-700"
+      }`}
+    >
+      {lead.source.charAt(0).toUpperCase() + lead.source.slice(1)}
+    </span>
+  </div>
+)}
         </div>
+
 
        {/* RISK + CLOSE % */}
 <div className="mt-2 flex items-center gap-2 text-[11px]">

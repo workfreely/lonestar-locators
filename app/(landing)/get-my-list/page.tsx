@@ -56,7 +56,7 @@ export default function GetYourListPage() {
             fontWeight: "600",
           }}
         >
-          Free service in San Antonio, Austin, Dallas & Houston  
+          San Antonio • Austin • Dallas • Houston
         </p>
 
         <p
@@ -68,7 +68,7 @@ export default function GetYourListPage() {
             marginBottom: "0.9rem",
           }}
         >
-          Up to 10 weeks free • $50+ cash rebate • Free movers
+        Up to 10 weeks free • $50+ cash rebate • Free movers
         </p>
 
         <p

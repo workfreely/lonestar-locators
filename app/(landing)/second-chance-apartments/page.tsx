@@ -56,7 +56,7 @@ export default function GetYourListPage() {
             fontWeight: "600",
           }}
         >
-        Bad Credit • Broken Lease • No credit • Background
+        Bad Credit • No Credit • Broken Lease • Background
         </p>
 
         <p
@@ -68,7 +68,7 @@ export default function GetYourListPage() {
             marginBottom: "0.9rem",
           }}
         >
-          Free service • Up to 10 weeks free • $50+ cash rebate • Free movers
+        Up to 10 weeks free • $50+ cash rebate • Free movers
         </p>
 
         <p
