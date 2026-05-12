@@ -24,12 +24,10 @@ export default function GetYourListPage() {
         {/* ================= HEADER ================= */}
         <h1
   style={{
-    fontSize: "clamp(2.2rem, 5vw, 2.5rem)",
+    fontSize: "2.5rem",
     fontWeight: 800,
-    textAlign: "center",
-    marginBottom: "1.3rem",
-    color: "#111",
     lineHeight: 1.05,
+    textAlign: "center",
   }}
 >
   Stop Wasting Time
@@ -62,15 +60,17 @@ export default function GetYourListPage() {
         </p>
 
         <p
-          style={{
-            textAlign: "center",
-            fontWeight: "600",
-            fontSize: "0.95rem",
-            color: "#111",
-            marginBottom: "0.9rem",
-          }}
-        >
-        Up to 10 weeks free • rebate • free movers
+  style={{
+    textAlign: "center",
+    fontWeight: "600",
+    fontSize: "0.92rem",
+    color: "#111",
+    marginBottom: "0.9rem",
+    lineHeight: 1.2,
+    whiteSpace: "nowrap",
+  }}
+>
+        Up to 10 weeks free • cash rebate • free movers
         </p>
 
         <p
@@ -90,19 +90,23 @@ export default function GetYourListPage() {
         </Suspense>
 
         {/* ================= TESTIMONIALS ================= */}
-        <div style={{ marginTop: "2rem", textAlign: "center" }}>
-          <h3
+       <div
   style={{
-    marginBottom: "1.9rem",
-    fontSize: "clamp(1.55rem, 3vw, 1.9rem)",
-    fontWeight: 800,
-    color: "#111",
-    lineHeight: 1.15,
-    letterSpacing: "-0.5px",
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    width: "100%",
+  }}
+>
+         <h2
+  style={{
+fontSize: "2.1rem",
+    lineHeight: 1.1,
+    textAlign: "center",
   }}
 >
   Helping renters get approved 👇
-</h3>
+</h2>
 
           <div
             style={{
