@@ -730,7 +730,10 @@ if (formData.sms_consent && formData.phone) {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr",
+              gridTemplateColumns:
+  typeof window !== "undefined" && window.innerWidth < 768
+    ? "1fr"
+    : "1fr 1fr",
               gap: "0.75rem",
             }}
           >
@@ -738,16 +741,18 @@ if (formData.sms_consent && formData.phone) {
               <label
                 key={neighborhood}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  border: "1px solid #ccc",
-                  borderRadius: "6px",
-                  fontSize: "0.95rem",
-                  cursor: "pointer",
-                  background: "#fff",
-                  padding: "0.5rem 0.75rem",
-                  whiteSpace: "nowrap",
-                }}
+  display: "flex",
+  alignItems: "center",
+  border: "1px solid #ccc",
+  borderRadius: "6px",
+  fontSize: "0.95rem",
+  cursor: "pointer",
+  background: "#fff",
+  padding: "0.5rem 0.75rem",
+  whiteSpace: "normal",
+  width: "100%",
+  overflow: "hidden",
+}}
               >
                 <div style={{ display: "flex", alignItems: "center" }}>
                   <input
@@ -856,27 +861,33 @@ if (formData.sms_consent && formData.phone) {
               </div>
 
               {/* ✅ Submarket boxes */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "0.75rem",
-                }}
-              >
+<div
+  style={{
+    display: "grid",
+    gridTemplateColumns:
+      typeof window !== "undefined" && window.innerWidth < 768
+        ? "1fr"
+        : "1fr 1fr",
+    gap: "0.75rem",
+    width: "100%",
+  }}
+>
                 {["New Braunfels", "Boerne", "Schertz"].map((sub) => (
                   <label
                     key={sub}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      border: "1px solid #ccc",
-                      borderRadius: "6px",
-                      fontSize: "0.95rem",
-                      cursor: "pointer",
-                      background: "#fff",
-                      padding: "0.5rem 0.75rem",
-                      whiteSpace: "nowrap",
-                    }}
+  display: "flex",
+  alignItems: "center",
+  border: "1px solid #ccc",
+  borderRadius: "6px",
+  fontSize: "0.95rem",
+  cursor: "pointer",
+  background: "#fff",
+  padding: "0.5rem 0.75rem",
+  whiteSpace: "normal",
+  width: "100%",
+  overflow: "hidden",
+}}
                   >
                     <div style={{ display: "flex", alignItems: "center" }}>
                       <input

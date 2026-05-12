@@ -70,7 +70,7 @@ export default function GetYourListPage() {
             marginBottom: "0.9rem",
           }}
         >
-        Up to 10 weeks free • cash rebate • Free movers
+        Up to 10 weeks free • cash rebate • free movers
         </p>
 
         <p
