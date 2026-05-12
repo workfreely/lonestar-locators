@@ -24,7 +24,7 @@ export default function GetYourListPage() {
         {/* ================= HEADER ================= */}
         <h1
   style={{
-    fontSize: "clamp(2.3rem, 5vw, 2.7rem)",
+    fontSize: "clamp(2.3rem, 5vw, 2.5rem)",
     fontWeight: 800,
     textAlign: "center",
     marginBottom: "1.3rem",
@@ -46,7 +46,7 @@ export default function GetYourListPage() {
             fontSize: "1.05rem",
           }}
         >
-          I’ll send you the best apartment and townhome deals.
+          I’ll send you the best apartment deals.
         </p>
 
         <p
@@ -70,7 +70,7 @@ export default function GetYourListPage() {
             marginBottom: "0.9rem",
           }}
         >
-        Up to 10 weeks free • cash rebate • Free movers
+        Up to 10 weeks free • rebate • Free movers
         </p>
 
         <p
