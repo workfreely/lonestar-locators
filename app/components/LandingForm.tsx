@@ -374,9 +374,6 @@ if (formData.sms_consent && formData.phone) {
     felony_charge: formData.felonyCharge,
     misdemeanor_age: formData.misdemeanorAge,
     misdemeanor_charge: formData.misdemeanorCharge,
-    bankruptcy_age: formData.bankruptcyAge,
-    foreclosure_age: formData.foreclosureAge,
-    foreclosure_balance: formData.foreclosureBalance,
 
     // ======================================================
     // NOTES / META
