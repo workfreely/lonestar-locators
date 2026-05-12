@@ -92,10 +92,10 @@ lineHeight: 1.2,
 
         {/* ================= TESTIMONIALS ================= */}
         <div style={{ marginTop: "2rem", textAlign: "center" }}>
-          <h3
+          <h2
   style={{
     marginBottom: "1.9rem",
-    fontSize: "clamp(1.5rem, 3vw, 1.9rem)",
+    fontSize: "clamp(1.4rem, 3vw, 1.9rem)",
     fontWeight: 800,
     color: "#111",
     lineHeight: 1.15,
@@ -103,7 +103,7 @@ lineHeight: 1.2,
   }}
 >
   Helping renters get approved 👇
-</h3>
+</h2>
 
           <div
             style={{
