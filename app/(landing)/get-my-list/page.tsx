@@ -71,7 +71,7 @@ lineHeight: 1.2,
             marginBottom: "0.9rem",
           }}
         >
-        Up to 10 weeks free • rebate • free movers
+        Up to 10 weeks free • cash rebate • free movers
         </p>
 
         <p
