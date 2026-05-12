@@ -51,11 +51,6 @@ const felonyCharge = searchParams.get("felonyCharge") || "";
 const misdemeanorAge = searchParams.get("misdemeanorAge") || "";
 const misdemeanorCharge = searchParams.get("misdemeanorCharge") || "";
 
-const bankruptcyAge = searchParams.get("bankruptcyAge") || "";
-
-const foreclosureAge = searchParams.get("foreclosureAge") || "";
-const foreclosureBalance = searchParams.get("foreclosureBalance") || "";
-
 
   // ==========================
   // CLEAN LAYOUT LOGIC
@@ -177,24 +172,6 @@ const foreclosureBalance = searchParams.get("foreclosureBalance") || "";
         `
         : ""
     }
-
-    ${
-      creditHistory === "Bankruptcy"
-        ? `
-        ${bankruptcyAge ? `<br/><strong>Bankruptcy Age:</strong> ${bankruptcyAge}` : ""}
-        `
-        : ""
-    }
-
-    ${
-      creditHistory === "Foreclosure"
-        ? `
-        ${foreclosureAge ? `<br/><strong>Foreclosure Age:</strong> ${foreclosureAge}` : ""}
-        ${foreclosureBalance ? `<br/><strong>Foreclosure Balance:</strong> ${foreclosureBalance}` : ""}
-        `
-        : ""
-    }
-
     ${
       notes.length > 5
         ? `

@@ -454,9 +454,6 @@ if (formData.email) {
   felonyCharge: formData.felonyCharge || "",
   misdemeanorAge: formData.misdemeanorAge || "",
   misdemeanorCharge: formData.misdemeanorCharge || "",
-  bankruptcyAge: formData.bankruptcyAge || "",
-  foreclosureAge: formData.foreclosureAge || "",
-  foreclosureBalance: formData.foreclosureBalance || "",
   notes: formData.notes || "",
 });
 
