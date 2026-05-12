@@ -280,16 +280,15 @@ const foreclosureBalance = searchParams.get("foreclosureBalance") || "";
       </div>
 
       Luxury Apartment Locator<br/>
-      Lone Star Locators<br/>
-      (210) 895-5766<br/>
-      jay@lonestarlocators.app
+      AptAmigo Brokerage<br/>
+    <br/>
     </td>
   </tr>
 </table>
 
 
 <div style="max-width:640px;margin:30px auto 0 auto;text-align:center;font-size:12px;color:#777;line-height:1.6;">
-  © ${new Date().getFullYear()} Lone Star Locators™ powered by AptAmigo Brokerage<br/>
+  © ${new Date().getFullYear()} Powered by AptAmigo Brokerage<br/>
   San Antonio | Austin | Dallas | Houston
 </div>
 

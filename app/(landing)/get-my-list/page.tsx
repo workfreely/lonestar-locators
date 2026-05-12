@@ -23,17 +23,19 @@ export default function GetYourListPage() {
       >
         {/* ================= HEADER ================= */}
         <h1
-          style={{
-            fontSize: "clamp(2.2rem, 5vw, 2.7rem)",
-            fontWeight: 800,
-            textAlign: "center",
-            marginBottom: "1.3rem",
-            color: "#111",
-            lineHeight: 1.15,
-          }}
-        >
-          Stop Wasting Time Searching for Apartments
-        </h1>
+  style={{
+    fontSize: "clamp(2.3rem, 5vw, 2.7rem)",
+    fontWeight: 800,
+    textAlign: "center",
+    marginBottom: "1.3rem",
+    color: "#111",
+    lineHeight: 1.05,
+  }}
+>
+  Stop Wasting Time
+  <br />
+  Searching for Apartments
+</h1>
 
         <p
           style={{
@@ -44,7 +46,7 @@ export default function GetYourListPage() {
             fontSize: "1.05rem",
           }}
         >
-          I’ll send you the best apartments and townhomes
+          I’ll send you the best apartment and townhome deals.
         </p>
 
         <p
@@ -68,7 +70,7 @@ export default function GetYourListPage() {
             marginBottom: "0.9rem",
           }}
         >
-        Up to 10 weeks free • $50+ cash rebate • Free movers
+        Up to 10 weeks free • cash rebate • Free movers
         </p>
 
         <p

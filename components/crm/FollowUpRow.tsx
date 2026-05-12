@@ -6,8 +6,13 @@ function isDue(date: string | null) {
   const today = new Date()
   const followUp = new Date(date)
 
-  return followUp <= today
+  // normalize times
+  today.setHours(0, 0, 0, 0)
+  followUp.setHours(0, 0, 0, 0)
+
+  return followUp.getTime() <= today.getTime()
 }
+
 
 function formatDate(date: string) {
   if (!date) return ""
