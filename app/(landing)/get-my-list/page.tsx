@@ -95,7 +95,7 @@ lineHeight: 1.2,
           <h3
   style={{
     marginBottom: "1.9rem",
-    fontSize: "clamp(1.5rem, 3vw, 1.9rem)",
+    fontSize: "clamp(1.5rem, 3vw, 1.8rem)",
     fontWeight: 800,
     color: "#111",
     lineHeight: 1.15,
