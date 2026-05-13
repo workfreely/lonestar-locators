@@ -25,7 +25,7 @@ export default function GetYourListPage() {
         {/* ================= HEADER ================= */}
         <h1
   style={{
-    fontSize: "clamp(2.2rem, 5vw, 2.5rem)",
+    fontSize: "clamp(1.95rem, 4.8vw, 2.5rem)",
     fontWeight: 800,
     textAlign: "center",
     marginBottom: "1.3rem",
@@ -35,7 +35,9 @@ export default function GetYourListPage() {
 >
   Stop Wasting Time
   <br />
+<span style={{ whiteSpace: "nowrap" }}>
   Searching for Apartments
+</span>
 </h1>
 
         <p
