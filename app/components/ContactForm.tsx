@@ -456,9 +456,7 @@ if (formData.email) {
   evictionAge: formData.evictionAge || "",
   evictionBalance: formData.evictionBalance || "",
   felonyAge: formData.felonyAge || "",
-  felonyCharge: formData.felonyCharge || "",
   misdemeanorAge: formData.misdemeanorAge || "",
-  misdemeanorCharge: formData.misdemeanorCharge || "",
   notes: formData.notes || "",
 });
 
@@ -1062,7 +1060,7 @@ if (formData.sms_consent && formData.phone) {
             </select>
           </div>
 
-         /* CREDIT SCORE */
+         {/* CREDIT SCORE */}
 <div style={sectionStyle}>
   <input
     type="number"
