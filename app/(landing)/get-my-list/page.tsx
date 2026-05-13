@@ -34,9 +34,13 @@ export default function GetYourListPage() {
 letterSpacing: "-1.5px",
   }}
 >
-  Stop Wasting Time
-  <br />
-  Searching for Apartments
+  <div>
+  <div>Stop Wasting Time</div>
+
+  <div>
+    Searching for Apartments
+  </div>
+</div>
 </h1>
 
         <p
