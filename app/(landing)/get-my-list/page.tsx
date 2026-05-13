@@ -25,7 +25,7 @@ export default function GetYourListPage() {
         {/* ================= HEADER ================= */}
         <h1
   style={{
-    fontSize: "clamp(1.72rem, 4.7vw, 2.5rem)",
+    fontSize: "clamp(1.9rem, 4.7vw, 2.5rem)",
     fontWeight: 800,
     textAlign: "center",
     marginBottom: "1.3rem",
@@ -162,7 +162,7 @@ lineHeight: 1.2,
               marginBottom: "0.75rem",
             }}
           >
-         Apartment locating powered by AptAmigo
+         Apartment Locating powered by AptAmigo
 
 <div
   style={{
