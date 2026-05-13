@@ -108,7 +108,19 @@ lineHeight: 1.2,
     letterSpacing: "-0.5px",
   }}
 >
-  Helping renters get approved 👇
+ <div
+  style={{
+    textAlign: "center",
+    fontWeight: 800,
+    lineHeight: 1.05,
+  }}
+>
+  <div>Helping renters get approved</div>
+
+  <div style={{ marginTop: "0.15rem" }}>
+    👇
+  </div>
+</div>
 </h3>
 
           <div
