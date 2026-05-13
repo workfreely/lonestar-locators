@@ -16,7 +16,7 @@ export default function GetYourListPage() {
       <div
         className={inter.className}
         style={{
-         padding: "1rem 0.7rem 2rem",
+     padding: "0.2rem 0.7rem 2rem",
           maxWidth: "640px",
           width: "100%",
           margin: "0 auto",
