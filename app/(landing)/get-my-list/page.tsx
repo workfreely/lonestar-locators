@@ -30,14 +30,13 @@ export default function GetYourListPage() {
     textAlign: "center",
     marginBottom: "1.3rem",
     color: "#111",
-    lineHeight: 1.05,
+  lineHeight: 1.0,
+letterSpacing: "-1.5px",
   }}
 >
   Stop Wasting Time
   <br />
-<span style={{ whiteSpace: "nowrap" }}>
   Searching for Apartments
-</span>
 </h1>
 
         <p
