@@ -16,20 +16,21 @@ export default function GetYourListPage() {
       <div
         className={inter.className}
         style={{
-          padding: "1rem 1rem 2rem",
+         padding: "1rem 0.7rem 2rem",
           maxWidth: "640px",
+          width: "100%",
           margin: "0 auto",
         }}
       >
         {/* ================= HEADER ================= */}
         <h1
   style={{
-    fontSize: "clamp(2rem, 4.8vw, 2.5rem)",
+    fontSize: "clamp(2.2rem, 5vw, 2.5rem)",
     fontWeight: 800,
     textAlign: "center",
     marginBottom: "1.3rem",
     color: "#111",
-  lineHeight: 1.08,
+    lineHeight: 1.05,
   }}
 >
   Stop Wasting Time
@@ -156,7 +157,7 @@ lineHeight: 1.2,
               marginBottom: "0.75rem",
             }}
           >
-         Apartment locating services powered by AptAmigo Brokerage
+         Apartment locating powered by AptAmigo
 
 <div
   style={{
