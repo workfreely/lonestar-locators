@@ -525,11 +525,12 @@ if (formData.sms_consent && formData.phone) {
 
   const sectionStyle = { marginBottom: "1rem" };
 
-  const noteStyle = {
-    fontSize: "0.85rem",
-    color: "#555",
-    marginTop: "0.25rem",
-  };
+ const noteStyle = {
+  fontSize: "0.85rem",
+  color: "#555",
+  marginTop: "0.6rem",
+  lineHeight: "1.5",
+};
 
 // ------------------------------------------------------
 // Layout & Styling
@@ -1376,20 +1377,6 @@ if (formData.sms_consent && formData.phone) {
   Send My List
 </button>
 
-{/* 🔥 TRUST LINE (ADD THIS RIGHT HERE) */}
-<p
-  style={{
-    textAlign: "center",
-    fontSize: "0.8rem",
-    color: "#888",
-    marginTop: "1rem",
-    lineHeight: 1.4,
-  }}
->
-  Apartment locating services powered by AptAmigo Brokerage  
-  <br />
-  Jay Morris | Licensed Real Estate Agent | Equal Housing Opportunity
-</p>
 
 {/* KEEP THIS BELOW */}
 <style>

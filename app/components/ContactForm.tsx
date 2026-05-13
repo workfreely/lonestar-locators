@@ -532,11 +532,12 @@ if (formData.sms_consent && formData.phone) {
 
   const sectionStyle = { marginBottom: "1rem" };
 
-  const noteStyle = {
-    fontSize: "0.85rem",
-    color: "#555",
-    marginTop: "0.25rem",
-  };
+const noteStyle = {
+  fontSize: "0.85rem",
+  color: "#555",
+  marginTop: "0.6rem",
+  lineHeight: "1.5",
+};
 
 // ------------------------------------------------------
 // Layout & Styling

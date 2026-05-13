@@ -156,8 +156,22 @@ export default function GetYourListPage() {
             }}
           >
             Apartment locating services powered by AptAmigo Brokerage
-            <br />
-            Jay Morris | Licensed Real Estate Agent | Equal Housing Opportunity
+
+<div
+  style={{
+    display: "flex",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: "4px",
+    marginTop: "0.35rem",
+  }}
+>
+  <span>Jay Morris</span>
+  <span>|</span>
+  <span>Licensed Real Estate Agent</span>
+  <span>|</span>
+  <span>Equal Housing Opportunity</span>
+</div>
           </p>
 
           {/* TREC LINKS */}
