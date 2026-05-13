@@ -72,19 +72,18 @@ const [isSubmitting, setIsSubmitting] = useState(false)
   // CREDIT / SCREENING
   // ==========================
   creditHistory: "",
-  creditScore: "",
-  brokenLeaseAge: "",
-  brokenLeaseAmount: "",
-  evictionCourt: "",
-  evictionAge: "",
-  evictionBalance: "",
-  felonyAge: "",
-  felonyCharge: "",
-  misdemeanorAge: "",
-  misdemeanorCharge: "",
+creditScore: "",
+brokenLeaseAge: "",
+brokenLeaseAmount: "",
+evictionCourt: "",
+evictionAge: "",
+evictionBalance: "",
 
-  criminalBackground: "",
-  criminalCharge: "",
+criminalBackground: "",
+criminalCharge: "",
+
+felonyAge: "",
+misdemeanorAge: "",
 
   // ==========================
   // NOTES / META
@@ -378,9 +377,10 @@ if (formData.sms_consent && formData.phone) {
     eviction_age: formData.evictionAge,
     eviction_balance: formData.evictionBalance,
     felony_age: formData.felonyAge,
-    felony_charge: formData.felonyCharge,
-    misdemeanor_age: formData.misdemeanorAge,
-    misdemeanor_charge: formData.misdemeanorCharge,
+misdemeanor_age: formData.misdemeanorAge,
+
+criminal_background: formData.criminalBackground,
+criminal_charge: formData.criminalCharge,
 
     // ======================================================
     // NOTES / META
@@ -1062,27 +1062,24 @@ if (formData.sms_consent && formData.phone) {
             </select>
           </div>
 
-         {/* CREDIT SCORE */}
+         /* CREDIT SCORE */
 <div style={sectionStyle}>
-  <select
+  <input
+    type="number"
     name="creditScore"
+    placeholder="Estimated Credit Score"
     value={formData.creditScore}
     onChange={handleChange}
     required
     style={inputStyle}
-  >
-    <option value="">Estimated Credit Score</option>
-<option value="700+">700+</option>
-<option value="670-699">670-699</option>
-<option value="620-669">620-669</option>
-<option value="580-619">580-619</option>
-<option value="450-579">450-579</option>
-<option value="Below 450">Below 450</option>
-<option value="Unsure">Unsure</option>
-  </select>
+    min="300"
+    max="850"
+    step="1"
+    inputMode="numeric"
+  />
 
   <div style={noteStyle}>
-    You can check Credit Karma for free. This helps us match you with properties that are more likely to approve you.
+    You can check Credit Karma for free. Your exact score helps us match you with apartments that are more likely to approve you.
   </div>
 </div>
 

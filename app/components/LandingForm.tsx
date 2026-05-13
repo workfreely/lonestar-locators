@@ -79,9 +79,7 @@ const utmContent = searchParams.get("utm_content");
   evictionAge: "",
   evictionBalance: "",
   felonyAge: "",
-  felonyCharge: "",
   misdemeanorAge: "",
-  misdemeanorCharge: "",
 criminalBackground: "",
 criminalCharge: "",
 
@@ -361,19 +359,23 @@ if (formData.sms_consent && formData.phone) {
     income: formData.income,
 
     // ======================================================
-    // CREDIT / SCREENING INFO (Renter-only)
-    // ======================================================
-    credit_history: formData.creditHistory,
-    credit_score: formData.creditScore,
-    broken_lease_age: formData.brokenLeaseAge,
-    broken_lease_amount: formData.brokenLeaseAmount,
-    eviction_court: formData.evictionCourt,
-    eviction_age: formData.evictionAge,
-    eviction_balance: formData.evictionBalance,
-    felony_age: formData.felonyAge,
-    felony_charge: formData.felonyCharge,
-    misdemeanor_age: formData.misdemeanorAge,
-    misdemeanor_charge: formData.misdemeanorCharge,
+// CREDIT / SCREENING INFO (Renter-only)
+// ======================================================
+credit_history: formData.creditHistory,
+credit_score: formData.creditScore,
+
+broken_lease_age: formData.brokenLeaseAge,
+broken_lease_amount: formData.brokenLeaseAmount,
+
+eviction_court: formData.evictionCourt,
+eviction_age: formData.evictionAge,
+eviction_balance: formData.evictionBalance,
+
+criminal_background: formData.criminalBackground,
+criminal_charge: formData.criminalCharge,
+
+felony_age: formData.felonyAge,
+misdemeanor_age: formData.misdemeanorAge,
 
     // ======================================================
     // NOTES / META
@@ -448,9 +450,7 @@ if (formData.email) {
   evictionAge: formData.evictionAge || "",
   evictionBalance: formData.evictionBalance || "",
   felonyAge: formData.felonyAge || "",
-  felonyCharge: formData.felonyCharge || "",
   misdemeanorAge: formData.misdemeanorAge || "",
-  misdemeanorCharge: formData.misdemeanorCharge || "",
   notes: formData.notes || "",
 });
 
@@ -1065,25 +1065,22 @@ if (formData.sms_consent && formData.phone) {
 
          {/* CREDIT SCORE */}
 <div style={sectionStyle}>
-  <select
+  <input
+    type="number"
     name="creditScore"
+    placeholder="Estimated Credit Score"
     value={formData.creditScore}
     onChange={handleChange}
     required
     style={inputStyle}
-  >
-    <option value="">Estimated Credit Score</option>
-    <option value="700+">700+</option>
-    <option value="670-699">670-699</option>
-    <option value="620-669">620-669</option>
-    <option value="580-619">580-619</option>
-    <option value="450-579">450-579</option>
-    <option value="Below 450">Below 450</option>
-    <option value="Unsure">Unsure</option>
-  </select>
+    min="300"
+    max="850"
+    step="1"
+    inputMode="numeric"
+  />
 
-  <div style={noteStyle}>
-    You can check Credit Karma for free. This helps us match you with properties that are more likely to approve you.
+    <div style={noteStyle}>
+    You can check Credit Karma for free. Your exact score helps us match you with apartments that are more likely to approve you.
   </div>
 </div>
 
