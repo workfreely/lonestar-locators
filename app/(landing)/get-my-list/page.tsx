@@ -24,12 +24,12 @@ export default function GetYourListPage() {
         {/* ================= HEADER ================= */}
         <h1
   style={{
-    fontSize: "clamp(2.2rem, 5vw, 2.5rem)",
+    fontSize: "clamp(2rem, 4.8vw, 2.5rem)",
     fontWeight: 800,
     textAlign: "center",
     marginBottom: "1.3rem",
     color: "#111",
-    lineHeight: 1.05,
+  lineHeight: 1.08,
   }}
 >
   Stop Wasting Time

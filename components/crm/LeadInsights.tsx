@@ -176,32 +176,32 @@ function getApprovalProbability(lead: any) {
   const hasFelony =
     lead.criminal_background === "Felony"
 
-  // 🚨 Severe Risk
+  // 🚨 HIGH RISK
   if (
-    credit < 500 ||
-    hasFelony ||
-    hasEviction
+    credit <= 580 ||
+    hasEviction ||
+    hasFelony
   ) {
     return {
-      label: "Low",
+      label: "High Risk",
       color: "text-red-600",
     }
   }
 
-  // ⚠️ Medium Risk
+  // ⚠️ MEDIUM RISK
   if (
-    credit < 620 ||
+    credit <= 650 ||
     hasBrokenLease
   ) {
     return {
-      label: "Medium",
+      label: "Medium Risk",
       color: "text-yellow-600",
     }
   }
 
-  // ✅ Strong Approval Odds
+  // ✅ LOW RISK
   return {
-    label: "High",
+    label: "Low Risk",
     color: "text-green-600",
   }
 }
