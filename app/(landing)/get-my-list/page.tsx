@@ -25,7 +25,7 @@ export default function GetYourListPage() {
         {/* ================= HEADER ================= */}
         <h1
   style={{
-    fontSize: "clamp(1.72rem, 4.3vw, 2.5rem)",
+    fontSize: "clamp(1.72rem, 4.5vw, 2.5rem)",
     fontWeight: 800,
     textAlign: "center",
     marginBottom: "1.3rem",
@@ -154,8 +154,8 @@ lineHeight: 1.2,
             textAlign: "center",
           }}
         >
-          <p
-            style={{
+          <div
+  style={{
               fontSize: "0.82rem",
               color: "#777",
               lineHeight: 1.5,
@@ -179,7 +179,7 @@ lineHeight: 1.2,
   <span>|</span>
   <span>Equal Housing Opportunity</span>
 </div>
-          </p>
+          </div>
 
           {/* TREC LINKS */}
           <div
