@@ -814,7 +814,6 @@ if (formData.sms_consent && formData.phone) {
 
   <span
     style={{
-      flex: 1,
       textAlign: "left",
     }}
   >
