@@ -525,12 +525,11 @@ if (formData.sms_consent && formData.phone) {
 
   const sectionStyle = { marginBottom: "1rem" };
 
- const noteStyle = {
-  fontSize: "0.85rem",
-  color: "#555",
-  marginTop: "0.6rem",
-  lineHeight: "1.5",
-};
+  const noteStyle = {
+    fontSize: "0.85rem",
+    color: "#555",
+    marginTop: "0.25rem",
+  };
 
 // ------------------------------------------------------
 // Layout & Styling
@@ -744,9 +743,6 @@ if (formData.sms_consent && formData.phone) {
                 style={{
   display: "flex",
   alignItems: "center",
-  justifyContent: "flex-start",
-  gap: "0.75rem",
-  textAlign: "left",
   border: "1px solid #ccc",
   borderRadius: "6px",
   fontSize: "0.95rem",
@@ -755,71 +751,53 @@ if (formData.sms_consent && formData.phone) {
   padding: "0.5rem 0.75rem",
   whiteSpace: "nowrap",
   width: "100%",
-  overflow: "hidden",
 }}
               >
-         <div
-  style={{
-    display: "flex",
-    alignItems: "center",
-    width: "100%",
-  }}
->
-  <input
-    type="checkbox"
-    name="neighborhoods"
-    value={neighborhood}
-    checked={formData.neighborhoods.includes(neighborhood)}
-    onChange={(e) => {
-      const { checked, value } = e.target;
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  <input
+                    type="checkbox"
+                    name="neighborhoods"
+                    value={neighborhood}
+                    checked={formData.neighborhoods.includes(neighborhood)}
+                    onChange={(e) => {
+                      const { checked, value } = e.target;
+                      setFormData((prev) => {
+                        let updated = [...prev.neighborhoods];
+                        if (value.startsWith("All of")) {
+                          updated = checked
+                            ? [...cityNeighborhoods[formData.city]]
+                            : [];
+                        } else {
+                          updated = checked
+                            ? [...updated, value]
+                            : updated.filter((n) => n !== value);
 
-      setFormData((prev) => {
-        let updated = [...prev.neighborhoods];
-
-        if (value.startsWith("All of")) {
-          updated = checked
-            ? [...cityNeighborhoods[formData.city]]
-            : [];
-        } else {
-          updated = checked
-            ? [...updated, value]
-            : updated.filter((n) => n !== value);
-
-          if (
-            updated.length ===
-              cityNeighborhoods[formData.city].length - 1 &&
-            !updated.includes(`All of ${formData.city}`)
-          ) {
-            updated = [...cityNeighborhoods[formData.city]];
-          } else if (
-            updated.includes(`All of ${formData.city}`) &&
-            updated.length !==
-              cityNeighborhoods[formData.city].length
-          ) {
-            updated = updated.filter(
-              (n) => n !== `All of ${formData.city}`
-            );
-          }
-        }
-
-        return { ...prev, neighborhoods: updated };
-      });
-    }}
-    style={{
-      margin: "0 8px 0 0",
-      cursor: "pointer",
-      flexShrink: 0,
-    }}
-  />
-
-  <span
-    style={{
-      textAlign: "left",
-    }}
-  >
-    {neighborhood}
-  </span>
-</div>
+                          if (
+                            updated.length ===
+                              cityNeighborhoods[formData.city].length - 1 &&
+                            !updated.includes(`All of ${formData.city}`)
+                          ) {
+                            updated = [...cityNeighborhoods[formData.city]];
+                          } else if (
+                            updated.includes(`All of ${formData.city}`) &&
+                            updated.length !==
+                              cityNeighborhoods[formData.city].length
+                          ) {
+                            updated = updated.filter(
+                              (n) => n !== `All of ${formData.city}`
+                            );
+                          }
+                        }
+                        return { ...prev, neighborhoods: updated };
+                      });
+                    }}
+                    style={{
+                      margin: "0 6px 0 0",
+                      cursor: "pointer",
+                    }}
+                  />
+                  <span>{neighborhood}</span>
+                </div>
               </label>
             ))}
           </div>
@@ -899,9 +877,6 @@ if (formData.sms_consent && formData.phone) {
                     style={{
   display: "flex",
   alignItems: "center",
-  justifyContent: "flex-start",
-  gap: "0.75rem",
-  textAlign: "left",
   border: "1px solid #ccc",
   borderRadius: "6px",
   fontSize: "0.95rem",
@@ -910,7 +885,6 @@ if (formData.sms_consent && formData.phone) {
   padding: "0.5rem 0.75rem",
   whiteSpace: "nowrap",
   width: "100%",
-  overflow: "hidden",
 }}
                   >
                     <div style={{ display: "flex", alignItems: "center" }}>
