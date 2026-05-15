@@ -863,10 +863,7 @@ if (formData.sms_consent && formData.phone) {
 <div
   style={{
     display: "grid",
-    gridTemplateColumns:
-      typeof window !== "undefined" && window.innerWidth < 768
-        ? "1fr"
-        : "1fr 1fr",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
     gap: "0.75rem",
     width: "100%",
   }}
@@ -1378,7 +1375,9 @@ if (formData.sms_consent && formData.phone) {
 {/* KEEP THIS BELOW */}
 <style>
   {`
-    input, select, textarea {
+    input:not([type="checkbox"]),
+    select,
+    textarea {
       box-sizing: border-box;
       width: 100% !important;
       padding: 0.75rem !important;
@@ -1386,6 +1385,13 @@ if (formData.sms_consent && formData.phone) {
       border: 1px solid #ccc !important;
       font-size: 1rem !important;
       font-family: 'Inter', sans-serif !important;
+    }
+
+    input[type="checkbox"] {
+      width: auto !important;
+      padding: 0 !important;
+      margin: 0 6px 0 0 !important;
+      flex-shrink: 0;
     }
   `}
 </style>
