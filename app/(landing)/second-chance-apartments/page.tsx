@@ -53,7 +53,7 @@ letterSpacing: "-1.5px",
             fontSize: "1.05rem",
           }}
         >
-         Find second chance apartments that work for you
+         Find 2nd chance apts that work for you
         </p>
 
         <p
