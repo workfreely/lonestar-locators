@@ -546,7 +546,7 @@ if (formData.sms_consent && formData.phone) {
   onSubmit={handleSubmit}
   style={{
     backgroundColor: "#f9f9f9",
-    padding: "1.5rem",
+  padding: "1.25rem 1.5rem 1rem",
     borderRadius: "8px",
 
     // ✅ RESTORED border (matches ListingLayout)
@@ -1377,7 +1377,7 @@ if (formData.sms_consent && formData.phone) {
     width: "100%",
     fontSize: "1rem",
     cursor: "pointer",
-    marginTop: "1rem",
+   marginTop: "0.5rem",
   }}
 >
   Send My List
