@@ -752,8 +752,14 @@ if (formData.sms_consent && formData.phone) {
   whiteSpace: "nowrap",
   width: "100%",
 }}
-              >
-                <div style={{ display: "flex", alignItems: "center" }}>
+              ><div
+  style={{
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    width: "100%",
+  }}
+>
                   <input
                     type="checkbox"
                     name="neighborhoods"
@@ -796,7 +802,13 @@ if (formData.sms_consent && formData.phone) {
                       cursor: "pointer",
                     }}
                   />
-                  <span>{neighborhood}</span>
+                <span
+  style={{
+    textAlign: "left",
+  }}
+>
+  {neighborhood}
+</span>
                 </div>
               </label>
             ))}
