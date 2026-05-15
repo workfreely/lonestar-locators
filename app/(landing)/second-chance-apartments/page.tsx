@@ -52,7 +52,7 @@ letterSpacing: "-1.5px",
             fontSize: "1.05rem",
           }}
         >
-          I’ll match you with the best second chance apartments.
+          I’ll match you with the best 2nd chance apartments.
         </p>
 
         <p
@@ -64,7 +64,7 @@ letterSpacing: "-1.5px",
             fontWeight: "600",
           }}
         >
-        Bad Credit • No Credit • Broken Lease • Background
+        Bad Credit • No Credit • Broken Lease 
         </p>
 
         <p

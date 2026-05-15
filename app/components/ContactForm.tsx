@@ -758,7 +758,14 @@ const noteStyle = {
                   whiteSpace: "nowrap",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center" }}>
+                <div
+  style={{
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    width: "100%",
+  }}
+>
                   <input
                     type="checkbox"
                     name="neighborhoods"
@@ -887,7 +894,14 @@ const noteStyle = {
                       whiteSpace: "nowrap",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center" }}>
+                   <div
+  style={{
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    width: "100%",
+  }}
+>
                       <input
                         type="checkbox"
                         name="submarkets"
@@ -1365,9 +1379,9 @@ const noteStyle = {
       >
     {isSubmitting ? "Submitting..." : "Send My List"}
       </button>
-      <style>
-        {`
-    input, select, textarea {
+<style>
+  {`
+    input:not([type="checkbox"]) {
       box-sizing: border-box;
       width: 100% !important;
       padding: 0.75rem !important;
@@ -1376,8 +1390,26 @@ const noteStyle = {
       font-size: 1rem !important;
       font-family: 'Inter', sans-serif !important;
     }
+
+    select,
+    textarea {
+      box-sizing: border-box;
+      width: 100% !important;
+      padding: 0.75rem !important;
+      border-radius: 6px !important;
+      border: 1px solid #ccc !important;
+      font-size: 1rem !important;
+      font-family: 'Inter', sans-serif !important;
+    }
+
+    input[type="checkbox"] {
+      width: auto !important;
+      padding: 0 !important;
+      margin: 0 6px 0 0 !important;
+      flex-shrink: 0;
+    }
   `}
-      </style>
+</style>
     </form>
   );
 };
