@@ -20,19 +20,21 @@ export default function StartYourSearch() {
     >
       {/* ================= HEADER ================= */}
       <h1
-        style={{
-          fontSize: "clamp(2.8rem, 6vw, 3.6rem)",
-          fontWeight: 800,
-          textAlign: "center",
-          marginBottom: "1rem",
-          color: "#111",
-          lineHeight: 1.15,
-        }}
-      >
-        Start Your{" "}
-        <span className="mobile-break">Apartment</span>{" "}
-        Search
-      </h1>
+  style={{
+   fontSize: "clamp(3.2rem, 7vw, 4rem)",
+    fontWeight: 800,
+    textAlign: "center",
+    marginBottom: "1rem",
+    color: "#111",
+    lineHeight: 1.15,
+  }}
+>
+  <span className="mobile-title-line">Start Your</span>{" "}
+
+  <span className="mobile-title-line">
+    Apartment Search
+  </span>
+</h1>
 
       <p
         style={{
@@ -50,13 +52,14 @@ export default function StartYourSearch() {
 
       {/* ================= CONTENT GRID ================= */}
       <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 420px",
-          gap: "2.5rem",
-          alignItems: "flex-start",
-        }}
-      >
+  className="start-search-grid"
+  style={{
+    display: "grid",
+    gridTemplateColumns: "1fr 420px",
+    gap: "2.5rem",
+    alignItems: "flex-start",
+  }}
+>
         {/* LEFT: CONTACT FORM */}
         <div
           className="contact-form-shell"
@@ -71,12 +74,13 @@ export default function StartYourSearch() {
         </div>
 
         {/* RIGHT: VIDEO */}
-        <div
-          style={{
-            flex: "1 1 380px",
-            minWidth: "300px",
-          }}
-        >
+<div
+  className="desktop-video"
+  style={{
+    flex: "1 1 380px",
+    minWidth: "300px",
+  }}
+>
           <div
             style={{
               position: "relative",
@@ -105,12 +109,32 @@ export default function StartYourSearch() {
         </div>
       </div>
 
-      {/* ✅ Mobile stacking fix */}
-      <style>
+      {/* ✅ Mobile layout fix */}
+<style>
 {`
-  @media (max-width: 980px) {
-    div[style*="grid-template-columns: 1fr 420px"] {
-      grid-template-columns: 1fr !important;
+  .mobile-title-line {
+    display: inline;
+  }
+
+  @media (max-width: 768px) {
+    .mobile-title-line {
+      display: block;
+    }
+
+    .start-search-grid {
+      display: flex !important;
+      flex-direction: column !important;
+    }
+
+    .contact-form-shell {
+      width: 100% !important;
+      min-width: 0 !important;
+    }
+
+    .desktop-video {
+      width: 100% !important;
+      max-width: 540px !important;
+      margin: 2rem auto 0 !important;
     }
   }
 `}

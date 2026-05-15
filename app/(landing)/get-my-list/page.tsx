@@ -52,7 +52,7 @@ letterSpacing: "-1.5px",
             fontSize: "1.05rem",
           }}
         >
-          I’ll send you the best apartment deals.
+          I’ll send you the best apartment deals
         </p>
 
         <p
