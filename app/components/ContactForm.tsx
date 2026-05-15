@@ -739,7 +739,10 @@ const noteStyle = {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr",
+              gridTemplateColumns:
+  typeof window !== "undefined" && window.innerWidth < 768
+    ? "1fr"
+    : "1fr 1fr",
               gap: "0.75rem",
             }}
           >
@@ -875,7 +878,10 @@ const noteStyle = {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
+                 gridTemplateColumns:
+  typeof window !== "undefined" && window.innerWidth < 768
+    ? "1fr"
+    : "1fr 1fr",
                   gap: "0.75rem",
                 }}
               >

@@ -16,10 +16,11 @@ export default function GetYourListPage() {
       <div
         className={inter.className}
         style={{
-          padding: "1rem 1rem 2rem",
-          maxWidth: "640px",
-          margin: "0 auto",
-        }}
+  padding: "0.2rem 0.7rem 2rem",
+  maxWidth: "640px",
+  width: "100%",
+  margin: "0 auto",
+}}
       >
         {/* ================= HEADER ================= */}
         <h1
@@ -52,7 +53,7 @@ letterSpacing: "-1.5px",
             fontSize: "1.05rem",
           }}
         >
-          I’ll match you with the best 2nd chance apartments.
+         Find second chance apartments that work for you
         </p>
 
         <p
