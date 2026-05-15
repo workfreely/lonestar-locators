@@ -1072,19 +1072,43 @@ if (formData.sms_consent && formData.phone) {
 
          {/* CREDIT SCORE */}
 <div style={sectionStyle}>
-  <input
-    type="number"
-    name="creditScore"
-    placeholder="Estimated Credit Score"
-    value={formData.creditScore}
-    onChange={handleChange}
-    required
-    style={inputStyle}
-    min="300"
-    max="850"
-    step="1"
-    inputMode="numeric"
-  />
+ <input
+  type="number"
+  name="creditScore"
+  placeholder="Estimated Credit Score (300-850)"
+  value={formData.creditScore}
+  onChange={(e) => {
+    const value = e.target.value;
+
+    // Allow clearing field
+    if (value === "") {
+      handleChange(e);
+      return;
+    }
+
+    // Limit to 3 digits
+    if (value.length > 3) return;
+
+    const num = Number(value);
+
+    // Allow typing naturally until 3 digits
+    if (value.length < 3) {
+      handleChange(e);
+      return;
+    }
+
+    // Only allow valid credit score range
+    if (num >= 300 && num <= 850) {
+      handleChange(e);
+    }
+  }}
+  required
+  style={inputStyle}
+  min="300"
+  max="850"
+  step="1"
+  inputMode="numeric"
+/>
 
     <div style={noteStyle}>
     You can check Credit Karma for free. Your exact score helps us match you with apartments that are more likely to approve you.

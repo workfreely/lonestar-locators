@@ -21,7 +21,7 @@ export default function StartYourSearch() {
       {/* ================= HEADER ================= */}
       <h1
   style={{
-   fontSize: "clamp(3.2rem, 7vw, 4rem)",
+fontSize: "clamp(2.9rem, 6.4vw, 3.8rem)",
     fontWeight: 800,
     textAlign: "center",
     marginBottom: "1rem",

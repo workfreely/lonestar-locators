@@ -45,16 +45,16 @@ letterSpacing: "-1.5px",
 
 
         <p
-          style={{
-            textAlign: "center",
-            marginBottom: "0.35rem",
-            color: "#555",
-            lineHeight: 1.4,
-            fontSize: "1.05rem",
-          }}
-        >
-         Find 2nd chance apts that work for you
-        </p>
+  style={{
+    textAlign: "center",
+    marginBottom: "0.35rem",
+    color: "#555",
+    lineHeight: 1.4,
+    fontSize: "1.05rem",
+  }}
+>
+  Find <strong>2nd chance apts</strong> that work for you
+</p>
 
         <p
           style={{
