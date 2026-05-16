@@ -43,6 +43,28 @@ letterSpacing: "-1.5px",
 </div>
 </h1>
 
+{/* PROFILE IMAGE */}
+<div
+  style={{
+    textAlign: "center",
+    marginBottom: "1rem",
+  }}
+>
+  <img
+    src="https://res.cloudinary.com/dxtiguwzm/image/upload/v1748014964/jay-morris-free-apartment-locator-san-antonio-texas_pgf7fs.png"
+    alt="Jay Morris"
+    style={{
+      width: "82px",
+      height: "82px",
+      borderRadius: "50%",
+      objectFit: "cover",
+      border: "2px solid #f0f0f0",
+      display: "block",
+      margin: "0 auto",
+      boxShadow: "0 4px 12px rgba(0,0,0,0.10)",
+    }}
+  />
+</div>
         <p
           style={{
             textAlign: "center",
