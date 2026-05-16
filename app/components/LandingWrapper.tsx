@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useLayoutEffect } from "react";
 
 export default function LandingWrapper({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  useEffect(() => {
+useLayoutEffect(() => {
     // Hide navbar
     const nav = document.querySelector("nav");
     if (nav) nav.style.display = "none";
