@@ -89,18 +89,34 @@ letterSpacing: "-1.5px",
           San Antonio • Austin • Dallas • Houston
         </p>
 
-        <p
-          style={{
-            textAlign: "center",
-            fontWeight: "600",
-            fontSize: "0.92rem",
-lineHeight: 1.2,
-            color: "#111",
-            marginBottom: "0.9rem",
-          }}
-        >
-        Up to 10 weeks free • cash rebate • free movers
-        </p>
+       <div
+  style={{
+    background: "#dbeafe",
+    border: "1px solid #bfdbfe",
+    color: "#1e40af",
+    borderRadius: "999px",
+
+    padding: "10px 18px",
+
+    marginTop: "0.75rem",
+    marginBottom: "0.9rem",
+
+    fontWeight: 600,
+    fontSize: "0.92rem",
+    lineHeight: 1.4,
+
+    textAlign: "center",
+
+    // ✅ makes pill fit content instead of stretching
+    width: "fit-content",
+
+    // ✅ centers the pill
+    marginLeft: "auto",
+    marginRight: "auto",
+  }}
+>
+  Up to 10 weeks free • cash rebate • free movers
+</div>
 
         <p
           style={{
