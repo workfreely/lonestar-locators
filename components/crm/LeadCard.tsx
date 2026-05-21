@@ -261,6 +261,12 @@ shadow-[0_1px_4px_rgba(0,0,0,0.03)] px-3 py-2 text-[14px]">
               {formatRent(lead.desired_rent)}
             </span>
           </div>
+          <div className="mt-1.5">
+  <span className="text-gray-500">Property:</span>{" "}
+  <span className="font-medium text-gray-900">
+    {lead.property_type || "—"}
+  </span>
+</div>
 
           <div className="mt-1.5">
             <span className="text-gray-500">Move Date:</span>{" "}

@@ -649,6 +649,19 @@ className={grayButton}
       {formatRent(lead.desired_rent)}
     </span>
   </div>
+    <div className="mt-2">
+  <span className="text-gray-500">Property:</span>{" "}
+  <span className="font-medium text-gray-900">
+    {lead.property_type || "—"}
+  </span>
+</div>
+
+<div className="mt-2">
+  <span className="text-gray-500">Beds / Baths:</span>{" "}
+  <span className="font-medium text-gray-900">
+    {lead.beds || "—"} / {lead.baths || "—"}
+  </span>
+</div>
 
   <div className="mt-2">
     <span className="text-gray-500">Move Date:</span>{" "}
@@ -657,12 +670,30 @@ className={grayButton}
     </span>
   </div>
 
+
+
   <div className="mt-2">
     <span className="text-gray-500">Credit Score:</span>{" "}
     <span className="font-medium text-gray-900">
       {lead.credit_score || "—"}
     </span>
   </div>
+
+  <div className="mt-2">
+  <span className="text-gray-500">Credit History:</span>{" "}
+  <span className="font-medium text-gray-900">
+    {lead.credit_history || "—"}
+  </span>
+</div>
+
+<div className="mt-2">
+  <span className="text-gray-500">Background:</span>{" "}
+  <span className="font-medium text-gray-900">
+    {lead.criminal_background || "None"}
+  </span>
+</div>
+
+  
   
   {lead.source && (
   <div className="mt-2">

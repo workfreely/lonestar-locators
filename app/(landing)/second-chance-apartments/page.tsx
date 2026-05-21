@@ -96,7 +96,7 @@ letterSpacing: "-1.5px",
     color: "#1e40af",
     borderRadius: "999px",
 
-    padding: "10px 18px",
+    padding: "10px 14px",
 
     marginTop: "0.75rem",
     marginBottom: "0.9rem",
