@@ -1433,14 +1433,23 @@ router.push(
   style={{
     width: "100%",
     padding: "0.85rem",
-    backgroundColor: "#111827",
+
+    // ✅ Green CTA
+    backgroundColor: "#16a34a",
+
     color: "#fff",
     border: "none",
     borderRadius: "6px",
     fontWeight: 600,
 
+    // ✅ Space below consent checkbox
+    marginTop: "1.25rem",
+
+    // ✅ Disabled submit styling
     cursor: isSubmitting ? "not-allowed" : "pointer",
     opacity: isSubmitting ? 0.7 : 1,
+
+    transition: "all 0.2s ease",
   }}
 >
   {isSubmitting ? "Submitting..." : "Send My List"}
