@@ -57,14 +57,14 @@ export default function FollowUpRow({
 )
 
   return (
-    <div className="w-[220px] min-w-[220px] bg-white border-r p-3">
+   <div className="w-[220px] min-w-[220px] bg-[#f5f7fa] border-r border-gray-200 p-3">
       
       {/* HEADER */}
-      <h2 className="text-red-500 font-bold mb-3 text-sm tracking-wide">
+   <h2 className="text-red-500 font-bold mb-4 text-sm tracking-wide px-1">
         🔴 Needs Follow-Up
       </h2>
 
-      <div className="flex flex-col gap-2">
+     <div className="flex flex-col gap-3">
         {dueLeads.length === 0 && (
           <p className="text-sm text-gray-400">
             You're all caught up
@@ -75,7 +75,18 @@ export default function FollowUpRow({
           <div
             key={lead.id}
             onClick={() => onSelectLead?.(lead.id)}
-            className="bg-gray-100 p-3 rounded-lg shadow-sm cursor-pointer hover:bg-gray-200 transition"
+           className="
+bg-white
+border border-gray-100
+p-3
+rounded-2xl
+shadow-[0_6px_20px_rgba(0,0,0,0.05)]
+cursor-pointer
+hover:shadow-[0_10px_28px_rgba(0,0,0,0.08)]
+hover:-translate-y-[1px]
+hover:border-blue-100
+transition-all duration-200
+"
           >
             {/* NAME */}
             <p className="font-semibold text-sm text-gray-900">

@@ -21,7 +21,7 @@ const pipelineValue = totalLeads * 1000
   )
 
   return (
-    <div className="relative h-screen w-full overflow-hidden">
+   <div className="relative h-screen w-full">
 
       {/* 🌆 BACKGROUND IMAGE (ONLY THIS GETS FILTERS) */}
       <div
@@ -35,11 +35,32 @@ const pipelineValue = totalLeads * 1000
       {/* 🌑 LIGHT OVERLAY (NOT TOO DARK) */}
       <div className="absolute inset-0 bg-black/20" />
 
+      {/* PIPELINE VALUE */}
+<div className="absolute top-[-55px] right-10 z-30">
+<div className="bg-white border border-gray-200 shadow-[0_6px_20px_rgba(0,0,0,0.06)] rounded-full px-6 py-3 flex items-center gap-4">
+
+   <div className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold whitespace-nowrap">
+  Pipeline Value:
+</div>
+
+<div className="text-2xl font-black text-green-600 leading-none whitespace-nowrap">
+  ${pipelineValue.toLocaleString()}
+</div>
+
+<div className="h-5 w-px bg-gray-200" />
+
+<div className="text-sm text-gray-500 whitespace-nowrap">
+  {totalLeads} active leads
+</div>
+
+  </div>
+</div>
+
       {/* 🚀 APP CONTENT (NOT AFFECTED BY FILTERS) */}
       <div className="relative z-10 flex h-screen w-full overflow-hidden">
 
         {/* LEFT SIDEBAR */}
-        <div className="w-[220px] min-w-[220px] border-r bg-white overflow-y-auto z-10">
+     <div className="w-[220px] min-w-[220px] border-r border-gray-200 bg-white overflow-y-auto z-10 shadow-[6px_0_20px_rgba(0,0,0,0.06)]">
           <FollowUpRow
             leads={localLeads}
             onSelectLead={setSelectedLeadId}
@@ -48,17 +69,21 @@ const pipelineValue = totalLeads * 1000
 
         {/* MAIN BOARD */}
         <div
-          className={`flex-1 overflow-hidden ${
-            selectedLead ? "hidden" : "block"
-          }`}
-        >
-          <LeadBoard
-  leads={localLeads}
-  setLeads={setLocalLeads}   // 👈 ADD THIS
-  selectedLeadId={selectedLeadId}
-  onSelectLead={setSelectedLeadId}
-/>
-        </div>
+  className={`flex-1 overflow-hidden relative ${
+    selectedLead ? "hidden" : "block"
+  }`}
+>
+
+
+  
+  <LeadBoard
+    leads={localLeads}
+    setLeads={setLocalLeads}
+    selectedLeadId={selectedLeadId}
+    onSelectLead={setSelectedLeadId}
+  />
+
+</div>
 
         {/* OVERLAY PROFILE VIEW */}
         {selectedLead && (
@@ -68,7 +93,7 @@ const pipelineValue = totalLeads * 1000
             <div className="flex w-full bg-white border-l shadow-xl h-full">
 
               {/* LEAD PANEL */}
-              <div className="w-[420px] border-r bg-white overflow-y-auto pointer-events-auto">
+          <div className="w-[420px] border-r border-gray-200 bg-white overflow-y-auto pointer-events-auto shadow-[8px_0_30px_rgba(0,0,0,0.08)] relative z-20">
                 <LeadPanel
                   lead={selectedLead}
                   topMatches={topMatches}
@@ -84,7 +109,7 @@ const pipelineValue = totalLeads * 1000
               </div>
 
               {/* INSIGHTS PANEL */}
-              <div className="flex-1 bg-gray-50 p-6 overflow-y-auto pointer-events-auto">
+             <div className="flex-1 bg-[#f4f6f8] p-6 overflow-y-auto pointer-events-auto">
                 <LeadInsights
                   lead={selectedLead}
                   onMatchesChange={setTopMatches}

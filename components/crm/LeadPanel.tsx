@@ -182,7 +182,7 @@ const sourceStyles: Record<string, string> = {
   youtube: "bg-red-100 text-red-800 border border-red-200",
   website: "bg-green-100 text-green-800 border border-green-200",
   referral: "bg-orange-100 text-orange-800 border border-orange-200",
-  direct: "bg-gray-100 text-gray-700 border border-gray-200",
+direct: "bg-green-100 text-green-800 border border-green-200",
   manual: "bg-zinc-100 text-zinc-800 border border-zinc-200",
 }
 
@@ -420,10 +420,10 @@ I’ll get tours set up or tweak the list for you`)
 
 
   return (
-<div className="w-full h-full bg-[#f8fafc] flex flex-col">
+<div className="w-full h-full bg-[#f3f5f7] flex flex-col">
 
       {/* HEADER */}
-      <div className="p-6 border-b border-gray-200 bg-white shadow-sm">
+     <div className="p-6 border-b border-gray-200 bg-white shadow-[0_4px_20px_rgba(0,0,0,0.04)] relative z-10">
         <div className="flex justify-between items-start">
           <div>
             <div className="text-[30px] leading-none font-black tracking-tight text-gray-900">
@@ -489,7 +489,7 @@ I’ll get tours set up or tweak the list for you`)
 </div>
 
         {/* ACTION BUTTONS */}
-        <div className="mt-4 space-y-2">
+       <div className="mt-5 space-y-3 bg-[#fbfcfd] border border-gray-100 rounded-2xl p-4 shadow-[0_4px_18px_rgba(0,0,0,0.03)]">
 
           {/* ROW 1 */}
        <div className="grid grid-cols-2 gap-2">
@@ -631,10 +631,10 @@ className={grayButton}
       </div>
 
       {/* BODY */}
-    <div className="p-6 space-y-6 overflow-y-auto">
+    <div className="p-5 space-y-3 overflow-y-auto">
 
        {/* INFO (MATCHES CARD) */}
-<div className="bg-white border border-gray-200 rounded-2xl px-5 py-4 text-[15px] shadow-sm">
+<div className="bg-white border border-gray-200 rounded-3xl px-5 py-4 text-[15px] shadow-[0_10px_30px_rgba(0,0,0,0.06)]">
 
   <div>
     <span className="text-gray-500">City:</span>{" "}
@@ -672,7 +672,9 @@ className={grayButton}
         sourceStyles[lead.source] || "bg-gray-100 text-gray-700"
       }`}
     >
-      {lead.source.charAt(0).toUpperCase() + lead.source.slice(1)}
+     {lead.source === "direct"
+  ? "Website"
+  : lead.source.charAt(0).toUpperCase() + lead.source.slice(1)}
     </span>
   </div>
   
@@ -681,7 +683,7 @@ className={grayButton}
 </div>
 
        {/* RISK + NEXT ACTION */}
-<div className="flex items-center justify-between gap-3 flex-wrap">
+<div className="flex items-center justify-between gap-3 flex-wrap bg-white border border-gray-100 rounded-2xl px-4 py-2.5 shadow-[0_4px_18px_rgba(0,0,0,0.03)]">
 
 {/* LEFT: RISK */}
 <div className="flex items-center gap-2 flex-wrap">
@@ -796,17 +798,20 @@ className={grayButton}
 </div>
 
 </div>
+{/* END RISK + NEXT ACTION */}
 
-        {/* NOTES */}
-        <div>
-          <div className="text-xs text-gray-400 mb-1 uppercase">
-            Notes
-          </div>
-          <textarea
-            defaultValue={lead.notes || ""}
-          className="w-full h-24 border border-gray-200 rounded-xl p-3 text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
+
+{/* NOTES */}
+<div className="bg-white border border-gray-100 rounded-2xl p-3 shadow-[0_4px_18px_rgba(0,0,0,0.03)]">
+  <div className="text-xs text-gray-400 mb-1 uppercase">
+    Notes
+  </div>
+
+  <textarea
+    defaultValue={lead.notes || ""}
+    className="w-full h-24 border border-gray-200 rounded-2xl p-3 text-sm bg-[#fcfcfd] shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500"
+  />
+</div>
 
         {/* AREAS */}
         <div>

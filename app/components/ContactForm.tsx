@@ -43,6 +43,14 @@ const utmSource = searchParams.get("utm_source");
 const utmMedium = searchParams.get("utm_medium");
 const utmCampaign = searchParams.get("utm_campaign");
 const utmContent = searchParams.get("utm_content");
+const leadSource =
+  utmSource ||
+  (referrer?.includes("facebook") ? "facebook" :
+   referrer?.includes("instagram") ? "instagram" :
+   referrer?.includes("tiktok") ? "tiktok" :
+      referrer?.includes("youtube") ? "youtube" :
+   "website");
+
 
 // ======================================================
 // Form State (User-Provided Data Only)
@@ -105,6 +113,7 @@ misdemeanorAge: "",
   utm_medium: utmMedium,
   utm_campaign: utmCampaign,
   utm_content: utmContent,
+  source: leadSource,
 });
 
 useEffect(() => {
@@ -289,6 +298,7 @@ useEffect(() => {
     utm_medium: utmMedium,
     utm_campaign: utmCampaign,
     utm_content: utmContent,
+    source: leadSource,
   },
 ]);
 
@@ -307,7 +317,6 @@ useEffect(() => {
           moveDate: formData.moveDate,
           propertyName: propertyName || "",
         });
-        setIsSubmitting(false);
      router.push(`/start-your-search?${params.toString()}`);
 
      // ------------------------------------------------------
@@ -405,7 +414,7 @@ criminal_charge: formData.criminalCharge,
     // ======================================================
     // ATTRIBUTION / SOURCE
     // ======================================================
-    source: utmSource ?? "direct",
+source: leadSource,
   },
 ]);
 
@@ -457,6 +466,7 @@ if (formData.email) {
   evictionBalance: formData.evictionBalance || "",
   felonyAge: formData.felonyAge || "",
   misdemeanorAge: formData.misdemeanorAge || "",
+  source: leadSource,
   notes: formData.notes || "",
 });
 
@@ -608,29 +618,48 @@ const noteStyle = {
         />
       </div>
       {/* PHONE */}
-      <div style={sectionStyle}>
-        <input
-  type="tel"
-  name="phone"
-  placeholder="Phone Number"
-  value={formData.phone}
-  onChange={(e) => {
-    const value = e.target.value.replace(/\D/g, "");
-    const formatted =
-      value.length <= 3
-        ? value
-        : value.length <= 6
-        ? `(${value.slice(0, 3)}) ${value.slice(3)}`
-        : `(${value.slice(0, 3)}) ${value.slice(3, 6)}-${value.slice(6, 10)}`;
+<div style={sectionStyle}>
+  <input
+    type="tel"
+    name="phone"
+    placeholder="Phone Number"
+    value={formData.phone}
+    onChange={(e) => {
+      const value = e.target.value.replace(/\D/g, "");
 
-    setFormData((prev) => ({ ...prev, phone: formatted }));
-  }}
-  maxLength={14}
-  required
-  style={inputStyle}
-/>
+      // Validate US/Canada area code
+      if (value.length >= 3) {
+        const areaCode = value.slice(0, 3);
 
+        // Area codes cannot start with 0 or 1
+        if (areaCode[0] === "0" || areaCode[0] === "1") {
+          return;
+        }
+      }
+
+      const formatted =
+        value.length <= 3
+          ? value
+          : value.length <= 6
+          ? `(${value.slice(0, 3)}) ${value.slice(3)}`
+          : `(${value.slice(0, 3)}) ${value.slice(3, 6)}-${value.slice(6, 10)}`;
+
+      setFormData((prev) => ({ ...prev, phone: formatted }));
+    }}
+    maxLength={14}
+    required
+    style={inputStyle}
+  />
+
+  {/* Invalid phone message */}
+  {formData.phone.replace(/\D/g, "").length >= 3 &&
+    (formData.phone.replace(/\D/g, "")[0] === "0" ||
+      formData.phone.replace(/\D/g, "")[0] === "1") && (
+      <div style={noteStyle}>
+        Please enter a valid US phone number.
       </div>
+    )}
+</div>
       {/* EMAIL */}
       <div style={sectionStyle}>
         <input
@@ -1391,24 +1420,25 @@ const noteStyle = {
 )}
 
 
-      {/* SUBMIT BUTTON */}
+     {/* SUBMIT BUTTON */}
 <button
   type="submit"
   disabled={isSubmitting}
   style={{
-    backgroundColor: "#28a745",
-          color: "#fff",
-          padding: "0.75rem",
-          borderRadius: "6px",
-          border: "none",
-          width: "100%",
-          fontSize: "1rem",
-          cursor: "pointer",
-          marginTop: "1rem",
-        }}
-      >
-    {isSubmitting ? "Submitting..." : "Send My List"}
-      </button>
+    width: "100%",
+    padding: "0.85rem",
+    backgroundColor: "#111827",
+    color: "#fff",
+    border: "none",
+    borderRadius: "6px",
+    fontWeight: 600,
+
+    cursor: isSubmitting ? "not-allowed" : "pointer",
+    opacity: isSubmitting ? 0.7 : 1,
+  }}
+>
+  {isSubmitting ? "Submitting..." : "Send My List"}
+</button>
 <style>
   {`
     input:not([type="checkbox"]) {

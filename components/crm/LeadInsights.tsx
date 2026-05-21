@@ -356,15 +356,19 @@ if (Number(lead.credit_score) <= 580) {
 
       {/* RECOMMENDED */}
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-        <div className="px-4 py-3 border-b">
-          <h3 className="text-xs font-semibold text-gray-500">
-            RECOMMENDED PROPERTIES
-          </h3>
+        <div className="px-4 py-2 border-b">
+ <div className="flex items-center gap-2 flex-wrap">
+    
+    <h3 className="text-xs font-semibold text-gray-500 whitespace-nowrap">
+      RECOMMENDED PROPERTIES:
+    </h3>
 
-          <p className="text-xs text-gray-400 mt-1">
-            Showing top {properties.length} matches based on client profile
-          </p>
-        </div>
+    <p className="text-[13px] text-gray-400 truncate">
+      Showing top {properties.length} matches based on client profile
+    </p>
+
+  </div>
+</div>
 
         <div className="divide-y max-h-[520px] overflow-y-auto">
           {properties.map((property, index) => {

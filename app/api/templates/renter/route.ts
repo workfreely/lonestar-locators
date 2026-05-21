@@ -50,6 +50,7 @@ const felonyCharge = searchParams.get("felonyCharge") || "";
 
 const misdemeanorAge = searchParams.get("misdemeanorAge") || "";
 const misdemeanorCharge = searchParams.get("misdemeanorCharge") || "";
+const source = searchParams.get("source") || "website";
 
 
   // ==========================
@@ -135,6 +136,8 @@ const misdemeanorCharge = searchParams.get("misdemeanorCharge") || "";
     ${submarkets ? `<br/><strong>Nearby Areas:</strong> ${submarkets}` : ""}<br/>
     <strong>Estimated Credit Score:</strong> ${creditScore}<br/>
     <strong>Credit Background:</strong> ${creditHistory}
+    <br/>
+<strong>Lead Source:</strong> ${source}
 
     ${
       creditHistory === "Broken Lease"

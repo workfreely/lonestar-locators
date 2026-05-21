@@ -40,16 +40,23 @@ const referrer =
   typeof document !== "undefined" ? document.referrer : null;
 
 const utmSource = searchParams.get("utm_source");
-console.log("Lead Source:", utmSource);
 const utmMedium = searchParams.get("utm_medium");
 const utmCampaign = searchParams.get("utm_campaign");
 const utmContent = searchParams.get("utm_content");
+const leadSource =
+  utmSource ||
+  (referrer?.includes("facebook") ? "facebook" :
+   referrer?.includes("instagram") ? "instagram" :
+   referrer?.includes("tiktok") ? "tiktok" :
+      referrer?.includes("youtube") ? "youtube" :
+   "website");
 
 // ======================================================
 // Form State (User-Provided Data Only)
 // NOTE: Do NOT add tracking fields here
 // ======================================================
-
+ 
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState({
   // ==========================
   // USER INPUT
@@ -103,6 +110,7 @@ criminalCharge: "",
   utm_medium: utmMedium,
   utm_campaign: utmCampaign,
   utm_content: utmContent,
+  source: leadSource,
 });
 
 useEffect(() => {
@@ -223,15 +231,18 @@ useEffect(() => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+setIsSubmitting(true);
 
       // ------------------------------------------------------
   // Honeypot Bot Protection
   // Purpose: silently block automated spam submissions
   // ------------------------------------------------------
-  if (formData.website) {
-    console.warn("Bot submission blocked.");
-    return;
-  }
+if (formData.website) {
+  console.warn("Bot submission blocked.");
+  setIsSubmitting(false);
+  return;
+}
 
     // ======================================================
 // Submission Flow
@@ -283,14 +294,16 @@ useEffect(() => {
     utm_medium: utmMedium,
     utm_campaign: utmCampaign,
     utm_content: utmContent,
+    source: leadSource,
   },
 ]);
 
-        if (error) {
-          console.error("Error saving short form:", error);
-          alert("Oops! Something went wrong. Please try again.");
-          return;
-        }
+     if (error) {
+  console.error("Error saving short form:", error);
+  alert("Oops! Something went wrong. Please try again.");
+  setIsSubmitting(false);
+  return;
+}
 
         // Redirect with prefilled params
         const params = new URLSearchParams({
@@ -323,10 +336,11 @@ if (formData.sms_consent && formData.phone) {
 
         return;
       } catch (err) {
-        console.error("Unexpected error:", err);
-        alert("Oops! Something went wrong. Please try again.");
-        return;
-      }
+  console.error("Unexpected error:", err);
+  alert("Oops! Something went wrong. Please try again.");
+  setIsSubmitting(false);
+  return;
+}
     }
 
     // ======================================================
@@ -400,17 +414,18 @@ misdemeanor_age: formData.misdemeanorAge,
     // ======================================================
     // ATTRIBUTION / SOURCE
     // ======================================================
-    source: utmSource ?? "direct",
+source: leadSource,
   },
 ]);
 
-      if (error) {
-       console.error("FULL ERROR:", JSON.stringify(error, null, 2));
-        alert(
-          "Yikes! There was an error submitting the form. Please try again."
-        );
-        return;
-      }
+     if (error) {
+  console.error("FULL ERROR:", JSON.stringify(error, null, 2));
+  alert(
+    "Yikes! There was an error submitting the form. Please try again."
+  );
+  setIsSubmitting(false);
+  return;
+}
 
       console.log("Lead submitted successfully to Supabase!", data);
       await fetch("/api/google/create-contact", {
@@ -451,6 +466,7 @@ if (formData.email) {
   evictionBalance: formData.evictionBalance || "",
   felonyAge: formData.felonyAge || "",
   misdemeanorAge: formData.misdemeanorAge || "",
+  source: leadSource,
   notes: formData.notes || "",
 });
 
@@ -497,11 +513,12 @@ if (formData.sms_consent && formData.phone) {
 // Post-Submit Redirect
 // Purpose: Confirmation + UX flow
 // ======================================================
-      router.push(
+router.push(
   `/thank-you?firstName=${encodeURIComponent(
     formData.firstName
   )}&city=${encodeURIComponent(formData.city)}`
 );
+
 
 
       // Smooth scroll after redirect
@@ -509,9 +526,10 @@ if (formData.sms_consent && formData.phone) {
         window.scrollTo({ top: 0, behavior: "smooth" });
       }, 200);
     } catch (err) {
-      console.error("Unexpected error:", err);
-      alert("Yikes! There was an error submitting the form. Please try again.");
-    }
+  console.error("Unexpected error:", err);
+  alert("Yikes! There was an error submitting the form. Please try again.");
+  setIsSubmitting(false);
+}
   };
 
   const inputStyle = {
@@ -599,30 +617,49 @@ if (formData.sms_consent && formData.phone) {
           style={inputStyle}
         />
       </div>
-      {/* PHONE */}
-      <div style={sectionStyle}>
-        <input
-  type="tel"
-  name="phone"
-  placeholder="Phone Number"
-  value={formData.phone}
-  onChange={(e) => {
-    const value = e.target.value.replace(/\D/g, "");
-    const formatted =
-      value.length <= 3
-        ? value
-        : value.length <= 6
-        ? `(${value.slice(0, 3)}) ${value.slice(3)}`
-        : `(${value.slice(0, 3)}) ${value.slice(3, 6)}-${value.slice(6, 10)}`;
+{/* PHONE */}
+<div style={sectionStyle}>
+  <input
+    type="tel"
+    name="phone"
+    placeholder="Phone Number"
+    value={formData.phone}
+    onChange={(e) => {
+      const value = e.target.value.replace(/\D/g, "");
 
-    setFormData((prev) => ({ ...prev, phone: formatted }));
-  }}
-  maxLength={14}
-  required
-  style={inputStyle}
-/>
+      // Validate US/Canada area code
+      if (value.length >= 3) {
+        const areaCode = value.slice(0, 3);
 
+        // Area codes cannot start with 0 or 1
+        if (areaCode[0] === "0" || areaCode[0] === "1") {
+          return;
+        }
+      }
+
+      const formatted =
+        value.length <= 3
+          ? value
+          : value.length <= 6
+          ? `(${value.slice(0, 3)}) ${value.slice(3)}`
+          : `(${value.slice(0, 3)}) ${value.slice(3, 6)}-${value.slice(6, 10)}`;
+
+      setFormData((prev) => ({ ...prev, phone: formatted }));
+    }}
+    maxLength={14}
+    required
+    style={inputStyle}
+  />
+
+  {/* Invalid phone message */}
+  {formData.phone.replace(/\D/g, "").length >= 3 &&
+    (formData.phone.replace(/\D/g, "")[0] === "0" ||
+      formData.phone.replace(/\D/g, "")[0] === "1") && (
+      <div style={noteStyle}>
+        Please enter a valid US phone number.
       </div>
+    )}
+</div>
       {/* EMAIL */}
       <div style={sectionStyle}>
         <input
@@ -1392,19 +1429,21 @@ if (formData.sms_consent && formData.phone) {
 {/* SUBMIT BUTTON */}
 <button
   type="submit"
+  disabled={isSubmitting}
   style={{
-    backgroundColor: "#28a745",
-    color: "#fff",
-    padding: "0.75rem",
-    borderRadius: "6px",
-    border: "none",
     width: "100%",
-    fontSize: "1rem",
-    cursor: "pointer",
-   marginTop: "0.5rem",
+    padding: "0.85rem",
+    backgroundColor: "#111827",
+    color: "#fff",
+    border: "none",
+    borderRadius: "6px",
+    fontWeight: 600,
+
+    cursor: isSubmitting ? "not-allowed" : "pointer",
+    opacity: isSubmitting ? 0.7 : 1,
   }}
 >
-  Send My List
+  {isSubmitting ? "Submitting..." : "Send My List"}
 </button>
 
 
