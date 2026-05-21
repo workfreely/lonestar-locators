@@ -96,13 +96,13 @@ letterSpacing: "-1.5px",
     color: "#1e40af",
     borderRadius: "999px",
 
-    padding: "10px 14px",
+    padding: "10px 12px",
 
     marginTop: "0.75rem",
     marginBottom: "0.9rem",
 
     fontWeight: 600,
-    fontSize: "0.92rem",
+    fontSize: "0.90rem",
     lineHeight: 1.4,
 
     textAlign: "center",
