@@ -866,7 +866,7 @@ const noteStyle = {
                   onClick={() =>
                     setFormData((prev) => ({
                       ...prev,
-                      submarkets: ["New Braunfels", "Boerne", "Schertz"],
+                    submarkets: ["New Braunfels", "Boerne", "Schertz", "San Marcos"],
                     }))
                   }
                   style={{
@@ -914,7 +914,7 @@ const noteStyle = {
                   gap: "0.75rem",
                 }}
               >
-                {["New Braunfels", "Boerne", "Schertz"].map((sub) => (
+            {["New Braunfels", "Boerne", "Schertz", "San Marcos"].map((sub) => (
                   <label
                     key={sub}
                     style={{

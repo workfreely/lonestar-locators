@@ -871,7 +871,7 @@ router.push(
                   onClick={() =>
                     setFormData((prev) => ({
                       ...prev,
-                      submarkets: ["New Braunfels", "Boerne", "Schertz"],
+                submarkets: ["New Braunfels", "Boerne", "Schertz", "San Marcos"],
                     }))
                   }
                   style={{
@@ -917,7 +917,7 @@ router.push(
     width: "100%",
   }}
 >
-                {["New Braunfels", "Boerne", "Schertz"].map((sub) => (
+          {["New Braunfels", "Boerne", "Schertz", "San Marcos"].map((sub) => (
                   <label
                     key={sub}
                     style={{
