@@ -1,6 +1,6 @@
 "use client"
-import { useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import FollowUpRow from "./FollowUpRow"
 import LeadBoard from "./LeadBoard"
 import LeadPanel from "./LeadPanel"
@@ -9,12 +9,18 @@ import LeadFormModal from "../LeadFormModal"
 
 export default function DashboardClient({ leads }: { leads: any[] }) {
     const router = useRouter()
-  const searchParams = useSearchParams()
-  const [selectedLeadId, setSelectedLeadId] = useState<
+const [selectedLeadId, setSelectedLeadId] = useState<
   string | number | null
->(
-  searchParams.get("id")
-)
+>(null)
+
+useEffect(() => {
+  const params = new URLSearchParams(window.location.search)
+  const id = params.get("id")
+
+  if (id) {
+    setSelectedLeadId(id)
+  }
+}, [])
 
   const [topMatches, setTopMatches] = useState<any[]>([])
   const [localLeads, setLocalLeads] = useState(leads)
