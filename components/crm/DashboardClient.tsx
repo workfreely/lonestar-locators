@@ -1,18 +1,24 @@
 "use client"
-
 import { useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import FollowUpRow from "./FollowUpRow"
 import LeadBoard from "./LeadBoard"
 import LeadPanel from "./LeadPanel"
 import LeadInsights from "./LeadInsights"
+import LeadFormModal from "../LeadFormModal"
 
 export default function DashboardClient({ leads }: { leads: any[] }) {
+    const router = useRouter()
+  const searchParams = useSearchParams()
   const [selectedLeadId, setSelectedLeadId] = useState<
-    string | number | null
-  >(null)
+  string | number | null
+>(
+  searchParams.get("id")
+)
 
   const [topMatches, setTopMatches] = useState<any[]>([])
   const [localLeads, setLocalLeads] = useState(leads)
+  const [showLeadModal, setShowLeadModal] = useState(false)
   const totalLeads = localLeads.length
 const pipelineValue = totalLeads * 1000
 
@@ -21,7 +27,7 @@ const pipelineValue = totalLeads * 1000
   )
 
   return (
-   <div className="relative h-screen w-full">
+ <div className="relative h-screen w-full">
 
       {/* 🌆 BACKGROUND IMAGE (ONLY THIS GETS FILTERS) */}
       <div
@@ -38,8 +44,9 @@ const pipelineValue = totalLeads * 1000
       {/* PIPELINE VALUE */}
 <div className="absolute top-[-55px] right-10 z-30">
 <div className="bg-white border border-gray-200 shadow-[0_6px_20px_rgba(0,0,0,0.06)] rounded-full px-6 py-3 flex items-center gap-4">
+  
 
-   <div className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold whitespace-nowrap">
+   <div className="text-[13px] uppercase tracking-wide text-gray-400 font-semibold whitespace-nowrap">
   Pipeline Value:
 </div>
 
@@ -52,6 +59,12 @@ const pipelineValue = totalLeads * 1000
 <div className="text-sm text-gray-500 whitespace-nowrap">
   {totalLeads} active leads
 </div>
+<button
+  onClick={() => setShowLeadModal(true)}
+  className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-full transition"
+>
+  + Add Lead
+</button>
 
   </div>
 </div>
@@ -62,9 +75,12 @@ const pipelineValue = totalLeads * 1000
         {/* LEFT SIDEBAR */}
      <div className="w-[220px] min-w-[220px] border-r border-gray-200 bg-white overflow-y-auto z-10 shadow-[6px_0_20px_rgba(0,0,0,0.06)]">
           <FollowUpRow
-            leads={localLeads}
-            onSelectLead={setSelectedLeadId}
-          />
+  leads={localLeads}
+  onSelectLead={(id) => {
+    setSelectedLeadId(id)
+    router.push(`/admin/leads?id=${id}`)
+  }}
+/>
         </div>
 
         {/* MAIN BOARD */}
@@ -76,12 +92,15 @@ const pipelineValue = totalLeads * 1000
 
 
   
-  <LeadBoard
-    leads={localLeads}
-    setLeads={setLocalLeads}
-    selectedLeadId={selectedLeadId}
-    onSelectLead={setSelectedLeadId}
-  />
+<LeadBoard
+  leads={localLeads}
+  setLeads={setLocalLeads}
+  selectedLeadId={selectedLeadId}
+  onSelectLead={(id) => {
+    setSelectedLeadId(id)
+    router.push(`/admin/leads?id=${id}`)
+  }}
+/>
 
 </div>
 
@@ -97,7 +116,10 @@ const pipelineValue = totalLeads * 1000
                 <LeadPanel
                   lead={selectedLead}
                   topMatches={topMatches}
-                  onClose={() => setSelectedLeadId(null)}
+               onClose={() => {
+  setSelectedLeadId(null)
+  router.push("/admin/leads")
+}}
                   onUpdateLead={(updatedLead) => {
                     setLocalLeads((prev) =>
                       prev.map((l) =>
@@ -121,6 +143,13 @@ const pipelineValue = totalLeads * 1000
         )}
 
       </div>
+      <LeadFormModal
+  open={showLeadModal}
+  onClose={() => setShowLeadModal(false)}
+  onLeadCreated={(newLead) => {
+    setLocalLeads((prev) => [newLead, ...prev])
+  }}
+/>
     </div>
   )
 }

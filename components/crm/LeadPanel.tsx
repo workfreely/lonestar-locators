@@ -24,10 +24,13 @@ const [followUps, setFollowUps] = useState(
   Number(lead.follow_up_count || 0)
 )
 
-const [nextActionDate, setNextActionDate] =
-  useState(
-    lead.next_action_date || null
-  )
+const [nextActionDate, setNextActionDate] = useState(
+  lead.next_action_date || null
+)
+
+const [locatorNotes, setLocatorNotes] = useState(
+  lead.locator_notes || ""
+)
 
 useEffect(() => {
   console.log("HYDRATING FROM DB:", lead.follow_up_count)
@@ -39,6 +42,9 @@ useEffect(() => {
   setNextActionDate(
     lead.next_action_date || null
   )
+  setLocatorNotes(
+  lead.locator_notes || ""
+)
 
 }, [
   lead.id,
@@ -372,7 +378,7 @@ function getFUStyle(step: number) {
       : ""
 
     openSMS(
-      `Hey ${name} it’s Jay! I just got your form for a ${bedsText} move${monthText}. Anything you want me to prioritize before I put your list together?`
+       `Hey ${name} it’s Jay! I just got your form for a ${bedsText} move${monthText}. Are you trying to stay near a specific address or side of town?`
     )
     return
   }
@@ -488,6 +494,8 @@ I’ll get tours set up or tweak the list for you`)
   })()}
 </div>
 
+
+
         {/* ACTION BUTTONS */}
        <div className="mt-5 space-y-3 bg-[#fbfcfd] border border-gray-100 rounded-2xl p-4 shadow-[0_4px_18px_rgba(0,0,0,0.03)]">
 
@@ -507,7 +515,7 @@ I’ll get tours set up or tweak the list for you`)
         })}`
       : ""
 
-  openSMS(`Hey ${name} it’s Jay! I just got your form for a ${bedsText} move${monthText}. Anything you want me to prioritize before I put your list together?`)
+  openSMS(`Hey ${name} it’s Jay! I just got your form for a ${bedsText} move${monthText}. Are you trying to stay near a specific address or side of town?`)
   }}
 className="text-xs bg-blue-50 text-blue-700 border border-blue-100 rounded-xl px-3 py-2 hover:bg-blue-100 transition"
 >
@@ -839,8 +847,10 @@ className={grayButton}
   </div>
 
   <textarea
-    defaultValue={lead.notes || ""}
-    className="w-full h-24 border border-gray-200 rounded-2xl p-3 text-sm bg-[#fcfcfd] shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500"
+    value={lead.notes || ""}
+    readOnly
+    placeholder="No client notes submitted."
+    className="w-full h-20 border rounded-2xl p-2 text-sm bg-gray-50 cursor-default focus:outline-none"
   />
 </div>
 

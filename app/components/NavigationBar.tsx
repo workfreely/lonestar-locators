@@ -9,11 +9,12 @@ const NavigationBar = () => {
 
   // Hide navbar on landing pages
   if (
-    pathname === "/get-my-list" ||
-    pathname === "/second-chance-apartments"
-  ) {
-    return null;
-  }
+  pathname === "/get-my-list" ||
+  pathname === "/second-chance-apartments" ||
+  pathname.startsWith("/admin")
+) {
+  return null;
+}
 
   return (
     <nav

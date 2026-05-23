@@ -2,9 +2,20 @@
 
 import React from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { FaYoutube, FaCookieBite } from "react-icons/fa";
 
 const Footer = () => {
+    const pathname = usePathname();
+
+  // Hide footer on landing + admin pages
+  if (
+    pathname === "/get-my-list" ||
+    pathname === "/second-chance-apartments" ||
+    pathname.startsWith("/admin")
+  ) {
+    return null;
+  }
   const linkStyle: React.CSSProperties = {
     color: "white",
     textDecoration: "none",
