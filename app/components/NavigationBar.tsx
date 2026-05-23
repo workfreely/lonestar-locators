@@ -1,11 +1,20 @@
+"use client";
+
 import React from "react";
 import Link from "next/link";
-
-<Link href="/start-your-search">Start Your Search</Link>
-
-
+import { usePathname } from "next/navigation";
 
 const NavigationBar = () => {
+  const pathname = usePathname();
+
+  // Hide navbar on landing pages
+  if (
+    pathname === "/get-my-list" ||
+    pathname === "/second-chance-apartments"
+  ) {
+    return null;
+  }
+
   return (
     <nav
       aria-label="Main Navigation"
@@ -43,30 +52,32 @@ const NavigationBar = () => {
           href="/how-it-works"
           style={{
             color: "#333",
-            marginRight: "1rem", 
+            marginRight: "1rem",
             textDecoration: "none",
-            fontSize: "1.1rem", // 👈 slightly larger
-            fontWeight: 600, // 👈 makes it stand out
+            fontSize: "1.1rem",
+            fontWeight: 600,
           }}
         >
           How It Works
         </Link>
+
         <span className="hide-on-mobile">
           <Link
             href="/start-your-search"
             style={{
               color: "#333",
               textDecoration: "none",
-              fontSize: "1.1rem", // 👈 match size
+              fontSize: "1.1rem",
               fontWeight: 600,
             }}
           >
             Start Your Search
           </Link>
+
           <Link
             href="/report-lease"
             style={{
-              backgroundColor: "#28a745", // green button
+              backgroundColor: "#28a745",
               color: "#fff",
               padding: "0.5rem 1rem",
               borderRadius: "6px",
