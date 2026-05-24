@@ -38,6 +38,12 @@ export async function GET(req: NextRequest) {
     searchParams.get("creditHistory") || "Not specified";
     const submarkets = searchParams.get("submarkets") || "";
 
+    const criminalBackground =
+  searchParams.get("criminalBackground") || "None";
+
+const criminalCharge =
+  searchParams.get("criminalCharge") || "";
+
 const brokenLeaseAge = searchParams.get("brokenLeaseAge") || "";
 const brokenLeaseAmount = searchParams.get("brokenLeaseAmount") || "";
 
@@ -50,7 +56,6 @@ const felonyCharge = searchParams.get("felonyCharge") || "";
 
 const misdemeanorAge = searchParams.get("misdemeanorAge") || "";
 const misdemeanorCharge = searchParams.get("misdemeanorCharge") || "";
-const source = searchParams.get("source") || "website";
 
 
   // ==========================
@@ -136,8 +141,6 @@ const source = searchParams.get("source") || "website";
     ${submarkets ? `<br/><strong>Nearby Areas:</strong> ${submarkets}` : ""}<br/>
     <strong>Estimated Credit Score:</strong> ${creditScore}<br/>
     <strong>Credit Background:</strong> ${creditHistory}
-    <br/>
-<strong>Lead Source:</strong> ${source}
 
     ${
       creditHistory === "Broken Lease"
@@ -159,7 +162,7 @@ const source = searchParams.get("source") || "website";
     }
 
     ${
-      creditHistory === "Felony"
+criminalBackground === "Felony"
         ? `
         ${felonyAge ? `<br/><strong>Felony Age:</strong> ${felonyAge}` : ""}
         ${felonyCharge ? `<br/><strong>Felony Charge:</strong> ${felonyCharge}` : ""}
@@ -168,7 +171,7 @@ const source = searchParams.get("source") || "website";
     }
 
     ${
-      creditHistory === "Misdemeanor"
+     criminalBackground === "Misdemeanor"
         ? `
         ${misdemeanorAge ? `<br/><strong>Misdemeanor Age:</strong> ${misdemeanorAge}` : ""}
         ${misdemeanorCharge ? `<br/><strong>Misdemeanor Charge:</strong> ${misdemeanorCharge}` : ""}

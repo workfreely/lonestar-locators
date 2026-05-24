@@ -231,6 +231,18 @@ useEffect(() => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+if (!formData.moveDate) {
+  alert("Please select your move date.");
+  return;
+}
+
+// ✅ ADD THIS BLOCK
+  if (!isShortForm && formData.neighborhoods.length === 0) {
+    alert("Please select at least one preferred neighborhood.");
+    return;
+  }
+
     if (isSubmitting) return;
 setIsSubmitting(true);
 
@@ -674,18 +686,20 @@ router.push(
       </div>
       {/* DESIRED MOVE DATE */}
       <div style={sectionStyle}>
-        <DatePicker
-          selected={formData.moveDate ? new Date(formData.moveDate) : null}
-          onChange={(date: Date | null) => {
-            setFormData({
-              ...formData,
-              moveDate: date ? date.toISOString().split("T")[0] : "",
-            });
-          }}
-          placeholderText="Desired Move-In Date"
-          dateFormat="MM/dd/yyyy"
-          className="form-input"
-        />
+<DatePicker
+  selected={formData.moveDate ? new Date(formData.moveDate) : null}
+  onChange={(date: Date | null) => {
+    setFormData({
+      ...formData,
+      moveDate: date ? date.toISOString().split("T")[0] : "",
+    });
+  }}
+  placeholderText="Desired Move-In Date"
+  dateFormat="MM/dd/yyyy"
+  className="form-input"
+  required
+  name="moveDate"
+/>
       </div>
       {/* CITY */}
       {!isShortForm && (
@@ -974,6 +988,7 @@ router.push(
           <div style={sectionStyle}>
             <select
               name="propertyType"
+              required
               value={formData.propertyType}
               onChange={(e) => {
                 const value = e.target.value;
@@ -1015,6 +1030,7 @@ router.push(
             <div style={sectionStyle}>
               <select
                 name="beds"
+                required
                 value={formData.beds}
                 onChange={(e) => {
   const value = e.target.value;
@@ -1062,6 +1078,7 @@ router.push(
             <div style={sectionStyle}>
               <select
                 name="baths"
+                required
                 value={formData.baths}
                 onChange={handleChange}
                 style={inputStyle}
@@ -1094,6 +1111,7 @@ router.push(
           <div style={sectionStyle}>
             <select
               name="desiredRent"
+              required
               value={formData.desiredRent}
               onChange={handleChange}
               style={inputStyle}
@@ -1201,6 +1219,7 @@ router.push(
     <div style={sectionStyle}>
       <select
         name="brokenLeaseAge"
+         required
         value={formData.brokenLeaseAge}
         onChange={handleChange}
         style={inputStyle}
@@ -1218,6 +1237,7 @@ router.push(
     <div style={sectionStyle}>
       <select
         name="brokenLeaseAmount"
+         required
         value={formData.brokenLeaseAmount}
         onChange={handleChange}
         style={inputStyle}
@@ -1239,6 +1259,7 @@ router.push(
     <div style={sectionStyle}>
       <select
         name="evictionCourt"
+         required
         value={formData.evictionCourt}
         onChange={handleChange}
         style={inputStyle}
@@ -1252,6 +1273,7 @@ router.push(
     <div style={sectionStyle}>
       <select
         name="evictionAge"
+         required
         value={formData.evictionAge}
         onChange={handleChange}
         style={inputStyle}
@@ -1269,6 +1291,7 @@ router.push(
     <div style={sectionStyle}>
       <select
         name="evictionBalance"
+         required
         value={formData.evictionBalance}
         onChange={handleChange}
         style={inputStyle}
@@ -1298,6 +1321,7 @@ router.push(
 
   <select
     name="criminalBackground"
+     required
     value={formData.criminalBackground || ""}
     onChange={handleChange}
     style={inputStyle}
@@ -1320,6 +1344,7 @@ router.push(
       <div style={sectionStyle}>
         <select
           name="criminalCharge"
+           required
           value={formData.criminalCharge || ""}
           onChange={handleChange}
           style={inputStyle}
@@ -1342,6 +1367,7 @@ router.push(
     <div style={sectionStyle}>
       <select
         name="felonyAge"
+         required
         value={formData.felonyAge}
         onChange={handleChange}
         style={inputStyle}
@@ -1364,6 +1390,7 @@ router.push(
     <div style={sectionStyle}>
       <select
         name="misdemeanorAge"
+         required
         value={formData.misdemeanorAge}
         onChange={handleChange}
         style={inputStyle}

@@ -207,7 +207,8 @@ ${
   ${pill("Beds / Baths", lead.beds && lead.baths ? `${lead.beds} / ${lead.baths}` : null)}
   ${pill("Rent", lead.desired_rent)}
   ${pill("Credit", lead.credit_history ? `${lead.credit_history}${lead.credit_score ? ` (${lead.credit_score})` : ""}` : null)}
-  ${pill("City", lead.city)}
+${pill("City", lead.city)}
+${pill("Source", lead.source)}
   ${newHomeCandidate ? pill("AI Recommendation", "New Home Candidate") : ""}
 </div>
 
@@ -240,6 +241,11 @@ ${section(
   "Screening",
   row("Credit History", lead.credit_history) +
   row("Credit Score", lead.credit_score)
+)}
+
+${section(
+  "Lead Source",
+  row("Lead Source", lead.source)
 )}
 
 ${
