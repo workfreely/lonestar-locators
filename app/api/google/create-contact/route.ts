@@ -8,7 +8,7 @@ export async function POST(req: Request) {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
-      "http://localhost:3000/api/google/callback"
+    `${process.env.NEXT_PUBLIC_SITE_URL}/api/google/callback`
     );
 
     oauth2Client.setCredentials({

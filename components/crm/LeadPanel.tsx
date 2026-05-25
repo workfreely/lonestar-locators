@@ -701,7 +701,49 @@ className={grayButton}
   </span>
 </div>
 
-  
+<div className="mt-2">
+  <span className="text-gray-500">Eviction:</span>{" "}
+  <span className="font-medium text-gray-900">
+    {lead.eviction || "None"}
+  </span>
+</div>
+
+<div className="mt-2">
+  <span className="text-gray-500">Eviction Age:</span>{" "}
+  <span className="font-medium text-gray-900">
+    {lead.eviction_age || "—"}
+  </span>
+</div>
+
+<div className="mt-2">
+  <span className="text-gray-500">Broken Lease:</span>{" "}
+  <span className="font-medium text-gray-900">
+    {lead.broken_lease || "None"}
+  </span>
+</div>
+
+<div className="mt-2">
+  <span className="text-gray-500">Broken Lease Age:</span>{" "}
+  <span className="font-medium text-gray-900">
+    {lead.broken_lease_age || "—"}
+  </span>
+</div>
+
+<div className="mt-2">
+  <span className="text-gray-500">Criminal Charge:</span>{" "}
+  <span className="font-medium text-gray-900">
+    {lead.criminal_charge || "None"}
+  </span>
+</div>
+
+<div className="mt-2">
+  <span className="text-gray-500">Criminal Age:</span>{" "}
+  <span className="font-medium text-gray-900">
+    {lead.criminal_age || "—"}
+  </span>
+</div>
+
+
   
   {lead.source && (
   <div className="mt-2">
