@@ -60,56 +60,6 @@ export async function POST(req: Request) {
       ? `+1${cleanedPhone}`
       : "";
 
-    // ======================================================
-    // CONTACT NOTES
-    // ======================================================
-
-    const contactNotes = `
-Move Date: ${body.moveDate || "N/A"}
-
-Budget: ${body.desiredRent || "N/A"}
-
-Property Type: ${body.propertyType || "N/A"}
-
-Bedrooms: ${body.beds || "N/A"}
-Bathrooms: ${body.baths || "N/A"}
-
-Neighborhoods:
-${body.neighborhoods || "N/A"}
-
-Submarkets:
-${body.submarkets || "N/A"}
-
-Credit Score:
-${body.creditScore || "N/A"}
-
-Rental Background:
-${body.creditHistory || "N/A"}
-
-Broken Lease Age:
-${body.brokenLeaseAge || "N/A"}
-
-Broken Lease Amount:
-${body.brokenLeaseAmount || "N/A"}
-
-Eviction Age:
-${body.evictionAge || "N/A"}
-
-Eviction Balance:
-${body.evictionBalance || "N/A"}
-
-Criminal Background:
-${body.criminalBackground || "N/A"}
-
-Criminal Charge:
-${body.criminalCharge || "N/A"}
-
-Lead Source:
-${body.source || "website"}
-
-Notes:
-${body.notes || "N/A"}
-`;
 
     // ======================================================
     // CREATE CONTACT
@@ -117,12 +67,12 @@ ${body.notes || "N/A"}
 
     await people.people.createContact({
       requestBody: {
-        names: [
-          {
-            givenName: body.firstName,
-            familyName: `${body.lastName} (${cityLabel} • ${sourceLabel})`,
-          },
-        ],
+       names: [
+  {
+    givenName: body.firstName,
+    familyName: `${body.lastName} (${cityLabel} - ${sourceLabel})`,
+  },
+],
 
         emailAddresses: body.email
           ? [
@@ -140,19 +90,11 @@ ${body.notes || "N/A"}
             ]
           : [],
 
-        biographies: [
-          {
-            value: contactNotes,
-          },
-        ],
-
-        organizations: [
-          {
-            name: "Lone Star Locators",
-          },
-        ],
+       
       },
     });
+
+console.log("Google Contact Created");
 
     return NextResponse.json({
       success: true,
