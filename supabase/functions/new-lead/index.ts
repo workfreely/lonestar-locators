@@ -208,7 +208,14 @@ ${
   ${pill("Rent", lead.desired_rent)}
   ${pill("Credit", lead.credit_history ? `${lead.credit_history}${lead.credit_score ? ` (${lead.credit_score})` : ""}` : null)}
 ${pill("City", lead.city)}
-${pill("Source", lead.source)}
+${pill(
+  "Source",
+  lead.source === "direct"
+    ? "Website"
+    : lead.source
+      ? lead.source.charAt(0).toUpperCase() + lead.source.slice(1)
+      : "Website"
+)}
   ${newHomeCandidate ? pill("AI Recommendation", "New Home Candidate") : ""}
 </div>
 
@@ -245,7 +252,14 @@ ${section(
 
 ${section(
   "Lead Source",
-  row("Lead Source", lead.source)
+ row(
+  "Lead Source",
+  lead.source === "direct"
+    ? "Website"
+    : lead.source
+      ? lead.source.charAt(0).toUpperCase() + lead.source.slice(1)
+      : "Website"
+)
 )}
 
 ${
