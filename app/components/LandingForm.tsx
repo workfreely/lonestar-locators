@@ -440,7 +440,7 @@ source: leadSource,
 }
 
       console.log("Lead submitted successfully to Supabase!", data);
-      await fetch("/api/google/create-contact", {
+     await fetch("/api/google/create-contact", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
@@ -449,7 +449,35 @@ source: leadSource,
     firstName: formData.firstName,
     lastName: formData.lastName,
     phone: formData.phone,
+    email: formData.email,
+
     city: formData.city || "Lead",
+    source: leadSource || "website",
+
+    moveDate: formData.moveDate,
+    desiredRent: formData.desiredRent,
+
+    beds: formData.beds,
+    baths: formData.baths,
+
+    propertyType: formData.propertyType,
+
+    neighborhoods: formData.neighborhoods.join(", "),
+    submarkets: formData.submarkets?.join(", "),
+
+    creditScore: formData.creditScore,
+    creditHistory: formData.creditHistory,
+
+    brokenLeaseAge: formData.brokenLeaseAge,
+    brokenLeaseAmount: formData.brokenLeaseAmount,
+
+    evictionAge: formData.evictionAge,
+    evictionBalance: formData.evictionBalance,
+
+    criminalBackground: formData.criminalBackground,
+    criminalCharge: formData.criminalCharge,
+
+    notes: formData.notes,
   }),
 });
 
