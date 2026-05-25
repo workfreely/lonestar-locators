@@ -237,13 +237,31 @@ if (!formData.moveDate) {
   return;
 }
 
-// ✅ ADD THIS BLOCK
-  if (!isShortForm && formData.neighborhoods.length === 0) {
-    alert("Please select at least one preferred neighborhood.");
-    return;
-  }
+// ✅ Neighborhood validation
+if (!isShortForm && formData.neighborhoods.length === 0) {
+  alert("Please select at least one preferred neighborhood.");
+  return;
+}
 
-    if (isSubmitting) return;
+// ✅ Broken Lease validation
+if (
+  formData.creditHistory === "Broken Lease" &&
+  (!formData.brokenLeaseAge || !formData.brokenLeaseAmount)
+) {
+  alert("Please complete the broken lease details.");
+  return;
+}
+
+// ✅ Eviction validation
+if (
+  formData.creditHistory === "Eviction" &&
+  (!formData.evictionAge || !formData.evictionBalance)
+) {
+  alert("Please complete the eviction details.");
+  return;
+}
+
+if (isSubmitting) return;
 setIsSubmitting(true);
 
       // ------------------------------------------------------
