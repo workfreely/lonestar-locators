@@ -237,7 +237,7 @@ criminalBackground === "Felony"
 </div>
 
 
-<!-- VIDEO SECTION --> <h3 style="margin-top:40px;margin-bottom:16px;font-size:20px;"> Watch Before You Tour </h3> <div style="font-size:17px;line-height:1.7;color:#444;"> <a href="" target="_blank" style=" color:#0b3a75; font-weight:600; text-decoration:none; display:inline-flex; align-items:center; gap:8px; "> <img src="https://res.cloudinary.com/dxtiguwzm/image/upload/v1771299227/youtube-icon_qdqutz.png" alt="YouTube" width="20" height="20" style="display:inline-block;vertical-align:middle;" /> Apartment Reviews Coming Soon </a> </div>
+<!-- VIDEO SECTION --> <h3 style="margin-top:40px;margin-bottom:16px;font-size:20px;"> Watch My Apartment Process </h3> <div style="font-size:17px;line-height:1.7;color:#444;"> <a href="https://youtube.com/shorts/GjXNYiV8tHw" target="_blank" style=" color:#0b3a75; font-weight:600; text-decoration:none; display:inline-flex; align-items:center; gap:8px; "> <img src="https://res.cloudinary.com/dxtiguwzm/image/upload/v1771299227/youtube-icon_qdqutz.png" alt="YouTube" width="20" height="20" style="display:inline-block;vertical-align:middle;" /> Watch How My Apartment Process Works </a> </div>
 
 <div style="margin-top:30px;font-size:16px;color:#444;">
   If anything changes with your budget, location, or timeline, just reply to this email and let me know.
