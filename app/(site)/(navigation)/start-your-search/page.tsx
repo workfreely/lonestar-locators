@@ -92,7 +92,7 @@ fontSize: "clamp(2.9rem, 6.4vw, 3.8rem)",
             }}
           >
             <iframe
-              src="https://www.youtube.com/embed/YOUR_VIDEO_ID"
+              src="https://www.youtube.com/embed/GjXNYiV8tHw?si=8P9Q"
               title="Apartment Locator Help"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
