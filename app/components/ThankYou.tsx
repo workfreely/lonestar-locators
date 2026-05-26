@@ -272,7 +272,7 @@ export default function ThankYou({
               }}
             >
               <iframe
-                src="https://youtube.com/shorts/GjXNYiV8tHw"
+                src="https://www.youtube.com/embed/GjXNYiV8tHw?si=8P9Q"
                 title="Thank You - Lone Star Locators"
                 allowFullScreen
                 style={{
