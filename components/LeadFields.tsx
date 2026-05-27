@@ -187,6 +187,78 @@ export default function LeadFields({
             }
             className="border rounded-2xl px-4 py-3 text-sm"
           />
+
+          <input
+  placeholder="Criminal Charge"
+  value={form.criminal_charge}
+  onChange={(e) =>
+    updateField("criminal_charge", e.target.value)
+  }
+  className="border rounded-2xl px-4 py-3 text-sm"
+/>
+
+<input
+  placeholder="Felony Age"
+  value={form.felony_age}
+  onChange={(e) =>
+    updateField("felony_age", e.target.value)
+  }
+  className="border rounded-2xl px-4 py-3 text-sm"
+/>
+
+<input
+  placeholder="Misdemeanor Age"
+  value={form.misdemeanor_age}
+  onChange={(e) =>
+    updateField("misdemeanor_age", e.target.value)
+  }
+  className="border rounded-2xl px-4 py-3 text-sm"
+/>
+
+<input
+  placeholder="Broken Lease Age"
+  value={form.broken_lease_age}
+  onChange={(e) =>
+    updateField("broken_lease_age", e.target.value)
+  }
+  className="border rounded-2xl px-4 py-3 text-sm"
+/>
+
+<input
+  placeholder="Broken Lease Amount"
+  value={form.broken_lease_amount}
+  onChange={(e) =>
+    updateField("broken_lease_amount", e.target.value)
+  }
+  className="border rounded-2xl px-4 py-3 text-sm"
+/>
+
+<input
+  placeholder="Eviction Age"
+  value={form.eviction_age}
+  onChange={(e) =>
+    updateField("eviction_age", e.target.value)
+  }
+  className="border rounded-2xl px-4 py-3 text-sm"
+/>
+
+<input
+  placeholder="Eviction Balance"
+  value={form.eviction_balance}
+  onChange={(e) =>
+    updateField("eviction_balance", e.target.value)
+  }
+  className="border rounded-2xl px-4 py-3 text-sm"
+/>
+
+<input
+  placeholder="Eviction Court"
+  value={form.eviction_court}
+  onChange={(e) =>
+    updateField("eviction_court", e.target.value)
+  }
+  className="border rounded-2xl px-4 py-3 text-sm"
+/>
         </div>
       </div>
 

@@ -524,6 +524,8 @@ if (formData.email) {
   evictionBalance: formData.evictionBalance || "",
   felonyAge: formData.felonyAge || "",
   misdemeanorAge: formData.misdemeanorAge || "",
+  criminalBackground: formData.criminalBackground || "",
+criminalCharge: formData.criminalCharge || "",
   source: leadSource,
   notes: formData.notes || "",
 });
