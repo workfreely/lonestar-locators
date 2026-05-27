@@ -708,12 +708,16 @@ className={grayButton}
   </span>
 </div>
 
-<div className="mt-2">
-  <span className="text-gray-500">Eviction Age:</span>{" "}
-  <span className="font-medium text-gray-900">
-    {lead.eviction_age || "—"}
-  </span>
-</div>
+{lead.eviction &&
+  lead.eviction !== "None" &&
+  lead.eviction_age && (
+    <div className="mt-2">
+      <span className="text-gray-500">Eviction Age:</span>{" "}
+      <span className="font-medium text-gray-900">
+        {lead.eviction_age}
+      </span>
+    </div>
+)}
 
 <div className="mt-2">
   <span className="text-gray-500">Broken Lease:</span>{" "}
@@ -722,12 +726,16 @@ className={grayButton}
   </span>
 </div>
 
-<div className="mt-2">
-  <span className="text-gray-500">Broken Lease Age:</span>{" "}
-  <span className="font-medium text-gray-900">
-    {lead.broken_lease_age || "—"}
-  </span>
-</div>
+{lead.broken_lease &&
+  lead.broken_lease !== "None" &&
+  lead.broken_lease_age && (
+    <div className="mt-2">
+      <span className="text-gray-500">Broken Lease Age:</span>{" "}
+      <span className="font-medium text-gray-900">
+        {lead.broken_lease_age}
+      </span>
+    </div>
+)}
 
 <div className="mt-2">
   <span className="text-gray-500">Criminal Charge:</span>{" "}
@@ -736,12 +744,16 @@ className={grayButton}
   </span>
 </div>
 
-<div className="mt-2">
-  <span className="text-gray-500">Criminal Age:</span>{" "}
-  <span className="font-medium text-gray-900">
-    {lead.criminal_age || "—"}
-  </span>
-</div>
+{lead.criminal_background &&
+  lead.criminal_background !== "None" &&
+  lead.criminal_age && (
+    <div className="mt-2">
+      <span className="text-gray-500">Criminal Age:</span>{" "}
+      <span className="font-medium text-gray-900">
+        {lead.criminal_age}
+      </span>
+    </div>
+)}
 
 
   
