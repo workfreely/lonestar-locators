@@ -1,4 +1,6 @@
 
+export const dynamic = "force-dynamic"
+
 import DashboardClient from "@/components/crm/DashboardClient"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
