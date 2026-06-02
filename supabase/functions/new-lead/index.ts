@@ -247,7 +247,20 @@ ${section(
 ${section(
   "Screening",
   row("Credit History", lead.credit_history) +
-  row("Credit Score", lead.credit_score)
+  row("Credit Score", lead.credit_score) +
+
+  row("Broken Lease Age", lead.broken_lease_age) +
+  row("Broken Lease Balance", lead.broken_lease_amount) +
+
+  row("Eviction Court", lead.eviction_court) +
+  row("Eviction Age", lead.eviction_age) +
+  row("Eviction Balance", lead.eviction_balance) +
+
+  row("Criminal Background", lead.criminal_background) +
+  row("Criminal Charge", lead.criminal_charge) +
+
+  row("Felony Age", lead.felony_age) +
+  row("Misdemeanor Age", lead.misdemeanor_age)
 )}
 
 ${section(
