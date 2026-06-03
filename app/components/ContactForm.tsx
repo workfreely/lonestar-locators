@@ -483,18 +483,22 @@ source: leadSource,
     submarkets: formData.submarkets?.join(", "),
 
     creditScore: formData.creditScore,
-    creditHistory: formData.creditHistory,
+creditHistory: formData.creditHistory,
 
-    brokenLeaseAge: formData.brokenLeaseAge,
-    brokenLeaseAmount: formData.brokenLeaseAmount,
+brokenLeaseAge: formData.brokenLeaseAge,
+brokenLeaseAmount: formData.brokenLeaseAmount,
 
-    evictionAge: formData.evictionAge,
-    evictionBalance: formData.evictionBalance,
+evictionCourt: formData.evictionCourt,
+evictionAge: formData.evictionAge,
+evictionBalance: formData.evictionBalance,
 
-    criminalBackground: formData.criminalBackground,
-    criminalCharge: formData.criminalCharge,
+criminalBackground: formData.criminalBackground,
+criminalCharge: formData.criminalCharge,
 
-    notes: formData.notes,
+felonyAge: formData.felonyAge,
+misdemeanorAge: formData.misdemeanorAge,
+
+notes: formData.notes,
   }),
 });
 
