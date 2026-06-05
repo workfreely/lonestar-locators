@@ -29,7 +29,7 @@ export default function LeadColumn({
   return (
     <div
       ref={setNodeRef}
-   className="w-[300px] min-w-[300px] bg-black/30 backdrop-blur-md border border-white/10 p-3 rounded-xl flex flex-col h-fit self-start"
+   className="w-[300px] min-w-[300px] bg-black/30 backdrop-blur-md border border-white/10 p-3 rounded-xl flex flex-col min-h-full self-start"
     >
       {/* HEADER */}
       <h3 className="font-semibold mb-3 text-sm tracking-wide text-white">

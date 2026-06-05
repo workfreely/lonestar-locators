@@ -162,22 +162,16 @@ const misdemeanorCharge = searchParams.get("misdemeanorCharge") || "";
     }
 
     ${
-criminalBackground === "Felony"
-        ? `
-        ${felonyAge ? `<br/><strong>Felony Age:</strong> ${felonyAge}` : ""}
-        ${felonyCharge ? `<br/><strong>Felony Charge:</strong> ${felonyCharge}` : ""}
-        `
-        : ""
-    }
-
-    ${
-     criminalBackground === "Misdemeanor"
-        ? `
-        ${misdemeanorAge ? `<br/><strong>Misdemeanor Age:</strong> ${misdemeanorAge}` : ""}
-        ${misdemeanorCharge ? `<br/><strong>Misdemeanor Charge:</strong> ${misdemeanorCharge}` : ""}
-        `
-        : ""
-    }
+  criminalBackground &&
+  criminalBackground !== "None"
+    ? `
+    <br/><strong>Criminal Background:</strong> ${criminalBackground}
+    ${criminalCharge ? `<br/><strong>Criminal Charge:</strong> ${criminalCharge}` : ""}
+    ${felonyAge ? `<br/><strong>Felony Age:</strong> ${felonyAge}` : ""}
+    ${misdemeanorAge ? `<br/><strong>Misdemeanor Age:</strong> ${misdemeanorAge}` : ""}
+    `
+    : ""
+}
     ${
       notes.length > 5
         ? `
