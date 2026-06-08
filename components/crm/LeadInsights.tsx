@@ -345,7 +345,7 @@ if (Number(lead.credit_score) <= 580) {
         onMatchesChange(top3)
       }
 
-      setProperties(scored.slice(0, 8))
+      setProperties(scored.slice(0, 6))
     }
 
     fetchProperties()

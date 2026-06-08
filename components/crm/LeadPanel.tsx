@@ -680,14 +680,14 @@ className={grayButton}
 
 
 
-  <div className="mt-2">
-    <span className="text-gray-500">Credit Score:</span>{" "}
-    <span className="font-medium text-gray-900">
-      {lead.credit_score || "—"}
-    </span>
-  </div>
+ <div className="mt-2">
+  <span className="text-gray-500">Credit Score:</span>{" "}
+  <span className="font-medium text-gray-900">
+    {lead.credit_score || "—"}
+  </span>
+</div>
 
-  <div className="mt-2">
+<div className="mt-2">
   <span className="text-gray-500">Credit History:</span>{" "}
   <span className="font-medium text-gray-900">
     {lead.credit_history || "—"}
@@ -695,47 +695,65 @@ className={grayButton}
 </div>
 
 <div className="mt-2">
-  <span className="text-gray-500">Background:</span>{" "}
+  <span className="text-gray-500">Eviction Court:</span>{" "}
   <span className="font-medium text-gray-900">
-    {lead.criminal_background || "None"}
+    {lead.eviction_court === "Yes" ? "Yes" : "No"}
   </span>
 </div>
 
-<div className="mt-2">
-  <span className="text-gray-500">Eviction:</span>{" "}
-  <span className="font-medium text-gray-900">
-    {lead.eviction || "None"}
-  </span>
-</div>
-
-{lead.eviction &&
-  lead.eviction !== "None" &&
-  lead.eviction_age && (
+{lead.eviction_court === "Yes" && (
+  <>
     <div className="mt-2">
       <span className="text-gray-500">Eviction Age:</span>{" "}
       <span className="font-medium text-gray-900">
-        {lead.eviction_age}
+        {lead.eviction_age || "—"}
       </span>
     </div>
+
+    <div className="mt-2">
+      <span className="text-gray-500">Eviction Balance:</span>{" "}
+      <span className="font-medium text-gray-900">
+        {lead.eviction_balance || "—"}
+      </span>
+    </div>
+  </>
 )}
 
 <div className="mt-2">
   <span className="text-gray-500">Broken Lease:</span>{" "}
   <span className="font-medium text-gray-900">
-    {lead.broken_lease || "None"}
+    {String(lead.credit_history || "")
+      .toLowerCase()
+      .includes("broken")
+      ? "Yes"
+      : "No"}
   </span>
 </div>
 
-{lead.broken_lease &&
-  lead.broken_lease !== "None" &&
-  lead.broken_lease_age && (
+{lead.credit_history?.toLowerCase().includes("broken") && (
+  <>
     <div className="mt-2">
       <span className="text-gray-500">Broken Lease Age:</span>{" "}
       <span className="font-medium text-gray-900">
-        {lead.broken_lease_age}
+        {lead.broken_lease_age || "—"}
       </span>
     </div>
+
+    <div className="mt-2">
+      <span className="text-gray-500">Broken Lease Amount:</span>{" "}
+      <span className="font-medium text-gray-900">
+        {lead.broken_lease_amount || "—"}
+      </span>
+    </div>
+  </>
 )}
+
+<div className="mt-2">
+  <span className="text-gray-500">Criminal Background:</span>{" "}
+  <span className="font-medium text-gray-900">
+    {lead.criminal_background || "None"}
+  </span>
+</div>
 
 <div className="mt-2">
   <span className="text-gray-500">Criminal Charge:</span>{" "}
@@ -744,15 +762,22 @@ className={grayButton}
   </span>
 </div>
 
-{lead.criminal_background &&
-  lead.criminal_background !== "None" &&
-  lead.criminal_age && (
-    <div className="mt-2">
-      <span className="text-gray-500">Criminal Age:</span>{" "}
-      <span className="font-medium text-gray-900">
-        {lead.criminal_age}
-      </span>
-    </div>
+{lead.criminal_background === "Felony" && (
+  <div className="mt-2">
+    <span className="text-gray-500">Felony Age:</span>{" "}
+    <span className="font-medium text-gray-900">
+      {lead.felony_age || "—"}
+    </span>
+  </div>
+)}
+
+{lead.criminal_background === "Misdemeanor" && (
+  <div className="mt-2">
+    <span className="text-gray-500">Misdemeanor Age:</span>{" "}
+    <span className="font-medium text-gray-900">
+      {lead.misdemeanor_age || "—"}
+    </span>
+  </div>
 )}
 
 
