@@ -85,8 +85,9 @@ export default function LeadBoard({
                   ? followUpReset
                   : lead.follow_up_count,
               next_action_date: nextDate,
+              _justDropped: true,
             }
-          : lead
+          : { ...lead, _justDropped: false }
       )
     )
 
@@ -132,6 +133,8 @@ export default function LeadBoard({
               .filter((lead) => lead.crm_status === col.id)
               .sort((a, b) => {
                 function getPriority(lead: any) {
+                  if (lead._justDropped) return 0
+
                   if (!lead.next_action_date) return 4
 
                   const today = new Date()

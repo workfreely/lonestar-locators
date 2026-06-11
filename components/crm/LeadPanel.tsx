@@ -248,7 +248,7 @@ export default function LeadPanel({
             {lead.phone && (
               <a
                 href={`sms:${lead.phone}`}
-                className="text-[13px] text-blue-600 font-medium mt-0.5 block hover:underline"
+                className="text-[14px] text-blue-600 font-medium mt-0.5 block hover:underline"
               >
                 {lead.phone}
               </a>

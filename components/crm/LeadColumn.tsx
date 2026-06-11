@@ -46,9 +46,10 @@ export default function LeadColumn({
   return (
     <div
       ref={setNodeRef}
-      className="w-[272px] min-w-[272px] flex flex-col min-h-full self-start rounded-xl
+      className="w-[272px] min-w-[272px] flex flex-col rounded-xl
         bg-white/10 backdrop-blur-xl border border-white/20
-        shadow-[0_4px_24px_rgba(0,0,0,0.12)]"
+        shadow-[0_4px_24px_rgba(0,0,0,0.12)]
+        h-full overflow-y-auto"
     >
       {/* Column header */}
       <div className="flex items-center justify-between px-3.5 pt-3 pb-2.5 border-b border-white/10">

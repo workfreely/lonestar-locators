@@ -58,12 +58,12 @@ export default function DashboardClient({ leads }: { leads: any[] }) {
         <div className="flex items-center gap-5">
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-gray-400 font-medium">Pipeline</span>
-            <span className="text-sm font-bold text-gray-900">${pipelineValue.toLocaleString()}</span>
+            <span className="text-base font-extrabold text-emerald-600">${pipelineValue.toLocaleString()}</span>
           </div>
 
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-gray-400 font-medium">Active Leads</span>
-            <span className="text-sm font-bold text-gray-900">{totalLeads}</span>
+            <span className="text-base font-extrabold text-gray-900">{totalLeads}</span>
           </div>
 
           {overdueCount > 0 && (
