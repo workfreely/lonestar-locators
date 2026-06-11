@@ -67,15 +67,16 @@ if (hasBrokenLease) {
 // EVICTION
 // =====================
 if (hasEviction) {
-  // Recent eviction = huge penalty
   if (evictionAge > 0 && evictionAge < 2) {
-    score -= property.eviction_ok ? 25 : 60
+    // Recent eviction: light penalty if property accepts it, heavy if not
+    score += property.eviction_ok ? -10 : -60
   } else {
+    // Older eviction: reward eviction-friendly properties
     score += property.eviction_ok ? 10 : -45
   }
 }
 
- if (
+  if (
   hasEviction ||
   hasBrokenLease ||
   credit < 600
@@ -89,7 +90,12 @@ if (hasEviction) {
     }
   }
 
-  const leadText = [lead.desired_areas, lead.notes].filter(Boolean).join(" ")
+  // =====================
+  // LOCATION KEYWORDS
+  // =====================
+  const leadText = [lead.neighborhoods, lead.desired_areas, lead.notes]
+    .filter(Boolean)
+    .join(" ")
   const propertyText = [
     property.neighborhood,
     property.submarket,
@@ -109,52 +115,52 @@ if (hasEviction) {
     score += Math.min(40, matches.length * 12)
   }
 
+  // =====================
+  // BUDGET
+  // =====================
   const price = Number(property.price_value || 0)
-  const budget = Number(
-    String(lead.desired_rent || "").replace(/[^0-9]/g, "")
-  )
 
-  if (price > 0 && budget > 0) {
-    if (price >= budget * 0.8 && price <= budget * 1.3) score += 15
-    else if (price <= budget * 1.5) score += 8
+  // Extract all digit groups from the rent string so ranges like
+  // "$1,200 - $1,500" become [1200, 1500] instead of the broken "12001500"
+  const rentNumbers = String(lead.desired_rent || "")
+    .match(/[\d,]+/g)
+    ?.map((n) => Number(n.replace(/,/g, "")))
+    .filter((n) => n > 0) ?? []
+
+  const budgetMin = rentNumbers.length > 0 ? Math.min(...rentNumbers) : 0
+  const budgetMax = rentNumbers.length > 0 ? Math.max(...rentNumbers) : 0
+
+  if (price > 0 && budgetMax > 0) {
+    if (price >= budgetMin * 0.8 && price <= budgetMax * 1.1) score += 15
+    else if (price <= budgetMax * 1.2) score += 8
+    else score -= 20  // clearly over max budget
+  }
+
+  // =====================
+  // MANAGEMENT FLEXIBILITY
+  // =====================
+
+  // Low credit boost
+  if (credit < 620 && management?.flexibleLowCredit) {
+    score += 20
+  }
+
+  // Broken lease boost
+  if (hasBrokenLease && management?.flexibleBrokenLease) {
+    score += 20
+  }
+
+  // Eviction boost
+  if (hasEviction && management?.flexibleEviction) {
+    score += 25
+  }
+
+  // Strict felony penalty
+  if (lead.criminal_background === "Felony" && management?.strictFelony) {
+    score -= 40
   }
 
   return Math.max(0, Math.min(100, Math.round(score)))
-  // =====================
-// MANAGEMENT FLEXIBILITY
-// =====================
-
-// Low credit boost
-if (
-  credit < 620 &&
-  management?.flexibleLowCredit
-) {
-  score += 20
-}
-
-// Broken lease boost
-if (
-  hasBrokenLease &&
-  management?.flexibleBrokenLease
-) {
-  score += 20
-}
-
-// Eviction boost
-if (
-  hasEviction &&
-  management?.flexibleEviction
-) {
-  score += 25
-}
-
-// Strict felony penalty
-if (
-  lead.criminal_background === "Felony" &&
-  management?.strictFelony
-) {
-  score -= 40
-}
 }
 
 // =====================================================
