@@ -4,6 +4,107 @@ import { supabase } from "@/lib/supabase/client"
 import { getNextAction } from "@/lib/nextAction"
 import { useState, useEffect } from "react"
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function normalizeName(name: string) {
+  if (!name) return ""
+  return name
+    .trim()
+    .toLowerCase()
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ")
+}
+
+function formatDate(date: string) {
+  if (!date) return "—"
+  return new Date(date).toLocaleDateString("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+  })
+}
+
+function formatRent(rent: string) {
+  if (!rent) return "Not listed"
+  const matches = rent.match(/\d[\d,]*/g)
+  if (!matches || matches.length === 0) return "Not listed"
+  const formatted = matches
+    .map((v) => {
+      const n = Number(v.replace(/,/g, ""))
+      return Number.isNaN(n) ? null : `$${n.toLocaleString()}`
+    })
+    .filter(Boolean)
+  if (formatted.length >= 2) return `${formatted[0]} – ${formatted[1]}`
+  return formatted[0] ?? "Not listed"
+}
+
+function getFollowUpStatus(date: string) {
+  if (!date) return "none"
+  const today = new Date()
+  const d = new Date(date)
+  today.setHours(0, 0, 0, 0)
+  d.setHours(0, 0, 0, 0)
+  if (d.getTime() < today.getTime()) return "overdue"
+  if (d.getTime() === today.getTime()) return "today"
+  return "upcoming"
+}
+
+function formatStatus(status: string) {
+  if (!status) return "New"
+  return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+const STATUS_STYLES: Record<string, string> = {
+  new:           "bg-amber-50 text-amber-700 border-amber-200",
+  contacted:     "bg-blue-50 text-blue-700 border-blue-200",
+  qualified:     "bg-violet-50 text-violet-700 border-violet-200",
+  list_sent:     "bg-emerald-50 text-emerald-700 border-emerald-200",
+  ready_to_tour: "bg-orange-50 text-orange-700 border-orange-200",
+  done_touring:  "bg-yellow-50 text-yellow-700 border-yellow-200",
+  applied:       "bg-gray-100 text-gray-700 border-gray-300",
+  closed:        "bg-green-50 text-green-700 border-green-200",
+}
+
+const SOURCE_STYLES: Record<string, string> = {
+  tiktok:    "bg-amber-50 text-amber-700 border-amber-200",
+  instagram: "bg-purple-50 text-purple-700 border-purple-200",
+  facebook:  "bg-blue-50 text-blue-700 border-blue-200",
+  youtube:   "bg-red-50 text-red-700 border-red-200",
+  website:   "bg-emerald-50 text-emerald-700 border-emerald-200",
+  referral:  "bg-orange-50 text-orange-700 border-orange-200",
+  direct:    "bg-emerald-50 text-emerald-700 border-emerald-200",
+  manual:    "bg-gray-50 text-gray-600 border-gray-200",
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
+      <div className="px-4 py-2 border-b border-gray-100 bg-gray-50/70">
+        <p className="text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest">
+          {title}
+        </p>
+      </div>
+      <div className="px-4 py-3 space-y-2.5">
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function Field({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <span className="text-[12.5px] text-gray-400 flex-none">{label}</span>
+      <span className="text-[12.5px] font-medium text-gray-900 text-right">{value || "—"}</span>
+    </div>
+  )
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function LeadPanel({
   lead,
@@ -18,962 +119,341 @@ export default function LeadPanel({
 }) {
   if (!lead) return null
 
-  console.log("LeadPanel mounted")
+  const [followUps, setFollowUps] = useState(Number(lead.follow_up_count || 0))
+  const [nextActionDate, setNextActionDate] = useState(lead.next_action_date || null)
 
-const [followUps, setFollowUps] = useState(
-  Number(lead.follow_up_count || 0)
-)
+  useEffect(() => {
+    setFollowUps(Number(lead.follow_up_count || 0))
+    setNextActionDate(lead.next_action_date || null)
+  }, [lead.id, lead.follow_up_count, lead.next_action_date])
 
-const [nextActionDate, setNextActionDate] = useState(
-  lead.next_action_date || null
-)
+  // ─── Risk ──────────────────────────────────────────────────────────────
 
-const [locatorNotes, setLocatorNotes] = useState(
-  lead.locator_notes || ""
-)
+  const credit = Number(lead.credit_score || 0)
+  const history = String(lead.credit_history || "").toLowerCase()
+  const hasBrokenLease = history.includes("broken")
+  const hasEviction = history.includes("eviction")
+  const hasFelony = lead.criminal_background === "Felony"
 
-useEffect(() => {
-  console.log("HYDRATING FROM DB:", lead.follow_up_count)
+  const isHighRisk = credit < 500 || hasEviction || hasFelony
+  const isMediumRisk = !isHighRisk && (credit < 620 || hasBrokenLease)
 
-  setFollowUps(
-    Number(lead.follow_up_count || 0)
-  )
+  const riskLabel = isHighRisk ? "High Risk" : isMediumRisk ? "Medium Risk" : "Low Risk"
+  const riskClass = isHighRisk
+    ? "bg-red-50 text-red-600 border-red-200"
+    : isMediumRisk
+    ? "bg-amber-50 text-amber-700 border-amber-200"
+    : "bg-emerald-50 text-emerald-700 border-emerald-200"
 
-  setNextActionDate(
-    lead.next_action_date || null
-  )
-  setLocatorNotes(
-  lead.locator_notes || ""
-)
+  // ─── Follow-up actions ─────────────────────────────────────────────────
 
-}, [
-  lead.id,
-  lead.follow_up_count,
-  lead.next_action_date,
-])
+  async function setFollowUpCount(step: number) {
+    const nextFollowUpCount = Number(step)
+    setFollowUps(nextFollowUpCount)
 
-// ======================
-// 🎨 MODERN BUTTON SYSTEM
-// ======================
+    const now = new Date()
+    let nextDate: Date | null = new Date()
 
-const buttonBase =
-  "text-xs px-3 py-2 rounded-2xl border transition-all duration-200 shadow-sm hover:shadow-md hover:scale-[1.02]"
+    if (nextFollowUpCount === 1) nextDate.setDate(now.getDate() + 1)
+    else if (nextFollowUpCount === 2) nextDate.setDate(now.getDate() + 2)
+    else if (nextFollowUpCount === 3) nextDate.setDate(now.getDate() + 3)
+    else nextDate = null
 
-const blueButton =
-  `${buttonBase} bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100`
+    setNextActionDate(nextDate ? nextDate.toISOString() : null)
 
-const greenButton =
-  `${buttonBase} bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100`
+    if (onUpdateLead) {
+      onUpdateLead({
+        ...lead,
+        follow_up_count: nextFollowUpCount,
+        next_action_date: nextDate ? nextDate.toISOString() : null,
+      })
+    }
 
-const purpleButton =
-  `${buttonBase} bg-purple-50 text-purple-700 border-purple-100 hover:bg-purple-100`
+    const { data, error } = await supabase
+      .from("leads")
+      .update({
+        follow_up_count: nextFollowUpCount,
+        next_action_date: nextDate ? nextDate.toISOString() : null,
+      })
+      .eq("id", lead.id)
+      .select("*")
 
-const orangeButton =
-  `${buttonBase} bg-orange-50 text-orange-700 border-orange-100 hover:bg-orange-100`
-
-const grayButton =
-  `${buttonBase} bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200`
-
-const redButton =
-  `${buttonBase} bg-red-50 text-red-700 border-red-100 hover:bg-red-100`
-
-
-  function formatMonth(date: string) {
-  if (!date) return ""
-  return new Date(date).toLocaleString("en-US", {
-    month: "long",
-  })
-}
-
-  function formatDate(date: string) {
-    function formatReceivedDate(date: string) {
-  if (!date) return "Unknown"
-
-  const created = new Date(date)
-  const today = new Date()
-
-  created.setHours(0, 0, 0, 0)
-  today.setHours(0, 0, 0, 0)
-
-  const diff =
-    (today.getTime() - created.getTime()) /
-    (1000 * 60 * 60 * 24)
-
-  if (diff === 0) return "Received Today"
-  if (diff === 1) return "Received Yesterday"
-
-  return `Received ${new Date(date).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  })}`
-}
-    if (!date) return "—"
-    return new Date(date).toLocaleDateString("en-US", {
-      month: "2-digit",
-      day: "2-digit",
-      year: "numeric",
-    })
+    if (error) console.log("Follow-up update failed:", JSON.stringify(error, null, 2))
   }
 
-function formatRent(rent: string) {
-  if (!rent) return "Rent not listed"
-
-  const matches = rent.match(/\d[\d,]*/g)
-  if (!matches || matches.length === 0) return "Rent not listed"
-
-  const formatted = matches.map((value) => {
-    const number = Number(value.replace(/,/g, ""))
-    if (Number.isNaN(number)) return null
-    return `$${number.toLocaleString()}`
-  })
-
-  const valid = formatted.filter(Boolean)
-
-  if (valid.length >= 2) return `${valid[0]} - ${valid[1]}`
-  return valid[0]
-}
-
-// ✅ NORMALIZE NAME
-function normalizeName(name: string) {
-  if (!name) return ""
-
-  return name
-    .trim()
-    .toLowerCase()
-    .split(" ")
-    .filter(Boolean)
-    .map(
-      (part) =>
-        part.charAt(0).toUpperCase() + part.slice(1)
-    )
-    .join(" ")
-}
-
-// ✅ ADD IT RIGHT HERE
-function getUrgency(moveDate: string) {
-  if (!moveDate) return "low"
-
-  const today = new Date()
-  const move = new Date(moveDate)
-
-  const diff = Math.ceil(
-    (move.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-  )
-
-  if (diff <= 14) return "high"
-  if (diff <= 30) return "medium"
-  return "low"
-}
-
-// ✅ ADD THIS RIGHT BELOW
-function getFollowUpStatus(date: string) {
-  if (!date) return "none"
-
-  const today = new Date()
-  const d = new Date(date)
-
-  today.setHours(0, 0, 0, 0)
-  d.setHours(0, 0, 0, 0)
-
-  if (d.getTime() < today.getTime()) return "overdue"
-  if (d.getTime() === today.getTime()) return "today"
-  return "upcoming"
-}
-
-
-const sourceStyles: Record<string, string> = {
-  tiktok: "bg-yellow-100 text-yellow-800 border border-yellow-200",
-  instagram: "bg-purple-100 text-purple-800 border border-purple-200",
-  facebook: "bg-blue-100 text-blue-800 border border-blue-200",
-  youtube: "bg-red-100 text-red-800 border border-red-200",
-  website: "bg-green-100 text-green-800 border border-green-200",
-  referral: "bg-orange-100 text-orange-800 border border-orange-200",
-direct: "bg-green-100 text-green-800 border border-green-200",
-  manual: "bg-zinc-100 text-zinc-800 border border-zinc-200",
-}
-
-function getStatusStyles(status: string) {
-  switch (status) {
-    case "new":
-      return "bg-yellow-100 text-yellow-800"
-
-    case "contacted":
-      return "bg-blue-100 text-blue-800"
-
-    case "qualified":
-      return "bg-purple-100 text-purple-800"
-
-    case "list_sent":
-      return "bg-green-100 text-green-800"
-
-    case "ready_to_tour":
-  return "bg-yellow-100 text-yellow-800"
-
-    case "done_touring":
-      return "bg-yellow-100 text-yellow-800"
-
-    case "applied":
-      return "bg-gray-200 text-gray-800"
-
-    case "closed":
-      return "bg-emerald-100 text-emerald-800"
-
-    default:
-      return "bg-gray-100 text-gray-700"
+  function getFUStyle(step: number) {
+    if (Number(followUps) === step)
+      return "bg-blue-600 text-white border-blue-600 shadow-sm"
+    if (Number(followUps) > step)
+      return "bg-gray-100 text-gray-400 border-gray-200"
+    return "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
   }
-}
-
-function formatStatus(status: string) {
-  if (!status) return "New"
-  return status
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-}
-
-
-async function setFollowUpCount(step: number) {
-  const nextFollowUpCount = Number(step)
-
-  setFollowUps(nextFollowUpCount)
-
-  const now = new Date()
-  let nextDate: Date | null = new Date()
-
-  if (nextFollowUpCount === 1) {
-    nextDate.setDate(now.getDate() + 1)
-  } else if (nextFollowUpCount === 2) {
-    nextDate.setDate(now.getDate() + 2)
-  } else if (nextFollowUpCount === 3) {
-    nextDate.setDate(now.getDate() + 3)
-  } else {
-    nextDate = null
-  }
-
-  // ✅ UPDATE LIVE STATE
-  setNextActionDate(
-    nextDate
-      ? nextDate.toISOString()
-      : null
-  )
-
-  // ✅ ADD THIS BLOCK RIGHT HERE
-if (onUpdateLead) {
-  onUpdateLead({
-    ...lead,
-    follow_up_count: nextFollowUpCount,
-    next_action_date: nextDate
-      ? nextDate.toISOString()
-      : null,
-  })
-}
-
-  const { data, error } = await supabase
-    .from("leads")
-    .update({
-      follow_up_count: nextFollowUpCount,
-      next_action_date: nextDate
-        ? nextDate.toISOString()
-        : null,
-    })
-    .eq("id", lead.id)
-    .select("*")
-
-  console.log("UPDATED DATA:", data)
-
-  if (error) {
-    console.log(
-      "Follow-up update failed:",
-      JSON.stringify(error, null, 2)
-    )
-    return
-  }
-}
-
-function getFUStyle(step: number) {
-  // ACTIVE
- if (Number(followUps) === step) {
-    return `
-      bg-blue-600
-      text-white
-      border border-blue-600
-      shadow-md
-    `
-  }
-
-  // COMPLETED
-  if (Number(followUps) > step) {
-    return `
-      bg-gray-200
-      text-gray-500
-      border border-gray-300
-    `
-  }
-
-  // INACTIVE
-  return `
-    bg-gray-50
-    text-gray-700
-    border border-gray-200
-    hover:bg-gray-100
-  `
-}
 
   function openSMS(message: string) {
     if (!lead.phone) return
-    const encoded = encodeURIComponent(message)
-    window.open(`sms:${lead.phone}?&body=${encoded}`, "_self")
+    window.open(`sms:${lead.phone}?&body=${encodeURIComponent(message)}`, "_self")
   }
 
+  function handleNextActionClick() {
+    const fu = lead.follow_up_count || 0
+    const action = getNextAction({ ...lead, follow_up_count: followUps })
+    const name = normalizeName(lead.first_name || "")
 
-  function handleNextActionClick(lead: any) {
-  const fu = lead.follow_up_count || 0
-
-  // =====================================================
-  // 🔵 CONTACTED STAGE → FOLLOW-UP SEQUENCE (FU1 → FINAL)
-  // =====================================================
-  if (lead.crm_status === "contacted") {
-
-    // FU1
-    if (fu === 0) {
-      setFollowUpCount(1)
-      openSMS(`Hey! Did you see any properties on the list that you’d like to tour?`)
-      return
+    if (lead.crm_status === "contacted") {
+      if (fu === 0) { setFollowUpCount(1); openSMS(`Hey! Did you see any properties on the list that you'd like to tour?`); return }
+      if (fu === 1) { setFollowUpCount(2); openSMS(`Is there one that stands out or would you like me to narrow the list down a bit more?`); return }
+      if (fu === 2) { setFollowUpCount(3); openSMS(`I'm calling communities you were interested in to get updated pricing and specials. Are you still looking to move?`); return }
+      openSMS(`Hey, I haven't heard back so I'll pause your search for now. Let me know when you're ready!`); return
     }
 
-    // FU2
-    if (fu === 1) {
-      setFollowUpCount(2)
-      openSMS(`Is there one that stands out or would you like me to narrow the list down a bit more?`)
+    if (action === "First Text") {
+      const bedsText = lead.beds ? `${String(lead.beds).replace("-", "").trim()} bed` : ""
+      const monthText = lead.move_date ? ` in ${new Date(lead.move_date).toLocaleString("en-US", { month: "long" })}` : ""
+      openSMS(`Hey ${name} it's Jay! I just got your form for a ${bedsText} move${monthText}. Are you trying to stay near a specific address or side of town?`)
       return
     }
-
-    // FU3
-    if (fu === 2) {
-      setFollowUpCount(3)
-      openSMS(`I’m calling communities you were interested in to get updated pricing and specials. Are you still looking to move?`)
-      return
-    }
-
-    // FINAL FU
-    openSMS(`Hey, I haven’t heard back so I’ll pause your search for now. Let me know when you're ready!`)
-    return
+    if (action === "Build List") { openSMS(`Hey ${name}, I just sent your list over!\n\nCan you ❤️ your top 2–3 favorites?\n\nI'll get tours set up or tweak the list for you`); return }
+    if (action === "FU1") { setFollowUpCount(1); openSMS(`Hey! Did you see any properties on the list that you'd like to tour?`); return }
+    if (action === "FU2") { setFollowUpCount(2); openSMS(`Is there one that stands out or would you like me to narrow the list down a bit more?`); return }
+    if (action === "FU3") { setFollowUpCount(3); openSMS(`I'm calling communities you were interested in to get updated pricing and specials. Are you still looking to move?`); return }
+    if (action === "Final FU") { openSMS(`Hey ${name}, I haven't heard back so I'll pause your search for now. No rush, just let me know when you'd like me to pick it back up!`); return }
   }
 
+  // ─── Derived values ────────────────────────────────────────────────────
 
-  const action = getNextAction(lead)
-  const name = normalizeName(lead.first_name || "")
+  const action = getNextAction({ ...lead, follow_up_count: followUps })
+  const followUpStatus = nextActionDate ? getFollowUpStatus(nextActionDate) : "none"
+  const statusStyle = STATUS_STYLES[lead.crm_status] ?? "bg-gray-100 text-gray-700 border-gray-300"
 
-  // =====================================================
-  // 🟡 NEW LEAD → FIRST TEXT
-  // =====================================================
-  if (action === "First Text") {
-    const bedsText = lead.beds
-      ? `${String(lead.beds).replace("-", "").trim()} bed`
-      : ""
+  const actionBtnClass = [
+    "px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors cursor-pointer whitespace-nowrap",
+    followUpStatus === "overdue" ? "bg-red-50 text-red-600 border-red-200 animate-pulse" :
+    followUpStatus === "today"   ? "bg-amber-50 text-amber-700 border-amber-200" :
+                                   "bg-blue-50 text-blue-600 border-blue-200",
+  ].join(" ")
 
-    const monthText = lead.move_date
-      ? ` in ${new Date(lead.move_date).toLocaleString("en-US", {
-          month: "long",
-        })}`
-      : ""
-
-    openSMS(
-       `Hey ${name} it’s Jay! I just got your form for a ${bedsText} move${monthText}. Are you trying to stay near a specific address or side of town?`
-    )
-    return
-  }
-
-  // =====================================================
-  // 🟣 QUALIFIED → SMART LIST
-  // =====================================================
-  if (action === "Build List") {
-    openSMS(`Hey ${name}, I just sent your list over!
-
-Can you ❤️ your top 2–3 favorites?
-
-I’ll get tours set up or tweak the list for you`)
-    return
-  }
-
-  // =====================================================
-  // 🟢 LIST SENT → FOLLOW-UP SEQUENCE
-  // =====================================================
-  if (action === "FU1") {
-    setFollowUpCount(1)
-    openSMS(`Hey! Did you see any properties on the list that you’d like to tour?`)
-    return
-  }
-
-  if (action === "FU2") {
-    setFollowUpCount(2)
-    openSMS(`Is there one that stands out or would you like me to narrow the list down a bit more?`)
-    return
-  }
-
-  if (action === "FU3") {
-    setFollowUpCount(3)
-    openSMS(`I’m calling communities you were interested in to get updated pricing and specials. Are you still looking to move?`)
-    return
-  }
-
-  if (action === "Final FU") {
-    openSMS(`Hey ${name}, I haven’t heard back so I’ll pause your search for now. No rush, just let me know when you’d like me to pick it back up!`)
-    return
-  }
-
-  console.log("Unhandled action:", action)
-}
-
+  // ─── Render ────────────────────────────────────────────────────────────
 
   return (
-<div className="w-full h-full bg-[#f3f5f7] flex flex-col">
+    <div className="w-full h-full flex flex-col bg-[#f7f8fa]">
 
-      {/* HEADER */}
-     <div className="p-6 border-b border-gray-200 bg-white shadow-[0_4px_20px_rgba(0,0,0,0.04)] relative z-10">
-        <div className="flex justify-between items-start">
-          <div>
-            <div className="text-[30px] leading-none font-black tracking-tight text-gray-900">
-             {normalizeName(lead.first_name)}{" "}
-{normalizeName(lead.last_name)}
-            </div>
+      {/* ── Panel header ── */}
+      <div className="flex-none bg-white border-b border-gray-200 px-5 pt-5 pb-4 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
 
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="min-w-0">
+            <h2 className="text-[22px] font-bold text-gray-900 tracking-tight leading-tight truncate">
+              {normalizeName(lead.first_name)} {normalizeName(lead.last_name)}
+            </h2>
             {lead.phone && (
               <a
                 href={`sms:${lead.phone}`}
-                className="text-blue-600 text-base font-medium mt-1 block"
+                className="text-[13px] text-blue-600 font-medium mt-0.5 block hover:underline"
               >
-                📱 {lead.phone}
+                {lead.phone}
               </a>
-
             )}
           </div>
-          
 
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-700"
+            className="flex-none w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors mt-0.5"
+            aria-label="Close"
           >
-            ✕
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+            </svg>
           </button>
         </div>
 
-        {/* STATUS */}
-      <div className="flex items-center gap-2 mt-4 flex-wrap">
-  <span
-    className={`px-2 py-1 rounded text-xs font-medium ${getStatusStyles(
-      lead.crm_status
-    )}`}
-  >
-    {formatStatus(lead.crm_status)}
-  </span>
+        {/* Status + follow-up indicator */}
+        <div className="flex items-center gap-2 flex-wrap mb-4">
+          <span className={`text-[11.5px] font-semibold px-2.5 py-1 rounded-full border ${statusStyle}`}>
+            {formatStatus(lead.crm_status)}
+          </span>
 
-  {lead.next_action_date && (() => {
-    const status = getFollowUpStatus(lead.next_action_date)
+          {nextActionDate && (() => {
+            const s = getFollowUpStatus(nextActionDate)
+            if (s === "overdue") return <span className="text-[11.5px] font-semibold text-red-500">· Overdue Follow-Up</span>
+            if (s === "today")   return <span className="text-[11.5px] font-semibold text-amber-600">· Follow Up Today</span>
+            return <span className="text-[11.5px] text-gray-400">· Next: {formatDate(nextActionDate)}</span>
+          })()}
+        </div>
 
-    if (status === "overdue") {
-      return (
-        <span className="text-red-600 text-xs font-medium">
-          • Overdue Follow Up
-        </span>
-      )
-    }
+        {/* ── Action buttons ── */}
+        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-3 space-y-2">
 
-    if (status === "today") {
-      return (
-        <span className="text-yellow-600 text-xs font-medium">
-          • Follow Up Today
-        </span>
-      )
-    }
+          {/* Row 1: primary actions */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => {
+                const name = normalizeName(lead.first_name || "")
+                const bedsText = lead.beds ? `${String(lead.beds).replace("-", "").trim()} bed` : ""
+                const monthText = lead.move_date ? ` in ${new Date(lead.move_date).toLocaleString("en-US", { month: "long" })}` : ""
+                openSMS(`Hey ${name} it's Jay! I just got your form for a ${bedsText} move${monthText}. Are you trying to stay near a specific address or side of town?`)
+              }}
+              className="text-xs font-medium px-3 py-2 rounded-xl border bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100 transition-colors"
+            >
+              First Text
+            </button>
 
-    return (
-      <span className="text-xs text-gray-500">
-        • Next: {formatDate(lead.next_action_date)}
-      </span>
-    )
-  })()}
-</div>
+            <button
+              onClick={() => {
+                const name = normalizeName(lead.first_name || "")
+                const message = `Hey ${name}, I found 3 excellent options for you!\n\n${topMatches.slice(0, 3).map((p, i) => {
+                  const url = p.website?.startsWith("http") ? p.website : `https://${p.website || ""}`
+                  return `${i + 1}. ${p.name}\n${url}`
+                }).join("\n\n")}\n\nWhich one do you like most?`
+                if (lead.phone) window.open(`sms:${lead.phone}?&body=${encodeURIComponent(message)}`, "_self")
+              }}
+              className="text-xs font-medium px-3 py-2 rounded-xl border bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100 transition-colors"
+            >
+              Text Top 3
+            </button>
 
+            <button
+              onClick={() => {
+                const name = normalizeName(lead.first_name || "")
+                openSMS(`Hey ${name}, I just sent your list over!\n\nCan you ❤️ your top 2–3 favorites?\n\nI'll get tours set up or tweak the list for you`)
+              }}
+              className="text-xs font-medium px-3 py-2 rounded-xl border bg-violet-50 text-violet-700 border-violet-100 hover:bg-violet-100 transition-colors"
+            >
+              Smart List
+            </button>
 
-
-        {/* ACTION BUTTONS */}
-       <div className="mt-5 space-y-3 bg-[#fbfcfd] border border-gray-100 rounded-2xl p-4 shadow-[0_4px_18px_rgba(0,0,0,0.03)]">
-
-          {/* ROW 1 */}
-       <div className="grid grid-cols-2 gap-2">
-          <button
-  onClick={() => {
-    const name = normalizeName(lead.first_name || "")
-
-    const bedsText = lead.beds
-  ? `${String(lead.beds).replace("-", "").trim()} bed`
-  : ""
-
-    const monthText = lead.move_date
-      ? ` in ${new Date(lead.move_date).toLocaleString("en-US", {
-          month: "long",
-        })}`
-      : ""
-
-  openSMS(`Hey ${name} it’s Jay! I just got your form for a ${bedsText} move${monthText}. Are you trying to stay near a specific address or side of town?`)
-  }}
-className="text-xs bg-blue-50 text-blue-700 border border-blue-100 rounded-xl px-3 py-2 hover:bg-blue-100 transition"
->
-  📱 First Text
-</button>
-
-           <button
-  onClick={() => {
-    if (!lead.phone) return
-
-    const name = normalizeName(lead.first_name || "") // 👈 ADD THIS
-
-    const message = `Hey ${name}, I found 3 excellent options for you!
-
-${topMatches
-  .slice(0, 3)
-  .map((p, i) => {
-    const url = p.website?.startsWith("http")
-      ? p.website
-      : `https://${p.website || ""}`
-
-    return `${i + 1}. ${p.name}
-${url}`
-  })
-  .join("\n\n")}
-
-Which one do you like most?`
-
-    const encoded = encodeURIComponent(message)
-    window.open(`sms:${lead.phone}?&body=${encoded}`, "_self")
-  }}
- className={`${greenButton} flex-1`}
->
-  📲 Text Top 3
-</button>
-
-{/* SMART LIST */}
-<button
-  onClick={() => {
-    if (!lead.phone) return
-
-    const name = normalizeName(lead.first_name || "")
-
-   const message = `Hey ${name}, I just sent your list over!
-
-Can you ❤️ your top 2–3 favorites?
-
-I’ll get tours set up or tweak the list for you`
-    const encoded = encodeURIComponent(message)
-    window.open(`sms:${lead.phone}?&body=${encoded}`, "_self")
-  }}
-className={`${purpleButton} flex-1`}
->
-  📋 Smart List
-</button>
-
-{/* CALL */}
-<button
-  onClick={() => {
-    if (!lead.phone) return
-    window.location.href = `tel:${lead.phone}`
-  }}
-className={`${orangeButton} flex-1`}
->
-  📞 Call / Voicemail
-</button>
+            <button
+              onClick={() => { if (lead.phone) window.location.href = `tel:${lead.phone}` }}
+              className="text-xs font-medium px-3 py-2 rounded-xl border bg-orange-50 text-orange-700 border-orange-100 hover:bg-orange-100 transition-colors"
+            >
+              Call / Voicemail
+            </button>
           </div>
 
-
-          {/* FOLLOW UPS */}
-          <div className="flex gap-1">
+          {/* Row 2: follow-up sequence */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10.5px] text-gray-400 font-medium mr-1">FU:</span>
+            {[1, 2, 3].map((step) => (
+              <button
+                key={step}
+                onClick={async () => {
+                  await setFollowUpCount(step)
+                  const msgs: Record<number, string> = {
+                    1: `Hey! Did you see any properties on the list that you'd like to tour?`,
+                    2: `Is there one that stands out or would you like me to narrow the list down a bit more?`,
+                    3: `I'm calling communities you were interested in to get updated pricing and specials. Are you still looking to move?`,
+                  }
+                  openSMS(msgs[step])
+                }}
+                className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors ${getFUStyle(step)}`}
+              >
+                FU{step}
+              </button>
+            ))}
             <button
-              onClick={async () => {
-                console.log("🔥 FU1 CLICKED") // 👈 ADD THIS
-                await setFollowUpCount(1)
-                openSMS(`Hey! Did you see any properties on the list that you’d like to tour?`)
+              onClick={() => {
+                const name = normalizeName(lead.first_name || "")
+                openSMS(`Hey ${name}, I haven't heard back so I'll pause your search for now. No rush, just let me know when you'd like me to pick it back up!`)
               }}
-              className={`text-[11px] px-2 py-[3px] rounded whitespace-nowrap ${getFUStyle(1)}`}
+              className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border bg-white text-gray-600 border-gray-200 hover:bg-gray-50 transition-colors ml-auto"
             >
-              FU1
+              Final FU
             </button>
-
-            <button
-              onClick={async () => {
-                await setFollowUpCount(2)
-                openSMS(`Is there one that stands out or would you like me to narrow the list down a bit more?`)
-              }}
-              className={`text-[11px] px-2 py-[3px] rounded whitespace-nowrap ${getFUStyle(2)}`}
-            >
-              FU2
-            </button>
-
-            <button
-              onClick={async () => {
-                await setFollowUpCount(3)
-                openSMS(`I’m calling communities you were interested in to get updated pricing and specials. Are you still looking to move?`)
-              }}
-              className={`text-[11px] px-2 py-[3px] rounded whitespace-nowrap ${getFUStyle(3)}`}
-            >
-              FU3
-            </button>
-
-            <button
-  onClick={() => {
-    if (!lead.phone) return
-
-    const name = normalizeName(lead.first_name || "")
-
-    const message = `Hey ${name}, I haven’t heard back so I’ll pause your search for now. No rush, just let me know when you’d like me to pick it back up!`
-
-    const encoded = encodeURIComponent(message)
-    window.open(`sms:${lead.phone}?&body=${encoded}`, "_self")
-  }}
-  
-className={grayButton}
->
-  Final FU
-</button>
           </div>
+
         </div>
       </div>
 
-      {/* BODY */}
-    <div className="p-5 space-y-3 overflow-y-auto">
+      {/* ── Panel body ── */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
 
-       {/* INFO (MATCHES CARD) */}
-<div className="bg-white border border-gray-200 rounded-3xl px-5 py-4 text-[15px] shadow-[0_10px_30px_rgba(0,0,0,0.06)]">
-
-  <div>
-    <span className="text-gray-500">City:</span>{" "}
-    <span className="font-medium text-gray-900">
-      {lead.city || "—"}
-    </span>
-  </div>
-
-  <div className="mt-2">
-    <span className="text-gray-500">Budget:</span>{" "}
-    <span className="font-medium text-gray-900">
-      {formatRent(lead.desired_rent)}
-    </span>
-  </div>
-    <div className="mt-2">
-  <span className="text-gray-500">Property:</span>{" "}
-  <span className="font-medium text-gray-900">
-    {lead.property_type || "—"}
-  </span>
-</div>
-
-<div className="mt-2">
-  <span className="text-gray-500">Beds / Baths:</span>{" "}
-  <span className="font-medium text-gray-900">
-    {lead.beds || "—"} / {lead.baths || "—"}
-  </span>
-</div>
-
-  <div className="mt-2">
-    <span className="text-gray-500">Move Date:</span>{" "}
-    <span className="font-medium text-gray-900">
-      {formatDate(lead.move_date)}
-    </span>
-  </div>
-
-
-
- <div className="mt-2">
-  <span className="text-gray-500">Credit Score:</span>{" "}
-  <span className="font-medium text-gray-900">
-    {lead.credit_score || "—"}
-  </span>
-</div>
-
-<div className="mt-2">
-  <span className="text-gray-500">Credit History:</span>{" "}
-  <span className="font-medium text-gray-900">
-    {lead.credit_history || "—"}
-  </span>
-</div>
-
-<div className="mt-2">
-  <span className="text-gray-500">Eviction Court:</span>{" "}
-  <span className="font-medium text-gray-900">
-    {lead.eviction_court === "Yes" ? "Yes" : "No"}
-  </span>
-</div>
-
-{lead.eviction_court === "Yes" && (
-  <>
-    <div className="mt-2">
-      <span className="text-gray-500">Eviction Age:</span>{" "}
-      <span className="font-medium text-gray-900">
-        {lead.eviction_age || "—"}
-      </span>
-    </div>
-
-    <div className="mt-2">
-      <span className="text-gray-500">Eviction Balance:</span>{" "}
-      <span className="font-medium text-gray-900">
-        {lead.eviction_balance || "—"}
-      </span>
-    </div>
-  </>
-)}
-
-<div className="mt-2">
-  <span className="text-gray-500">Broken Lease:</span>{" "}
-  <span className="font-medium text-gray-900">
-    {String(lead.credit_history || "")
-      .toLowerCase()
-      .includes("broken")
-      ? "Yes"
-      : "No"}
-  </span>
-</div>
-
-{lead.credit_history?.toLowerCase().includes("broken") && (
-  <>
-    <div className="mt-2">
-      <span className="text-gray-500">Broken Lease Age:</span>{" "}
-      <span className="font-medium text-gray-900">
-        {lead.broken_lease_age || "—"}
-      </span>
-    </div>
-
-    <div className="mt-2">
-      <span className="text-gray-500">Broken Lease Amount:</span>{" "}
-      <span className="font-medium text-gray-900">
-        {lead.broken_lease_amount || "—"}
-      </span>
-    </div>
-  </>
-)}
-
-<div className="mt-2">
-  <span className="text-gray-500">Criminal Background:</span>{" "}
-  <span className="font-medium text-gray-900">
-    {lead.criminal_background || "None"}
-  </span>
-</div>
-
-<div className="mt-2">
-  <span className="text-gray-500">Criminal Charge:</span>{" "}
-  <span className="font-medium text-gray-900">
-    {lead.criminal_charge || "None"}
-  </span>
-</div>
-
-{lead.criminal_background === "Felony" && (
-  <div className="mt-2">
-    <span className="text-gray-500">Felony Age:</span>{" "}
-    <span className="font-medium text-gray-900">
-      {lead.felony_age || "—"}
-    </span>
-  </div>
-)}
-
-{lead.criminal_background === "Misdemeanor" && (
-  <div className="mt-2">
-    <span className="text-gray-500">Misdemeanor Age:</span>{" "}
-    <span className="font-medium text-gray-900">
-      {lead.misdemeanor_age || "—"}
-    </span>
-  </div>
-)}
-
-
-  
-  {lead.source && (
-  <div className="mt-2">
-    <span className="text-gray-500">Source:</span>{" "}
-    <span
-      className={`inline-flex items-center px-2 py-[2px] rounded-full text-[11px] font-medium ${
-        sourceStyles[lead.source] || "bg-gray-100 text-gray-700"
-      }`}
-    >
-     {lead.source === "direct"
-  ? "Website"
-  : lead.source.charAt(0).toUpperCase() + lead.source.slice(1)}
-    </span>
-  </div>
-  
-)}
-
-</div>
-
-       {/* RISK + NEXT ACTION */}
-<div className="flex items-center justify-between gap-3 flex-wrap bg-white border border-gray-100 rounded-2xl px-4 py-2.5 shadow-[0_4px_18px_rgba(0,0,0,0.03)]">
-
-{/* LEFT: RISK */}
-<div className="flex items-center gap-2 flex-wrap">
-
-  <span className="text-xs text-gray-500 font-medium">
-    Credit:
-  </span>
-
-  {(() => {
-    const credit = Number(lead.credit_score || 0)
-
-    const history = String(
-      lead.credit_history || ""
-    ).toLowerCase()
-
-    const hasBrokenLease =
-      history.includes("broken")
-
-    const hasEviction =
-      history.includes("eviction")
-
-    const hasFelony =
-      lead.criminal_background === "Felony"
-
-    // 🚨 HIGH RISK
-    if (
-      credit < 500 ||
-      hasEviction ||
-      hasFelony
-    ) {
-      return (
-        <span className="bg-red-100 text-red-700 px-2 py-[4px] rounded-xl text-xs font-medium">
-          🚨 High Risk
-        </span>
-      )
-    }
-
-    // ⚠️ MEDIUM RISK
-    if (
-      credit < 620 ||
-      hasBrokenLease
-    ) {
-      return (
-        <span className="bg-yellow-100 text-yellow-700 px-2 py-[4px] rounded-xl text-xs font-medium">
-          ⚠️ Medium Risk
-        </span>
-      )
-    }
-
-    // ✅ LOW RISK
-    return (
-      <span className="bg-green-100 text-green-700 px-2 py-[4px] rounded-xl text-xs font-medium">
-        ✅ Low Risk
-      </span>
-    )
-  })()}
-</div>
-
-{/* RIGHT: NEXT ACTION */}
-<div className="flex items-center gap-2">
-  <span className="text-xs text-gray-500 font-medium">
-  Next Action:
-  
-</span>
-
-  {(() => {
-   const action = getNextAction({
-  ...lead,
-  follow_up_count: followUps, // ✅ LIVE STATE
-})
-  const status = nextActionDate
-  ? getFollowUpStatus(nextActionDate)
-  : "none"
-
-  const base =
-  "px-2 py-[4px] rounded-xl whitespace-nowrap cursor-pointer transition-all duration-200 text-xs font-medium"
-
-    if (status === "overdue") {
-      return (
-        <button
-          type="button"
-          onClick={() => handleNextActionClick(lead)}
-          className={`${base} bg-red-50 text-red-600 next-action-pulse`}
-        >
-          🔥 {action} • Overdue
-        </button>
-      )
-    }
-
-    if (status === "today") {
-      return (
-        <button
-          type="button"
-          onClick={() => handleNextActionClick(lead)}
-          className={`${base} bg-yellow-100 text-yellow-700`}
-        >
-          🔥 {action} • Today
-        </button>
-      )
-    }
-
-    return (
-      <button
-        type="button"
-        onClick={() => handleNextActionClick(lead)}
-        className={`${base} bg-blue-100 text-blue-700`}
-      >
-        🔥 {action}
-      </button>
-    )
-  })()}
-</div>
-
-</div>
-{/* END RISK + NEXT ACTION */}
-
-
-{/* NOTES */}
-<div className="bg-white border border-gray-100 rounded-2xl p-3 shadow-[0_4px_18px_rgba(0,0,0,0.03)]">
-  <div className="text-xs text-gray-400 mb-1 uppercase">
-    Notes
-  </div>
-
-  <textarea
-    value={lead.notes || ""}
-    readOnly
-    placeholder="No client notes submitted."
-    className="w-full h-20 border rounded-2xl p-2 text-sm bg-gray-50 cursor-default focus:outline-none"
-  />
-</div>
-
-        {/* AREAS */}
-        <div>
-          <div className="text-xs text-gray-400 mb-1 uppercase">
-            Desired Areas
-          </div>
-          <div className="text-sm">
-            {lead.neighborhoods || "—"}
-          </div>
+        {/* Risk + Next Action bar */}
+        <div className="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+          <span className={`text-[11.5px] font-semibold px-2.5 py-1 rounded-full border ${riskClass}`}>
+            {riskLabel}
+          </span>
+          <button
+            type="button"
+            onClick={handleNextActionClick}
+            className={actionBtnClass}
+          >
+            {action}
+            {followUpStatus === "today" && " · Today"}
+            {followUpStatus === "overdue" && " · Overdue"}
+          </button>
         </div>
 
-        {/* LOCATOR NOTES */}
-<div>
-  <div className="text-xs text-gray-400 mb-1 uppercase">
-    Locator Notes
-  </div>
+        {/* Section: Search Criteria */}
+        <SectionCard title="Search Criteria">
+          <Field label="City" value={lead.city} />
+          <Field label="Budget" value={formatRent(lead.desired_rent)} />
+          <Field label="Property Type" value={lead.property_type} />
+          <Field label="Beds / Baths" value={lead.beds || lead.baths ? `${lead.beds || "—"} / ${lead.baths || "—"}` : null} />
+          <Field label="Move Date" value={formatDate(lead.move_date)} />
+          {lead.neighborhoods && <Field label="Desired Areas" value={lead.neighborhoods} />}
+          {lead.source && (
+            <div className="flex items-start justify-between gap-4">
+              <span className="text-[12.5px] text-gray-400 flex-none">Source</span>
+              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${SOURCE_STYLES[lead.source] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
+                {lead.source === "direct" ? "Website" : lead.source.charAt(0).toUpperCase() + lead.source.slice(1)}
+              </span>
+            </div>
+          )}
+        </SectionCard>
 
-  <textarea
-    value={lead.locator_notes || ""}
-    onChange={async (e) => {
-      const newNotes = e.target.value
+        {/* Section: Screening */}
+        <SectionCard title="Screening">
+          <Field label="Credit Score" value={lead.credit_score} />
+          <Field label="Credit History" value={lead.credit_history} />
+          <Field label="Eviction Court" value={lead.eviction_court === "Yes" ? "Yes" : "No"} />
+          {lead.eviction_court === "Yes" && (
+            <>
+              <Field label="Eviction Age" value={lead.eviction_age} />
+              <Field label="Eviction Balance" value={lead.eviction_balance} />
+            </>
+          )}
+          <Field
+            label="Broken Lease"
+            value={String(lead.credit_history || "").toLowerCase().includes("broken") ? "Yes" : "No"}
+          />
+          {String(lead.credit_history || "").toLowerCase().includes("broken") && (
+            <>
+              <Field label="Broken Lease Age" value={lead.broken_lease_age} />
+              <Field label="Broken Lease Amount" value={lead.broken_lease_amount} />
+            </>
+          )}
+          <Field label="Criminal Background" value={lead.criminal_background || "None"} />
+          {lead.criminal_charge && <Field label="Criminal Charge" value={lead.criminal_charge} />}
+          {lead.criminal_background === "Felony" && <Field label="Felony Age" value={lead.felony_age} />}
+          {lead.criminal_background === "Misdemeanor" && <Field label="Misdemeanor Age" value={lead.misdemeanor_age} />}
+        </SectionCard>
 
-      // update UI instantly
-      if (onUpdateLead) {
-        onUpdateLead({
-          ...lead,
-          locator_notes: newNotes,
-        })
-      }
+        {/* Section: Client Notes */}
+        <SectionCard title="Client Notes">
+          <textarea
+            value={lead.notes || ""}
+            readOnly
+            placeholder="No notes submitted."
+            className="w-full h-20 text-[12.5px] bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 resize-none cursor-default text-gray-700 placeholder-gray-300 focus:outline-none"
+          />
+        </SectionCard>
 
-      // save to database
-      await supabase
-        .from("leads")
-        .update({ locator_notes: newNotes })
-        .eq("id", lead.id)
-        .select("*")
-        
-    }}
-    placeholder="Internal notes about this client..."
-    className="w-full h-20 border rounded-2xl p-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-  />
-</div>
+        {/* Section: Locator Notes */}
+        <SectionCard title="Locator Notes">
+          <textarea
+            value={lead.locator_notes || ""}
+            onChange={async (e) => {
+              const newNotes = e.target.value
+              if (onUpdateLead) onUpdateLead({ ...lead, locator_notes: newNotes })
+              await supabase
+                .from("leads")
+                .update({ locator_notes: newNotes })
+                .eq("id", lead.id)
+                .select("*")
+            }}
+            placeholder="Internal notes about this client..."
+            className="w-full h-24 text-[12.5px] bg-white border border-gray-200 rounded-xl px-3 py-2 resize-none text-gray-800 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-shadow"
+          />
+        </SectionCard>
 
       </div>
     </div>

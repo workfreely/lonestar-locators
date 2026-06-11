@@ -2,17 +2,12 @@
 
 function isDue(date: string | null) {
   if (!date) return false
-
   const today = new Date()
   const followUp = new Date(date)
-
-  // normalize times
   today.setHours(0, 0, 0, 0)
   followUp.setHours(0, 0, 0, 0)
-
   return followUp.getTime() <= today.getTime()
 }
-
 
 function formatDate(date: string) {
   if (!date) return ""
@@ -25,21 +20,11 @@ function formatDate(date: string) {
 
 function formatRent(rent: string) {
   if (!rent) return ""
-
   const matches = rent.match(/\d[\d,]*/g)
   if (!matches) return ""
-
-  const nums = matches.map((v) => Number(v.replace(/,/g, "")))
-  const valid = nums.filter((n) => !Number.isNaN(n))
-
-  if (valid.length >= 2) {
-    return `$${valid[0].toLocaleString()} - $${valid[1].toLocaleString()}`
-  }
-
-  if (valid.length === 1) {
-    return `$${valid[0].toLocaleString()}`
-  }
-
+  const nums = matches.map((v) => Number(v.replace(/,/g, ""))).filter((n) => !Number.isNaN(n))
+  if (nums.length >= 2) return `$${nums[0].toLocaleString()} – $${nums[1].toLocaleString()}`
+  if (nums.length === 1) return `$${nums[0].toLocaleString()}`
   return ""
 }
 
@@ -51,69 +36,72 @@ export default function FollowUpRow({
   onSelectLead?: (leadId: string | number) => void
 }) {
   const dueLeads = leads.filter(
-  (lead) =>
-    isDue(lead.next_action_date) &&
-    lead.crm_status !== "closed"
-)
+    (lead) => isDue(lead.next_action_date) && lead.crm_status !== "closed"
+  )
 
   return (
-   <div className="w-[220px] min-w-[220px] bg-[#f5f7fa] border-r border-gray-200 p-3">
-      
-      {/* HEADER */}
-   <h2 className="text-red-500 font-bold mb-4 text-sm tracking-wide px-1">
-        🔴 Needs Follow-Up
-      </h2>
+    <div className="flex flex-col h-full">
 
-     <div className="flex flex-col gap-3">
+      {/* Sidebar header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+        <h2 className="text-xs font-semibold text-white/80 uppercase tracking-widest">
+          Follow-Ups
+        </h2>
+        {dueLeads.length > 0 && (
+          <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold">
+            {dueLeads.length}
+          </span>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
+
         {dueLeads.length === 0 && (
-          <p className="text-sm text-gray-400">
-            You're all caught up
-          </p>
+          <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M2 7l3.5 3.5L12 3" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <p className="text-xs text-white/40 leading-snug">All caught up</p>
+          </div>
         )}
 
         {dueLeads.map((lead) => (
           <div
             key={lead.id}
             onClick={() => onSelectLead?.(lead.id)}
-           className="
-bg-white
-border border-gray-100
-p-3
-rounded-2xl
-shadow-[0_6px_20px_rgba(0,0,0,0.05)]
-cursor-pointer
-hover:shadow-[0_10px_28px_rgba(0,0,0,0.08)]
-hover:-translate-y-[1px]
-hover:border-blue-100
-transition-all duration-200
-"
+            className="group relative bg-white/10 backdrop-blur-sm border border-white/15 rounded-xl px-3 py-2.5
+              cursor-pointer transition-all duration-150
+              hover:bg-white/15 hover:border-white/25 hover:-translate-y-0.5
+              hover:shadow-[0_4px_16px_rgba(0,0,0,0.2)]"
           >
-            {/* NAME */}
-            <p className="font-semibold text-sm text-gray-900">
-              {lead.first_name} {lead.last_name}
-            </p>
+            {/* Left accent line indicating urgency */}
+            <div className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-red-400" />
 
-            {/* CITY + BUDGET (inline for cleaner look) */}
-            <p className="text-xs text-gray-500 mt-0.5">
-              {lead.city}
-              {lead.desired_rent && (
-                <> • {formatRent(lead.desired_rent)}</>
-              )}
-            </p>
-
-            {/* MOVE DATE */}
-            {lead.move_date && (
-              <p className="text-[11px] font-semibold text-gray-700 mt-1">
-                Move Date: {formatDate(lead.move_date)}
+            <div className="pl-2">
+              <p className="text-sm font-semibold text-white leading-tight">
+                {lead.first_name} {lead.last_name}
               </p>
-            )}
 
-            {/* STATUS */}
-            <p className="text-[11px] text-red-500 mt-1">
-              🔥 Follow-Up Needed
-            </p>
+              <p className="text-[11px] text-white/55 mt-0.5">
+                {lead.city}
+                {lead.desired_rent && <> · {formatRent(lead.desired_rent)}</>}
+              </p>
+
+              {lead.move_date && (
+                <p className="text-[11px] text-white/70 font-medium mt-1">
+                  Moves {formatDate(lead.move_date)}
+                </p>
+              )}
+
+              <p className="text-[10.5px] text-red-300 font-semibold mt-1.5">
+                Follow-up due
+              </p>
+            </div>
           </div>
         ))}
+
       </div>
     </div>
   )

@@ -8,124 +8,143 @@ import LeadInsights from "./LeadInsights"
 import LeadFormModal from "../LeadFormModal"
 
 export default function DashboardClient({ leads }: { leads: any[] }) {
-    const router = useRouter()
-const [selectedLeadId, setSelectedLeadId] = useState<
-  string | number | null
->(null)
+  const router = useRouter()
+  const [selectedLeadId, setSelectedLeadId] = useState<string | number | null>(null)
 
-useEffect(() => {
-  const params = new URLSearchParams(window.location.search)
-  const id = params.get("id")
-
-  if (id) {
-    setSelectedLeadId(id)
-  }
-}, [])
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const id = params.get("id")
+    if (id) setSelectedLeadId(id)
+  }, [])
 
   const [topMatches, setTopMatches] = useState<any[]>([])
   const [localLeads, setLocalLeads] = useState(leads)
   const [showLeadModal, setShowLeadModal] = useState(false)
+
   const totalLeads = localLeads.length
-const pipelineValue = totalLeads * 1000
+  const pipelineValue = totalLeads * 1000
+  const overdueCount = localLeads.filter((l) => {
+    if (!l.next_action_date || l.crm_status === "closed") return false
+    const today = new Date()
+    const d = new Date(l.next_action_date)
+    today.setHours(0, 0, 0, 0)
+    d.setHours(0, 0, 0, 0)
+    return d.getTime() <= today.getTime()
+  }).length
 
   const selectedLead = localLeads.find(
     (l) => String(l.id) === String(selectedLeadId)
   )
 
   return (
- <div className="relative h-screen w-full">
+    <div className="relative h-screen w-full flex flex-col bg-[#f7f8fa]">
 
-      {/* 🌆 BACKGROUND IMAGE (ONLY THIS GETS FILTERS) */}
-      <div
-        className="absolute inset-0 bg-cover bg-center brightness-125 contrast-110"
-        style={{
-          backgroundImage:
-            "url('https://res.cloudinary.com/dxtiguwzm/image/upload/v1747937030/lone-star-locators-san-antonio-texas-free-apartment-locating_trgkaj.jpg')",
-        }}
-      />
+      {/* ─── TOP NAVIGATION BAR ─── */}
+      <header className="relative z-30 flex-none h-14 bg-white border-b border-gray-200 flex items-center px-5 gap-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
 
-      {/* 🌑 LIGHT OVERLAY (NOT TOO DARK) */}
-      <div className="absolute inset-0 bg-black/20" />
+        {/* Brand */}
+        <div className="flex items-center gap-2.5 mr-4">
+          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M2 10L7 4L12 10" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          <span className="font-semibold text-sm text-gray-900 tracking-tight">Lonestar CRM</span>
+        </div>
 
-      {/* PIPELINE VALUE */}
-<div className="absolute top-[-55px] right-10 z-30">
-<div className="bg-white border border-gray-200 shadow-[0_6px_20px_rgba(0,0,0,0.06)] rounded-full px-6 py-3 flex items-center gap-4">
-  
+        <div className="h-5 w-px bg-gray-200" />
 
-   <div className="text-[13px] uppercase tracking-wide text-gray-400 font-semibold whitespace-nowrap">
-  Pipeline Value:
-</div>
+        {/* Stats row */}
+        <div className="flex items-center gap-5">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-gray-400 font-medium">Pipeline</span>
+            <span className="text-sm font-bold text-gray-900">${pipelineValue.toLocaleString()}</span>
+          </div>
 
-<div className="text-2xl font-black text-green-600 leading-none whitespace-nowrap">
-  ${pipelineValue.toLocaleString()}
-</div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-gray-400 font-medium">Active Leads</span>
+            <span className="text-sm font-bold text-gray-900">{totalLeads}</span>
+          </div>
 
-<div className="h-5 w-px bg-gray-200" />
+          {overdueCount > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 border border-red-100 rounded-full px-2 py-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
+                {overdueCount} Overdue
+              </span>
+            </div>
+          )}
+        </div>
 
-<div className="text-sm text-gray-500 whitespace-nowrap">
-  {totalLeads} active leads
-</div>
-<button
-  onClick={() => setShowLeadModal(true)}
-  className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-full transition"
->
-  + Add Lead
-</button>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => setShowLeadModal(true)}
+            className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors shadow-sm"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+            Add Lead
+          </button>
+        </div>
+      </header>
 
-  </div>
-</div>
+      {/* ─── BODY ─── */}
+      <div className="relative flex-1 flex overflow-hidden">
 
-      {/* 🚀 APP CONTENT (NOT AFFECTED BY FILTERS) */}
-      <div className="relative z-10 flex h-screen w-full overflow-hidden">
+        {/* Background (behind board only) */}
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{
+            backgroundImage:
+              "url('https://res.cloudinary.com/dxtiguwzm/image/upload/v1747937030/lone-star-locators-san-antonio-texas-free-apartment-locating_trgkaj.jpg')",
+            filter: "brightness(0.55) saturate(0.8)",
+          }}
+        />
+        <div className="absolute inset-0 bg-black/35" />
 
-        {/* LEFT SIDEBAR */}
-     <div className="w-[220px] min-w-[220px] border-r border-gray-200 bg-white overflow-y-auto z-10 shadow-[6px_0_20px_rgba(0,0,0,0.06)]">
+        {/* LEFT SIDEBAR — Follow-ups */}
+        <div className="relative z-10 flex-none w-[220px] border-r border-white/10 bg-black/20 backdrop-blur-md overflow-y-auto">
           <FollowUpRow
-  leads={localLeads}
-  onSelectLead={(id) => {
-    setSelectedLeadId(id)
-    router.push(`/admin/leads?id=${id}`)
-  }}
-/>
+            leads={localLeads}
+            onSelectLead={(id) => {
+              setSelectedLeadId(id)
+              router.push(`/admin/leads?id=${id}`)
+            }}
+          />
         </div>
 
         {/* MAIN BOARD */}
         <div
-  className={`flex-1 overflow-hidden relative ${
-    selectedLead ? "hidden" : "block"
-  }`}
->
+          className={`relative z-10 flex-1 overflow-hidden ${
+            selectedLead ? "hidden" : "block"
+          }`}
+        >
+          <LeadBoard
+            leads={localLeads}
+            setLeads={setLocalLeads}
+            selectedLeadId={selectedLeadId}
+            onSelectLead={(id) => {
+              setSelectedLeadId(id)
+              router.push(`/admin/leads?id=${id}`)
+            }}
+          />
+        </div>
 
-
-  
-<LeadBoard
-  leads={localLeads}
-  setLeads={setLocalLeads}
-  selectedLeadId={selectedLeadId}
-  onSelectLead={(id) => {
-    setSelectedLeadId(id)
-    router.push(`/admin/leads?id=${id}`)
-  }}
-/>
-
-</div>
-
-        {/* OVERLAY PROFILE VIEW */}
+        {/* LEAD DETAIL OVERLAY */}
         {selectedLead && (
-          <div className="absolute top-0 bottom-0 left-[220px] right-0 flex pointer-events-none">
-
-            {/* MAIN PROFILE */}
-            <div className="flex w-full bg-white border-l shadow-xl h-full">
+          <div className="absolute inset-y-0 left-[220px] right-0 z-20 flex pointer-events-none">
+            <div className="flex w-full bg-white h-full shadow-2xl pointer-events-auto">
 
               {/* LEAD PANEL */}
-          <div className="w-[420px] border-r border-gray-200 bg-white overflow-y-auto pointer-events-auto shadow-[8px_0_30px_rgba(0,0,0,0.08)] relative z-20">
+              <div className="w-[420px] flex-none border-r border-gray-200 bg-white overflow-y-auto shadow-[4px_0_24px_rgba(0,0,0,0.06)]">
                 <LeadPanel
                   lead={selectedLead}
                   topMatches={topMatches}
-               onClose={() => {
-  setSelectedLeadId(null)
-  router.push("/admin/leads")
-}}
+                  onClose={() => {
+                    setSelectedLeadId(null)
+                    router.push("/admin/leads")
+                  }}
                   onUpdateLead={(updatedLead) => {
                     setLocalLeads((prev) =>
                       prev.map((l) =>
@@ -137,7 +156,7 @@ const pipelineValue = totalLeads * 1000
               </div>
 
               {/* INSIGHTS PANEL */}
-             <div className="flex-1 bg-[#f4f6f8] p-6 overflow-y-auto pointer-events-auto">
+              <div className="flex-1 bg-[#f7f8fa] p-6 overflow-y-auto">
                 <LeadInsights
                   lead={selectedLead}
                   onMatchesChange={setTopMatches}
@@ -149,13 +168,14 @@ const pipelineValue = totalLeads * 1000
         )}
 
       </div>
+
       <LeadFormModal
-  open={showLeadModal}
-  onClose={() => setShowLeadModal(false)}
-  onLeadCreated={(newLead) => {
-    setLocalLeads((prev) => [newLead, ...prev])
-  }}
-/>
+        open={showLeadModal}
+        onClose={() => setShowLeadModal(false)}
+        onLeadCreated={(newLead) => {
+          setLocalLeads((prev) => [newLead, ...prev])
+        }}
+      />
     </div>
   )
 }
