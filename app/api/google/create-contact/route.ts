@@ -40,27 +40,27 @@ export async function POST(req: Request) {
     // ======================================================
 
     const notes = buildContactNotes({
-      crm_status:        body.crm_status,
-      next_follow_up:    body.next_follow_up,
-      follow_up_count:   body.follow_up_count,
-      source:            body.source,
-      moveDate:          body.moveDate,
-      desiredRent:       body.desiredRent,
-      neighborhoods:     body.neighborhoods,
-      submarkets:        body.submarkets,
-      propertyType:      body.propertyType,
-      beds:              body.beds,
-      baths:             body.baths,
-      creditScore:       body.creditScore,
-      creditHistory:     body.creditHistory,
-      brokenLeaseAge:    body.brokenLeaseAge,
+      crm_status: body.crm_status,
+      next_follow_up: body.next_follow_up,
+      follow_up_count: body.follow_up_count,
+      source: body.source,
+      moveDate: body.moveDate,
+      desiredRent: body.desiredRent,
+      neighborhoods: body.neighborhoods,
+      submarkets: body.submarkets,
+      propertyType: body.propertyType,
+      beds: body.beds,
+      baths: body.baths,
+      creditScore: body.creditScore,
+      creditHistory: body.creditHistory,
+      brokenLeaseAge: body.brokenLeaseAge,
       brokenLeaseAmount: body.brokenLeaseAmount,
-      evictionAge:       body.evictionAge,
-      evictionBalance:   body.evictionBalance,
-      evictionCourt:     body.evictionCourt,
+      evictionAge: body.evictionAge,
+      evictionBalance: body.evictionBalance,
+      evictionCourt: body.evictionCourt,
       criminalBackground: body.criminalBackground,
-      criminalCharge:    body.criminalCharge,
-      notes:             body.notes,
+      criminalCharge: body.criminalCharge,
+      notes: body.notes,
     });
 
     // ======================================================
@@ -113,19 +113,51 @@ export async function POST(req: Request) {
     });
 
     const resourceName = result.data.resourceName;
+
     console.log("Google Contact Created:", resourceName);
 
-    // Save the Google People resourceName back to the lead record
+    // ======================================================
+    // DEBUG GOOGLE CONTACT ID WRITEBACK
+    // ======================================================
+
+    console.log(
+      "🔍 [create-contact] body.leadId:",
+      body.leadId,
+      "(type:",
+      typeof body.leadId,
+      ")"
+    );
+
+    console.log(
+      "🔍 [create-contact] resourceName:",
+      resourceName,
+      "(type:",
+      typeof resourceName,
+      ")"
+    );
+
+    // ======================================================
+    // SAVE GOOGLE CONTACT ID BACK TO SUPABASE
+    // ======================================================
+
     if (body.leadId && resourceName) {
       const { error: updateError } = await supabaseAdmin
         .from("leads")
-        .update({ google_contact_id: resourceName })
+        .update({
+          google_contact_id: resourceName,
+        })
         .eq("id", body.leadId);
 
       if (updateError) {
-        console.warn("Failed to save google_contact_id to lead:", updateError.message);
+        console.warn(
+          "Failed to save google_contact_id to lead:",
+          updateError.message
+        );
       } else {
-        console.log(`Saved google_contact_id to lead ${body.leadId}:`, resourceName);
+        console.log(
+          `Saved google_contact_id to lead ${body.leadId}:`,
+          resourceName
+        );
       }
     }
 
