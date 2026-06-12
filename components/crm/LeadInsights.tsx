@@ -22,6 +22,9 @@ function extractKeywords(text: string) {
 function calculateMatchScore(property: any, lead: any) {
   let score = 0
 
+  // =====================
+  // CITY
+  // =====================
   const citySlug = (lead.city || "")
     .toLowerCase()
     .replace(", tx", "")
@@ -29,58 +32,55 @@ function calculateMatchScore(property: any, lead: any) {
 
   if (property.city_slug === citySlug) score += 10
 
+  // =====================
+  // SHARED DERIVED VALUES
+  // =====================
   const credit = Number(lead.credit_score || 0)
   const minCredit = Number(property.credit_min || 0)
 
-const hasBrokenLease =
-  lead.credit_history === "Broken Lease" ||
-  lead.broken_lease === true
+  const hasBrokenLease =
+    lead.credit_history === "Broken Lease" ||
+    lead.broken_lease === true
 
-const hasEviction =
-  lead.credit_history === "Eviction" ||
-  lead.eviction === true
+  const hasEviction =
+    lead.credit_history === "Eviction" ||
+    lead.eviction === true
 
-const hasCriminal =
-  lead.criminal_background &&
-  lead.criminal_background !== "None"
+  const evictionAge = parseInt(lead.eviction_age || "0")
 
-const evictionAge = parseInt(lead.eviction_age || "0")
+  const management = MANAGEMENT_PROFILES[property.management_company]
 
-const management =
-  MANAGEMENT_PROFILES[
-    property.management_company
-  ]
-
+  // =====================
+  // CREDIT
+  // =====================
   if (minCredit > 0) {
-    if (credit >= minCredit) score += 40
-    else if (credit >= minCredit - 40) score += 20
-    else score -= 25
+    if (credit >= minCredit) score += 30
+    else if (credit >= minCredit - 40) score += 15
+    else score -= 20
   }
-// =====================
-// BROKEN LEASE
-// =====================
-if (hasBrokenLease) {
-  score += property.broken_lease_ok ? 15 : -35
-}
 
-// =====================
-// EVICTION
-// =====================
-if (hasEviction) {
-  if (evictionAge > 0 && evictionAge < 2) {
-    // Recent eviction: light penalty if property accepts it, heavy if not
-    score += property.eviction_ok ? -10 : -60
-  } else {
-    // Older eviction: reward eviction-friendly properties
-    score += property.eviction_ok ? 10 : -45
+  // =====================
+  // BROKEN LEASE
+  // =====================
+  if (hasBrokenLease) {
+    score += property.broken_lease_ok ? 15 : -35
   }
-}
 
-  if (
-  hasEviction ||
-  hasBrokenLease ||
-  credit < 600
-) {
+  // =====================
+  // EVICTION
+  // =====================
+  if (hasEviction) {
+    if (evictionAge > 0 && evictionAge < 2) {
+      // Recent eviction: light penalty if property accepts it, heavy if not
+      score += property.eviction_ok ? -10 : -60
+    } else {
+      // Older eviction: reward eviction-friendly properties
+      score += property.eviction_ok ? 10 : -45
+    }
+  }
+
+  // Flexible-risk compound boost
+  if (hasEviction || hasBrokenLease || credit < 600) {
     if (
       property.eviction_ok ||
       property.broken_lease_ok ||
@@ -88,6 +88,80 @@ if (hasEviction) {
     ) {
       score += 20
     }
+  }
+
+  // =====================
+  // CRIMINAL BACKGROUND
+  // =====================
+  if (lead.criminal_background === "Felony") {
+    if (property.felony_ok === true) score += 15
+    else if (property.felony_ok === false) score -= 40
+    // null/undefined = unknown, no change
+  } else if (lead.criminal_background === "Misdemeanor") {
+    if (property.misdemeanor_ok === true) score += 10
+    else if (property.misdemeanor_ok === false) score -= 20
+  }
+
+  // =====================
+  // BEDROOMS
+  // =====================
+  // Normalize a beds string to a numeric count.
+  // Handles: "2 beds", "2-3", "3+", "Studio", "1", etc.
+  function parseBeds(raw: string | number | null | undefined): number | null {
+    if (raw === null || raw === undefined || raw === "") return null
+    const s = String(raw).toLowerCase().trim()
+    if (s === "studio" || s === "0") return 0
+    const match = s.match(/\d+/)
+    if (!match) return null
+    return parseInt(match[0])
+  }
+
+  const leadBeds = parseBeds(lead.beds)
+  const propBeds = parseBeds(property.beds)
+
+  if (leadBeds !== null && propBeds !== null) {
+    const diff = Math.abs(leadBeds - propBeds)
+    if (diff === 0) score += 25       // exact match
+    else if (diff === 1) score += 10  // one off
+    else score -= 15                  // two or more away
+  }
+
+  // =====================
+  // PROPERTY TYPE
+  // =====================
+  // Normalize and keyword-match lead's desired type against property fields.
+  const leadType = String(lead.property_type || "").toLowerCase().trim()
+  const propTypeText = [
+    property.property_type,
+    property.name,
+    property.submarket,
+    property.neighborhood,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+
+  if (leadType && leadType !== "any" && leadType !== "no preference") {
+    // Define keyword groups so "townhome" matches "townhomes", "house" matches "home", etc.
+    const TYPE_SYNONYMS: Record<string, string[]> = {
+      apartment:  ["apartment", "apt", "flat"],
+      townhome:   ["townhome", "townhouse", "town home", "town house"],
+      house:      ["house", "home", "rental home", "single family", "sfr"],
+      condo:      ["condo", "condominium"],
+      "high-rise":["high-rise", "highrise", "high rise", "luxury high"],
+      studio:     ["studio"],
+      loft:       ["loft"],
+    }
+
+    // Find which synonym group the lead type belongs to
+    const synonyms = Object.entries(TYPE_SYNONYMS).find(([key, vals]) =>
+      key === leadType || vals.some((v) => leadType.includes(v))
+    )?.[1] ?? [leadType]
+
+    const typeMatches = synonyms.some((kw) => propTypeText.includes(kw))
+
+    if (typeMatches) score += 20
+    else score -= 10
   }
 
   // =====================
@@ -112,16 +186,15 @@ if (hasEviction) {
   )
 
   if (matches.length > 0) {
-    score += Math.min(40, matches.length * 12)
+    score += Math.min(25, matches.length * 10)
   }
 
   // =====================
-  // BUDGET
+  // BUDGET (guideline, not hard filter)
+  // Extract all digit groups so "$1,200 - $1,500" → [1200, 1500]
   // =====================
   const price = Number(property.price_value || 0)
 
-  // Extract all digit groups from the rent string so ranges like
-  // "$1,200 - $1,500" become [1200, 1500] instead of the broken "12001500"
   const rentNumbers = String(lead.desired_rent || "")
     .match(/[\d,]+/g)
     ?.map((n) => Number(n.replace(/,/g, "")))
@@ -131,31 +204,36 @@ if (hasEviction) {
   const budgetMax = rentNumbers.length > 0 ? Math.max(...rentNumbers) : 0
 
   if (price > 0 && budgetMax > 0) {
-    if (price >= budgetMin * 0.8 && price <= budgetMax * 1.1) score += 15
-    else if (price <= budgetMax * 1.2) score += 8
-    else score -= 20  // clearly over max budget
+    const overRatio = (price - budgetMax) / budgetMax  // negative = under budget
+
+    if (price <= budgetMax) {
+      score += 8                             // at or under budget: small positive
+    } else if (overRatio <= 0.20) {
+      score += 4                             // up to 20% over: concession territory
+    } else if (overRatio <= 0.40) {
+      score -= 5                             // 20–40% over: mild flag
+    } else if (overRatio <= 0.60) {
+      score -= 10                            // 40–60% over: notable flag
+    } else {
+      score -= 15                            // 60%+ over: strong flag
+    }
   }
 
   // =====================
   // MANAGEMENT FLEXIBILITY
   // =====================
-
-  // Low credit boost
   if (credit < 620 && management?.flexibleLowCredit) {
     score += 20
   }
 
-  // Broken lease boost
   if (hasBrokenLease && management?.flexibleBrokenLease) {
     score += 20
   }
 
-  // Eviction boost
   if (hasEviction && management?.flexibleEviction) {
     score += 25
   }
 
-  // Strict felony penalty
   if (lead.criminal_background === "Felony" && management?.strictFelony) {
     score -= 40
   }
@@ -240,10 +318,101 @@ export default function LeadInsights({
   onMatchesChange?: (matches: any[]) => void
 }) {
   const [properties, setProperties] = useState<any[]>([])
-  const [selected, setSelected] = useState<number[]>([])
+  // Keyed on property.id (string) rather than row index so it survives
+  // re-sorts and can be persisted to / hydrated from Supabase.
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set())
 
   const approval = getApprovalProbability(lead)
   const close = getCloseProbability(lead)
+
+  // ── Load existing favorites for this lead from Supabase ──────────────────
+  useEffect(() => {
+    if (!lead?.id) return
+
+    async function fetchFavorites() {
+      const { data, error } = await supabase
+        .from("lead_properties")
+        .select("property_id")
+        .eq("lead_id", lead.id)
+        .eq("status", "favorite")
+
+      if (error) {
+        console.error("Failed to load favorites:", error)
+        return
+      }
+
+      setFavoriteIds(new Set((data ?? []).map((r: any) => String(r.property_id))))
+    }
+
+    fetchFavorites()
+  }, [lead.id])
+
+  // ── Toggle a favorite: insert or delete a lead_properties row ────────────
+  async function toggleFavorite(propertyId: string) {
+    const id = String(propertyId)
+    const isCurrentlyFavorited = favoriteIds.has(id)
+
+    // Optimistic update — reflect the change immediately in the UI
+    setFavoriteIds((prev) => {
+      const next = new Set(prev)
+      if (isCurrentlyFavorited) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
+    if (isCurrentlyFavorited) {
+      // Remove the row
+      const { error } = await supabase
+        .from("lead_properties")
+        .delete()
+        .eq("lead_id", lead.id)
+        .eq("property_id", id)
+
+      if (error) {
+        console.error("❌ [lead_properties] DELETE failed")
+        console.error("   lead_id      :", lead.id, "(type:", typeof lead.id, ")")
+        console.error("   property_id  :", id,      "(type:", typeof id, ")")
+        console.error("   error.code   :", error.code)
+        console.error("   error.message:", error.message)
+        console.error("   error.details:", error.details)
+        console.error("   error.hint   :", error.hint)
+        console.error("   full error   :", JSON.stringify(error, null, 2))
+        // Revert optimistic update on failure
+        setFavoriteIds((prev) => { const next = new Set(prev); next.add(id); return next })
+      }
+    } else {
+      // Build the payload explicitly so we can log exactly what is sent
+      const payload = {
+        lead_id:     lead.id,
+        property_id: id,
+        status:      "favorite",
+      }
+
+      console.log("🔍 [lead_properties] INSERT attempt")
+      console.log("   lead_id      :", payload.lead_id,     "(type:", typeof payload.lead_id, ")")
+      console.log("   property_id  :", payload.property_id, "(type:", typeof payload.property_id, ")")
+      console.log("   status       :", payload.status)
+      console.log("   full payload :", JSON.stringify(payload, null, 2))
+
+      const { data, error } = await supabase
+        .from("lead_properties")
+        .insert(payload)
+        .select()
+
+      if (error) {
+        console.error("❌ [lead_properties] INSERT failed")
+        console.error("   error.code   :", error.code)
+        console.error("   error.message:", error.message)
+        console.error("   error.details:", error.details)
+        console.error("   error.hint   :", error.hint)
+        console.error("   full error   :", JSON.stringify(error, null, 2))
+        // Revert optimistic update on failure
+        setFavoriteIds((prev) => { const next = new Set(prev); next.delete(id); return next })
+      } else {
+        console.log("✅ [lead_properties] INSERT succeeded:", JSON.stringify(data, null, 2))
+      }
+    }
+  }
 
   useEffect(() => {
     async function fetchProperties() {
@@ -386,7 +555,7 @@ if (Number(lead.credit_score) <= 580) {
                 className={`flex items-center gap-3 px-4 py-3 transition ${
                   isTop3
                     ? "bg-green-50"
-                    : selected.includes(index)
+                    : favoriteIds.has(String(property.id))
                     ? "bg-green-50 border-transparent"
                     : "hover:bg-gray-50 border-transparent"
                 }`}
@@ -454,20 +623,19 @@ if (Number(lead.credit_score) <= 580) {
                 </div>
 
                 <button
-                  onClick={() => {
-                    setSelected((prev) =>
-                      prev.includes(index)
-                        ? prev.filter((i) => i !== index)
-                        : [...prev, index]
-                    )
-                  }}
-                  className={`text-xs px-2 py-1 rounded ${
-                    selected.includes(index)
-                      ? "bg-green-600 text-white"
-                      : "bg-blue-50 text-blue-700 hover:bg-blue-100"
-                  }`}
+                  onClick={() => toggleFavorite(String(property.id))}
+                  aria-label={favoriteIds.has(String(property.id)) ? "Remove favorite" : "Mark as favorite"}
+                  className="shrink-0 w-9 h-9 flex items-center justify-center rounded-full transition-colors hover:bg-amber-50 active:scale-90"
                 >
-                  {selected.includes(index) ? "Added" : "Add"}
+                  {favoriteIds.has(String(property.id)) ? (
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="#f59e0b" stroke="#f59e0b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                    </svg>
+                  ) : (
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                    </svg>
+                  )}
                 </button>
               </div>
             )

@@ -25,28 +25,57 @@ export async function POST(req: Request) {
     // ======================================================
 
     const cityMap: Record<string, string> = {
-  "San Antonio": "SATX",
-  Austin: "AUS",
-  Dallas: "DAL",
-  Houston: "HOU",
-};
-    const cityLabel =
-      cityMap[body.city] || body.city || "Lead";
-
-    // ======================================================
-    // SOURCE LABELS
-    // ======================================================
-
-    const sourceMap: Record<string, string> = {
-      facebook: "FB",
-      instagram: "IG",
-      tiktok: "TT",
-      youtube: "YT",
-      website: "WEB",
+      "San Antonio": "SATX",
+      Austin: "AUS",
+      Dallas: "DAL",
+      Houston: "HOU",
     };
 
-    const sourceLabel =
-      sourceMap[body.source] || body.source || "WEB";
+    const cityLabel = cityMap[body.city] || body.city || "Lead";
+
+    // ======================================================
+    // CONTACT NOTES
+    // ======================================================
+
+    const notes = `
+Source: ${body.source || "Website"}
+
+Move Date: ${body.moveDate || "N/A"}
+Budget: ${body.desiredRent || "N/A"}
+
+Location:
+Neighborhoods: ${body.neighborhoods || "N/A"}
+Submarkets: ${body.submarkets || "N/A"}
+
+Property:
+Type: ${body.propertyType || "N/A"}
+Beds/Baths: ${body.beds || "N/A"} / ${body.baths || "N/A"}
+
+Credit:
+Score: ${body.creditScore || "N/A"}
+History: ${body.creditHistory || "N/A"}
+
+Background:
+Broken Lease: ${
+  body.brokenLeaseAge
+    ? `${body.brokenLeaseAge} (${body.brokenLeaseAmount || "No balance"})`
+    : "None"
+}
+
+Eviction: ${
+  body.evictionAge
+    ? `${body.evictionAge} (${body.evictionBalance || "No balance"})`
+    : body.evictionCourt ?? "None"
+}
+
+Criminal: ${
+  body.criminalBackground || "None"
+}
+${body.criminalCharge ? `Charge: ${body.criminalCharge}` : ""}
+
+Client Notes:
+${body.notes || "None"}
+`.trim();
 
     // ======================================================
     // CLEAN PHONE NUMBER
@@ -60,55 +89,99 @@ export async function POST(req: Request) {
       ? `+1${cleanedPhone}`
       : "";
 
+    // ======================================================
+    // CONTACT PAYLOAD (shared for create and update)
+    // ======================================================
+
+    const contactPayload = {
+      names: [
+        {
+          givenName: body.firstName,
+          familyName: `${body.lastName} (${cityLabel})`,
+        },
+      ],
+
+      emailAddresses: body.email
+        ? [{ value: body.email }]
+        : [],
+
+      phoneNumbers: formattedPhone
+        ? [{ value: formattedPhone }]
+        : [],
+
+      biographies: [
+        { value: notes },
+      ],
+    };
 
     // ======================================================
-    // CREATE CONTACT
+    // DUPLICATE PREVENTION — search by phone, update or create
     // ======================================================
 
-    await people.people.createContact({
-      requestBody: {
-       names: [
-  {
-    givenName: body.firstName,
-    familyName: `${body.lastName} (${cityLabel} - ${sourceLabel})`,
-  },
-],
+    let action: "created" | "updated" = "created";
 
-        emailAddresses: body.email
-          ? [
-              {
-                value: body.email,
-              },
-            ]
-          : [],
+    if (formattedPhone) {
+      // Warmup request required by Google People API before searching
+      try {
+        await people.people.searchContacts({
+          query: "",
+          readMask: "names",
+          pageSize: 1,
+        });
+      } catch {
+        // Warmup errors are non-fatal — continue to real search
+      }
 
-        phoneNumbers: formattedPhone
-          ? [
-              {
-                value: formattedPhone,
-              },
-            ]
-          : [],
+      // Search for existing contact by phone number
+      const searchRes = await people.people.searchContacts({
+        query: formattedPhone,
+        readMask: "names,phoneNumbers,emailAddresses,biographies,metadata",
+        pageSize: 5,
+      });
 
-       
-      },
-    });
+      const results = searchRes.data.results ?? [];
+      const match = results[0]?.person;
 
-console.log("Google Contact Created");
+      if (match?.resourceName) {
+        // Extract etag from the first source (required to avoid conflict errors)
+        const etag = match.metadata?.sources?.[0]?.etag ?? undefined;
 
-    return NextResponse.json({
-      success: true,
-    });
+        await people.people.updateContact({
+          resourceName: match.resourceName,
+          updatePersonFields: "names,phoneNumbers,emailAddresses,biographies",
+          requestBody: {
+            ...contactPayload,
+            etag,
+          },
+        });
+
+        action = "updated";
+        console.log(`Google Contact Updated: ${match.resourceName}`);
+      } else {
+        // No existing contact — create new
+        await people.people.createContact({
+          requestBody: contactPayload,
+        });
+
+        console.log("Google Contact Created");
+      }
+    } else {
+      // No phone number — skip search, create directly
+      await people.people.createContact({
+        requestBody: contactPayload,
+      });
+
+      console.log("Google Contact Created (no phone — skipped duplicate check)");
+    }
+
+    return NextResponse.json({ success: true, action });
+
   } catch (err) {
     console.error("Google Contact Error:", err);
 
     return NextResponse.json(
-      {
-        success: false,
-      },
-      {
-        status: 500,
-      }
+      { success: false },
+      { status: 500 }
     );
   }
 }
