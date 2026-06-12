@@ -90,98 +90,58 @@ ${body.notes || "None"}
       : "";
 
     // ======================================================
-    // CONTACT PAYLOAD (shared for create and update)
+    // CREATE CONTACT
     // ======================================================
 
-    const contactPayload = {
-      names: [
-        {
-          givenName: body.firstName,
-          familyName: `${body.lastName} (${cityLabel})`,
-        },
-      ],
-
-      emailAddresses: body.email
-        ? [{ value: body.email }]
-        : [],
-
-      phoneNumbers: formattedPhone
-        ? [{ value: formattedPhone }]
-        : [],
-
-      biographies: [
-        { value: notes },
-      ],
-    };
-
-    // ======================================================
-    // DUPLICATE PREVENTION — search by phone, update or create
-    // ======================================================
-
-    let action: "created" | "updated" = "created";
-
-    if (formattedPhone) {
-      // Warmup request required by Google People API before searching
-      try {
-        await people.people.searchContacts({
-          query: "",
-          readMask: "names",
-          pageSize: 1,
-        });
-      } catch {
-        // Warmup errors are non-fatal — continue to real search
-      }
-
-      // Search for existing contact by phone number
-      const searchRes = await people.people.searchContacts({
-        query: formattedPhone,
-        readMask: "names,phoneNumbers,emailAddresses,biographies,metadata",
-        pageSize: 5,
-      });
-
-      const results = searchRes.data.results ?? [];
-      const match = results[0]?.person;
-
-      if (match?.resourceName) {
-        // Extract etag from the first source (required to avoid conflict errors)
-        const etag = match.metadata?.sources?.[0]?.etag ?? undefined;
-
-        await people.people.updateContact({
-          resourceName: match.resourceName,
-          updatePersonFields: "names,phoneNumbers,emailAddresses,biographies",
-          requestBody: {
-            ...contactPayload,
-            etag,
+    await people.people.createContact({
+      requestBody: {
+        names: [
+          {
+            givenName: body.firstName,
+       familyName: `${body.lastName} (${cityLabel})`,
           },
-        });
+        ],
 
-        action = "updated";
-        console.log(`Google Contact Updated: ${match.resourceName}`);
-      } else {
-        // No existing contact — create new
-        await people.people.createContact({
-          requestBody: contactPayload,
-        });
+        emailAddresses: body.email
+          ? [
+              {
+                value: body.email,
+              },
+            ]
+          : [],
 
-        console.log("Google Contact Created");
-      }
-    } else {
-      // No phone number — skip search, create directly
-      await people.people.createContact({
-        requestBody: contactPayload,
-      });
+        phoneNumbers: formattedPhone
+          ? [
+              {
+                value: formattedPhone,
+              },
+            ]
+          : [],
 
-      console.log("Google Contact Created (no phone — skipped duplicate check)");
-    }
+        biographies: [
+          {
+            value: notes,
+          },
+        ],
+      },
+    });
 
-    return NextResponse.json({ success: true, action });
+    console.log("Google Contact Created");
+
+    return NextResponse.json({
+      success: true,
+    });
 
   } catch (err) {
     console.error("Google Contact Error:", err);
 
     return NextResponse.json(
-      { success: false },
-      { status: 500 }
+      {
+        success: false,
+      },
+      {
+        status: 500,
+      }
     );
   }
 }
