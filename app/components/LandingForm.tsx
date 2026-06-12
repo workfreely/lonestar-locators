@@ -446,7 +446,7 @@ misdemeanor_age: formData.misdemeanorAge,
     // ======================================================
 source: leadSource,
   },
-]);
+]).select("id");
 
      if (error) {
   console.error("FULL ERROR:", JSON.stringify(error, null, 2));
@@ -464,6 +464,8 @@ source: leadSource,
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
+    leadId: data?.[0]?.id,
+
     firstName: formData.firstName,
     lastName: formData.lastName,
     phone: formData.phone,

@@ -1,5 +1,7 @@
 import { google } from "googleapis";
 import { NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { buildContactNotes } from "@/lib/google/buildContactNotes";
 
 export async function POST(req: Request) {
   try {
@@ -37,45 +39,29 @@ export async function POST(req: Request) {
     // CONTACT NOTES
     // ======================================================
 
-    const notes = `
-Source: ${body.source || "Website"}
-
-Move Date: ${body.moveDate || "N/A"}
-Budget: ${body.desiredRent || "N/A"}
-
-Location:
-Neighborhoods: ${body.neighborhoods || "N/A"}
-Submarkets: ${body.submarkets || "N/A"}
-
-Property:
-Type: ${body.propertyType || "N/A"}
-Beds/Baths: ${body.beds || "N/A"} / ${body.baths || "N/A"}
-
-Credit:
-Score: ${body.creditScore || "N/A"}
-History: ${body.creditHistory || "N/A"}
-
-Background:
-Broken Lease: ${
-  body.brokenLeaseAge
-    ? `${body.brokenLeaseAge} (${body.brokenLeaseAmount || "No balance"})`
-    : "None"
-}
-
-Eviction: ${
-  body.evictionAge
-    ? `${body.evictionAge} (${body.evictionBalance || "No balance"})`
-    : body.evictionCourt ?? "None"
-}
-
-Criminal: ${
-  body.criminalBackground || "None"
-}
-${body.criminalCharge ? `Charge: ${body.criminalCharge}` : ""}
-
-Client Notes:
-${body.notes || "None"}
-`.trim();
+    const notes = buildContactNotes({
+      crm_status:        body.crm_status,
+      next_follow_up:    body.next_follow_up,
+      follow_up_count:   body.follow_up_count,
+      source:            body.source,
+      moveDate:          body.moveDate,
+      desiredRent:       body.desiredRent,
+      neighborhoods:     body.neighborhoods,
+      submarkets:        body.submarkets,
+      propertyType:      body.propertyType,
+      beds:              body.beds,
+      baths:             body.baths,
+      creditScore:       body.creditScore,
+      creditHistory:     body.creditHistory,
+      brokenLeaseAge:    body.brokenLeaseAge,
+      brokenLeaseAmount: body.brokenLeaseAmount,
+      evictionAge:       body.evictionAge,
+      evictionBalance:   body.evictionBalance,
+      evictionCourt:     body.evictionCourt,
+      criminalBackground: body.criminalBackground,
+      criminalCharge:    body.criminalCharge,
+      notes:             body.notes,
+    });
 
     // ======================================================
     // CLEAN PHONE NUMBER
@@ -93,12 +79,12 @@ ${body.notes || "None"}
     // CREATE CONTACT
     // ======================================================
 
-    await people.people.createContact({
+    const result = await people.people.createContact({
       requestBody: {
         names: [
           {
             givenName: body.firstName,
-       familyName: `${body.lastName} (${cityLabel})`,
+            familyName: `${body.lastName} (${cityLabel})`,
           },
         ],
 
@@ -126,7 +112,22 @@ ${body.notes || "None"}
       },
     });
 
-    console.log("Google Contact Created");
+    const resourceName = result.data.resourceName;
+    console.log("Google Contact Created:", resourceName);
+
+    // Save the Google People resourceName back to the lead record
+    if (body.leadId && resourceName) {
+      const { error: updateError } = await supabaseAdmin
+        .from("leads")
+        .update({ google_contact_id: resourceName })
+        .eq("id", body.leadId);
+
+      if (updateError) {
+        console.warn("Failed to save google_contact_id to lead:", updateError.message);
+      } else {
+        console.log(`Saved google_contact_id to lead ${body.leadId}:`, resourceName);
+      }
+    }
 
     return NextResponse.json({
       success: true,
