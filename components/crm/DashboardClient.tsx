@@ -6,6 +6,7 @@ import LeadBoard from "./LeadBoard"
 import LeadPanel from "./LeadPanel"
 import LeadInsights from "./LeadInsights"
 import LeadFormModal from "../LeadFormModal"
+import DashboardStats from "./DashboardStats"
 
 export default function DashboardClient({ leads }: { leads: any[] }) {
   const router = useRouter()
@@ -21,17 +22,6 @@ export default function DashboardClient({ leads }: { leads: any[] }) {
   const [localLeads, setLocalLeads] = useState(leads)
   const [showLeadModal, setShowLeadModal] = useState(false)
 
-  const totalLeads = localLeads.length
-  const pipelineValue = totalLeads * 1000
-  const overdueCount = localLeads.filter((l) => {
-    if (!l.next_action_date || l.crm_status === "closed") return false
-    const today = new Date()
-    const d = new Date(l.next_action_date)
-    today.setHours(0, 0, 0, 0)
-    d.setHours(0, 0, 0, 0)
-    return d.getTime() <= today.getTime()
-  }).length
-
   const selectedLead = localLeads.find(
     (l) => String(l.id) === String(selectedLeadId)
   )
@@ -40,7 +30,7 @@ export default function DashboardClient({ leads }: { leads: any[] }) {
     <div className="relative h-screen w-full flex flex-col bg-[#f7f8fa]">
 
       {/* ─── TOP NAVIGATION BAR ─── */}
-      <header className="relative z-30 flex-none h-14 bg-white border-b border-gray-200 flex items-center px-5 gap-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+      <header className="relative z-30 flex-none h-10 bg-white border-b border-gray-200 flex items-center px-5 gap-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
 
         {/* Brand */}
         <div className="flex items-center gap-2.5 mr-4">
@@ -50,30 +40,6 @@ export default function DashboardClient({ leads }: { leads: any[] }) {
             </svg>
           </div>
           <span className="font-semibold text-sm text-gray-900 tracking-tight">Lonestar CRM</span>
-        </div>
-
-        <div className="h-5 w-px bg-gray-200" />
-
-        {/* Stats row */}
-        <div className="flex items-center gap-5">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-gray-400 font-medium">Pipeline</span>
-            <span className="text-base font-extrabold text-emerald-600">${pipelineValue.toLocaleString()}</span>
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-gray-400 font-medium">Active Leads</span>
-            <span className="text-base font-extrabold text-gray-900">{totalLeads}</span>
-          </div>
-
-          {overdueCount > 0 && (
-            <div className="flex items-center gap-1.5">
-              <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 border border-red-100 rounded-full px-2 py-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
-                {overdueCount} Overdue
-              </span>
-            </div>
-          )}
         </div>
 
         <div className="ml-auto flex items-center gap-2">
@@ -88,6 +54,9 @@ export default function DashboardClient({ leads }: { leads: any[] }) {
           </button>
         </div>
       </header>
+
+      {/* ─── DASHBOARD STATS ─── */}
+      <DashboardStats leads={localLeads} />
 
       {/* ─── BODY ─── */}
       <div className="relative flex-1 flex overflow-hidden">
@@ -173,7 +142,7 @@ export default function DashboardClient({ leads }: { leads: any[] }) {
         open={showLeadModal}
         onClose={() => setShowLeadModal(false)}
         onLeadCreated={(newLead) => {
-          setLocalLeads((prev) => [newLead, ...prev])
+          setLocalLeads((prev) => [{ ...newLead, _isNew: true }, ...prev])
         }}
       />
     </div>

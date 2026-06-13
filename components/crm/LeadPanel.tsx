@@ -3,6 +3,7 @@
 import { supabase } from "@/lib/supabase/client"
 import { getNextAction } from "@/lib/nextAction"
 import { useState, useEffect } from "react"
+import { formatPhone } from "@/lib/utils/formatPhone"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -57,14 +58,14 @@ function formatStatus(status: string) {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  new:           "bg-amber-50 text-amber-700 border-amber-200",
-  contacted:     "bg-blue-50 text-blue-700 border-blue-200",
-  qualified:     "bg-violet-50 text-violet-700 border-violet-200",
-  list_sent:     "bg-emerald-50 text-emerald-700 border-emerald-200",
-  ready_to_tour: "bg-orange-50 text-orange-700 border-orange-200",
-  done_touring:  "bg-yellow-50 text-yellow-700 border-yellow-200",
-  applied:       "bg-gray-100 text-gray-700 border-gray-300",
-  closed:        "bg-green-50 text-green-700 border-green-200",
+  new:           "bg-amber-100 text-amber-800 border-amber-300",
+  contacted:     "bg-blue-100 text-blue-800 border-blue-300",
+  qualified:     "bg-violet-100 text-violet-800 border-violet-300",
+  list_sent:     "bg-emerald-100 text-emerald-800 border-emerald-300",
+  ready_to_tour: "bg-orange-100 text-orange-800 border-orange-300",
+  done_touring:  "bg-yellow-100 text-yellow-900 border-yellow-300",
+  applied:       "bg-gray-200 text-gray-700 border-gray-300",
+  closed:        "bg-green-100 text-green-800 border-green-300",
 }
 
 const SOURCE_STYLES: Record<string, string> = {
@@ -80,15 +81,23 @@ const SOURCE_STYLES: Record<string, string> = {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
+function SectionCard({
+  title,
+  children,
+  shaded = false,
+}: {
+  title: string
+  children: React.ReactNode
+  shaded?: boolean
+}) {
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
-      <div className="px-4 py-2 border-b border-gray-100 bg-gray-50/70">
-        <p className="text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest">
+    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.07)]">
+      <div className="px-4 py-2 border-b border-gray-200 bg-gray-50">
+        <p className="text-[10.5px] font-semibold text-gray-500 uppercase tracking-widest">
           {title}
         </p>
       </div>
-      <div className="px-4 py-3 space-y-2.5">
+      <div className={`px-4 py-3 space-y-2.5 ${shaded ? "bg-gray-50/60" : "bg-white"}`}>
         {children}
       </div>
     </div>
@@ -98,8 +107,8 @@ function SectionCard({ title, children }: { title: string; children: React.React
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-4">
-      <span className="text-[12.5px] text-gray-400 flex-none">{label}</span>
-      <span className="text-[12.5px] font-medium text-gray-900 text-right">{value || "—"}</span>
+      <span className="text-[12.5px] text-gray-500 flex-none">{label}</span>
+      <span className="text-[12.5px] font-semibold text-gray-900 text-right">{value || "—"}</span>
     </div>
   )
 }
@@ -140,10 +149,10 @@ export default function LeadPanel({
 
   const riskLabel = isHighRisk ? "High Risk" : isMediumRisk ? "Medium Risk" : "Low Risk"
   const riskClass = isHighRisk
-    ? "bg-red-50 text-red-600 border-red-200"
+    ? "bg-red-100 text-red-700 border-red-300"
     : isMediumRisk
-    ? "bg-amber-50 text-amber-700 border-amber-200"
-    : "bg-emerald-50 text-emerald-700 border-emerald-200"
+    ? "bg-amber-100 text-amber-800 border-amber-300"
+    : "bg-emerald-100 text-emerald-800 border-emerald-300"
 
   // ─── Follow-up actions ─────────────────────────────────────────────────
 
@@ -227,18 +236,18 @@ export default function LeadPanel({
 
   const actionBtnClass = [
     "px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors cursor-pointer whitespace-nowrap",
-    followUpStatus === "overdue" ? "bg-red-50 text-red-600 border-red-200 animate-pulse" :
-    followUpStatus === "today"   ? "bg-amber-50 text-amber-700 border-amber-200" :
-                                   "bg-blue-50 text-blue-600 border-blue-200",
+    followUpStatus === "overdue" ? "bg-red-600 text-white border-red-600 animate-pulse" :
+    followUpStatus === "today"   ? "bg-amber-100 text-amber-800 border-amber-300" :
+                                   "bg-white text-gray-700 border-gray-300 hover:bg-gray-50",
   ].join(" ")
 
   // ─── Render ────────────────────────────────────────────────────────────
 
   return (
-    <div className="w-full h-full flex flex-col bg-[#f7f8fa]">
+    <div className="w-full h-full flex flex-col bg-white">
 
       {/* ── Panel header ── */}
-      <div className="flex-none bg-white border-b border-gray-200 px-5 pt-5 pb-4 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+      <div className="flex-none bg-white border-b border-gray-200 px-5 pt-5 pb-4 shadow-[0_1px_4px_rgba(0,0,0,0.08)]">
 
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="min-w-0">
@@ -250,7 +259,7 @@ export default function LeadPanel({
                 href={`sms:${lead.phone}`}
                 className="text-[14px] text-blue-600 font-medium mt-0.5 block hover:underline"
               >
-                {lead.phone}
+                {formatPhone(lead.phone)}
               </a>
             )}
           </div>
@@ -281,7 +290,8 @@ export default function LeadPanel({
         </div>
 
         {/* ── Action buttons ── */}
-        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-3 space-y-2">
+        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Quick Actions</p>
+        <div className="bg-gray-50 rounded-xl p-3 space-y-2">
 
           {/* Row 1: primary actions */}
           <div className="grid grid-cols-2 gap-2">
@@ -292,7 +302,7 @@ export default function LeadPanel({
                 const monthText = lead.move_date ? ` in ${new Date(lead.move_date).toLocaleString("en-US", { month: "long" })}` : ""
                 openSMS(`Hey ${name} it's Jay! I just got your form for a ${bedsText} move${monthText}. Are you trying to stay near a specific address or side of town?`)
               }}
-              className="text-xs font-medium px-3 py-2 rounded-xl border bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100 transition-colors"
+              className="text-xs font-semibold px-3 py-2 rounded-lg border bg-gray-900 text-white border-gray-900 hover:bg-gray-800 transition-colors"
             >
               First Text
             </button>
@@ -306,7 +316,7 @@ export default function LeadPanel({
                 }).join("\n\n")}\n\nWhich one do you like most?`
                 if (lead.phone) window.open(`sms:${lead.phone}?&body=${encodeURIComponent(message)}`, "_self")
               }}
-              className="text-xs font-medium px-3 py-2 rounded-xl border bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100 transition-colors"
+              className="text-xs font-medium px-3 py-2 rounded-lg border bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-colors"
             >
               Text Top 3
             </button>
@@ -316,14 +326,14 @@ export default function LeadPanel({
                 const name = normalizeName(lead.first_name || "")
                 openSMS(`Hey ${name}, I just sent your list over!\n\nCan you ❤️ your top 2–3 favorites?\n\nI'll get tours set up or tweak the list for you`)
               }}
-              className="text-xs font-medium px-3 py-2 rounded-xl border bg-violet-50 text-violet-700 border-violet-100 hover:bg-violet-100 transition-colors"
+              className="text-xs font-medium px-3 py-2 rounded-lg border bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-colors"
             >
               Smart List
             </button>
 
             <button
               onClick={() => { if (lead.phone) window.location.href = `tel:${lead.phone}` }}
-              className="text-xs font-medium px-3 py-2 rounded-xl border bg-orange-50 text-orange-700 border-orange-100 hover:bg-orange-100 transition-colors"
+              className="text-xs font-medium px-3 py-2 rounded-lg border bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-colors"
             >
               Call / Voicemail
             </button>
@@ -364,26 +374,29 @@ export default function LeadPanel({
       </div>
 
       {/* ── Panel body ── */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
 
-        {/* Risk + Next Action bar */}
-        <div className="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-          <span className={`text-[11.5px] font-semibold px-2.5 py-1 rounded-full border ${riskClass}`}>
-            {riskLabel}
-          </span>
-          <button
-            type="button"
-            onClick={handleNextActionClick}
-            className={actionBtnClass}
-          >
-            {action}
-            {followUpStatus === "today" && " · Today"}
-            {followUpStatus === "overdue" && " · Overdue"}
-          </button>
+        {/* Risk + Next Action */}
+        <div className="bg-gray-50 rounded-xl px-4 py-3">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2.5">Risk &amp; Next Step</p>
+          <div className="flex items-center justify-between gap-2">
+            <span className={`text-[11.5px] font-semibold px-2.5 py-1 rounded-full border ${riskClass}`}>
+              {riskLabel}
+            </span>
+            <button
+              type="button"
+              onClick={handleNextActionClick}
+              className={actionBtnClass}
+            >
+              {action}
+              {followUpStatus === "today" && " · Today"}
+              {followUpStatus === "overdue" && " · Overdue"}
+            </button>
+          </div>
         </div>
 
         {/* Section: Search Criteria */}
-        <SectionCard title="Search Criteria">
+        <SectionCard title="Search Criteria" shaded>
           <Field label="City" value={lead.city} />
           <Field label="Budget" value={formatRent(lead.desired_rent)} />
           <Field label="Property Type" value={lead.property_type} />
