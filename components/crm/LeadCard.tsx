@@ -165,11 +165,11 @@ export default function LeadCard({ lead, isSelected, onSelect }: any) {
       onClick={() => onSelect?.(lead.id)}
       className={[
         "group relative bg-white rounded-2xl border select-none cursor-pointer",
-        "transition-all duration-150",
-        "hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.10)] hover:border-blue-200",
+        "transition-all duration-200",
+        "hover:-translate-y-0.5 hover:shadow-[0_4px_20px_rgba(59,130,246,0.13),0_8px_28px_rgba(0,0,0,0.10)] hover:border-blue-300",
         "active:scale-[0.99]",
         isSelected
-          ? "border-blue-400 shadow-[0_0_0_2px_rgba(59,130,246,0.2),0_4px_16px_rgba(0,0,0,0.08)]"
+          ? "border-blue-500 shadow-[0_0_0_2px_rgba(59,130,246,0.30),0_6px_24px_rgba(59,130,246,0.18)]"
           : "border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.05)]",
       ]
         .filter(Boolean)

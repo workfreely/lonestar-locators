@@ -576,12 +576,12 @@ if (Number(lead.credit_score) <= 580) {
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-gray-900 truncate">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <p className="flex-1 min-w-0 text-sm font-semibold text-gray-900 truncate">
                       {property.name}
                     </p>
 
-                    <span className={`text-[10px] px-2 py-[2px] rounded ${
+                    <span className={`shrink-0 whitespace-nowrap text-[10px] px-2 py-[2px] rounded ${
                       isTop3
                         ? "bg-green-600 text-white"
                         : "bg-green-100 text-green-700"
@@ -590,7 +590,7 @@ if (Number(lead.credit_score) <= 580) {
                     </span>
 
                     <span
-                      className={`text-[10px] px-2 py-[2px] rounded font-medium ${
+                      className={`shrink-0 whitespace-nowrap text-[10px] px-2 py-[2px] rounded font-medium ${
                         property.matchScore >= 75
                           ? "bg-green-100 text-green-700"
                           : property.matchScore >= 50

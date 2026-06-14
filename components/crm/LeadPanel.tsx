@@ -158,6 +158,11 @@ export default function LeadPanel({
 
   async function setFollowUpCount(step: number) {
     const nextFollowUpCount = Number(step)
+
+    // Duplicate guard — prevents double-click from scheduling two calendar events.
+    // followUps state updates synchronously, so a rapid second click sees the updated value.
+    const alreadyAtStep = Number(followUps) >= nextFollowUpCount
+
     setFollowUps(nextFollowUpCount)
 
     const now = new Date()
@@ -188,6 +193,35 @@ export default function LeadPanel({
       .select("*")
 
     if (error) console.log("Follow-up update failed:", JSON.stringify(error, null, 2))
+
+    // ── FU chain Calendar reminder ───────────────────────────────────────────
+    // Only fires for list_sent leads (the FU chain lives in that stage).
+    // Skipped if this step was already recorded (duplicate-click guard).
+    // Steps 1, 2, 3 each schedule the NEXT reminder; 4+ ends the chain.
+    if (
+      lead.crm_status === "list_sent" &&
+      !alreadyAtStep &&
+      nextFollowUpCount >= 1 &&
+      nextFollowUpCount <= 3
+    ) {
+      fetch("/api/google/followup-event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          completed_step: nextFollowUpCount,
+          first_name:     lead.first_name,
+          last_name:      lead.last_name,
+          phone:          lead.phone,
+          city:           lead.city,
+          source:         lead.source,
+          desired_rent:   lead.desired_rent,
+          beds:           lead.beds,
+          move_date:      lead.move_date,
+        }),
+      }).catch((err) => {
+        console.error("FU chain Calendar event failed:", err)
+      })
+    }
   }
 
   function getFUStyle(step: number) {
@@ -203,10 +237,41 @@ export default function LeadPanel({
     window.open(`sms:${lead.phone}?&body=${encodeURIComponent(message)}`, "_self")
   }
 
+  // ─── Shared First Text handler ─────────────────────────────────────────
+  // Called by both the Quick Actions button and handleNextActionClick().
+
+  function handleFirstText() {
+    const name = normalizeName(lead.first_name || "")
+    const bedsText = lead.beds ? `${String(lead.beds).replace("-", "").trim()} bed` : ""
+    const monthText = lead.move_date ? ` in ${new Date(lead.move_date).toLocaleString("en-US", { month: "long" })}` : ""
+    openSMS(`Hey ${name} it's Jay! I just got your form for a ${bedsText} move${monthText}. Are you trying to stay near a specific address or side of town?`)
+
+    // Auto-advance stage: New → Contacted
+    if (lead.crm_status === "new") {
+      const updatedLead = { ...lead, crm_status: "contacted" }
+
+      // Optimistic UI update — mirrors Kanban drag behaviour
+      if (onUpdateLead) onUpdateLead(updatedLead)
+
+      // Persist to Supabase + trigger Google Contact sync (non-blocking)
+      fetch("/api/admin/leads/update-stage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          leadId: lead.id,
+          crm_status: "contacted",
+          follow_up_count: lead.follow_up_count ?? 0,
+          next_action_date: lead.next_action_date ?? null,
+        }),
+      }).catch((err) => {
+        console.error("First Text stage update failed:", err)
+      })
+    }
+  }
+
   function handleNextActionClick() {
     const fu = lead.follow_up_count || 0
     const action = getNextAction({ ...lead, follow_up_count: followUps })
-    const name = normalizeName(lead.first_name || "")
 
     if (lead.crm_status === "contacted") {
       if (fu === 0) { setFollowUpCount(1); openSMS(`Hey! Did you see any properties on the list that you'd like to tour?`); return }
@@ -216,9 +281,7 @@ export default function LeadPanel({
     }
 
     if (action === "First Text") {
-      const bedsText = lead.beds ? `${String(lead.beds).replace("-", "").trim()} bed` : ""
-      const monthText = lead.move_date ? ` in ${new Date(lead.move_date).toLocaleString("en-US", { month: "long" })}` : ""
-      openSMS(`Hey ${name} it's Jay! I just got your form for a ${bedsText} move${monthText}. Are you trying to stay near a specific address or side of town?`)
+      handleFirstText()
       return
     }
     if (action === "Build List") { openSMS(`Hey ${name}, I just sent your list over!\n\nCan you ❤️ your top 2–3 favorites?\n\nI'll get tours set up or tweak the list for you`); return }
@@ -296,12 +359,7 @@ export default function LeadPanel({
           {/* Row 1: primary actions */}
           <div className="grid grid-cols-2 gap-2">
             <button
-              onClick={() => {
-                const name = normalizeName(lead.first_name || "")
-                const bedsText = lead.beds ? `${String(lead.beds).replace("-", "").trim()} bed` : ""
-                const monthText = lead.move_date ? ` in ${new Date(lead.move_date).toLocaleString("en-US", { month: "long" })}` : ""
-                openSMS(`Hey ${name} it's Jay! I just got your form for a ${bedsText} move${monthText}. Are you trying to stay near a specific address or side of town?`)
-              }}
+              onClick={handleFirstText}
               className="text-xs font-semibold px-3 py-2 rounded-lg border bg-gray-900 text-white border-gray-900 hover:bg-gray-800 transition-colors"
             >
               First Text

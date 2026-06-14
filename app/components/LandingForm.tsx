@@ -14,6 +14,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import { format } from "date-fns";
 import { supabase } from "@/app/lib/supabaseClient";
 import { useRouter, useSearchParams } from "next/navigation";
+import { RENT_RANGE_OPTIONS } from "@/lib/formOptions";
 
 interface ContactFormProps {
   mode?: "short" | "full";
@@ -196,18 +197,6 @@ useEffect(() => {
       "Alamo Heights",
     ],
   };
-
-  const rentRanges = [
-    "$900–$1,000",
-    "$1,100–$1,200",
-    "$1,300–$1,400",
-    "$1,500–$1,600",
-    "$1,700–$1,800",
-    "$1,900–$2,000",
-    "$2,100–$2,200",
-    "$2,300–$2,400",
-    "$2,400–$2,500",
-  ];
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -500,6 +489,27 @@ source: leadSource,
     notes: formData.notes,
   }),
 });
+
+// ------------------------------------------------------
+// New Lead Calendar Notification (Non-blocking)
+// ------------------------------------------------------
+fetch("/api/google/new-lead-event", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    firstName:   formData.firstName,
+    lastName:    formData.lastName,
+    phone:       formData.phone,
+    city:        formData.city,
+    source:      leadSource,
+    desiredRent: formData.desiredRent,
+    beds:        formData.beds,
+    moveDate:    formData.moveDate,
+    creditScore: formData.creditScore,
+  }),
+}).catch((err) => {
+  console.error("New lead Calendar event failed:", err)
+})
 
 // ------------------------------------------------------
 // Send Confirmation Email to Lead (Non-blocking)
@@ -1167,7 +1177,7 @@ router.push(
               style={inputStyle}
             >
               <option value="">Desired Monthly Rent</option>
-              {rentRanges.map((range) => (
+              {RENT_RANGE_OPTIONS.map((range) => (
                 <option key={range} value={range}>
                   {range}
                 </option>

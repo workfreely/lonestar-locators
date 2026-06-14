@@ -14,6 +14,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import { format } from "date-fns";
 import { supabase } from "@/app/lib/supabaseClient";
 import { useRouter, useSearchParams } from "next/navigation";
+import { RENT_RANGE_OPTIONS } from "@/lib/formOptions";
 
 interface ContactFormProps {
   mode?: "short" | "full";
@@ -199,18 +200,6 @@ useEffect(() => {
       "Alamo Heights",
     ],
   };
-
-  const rentRanges = [
-    "$900–$1,000",
-    "$1,100–$1,200",
-    "$1,300–$1,400",
-    "$1,500–$1,600",
-    "$1,700–$1,800",
-    "$1,900–$2,000",
-    "$2,100–$2,200",
-    "$2,300–$2,400",
-    "$2,400–$2,500",
-  ];
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -1173,7 +1162,7 @@ const noteStyle = {
               style={inputStyle}
             >
               <option value="">Desired Monthly Rent</option>
-              {rentRanges.map((range) => (
+              {RENT_RANGE_OPTIONS.map((range) => (
                 <option key={range} value={range}>
                   {range}
                 </option>

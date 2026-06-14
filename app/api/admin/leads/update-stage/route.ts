@@ -3,6 +3,8 @@ import { google } from "googleapis"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { buildContactNotes } from "@/lib/google/buildContactNotes"
 import { updateGoogleContactNotes } from "@/lib/google/updateContactNotes"
+import { getOAuthClient } from "@/lib/google/getOAuthClient"
+import { createListSentCalendarEvent } from "@/lib/google/createCalendarEvent"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -70,15 +72,7 @@ function buildFullNotes(lead: any): string {
  * of the first matching contact, or null if none found.
  */
 async function findContactByPhone(formattedPhone: string): Promise<string | null> {
-  const oauth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    `${process.env.NEXT_PUBLIC_SITE_URL}/api/google/callback`
-  )
-
-  oauth2Client.setCredentials({
-    refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
-  })
+  const oauth2Client = getOAuthClient()
 
   const people = google.people({ version: "v1", auth: oauth2Client })
 
@@ -113,6 +107,18 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
+
+    // =====================================================
+    // READ OLD STAGE (needed for Calendar automation guards)
+    // =====================================================
+
+    const { data: leadBefore } = await supabaseAdmin
+      .from("leads")
+      .select("crm_status")
+      .eq("id", leadId)
+      .single()
+
+    const oldStage = leadBefore?.crm_status ?? null
 
     // =====================================================
     // SUPABASE STAGE UPDATE
@@ -185,6 +191,27 @@ export async function POST(request: Request) {
       } else {
         console.warn(`⚠️  [stage-sync] lead ${leadId} has no google_contact_id and no phone — skipping Google sync`)
       }
+      // =====================================================
+      // GOOGLE CALENDAR — List Sent FU1 reminder (non-blocking)
+      // Only fires on the first transition into list_sent.
+      // =====================================================
+
+      if (oldStage !== "list_sent" && crm_status === "list_sent") {
+        console.log(`📋 [stage-sync] list_sent transition detected for lead ${leadId} — creating FU1 Calendar event`)
+        createListSentCalendarEvent({
+          first_name:   lead.first_name,
+          last_name:    lead.last_name,
+          phone:        lead.phone,
+          city:         lead.city,
+          source:       lead.source,
+          desired_rent: lead.desired_rent,
+          beds:         lead.beds,
+          move_date:    lead.move_date,
+        }).catch((err) => {
+          console.error("📋 [stage-sync] List Sent FU1 Calendar event failed:", err)
+        })
+      }
+
     } catch (googleError) {
       console.warn("Google Contact stage sync failed:", googleError)
     }

@@ -71,6 +71,43 @@ export default function LeadFormModal({
       }
 
       onLeadCreated(data)
+
+      // Fire-and-forget — Calendar failure must never block lead creation
+      console.log("🔥 NEW LEAD FETCH STARTING")
+      const calendarPayload = {
+        first_name:   data.first_name,
+        last_name:    data.last_name,
+        phone:        data.phone,
+        city:         data.city,
+        source:       data.source,
+        desired_rent: data.desired_rent,
+        beds:         data.beds,
+        move_date:    data.move_date,
+        credit_score: data.credit_score,
+      }
+      console.log("🔥 [LeadFormModal] Calendar payload:", JSON.stringify(calendarPayload, null, 2))
+      fetch("/api/google/new-lead-event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          first_name:   data.first_name,
+          last_name:    data.last_name,
+          phone:        data.phone,
+          city:         data.city,
+          source:       data.source,
+          desired_rent: data.desired_rent,
+          beds:         data.beds,
+          move_date:    data.move_date,
+          credit_score: data.credit_score,
+        }),
+      }).then(async (res) => {
+        const json = await res.json().catch(() => null)
+        console.log("🔥 [LeadFormModal] Calendar route response status:", res.status)
+        console.log("🔥 [LeadFormModal] Calendar route response body:", JSON.stringify(json, null, 2))
+      }).catch((err) => {
+        console.error("🔥 [LeadFormModal] New lead Calendar fetch threw:", err)
+      })
+
       onClose()
 
       setForm({

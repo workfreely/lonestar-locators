@@ -72,9 +72,9 @@ export default function FollowUpRow({
             key={lead.id}
             onClick={() => onSelectLead?.(lead.id)}
             className="group relative bg-white/10 backdrop-blur-sm border border-white/15 rounded-xl px-3 py-2.5
-              cursor-pointer transition-all duration-150
-              hover:bg-white/15 hover:border-white/25 hover:-translate-y-0.5
-              hover:shadow-[0_4px_16px_rgba(0,0,0,0.2)]"
+              cursor-pointer transition-all duration-200
+              hover:bg-white/15 hover:border-blue-400/40 hover:-translate-y-0.5
+              hover:shadow-[0_4px_16px_rgba(59,130,246,0.22),0_8px_24px_rgba(0,0,0,0.22)]"
           >
             {/* Left accent line indicating urgency */}
             <div className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-red-400" />

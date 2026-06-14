@@ -27,7 +27,7 @@ export default function DashboardClient({ leads }: { leads: any[] }) {
   )
 
   return (
-    <div className="relative h-screen w-full flex flex-col bg-[#f7f8fa]">
+    <div className="relative h-screen w-full flex flex-col bg-gradient-to-b from-zinc-100 to-zinc-200">
 
       {/* ─── TOP NAVIGATION BAR ─── */}
       <header className="relative z-30 flex-none h-10 bg-white border-b border-gray-200 flex items-center px-5 gap-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
@@ -125,7 +125,7 @@ export default function DashboardClient({ leads }: { leads: any[] }) {
               </div>
 
               {/* INSIGHTS PANEL */}
-              <div className="flex-1 bg-[#f7f8fa] p-6 overflow-y-auto">
+              <div className="flex-1 bg-gradient-to-b from-zinc-100 to-zinc-200 p-6 overflow-y-auto">
                 <LeadInsights
                   lead={selectedLead}
                   onMatchesChange={setTopMatches}
