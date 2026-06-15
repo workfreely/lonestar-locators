@@ -626,11 +626,11 @@ const noteStyle = {
 
     boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
     fontFamily: "'Inter', sans-serif",
-    minWidth: "320px",
+    minWidth: 0,
     width: "100%",
     maxWidth: "540px",
     margin: "0 auto",
-    boxSizing: "border-box",
+    boxSizing: "border-box" as const,
     marginTop: "0rem",
   }}
 >
