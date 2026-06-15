@@ -141,18 +141,26 @@ export async function POST(request: Request) {
     }
 
     // =====================================================
-    // GOOGLE CONTACT SYNC (non-blocking)
+    // FETCH FRESH LEAD DATA (shared by both side-effects below)
+    // =====================================================
+
+    const { data: lead } = await supabaseAdmin
+      .from("leads")
+      .select("*")
+      .eq("id", leadId)
+      .single()
+
+    if (!lead) {
+      console.warn(`⚠️  [stage-sync] Lead ${leadId} not found after update — skipping side-effects`)
+      return NextResponse.json({ success: true })
+    }
+
+    // =====================================================
+    // SIDE-EFFECT 1 — GOOGLE CONTACT SYNC (non-blocking)
+    // Failure here must NEVER prevent the calendar event.
     // =====================================================
 
     try {
-      const { data: lead } = await supabaseAdmin
-        .from("leads")
-        .select("*")
-        .eq("id", leadId)
-        .single()
-
-      if (!lead) throw new Error("Lead not found after update")
-
       console.log(`🔍 [stage-sync] lead ${leadId} — google_contact_id: ${lead.google_contact_id ?? "null"}`)
 
       const notes = buildFullNotes(lead)
@@ -191,29 +199,37 @@ export async function POST(request: Request) {
       } else {
         console.warn(`⚠️  [stage-sync] lead ${leadId} has no google_contact_id and no phone — skipping Google sync`)
       }
-      // =====================================================
-      // GOOGLE CALENDAR — List Sent FU1 reminder (non-blocking)
-      // Only fires on the first transition into list_sent.
-      // =====================================================
+    } catch (googleContactError) {
+      // Log and continue — a Contact sync failure must never block the calendar event
+      console.error(`❌ [stage-sync] Google Contact sync failed for lead ${leadId}:`, googleContactError)
+    }
 
-      if (oldStage !== "list_sent" && crm_status === "list_sent") {
-        console.log(`📋 [stage-sync] list_sent transition detected for lead ${leadId} — creating FU1 Calendar event`)
-        createListSentCalendarEvent({
-          first_name:   lead.first_name,
-          last_name:    lead.last_name,
-          phone:        lead.phone,
-          city:         lead.city,
-          source:       lead.source,
-          desired_rent: lead.desired_rent,
-          beds:         lead.beds,
-          move_date:    lead.move_date,
-        }).catch((err) => {
-          console.error("📋 [stage-sync] List Sent FU1 Calendar event failed:", err)
+    // =====================================================
+    // SIDE-EFFECT 2 — LIST SENT CALENDAR EVENT (non-blocking)
+    // Runs independently of the Contact sync above.
+    // Only fires on the FIRST transition into list_sent.
+    // =====================================================
+
+    if (oldStage !== "list_sent" && crm_status === "list_sent") {
+      console.log(`📋 [stage-sync] List Sent calendar trigger starting — lead ${leadId}`)
+      createListSentCalendarEvent({
+        first_name:   lead.first_name,
+        last_name:    lead.last_name,
+        phone:        lead.phone,
+        city:         lead.city,
+        source:       lead.source,
+        desired_rent: lead.desired_rent,
+        beds:         lead.beds,
+        move_date:    lead.move_date,
+      })
+        .then(() => {
+          console.log(`✅ [stage-sync] List Sent calendar created — lead ${leadId}`)
         })
-      }
-
-    } catch (googleError) {
-      console.warn("Google Contact stage sync failed:", googleError)
+        .catch((err) => {
+          console.error(`❌ [stage-sync] List Sent calendar failed — lead ${leadId}:`, err)
+        })
+    } else {
+      console.log(`📋 [stage-sync] List Sent calendar skipped — oldStage: ${oldStage}, newStage: ${crm_status}`)
     }
 
     return NextResponse.json({ success: true })

@@ -46,6 +46,29 @@ function formatSource(source: string): string {
   return SOURCE_LABELS[source.toLowerCase()] ?? (source.charAt(0).toUpperCase() + source.slice(1).toLowerCase())
 }
 
+/**
+ * Builds a calendar event title in the format:
+ *   {emoji} {First} {L}. ({action})
+ *
+ * Examples:
+ *   🔥 Sarah M. (TEXT ASAP)
+ *   📋 Gerald B. (FU1)
+ *   🛑 John D. (FINAL)
+ *
+ * Falls back to "Unknown" when name data is missing.
+ */
+function formatEventTitle(
+  emoji: string,
+  firstName: string | null | undefined,
+  lastName: string | null | undefined,
+  action: string
+): string {
+  const first = firstName?.trim() || "Unknown"
+  const lastInitial = lastName?.trim()?.[0]?.toUpperCase()
+  const nameStr = lastInitial ? `${first} ${lastInitial}.` : first
+  return `${emoji} ${nameStr} (${action})`
+}
+
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
 function buildDescription(lead: NewLeadEventInput): string {
@@ -175,8 +198,10 @@ export async function createListSentCalendarEvent(lead: ListSentEventInput): Pro
 
   console.log(`📅 [list-sent-event] Lead: ${fullName} | Scheduled: ${startDateTime} America/Chicago`)
 
+  const title = formatEventTitle("📋", lead.first_name, lead.last_name, "FU1")
+
   const eventBody = {
-    summary: "📋 LIST FOLLOW-UP (FU1)",
+    summary: title,
     description: buildListSentDescription(lead),
     start: { dateTime: startDateTime, timeZone: "America/Chicago" },
     end:   { dateTime: endDateTime,   timeZone: "America/Chicago" },
@@ -195,9 +220,11 @@ export async function createListSentCalendarEvent(lead: ListSentEventInput): Pro
 
 // Config for each step that can be scheduled after a completed FU.
 // Key = the follow_up_count value that was JUST set (i.e. which FU was completed).
-const FU_NEXT_EVENT: Record<number, { summary: string; actions: string[] }> = {
+// `emoji` and `action` are fed into formatEventTitle() at runtime with the lead's name.
+const FU_NEXT_EVENT: Record<number, { emoji: string; action: string; actions: string[] }> = {
   1: {
-    summary: "📋 LIST FOLLOW-UP (FU2)",
+    emoji:  "📋",
+    action: "FU2",
     actions: [
       "Check whether they reviewed the apartment list.",
       "Answer questions about the properties.",
@@ -205,7 +232,8 @@ const FU_NEXT_EVENT: Record<number, { summary: string; actions: string[] }> = {
     ],
   },
   2: {
-    summary: "📋 LIST FOLLOW-UP (FU3)",
+    emoji:  "📋",
+    action: "FU3",
     actions: [
       "Final attempt to re-engage.",
       "Offer to revise the apartment list.",
@@ -213,7 +241,8 @@ const FU_NEXT_EVENT: Record<number, { summary: string; actions: string[] }> = {
     ],
   },
   3: {
-    summary: "🛑 FINAL FOLLOW-UP",
+    emoji:  "🛑",
+    action: "FINAL",
     actions: [
       "Send the 'pause your search' message.",
       "Leave the door open for future assistance.",
@@ -269,10 +298,12 @@ export async function createFollowUpCalendarEvent(
   lines.push("ACTION:")
   config.actions.forEach((a) => lines.push(a))
 
-  console.log(`📅 [fu-chain] Step ${completedStep} done → ${config.summary} | Lead: ${fullName} | ${startDateTime} Chicago`)
+  const title = formatEventTitle(config.emoji, lead.first_name, lead.last_name, config.action)
+
+  console.log(`📅 [fu-chain] Step ${completedStep} done → ${title} | Lead: ${fullName} | ${startDateTime} Chicago`)
 
   const eventBody = {
-    summary: config.summary,
+    summary: title,
     description: lines.join("\n"),
     start: { dateTime: startDateTime, timeZone: "America/Chicago" },
     end:   { dateTime: endDateTime,   timeZone: "America/Chicago" },
@@ -282,7 +313,7 @@ export async function createFollowUpCalendarEvent(
     },
   }
 
-  return insertCalendarEvent(eventBody, `${config.summary} — ${fullName}`)
+  return insertCalendarEvent(eventBody, `${title} — ${fullName}`)
 }
 
 // ─── New Lead event ───────────────────────────────────────────────────────────
@@ -305,8 +336,10 @@ export async function createNewLeadCalendarEvent(lead: NewLeadEventInput): Promi
 
   const toISO = (ms: number) => new Date(ms).toISOString()
 
+  const title = formatEventTitle("🔥", lead.first_name, lead.last_name, "TEXT ASAP")
+
   const eventBody = {
-    summary: "🔥 NEW LEAD (TEXT ASAP)",
+    summary: title,
     description: buildDescription(lead),
     start: { dateTime: toISO(startMs) },
     end:   { dateTime: toISO(endMs) },
@@ -318,7 +351,7 @@ export async function createNewLeadCalendarEvent(lead: NewLeadEventInput): Promi
     },
   }
 
-  console.log(`📅 [new-lead-event] Lead: ${fullName} | Start: ${toISO(startMs)}`)
+  console.log(`📅 [new-lead-event] Lead: ${fullName} | Title: ${title} | Start: ${toISO(startMs)}`)
 
   return insertCalendarEvent(eventBody, `NEW LEAD — ${fullName}`)
 }

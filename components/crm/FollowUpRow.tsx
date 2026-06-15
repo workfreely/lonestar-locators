@@ -28,6 +28,33 @@ function formatRent(rent: string) {
   return ""
 }
 
+/** Returns a short action label based on the lead's CRM status and follow-up count. */
+function getActionLabel(crm_status: string, follow_up_count: number | null | undefined): string {
+  switch (crm_status) {
+    case "new":
+      return "🔥 TEXT ASAP"
+    case "contacted":
+      return "📋 Send List"
+    case "list_sent": {
+      const count = Number(follow_up_count ?? 0)
+      if (count === 0) return "📋 Tour Favorites"
+      if (count === 1) return "📋 List Feedback"
+      if (count === 2) return "📋 Final Check"
+      return "🛑 Pause Search"
+    }
+    case "ready_to_tour":
+      return "🏢 Confirm Tour"
+    case "done_touring":
+      return "🏠 Get Tour Feedback"
+    case "applied":
+      return "📝 Check Approval"
+    case "closed":
+      return "🎁 Request Referral"
+    default:
+      return "📋 Follow Up"
+  }
+}
+
 export default function FollowUpRow({
   leads,
   onSelectLead,
@@ -96,7 +123,7 @@ export default function FollowUpRow({
               )}
 
               <p className="text-[10.5px] text-red-300 font-semibold mt-1.5">
-                Follow-up due
+                {getActionLabel(lead.crm_status, lead.follow_up_count)}
               </p>
             </div>
           </div>
