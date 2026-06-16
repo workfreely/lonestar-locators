@@ -132,23 +132,34 @@ export default function LeadBoard({
             leads={leads
               .filter((lead) => lead.crm_status === col.id)
               .sort((a, b) => {
-                function getPriority(lead: any) {
-                  if (lead._justDropped || lead._isNew) return 0
+                // _justDropped / _isNew always pins to top regardless of column
+                const aTop = a._justDropped || a._isNew ? 1 : 0
+                const bTop = b._justDropped || b._isNew ? 1 : 0
+                if (aTop !== bTop) return bTop - aTop
 
-                  if (!lead.next_action_date) return 4
-
-                  const today = new Date()
-                  const d = new Date(lead.next_action_date)
-
-                  today.setHours(0, 0, 0, 0)
-                  d.setHours(0, 0, 0, 0)
-
-                  if (d < today) return 1
-                  if (d.getTime() === today.getTime()) return 2
-                  return 3
+                if (col.id === "new") {
+                  // Newest submitted lead first — fresh inbound always visible at top
+                  const aT = a.created_at ? new Date(a.created_at).getTime() : 0
+                  const bT = b.created_at ? new Date(b.created_at).getTime() : 0
+                  return bT - aT
                 }
 
-                return getPriority(a) - getPriority(b)
+                if (col.id === "closed") {
+                  // Most recently closed / updated first
+                  const aT = a.updated_at
+                    ? new Date(a.updated_at).getTime()
+                    : a.created_at ? new Date(a.created_at).getTime() : 0
+                  const bT = b.updated_at
+                    ? new Date(b.updated_at).getTime()
+                    : b.created_at ? new Date(b.created_at).getTime() : 0
+                  return bT - aT
+                }
+
+                // contacted · list_sent · ready_to_tour · done_touring · applied
+                // Soonest move date first — leads with no date sink to bottom
+                const aD = a.move_date ? new Date(a.move_date).getTime() : Infinity
+                const bD = b.move_date ? new Date(b.move_date).getTime() : Infinity
+                return aD - bD
               })}
             selectedLeadId={selectedLeadId}
             onSelectLead={onSelectLead}

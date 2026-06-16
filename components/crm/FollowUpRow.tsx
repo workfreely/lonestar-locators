@@ -1,5 +1,9 @@
 "use client"
 
+import { useState } from "react"
+
+// ─── Date helpers ──────────────────────────────────────────────────────────────
+
 function isDue(date: string | null) {
   if (!date) return false
   const today = new Date()
@@ -7,6 +11,24 @@ function isDue(date: string | null) {
   today.setHours(0, 0, 0, 0)
   followUp.setHours(0, 0, 0, 0)
   return followUp.getTime() <= today.getTime()
+}
+
+function isOverdue(date: string | null): boolean {
+  if (!date) return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const d = new Date(date)
+  d.setHours(0, 0, 0, 0)
+  return d.getTime() < today.getTime()
+}
+
+function isExactlyToday(date: string | null): boolean {
+  if (!date) return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const d = new Date(date)
+  d.setHours(0, 0, 0, 0)
+  return d.getTime() === today.getTime()
 }
 
 function formatDate(date: string) {
@@ -32,28 +54,30 @@ function formatRent(rent: string) {
 function getActionLabel(crm_status: string, follow_up_count: number | null | undefined): string {
   switch (crm_status) {
     case "new":
-      return "🔥 TEXT ASAP"
+      return "TEXT ASAP"
     case "contacted":
-      return "📋 Send List"
+      return "Send List"
     case "list_sent": {
       const count = Number(follow_up_count ?? 0)
-      if (count === 0) return "📋 Tour Favorites"
-      if (count === 1) return "📋 List Feedback"
-      if (count === 2) return "📋 Final Check"
-      return "🛑 Pause Search"
+      if (count === 0) return "Tour Favorites"
+      if (count === 1) return "List Feedback"
+      if (count === 2) return "Final Check"
+      return "Pause Search"
     }
     case "ready_to_tour":
-      return "🏢 Confirm Tour"
+      return "Confirm Tour"
     case "done_touring":
-      return "🏠 Get Tour Feedback"
+      return "Get Feedback"
     case "applied":
-      return "📝 Check Approval"
+      return "Check Approval"
     case "closed":
-      return "🎁 Request Referral"
+      return "Request Referral"
     default:
-      return "📋 Follow Up"
+      return "Follow Up"
   }
 }
+
+type FilterType = "overdue" | "urgent" | "today"
 
 export default function FollowUpRow({
   leads,
@@ -62,14 +86,38 @@ export default function FollowUpRow({
   leads: any[]
   onSelectLead?: (leadId: string | number) => void
 }) {
+  const [activeFilter, setActiveFilter] = useState<FilterType | null>(null)
+
+  // All leads that are due (existing logic unchanged — closed leads always excluded)
   const dueLeads = leads.filter(
     (lead) => isDue(lead.next_action_date) && lead.crm_status !== "closed"
   )
 
+  // Filter buckets
+  const filterMatch = (lead: any): boolean => {
+    if (!activeFilter) return true
+    if (activeFilter === "overdue") return isOverdue(lead.next_action_date)
+    if (activeFilter === "urgent")  return lead.crm_status === "new"
+    if (activeFilter === "today")   return isExactlyToday(lead.next_action_date) && lead.crm_status !== "new"
+    return true
+  }
+
+  const visibleLeads = dueLeads.filter(filterMatch)
+
+  function toggleFilter(f: FilterType) {
+    setActiveFilter((prev) => (prev === f ? null : f))
+  }
+
+  const filterTabs: { key: FilterType; label: string }[] = [
+    { key: "overdue", label: "Overdue" },
+    { key: "urgent",  label: "Urgent"  },
+    { key: "today",   label: "Today"   },
+  ]
+
   return (
     <div className="flex flex-col h-full">
 
-      {/* Sidebar header */}
+      {/* Sidebar header — unchanged */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
         <h2 className="text-xs font-semibold text-white/80 uppercase tracking-widest">
           Follow-Ups
@@ -81,20 +129,43 @@ export default function FollowUpRow({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
+      {/* Segmented filter control */}
+      <div className="px-3 pt-2.5 pb-1">
+        <div className="flex rounded-lg overflow-hidden border border-white/10 bg-white/5">
+          {filterTabs.map(({ key, label }, i) => (
+            <button
+              key={key}
+              onClick={() => toggleFilter(key)}
+              className={[
+                "flex-1 py-1 text-[10.5px] font-semibold tracking-wide transition-colors",
+                i !== 0 ? "border-l border-white/10" : "",
+                activeFilter === key
+                  ? "bg-white/20 text-white"
+                  : "text-white/40 hover:text-white/65 hover:bg-white/8",
+              ].join(" ")}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-        {dueLeads.length === 0 && (
+      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
+
+        {visibleLeads.length === 0 && (
           <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
             <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <path d="M2 7l3.5 3.5L12 3" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </div>
-            <p className="text-xs text-white/40 leading-snug">All caught up</p>
+            <p className="text-xs text-white/40 leading-snug">
+              {activeFilter ? "None in this filter" : "All caught up"}
+            </p>
           </div>
         )}
 
-        {dueLeads.map((lead) => (
+        {visibleLeads.map((lead) => (
           <div
             key={lead.id}
             onClick={() => onSelectLead?.(lead.id)}

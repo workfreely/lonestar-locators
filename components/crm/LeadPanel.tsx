@@ -130,6 +130,7 @@ export default function LeadPanel({
 
   const [followUps, setFollowUps] = useState(Number(lead.follow_up_count || 0))
   const [nextActionDate, setNextActionDate] = useState(lead.next_action_date || null)
+  const [doneMsg, setDoneMsg] = useState<string | null>(null)
 
   useEffect(() => {
     setFollowUps(Number(lead.follow_up_count || 0))
@@ -291,6 +292,39 @@ export default function LeadPanel({
     if (action === "Final FU") { openSMS(`Hey ${name}, I haven't heard back so I'll pause your search for now. No rush, just let me know when you'd like me to pick it back up!`); return }
   }
 
+  // ─── Done-for-now completion ───────────────────────────────────────────
+
+  const DONE_CONFIG: Record<string, { label: string; days: number }> = {
+    ready_to_tour: { label: "✓ Done — Check Tomorrow",       days: 1  },
+    done_touring:  { label: "✓ Done — Follow Up in 2 Days",  days: 2  },
+    applied:       { label: "✓ Done — Check in 3 Days",      days: 3  },
+    closed:        { label: "✓ Done — Remind in 2 Weeks",    days: 14 },
+  }
+
+  async function handleDoneForNow(days: number) {
+    const newDate = new Date()
+    newDate.setDate(newDate.getDate() + days)
+    const newDateISO = newDate.toISOString()
+
+    // Optimistic update — disappears from Follow-Ups sidebar immediately
+    setNextActionDate(newDateISO)
+    if (onUpdateLead) onUpdateLead({ ...lead, next_action_date: newDateISO })
+
+    const { error } = await supabase
+      .from("leads")
+      .update({ next_action_date: newDateISO })
+      .eq("id", lead.id)
+
+    if (error) {
+      console.error("[done-for-now] update failed:", error)
+    } else {
+      setDoneMsg("✓ Follow-up scheduled")
+      setTimeout(() => setDoneMsg(null), 3000)
+    }
+  }
+
+  const doneConfig = DONE_CONFIG[lead.crm_status] ?? null
+
   // ─── Derived values ────────────────────────────────────────────────────
 
   const action = getNextAction({ ...lead, follow_up_count: followUps })
@@ -451,6 +485,24 @@ export default function LeadPanel({
               {followUpStatus === "overdue" && " · Overdue"}
             </button>
           </div>
+
+          {/* Done-for-now button — only for open-ended stages */}
+          {doneConfig && (
+            <div className="mt-2.5 pt-2.5 border-t border-gray-200 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => handleDoneForNow(doneConfig.days)}
+                className="text-[11.5px] font-semibold px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+              >
+                {doneConfig.label}
+              </button>
+              {doneMsg && (
+                <span className="text-[11px] font-semibold text-emerald-600">
+                  {doneMsg}
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Section: Search Criteria */}

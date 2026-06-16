@@ -196,7 +196,7 @@ export default function LeadCard({ lead, isSelected, onSelect }: any) {
 
         {/* Name row */}
         <div className="flex items-start justify-between gap-2 mb-0.5">
-          <p className="text-[14.5px] font-bold text-gray-900 leading-tight tracking-tight">
+          <p className="text-[16px] font-bold text-gray-900 leading-tight tracking-tight">
             {normalizeName(lead.first_name)} {normalizeName(lead.last_name)}
           </p>
           {isHot && (
@@ -212,7 +212,7 @@ export default function LeadCard({ lead, isSelected, onSelect }: any) {
             <a
               href={`sms:${lead.phone}`}
               onClick={(e) => e.stopPropagation()}
-              className="text-[13px] font-medium text-blue-600 hover:underline"
+              className="text-[14px] font-medium text-blue-600 hover:underline"
             >
               {formatPhone(lead.phone)}
             </a>
