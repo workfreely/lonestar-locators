@@ -261,32 +261,32 @@ function getApprovalProbability(lead: any) {
   const hasFelony =
     lead.criminal_background === "Felony"
 
-  // 🚨 HIGH RISK
+  // 🚨 CHALLENGING APPROVAL LIKELIHOOD
   if (
     credit <= 580 ||
     hasEviction ||
     hasFelony
   ) {
     return {
-      label: "High Risk",
+      label: "Low",
       color: "text-red-600",
     }
   }
 
-  // ⚠️ MEDIUM RISK
+  // ⚠️ SOME CONCERNS BUT POSSIBLE APPROVAL
   if (
     credit <= 650 ||
     hasBrokenLease
   ) {
     return {
-      label: "Medium Risk",
+      label: "Medium",
       color: "text-yellow-600",
     }
   }
 
-  // ✅ LOW RISK
+  // ✅ STRONG APPROVAL LIKELIHOOD
   return {
-    label: "Low Risk",
+    label: "High",
     color: "text-green-600",
   }
 }
@@ -682,11 +682,11 @@ if (Number(lead.credit_score) <= 580) {
             <polyline points="9 18 15 12 9 6" />
           </svg>
           <h3 className="text-xs font-semibold text-gray-500 whitespace-nowrap">
-            RECOMMENDED PROPERTIES {properties.length > 0 && `(${properties.length})`}
+            PROPERTY MATCHES {properties.length > 0 && `(${properties.length})`}
           </h3>
           {propertiesOpen && (
             <p className="text-[13px] text-gray-400 truncate">
-              Showing top {properties.length} matches based on client profile
+              AI-ranked based on client preferences
             </p>
           )}
         </div>

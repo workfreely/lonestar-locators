@@ -39,7 +39,7 @@ export default function DashboardClient({ leads }: { leads: any[] }) {
               <path d="M2 10L7 4L12 10" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
-          <span className="font-semibold text-sm text-gray-900 tracking-tight">Lonestar CRM</span>
+          <span className="font-bold text-[18px] text-gray-900 tracking-tight">Locator Beast AI</span>
         </div>
 
         <div className="ml-auto flex items-center gap-2">

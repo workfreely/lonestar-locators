@@ -34,9 +34,12 @@ export default function LeadFormModal({
     criminal_background: "",
     notes: "",
     locator_notes: "",
+    instagram: "",
+    tiktok: "",
+    facebook: "",
 
     // defaults
-    source: "manual",
+    source: "",
     crm_status: "new",
     priority: "warm",
     lead_type: "full",
@@ -55,12 +58,24 @@ export default function LeadFormModal({
   }
 
   async function handleSubmit() {
+    if (!form.source) {
+      alert("Please select a lead source.")
+      return
+    }
+
     try {
       setLoading(true)
 
+      const sourceLabel = form.source.charAt(0).toUpperCase() + form.source.slice(1)
+      const timestamp   = new Date().toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true })
+      const crmNote     = `Lead manually added through CRM on ${timestamp}. Source selected: ${sourceLabel}.`
+      const locatorNotes = form.locator_notes
+        ? `${crmNote}\n\n${form.locator_notes}`
+        : crmNote
+
       const { data, error } = await supabase
         .from("leads")
-        .insert([form])
+        .insert([{ ...form, locator_notes: locatorNotes }])
         .select("*")
         .single()
 
@@ -129,8 +144,11 @@ export default function LeadFormModal({
         criminal_background: "",
         notes: "",
         locator_notes: "",
+        instagram: "",
+        tiktok: "",
+        facebook: "",
 
-        source: "manual",
+        source: "",
         crm_status: "new",
         priority: "warm",
         lead_type: "full",

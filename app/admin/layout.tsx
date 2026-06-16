@@ -46,13 +46,13 @@ export default function AdminLayout({
 
   return (
     <div
-      className={`${inter.className} w-screen relative left-1/2 right-1/2 -mx-[50vw] bg-gray-50`}
+      className={`${inter.className} w-screen relative left-1/2 right-1/2 -mx-[50vw] -mt-6 bg-gray-50`}
     >
       {/* Outer spacing */}
-      <div className="px-6 lg:px-10 pt-0 pb-4">
+      <div className="px-4 pt-0 pb-4">
 
         {/* Main container */}
-        <div className="w-full max-w-[1700px] mx-auto h-[calc(100vh-80px)]">
+        <div className="w-full h-[calc(100vh-80px)]">
 
           {/* Content */}
           <div className="h-full rounded-xl">

@@ -3,7 +3,7 @@
 // ─── Constants ────────────────────────────────────────────────────────────────
 const MONTHLY_REVENUE_GOAL = 100_000
 const REVENUE_PER_CLOSE    = 1_000
-const MONTHLY_LEAD_GOAL    = 220   // 10 leads × 22 work days
+const MONTHLY_LEAD_GOAL    = 300
 
 // Statuses that mean the lead has been toured (reached touring stage or beyond)
 const TOURED_STATUSES = new Set(["done_touring", "applied", "closed"])
@@ -18,6 +18,15 @@ const SOURCE_PILL: Record<string, string> = {
   referral:  "bg-violet-500 text-white",
   google:    "bg-green-600 text-white",
 }
+
+// Five tracked marketing sources shown in the stacked bar legend
+const TRACKED_SOURCES = [
+  { key: "website",   label: "Web",    barColor: "#6b7280", dotColor: "#6b7280" },
+  { key: "tiktok",    label: "TikTok", barColor: "#111827", dotColor: "#111827" },
+  { key: "facebook",  label: "FB",     barColor: "#2563eb", dotColor: "#2563eb" },
+  { key: "instagram", label: "IG",     barColor: "#ec4899", dotColor: "#ec4899" },
+  { key: "youtube",   label: "YT",     barColor: "#dc2626", dotColor: "#dc2626" },
+]
 
 function sourcePillCls(source: string): string {
   return SOURCE_PILL[source?.toLowerCase()] ?? "bg-gray-400 text-white"
@@ -109,27 +118,54 @@ export default function DashboardStats({ leads }: { leads: any[] }) {
         </div>
 
         {/* 3 — Leads This Month */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-2 flex flex-col justify-between transition-shadow transition-colors duration-200 hover:border-blue-200 hover:shadow-[0_4px_20px_rgba(59,130,246,0.12),0_8px_24px_rgba(0,0,0,0.08)]">
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Leads This Month</p>
-          <div className="mt-1">
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-xl font-bold text-gray-900 leading-none">{generatedThisMonth.length}</span>
-              <span className="text-xs text-gray-400">/ {MONTHLY_LEAD_GOAL}</span>
+        {(() => {
+          const total = generatedThisMonth.length
+          const withCounts = TRACKED_SOURCES.map((s) => ({
+            ...s,
+            count: sourceCounts[s.key] ?? 0,
+            pct: total > 0 ? Math.round(((sourceCounts[s.key] ?? 0) / total) * 100) : 0,
+          }))
+          const barSources = withCounts.filter((s) => s.count > 0)
+
+          return (
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-2 flex flex-col justify-between transition-shadow transition-colors duration-200 hover:border-blue-200 hover:shadow-[0_4px_20px_rgba(59,130,246,0.12),0_8px_24px_rgba(0,0,0,0.08)]">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Leads This Month</p>
+              <div className="mt-1">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-xl font-bold text-gray-900 leading-none">{total}</span>
+                  <span className="text-xs text-gray-400">/ {MONTHLY_LEAD_GOAL}</span>
+                </div>
+
+                {/* Stacked bar — only sources with leads */}
+                <div className="mt-1.5 h-1.5 w-full rounded-full overflow-hidden flex bg-gray-100">
+                  {barSources.map((s) => (
+                    <div
+                      key={s.key}
+                      style={{ width: `${s.pct}%`, backgroundColor: s.barColor }}
+                      className="h-full transition-all duration-500"
+                    />
+                  ))}
+                </div>
+
+                {/* Legend — all five sources always visible */}
+                <div className="mt-1.5 flex items-center flex-wrap gap-x-2.5 gap-y-0.5">
+                  {withCounts.map((s) => (
+                    <span
+                      key={s.key}
+                      className={`flex items-center gap-1 text-[10px] ${s.count === 0 ? "text-gray-300" : "text-gray-500"}`}
+                    >
+                      <span
+                        className="w-1.5 h-1.5 rounded-full flex-none"
+                        style={{ backgroundColor: s.count === 0 ? "#d1d5db" : s.dotColor }}
+                      />
+                      {s.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
             </div>
-            <div className="mt-1 flex items-center gap-1.5">
-              {topSourceKey ? (
-                <>
-                  <span className={`text-[10px] font-medium px-1.5 py-px rounded-full ${sourcePillCls(topSourceKey)}`}>
-                    {sourceLabel(topSourceKey)}
-                  </span>
-                  <span className="text-[10px] text-gray-400">{topSourcePct}%</span>
-                </>
-              ) : (
-                <span className="text-[10px] text-gray-400">No leads yet</span>
-              )}
-            </div>
-          </div>
-        </div>
+          )
+        })()}
 
         {/* 4 — Conversion Rate */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-2 flex flex-col justify-between transition-shadow transition-colors duration-200 hover:border-blue-200 hover:shadow-[0_4px_20px_rgba(59,130,246,0.12),0_8px_24px_rgba(0,0,0,0.08)]">

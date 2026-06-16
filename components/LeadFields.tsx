@@ -3,6 +3,7 @@
 import { useState } from "react"
 import DatePicker from "react-datepicker"
 import "react-datepicker/dist/react-datepicker.css"
+import { formatPhone } from "@/lib/utils/formatPhone"
 import {
   CITIES,
   PROPERTY_TYPES,
@@ -80,7 +81,10 @@ export default function LeadFields({
           type="tel"
           placeholder="Phone *"
           value={form.phone || ""}
-          onChange={e => updateField("phone", e.target.value)}
+          onChange={e => {
+            const digits = e.target.value.replace(/\D/g, "").slice(0, 10)
+            updateField("phone", formatPhone(digits))
+          }}
         />
         <input
           className={inputCls}
@@ -88,6 +92,40 @@ export default function LeadFields({
           placeholder="Email"
           value={form.email || ""}
           onChange={e => updateField("email", e.target.value)}
+        />
+        <Full>
+          <select
+            className={selectCls}
+            value={form.source || ""}
+            onChange={e => updateField("source", e.target.value)}
+            required
+          >
+            <option value="">Lead Source *</option>
+            <option value="website">Website</option>
+            <option value="tiktok">TikTok</option>
+            <option value="facebook">Facebook</option>
+            <option value="instagram">Instagram</option>
+            <option value="youtube">YouTube</option>
+            <option value="referral">Referral</option>
+          </select>
+        </Full>
+        <input
+          className={inputCls}
+          placeholder="Instagram handle"
+          value={form.instagram || ""}
+          onChange={e => updateField("instagram", e.target.value)}
+        />
+        <input
+          className={inputCls}
+          placeholder="TikTok handle"
+          value={form.tiktok || ""}
+          onChange={e => updateField("tiktok", e.target.value)}
+        />
+        <input
+          className={inputCls}
+          placeholder="Facebook name"
+          value={form.facebook || ""}
+          onChange={e => updateField("facebook", e.target.value)}
         />
       </Group>
 

@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase/client"
 import { getNextAction } from "@/lib/nextAction"
 import { useState, useEffect } from "react"
 import { formatPhone } from "@/lib/utils/formatPhone"
+import AiVoiceScriptModal from "./AiVoiceScriptModal"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -184,6 +185,7 @@ export default function LeadPanel({
   const [followUps, setFollowUps] = useState(Number(lead.follow_up_count || 0))
   const [nextActionDate, setNextActionDate] = useState(lead.next_action_date || null)
   const [doneMsg, setDoneMsg] = useState<string | null>(null)
+  const [showVoiceScript, setShowVoiceScript] = useState(false)
 
   useEffect(() => {
     setFollowUps(Number(lead.follow_up_count || 0))
@@ -394,6 +396,7 @@ export default function LeadPanel({
   // ─── Render ────────────────────────────────────────────────────────────
 
   return (
+    <>
     <div className="w-full h-full flex flex-col bg-white">
 
       {/* ── Panel header ── */}
@@ -407,7 +410,7 @@ export default function LeadPanel({
             {lead.phone && (
               <a
                 href={`sms:${lead.phone}`}
-                className="text-[14px] text-blue-600 font-medium mt-0.5 block hover:underline"
+                className="text-lg text-blue-600 font-semibold mt-0.5 mb-1.5 block hover:underline"
               >
                 {formatPhone(lead.phone)}
               </a>
@@ -477,10 +480,10 @@ export default function LeadPanel({
             </button>
 
             <button
-              onClick={() => { if (lead.phone) window.location.href = `tel:${lead.phone}` }}
+              onClick={() => setShowVoiceScript(true)}
               className="text-xs font-medium px-3 py-2 rounded-lg border bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-colors"
             >
-              Call / Voicemail
+              AI Voice Script
             </button>
           </div>
 
@@ -640,5 +643,13 @@ export default function LeadPanel({
 
       </div>
     </div>
+
+    <AiVoiceScriptModal
+      open={showVoiceScript}
+      onClose={() => setShowVoiceScript(false)}
+      lead={lead}
+      topMatches={topMatches}
+    />
+    </>
   )
 }
