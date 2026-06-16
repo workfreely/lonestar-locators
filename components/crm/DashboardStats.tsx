@@ -76,7 +76,7 @@ export default function DashboardStats({ leads }: { leads: any[] }) {
     : 0
 
   return (
-    <div className="flex-none bg-zinc-100 border-b border-zinc-200 px-5 py-1.5">
+    <div className="flex-none bg-zinc-100 border-b border-zinc-200 px-5 pt-3 pb-5">
       <div className="grid grid-cols-5 gap-3">
 
         {/* 1 — Monthly Goal */}

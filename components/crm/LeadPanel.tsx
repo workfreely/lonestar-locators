@@ -81,25 +81,78 @@ const SOURCE_STYLES: Record<string, string> = {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function SectionCard({
+function CollapsibleNotes({
   title,
+  defaultOpen,
   children,
-  shaded = false,
 }: {
   title: string
+  defaultOpen: boolean
   children: React.ReactNode
-  shaded?: boolean
 }) {
+  const [open, setOpen] = useState(defaultOpen)
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.07)]">
-      <div className="px-4 py-2 border-b border-gray-200 bg-gray-50">
+      <div
+        className="px-4 py-2 border-b border-gray-200 bg-gray-50 flex items-center gap-2 cursor-pointer select-none"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <svg
+          className={`w-3 h-3 text-gray-400 transition-transform duration-200 ${open ? "rotate-90" : "rotate-0"}`}
+          viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+          strokeLinecap="round" strokeLinejoin="round"
+        >
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
         <p className="text-[10.5px] font-semibold text-gray-500 uppercase tracking-widest">
           {title}
         </p>
       </div>
-      <div className={`px-4 py-3 space-y-2.5 ${shaded ? "bg-gray-50/60" : "bg-white"}`}>
-        {children}
+      {open && (
+        <div className="px-4 py-3 space-y-2.5 bg-white">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SectionCard({
+  title,
+  children,
+  shaded = false,
+  collapsible = false,
+  defaultOpen = true,
+}: {
+  title: string
+  children: React.ReactNode
+  shaded?: boolean
+  collapsible?: boolean
+  defaultOpen?: boolean
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.07)]">
+      <div
+        className={`px-4 py-2 border-b border-gray-200 bg-gray-50 flex items-center gap-2 ${collapsible ? "cursor-pointer select-none" : ""}`}
+        onClick={collapsible ? () => setOpen((o) => !o) : undefined}
+      >
+        {collapsible && (
+          <svg
+            className={`w-3 h-3 text-gray-400 transition-transform duration-200 ${open ? "rotate-90" : "rotate-0"}`}
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+            strokeLinecap="round" strokeLinejoin="round"
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        )}
+        <p className="text-[10.5px] font-semibold text-gray-500 uppercase tracking-widest">
+          {title}
+        </p>
       </div>
+      {(!collapsible || open) && <div className={`px-4 py-3 space-y-2.5 ${shaded ? "bg-gray-50/60" : "bg-white"}`}>
+        {children}
+      </div>}
     </div>
   )
 }
@@ -506,7 +559,7 @@ export default function LeadPanel({
         </div>
 
         {/* Section: Search Criteria */}
-        <SectionCard title="Search Criteria" shaded>
+        <SectionCard title="Search Criteria" shaded collapsible defaultOpen={false}>
           <Field label="City" value={lead.city} />
           <Field label="Budget" value={formatRent(lead.desired_rent)} />
           <Field label="Property Type" value={lead.property_type} />
@@ -524,7 +577,7 @@ export default function LeadPanel({
         </SectionCard>
 
         {/* Section: Screening */}
-        <SectionCard title="Screening">
+        <SectionCard title="Screening" collapsible defaultOpen={false}>
           <Field label="Credit Score" value={lead.credit_score} />
           <Field label="Credit History" value={lead.credit_history} />
           <Field label="Eviction Court" value={lead.eviction_court === "Yes" ? "Yes" : "No"} />
@@ -551,17 +604,23 @@ export default function LeadPanel({
         </SectionCard>
 
         {/* Section: Client Notes */}
-        <SectionCard title="Client Notes">
+        <CollapsibleNotes
+          title="Client Notes"
+          defaultOpen={!!(lead.notes && lead.notes.trim())}
+        >
           <textarea
             value={lead.notes || ""}
             readOnly
             placeholder="No notes submitted."
             className="w-full h-20 text-[12.5px] bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 resize-none cursor-default text-gray-700 placeholder-gray-300 focus:outline-none"
           />
-        </SectionCard>
+        </CollapsibleNotes>
 
         {/* Section: Locator Notes */}
-        <SectionCard title="Locator Notes">
+        <CollapsibleNotes
+          title="Locator Notes"
+          defaultOpen={!!(lead.locator_notes && lead.locator_notes.trim())}
+        >
           <textarea
             value={lead.locator_notes || ""}
             onChange={async (e) => {
@@ -576,7 +635,8 @@ export default function LeadPanel({
             placeholder="Internal notes about this client..."
             className="w-full h-24 text-[12.5px] bg-white border border-gray-200 rounded-xl px-3 py-2 resize-none text-gray-800 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-shadow"
           />
-        </SectionCard>
+        </CollapsibleNotes>
+
 
       </div>
     </div>

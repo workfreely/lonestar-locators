@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { supabase } from "@/lib/supabase/client"
+import type { AiClientBrief } from "@/lib/types/aiClientBrief"
 
 import { MANAGEMENT_PROFILES }
 from "@/lib/managementProfiles"
@@ -310,6 +311,140 @@ function getCloseProbability(lead: any) {
   return map[stage] || { label: "0%", color: "text-gray-400" }
 }
 
+// ─── AI Insights Card ─────────────────────────────────────────────────────────
+
+function AiInsightsCard({ leadId }: { leadId: string }) {
+  const [brief, setBrief] = useState<AiClientBrief | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [syncError, setSyncError] = useState<string | null>(null)
+  const [open, setOpen] = useState(false)
+  const initialOpenSet = useRef(false)
+
+  function loadBrief() {
+    supabase
+      .from("ai_client_briefs")
+      .select("*")
+      .eq("lead_id", leadId)
+      .maybeSingle()
+      .then(({ data }) => {
+        setBrief(data ?? null)
+        if (!initialOpenSet.current) {
+          initialOpenSet.current = true
+          const hasContent =
+            (data?.insights && data.insights.length > 0) ||
+            !!data?.last_conversation
+          setOpen(hasContent)
+        }
+      })
+  }
+
+  useEffect(() => {
+    initialOpenSet.current = false
+    setOpen(false)
+    loadBrief()
+  }, [leadId])
+
+  async function handleSync() {
+    setSyncing(true)
+    setSyncError(null)
+    try {
+      const res = await fetch("/api/ai-insights/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setSyncError(json?.error ?? "Sync failed")
+      } else {
+        loadBrief()
+      }
+    } catch {
+      setSyncError("Network error — please try again.")
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const hasInsights = brief && brief.insights.length > 0
+  const lastSynced = brief?.last_synced_at
+    ? new Date(brief.last_synced_at).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      })
+    : null
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+      <div
+        className="px-4 py-2 border-b flex items-center justify-between gap-3 cursor-pointer select-none"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <div className="flex items-center gap-2">
+          <svg
+            className={`w-3 h-3 text-gray-400 transition-transform duration-200 ${open ? "rotate-90" : "rotate-0"}`}
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+            strokeLinecap="round" strokeLinejoin="round"
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+          <h3 className="text-xs font-semibold text-gray-500 whitespace-nowrap">
+            🧠 AI INSIGHTS
+          </h3>
+        </div>
+        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+          <span className="text-[11px] text-gray-400">
+            {lastSynced ? `Updated ${lastSynced}` : "Never synced"}
+          </span>
+          <button
+            onClick={handleSync}
+            disabled={syncing || !leadId}
+            className="text-[11px] text-gray-600 bg-gray-100 border border-gray-300 rounded-full px-2.5 py-0.5 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-200 transition-colors"
+          >
+            {syncing ? "Syncing..." : lastSynced ? "Refresh" : "Sync"}
+          </button>
+        </div>
+      </div>
+
+      {open && <div className="px-4 py-3 space-y-2">
+        {syncError && (
+          <p className="text-[12px] text-red-500 italic">{syncError}</p>
+        )}
+
+        {hasInsights ? (
+          <>
+            <ul className="space-y-1.5">
+              {brief.insights.map((bullet, i) => (
+                <li key={i} className="flex items-start gap-2">
+                  <span className="mt-[5px] w-1.5 h-1.5 rounded-full bg-indigo-400 flex-none" />
+                  <span className="text-[12.5px] text-gray-800 leading-snug">{bullet}</span>
+                </li>
+              ))}
+            </ul>
+
+            {brief.last_conversation && (
+              <div className="pt-2 border-t border-gray-100">
+                <span className="text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest">
+                  Last conversation
+                </span>
+                <p className="text-[12.5px] text-gray-800 mt-1.5 leading-snug">
+                  {brief.last_conversation}
+                </p>
+              </div>
+            )}
+          </>
+        ) : (
+          <p className="text-[12px] text-gray-400 italic py-1">
+            {syncError ? null : "No insights yet — sync messages to generate."}
+          </p>
+        )}
+      </div>}
+    </div>
+  )
+}
+
+// ─── LeadInsights ─────────────────────────────────────────────────────────────
+
 export default function LeadInsights({
   lead,
   onMatchesChange,
@@ -318,6 +453,7 @@ export default function LeadInsights({
   onMatchesChange?: (matches: any[]) => void
 }) {
   const [properties, setProperties] = useState<any[]>([])
+  const [propertiesOpen, setPropertiesOpen] = useState(true)
   // Keyed on property.id (string) rather than row index so it survives
   // re-sorts and can be persisted to / hydrated from Supabase.
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set())
@@ -529,23 +665,33 @@ if (Number(lead.credit_score) <= 580) {
   return (
     <div className="space-y-5 pt-0 -mt-6">
 
+      {/* AI INSIGHTS */}
+      <AiInsightsCard leadId={String(lead.id)} />
+
       {/* RECOMMENDED */}
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-        <div className="px-4 py-2 border-b">
- <div className="flex items-center gap-2 flex-wrap">
-    
-    <h3 className="text-xs font-semibold text-gray-500 whitespace-nowrap">
-      RECOMMENDED PROPERTIES:
-    </h3>
+        <div
+          className="px-4 py-2 border-b flex items-center gap-2 cursor-pointer select-none"
+          onClick={() => setPropertiesOpen((o) => !o)}
+        >
+          <svg
+            className={`w-3 h-3 text-gray-400 transition-transform duration-200 ${propertiesOpen ? "rotate-90" : "rotate-0"}`}
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+            strokeLinecap="round" strokeLinejoin="round"
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+          <h3 className="text-xs font-semibold text-gray-500 whitespace-nowrap">
+            RECOMMENDED PROPERTIES {properties.length > 0 && `(${properties.length})`}
+          </h3>
+          {propertiesOpen && (
+            <p className="text-[13px] text-gray-400 truncate">
+              Showing top {properties.length} matches based on client profile
+            </p>
+          )}
+        </div>
 
-    <p className="text-[13px] text-gray-400 truncate">
-      Showing top {properties.length} matches based on client profile
-    </p>
-
-  </div>
-</div>
-
-        <div className="divide-y max-h-[520px] overflow-y-auto">
+        {propertiesOpen && <div className="divide-y max-h-[520px] overflow-y-auto">
           {properties.map((property, index) => {
             const isTop3 = index < 3
 
@@ -640,7 +786,7 @@ if (Number(lead.credit_score) <= 580) {
               </div>
             )
           })}
-        </div>
+        </div>}
       </div>
 
       {/* INSIGHTS */}
