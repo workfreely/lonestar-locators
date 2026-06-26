@@ -20,6 +20,7 @@ export default function GetYourListPage() {
           maxWidth: "640px",
           width: "100%",
           margin: "0 auto",
+          boxSizing: "border-box",
         }}
       >
         {/* ================= HEADER ================= */}
