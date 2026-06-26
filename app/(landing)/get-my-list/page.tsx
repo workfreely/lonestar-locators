@@ -96,7 +96,7 @@ letterSpacing: "-1.5px",
     color: "#1e40af",
     borderRadius: "999px",
 
-padding: "10px 12px",
+    padding: "10px 20px",
 
     marginTop: "0.5rem",
     marginBottom: "0.6rem",
@@ -104,14 +104,10 @@ padding: "10px 12px",
     fontWeight: 600,
     fontSize: "0.82rem",
     lineHeight: 1.4,
-    whiteSpace: "nowrap",
 
     textAlign: "center",
 
-    // ✅ makes pill fit content instead of stretching
-    width: "fit-content",
-
-    // ✅ centers the pill
+    maxWidth: "calc(100% - 2rem)",
     marginLeft: "auto",
     marginRight: "auto",
   }}
@@ -156,7 +152,7 @@ padding: "10px 12px",
     lineHeight: 1.05,
   }}
 >
-  <div style={{ whiteSpace: "nowrap" }}>Helping renters get approved</div>
+  <div>Helping renters<br />get approved</div>
 
   <div style={{ marginTop: "0.15rem" }}>
     👇
