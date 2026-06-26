@@ -16,10 +16,12 @@ export default function GetYourListPage() {
       <div
         className={inter.className}
         style={{
-     padding: "0.2rem 0.7rem 2rem",
+          padding: "0.2rem 0.7rem 2rem",
           maxWidth: "640px",
           width: "100%",
           margin: "0 auto",
+          boxSizing: "border-box",
+          overflowX: "hidden",
         }}
       >
         {/* ================= HEADER ================= */}
@@ -31,7 +33,7 @@ export default function GetYourListPage() {
     marginBottom: "1.3rem",
     color: "#111",
   lineHeight: 1.0,
-letterSpacing: "-1.5px",
+  letterSpacing: "-1.5px",
   }}
 >
   <div>
