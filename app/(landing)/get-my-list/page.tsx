@@ -98,12 +98,13 @@ letterSpacing: "-1.5px",
 
 padding: "10px 12px",
 
-    marginTop: "0.75rem",
-    marginBottom: "0.9rem",
+    marginTop: "0.5rem",
+    marginBottom: "0.6rem",
 
     fontWeight: 600,
-    fontSize: "0.90rem",
+    fontSize: "0.82rem",
     lineHeight: 1.4,
+    whiteSpace: "nowrap",
 
     textAlign: "center",
 
@@ -115,7 +116,7 @@ padding: "10px 12px",
     marginRight: "auto",
   }}
 >
-  Up to 10 weeks free • cash rebate • free movers
+  Up to 10 Weeks Free • Cash Rebate • Free Movers
 </div>
 
         <p
@@ -123,12 +124,12 @@ padding: "10px 12px",
             textAlign: "center",
             fontSize: "0.85rem",
             color: "#777",
-            marginBottom: "1rem",
+            marginBottom: "0.65rem",
           }}
         >
           Takes less than 60 seconds
           <br />
-          <span style={{ fontSize: "0.8rem", whiteSpace: "nowrap" }}>Real client success stories below ⭐⭐⭐⭐⭐</span>
+          <span style={{ fontSize: "0.8rem", whiteSpace: "nowrap" }}><strong>Real client success stories</strong> below ⭐⭐⭐⭐⭐</span>
         </p>
 
         {/* ================= FORM ================= */}
@@ -155,7 +156,7 @@ padding: "10px 12px",
     lineHeight: 1.05,
   }}
 >
-  <div>Helping renters get approved</div>
+  <div style={{ whiteSpace: "nowrap" }}>Helping renters get approved</div>
 
   <div style={{ marginTop: "0.15rem" }}>
     👇
