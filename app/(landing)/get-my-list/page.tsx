@@ -126,7 +126,9 @@ padding: "10px 12px",
             marginBottom: "1rem",
           }}
         >
-          Takes 30–60 seconds. I got you 👍
+          Takes less than 60 seconds
+          <br />
+          <span style={{ fontSize: "0.8rem", whiteSpace: "nowrap" }}>Real client success stories below ⭐⭐⭐⭐⭐</span>
         </p>
 
         {/* ================= FORM ================= */}
