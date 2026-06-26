@@ -16,12 +16,10 @@ export default function GetYourListPage() {
       <div
         className={inter.className}
         style={{
-          padding: "0.2rem 0.7rem 2rem",
+     padding: "0.2rem 0.7rem 2rem",
           maxWidth: "640px",
           width: "100%",
           margin: "0 auto",
-          boxSizing: "border-box",
-          overflowX: "hidden",
         }}
       >
         {/* ================= HEADER ================= */}
@@ -33,7 +31,7 @@ export default function GetYourListPage() {
     marginBottom: "1.3rem",
     color: "#111",
   lineHeight: 1.0,
-  letterSpacing: "-1.5px",
+letterSpacing: "-1.5px",
   }}
 >
   <div>
@@ -98,23 +96,26 @@ export default function GetYourListPage() {
     color: "#1e40af",
     borderRadius: "999px",
 
-    padding: "10px 20px",
+padding: "10px 12px",
 
-    marginTop: "0.5rem",
-    marginBottom: "0.6rem",
+    marginTop: "0.75rem",
+    marginBottom: "0.9rem",
 
     fontWeight: 600,
-    fontSize: "0.82rem",
+    fontSize: "0.90rem",
     lineHeight: 1.4,
 
     textAlign: "center",
 
-    maxWidth: "calc(100% - 2rem)",
+    // ✅ makes pill fit content instead of stretching
+    width: "fit-content",
+
+    // ✅ centers the pill
     marginLeft: "auto",
     marginRight: "auto",
   }}
 >
-  Up to 10 Weeks Free • Cash Rebate • Free Movers
+  Up to 10 weeks free • cash rebate • free movers
 </div>
 
         <p
@@ -122,12 +123,12 @@ export default function GetYourListPage() {
             textAlign: "center",
             fontSize: "0.85rem",
             color: "#777",
-            marginBottom: "0.65rem",
+            marginBottom: "1rem",
           }}
         >
           Takes less than 60 seconds
           <br />
-          <span style={{ fontSize: "0.8rem" }}><strong>Real client success stories</strong> below ⭐⭐⭐⭐⭐</span>
+          <span style={{ fontSize: "0.8rem", whiteSpace: "nowrap" }}>Real client success stories below ⭐⭐⭐⭐⭐</span>
         </p>
 
         {/* ================= FORM ================= */}
@@ -154,7 +155,7 @@ export default function GetYourListPage() {
     lineHeight: 1.05,
   }}
 >
-  <div>Helping renters<br />get approved</div>
+  <div>Helping renters get approved</div>
 
   <div style={{ marginTop: "0.15rem" }}>
     👇
