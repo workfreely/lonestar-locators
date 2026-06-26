@@ -125,7 +125,7 @@ letterSpacing: "-1.5px",
         >
           Takes less than 60 seconds
           <br />
-          <span style={{ fontSize: "0.8rem", whiteSpace: "nowrap" }}><strong>Real client success stories</strong> below ⭐⭐⭐⭐⭐</span>
+          <span style={{ fontSize: "0.8rem" }}><strong>Real client success stories</strong> below ⭐⭐⭐⭐⭐</span>
         </p>
 
         {/* ================= FORM ================= */}
