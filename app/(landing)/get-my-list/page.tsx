@@ -16,7 +16,7 @@ export default function GetYourListPage() {
       <div
         className={inter.className}
         style={{
-          padding: "0.2rem 0 2rem",
+          padding: "0 0 2rem",
           maxWidth: "640px",
           width: "100%",
           margin: "0 auto",
@@ -26,7 +26,7 @@ export default function GetYourListPage() {
         {/* ================= HEADER ================= */}
         <h1
   style={{
-    fontSize: "clamp(1.62rem, 4.7vw, 2.5rem)",
+    fontSize: "clamp(1.55rem, 4.5vw, 2.4rem)",
     fontWeight: 800,
     textAlign: "center",
     marginBottom: "1.3rem",
@@ -103,7 +103,7 @@ padding: "10px 12px",
     marginBottom: "0.9rem",
 
     fontWeight: 600,
-    fontSize: "0.90rem",
+    fontSize: "0.76rem",
     lineHeight: 1.4,
 
     textAlign: "center",
