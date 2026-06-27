@@ -14,24 +14,26 @@ export default function GetYourListPage() {
   return (
     <LandingWrapper>
       <div
-        className={inter.className}
+        className={`${inter.className} !pb-0 md:!pb-8`}
         style={{
-  padding: "0.2rem 0.7rem 2rem",
-  maxWidth: "640px",
-  width: "100%",
-  margin: "0 auto",
-}}
+          padding: "0 0 2rem",
+          maxWidth: "640px",
+          width: "100%",
+          margin: "0 auto",
+          boxSizing: "border-box",
+        }}
       >
         {/* ================= HEADER ================= */}
         <h1
   style={{
-    fontSize: "clamp(1.9rem, 4.7vw, 2.5rem)",
+    fontSize: "clamp(1.55rem, 4.5vw, 2.4rem)",
     fontWeight: 800,
     textAlign: "center",
+    marginTop: "-0.75rem",
     marginBottom: "1.3rem",
     color: "#111",
-  lineHeight: 1.0,
-letterSpacing: "-1.5px",
+    lineHeight: 1.0,
+    letterSpacing: "-1.5px",
   }}
 >
   <div>
@@ -89,20 +91,20 @@ letterSpacing: "-1.5px",
         Bad Credit • No Credit • Broken Lease 
         </p>
 
-        <div
+       <div
   style={{
     background: "#dbeafe",
     border: "1px solid #bfdbfe",
     color: "#1e40af",
     borderRadius: "999px",
 
-    padding: "10px 12px",
+padding: "10px 12px",
 
     marginTop: "0.75rem",
     marginBottom: "0.9rem",
 
     fontWeight: 600,
-    fontSize: "0.90rem",
+    fontSize: "0.76rem",
     lineHeight: 1.4,
 
     textAlign: "center",
@@ -126,7 +128,9 @@ letterSpacing: "-1.5px",
             marginBottom: "1rem",
           }}
         >
-          Takes 30–60 seconds. I got you 👍
+          Takes less than 60 seconds
+          <br />
+          <span style={{ fontSize: "0.8rem", whiteSpace: "nowrap" }}>Real client success stories below ⭐⭐⭐⭐⭐</span>
         </p>
 
         {/* ================= FORM ================= */}
@@ -137,16 +141,29 @@ letterSpacing: "-1.5px",
         {/* ================= TESTIMONIALS ================= */}
         <div style={{ marginTop: "2rem", textAlign: "center" }}>
           <h3
+  className="!mb-4 md:!mb-0"
   style={{
     marginBottom: "1.9rem",
-    fontSize: "clamp(1.55rem, 3vw, 1.9rem)",
+    fontSize: "clamp(1.5rem, 3vw, 1.8rem)",
     fontWeight: 800,
     color: "#111",
     lineHeight: 1.15,
     letterSpacing: "-0.5px",
   }}
 >
-  Helping renters get approved 👇
+ <div
+  style={{
+    textAlign: "center",
+    fontWeight: 800,
+    lineHeight: 1.05,
+  }}
+>
+  <div>Helping renters get approved</div>
+
+  <div style={{ marginTop: "0.15rem" }}>
+    👇
+  </div>
+</div>
 </h3>
 
           <div
