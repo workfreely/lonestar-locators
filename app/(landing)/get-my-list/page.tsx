@@ -14,7 +14,7 @@ export default function GetYourListPage() {
   return (
     <LandingWrapper>
       <div
-        className={inter.className}
+        className={`${inter.className} !pb-0 md:!pb-8`}
         style={{
           padding: "0 0 2rem",
           maxWidth: "640px",
@@ -141,6 +141,7 @@ padding: "10px 12px",
         {/* ================= TESTIMONIALS ================= */}
         <div style={{ marginTop: "2rem", textAlign: "center" }}>
           <h3
+  className="!mb-4 md:!mb-0"
   style={{
     marginBottom: "1.9rem",
     fontSize: "clamp(1.5rem, 3vw, 1.8rem)",
