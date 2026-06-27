@@ -29,6 +29,7 @@ export default function GetYourListPage() {
     fontSize: "clamp(1.55rem, 4.5vw, 2.4rem)",
     fontWeight: 800,
     textAlign: "center",
+    marginTop: "-0.75rem",
     marginBottom: "1.3rem",
     color: "#111",
   lineHeight: 1.0,
