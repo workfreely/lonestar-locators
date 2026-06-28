@@ -21,7 +21,6 @@ export default function GetYourListPage() {
           width: "100%",
           margin: "0 auto",
           boxSizing: "border-box",
-          overflowX: "hidden",
         }}
       >
         {/* ================= HEADER ================= */}
