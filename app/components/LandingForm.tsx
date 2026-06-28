@@ -839,12 +839,10 @@ router.push(
 
           {/* ✅ Neighborhood list */}
           <div
+            className="neighborhood-grid"
             style={{
               display: "grid",
-              gridTemplateColumns:
-  typeof window !== "undefined" && window.innerWidth < 768
-    ? "1fr"
-    : "1fr 1fr",
+              gridTemplateColumns: "1fr",
               gap: "0.75rem",
             }}
           >
@@ -1563,6 +1561,12 @@ router.push(
       padding: 0 !important;
       margin: 0 6px 0 0 !important;
       flex-shrink: 0;
+    }
+
+    @media (min-width: 768px) {
+      .neighborhood-grid {
+        grid-template-columns: 1fr 1fr;
+      }
     }
   `}
 </style>
