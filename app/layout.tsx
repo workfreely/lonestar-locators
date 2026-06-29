@@ -5,7 +5,7 @@ import Footer from "./components/Footer";
 import ClientPopups from "@/app/components/ClientPopups";
 import ClientSecurity from "@/app/components/ClientSecurity";
 import MobileStickyCTA from "@/app/components/MobileStickyCTA";
-import Script from "next/script";
+import VapiScript from "@/app/components/VapiScript";
 
 /* ===============================
    SEO METADATA (SERVER-RENDERED)
@@ -69,14 +69,7 @@ export default function RootLayout({
 {/* Mobile Sticky CTA */}
         <MobileStickyCTA />
 
-        {/* ✅ Exit Intent Popup (client-only, SSR-safe) */}
-
-        <script
-  src="https://cdn.vapi.ai/widget.js"
-  data-assistant-id="4122a3c1-d5dd-46ed-8217-e554280a2e98"
-  data-mode="chat"
-  async
-></script>
+        <VapiScript />
 
       </body>
     </html>
