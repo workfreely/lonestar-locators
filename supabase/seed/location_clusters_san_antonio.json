@@ -1,0 +1,251 @@
+[
+  {
+    "cluster_id": "stone_oak",
+    "cluster_name": "Stone Oak",
+    "city_slug": "san-antonio",
+    "core_zips": ["78258", "78259", "78260"],
+    "nearby_zips": ["78248", "78247", "78261", "78266"],
+    "property_keywords": [
+      "Stone Oak", "Sonterra", "Vineyard", "Canyon Springs", "Bulverde Rd",
+      "281 North", "Hardy Oak"
+    ],
+    "landmarks": ["Camp Bullis", "Camp Bullis Training Site"],
+    "corridor_keywords": ["Bulverde Rd", "Bulverde Road", "Inside Loop 1604"],
+    "nearby_clusters": ["la_cantera_the_rim", "utsa"]
+  },
+  {
+    "cluster_id": "la_cantera_the_rim",
+    "cluster_name": "La Cantera / The Rim",
+    "city_slug": "san-antonio",
+    "core_zips": ["78256", "78257"],
+    "nearby_zips": ["78258", "78230", "78249"],
+    "property_keywords": [
+      "La Cantera", "The Rim", "Six Flags Fiesta Texas", "Loop 1604",
+      "Westin", "JW Marriott"
+    ],
+    "aliases": ["La Cantera", "The Rim"],
+    "landmarks": ["Six Flags Fiesta Texas", "The Shops at La Cantera"],
+    "corridor_keywords": ["Loop 1604 West"],
+    "nearby_clusters": ["stone_oak", "utsa", "helotes"]
+  },
+  {
+    "cluster_id": "medical_center",
+    "cluster_name": "Medical Center",
+    "city_slug": "san-antonio",
+    "core_zips": ["78229", "78240", "78230"],
+    "nearby_zips": ["78213", "78231", "78249", "78228"],
+    "property_keywords": [
+      "Medical Center", "South Texas Medical", "Oakwell", "Wurzbach",
+      "Babcock", "Fredericksburg Rd", "UT Health"
+    ],
+    "landmarks": [
+      "USAA", "USAA Headquarters",
+      "Medical Center", "South Texas Medical Center", "UT Health",
+      "University Hospital", "Methodist Hospital", "CHRISTUS Santa Rosa"
+    ],
+    "corridor_keywords": ["Inside Loop 1604"],
+    "nearby_clusters": ["utsa", "alamo_heights"]
+  },
+  {
+    "cluster_id": "alamo_heights",
+    "cluster_name": "Alamo Heights",
+    "city_slug": "san-antonio",
+    "core_zips": ["78209"],
+    "nearby_zips": ["78212", "78215", "78218", "78217"],
+    "property_keywords": [
+      "Alamo Heights", "Broadway", "Lincoln Heights", "Olmos Park",
+      "Mahncke Park", "Terrell Hills"
+    ],
+    "landmarks": ["Fort Sam", "Fort Sam Houston", "BAMC", "Brooke Army Medical Center"],
+    "corridor_keywords": ["Inside Loop 1604"],
+    "nearby_clusters": ["medical_center", "downtown_pearl", "southtown"]
+  },
+  {
+    "cluster_id": "westover_hills",
+    "cluster_name": "Westover Hills",
+    "city_slug": "san-antonio",
+    "core_zips": ["78251", "78253"],
+    "nearby_zips": ["78245", "78250", "78227"],
+    "property_keywords": [
+      "Westover Hills", "Westover Marketplace", "Hwy 151", "Loop 1604 West",
+      "Potranco"
+    ],
+    "landmarks": [
+      "SeaWorld San Antonio", "Ingram Park Mall",
+      "Lackland", "Lackland AFB", "JBSA Lackland", "Joint Base San Antonio Lackland"
+    ],
+    "corridor_keywords": ["Culebra Rd", "Culebra Road", "Potranco Rd", "Potranco Road"],
+    "nearby_clusters": ["alamo_ranch", "southside_brooks"]
+  },
+  {
+    "cluster_id": "alamo_ranch",
+    "cluster_name": "Alamo Ranch",
+    "city_slug": "san-antonio",
+    "core_zips": ["78253", "78250"],
+    "nearby_zips": ["78251", "78254", "78245"],
+    "property_keywords": [
+      "Alamo Ranch", "Talley Rd", "1604 West", "Culebra Rd"
+    ],
+    "corridor_keywords": ["Culebra Rd", "Culebra Road", "Loop 1604 West", "Outside Loop 1604"],
+    "nearby_clusters": ["westover_hills", "helotes"]
+  },
+  {
+    "cluster_id": "utsa",
+    "cluster_name": "UTSA",
+    "city_slug": "san-antonio",
+    "core_zips": ["78249"],
+    "nearby_zips": ["78230", "78257", "78251", "78240"],
+    "property_keywords": [
+      "UTSA", "University of Texas at San Antonio", "1604 & Babcock",
+      "Northwest Vista", "Rogers Ranch"
+    ],
+    "landmarks": ["USAA", "USAA Headquarters"],
+    "corridor_keywords": ["Loop 1604 West"],
+    "nearby_clusters": ["la_cantera_the_rim", "medical_center", "stone_oak"]
+  },
+  {
+    "cluster_id": "helotes",
+    "cluster_name": "Helotes",
+    "city_slug": "san-antonio",
+    "core_zips": ["78023"],
+    "nearby_zips": ["78254", "78256", "78250"],
+    "property_keywords": [
+      "Helotes", "Bandera Rd", "Old Bandera Rd", "Scenic Loop"
+    ],
+    "landmarks": ["Camp Bullis", "Camp Bullis Training Site"],
+    "corridor_keywords": ["Loop 1604 West", "Outside Loop 1604"],
+    "nearby_clusters": ["la_cantera_the_rim", "alamo_ranch", "boerne"]
+  },
+  {
+    "cluster_id": "boerne",
+    "cluster_name": "Boerne",
+    "city_slug": "san-antonio",
+    "core_zips": ["78006", "78015"],
+    "nearby_zips": ["78023", "78163"],
+    "property_keywords": [
+      "Boerne", "Kendall County", "Cibolo Creek", "I-10 North"
+    ],
+    "corridor_keywords": ["Outside Loop 1604"],
+    "nearby_clusters": ["helotes", "stone_oak"]
+  },
+  {
+    "cluster_id": "converse_live_oak_universal_city",
+    "cluster_name": "Converse / Live Oak / Universal City",
+    "city_slug": "san-antonio",
+    "core_zips": ["78109", "78148", "78233"],
+    "nearby_zips": ["78244", "78263", "78108"],
+    "property_keywords": [
+      "Converse", "Live Oak", "Universal City", "Randolph AFB", "FM 78",
+      "Loop 1604 East", "Marshall Rd"
+    ],
+    "aliases": ["Converse", "Live Oak", "Universal City"],
+    "landmarks": [
+      "Fort Sam", "Fort Sam Houston", "BAMC", "Brooke Army Medical Center",
+      "Randolph", "Randolph AFB", "JBSA Randolph"
+    ],
+    "corridor_keywords": ["Loop 1604 East"],
+    "nearby_clusters": ["schertz_cibolo", "downtown_pearl"]
+  },
+  {
+    "cluster_id": "schertz_cibolo",
+    "cluster_name": "Schertz / Cibolo",
+    "city_slug": "san-antonio",
+    "core_zips": ["78108", "78154"],
+    "nearby_zips": ["78109", "78233", "78130"],
+    "property_keywords": [
+      "Schertz", "Cibolo", "FM 78", "FM 1103", "IH-35 North", "Randolph"
+    ],
+    "landmarks": ["Randolph", "Randolph AFB", "JBSA Randolph"],
+    "corridor_keywords": ["Loop 1604 East", "IH-35", "I-35", "Interstate 35", "Outside Loop 1604"],
+    "nearby_clusters": ["converse_live_oak_universal_city", "new_braunfels"]
+  },
+  {
+    "cluster_id": "new_braunfels",
+    "cluster_name": "New Braunfels",
+    "city_slug": "new-braunfels",
+    "core_zips": ["78130", "78132"],
+    "nearby_zips": ["78133", "78266", "78108"],
+    "property_keywords": [
+      "New Braunfels", "Gruene", "Schlitterbahn", "IH-35", "Landa Park"
+    ],
+    "corridor_keywords": ["IH-35", "I-35", "Interstate 35", "Outside Loop 1604"],
+    "nearby_clusters": ["schertz_cibolo", "san_marcos"]
+  },
+  {
+    "cluster_id": "san_marcos",
+    "cluster_name": "San Marcos",
+    "city_slug": "san-marcos",
+    "core_zips": ["78666"],
+    "nearby_zips": ["78667", "78130"],
+    "property_keywords": [
+      "San Marcos", "Texas State University", "Outlet Malls", "IH-35 South",
+      "River Rd"
+    ],
+    "corridor_keywords": ["IH-35", "I-35", "Interstate 35"],
+    "nearby_clusters": ["new_braunfels"]
+  },
+  {
+    "cluster_id": "downtown_pearl",
+    "cluster_name": "Downtown / Pearl",
+    "city_slug": "san-antonio",
+    "core_zips": ["78205", "78215"],
+    "nearby_zips": ["78212", "78202", "78207"],
+    "property_keywords": [
+      "Downtown", "Pearl", "Pearl Brewery", "River Walk", "Riverwalk",
+      "Tobin Hill", "Broadway", "St. Mary's Strip"
+    ],
+    "aliases": ["Downtown", "Pearl", "Pearl District", "Tobin Hill"],
+    "landmarks": [
+      "River Walk", "Tower of the Americas",
+      "Riverwalk", "San Antonio River Walk",
+      "Pearl", "Pearl District", "The Pearl", "Pearl Brewery",
+      "Hemisfair", "Downtown", "Downtown San Antonio"
+    ],
+    "corridor_keywords": ["IH-35", "I-35", "Interstate 35", "Inside Loop 1604"],
+    "nearby_clusters": ["southtown", "alamo_heights", "converse_live_oak_universal_city"]
+  },
+  {
+    "cluster_id": "southtown",
+    "cluster_name": "Southtown",
+    "city_slug": "san-antonio",
+    "core_zips": ["78204"],
+    "nearby_zips": ["78210", "78211", "78205"],
+    "property_keywords": [
+      "Southtown", "King William", "Lone Star", "Blue Star Arts Complex",
+      "S Alamo St"
+    ],
+    "nearby_clusters": ["downtown_pearl", "southside_brooks"]
+  },
+  {
+    "cluster_id": "southside_brooks",
+    "cluster_name": "Southside / Brooks City Base",
+    "city_slug": "san-antonio",
+    "core_zips": ["78211", "78223", "78214"],
+    "nearby_zips": ["78221", "78242", "78210"],
+    "property_keywords": [
+      "Southside", "Brooks City Base", "Brooks City-Base", "Mission Trail",
+      "S Presa St", "SW Military Dr"
+    ],
+    "aliases": ["Brooks", "Brooks City Base", "Southside"],
+    "landmarks": [
+      "Lackland", "Lackland AFB", "JBSA Lackland", "Joint Base San Antonio Lackland",
+      "Toyota", "Toyota Plant", "Toyota Manufacturing", "Toyota Motor Manufacturing Texas", "TMMTX",
+      "Brooks", "Brooks City Base", "Brooks City-Base"
+    ],
+    "corridor_keywords": ["Potranco Rd", "Potranco Road"],
+    "nearby_clusters": ["southtown", "westover_hills"]
+  },
+  {
+    "cluster_id": "north_central_airport",
+    "cluster_name": "North Central / Airport",
+    "city_slug": "san-antonio",
+    "core_zips": ["78216"],
+    "nearby_zips": ["78209", "78212", "78213", "78217"],
+    "property_keywords": [
+      "North Star Mall", "San Pedro Ave", "Airport", "San Antonio Airport"
+    ],
+    "aliases": ["North Central", "Airport"],
+    "landmarks": ["North Star Mall", "Airport", "SAT Airport", "San Antonio Airport", "San Antonio International Airport"],
+    "nearby_clusters": ["alamo_heights", "medical_center"]
+  }
+]
