@@ -860,6 +860,7 @@ router.push(
   padding: "0.5rem 0.75rem",
   whiteSpace: "nowrap",
   width: "100%",
+  minWidth: 0,
 }}
               ><div
   style={{
