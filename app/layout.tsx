@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 import NavigationBar from "./components/NavigationBar";
 import Footer from "./components/Footer";
@@ -6,6 +7,11 @@ import ClientPopups from "@/app/components/ClientPopups";
 import ClientSecurity from "@/app/components/ClientSecurity";
 import MobileStickyCTA from "@/app/components/MobileStickyCTA";
 import VapiScript from "@/app/components/VapiScript";
+
+// Meta Pixel — base install (fires PageView on every page). Renders nothing
+// if NEXT_PUBLIC_META_PIXEL_ID isn't set, so this is a no-op until the real
+// Pixel ID from Facebook Business Manager is added to .env.local.
+const META_PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID;
 
 /* ===============================
    SEO METADATA (SERVER-RENDERED)
@@ -41,6 +47,37 @@ export default function RootLayout({
           minHeight: "100vh",
         }}
       >
+        {/* Meta Pixel — base install, PageView only. See app/lib/analytics.ts
+            and lib/analytics/metaPixel.ts for the Lead event fired after a
+            successful lead submission. */}
+        {META_PIXEL_ID && (
+          <>
+            <Script id="meta-pixel-base" strategy="afterInteractive">
+              {`
+                !function(f,b,e,v,n,t,s)
+                {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+                n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+                if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+                n.queue=[];t=b.createElement(e);t.async=!0;
+                t.src=v;s=b.getElementsByTagName(e)[0];
+                s.parentNode.insertBefore(t,s)}(window, document,'script',
+                'https://connect.facebook.net/en_US/fbevents.js');
+                fbq('init', '${META_PIXEL_ID}');
+                fbq('track', 'PageView');
+              `}
+            </Script>
+            <noscript>
+              <img
+                height="1"
+                width="1"
+                style={{ display: "none" }}
+                src={`https://www.facebook.com/tr?id=${META_PIXEL_ID}&ev=PageView&noscript=1`}
+                alt=""
+              />
+            </noscript>
+          </>
+        )}
+
         {/* Top Navigation */}
         <NavigationBar />
 

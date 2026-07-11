@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import FollowUpRow from "./FollowUpRow"
 import LeadBoard from "./LeadBoard"
 import LeadPanel from "./LeadPanel"
@@ -43,6 +44,12 @@ export default function DashboardClient({ leads }: { leads: any[] }) {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          <Link
+            href="/admin/performance"
+            className="inline-flex items-center gap-1.5 text-gray-600 hover:text-gray-900 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
+          >
+            📊 Performance
+          </Link>
           <button
             onClick={() => setShowLeadModal(true)}
             className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors shadow-sm"

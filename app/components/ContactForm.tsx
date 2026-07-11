@@ -15,6 +15,8 @@ import { format } from "date-fns";
 import { supabase } from "@/app/lib/supabaseClient";
 import { useRouter, useSearchParams } from "next/navigation";
 import { RENT_RANGE_OPTIONS } from "@/lib/formOptions";
+import { parseUserAgent } from "@/lib/leads/parseUserAgent";
+import { fireMetaLead } from "@/lib/analytics/metaPixel";
 
 interface ContactFormProps {
   mode?: "short" | "full";
@@ -37,6 +39,9 @@ const ContactForm: React.FC<ContactFormProps> = ({
 const pageUrl =
   typeof window !== "undefined" ? window.location.href : null;
 
+const landingPage =
+  typeof window !== "undefined" ? window.location.pathname : null;
+
 const referrer =
   typeof document !== "undefined" ? document.referrer : null;
 
@@ -44,6 +49,13 @@ const utmSource = searchParams.get("utm_source");
 const utmMedium = searchParams.get("utm_medium");
 const utmCampaign = searchParams.get("utm_campaign");
 const utmContent = searchParams.get("utm_content");
+const utmTerm = searchParams.get("utm_term");
+const fbclid = searchParams.get("fbclid");
+
+const { deviceType, browser, operatingSystem } = parseUserAgent(
+  typeof navigator !== "undefined" ? navigator.userAgent : null
+);
+
 const leadSource =
   utmSource ||
   (referrer?.includes("facebook") ? "facebook" :
@@ -311,11 +323,17 @@ setIsSubmitting(true);
     // ATTRIBUTION / TRACKING
     // ======================================================
     page_url: pageUrl,
-    referrer: referrer,
+    landing_page: landingPage,
+    referrer_url: referrer,
     utm_source: utmSource,
     utm_medium: utmMedium,
     utm_campaign: utmCampaign,
     utm_content: utmContent,
+    utm_term: utmTerm,
+    fbclid: fbclid,
+    device_type: deviceType,
+    browser: browser,
+    operating_system: operatingSystem,
     source: leadSource,
   },
 ]);
@@ -325,6 +343,12 @@ setIsSubmitting(true);
           alert("Oops! Something went wrong. Please try again.");
           return;
         }
+
+        // ✅ Database insert confirmed successful — fire Meta Lead event
+        // here, and only here. Never on click, never on validation
+        // failure, never on a failed insert (both handled above).
+        // TODO(duplicate-detection): see lib/analytics/metaPixel.ts
+        fireMetaLead({ content_name: "contact-form-short" });
 
         // Redirect with prefilled params
         const params = new URLSearchParams({
@@ -430,9 +454,21 @@ criminal_charge: formData.criminalCharge,
     lead_category: "renter",
 
     // ======================================================
-    // ATTRIBUTION / SOURCE
+    // ATTRIBUTION / TRACKING
     // ======================================================
 source: leadSource,
+page_url: pageUrl,
+landing_page: landingPage,
+referrer_url: referrer,
+utm_source: utmSource,
+utm_medium: utmMedium,
+utm_campaign: utmCampaign,
+utm_content: utmContent,
+utm_term: utmTerm,
+fbclid: fbclid,
+device_type: deviceType,
+browser: browser,
+operating_system: operatingSystem,
   },
 ]).select("id");
 
@@ -446,6 +482,13 @@ source: leadSource,
 }
 
       console.log("Lead submitted successfully to Supabase!", data);
+
+      // ✅ Database insert confirmed successful — fire Meta Lead event
+      // here, and only here. Never on click, never on validation
+      // failure, never on a failed insert (both handled above).
+      // TODO(duplicate-detection): see lib/analytics/metaPixel.ts
+      fireMetaLead({ content_name: "contact-form-full" });
+
       await fetch("/api/google/create-contact", {
   method: "POST",
   headers: {
