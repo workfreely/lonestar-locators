@@ -23,9 +23,9 @@ returns jsonb as $$
     '[]'::jsonb
   )
   from (
-    select value, min(ord) as ord
+    select distinct on (lower(trim(value))) value, ord
     from jsonb_array_elements_text(arr) with ordinality as t(value, ord)
-    group by lower(trim(value))
+    order by lower(trim(value)), ord
   ) deduped
 $$ language sql immutable;
 
