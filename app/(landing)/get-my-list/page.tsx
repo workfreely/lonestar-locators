@@ -26,7 +26,7 @@ export default function GetYourListPage() {
         {/* ================= HEADER ================= */}
         <h1
   style={{
-    fontSize: "clamp(1.76rem, 4.8vw, 2.55rem)",
+    fontSize: "clamp(1.73rem, 4.8vw, 2.55rem)",
     fontWeight: 800,
     textAlign: "center",
     marginTop: "-0.75rem",
@@ -76,7 +76,7 @@ letterSpacing: "-1.5px",
             fontSize: "1.12rem",
           }}
         >
-          Get your custom apartment list
+          Get your custom luxury apartment list
         </p>
 
         <p
