@@ -1,5 +1,7 @@
 "use client"
 
+import { getSourceBarColor } from "@/lib/leads/sourceStyles"
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 const MONTHLY_REVENUE_GOAL = 100_000
 const REVENUE_PER_CLOSE    = 1_000
@@ -8,34 +10,20 @@ const MONTHLY_LEAD_GOAL    = 300
 // Statuses that mean the lead has been toured (reached touring stage or beyond)
 const TOURED_STATUSES = new Set(["done_touring", "applied", "closed"])
 
-// ─── Source pill colors ───────────────────────────────────────────────────────
-const SOURCE_PILL: Record<string, string> = {
-  tiktok:    "bg-gray-900 text-white",
-  instagram: "bg-pink-500 text-white",
-  facebook:  "bg-blue-600 text-white",
-  website:   "bg-gray-500 text-white",
-  manual:    "bg-slate-400 text-white",
-  referral:  "bg-violet-500 text-white",
-  google:    "bg-green-600 text-white",
-}
-
-// Five tracked marketing sources shown in the stacked bar legend
+// Five tracked marketing sources shown in the stacked bar legend. This is a
+// deliberately curated subset for this specific compact card (short
+// abbreviated labels, limited legend width) — NOT the full source list;
+// the Performance page's Lead Sources section shows every source that
+// actually appears in the data. Colors come from the shared
+// lib/leads/sourceStyles.ts module so they can't drift from the badges
+// shown elsewhere in the CRM.
 const TRACKED_SOURCES = [
-  { key: "website",   label: "Web",    barColor: "#6b7280", dotColor: "#6b7280" },
-  { key: "tiktok",    label: "TikTok", barColor: "#111827", dotColor: "#111827" },
-  { key: "facebook",  label: "FB",     barColor: "#2563eb", dotColor: "#2563eb" },
-  { key: "instagram", label: "IG",     barColor: "#ec4899", dotColor: "#ec4899" },
-  { key: "youtube",   label: "YT",     barColor: "#dc2626", dotColor: "#dc2626" },
+  { key: "website",   label: "Web",    barColor: getSourceBarColor("website") },
+  { key: "tiktok",    label: "TikTok", barColor: getSourceBarColor("tiktok") },
+  { key: "facebook",  label: "FB",     barColor: getSourceBarColor("facebook") },
+  { key: "instagram", label: "IG",     barColor: getSourceBarColor("instagram") },
+  { key: "youtube",   label: "YT",     barColor: getSourceBarColor("youtube") },
 ]
-
-function sourcePillCls(source: string): string {
-  return SOURCE_PILL[source?.toLowerCase()] ?? "bg-gray-400 text-white"
-}
-
-function sourceLabel(source: string): string {
-  if (!source) return "Unknown"
-  return source.charAt(0).toUpperCase() + source.slice(1).toLowerCase()
-}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -156,7 +144,7 @@ export default function DashboardStats({ leads }: { leads: any[] }) {
                     >
                       <span
                         className="w-1.5 h-1.5 rounded-full flex-none"
-                        style={{ backgroundColor: s.count === 0 ? "#d1d5db" : s.dotColor }}
+                        style={{ backgroundColor: s.count === 0 ? "#d1d5db" : s.barColor }}
                       />
                       {s.label}
                     </span>

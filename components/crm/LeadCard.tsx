@@ -5,6 +5,7 @@ import { getNextAction } from "@/lib/nextAction"
 import { supabase } from "@/lib/supabase/client"
 import { useState } from "react"
 import { formatPhone } from "@/lib/utils/formatPhone"
+import { getSourceStyle } from "@/lib/leads/sourceStyles"
 
 function normalizeName(name: string) {
   if (!name) return ""
@@ -54,19 +55,6 @@ function getFollowUpStatus(date: string) {
 function formatStatus(status: string) {
   if (!status) return "New"
   return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
-}
-
-// ─── Source badge styles ─────────────────────────────────────────────────────
-
-const SOURCE_STYLES: Record<string, string> = {
-  tiktok:    "bg-amber-50 text-amber-700 border-amber-200",
-  instagram: "bg-purple-50 text-purple-700 border-purple-200",
-  facebook:  "bg-blue-50 text-blue-700 border-blue-200",
-  youtube:   "bg-red-50 text-red-700 border-red-200",
-  website:   "bg-emerald-50 text-emerald-700 border-emerald-200",
-  referral:  "bg-orange-50 text-orange-700 border-orange-200",
-  direct:    "bg-emerald-50 text-emerald-700 border-emerald-200",
-  manual:    "bg-gray-50 text-gray-600 border-gray-200",
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -259,10 +247,10 @@ export default function LeadCard({ lead, isSelected, onSelect }: any) {
               <span
                 className={[
                   "text-[10px] font-semibold px-1.5 py-px rounded-full border",
-                  SOURCE_STYLES[lead.source] ?? "bg-gray-50 text-gray-600 border-gray-200",
+                  getSourceStyle(lead.source).badgeClassName,
                 ].join(" ")}
               >
-                {lead.source.charAt(0).toUpperCase() + lead.source.slice(1)}
+                {getSourceStyle(lead.source).label}
               </span>
             </div>
           )}

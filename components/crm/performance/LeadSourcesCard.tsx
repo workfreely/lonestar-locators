@@ -4,20 +4,14 @@
 // untouched everywhere else in the app). Simple bar-per-row list, no
 // charting library. Phase 2 can swap the bars for a real chart without
 // changing how this component is consumed.
+//
+// Labels/colors come from lib/leads/sourceStyles.ts — the same canonical
+// module used by DashboardStats, LeadCard, and LeadPanel — so a source
+// never has to be hardcoded here separately, and a source that doesn't
+// exist in the known list yet still shows up (graceful fallback) instead
+// of being silently dropped.
 
-const SOURCE_PILL: Record<string, string> = {
-  tiktok:    "bg-gray-900 text-white",
-  instagram: "bg-pink-500 text-white",
-  facebook:  "bg-blue-600 text-white",
-  website:   "bg-gray-500 text-white",
-  manual:    "bg-slate-400 text-white",
-  referral:  "bg-violet-500 text-white",
-  google:    "bg-green-600 text-white",
-}
-
-function sourcePillCls(source: string): string {
-  return SOURCE_PILL[source?.toLowerCase()] ?? "bg-gray-400 text-white"
-}
+import { getSourceStyle } from "@/lib/leads/sourceStyles"
 
 export default function LeadSourcesCard({ leads }: { leads: any[] }) {
   const counts: Record<string, number> = {}
@@ -42,12 +36,13 @@ export default function LeadSourcesCard({ leads }: { leads: any[] }) {
       <div className="space-y-2">
         {rows.map(([source, count]) => {
           const pct = total > 0 ? Math.round((count / total) * 100) : 0
+          const style = getSourceStyle(source)
           return (
             <div key={source} className="flex items-center gap-3">
               <span
-                className={`flex-none text-[11px] font-semibold px-2 py-0.5 rounded-full capitalize ${sourcePillCls(source)}`}
+                className={`flex-none text-[11px] font-semibold px-2 py-0.5 rounded-full border ${style.badgeClassName}`}
               >
-                {source}
+                {style.label}
               </span>
               <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
                 <div

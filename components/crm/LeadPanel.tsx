@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase/client"
 import { getNextAction } from "@/lib/nextAction"
 import { useState, useEffect } from "react"
 import { formatPhone } from "@/lib/utils/formatPhone"
+import { getSourceStyle } from "@/lib/leads/sourceStyles"
 import AiVoiceScriptModal from "./AiVoiceScriptModal"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -69,16 +70,9 @@ const STATUS_STYLES: Record<string, string> = {
   closed:        "bg-green-100 text-green-800 border-green-300",
 }
 
-const SOURCE_STYLES: Record<string, string> = {
-  tiktok:    "bg-amber-50 text-amber-700 border-amber-200",
-  instagram: "bg-purple-50 text-purple-700 border-purple-200",
-  facebook:  "bg-blue-50 text-blue-700 border-blue-200",
-  youtube:   "bg-red-50 text-red-700 border-red-200",
-  website:   "bg-emerald-50 text-emerald-700 border-emerald-200",
-  referral:  "bg-orange-50 text-orange-700 border-orange-200",
-  direct:    "bg-emerald-50 text-emerald-700 border-emerald-200",
-  manual:    "bg-gray-50 text-gray-600 border-gray-200",
-}
+// Source badge styles moved to lib/leads/sourceStyles.ts (getSourceStyle) —
+// the single canonical source-styling module shared with LeadCard,
+// DashboardStats, and the Performance page.
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -572,8 +566,8 @@ export default function LeadPanel({
           {lead.source && (
             <div className="flex items-start justify-between gap-4">
               <span className="text-[12.5px] text-gray-400 flex-none">Source</span>
-              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${SOURCE_STYLES[lead.source] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
-                {lead.source === "direct" ? "Website" : lead.source.charAt(0).toUpperCase() + lead.source.slice(1)}
+              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${getSourceStyle(lead.source).badgeClassName}`}>
+                {getSourceStyle(lead.source).label}
               </span>
             </div>
           )}
