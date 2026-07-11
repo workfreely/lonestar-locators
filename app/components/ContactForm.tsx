@@ -12,7 +12,6 @@ import React, { useState, useEffect } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { format } from "date-fns";
-import { supabase } from "@/app/lib/supabaseClient";
 import { useRouter, useSearchParams } from "next/navigation";
 import { RENT_RANGE_OPTIONS } from "@/lib/formOptions";
 import { parseUserAgent } from "@/lib/leads/parseUserAgent";
@@ -286,60 +285,60 @@ setIsSubmitting(true);
 
     if (isShortForm) {
       try {
-        const { data, error } = await supabase.from("leads").insert([
-  {
-    // ======================================================
-    // USER INPUT (Short Form)
-    // ======================================================
-    first_name: formData.firstName,
-    last_name: formData.lastName,
-    phone: formData.phone,
-    email: formData.email,
-    move_date: formData.moveDate || null,
+        const submitRes = await fetch("/api/leads/submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            formType: "short",
+            lead: {
+              // ======================================================
+              // USER INPUT (Short Form)
+              // ======================================================
+              first_name: formData.firstName,
+              last_name: formData.lastName,
+              phone: formData.phone,
+              email: formData.email,
+              move_date: formData.moveDate || null,
 
-    // ======================================================
-    // SMS CONSENT
-    // ======================================================
-    sms_opt_in: formData.sms_consent,
-    sms_consent_at: formData.sms_consent
-      ? new Date().toISOString()
-      : null,
+              // ======================================================
+              // SMS CONSENT
+              // ======================================================
+              sms_opt_in: formData.sms_consent,
+              sms_consent_at: formData.sms_consent
+                ? new Date().toISOString()
+                : null,
 
-    // ======================================================
-    // INTERNAL NOTES / META
-    // ======================================================
-    notes: propertyName
-      ? `Short Form | Listing: ${propertyName}`
-      : "Short Form Submission",
-    website: formData.website,
+              // ======================================================
+              // INTERNAL NOTES / META
+              // ======================================================
+              notes: propertyName
+                ? `Short Form | Listing: ${propertyName}`
+                : "Short Form Submission",
+              website: formData.website,
 
-    // ======================================================
-    // LEAD CLASSIFICATION
-    // ======================================================
-    lead_type: "short",
-    lead_category: "renter",
+              // ======================================================
+              // ATTRIBUTION / TRACKING
+              // ======================================================
+              landing_page: landingPage,
+              referrer_url: referrer,
+              utm_source: utmSource,
+              utm_medium: utmMedium,
+              utm_campaign: utmCampaign,
+              utm_content: utmContent,
+              utm_term: utmTerm,
+              fbclid: fbclid,
+              device_type: deviceType,
+              browser: browser,
+              operating_system: operatingSystem,
+              source: leadSource,
+            },
+          }),
+        });
 
-    // ======================================================
-    // ATTRIBUTION / TRACKING
-    // ======================================================
-    page_url: pageUrl,
-    landing_page: landingPage,
-    referrer_url: referrer,
-    utm_source: utmSource,
-    utm_medium: utmMedium,
-    utm_campaign: utmCampaign,
-    utm_content: utmContent,
-    utm_term: utmTerm,
-    fbclid: fbclid,
-    device_type: deviceType,
-    browser: browser,
-    operating_system: operatingSystem,
-    source: leadSource,
-  },
-]);
+        const submitJson = await submitRes.json().catch(() => null);
 
-        if (error) {
-          console.error("Error saving short form:", error);
+        if (!submitRes.ok || !submitJson?.success) {
+          console.error("Error saving short form:", submitJson?.error);
           alert("Oops! Something went wrong. Please try again.");
           return;
         }
@@ -398,82 +397,82 @@ if (formData.sms_consent && formData.phone) {
 // ======================================================
    
     try {
-      const { data, error } = await supabase.from("leads").insert([
-  {
-    // ======================================================
-    // USER INPUT (Renter Profile)
-    // ======================================================
-    first_name: formData.firstName,
-    last_name: formData.lastName,
-    phone: formData.phone,
-    email: formData.email,
-    move_date: formData.moveDate || null, 
-    city: formData.city,
-    neighborhoods: formData.neighborhoods.join(", "),
-    submarkets: formData.submarkets?.join(", "),
-    property_type: formData.propertyType,
-    desired_rent: formData.desiredRent,
-    beds: formData.beds,
-    baths: formData.baths,
-    income: formData.income,
+      const submitRes = await fetch("/api/leads/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          formType: "full",
+          lead: {
+            // ======================================================
+            // USER INPUT (Renter Profile)
+            // ======================================================
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            phone: formData.phone,
+            email: formData.email,
+            move_date: formData.moveDate || null,
+            city: formData.city,
+            neighborhoods: formData.neighborhoods.join(", "),
+            submarkets: formData.submarkets?.join(", "),
+            property_type: formData.propertyType,
+            desired_rent: formData.desiredRent,
+            beds: formData.beds,
+            baths: formData.baths,
+            income: formData.income,
 
-    // ======================================================
-    // CREDIT / SCREENING INFO (Renter-only)
-    // ======================================================
-    credit_history: formData.creditHistory,
-    credit_score: formData.creditScore,
-    broken_lease_age: formData.brokenLeaseAge,
-    broken_lease_amount: formData.brokenLeaseAmount,
-    eviction_court: formData.evictionCourt,
-    eviction_age: formData.evictionAge,
-    eviction_balance: formData.evictionBalance,
-    felony_age: formData.felonyAge,
-misdemeanor_age: formData.misdemeanorAge,
+            // ======================================================
+            // CREDIT / SCREENING INFO (Renter-only)
+            // ======================================================
+            credit_history: formData.creditHistory,
+            credit_score: formData.creditScore,
+            broken_lease_age: formData.brokenLeaseAge,
+            broken_lease_amount: formData.brokenLeaseAmount,
+            eviction_court: formData.evictionCourt,
+            eviction_age: formData.evictionAge,
+            eviction_balance: formData.evictionBalance,
+            felony_age: formData.felonyAge,
+            misdemeanor_age: formData.misdemeanorAge,
 
-criminal_background: formData.criminalBackground,
-criminal_charge: formData.criminalCharge,
+            criminal_background: formData.criminalBackground,
+            criminal_charge: formData.criminalCharge,
 
-    // ======================================================
-    // NOTES / META
-    // ======================================================
-    notes: formData.notes,
-    website: formData.website,
+            // ======================================================
+            // NOTES / META
+            // ======================================================
+            notes: formData.notes,
+            website: formData.website,
 
-    // ======================================================
-    // SMS CONSENT
-    // ======================================================
-    sms_opt_in: formData.sms_consent,
-    sms_consent_at: formData.sms_consent
-      ? new Date().toISOString()
-      : null,
+            // ======================================================
+            // SMS CONSENT
+            // ======================================================
+            sms_opt_in: formData.sms_consent,
+            sms_consent_at: formData.sms_consent
+              ? new Date().toISOString()
+              : null,
 
-    // ======================================================
-    // LEAD CLASSIFICATION
-    // ======================================================
-    lead_type: "full",
-    lead_category: "renter",
+            // ======================================================
+            // ATTRIBUTION / TRACKING
+            // ======================================================
+            source: leadSource,
+            landing_page: landingPage,
+            referrer_url: referrer,
+            utm_source: utmSource,
+            utm_medium: utmMedium,
+            utm_campaign: utmCampaign,
+            utm_content: utmContent,
+            utm_term: utmTerm,
+            fbclid: fbclid,
+            device_type: deviceType,
+            browser: browser,
+            operating_system: operatingSystem,
+          },
+        }),
+      });
 
-    // ======================================================
-    // ATTRIBUTION / TRACKING
-    // ======================================================
-source: leadSource,
-page_url: pageUrl,
-landing_page: landingPage,
-referrer_url: referrer,
-utm_source: utmSource,
-utm_medium: utmMedium,
-utm_campaign: utmCampaign,
-utm_content: utmContent,
-utm_term: utmTerm,
-fbclid: fbclid,
-device_type: deviceType,
-browser: browser,
-operating_system: operatingSystem,
-  },
-]).select("id");
+      const submitJson = await submitRes.json().catch(() => null);
 
-      if (error) {
-  console.error("FULL ERROR:", JSON.stringify(error, null, 2));
+      if (!submitRes.ok || !submitJson?.success) {
+  console.error("FULL ERROR:", submitJson?.error);
   alert(
     "Yikes! There was an error submitting the form. Please try again."
   );
@@ -481,7 +480,7 @@ operating_system: operatingSystem,
   return;
 }
 
-      console.log("Lead submitted successfully to Supabase!", data);
+      console.log("Lead submitted successfully:", submitJson);
 
       // ✅ Database insert confirmed successful — fire Meta Lead event
       // here, and only here. Never on click, never on validation
@@ -495,7 +494,7 @@ operating_system: operatingSystem,
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
-    leadId: data?.[0]?.id,
+    leadId: submitJson?.leadId,
 
     firstName: formData.firstName,
     lastName: formData.lastName,
