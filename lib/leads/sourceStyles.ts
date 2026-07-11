@@ -34,6 +34,16 @@ const KNOWN_SOURCES: Record<string, SourceStyle> = {
   referral:  { label: "Referral",  badgeClassName: "bg-orange-50 text-orange-700 border-orange-200",    barColor: "#ea580c" },
   direct:    { label: "Website",   badgeClassName: "bg-emerald-50 text-emerald-700 border-emerald-200", barColor: "#6b7280" },
   manual:    { label: "Manual",    badgeClassName: "bg-gray-50 text-gray-600 border-gray-200",          barColor: "#6b7280" },
+
+  // First-class as of this update — previously only existed in a dead,
+  // never-rendered map, so it had no real "existing" color to preserve.
+  google: { label: "Google", badgeClassName: "bg-green-50 text-green-700 border-green-200", barColor: "#16a34a" },
+
+  // Future-ready: no leads use this yet. Covers leads that come through
+  // Vapi, a chat widget, or other AI-driven intake tools once wired up —
+  // whichever of those eventually writes `source`, it should write
+  // "ai_assistant" to get this styling rather than falling back to gray.
+  ai_assistant: { label: "AI Assistant", badgeClassName: "bg-indigo-50 text-indigo-700 border-indigo-200", barColor: "#4f46e5" },
 }
 
 const FALLBACK_BADGE_CLASS = "bg-gray-50 text-gray-600 border-gray-200"
