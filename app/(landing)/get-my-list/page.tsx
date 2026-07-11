@@ -26,7 +26,7 @@ export default function GetYourListPage() {
         {/* ================= HEADER ================= */}
         <h1
   style={{
-    fontSize: "clamp(1.55rem, 4.5vw, 2.4rem)",
+    fontSize: "clamp(1.65rem, 4.8vw, 2.55rem)",
     fontWeight: 800,
     textAlign: "center",
     marginTop: "-0.75rem",
@@ -56,8 +56,8 @@ letterSpacing: "-1.5px",
     src="https://res.cloudinary.com/dxtiguwzm/image/upload/v1748014964/jay-morris-free-apartment-locator-san-antonio-texas_pgf7fs.png"
     alt="Jay Morris"
     style={{
-      width: "82px",
-      height: "82px",
+      width: "90px",
+      height: "90px",
       borderRadius: "50%",
       objectFit: "cover",
       border: "2px solid #f0f0f0",
@@ -73,10 +73,10 @@ letterSpacing: "-1.5px",
             marginBottom: "0.35rem",
             color: "#555",
             lineHeight: 1.4,
-            fontSize: "1.05rem",
+            fontSize: "1.12rem",
           }}
         >
-          I’ll send you the best apartment deals
+          Get your custom apartment list
         </p>
 
         <p
@@ -98,13 +98,13 @@ letterSpacing: "-1.5px",
     color: "#1e40af",
     borderRadius: "999px",
 
-padding: "10px 12px",
+padding: "11px 14px",
 
     marginTop: "0.75rem",
     marginBottom: "0.9rem",
 
     fontWeight: 600,
-    fontSize: "0.76rem",
+    fontSize: "0.79rem",
     lineHeight: 1.4,
 
     textAlign: "center",
