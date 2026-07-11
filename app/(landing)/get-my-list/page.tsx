@@ -26,7 +26,7 @@ export default function GetYourListPage() {
         {/* ================= HEADER ================= */}
         <h1
   style={{
-    fontSize: "clamp(1.65rem, 4.8vw, 2.55rem)",
+    fontSize: "clamp(1.76rem, 4.8vw, 2.55rem)",
     fontWeight: 800,
     textAlign: "center",
     marginTop: "-0.75rem",
