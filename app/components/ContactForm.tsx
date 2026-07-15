@@ -488,138 +488,144 @@ if (formData.sms_consent && formData.phone) {
       // TODO(duplicate-detection): see lib/analytics/metaPixel.ts
       fireMetaLead({ content_name: "contact-form-full" });
 
-      await fetch("/api/google/create-contact", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    leadId: submitJson?.leadId,
-
-    firstName: formData.firstName,
-    lastName: formData.lastName,
-    phone: formData.phone,
-    email: formData.email,
-
-    city: formData.city || "Lead",
-    source: leadSource || "website",
-
-    moveDate: formData.moveDate,
-    desiredRent: formData.desiredRent,
-
-    beds: formData.beds,
-    baths: formData.baths,
-
-    propertyType: formData.propertyType,
-
-    neighborhoods: formData.neighborhoods.join(", "),
-    submarkets: formData.submarkets?.join(", "),
-
-    creditScore: formData.creditScore,
-creditHistory: formData.creditHistory,
-
-brokenLeaseAge: formData.brokenLeaseAge,
-brokenLeaseAmount: formData.brokenLeaseAmount,
-
-evictionCourt: formData.evictionCourt,
-evictionAge: formData.evictionAge,
-evictionBalance: formData.evictionBalance,
-
-criminalBackground: formData.criminalBackground,
-criminalCharge: formData.criminalCharge,
-
-felonyAge: formData.felonyAge,
-misdemeanorAge: formData.misdemeanorAge,
-
-notes: formData.notes,
-  }),
-});
-
-// ------------------------------------------------------
-// Send Confirmation Email to Lead (Non-blocking)
-// ------------------------------------------------------
-if (formData.email) {
-  try {
-    // 1️⃣ Fetch renter template
-    const params = new URLSearchParams({
-  firstName: formData.firstName,
-  city: formData.city,
-  moveDate: formData.moveDate,
-  budget: formData.desiredRent,
-  beds: formData.beds,
-  baths: formData.baths,
-  propertyType: formData.propertyType,
-  neighborhoods: formData.neighborhoods.join(", "),
-  submarkets: formData.submarkets?.join(", ") || "",
-  creditScore: formData.creditScore,
-  creditHistory: formData.creditHistory,
-  brokenLeaseAge: formData.brokenLeaseAge || "",
-  brokenLeaseAmount: formData.brokenLeaseAmount || "",
-  evictionCourt: formData.evictionCourt || "",
-  evictionAge: formData.evictionAge || "",
-  evictionBalance: formData.evictionBalance || "",
-  felonyAge: formData.felonyAge || "",
-  misdemeanorAge: formData.misdemeanorAge || "",
-  criminalBackground: formData.criminalBackground || "",
-criminalCharge: formData.criminalCharge || "",
-  source: leadSource,
-  notes: formData.notes || "",
-});
-
-const templateRes = await fetch(
-  `/api/templates/renter?${params.toString()}`
-);
-
-    const templateHtml = await templateRes.text();
-
-    // 2️⃣ Send email using template
-    await fetch("/api/send-email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        to: formData.email,
-      subject: `${formData.city} Search Update`,
-        html: templateHtml,
-      }),
-    });
-  } catch (err) {
-    console.error("Lead confirmation email failed:", err);
-  }
-}
-
-      // ------------------------------------------------------
-// Trigger Welcome SMS (non-blocking)
-// ------------------------------------------------------
-if (formData.sms_consent && formData.phone) {
-  fetch("/api/sms/send-welcome", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      firstName: formData.firstName,
-      phone: formData.phone,
-      leadType: "full",
-    }),
-  }).catch((err) => {
-    console.error("Welcome SMS trigger failed:", err);
-  });
-}
-
-
- // ======================================================
-// Post-Submit Redirect
-// Purpose: Confirmation + UX flow
-// ======================================================
+      // ======================================================
+      // Post-Submit Redirect
+      // Purpose: Confirmation + UX flow
+      // Redirect immediately — everything below is best-effort and
+      // must never block or fail the user-visible outcome.
+      // ======================================================
       router.push(
-  `/thank-you?firstName=${encodeURIComponent(
-    formData.firstName
-  )}&city=${encodeURIComponent(formData.city)}`
-);
-
+        `/thank-you?firstName=${encodeURIComponent(
+          formData.firstName
+        )}&city=${encodeURIComponent(formData.city)}`
+      );
 
       // Smooth scroll after redirect
       setTimeout(() => {
         window.scrollTo({ top: 0, behavior: "smooth" });
       }, 200);
+
+      // ------------------------------------------------------
+      // Google Contact Sync (fire-and-forget)
+      // ------------------------------------------------------
+      fetch("/api/google/create-contact", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          leadId: submitJson?.leadId,
+
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          phone: formData.phone,
+          email: formData.email,
+
+          city: formData.city || "Lead",
+          source: leadSource || "website",
+
+          moveDate: formData.moveDate,
+          desiredRent: formData.desiredRent,
+
+          beds: formData.beds,
+          baths: formData.baths,
+
+          propertyType: formData.propertyType,
+
+          neighborhoods: formData.neighborhoods.join(", "),
+          submarkets: formData.submarkets?.join(", "),
+
+          creditScore: formData.creditScore,
+          creditHistory: formData.creditHistory,
+
+          brokenLeaseAge: formData.brokenLeaseAge,
+          brokenLeaseAmount: formData.brokenLeaseAmount,
+
+          evictionCourt: formData.evictionCourt,
+          evictionAge: formData.evictionAge,
+          evictionBalance: formData.evictionBalance,
+
+          criminalBackground: formData.criminalBackground,
+          criminalCharge: formData.criminalCharge,
+
+          felonyAge: formData.felonyAge,
+          misdemeanorAge: formData.misdemeanorAge,
+
+          notes: formData.notes,
+        }),
+      }).catch((err) => {
+        console.error("Google Contact sync failed:", err);
+      });
+
+      // ------------------------------------------------------
+      // Send Confirmation Email to Lead (fire-and-forget)
+      // ------------------------------------------------------
+      if (formData.email) {
+        (async () => {
+          try {
+            // 1️⃣ Fetch renter template
+            const params = new URLSearchParams({
+              firstName: formData.firstName,
+              city: formData.city,
+              moveDate: formData.moveDate,
+              budget: formData.desiredRent,
+              beds: formData.beds,
+              baths: formData.baths,
+              propertyType: formData.propertyType,
+              neighborhoods: formData.neighborhoods.join(", "),
+              submarkets: formData.submarkets?.join(", ") || "",
+              creditScore: formData.creditScore,
+              creditHistory: formData.creditHistory,
+              brokenLeaseAge: formData.brokenLeaseAge || "",
+              brokenLeaseAmount: formData.brokenLeaseAmount || "",
+              evictionCourt: formData.evictionCourt || "",
+              evictionAge: formData.evictionAge || "",
+              evictionBalance: formData.evictionBalance || "",
+              felonyAge: formData.felonyAge || "",
+              misdemeanorAge: formData.misdemeanorAge || "",
+              criminalBackground: formData.criminalBackground || "",
+              criminalCharge: formData.criminalCharge || "",
+              source: leadSource,
+              notes: formData.notes || "",
+            });
+
+            const templateRes = await fetch(
+              `/api/templates/renter?${params.toString()}`
+            );
+            const templateHtml = await templateRes.text();
+
+            // 2️⃣ Send email using template
+            await fetch("/api/send-email", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                to: formData.email,
+                subject: `${formData.city} Search Update`,
+                html: templateHtml,
+              }),
+            });
+          } catch (err) {
+            console.error("Lead confirmation email failed:", err);
+          }
+        })();
+      }
+
+      // ------------------------------------------------------
+      // Trigger Welcome SMS (fire-and-forget)
+      // ------------------------------------------------------
+      if (formData.sms_consent && formData.phone) {
+        fetch("/api/sms/send-welcome", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            firstName: formData.firstName,
+            phone: formData.phone,
+            leadType: "full",
+          }),
+        }).catch((err) => {
+          console.error("Welcome SMS trigger failed:", err);
+        });
+      }
     } catch (err) {
   console.error("Unexpected error:", err);
   alert("Yikes! There was an error submitting the form. Please try again.");
