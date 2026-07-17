@@ -3,6 +3,14 @@
     {
       "path": "/api/cron/send-3day-followups",
       "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/cron/auto-archive-no-response",
+      "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/cron/archive-monthly-closed",
+      "schedule": "0 15 * * *"
     }
   ]
 }

@@ -7,8 +7,11 @@ const MONTHLY_REVENUE_GOAL = 100_000
 const REVENUE_PER_CLOSE    = 1_000
 const MONTHLY_LEAD_GOAL    = 300
 
-// Statuses that mean the lead has been toured (reached touring stage or beyond)
-const TOURED_STATUSES = new Set(["done_touring", "applied", "closed"])
+// Active Pipeline counts only leads still moving through the workflow —
+// never Closed (won) or Archived (dead/lost).
+const ACTIVE_STATUSES = new Set([
+  "new", "contacted", "qualified", "list_sent", "ready_to_tour", "done_touring", "applied",
+])
 
 // Five tracked marketing sources shown in the stacked bar legend. This is a
 // deliberately curated subset for this specific compact card (short
@@ -42,12 +45,15 @@ function fmt(n: number): string {
 
 export default function DashboardStats({ leads }: { leads: any[] }) {
 
-  // Active pipeline — excludes closed
-  const activeLeads         = leads.filter((l) => l.crm_status !== "closed")
+  // Active pipeline — only leads still in the active workflow (excludes
+  // both Closed and Archived)
+  const activeLeads         = leads.filter((l) => ACTIVE_STATUSES.has(l.crm_status))
   const activePipelineValue = activeLeads.length * REVENUE_PER_CLOSE
 
-  // Closed this month — uses created_at as proxy (no closed_at column yet)
-  const closedThisMonth  = leads.filter((l) => l.crm_status === "closed" && isThisMonth(l.created_at))
+  // Closed this month — keyed off closed_at (the lead's actual closed
+  // date), not crm_status, so this stays correct after the monthly Closed
+  // cleanup archives a lead out of the Closed column.
+  const closedThisMonth  = leads.filter((l) => l.closed_at && isThisMonth(l.closed_at))
   const revenueThisMonth = closedThisMonth.length * REVENUE_PER_CLOSE
   const progressPct      = Math.min(Math.round((revenueThisMonth / MONTHLY_REVENUE_GOAL) * 100), 100)
 
@@ -65,12 +71,13 @@ export default function DashboardStats({ leads }: { leads: any[] }) {
     ? Math.round((sourceCounts[topSourceKey] / generatedThisMonth.length) * 100)
     : 0
 
-  // Conversion rate — closed / toured (done_touring + applied + closed)
-  const touredLeads = leads.filter((l) => TOURED_STATUSES.has(l.crm_status))
-  const closedLeads = leads.filter((l) => l.crm_status === "closed")
-  const conversionRate = touredLeads.length > 0
-    ? Math.round((closedLeads.length / touredLeads.length) * 100)
-    : 0
+  // Projected commission — simple version: Applied leads only, using the
+  // same per-lead dollar figure (REVENUE_PER_CLOSE) already used above for
+  // Active Pipeline / Monthly Goal. Not estimating from any other stage
+  // yet (Qualified, List Sent, Ready to Tour, etc.) — intentionally simple
+  // until there's more production data to base a smarter model on.
+  const appliedLeads = leads.filter((l) => l.crm_status === "applied")
+  const projectedCommission = appliedLeads.length * REVENUE_PER_CLOSE
 
   return (
     <div className="flex-none bg-zinc-100 border-b border-zinc-200 px-5 pt-3 pb-5">
@@ -155,14 +162,12 @@ export default function DashboardStats({ leads }: { leads: any[] }) {
           )
         })()}
 
-        {/* 4 — Conversion Rate */}
+        {/* 4 — Projected Commission */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-2 flex flex-col justify-between transition-shadow transition-colors duration-200 hover:border-blue-200 hover:shadow-[0_4px_20px_rgba(59,130,246,0.12),0_8px_24px_rgba(0,0,0,0.08)]">
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Conversion Rate</p>
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Projected Commission</p>
           <div className="mt-1">
-            <p className="text-xl font-bold text-gray-900 leading-none">{conversionRate}%</p>
-            <p className="text-[10px] text-gray-400 mt-1">
-              {closedLeads.length} / {touredLeads.length} tours
-            </p>
+            <p className="text-xl font-bold text-gray-900 leading-none">${fmt(projectedCommission)}</p>
+            <p className="text-[10px] text-gray-400 mt-1">{appliedLeads.length} applied {appliedLeads.length === 1 ? "lead" : "leads"}</p>
           </div>
         </div>
 

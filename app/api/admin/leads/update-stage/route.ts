@@ -124,13 +124,23 @@ export async function POST(request: Request) {
     // SUPABASE STAGE UPDATE
     // =====================================================
 
+    const stageUpdate: Record<string, any> = {
+      crm_status,
+      next_action_date,
+      follow_up_count,
+    }
+
+    // Set once per transition into "closed" — the historical closed date
+    // that Closed-based reporting relies on (see closed_at migration),
+    // independent of whether the lead later gets archived by the monthly
+    // Closed cleanup.
+    if (oldStage !== "closed" && crm_status === "closed") {
+      stageUpdate.closed_at = new Date().toISOString()
+    }
+
     const { error } = await supabaseAdmin
       .from("leads")
-      .update({
-        crm_status,
-        next_action_date,
-        follow_up_count,
-      })
+      .update(stageUpdate)
       .eq("id", leadId)
 
     if (error) {

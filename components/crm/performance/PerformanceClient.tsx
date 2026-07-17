@@ -5,6 +5,9 @@ import PerformanceStats from "./PerformanceStats"
 import LeadSourcesCard from "./LeadSourcesCard"
 import CampaignTable from "./CampaignTable"
 import LandingPageTable from "./LandingPageTable"
+import LeadsByCityCard from "./LeadsByCityCard"
+import ClosedDealsByCityCard from "./ClosedDealsByCityCard"
+import MonthlyPerformanceHistory from "./MonthlyPerformanceHistory"
 
 // Composes the Phase 1 Performance page from the reusable pieces above.
 // Deliberately thin — Phase 2 (ROI, spend, charts, funnels) adds new
@@ -40,12 +43,19 @@ export default function PerformanceClient({ leads }: { leads: any[] }) {
       <div className="flex-1 overflow-y-auto p-5 space-y-5">
         <PerformanceStats leads={leads} />
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <LeadsByCityCard leads={leads} />
+          <ClosedDealsByCityCard leads={leads} />
+        </div>
+
         <div className="grid grid-cols-2 gap-5">
           <LeadSourcesCard leads={leads} />
           <LandingPageTable leads={leads} />
         </div>
 
         <CampaignTable leads={leads} />
+
+        <MonthlyPerformanceHistory leads={leads} />
       </div>
     </div>
   )

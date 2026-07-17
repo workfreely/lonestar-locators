@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { createPortal } from "react-dom"
+import { formatPropertyTypeDisplay } from "@/lib/leads/propertyTypeDisplay"
 
 type Props = {
   open: boolean
@@ -27,7 +28,7 @@ function firstName(lead: any): string {
 
 function buildListSent(lead: any, topMatches: any[]): string {
   const name             = firstName(lead)
-  const propType         = lead.property_type || "apartment"
+  const propType         = formatPropertyTypeDisplay(lead.property_type) || "apartment"
   const topProperty      = topMatches[0]?.name || "one of the top options"
   const topPropertyReason = "it checks almost every box you mentioned"
   const wildcardProperty = topMatches[1]?.name || "a few additional options"

@@ -1111,6 +1111,7 @@ const noteStyle = {
               <option value="">Select Property Type</option>
               <option value="Studio">Studio</option>
               <option value="Apartment">Apartment</option>
+              <option value="High-Rise">High-Rise</option>
               <option value="Townhome">Townhome</option>
               <option value="Rental Home">Rental Home</option>
               <option value="Penthouse">Penthouse</option>

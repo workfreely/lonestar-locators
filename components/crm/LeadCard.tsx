@@ -6,6 +6,8 @@ import { supabase } from "@/lib/supabase/client"
 import { useState } from "react"
 import { formatPhone } from "@/lib/utils/formatPhone"
 import { getSourceStyle } from "@/lib/leads/sourceStyles"
+import { inferMarketFromLandingPage } from "@/lib/leads/inferMarketFromLandingPage"
+import { getArchiveReasonBadgeLabel } from "@/lib/leads/archiveReasons"
 
 function normalizeName(name: string) {
   if (!name) return ""
@@ -143,6 +145,18 @@ export default function LeadCard({ lead, isSelected, onSelect }: any) {
 
   const isHot = ["done_touring", "applied", "closed"].includes(lead.crm_status)
 
+  // ─── Short-form market inference (display only) ────────────────────────
+  const inferredMarket =
+    lead.lead_type === "short" && !lead.city
+      ? inferMarketFromLandingPage(lead.landing_page)
+      : null
+
+  // ─── Archive reason badge (archived leads only) ────────────────────────
+  const archiveBadgeLabel =
+    lead.crm_status === "archived"
+      ? getArchiveReasonBadgeLabel(lead.archive_reason)
+      : null
+
   // ─── Render ─────────────────────────────────────────────────────────────
 
   return (
@@ -192,6 +206,11 @@ export default function LeadCard({ lead, isSelected, onSelect }: any) {
               HOT
             </span>
           )}
+          {archiveBadgeLabel && (
+            <span className="flex-none text-[9.5px] font-semibold px-1.5 py-px rounded-full bg-slate-100 text-slate-600 border border-slate-300 whitespace-nowrap mt-0.5">
+              {archiveBadgeLabel}
+            </span>
+          )}
         </div>
 
         {/* Phone */}
@@ -222,8 +241,8 @@ export default function LeadCard({ lead, isSelected, onSelect }: any) {
         {/* Info grid */}
         <div className="bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1.5 space-y-1 text-[11.5px] mb-2">
           <div className="flex justify-between leading-[1.35]">
-            <span className="text-gray-400">City</span>
-            <span className="font-medium text-gray-800">{lead.city || "—"}</span>
+            <span className="text-gray-400">{inferredMarket ? "Interest" : "City"}</span>
+            <span className="font-medium text-gray-800">{inferredMarket || lead.city || "—"}</span>
           </div>
           <div className="flex justify-between leading-[1.35]">
             <span className="text-gray-400">Budget</span>

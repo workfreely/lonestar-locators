@@ -15,9 +15,19 @@
 // Does NOT include Duplicate Detection — that work lives on
 // crm-v2-foundation and hasn't been tested/merged. Every submission here
 // is inserted as a new row, same as production behaved before this fix.
+//
+// Also creates the "New Lead" Google Calendar event server-side (full-form
+// renter leads only) via `after()`, once the insert has succeeded — see
+// the POST handler below. This replaces the old client-side fire-and-forget
+// call to /api/google/new-lead-event that only LandingForm.tsx ever made;
+// ContactForm.tsx never had it, so every full submission through
+// /start-your-search, city-specific pages, and the blog/review/comparison/
+// listing layouts was silently missing a calendar event. Both forms now
+// get it for free by going through this one route.
 
-import { NextResponse } from "next/server"
+import { NextResponse, after } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { createNewLeadCalendarEvent } from "@/lib/google/createCalendarEvent"
 
 // Server-only client — SUPABASE_SERVICE_ROLE_KEY has no NEXT_PUBLIC_
 // prefix, so it is never bundled into browser JS.
@@ -109,7 +119,18 @@ function validateAndBuildPayload(
   // Required fields — matches what the client already effectively
   // requires today (first/last name, phone). Not adding new required
   // fields (e.g. email) that the current forms don't already enforce.
-  for (const required of ["first_name", "last_name", "phone"]) {
+  //
+  // `city` is required for full-form submissions only — every completed
+  // renter lead must have a city. Short-form submissions intentionally
+  // don't collect city yet (that happens on the full form later), so it's
+  // left out of this list for formType "short" to keep that flow exactly
+  // as fast/frictionless as it is today.
+  const requiredFields =
+    formType === "full"
+      ? ["first_name", "last_name", "phone", "city"]
+      : ["first_name", "last_name", "phone"]
+
+  for (const required of requiredFields) {
     if (!payload[required] || typeof payload[required] !== "string" || (payload[required] as string).trim() === "") {
       errors.push({ field: required, message: `${required} is required` })
     }
@@ -165,6 +186,47 @@ export async function POST(request: Request) {
     if (error) {
       console.error("[api/leads/submit] Insert failed:", error)
       return NextResponse.json({ success: false, error: "Something went wrong. Please try again." }, { status: 500 })
+    }
+
+    // ─── New Lead Calendar event (server-side, best-effort) ───────────────
+    // Scheduled via `after()` so it runs once this response has already
+    // been sent — the lead is saved and the client redirects immediately
+    // either way. A Calendar failure here can never roll back the insert
+    // above or flip this response to an error.
+    //
+    // Two layers of isolation, deliberately: the inner try/catch handles a
+    // failure inside the calendar call itself (bad credentials, Google API
+    // error, etc.); the outer one handles a failure in registering the
+    // callback with `after()` itself. Either way, nothing here can escape
+    // to the outer route try/catch below and turn an already-successful
+    // insert into a reported failure.
+    //
+    // Full renter leads only — short-form submissions get their calendar
+    // event once (and if) they complete the full form later, same as
+    // today; creating one at the short-form step would just double up
+    // once that happens.
+    if (formType === "full" && result.payload.lead_category === "renter") {
+      try {
+        after(async () => {
+          try {
+            await createNewLeadCalendarEvent({
+              first_name: result.payload.first_name as string | undefined,
+              last_name: result.payload.last_name as string | undefined,
+              phone: result.payload.phone as string | undefined,
+              city: result.payload.city as string | undefined,
+              source: result.payload.source as string | undefined,
+              desired_rent: result.payload.desired_rent as string | undefined,
+              beds: result.payload.beds as string | undefined,
+              move_date: result.payload.move_date as string | undefined,
+              credit_score: result.payload.credit_score as string | undefined,
+            })
+          } catch (err) {
+            console.error("[api/leads/submit] New-lead calendar event failed:", err)
+          }
+        })
+      } catch (err) {
+        console.error("[api/leads/submit] Failed to schedule new-lead calendar event:", err)
+      }
     }
 
     return NextResponse.json({ success: true, leadId: data.id })

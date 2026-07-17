@@ -554,26 +554,10 @@ if (formData.sms_consent && formData.phone) {
         console.error("Google Contact sync failed:", err);
       });
 
-      // ------------------------------------------------------
-      // New Lead Calendar Notification (fire-and-forget)
-      // ------------------------------------------------------
-      fetch("/api/google/new-lead-event", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          firstName:   formData.firstName,
-          lastName:    formData.lastName,
-          phone:       formData.phone,
-          city:        formData.city,
-          source:      leadSource,
-          desiredRent: formData.desiredRent,
-          beds:        formData.beds,
-          moveDate:    formData.moveDate,
-          creditScore: formData.creditScore,
-        }),
-      }).catch((err) => {
-        console.error("New lead Calendar event failed:", err)
-      })
+      // New Lead Calendar Notification now happens server-side in
+      // /api/leads/submit (after the insert succeeds) — see that route.
+      // Removed the client-side call here so both LandingForm and
+      // ContactForm get it uniformly instead of only this one form.
 
       // ------------------------------------------------------
       // Send Confirmation Email to Lead (fire-and-forget)
@@ -1123,6 +1107,7 @@ if (formData.sms_consent && formData.phone) {
               <option value="">Select Property Type</option>
               <option value="Studio">Studio</option>
               <option value="Apartment">Apartment</option>
+              <option value="High-Rise">High-Rise</option>
               <option value="Townhome">Townhome</option>
               <option value="Rental Home">Rental Home</option>
               <option value="Penthouse">Penthouse</option>

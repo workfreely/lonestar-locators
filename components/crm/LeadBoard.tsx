@@ -19,6 +19,7 @@ const columns = [
   { id: "done_touring", title: "🟡 Done Touring" },
   { id: "applied", title: "⚫ Applied" },
   { id: "closed", title: "🏁 Closed" },
+  { id: "archived", title: "⚪ Archived" },
 ]
 
 export default function LeadBoard({

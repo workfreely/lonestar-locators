@@ -135,6 +135,7 @@ export default function LeadFields({
           className={selectCls}
           value={form.city || ""}
           onChange={e => updateField("city", e.target.value)}
+          required
         >
           <option value="">City *</option>
           {CITIES.map(c => <option key={c} value={c}>{c}</option>)}

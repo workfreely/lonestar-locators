@@ -7,6 +7,7 @@ export const CITIES = ["San Antonio", "Austin", "Dallas", "Houston"] as const
 export const PROPERTY_TYPES = [
   "Studio",
   "Apartment",
+  "High-Rise",
   "Townhome",
   "Rental Home",
   "Penthouse",

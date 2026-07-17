@@ -24,6 +24,7 @@ const STAGE_DOT: Record<string, string> = {
   done_touring:   "bg-yellow-500",
   applied:        "bg-gray-500",
   closed:         "bg-green-600",
+  archived:       "bg-slate-400",
 }
 
 // Strip the leading emoji from the title string passed in from LeadBoard

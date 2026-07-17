@@ -6,18 +6,8 @@ import type { AiClientBrief } from "@/lib/types/aiClientBrief"
 
 import { MANAGEMENT_PROFILES }
 from "@/lib/managementProfiles"
-
-// 🔥 KEYWORD EXTRACTOR
-function extractKeywords(text: string) {
-  if (!text) return []
-
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, "")
-    .split(/\s|,/)
-    .map((w) => w.trim())
-    .filter((w) => w.length > 2)
-}
+import { runLocationFilter, LOCATION_FILTER_MAX_SCORE } from "@/lib/matching/filters/locationFilter"
+import { runApprovalFilter } from "@/lib/matching/filters/approvalFilter"
 
 // 🔥 MATCH SCORING (APPROVAL FIRST)
 function calculateMatchScore(property: any, lead: any) {
@@ -166,29 +156,15 @@ function calculateMatchScore(property: any, lead: any) {
   }
 
   // =====================
-  // LOCATION KEYWORDS
+  // LOCATION FILTER
+  // Delegates to the shared, independent Location Filter module — the one
+  // production location-scoring implementation, also used by
+  // lib/matching/filters/finalRankingEngine.ts. Fully independent of
+  // approval/budget/property-type scoring below (see that module for the
+  // tier-priority details: Neighborhood > Submarket > Tags > Address).
   // =====================
-  const leadText = [lead.neighborhoods, lead.desired_areas, lead.notes]
-    .filter(Boolean)
-    .join(" ")
-  const propertyText = [
-    property.neighborhood,
-    property.submarket,
-    property.full_address,
-  ]
-    .filter(Boolean)
-    .join(" ")
-
-  const leadKeywords = extractKeywords(leadText)
-  const propertyKeywords = extractKeywords(propertyText)
-
-  const matches = propertyKeywords.filter((kw) =>
-    leadKeywords.includes(kw)
-  )
-
-  if (matches.length > 0) {
-    score += Math.min(25, matches.length * 10)
-  }
+  const locationResult = runLocationFilter(lead, property)
+  score += locationResult.score
 
   // =====================
   // BUDGET (guideline, not hard filter)
@@ -238,6 +214,19 @@ function calculateMatchScore(property: any, lead: any) {
   if (lead.criminal_background === "Felony" && management?.strictFelony) {
     score -= 40
   }
+
+  // =====================
+  // APPROVAL FILTER
+  // Placeholder — delegates to the shared Approval Filter module, which
+  // always returns score: 0 today (see lib/matching/filters/approvalFilter.ts
+  // for prior art / TODOs). Computed here so it's available/verifiable and
+  // ready to wire in later, but NOT yet added to `score`.
+  //
+  // TODO(approval-scoring): once real scoring exists, add it in with:
+  //   score += approvalResult.score
+  // =====================
+  const approvalResult = runApprovalFilter(lead, property)
+  void approvalResult // referenced to avoid an unused-var lint error until the TODO above is done
 
   return Math.max(0, Math.min(100, Math.round(score)))
 }
@@ -567,7 +556,10 @@ export default function LeadInsights({
         .from("properties")
         .select("*")
         .eq("city_slug", citySlug)
-        .limit(50)
+        // Evaluate every eligible property in the city, not just the first
+        // page — 1000 matches the project's own PostgREST max_rows ceiling
+        // (supabase/config.toml) and comfortably covers current city sizes.
+        .limit(1000)
 
         if (error) {
   console.error(error)
@@ -647,6 +639,14 @@ if (Number(lead.credit_score) <= 580) {
       const scored = baseList.map((p) => ({
         ...p,
         matchScore: calculateMatchScore(p, lead),
+        // Location Filter score, surfaced as a percentage for the existing
+        // "Best Match" badge below. Purely a display value — does NOT feed
+        // sorting (still driven by matchScore, untouched) or any matching
+        // logic. See LOCATION_FILTER_MAX_SCORE in
+        // lib/matching/filters/locationFilter.ts for the denominator.
+        locationMatchPercent: Math.round(
+          (runLocationFilter(lead, p).score / LOCATION_FILTER_MAX_SCORE) * 100
+        ),
       }))
 
       scored.sort((a, b) => b.matchScore - a.matchScore)
@@ -736,17 +736,24 @@ if (Number(lead.credit_score) <= 580) {
                     </span>
 
                     <span
+                      // Displays the Location Filter score (as a percentage
+                      // of its max) — NOT property.matchScore. Still the
+                      // same "Best Match"/"Match" badge above; only the
+                      // number+color inside this one reflect Location Match
+                      // for now. See goal doc: future Approval/Budget/
+                      // Property Preference/Final Match badges will join
+                      // this later.
                       className={`shrink-0 whitespace-nowrap text-[10px] px-2 py-[2px] rounded font-medium ${
-                        property.matchScore >= 75
+                        property.locationMatchPercent >= 75
                           ? "bg-green-100 text-green-700"
-                          : property.matchScore >= 50
+                          : property.locationMatchPercent >= 50
                           ? "bg-yellow-100 text-yellow-700"
-                          : property.matchScore >= 30
+                          : property.locationMatchPercent >= 30
                           ? "bg-orange-100 text-orange-700"
                           : "bg-red-100 text-red-700"
                       }`}
                     >
-                      {isTop3 ? `🔥 ${property.matchScore}%` : `${property.matchScore}%`}
+                      {isTop3 ? `🔥 ${property.locationMatchPercent}%` : `${property.locationMatchPercent}%`}
                     </span>
                   </div>
 

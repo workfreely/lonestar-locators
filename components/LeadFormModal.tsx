@@ -63,6 +63,11 @@ export default function LeadFormModal({
       return
     }
 
+    if (!form.city) {
+      alert("Please select a city.")
+      return
+    }
+
     try {
       setLoading(true)
 

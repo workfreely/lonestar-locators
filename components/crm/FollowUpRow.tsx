@@ -109,9 +109,9 @@ export default function FollowUpRow({
   }
 
   const filterTabs: { key: FilterType; label: string }[] = [
-    { key: "overdue", label: "Overdue" },
-    { key: "urgent",  label: "Urgent"  },
     { key: "today",   label: "Today"   },
+    { key: "urgent",  label: "Urgent"  },
+    { key: "overdue", label: "Overdue" },
   ]
 
   return (

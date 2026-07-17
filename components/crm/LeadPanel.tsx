@@ -5,6 +5,8 @@ import { getNextAction } from "@/lib/nextAction"
 import { useState, useEffect } from "react"
 import { formatPhone } from "@/lib/utils/formatPhone"
 import { getSourceStyle } from "@/lib/leads/sourceStyles"
+import { inferMarketFromLandingPage } from "@/lib/leads/inferMarketFromLandingPage"
+import { ARCHIVE_REASONS } from "@/lib/leads/archiveReasons"
 import AiVoiceScriptModal from "./AiVoiceScriptModal"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -68,6 +70,7 @@ const STATUS_STYLES: Record<string, string> = {
   done_touring:  "bg-yellow-100 text-yellow-900 border-yellow-300",
   applied:       "bg-gray-200 text-gray-700 border-gray-300",
   closed:        "bg-green-100 text-green-800 border-green-300",
+  archived:      "bg-slate-100 text-slate-700 border-slate-300",
 }
 
 // Source badge styles moved to lib/leads/sourceStyles.ts (getSourceStyle) —
@@ -180,11 +183,13 @@ export default function LeadPanel({
   const [nextActionDate, setNextActionDate] = useState(lead.next_action_date || null)
   const [doneMsg, setDoneMsg] = useState<string | null>(null)
   const [showVoiceScript, setShowVoiceScript] = useState(false)
+  const [archiveReason, setArchiveReason] = useState(lead.archive_reason || "")
 
   useEffect(() => {
     setFollowUps(Number(lead.follow_up_count || 0))
     setNextActionDate(lead.next_action_date || null)
-  }, [lead.id, lead.follow_up_count, lead.next_action_date])
+    setArchiveReason(lead.archive_reason || "")
+  }, [lead.id, lead.follow_up_count, lead.next_action_date, lead.archive_reason])
 
   // ─── Risk ──────────────────────────────────────────────────────────────
 
@@ -292,17 +297,31 @@ export default function LeadPanel({
 
   function handleFirstText() {
     const name = normalizeName(lead.first_name || "")
-    const bedsText = lead.beds ? `${String(lead.beds).replace("-", "").trim()} bed` : ""
+    const bedsText =
+      lead.property_type === "Studio" ? "studio" :
+      lead.property_type === "High-Rise" ? "high-rise" :
+      lead.beds ? `${String(lead.beds).replace("-", "").trim()} bed` : ""
     const monthText = lead.move_date ? ` in ${new Date(lead.move_date).toLocaleString("en-US", { month: "long" })}` : ""
-    openSMS(`Hey ${name} it's Jay! I just got your form for a ${bedsText} move${monthText}. Are you trying to stay near a specific address or side of town?`)
+    openSMS(`Hey ${name} it's Jay! I got your form for a ${bedsText} move${monthText}. Are you trying to stay near a specific address or side of town?`)
 
-    // Auto-advance stage: New → Contacted
-    if (lead.crm_status === "new") {
-      const updatedLead = { ...lead, crm_status: "contacted" }
+    const shouldAdvanceStage = lead.crm_status === "new"
+    const contactedAt = new Date().toISOString()
 
-      // Optimistic UI update — mirrors Kanban drag behaviour
-      if (onUpdateLead) onUpdateLead(updatedLead)
+    // Optimistic UI update — merges the (conditional) stage advance with the
+    // (unconditional) contact-timestamp write below into one consistent
+    // object, so a re-click on an already-Contacted lead can't regress
+    // crm_status back to "new" via a stale closure.
+    if (onUpdateLead) {
+      onUpdateLead({
+        ...lead,
+        ...(shouldAdvanceStage ? { crm_status: "contacted" } : {}),
+        first_text_sent_at: contactedAt,
+      })
+    }
 
+    // Auto-advance stage: New → Contacted — unchanged: same endpoint, same
+    // payload, same guard. Only fires the first time a "new" lead is texted.
+    if (shouldAdvanceStage) {
       // Persist to Supabase + trigger Google Contact sync (non-blocking)
       fetch("/api/admin/leads/update-stage", {
         method: "POST",
@@ -317,6 +336,21 @@ export default function LeadPanel({
         console.error("First Text stage update failed:", err)
       })
     }
+
+    // Record the moment this lead was intentionally contacted — fires on
+    // EVERY First Text click, independent of the stage-advance above and of
+    // /api/admin/leads/update-stage, so none of that route's other side
+    // effects (Google Contact sync, List Sent calendar) run an extra time.
+    // This is deliberately the ONLY place first_text_sent_at is written —
+    // not a Kanban drag, not a lead edit. Powers the daily 7-day
+    // no-response auto-archive (app/api/cron/auto-archive-no-response).
+    supabase
+      .from("leads")
+      .update({ first_text_sent_at: contactedAt })
+      .eq("id", lead.id)
+      .then(({ error }) => {
+        if (error) console.error("[first-text] Failed to record contact timestamp:", error)
+      })
   }
 
   function handleNextActionClick() {
@@ -374,11 +408,33 @@ export default function LeadPanel({
 
   const doneConfig = DONE_CONFIG[lead.crm_status] ?? null
 
+  // ─── Archive reason (archived leads only) ──────────────────────────────
+
+  async function handleArchiveReasonChange(reason: string) {
+    setArchiveReason(reason)
+    if (onUpdateLead) onUpdateLead({ ...lead, archive_reason: reason })
+
+    const { error } = await supabase
+      .from("leads")
+      .update({ archive_reason: reason })
+      .eq("id", lead.id)
+
+    if (error) {
+      console.error("[archive-reason] update failed:", error)
+    }
+  }
+
   // ─── Derived values ────────────────────────────────────────────────────
 
   const action = getNextAction({ ...lead, follow_up_count: followUps })
   const followUpStatus = nextActionDate ? getFollowUpStatus(nextActionDate) : "none"
   const statusStyle = STATUS_STYLES[lead.crm_status] ?? "bg-gray-100 text-gray-700 border-gray-300"
+
+  // ─── Short-form market inference (display only) ────────────────────────
+  const inferredMarket =
+    lead.lead_type === "short" && !lead.city
+      ? inferMarketFromLandingPage(lead.landing_page)
+      : null
 
   const actionBtnClass = [
     "px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors cursor-pointer whitespace-nowrap",
@@ -435,6 +491,27 @@ export default function LeadPanel({
             return <span className="text-[11.5px] text-gray-400">· Next: {formatDate(nextActionDate)}</span>
           })()}
         </div>
+
+        {/* Archive Reason — archived leads only */}
+        {lead.crm_status === "archived" && (
+          <div className="mb-4">
+            <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1 block">
+              Archive Reason
+            </label>
+            <select
+              value={archiveReason}
+              onChange={(e) => handleArchiveReasonChange(e.target.value)}
+              className="w-full text-[13px] font-medium text-gray-800 border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white"
+            >
+              <option value="">Select reason...</option>
+              {ARCHIVE_REASONS.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* ── Action buttons ── */}
         <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Quick Actions</p>
@@ -557,7 +634,7 @@ export default function LeadPanel({
 
         {/* Section: Search Criteria */}
         <SectionCard title="Search Criteria" shaded collapsible defaultOpen={false}>
-          <Field label="City" value={lead.city} />
+          <Field label={inferredMarket ? "Interest" : "City"} value={inferredMarket || lead.city} />
           <Field label="Budget" value={formatRent(lead.desired_rent)} />
           <Field label="Property Type" value={lead.property_type} />
           <Field label="Beds / Baths" value={lead.beds || lead.baths ? `${lead.beds || "—"} / ${lead.baths || "—"}` : null} />

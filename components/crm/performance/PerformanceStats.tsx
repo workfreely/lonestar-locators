@@ -4,15 +4,14 @@
 // components/crm/DashboardStats.tsx (white rounded cards, uppercase label,
 // large number) — kept as its own component so Phase 2 (ROI, spend,
 // funnels) can add more cards without touching the existing Dashboard.
+//
+// The Top Source value reuses the exact same colored pill/badge styling
+// as LeadSourcesCard.tsx (same lib/leads/sourceStyles.ts module, same
+// classes) so the two stay visually consistent.
 
-function isThisWeek(dateStr: string | null | undefined): boolean {
-  if (!dateStr) return false
-  const d = new Date(dateStr)
-  const now = new Date()
-  const weekAgo = new Date(now)
-  weekAgo.setDate(now.getDate() - 7)
-  return d.getTime() >= weekAgo.getTime() && d.getTime() <= now.getTime()
-}
+import { getSourceStyle } from "@/lib/leads/sourceStyles"
+
+const TOURED_STATUSES = new Set(["done_touring", "applied", "closed"])
 
 function topByCount(counts: Record<string, number>): string | null {
   const keys = Object.keys(counts)
@@ -22,7 +21,15 @@ function topByCount(counts: Record<string, number>): string | null {
 
 export default function PerformanceStats({ leads }: { leads: any[] }) {
   const totalLeads = leads.length
-  const leadsThisWeek = leads.filter((l) => isThisWeek(l.created_at)).length
+
+  // closed_at (not crm_status) is the resilient signal here — a lead
+  // stays counted as toured/closed after the monthly Closed cleanup
+  // archives it out of the Closed column.
+  const closedLeads = leads.filter((l) => l.closed_at != null)
+  const touredLeads = leads.filter((l) => TOURED_STATUSES.has(l.crm_status) || l.closed_at != null)
+  const conversionRate = touredLeads.length > 0
+    ? Math.round((closedLeads.length / touredLeads.length) * 100)
+    : 0
 
   const sourceCounts: Record<string, number> = {}
   const campaignCounts: Record<string, number> = {}
@@ -50,13 +57,18 @@ export default function PerformanceStats({ leads }: { leads: any[] }) {
       </div>
 
       <div className={cardCls}>
-        <p className={labelCls}>Leads This Week</p>
-        <p className={`${valueCls} mt-1`}>{leadsThisWeek}</p>
-      </div>
-
-      <div className={cardCls}>
         <p className={labelCls}>Top Source</p>
-        <p className={`${valueCls} mt-1 capitalize`}>{topSource ?? "—"}</p>
+        <div className="mt-1">
+          {topSource ? (
+            <span
+              className={`inline-block text-sm font-semibold px-2.5 py-1 rounded-full border ${getSourceStyle(topSource).badgeClassName}`}
+            >
+              {getSourceStyle(topSource).label}
+            </span>
+          ) : (
+            <p className={valueCls}>—</p>
+          )}
+        </div>
       </div>
 
       <div className={cardCls}>
@@ -64,6 +76,16 @@ export default function PerformanceStats({ leads }: { leads: any[] }) {
         <p className={`${valueCls} mt-1 truncate`} title={topCampaign ?? undefined}>
           {topCampaign ?? "—"}
         </p>
+      </div>
+
+      <div className={cardCls}>
+        <p className={labelCls}>Conversion Rate</p>
+        <div className="mt-1">
+          <p className={valueCls}>{conversionRate}%</p>
+          <p className="text-[10px] text-gray-400 mt-1">
+            {closedLeads.length} / {touredLeads.length} tours
+          </p>
+        </div>
       </div>
     </div>
   )
