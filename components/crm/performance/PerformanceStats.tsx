@@ -67,6 +67,11 @@ export default function PerformanceStats({ leads }: { leads: any[] }) {
       </div>
 
       <div className={cardCls}>
+        <p className={labelCls}>Total Leads</p>
+        <p className={`${valueCls} mt-1`}>{totalLeads}</p>
+      </div>
+
+      <div className={cardCls}>
         <p className={labelCls}>Top Campaign</p>
         <p className={`${valueCls} mt-1 truncate`} title={topCampaign ?? undefined}>
           {topCampaign ?? "—"}
@@ -81,11 +86,6 @@ export default function PerformanceStats({ leads }: { leads: any[] }) {
             {closedLeads.length} / {touredLeads.length} tours
           </p>
         </div>
-      </div>
-
-      <div className={cardCls}>
-        <p className={labelCls}>Total Leads</p>
-        <p className={`${valueCls} mt-1`}>{totalLeads}</p>
       </div>
     </div>
   )
