@@ -206,9 +206,17 @@ export async function POST(request: Request) {
     // today; creating one at the short-form step would just double up
     // once that happens.
     if (formType === "full" && result.payload.lead_category === "renter") {
+      // TEMPORARY DEBUG LOGGING — remove once the calendar-creation
+      // failure is root-caused. Tagged [calendar-debug] so it's easy to
+      // grep out of Vercel logs and easy to strip from this file later.
+      const debugLeadId = data.id
+      const debugLeadName = `${result.payload.first_name ?? ""} ${result.payload.last_name ?? ""}`.trim()
+
       try {
         after(async () => {
+          console.log(`[calendar-debug] after() callback started — leadId: ${debugLeadId}, name: ${debugLeadName}`)
           try {
+            console.log(`[calendar-debug] Calling createNewLeadCalendarEvent — leadId: ${debugLeadId}`)
             await createNewLeadCalendarEvent({
               first_name: result.payload.first_name as string | undefined,
               last_name: result.payload.last_name as string | undefined,
@@ -221,6 +229,13 @@ export async function POST(request: Request) {
               credit_score: result.payload.credit_score as string | undefined,
             })
           } catch (err) {
+            const message = err instanceof Error ? err.message : String(err)
+            const status  = (err as any)?.response?.status
+            const data    = (err as any)?.response?.data
+            console.error(`[calendar-debug] New-lead calendar event failed — leadId: ${debugLeadId}`)
+            console.error(`[calendar-debug] Error message:`, message)
+            if (status) console.error(`[calendar-debug] HTTP status:`, status)
+            if (data)   console.error(`[calendar-debug] Response body:`, JSON.stringify(data, null, 2))
             console.error("[api/leads/submit] New-lead calendar event failed:", err)
           }
         })
