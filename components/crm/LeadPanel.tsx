@@ -8,6 +8,7 @@ import { getSourceStyle } from "@/lib/leads/sourceStyles"
 import { inferMarketFromLandingPage } from "@/lib/leads/inferMarketFromLandingPage"
 import { ARCHIVE_REASONS } from "@/lib/leads/archiveReasons"
 import AiVoiceScriptModal from "./AiVoiceScriptModal"
+import ConfirmDialog from "./ConfirmDialog"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -184,6 +185,7 @@ export default function LeadPanel({
   const [doneMsg, setDoneMsg] = useState<string | null>(null)
   const [showVoiceScript, setShowVoiceScript] = useState(false)
   const [archiveReason, setArchiveReason] = useState(lead.archive_reason || "")
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   useEffect(() => {
     setFollowUps(Number(lead.follow_up_count || 0))
@@ -424,6 +426,58 @@ export default function LeadPanel({
     }
   }
 
+  // ─── Delete / Restore (soft delete only — never a physical DELETE) ─────
+
+  async function handleDeleteLead() {
+    setShowDeleteConfirm(false)
+
+    const { data: { user } } = await supabase.auth.getUser()
+
+    const updates = {
+      crm_status: "archived",
+      archive_reason: "deleted_by_user",
+      deleted_at: new Date().toISOString(),
+      deleted_by: user?.email ?? null,
+      pre_delete_status: lead.crm_status,
+      next_action_date: null,
+    }
+
+    setArchiveReason("deleted_by_user")
+    setNextActionDate(null)
+    if (onUpdateLead) onUpdateLead({ ...lead, ...updates })
+
+    const { error } = await supabase
+      .from("leads")
+      .update(updates)
+      .eq("id", lead.id)
+
+    if (error) {
+      console.error("[delete-lead] update failed:", error)
+    }
+  }
+
+  async function handleRestoreLead() {
+    const updates = {
+      crm_status: lead.pre_delete_status || "new",
+      archive_reason: null,
+      deleted_at: null,
+      deleted_by: null,
+      pre_delete_status: null,
+    }
+
+    setArchiveReason("")
+    if (onUpdateLead) onUpdateLead({ ...lead, ...updates })
+
+    const { error } = await supabase
+      .from("leads")
+      .update(updates)
+      .eq("id", lead.id)
+
+    if (error) {
+      console.error("[restore-lead] update failed:", error)
+    }
+  }
+
   // ─── Derived values ────────────────────────────────────────────────────
 
   const action = getNextAction({ ...lead, follow_up_count: followUps })
@@ -467,15 +521,30 @@ export default function LeadPanel({
             )}
           </div>
 
-          <button
-            onClick={onClose}
-            className="flex-none w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors mt-0.5"
-            aria-label="Close"
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-            </svg>
-          </button>
+          <div className="flex-none flex items-center gap-1 mt-0.5">
+            {lead.archive_reason !== "deleted_by_user" && (
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                aria-label="Delete lead"
+                title="Delete lead"
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d="M2 3.5h10M5 3.5V2a1 1 0 011-1h2a1 1 0 011 1v1.5M5.5 6.5v4M8.5 6.5v4M3 3.5l.6 8a1 1 0 001 .9h4.8a1 1 0 001-.9l.6-8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            )}
+
+            <button
+              onClick={onClose}
+              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              aria-label="Close"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Status + follow-up indicator */}
@@ -510,6 +579,21 @@ export default function LeadPanel({
                 </option>
               ))}
             </select>
+
+            {archiveReason === "deleted_by_user" && (
+              <div className="mt-2 bg-red-50 border border-red-100 rounded-lg px-3 py-2.5">
+                <p className="text-[11.5px] text-red-700">
+                  Deleted{lead.deleted_by ? ` by ${lead.deleted_by}` : ""}
+                  {lead.deleted_at ? ` on ${formatDate(lead.deleted_at)}` : ""}.
+                </p>
+                <button
+                  onClick={handleRestoreLead}
+                  className="mt-2 w-full px-3 py-1.5 rounded-lg bg-white border border-red-300 text-red-700 text-[12.5px] font-semibold hover:bg-red-100 transition-colors"
+                >
+                  ↩️ Restore Lead
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -720,6 +804,17 @@ export default function LeadPanel({
       onClose={() => setShowVoiceScript(false)}
       lead={lead}
       topMatches={topMatches}
+    />
+
+    <ConfirmDialog
+      open={showDeleteConfirm}
+      title="Delete this lead?"
+      message={`Are you sure you want to delete ${normalizeName(lead.first_name)} ${normalizeName(lead.last_name)}? The lead will be archived, not permanently removed — you can restore it later from the Archived column.`}
+      confirmLabel="Delete Lead"
+      cancelLabel="Cancel"
+      danger
+      onConfirm={handleDeleteLead}
+      onCancel={() => setShowDeleteConfirm(false)}
     />
     </>
   )
