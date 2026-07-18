@@ -213,7 +213,12 @@ export async function POST(request: Request) {
       const debugLeadName = `${result.payload.first_name ?? ""} ${result.payload.last_name ?? ""}`.trim()
 
       try {
-        after(async () => {
+        // TEMPORARY — one-deploy diagnostic. after() swapped for a direct
+        // awaited call to determine whether after() itself is the cause of
+        // Calendar events not being created in production. See conversation
+        // history / commit message for context. Revert once confirmed either
+        // way.
+        await (async () => {
           console.log(`[calendar-debug] after() callback started — leadId: ${debugLeadId}, name: ${debugLeadName}`)
           try {
             console.log(`[calendar-debug] Calling createNewLeadCalendarEvent — leadId: ${debugLeadId}`)
@@ -238,7 +243,7 @@ export async function POST(request: Request) {
             if (data)   console.error(`[calendar-debug] Response body:`, JSON.stringify(data, null, 2))
             console.error("[api/leads/submit] New-lead calendar event failed:", err)
           }
-        })
+        })()
       } catch (err) {
         console.error("[api/leads/submit] Failed to schedule new-lead calendar event:", err)
       }
