@@ -221,6 +221,23 @@ export async function POST(request: Request) {
         await (async () => {
           console.log(`[calendar-debug] after() callback started — leadId: ${debugLeadId}, name: ${debugLeadName}`)
           try {
+            // TEMPORARY — env var existence + masked fingerprint diagnostic.
+            const envVars = {
+              GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+              GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+              GOOGLE_REFRESH_TOKEN: process.env.GOOGLE_REFRESH_TOKEN,
+              GOOGLE_CALENDAR_ID: process.env.GOOGLE_CALENDAR_ID,
+            }
+            for (const [key, value] of Object.entries(envVars)) {
+              const exists = !!value
+              const fingerprint = value
+                ? value.length > 12
+                  ? `${value.slice(0, 6)}...${value.slice(-6)}`
+                  : value
+                : "(not set)"
+              console.log(`[calendar-debug][env] ${key} — exists: ${exists} | fingerprint: ${fingerprint}`)
+            }
+
             console.log(`[calendar-debug] Calling createNewLeadCalendarEvent — leadId: ${debugLeadId}`)
             await createNewLeadCalendarEvent({
               first_name: result.payload.first_name as string | undefined,
