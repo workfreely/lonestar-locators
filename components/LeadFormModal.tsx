@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { supabase } from "@/lib/supabase/client"
 import LeadFields from "./LeadFields"
 
 export default function LeadFormModal({
@@ -78,55 +77,44 @@ export default function LeadFormModal({
         ? `${crmNote}\n\n${form.locator_notes}`
         : crmNote
 
-      const { data, error } = await supabase
-        .from("leads")
-        .insert([{ ...form, locator_notes: locatorNotes }])
-        .select("*")
-        .single()
+      // Routed through /api/leads/submit (not a direct client-side insert)
+      // so manual "Add Lead" entries get the same field allowlist,
+      // honeypot, and duplicate-detection protection the public forms
+      // already have. Calendar creation for a genuinely new lead now
+      // happens server-side inside that route — no separate client-side
+      // trigger needed here (avoids double-firing one for exact-match
+      // resubmissions and skips it entirely for those, same as the public
+      // forms).
+      const submitRes = await fetch("/api/leads/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          formType: "full",
+          lead: { ...form, locator_notes: locatorNotes },
+        }),
+      })
 
-      if (error) {
-        console.error(error)
+      const submitJson = await submitRes.json().catch(() => null)
+
+      if (!submitRes.ok || !submitJson?.success) {
+        console.error(submitJson?.error)
         alert("Could not create lead")
         return
       }
 
-      onLeadCreated(data)
+      const data = submitJson.lead
 
-      // Fire-and-forget — Calendar failure must never block lead creation
-      console.log("🔥 NEW LEAD FETCH STARTING")
-      const calendarPayload = {
-        first_name:   data.first_name,
-        last_name:    data.last_name,
-        phone:        data.phone,
-        city:         data.city,
-        source:       data.source,
-        desired_rent: data.desired_rent,
-        beds:         data.beds,
-        move_date:    data.move_date,
-        credit_score: data.credit_score,
+      if (submitJson.action === "updated_existing") {
+        alert(
+          `This looks like an existing lead (${data.first_name} ${data.last_name}) — updated their record instead of creating a new one.`
+        )
+      } else if (submitJson.action === "possible_duplicate") {
+        alert(
+          "Created — but this may be a duplicate of an existing lead. It's flagged for review on the board."
+        )
       }
-      console.log("🔥 [LeadFormModal] Calendar payload:", JSON.stringify(calendarPayload, null, 2))
-      fetch("/api/google/new-lead-event", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          first_name:   data.first_name,
-          last_name:    data.last_name,
-          phone:        data.phone,
-          city:         data.city,
-          source:       data.source,
-          desired_rent: data.desired_rent,
-          beds:         data.beds,
-          move_date:    data.move_date,
-          credit_score: data.credit_score,
-        }),
-      }).then(async (res) => {
-        const json = await res.json().catch(() => null)
-        console.log("🔥 [LeadFormModal] Calendar route response status:", res.status)
-        console.log("🔥 [LeadFormModal] Calendar route response body:", JSON.stringify(json, null, 2))
-      }).catch((err) => {
-        console.error("🔥 [LeadFormModal] New lead Calendar fetch threw:", err)
-      })
+
+      onLeadCreated(data)
 
       onClose()
 

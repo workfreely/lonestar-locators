@@ -1,5 +1,6 @@
-// Server-side lead intake for all public renter-lead forms (LandingForm,
-// ContactForm — both short and full modes). Replaces direct
+// Server-side lead intake for every lead entry point — the public
+// renter-lead forms (LandingForm, ContactForm — both short and full modes)
+// AND the CRM's manual "Add Lead" modal (LeadFormModal). Replaces direct
 // `supabase.from("leads").insert()` calls from the browser.
 //
 // Why this exists: anon access to `leads` is intentionally denied at the
@@ -9,25 +10,30 @@
 // which is never exposed to the browser.
 //
 // Scope: renter leads only (`leads` table). Does not touch
-// new_home_leads, reported_leases, or the CRM's manual Add Lead path —
-// those are unrelated to this incident and untouched.
+// new_home_leads or reported_leases.
 //
-// Does NOT include Duplicate Detection — that work lives on
-// crm-v2-foundation and hasn't been tested/merged. Every submission here
-// is inserted as a new row, same as production behaved before this fix.
+// Duplicate detection: after validation/honeypot, before any write, every
+// submission is checked against existing leads (soft-deleted ones
+// excluded — see the query below) via lib/leads/duplicateDetection.ts.
+// An exact match (normalized phone or email) updates that lead in place
+// instead of creating a second row — see buildExactMatchUpdate(). A
+// possible match (name + move_date only) still creates a new row, linked
+// via possible_duplicate_of for a locator to review; never silently
+// merged. No match creates the lead exactly as before. Ported from the
+// crm-v2-foundation prototype (normalizeLead.ts / duplicateDetection.ts,
+// unmodified) and re-wired against this route's current security model —
+// that branch's own version of this route was not reused.
 //
 // Also creates the "New Lead" Google Calendar event server-side (full-form
-// renter leads only) via `after()`, once the insert has succeeded — see
-// the POST handler below. This replaces the old client-side fire-and-forget
-// call to /api/google/new-lead-event that only LandingForm.tsx ever made;
-// ContactForm.tsx never had it, so every full submission through
-// /start-your-search, city-specific pages, and the blog/review/comparison/
-// listing layouts was silently missing a calendar event. Both forms now
-// get it for free by going through this one route.
+// renter leads only, and only for a genuinely new row — see isNewLead
+// below) via `after()`, once the write has succeeded — see the POST
+// handler below. This replaces the old client-side fire-and-forget call to
+// /api/google/new-lead-event that only LandingForm.tsx used to make.
 
 import { NextResponse, after } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { createNewLeadCalendarEvent } from "@/lib/google/createCalendarEvent"
+import { findDuplicateMatch, type LeadIdentity } from "@/lib/leads/duplicateDetection"
 
 // Server-only client — SUPABASE_SERVICE_ROLE_KEY has no NEXT_PUBLIC_
 // prefix, so it is never bundled into browser JS.
@@ -54,6 +60,10 @@ const STRING_FIELDS = [
   "source", "landing_page", "referrer_url",
   "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "fbclid",
   "device_type", "browser", "operating_system",
+  // Manual "Add Lead" (LeadFormModal) fields — added when that form was
+  // routed through this endpoint so it gains the same allowlist/honeypot/
+  // duplicate-detection protection the public forms already have.
+  "facebook", "instagram", "tiktok", "locator_notes",
 ] as const
 
 const BOOLEAN_FIELDS = ["sms_opt_in"] as const
@@ -146,6 +156,110 @@ function validateAndBuildPayload(
   return errors.length > 0 ? { errors } : { payload }
 }
 
+// ─── Duplicate-match exact-update helper ───────────────────────────────────
+//
+// Fields treated as a running narrative — concatenated with a timestamp
+// marker on an exact match, never silently overwritten.
+const NARRATIVE_FIELDS = ["notes", "neighborhoods"] as const
+const NARRATIVE_LABELS: Record<string, string> = {
+  notes: "Notes",
+  neighborhoods: "Desired Areas",
+}
+
+// Every other allowlisted field that describes the lead's own details
+// (not how/where they came in) is a plain scalar: newest non-blank value
+// wins, and the previous value is recorded in the history block first.
+// Attribution fields (source, utm_*, landing_page, referrer_url,
+// device/browser/OS, lead_type/lead_category) are deliberately absent —
+// first-touch attribution is never overwritten by a resubmission.
+const SCALAR_LABELS: Record<string, string> = {
+  first_name: "First Name",
+  last_name: "Last Name",
+  phone: "Phone",
+  email: "Email",
+  move_date: "Move Date",
+  city: "City",
+  submarkets: "Submarkets",
+  property_type: "Property Type",
+  desired_rent: "Budget",
+  beds: "Bedrooms",
+  baths: "Bathrooms",
+  income: "Income",
+  credit_history: "Credit History",
+  credit_score: "Credit Score",
+  broken_lease_age: "Broken Lease Age",
+  broken_lease_amount: "Broken Lease Balance",
+  eviction_court: "Eviction Court",
+  eviction_age: "Eviction Age",
+  eviction_balance: "Eviction Balance",
+  criminal_background: "Criminal Background",
+  criminal_charge: "Criminal Charge",
+  felony_age: "Felony Age",
+  misdemeanor_age: "Misdemeanor Age",
+}
+
+function isBlank(v: unknown): boolean {
+  return v === null || v === undefined || String(v).trim() === ""
+}
+
+function historyTimestamp(): string {
+  return new Date().toLocaleString("en-US", {
+    month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true,
+  })
+}
+
+/**
+ * Builds the update payload + locator_notes history entry for an
+ * exact-match resubmission. Never overwrites a field without recording its
+ * previous value first. Narrative fields are concatenated, not replaced.
+ * SMS consent is upgrade-only — an unchecked box on a resubmission never
+ * revokes prior consent.
+ */
+function buildExactMatchUpdate(existing: Record<string, any>, candidate: Record<string, any>) {
+  const update: Record<string, any> = {}
+  const historyLines: string[] = []
+
+  for (const [field, label] of Object.entries(SCALAR_LABELS)) {
+    const newVal = candidate[field]
+    if (isBlank(newVal)) continue
+    const oldVal = existing[field]
+    if (String(newVal) === String(oldVal ?? "")) continue
+    historyLines.push(`Updated ${label}: "${isBlank(oldVal) ? "—" : oldVal}" → "${newVal}"`)
+    update[field] = newVal
+  }
+
+  for (const field of NARRATIVE_FIELDS) {
+    const newVal = candidate[field]
+    if (isBlank(newVal)) continue
+    const oldVal = existing[field]
+    if (isBlank(oldVal)) {
+      update[field] = newVal
+    } else if (String(newVal) !== String(oldVal)) {
+      update[field] = `${oldVal}; ${newVal}`
+      historyLines.push(`Updated ${NARRATIVE_LABELS[field]}: added "${newVal}" (kept previous: "${oldVal}")`)
+    }
+  }
+
+  if (candidate.sms_opt_in && !existing.sms_opt_in) {
+    update.sms_opt_in = true
+    update.sms_consent_at = new Date().toISOString()
+    historyLines.push("SMS consent granted on resubmission")
+  }
+
+  if (historyLines.length > 0) {
+    const historyBlock = [
+      `[${historyTimestamp()}] Submitted again —`,
+      ...historyLines.map((l) => `  • ${l}`),
+      "",
+    ].join("\n")
+    update.locator_notes = existing.locator_notes
+      ? `${historyBlock}\n${existing.locator_notes}`
+      : historyBlock
+  }
+
+  return update
+}
+
 export async function POST(request: Request) {
   let body: any
   try {
@@ -177,15 +291,102 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { data, error } = await supabaseAdmin
+    // ─── Duplicate detection ────────────────────────────────────────────
+    // Soft-deleted leads are excluded from matching — a deletion is a
+    // deliberate signal ("this shouldn't exist as an active record"), so a
+    // resubmission from that person should create a fresh lead rather than
+    // silently reviving or mutating the deleted one. Leads archived for
+    // any other reason (ghosted, unqualified, etc.) remain valid targets.
+    const { data: existingLeads, error: existingError } = await supabaseAdmin
       .from("leads")
-      .insert([result.payload])
-      .select("id")
-      .single()
+      .select("id, first_name, last_name, phone, email, move_date")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
 
-    if (error) {
-      console.error("[api/leads/submit] Insert failed:", error)
-      return NextResponse.json({ success: false, error: "Something went wrong. Please try again." }, { status: 500 })
+    if (existingError) {
+      // Fail open — duplicate detection is a quality-of-life feature, not
+      // a security boundary. A lookup failure must never block a
+      // legitimate new lead from being saved.
+      console.error("[api/leads/submit] Failed to fetch existing leads for duplicate check:", existingError)
+    }
+
+    const candidateIdentity: LeadIdentity = {
+      first_name: result.payload.first_name as string | undefined,
+      last_name: result.payload.last_name as string | undefined,
+      phone: result.payload.phone as string | undefined,
+      email: result.payload.email as string | undefined,
+      move_date: result.payload.move_date as string | undefined,
+    }
+
+    const match = existingLeads
+      ? findDuplicateMatch(candidateIdentity, existingLeads)
+      : { confidence: "none" as const, matchedLead: null, matchedSignals: [] }
+
+    let data: any
+    let isNewLead = true
+    let dedupAction: "created" | "updated_existing" | "possible_duplicate" = "created"
+
+    if (match.confidence === "exact" && match.matchedLead) {
+      // existingLeads above is a narrow select (just identity fields, for
+      // matching only) — buildExactMatchUpdate needs the full row to diff
+      // correctly, or every field outside that narrow set would look like
+      // it's changing from blank.
+      const { data: existing, error: existingFullError } = await supabaseAdmin
+        .from("leads")
+        .select("*")
+        .eq("id", (match.matchedLead as any).id)
+        .single()
+
+      if (existingFullError || !existing) {
+        console.error("[api/leads/submit] Failed to fetch full matched lead:", existingFullError)
+        return NextResponse.json({ success: false, error: "Something went wrong. Please try again." }, { status: 500 })
+      }
+
+      const update = buildExactMatchUpdate(existing, result.payload)
+
+      // A resubmission that matches but carries nothing new (or nothing
+      // this route allowlists) produces an empty update — Supabase/
+      // PostgREST rejects an UPDATE with no columns to set, so skip the
+      // write entirely and just report back the lead as it already is.
+      let updated = existing
+      if (Object.keys(update).length > 0) {
+        const { data: updateResult, error: updateError } = await supabaseAdmin
+          .from("leads")
+          .update(update)
+          .eq("id", existing.id)
+          .select("*")
+          .single()
+
+        if (updateError) {
+          console.error("[api/leads/submit] Exact-match update failed:", updateError)
+          return NextResponse.json({ success: false, error: "Something went wrong. Please try again." }, { status: 500 })
+        }
+
+        updated = updateResult
+      }
+
+      data = updated
+      isNewLead = false
+      dedupAction = "updated_existing"
+    } else {
+      const insertPayload =
+        match.confidence === "possible" && match.matchedLead
+          ? { ...result.payload, possible_duplicate_of: (match.matchedLead as any).id }
+          : result.payload
+
+      const { data: created, error: insertError } = await supabaseAdmin
+        .from("leads")
+        .insert([insertPayload])
+        .select("*")
+        .single()
+
+      if (insertError) {
+        console.error("[api/leads/submit] Insert failed:", insertError)
+        return NextResponse.json({ success: false, error: "Something went wrong. Please try again." }, { status: 500 })
+      }
+
+      data = created
+      dedupAction = match.confidence === "possible" ? "possible_duplicate" : "created"
     }
 
     // ─── New Lead Calendar event (server-side, best-effort) ───────────────
@@ -204,41 +405,13 @@ export async function POST(request: Request) {
     // Full renter leads only — short-form submissions get their calendar
     // event once (and if) they complete the full form later, same as
     // today; creating one at the short-form step would just double up
-    // once that happens.
-    if (formType === "full" && result.payload.lead_category === "renter") {
-      // TEMPORARY DEBUG LOGGING — remove once the calendar-creation
-      // failure is root-caused. Tagged [calendar-debug] so it's easy to
-      // grep out of Vercel logs and easy to strip from this file later.
-      const debugLeadId = data.id
-      const debugLeadName = `${result.payload.first_name ?? ""} ${result.payload.last_name ?? ""}`.trim()
-
+    // once that happens. Also skipped when this is an exact-match
+    // resubmission (isNewLead false) — an existing lead shouldn't
+    // generate a fresh "NEW LEAD — CONTACT ASAP" alert.
+    if (isNewLead && formType === "full" && result.payload.lead_category === "renter") {
       try {
-        // TEMPORARY — one-deploy diagnostic. after() swapped for a direct
-        // awaited call to determine whether after() itself is the cause of
-        // Calendar events not being created in production. See conversation
-        // history / commit message for context. Revert once confirmed either
-        // way.
-        await (async () => {
-          console.log(`[calendar-debug] after() callback started — leadId: ${debugLeadId}, name: ${debugLeadName}`)
+        after(async () => {
           try {
-            // TEMPORARY — env var existence + masked fingerprint diagnostic.
-            const envVars = {
-              GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
-              GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
-              GOOGLE_REFRESH_TOKEN: process.env.GOOGLE_REFRESH_TOKEN,
-              GOOGLE_CALENDAR_ID: process.env.GOOGLE_CALENDAR_ID,
-            }
-            for (const [key, value] of Object.entries(envVars)) {
-              const exists = !!value
-              const fingerprint = value
-                ? value.length > 12
-                  ? `${value.slice(0, 6)}...${value.slice(-6)}`
-                  : value
-                : "(not set)"
-              console.log(`[calendar-debug][env] ${key} — exists: ${exists} | fingerprint: ${fingerprint}`)
-            }
-
-            console.log(`[calendar-debug] Calling createNewLeadCalendarEvent — leadId: ${debugLeadId}`)
             await createNewLeadCalendarEvent({
               first_name: result.payload.first_name as string | undefined,
               last_name: result.payload.last_name as string | undefined,
@@ -251,22 +424,15 @@ export async function POST(request: Request) {
               credit_score: result.payload.credit_score as string | undefined,
             })
           } catch (err) {
-            const message = err instanceof Error ? err.message : String(err)
-            const status  = (err as any)?.response?.status
-            const data    = (err as any)?.response?.data
-            console.error(`[calendar-debug] New-lead calendar event failed — leadId: ${debugLeadId}`)
-            console.error(`[calendar-debug] Error message:`, message)
-            if (status) console.error(`[calendar-debug] HTTP status:`, status)
-            if (data)   console.error(`[calendar-debug] Response body:`, JSON.stringify(data, null, 2))
             console.error("[api/leads/submit] New-lead calendar event failed:", err)
           }
-        })()
+        })
       } catch (err) {
         console.error("[api/leads/submit] Failed to schedule new-lead calendar event:", err)
       }
     }
 
-    return NextResponse.json({ success: true, leadId: data.id })
+    return NextResponse.json({ success: true, leadId: data.id, lead: data, action: dedupAction })
   } catch (err) {
     console.error("[api/leads/submit] Unexpected error:", err)
     return NextResponse.json({ success: false, error: "Something went wrong. Please try again." }, { status: 500 })

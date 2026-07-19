@@ -100,11 +100,6 @@ async function insertCalendarEvent(eventBody: object, label: string): Promise<st
 
   console.log(`📅 [calendar] Inserting event: ${label}`)
   console.log(`📅 [calendar] GOOGLE_CALENDAR_ID: ${calendarId}`)
-  // TEMPORARY — masked fingerprint of the calendar ID actually reaching this call.
-  const calMask = calendarId.length > 12
-    ? `${calendarId.slice(0, 6)}...${calendarId.slice(-6)}`
-    : calendarId
-  console.log(`[calendar-debug][insertCalendarEvent] calendarId passed in — fingerprint: ${calMask}`)
   console.log(`📅 [calendar] Event body:`, JSON.stringify(eventBody, null, 2))
 
   try {
@@ -128,18 +123,12 @@ async function insertCalendarEvent(eventBody: object, label: string): Promise<st
     const status  = (err as any)?.response?.status
     const data    = (err as any)?.response?.data
     const stack   = err instanceof Error ? err.stack : undefined
-    const gErr    = data?.error
 
     console.error(`❌ [calendar] Failed: ${label}`)
     console.error(`❌ [calendar] Message:`, message)
-    // TEMPORARY — complete, unconditional Google error dump. Nothing gated
-    // behind truthy checks, so absence is as visible as presence.
-    console.error(`[calendar-debug][error] HTTP status:`, status)
-    console.error(`[calendar-debug][error] error.code:`, gErr?.code)
-    console.error(`[calendar-debug][error] error.message:`, gErr?.message)
-    console.error(`[calendar-debug][error] error.errors:`, JSON.stringify(gErr?.errors, null, 2))
-    console.error(`[calendar-debug][error] full response.data:`, JSON.stringify(data, null, 2))
-    console.error(`❌ [calendar] Stack:`, stack)
+    if (status) console.error(`❌ [calendar] HTTP status:`, status)
+    if (data)   console.error(`❌ [calendar] Response data:`, JSON.stringify(data, null, 2))
+    if (stack)  console.error(`❌ [calendar] Stack:`, stack)
 
     throw new Error(`Calendar insert failed (${label}): ${message}`)
   }
