@@ -7,8 +7,11 @@ import { formatPhone } from "@/lib/utils/formatPhone"
 import { getSourceStyle } from "@/lib/leads/sourceStyles"
 import { inferMarketFromLandingPage } from "@/lib/leads/inferMarketFromLandingPage"
 import { ARCHIVE_REASONS } from "@/lib/leads/archiveReasons"
+import { rankLeadActions, type ManualNextAction } from "@/lib/nextActions"
 import AiVoiceScriptModal from "./AiVoiceScriptModal"
 import ConfirmDialog from "./ConfirmDialog"
+import AddNextActionModal from "./AddNextActionModal"
+import FavoriteModal, { type FavoriteInput } from "./FavoriteModal"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -65,7 +68,7 @@ function formatStatus(status: string) {
 const STATUS_STYLES: Record<string, string> = {
   new:           "bg-amber-100 text-amber-800 border-amber-300",
   contacted:     "bg-blue-100 text-blue-800 border-blue-300",
-  qualified:     "bg-violet-100 text-violet-800 border-violet-300",
+  searching:     "bg-violet-100 text-violet-800 border-violet-300",
   list_sent:     "bg-emerald-100 text-emerald-800 border-emerald-300",
   ready_to_tour: "bg-orange-100 text-orange-800 border-orange-300",
   done_touring:  "bg-yellow-100 text-yellow-900 border-yellow-300",
@@ -111,6 +114,73 @@ function CollapsibleNotes({
         <div className="px-4 py-3 space-y-2.5 bg-white">
           {children}
         </div>
+      )}
+    </div>
+  )
+}
+
+/** Mark Done / Snooze controls for whichever manual action is currently primary. */
+function ManualActionControls({
+  manualAction,
+  onComplete,
+  onSnoozeTomorrow,
+  onSnoozeNextWeek,
+  customSnoozeFor,
+  setCustomSnoozeFor,
+  onCustomSnooze,
+}: {
+  manualAction: ManualNextAction
+  onComplete: (id: number) => void
+  onSnoozeTomorrow: (id: number) => void
+  onSnoozeNextWeek: (id: number) => void
+  customSnoozeFor: number | null
+  setCustomSnoozeFor: (id: number | null) => void
+  onCustomSnooze: (id: number, dueAtISO: string) => void
+}) {
+  const isCustomOpen = customSnoozeFor === manualAction.id
+
+  return (
+    <div className="mt-2 flex items-center flex-wrap gap-1.5">
+      <button
+        type="button"
+        onClick={() => onComplete(manualAction.id)}
+        className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+      >
+        ✓ Done
+      </button>
+      <span className="text-[10px] text-gray-400">Snooze:</span>
+      <button
+        type="button"
+        onClick={() => onSnoozeTomorrow(manualAction.id)}
+        className="text-[11px] font-medium px-2 py-1 rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
+      >
+        Tomorrow
+      </button>
+      <button
+        type="button"
+        onClick={() => onSnoozeNextWeek(manualAction.id)}
+        className="text-[11px] font-medium px-2 py-1 rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
+      >
+        Next Week
+      </button>
+      <button
+        type="button"
+        onClick={() => setCustomSnoozeFor(isCustomOpen ? null : manualAction.id)}
+        className="text-[11px] font-medium px-2 py-1 rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
+      >
+        Custom
+      </button>
+
+      {isCustomOpen && (
+        <input
+          type="datetime-local"
+          autoFocus
+          className="mt-1.5 w-full text-[12px] border border-gray-300 rounded-lg px-2 py-1"
+          onChange={(e) => {
+            if (!e.target.value) return
+            onCustomSnooze(manualAction.id, new Date(e.target.value).toISOString())
+          }}
+        />
       )}
     </div>
   )
@@ -170,11 +240,19 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 export default function LeadPanel({
   lead,
   topMatches = [],
+  nextActions = [],
+  setNextActions,
+  favorites = [],
+  setFavorites,
   onClose,
   onUpdateLead,
 }: {
   lead: any
   topMatches?: any[]
+  nextActions?: any[]
+  setNextActions?: React.Dispatch<React.SetStateAction<any[]>>
+  favorites?: any[]
+  setFavorites?: React.Dispatch<React.SetStateAction<any[]>>
   onClose: () => void
   onUpdateLead?: (updatedLead: any) => void
 }) {
@@ -186,30 +264,17 @@ export default function LeadPanel({
   const [showVoiceScript, setShowVoiceScript] = useState(false)
   const [archiveReason, setArchiveReason] = useState(lead.archive_reason || "")
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showAddAction, setShowAddAction] = useState(false)
+  const [customSnoozeFor, setCustomSnoozeFor] = useState<number | null>(null)
+  const [showFavoriteModal, setShowFavoriteModal] = useState(false)
+  const [editingFavorite, setEditingFavorite] = useState<any | null>(null)
+  const [deletingFavoriteId, setDeletingFavoriteId] = useState<number | null>(null)
 
   useEffect(() => {
     setFollowUps(Number(lead.follow_up_count || 0))
     setNextActionDate(lead.next_action_date || null)
     setArchiveReason(lead.archive_reason || "")
   }, [lead.id, lead.follow_up_count, lead.next_action_date, lead.archive_reason])
-
-  // ─── Risk ──────────────────────────────────────────────────────────────
-
-  const credit = Number(lead.credit_score || 0)
-  const history = String(lead.credit_history || "").toLowerCase()
-  const hasBrokenLease = history.includes("broken")
-  const hasEviction = history.includes("eviction")
-  const hasFelony = lead.criminal_background === "Felony"
-
-  const isHighRisk = credit < 500 || hasEviction || hasFelony
-  const isMediumRisk = !isHighRisk && (credit < 620 || hasBrokenLease)
-
-  const riskLabel = isHighRisk ? "High Risk" : isMediumRisk ? "Medium Risk" : "Low Risk"
-  const riskClass = isHighRisk
-    ? "bg-red-100 text-red-700 border-red-300"
-    : isMediumRisk
-    ? "bg-amber-100 text-amber-800 border-amber-300"
-    : "bg-emerald-100 text-emerald-800 border-emerald-300"
 
   // ─── Follow-up actions ─────────────────────────────────────────────────
 
@@ -366,7 +431,7 @@ export default function LeadPanel({
       openSMS(`Hey, I haven't heard back so I'll pause your search for now. Let me know when you're ready!`); return
     }
 
-    if (action === "First Text") {
+    if (action === "Contact Lead") {
       handleFirstText()
       return
     }
@@ -379,11 +444,11 @@ export default function LeadPanel({
 
   // ─── Done-for-now completion ───────────────────────────────────────────
 
-  const DONE_CONFIG: Record<string, { label: string; days: number }> = {
-    ready_to_tour: { label: "✓ Done — Check Tomorrow",       days: 1  },
-    done_touring:  { label: "✓ Done — Follow Up in 2 Days",  days: 2  },
-    applied:       { label: "✓ Done — Check in 3 Days",      days: 3  },
-    closed:        { label: "✓ Done — Remind in 2 Weeks",    days: 14 },
+  const DONE_CONFIG: Record<string, { days: number }> = {
+    ready_to_tour: { days: 1  },
+    done_touring:  { days: 2  },
+    applied:       { days: 3  },
+    closed:        { days: 14 },
   }
 
   async function handleDoneForNow(days: number) {
@@ -478,11 +543,180 @@ export default function LeadPanel({
     }
   }
 
+  // ─── Manual Next Actions (CRM v1.1.0 Phase 1) ──────────────────────────
+  // Extends, never replaces, the automatic stage action above — see
+  // lib/nextActions.ts for how the two are ranked against each other.
+
+  async function handleCreateAction(input: {
+    title: string
+    dueAt: string
+    priority: "low" | "medium" | "high"
+    notes: string
+  }): Promise<boolean> {
+    const { data, error } = await supabase
+      .from("lead_next_actions")
+      .insert([{
+        lead_id: lead.id,
+        title: input.title,
+        due_at: input.dueAt,
+        priority: input.priority,
+        notes: input.notes || null,
+      }])
+      .select("*")
+      .single()
+
+    if (error) {
+      console.error("[next-action] create failed:", error)
+      return false
+    }
+
+    setNextActions?.((prev) => [...prev, data])
+    setShowAddAction(false)
+    return true
+  }
+
+  async function handleCompleteAction(actionId: number) {
+    const completedAt = new Date().toISOString()
+
+    // Optimistic — drop it out of the open list immediately so ranking
+    // re-computes without waiting on the network round trip.
+    setNextActions?.((prev) => prev.filter((a) => a.id !== actionId))
+
+    const { error } = await supabase
+      .from("lead_next_actions")
+      .update({ completed: true, completed_at: completedAt })
+      .eq("id", actionId)
+
+    if (error) {
+      console.error("[next-action] complete failed:", error)
+    }
+  }
+
+  async function handleSnoozeAction(actionId: number, dueAt: string) {
+    setCustomSnoozeFor(null)
+    setNextActions?.((prev) =>
+      prev.map((a) => (a.id === actionId ? { ...a, due_at: dueAt } : a))
+    )
+
+    const { error } = await supabase
+      .from("lead_next_actions")
+      .update({ due_at: dueAt })
+      .eq("id", actionId)
+
+    if (error) {
+      console.error("[next-action] snooze failed:", error)
+    }
+  }
+
+  function snoozeTomorrow(actionId: number) {
+    const d = new Date()
+    d.setDate(d.getDate() + 1)
+    handleSnoozeAction(actionId, d.toISOString())
+  }
+
+  function snoozeNextWeek(actionId: number) {
+    const d = new Date()
+    d.setDate(d.getDate() + 7)
+    handleSnoozeAction(actionId, d.toISOString())
+  }
+
+  // ─── Favorites (Phase 1 — manual only) ──────────────────────────────────
+  // No automation, no Property Matches integration yet. Just save/edit/
+  // delete a client's favorite communities by hand.
+
+  const leadFavorites = favorites.filter((f) => f.lead_id === lead.id)
+
+  async function handleSaveFavorite(entries: FavoriteInput[]): Promise<boolean> {
+    if (editingFavorite) {
+      // Editing is always exactly one slot — the modal only ever sends a
+      // single entry in this branch.
+      const input = entries[0]
+      const { data, error } = await supabase
+        .from("lead_favorites")
+        .update({
+          property_name: input.propertyName || null,
+          property_url: input.propertyUrl || null,
+          property_address: input.propertyAddress || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", editingFavorite.id)
+        .select("*")
+        .single()
+
+      if (error) {
+        console.error("[favorite] update failed:", error)
+        return false
+      }
+
+      setFavorites?.((prev) => prev.map((f) => (f.id === data.id ? data : f)))
+      setShowFavoriteModal(false)
+      setEditingFavorite(null)
+      return true
+    }
+
+    // Add flow — one to three completed slots, saved together.
+    const { data, error } = await supabase
+      .from("lead_favorites")
+      .insert(entries.map((input) => ({
+        lead_id: lead.id,
+        property_name: input.propertyName || null,
+        property_url: input.propertyUrl || null,
+        property_address: input.propertyAddress || null,
+      })))
+      .select("*")
+
+    if (error) {
+      console.error("[favorite] create failed:", error)
+      return false
+    }
+
+    setFavorites?.((prev) => [...prev, ...(data ?? [])])
+    setShowFavoriteModal(false)
+    return true
+  }
+
+  function openEditFavorite(favorite: any) {
+    setEditingFavorite(favorite)
+    setShowFavoriteModal(true)
+  }
+
+  function closeFavoriteModal() {
+    setShowFavoriteModal(false)
+    setEditingFavorite(null)
+  }
+
+  async function handleDeleteFavorite() {
+    const id = deletingFavoriteId
+    setDeletingFavoriteId(null)
+    if (id == null) return
+
+    setFavorites?.((prev) => prev.filter((f) => f.id !== id))
+
+    const { error } = await supabase
+      .from("lead_favorites")
+      .delete()
+      .eq("id", id)
+
+    if (error) {
+      console.error("[favorite] delete failed:", error)
+    }
+  }
+
   // ─── Derived values ────────────────────────────────────────────────────
 
   const action = getNextAction({ ...lead, follow_up_count: followUps })
   const followUpStatus = nextActionDate ? getFollowUpStatus(nextActionDate) : "none"
   const statusStyle = STATUS_STYLES[lead.crm_status] ?? "bg-gray-100 text-gray-700 border-gray-300"
+
+  // Rank the automatic stage action (labeled exactly as the existing
+  // button above always has) against this lead's open manual actions.
+  // Requirement 7: completing/adding a manual action never deletes or
+  // replaces the automatic one — this only decides which currently wins.
+  const { primary: primaryAction, others: otherActions } = rankLeadActions(
+    { ...lead, next_action_date: nextActionDate },
+    nextActions,
+    action
+  )
 
   // ─── Short-form market inference (display only) ────────────────────────
   const inferredMarket =
@@ -607,7 +841,7 @@ export default function LeadPanel({
               onClick={handleFirstText}
               className="text-xs font-semibold px-3 py-2 rounded-lg border bg-gray-900 text-white border-gray-900 hover:bg-gray-800 transition-colors"
             >
-              First Text
+              Contact Lead
             </button>
 
             <button
@@ -679,42 +913,184 @@ export default function LeadPanel({
       {/* ── Panel body ── */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
 
-        {/* Risk + Next Action */}
+        {/* Next Action */}
         <div className="bg-gray-50 rounded-xl px-4 py-3">
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2.5">Risk &amp; Next Step</p>
-          <div className="flex items-center justify-between gap-2">
-            <span className={`text-[11.5px] font-semibold px-2.5 py-1 rounded-full border ${riskClass}`}>
-              {riskLabel}
-            </span>
-            <button
-              type="button"
-              onClick={handleNextActionClick}
-              className={actionBtnClass}
-            >
-              {action}
-              {followUpStatus === "today" && " · Today"}
-              {followUpStatus === "overdue" && " · Overdue"}
-            </button>
-          </div>
-
-          {/* Done-for-now button — only for open-ended stages */}
-          {doneConfig && (
-            <div className="mt-2.5 pt-2.5 border-t border-gray-200 flex items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={() => handleDoneForNow(doneConfig.days)}
-                className="text-[11.5px] font-semibold px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
-              >
-                {doneConfig.label}
-              </button>
-              {doneMsg && (
-                <span className="text-[11px] font-semibold text-emerald-600">
-                  {doneMsg}
+          {/* Two-column row: current Next Action (left) / Status (right).
+              Left column keeps exactly the same click handler/behavior as
+              before, just repositioned. Right column's Complete toggle is
+              the same handleDoneForNow(doneConfig.days) call as before —
+              gated on doneConfig exactly as it always was, independent of
+              whether the automatic or a manual action is primary. */}
+          <div className="grid grid-cols-2 gap-3 items-start">
+            <div>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1.5">Next Action</p>
+              {primaryAction.kind === "automatic" ? (
+                <button
+                  type="button"
+                  onClick={handleNextActionClick}
+                  className={actionBtnClass}
+                >
+                  {action}
+                  {followUpStatus === "today" && " · Today"}
+                  {followUpStatus === "overdue" && " · Overdue"}
+                </button>
+              ) : (
+                <span
+                  className={[
+                    "text-xs font-semibold px-2.5 py-1 rounded-lg border whitespace-nowrap",
+                    primaryAction.urgency === "overdue" ? "bg-red-600 text-white border-red-600 animate-pulse" :
+                    primaryAction.urgency === "today"   ? "bg-amber-100 text-amber-800 border-amber-300" :
+                                                           "bg-white text-gray-700 border-gray-300",
+                  ].join(" ")}
+                >
+                  👤 {primaryAction.title}
+                  {primaryAction.urgency === "today" && " · Today"}
+                  {primaryAction.urgency === "overdue" && " · Overdue"}
                 </span>
               )}
             </div>
+
+            {doneConfig && (
+              <div className="text-right">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1.5">Status</p>
+                <button
+                  type="button"
+                  onClick={() => handleDoneForNow(doneConfig.days)}
+                  className={[
+                    "text-[11.5px] font-semibold px-3 py-1.5 rounded-lg border transition-colors",
+                    doneMsg
+                      ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                      : "border-gray-300 bg-gray-100 text-gray-600 hover:bg-gray-200",
+                  ].join(" ")}
+                >
+                  {doneMsg ? "✓ Completed" : "Complete"}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Manual action's own defer control — unchanged behavior,
+              now a full-width row beneath the two-column layout. */}
+          {primaryAction.kind === "manual" && primaryAction.manualAction && (
+            <div className="mt-2.5">
+              <ManualActionControls
+                manualAction={primaryAction.manualAction}
+                onComplete={handleCompleteAction}
+                onSnoozeTomorrow={snoozeTomorrow}
+                onSnoozeNextWeek={snoozeNextWeek}
+                customSnoozeFor={customSnoozeFor}
+                setCustomSnoozeFor={setCustomSnoozeFor}
+                onCustomSnooze={handleSnoozeAction}
+              />
+            </div>
           )}
+
+          {/* Other Open Actions — everything not currently primary,
+              including the automatic action when a manual one wins.
+              Nothing here is ever deleted by completing something else. */}
+          {otherActions.length > 0 && (
+            <div className="mt-2.5 pt-2.5 border-t border-gray-200">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1.5">
+                Other Open Actions
+              </p>
+              <div className="space-y-1.5">
+                {otherActions.map((other, i) => (
+                  <div key={other.manualAction?.id ?? `automatic-${i}`} className="flex items-center justify-between gap-2 text-[11.5px]">
+                    <span className="text-gray-600">
+                      {other.kind === "manual" ? "👤" : "🤖"} {other.title}
+                      {other.dueAt && (
+                        <span className="text-gray-400"> · {formatDate(other.dueAt)}</span>
+                      )}
+                    </span>
+                    {other.manualAction && (
+                      <button
+                        type="button"
+                        onClick={() => handleCompleteAction(other.manualAction!.id)}
+                        className="flex-none text-[10.5px] font-semibold text-emerald-600 hover:text-emerald-700"
+                      >
+                        ✓ Done
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Add a manual action */}
+          <button
+            type="button"
+            onClick={() => setShowAddAction(true)}
+            className="mt-2.5 w-full text-[11.5px] font-semibold px-3 py-1.5 rounded-lg border border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
+          >
+            + Add Next Action
+          </button>
         </div>
+
+        {/* Section: Favorite Properties (Phase 1 — manual only) */}
+        <SectionCard title="Favorite Properties" collapsible defaultOpen={false}>
+          {leadFavorites.length === 0 ? (
+            <p className="text-[12.5px] text-gray-400">No favorite properties added.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {leadFavorites.map((fav) => (
+                <div
+                  key={fav.id}
+                  className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 hover:border-gray-300 hover:bg-gray-100 transition-colors"
+                >
+                  {fav.property_url ? (
+                    <a
+                      href={fav.property_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="min-w-0 flex-1"
+                    >
+                      <p className="text-[12.5px] font-semibold text-blue-600 hover:underline truncate">
+                        {fav.property_name || fav.property_url}
+                      </p>
+                      {fav.property_address && (
+                        <p className="text-[11px] text-gray-400 truncate">{fav.property_address}</p>
+                      )}
+                    </a>
+                  ) : (
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[12.5px] font-semibold text-gray-800 truncate">
+                        {fav.property_name}
+                      </p>
+                      {fav.property_address && (
+                        <p className="text-[11px] text-gray-400 truncate">{fav.property_address}</p>
+                      )}
+                    </div>
+                  )}
+                  <div className="flex-none flex items-center gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => openEditFavorite(fav)}
+                      className="text-[10.5px] font-semibold text-gray-500 hover:text-gray-700"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeletingFavoriteId(fav.id)}
+                      className="text-[10.5px] font-semibold text-red-500 hover:text-red-700"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setShowFavoriteModal(true)}
+            className="mt-2.5 w-full text-[11.5px] font-semibold px-3 py-1.5 rounded-lg border border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
+          >
+            + Add Favorites
+          </button>
+        </SectionCard>
 
         {/* Section: Search Criteria */}
         <SectionCard title="Search Criteria" shaded collapsible defaultOpen={false}>
@@ -815,6 +1191,30 @@ export default function LeadPanel({
       danger
       onConfirm={handleDeleteLead}
       onCancel={() => setShowDeleteConfirm(false)}
+    />
+
+    <AddNextActionModal
+      open={showAddAction}
+      onClose={() => setShowAddAction(false)}
+      onCreate={handleCreateAction}
+    />
+
+    <FavoriteModal
+      open={showFavoriteModal}
+      editing={editingFavorite}
+      onClose={closeFavoriteModal}
+      onSave={handleSaveFavorite}
+    />
+
+    <ConfirmDialog
+      open={deletingFavoriteId !== null}
+      title="Delete this favorite?"
+      message="This will remove the saved property from this lead's favorites. This can't be undone."
+      confirmLabel="Delete"
+      cancelLabel="Cancel"
+      danger
+      onConfirm={handleDeleteFavorite}
+      onCancel={() => setDeletingFavoriteId(null)}
     />
     </>
   )

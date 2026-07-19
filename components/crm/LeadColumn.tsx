@@ -18,7 +18,7 @@ type Props = {
 const STAGE_DOT: Record<string, string> = {
   new:            "bg-amber-400",
   contacted:      "bg-blue-500",
-  qualified:      "bg-violet-500",
+  searching:      "bg-violet-500",
   list_sent:      "bg-emerald-500",
   ready_to_tour:  "bg-orange-400",
   done_touring:   "bg-yellow-500",

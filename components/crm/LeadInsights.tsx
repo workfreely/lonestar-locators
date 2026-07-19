@@ -289,7 +289,7 @@ function getCloseProbability(lead: any) {
   const map: Record<string, { label: string; color: string }> = {
     new: { label: "10%", color: "text-gray-500" },
     contacted: { label: "20%", color: "text-blue-500" },
-    qualified: { label: "35%", color: "text-purple-500" },
+    searching: { label: "35%", color: "text-purple-500" },
     list_sent: { label: "50%", color: "text-green-500" },
     ready_to_tour: { label: "65%", color: "text-orange-500" },
     done_touring: { label: "80%", color: "text-yellow-600" },

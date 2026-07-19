@@ -9,7 +9,7 @@ import LeadInsights from "./LeadInsights"
 import LeadFormModal from "../LeadFormModal"
 import DashboardStats from "./DashboardStats"
 
-export default function DashboardClient({ leads }: { leads: any[] }) {
+export default function DashboardClient({ leads, nextActions, favorites }: { leads: any[]; nextActions: any[]; favorites: any[] }) {
   const router = useRouter()
   const [selectedLeadId, setSelectedLeadId] = useState<string | number | null>(null)
 
@@ -21,6 +21,8 @@ export default function DashboardClient({ leads }: { leads: any[] }) {
 
   const [topMatches, setTopMatches] = useState<any[]>([])
   const [localLeads, setLocalLeads] = useState(leads)
+  const [localNextActions, setLocalNextActions] = useState(nextActions)
+  const [localFavorites, setLocalFavorites] = useState(favorites)
   const [showLeadModal, setShowLeadModal] = useState(false)
 
   const selectedLead = localLeads.find(
@@ -83,6 +85,7 @@ export default function DashboardClient({ leads }: { leads: any[] }) {
         <div className="relative z-10 flex-none w-[220px] border-r border-white/10 bg-black/20 backdrop-blur-md overflow-y-auto">
           <FollowUpRow
             leads={localLeads}
+            nextActions={localNextActions}
             onSelectLead={(id) => {
               setSelectedLeadId(id)
               router.push(`/admin/leads?id=${id}`)
@@ -109,7 +112,7 @@ export default function DashboardClient({ leads }: { leads: any[] }) {
 
         {/* LEAD DETAIL OVERLAY */}
         {selectedLead && (
-          <div className="absolute inset-y-0 left-[220px] right-0 z-20 flex pointer-events-none">
+          <div className="absolute inset-y-0 left-[220px] right-0 z-40 flex pointer-events-none">
             <div className="flex w-full bg-white h-full shadow-2xl pointer-events-auto">
 
               {/* LEAD PANEL */}
@@ -117,6 +120,10 @@ export default function DashboardClient({ leads }: { leads: any[] }) {
                 <LeadPanel
                   lead={selectedLead}
                   topMatches={topMatches}
+                  nextActions={localNextActions}
+                  setNextActions={setLocalNextActions}
+                  favorites={localFavorites}
+                  setFavorites={setLocalFavorites}
                   onClose={() => {
                     setSelectedLeadId(null)
                     router.push("/admin/leads")

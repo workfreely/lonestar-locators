@@ -10,7 +10,7 @@ const MONTHLY_LEAD_GOAL    = 300
 // Active Pipeline counts only leads still moving through the workflow —
 // never Closed (won) or Archived (dead/lost).
 const ACTIVE_STATUSES = new Set([
-  "new", "contacted", "qualified", "list_sent", "ready_to_tour", "done_touring", "applied",
+  "new", "contacted", "searching", "list_sent", "ready_to_tour", "done_touring", "applied",
 ])
 
 // Five tracked marketing sources shown in the stacked bar legend. This is a
@@ -74,7 +74,7 @@ export default function DashboardStats({ leads }: { leads: any[] }) {
   // Projected commission — simple version: Applied leads only, using the
   // same per-lead dollar figure (REVENUE_PER_CLOSE) already used above for
   // Active Pipeline / Monthly Goal. Not estimating from any other stage
-  // yet (Qualified, List Sent, Ready to Tour, etc.) — intentionally simple
+  // yet (Searching, List Sent, Ready to Tour, etc.) — intentionally simple
   // until there's more production data to base a smarter model on.
   const appliedLeads = leads.filter((l) => l.crm_status === "applied")
   const projectedCommission = appliedLeads.length * REVENUE_PER_CLOSE

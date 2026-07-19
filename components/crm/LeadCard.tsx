@@ -131,7 +131,7 @@ export default function LeadCard({ lead, isSelected, onSelect }: any) {
   // ─── Close probability ──────────────────────────────────────────────────
 
   const CLOSE_MAP: Record<string, number> = {
-    new: 10, contacted: 20, qualified: 35, list_sent: 50,
+    new: 10, contacted: 20, searching: 35, list_sent: 50,
     ready_to_tour: 65, done_touring: 80, applied: 95, closed: 100,
   }
   const closePct = CLOSE_MAP[lead.crm_status] ?? 0

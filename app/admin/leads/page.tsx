@@ -35,8 +35,46 @@ async function getLeads() {
   return dedupeLeads(data || [])
 }
 
-export default async function Page() {
-  const leads = await getLeads()
+// Only open (uncompleted) manual Next Actions — completed ones don't
+// participate in the unified queue or ranking, so there's no reason to
+// ship them to the client on every page load.
+async function getOpenNextActions() {
+  const { data, error } = await supabaseAdmin
+    .from("lead_next_actions")
+    .select("*")
+    .eq("completed", false)
+    .order("due_at", { ascending: true })
 
-  return <DashboardClient leads={leads} />
+  if (error) {
+    console.error("Error fetching next actions:", error.message)
+    return []
+  }
+
+  return data || []
+}
+
+// Favorites Phase 1 — manual only, no filtering by status (there isn't
+// one yet), just every saved favorite across all leads.
+async function getFavorites() {
+  const { data, error } = await supabaseAdmin
+    .from("lead_favorites")
+    .select("*")
+    .order("created_at", { ascending: true })
+
+  if (error) {
+    console.error("Error fetching favorites:", error.message)
+    return []
+  }
+
+  return data || []
+}
+
+export default async function Page() {
+  const [leads, nextActions, favorites] = await Promise.all([
+    getLeads(),
+    getOpenNextActions(),
+    getFavorites(),
+  ])
+
+  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} />
 }

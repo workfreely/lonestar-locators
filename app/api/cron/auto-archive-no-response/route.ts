@@ -18,7 +18,7 @@ const supabase = createClient(
 // that wasn't actually contacted via First Text.
 //
 // Only crm_status === "contacted" rows are candidates — leads that have
-// moved to any later stage (qualified, list_sent, ready_to_tour,
+// moved to any later stage (searching, list_sent, ready_to_tour,
 // done_touring, applied, closed) or are already archived don't match this
 // filter and are left untouched.
 //

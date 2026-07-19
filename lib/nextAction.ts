@@ -5,7 +5,7 @@ export function getNextAction(lead: any) {
   // =====================================================
   // 🟡 NEW LEAD
   // =====================================================
-  if (stage === "new") return "First Text"
+  if (stage === "new") return "Contact Lead"
 
   // =====================================================
   // 🔵 CONTACTED (NO FOLLOW UPS YET)
@@ -13,9 +13,9 @@ export function getNextAction(lead: any) {
   if (stage === "contacted") return "Qualify Lead"
 
   // =====================================================
-  // 🟣 QUALIFIED
+  // 🟣 SEARCHING
   // =====================================================
-  if (stage === "qualified") return "Build List"
+  if (stage === "searching") return "Build List"
 
   // =====================================================
 // 🟢 LIST SENT → FOLLOW-UP SEQUENCE STARTS HERE
@@ -30,13 +30,13 @@ if (stage === "list_sent") {
   // =====================================================
   // 🟠 TOUR FLOW
   // =====================================================
-  if (stage === "ready_to_tour") return "Confirm Tour"
-  if (stage === "done_touring") return "Get Feedback"
+  if (stage === "ready_to_tour") return "Setup Tour"
+  if (stage === "done_touring") return "Tour Follow-Up"
 
   // =====================================================
   // ⚫ APPLIED
   // =====================================================
-  if (stage === "applied") return "Check Approval"
+  if (stage === "applied") return "Check App"
 
   // =====================================================
   // 🏁 CLOSED

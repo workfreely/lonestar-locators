@@ -13,7 +13,7 @@ import LeadCard from "./LeadCard"
 const columns = [
   { id: "new", title: "🟡 New" },
   { id: "contacted", title: "🔵 Contacted" },
-  { id: "qualified", title: "🟣 Qualified" },
+  { id: "searching", title: "🟣 Searching" },
   { id: "list_sent", title: "🟢 List Sent" },
   { id: "ready_to_tour", title: "🟠 Ready to Tour" },
   { id: "done_touring", title: "🟡 Done Touring" },

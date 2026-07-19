@@ -1,35 +1,9 @@
 "use client"
 
 import { useState } from "react"
+import { rankLeadActions } from "@/lib/nextActions"
 
 // ─── Date helpers ──────────────────────────────────────────────────────────────
-
-function isDue(date: string | null) {
-  if (!date) return false
-  const today = new Date()
-  const followUp = new Date(date)
-  today.setHours(0, 0, 0, 0)
-  followUp.setHours(0, 0, 0, 0)
-  return followUp.getTime() <= today.getTime()
-}
-
-function isOverdue(date: string | null): boolean {
-  if (!date) return false
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const d = new Date(date)
-  d.setHours(0, 0, 0, 0)
-  return d.getTime() < today.getTime()
-}
-
-function isExactlyToday(date: string | null): boolean {
-  if (!date) return false
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const d = new Date(date)
-  d.setHours(0, 0, 0, 0)
-  return d.getTime() === today.getTime()
-}
 
 function formatDate(date: string) {
   if (!date) return ""
@@ -65,11 +39,11 @@ function getActionLabel(crm_status: string, follow_up_count: number | null | und
       return "Pause Search"
     }
     case "ready_to_tour":
-      return "Confirm Tour"
+      return "Setup Tour"
     case "done_touring":
-      return "Get Feedback"
+      return "Tour Follow-Up"
     case "applied":
-      return "Check Approval"
+      return "Check App"
     case "closed":
       return "Request Referral"
     default:
@@ -77,28 +51,44 @@ function getActionLabel(crm_status: string, follow_up_count: number | null | und
   }
 }
 
-type FilterType = "overdue" | "urgent" | "today"
+type FilterType = "overdue" | "today"
 
 export default function FollowUpRow({
   leads,
+  nextActions,
   onSelectLead,
 }: {
   leads: any[]
+  nextActions: any[]
   onSelectLead?: (leadId: string | number) => void
 }) {
   const [activeFilter, setActiveFilter] = useState<FilterType | null>(null)
 
-  // All leads that are due (existing logic unchanged — closed leads always excluded)
-  const dueLeads = leads.filter(
-    (lead) => isDue(lead.next_action_date) && lead.crm_status !== "closed"
+  // Rank every lead's automatic action against its open manual actions —
+  // same ranking LeadPanel uses, so the icon/label shown here for a lead
+  // always agrees with what that lead's panel shows as primary. Closed
+  // leads stay excluded from the queue entirely (unchanged from before);
+  // a closed lead's manual actions still show inside its own panel, just
+  // not in this cross-lead sidebar.
+  const ranked = leads
+    .filter((lead) => lead.crm_status !== "closed")
+    .map((lead) => ({
+      lead,
+      ...rankLeadActions(lead, nextActions, getActionLabel(lead.crm_status, lead.follow_up_count)),
+    }))
+
+  // Leads whose primary action is due today or already overdue — direct
+  // generalization of the old next_action_date-only check: when a lead has
+  // no manual actions, ranking reduces to exactly that same check.
+  const dueLeads = ranked.filter(
+    ({ primary }) => primary.urgency === "overdue" || primary.urgency === "today"
   )
 
   // Filter buckets
-  const filterMatch = (lead: any): boolean => {
+  const filterMatch = ({ primary }: (typeof ranked)[number]): boolean => {
     if (!activeFilter) return true
-    if (activeFilter === "overdue") return isOverdue(lead.next_action_date)
-    if (activeFilter === "urgent")  return lead.crm_status === "new"
-    if (activeFilter === "today")   return isExactlyToday(lead.next_action_date) && lead.crm_status !== "new"
+    if (activeFilter === "overdue") return primary.urgency === "overdue"
+    if (activeFilter === "today")   return primary.urgency === "today"
     return true
   }
 
@@ -110,7 +100,6 @@ export default function FollowUpRow({
 
   const filterTabs: { key: FilterType; label: string }[] = [
     { key: "today",   label: "Today"   },
-    { key: "urgent",  label: "Urgent"  },
     { key: "overdue", label: "Overdue" },
   ]
 
@@ -165,7 +154,7 @@ export default function FollowUpRow({
           </div>
         )}
 
-        {visibleLeads.map((lead) => (
+        {visibleLeads.map(({ lead, primary }) => (
           <div
             key={lead.id}
             onClick={() => onSelectLead?.(lead.id)}
@@ -194,7 +183,7 @@ export default function FollowUpRow({
               )}
 
               <p className="text-[10.5px] text-red-300 font-semibold mt-1.5">
-                {getActionLabel(lead.crm_status, lead.follow_up_count)}
+                {primary.kind === "manual" ? "👤" : "🤖"} {primary.title}
               </p>
             </div>
           </div>
