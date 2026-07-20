@@ -13,6 +13,7 @@ type Props = {
   leads: Lead[]
   selectedLeadId?: string | number | null
   onSelectLead?: (leadId: string | number) => void
+  compact?: boolean
 }
 
 const STAGE_DOT: Record<string, string> = {
@@ -38,6 +39,7 @@ export default function LeadColumn({
   leads,
   selectedLeadId,
   onSelectLead,
+  compact,
 }: Props) {
   const { setNodeRef } = useDroppable({ id })
 
@@ -47,10 +49,11 @@ export default function LeadColumn({
   return (
     <div
       ref={setNodeRef}
-      className="w-[272px] min-w-[272px] flex flex-col rounded-xl
-        bg-white/10 backdrop-blur-xl border border-white/20
-        shadow-[0_4px_24px_rgba(0,0,0,0.12)]
-        h-full overflow-y-auto"
+      className={[
+        "flex flex-col rounded-xl bg-white/10 backdrop-blur-xl border border-white/20",
+        "shadow-[0_4px_24px_rgba(0,0,0,0.12)] h-full overflow-y-auto",
+        compact ? "w-[220px] min-w-[220px]" : "w-[272px] min-w-[272px]",
+      ].join(" ")}
     >
       {/* Column header */}
       <div className="flex items-center justify-between px-3.5 pt-3 pb-2.5 border-b border-white/10">
@@ -66,13 +69,14 @@ export default function LeadColumn({
       </div>
 
       {/* Cards */}
-      <div className="flex flex-col gap-2 p-2.5 pb-4">
+      <div className={compact ? "flex flex-col gap-1 p-1.5 pb-3" : "flex flex-col gap-2 p-2.5 pb-4"}>
         {leads.map((lead: any) => (
           <LeadCard
             key={lead.id}
             lead={lead}
             isSelected={String(selectedLeadId) === String(lead.id)}
             onSelect={onSelectLead}
+            compact={compact}
           />
         ))}
 

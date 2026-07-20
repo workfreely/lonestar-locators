@@ -35,10 +35,20 @@ export default function LeadBoard({
 }) {
   const [mounted, setMounted] = useState(false)
   const [activeLead, setActiveLead] = useState<any | null>(null)
+  const [compact, setCompact] = useState(false)
 
   useEffect(() => {
     setMounted(true)
+    setCompact(localStorage.getItem("kanban-compact-view") === "true")
   }, [])
+
+  function toggleCompact() {
+    setCompact((prev) => {
+      const next = !prev
+      localStorage.setItem("kanban-compact-view", String(next))
+      return next
+    })
+  }
 
   if (!mounted) return null
 
@@ -131,48 +141,64 @@ export default function LeadBoard({
         setActiveLead(null)
       }}
     >
-      <div className="flex gap-4 overflow-x-auto overflow-y-visible h-full min-w-0 px-6 py-4">
-        {columns.map((col) => (
-          <LeadColumn
-            key={col.id}
-            id={col.id}
-            title={col.title}
-            leads={leads
-              .filter((lead) => lead.crm_status === col.id)
-              .sort((a, b) => {
-                // _justDropped / _isNew always pins to top regardless of column
-                const aTop = a._justDropped || a._isNew ? 1 : 0
-                const bTop = b._justDropped || b._isNew ? 1 : 0
-                if (aTop !== bTop) return bTop - aTop
+      <div className="h-full flex flex-col min-w-0">
+        {/* Kanban toolbar */}
+        <div className="flex-none flex items-center justify-end px-6 pt-3">
+          <label className="flex items-center gap-1.5 text-xs font-medium text-white/70 hover:text-white cursor-pointer select-none transition-colors">
+            <input
+              type="checkbox"
+              checked={compact}
+              onChange={toggleCompact}
+              className="w-3.5 h-3.5 rounded border-white/30 bg-white/10 accent-blue-500 cursor-pointer"
+            />
+            Compact View
+          </label>
+        </div>
 
-                if (col.id === "new") {
-                  // Newest submitted lead first — fresh inbound always visible at top
-                  const aT = a.created_at ? new Date(a.created_at).getTime() : 0
-                  const bT = b.created_at ? new Date(b.created_at).getTime() : 0
-                  return bT - aT
-                }
+        <div className="flex-1 flex gap-4 overflow-x-auto overflow-y-visible min-w-0 px-6 py-4">
+          {columns.map((col) => (
+            <LeadColumn
+              key={col.id}
+              id={col.id}
+              title={col.title}
+              compact={compact}
+              leads={leads
+                .filter((lead) => lead.crm_status === col.id)
+                .sort((a, b) => {
+                  // _justDropped / _isNew always pins to top regardless of column
+                  const aTop = a._justDropped || a._isNew ? 1 : 0
+                  const bTop = b._justDropped || b._isNew ? 1 : 0
+                  if (aTop !== bTop) return bTop - aTop
 
-                if (col.id === "closed") {
-                  // Most recently closed / updated first
-                  const aT = a.updated_at
-                    ? new Date(a.updated_at).getTime()
-                    : a.created_at ? new Date(a.created_at).getTime() : 0
-                  const bT = b.updated_at
-                    ? new Date(b.updated_at).getTime()
-                    : b.created_at ? new Date(b.created_at).getTime() : 0
-                  return bT - aT
-                }
+                  if (col.id === "new") {
+                    // Newest submitted lead first — fresh inbound always visible at top
+                    const aT = a.created_at ? new Date(a.created_at).getTime() : 0
+                    const bT = b.created_at ? new Date(b.created_at).getTime() : 0
+                    return bT - aT
+                  }
 
-                // contacted · list_sent · ready_to_tour · done_touring · applied
-                // Soonest move date first — leads with no date sink to bottom
-                const aD = a.move_date ? new Date(a.move_date).getTime() : Infinity
-                const bD = b.move_date ? new Date(b.move_date).getTime() : Infinity
-                return aD - bD
-              })}
-            selectedLeadId={selectedLeadId}
-            onSelectLead={onSelectLead}
-          />
-        ))}
+                  if (col.id === "closed") {
+                    // Most recently closed / updated first
+                    const aT = a.updated_at
+                      ? new Date(a.updated_at).getTime()
+                      : a.created_at ? new Date(a.created_at).getTime() : 0
+                    const bT = b.updated_at
+                      ? new Date(b.updated_at).getTime()
+                      : b.created_at ? new Date(b.created_at).getTime() : 0
+                    return bT - aT
+                  }
+
+                  // contacted · list_sent · ready_to_tour · done_touring · applied
+                  // Soonest move date first — leads with no date sink to bottom
+                  const aD = a.move_date ? new Date(a.move_date).getTime() : Infinity
+                  const bD = b.move_date ? new Date(b.move_date).getTime() : Infinity
+                  return aD - bD
+                })}
+              selectedLeadId={selectedLeadId}
+              onSelectLead={onSelectLead}
+            />
+          ))}
+        </div>
       </div>
 
       {/* 🔥 THIS FIXES THE DRAG OVERLAY ISSUE */}
@@ -182,6 +208,7 @@ export default function LeadBoard({
             <LeadCard
               lead={activeLead}
               isSelected={false}
+              compact={compact}
               onSelect={() => {}}
             />
           </div>

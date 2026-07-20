@@ -61,7 +61,7 @@ function formatStatus(status: string) {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function LeadCard({ lead, isSelected, onSelect }: any) {
+export default function LeadCard({ lead, isSelected, onSelect, compact }: any) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: String(lead.id),
   })
@@ -190,20 +190,29 @@ export default function LeadCard({ lead, isSelected, onSelect }: any) {
         </svg>
       </div>
 
-      <div className="px-3 pt-3 pb-2.5">
+      <div className={compact ? "px-2 pt-2 pb-1.5" : "px-3 pt-3 pb-2.5"}>
 
         {/* Name row */}
-        <div className="flex items-start justify-between gap-2 mb-0.5">
-          <p className="text-[16px] font-bold text-gray-900 leading-tight tracking-tight">
+        <div className={`flex items-start justify-between gap-2 ${compact ? "mb-0" : "mb-0.5"}`}>
+          <p className={[
+            "font-bold text-gray-900 leading-tight tracking-tight",
+            compact ? "text-[13px]" : "text-[16px]",
+          ].join(" ")}>
             {normalizeName(lead.first_name)} {normalizeName(lead.last_name)}
           </p>
           {isHot && (
-            <span className="flex-none text-[9.5px] font-semibold px-1.5 py-px rounded-full bg-red-50 text-red-600 border border-red-200 whitespace-nowrap mt-0.5">
+            <span className={[
+              "flex-none font-semibold rounded-full bg-red-50 text-red-600 border border-red-200 whitespace-nowrap mt-0.5",
+              compact ? "text-[8.5px] px-1 py-px" : "text-[9.5px] px-1.5 py-px",
+            ].join(" ")}>
               HOT
             </span>
           )}
           {archiveBadgeLabel && (
-            <span className="flex-none text-[9.5px] font-semibold px-1.5 py-px rounded-full bg-slate-100 text-slate-600 border border-slate-300 whitespace-nowrap mt-0.5">
+            <span className={[
+              "flex-none font-semibold rounded-full bg-slate-100 text-slate-600 border border-slate-300 whitespace-nowrap mt-0.5",
+              compact ? "text-[8.5px] px-1 py-px" : "text-[9.5px] px-1.5 py-px",
+            ].join(" ")}>
               {archiveBadgeLabel}
             </span>
           )}
@@ -211,11 +220,11 @@ export default function LeadCard({ lead, isSelected, onSelect }: any) {
 
         {/* Phone */}
         {lead.phone && (
-          <div className="flex items-center gap-1.5 mb-2">
+          <div className={`flex items-center gap-1.5 ${compact ? "mb-1" : "mb-2"}`}>
             <a
               href={`sms:${lead.phone}`}
               onClick={(e) => e.stopPropagation()}
-              className="text-[14px] font-medium text-blue-600 hover:underline"
+              className={compact ? "text-[12px] font-medium text-blue-600 hover:underline" : "text-[14px] font-medium text-blue-600 hover:underline"}
             >
               {formatPhone(lead.phone)}
             </a>
@@ -223,7 +232,8 @@ export default function LeadCard({ lead, isSelected, onSelect }: any) {
               type="button"
               onClick={copyPhone}
               className={[
-                "text-[9.5px] font-medium px-1.5 py-px rounded border transition-colors",
+                "font-medium rounded border transition-colors",
+                compact ? "text-[9px] px-1 py-px" : "text-[9.5px] px-1.5 py-px",
                 copied
                   ? "bg-emerald-500 text-white border-emerald-500"
                   : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100",
@@ -235,33 +245,37 @@ export default function LeadCard({ lead, isSelected, onSelect }: any) {
         )}
 
         {/* Info grid */}
-        <div className="bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1.5 space-y-1 text-[11.5px] mb-2">
-          <div className="flex justify-between leading-[1.35]">
+        <div className={[
+          "bg-gray-50 border border-gray-100 rounded-lg",
+          compact ? "px-2 py-1 space-y-0.5 text-[10px] mb-1.5" : "px-2.5 py-1.5 space-y-1 text-[11.5px] mb-2",
+        ].join(" ")}>
+          <div className={`flex justify-between ${compact ? "leading-[1.2]" : "leading-[1.35]"}`}>
             <span className="text-gray-400">{inferredMarket ? "Interest" : "City"}</span>
             <span className="font-medium text-gray-800">{inferredMarket || lead.city || "—"}</span>
           </div>
-          <div className="flex justify-between leading-[1.35]">
+          <div className={`flex justify-between ${compact ? "leading-[1.2]" : "leading-[1.35]"}`}>
             <span className="text-gray-400">Budget</span>
             <span className="font-medium text-gray-800">{formatRent(lead.desired_rent)}</span>
           </div>
-          <div className="flex justify-between leading-[1.35]">
+          <div className={`flex justify-between ${compact ? "leading-[1.2]" : "leading-[1.35]"}`}>
             <span className="text-gray-400">Property</span>
             <span className="font-medium text-gray-800">{lead.property_type || "—"}</span>
           </div>
-          <div className="flex justify-between leading-[1.35]">
+          <div className={`flex justify-between ${compact ? "leading-[1.2]" : "leading-[1.35]"}`}>
             <span className="text-gray-400">Move Date</span>
             <span className="font-medium text-gray-800">{formatDate(lead.move_date) || "—"}</span>
           </div>
-          <div className="flex justify-between leading-[1.35]">
+          <div className={`flex justify-between ${compact ? "leading-[1.2]" : "leading-[1.35]"}`}>
             <span className="text-gray-400">Credit</span>
             <span className="font-medium text-gray-800">{lead.credit_score || "—"}</span>
           </div>
           {lead.source && (
-            <div className="flex justify-between items-center leading-[1.35]">
+            <div className={`flex justify-between items-center ${compact ? "leading-[1.2]" : "leading-[1.35]"}`}>
               <span className="text-gray-400">Source</span>
               <span
                 className={[
-                  "text-[10px] font-semibold px-1.5 py-px rounded-full border",
+                  "font-semibold rounded-full border",
+                  compact ? "text-[9px] px-1 py-px" : "text-[10px] px-1.5 py-px",
                   getSourceStyle(lead.source).badgeClassName,
                 ].join(" ")}
               >
@@ -275,7 +289,8 @@ export default function LeadCard({ lead, isSelected, onSelect }: any) {
         <div className="flex items-center gap-1 flex-nowrap overflow-hidden">
           <span
             className={[
-              "text-[10px] font-semibold px-1.5 py-px rounded-full border whitespace-nowrap flex-none",
+              "font-semibold rounded-full border whitespace-nowrap flex-none",
+              compact ? "text-[9px] px-1 py-px" : "text-[10px] px-1.5 py-px",
               riskClass,
             ].join(" ")}
           >
@@ -284,7 +299,8 @@ export default function LeadCard({ lead, isSelected, onSelect }: any) {
 
           <span
             className={[
-              "text-[10px] font-semibold px-1.5 py-px rounded-full border ml-auto whitespace-nowrap flex-none",
+              "font-semibold rounded-full border ml-auto whitespace-nowrap flex-none",
+              compact ? "text-[9px] px-1 py-px" : "text-[10px] px-1.5 py-px",
               followUpStatus === "overdue"
                 ? "bg-red-50 text-red-600 border-red-200"
                 : followUpStatus === "today"
