@@ -52,6 +52,11 @@ export default function PerformanceStats({ leads }: { leads: any[] }) {
   return (
     <div className="grid grid-cols-4 gap-3">
       <div className={cardCls}>
+        <p className={labelCls}>Total Leads</p>
+        <p className={`${valueCls} mt-1`}>{totalLeads}</p>
+      </div>
+
+      <div className={cardCls}>
         <p className={labelCls}>Top Source</p>
         <div className="mt-1">
           {topSource ? (
@@ -64,11 +69,6 @@ export default function PerformanceStats({ leads }: { leads: any[] }) {
             <p className={valueCls}>—</p>
           )}
         </div>
-      </div>
-
-      <div className={cardCls}>
-        <p className={labelCls}>Total Leads</p>
-        <p className={`${valueCls} mt-1`}>{totalLeads}</p>
       </div>
 
       <div className={cardCls}>

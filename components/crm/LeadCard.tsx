@@ -121,25 +121,21 @@ export default function LeadCard({ lead, isSelected, onSelect }: any) {
   const isHighRisk = credit < 500 || hasEviction || hasFelony
   const isMediumRisk = !isHighRisk && (credit < 620 || hasBrokenLease)
 
-  const riskLabel = isHighRisk ? "High Risk" : isMediumRisk ? "Med Risk" : "Low Risk"
+  // Same underlying risk calculation as before — only the display label is
+  // inverted to "Approval" framing (high risk reads as low approval odds).
+  const approvalLabel = isHighRisk ? "Low Approval" : isMediumRisk ? "Medium Approval" : "High Approval"
   const riskClass = isHighRisk
     ? "bg-red-50 text-red-600 border-red-200"
     : isMediumRisk
     ? "bg-amber-50 text-amber-700 border-amber-200"
     : "bg-emerald-50 text-emerald-700 border-emerald-200"
 
-  // ─── Close probability ──────────────────────────────────────────────────
-
-  const CLOSE_MAP: Record<string, number> = {
-    new: 10, contacted: 20, searching: 35, list_sent: 50,
-    ready_to_tour: 65, done_touring: 80, applied: 95, closed: 100,
-  }
-  const closePct = CLOSE_MAP[lead.crm_status] ?? 0
-
   // ─── Follow-up action ───────────────────────────────────────────────────
 
   const action = getNextAction(lead)
-  const followUpStatus = lead.next_action_date
+  // Archived leads are out of the active workflow — never show an
+  // urgency badge for them, regardless of a possibly-stale next_action_date.
+  const followUpStatus = lead.next_action_date && lead.crm_status !== "archived"
     ? getFollowUpStatus(lead.next_action_date)
     : "none"
 
@@ -181,7 +177,7 @@ export default function LeadCard({ lead, isSelected, onSelect }: any) {
       <div
         {...listeners}
         onClick={(e) => e.stopPropagation()}
-        className="absolute top-0 left-0 right-0 h-6 flex items-center justify-center cursor-grab active:cursor-grabbing rounded-t-2xl opacity-0 group-hover:opacity-100 transition-opacity"
+        className="absolute top-0 right-0 w-10 h-6 flex items-center justify-center cursor-grab active:cursor-grabbing rounded-tr-2xl opacity-0 group-hover:opacity-100 transition-opacity"
         title="Drag to move"
       >
         <svg width="20" height="8" viewBox="0 0 20 8" fill="none" className="text-gray-300">
@@ -283,11 +279,7 @@ export default function LeadCard({ lead, isSelected, onSelect }: any) {
               riskClass,
             ].join(" ")}
           >
-            {riskLabel}
-          </span>
-
-          <span className="text-[10px] font-semibold px-1.5 py-px rounded-full border bg-violet-50 text-violet-700 border-violet-200 whitespace-nowrap flex-none">
-            {closePct}%
+            {approvalLabel}
           </span>
 
           <span

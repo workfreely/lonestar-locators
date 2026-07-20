@@ -10,7 +10,7 @@ export function getNextAction(lead: any) {
   // =====================================================
   // 🔵 CONTACTED (NO FOLLOW UPS YET)
   // =====================================================
-  if (stage === "contacted") return "Qualify Lead"
+  if (stage === "contacted") return "Waiting for Response"
 
   // =====================================================
   // 🟣 SEARCHING

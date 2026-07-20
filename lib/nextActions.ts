@@ -83,6 +83,24 @@ export function rankLeadActions(
   manualActions: ManualNextAction[],
   automaticLabel: string
 ): { primary: RankedAction; others: RankedAction[] } {
+  // Archived leads are out of the active workflow entirely — neither the
+  // automatic stage action nor any open manual action should ever surface
+  // as due/overdue while archived. Nothing is deleted here (the lead's
+  // next_action_date and its lead_next_actions rows are untouched), so
+  // restoring the lead to an active stage resumes ranking normally.
+  if (lead.crm_status === "archived") {
+    return {
+      primary: {
+        kind: "automatic",
+        title: automaticLabel,
+        dueAt: null,
+        priority: "medium",
+        urgency: "none",
+      },
+      others: [],
+    }
+  }
+
   const automatic: RankedAction = {
     kind: "automatic",
     title: automaticLabel,

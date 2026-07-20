@@ -53,7 +53,9 @@ export default function LeadBoard({
     const newStage = over.id as string
 
     // ⏰ FOLLOW-UP TIMING
-    let nextDate: string | null = null
+    // undefined = leave next_action_date untouched (not sent to the
+    // backend at all, so the existing column value is preserved).
+    let nextDate: string | null | undefined = null
 
     if (
       newStage === "contacted" ||
@@ -64,6 +66,11 @@ export default function LeadBoard({
       const d = new Date()
       d.setDate(d.getDate() + 1)
       nextDate = d.toISOString()
+    } else if (newStage === "archived") {
+      // Archiving pauses the workflow, it doesn't erase it — preserve
+      // whatever due date the lead already had so restoring it resumes
+      // the workflow automatically, without the date needing to be reset.
+      nextDate = undefined
     }
 
     // 🔄 RESET FOLLOW-UP COUNT
@@ -85,7 +92,7 @@ export default function LeadBoard({
                 followUpReset !== undefined
                   ? followUpReset
                   : lead.follow_up_count,
-              next_action_date: nextDate,
+              ...(nextDate !== undefined ? { next_action_date: nextDate } : {}),
               _justDropped: true,
             }
           : { ...lead, _justDropped: false }

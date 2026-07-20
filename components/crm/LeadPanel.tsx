@@ -7,7 +7,7 @@ import { formatPhone } from "@/lib/utils/formatPhone"
 import { getSourceStyle } from "@/lib/leads/sourceStyles"
 import { inferMarketFromLandingPage } from "@/lib/leads/inferMarketFromLandingPage"
 import { ARCHIVE_REASONS } from "@/lib/leads/archiveReasons"
-import { rankLeadActions, type ManualNextAction } from "@/lib/nextActions"
+import { rankLeadActions } from "@/lib/nextActions"
 import AiVoiceScriptModal from "./AiVoiceScriptModal"
 import ConfirmDialog from "./ConfirmDialog"
 import AddNextActionModal from "./AddNextActionModal"
@@ -119,73 +119,6 @@ function CollapsibleNotes({
   )
 }
 
-/** Mark Done / Snooze controls for whichever manual action is currently primary. */
-function ManualActionControls({
-  manualAction,
-  onComplete,
-  onSnoozeTomorrow,
-  onSnoozeNextWeek,
-  customSnoozeFor,
-  setCustomSnoozeFor,
-  onCustomSnooze,
-}: {
-  manualAction: ManualNextAction
-  onComplete: (id: number) => void
-  onSnoozeTomorrow: (id: number) => void
-  onSnoozeNextWeek: (id: number) => void
-  customSnoozeFor: number | null
-  setCustomSnoozeFor: (id: number | null) => void
-  onCustomSnooze: (id: number, dueAtISO: string) => void
-}) {
-  const isCustomOpen = customSnoozeFor === manualAction.id
-
-  return (
-    <div className="mt-2 flex items-center flex-wrap gap-1.5">
-      <button
-        type="button"
-        onClick={() => onComplete(manualAction.id)}
-        className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
-      >
-        ✓ Done
-      </button>
-      <span className="text-[10px] text-gray-400">Snooze:</span>
-      <button
-        type="button"
-        onClick={() => onSnoozeTomorrow(manualAction.id)}
-        className="text-[11px] font-medium px-2 py-1 rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
-      >
-        Tomorrow
-      </button>
-      <button
-        type="button"
-        onClick={() => onSnoozeNextWeek(manualAction.id)}
-        className="text-[11px] font-medium px-2 py-1 rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
-      >
-        Next Week
-      </button>
-      <button
-        type="button"
-        onClick={() => setCustomSnoozeFor(isCustomOpen ? null : manualAction.id)}
-        className="text-[11px] font-medium px-2 py-1 rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
-      >
-        Custom
-      </button>
-
-      {isCustomOpen && (
-        <input
-          type="datetime-local"
-          autoFocus
-          className="mt-1.5 w-full text-[12px] border border-gray-300 rounded-lg px-2 py-1"
-          onChange={(e) => {
-            if (!e.target.value) return
-            onCustomSnooze(manualAction.id, new Date(e.target.value).toISOString())
-          }}
-        />
-      )}
-    </div>
-  )
-}
-
 function SectionCard({
   title,
   children,
@@ -265,7 +198,6 @@ export default function LeadPanel({
   const [archiveReason, setArchiveReason] = useState(lead.archive_reason || "")
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showAddAction, setShowAddAction] = useState(false)
-  const [customSnoozeFor, setCustomSnoozeFor] = useState<number | null>(null)
   const [showFavoriteModal, setShowFavoriteModal] = useState(false)
   const [editingFavorite, setEditingFavorite] = useState<any | null>(null)
   const [deletingFavoriteId, setDeletingFavoriteId] = useState<number | null>(null)
@@ -498,17 +430,21 @@ export default function LeadPanel({
 
     const { data: { user } } = await supabase.auth.getUser()
 
+    // Archiving pauses the workflow — it does not erase it. next_action_date,
+    // the automatic action's own driving field, is deliberately left as-is:
+    // rankLeadActions/FollowUpRow/LeadCard all already treat archived leads
+    // as inactive regardless of this value, so there's no need to null it
+    // out here — and nulling it would mean restoring the lead couldn't
+    // resume the workflow without the user manually resetting a due date.
     const updates = {
       crm_status: "archived",
       archive_reason: "deleted_by_user",
       deleted_at: new Date().toISOString(),
       deleted_by: user?.email ?? null,
       pre_delete_status: lead.crm_status,
-      next_action_date: null,
     }
 
     setArchiveReason("deleted_by_user")
-    setNextActionDate(null)
     if (onUpdateLead) onUpdateLead({ ...lead, ...updates })
 
     const { error } = await supabase
@@ -592,33 +528,6 @@ export default function LeadPanel({
     }
   }
 
-  async function handleSnoozeAction(actionId: number, dueAt: string) {
-    setCustomSnoozeFor(null)
-    setNextActions?.((prev) =>
-      prev.map((a) => (a.id === actionId ? { ...a, due_at: dueAt } : a))
-    )
-
-    const { error } = await supabase
-      .from("lead_next_actions")
-      .update({ due_at: dueAt })
-      .eq("id", actionId)
-
-    if (error) {
-      console.error("[next-action] snooze failed:", error)
-    }
-  }
-
-  function snoozeTomorrow(actionId: number) {
-    const d = new Date()
-    d.setDate(d.getDate() + 1)
-    handleSnoozeAction(actionId, d.toISOString())
-  }
-
-  function snoozeNextWeek(actionId: number) {
-    const d = new Date()
-    d.setDate(d.getDate() + 7)
-    handleSnoozeAction(actionId, d.toISOString())
-  }
 
   // ─── Favorites (Phase 1 — manual only) ──────────────────────────────────
   // No automation, no Property Matches integration yet. Just save/edit/
@@ -705,7 +614,6 @@ export default function LeadPanel({
   // ─── Derived values ────────────────────────────────────────────────────
 
   const action = getNextAction({ ...lead, follow_up_count: followUps })
-  const followUpStatus = nextActionDate ? getFollowUpStatus(nextActionDate) : "none"
   const statusStyle = STATUS_STYLES[lead.crm_status] ?? "bg-gray-100 text-gray-700 border-gray-300"
 
   // Rank the automatic stage action (labeled exactly as the existing
@@ -724,12 +632,19 @@ export default function LeadPanel({
       ? inferMarketFromLandingPage(lead.landing_page)
       : null
 
-  const actionBtnClass = [
-    "px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors cursor-pointer whitespace-nowrap",
-    followUpStatus === "overdue" ? "bg-red-600 text-white border-red-600 animate-pulse" :
-    followUpStatus === "today"   ? "bg-amber-100 text-amber-800 border-amber-300" :
-                                   "bg-white text-gray-700 border-gray-300 hover:bg-gray-50",
-  ].join(" ")
+  // The single control that resolves whatever's currently shown as the
+  // primary Next Action — a manual action's own completion when a manual
+  // action won ranking, or the automatic action's stage-based defer
+  // otherwise. Only rendered when one of those actually applies.
+  const canCompletePrimary = (primaryAction.kind === "manual" && !!primaryAction.manualAction) || !!doneConfig
+
+  function handleCompletePrimary() {
+    if (primaryAction.kind === "manual" && primaryAction.manualAction) {
+      handleCompleteAction(primaryAction.manualAction.id)
+    } else if (doneConfig) {
+      handleDoneForNow(doneConfig.days)
+    }
+  }
 
   // ─── Render ────────────────────────────────────────────────────────────
 
@@ -913,107 +828,64 @@ export default function LeadPanel({
       {/* ── Panel body ── */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
 
-        {/* Next Action */}
+        {/* Next Action — same clean two-column layout regardless of
+            whether the primary action is automatic or manual. Left shows
+            what it is; right shows how to complete it (when there's a
+            way to). No badges, no urgency coloring, no emoji kind
+            indicators — this section answers one question only: what's
+            next. */}
         <div className="bg-gray-50 rounded-xl px-4 py-3">
-          {/* Two-column row: current Next Action (left) / Status (right).
-              Left column keeps exactly the same click handler/behavior as
-              before, just repositioned. Right column's Complete toggle is
-              the same handleDoneForNow(doneConfig.days) call as before —
-              gated on doneConfig exactly as it always was, independent of
-              whether the automatic or a manual action is primary. */}
-          <div className="grid grid-cols-2 gap-3 items-start">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-start">
             <div>
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1.5">Next Action</p>
               {primaryAction.kind === "automatic" ? (
                 <button
                   type="button"
                   onClick={handleNextActionClick}
-                  className={actionBtnClass}
+                  className="text-sm font-semibold text-gray-900 px-3 py-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 transition-colors whitespace-nowrap"
                 >
                   {action}
-                  {followUpStatus === "today" && " · Today"}
-                  {followUpStatus === "overdue" && " · Overdue"}
                 </button>
               ) : (
-                <span
-                  className={[
-                    "text-xs font-semibold px-2.5 py-1 rounded-lg border whitespace-nowrap",
-                    primaryAction.urgency === "overdue" ? "bg-red-600 text-white border-red-600 animate-pulse" :
-                    primaryAction.urgency === "today"   ? "bg-amber-100 text-amber-800 border-amber-300" :
-                                                           "bg-white text-gray-700 border-gray-300",
-                  ].join(" ")}
-                >
-                  👤 {primaryAction.title}
-                  {primaryAction.urgency === "today" && " · Today"}
-                  {primaryAction.urgency === "overdue" && " · Overdue"}
-                </span>
+                <p className="text-sm font-semibold text-gray-900 px-3 py-1.5 rounded-lg border border-gray-300 bg-white inline-block whitespace-nowrap">
+                  {primaryAction.title}
+                </p>
               )}
             </div>
 
-            {doneConfig && (
-              <div className="text-right">
+            {canCompletePrimary && (
+              <div>
                 <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1.5">Status</p>
                 <button
                   type="button"
-                  onClick={() => handleDoneForNow(doneConfig.days)}
+                  onClick={handleCompletePrimary}
                   className={[
                     "text-[11.5px] font-semibold px-3 py-1.5 rounded-lg border transition-colors",
-                    doneMsg
+                    primaryAction.kind === "automatic" && doneMsg
                       ? "border-emerald-300 bg-emerald-50 text-emerald-700"
                       : "border-gray-300 bg-gray-100 text-gray-600 hover:bg-gray-200",
                   ].join(" ")}
                 >
-                  {doneMsg ? "✓ Completed" : "Complete"}
+                  {primaryAction.kind === "automatic" && doneMsg ? "✓ Completed" : "Complete"}
                 </button>
               </div>
             )}
           </div>
 
-          {/* Manual action's own defer control — unchanged behavior,
-              now a full-width row beneath the two-column layout. */}
-          {primaryAction.kind === "manual" && primaryAction.manualAction && (
-            <div className="mt-2.5">
-              <ManualActionControls
-                manualAction={primaryAction.manualAction}
-                onComplete={handleCompleteAction}
-                onSnoozeTomorrow={snoozeTomorrow}
-                onSnoozeNextWeek={snoozeNextWeek}
-                customSnoozeFor={customSnoozeFor}
-                setCustomSnoozeFor={setCustomSnoozeFor}
-                onCustomSnooze={handleSnoozeAction}
-              />
-            </div>
-          )}
-
-          {/* Other Open Actions — everything not currently primary,
-              including the automatic action when a manual one wins.
-              Nothing here is ever deleted by completing something else. */}
+          {/* Other Open Actions — a plain list, nothing more. Hidden
+              entirely when there's nothing else open. */}
           {otherActions.length > 0 && (
             <div className="mt-2.5 pt-2.5 border-t border-gray-200">
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1.5">
                 Other Open Actions
               </p>
-              <div className="space-y-1.5">
+              <ul className="space-y-1 text-[11.5px] text-gray-600 list-disc list-inside">
                 {otherActions.map((other, i) => (
-                  <div key={other.manualAction?.id ?? `automatic-${i}`} className="flex items-center justify-between gap-2 text-[11.5px]">
-                    <span className="text-gray-600">
-                      {other.kind === "manual" ? "👤" : "🤖"} {other.title}
-                      {other.dueAt && (
-                        <span className="text-gray-400"> · {formatDate(other.dueAt)}</span>
-                      )}
-                    </span>
-                    {other.manualAction && (
-                      <button
-                        type="button"
-                        onClick={() => handleCompleteAction(other.manualAction!.id)}
-                        className="flex-none text-[10.5px] font-semibold text-emerald-600 hover:text-emerald-700"
-                      >
-                        ✓ Done
-                      </button>
-                    )}
-                  </div>
+                  <li key={other.manualAction?.id ?? `automatic-${i}`}>
+                    {other.title}
+                  </li>
                 ))}
-              </div>
+              </ul>
             </div>
           )}
 

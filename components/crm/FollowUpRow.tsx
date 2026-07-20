@@ -67,11 +67,13 @@ export default function FollowUpRow({
   // Rank every lead's automatic action against its open manual actions —
   // same ranking LeadPanel uses, so the icon/label shown here for a lead
   // always agrees with what that lead's panel shows as primary. Closed
-  // leads stay excluded from the queue entirely (unchanged from before);
-  // a closed lead's manual actions still show inside its own panel, just
-  // not in this cross-lead sidebar.
+  // and archived leads stay excluded from the queue entirely — archived
+  // leads are out of the active workflow (rankLeadActions itself already
+  // returns urgency "none" for them, so this is belt-and-suspenders, not
+  // load-bearing); their manual actions still exist in the database, just
+  // not surfaced here while archived.
   const ranked = leads
-    .filter((lead) => lead.crm_status !== "closed")
+    .filter((lead) => lead.crm_status !== "closed" && lead.crm_status !== "archived")
     .map((lead) => ({
       lead,
       ...rankLeadActions(lead, nextActions, getActionLabel(lead.crm_status, lead.follow_up_count)),
@@ -183,7 +185,7 @@ export default function FollowUpRow({
               )}
 
               <p className="text-[10.5px] text-red-300 font-semibold mt-1.5">
-                {primary.kind === "manual" ? "👤" : "🤖"} {primary.title}
+                🤖 {primary.title}
               </p>
             </div>
           </div>

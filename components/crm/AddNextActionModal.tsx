@@ -26,6 +26,16 @@ const PRIORITIES: { value: "low" | "medium" | "high"; label: string }[] = [
   { value: "high", label: "High" },
 ]
 
+// Default due time is 9:30 AM — just the initial value shown, not a
+// scheduling rule. The user is free to change either the date or time.
+function getDefaultDueAt(): string {
+  const now = new Date()
+  const yyyy = now.getFullYear()
+  const mm = String(now.getMonth() + 1).padStart(2, "0")
+  const dd = String(now.getDate()).padStart(2, "0")
+  return `${yyyy}-${mm}-${dd}T09:30`
+}
+
 export default function AddNextActionModal({
   open,
   onClose,
@@ -41,8 +51,8 @@ export default function AddNextActionModal({
 }) {
   const [preset, setPreset] = useState(PRESET_TITLES[0])
   const [customTitle, setCustomTitle] = useState("")
-  const [dueAt, setDueAt] = useState("")
-  const [priority, setPriority] = useState<"low" | "medium" | "high">("medium")
+  const [dueAt, setDueAt] = useState(getDefaultDueAt)
+  const [priority, setPriority] = useState<"low" | "medium" | "high">("low")
   const [notes, setNotes] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(false)
@@ -56,8 +66,8 @@ export default function AddNextActionModal({
   function reset() {
     setPreset(PRESET_TITLES[0])
     setCustomTitle("")
-    setDueAt("")
-    setPriority("medium")
+    setDueAt(getDefaultDueAt())
+    setPriority("low")
     setNotes("")
     setSubmitError(false)
   }
