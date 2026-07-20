@@ -2,6 +2,7 @@
 
 import { useDroppable } from "@dnd-kit/core"
 import LeadCard from "./LeadCard"
+import type { KanbanView } from "./LeadBoard"
 
 type Lead = {
   id: number | string
@@ -13,7 +14,8 @@ type Props = {
   leads: Lead[]
   selectedLeadId?: string | number | null
   onSelectLead?: (leadId: string | number) => void
-  compact?: boolean
+  view?: KanbanView
+  emptyMessage?: string
 }
 
 const STAGE_DOT: Record<string, string> = {
@@ -39,12 +41,25 @@ export default function LeadColumn({
   leads,
   selectedLeadId,
   onSelectLead,
-  compact,
+  view = "detailed",
+  emptyMessage = "No leads",
 }: Props) {
   const { setNodeRef } = useDroppable({ id })
 
   const dotClass = STAGE_DOT[id] ?? "bg-gray-400"
   const label = cleanTitle(title)
+
+  // Overview is a genuinely denser tier than Compact — narrower column,
+  // tighter header, tighter card gap — since its purpose is fitting as
+  // much of the pipeline on screen as possible, not just a smaller card.
+  const isCompact = view === "compact"
+  const isOverview = view === "overview"
+
+  const columnWidthClass = isOverview
+    ? "w-[160px] min-w-[160px]"
+    : isCompact
+    ? "w-[220px] min-w-[220px]"
+    : "w-[272px] min-w-[272px]"
 
   return (
     <div
@@ -52,37 +67,40 @@ export default function LeadColumn({
       className={[
         "flex flex-col rounded-xl bg-white/10 backdrop-blur-xl border border-white/20",
         "shadow-[0_4px_24px_rgba(0,0,0,0.12)] h-full overflow-y-auto",
-        compact ? "w-[220px] min-w-[220px]" : "w-[272px] min-w-[272px]",
+        columnWidthClass,
       ].join(" ")}
     >
       {/* Column header */}
-      <div className="flex items-center justify-between px-3.5 pt-3 pb-2.5 border-b border-white/10">
-        <div className="flex items-center gap-2">
+      <div className={isOverview ? "flex items-center justify-between px-2.5 pt-2 pb-1.5 border-b border-white/10" : "flex items-center justify-between px-3.5 pt-3 pb-2.5 border-b border-white/10"}>
+        <div className="flex items-center gap-2 min-w-0">
           <span className={`w-2 h-2 rounded-full flex-none ${dotClass}`} />
-          <h3 className="text-sm font-semibold text-white tracking-tight">
+          <h3 className="text-sm font-semibold text-white tracking-tight truncate">
             {label}
           </h3>
         </div>
-        <span className="text-xs font-semibold text-white/50 tabular-nums">
+        <span className="text-xs font-semibold text-white/50 tabular-nums flex-none">
           {leads.length}
         </span>
       </div>
 
       {/* Cards */}
-      <div className={compact ? "flex flex-col gap-1 p-1.5 pb-3" : "flex flex-col gap-2 p-2.5 pb-4"}>
+      <div className={[
+        "flex flex-col",
+        isCompact ? "gap-1 p-1.5 pb-3" : isOverview ? "gap-1 p-1.5 pb-2" : "gap-2 p-2.5 pb-4",
+      ].join(" ")}>
         {leads.map((lead: any) => (
           <LeadCard
             key={lead.id}
             lead={lead}
             isSelected={String(selectedLeadId) === String(lead.id)}
             onSelect={onSelectLead}
-            compact={compact}
+            view={view}
           />
         ))}
 
         {leads.length === 0 && (
           <div className="text-xs text-white/30 text-center py-6 select-none">
-            No leads
+            {emptyMessage}
           </div>
         )}
       </div>

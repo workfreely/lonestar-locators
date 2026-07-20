@@ -8,6 +8,7 @@ import LeadPanel from "./LeadPanel"
 import LeadInsights from "./LeadInsights"
 import LeadFormModal from "../LeadFormModal"
 import DashboardStats from "./DashboardStats"
+import CollapsibleSection from "./CollapsibleSection"
 
 export default function DashboardClient({ leads, nextActions, favorites }: { leads: any[]; nextActions: any[]; favorites: any[] }) {
   const router = useRouter()
@@ -33,7 +34,7 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
     <div className="relative h-screen w-full flex flex-col bg-gradient-to-b from-zinc-100 to-zinc-200">
 
       {/* ─── TOP NAVIGATION BAR ─── */}
-      <header className="relative z-30 flex-none h-10 bg-white border-b border-gray-200 flex items-center px-5 gap-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+      <header className="relative z-30 flex-none py-2 bg-white border-b border-gray-200 flex items-center px-5 gap-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
 
         {/* Brand */}
         <div className="flex items-center gap-2.5 mr-4">
@@ -65,7 +66,13 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
       </header>
 
       {/* ─── DASHBOARD STATS ─── */}
-      <DashboardStats leads={localLeads} />
+      <CollapsibleSection
+        title="Dashboard Metrics"
+        storageKey="dashboard-metrics-expanded"
+        className="flex-none rounded-none border-x-0 border-t-0 shadow-none"
+      >
+        <DashboardStats leads={localLeads} />
+      </CollapsibleSection>
 
       {/* ─── BODY ─── */}
       <div className="relative flex-1 flex overflow-hidden">

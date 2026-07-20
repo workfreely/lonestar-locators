@@ -22,6 +22,42 @@ const columns = [
   { id: "archived", title: "⚪ Archived" },
 ]
 
+// detailed = current default (unchanged). compact = the existing Compact
+// View, unchanged. overview = bird's-eye scanning mode — fewer rows, same
+// label/value alignment convention as the other two.
+export type KanbanView = "detailed" | "compact" | "overview"
+
+const VIEW_MODES: KanbanView[] = ["detailed", "compact", "overview"]
+const VIEW_LABELS: Record<KanbanView, string> = {
+  detailed: "Detailed",
+  compact: "Compact",
+  overview: "Overview",
+}
+
+// Client-side only — filters the leads already loaded into memory, never
+// hits the database. Digits-only fallback on top of the plain substring
+// check so a phone search still matches regardless of how the query or
+// the stored number happen to be formatted/punctuated.
+function normalizeDigits(s: string) {
+  return s.replace(/\D/g, "")
+}
+
+function matchesSearch(lead: any, query: string): boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+
+  const name = `${lead.first_name ?? ""} ${lead.last_name ?? ""}`.toLowerCase()
+  const email = String(lead.email ?? "").toLowerCase()
+  const phone = String(lead.phone ?? "").toLowerCase()
+
+  if (name.includes(q) || email.includes(q) || phone.includes(q)) return true
+
+  const qDigits = normalizeDigits(q)
+  if (qDigits && normalizeDigits(phone).includes(qDigits)) return true
+
+  return false
+}
+
 export default function LeadBoard({
   leads,
   setLeads,
@@ -35,19 +71,20 @@ export default function LeadBoard({
 }) {
   const [mounted, setMounted] = useState(false)
   const [activeLead, setActiveLead] = useState<any | null>(null)
-  const [compact, setCompact] = useState(false)
+  const [view, setView] = useState<KanbanView>("detailed")
+  const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
     setMounted(true)
-    setCompact(localStorage.getItem("kanban-compact-view") === "true")
+    const stored = localStorage.getItem("kanban-view-mode")
+    if (stored === "detailed" || stored === "compact" || stored === "overview") {
+      setView(stored)
+    }
   }, [])
 
-  function toggleCompact() {
-    setCompact((prev) => {
-      const next = !prev
-      localStorage.setItem("kanban-compact-view", String(next))
-      return next
-    })
+  function selectView(mode: KanbanView) {
+    setView(mode)
+    localStorage.setItem("kanban-view-mode", mode)
   }
 
   if (!mounted) return null
@@ -143,16 +180,43 @@ export default function LeadBoard({
     >
       <div className="h-full flex flex-col min-w-0">
         {/* Kanban toolbar */}
-        <div className="flex-none flex items-center justify-end px-6 pt-3">
-          <label className="flex items-center gap-1.5 text-xs font-medium text-white/70 hover:text-white cursor-pointer select-none transition-colors">
+        <div className="flex-none flex items-center justify-between gap-3 px-6 pt-3">
+          <div className="relative w-full max-w-sm">
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/40 text-[13px] pointer-events-none">
+              🔍
+            </span>
             <input
-              type="checkbox"
-              checked={compact}
-              onChange={toggleCompact}
-              className="w-3.5 h-3.5 rounded border-white/30 bg-white/10 accent-blue-500 cursor-pointer"
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by name, phone, or email..."
+              // The site-wide `input[type="text"]` reset in globals.css
+              // (border, padding, border-radius, font-size, plus a green
+              // :focus border/shadow for public lead-capture forms) beats
+              // these utilities on plain specificity, so the relevant ones
+              // are marked !important to reliably win on this one input
+              // without touching that global, widely-used reset.
+              className="w-full !pl-8 !pr-3 !py-1 !rounded-md !border !border-white/10 !bg-white/5 !text-white !text-[13px] placeholder-white/40 focus:!outline-none focus:!bg-white/10 focus:!border-white/25 focus:!ring-1 focus:!ring-blue-400/60 focus:!shadow-none !transition-colors"
             />
-            Compact View
-          </label>
+          </div>
+
+          <div className="flex-none flex items-center rounded-md border border-white/10 bg-white/5 p-0.5">
+            {VIEW_MODES.map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => selectView(mode)}
+                className={[
+                  "px-2.5 py-1 rounded text-xs font-medium transition-colors",
+                  view === mode
+                    ? "bg-white/20 text-white"
+                    : "text-white/50 hover:text-white/80",
+                ].join(" ")}
+              >
+                {VIEW_LABELS[mode]}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="flex-1 flex gap-4 overflow-x-auto overflow-y-visible min-w-0 px-6 py-4">
@@ -161,9 +225,10 @@ export default function LeadBoard({
               key={col.id}
               id={col.id}
               title={col.title}
-              compact={compact}
+              view={view}
+              emptyMessage={searchQuery.trim() ? "No matching leads found." : "No leads"}
               leads={leads
-                .filter((lead) => lead.crm_status === col.id)
+                .filter((lead) => lead.crm_status === col.id && matchesSearch(lead, searchQuery))
                 .sort((a, b) => {
                   // _justDropped / _isNew always pins to top regardless of column
                   const aTop = a._justDropped || a._isNew ? 1 : 0
@@ -208,7 +273,7 @@ export default function LeadBoard({
             <LeadCard
               lead={activeLead}
               isSelected={false}
-              compact={compact}
+              view={view}
               onSelect={() => {}}
             />
           </div>

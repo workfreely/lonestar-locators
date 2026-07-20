@@ -61,7 +61,9 @@ function formatStatus(status: string) {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function LeadCard({ lead, isSelected, onSelect, compact }: any) {
+export default function LeadCard({ lead, isSelected, onSelect, view = "detailed" }: any) {
+  const compact = view === "compact"
+  const overview = view === "overview"
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: String(lead.id),
   })
@@ -139,8 +141,6 @@ export default function LeadCard({ lead, isSelected, onSelect, compact }: any) {
     ? getFollowUpStatus(lead.next_action_date)
     : "none"
 
-  const isHot = ["done_touring", "applied", "closed"].includes(lead.crm_status)
-
   // ─── Short-form market inference (display only) ────────────────────────
   const inferredMarket =
     lead.lead_type === "short" && !lead.city
@@ -190,6 +190,55 @@ export default function LeadCard({ lead, isSelected, onSelect, compact }: any) {
         </svg>
       </div>
 
+      {overview ? (
+        <div className="px-2 pt-1.5 pb-1.5">
+          {/* Name row — archive badge kept (an important at-a-glance
+              signal), HOT badge removed everywhere per the current spec. */}
+          <div className="flex items-start justify-between gap-1.5 mb-0">
+            <p className="text-[13px] font-bold text-gray-900 leading-tight tracking-tight truncate">
+              {normalizeName(lead.first_name)} {normalizeName(lead.last_name)}
+            </p>
+            {archiveBadgeLabel && (
+              <span className="flex-none text-[8.5px] font-semibold px-1 py-px rounded-full bg-slate-100 text-slate-600 border border-slate-300 whitespace-nowrap">
+                {archiveBadgeLabel}
+              </span>
+            )}
+          </div>
+
+          {/* Phone — plain link, no Copy control (not one of the five
+              things Overview is meant to show). */}
+          {lead.phone && (
+            <div className="mb-1">
+              <a
+                href={`sms:${lead.phone}`}
+                onClick={(e) => e.stopPropagation()}
+                className="text-[11px] font-medium text-blue-600 hover:underline"
+              >
+                {formatPhone(lead.phone)}
+              </a>
+            </div>
+          )}
+
+          {/* City / Move / Next — same label-left, value-right row
+              convention as the Detailed/Compact info grid, just three
+              rows instead of five or six, and tighter to maximize how
+              many cards/columns fit on screen at once. */}
+          <div className="bg-gray-50 border border-gray-100 rounded-lg px-1.5 py-1 space-y-0.5 text-[10px]">
+            <div className="flex justify-between leading-[1.2]">
+              <span className="text-gray-400">{inferredMarket ? "Interest" : "City"}</span>
+              <span className="font-medium text-gray-800 truncate ml-1">{inferredMarket || lead.city || "—"}</span>
+            </div>
+            <div className="flex justify-between leading-[1.2]">
+              <span className="text-gray-400">Move</span>
+              <span className="font-medium text-gray-800 truncate ml-1">{formatDate(lead.move_date) || "—"}</span>
+            </div>
+            <div className="flex justify-between leading-[1.2]">
+              <span className="text-gray-400">Next</span>
+              <span className="font-medium text-gray-800 truncate ml-1">{action}</span>
+            </div>
+          </div>
+        </div>
+      ) : (
       <div className={compact ? "px-2 pt-2 pb-1.5" : "px-3 pt-3 pb-2.5"}>
 
         {/* Name row */}
@@ -200,14 +249,6 @@ export default function LeadCard({ lead, isSelected, onSelect, compact }: any) {
           ].join(" ")}>
             {normalizeName(lead.first_name)} {normalizeName(lead.last_name)}
           </p>
-          {isHot && (
-            <span className={[
-              "flex-none font-semibold rounded-full bg-red-50 text-red-600 border border-red-200 whitespace-nowrap mt-0.5",
-              compact ? "text-[8.5px] px-1 py-px" : "text-[9.5px] px-1.5 py-px",
-            ].join(" ")}>
-              HOT
-            </span>
-          )}
           {archiveBadgeLabel && (
             <span className={[
               "flex-none font-semibold rounded-full bg-slate-100 text-slate-600 border border-slate-300 whitespace-nowrap mt-0.5",
@@ -315,6 +356,7 @@ export default function LeadCard({ lead, isSelected, onSelect, compact }: any) {
         </div>
 
       </div>
+      )}
     </div>
   )
 }
