@@ -268,7 +268,7 @@ function getApprovalProbability(lead: any) {
     hasBrokenLease
   ) {
     return {
-      label: "Medium",
+      label: "Moderate",
       color: "text-yellow-600",
     }
   }

@@ -125,7 +125,7 @@ export default function LeadCard({ lead, isSelected, onSelect, view = "detailed"
 
   // Same underlying risk calculation as before — only the display label is
   // inverted to "Approval" framing (high risk reads as low approval odds).
-  const approvalLabel = isHighRisk ? "Low Approval" : isMediumRisk ? "Medium Approval" : "High Approval"
+  const approvalLabel = isHighRisk ? "Approval: Low" : isMediumRisk ? "Approval: Moderate" : "Approval: High"
   const riskClass = isHighRisk
     ? "bg-red-50 text-red-600 border-red-200"
     : isMediumRisk

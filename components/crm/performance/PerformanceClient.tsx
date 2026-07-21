@@ -8,6 +8,8 @@ import LandingPageTable from "./LandingPageTable"
 import LeadsByCityCard from "./LeadsByCityCard"
 import ClosedDealsByCityCard from "./ClosedDealsByCityCard"
 import MonthlyPerformanceHistory from "./MonthlyPerformanceHistory"
+import MarketingToolsCard from "./MarketingToolsCard"
+import CollapsibleSection from "@/components/crm/CollapsibleSection"
 
 // Composes the Phase 1 Performance page from the reusable pieces above.
 // Deliberately thin — Phase 2 (ROI, spend, charts, funnels) adds new
@@ -41,7 +43,11 @@ export default function PerformanceClient({ leads }: { leads: any[] }) {
 
       {/* ─── BODY ─── */}
       <div className="flex-1 overflow-y-auto p-5 space-y-5">
-        <PerformanceStats leads={leads} />
+        <CollapsibleSection title="Performance Metrics" storageKey="performance-metrics-expanded">
+          <div className="p-4">
+            <PerformanceStats leads={leads} />
+          </div>
+        </CollapsibleSection>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <LeadsByCityCard leads={leads} />
@@ -56,6 +62,8 @@ export default function PerformanceClient({ leads }: { leads: any[] }) {
         <CampaignTable leads={leads} />
 
         <MonthlyPerformanceHistory leads={leads} />
+
+        <MarketingToolsCard />
       </div>
     </div>
   )

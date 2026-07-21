@@ -1,24 +1,47 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
-// Preset manual Next Action titles (CRM Phase 1 Workflow Cleanup spec).
-// Deliberately kept short and generic — one-off actions outside this list
-// (e.g. contacting a property, requesting documents) use "Custom Action"
-// rather than growing this list. "Custom Action" reveals a free-text
-// title field instead of using this label literally.
+// Preset manual Next Action titles (CRM Phase 1 Workflow Cleanup spec,
+// extended with the stage-default actions below). Deliberately kept short
+// and generic — one-off actions outside this list (e.g. contacting a
+// property, requesting documents) use "Custom Action" rather than growing
+// this list. "Custom Action" reveals a free-text title field instead of
+// using this label literally.
 const PRESET_TITLES = [
   "Contact Lead",
+  "Waiting for Response",
   "Build List",
   "Send List",
+  "FU1",
   "Setup Tour",
   "Tour Follow-Up",
   "Check App",
   "Confirm Lease",
   "Setup Movers",
   "Send Rebate",
+  "Get Invoice Details",
   "Custom Action",
 ]
+
+// Intelligent default: preselect the action that's already the logical
+// next step for the lead's current stage, so adding a manual action
+// usually means one click on Save rather than choosing from scratch. The
+// user can always pick something else from the dropdown.
+const STAGE_DEFAULT_ACTION: Record<string, string> = {
+  new: "Contact Lead",
+  contacted: "Waiting for Response",
+  searching: "Send List",
+  list_sent: "FU1",
+  ready_to_tour: "Setup Tour",
+  done_touring: "Tour Follow-Up",
+  applied: "Check App",
+  closed: "Get Invoice Details",
+}
+
+function getDefaultPreset(crmStatus?: string): string {
+  return STAGE_DEFAULT_ACTION[crmStatus ?? ""] ?? PRESET_TITLES[0]
+}
 
 const PRIORITIES: { value: "low" | "medium" | "high"; label: string }[] = [
   { value: "low", label: "Low" },
@@ -40,6 +63,7 @@ export default function AddNextActionModal({
   open,
   onClose,
   onCreate,
+  crmStatus,
 }: {
   open: boolean
   onClose: () => void
@@ -48,14 +72,24 @@ export default function AddNextActionModal({
   // (e.g. a network/permission error) leaves what the user typed intact
   // instead of silently discarding it with no visible feedback.
   onCreate: (input: { title: string; dueAt: string; priority: "low" | "medium" | "high"; notes: string }) => Promise<boolean>
+  // The lead's current stage, used only to preselect the intelligent
+  // default title below — never sent anywhere or used for any automation.
+  crmStatus?: string
 }) {
-  const [preset, setPreset] = useState(PRESET_TITLES[0])
+  const [preset, setPreset] = useState(() => getDefaultPreset(crmStatus))
   const [customTitle, setCustomTitle] = useState("")
   const [dueAt, setDueAt] = useState(getDefaultDueAt)
   const [priority, setPriority] = useState<"low" | "medium" | "high">("low")
   const [notes, setNotes] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(false)
+
+  // The modal instance is reused across leads (LeadPanel isn't remounted
+  // when the selected lead changes), so the smart default has to be
+  // recomputed every time it's opened, not just once at first mount.
+  useEffect(() => {
+    if (open) setPreset(getDefaultPreset(crmStatus))
+  }, [open, crmStatus])
 
   if (!open) return null
 
@@ -64,7 +98,7 @@ export default function AddNextActionModal({
   const canSubmit = title.length > 0 && dueAt.length > 0 && !submitting
 
   function reset() {
-    setPreset(PRESET_TITLES[0])
+    setPreset(getDefaultPreset(crmStatus))
     setCustomTitle("")
     setDueAt(getDefaultDueAt())
     setPriority("low")

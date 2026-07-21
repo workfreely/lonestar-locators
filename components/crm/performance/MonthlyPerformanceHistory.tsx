@@ -12,6 +12,8 @@
 // the table never disappears at the start of a new month; earlier months
 // only appear once they have actual lead data — no fake historical rows.
 
+import CollapsibleSection from "@/components/crm/CollapsibleSection"
+
 const TOURED_STATUSES = new Set(["done_touring", "applied", "closed"])
 const REVENUE_PER_CLOSE = 1_000
 
@@ -91,35 +93,33 @@ export default function MonthlyPerformanceHistory({ leads }: { leads: any[] }) {
     })
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-3">
-        Monthly Performance History
-      </p>
-
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-[10px] uppercase tracking-widest text-gray-400 border-b border-gray-100">
-            <th className="pb-2 font-semibold">Month</th>
-            <th className="pb-2 font-semibold text-right">Leads</th>
-            <th className="pb-2 font-semibold text-right">Applied</th>
-            <th className="pb-2 font-semibold text-right">Closed</th>
-            <th className="pb-2 font-semibold text-right">Conversion Rate</th>
-            <th className="pb-2 font-semibold text-right">Commission</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.key} className="border-b border-gray-50 last:border-0">
-              <td className="py-2 text-gray-800">{r.label}</td>
-              <td className="py-2 text-right text-gray-800">{r.leadCount}</td>
-              <td className="py-2 text-right text-gray-800">{r.appliedCount}</td>
-              <td className="py-2 text-right text-gray-800">{r.closedCount}</td>
-              <td className="py-2 text-right font-semibold text-gray-800">{r.conversionRate}%</td>
-              <td className="py-2 text-right font-semibold text-gray-800">${fmt(r.commission)}</td>
+    <CollapsibleSection title="Monthly Performance History" storageKey="monthly-performance-history-expanded" defaultOpen={false}>
+      <div className="p-4">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-[10px] uppercase tracking-widest text-gray-400 border-b border-gray-100">
+              <th className="pb-2 font-semibold">Month</th>
+              <th className="pb-2 font-semibold text-right">Leads</th>
+              <th className="pb-2 font-semibold text-right">Applied</th>
+              <th className="pb-2 font-semibold text-right">Closed</th>
+              <th className="pb-2 font-semibold text-right">Conversion Rate</th>
+              <th className="pb-2 font-semibold text-right">Commission</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.key} className="border-b border-gray-50 last:border-0">
+                <td className="py-2 text-gray-800">{r.label}</td>
+                <td className="py-2 text-right text-gray-800">{r.leadCount}</td>
+                <td className="py-2 text-right text-gray-800">{r.appliedCount}</td>
+                <td className="py-2 text-right text-gray-800">{r.closedCount}</td>
+                <td className="py-2 text-right font-semibold text-gray-800">{r.conversionRate}%</td>
+                <td className="py-2 text-right font-semibold text-gray-800">${fmt(r.commission)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </CollapsibleSection>
   )
 }

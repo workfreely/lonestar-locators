@@ -35,6 +35,17 @@ function formatDate(date: string) {
   })
 }
 
+// "Thursday, 7/24/26" — used only for Other Open Actions' due-date column,
+// where the weekday name makes it faster to scan several actions at once.
+function formatActionDueDate(date: string) {
+  return new Date(date).toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "numeric",
+    day: "numeric",
+    year: "2-digit",
+  })
+}
+
 function formatRent(rent: string) {
   if (!rent) return "Not listed"
   const matches = rent.match(/\d[\d,]*/g)
@@ -780,7 +791,7 @@ export default function LeadPanel({
               }}
               className="text-xs font-medium px-3 py-2 rounded-lg border bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-colors"
             >
-              Smart List
+              List Sent
             </button>
 
             <button
@@ -879,10 +890,18 @@ export default function LeadPanel({
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1.5">
                 Other Open Actions
               </p>
-              <ul className="space-y-1 text-[11.5px] text-gray-600 list-disc list-inside">
+              <ul className="space-y-1 text-[11.5px] text-gray-600">
                 {otherActions.map((other, i) => (
-                  <li key={other.manualAction?.id ?? `automatic-${i}`}>
-                    {other.title}
+                  <li
+                    key={other.manualAction?.id ?? `automatic-${i}`}
+                    className="flex items-center justify-between gap-3"
+                  >
+                    <span className="truncate">• {other.title}</span>
+                    {other.dueAt && (
+                      <span className="flex-none text-gray-400 whitespace-nowrap">
+                        {formatActionDueDate(other.dueAt)}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -1069,6 +1088,7 @@ export default function LeadPanel({
       open={showAddAction}
       onClose={() => setShowAddAction(false)}
       onCreate={handleCreateAction}
+      crmStatus={lead.crm_status}
     />
 
     <FavoriteModal
