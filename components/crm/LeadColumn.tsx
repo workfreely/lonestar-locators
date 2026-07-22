@@ -86,7 +86,7 @@ export default function LeadColumn({
       {/* Cards */}
       <div className={[
         "flex flex-col",
-        isCompact ? "gap-1 p-1.5 pb-3" : isOverview ? "gap-1 p-1.5 pb-2" : "gap-2 p-2.5 pb-4",
+        isCompact ? "gap-3 p-1.5 pb-3" : isOverview ? "gap-3 p-1.5 pb-2" : "gap-4 p-2.5 pb-4",
       ].join(" ")}>
         {leads.map((lead: any) => (
           <LeadCard

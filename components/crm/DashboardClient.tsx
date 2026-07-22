@@ -25,6 +25,20 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
   const [localNextActions, setLocalNextActions] = useState(nextActions)
   const [localFavorites, setLocalFavorites] = useState(favorites)
   const [showLeadModal, setShowLeadModal] = useState(false)
+  const [followUpsOpen, setFollowUpsOpen] = useState(true)
+
+  useEffect(() => {
+    const stored = localStorage.getItem("follow-ups-expanded")
+    if (stored === "true" || stored === "false") setFollowUpsOpen(stored === "true")
+  }, [])
+
+  function toggleFollowUps() {
+    setFollowUpsOpen((prev) => {
+      const next = !prev
+      localStorage.setItem("follow-ups-expanded", String(next))
+      return next
+    })
+  }
 
   const selectedLead = localLeads.find(
     (l) => String(l.id) === String(selectedLeadId)
@@ -69,7 +83,7 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
       <CollapsibleSection
         title="Dashboard Metrics"
         storageKey="dashboard-metrics-expanded"
-        className="flex-none rounded-none border-x-0 border-t-0 shadow-none"
+        className="flex-none rounded-none border-x-0 border-t-0 shadow-none my-2"
       >
         <DashboardStats leads={localLeads} />
       </CollapsibleSection>
@@ -88,17 +102,44 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
         />
         <div className="absolute inset-0 bg-black/35" />
 
+        {/* Workspace veil — when the Lead Detail Overlay is open, covers
+            the dark board backdrop everywhere right of the Follow-Ups
+            sidebar with the same light gray workspace gradient used
+            elsewhere, so the Lead Panel floats on the workspace instead of
+            the dark photo. Left untouched (and unrendered) behind the
+            sidebar itself, so its frosted-glass look over the dark photo
+            is fully preserved. */}
+        {selectedLead && (
+          <div className={`absolute inset-y-0 ${followUpsOpen ? "left-[228px]" : "left-[48px]"} right-0 bg-gradient-to-b from-zinc-100 to-zinc-200`} />
+        )}
+
         {/* LEFT SIDEBAR — Follow-ups */}
-        <div className="relative z-10 flex-none w-[220px] border-r border-white/10 bg-black/20 backdrop-blur-md overflow-y-auto">
-          <FollowUpRow
-            leads={localLeads}
-            nextActions={localNextActions}
-            onSelectLead={(id) => {
-              setSelectedLeadId(id)
-              router.push(`/admin/leads?id=${id}`)
-            }}
-          />
-        </div>
+        {followUpsOpen ? (
+          <div className="relative z-10 flex-none w-[220px] my-2 ml-2 rounded-xl border border-white/20 bg-white/10 backdrop-blur-xl shadow-[0_4px_24px_rgba(0,0,0,0.12)] overflow-y-auto">
+            <FollowUpRow
+              leads={localLeads}
+              nextActions={localNextActions}
+              onSelectLead={(id) => {
+                setSelectedLeadId(id)
+                router.push(`/admin/leads?id=${id}`)
+              }}
+              onCollapse={toggleFollowUps}
+            />
+          </div>
+        ) : (
+          <div className="relative z-10 flex-none w-10 my-2 ml-2 rounded-xl border border-white/20 bg-white/10 backdrop-blur-xl shadow-[0_4px_24px_rgba(0,0,0,0.12)] flex items-start justify-center pt-3">
+            <button
+              onClick={toggleFollowUps}
+              className="w-6 h-6 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+              aria-label="Expand Follow-Ups"
+              title="Expand Follow-Ups"
+            >
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          </div>
+        )}
 
         {/* MAIN BOARD */}
         <div
@@ -119,11 +160,11 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
 
         {/* LEAD DETAIL OVERLAY */}
         {selectedLead && (
-          <div className="absolute inset-y-0 left-[220px] right-0 z-40 flex pointer-events-none">
-            <div className="flex w-full bg-white h-full shadow-2xl pointer-events-auto">
+          <div className={`absolute inset-y-0 ${followUpsOpen ? "left-[242px]" : "left-[62px]"} right-0 z-40 flex pointer-events-none`}>
+            <div className="flex gap-2 w-full h-full pointer-events-auto">
 
               {/* LEAD PANEL */}
-              <div className="w-[420px] flex-none border-r border-gray-200 bg-white overflow-y-auto shadow-[4px_0_24px_rgba(0,0,0,0.06)]">
+              <div className="w-[420px] flex-none rounded-2xl bg-white overflow-hidden shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_10px_rgba(15,23,42,0.06),0_10px_24px_rgba(15,23,42,0.10)]">
                 <LeadPanel
                   lead={selectedLead}
                   topMatches={topMatches}

@@ -153,6 +153,11 @@ export default function LeadCard({ lead, isSelected, onSelect, view = "detailed"
       ? getArchiveReasonBadgeLabel(lead.archive_reason)
       : null
 
+  // ─── Info grid typography — label slightly lighter/smaller, value
+  // slightly darker/stronger, to sharpen the label/value hierarchy.
+  const labelCls = compact ? "text-gray-400/90 text-[9px]" : "text-gray-400/90 text-[10.5px]"
+  const valueCls = "font-semibold text-gray-900"
+
   // ─── Render ─────────────────────────────────────────────────────────────
 
   return (
@@ -163,12 +168,12 @@ export default function LeadCard({ lead, isSelected, onSelect, view = "detailed"
       onClick={() => onSelect?.(lead.id)}
       className={[
         "group relative bg-white rounded-2xl border select-none cursor-pointer",
-        "transition-all duration-200",
-        "hover:-translate-y-0.5 hover:shadow-[0_4px_20px_rgba(59,130,246,0.13),0_8px_28px_rgba(0,0,0,0.10)] hover:border-blue-300",
+        "transition-all duration-200 ease-out",
+        "hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(15,23,42,0.10),0_16px_32px_rgba(59,130,246,0.14)] hover:border-blue-300/70",
         "active:scale-[0.99]",
         isSelected
           ? "border-blue-500 shadow-[0_0_0_2px_rgba(59,130,246,0.30),0_6px_24px_rgba(59,130,246,0.18)]"
-          : "border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.05)]",
+          : "border-gray-200/50 shadow-[0_1px_2px_rgba(15,23,42,0.05),0_4px_10px_rgba(15,23,42,0.07),0_10px_24px_rgba(15,23,42,0.10)]",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -232,9 +237,23 @@ export default function LeadCard({ lead, isSelected, onSelect, view = "detailed"
               <span className="text-gray-400">Move</span>
               <span className="font-medium text-gray-800 truncate ml-1">{formatDate(lead.move_date) || "—"}</span>
             </div>
-            <div className="flex justify-between leading-[1.2]">
+            <div className="flex justify-between items-center leading-[1.2] overflow-hidden">
               <span className="text-gray-400">Next</span>
-              <span className="font-medium text-gray-800 truncate ml-1">{action}</span>
+              <span
+                className={[
+                  "font-semibold rounded-full border whitespace-nowrap flex-none shadow-[0_1px_2px_rgba(15,23,42,0.08)] ml-1",
+                  "text-[9px] px-1 py-px",
+                  followUpStatus === "overdue"
+                    ? "bg-red-50 text-red-600 border-red-200"
+                    : followUpStatus === "today"
+                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                    : "bg-blue-50 text-blue-600 border-blue-200",
+                ].join(" ")}
+              >
+                {action}
+                {followUpStatus === "today" && " · Today"}
+                {followUpStatus === "overdue" && " · Overdue"}
+              </span>
             </div>
           </div>
         </div>
@@ -242,10 +261,10 @@ export default function LeadCard({ lead, isSelected, onSelect, view = "detailed"
       <div className={compact ? "px-2 pt-2 pb-1.5" : "px-3 pt-3 pb-2.5"}>
 
         {/* Name row */}
-        <div className={`flex items-start justify-between gap-2 ${compact ? "mb-0" : "mb-0.5"}`}>
+        <div className={`flex items-start justify-between gap-2 ${compact ? "mb-0.5" : "mb-1"}`}>
           <p className={[
             "font-bold text-gray-900 leading-tight tracking-tight",
-            compact ? "text-[13px]" : "text-[16px]",
+            compact ? "text-[15px]" : "text-[18px]",
           ].join(" ")}>
             {normalizeName(lead.first_name)} {normalizeName(lead.last_name)}
           </p>
@@ -265,7 +284,7 @@ export default function LeadCard({ lead, isSelected, onSelect, view = "detailed"
             <a
               href={`sms:${lead.phone}`}
               onClick={(e) => e.stopPropagation()}
-              className={compact ? "text-[12px] font-medium text-blue-600 hover:underline" : "text-[14px] font-medium text-blue-600 hover:underline"}
+              className={compact ? "text-[13px] font-medium text-blue-600 hover:underline" : "text-[15px] font-medium text-blue-600 hover:underline"}
             >
               {formatPhone(lead.phone)}
             </a>
@@ -273,11 +292,11 @@ export default function LeadCard({ lead, isSelected, onSelect, view = "detailed"
               type="button"
               onClick={copyPhone}
               className={[
-                "font-medium rounded border transition-colors",
+                "font-medium rounded border transition-all duration-200 ease-out",
                 compact ? "text-[9px] px-1 py-px" : "text-[9.5px] px-1.5 py-px",
                 copied
-                  ? "bg-emerald-500 text-white border-emerald-500"
-                  : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100",
+                  ? "opacity-100 bg-emerald-500 text-white border-emerald-500"
+                  : "opacity-0 group-hover:opacity-100 bg-transparent text-gray-400 border-transparent hover:bg-gray-100 hover:text-gray-600",
               ].join(" ")}
             >
               {copied ? "✓" : "Copy"}
@@ -285,37 +304,37 @@ export default function LeadCard({ lead, isSelected, onSelect, view = "detailed"
           </div>
         )}
 
-        {/* Info grid */}
+        {/* Info grid — recessed secondary surface inside the card */}
         <div className={[
-          "bg-gray-50 border border-gray-100 rounded-lg",
-          compact ? "px-2 py-1 space-y-0.5 text-[10px] mb-1.5" : "px-2.5 py-1.5 space-y-1 text-[11.5px] mb-2",
+          "bg-slate-100/80 border border-gray-200/40 rounded-2xl shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)]",
+          compact ? "px-3 py-2 space-y-1 text-[10px] mb-1.5" : "px-3.5 py-2.5 space-y-1.5 text-[11.5px] mb-2",
         ].join(" ")}>
           <div className={`flex justify-between ${compact ? "leading-[1.2]" : "leading-[1.35]"}`}>
-            <span className="text-gray-400">{inferredMarket ? "Interest" : "City"}</span>
-            <span className="font-medium text-gray-800">{inferredMarket || lead.city || "—"}</span>
+            <span className={labelCls}>{inferredMarket ? "Interest" : "City"}</span>
+            <span className={valueCls}>{inferredMarket || lead.city || "—"}</span>
           </div>
           <div className={`flex justify-between ${compact ? "leading-[1.2]" : "leading-[1.35]"}`}>
-            <span className="text-gray-400">Budget</span>
-            <span className="font-medium text-gray-800">{formatRent(lead.desired_rent)}</span>
+            <span className={labelCls}>Budget</span>
+            <span className={valueCls}>{formatRent(lead.desired_rent)}</span>
           </div>
           <div className={`flex justify-between ${compact ? "leading-[1.2]" : "leading-[1.35]"}`}>
-            <span className="text-gray-400">Property</span>
-            <span className="font-medium text-gray-800">{lead.property_type || "—"}</span>
+            <span className={labelCls}>Property</span>
+            <span className={valueCls}>{lead.property_type || "—"}</span>
           </div>
           <div className={`flex justify-between ${compact ? "leading-[1.2]" : "leading-[1.35]"}`}>
-            <span className="text-gray-400">Move Date</span>
-            <span className="font-medium text-gray-800">{formatDate(lead.move_date) || "—"}</span>
+            <span className={labelCls}>Move Date</span>
+            <span className={valueCls}>{formatDate(lead.move_date) || "—"}</span>
           </div>
           <div className={`flex justify-between ${compact ? "leading-[1.2]" : "leading-[1.35]"}`}>
-            <span className="text-gray-400">Credit</span>
-            <span className="font-medium text-gray-800">{lead.credit_score || "—"}</span>
+            <span className={labelCls}>Credit</span>
+            <span className={valueCls}>{lead.credit_score || "—"}</span>
           </div>
           {lead.source && (
             <div className={`flex justify-between items-center ${compact ? "leading-[1.2]" : "leading-[1.35]"}`}>
-              <span className="text-gray-400">Source</span>
+              <span className={labelCls}>Source</span>
               <span
                 className={[
-                  "font-semibold rounded-full border",
+                  "font-semibold rounded-full border shadow-[0_1px_2px_rgba(15,23,42,0.08)]",
                   compact ? "text-[9px] px-1 py-px" : "text-[10px] px-1.5 py-px",
                   getSourceStyle(lead.source).badgeClassName,
                 ].join(" ")}
@@ -330,7 +349,7 @@ export default function LeadCard({ lead, isSelected, onSelect, view = "detailed"
         <div className="flex items-center gap-1 flex-nowrap overflow-hidden">
           <span
             className={[
-              "font-semibold rounded-full border whitespace-nowrap flex-none",
+              "font-semibold rounded-full border whitespace-nowrap flex-none shadow-[0_1px_2px_rgba(15,23,42,0.08)]",
               compact ? "text-[9px] px-1 py-px" : "text-[10px] px-1.5 py-px",
               riskClass,
             ].join(" ")}
@@ -340,7 +359,7 @@ export default function LeadCard({ lead, isSelected, onSelect, view = "detailed"
 
           <span
             className={[
-              "font-semibold rounded-full border ml-auto whitespace-nowrap flex-none",
+              "font-semibold rounded-full border ml-auto whitespace-nowrap flex-none shadow-[0_1px_2px_rgba(15,23,42,0.08)]",
               compact ? "text-[9px] px-1 py-px" : "text-[10px] px-1.5 py-px",
               followUpStatus === "overdue"
                 ? "bg-red-50 text-red-600 border-red-200"

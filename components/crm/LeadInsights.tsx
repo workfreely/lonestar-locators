@@ -364,9 +364,9 @@ function AiInsightsCard({ leadId }: { leadId: string }) {
     : null
 
   return (
-    <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+    <div className="bg-white border border-gray-100/70 rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_10px_rgba(15,23,42,0.06)]">
       <div
-        className="px-4 py-2 border-b flex items-center justify-between gap-3 cursor-pointer select-none"
+        className="px-4 py-2 border-b border-gray-100 flex items-center justify-between gap-3 cursor-pointer select-none"
         onClick={() => setOpen((o) => !o)}
       >
         <div className="flex items-center gap-2">
@@ -663,15 +663,15 @@ if (Number(lead.credit_score) <= 580) {
   }, [lead])
 
   return (
-    <div className="space-y-5 pt-0 -mt-6">
+    <div className="space-y-2 pt-0 -mt-6">
 
       {/* AI INSIGHTS */}
       <AiInsightsCard leadId={String(lead.id)} />
 
       {/* RECOMMENDED */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+      <div className="bg-white border border-gray-100/70 rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_10px_rgba(15,23,42,0.06)]">
         <div
-          className="px-4 py-2 border-b flex items-center gap-2 cursor-pointer select-none"
+          className="px-4 py-2 border-b border-gray-100 flex items-center gap-2 cursor-pointer select-none"
           onClick={() => setPropertiesOpen((o) => !o)}
         >
           <svg
@@ -797,7 +797,7 @@ if (Number(lead.credit_score) <= 580) {
       </div>
 
       {/* INSIGHTS */}
-      <div className="bg-white rounded-lg p-4 shadow-sm">
+      <div className="bg-white border border-gray-100/70 rounded-2xl p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_10px_rgba(15,23,42,0.06)]">
         <h3 className="text-xs font-semibold text-gray-500 mb-2">
           INSIGHTS
         </h3>

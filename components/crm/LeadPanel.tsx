@@ -105,9 +105,9 @@ function CollapsibleNotes({
 }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.07)]">
+    <div className="bg-white border border-gray-100/70 rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_10px_rgba(15,23,42,0.06)]">
       <div
-        className="px-4 py-2 border-b border-gray-200 bg-gray-50 flex items-center gap-2 cursor-pointer select-none"
+        className="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-2 cursor-pointer select-none"
         onClick={() => setOpen((o) => !o)}
       >
         <svg
@@ -145,9 +145,9 @@ function SectionCard({
 }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.07)]">
+    <div className="bg-white border border-gray-100/70 rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_10px_rgba(15,23,42,0.06)]">
       <div
-        className={`px-4 py-2 border-b border-gray-200 bg-gray-50 flex items-center gap-2 ${collapsible ? "cursor-pointer select-none" : ""}`}
+        className={`px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-2 ${collapsible ? "cursor-pointer select-none" : ""}`}
         onClick={collapsible ? () => setOpen((o) => !o) : undefined}
       >
         {collapsible && (
@@ -759,7 +759,7 @@ export default function LeadPanel({
 
         {/* ── Action buttons ── */}
         <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Quick Actions</p>
-        <div className="bg-gray-50 rounded-xl p-3 space-y-2">
+        <div className="bg-gray-50 border border-gray-100/70 rounded-2xl shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_10px_rgba(15,23,42,0.06)] p-3 space-y-2">
 
           {/* Row 1: primary actions */}
           <div className="grid grid-cols-2 gap-2">
@@ -837,7 +837,7 @@ export default function LeadPanel({
       </div>
 
       {/* ── Panel body ── */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-7">
 
         {/* Next Action — same clean two-column layout regardless of
             whether the primary action is automatic or manual. Left shows
@@ -845,7 +845,7 @@ export default function LeadPanel({
             way to). No badges, no urgency coloring, no emoji kind
             indicators — this section answers one question only: what's
             next. */}
-        <div className="bg-gray-50 rounded-xl px-4 py-3">
+        <div className="bg-gray-50 border border-gray-100/70 rounded-2xl shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_10px_rgba(15,23,42,0.06)] px-4 py-3">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-start">
             <div>
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1.5">Next Action</p>
