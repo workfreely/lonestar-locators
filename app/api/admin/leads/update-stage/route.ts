@@ -5,6 +5,7 @@ import { buildContactNotes } from "@/lib/google/buildContactNotes"
 import { updateGoogleContactNotes } from "@/lib/google/updateContactNotes"
 import { getOAuthClient } from "@/lib/google/getOAuthClient"
 import { createListSentCalendarEvent } from "@/lib/google/createCalendarEvent"
+import { getStageWorkflowAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -166,6 +167,23 @@ export async function POST(request: Request) {
     }
 
     // =====================================================
+    // SIDE-EFFECT 0 — WORKFLOW ENGINE (blocking)
+    // Only on a real transition (oldStage !== crm_status), never on a
+    // same-stage save. Awaited (unlike the two side-effects below) so the
+    // created action — if any — can be returned to the client, which is
+    // what drives the "✓ Next Action Created" toast.
+    // =====================================================
+
+    let workflowAction = null as Awaited<ReturnType<typeof createWorkflowActionIfNeeded>>
+
+    if (oldStage !== crm_status) {
+      const spec = getStageWorkflowAction(crm_status, lead)
+      if (spec) {
+        workflowAction = await createWorkflowActionIfNeeded(supabaseAdmin, leadId, spec)
+      }
+    }
+
+    // =====================================================
     // SIDE-EFFECT 1 — GOOGLE CONTACT SYNC (non-blocking)
     // Failure here must NEVER prevent the calendar event.
     // =====================================================
@@ -242,7 +260,7 @@ export async function POST(request: Request) {
       console.log(`📋 [stage-sync] List Sent calendar skipped — oldStage: ${oldStage}, newStage: ${crm_status}`)
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, workflowAction })
   } catch (error) {
     return NextResponse.json(
       { error: "Unexpected server error" },

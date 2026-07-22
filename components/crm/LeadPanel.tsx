@@ -8,6 +8,9 @@ import { getSourceStyle } from "@/lib/leads/sourceStyles"
 import { inferMarketFromLandingPage } from "@/lib/leads/inferMarketFromLandingPage"
 import { ARCHIVE_REASONS } from "@/lib/leads/archiveReasons"
 import { rankLeadActions } from "@/lib/nextActions"
+import { getNextFollowUpAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
+import { emitWorkflowActionCreated } from "@/lib/workflowToast"
+import { getActionIcon, formatDueDateTime } from "@/lib/actionDisplay"
 import AiVoiceScriptModal from "./AiVoiceScriptModal"
 import ConfirmDialog from "./ConfirmDialog"
 import AddNextActionModal from "./AddNextActionModal"
@@ -190,6 +193,8 @@ export default function LeadPanel({
   setFavorites,
   onClose,
   onUpdateLead,
+  pendingEditActionId,
+  onPendingEditHandled,
 }: {
   lead: any
   topMatches?: any[]
@@ -199,6 +204,13 @@ export default function LeadPanel({
   setFavorites?: React.Dispatch<React.SetStateAction<any[]>>
   onClose: () => void
   onUpdateLead?: (updatedLead: any) => void
+  // Set by the Workflow Engine's "✓ Next Action Created" toast's Edit
+  // button — when this matches one of this lead's own open actions, the
+  // Next Action editor opens for it automatically. Cleared via
+  // onPendingEditHandled once handled, whether or not it matched (the
+  // toast may point at a different lead than the one currently open).
+  pendingEditActionId?: number | null
+  onPendingEditHandled?: () => void
 }) {
   if (!lead) return null
 
@@ -209,6 +221,7 @@ export default function LeadPanel({
   const [archiveReason, setArchiveReason] = useState(lead.archive_reason || "")
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showAddAction, setShowAddAction] = useState(false)
+  const [editingAction, setEditingAction] = useState<any | null>(null)
   const [showFavoriteModal, setShowFavoriteModal] = useState(false)
   const [editingFavorite, setEditingFavorite] = useState<any | null>(null)
   const [deletingFavoriteId, setDeletingFavoriteId] = useState<number | null>(null)
@@ -218,6 +231,20 @@ export default function LeadPanel({
     setNextActionDate(lead.next_action_date || null)
     setArchiveReason(lead.archive_reason || "")
   }, [lead.id, lead.follow_up_count, lead.next_action_date, lead.archive_reason])
+
+  // Workflow Engine toast "Edit" — open the editor for the action it
+  // named, but only once this lead's own next-actions have actually
+  // loaded it (it may belong to whichever lead the toast fired for,
+  // which isn't necessarily the one currently open in this panel).
+  useEffect(() => {
+    if (pendingEditActionId == null) return
+    const match = nextActions.find((a) => a.id === pendingEditActionId)
+    if (match) {
+      setEditingAction(match)
+      setShowAddAction(true)
+      onPendingEditHandled?.()
+    }
+  }, [pendingEditActionId, nextActions])
 
   // ─── Follow-up actions ─────────────────────────────────────────────────
 
@@ -342,9 +369,19 @@ export default function LeadPanel({
           follow_up_count: lead.follow_up_count ?? 0,
           next_action_date: lead.next_action_date ?? null,
         }),
-      }).catch((err) => {
-        console.error("First Text stage update failed:", err)
       })
+        .then((res) => res.json())
+        .then((json) => {
+          // Workflow Engine — surfaces whatever automatic action (if any)
+          // the New → Contacted transition just created.
+          if (json?.workflowAction) {
+            setNextActions?.((prev) => [...prev, json.workflowAction])
+            emitWorkflowActionCreated(json.workflowAction)
+          }
+        })
+        .catch((err) => {
+          console.error("First Text stage update failed:", err)
+        })
     }
 
     // Record the moment this lead was intentionally contacted — fires on
@@ -522,8 +559,41 @@ export default function LeadPanel({
     return true
   }
 
+  // Backs the "Edit" button on the Workflow Engine's "✓ Next Action
+  // Created" toast — updates the action in place rather than creating a
+  // second one.
+  async function handleUpdateAction(actionId: number, input: {
+    title: string
+    dueAt: string
+    priority: "low" | "medium" | "high"
+    notes: string
+  }): Promise<boolean> {
+    const { data, error } = await supabase
+      .from("lead_next_actions")
+      .update({
+        title: input.title,
+        due_at: input.dueAt,
+        priority: input.priority,
+        notes: input.notes || null,
+      })
+      .eq("id", actionId)
+      .select("*")
+      .single()
+
+    if (error) {
+      console.error("[next-action] update failed:", error)
+      return false
+    }
+
+    setNextActions?.((prev) => prev.map((a) => (a.id === actionId ? data : a)))
+    setShowAddAction(false)
+    setEditingAction(null)
+    return true
+  }
+
   async function handleCompleteAction(actionId: number) {
     const completedAt = new Date().toISOString()
+    const completedAction = nextActions.find((a) => a.id === actionId)
 
     // Optimistic — drop it out of the open list immediately so ranking
     // re-computes without waiting on the network round trip.
@@ -536,6 +606,21 @@ export default function LeadPanel({
 
     if (error) {
       console.error("[next-action] complete failed:", error)
+      return
+    }
+
+    // Workflow Engine — FU1 -> FU2 -> FU3 -> Final, one step at a time,
+    // only after the previous step is actually completed (never the whole
+    // sequence at once).
+    if (completedAction) {
+      const nextSpec = getNextFollowUpAction(completedAction.title)
+      if (nextSpec) {
+        const created = await createWorkflowActionIfNeeded(supabase, lead.id, nextSpec)
+        if (created) {
+          setNextActions?.((prev) => [...prev, created])
+          emitWorkflowActionCreated(created)
+        }
+      }
     }
   }
 
@@ -654,6 +739,55 @@ export default function LeadPanel({
       handleCompleteAction(primaryAction.manualAction.id)
     } else if (doneConfig) {
       handleDoneForNow(doneConfig.days)
+    }
+  }
+
+  // ─── Message Client (Next Action left-side contextual button) ─────────
+  // Only message-based actions get this button — everything else relies
+  // solely on the right-side Mark Complete. "Contact Lead" reuses
+  // handleFirstText's own rich, beds/move-date-aware template; every
+  // other message-based title has a fixed template below. Either way,
+  // sending the message also resolves the current primary action, same
+  // as clicking it already did before Workflow Engine actions existed.
+  // Includes both the new Workflow Engine titles AND the legacy automatic
+  // virtual labels that already sent a message when clicked (see
+  // handleNextActionClick below) — a lead can sit on one of those for a
+  // while before the Workflow Engine's real row takes over (e.g.
+  // "Waiting for Response"/"Build List" before the 2-day Follow Up or the
+  // immediate Send List action exists), and it shouldn't lose messaging
+  // in the meantime.
+  const MESSAGE_BASED_TITLES = new Set([
+    "Contact Lead", "Follow Up", "Send List", "FU1", "FU2", "FU3", "Final", "Reconnect Client",
+    "Waiting for Response", "Build List", "Final FU",
+  ])
+
+  const MESSAGE_TEMPLATES: Record<string, (name: string) => string> = {
+    "Follow Up": (name) => `Hey ${name}! Just checking in — have you had a chance to look at your options? Let me know if you have any questions!`,
+    "Send List": (name) => `Hey ${name}, I just sent your list over!\n\nCan you ❤️ your top 2–3 favorites?\n\nI'll get tours set up or tweak the list for you`,
+    "FU1": () => `Hey! Did you see any properties on the list that you'd like to tour?`,
+    "FU2": () => `Is there one that stands out or would you like me to narrow the list down a bit more?`,
+    "FU3": () => `I'm calling communities you were interested in to get updated pricing and specials. Are you still looking to move?`,
+    "Final": (name) => `Hey ${name}, I haven't heard back so I'll pause your search for now. No rush, just let me know when you'd like me to pick it back up!`,
+    "Reconnect Client": (name) => `Hey ${name}! Just checking in — your move date is getting closer. Are you still planning to move, and would you like me to start setting up tours?`,
+  }
+
+  function handleMessageClient() {
+    const title = primaryAction.title
+
+    if (title === "Contact Lead") {
+      handleFirstText()
+    } else {
+      const template = MESSAGE_TEMPLATES[title]
+      if (template) openSMS(template(normalizeName(lead.first_name || "")))
+    }
+
+    if (primaryAction.kind === "manual" && primaryAction.manualAction) {
+      handleCompleteAction(primaryAction.manualAction.id)
+    } else if (primaryAction.kind === "automatic" && title !== "Contact Lead") {
+      // Preserves existing behavior for stages the Workflow Engine hasn't
+      // created a real action for yet (e.g. the FU1/FU2/FU3 reached via
+      // the Quick Actions FU buttons rather than entering List Sent).
+      handleNextActionClick()
     }
   }
 
@@ -841,32 +975,38 @@ export default function LeadPanel({
 
         {/* Next Action — same clean two-column layout regardless of
             whether the primary action is automatic or manual. Left shows
-            what it is; right shows how to complete it (when there's a
-            way to). No badges, no urgency coloring, no emoji kind
-            indicators — this section answers one question only: what's
-            next. */}
+            what it is, when it's due, and — only for message-based
+            actions — a Message Client button. Right shows how to
+            complete it (when there's a way to). This section answers one
+            question only: what's next. */}
         <div className="bg-gray-50 border border-gray-100/70 rounded-2xl shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_10px_rgba(15,23,42,0.06)] px-4 py-3">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-start">
             <div>
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1.5">Next Action</p>
-              {primaryAction.kind === "automatic" ? (
+              <p className="text-sm font-semibold text-gray-900 px-3 py-1.5 rounded-lg border border-gray-300 bg-white inline-block whitespace-nowrap">
+                {primaryAction.title}
+              </p>
+              {primaryAction.dueAt && (
+                <p className="text-[11px] text-gray-500 mt-1.5">
+                  {formatDueDateTime(primaryAction.dueAt)}
+                </p>
+              )}
+              {MESSAGE_BASED_TITLES.has(primaryAction.title) && (
                 <button
                   type="button"
-                  onClick={handleNextActionClick}
-                  className="text-sm font-semibold text-gray-900 px-3 py-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 transition-colors whitespace-nowrap"
+                  onClick={handleMessageClient}
+                  className="mt-1.5 text-[11.5px] font-semibold px-3 py-1.5 rounded-lg border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
                 >
-                  {action}
+                  Message Client
                 </button>
-              ) : (
-                <p className="text-sm font-semibold text-gray-900 px-3 py-1.5 rounded-lg border border-gray-300 bg-white inline-block whitespace-nowrap">
-                  {primaryAction.title}
-                </p>
               )}
             </div>
 
             {canCompletePrimary && (
               <div>
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1.5">Status</p>
+                <p className="text-[11px] font-semibold text-gray-500 mb-1">
+                  {primaryAction.kind === "automatic" && doneMsg ? "Status: Complete" : "Status: Pending"}
+                </p>
                 <button
                   type="button"
                   onClick={handleCompletePrimary}
@@ -877,7 +1017,7 @@ export default function LeadPanel({
                       : "border-gray-300 bg-gray-100 text-gray-600 hover:bg-gray-200",
                   ].join(" ")}
                 >
-                  {primaryAction.kind === "automatic" && doneMsg ? "✓ Completed" : "Complete"}
+                  {primaryAction.kind === "automatic" && doneMsg ? "✓ Completed" : "Mark Complete"}
                 </button>
               </div>
             )}
@@ -911,7 +1051,10 @@ export default function LeadPanel({
           {/* Add a manual action */}
           <button
             type="button"
-            onClick={() => setShowAddAction(true)}
+            onClick={() => {
+              setEditingAction(null)
+              setShowAddAction(true)
+            }}
             className="mt-2.5 w-full text-[11.5px] font-semibold px-3 py-1.5 rounded-lg border border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
           >
             + Add Next Action
@@ -1086,8 +1229,13 @@ export default function LeadPanel({
 
     <AddNextActionModal
       open={showAddAction}
-      onClose={() => setShowAddAction(false)}
+      onClose={() => {
+        setShowAddAction(false)
+        setEditingAction(null)
+      }}
       onCreate={handleCreateAction}
+      onUpdate={handleUpdateAction}
+      editing={editingAction}
       crmStatus={lead.crm_status}
     />
 

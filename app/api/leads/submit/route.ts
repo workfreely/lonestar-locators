@@ -34,6 +34,7 @@ import { NextResponse, after } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { createNewLeadCalendarEvent } from "@/lib/google/createCalendarEvent"
 import { findDuplicateMatch, type LeadIdentity } from "@/lib/leads/duplicateDetection"
+import { getStageWorkflowAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
 
 // Server-only client — SUPABASE_SERVICE_ROLE_KEY has no NEXT_PUBLIC_
 // prefix, so it is never bundled into browser JS.
@@ -429,6 +430,27 @@ export async function POST(request: Request) {
         })
       } catch (err) {
         console.error("[api/leads/submit] Failed to schedule new-lead calendar event:", err)
+      }
+    }
+
+    // ─── Workflow Engine — "New" stage: Contact Lead (immediate) ──────────
+    // Deferred via `after()` for the same reason as the calendar event
+    // above: never let this delay the response or roll back the insert.
+    // Only for a genuinely new row (isNewLead) that's actually sitting in
+    // "new" — an exact-match resubmission of an existing lead already past
+    // that stage should never regenerate this reminder.
+    if (isNewLead && data.crm_status === "new") {
+      try {
+        after(async () => {
+          try {
+            const spec = getStageWorkflowAction("new", data)
+            if (spec) await createWorkflowActionIfNeeded(supabaseAdmin, data.id, spec)
+          } catch (err) {
+            console.error("[api/leads/submit] Workflow Engine action failed:", err)
+          }
+        })
+      } catch (err) {
+        console.error("[api/leads/submit] Failed to schedule Workflow Engine action:", err)
       }
     }
 

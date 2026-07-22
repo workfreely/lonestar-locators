@@ -2,27 +2,7 @@
 
 import { useState } from "react"
 import { rankLeadActions } from "@/lib/nextActions"
-
-// ─── Date helpers ──────────────────────────────────────────────────────────────
-
-function formatDate(date: string) {
-  if (!date) return ""
-  return new Date(date).toLocaleDateString("en-US", {
-    month: "2-digit",
-    day: "2-digit",
-    year: "numeric",
-  })
-}
-
-function formatRent(rent: string) {
-  if (!rent) return ""
-  const matches = rent.match(/\d[\d,]*/g)
-  if (!matches) return ""
-  const nums = matches.map((v) => Number(v.replace(/,/g, ""))).filter((n) => !Number.isNaN(n))
-  if (nums.length >= 2) return `$${nums[0].toLocaleString()} – $${nums[1].toLocaleString()}`
-  if (nums.length === 1) return `$${nums[0].toLocaleString()}`
-  return ""
-}
+import { getActionIcon, formatDueDateTime } from "@/lib/actionDisplay"
 
 /** Returns a short action label based on the lead's CRM status and follow-up count. */
 function getActionLabel(crm_status: string, follow_up_count: number | null | undefined): string {
@@ -96,7 +76,16 @@ export default function FollowUpRow({
     return true
   }
 
-  const visibleLeads = dueLeads.filter(filterMatch)
+  // Sort: overdue first, then today's actions — within each bucket,
+  // earliest due time first.
+  const visibleLeads = dueLeads.filter(filterMatch).sort((a, b) => {
+    const urgencyRank = (u: string) => (u === "overdue" ? 0 : 1)
+    const diff = urgencyRank(a.primary.urgency) - urgencyRank(b.primary.urgency)
+    if (diff !== 0) return diff
+    const aTime = a.primary.dueAt ? new Date(a.primary.dueAt).getTime() : 0
+    const bTime = b.primary.dueAt ? new Date(b.primary.dueAt).getTime() : 0
+    return aTime - bTime
+  })
 
   function toggleFilter(f: FilterType) {
     setActiveFilter((prev) => (prev === f ? null : f))
@@ -110,10 +99,10 @@ export default function FollowUpRow({
   return (
     <div className="flex flex-col h-full">
 
-      {/* Sidebar header — unchanged */}
+      {/* Sidebar header — the user's daily work queue */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
         <h2 className="text-xs font-semibold text-white/80 uppercase tracking-widest">
-          Follow-Ups
+          Actions Due
         </h2>
         <div className="flex items-center gap-1.5">
           {dueLeads.length > 0 && (
@@ -125,8 +114,8 @@ export default function FollowUpRow({
             <button
               onClick={onCollapse}
               className="w-5 h-5 flex items-center justify-center rounded text-white/40 hover:text-white hover:bg-white/10 transition-colors"
-              aria-label="Collapse Follow-Ups"
-              title="Collapse Follow-Ups"
+              aria-label="Collapse Actions Due"
+              title="Collapse Actions Due"
             >
               <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="15 18 9 12 15 6" />
@@ -167,7 +156,7 @@ export default function FollowUpRow({
               </svg>
             </div>
             <p className="text-xs text-white/40 leading-snug">
-              {activeFilter ? "None in this filter" : "All caught up"}
+              {activeFilter ? "None in this filter" : "No actions due today."}
             </p>
           </div>
         )}
@@ -186,23 +175,19 @@ export default function FollowUpRow({
             <div className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-red-400" />
 
             <div className="pl-2">
-              <p className="text-sm font-semibold text-white leading-tight">
+              {/* Who */}
+              <p className="text-sm font-semibold text-white leading-tight truncate">
                 {lead.first_name} {lead.last_name}
               </p>
 
-              <p className="text-[11px] text-white/55 mt-0.5">
-                {lead.city}
-                {lead.desired_rent && <> · {formatRent(lead.desired_rent)}</>}
+              {/* What */}
+              <p className="text-[12px] text-white/80 font-medium mt-1 truncate">
+                {getActionIcon(primary.title)} {primary.title}
               </p>
 
-              {lead.move_date && (
-                <p className="text-[11px] text-white/70 font-medium mt-1">
-                  Moves {formatDate(lead.move_date)}
-                </p>
-              )}
-
-              <p className="text-[10.5px] text-red-300 font-semibold mt-1.5">
-                🤖 {primary.title}
+              {/* When */}
+              <p className="text-[11px] text-red-300 font-semibold mt-1">
+                {primary.dueAt ? formatDueDateTime(primary.dueAt) : ""}
               </p>
             </div>
           </div>

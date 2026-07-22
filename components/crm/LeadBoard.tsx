@@ -63,11 +63,16 @@ export default function LeadBoard({
   setLeads,
   selectedLeadId,
   onSelectLead,
+  onWorkflowAction,
 }: {
   leads: any[]
   setLeads: React.Dispatch<React.SetStateAction<any[]>>
   selectedLeadId?: string | number | null
   onSelectLead?: (id: string | number) => void
+  // Called with whatever the Workflow Engine created (if anything) for a
+  // drag-triggered stage change — lets the caller mirror it into local
+  // next-actions state and surface the "✓ Next Action Created" toast.
+  onWorkflowAction?: (action: any) => void
 }) {
   const [mounted, setMounted] = useState(false)
   const [activeLead, setActiveLead] = useState<any | null>(null)
@@ -149,7 +154,7 @@ export default function LeadBoard({
     // =====================================================
     // ✅ SAVE TO BACKEND
     // =====================================================
-    await fetch("/api/admin/leads/update-stage", {
+    const res = await fetch("/api/admin/leads/update-stage", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -162,6 +167,11 @@ export default function LeadBoard({
         next_action_date: nextDate,
       }),
     })
+
+    // Workflow Engine — the route creates an automatic Next Action (if the
+    // new stage has a rule and none already exists) and returns it here.
+    const json = await res.json().catch(() => null)
+    if (json?.workflowAction) onWorkflowAction?.(json.workflowAction)
   }
 
   return (

@@ -59,10 +59,34 @@ function getDefaultDueAt(): string {
   return `${yyyy}-${mm}-${dd}T09:30`
 }
 
+// Reverses getDefaultDueAt's format — turns a stored ISO due_at back into
+// a local "YYYY-MM-DDTHH:mm" string the datetime-local input can show,
+// so editing an existing (often Workflow-Engine-created) action opens
+// with its real due date/time pre-filled rather than resetting it.
+function toDatetimeLocalValue(iso: string): string {
+  const d = new Date(iso)
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, "0")
+  const dd = String(d.getDate()).padStart(2, "0")
+  const hh = String(d.getHours()).padStart(2, "0")
+  const min = String(d.getMinutes()).padStart(2, "0")
+  return `${yyyy}-${mm}-${dd}T${hh}:${min}`
+}
+
+export type EditingNextAction = {
+  id: number
+  title: string
+  due_at: string
+  priority: "low" | "medium" | "high"
+  notes: string | null
+}
+
 export default function AddNextActionModal({
   open,
   onClose,
   onCreate,
+  onUpdate,
+  editing,
   crmStatus,
 }: {
   open: boolean
@@ -72,10 +96,19 @@ export default function AddNextActionModal({
   // (e.g. a network/permission error) leaves what the user typed intact
   // instead of silently discarding it with no visible feedback.
   onCreate: (input: { title: string; dueAt: string; priority: "low" | "medium" | "high"; notes: string }) => Promise<boolean>
+  // Same success/failure contract as onCreate, but updates an existing
+  // row instead of inserting a new one. Only needed when editing is set.
+  onUpdate?: (id: number, input: { title: string; dueAt: string; priority: "low" | "medium" | "high"; notes: string }) => Promise<boolean>
+  // Non-null when editing an existing action (e.g. from the Workflow
+  // Engine's "✓ Next Action Created" toast) — pre-fills the form and
+  // switches Save to call onUpdate instead of onCreate.
+  editing?: EditingNextAction | null
   // The lead's current stage, used only to preselect the intelligent
   // default title below — never sent anywhere or used for any automation.
   crmStatus?: string
 }) {
+  const isEditing = !!editing
+
   const [preset, setPreset] = useState(() => getDefaultPreset(crmStatus))
   const [customTitle, setCustomTitle] = useState("")
   const [dueAt, setDueAt] = useState(getDefaultDueAt)
@@ -85,11 +118,23 @@ export default function AddNextActionModal({
   const [submitError, setSubmitError] = useState(false)
 
   // The modal instance is reused across leads (LeadPanel isn't remounted
-  // when the selected lead changes), so the smart default has to be
-  // recomputed every time it's opened, not just once at first mount.
+  // when the selected lead changes), so the smart default — and any
+  // in-progress edit — has to be recomputed every time it's opened, not
+  // just once at first mount.
   useEffect(() => {
-    if (open) setPreset(getDefaultPreset(crmStatus))
-  }, [open, crmStatus])
+    if (!open) return
+    if (editing) {
+      const isPreset = PRESET_TITLES.includes(editing.title)
+      setPreset(isPreset ? editing.title : "Custom Action")
+      setCustomTitle(isPreset ? "" : editing.title)
+      setDueAt(toDatetimeLocalValue(editing.due_at))
+      setPriority(editing.priority)
+      setNotes(editing.notes ?? "")
+    } else {
+      setPreset(getDefaultPreset(crmStatus))
+      setDueAt(getDefaultDueAt())
+    }
+  }, [open, crmStatus, editing])
 
   if (!open) return null
 
@@ -110,7 +155,10 @@ export default function AddNextActionModal({
     if (!canSubmit) return
     setSubmitting(true)
     setSubmitError(false)
-    const ok = await onCreate({ title, dueAt: new Date(dueAt).toISOString(), priority, notes })
+    const input = { title, dueAt: new Date(dueAt).toISOString(), priority, notes }
+    const ok = editing && onUpdate
+      ? await onUpdate(editing.id, input)
+      : await onCreate(input)
     setSubmitting(false)
     if (ok) {
       reset()
@@ -127,9 +175,9 @@ export default function AddNextActionModal({
   return (
     <div className="fixed inset-0 z-[10000] bg-black/40 backdrop-blur-sm flex items-center justify-center px-4">
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-6">
-        <h3 className="text-lg font-bold text-gray-900">Add Next Action</h3>
+        <h3 className="text-lg font-bold text-gray-900">{isEditing ? "Edit Next Action" : "Add Next Action"}</h3>
         <p className="text-sm text-gray-500 mt-1">
-          Extends the automatic follow-up — it never replaces it.
+          {isEditing ? "Change the title, due date, priority, or notes." : "Extends the automatic follow-up — it never replaces it."}
         </p>
 
         <div className="mt-4 space-y-3">
@@ -218,7 +266,7 @@ export default function AddNextActionModal({
             disabled={!canSubmit}
             className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            {submitting ? "Adding..." : "Add Action"}
+            {submitting ? (isEditing ? "Saving..." : "Adding...") : (isEditing ? "Save Changes" : "Add Action")}
           </button>
         </div>
 

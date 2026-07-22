@@ -101,15 +101,28 @@ export function rankLeadActions(
     }
   }
 
-  const automatic: RankedAction = {
+  const openManual = manualActions.filter((a) => !a.completed && a.lead_id === lead.id)
+
+  // The Workflow Engine (lib/workflowEngine.ts) now creates real
+  // lead_next_actions rows for most stage transitions, often titled
+  // exactly what this automatic label already says (e.g. "Contact Lead",
+  // "Setup Tour", "Check App"). Once that real row exists, showing the
+  // placeholder automatic entry too would just be a duplicate of the
+  // same action — so it's dropped whenever an open manual action shares
+  // its title. Leads/stages the engine hasn't touched yet (or has no
+  // rule for) are completely unaffected: the automatic entry still
+  // participates exactly as before.
+  const hasEquivalentManual = openManual.some(
+    (a) => a.title.trim().toLowerCase() === automaticLabel.trim().toLowerCase()
+  )
+
+  const automatic: RankedAction | null = hasEquivalentManual ? null : {
     kind: "automatic",
     title: automaticLabel,
     dueAt: lead.next_action_date ?? null,
     priority: "medium",
     urgency: urgencyOf(lead.next_action_date ?? null),
   }
-
-  const openManual = manualActions.filter((a) => !a.completed && a.lead_id === lead.id)
 
   const manualRanked: RankedAction[] = openManual.map((a) => ({
     kind: "manual",
@@ -120,7 +133,9 @@ export function rankLeadActions(
     manualAction: a,
   }))
 
-  const all = [automatic, ...manualRanked].sort(compareActions)
+  const all: RankedAction[] = automatic
+    ? [automatic, ...manualRanked].sort(compareActions)
+    : manualRanked.sort(compareActions)
 
   return { primary: all[0], others: all.slice(1) }
 }

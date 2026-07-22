@@ -9,6 +9,8 @@ import LeadInsights from "./LeadInsights"
 import LeadFormModal from "../LeadFormModal"
 import DashboardStats from "./DashboardStats"
 import CollapsibleSection from "./CollapsibleSection"
+import WorkflowActionToast from "./WorkflowActionToast"
+import { emitWorkflowActionCreated, type WorkflowToastAction } from "@/lib/workflowToast"
 
 export default function DashboardClient({ leads, nextActions, favorites }: { leads: any[]; nextActions: any[]; favorites: any[] }) {
   const router = useRouter()
@@ -26,6 +28,15 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
   const [localFavorites, setLocalFavorites] = useState(favorites)
   const [showLeadModal, setShowLeadModal] = useState(false)
   const [followUpsOpen, setFollowUpsOpen] = useState(true)
+  const [pendingEditActionId, setPendingEditActionId] = useState<number | null>(null)
+
+  // Workflow Engine — a drag-triggered stage change created this action;
+  // mirror it into local state and show the toast the same way
+  // LeadPanel's own trigger points (First Text, FU chain completion) do.
+  function handleWorkflowAction(action: WorkflowToastAction) {
+    setLocalNextActions((prev) => [...prev, action])
+    emitWorkflowActionCreated(action)
+  }
 
   useEffect(() => {
     const stored = localStorage.getItem("follow-ups-expanded")
@@ -131,8 +142,8 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
             <button
               onClick={toggleFollowUps}
               className="w-6 h-6 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors"
-              aria-label="Expand Follow-Ups"
-              title="Expand Follow-Ups"
+              aria-label="Expand Actions Due"
+              title="Expand Actions Due"
             >
               <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="9 18 15 12 9 6" />
@@ -155,6 +166,7 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
               setSelectedLeadId(id)
               router.push(`/admin/leads?id=${id}`)
             }}
+            onWorkflowAction={handleWorkflowAction}
           />
         </div>
 
@@ -183,6 +195,8 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
                       )
                     )
                   }}
+                  pendingEditActionId={pendingEditActionId}
+                  onPendingEditHandled={() => setPendingEditActionId(null)}
                 />
               </div>
 
@@ -205,6 +219,17 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
         onClose={() => setShowLeadModal(false)}
         onLeadCreated={(newLead) => {
           setLocalLeads((prev) => [{ ...newLead, _isNew: true }, ...prev])
+        }}
+      />
+
+      <WorkflowActionToast
+        onUndo={(actionId) => {
+          setLocalNextActions((prev) => prev.filter((a) => a.id !== actionId))
+        }}
+        onEdit={(action) => {
+          setSelectedLeadId(action.lead_id)
+          router.push(`/admin/leads?id=${action.lead_id}`)
+          setPendingEditActionId(action.id)
         }}
       />
     </div>
