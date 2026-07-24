@@ -31,7 +31,7 @@ export default function CampaignTable({ leads }: { leads: any[] }) {
       <div className="p-4">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-[10px] uppercase tracking-widest text-gray-400 border-b border-gray-100">
+            <tr className="text-left text-[10px] uppercase tracking-widest text-[var(--crm-text-muted)] border-b border-[var(--crm-border-soft)]">
               <th className="pb-2 font-semibold">Campaign</th>
               <th className="pb-2 font-semibold">Source</th>
               <th className="pb-2 font-semibold text-right">Leads</th>
@@ -41,8 +41,8 @@ export default function CampaignTable({ leads }: { leads: any[] }) {
             {rows.map((row) => {
               const style = getSourceStyle(row.source)
               return (
-                <tr key={`${row.campaign} ${row.source ?? ""}`} className="border-b border-gray-50 last:border-0">
-                  <td className="py-2 text-gray-800">{row.campaign}</td>
+                <tr key={`${row.campaign} ${row.source ?? ""}`} className="border-b border-[var(--crm-border-soft)] last:border-0">
+                  <td className="py-2 text-[var(--crm-text-primary)]">{row.campaign}</td>
                   <td className="py-2">
                     <span
                       className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full border ${style.badgeClassName}`}
@@ -50,7 +50,7 @@ export default function CampaignTable({ leads }: { leads: any[] }) {
                       {style.label}
                     </span>
                   </td>
-                  <td className="py-2 text-right font-semibold text-gray-800">{row.count}</td>
+                  <td className="py-2 text-right font-semibold text-[var(--crm-text-primary)]">{row.count}</td>
                 </tr>
               )
             })}

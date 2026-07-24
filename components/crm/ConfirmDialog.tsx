@@ -27,14 +27,14 @@ export default function ConfirmDialog({
 
   return (
     <div className="fixed inset-0 z-[10000] bg-black/40 backdrop-blur-sm flex items-center justify-center px-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-6">
-        <h3 className="text-lg font-bold text-gray-900">{title}</h3>
-        <p className="text-sm text-gray-500 mt-2 leading-relaxed">{message}</p>
+      <div className="w-full max-w-sm bg-[var(--crm-panel)] rounded-2xl shadow-2xl p-6">
+        <h3 className="text-lg font-bold text-[var(--crm-text-primary)]">{title}</h3>
+        <p className="text-sm text-[var(--crm-text-secondary)] mt-2 leading-relaxed">{message}</p>
 
         <div className="flex justify-end gap-3 mt-6">
           <button
             onClick={onCancel}
-            className="px-4 py-2 rounded-xl border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 rounded-xl border border-[var(--crm-border)] text-sm font-medium text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] transition-colors"
           >
             {cancelLabel}
           </button>

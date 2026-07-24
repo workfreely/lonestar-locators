@@ -65,7 +65,10 @@ export default function LeadColumn({
     <div
       ref={setNodeRef}
       className={[
-        "flex flex-col rounded-xl bg-white/10 backdrop-blur-xl border border-white/20",
+        // Dark theme only: a touch less white tint + a black wash darkens
+        // the glass so lead cards (lightened separately) stand out against
+        // it more clearly. Light theme keeps its original bg-white/20/10.
+        "flex flex-col rounded-xl bg-white/10 dark:bg-black/20 backdrop-blur-xl border border-white/20 dark:border-white/10",
         "shadow-[0_4px_24px_rgba(0,0,0,0.12)] h-full overflow-y-auto",
         columnWidthClass,
       ].join(" ")}

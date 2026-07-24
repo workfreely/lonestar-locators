@@ -21,6 +21,58 @@
 }
 
 /* ================================
+   CRM Theme Tokens (Light / Dark)
+   ================================
+   Scoped to the CRM only — the marketing site above never references
+   these variables, so toggling `.dark` on <html> has no visible effect
+   outside /admin. Applied via Tailwind arbitrary-value syntax, e.g.
+   bg-[var(--panel)], so no tailwind.config changes are needed and every
+   utility category (bg/text/border/ring/etc.) can use them directly.
+   Effective theme (light/dark) is resolved in JS (see lib/theme.ts) —
+   "System" just means "whichever of these two blocks currently applies,
+   decided once from prefers-color-scheme and kept in sync from then on."
+   Accent/pill colors (status, approval, source, urgency, etc.) are
+   deliberately NOT tokenized here — they stay the same literal Tailwind
+   colors in both themes per spec. */
+:root {
+  --crm-background: #f4f4f5;   /* zinc-100 — CRM workspace/page background */
+  --crm-workspace: #f4f4f5;    /* light end of the existing zinc-100→200 board gradient */
+  --crm-panel: #ffffff;        /* Lead Panel, header, modals, primary cards */
+  --crm-card: #f9fafb;         /* gray-50 — secondary/nested cards, info grids */
+  --crm-inset: #f3f4f6;        /* gray-100 — inputs, textareas, inset surfaces */
+  --crm-border: #e5e7eb;       /* gray-200 */
+  --crm-border-soft: #f3f4f6;  /* gray-100 — softer dividers */
+  --crm-text-primary: #111827;   /* gray-900 */
+  --crm-text-secondary: #4b5563; /* gray-600 */
+  --crm-text-muted: #9ca3af;     /* gray-400 */
+  --crm-shadow-color: 15, 23, 42; /* rgb triplet used inside shadow rgba() values */
+}
+
+.dark {
+  --crm-background: #1B1F24;
+  --crm-workspace: #1B1F24;
+  --crm-panel: #252A31;
+  --crm-card: #2D333B;
+  --crm-inset: #343B44;
+  --crm-border: #3D4651;
+  --crm-border-soft: #343B44;
+  --crm-text-primary: #F5F7FA;
+  --crm-text-secondary: #B9C0C9;
+  --crm-text-muted: #8F98A3;
+  --crm-shadow-color: 0, 0, 0;
+}
+
+/* Scoped body background for Dark Mode — only when a CRM (/admin) page is
+   actually mounted (ThemeProvider adds .crm-admin-shell to <body>, see
+   components/theme/ThemeProvider.tsx) AND the theme is dark. Fixes white
+   strips showing through the root layout's own <main> page-padding and
+   through overscroll bounce. Never applies on the marketing site (that
+   class is only ever added inside /admin) or in Light Mode (unchanged). */
+html.dark body.crm-admin-shell {
+  background: var(--crm-background);
+}
+
+/* ================================
    Global Typography (Explicit)
    ================================ */
 
@@ -364,8 +416,17 @@ header * {
   z-index: 2;
 }
 
-header h1,
-header p {
+/* :not(.crm-header) — this rule targeted any <p>/<h1> inside any <header>
+   for the marketing site's hero, but that also matched the CRM's own
+   header (profile dropdown email, "First Contact Method" label, etc. are
+   all <p> tags nested inside it), forcing them to a hardcoded near-black
+   regardless of each element's own semantic text-color class — unreadable
+   in Dark Mode and, in Light Mode, silently flattening the intended
+   primary/secondary/muted text hierarchy to one color. Excluding
+   .crm-header lets each CRM element's own Tailwind color utility apply
+   normally again, while the marketing hero header is untouched. */
+header:not(.crm-header) h1,
+header:not(.crm-header) p {
   color: #111 !important;
 }
 

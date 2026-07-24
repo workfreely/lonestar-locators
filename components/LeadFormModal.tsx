@@ -157,23 +157,23 @@ export default function LeadFormModal({
     <div className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-sm flex justify-end">
 
       {/* PANEL */}
-      <div className="w-full max-w-[700px] h-full bg-white shadow-2xl overflow-y-auto">
+      <div className="w-full max-w-[700px] h-full bg-[var(--crm-panel)] shadow-2xl overflow-y-auto">
 
         {/* HEADER */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-5 z-20 flex items-center justify-between">
+        <div className="sticky top-0 bg-[var(--crm-panel)] border-b border-[var(--crm-border)] px-6 py-5 z-20 flex items-center justify-between">
           <div>
-            <div className="text-2xl font-black tracking-tight text-gray-900">
+            <div className="text-2xl font-black tracking-tight text-[var(--crm-text-primary)]">
               Add Lead
             </div>
 
-            <div className="text-sm text-gray-500 mt-1">
+            <div className="text-sm text-[var(--crm-text-secondary)] mt-1">
               Create a new CRM lead manually
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-700 text-xl"
+            className="text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)] text-xl"
           >
             ✕
           </button>
@@ -188,11 +188,11 @@ export default function LeadFormModal({
 </div>
         
         {/* FOOTER */}
-        <div className="sticky bottom-0 bg-white border-t border-gray-200 p-5 flex justify-end gap-3">
+        <div className="sticky bottom-0 bg-[var(--crm-panel)] border-t border-[var(--crm-border)] p-5 flex justify-end gap-3">
 
           <button
             onClick={onClose}
-            className="px-5 py-3 rounded-2xl border border-gray-300 text-sm font-medium"
+            className="px-5 py-3 rounded-2xl border border-[var(--crm-border)] text-sm font-medium text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]"
           >
             Cancel
           </button>

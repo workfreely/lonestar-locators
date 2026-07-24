@@ -45,9 +45,9 @@ export default function PerformanceStats({ leads }: { leads: any[] }) {
   const topCampaign = topByCount(campaignCounts)
 
   const cardCls =
-    "bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-2 flex flex-col justify-between transition-shadow transition-colors duration-200 hover:border-blue-200 hover:shadow-[0_4px_20px_rgba(59,130,246,0.12),0_8px_24px_rgba(0,0,0,0.08)]"
-  const labelCls = "text-[10px] font-semibold text-gray-400 uppercase tracking-widest"
-  const valueCls = "text-xl font-bold text-gray-900 leading-none"
+    "bg-[var(--crm-panel)] rounded-xl border border-[var(--crm-border)] shadow-sm px-4 py-2 flex flex-col justify-between transition-shadow transition-colors duration-200 hover:border-blue-200 hover:shadow-[0_4px_20px_rgba(59,130,246,0.12),0_8px_24px_rgba(0,0,0,0.08)]"
+  const labelCls = "text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest"
+  const valueCls = "text-xl font-bold text-[var(--crm-text-primary)] leading-none"
 
   return (
     <div className="grid grid-cols-4 gap-3">
@@ -82,7 +82,7 @@ export default function PerformanceStats({ leads }: { leads: any[] }) {
         <p className={labelCls}>Conversion Rate</p>
         <div className="mt-1">
           <p className={valueCls}>{conversionRate}%</p>
-          <p className="text-[10px] text-gray-400 mt-1">
+          <p className="text-[10px] text-[var(--crm-text-muted)] mt-1">
             {closedLeads.length} / {touredLeads.length} tours
           </p>
         </div>

@@ -39,19 +39,19 @@ export default function CollapsibleSection({
   }
 
   return (
-    <div className={`bg-white border border-gray-200 rounded-xl overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.07)] ${className}`}>
+    <div className={`bg-[var(--crm-panel)] border border-[var(--crm-border)] rounded-xl overflow-hidden shadow-[0_1px_4px_rgba(var(--crm-shadow-color),0.07)] ${className}`}>
       <div
-        className="px-4 py-2 border-b border-gray-200 bg-gray-50 flex items-center gap-2 cursor-pointer select-none"
+        className="px-4 py-2 border-b border-[var(--crm-border)] bg-[var(--crm-card)] flex items-center gap-2 cursor-pointer select-none"
         onClick={toggle}
       >
         <svg
-          className={`w-3 h-3 text-gray-400 transition-transform duration-200 ${open ? "rotate-90" : "rotate-0"}`}
+          className={`w-3 h-3 text-[var(--crm-text-muted)] transition-transform duration-200 ${open ? "rotate-90" : "rotate-0"}`}
           viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
           strokeLinecap="round" strokeLinejoin="round"
         >
           <polyline points="9 18 15 12 9 6" />
         </svg>
-        <p className="text-[10.5px] font-semibold text-gray-500 uppercase tracking-widest">
+        <p className="text-[10.5px] font-semibold text-[var(--crm-text-secondary)] uppercase tracking-widest">
           {title}
         </p>
       </div>

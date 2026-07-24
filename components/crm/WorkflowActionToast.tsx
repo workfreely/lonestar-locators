@@ -54,28 +54,28 @@ export default function WorkflowActionToast({
 
   return (
     <div className="fixed bottom-5 right-5 z-[10001] w-full max-w-xs">
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-[0_8px_24px_rgba(0,0,0,0.18)] px-4 py-3.5">
+      <div className="bg-[var(--crm-panel)] border border-[var(--crm-border)] rounded-2xl shadow-[0_8px_24px_rgba(var(--crm-shadow-color),0.18)] px-4 py-3.5">
         {undone ? (
-          <p className="text-[13px] font-semibold text-gray-600">Action removed</p>
+          <p className="text-[13px] font-semibold text-[var(--crm-text-secondary)]">Action removed</p>
         ) : (
           <>
             <p className="text-[13px] font-semibold text-emerald-600">✓ Next Action Created</p>
-            <p className="text-[14.5px] font-bold text-gray-900 mt-1">{action.title}</p>
-            <p className="text-[12px] text-gray-500 mt-0.5">
+            <p className="text-[14.5px] font-bold text-[var(--crm-text-primary)] mt-1">{action.title}</p>
+            <p className="text-[12px] text-[var(--crm-text-secondary)] mt-0.5">
               Due: {formatDueDateTime(action.due_at, { verbose: true })}
             </p>
             <div className="flex items-center gap-2 mt-2.5">
               <button
                 type="button"
                 onClick={handleUndo}
-                className="flex-1 text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+                className="flex-1 text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] transition-colors"
               >
                 Undo
               </button>
               <button
                 type="button"
                 onClick={handleEdit}
-                className="flex-1 text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+                className="flex-1 text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] transition-colors"
               >
                 Edit
               </button>

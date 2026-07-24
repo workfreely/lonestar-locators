@@ -174,21 +174,21 @@ export default function AddNextActionModal({
 
   return (
     <div className="fixed inset-0 z-[10000] bg-black/40 backdrop-blur-sm flex items-center justify-center px-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-6">
-        <h3 className="text-lg font-bold text-gray-900">{isEditing ? "Edit Next Action" : "Add Next Action"}</h3>
-        <p className="text-sm text-gray-500 mt-1">
+      <div className="w-full max-w-sm bg-[var(--crm-panel)] rounded-2xl shadow-2xl p-6">
+        <h3 className="text-lg font-bold text-[var(--crm-text-primary)]">{isEditing ? "Edit Next Action" : "Add Next Action"}</h3>
+        <p className="text-sm text-[var(--crm-text-secondary)] mt-1">
           {isEditing ? "Change the title, due date, priority, or notes." : "Extends the automatic follow-up — it never replaces it."}
         </p>
 
         <div className="mt-4 space-y-3">
           <div>
-            <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1 block">
+            <label className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-1 block">
               Title
             </label>
             <select
               value={preset}
               onChange={(e) => setPreset(e.target.value)}
-              className="w-full text-[13px] font-medium text-gray-800 border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white"
+              className="w-full text-[13px] font-medium text-[var(--crm-text-primary)] border border-[var(--crm-border)] rounded-lg px-2.5 py-1.5 bg-[var(--crm-inset)]"
             >
               {PRESET_TITLES.map((t) => (
                 <option key={t} value={t}>{t}</option>
@@ -201,25 +201,25 @@ export default function AddNextActionModal({
                 placeholder="Describe the action"
                 value={customTitle}
                 onChange={(e) => setCustomTitle(e.target.value)}
-                className="mt-2 w-full text-[13px] border border-gray-300 rounded-lg px-2.5 py-1.5"
+                className="mt-2 w-full text-[13px] border border-[var(--crm-border)] rounded-lg px-2.5 py-1.5 bg-[var(--crm-inset)] text-[var(--crm-text-primary)]"
               />
             )}
           </div>
 
           <div>
-            <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1 block">
+            <label className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-1 block">
               Due Date &amp; Time
             </label>
             <input
               type="datetime-local"
               value={dueAt}
               onChange={(e) => setDueAt(e.target.value)}
-              className="w-full text-[13px] border border-gray-300 rounded-lg px-2.5 py-1.5"
+              className="w-full text-[13px] border border-[var(--crm-border)] rounded-lg px-2.5 py-1.5 bg-[var(--crm-inset)] text-[var(--crm-text-primary)]"
             />
           </div>
 
           <div>
-            <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1 block">
+            <label className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-1 block">
               Priority
             </label>
             <div className="flex gap-1.5">
@@ -232,7 +232,7 @@ export default function AddNextActionModal({
                     "flex-1 text-[11.5px] font-semibold px-2.5 py-1.5 rounded-lg border transition-colors",
                     priority === p.value
                       ? "bg-gray-900 text-white border-gray-900"
-                      : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50",
+                      : "bg-[var(--crm-inset)] text-[var(--crm-text-secondary)] border-[var(--crm-border)] hover:bg-[var(--crm-card)]",
                   ].join(" ")}
                 >
                   {p.label}
@@ -242,14 +242,14 @@ export default function AddNextActionModal({
           </div>
 
           <div>
-            <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1 block">
+            <label className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-1 block">
               Notes (optional)
             </label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
-              className="w-full text-[13px] border border-gray-300 rounded-lg px-2.5 py-1.5 resize-none"
+              className="w-full text-[13px] border border-[var(--crm-border)] rounded-lg px-2.5 py-1.5 resize-none bg-[var(--crm-inset)] text-[var(--crm-text-primary)]"
             />
           </div>
         </div>
@@ -257,7 +257,7 @@ export default function AddNextActionModal({
         <div className="flex justify-end gap-3 mt-5">
           <button
             onClick={handleClose}
-            className="px-4 py-2 rounded-xl border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 rounded-xl border border-[var(--crm-border)] text-sm font-medium text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] transition-colors"
           >
             Cancel
           </button>

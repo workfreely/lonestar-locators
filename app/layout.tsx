@@ -7,6 +7,7 @@ import ClientPopups from "@/app/components/ClientPopups";
 import ClientSecurity from "@/app/components/ClientSecurity";
 import MobileStickyCTA from "@/app/components/MobileStickyCTA";
 import VapiScript from "@/app/components/VapiScript";
+import { ANTI_FLASH_THEME_SCRIPT } from "@/lib/theme";
 
 // Meta Pixel — base install (fires PageView on every page). Renders nothing
 // if NEXT_PUBLIC_META_PIXEL_ID isn't set, so this is a no-op until the real
@@ -39,7 +40,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* CRM theme anti-flash — reads the saved preference (light by
+            default) and applies the `dark` class to <html> before
+            anything paints. Marketing-site pages never reference the CRM
+            theme tokens this class controls, so this has zero visible
+            effect outside /admin. Kept in sync with lib/theme.ts by hand
+            (see ANTI_FLASH_THEME_SCRIPT's own comment). */}
+        <script dangerouslySetInnerHTML={{ __html: ANTI_FLASH_THEME_SCRIPT }} />
+      </head>
       <body
         style={{
           display: "flex",

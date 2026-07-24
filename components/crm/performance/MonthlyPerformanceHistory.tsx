@@ -97,7 +97,7 @@ export default function MonthlyPerformanceHistory({ leads }: { leads: any[] }) {
       <div className="p-4">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-[10px] uppercase tracking-widest text-gray-400 border-b border-gray-100">
+            <tr className="text-left text-[10px] uppercase tracking-widest text-[var(--crm-text-muted)] border-b border-[var(--crm-border-soft)]">
               <th className="pb-2 font-semibold">Month</th>
               <th className="pb-2 font-semibold text-right">Leads</th>
               <th className="pb-2 font-semibold text-right">Applied</th>
@@ -108,13 +108,13 @@ export default function MonthlyPerformanceHistory({ leads }: { leads: any[] }) {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.key} className="border-b border-gray-50 last:border-0">
-                <td className="py-2 text-gray-800">{r.label}</td>
-                <td className="py-2 text-right text-gray-800">{r.leadCount}</td>
-                <td className="py-2 text-right text-gray-800">{r.appliedCount}</td>
-                <td className="py-2 text-right text-gray-800">{r.closedCount}</td>
-                <td className="py-2 text-right font-semibold text-gray-800">{r.conversionRate}%</td>
-                <td className="py-2 text-right font-semibold text-gray-800">${fmt(r.commission)}</td>
+              <tr key={r.key} className="border-b border-[var(--crm-border-soft)] last:border-0">
+                <td className="py-2 text-[var(--crm-text-primary)]">{r.label}</td>
+                <td className="py-2 text-right text-[var(--crm-text-primary)]">{r.leadCount}</td>
+                <td className="py-2 text-right text-[var(--crm-text-primary)]">{r.appliedCount}</td>
+                <td className="py-2 text-right text-[var(--crm-text-primary)]">{r.closedCount}</td>
+                <td className="py-2 text-right font-semibold text-[var(--crm-text-primary)]">{r.conversionRate}%</td>
+                <td className="py-2 text-right font-semibold text-[var(--crm-text-primary)]">${fmt(r.commission)}</td>
               </tr>
             ))}
           </tbody>

@@ -42,12 +42,12 @@ export default function MarketingToolsCard() {
         {MARKETING_LINKS.map((link) => (
           <div
             key={link.label}
-            className="flex items-center gap-4 py-3 border-b border-gray-50 last:border-0"
+            className="flex items-center gap-4 py-3 border-b border-[var(--crm-border-soft)] last:border-0"
           >
-            <span className="w-24 flex-none font-semibold text-gray-800 text-sm">
+            <span className="w-24 flex-none font-semibold text-[var(--crm-text-primary)] text-sm">
               {link.label}
             </span>
-            <span className="flex-1 min-w-0 truncate font-mono text-xs text-gray-500">
+            <span className="flex-1 min-w-0 truncate font-mono text-xs text-[var(--crm-text-secondary)]">
               {link.url}
             </span>
             <button
@@ -57,7 +57,7 @@ export default function MarketingToolsCard() {
                 "flex-none text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors",
                 copiedUrl === link.url
                   ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                  : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50",
+                  : "bg-[var(--crm-panel)] text-[var(--crm-text-secondary)] border-[var(--crm-border)] hover:bg-[var(--crm-card)]",
               ].join(" ")}
             >
               {copiedUrl === link.url ? "✓ Copied" : "Copy"}

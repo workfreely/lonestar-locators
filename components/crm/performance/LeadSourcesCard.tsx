@@ -24,13 +24,13 @@ export default function LeadSourcesCard({ leads }: { leads: any[] }) {
   const rows = Object.entries(counts).sort((a, b) => b[1] - a[1])
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-3">
+    <div className="bg-[var(--crm-panel)] rounded-xl border border-[var(--crm-border)] shadow-sm p-4">
+      <p className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-3">
         Lead Sources
       </p>
 
       {rows.length === 0 && (
-        <p className="text-sm text-gray-400">No leads yet.</p>
+        <p className="text-sm text-[var(--crm-text-muted)]">No leads yet.</p>
       )}
 
       <div className="space-y-2">
@@ -44,16 +44,16 @@ export default function LeadSourcesCard({ leads }: { leads: any[] }) {
               >
                 {style.label}
               </span>
-              <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div className="flex-1 h-2 bg-[var(--crm-inset)] rounded-full overflow-hidden">
                 <div
                   className="h-full bg-blue-500 rounded-full transition-all duration-500"
                   style={{ width: `${pct}%` }}
                 />
               </div>
-              <span className="flex-none text-sm font-semibold text-gray-700 w-10 text-right">
+              <span className="flex-none text-sm font-semibold text-[var(--crm-text-secondary)] w-10 text-right">
                 {count}
               </span>
-              <span className="flex-none text-[11px] text-gray-400 w-9 text-right">
+              <span className="flex-none text-[11px] text-[var(--crm-text-muted)] w-9 text-right">
                 {pct}%
               </span>
             </div>

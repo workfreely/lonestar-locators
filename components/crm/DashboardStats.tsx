@@ -80,35 +80,35 @@ export default function DashboardStats({ leads }: { leads: any[] }) {
   const projectedCommission = appliedLeads.length * REVENUE_PER_CLOSE
 
   return (
-    <div className="flex-none bg-zinc-100 border-b border-zinc-200 px-5 pt-3 pb-5">
+    <div className="flex-none bg-[var(--crm-card)] border-b border-[var(--crm-border)] px-5 pt-3 pb-5">
       <div className="grid grid-cols-5 gap-3">
 
         {/* 1 — Monthly Goal */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-2 flex flex-col justify-between transition-shadow transition-colors duration-200 hover:border-blue-200 hover:shadow-[0_4px_20px_rgba(59,130,246,0.12),0_8px_24px_rgba(0,0,0,0.08)]">
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Monthly Goal</p>
+        <div className="bg-[var(--crm-panel)] rounded-xl border border-[var(--crm-border)] shadow-sm px-4 py-2 flex flex-col justify-between transition-shadow transition-colors duration-200 hover:border-blue-200 hover:shadow-[0_4px_20px_rgba(59,130,246,0.12),0_8px_24px_rgba(0,0,0,0.08)]">
+          <p className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest">Monthly Goal</p>
           <div className="mt-1">
             <div className="flex items-baseline gap-1.5">
-              <span className="text-xl font-bold text-gray-900 leading-none">
+              <span className="text-xl font-bold text-[var(--crm-text-primary)] leading-none">
                 ${fmt(revenueThisMonth)}
               </span>
-              <span className="text-xs text-gray-400">/ ${fmt(MONTHLY_REVENUE_GOAL)}</span>
+              <span className="text-xs text-[var(--crm-text-muted)]">/ ${fmt(MONTHLY_REVENUE_GOAL)}</span>
             </div>
-            <div className="mt-1.5 h-1 w-full bg-gray-100 rounded-full overflow-hidden">
+            <div className="mt-1.5 h-1 w-full bg-[var(--crm-inset)] rounded-full overflow-hidden">
               <div
                 className="h-full bg-blue-600 rounded-full transition-all duration-500"
                 style={{ width: `${progressPct}%` }}
               />
             </div>
-            <p className="text-[10px] text-gray-400 mt-1">{progressPct}% complete</p>
+            <p className="text-[10px] text-[var(--crm-text-muted)] mt-1">{progressPct}% complete</p>
           </div>
         </div>
 
         {/* 2 — Active Pipeline */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-2 flex flex-col justify-between transition-shadow transition-colors duration-200 hover:border-blue-200 hover:shadow-[0_4px_20px_rgba(59,130,246,0.12),0_8px_24px_rgba(0,0,0,0.08)]">
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Active Pipeline</p>
+        <div className="bg-[var(--crm-panel)] rounded-xl border border-[var(--crm-border)] shadow-sm px-4 py-2 flex flex-col justify-between transition-shadow transition-colors duration-200 hover:border-blue-200 hover:shadow-[0_4px_20px_rgba(59,130,246,0.12),0_8px_24px_rgba(0,0,0,0.08)]">
+          <p className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest">Active Pipeline</p>
           <div className="mt-1">
-            <p className="text-xl font-bold text-gray-900 leading-none">${fmt(activePipelineValue)}</p>
-            <p className="text-[10px] text-gray-400 mt-1">{activeLeads.length} active {activeLeads.length === 1 ? "lead" : "leads"}</p>
+            <p className="text-xl font-bold text-[var(--crm-text-primary)] leading-none">${fmt(activePipelineValue)}</p>
+            <p className="text-[10px] text-[var(--crm-text-muted)] mt-1">{activeLeads.length} active {activeLeads.length === 1 ? "lead" : "leads"}</p>
           </div>
         </div>
 
@@ -123,16 +123,16 @@ export default function DashboardStats({ leads }: { leads: any[] }) {
           const barSources = withCounts.filter((s) => s.count > 0)
 
           return (
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-2 flex flex-col justify-between transition-shadow transition-colors duration-200 hover:border-blue-200 hover:shadow-[0_4px_20px_rgba(59,130,246,0.12),0_8px_24px_rgba(0,0,0,0.08)]">
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Leads This Month</p>
+            <div className="bg-[var(--crm-panel)] rounded-xl border border-[var(--crm-border)] shadow-sm px-4 py-2 flex flex-col justify-between transition-shadow transition-colors duration-200 hover:border-blue-200 hover:shadow-[0_4px_20px_rgba(59,130,246,0.12),0_8px_24px_rgba(0,0,0,0.08)]">
+              <p className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest">Leads This Month</p>
               <div className="mt-1">
                 <div className="flex items-baseline gap-1.5">
-                  <span className="text-xl font-bold text-gray-900 leading-none">{total}</span>
-                  <span className="text-xs text-gray-400">/ {MONTHLY_LEAD_GOAL}</span>
+                  <span className="text-xl font-bold text-[var(--crm-text-primary)] leading-none">{total}</span>
+                  <span className="text-xs text-[var(--crm-text-muted)]">/ {MONTHLY_LEAD_GOAL}</span>
                 </div>
 
                 {/* Stacked bar — only sources with leads */}
-                <div className="mt-1.5 h-1.5 w-full rounded-full overflow-hidden flex bg-gray-100">
+                <div className="mt-1.5 h-1.5 w-full rounded-full overflow-hidden flex bg-[var(--crm-inset)]">
                   {barSources.map((s) => (
                     <div
                       key={s.key}
@@ -147,7 +147,7 @@ export default function DashboardStats({ leads }: { leads: any[] }) {
                   {withCounts.map((s) => (
                     <span
                       key={s.key}
-                      className={`flex items-center gap-1 text-[10px] ${s.count === 0 ? "text-gray-300" : "text-gray-500"}`}
+                      className={`flex items-center gap-1 text-[10px] ${s.count === 0 ? "text-[var(--crm-text-muted)]/60" : "text-[var(--crm-text-secondary)]"}`}
                     >
                       <span
                         className="w-1.5 h-1.5 rounded-full flex-none"
@@ -163,20 +163,20 @@ export default function DashboardStats({ leads }: { leads: any[] }) {
         })()}
 
         {/* 4 — Projected Commission */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-2 flex flex-col justify-between transition-shadow transition-colors duration-200 hover:border-blue-200 hover:shadow-[0_4px_20px_rgba(59,130,246,0.12),0_8px_24px_rgba(0,0,0,0.08)]">
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Projected Commission</p>
+        <div className="bg-[var(--crm-panel)] rounded-xl border border-[var(--crm-border)] shadow-sm px-4 py-2 flex flex-col justify-between transition-shadow transition-colors duration-200 hover:border-blue-200 hover:shadow-[0_4px_20px_rgba(59,130,246,0.12),0_8px_24px_rgba(0,0,0,0.08)]">
+          <p className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest">Projected Commission</p>
           <div className="mt-1">
-            <p className="text-xl font-bold text-gray-900 leading-none">${fmt(projectedCommission)}</p>
-            <p className="text-[10px] text-gray-400 mt-1">{appliedLeads.length} applied {appliedLeads.length === 1 ? "lead" : "leads"}</p>
+            <p className="text-xl font-bold text-[var(--crm-text-primary)] leading-none">${fmt(projectedCommission)}</p>
+            <p className="text-[10px] text-[var(--crm-text-muted)] mt-1">{appliedLeads.length} applied {appliedLeads.length === 1 ? "lead" : "leads"}</p>
           </div>
         </div>
 
         {/* 5 — Closed This Month */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-2 flex flex-col justify-between transition-shadow transition-colors duration-200 hover:border-blue-200 hover:shadow-[0_4px_20px_rgba(59,130,246,0.12),0_8px_24px_rgba(0,0,0,0.08)]">
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Closed This Month</p>
+        <div className="bg-[var(--crm-panel)] rounded-xl border border-[var(--crm-border)] shadow-sm px-4 py-2 flex flex-col justify-between transition-shadow transition-colors duration-200 hover:border-blue-200 hover:shadow-[0_4px_20px_rgba(59,130,246,0.12),0_8px_24px_rgba(0,0,0,0.08)]">
+          <p className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest">Closed This Month</p>
           <div className="mt-1">
-            <p className="text-xl font-bold text-gray-900 leading-none">{closedThisMonth.length}</p>
-            <p className="text-[10px] text-gray-400 mt-1">{progressPct}% of revenue goal</p>
+            <p className="text-xl font-bold text-[var(--crm-text-primary)] leading-none">{closedThisMonth.length}</p>
+            <p className="text-[10px] text-[var(--crm-text-muted)] mt-1">{progressPct}% of revenue goal</p>
           </div>
         </div>
 

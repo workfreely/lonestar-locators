@@ -11,6 +11,7 @@ import { rankLeadActions } from "@/lib/nextActions"
 import { getNextFollowUpAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
 import { emitWorkflowActionCreated } from "@/lib/workflowToast"
 import { getActionIcon, formatDueDateTime } from "@/lib/actionDisplay"
+import { readFirstContactPreference, onFirstContactPreferenceChanged, type FirstContactPreference } from "@/lib/preferences"
 import AiVoiceScriptModal from "./AiVoiceScriptModal"
 import ConfirmDialog from "./ConfirmDialog"
 import AddNextActionModal from "./AddNextActionModal"
@@ -108,24 +109,24 @@ function CollapsibleNotes({
 }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="bg-white border border-gray-100/70 rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_10px_rgba(15,23,42,0.06)]">
+    <div className="bg-[var(--crm-panel)] border border-[var(--crm-border-soft)] rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.04),0_4px_10px_rgba(var(--crm-shadow-color),0.06)]">
       <div
-        className="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-2 cursor-pointer select-none"
+        className="px-4 py-2 border-b border-[var(--crm-border-soft)] bg-[var(--crm-card)] flex items-center gap-2 cursor-pointer select-none"
         onClick={() => setOpen((o) => !o)}
       >
         <svg
-          className={`w-3 h-3 text-gray-400 transition-transform duration-200 ${open ? "rotate-90" : "rotate-0"}`}
+          className={`w-3 h-3 text-[var(--crm-text-muted)] transition-transform duration-200 ${open ? "rotate-90" : "rotate-0"}`}
           viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
           strokeLinecap="round" strokeLinejoin="round"
         >
           <polyline points="9 18 15 12 9 6" />
         </svg>
-        <p className="text-[10.5px] font-semibold text-gray-500 uppercase tracking-widest">
+        <p className="text-[10.5px] font-semibold text-[var(--crm-text-secondary)] uppercase tracking-widest">
           {title}
         </p>
       </div>
       {open && (
-        <div className="px-4 py-3 space-y-2.5 bg-white">
+        <div className="px-4 py-3 space-y-2.5 bg-[var(--crm-panel)]">
           {children}
         </div>
       )}
@@ -148,25 +149,25 @@ function SectionCard({
 }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="bg-white border border-gray-100/70 rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_10px_rgba(15,23,42,0.06)]">
+    <div className="bg-[var(--crm-panel)] border border-[var(--crm-border-soft)] rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.04),0_4px_10px_rgba(var(--crm-shadow-color),0.06)]">
       <div
-        className={`px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-2 ${collapsible ? "cursor-pointer select-none" : ""}`}
+        className={`px-4 py-2 border-b border-[var(--crm-border-soft)] bg-[var(--crm-card)] flex items-center gap-2 ${collapsible ? "cursor-pointer select-none" : ""}`}
         onClick={collapsible ? () => setOpen((o) => !o) : undefined}
       >
         {collapsible && (
           <svg
-            className={`w-3 h-3 text-gray-400 transition-transform duration-200 ${open ? "rotate-90" : "rotate-0"}`}
+            className={`w-3 h-3 text-[var(--crm-text-muted)] transition-transform duration-200 ${open ? "rotate-90" : "rotate-0"}`}
             viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
             strokeLinecap="round" strokeLinejoin="round"
           >
             <polyline points="9 18 15 12 9 6" />
           </svg>
         )}
-        <p className="text-[10.5px] font-semibold text-gray-500 uppercase tracking-widest">
+        <p className="text-[10.5px] font-semibold text-[var(--crm-text-secondary)] uppercase tracking-widest">
           {title}
         </p>
       </div>
-      {(!collapsible || open) && <div className={`px-4 py-3 space-y-2.5 ${shaded ? "bg-gray-50/60" : "bg-white"}`}>
+      {(!collapsible || open) && <div className={`px-4 py-3 space-y-2.5 ${shaded ? "bg-[var(--crm-card)]/60" : "bg-[var(--crm-panel)]"}`}>
         {children}
       </div>}
     </div>
@@ -176,8 +177,8 @@ function SectionCard({
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-4">
-      <span className="text-[12.5px] text-gray-500 flex-none">{label}</span>
-      <span className="text-[12.5px] font-semibold text-gray-900 text-right">{value || "—"}</span>
+      <span className="text-[12.5px] text-[var(--crm-text-secondary)] flex-none">{label}</span>
+      <span className="text-[12.5px] font-semibold text-[var(--crm-text-primary)] text-right">{value || "—"}</span>
     </div>
   )
 }
@@ -225,12 +226,23 @@ export default function LeadPanel({
   const [showFavoriteModal, setShowFavoriteModal] = useState(false)
   const [editingFavorite, setEditingFavorite] = useState<any | null>(null)
   const [deletingFavoriteId, setDeletingFavoriteId] = useState<number | null>(null)
+  const [contactPref, setContactPref] = useState<FirstContactPreference>("text")
 
   useEffect(() => {
     setFollowUps(Number(lead.follow_up_count || 0))
     setNextActionDate(lead.next_action_date || null)
     setArchiveReason(lead.archive_reason || "")
   }, [lead.id, lead.follow_up_count, lead.next_action_date, lead.archive_reason])
+
+  // Preferred first-contact method — read once on mount and kept in sync
+  // if changed from the profile menu while this panel is open. Purely a
+  // display/execution choice: it never touches which Workflow Engine
+  // action gets created (still always "Contact Lead"), only which
+  // button(s) execute it below.
+  useEffect(() => {
+    setContactPref(readFirstContactPreference())
+    return onFirstContactPreferenceChanged(setContactPref)
+  }, [])
 
   // Workflow Engine toast "Edit" — open the editor for the action it
   // named, but only once this lead's own next-actions have actually
@@ -320,8 +332,8 @@ export default function LeadPanel({
     if (Number(followUps) === step)
       return "bg-blue-600 text-white border-blue-600 shadow-sm"
     if (Number(followUps) > step)
-      return "bg-gray-100 text-gray-400 border-gray-200"
-    return "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+      return "bg-[var(--crm-inset)] text-[var(--crm-text-muted)] border-[var(--crm-border)]"
+    return "bg-[var(--crm-panel)] text-[var(--crm-text-secondary)] border-[var(--crm-border)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)]"
   }
 
   function openSMS(message: string) {
@@ -329,18 +341,19 @@ export default function LeadPanel({
     window.open(`sms:${lead.phone}?&body=${encodeURIComponent(message)}`, "_self")
   }
 
-  // ─── Shared First Text handler ─────────────────────────────────────────
-  // Called by both the Quick Actions button and handleNextActionClick().
+  // ─── Shared "first contact was made" bookkeeping ───────────────────────
+  // Extracted from what used to be all of handleFirstText — the stage
+  // advance and first_text_sent_at write represent "this lead was
+  // contacted," independent of *how* (text or call). Splitting it out
+  // lets handleCallClient below record the exact same signal a text
+  // would have, so the 7-day no-response auto-archive cron (which reads
+  // first_text_sent_at) keeps working correctly no matter which first-
+  // contact method preference the user has selected. The field is still
+  // named first_text_sent_at — a legacy name from when only texting
+  // existed — but it has always really meant "first contact," and that's
+  // preserved exactly as-is here; only the trigger point moved.
 
-  function handleFirstText() {
-    const name = normalizeName(lead.first_name || "")
-    const bedsText =
-      lead.property_type === "Studio" ? "studio" :
-      lead.property_type === "High-Rise" ? "high-rise" :
-      lead.beds ? `${String(lead.beds).replace("-", "").trim()} bed` : ""
-    const monthText = lead.move_date ? ` in ${new Date(lead.move_date).toLocaleString("en-US", { month: "long" })}` : ""
-    openSMS(`Hey ${name} it's Jay! I got your form for a ${bedsText} move${monthText}. Are you trying to stay near a specific address or side of town?`)
-
+  function recordFirstContact() {
     const shouldAdvanceStage = lead.crm_status === "new"
     const contactedAt = new Date().toISOString()
 
@@ -357,7 +370,8 @@ export default function LeadPanel({
     }
 
     // Auto-advance stage: New → Contacted — unchanged: same endpoint, same
-    // payload, same guard. Only fires the first time a "new" lead is texted.
+    // payload, same guard. Only fires the first time a "new" lead is
+    // contacted.
     if (shouldAdvanceStage) {
       // Persist to Supabase + trigger Google Contact sync (non-blocking)
       fetch("/api/admin/leads/update-stage", {
@@ -380,13 +394,13 @@ export default function LeadPanel({
           }
         })
         .catch((err) => {
-          console.error("First Text stage update failed:", err)
+          console.error("First contact stage update failed:", err)
         })
     }
 
     // Record the moment this lead was intentionally contacted — fires on
-    // EVERY First Text click, independent of the stage-advance above and of
-    // /api/admin/leads/update-stage, so none of that route's other side
+    // every first-contact click, independent of the stage-advance above and
+    // of /api/admin/leads/update-stage, so none of that route's other side
     // effects (Google Contact sync, List Sent calendar) run an extra time.
     // This is deliberately the ONLY place first_text_sent_at is written —
     // not a Kanban drag, not a lead edit. Powers the daily 7-day
@@ -396,8 +410,31 @@ export default function LeadPanel({
       .update({ first_text_sent_at: contactedAt })
       .eq("id", lead.id)
       .then(({ error }) => {
-        if (error) console.error("[first-text] Failed to record contact timestamp:", error)
+        if (error) console.error("[first-contact] Failed to record contact timestamp:", error)
       })
+  }
+
+  // ─── Shared First Text handler ─────────────────────────────────────────
+  // Called by both the Quick Actions button and handleNextActionClick().
+
+  function handleFirstText() {
+    const name = normalizeName(lead.first_name || "")
+    const bedsText =
+      lead.property_type === "Studio" ? "studio" :
+      lead.property_type === "High-Rise" ? "high-rise" :
+      lead.beds ? `${String(lead.beds).replace("-", "").trim()} bed` : ""
+    const monthText = lead.move_date ? ` in ${new Date(lead.move_date).toLocaleString("en-US", { month: "long" })}` : ""
+    openSMS(`Hey ${name} it's Jay! I got your form for a ${bedsText} move${monthText}. Are you trying to stay near a specific address or side of town?`)
+    recordFirstContact()
+  }
+
+  // ─── Call Client (first-contact preference: "call" or "ask") ──────────
+  // Same "this lead was contacted" bookkeeping as handleFirstText — only
+  // the actual contact method differs (tel: link instead of an SMS body).
+  function handleCallClient() {
+    if (!lead.phone) return
+    window.open(`tel:${lead.phone}`, "_self")
+    recordFirstContact()
   }
 
   function handleNextActionClick() {
@@ -791,18 +828,32 @@ export default function LeadPanel({
     }
   }
 
+  // ─── Call Client (Next Action left-side button) ────────────────────────
+  // Only ever offered for "Contact Lead" — the preferred first-contact
+  // method setting is specifically about *first* contact with a new lead,
+  // not every message-based follow-up. handleCallClient already records
+  // the "contacted" signal itself (recordFirstContact), so this only
+  // additionally needs to resolve a real Workflow Engine row if one won
+  // ranking.
+  function handleCallClientAction() {
+    handleCallClient()
+    if (primaryAction.kind === "manual" && primaryAction.manualAction) {
+      handleCompleteAction(primaryAction.manualAction.id)
+    }
+  }
+
   // ─── Render ────────────────────────────────────────────────────────────
 
   return (
     <>
-    <div className="w-full h-full flex flex-col bg-white">
+    <div className="w-full h-full flex flex-col bg-[var(--crm-panel)]">
 
       {/* ── Panel header ── */}
-      <div className="flex-none bg-white border-b border-gray-200 px-5 pt-5 pb-4 shadow-[0_1px_4px_rgba(0,0,0,0.08)]">
+      <div className="flex-none bg-[var(--crm-panel)] border-b border-[var(--crm-border)] px-5 pt-5 pb-4 shadow-[0_1px_4px_rgba(var(--crm-shadow-color),0.08)]">
 
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="min-w-0">
-            <h2 className="text-[22px] font-bold text-gray-900 tracking-tight leading-tight truncate">
+            <h2 className="text-[22px] font-bold text-[var(--crm-text-primary)] tracking-tight leading-tight truncate">
               {normalizeName(lead.first_name)} {normalizeName(lead.last_name)}
             </h2>
             {lead.phone && (
@@ -819,7 +870,7 @@ export default function LeadPanel({
             {lead.archive_reason !== "deleted_by_user" && (
               <button
                 onClick={() => setShowDeleteConfirm(true)}
-                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-[var(--crm-text-muted)] hover:text-red-600 hover:bg-red-50 transition-colors"
                 aria-label="Delete lead"
                 title="Delete lead"
               >
@@ -831,7 +882,7 @@ export default function LeadPanel({
 
             <button
               onClick={onClose}
-              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              className="w-7 h-7 flex items-center justify-center rounded-lg text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)] hover:bg-[var(--crm-card)] transition-colors"
               aria-label="Close"
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -851,20 +902,20 @@ export default function LeadPanel({
             const s = getFollowUpStatus(nextActionDate)
             if (s === "overdue") return <span className="text-[11.5px] font-semibold text-red-500">· Overdue Follow-Up</span>
             if (s === "today")   return <span className="text-[11.5px] font-semibold text-amber-600">· Follow Up Today</span>
-            return <span className="text-[11.5px] text-gray-400">· Next: {formatDate(nextActionDate)}</span>
+            return <span className="text-[11.5px] text-[var(--crm-text-muted)]">· Next: {formatDate(nextActionDate)}</span>
           })()}
         </div>
 
         {/* Archive Reason — archived leads only */}
         {lead.crm_status === "archived" && (
           <div className="mb-4">
-            <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1 block">
+            <label className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-1 block">
               Archive Reason
             </label>
             <select
               value={archiveReason}
               onChange={(e) => handleArchiveReasonChange(e.target.value)}
-              className="w-full text-[13px] font-medium text-gray-800 border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white"
+              className="w-full text-[13px] font-medium text-[var(--crm-text-primary)] border border-[var(--crm-border)] rounded-lg px-2.5 py-1.5 bg-[var(--crm-inset)]"
             >
               <option value="">Select reason...</option>
               {ARCHIVE_REASONS.map((r) => (
@@ -882,7 +933,7 @@ export default function LeadPanel({
                 </p>
                 <button
                   onClick={handleRestoreLead}
-                  className="mt-2 w-full px-3 py-1.5 rounded-lg bg-white border border-red-300 text-red-700 text-[12.5px] font-semibold hover:bg-red-100 transition-colors"
+                  className="mt-2 w-full px-3 py-1.5 rounded-lg bg-[var(--crm-panel)] border border-red-300 text-red-700 text-[12.5px] font-semibold hover:bg-red-100 transition-colors"
                 >
                   ↩️ Restore Lead
                 </button>
@@ -892,8 +943,8 @@ export default function LeadPanel({
         )}
 
         {/* ── Action buttons ── */}
-        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Quick Actions</p>
-        <div className="bg-gray-50 border border-gray-100/70 rounded-2xl shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_10px_rgba(15,23,42,0.06)] p-3 space-y-2">
+        <p className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-2">Quick Actions</p>
+        <div className="bg-[var(--crm-card)] border border-[var(--crm-border-soft)] rounded-2xl shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.04),0_4px_10px_rgba(var(--crm-shadow-color),0.06)] p-3">
 
           {/* Row 1: primary actions */}
           <div className="grid grid-cols-2 gap-2">
@@ -901,136 +952,181 @@ export default function LeadPanel({
               onClick={handleFirstText}
               className="text-xs font-semibold px-3 py-2 rounded-lg border bg-gray-900 text-white border-gray-900 hover:bg-gray-800 transition-colors"
             >
-              Contact Lead
-            </button>
-
-            <button
-              onClick={() => {
-                const name = normalizeName(lead.first_name || "")
-                const message = `Hey ${name}, I found 3 excellent options for you!\n\n${topMatches.slice(0, 3).map((p, i) => {
-                  const url = p.website?.startsWith("http") ? p.website : `https://${p.website || ""}`
-                  return `${i + 1}. ${p.name}\n${url}`
-                }).join("\n\n")}\n\nWhich one do you like most?`
-                if (lead.phone) window.open(`sms:${lead.phone}?&body=${encodeURIComponent(message)}`, "_self")
-              }}
-              className="text-xs font-medium px-3 py-2 rounded-lg border bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-colors"
-            >
-              Text Top 3
-            </button>
-
-            <button
-              onClick={() => {
-                const name = normalizeName(lead.first_name || "")
-                openSMS(`Hey ${name}, I just sent your list over!\n\nCan you ❤️ your top 2–3 favorites?\n\nI'll get tours set up or tweak the list for you`)
-              }}
-              className="text-xs font-medium px-3 py-2 rounded-lg border bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-colors"
-            >
-              List Sent
-            </button>
-
-            <button
-              onClick={() => setShowVoiceScript(true)}
-              className="text-xs font-medium px-3 py-2 rounded-lg border bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-colors"
-            >
-              AI Voice Script
-            </button>
-          </div>
-
-          {/* Row 2: follow-up sequence */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10.5px] text-gray-400 font-medium mr-1">FU:</span>
-            {[1, 2, 3].map((step) => (
-              <button
-                key={step}
-                onClick={async () => {
-                  await setFollowUpCount(step)
-                  const msgs: Record<number, string> = {
-                    1: `Hey! Did you see any properties on the list that you'd like to tour?`,
-                    2: `Is there one that stands out or would you like me to narrow the list down a bit more?`,
-                    3: `I'm calling communities you were interested in to get updated pricing and specials. Are you still looking to move?`,
-                  }
-                  openSMS(msgs[step])
-                }}
-                className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors ${getFUStyle(step)}`}
-              >
-                FU{step}
+                Contact Lead
               </button>
-            ))}
-            <button
-              onClick={() => {
-                const name = normalizeName(lead.first_name || "")
-                openSMS(`Hey ${name}, I haven't heard back so I'll pause your search for now. No rush, just let me know when you'd like me to pick it back up!`)
-              }}
-              className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border bg-white text-gray-600 border-gray-200 hover:bg-gray-50 transition-colors ml-auto"
-            >
-              Final FU
-            </button>
-          </div>
 
+              <button
+                onClick={() => {
+                  const name = normalizeName(lead.first_name || "")
+                  const message = `Hey ${name}, I found 3 excellent options for you!\n\n${topMatches.slice(0, 3).map((p, i) => {
+                    const url = p.website?.startsWith("http") ? p.website : `https://${p.website || ""}`
+                    return `${i + 1}. ${p.name}\n${url}`
+                  }).join("\n\n")}\n\nWhich one do you like most?`
+                  if (lead.phone) window.open(`sms:${lead.phone}?&body=${encodeURIComponent(message)}`, "_self")
+                }}
+                className="text-xs font-medium px-3 py-2 rounded-lg border bg-[var(--crm-panel)] text-[var(--crm-text-secondary)] border-[var(--crm-border)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] transition-colors"
+              >
+                Text Top 3
+              </button>
+
+              <button
+                onClick={() => {
+                  const name = normalizeName(lead.first_name || "")
+                  openSMS(`Hey ${name}, I just sent your list over!\n\nCan you ❤️ your top 2–3 favorites?\n\nI'll get tours set up or tweak the list for you`)
+                }}
+                className="text-xs font-medium px-3 py-2 rounded-lg border bg-[var(--crm-panel)] text-[var(--crm-text-secondary)] border-[var(--crm-border)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] transition-colors"
+              >
+                List Sent
+              </button>
+
+              <button
+                onClick={() => setShowVoiceScript(true)}
+                className="text-xs font-medium px-3 py-2 rounded-lg border bg-[var(--crm-panel)] text-[var(--crm-text-secondary)] border-[var(--crm-border)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] transition-colors"
+              >
+                AI Voice Script
+              </button>
+            </div>
+
+            {/* Row 2: follow-up sequence — mt-3 (was the shared space-y-2
+                on the parent, ~8.5px) gives this its own slightly larger
+                gap beneath Quick Actions' Row 1, separating the two
+                functional groups without feeling disconnected. */}
+            <div className="mt-3 flex items-center gap-1.5">
+              <span className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mr-1">Follow Up</span>
+              {[1, 2, 3].map((step) => (
+                <button
+                  key={step}
+                  onClick={async () => {
+                    await setFollowUpCount(step)
+                    const msgs: Record<number, string> = {
+                      1: `Hey! Did you see any properties on the list that you'd like to tour?`,
+                      2: `Is there one that stands out or would you like me to narrow the list down a bit more?`,
+                      3: `I'm calling communities you were interested in to get updated pricing and specials. Are you still looking to move?`,
+                    }
+                    openSMS(msgs[step])
+                  }}
+                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors ${getFUStyle(step)}`}
+                >
+                  FU{step}
+                </button>
+              ))}
+              <button
+                onClick={() => {
+                  const name = normalizeName(lead.first_name || "")
+                  openSMS(`Hey ${name}, I haven't heard back so I'll pause your search for now. No rush, just let me know when you'd like me to pick it back up!`)
+                }}
+                className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border bg-[var(--crm-panel)] text-[var(--crm-text-secondary)] border-[var(--crm-border)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] transition-colors"
+              >
+                Final FU
+              </button>
+            </div>
+
+          </div>
         </div>
-      </div>
 
       {/* ── Panel body ── */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-7">
-
         {/* Next Action — same clean two-column layout regardless of
             whether the primary action is automatic or manual. Left shows
             what it is, when it's due, and — only for message-based
             actions — a Message Client button. Right shows how to
             complete it (when there's a way to). This section answers one
             question only: what's next. */}
-        <div className="bg-gray-50 border border-gray-100/70 rounded-2xl shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_10px_rgba(15,23,42,0.06)] px-4 py-3">
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-start">
-            <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1.5">Next Action</p>
-              <p className="text-sm font-semibold text-gray-900 px-3 py-1.5 rounded-lg border border-gray-300 bg-white inline-block whitespace-nowrap">
+        <div className="bg-[var(--crm-card)] border border-[var(--crm-border-soft)] rounded-2xl shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.04),0_4px_10px_rgba(var(--crm-shadow-color),0.06)] px-4 py-3">
+          <div className="grid grid-cols-2 gap-3 items-stretch">
+            <div className="flex flex-col">
+              <p className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-1.5">Next Action</p>
+              <p className="text-sm font-semibold text-[var(--crm-text-primary)] px-3 py-1.5 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-panel)] w-full truncate">
                 {primaryAction.title}
               </p>
-              {primaryAction.dueAt && (
-                <p className="text-[11px] text-gray-500 mt-1.5">
-                  {formatDueDateTime(primaryAction.dueAt)}
-                </p>
-              )}
-              {MESSAGE_BASED_TITLES.has(primaryAction.title) && (
-                <button
-                  type="button"
-                  onClick={handleMessageClient}
-                  className="mt-1.5 text-[11.5px] font-semibold px-3 py-1.5 rounded-lg border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
-                >
-                  Message Client
-                </button>
-              )}
+              {/* Fixed-height slot regardless of whether this action has a
+                  due date — keeps every lead's card the same height instead
+                  of growing/shrinking by workflow action (see task: UI
+                  Polish Pass point 1). */}
+              <p className="text-[11px] text-[var(--crm-text-secondary)] mt-1.5 h-[14px] leading-[14px]">
+                {primaryAction.dueAt ? formatDueDateTime(primaryAction.dueAt) : " "}
+              </p>
+              {/* Reserved slot for the contextual execution button(s) — a
+                  real button (Message Client/Call Client) renders at 32px
+                  regardless, so this minimum only matters for actions with
+                  no button at all (Setup Tour, Check App, etc.). Sized down
+                  to 10px (final alignment pass) so "+ Add Next Action"
+                  below reads as centered in the remaining card space
+                  instead of visibly closer to the card's bottom edge. */}
+              <div className="mt-1.5 min-h-[10px] flex items-center gap-1.5">
+                {primaryAction.title === "Contact Lead" ? (
+                  <>
+                    {(contactPref === "text" || contactPref === "ask") && (
+                      <button
+                        type="button"
+                        onClick={handleMessageClient}
+                        className="text-[11.5px] font-semibold px-3 py-1.5 rounded-lg border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                      >
+                        {contactPref === "ask" ? "Message" : "Message Client"}
+                      </button>
+                    )}
+                    {(contactPref === "call" || contactPref === "ask") && (
+                      <button
+                        type="button"
+                        onClick={handleCallClientAction}
+                        className="text-[11.5px] font-semibold px-3 py-1.5 rounded-lg border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                      >
+                        {contactPref === "ask" ? "Call" : "Call Client"}
+                      </button>
+                    )}
+                  </>
+                ) : MESSAGE_BASED_TITLES.has(primaryAction.title) && (
+                  <button
+                    type="button"
+                    onClick={handleMessageClient}
+                    className="text-[11.5px] font-semibold px-3 py-1.5 rounded-lg border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                  >
+                    Message Client
+                  </button>
+                )}
+              </div>
             </div>
 
-            {canCompletePrimary && (
-              <div>
-                <p className="text-[11px] font-semibold text-gray-500 mb-1">
-                  {primaryAction.kind === "automatic" && doneMsg ? "Status: Complete" : "Status: Pending"}
-                </p>
-                <button
-                  type="button"
-                  onClick={handleCompletePrimary}
-                  className={[
-                    "text-[11.5px] font-semibold px-3 py-1.5 rounded-lg border transition-colors",
-                    primaryAction.kind === "automatic" && doneMsg
-                      ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                      : "border-gray-300 bg-gray-100 text-gray-600 hover:bg-gray-200",
-                  ].join(" ")}
-                >
-                  {primaryAction.kind === "automatic" && doneMsg ? "✓ Completed" : "Mark Complete"}
-                </button>
-              </div>
-            )}
+            {/* Same fixed-height shape as the left column whether or not
+                this primary action can be completed — invisible but still
+                occupies its layout space so the grid row's height (and
+                therefore the whole card) never depends on which action is
+                showing. Top-anchored (no justify-end) so Status pairs with
+                the title row and Mark Complete pairs with the due-date row
+                on the left, instead of both sinking to the card's bottom. */}
+            <div className={`flex flex-col items-end${canCompletePrimary ? "" : " invisible"}`}>
+              <p className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-1 whitespace-nowrap">
+                {primaryAction.kind === "automatic" && doneMsg ? "Status: Complete" : "Status: Pending"}
+              </p>
+              <button
+                type="button"
+                onClick={canCompletePrimary ? handleCompletePrimary : undefined}
+                tabIndex={canCompletePrimary ? 0 : -1}
+                className={[
+                  // Matches the left column's Setup Tour/title pill exactly
+                  // (text-sm, px-3 py-1.5, rounded-lg, font-semibold) so the
+                  // two buttons share identical width/height/padding —
+                  // w-full stretches both to fill their equal grid-cols-2
+                  // column, the only thing that differs is color/border.
+                  "w-full text-sm font-semibold px-3 py-1.5 rounded-lg border transition-colors truncate text-center",
+                  primaryAction.kind === "automatic" && doneMsg
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                    : "border-[var(--crm-border)] bg-[var(--crm-inset)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)]",
+                ].join(" ")}
+              >
+                {primaryAction.kind === "automatic" && doneMsg ? "✓ Completed" : "Mark Complete"}
+              </button>
+            </div>
           </div>
 
           {/* Other Open Actions — a plain list, nothing more. Hidden
               entirely when there's nothing else open. */}
           {otherActions.length > 0 && (
-            <div className="mt-2.5 pt-2.5 border-t border-gray-200">
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1.5">
+            <div className="mt-1 pt-1 border-t border-[var(--crm-border-soft)]">
+              <p className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-1.5">
                 Other Open Actions
               </p>
-              <ul className="space-y-1 text-[11.5px] text-gray-600">
+              <ul className="space-y-1 text-[11.5px] text-[var(--crm-text-secondary)]">
                 {otherActions.map((other, i) => (
                   <li
                     key={other.manualAction?.id ?? `automatic-${i}`}
@@ -1038,7 +1134,7 @@ export default function LeadPanel({
                   >
                     <span className="truncate">• {other.title}</span>
                     {other.dueAt && (
-                      <span className="flex-none text-gray-400 whitespace-nowrap">
+                      <span className="flex-none text-[var(--crm-text-muted)] whitespace-nowrap">
                         {formatActionDueDate(other.dueAt)}
                       </span>
                     )}
@@ -1055,7 +1151,7 @@ export default function LeadPanel({
               setEditingAction(null)
               setShowAddAction(true)
             }}
-            className="mt-2.5 w-full text-[11.5px] font-semibold px-3 py-1.5 rounded-lg border border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
+            className="mt-1 w-full text-[11.5px] font-semibold px-3 py-1.5 rounded-lg border border-dashed border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] transition-colors"
           >
             + Add Next Action
           </button>
@@ -1064,13 +1160,13 @@ export default function LeadPanel({
         {/* Section: Favorite Properties (Phase 1 — manual only) */}
         <SectionCard title="Favorite Properties" collapsible defaultOpen={false}>
           {leadFavorites.length === 0 ? (
-            <p className="text-[12.5px] text-gray-400">No favorite properties added.</p>
+            <p className="text-[12.5px] text-[var(--crm-text-muted)]">No favorite properties added.</p>
           ) : (
             <div className="space-y-1.5">
               {leadFavorites.map((fav) => (
                 <div
                   key={fav.id}
-                  className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 hover:border-gray-300 hover:bg-gray-100 transition-colors"
+                  className="flex items-center gap-2 bg-[var(--crm-card)] border border-[var(--crm-border)] rounded-lg px-3 py-2 hover:border-[var(--crm-text-muted)] hover:bg-[var(--crm-inset)] transition-colors"
                 >
                   {fav.property_url ? (
                     <a
@@ -1083,16 +1179,16 @@ export default function LeadPanel({
                         {fav.property_name || fav.property_url}
                       </p>
                       {fav.property_address && (
-                        <p className="text-[11px] text-gray-400 truncate">{fav.property_address}</p>
+                        <p className="text-[11px] text-[var(--crm-text-muted)] truncate">{fav.property_address}</p>
                       )}
                     </a>
                   ) : (
                     <div className="min-w-0 flex-1">
-                      <p className="text-[12.5px] font-semibold text-gray-800 truncate">
+                      <p className="text-[12.5px] font-semibold text-[var(--crm-text-primary)] truncate">
                         {fav.property_name}
                       </p>
                       {fav.property_address && (
-                        <p className="text-[11px] text-gray-400 truncate">{fav.property_address}</p>
+                        <p className="text-[11px] text-[var(--crm-text-muted)] truncate">{fav.property_address}</p>
                       )}
                     </div>
                   )}
@@ -1100,7 +1196,7 @@ export default function LeadPanel({
                     <button
                       type="button"
                       onClick={() => openEditFavorite(fav)}
-                      className="text-[10.5px] font-semibold text-gray-500 hover:text-gray-700"
+                      className="text-[10.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]"
                     >
                       Edit
                     </button>
@@ -1120,7 +1216,7 @@ export default function LeadPanel({
           <button
             type="button"
             onClick={() => setShowFavoriteModal(true)}
-            className="mt-2.5 w-full text-[11.5px] font-semibold px-3 py-1.5 rounded-lg border border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
+            className="mt-2.5 w-full text-[11.5px] font-semibold px-3 py-1.5 rounded-lg border border-dashed border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:border-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)] transition-colors"
           >
             + Add Favorites
           </button>
@@ -1136,7 +1232,7 @@ export default function LeadPanel({
           {lead.neighborhoods && <Field label="Desired Areas" value={lead.neighborhoods} />}
           {lead.source && (
             <div className="flex items-start justify-between gap-4">
-              <span className="text-[12.5px] text-gray-400 flex-none">Source</span>
+              <span className="text-[12.5px] text-[var(--crm-text-muted)] flex-none">Source</span>
               <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${getSourceStyle(lead.source).badgeClassName}`}>
                 {getSourceStyle(lead.source).label}
               </span>
@@ -1145,7 +1241,7 @@ export default function LeadPanel({
         </SectionCard>
 
         {/* Section: Screening */}
-        <SectionCard title="Screening" collapsible defaultOpen={false}>
+        <SectionCard title="Credit Screening" collapsible defaultOpen={false}>
           <Field label="Credit Score" value={lead.credit_score} />
           <Field label="Credit History" value={lead.credit_history} />
           <Field label="Eviction Court" value={lead.eviction_court === "Yes" ? "Yes" : "No"} />
@@ -1180,7 +1276,7 @@ export default function LeadPanel({
             value={lead.notes || ""}
             readOnly
             placeholder="No notes submitted."
-            className="w-full h-20 text-[12.5px] bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 resize-none cursor-default text-gray-700 placeholder-gray-300 focus:outline-none"
+            className="w-full h-20 text-[12.5px] bg-[var(--crm-card)] border border-[var(--crm-border)] rounded-xl px-3 py-2 resize-none cursor-default text-[var(--crm-text-secondary)] placeholder-[var(--crm-text-muted)] focus:outline-none"
           />
         </CollapsibleNotes>
 
@@ -1201,7 +1297,7 @@ export default function LeadPanel({
                 .select("*")
             }}
             placeholder="Internal notes about this client..."
-            className="w-full h-24 text-[12.5px] bg-white border border-gray-200 rounded-xl px-3 py-2 resize-none text-gray-800 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-shadow"
+            className="w-full h-24 text-[12.5px] bg-[var(--crm-inset)] border border-[var(--crm-border)] rounded-xl px-3 py-2 resize-none text-[var(--crm-text-primary)] placeholder-[var(--crm-text-muted)] focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-shadow"
           />
         </CollapsibleNotes>
 

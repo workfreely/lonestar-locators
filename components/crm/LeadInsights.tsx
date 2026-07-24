@@ -364,31 +364,31 @@ function AiInsightsCard({ leadId }: { leadId: string }) {
     : null
 
   return (
-    <div className="bg-white border border-gray-100/70 rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_10px_rgba(15,23,42,0.06)]">
+    <div className="bg-[var(--crm-panel)] border border-[var(--crm-border-soft)] rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.04),0_4px_10px_rgba(var(--crm-shadow-color),0.06)]">
       <div
-        className="px-4 py-2 border-b border-gray-100 flex items-center justify-between gap-3 cursor-pointer select-none"
+        className="px-4 py-2 border-b border-[var(--crm-border-soft)] flex items-center justify-between gap-3 cursor-pointer select-none"
         onClick={() => setOpen((o) => !o)}
       >
         <div className="flex items-center gap-2">
           <svg
-            className={`w-3 h-3 text-gray-400 transition-transform duration-200 ${open ? "rotate-90" : "rotate-0"}`}
+            className={`w-3 h-3 text-[var(--crm-text-muted)] transition-transform duration-200 ${open ? "rotate-90" : "rotate-0"}`}
             viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
             strokeLinecap="round" strokeLinejoin="round"
           >
             <polyline points="9 18 15 12 9 6" />
           </svg>
-          <h3 className="text-xs font-semibold text-gray-500 whitespace-nowrap">
+          <h3 className="text-xs font-semibold text-[var(--crm-text-secondary)] whitespace-nowrap">
             🧠 AI INSIGHTS
           </h3>
         </div>
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          <span className="text-[11px] text-gray-400">
+          <span className="text-[11px] text-[var(--crm-text-muted)]">
             {lastSynced ? `Updated ${lastSynced}` : "Never synced"}
           </span>
           <button
             onClick={handleSync}
             disabled={syncing || !leadId}
-            className="text-[11px] text-gray-600 bg-gray-100 border border-gray-300 rounded-full px-2.5 py-0.5 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-200 transition-colors"
+            className="text-[11px] text-[var(--crm-text-secondary)] bg-[var(--crm-inset)] border border-[var(--crm-border)] rounded-full px-2.5 py-0.5 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[var(--crm-card)] transition-colors"
           >
             {syncing ? "Syncing..." : lastSynced ? "Refresh" : "Sync"}
           </button>
@@ -406,24 +406,24 @@ function AiInsightsCard({ leadId }: { leadId: string }) {
               {brief.insights.map((bullet, i) => (
                 <li key={i} className="flex items-start gap-2">
                   <span className="mt-[5px] w-1.5 h-1.5 rounded-full bg-indigo-400 flex-none" />
-                  <span className="text-[12.5px] text-gray-800 leading-snug">{bullet}</span>
+                  <span className="text-[12.5px] text-[var(--crm-text-primary)] leading-snug">{bullet}</span>
                 </li>
               ))}
             </ul>
 
             {brief.last_conversation && (
-              <div className="pt-2 border-t border-gray-100">
-                <span className="text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest">
+              <div className="pt-2 border-t border-[var(--crm-border-soft)]">
+                <span className="text-[10.5px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest">
                   Last conversation
                 </span>
-                <p className="text-[12.5px] text-gray-800 mt-1.5 leading-snug">
+                <p className="text-[12.5px] text-[var(--crm-text-primary)] mt-1.5 leading-snug">
                   {brief.last_conversation}
                 </p>
               </div>
             )}
           </>
         ) : (
-          <p className="text-[12px] text-gray-400 italic py-1">
+          <p className="text-[12px] text-[var(--crm-text-muted)] italic py-1">
             {syncError ? null : "No insights yet — sync messages to generate."}
           </p>
         )}
@@ -669,23 +669,23 @@ if (Number(lead.credit_score) <= 580) {
       <AiInsightsCard leadId={String(lead.id)} />
 
       {/* RECOMMENDED */}
-      <div className="bg-white border border-gray-100/70 rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_10px_rgba(15,23,42,0.06)]">
+      <div className="bg-[var(--crm-panel)] border border-[var(--crm-border-soft)] rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.04),0_4px_10px_rgba(var(--crm-shadow-color),0.06)]">
         <div
-          className="px-4 py-2 border-b border-gray-100 flex items-center gap-2 cursor-pointer select-none"
+          className="px-4 py-2 border-b border-[var(--crm-border-soft)] flex items-center gap-2 cursor-pointer select-none"
           onClick={() => setPropertiesOpen((o) => !o)}
         >
           <svg
-            className={`w-3 h-3 text-gray-400 transition-transform duration-200 ${propertiesOpen ? "rotate-90" : "rotate-0"}`}
+            className={`w-3 h-3 text-[var(--crm-text-muted)] transition-transform duration-200 ${propertiesOpen ? "rotate-90" : "rotate-0"}`}
             viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
             strokeLinecap="round" strokeLinejoin="round"
           >
             <polyline points="9 18 15 12 9 6" />
           </svg>
-          <h3 className="text-xs font-semibold text-gray-500 whitespace-nowrap">
+          <h3 className="text-xs font-semibold text-[var(--crm-text-secondary)] whitespace-nowrap">
             PROPERTY MATCHES {properties.length > 0 && `(${properties.length})`}
           </h3>
           {propertiesOpen && (
-            <p className="text-[13px] text-gray-400 truncate">
+            <p className="text-[13px] text-[var(--crm-text-muted)] truncate">
               AI-ranked based on client preferences
             </p>
           )}
@@ -700,22 +700,22 @@ if (Number(lead.credit_score) <= 580) {
                 key={property.id}
                 className={`flex items-center gap-3 px-4 py-3 transition ${
                   isTop3
-                    ? "bg-green-50"
+                    ? "bg-green-500/10 dark:bg-green-500/15"
                     : favoriteIds.has(String(property.id))
-                    ? "bg-green-50 border-transparent"
-                    : "hover:bg-gray-50 border-transparent"
+                    ? "bg-green-500/10 dark:bg-green-500/15 border-transparent"
+                    : "hover:bg-[var(--crm-card)] border-transparent"
                 }`}
               >
                 <input type="checkbox" className="h-4 w-4 shrink-0" />
 
-                <div className="h-12 w-14 shrink-0 rounded-md bg-gray-200 overflow-hidden">
+                <div className="h-12 w-14 shrink-0 rounded-md bg-[var(--crm-inset)] overflow-hidden">
                   {property.image ? (
                     <img
                       src={property.image}
                       className="h-full w-full object-cover"
                     />
                   ) : (
-                    <div className="h-full w-full flex items-center justify-center text-[10px] text-gray-400">
+                    <div className="h-full w-full flex items-center justify-center text-[10px] text-[var(--crm-text-muted)]">
                       IMG
                     </div>
                   )}
@@ -723,7 +723,7 @@ if (Number(lead.credit_score) <= 580) {
 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 min-w-0">
-                    <p className="flex-1 min-w-0 text-sm font-semibold text-gray-900 truncate">
+                    <p className="flex-1 min-w-0 text-sm font-semibold text-[var(--crm-text-primary)] truncate">
                       {property.name}
                     </p>
 
@@ -757,22 +757,22 @@ if (Number(lead.credit_score) <= 580) {
                     </span>
                   </div>
 
-                  <p className="text-xs text-gray-500 truncate">
+                  <p className="text-xs text-[var(--crm-text-secondary)] truncate">
                     {property.full_address}
                   </p>
 
-                  <p className="text-xs text-gray-400 truncate">
+                  <p className="text-xs text-[var(--crm-text-muted)] truncate">
                     {property.submarket || property.neighborhood} •{" "}
                     {property.special || "No specials"}
                   </p>
                 </div>
 
                 <div className="text-right shrink-0 w-[130px]">
-                  <p className="text-sm font-semibold text-gray-900">
+                  <p className="text-sm font-semibold text-[var(--crm-text-primary)]">
                     {property.rent}
                   </p>
-                  <p className="text-xs text-gray-500">{property.beds}</p>
-                  <p className="text-xs text-gray-400">{property.sqft}</p>
+                  <p className="text-xs text-[var(--crm-text-secondary)]">{property.beds}</p>
+                  <p className="text-xs text-[var(--crm-text-muted)]">{property.sqft}</p>
                 </div>
 
                 <button
@@ -797,12 +797,12 @@ if (Number(lead.credit_score) <= 580) {
       </div>
 
       {/* INSIGHTS */}
-      <div className="bg-white border border-gray-100/70 rounded-2xl p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_10px_rgba(15,23,42,0.06)]">
-        <h3 className="text-xs font-semibold text-gray-500 mb-2">
+      <div className="bg-[var(--crm-panel)] border border-[var(--crm-border-soft)] rounded-2xl p-4 shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.04),0_4px_10px_rgba(var(--crm-shadow-color),0.06)]">
+        <h3 className="text-xs font-semibold text-[var(--crm-text-secondary)] mb-2">
           INSIGHTS
         </h3>
 
-        <div className="text-xs text-gray-600 space-y-2">
+        <div className="text-xs text-[var(--crm-text-secondary)] space-y-2">
 
           <div className="flex items-center justify-between">
 
@@ -812,7 +812,7 @@ if (Number(lead.credit_score) <= 580) {
   </span>
 
   {/* APPROVAL VALUE */}
-  <span className="font-semibold text-gray-800">
+  <span className="font-semibold text-[var(--crm-text-primary)]">
     {approval.label}
   </span>
 </div>
@@ -825,7 +825,7 @@ if (Number(lead.credit_score) <= 580) {
   </span>
 
   {/* CLOSE VALUE */}
-  <span className="font-semibold text-gray-800">
+  <span className="font-semibold text-[var(--crm-text-primary)]">
     {close.label}
   </span>
 </div>

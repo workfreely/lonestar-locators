@@ -19,14 +19,14 @@ import {
 // ─── Shared style tokens ──────────────────────────────────────────────────────
 
 const inputCls = [
-  "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800",
-  "placeholder-gray-400 bg-white",
+  "w-full border border-[var(--crm-border)] rounded-lg px-3 py-2 text-sm text-[var(--crm-text-primary)]",
+  "placeholder-[var(--crm-text-muted)] bg-[var(--crm-inset)]",
   "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent",
   "transition-shadow",
 ].join(" ")
 
 const selectCls = inputCls + " cursor-pointer"
-const sectionLabelCls = "text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2.5 block"
+const sectionLabelCls = "text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-2.5 block"
 
 // ─── Internal layout helpers ──────────────────────────────────────────────────
 
@@ -230,7 +230,7 @@ export default function LeadFields({
         <button
           type="button"
           onClick={() => setShowAdvanced(v => !v)}
-          className="flex items-center gap-2 text-[10px] font-semibold text-gray-400 uppercase tracking-widest hover:text-gray-600 transition-colors"
+          className="flex items-center gap-2 text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest hover:text-[var(--crm-text-secondary)] transition-colors"
         >
           <svg
             width="10" height="10" viewBox="0 0 10 10" fill="none"
@@ -242,7 +242,7 @@ export default function LeadFields({
         </button>
 
         {showAdvanced && (
-          <div className="mt-4 pl-3 border-l-2 border-gray-100 space-y-5">
+          <div className="mt-4 pl-3 border-l-2 border-[var(--crm-border-soft)] space-y-5">
 
             {/* Broken Lease sub-fields — only when Broken Lease selected */}
             {hasBrokenLease && (

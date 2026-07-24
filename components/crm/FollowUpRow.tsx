@@ -102,7 +102,7 @@ export default function FollowUpRow({
       {/* Sidebar header — the user's daily work queue */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
         <h2 className="text-xs font-semibold text-white/80 uppercase tracking-widest">
-          Actions Due
+          Agenda
         </h2>
         <div className="flex items-center gap-1.5">
           {dueLeads.length > 0 && (
@@ -114,8 +114,8 @@ export default function FollowUpRow({
             <button
               onClick={onCollapse}
               className="w-5 h-5 flex items-center justify-center rounded text-white/40 hover:text-white hover:bg-white/10 transition-colors"
-              aria-label="Collapse Actions Due"
-              title="Collapse Actions Due"
+              aria-label="Collapse Agenda"
+              title="Collapse Agenda"
             >
               <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="15 18 9 12 15 6" />

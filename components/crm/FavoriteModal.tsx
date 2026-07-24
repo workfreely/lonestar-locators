@@ -165,12 +165,12 @@ export default function FavoriteModal({
 
   return (
     <div className="fixed inset-0 z-[10000] bg-black/40 backdrop-blur-sm flex items-center justify-center px-4">
-      <div className="w-full max-w-lg max-h-[85vh] bg-white rounded-2xl shadow-2xl p-6 flex flex-col">
-        <h3 className="text-lg font-bold text-gray-900 flex-none">
+      <div className="w-full max-w-lg max-h-[85vh] bg-[var(--crm-panel)] rounded-2xl shadow-2xl p-6 flex flex-col">
+        <h3 className="text-lg font-bold text-[var(--crm-text-primary)] flex-none">
           {isEditing ? "Edit Favorite" : "Add Favorites"}
         </h3>
         {!isEditing && (
-          <p className="text-sm text-gray-500 mt-1 flex-none">
+          <p className="text-sm text-[var(--crm-text-secondary)] mt-1 flex-none">
             Add up to three properties at once — leave any slot blank to skip it.
           </p>
         )}
@@ -179,14 +179,14 @@ export default function FavoriteModal({
           {slots.map((slot, i) => (
             <div key={i}>
               {!isEditing && (
-                <p className="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-2">
+                <p className="text-[11px] font-bold text-[var(--crm-text-secondary)] uppercase tracking-widest mb-2">
                   Favorite Property #{i + 1}
                 </p>
               )}
 
               <div className="space-y-3">
                 <div>
-                  <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1 block">
+                  <label className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-1 block">
                     Property URL
                   </label>
                   <input
@@ -200,10 +200,10 @@ export default function FavoriteModal({
                       if (isValidUrl(pasted)) setTimeout(() => runDetection(i, pasted), 0)
                     }}
                     placeholder="https://... (paste a listing link to auto-fill)"
-                    className="w-full text-[13px] border border-gray-300 rounded-lg px-2.5 py-1.5"
+                    className="w-full text-[13px] border border-[var(--crm-border)] rounded-lg px-2.5 py-1.5 bg-[var(--crm-inset)] text-[var(--crm-text-primary)]"
                   />
                   {slot.detection === "detecting" && (
-                    <p className="text-[11px] text-gray-400 mt-1">Detecting property info…</p>
+                    <p className="text-[11px] text-[var(--crm-text-muted)] mt-1">Detecting property info…</p>
                   )}
                   {slot.detection === "success" && (
                     <p className="text-[11px] text-emerald-600 font-medium mt-1">✓ Auto-filled from the property page</p>
@@ -214,31 +214,31 @@ export default function FavoriteModal({
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1 block">
+                  <label className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-1 block">
                     Property Name
                   </label>
                   <input
                     type="text"
                     value={slot.name}
                     onChange={(e) => updateSlot(i, "name", e.target.value)}
-                    className="w-full text-[13px] border border-gray-300 rounded-lg px-2.5 py-1.5"
+                    className="w-full text-[13px] border border-[var(--crm-border)] rounded-lg px-2.5 py-1.5 bg-[var(--crm-inset)] text-[var(--crm-text-primary)]"
                   />
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1 block">
+                  <label className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-1 block">
                     Property Address (optional)
                   </label>
                   <input
                     type="text"
                     value={slot.address}
                     onChange={(e) => updateSlot(i, "address", e.target.value)}
-                    className="w-full text-[13px] border border-gray-300 rounded-lg px-2.5 py-1.5"
+                    className="w-full text-[13px] border border-[var(--crm-border)] rounded-lg px-2.5 py-1.5 bg-[var(--crm-inset)] text-[var(--crm-text-primary)]"
                   />
                 </div>
               </div>
 
-              {i < slots.length - 1 && <hr className="mt-4 border-gray-200" />}
+              {i < slots.length - 1 && <hr className="mt-4 border-[var(--crm-border-soft)]" />}
             </div>
           ))}
         </div>
@@ -247,7 +247,7 @@ export default function FavoriteModal({
           <div className="flex justify-end gap-3 mt-5">
             <button
               onClick={handleClose}
-              className="px-4 py-2 rounded-xl border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              className="px-4 py-2 rounded-xl border border-[var(--crm-border)] text-sm font-medium text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] transition-colors"
             >
               Cancel
             </button>

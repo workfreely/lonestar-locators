@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import DashboardStats from "@/components/crm/DashboardStats"
 import PerformanceStats from "./PerformanceStats"
 import LeadSourcesCard from "./LeadSourcesCard"
 import CampaignTable from "./CampaignTable"
@@ -10,40 +11,44 @@ import ClosedDealsByCityCard from "./ClosedDealsByCityCard"
 import MonthlyPerformanceHistory from "./MonthlyPerformanceHistory"
 import MarketingToolsCard from "./MarketingToolsCard"
 import CollapsibleSection from "@/components/crm/CollapsibleSection"
+import Logo from "@/components/crm/Logo"
+import ProfileAvatarMenu from "@/components/crm/ProfileAvatarMenu"
+import { CRM_SECONDARY_BUTTON } from "@/lib/crmButtonStyles"
 
 // Composes the Phase 1 Performance page from the reusable pieces above.
 // Deliberately thin — Phase 2 (ROI, spend, charts, funnels) adds new
 // components here rather than growing this file or touching
 // DashboardClient.tsx.
 
-export default function PerformanceClient({ leads }: { leads: any[] }) {
+export default function PerformanceClient({ leads, dashboardLeads }: { leads: any[]; dashboardLeads: any[] }) {
   return (
-    <div className="relative h-screen w-full flex flex-col bg-gradient-to-b from-zinc-100 to-zinc-200">
+    <div className="relative h-screen w-full flex flex-col bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]">
 
-      {/* ─── TOP NAVIGATION BAR — same language as DashboardClient's header ─── */}
-      <header className="relative z-30 flex-none h-10 bg-white border-b border-gray-200 flex items-center px-5 gap-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-        <div className="flex items-center gap-2.5 mr-4">
-          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M2 10L7 4L12 10" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
-          <span className="font-bold text-[18px] text-gray-900 tracking-tight">Performance</span>
-        </div>
+      {/* ─── TOP NAVIGATION BAR — same shell as DashboardClient's header ─── */}
+      <header className="crm-header relative z-30 flex-none py-2 bg-[var(--crm-panel)] border-b border-[var(--crm-border)] flex items-center px-5 gap-4 shadow-[0_1px_3px_rgba(var(--crm-shadow-color),0.06)]">
+        <Logo />
 
         <div className="ml-auto flex items-center gap-2">
-          <Link
-            href="/admin/leads"
-            className="inline-flex items-center gap-1.5 text-gray-600 hover:text-gray-900 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
-          >
-            ← Leads
+          <Link href="/admin/leads" className={CRM_SECONDARY_BUTTON}>
+            ← Back to Dashboard
           </Link>
+          <ProfileAvatarMenu />
         </div>
       </header>
 
       {/* ─── BODY ─── */}
       <div className="flex-1 overflow-y-auto p-5 space-y-5">
-        <CollapsibleSection title="Performance Metrics" storageKey="performance-metrics-expanded">
+        {/* Business Overview — relocated here from the CRM Dashboard
+            (Analytics Page Refactor). Same cards, same collapse/expand
+            behavior and localStorage key as before; only its container
+            styling now matches this page's own cards instead of the
+            Dashboard's edge-to-edge treatment, since it no longer sits
+            directly under a flex-col header. */}
+        <CollapsibleSection title="Business Overview" storageKey="dashboard-metrics-expanded">
+          <DashboardStats leads={dashboardLeads} />
+        </CollapsibleSection>
+
+        <CollapsibleSection title="Performance Analytics" storageKey="performance-metrics-expanded">
           <div className="p-4">
             <PerformanceStats leads={leads} />
           </div>

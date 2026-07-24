@@ -131,12 +131,12 @@ function ModalContent({ onClose, lead, topMatches = [] }: Props) {
       onClick={onClose}
     >
       <div
-        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-6 flex flex-col"
+        className="relative bg-[var(--crm-panel)] rounded-2xl shadow-2xl w-full max-w-4xl mx-6 flex flex-col"
         style={{ height: "80vh" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex-none px-8 pt-5 pb-0 border-b border-gray-100">
+        <div className="flex-none px-8 pt-5 pb-0 border-b border-[var(--crm-border-soft)]">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
@@ -145,13 +145,13 @@ function ModalContent({ onClose, lead, topMatches = [] }: Props) {
                 </svg>
               </div>
               <div>
-                <h2 className="text-base font-semibold text-gray-900 leading-none">AI Voice Script</h2>
-                <p className="text-[11px] text-gray-400 mt-0.5">{clientName}</p>
+                <h2 className="text-base font-semibold text-[var(--crm-text-primary)] leading-none">AI Voice Script</h2>
+                <p className="text-[11px] text-[var(--crm-text-muted)] mt-0.5">{clientName}</p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)] hover:bg-[var(--crm-card)] transition-colors"
               aria-label="Close"
             >
               <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -168,8 +168,8 @@ function ModalContent({ onClose, lead, topMatches = [] }: Props) {
                 onClick={() => handleTabChange(tab.id)}
                 className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors border-b-2 -mb-px ${
                   activeTab === tab.id
-                    ? "text-blue-600 border-blue-600 bg-white"
-                    : "text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300"
+                    ? "text-blue-600 border-blue-600 bg-[var(--crm-panel)]"
+                    : "text-[var(--crm-text-secondary)] border-transparent hover:text-[var(--crm-text-primary)] hover:border-[var(--crm-border)]"
                 }`}
               >
                 {tab.label}
@@ -180,10 +180,10 @@ function ModalContent({ onClose, lead, topMatches = [] }: Props) {
 
         {/* Script area */}
         <div className="flex-1 overflow-y-auto px-8 py-7">
-          <div className="bg-gray-50 border border-gray-100 rounded-2xl px-10 pt-8 pb-12">
+          <div className="bg-[var(--crm-card)] border border-[var(--crm-border-soft)] rounded-2xl px-10 pt-8 pb-12">
             <div className="space-y-5">
               {script.split("\n\n").map((para, i) => (
-                <p key={i} className="text-[15.5px] text-gray-800 leading-[2]">
+                <p key={i} className="text-[15.5px] text-[var(--crm-text-primary)] leading-[2]">
                   {para}
                 </p>
               ))}
@@ -192,10 +192,10 @@ function ModalContent({ onClose, lead, topMatches = [] }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="flex-none px-8 py-5 border-t border-gray-100 flex items-center justify-end gap-3">
+        <div className="flex-none px-8 py-5 border-t border-[var(--crm-border-soft)] flex items-center justify-end gap-3">
           <button
             onClick={onClose}
-            className="text-sm font-medium px-5 py-2.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+            className="text-sm font-medium px-5 py-2.5 rounded-lg border border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] transition-colors"
           >
             Close
           </button>

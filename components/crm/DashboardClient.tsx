@@ -7,10 +7,11 @@ import LeadBoard from "./LeadBoard"
 import LeadPanel from "./LeadPanel"
 import LeadInsights from "./LeadInsights"
 import LeadFormModal from "../LeadFormModal"
-import DashboardStats from "./DashboardStats"
-import CollapsibleSection from "./CollapsibleSection"
 import WorkflowActionToast from "./WorkflowActionToast"
 import { emitWorkflowActionCreated, type WorkflowToastAction } from "@/lib/workflowToast"
+import Logo from "./Logo"
+import ProfileAvatarMenu from "./ProfileAvatarMenu"
+import { CRM_PRIMARY_BUTTON, CRM_SECONDARY_BUTTON } from "@/lib/crmButtonStyles"
 
 export default function DashboardClient({ leads, nextActions, favorites }: { leads: any[]; nextActions: any[]; favorites: any[] }) {
   const router = useRouter()
@@ -56,48 +57,39 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
   )
 
   return (
-    <div className="relative h-screen w-full flex flex-col bg-gradient-to-b from-zinc-100 to-zinc-200">
+    <div className="relative h-screen w-full flex flex-col bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]">
 
-      {/* ─── TOP NAVIGATION BAR ─── */}
-      <header className="relative z-30 flex-none py-2 bg-white border-b border-gray-200 flex items-center px-5 gap-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+      {/* ─── TOP NAVIGATION BAR ───
+          z-50 (not z-30) so the header's own stacking context sits above
+          the z-40 Lead Detail Overlay below — otherwise the profile
+          dropdown, despite its own z-50, is bounded by the header's lower
+          context and renders behind AI Insights/Property Matches/Lead
+          Panel whenever a lead is selected (see UI Polish Pass point 2). */}
+      <header className="crm-header relative z-50 flex-none py-2 bg-[var(--crm-panel)] border-b border-[var(--crm-border)] flex items-center px-5 gap-4 shadow-[0_1px_3px_rgba(var(--crm-shadow-color),0.06)]">
 
-        {/* Brand */}
-        <div className="flex items-center gap-2.5 mr-4">
-          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M2 10L7 4L12 10" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
-          <span className="font-bold text-[18px] text-gray-900 tracking-tight">Locator Beast AI</span>
-        </div>
+        <Logo />
 
         <div className="ml-auto flex items-center gap-2">
-          <Link
-            href="/admin/performance"
-            className="inline-flex items-center gap-1.5 text-gray-600 hover:text-gray-900 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
-          >
-            📊 Performance
+          <Link href="/admin/performance" className={CRM_SECONDARY_BUTTON}>
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+              <rect x="1" y="8" width="3" height="5" rx="0.5" fill="currentColor"/>
+              <rect x="5.5" y="4" width="3" height="9" rx="0.5" fill="currentColor"/>
+              <rect x="10" y="1" width="3" height="12" rx="0.5" fill="currentColor"/>
+            </svg>
+            Analytics
           </Link>
           <button
             onClick={() => setShowLeadModal(true)}
-            className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors shadow-sm"
+            className={CRM_PRIMARY_BUTTON}
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
             </svg>
             Add Lead
           </button>
+          <ProfileAvatarMenu />
         </div>
       </header>
-
-      {/* ─── DASHBOARD STATS ─── */}
-      <CollapsibleSection
-        title="Dashboard Metrics"
-        storageKey="dashboard-metrics-expanded"
-        className="flex-none rounded-none border-x-0 border-t-0 shadow-none my-2"
-      >
-        <DashboardStats leads={localLeads} />
-      </CollapsibleSection>
 
       {/* ─── BODY ─── */}
       <div className="relative flex-1 flex overflow-hidden">
@@ -121,7 +113,7 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
             sidebar itself, so its frosted-glass look over the dark photo
             is fully preserved. */}
         {selectedLead && (
-          <div className={`absolute inset-y-0 ${followUpsOpen ? "left-[228px]" : "left-[48px]"} right-0 bg-gradient-to-b from-zinc-100 to-zinc-200`} />
+          <div className={`absolute top-2 bottom-2 ${followUpsOpen ? "left-[228px]" : "left-[48px]"} right-0 bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]`} />
         )}
 
         {/* LEFT SIDEBAR — Follow-ups */}
@@ -142,8 +134,8 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
             <button
               onClick={toggleFollowUps}
               className="w-6 h-6 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors"
-              aria-label="Expand Actions Due"
-              title="Expand Actions Due"
+              aria-label="Expand Agenda"
+              title="Expand Agenda"
             >
               <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="9 18 15 12 9 6" />
@@ -172,7 +164,7 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
 
         {/* LEAD DETAIL OVERLAY */}
         {selectedLead && (
-          <div className={`absolute inset-y-0 ${followUpsOpen ? "left-[242px]" : "left-[62px]"} right-0 z-40 flex pointer-events-none`}>
+          <div className={`absolute top-2 bottom-2 ${followUpsOpen ? "left-[242px]" : "left-[62px]"} right-0 z-40 flex pointer-events-none`}>
             <div className="flex gap-2 w-full h-full pointer-events-auto">
 
               {/* LEAD PANEL */}
@@ -201,7 +193,7 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
               </div>
 
               {/* INSIGHTS PANEL */}
-              <div className="flex-1 bg-gradient-to-b from-zinc-100 to-zinc-200 p-6 overflow-y-auto">
+              <div className="flex-1 bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)] p-6 overflow-y-auto">
                 <LeadInsights
                   lead={selectedLead}
                   onMatchesChange={setTopMatches}
