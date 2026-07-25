@@ -1,0 +1,108 @@
+/* ================================
+   Locator Beast — scoped design tokens
+   ================================
+   Prefixed --beast-* and confined to .beast-root so nothing here can
+   collide with the CRM's --crm-* tokens or the Lone Star marketing site's
+   default `:root` variables in app/globals.css. This file is imported only
+   by app/locator-beast/layout.tsx. */
+
+.beast-root {
+  --beast-bg: #ffffff;
+  --beast-bg-dark: #05070d;
+  --beast-panel-dark: #0b0f1a;
+  --beast-ink: #05070d;
+  --beast-ink-soft: #4b5162;
+  --beast-ink-inverse: #ffffff;
+  --beast-ink-inverse-soft: rgba(255, 255, 255, 0.68);
+  --beast-blue: #2f6bff;
+  --beast-blue-bright: #5b8bff;
+  --beast-border: rgba(5, 7, 13, 0.08);
+  --beast-border-dark: rgba(255, 255, 255, 0.1);
+
+  background: var(--beast-bg);
+  color: var(--beast-ink);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--beast-font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.beast-root * {
+  box-sizing: border-box;
+}
+
+.beast-container {
+  width: 100%;
+  max-width: 1180px;
+  margin-inline: auto;
+  padding-inline: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .beast-container {
+    padding-inline: 2.5rem;
+  }
+}
+
+.beast-glow {
+  /* background-image (not the `background` shorthand) so this layers on
+     top of an element's own bg-[...] utility instead of resetting it. */
+  background-image: radial-gradient(60% 60% at 50% 0%, rgba(47, 107, 255, 0.35), transparent 70%);
+}
+
+@keyframes beast-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.beast-fade-up {
+  opacity: 0;
+  animation: beast-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.beast-in-view {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.beast-in-view.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.beast-hover-lift {
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.35s ease;
+}
+
+.beast-hover-lift:hover {
+  transform: translateY(-4px);
+  border-color: rgba(47, 107, 255, 0.35);
+  box-shadow: 0 20px 40px -20px rgba(15, 23, 42, 0.25);
+}
+
+@keyframes beast-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.beast-pop {
+  animation: beast-pop 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

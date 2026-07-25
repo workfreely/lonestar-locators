@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import { headers } from "next/headers";
 import "./globals.css";
 import NavigationBar from "./components/NavigationBar";
 import Footer from "./components/Footer";
@@ -34,11 +35,25 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Locator Beast (locatorbeast.com) is a separate marketing site rewritten
+  // in from app/locator-beast/*. It supplies its own nav/footer/metadata via
+  // app/locator-beast/layout.tsx, so the Lone Star chrome below is skipped
+  // entirely for those requests. See middleware.ts for the x-site header.
+  const isLocatorBeast = (await headers()).get("x-site") === "locator-beast";
+
+  if (isLocatorBeast) {
+    return (
+      <html lang="en" suppressHydrationWarning>
+        <body>{children}</body>
+      </html>
+    );
+  }
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>

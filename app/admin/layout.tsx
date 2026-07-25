@@ -31,6 +31,17 @@ export default function AdminLayout({
         return
       }
 
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("onboarding_completed")
+        .eq("id", session.user.id)
+        .single()
+
+      if (profile && !profile.onboarding_completed) {
+        router.replace("/onboarding")
+        return
+      }
+
       setLoading(false)
     }
 
