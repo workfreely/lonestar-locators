@@ -62,6 +62,138 @@
   --crm-shadow-color: 0, 0, 0;
 }
 
+/* ================================
+   CRM Four-Theme Palettes
+   ================================
+   The locked design system's four appearance themes. All are dark-chrome
+   (dark workspace, elevated content) and share one depth hierarchy —
+   workspace < columns < cards — so only the palette changes between them.
+   Selected via a `data-theme` attribute on <html> set by lib/theme.ts
+   (scoped to /admin). Placed AFTER the `.dark` block above so, at equal
+   specificity, these win by source order whenever a data-theme is set.
+   These remap the shared --crm-* chrome tokens (header, Lead Panel,
+   dashboard, modals, Performance). The Kanban board's own frosted columns
+   and bright cards are handled in the board components themselves. */
+
+/* Midnight — reference: navy-charcoal */
+:root[data-theme="midnight"] {
+  --crm-background: #04060c;
+  --crm-workspace: #04060c;
+  --crm-panel: #0e1119;
+  --crm-card: #1b2030;
+  --crm-inset: #12151f;
+  --crm-border: #2b3242;
+  --crm-border-soft: #1b2029;
+  --crm-text-primary: #f4f6fb;
+  --crm-text-secondary: #b7bec9;
+  --crm-text-muted: #8b93a0;
+  --crm-shadow-color: 0, 0, 0;
+  --crm-accent: #2758d1; --crm-accent-hover: #2f6bff; --crm-accent-contrast: #ffffff;
+}
+
+/* Evergreen — muted forest / pine, green in the surfaces */
+:root[data-theme="evergreen"] {
+  --crm-background: #0c1512;
+  --crm-workspace: #0c1512;
+  --crm-panel: #14201b;
+  --crm-card: #203029;
+  --crm-inset: #142019;
+  --crm-border: #2a3f34;
+  --crm-border-soft: #1a2a22;
+  --crm-text-primary: #eef4f0;
+  --crm-text-secondary: #c2ccc6;
+  --crm-text-muted: #8a968f;
+  --crm-shadow-color: 0, 0, 0;
+  --crm-accent: #1c704d; --crm-accent-hover: #22885e; --crm-accent-contrast: #ffffff;
+}
+
+/* Purple — deep plum / aubergine, elegant not neon */
+:root[data-theme="purple"] {
+  --crm-background: #120b1c;
+  --crm-workspace: #120b1c;
+  --crm-panel: #1b1229;
+  --crm-card: #2a1c40;
+  --crm-inset: #1a1128;
+  --crm-border: #3a2d50;
+  --crm-border-soft: #241733;
+  --crm-text-primary: #f2eefb;
+  --crm-text-secondary: #c9c0d6;
+  --crm-text-muted: #978aa5;
+  --crm-shadow-color: 0, 0, 0;
+  --crm-accent: #6b48b1; --crm-accent-hover: #8358d8; --crm-accent-contrast: #ffffff;
+}
+
+/* Obsidian — true-black OLED, neutral greys */
+:root[data-theme="obsidian"] {
+  --crm-background: #000000;
+  --crm-workspace: #000000;
+  --crm-panel: #0e1014;
+  --crm-card: #191b21;
+  --crm-inset: #0f1116;
+  --crm-border: #262a31;
+  --crm-border-soft: #17191f;
+  --crm-text-primary: #f6f7f9;
+  --crm-text-secondary: #b6bac1;
+  --crm-text-muted: #82878f;
+  --crm-shadow-color: 0, 0, 0;
+  --crm-accent: #3462d1; --crm-accent-hover: #3f78ff; --crm-accent-contrast: #ffffff;
+}
+
+/* Rose — deep burgundy */
+:root[data-theme="rose"] {
+  --crm-background: #1c1019;
+  --crm-workspace: #1c1019;
+  --crm-panel: #271823;
+  --crm-card: #46283a;
+  --crm-inset: #201019;
+  --crm-border: #4b3541;
+  --crm-border-soft: #2c1c26;
+  --crm-text-primary: #fcf0f4;
+  --crm-text-secondary: #cdbcc4;
+  --crm-text-muted: #a28f99;
+  --crm-shadow-color: 0, 0, 0;
+  --crm-accent: #9e415c; --crm-accent-hover: #c14f70; --crm-accent-contrast: #ffffff;
+}
+
+/* ================================
+   Workspace-accent CTAs (centralized)
+   ================================
+   Any primary action button uses .crm-cta (solid) or .crm-cta-soft
+   (tinted). Both read --crm-accent, so every CTA follows the active
+   workspace automatically — new buttons only need the class, never a
+   hard-coded color. */
+.crm-cta {
+  background: var(--crm-accent);
+  color: var(--crm-accent-contrast);
+  border-color: var(--crm-accent);
+  transition: background .15s ease, box-shadow .15s ease;
+}
+.crm-cta:hover { background: var(--crm-accent-hover); border-color: var(--crm-accent-hover); }
+.crm-cta:active { background: color-mix(in srgb, var(--crm-accent) 82%, #000); border-color: color-mix(in srgb, var(--crm-accent) 82%, #000); }
+.crm-cta:disabled { opacity: .45; cursor: not-allowed; }
+.crm-cta:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--crm-panel), 0 0 0 4px color-mix(in srgb, var(--crm-accent) 55%, transparent);
+}
+
+.crm-cta-soft {
+  background: color-mix(in srgb, var(--crm-accent) 16%, transparent);
+  color: color-mix(in srgb, var(--crm-accent) 55%, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--crm-accent) 34%, transparent);
+  transition: background .15s ease;
+}
+.crm-cta-soft:hover { background: color-mix(in srgb, var(--crm-accent) 26%, transparent); }
+
+/* Theme-aware colored source pill (same tint philosophy as the Kanban
+   semantic pills): a subtle tint of the source's own hue on the workspace,
+   with a lightened colored label — colored but restrained, never a bright
+   pastel. Consumers pass the hue via inline `--src-color`. */
+.crm-src-pill {
+  background: color-mix(in srgb, var(--src-color) 15%, transparent);
+  color: color-mix(in srgb, var(--src-color) 60%, #ffffff);
+  border-color: color-mix(in srgb, var(--src-color) 32%, transparent);
+}
+
 /* Scoped body background for Dark Mode — only when a CRM (/admin) page is
    actually mounted (ThemeProvider adds .crm-admin-shell to <body>, see
    components/theme/ThemeProvider.tsx) AND the theme is dark. Fixes white
@@ -1471,3 +1603,223 @@ body.jaybot-open {
 .next-action-pulse {
   animation: pulseGlow 1.8s infinite;
 }
+
+/* ==========================================================
+   CRM KANBAN BOARD — ports the approved design mockup 1:1.
+   Board-specific tokens (--kb-*) per theme + the workspace /
+   column / card component styles the React components consume.
+   Depth hierarchy: workspace < columns < cards. Only the
+   palette changes between themes; Light additionally uses
+   frosted-glass columns and dark-on-white cards (overrides at
+   the bottom). Kept separate from the --crm-* chrome tokens. */
+
+:root[data-theme="midnight"] {
+  --kb-bg:#04060c; --kb-col:#10131d; --kb-col-border:rgba(255,255,255,0.09);
+  --kb-card:#1b2030; --kb-card-border:rgba(255,255,255,0.15); --kb-inset:#12151f;
+  --kb-ink:#f4f6fb; --kb-ink-soft:rgba(244,246,251,0.64); --kb-ink-muted:rgba(244,246,251,0.40);
+  --kb-border:rgba(255,255,255,0.09); --kb-border-strong:rgba(255,255,255,0.16);
+  --kb-accent:#2f6bff; --kb-accent-bright:#5b8bff;
+  --kb-ok-t:rgba(52,211,153,0.14); --kb-ok-f:#46e0a1; --kb-ok-b:rgba(52,211,153,0.34);
+  --kb-warn-t:rgba(251,191,36,0.15); --kb-warn-f:#fbbf24; --kb-warn-b:rgba(251,191,36,0.36);
+  --kb-crit-t:rgba(248,113,113,0.15); --kb-crit-f:#fca5a5; --kb-crit-b:rgba(248,113,113,0.36);
+  --kb-info-t:rgba(91,139,255,0.16); --kb-info-f:#8fb0ff; --kb-info-b:rgba(91,139,255,0.36);
+  --kb-shadow-hue:0,0,0;
+  --kb-col-shadow:0 2px 10px -4px rgba(0,0,0,0.6);
+  --kb-card-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 1px 2px rgba(0,0,0,0.5),0 16px 30px -12px rgba(0,0,0,0.78);
+  --kb-card-shadow-hover:inset 0 1px 0 rgba(255,255,255,0.08),0 0 0 1.25px color-mix(in srgb, var(--kb-accent) 62%, transparent),0 1px 2px rgba(0,0,0,0.5),0 26px 50px -18px rgba(0,0,0,0.85);
+  --kb-card-shadow-selected:inset 0 1px 0 rgba(255,255,255,0.08),0 0 0 1.5px var(--kb-accent),0 1px 2px rgba(0,0,0,0.5),0 30px 58px -18px rgba(0,0,0,0.9);
+}
+:root[data-theme="obsidian"] {
+  --kb-bg:#000000; --kb-col:#0d0e12; --kb-col-border:rgba(255,255,255,0.08);
+  --kb-card:#191b21; --kb-card-border:rgba(255,255,255,0.15); --kb-inset:#0f1014;
+  --kb-ink:#f6f7f9; --kb-ink-soft:rgba(246,247,249,0.62); --kb-ink-muted:rgba(246,247,249,0.38);
+  --kb-border:rgba(255,255,255,0.08); --kb-border-strong:rgba(255,255,255,0.16);
+  --kb-accent:#3f78ff; --kb-accent-bright:#6d97ff;
+  --kb-ok-t:rgba(52,211,153,0.14); --kb-ok-f:#46e0a1; --kb-ok-b:rgba(52,211,153,0.34);
+  --kb-warn-t:rgba(251,191,36,0.15); --kb-warn-f:#fbbf24; --kb-warn-b:rgba(251,191,36,0.36);
+  --kb-crit-t:rgba(248,113,113,0.15); --kb-crit-f:#fca5a5; --kb-crit-b:rgba(248,113,113,0.36);
+  --kb-info-t:rgba(109,151,255,0.16); --kb-info-f:#9db8ff; --kb-info-b:rgba(109,151,255,0.36);
+  --kb-shadow-hue:0,0,0;
+  --kb-col-shadow:0 0 0 1px rgba(255,255,255,0.02),0 2px 10px -4px rgba(0,0,0,0.9);
+  --kb-card-shadow:inset 0 1px 0 rgba(255,255,255,0.07),0 1px 2px rgba(0,0,0,0.85),0 18px 34px -14px rgba(0,0,0,0.95);
+  --kb-card-shadow-hover:inset 0 1px 0 rgba(255,255,255,0.09),0 0 0 1.25px color-mix(in srgb, var(--kb-accent) 66%, transparent),0 22px 44px -16px rgba(0,0,0,1);
+  --kb-card-shadow-selected:inset 0 1px 0 rgba(255,255,255,0.09),0 0 0 1.5px var(--kb-accent),0 26px 52px -16px rgba(0,0,0,1);
+}
+:root[data-theme="rose"] {
+  --kb-bg:#1c1019; --kb-col:#2f1a2a; --kb-col-border:rgba(255,224,236,0.11);
+  --kb-card:#46283a; --kb-card-border:rgba(255,214,228,0.18); --kb-inset:#271823;
+  --kb-ink:#fcf0f4; --kb-ink-soft:rgba(252,240,244,0.66); --kb-ink-muted:rgba(252,240,244,0.44);
+  --kb-border:rgba(255,224,236,0.11); --kb-border-strong:rgba(255,224,236,0.19);
+  --kb-accent:#e06a8c; --kb-accent-bright:#f091ac;
+  --kb-ok-t:rgba(52,211,153,0.14); --kb-ok-f:#46e0a1; --kb-ok-b:rgba(52,211,153,0.34);
+  --kb-warn-t:rgba(251,191,36,0.15); --kb-warn-f:#fbbf24; --kb-warn-b:rgba(251,191,36,0.36);
+  --kb-crit-t:rgba(248,113,113,0.16); --kb-crit-f:#ffb1b1; --kb-crit-b:rgba(248,113,113,0.38);
+  --kb-info-t:rgba(224,106,140,0.18); --kb-info-f:#f3a2bb; --kb-info-b:rgba(224,106,140,0.38);
+  --kb-shadow-hue:30,6,14;
+  --kb-col-shadow:0 2px 10px -4px rgba(0,0,0,0.6);
+  --kb-card-shadow:inset 0 1px 0 rgba(255,235,244,0.07),0 1px 2px rgba(0,0,0,0.5),0 16px 30px -12px rgba(0,0,0,0.78);
+  --kb-card-shadow-hover:inset 0 1px 0 rgba(255,235,244,0.09),0 0 0 1.25px color-mix(in srgb, var(--kb-accent) 62%, transparent),0 1px 2px rgba(0,0,0,0.5),0 26px 50px -18px rgba(0,0,0,0.85);
+  --kb-card-shadow-selected:inset 0 1px 0 rgba(255,235,244,0.09),0 0 0 1.5px var(--kb-accent),0 1px 2px rgba(0,0,0,0.5),0 30px 58px -18px rgba(0,0,0,0.9);
+}
+:root[data-theme="evergreen"] {
+  --kb-bg:#0c1512; --kb-col:#16241e; --kb-col-border:rgba(210,255,232,0.09);
+  --kb-card:#203029; --kb-card-border:rgba(210,255,232,0.15); --kb-inset:#142019;
+  --kb-ink:#eef4f0; --kb-ink-soft:rgba(238,244,240,0.63); --kb-ink-muted:rgba(238,244,240,0.40);
+  --kb-border:rgba(210,255,232,0.09); --kb-border-strong:rgba(210,255,232,0.16);
+  --kb-accent:#34c288; --kb-accent-bright:#5cd7a3;
+  --kb-ok-t:rgba(52,211,153,0.14); --kb-ok-f:#7ef0c0; --kb-ok-b:rgba(52,211,153,0.34);
+  --kb-warn-t:rgba(251,191,36,0.15); --kb-warn-f:#fbbf24; --kb-warn-b:rgba(251,191,36,0.36);
+  --kb-crit-t:rgba(248,113,113,0.15); --kb-crit-f:#fca5a5; --kb-crit-b:rgba(248,113,113,0.36);
+  --kb-info-t:rgba(120,170,255,0.16); --kb-info-f:#9fc0ff; --kb-info-b:rgba(120,170,255,0.36);
+  --kb-shadow-hue:6,20,14;
+  --kb-col-shadow:0 2px 10px -4px rgba(0,0,0,0.6);
+  --kb-card-shadow:inset 0 1px 0 rgba(220,255,238,0.06),0 1px 2px rgba(0,0,0,0.5),0 16px 30px -12px rgba(0,0,0,0.76);
+  --kb-card-shadow-hover:inset 0 1px 0 rgba(220,255,238,0.09),0 0 0 1.25px color-mix(in srgb, var(--kb-accent) 62%, transparent),0 1px 2px rgba(0,0,0,0.5),0 26px 50px -18px rgba(0,0,0,0.84);
+  --kb-card-shadow-selected:inset 0 1px 0 rgba(220,255,238,0.09),0 0 0 1.5px var(--kb-accent),0 1px 2px rgba(0,0,0,0.5),0 30px 58px -18px rgba(0,0,0,0.88);
+}
+:root[data-theme="purple"] {
+  --kb-bg:#120b1c; --kb-col:#1e142e; --kb-col-border:rgba(230,220,255,0.10);
+  --kb-card:#2a1c40; --kb-card-border:rgba(230,220,255,0.16); --kb-inset:#1a1128;
+  --kb-ink:#f2eefb; --kb-ink-soft:rgba(242,238,251,0.64); --kb-ink-muted:rgba(242,238,251,0.42);
+  --kb-border:rgba(230,220,255,0.10); --kb-border-strong:rgba(230,220,255,0.18);
+  --kb-accent:#a06bf0; --kb-accent-bright:#bd93ff;
+  --kb-ok-t:rgba(52,211,153,0.14); --kb-ok-f:#46e0a1; --kb-ok-b:rgba(52,211,153,0.34);
+  --kb-warn-t:rgba(251,191,36,0.15); --kb-warn-f:#fbbf24; --kb-warn-b:rgba(251,191,36,0.36);
+  --kb-crit-t:rgba(248,113,113,0.16); --kb-crit-f:#fca5a5; --kb-crit-b:rgba(248,113,113,0.38);
+  --kb-info-t:rgba(160,107,240,0.18); --kb-info-f:#c6a6f5; --kb-info-b:rgba(160,107,240,0.38);
+  --kb-shadow-hue:25,10,45;
+  --kb-col-shadow:0 2px 10px -4px rgba(0,0,0,0.6);
+  --kb-card-shadow:inset 0 1px 0 rgba(240,232,255,0.06),0 1px 2px rgba(0,0,0,0.5),0 16px 30px -12px rgba(0,0,0,0.78);
+  --kb-card-shadow-hover:inset 0 1px 0 rgba(240,232,255,0.09),0 0 0 1.25px color-mix(in srgb, var(--kb-accent) 62%, transparent),0 1px 2px rgba(0,0,0,0.5),0 26px 50px -18px rgba(0,0,0,0.85);
+  --kb-card-shadow-selected:inset 0 1px 0 rgba(240,232,255,0.09),0 0 0 1.5px var(--kb-accent),0 1px 2px rgba(0,0,0,0.5),0 30px 58px -18px rgba(0,0,0,0.9);
+}
+
+/* Workspace + board layout */
+.kb-workspace { display:flex; flex-direction:column; height:100%; min-width:0; background:var(--kb-bg); }
+.kb-toolbar { flex:none; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 18px 6px; }
+.kb-board { flex:1; display:flex; gap:16px; padding:18px; overflow-x:auto; overflow-y:hidden; min-width:0; }
+.kb-board[data-density="compact"] { gap:14px; }
+
+/* Toolbar controls */
+.kb-search { position:relative; width:100%; max-width:320px; }
+.kb-search .kb-search-ic { position:absolute; left:11px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--kb-ink-muted); display:flex; }
+.kb-search input[type="text"] { width:100% !important; padding:8px 12px 8px 32px !important; border-radius:999px !important; background:color-mix(in srgb, var(--kb-ink) 6%, transparent) !important; border:1px solid var(--kb-border) !important; color:var(--kb-ink) !important; font-size:13px !important; box-shadow:none !important; }
+.kb-search input[type="text"]::placeholder { color:var(--kb-ink-muted); }
+.kb-search input[type="text"]:focus { outline:none !important; border-color:color-mix(in srgb, var(--kb-accent) 55%, transparent) !important; background:color-mix(in srgb, var(--kb-ink) 9%, transparent) !important; box-shadow:none !important; }
+.kb-density { flex:none; display:inline-flex; padding:3px; gap:2px; border-radius:12px; border:1px solid var(--kb-border); background:color-mix(in srgb, var(--kb-ink) 5%, transparent); }
+.kb-density button { font:inherit; font-size:12.5px; font-weight:600; color:var(--kb-ink-muted); border:0; background:transparent; padding:6px 13px; border-radius:9px; cursor:pointer; transition:color .2s, background .2s; }
+.kb-density button[aria-pressed="true"] { color:var(--kb-ink); background:color-mix(in srgb, var(--kb-ink) 12%, transparent); }
+
+/* Column */
+/* Columns grow to fill the board's available width (e.g. when the Agenda
+   panel is collapsed) instead of leaving empty space on the right, and
+   scroll horizontally when they don't fit. flex-basis is the per-density
+   minimum width. */
+.kb-column { flex:1 0 274px; min-width:0; display:flex; flex-direction:column; max-height:100%; background:var(--kb-col); border:1px solid var(--kb-col-border); border-radius:16px; box-shadow:var(--kb-col-shadow); }
+.kb-board[data-density="compact"] .kb-column { flex-basis:224px; }
+.kb-col-head { display:flex; align-items:center; gap:8px; padding:13px 14px 11px; border-bottom:1px solid var(--kb-col-border); }
+.kb-dot { width:8px; height:8px; border-radius:50%; flex:none; box-shadow:0 0 0 3px color-mix(in srgb, currentColor 16%, transparent); }
+.kb-col-title { margin:0; font-size:13.5px; font-weight:650; letter-spacing:-0.01em; color:var(--kb-ink); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.kb-col-count { font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--kb-ink-muted); background:color-mix(in srgb, var(--kb-ink) 7%, transparent); border:1px solid var(--kb-border); min-width:22px; height:20px; padding:0 6px; border-radius:999px; display:grid; place-items:center; flex:none; }
+.kb-col-body { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:12px; padding:12px; overflow-y:auto; }
+.kb-board[data-density="compact"] .kb-col-body { gap:10px; padding:10px; }
+.kb-empty { text-align:center; font-size:12px; color:var(--kb-ink-muted); padding:22px 8px; user-select:none; }
+
+/* Card */
+.kb-card { position:relative; flex:none; background:var(--kb-card); border:1px solid var(--kb-card-border); border-radius:15px; box-shadow:var(--kb-card-shadow); cursor:pointer; overflow:hidden; transition:transform .35s cubic-bezier(.16,1,.3,1), box-shadow .35s cubic-bezier(.16,1,.3,1); }
+.kb-card:hover { transform:translateY(-4px); box-shadow:var(--kb-card-shadow-hover); }
+.kb-card.kb-card--selected { transform:translateY(-2px); box-shadow:var(--kb-card-shadow-selected); }
+.kb-card.kb-card--selected:hover { transform:translateY(-4px); }
+.kb-card-pad { padding:13px 14px 12px; }
+.kb-board[data-density="compact"] .kb-card-pad { padding:10px 11px; }
+.kb-drag { position:absolute; top:6px; right:8px; width:22px; height:16px; display:grid; place-items:center; color:var(--kb-ink-muted); opacity:0; transition:opacity .2s cubic-bezier(.16,1,.3,1); cursor:grab; }
+.kb-card:hover .kb-drag { opacity:.7; }
+.kb-drag:active { cursor:grabbing; }
+.kb-nm { margin:0; font-size:16.5px; font-weight:650; letter-spacing:-0.015em; line-height:1.15; color:var(--kb-ink); }
+.kb-board[data-density="compact"] .kb-nm { font-size:14.5px; }
+.kb-phone-row { display:flex; align-items:center; gap:7px; margin-top:3px; }
+.kb-phone { font-size:14px; font-weight:600; color:var(--kb-accent); text-decoration:none; }
+.kb-phone:hover { text-decoration:underline; }
+.kb-board[data-density="compact"] .kb-phone { font-size:12.5px; }
+.kb-copy { font-size:10px; font-weight:600; color:var(--kb-ink-muted); border:1px solid transparent; border-radius:6px; padding:2px 6px; background:transparent; cursor:pointer; opacity:0; transition:opacity .2s, background .2s, color .2s; }
+.kb-card:hover .kb-copy { opacity:1; }
+.kb-copy:hover { background:var(--kb-inset); color:var(--kb-ink); }
+.kb-copy.kb-copy--done { opacity:1; background:#10b981; color:#fff; border-color:#10b981; }
+.kb-grid { margin-top:11px; background:var(--kb-inset); border:1px solid var(--kb-border); border-radius:12px; padding:10px 12px; display:flex; flex-direction:column; gap:6px; box-shadow:inset 0 1px 2px rgba(var(--kb-shadow-hue),0.06); }
+.kb-board[data-density="compact"] .kb-grid { padding:8px 10px; gap:4px; margin-top:8px; }
+.kb-row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.kb-k { font-size:11px; color:var(--kb-ink-muted); white-space:nowrap; }
+.kb-v { font-size:12.5px; font-weight:600; color:var(--kb-ink); text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.kb-board[data-density="compact"] .kb-k { font-size:10px; }
+.kb-board[data-density="compact"] .kb-v { font-size:11.5px; }
+.kb-badges { display:flex; align-items:center; gap:7px; margin-top:11px; }
+.kb-board[data-density="compact"] .kb-badges { margin-top:8px; }
+.kb-pill { font-size:11px; font-weight:600; padding:3px 9px; border-radius:999px; border:1px solid; white-space:nowrap; line-height:1.35; }
+.kb-board[data-density="compact"] .kb-pill { font-size:10px; padding:2px 7px; }
+.kb-pill--ok { background:var(--kb-ok-t); color:var(--kb-ok-f); border-color:var(--kb-ok-b); }
+.kb-pill--warn { background:var(--kb-warn-t); color:var(--kb-warn-f); border-color:var(--kb-warn-b); }
+.kb-pill--crit { background:var(--kb-crit-t); color:var(--kb-crit-f); border-color:var(--kb-crit-b); }
+.kb-pill--info { background:var(--kb-info-t); color:var(--kb-info-f); border-color:var(--kb-info-b); }
+.kb-pill--src { background:var(--kb-inset); color:var(--kb-ink-soft); border-color:var(--kb-border-strong); }
+.kb-pill--neutral { background:color-mix(in srgb, var(--kb-ink) 8%, transparent); color:var(--kb-ink-soft); border-color:var(--kb-border-strong); }
+.kb-pill--push { margin-left:auto; }
+.kb-fresh::after { content:""; position:absolute; inset:-1px; border-radius:15px; pointer-events:none; animation:kb-pulse 2.4s cubic-bezier(.16,1,.3,1) infinite; }
+@keyframes kb-pulse { 0%{box-shadow:0 0 0 0 color-mix(in srgb, var(--kb-accent) 42%, transparent);} 60%{box-shadow:0 0 0 7px color-mix(in srgb, var(--kb-accent) 0%, transparent);} 100%{box-shadow:0 0 0 0 color-mix(in srgb, var(--kb-accent) 0%, transparent);} }
+
+/* Toolbar: density control + Compact Cards toggle */
+.kb-toolbar-controls { flex:none; display:flex; align-items:center; gap:8px; }
+.kb-compact-toggle { display:inline-flex; align-items:center; gap:6px; font:inherit; font-size:12.5px; font-weight:600; color:var(--kb-ink-muted); border:1px solid var(--kb-border); background:color-mix(in srgb, var(--kb-ink) 5%, transparent); padding:6px 12px; border-radius:12px; cursor:pointer; white-space:nowrap; transition:color .2s, background .2s, border-color .2s; }
+.kb-compact-toggle:hover { color:var(--kb-ink); }
+.kb-compact-toggle[aria-pressed="true"] { color:var(--crm-accent-contrast); background:var(--crm-accent); border-color:var(--crm-accent); }
+.kb-compact-toggle svg { flex:none; }
+
+/* Archived cards: archive-reason badge on its own line beneath the phone,
+   in every density mode — never crammed next to the name. */
+.kb-archive-line { margin-top:6px; }
+.kb-archive-line .kb-pill { display:inline-block; }
+
+@media (prefers-reduced-motion: reduce) {
+  .kb-card { transition-duration:.001ms; }
+  .kb-fresh::after { animation-duration:.001ms; }
+}
+
+/* ==========================================================
+   AGENDA (Follow-Ups sidebar) — inherits the Kanban card
+   language: same darker card surfaces, borders, shadows and
+   selection ring, kept compact for scanning dozens of tasks.
+   The panel recedes (column surface); task cards are the focus.
+   ========================================================== */
+.ag-root { display:flex; flex-direction:column; height:100%; min-width:0; }
+.ag-head { flex:none; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:11px 14px; border-bottom:1px solid var(--kb-col-border); }
+.ag-title { margin:0; font-size:11px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--kb-ink-soft); }
+.ag-head-right { display:flex; align-items:center; gap:6px; }
+.ag-count { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; padding:0 6px; border-radius:999px; background:var(--kb-crit-f); color:#fff; font-size:10px; font-weight:700; font-variant-numeric:tabular-nums; }
+.ag-collapse { width:22px; height:22px; display:grid; place-items:center; border-radius:7px; border:0; background:transparent; color:var(--kb-ink-muted); cursor:pointer; transition:color .2s, background .2s; }
+.ag-collapse:hover { color:var(--kb-ink); background:color-mix(in srgb, var(--kb-ink) 8%, transparent); }
+.ag-collapse svg { width:13px; height:13px; }
+
+.ag-filter { flex:none; display:flex; padding:3px; gap:2px; margin:8px 12px 4px; border-radius:10px; border:1px solid var(--kb-border); background:color-mix(in srgb, var(--kb-ink) 5%, transparent); }
+.ag-filter button { flex:1; font:inherit; font-size:10.5px; font-weight:700; letter-spacing:0.02em; color:var(--kb-ink-muted); border:0; background:transparent; padding:5px 0; border-radius:7px; cursor:pointer; transition:color .2s, background .2s; }
+.ag-filter button[aria-pressed="true"] { color:var(--kb-ink); background:color-mix(in srgb, var(--kb-ink) 12%, transparent); }
+
+.ag-list { flex:1 1 auto; min-height:0; overflow-y:auto; padding:8px 12px 12px; display:flex; flex-direction:column; gap:8px; }
+
+.ag-card { position:relative; flex:none; background:var(--kb-card); border:1px solid var(--kb-card-border); border-radius:12px; box-shadow:var(--kb-card-shadow); padding:8px 11px 8px 16px; cursor:pointer; transition:transform .25s cubic-bezier(.16,1,.3,1), box-shadow .25s cubic-bezier(.16,1,.3,1); }
+.ag-card:hover { transform:translateY(-1px); box-shadow:var(--kb-card-shadow-hover); }
+.ag-card.ag-card--selected { transform:translateY(-1px); box-shadow:var(--kb-card-shadow-selected); }
+
+/* Thin accent strip (color-codeable by urgency / task type). */
+.ag-strip { position:absolute; left:7px; top:8px; bottom:8px; width:3px; border-radius:999px; background:var(--kb-info-f); }
+.ag-strip--crit { background:var(--kb-crit-f); }
+.ag-strip--warn { background:var(--kb-warn-f); }
+
+.ag-name { margin:0; font-size:13px; font-weight:650; letter-spacing:-0.01em; line-height:1.2; color:var(--kb-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ag-action { margin:3px 0 0; font-size:11.5px; font-weight:500; color:var(--kb-ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ag-due { margin:2px 0 0; font-size:10.5px; font-weight:600; }
+.ag-due--crit { color:var(--kb-crit-f); }
+.ag-due--warn { color:var(--kb-warn-f); }
+
+.ag-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; padding:36px 10px; text-align:center; }
+.ag-empty-ic { width:30px; height:30px; border-radius:999px; background:color-mix(in srgb, var(--kb-ink) 8%, transparent); display:grid; place-items:center; color:var(--kb-ink-muted); }
+.ag-empty p { margin:0; font-size:11.5px; color:var(--kb-ink-muted); line-height:1.4; }
+@media (prefers-reduced-motion: reduce) { .ag-card { transition-duration:.001ms; } }

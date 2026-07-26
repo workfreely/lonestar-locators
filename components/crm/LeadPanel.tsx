@@ -330,7 +330,7 @@ export default function LeadPanel({
 
   function getFUStyle(step: number) {
     if (Number(followUps) === step)
-      return "bg-blue-600 text-white border-blue-600 shadow-sm"
+      return "crm-cta shadow-sm"
     if (Number(followUps) > step)
       return "bg-[var(--crm-inset)] text-[var(--crm-text-muted)] border-[var(--crm-border)]"
     return "bg-[var(--crm-panel)] text-[var(--crm-text-secondary)] border-[var(--crm-border)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)]"
@@ -858,8 +858,8 @@ export default function LeadPanel({
             </h2>
             {lead.phone && (
               <a
-                href={`sms:${lead.phone}`}
-                className="text-lg text-blue-600 font-semibold mt-0.5 mb-1.5 block hover:underline"
+                href={`tel:${lead.phone}`}
+                className="text-lg font-semibold text-[var(--kb-accent)] mt-0.5 mb-1.5 block hover:underline"
               >
                 {formatPhone(lead.phone)}
               </a>
@@ -950,7 +950,7 @@ export default function LeadPanel({
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={handleFirstText}
-              className="text-xs font-semibold px-3 py-2 rounded-lg border bg-gray-900 text-white border-gray-900 hover:bg-gray-800 transition-colors"
+              className="crm-cta text-xs font-semibold px-3 py-2 rounded-lg border"
             >
                 Contact Lead
               </button>
@@ -1060,7 +1060,7 @@ export default function LeadPanel({
                       <button
                         type="button"
                         onClick={handleMessageClient}
-                        className="text-[11.5px] font-semibold px-3 py-1.5 rounded-lg border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                        className="crm-cta-soft text-[11.5px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
                       >
                         {contactPref === "ask" ? "Message" : "Message Client"}
                       </button>
@@ -1069,7 +1069,7 @@ export default function LeadPanel({
                       <button
                         type="button"
                         onClick={handleCallClientAction}
-                        className="text-[11.5px] font-semibold px-3 py-1.5 rounded-lg border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                        className="crm-cta-soft text-[11.5px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
                       >
                         {contactPref === "ask" ? "Call" : "Call Client"}
                       </button>
@@ -1079,7 +1079,7 @@ export default function LeadPanel({
                   <button
                     type="button"
                     onClick={handleMessageClient}
-                    className="text-[11.5px] font-semibold px-3 py-1.5 rounded-lg border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                    className="crm-cta-soft text-[11.5px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
                   >
                     Message Client
                   </button>
@@ -1175,7 +1175,7 @@ export default function LeadPanel({
                       rel="noopener noreferrer"
                       className="min-w-0 flex-1"
                     >
-                      <p className="text-[12.5px] font-semibold text-blue-600 hover:underline truncate">
+                      <p className="text-[12.5px] font-semibold text-[var(--crm-accent)] hover:underline truncate">
                         {fav.property_name || fav.property_url}
                       </p>
                       {fav.property_address && (
@@ -1297,7 +1297,7 @@ export default function LeadPanel({
                 .select("*")
             }}
             placeholder="Internal notes about this client..."
-            className="w-full h-24 text-[12.5px] bg-[var(--crm-inset)] border border-[var(--crm-border)] rounded-xl px-3 py-2 resize-none text-[var(--crm-text-primary)] placeholder-[var(--crm-text-muted)] focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-shadow"
+            className="w-full h-24 text-[12.5px] bg-[var(--crm-inset)] border border-[var(--crm-border)] rounded-xl px-3 py-2 resize-none text-[var(--crm-text-primary)] placeholder-[var(--crm-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--crm-accent)] focus:border-transparent transition-shadow"
           />
         </CollapsibleNotes>
 

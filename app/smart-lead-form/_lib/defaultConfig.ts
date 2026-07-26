@@ -23,6 +23,7 @@ export const DEFAULT_CONFIG: SmartLeadFormConfig = {
     logoUrl: null,
     agentPhotoUrl: null,
     agentPhotoSize: "medium",
+    profileImagePosition: "underHeadline",
     heroTheme: "custom",
     heroImageUrl: null,
     heroOverlay: "medium",

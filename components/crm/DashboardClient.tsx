@@ -94,16 +94,10 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
       {/* ─── BODY ─── */}
       <div className="relative flex-1 flex overflow-hidden">
 
-        {/* Background (behind board only) */}
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{
-            backgroundImage:
-              "url('https://res.cloudinary.com/dxtiguwzm/image/upload/v1747937030/lone-star-locators-san-antonio-texas-free-apartment-locating_trgkaj.jpg')",
-            filter: "brightness(0.55) saturate(0.8)",
-          }}
-        />
-        <div className="absolute inset-0 bg-black/35" />
+        {/* Workspace background comes from the board's own themed surface
+            (.kb-workspace) and the container gradient above. The old dark
+            Texas-photo backdrop was retired with the design refresh so the
+            workspace recedes and the lead cards become the focal point. */}
 
         {/* Workspace veil — when the Lead Detail Overlay is open, covers
             the dark board backdrop everywhere right of the Follow-Ups
@@ -116,12 +110,14 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
           <div className={`absolute top-2 bottom-2 ${followUpsOpen ? "left-[228px]" : "left-[48px]"} right-0 bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]`} />
         )}
 
-        {/* LEFT SIDEBAR — Follow-ups */}
+        {/* LEFT SIDEBAR — Agenda (Follow-ups). Recessed column-like panel so
+            its task cards (Kanban card surfaces) read as the focus. */}
         {followUpsOpen ? (
-          <div className="relative z-10 flex-none w-[220px] my-2 ml-2 rounded-xl border border-white/20 bg-white/10 backdrop-blur-xl shadow-[0_4px_24px_rgba(0,0,0,0.12)] overflow-y-auto">
+          <div className="relative z-10 flex-none w-[220px] my-2 ml-2 rounded-xl overflow-hidden bg-[var(--kb-col)] border border-[var(--kb-col-border)] shadow-[var(--kb-col-shadow)]">
             <FollowUpRow
               leads={localLeads}
               nextActions={localNextActions}
+              selectedLeadId={selectedLeadId}
               onSelectLead={(id) => {
                 setSelectedLeadId(id)
                 router.push(`/admin/leads?id=${id}`)
@@ -130,10 +126,10 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
             />
           </div>
         ) : (
-          <div className="relative z-10 flex-none w-10 my-2 ml-2 rounded-xl border border-white/20 bg-white/10 backdrop-blur-xl shadow-[0_4px_24px_rgba(0,0,0,0.12)] flex items-start justify-center pt-3">
+          <div className="relative z-10 flex-none w-10 my-2 ml-2 rounded-xl bg-[var(--kb-col)] border border-[var(--kb-col-border)] shadow-[var(--kb-col-shadow)] flex items-start justify-center pt-3">
             <button
               onClick={toggleFollowUps}
-              className="w-6 h-6 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+              className="w-6 h-6 flex items-center justify-center rounded-lg text-[var(--kb-ink-muted)] hover:text-[var(--kb-ink)] transition-colors"
               aria-label="Expand Agenda"
               title="Expand Agenda"
             >

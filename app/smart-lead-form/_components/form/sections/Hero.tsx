@@ -2,6 +2,8 @@ import type { SmartLeadFormConfig } from "../../../_lib/types"
 import { getHeroTheme } from "../../../_lib/heroThemes"
 import { agentPhotoOverlapRem } from "../../../_lib/agentPhotoSizes"
 import Highlights from "./Highlights"
+import AgentPhoto from "./AgentPhoto"
+import AgentInfoText from "./AgentInfoText"
 
 const OVERLAY_OPACITY: Record<SmartLeadFormConfig["branding"]["heroOverlay"], string> = {
   light: "bg-black/30",
@@ -25,20 +27,39 @@ const HERO_BOTTOM_PADDING_PX = 32
 // hero's own bottom edge, never a separate white section.
 export default function Hero({ config }: { config: SmartLeadFormConfig }) {
   const { headline, subheadline } = config.copy
-  const { heroTheme, heroImageUrl, heroOverlay, logoUrl, agentPhotoSize } = config.branding
+  const { heroTheme, heroImageUrl, heroOverlay, logoUrl, agentPhotoSize, profileImagePosition } = config.branding
   const { highlights: showHighlights, agentProfile: showAgentProfile } = config.sections.visibility
 
   // "custom" uses the locator's own upload; any built-in theme uses its
   // bundled default image once that photography exists.
   const backgroundUrl = heroTheme === "custom" ? heroImageUrl : getHeroTheme(heroTheme).defaultImageUrl
 
-  const heroBottomPadding = showAgentProfile
+  const showPhotoUnderHeadline = showAgentProfile && profileImagePosition === "underHeadline"
+  const showOverlappingPhotoBelow = showAgentProfile && !showPhotoUnderHeadline
+
+  const heroBottomPadding = showOverlappingPhotoBelow
     ? `calc(${agentPhotoOverlapRem(agentPhotoSize)}rem + ${HERO_TO_PHOTO_GAP_PX}px)`
     : `${HERO_BOTTOM_PADDING_PX}px`
 
+  // Subheadline and Highlights keep their own existing margin classes no
+  // matter which order they render in — reordering them (Under Headline
+  // only) never invents new spacing values, it just changes which
+  // existing gap ends up next to which element.
+  const subheadlineNode = (
+    <p className="mx-auto mt-2.5 max-w-md break-words text-[15px] leading-relaxed text-white/80 sm:text-[17px]">
+      {subheadline}
+    </p>
+  )
+
+  const highlightsNode = showHighlights && (
+    <div className="mt-5">
+      <Highlights config={config} />
+    </div>
+  )
+
   return (
     <section
-      className="relative overflow-hidden bg-[#0b0f1a] px-5 pt-9 text-center text-white sm:px-8 sm:pt-12"
+      className="relative overflow-hidden bg-[#0b0f1a] px-5 pt-5 text-center text-white sm:px-8 sm:pt-8"
       style={{ paddingBottom: heroBottomPadding }}
     >
       {backgroundUrl && (
@@ -55,15 +76,22 @@ export default function Hero({ config }: { config: SmartLeadFormConfig }) {
           <img src={logoUrl} alt="" className="mx-auto mb-4 h-8 w-auto object-contain" />
         )}
 
-        <h1 className="text-[28px] font-semibold leading-[1.15] tracking-tight sm:text-[38px]">{headline}</h1>
-        <p className="mx-auto mt-2.5 max-w-md text-[15px] leading-relaxed text-white/80 sm:text-[17px]">
-          {subheadline}
-        </p>
+        <h1 className="break-words text-[28px] font-semibold leading-[1.15] tracking-tight sm:text-[38px]">{headline}</h1>
 
-        {showHighlights && (
-          <div className="mt-5">
-            <Highlights config={config} />
-          </div>
+        {showPhotoUnderHeadline ? (
+          <>
+            <div className="mt-4 flex justify-center">
+              <AgentPhoto config={config} />
+            </div>
+            <AgentInfoText config={config} theme="dark" />
+            {highlightsNode}
+            {subheadlineNode}
+          </>
+        ) : (
+          <>
+            {subheadlineNode}
+            {highlightsNode}
+          </>
         )}
       </div>
     </section>

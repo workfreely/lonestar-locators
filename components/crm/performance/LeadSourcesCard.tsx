@@ -40,13 +40,14 @@ export default function LeadSourcesCard({ leads }: { leads: any[] }) {
           return (
             <div key={source} className="flex items-center gap-3">
               <span
-                className={`flex-none text-[11px] font-semibold px-2 py-0.5 rounded-full border ${style.badgeClassName}`}
+                className="flex-none text-[11px] font-semibold px-2 py-0.5 rounded-full border crm-src-pill"
+                style={{ ["--src-color"]: style.color } as React.CSSProperties}
               >
                 {style.label}
               </span>
               <div className="flex-1 h-2 bg-[var(--crm-inset)] rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                  className="h-full bg-[var(--kb-accent)] rounded-full transition-all duration-500"
                   style={{ width: `${pct}%` }}
                 />
               </div>

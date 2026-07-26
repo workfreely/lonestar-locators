@@ -61,7 +61,8 @@ export default function PerformanceStats({ leads }: { leads: any[] }) {
         <div className="mt-1">
           {topSource ? (
             <span
-              className={`inline-block text-sm font-semibold px-2.5 py-1 rounded-full border ${getSourceStyle(topSource).badgeClassName}`}
+              className="inline-block text-sm font-semibold px-2.5 py-1 rounded-full border crm-src-pill"
+              style={{ ["--src-color"]: getSourceStyle(topSource).color } as React.CSSProperties}
             >
               {getSourceStyle(topSource).label}
             </span>

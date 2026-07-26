@@ -39,6 +39,12 @@ export type SmartLeadFormConfig = {
     logoUrl: string | null
     agentPhotoUrl: string | null
     agentPhotoSize: "small" | "medium" | "large"
+    // "overlapping" (default) keeps the agent photo where it's always
+    // been — overlapping the hero's bottom edge, after Highlights.
+    // "underHeadline" moves only the photo itself to sit directly under
+    // the headline, before the subheadline; everything else (Highlights,
+    // Agent Information's text, sizing) is unaffected.
+    profileImagePosition: "overlapping" | "underHeadline"
     // "custom" reads heroImageUrl below; any other value is a built-in city
     // theme and reads its bundled default image instead (see heroThemes.ts).
     heroTheme: HeroThemeId

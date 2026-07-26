@@ -7,7 +7,7 @@ export default function StepCard({
   children,
 }: {
   eyebrow?: string;
-  title: string;
+  title?: string;
   subtitle?: string;
   children: ReactNode;
 }) {
@@ -18,9 +18,11 @@ export default function StepCard({
           {eyebrow}
         </p>
       )}
-      <h1 className={`text-[26px] font-semibold tracking-tight text-[var(--beast-ink)] ${eyebrow ? "mt-2" : ""}`}>
-        {title}
-      </h1>
+      {title && (
+        <h1 className={`text-[26px] font-semibold tracking-tight text-[var(--beast-ink)] ${eyebrow ? "mt-2" : ""}`}>
+          {title}
+        </h1>
+      )}
       {subtitle && <p className="mt-2 text-[15px] leading-relaxed text-[var(--beast-ink-soft)]">{subtitle}</p>}
       <div className="mt-8">{children}</div>
     </div>

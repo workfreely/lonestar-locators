@@ -13,6 +13,10 @@ const AFTER_FORM_REGISTRY: Record<AfterFormSectionId, (config: SmartLeadFormConf
 
 export default function SmartLeadForm({ config }: { config: SmartLeadFormConfig }) {
   const { afterForm, visibility } = config.sections
+  // Under Headline puts the photo and agent info text inside Hero itself,
+  // so AgentProfile (the white, overlapping-only section) is only rendered
+  // for the Overlapping position.
+  const showOverlappingAgentProfile = visibility.agentProfile && config.branding.profileImagePosition !== "underHeadline"
 
   return (
     <div className="min-h-full bg-white">
@@ -21,7 +25,7 @@ export default function SmartLeadForm({ config }: { config: SmartLeadFormConfig 
           always the very next sibling so its photo overlaps Hero's own
           bottom edge, not a section that could land between them. */}
       <Hero config={config} />
-      {visibility.agentProfile && <AgentProfile config={config} />}
+      {showOverlappingAgentProfile && <AgentProfile config={config} />}
 
       <LeadFormFields config={config} />
 

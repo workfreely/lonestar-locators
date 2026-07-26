@@ -21,33 +21,35 @@
 
 export type SourceStyle = {
   label: string
-  badgeClassName: string // pill classes: bg + text + border
+  badgeClassName: string // legacy pastel pill classes (still used by the Lead Panel badge)
   barColor: string // hex, for chart/bar/dot visualizations
+  color: string // identity hue for the theme-aware .crm-src-pill (tinted on the workspace)
 }
 
 const KNOWN_SOURCES: Record<string, SourceStyle> = {
-  website:   { label: "Website",   badgeClassName: "bg-emerald-50 text-emerald-700 border-emerald-200", barColor: "#6b7280" },
-  tiktok:    { label: "TikTok",    badgeClassName: "bg-amber-50 text-amber-700 border-amber-200",       barColor: "#111827" },
-  facebook:  { label: "Facebook",  badgeClassName: "bg-blue-50 text-blue-700 border-blue-200",          barColor: "#2563eb" },
-  instagram: { label: "Instagram", badgeClassName: "bg-purple-50 text-purple-700 border-purple-200",    barColor: "#ec4899" },
-  youtube:   { label: "YouTube",   badgeClassName: "bg-red-50 text-red-700 border-red-200",             barColor: "#dc2626" },
-  referral:  { label: "Referral",  badgeClassName: "bg-orange-50 text-orange-700 border-orange-200",    barColor: "#ea580c" },
-  direct:    { label: "Website",   badgeClassName: "bg-emerald-50 text-emerald-700 border-emerald-200", barColor: "#6b7280" },
-  manual:    { label: "Manual",    badgeClassName: "bg-gray-50 text-gray-600 border-gray-200",          barColor: "#6b7280" },
+  website:   { label: "Website",   badgeClassName: "bg-emerald-50 text-emerald-700 border-emerald-200", barColor: "#6b7280", color: "#10b981" },
+  tiktok:    { label: "TikTok",    badgeClassName: "bg-amber-50 text-amber-700 border-amber-200",       barColor: "#111827", color: "#f59e0b" },
+  facebook:  { label: "Facebook",  badgeClassName: "bg-blue-50 text-blue-700 border-blue-200",          barColor: "#2563eb", color: "#3b82f6" },
+  instagram: { label: "Instagram", badgeClassName: "bg-purple-50 text-purple-700 border-purple-200",    barColor: "#ec4899", color: "#a855f7" },
+  youtube:   { label: "YouTube",   badgeClassName: "bg-red-50 text-red-700 border-red-200",             barColor: "#dc2626", color: "#ef4444" },
+  referral:  { label: "Referral",  badgeClassName: "bg-orange-50 text-orange-700 border-orange-200",    barColor: "#ea580c", color: "#f97316" },
+  direct:    { label: "Website",   badgeClassName: "bg-emerald-50 text-emerald-700 border-emerald-200", barColor: "#6b7280", color: "#10b981" },
+  manual:    { label: "Manual",    badgeClassName: "bg-gray-50 text-gray-600 border-gray-200",          barColor: "#6b7280", color: "#94a3b8" },
 
   // First-class as of this update — previously only existed in a dead,
   // never-rendered map, so it had no real "existing" color to preserve.
-  google: { label: "Google", badgeClassName: "bg-green-50 text-green-700 border-green-200", barColor: "#16a34a" },
+  google: { label: "Google", badgeClassName: "bg-green-50 text-green-700 border-green-200", barColor: "#16a34a", color: "#22c55e" },
 
   // Future-ready: no leads use this yet. Covers leads that come through
   // Vapi, a chat widget, or other AI-driven intake tools once wired up —
   // whichever of those eventually writes `source`, it should write
   // "ai_assistant" to get this styling rather than falling back to gray.
-  ai_assistant: { label: "AI Assistant", badgeClassName: "bg-indigo-50 text-indigo-700 border-indigo-200", barColor: "#4f46e5" },
+  ai_assistant: { label: "AI Assistant", badgeClassName: "bg-indigo-50 text-indigo-700 border-indigo-200", barColor: "#4f46e5", color: "#6366f1" },
 }
 
 const FALLBACK_BADGE_CLASS = "bg-gray-50 text-gray-600 border-gray-200"
 const FALLBACK_BAR_COLOR = "#9ca3af"
+const FALLBACK_COLOR = "#94a3b8"
 
 /** Simple capitalize-first-letter, matching the convention LeadCard/LeadPanel already used for known sources. */
 function capitalize(s: string): string {
@@ -61,7 +63,7 @@ function capitalize(s: string): string {
  */
 export function getSourceStyle(source: string | null | undefined): SourceStyle {
   if (!source) {
-    return { label: "Unknown", badgeClassName: FALLBACK_BADGE_CLASS, barColor: FALLBACK_BAR_COLOR }
+    return { label: "Unknown", badgeClassName: FALLBACK_BADGE_CLASS, barColor: FALLBACK_BAR_COLOR, color: FALLBACK_COLOR }
   }
 
   const known = KNOWN_SOURCES[source.toLowerCase()]
@@ -71,6 +73,7 @@ export function getSourceStyle(source: string | null | undefined): SourceStyle {
     label: capitalize(source),
     badgeClassName: FALLBACK_BADGE_CLASS,
     barColor: FALLBACK_BAR_COLOR,
+    color: FALLBACK_COLOR,
   }
 }
 

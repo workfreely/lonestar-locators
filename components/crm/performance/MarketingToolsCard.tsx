@@ -3,15 +3,13 @@
 import { useState } from "react"
 import CollapsibleSection from "@/components/crm/CollapsibleSection"
 
-// Central list of marketing links. Add new rows here as they're needed
-// (Apartment Search, Luxury Apartments, Second Chance, Buy New Home,
-// city-specific campaigns, QR codes, etc.) — each entry renders as its
-// own row with no other changes required.
-const MARKETING_LINKS: { label: string; url: string }[] = [
-  { label: "Instagram", url: "https://www.lonestarlocators.app/get-my-list?utm_source=instagram&utm_medium=organic_social" },
-  { label: "TikTok", url: "https://www.lonestarlocators.app/get-my-list?utm_source=tiktok&utm_medium=organic_social" },
-  { label: "Facebook", url: "https://www.lonestarlocators.app/get-my-list?utm_source=facebook&utm_medium=organic_social" },
-  { label: "YouTube", url: "https://www.lonestarlocators.app/get-my-list?utm_source=youtube&utm_medium=organic_social" },
+// Central list of shareable per-platform links. Add new rows here as needed
+// — each entry renders as its own row with no other changes required.
+const SHARE_LINKS: { label: string; url: string }[] = [
+  { label: "Instagram", url: "https://locatorbeast.com/jaymorris?utm_source=instagram" },
+  { label: "TikTok", url: "https://locatorbeast.com/jaymorris?utm_source=tiktok" },
+  { label: "Facebook", url: "https://locatorbeast.com/jaymorris?utm_source=facebook" },
+  { label: "YouTube", url: "https://locatorbeast.com/jaymorris?utm_source=youtube" },
 ]
 
 export default function MarketingToolsCard() {
@@ -37,9 +35,9 @@ export default function MarketingToolsCard() {
   }
 
   return (
-    <CollapsibleSection title="Marketing Tools" storageKey="marketing-tools-expanded" defaultOpen={false}>
+    <CollapsibleSection title="Share Links" storageKey="marketing-tools-expanded" defaultOpen={false}>
       <div className="p-4">
-        {MARKETING_LINKS.map((link) => (
+        {SHARE_LINKS.map((link) => (
           <div
             key={link.label}
             className="flex items-center gap-4 py-3 border-b border-[var(--crm-border-soft)] last:border-0"

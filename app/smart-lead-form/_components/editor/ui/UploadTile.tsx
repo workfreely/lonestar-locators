@@ -25,7 +25,7 @@ export default function UploadTile({
   }
 
   return (
-    <div className="flex flex-col gap-1.5 py-2">
+    <div className="flex flex-col items-center gap-1.5 py-2 text-center">
       <label className="text-[12px] font-semibold text-[#6b7280]">{label}</label>
       <div
         onDragOver={(e) => {
@@ -69,7 +69,7 @@ export default function UploadTile({
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
-        className="self-start text-[12px] font-semibold text-[#2f6bff] hover:text-[#5b8bff]"
+        className="text-[12px] font-semibold text-[#2f6bff] hover:text-[#5b8bff]"
       >
         {imageUrl ? "Replace" : "Upload"}
       </button>

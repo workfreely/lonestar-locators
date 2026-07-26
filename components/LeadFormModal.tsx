@@ -200,7 +200,7 @@ export default function LeadFormModal({
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-2xl text-sm font-semibold transition"
+            className="crm-cta px-5 py-3 rounded-2xl text-sm font-semibold"
           >
             {loading ? "Creating..." : "Create Lead"}
           </button>

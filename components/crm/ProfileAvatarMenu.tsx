@@ -4,17 +4,19 @@ import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/client"
 import { useTheme } from "@/components/theme/ThemeProvider"
-import type { ThemePreference } from "@/lib/theme"
+import type { CrmTheme } from "@/lib/theme"
 import {
   readFirstContactPreference,
   writeFirstContactPreference,
   type FirstContactPreference,
 } from "@/lib/preferences"
 
-const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
-  { value: "light", label: "Light" },
-  { value: "dark", label: "Dark" },
-  { value: "system", label: "System" },
+const THEME_OPTIONS: { value: CrmTheme; label: string; swatch: string }[] = [
+  { value: "midnight", label: "Midnight", swatch: "#2f6bff" },
+  { value: "obsidian", label: "Obsidian", swatch: "#0d0e12" },
+  { value: "rose", label: "Rose", swatch: "#e06a8c" },
+  { value: "evergreen", label: "Evergreen", swatch: "#34c288" },
+  { value: "purple", label: "Purple", swatch: "#a06bf0" },
 ]
 
 const CONTACT_OPTIONS: { value: FirstContactPreference; label: string }[] = [
@@ -51,7 +53,7 @@ function SegmentedControl<T extends string>({
             "flex-1 py-1 px-1 text-[10.5px] font-semibold transition-colors whitespace-nowrap",
             i !== 0 ? "border-l border-[var(--crm-border)]" : "",
             value === opt.value
-              ? "bg-blue-600 text-white"
+              ? "bg-[var(--crm-accent)] text-[var(--crm-accent-contrast)]"
               : "bg-[var(--crm-inset)] text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]",
           ].join(" ")}
         >
@@ -79,6 +81,7 @@ function ChevronIcon({ open }: { open: boolean }) {
 // Appearance (the Light/Dark/System theme setting) and the preferred
 // first-contact method (Text/Call/Ask Each Time), both scaffolded inline
 // here since neither has — or needs — a dedicated settings page yet.
+// Appearance offers the workspace themes: Midnight, Obsidian, Rose, Evergreen, Purple.
 export default function ProfileAvatarMenu() {
   const router = useRouter()
   const { preference, setPreference } = useTheme()
@@ -124,7 +127,7 @@ export default function ProfileAvatarMenu() {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-[12px] font-semibold overflow-hidden flex-none transition-shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-1"
+        className="w-8 h-8 rounded-full bg-[var(--crm-accent)] flex items-center justify-center text-[var(--crm-accent-contrast)] text-[12px] font-semibold overflow-hidden flex-none transition-shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--crm-accent)] focus-visible:ring-offset-1"
         aria-label="Account menu"
         aria-expanded={open}
       >
@@ -162,7 +165,7 @@ export default function ProfileAvatarMenu() {
             </div>
           )}
 
-          {/* Appearance — the Light/Dark/System setting */}
+          {/* Appearance — workspace theme picker (wrapping pills scale past 5) */}
           <button
             type="button"
             onClick={() => setExpanded((s) => (s === "appearance" ? null : "appearance"))}
@@ -172,8 +175,35 @@ export default function ProfileAvatarMenu() {
             <ChevronIcon open={expanded === "appearance"} />
           </button>
           {expanded === "appearance" && (
-            <div className="px-3.5 pb-2.5 pt-0.5">
-              <SegmentedControl options={THEME_OPTIONS} value={preference} onChange={setPreference} />
+            <div className="px-3.5 pb-2.5 pt-1">
+              <p className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-2">
+                Workspace
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {THEME_OPTIONS.map((opt) => {
+                  const active = preference === opt.value
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setPreference(opt.value)}
+                      aria-pressed={active}
+                      className={[
+                        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                        active
+                          ? "bg-[var(--crm-accent)] text-[var(--crm-accent-contrast)] border-[var(--crm-accent)]"
+                          : "border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)] hover:bg-[var(--crm-card)]",
+                      ].join(" ")}
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-full flex-none"
+                        style={{ background: opt.swatch, boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.18)" }}
+                      />
+                      {opt.label}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           )}
 

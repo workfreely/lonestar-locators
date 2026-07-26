@@ -16,13 +16,13 @@ export default function Testimonials({ config }: { config: SmartLeadFormConfig }
                   <HiStar key={j} className="h-3.5 w-3.5" />
                 ))}
               </div>
-              <p className="mt-2.5 text-[14px] leading-relaxed text-[#3a3f4d]">&ldquo;{t.quote}&rdquo;</p>
-              <div className="mt-3 flex items-center gap-2.5">
+              <p className="mt-2.5 break-words text-[14px] leading-relaxed text-[#3a3f4d]">&ldquo;{t.quote}&rdquo;</p>
+              <div className="mt-3 flex min-w-0 items-center gap-2.5">
                 {t.photoUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={t.photoUrl} alt={t.name} className="h-8 w-8 rounded-full object-cover" />
+                  <img src={t.photoUrl} alt={t.name} className="h-8 w-8 shrink-0 rounded-full object-cover" />
                 )}
-                <p className="text-[12.5px] font-semibold text-[#111318]">
+                <p className="min-w-0 break-words text-[12.5px] font-semibold text-[#111318]">
                   {t.name}
                   {t.city && <span className="font-normal text-[#9098a8]"> — {t.city}</span>}
                 </p>

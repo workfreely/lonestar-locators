@@ -44,11 +44,11 @@ export default function PerformanceClient({ leads, dashboardLeads }: { leads: an
             styling now matches this page's own cards instead of the
             Dashboard's edge-to-edge treatment, since it no longer sits
             directly under a flex-col header. */}
-        <CollapsibleSection title="Business Overview" storageKey="dashboard-metrics-expanded">
+        <CollapsibleSection title="Sales Overview" storageKey="dashboard-metrics-expanded">
           <DashboardStats leads={dashboardLeads} />
         </CollapsibleSection>
 
-        <CollapsibleSection title="Performance Analytics" storageKey="performance-metrics-expanded">
+        <CollapsibleSection title="Marketing Analytics" storageKey="performance-metrics-expanded">
           <div className="p-4">
             <PerformanceStats leads={leads} />
           </div>

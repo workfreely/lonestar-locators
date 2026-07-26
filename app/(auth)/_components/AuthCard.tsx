@@ -8,7 +8,7 @@ export default function AuthCard({
 }: {
   title: string;
   subtitle?: string;
-  children: ReactNode;
+  children?: ReactNode;
   footer?: ReactNode;
 }) {
   return (

@@ -77,6 +77,7 @@ export default function LeadBoard({
   const [mounted, setMounted] = useState(false)
   const [activeLead, setActiveLead] = useState<any | null>(null)
   const [view, setView] = useState<KanbanView>("detailed")
+  const [compactCards, setCompactCards] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
@@ -85,11 +86,24 @@ export default function LeadBoard({
     if (stored === "detailed" || stored === "compact" || stored === "overview") {
       setView(stored)
     }
+    setCompactCards(localStorage.getItem("kanban-compact-cards") === "true")
   }, [])
 
   function selectView(mode: KanbanView) {
     setView(mode)
     localStorage.setItem("kanban-view-mode", mode)
+  }
+
+  // Compact Cards — an optional display mode, independent of the density
+  // control above. When on, every card renders as a denser card (name,
+  // phone, city + move date, next action); clicks open the Lead Panel just
+  // like the other modes. Off by default.
+  function toggleCompactCards() {
+    setCompactCards((prev) => {
+      const next = !prev
+      localStorage.setItem("kanban-compact-cards", String(next))
+      return next
+    })
   }
 
   if (!mounted) return null
@@ -188,48 +202,56 @@ export default function LeadBoard({
         setActiveLead(null)
       }}
     >
-      <div className="h-full flex flex-col min-w-0">
+      <div className="kb-workspace">
         {/* Kanban toolbar */}
-        <div className="flex-none flex items-center justify-between gap-3 px-6 pt-3">
-          <div className="relative w-full max-w-sm">
-            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/40 text-[13px] pointer-events-none">
-              🔍
+        <div className="kb-toolbar">
+          <div className="kb-search">
+            <span className="kb-search-ic">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-3-3" />
+              </svg>
             </span>
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by name, phone, or email..."
-              // The site-wide `input[type="text"]` reset in globals.css
-              // (border, padding, border-radius, font-size, plus a green
-              // :focus border/shadow for public lead-capture forms) beats
-              // these utilities on plain specificity, so the relevant ones
-              // are marked !important to reliably win on this one input
-              // without touching that global, widely-used reset.
-              className="w-full !pl-8 !pr-3 !py-1 !rounded-md !border !border-white/10 !bg-white/5 !text-white !text-[13px] placeholder-white/40 focus:!outline-none focus:!bg-white/10 focus:!border-white/25 focus:!ring-1 focus:!ring-blue-400/60 focus:!shadow-none !transition-colors"
             />
           </div>
 
-          <div className="flex-none flex items-center rounded-md border border-white/10 bg-white/5 p-0.5">
-            {VIEW_MODES.map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => selectView(mode)}
-                className={[
-                  "px-2.5 py-1 rounded text-xs font-medium transition-colors",
-                  view === mode
-                    ? "bg-white/20 text-white"
-                    : "text-white/50 hover:text-white/80",
-                ].join(" ")}
-              >
-                {VIEW_LABELS[mode]}
-              </button>
-            ))}
+          <div className="kb-toolbar-controls">
+            <div className="kb-density">
+              {VIEW_MODES.map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  aria-pressed={view === mode}
+                  onClick={() => selectView(mode)}
+                >
+                  {VIEW_LABELS[mode]}
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              className="kb-compact-toggle"
+              aria-pressed={compactCards}
+              onClick={toggleCompactCards}
+              title="Compact cards — collapse leads to essentials; click a card to expand it in place"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="3" y1="7" x2="21" y2="7" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="17" x2="21" y2="17" />
+              </svg>
+              Compact cards
+            </button>
           </div>
         </div>
 
-        <div className="flex-1 flex gap-4 overflow-x-auto overflow-y-visible min-w-0 px-6 py-4">
+        <div className="kb-board" data-density={view}>
           {columns.map((col) => (
             <LeadColumn
               key={col.id}
@@ -271,6 +293,7 @@ export default function LeadBoard({
                 })}
               selectedLeadId={selectedLeadId}
               onSelectLead={onSelectLead}
+              collapsed={compactCards}
             />
           ))}
         </div>
@@ -284,6 +307,7 @@ export default function LeadBoard({
               lead={activeLead}
               isSelected={false}
               view={view}
+              collapsed={compactCards}
               onSelect={() => {}}
             />
           </div>

@@ -264,7 +264,7 @@ export default function AddNextActionModal({
           <button
             onClick={handleSubmit}
             disabled={!canSubmit}
-            className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="crm-cta px-4 py-2 rounded-xl text-sm font-semibold"
           >
             {submitting ? (isEditing ? "Saving..." : "Adding...") : (isEditing ? "Save Changes" : "Add Action")}
           </button>

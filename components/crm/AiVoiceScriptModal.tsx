@@ -201,7 +201,7 @@ function ModalContent({ onClose, lead, topMatches = [] }: Props) {
           </button>
           <button
             onClick={handleCopy}
-            className="text-sm font-medium px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white transition-colors shadow-sm"
+            className="crm-cta text-sm font-medium px-5 py-2.5 rounded-lg shadow-sm"
           >
             {copied ? "Copied!" : "Copy Script"}
           </button>

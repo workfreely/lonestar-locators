@@ -43,7 +43,7 @@ export default function Footer({ config }: { config: SmartLeadFormConfig }) {
               <span className="text-[#d0d3dc]">·</span>
               <a
                 href={`tel:${officePhone.replace(/[^\d+]/g, "")}`}
-                className="transition-colors hover:text-[#2f6bff]"
+                className="break-words transition-colors hover:text-[#2f6bff]"
               >
                 {officePhone}
               </a>

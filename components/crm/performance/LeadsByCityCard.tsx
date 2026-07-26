@@ -35,7 +35,7 @@ export default function LeadsByCityCard({ leads }: { leads: any[] }) {
               <span className="flex-none text-sm text-[var(--crm-text-secondary)] w-28 truncate">{city}</span>
               <div className="flex-1 h-2 bg-[var(--crm-inset)] rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                  className="h-full bg-[var(--kb-accent)] rounded-full transition-all duration-500"
                   style={{ width: `${pct}%` }}
                 />
               </div>

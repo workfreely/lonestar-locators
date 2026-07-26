@@ -20,8 +20,14 @@ const PHOTO_SIZE_OPTIONS: { id: SmartLeadFormConfig["branding"]["agentPhotoSize"
   { id: "large", label: "Large" },
 ]
 
+const PROFILE_IMAGE_POSITION_OPTIONS: { id: SmartLeadFormConfig["branding"]["profileImagePosition"]; label: string }[] = [
+  { id: "underHeadline", label: "Under Headline" },
+  { id: "overlapping", label: "Overlapping" },
+]
+
 export default function BrandingPanel({ config, onChange }: { config: SmartLeadFormConfig; onChange: Updater }) {
-  const { logoUrl, agentPhotoUrl, agentPhotoSize, heroTheme, heroImageUrl, heroOverlay, buttonColor } = config.branding
+  const { logoUrl, agentPhotoUrl, agentPhotoSize, profileImagePosition, heroTheme, heroImageUrl, heroOverlay, buttonColor } =
+    config.branding
 
   function updateBranding(patch: Partial<SmartLeadFormConfig["branding"]>) {
     onChange((prev) => ({ ...prev, branding: { ...prev.branding, ...patch } }))
@@ -29,7 +35,7 @@ export default function BrandingPanel({ config, onChange }: { config: SmartLeadF
 
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex gap-4">
+      <div className="grid grid-cols-2 gap-8">
         <UploadTile label="Agent Photo" imageUrl={agentPhotoUrl} onChange={(url) => updateBranding({ agentPhotoUrl: url })} round />
         <UploadTile label="Logo" imageUrl={logoUrl} onChange={(url) => updateBranding({ logoUrl: url })} />
       </div>
@@ -40,6 +46,13 @@ export default function BrandingPanel({ config, onChange }: { config: SmartLeadF
           options={PHOTO_SIZE_OPTIONS}
           value={agentPhotoSize}
           onChange={(value) => updateBranding({ agentPhotoSize: value })}
+        />
+
+        <p className="mb-2 mt-3 text-[12px] font-semibold text-[#6b7280]">Agent Photo Position</p>
+        <SegmentedControl
+          options={PROFILE_IMAGE_POSITION_OPTIONS}
+          value={profileImagePosition}
+          onChange={(value) => updateBranding({ profileImagePosition: value })}
         />
       </div>
 

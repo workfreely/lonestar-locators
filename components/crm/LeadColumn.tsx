@@ -15,22 +15,25 @@ type Props = {
   selectedLeadId?: string | number | null
   onSelectLead?: (leadId: string | number) => void
   view?: KanbanView
+  collapsed?: boolean
   emptyMessage?: string
 }
 
+// Per-stage accent dot (hex so the .kb-dot halo can derive from currentColor).
 const STAGE_DOT: Record<string, string> = {
-  new:            "bg-amber-400",
-  contacted:      "bg-blue-500",
-  searching:      "bg-violet-500",
-  list_sent:      "bg-emerald-500",
-  ready_to_tour:  "bg-orange-400",
-  done_touring:   "bg-yellow-500",
-  applied:        "bg-gray-500",
-  closed:         "bg-green-600",
-  archived:       "bg-slate-400",
+  new:           "#f5b100",
+  contacted:     "#3b82f6",
+  searching:     "#8b5cf6",
+  list_sent:     "#10b981",
+  ready_to_tour: "#f97316",
+  done_touring:  "#eab308",
+  applied:       "#64748b",
+  closed:        "#16a34a",
+  archived:      "#94a3b8",
 }
 
-// Strip the leading emoji from the title string passed in from LeadBoard
+// Strip the leading emoji from the title string passed in from LeadBoard —
+// the refreshed header uses a colored stage dot instead.
 function cleanTitle(raw: string) {
   return raw.replace(/^\p{Emoji}\s*/u, "")
 }
@@ -42,55 +45,23 @@ export default function LeadColumn({
   selectedLeadId,
   onSelectLead,
   view = "detailed",
+  collapsed = false,
   emptyMessage = "No leads",
 }: Props) {
   const { setNodeRef } = useDroppable({ id })
 
-  const dotClass = STAGE_DOT[id] ?? "bg-gray-400"
+  const dot = STAGE_DOT[id] ?? "#94a3b8"
   const label = cleanTitle(title)
 
-  // Overview is a genuinely denser tier than Compact — narrower column,
-  // tighter header, tighter card gap — since its purpose is fitting as
-  // much of the pipeline on screen as possible, not just a smaller card.
-  const isCompact = view === "compact"
-  const isOverview = view === "overview"
-
-  const columnWidthClass = isOverview
-    ? "w-[160px] min-w-[160px]"
-    : isCompact
-    ? "w-[220px] min-w-[220px]"
-    : "w-[272px] min-w-[272px]"
-
   return (
-    <div
-      ref={setNodeRef}
-      className={[
-        // Dark theme only: a touch less white tint + a black wash darkens
-        // the glass so lead cards (lightened separately) stand out against
-        // it more clearly. Light theme keeps its original bg-white/20/10.
-        "flex flex-col rounded-xl bg-white/10 dark:bg-black/20 backdrop-blur-xl border border-white/20 dark:border-white/10",
-        "shadow-[0_4px_24px_rgba(0,0,0,0.12)] h-full overflow-y-auto",
-        columnWidthClass,
-      ].join(" ")}
-    >
-      {/* Column header */}
-      <div className={isOverview ? "flex items-center justify-between px-2.5 pt-2 pb-1.5 border-b border-white/10" : "flex items-center justify-between px-3.5 pt-3 pb-2.5 border-b border-white/10"}>
-        <div className="flex items-center gap-2 min-w-0">
-          <span className={`w-2 h-2 rounded-full flex-none ${dotClass}`} />
-          <h3 className="text-sm font-semibold text-white tracking-tight truncate">
-            {label}
-          </h3>
-        </div>
-        <span className="text-xs font-semibold text-white/50 tabular-nums flex-none">
-          {leads.length}
-        </span>
+    <div ref={setNodeRef} className="kb-column">
+      <div className="kb-col-head">
+        <span className="kb-dot" style={{ background: dot, color: dot }} />
+        <h3 className="kb-col-title">{label}</h3>
+        <span className="kb-col-count">{leads.length}</span>
       </div>
 
-      {/* Cards */}
-      <div className={[
-        "flex flex-col",
-        isCompact ? "gap-3 p-1.5 pb-3" : isOverview ? "gap-3 p-1.5 pb-2" : "gap-4 p-2.5 pb-4",
-      ].join(" ")}>
+      <div className="kb-col-body">
         {leads.map((lead: any) => (
           <LeadCard
             key={lead.id}
@@ -98,14 +69,11 @@ export default function LeadColumn({
             isSelected={String(selectedLeadId) === String(lead.id)}
             onSelect={onSelectLead}
             view={view}
+            collapsed={collapsed}
           />
         ))}
 
-        {leads.length === 0 && (
-          <div className="text-xs text-white/30 text-center py-6 select-none">
-            {emptyMessage}
-          </div>
-        )}
+        {leads.length === 0 && <div className="kb-empty">{emptyMessage}</div>}
       </div>
     </div>
   )

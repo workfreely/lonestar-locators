@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  ...(process.env.BUILD_VERIFY_DIST_DIR ? { distDir: process.env.BUILD_VERIFY_DIST_DIR } : {}),
   images: {
     formats: ["image/avif", "image/webp"],
     remotePatterns: [

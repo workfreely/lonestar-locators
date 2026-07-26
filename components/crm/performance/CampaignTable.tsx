@@ -45,7 +45,8 @@ export default function CampaignTable({ leads }: { leads: any[] }) {
                   <td className="py-2 text-[var(--crm-text-primary)]">{row.campaign}</td>
                   <td className="py-2">
                     <span
-                      className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full border ${style.badgeClassName}`}
+                      className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full border crm-src-pill"
+                      style={{ ["--src-color"]: style.color } as React.CSSProperties}
                     >
                       {style.label}
                     </span>
