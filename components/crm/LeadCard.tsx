@@ -2,7 +2,7 @@
 
 import { useDraggable } from "@dnd-kit/core"
 import { getNextAction } from "@/lib/nextAction"
-import { useState } from "react"
+import { useState, useRef, useLayoutEffect } from "react"
 import { formatPhone } from "@/lib/utils/formatPhone"
 import { getSourceStyle } from "@/lib/leads/sourceStyles"
 import { inferMarketFromLandingPage } from "@/lib/leads/inferMarketFromLandingPage"
@@ -60,7 +60,6 @@ export default function LeadCard({
   isSelected,
   onSelect,
   view = "detailed",
-  collapsed = false,
 }: any) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: String(lead.id),
@@ -72,6 +71,9 @@ export default function LeadCard({
   }
 
   const [copied, setCopied] = useState(false)
+
+  // Responsive badge row: pick the largest fit tier that doesn't overflow.
+  const badgesRef = useRef<HTMLDivElement>(null)
 
   async function copyPhone(e: React.MouseEvent) {
     e.preventDefault()
@@ -130,6 +132,48 @@ export default function LeadCard({
   // New leads not yet worked pulse gently until contacted.
   const isFresh = lead.crm_status === "new"
 
+  // Keep the Approval + Next Action badges as large as possible: try full size,
+  // then step down padding → radius → font (data-fit 0→4). The row never wraps
+  // — if even the most aggressive tier overflows, it stays at tier 4 on a
+  // single line. Re-measures whenever the labels change or the column resizes.
+  useLayoutEffect(() => {
+    const el = badgesRef.current
+    if (!el) return
+
+    const refit = () => {
+      const tiers = ["0", "1", "2", "3", "4"]
+      let chosen = "4"
+      for (const tier of tiers) {
+        el.dataset.fit = tier
+        // scrollWidth > clientWidth means the pills overflow at this tier.
+        if (el.scrollWidth <= el.clientWidth + 0.5) {
+          chosen = tier
+          break
+        }
+      }
+      el.dataset.fit = chosen
+    }
+
+    refit()
+
+    // Columns flex to fill available width, so re-fit on width changes only
+    // (ignore height changes, which our own wrapping causes — avoids a loop).
+    let prevWidth = el.clientWidth
+    let raf = 0
+    const ro = new ResizeObserver((entries) => {
+      const width = entries[0].contentRect.width
+      if (Math.abs(width - prevWidth) < 0.5) return
+      prevWidth = width
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(refit)
+    })
+    ro.observe(el)
+    return () => {
+      ro.disconnect()
+      cancelAnimationFrame(raf)
+    }
+  }, [nextText, approvalLabel, view])
+
   const dragHandle = (
     <span
       {...listeners}
@@ -177,18 +221,14 @@ export default function LeadCard({
     )
   }
 
-  // The one card interior, shared by every mode — same layout, panel,
+  // The one card interior, shared by every density mode — same layout, panel,
   // padding, typography and hierarchy; only the fields differ.
   //   Detailed: City, Budget, Property, Move Date, Credit, Source + Approval + Next
   //   Compact:  City, Budget, Move Date, Credit               + Approval + Next
-  //   Toggle:   City, Move Date                               + Approval + Next   (Compact Cards)
-  //   Overview: City, Move Date                               +           Next
-  // Overview has no Approval pill, so Next (its only pill) aligns left
-  // instead of being pushed right.
-  function cardBody(kind: "detailed" | "compact" | "overview" | "toggle") {
-    const twoFields = kind === "overview" || kind === "toggle" // City + Move Date only
+  //   Overview: City, Move Date                               + Approval + Next
+  function cardBody(kind: "detailed" | "compact" | "overview") {
+    const twoFields = kind === "overview" // City + Move Date only
     const extras = kind === "detailed" // Property + Source rows
-    const showApproval = kind !== "overview"
     return (
       <>
         {nameEl()}
@@ -228,26 +268,11 @@ export default function LeadCard({
             </div>
           )}
         </div>
-        <div className="kb-badges">
-          {showApproval && <span className={`kb-pill ${approvalClass}`}>{approvalLabel}</span>}
-          <span className={`kb-pill ${showApproval ? "kb-pill--push" : ""} ${nextClass}`}>{nextText}</span>
+        <div className="kb-badges" data-fit="0" ref={badgesRef}>
+          <span className={`kb-pill ${approvalClass}`}>{approvalLabel}</span>
+          <span className={`kb-pill kb-pill--push ${nextClass}`}>{nextText}</span>
         </div>
       </>
-    )
-  }
-
-  // ─── Compact Cards toggle ─────────────────────────────────────────────────
-  // The standard card with just City + Move Date + Approval + Next — same
-  // design language as every other card, optimized to fit more leads.
-  if (collapsed) {
-    const cls = ["kb-card", isSelected ? "kb-card--selected" : "", isFresh ? "kb-fresh" : ""]
-      .filter(Boolean)
-      .join(" ")
-    return (
-      <article ref={setNodeRef} {...attributes} style={style} onClick={() => onSelect?.(lead.id)} className={cls}>
-        {dragHandle}
-        <div className="kb-card-pad">{cardBody("toggle")}</div>
-      </article>
     )
   }
 

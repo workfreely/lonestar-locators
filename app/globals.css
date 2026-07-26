@@ -1754,8 +1754,23 @@ body.jaybot-open {
 .kb-board[data-density="compact"] .kb-v { font-size:11.5px; }
 .kb-badges { display:flex; align-items:center; gap:7px; margin-top:11px; }
 .kb-board[data-density="compact"] .kb-badges { margin-top:8px; }
-.kb-pill { font-size:11px; font-weight:600; padding:3px 9px; border-radius:999px; border:1px solid; white-space:nowrap; line-height:1.35; }
-.kb-board[data-density="compact"] .kb-pill { font-size:10px; padding:2px 7px; }
+/* Full (uncompressed) pill sizing, per density. --ppx0/--pfs0/--ppy0 hold the
+   full horizontal padding / font-size / vertical padding so the responsive
+   tiers below can derive compressed values from them via calc(). */
+.kb-pill { --ppx0:9px; --pfs0:11px; --ppy0:3px; font-size:var(--pfs0); font-weight:600; padding:var(--ppy0) var(--ppx0); border-radius:999px; border:1px solid; white-space:nowrap; line-height:1.35; }
+.kb-board[data-density="compact"] .kb-pill { --ppx0:7px; --pfs0:10px; --ppy0:2px; }
+
+/* Responsive badge row. LeadCard.tsx measures the Approval + Next Action row
+   and sets data-fit to the largest tier that fits without overflow: "0" full,
+   then progressively compress BOTH pills together — (1) horizontal padding,
+   (2) + border radius, (3) + ~1px font, (4) an extreme tier (more padding,
+   smaller radius, ~2px font) for cases like "Setup Tour · Overdue". The row
+   NEVER wraps — it always stays a single line — so card height is constant.
+   Vertical padding (--ppy0) never changes, so badge height is constant too. */
+.kb-badges[data-fit="1"] .kb-pill { padding-inline:calc(var(--ppx0) - 2px); }
+.kb-badges[data-fit="2"] .kb-pill { padding-inline:calc(var(--ppx0) - 3px); border-radius:6px; }
+.kb-badges[data-fit="3"] .kb-pill { padding-inline:calc(var(--ppx0) - 3px); border-radius:5px; font-size:calc(var(--pfs0) - 1px); }
+.kb-badges[data-fit="4"] .kb-pill { padding-inline:calc(var(--ppx0) - 4px); border-radius:4px; font-size:calc(var(--pfs0) - 2px); }
 .kb-pill--ok { background:var(--kb-ok-t); color:var(--kb-ok-f); border-color:var(--kb-ok-b); }
 .kb-pill--warn { background:var(--kb-warn-t); color:var(--kb-warn-f); border-color:var(--kb-warn-b); }
 .kb-pill--crit { background:var(--kb-crit-t); color:var(--kb-crit-f); border-color:var(--kb-crit-b); }
@@ -1763,15 +1778,36 @@ body.jaybot-open {
 .kb-pill--src { background:var(--kb-inset); color:var(--kb-ink-soft); border-color:var(--kb-border-strong); }
 .kb-pill--neutral { background:color-mix(in srgb, var(--kb-ink) 8%, transparent); color:var(--kb-ink-soft); border-color:var(--kb-border-strong); }
 .kb-pill--push { margin-left:auto; }
+
+/* Overview density — a true high-density scanning mode, dramatically tighter
+   than Compact (not just a smaller version of it). Height is cut hardest —
+   padding, margins, gaps and line-heights all collapse — so switching from
+   Compact to Overview reveals significantly more leads without scrolling;
+   width and border radius shrink too for a compact scanning grid. Same fields
+   as before, kept legible. Applies to standard cards and the Compact Cards
+   toggle alike (both render .kb-card under a data-density="overview" board).
+   Detailed/Compact untouched. */
+.kb-board[data-density="overview"] { gap:8px; padding:12px; }
+.kb-board[data-density="overview"] .kb-column { flex-basis:166px; border-radius:11px; }
+.kb-board[data-density="overview"] .kb-col-body { gap:8px; padding:6px; }
+.kb-board[data-density="overview"] .kb-card { border-radius:9px; }
+.kb-board[data-density="overview"] .kb-card-pad { padding:5px 8px; }
+.kb-board[data-density="overview"] .kb-nm { font-size:11.5px; line-height:1.1; }
+.kb-board[data-density="overview"] .kb-phone-row { margin-top:1px; gap:5px; }
+.kb-board[data-density="overview"] .kb-phone { font-size:10px; }
+.kb-board[data-density="overview"] .kb-grid { padding:4px 6px; gap:2px; margin-top:4px; border-radius:7px; }
+.kb-board[data-density="overview"] .kb-k { font-size:8.5px; }
+.kb-board[data-density="overview"] .kb-v { font-size:9.5px; }
+.kb-board[data-density="overview"] .kb-badges { margin-top:4px; gap:4px; }
+.kb-board[data-density="overview"] .kb-pill { --ppx0:6px; --pfs0:8.5px; --ppy0:1px; }
+.kb-board[data-density="overview"] .kb-archive-line { margin-top:3px; }
+.kb-board[data-density="overview"] .kb-fresh::after { border-radius:9px; }
+
 .kb-fresh::after { content:""; position:absolute; inset:-1px; border-radius:15px; pointer-events:none; animation:kb-pulse 2.4s cubic-bezier(.16,1,.3,1) infinite; }
 @keyframes kb-pulse { 0%{box-shadow:0 0 0 0 color-mix(in srgb, var(--kb-accent) 42%, transparent);} 60%{box-shadow:0 0 0 7px color-mix(in srgb, var(--kb-accent) 0%, transparent);} 100%{box-shadow:0 0 0 0 color-mix(in srgb, var(--kb-accent) 0%, transparent);} }
 
-/* Toolbar: density control + Compact Cards toggle */
+/* Toolbar: density control */
 .kb-toolbar-controls { flex:none; display:flex; align-items:center; gap:8px; }
-.kb-compact-toggle { display:inline-flex; align-items:center; gap:6px; font:inherit; font-size:12.5px; font-weight:600; color:var(--kb-ink-muted); border:1px solid var(--kb-border); background:color-mix(in srgb, var(--kb-ink) 5%, transparent); padding:6px 12px; border-radius:12px; cursor:pointer; white-space:nowrap; transition:color .2s, background .2s, border-color .2s; }
-.kb-compact-toggle:hover { color:var(--kb-ink); }
-.kb-compact-toggle[aria-pressed="true"] { color:var(--crm-accent-contrast); background:var(--crm-accent); border-color:var(--crm-accent); }
-.kb-compact-toggle svg { flex:none; }
 
 /* Archived cards: archive-reason badge on its own line beneath the phone,
    in every density mode — never crammed next to the name. */
@@ -1793,7 +1829,10 @@ body.jaybot-open {
 .ag-head { flex:none; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:11px 14px; border-bottom:1px solid var(--kb-col-border); }
 .ag-title { margin:0; font-size:11px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--kb-ink-soft); }
 .ag-head-right { display:flex; align-items:center; gap:6px; }
-.ag-count { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; padding:0 6px; border-radius:999px; background:var(--kb-crit-f); color:#fff; font-size:10px; font-weight:700; font-variant-numeric:tabular-nums; }
+/* Overdue counter: a saturated dark red so the solid-white count reads at a
+   glance. Uses a fixed red (not --kb-crit-f, a light-pink *foreground* token)
+   for strong contrast on every theme — #fff on #dc2626 clears WCAG AA. */
+.ag-count { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; padding:0 6px; border-radius:999px; background:#dc2626; color:#fff; font-size:10px; font-weight:700; font-variant-numeric:tabular-nums; }
 .ag-collapse { width:22px; height:22px; display:grid; place-items:center; border-radius:7px; border:0; background:transparent; color:var(--kb-ink-muted); cursor:pointer; transition:color .2s, background .2s; }
 .ag-collapse:hover { color:var(--kb-ink); background:color-mix(in srgb, var(--kb-ink) 8%, transparent); }
 .ag-collapse svg { width:13px; height:13px; }

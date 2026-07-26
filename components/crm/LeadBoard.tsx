@@ -77,7 +77,6 @@ export default function LeadBoard({
   const [mounted, setMounted] = useState(false)
   const [activeLead, setActiveLead] = useState<any | null>(null)
   const [view, setView] = useState<KanbanView>("detailed")
-  const [compactCards, setCompactCards] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
@@ -86,24 +85,11 @@ export default function LeadBoard({
     if (stored === "detailed" || stored === "compact" || stored === "overview") {
       setView(stored)
     }
-    setCompactCards(localStorage.getItem("kanban-compact-cards") === "true")
   }, [])
 
   function selectView(mode: KanbanView) {
     setView(mode)
     localStorage.setItem("kanban-view-mode", mode)
-  }
-
-  // Compact Cards — an optional display mode, independent of the density
-  // control above. When on, every card renders as a denser card (name,
-  // phone, city + move date, next action); clicks open the Lead Panel just
-  // like the other modes. Off by default.
-  function toggleCompactCards() {
-    setCompactCards((prev) => {
-      const next = !prev
-      localStorage.setItem("kanban-compact-cards", String(next))
-      return next
-    })
   }
 
   if (!mounted) return null
@@ -233,21 +219,6 @@ export default function LeadBoard({
                 </button>
               ))}
             </div>
-
-            <button
-              type="button"
-              className="kb-compact-toggle"
-              aria-pressed={compactCards}
-              onClick={toggleCompactCards}
-              title="Compact cards — collapse leads to essentials; click a card to expand it in place"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="3" y1="7" x2="21" y2="7" />
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="17" x2="21" y2="17" />
-              </svg>
-              Compact cards
-            </button>
           </div>
         </div>
 
@@ -293,7 +264,6 @@ export default function LeadBoard({
                 })}
               selectedLeadId={selectedLeadId}
               onSelectLead={onSelectLead}
-              collapsed={compactCards}
             />
           ))}
         </div>
@@ -307,7 +277,6 @@ export default function LeadBoard({
               lead={activeLead}
               isSelected={false}
               view={view}
-              collapsed={compactCards}
               onSelect={() => {}}
             />
           </div>

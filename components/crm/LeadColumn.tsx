@@ -15,7 +15,6 @@ type Props = {
   selectedLeadId?: string | number | null
   onSelectLead?: (leadId: string | number) => void
   view?: KanbanView
-  collapsed?: boolean
   emptyMessage?: string
 }
 
@@ -45,7 +44,6 @@ export default function LeadColumn({
   selectedLeadId,
   onSelectLead,
   view = "detailed",
-  collapsed = false,
   emptyMessage = "No leads",
 }: Props) {
   const { setNodeRef } = useDroppable({ id })
@@ -69,7 +67,6 @@ export default function LeadColumn({
             isSelected={String(selectedLeadId) === String(lead.id)}
             onSelect={onSelectLead}
             view={view}
-            collapsed={collapsed}
           />
         ))}
 
