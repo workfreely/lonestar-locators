@@ -55,7 +55,7 @@
   --crm-card: #2D333B;
   --crm-inset: #343B44;
   --crm-border: #3D4651;
-  --crm-border-soft: #343B44;
+  --crm-border-soft: #20242b;
   --crm-text-primary: #F5F7FA;
   --crm-text-secondary: #B9C0C9;
   --crm-text-muted: #8F98A3;
@@ -83,7 +83,7 @@
   --crm-card: #1b2030;
   --crm-inset: #12151f;
   --crm-border: #2b3242;
-  --crm-border-soft: #1b2029;
+  --crm-border-soft: #0a0d14;
   --crm-text-primary: #f4f6fb;
   --crm-text-secondary: #b7bec9;
   --crm-text-muted: #8b93a0;
@@ -99,7 +99,7 @@
   --crm-card: #203029;
   --crm-inset: #142019;
   --crm-border: #2a3f34;
-  --crm-border-soft: #1a2a22;
+  --crm-border-soft: #0f1915;
   --crm-text-primary: #eef4f0;
   --crm-text-secondary: #c2ccc6;
   --crm-text-muted: #8a968f;
@@ -115,7 +115,7 @@
   --crm-card: #2a1c40;
   --crm-inset: #1a1128;
   --crm-border: #3a2d50;
-  --crm-border-soft: #241733;
+  --crm-border-soft: #150e21;
   --crm-text-primary: #f2eefb;
   --crm-text-secondary: #c9c0d6;
   --crm-text-muted: #978aa5;
@@ -131,7 +131,7 @@
   --crm-card: #191b21;
   --crm-inset: #0f1116;
   --crm-border: #262a31;
-  --crm-border-soft: #17191f;
+  --crm-border-soft: #090b0f;
   --crm-text-primary: #f6f7f9;
   --crm-text-secondary: #b6bac1;
   --crm-text-muted: #82878f;
@@ -147,7 +147,7 @@
   --crm-card: #46283a;
   --crm-inset: #201019;
   --crm-border: #4b3541;
-  --crm-border-soft: #2c1c26;
+  --crm-border-soft: #1f121c;
   --crm-text-primary: #fcf0f4;
   --crm-text-secondary: #cdbcc4;
   --crm-text-muted: #a28f99;
@@ -1640,7 +1640,7 @@ body.jaybot-open {
   --kb-crit-t:rgba(248,113,113,0.15); --kb-crit-f:#fca5a5; --kb-crit-b:rgba(248,113,113,0.36);
   --kb-info-t:rgba(109,151,255,0.16); --kb-info-f:#9db8ff; --kb-info-b:rgba(109,151,255,0.36);
   --kb-shadow-hue:0,0,0;
-  --kb-col-shadow:0 0 0 1px rgba(255,255,255,0.02),0 2px 10px -4px rgba(0,0,0,0.9);
+  --kb-col-shadow:0 2px 10px -4px rgba(0,0,0,0.9);
   --kb-card-shadow:inset 0 1px 0 rgba(255,255,255,0.07),0 1px 2px rgba(0,0,0,0.85),0 18px 34px -14px rgba(0,0,0,0.95);
   --kb-card-shadow-hover:inset 0 1px 0 rgba(255,255,255,0.09),0 0 0 1.25px color-mix(in srgb, var(--kb-accent) 66%, transparent),0 22px 44px -16px rgba(0,0,0,1);
   --kb-card-shadow-selected:inset 0 1px 0 rgba(255,255,255,0.09),0 0 0 1.5px var(--kb-accent),0 26px 52px -16px rgba(0,0,0,1);

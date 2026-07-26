@@ -11,7 +11,7 @@ import { rankLeadActions } from "@/lib/nextActions"
 import { getNextFollowUpAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
 import { emitWorkflowActionCreated } from "@/lib/workflowToast"
 import { getActionIcon, formatDueDateTime } from "@/lib/actionDisplay"
-import { readFirstContactPreference, onFirstContactPreferenceChanged, type FirstContactPreference } from "@/lib/preferences"
+import { readFirstContactPreference, onFirstContactPreferenceChanged, type FirstContactPreference, readSectionExpanded, writeSectionExpanded } from "@/lib/preferences"
 import AiVoiceScriptModal from "./AiVoiceScriptModal"
 import ConfirmDialog from "./ConfirmDialog"
 import AddNextActionModal from "./AddNextActionModal"
@@ -87,7 +87,7 @@ const STATUS_STYLES: Record<string, string> = {
   list_sent:     "bg-emerald-100 text-emerald-800 border-emerald-300",
   ready_to_tour: "bg-orange-100 text-orange-800 border-orange-300",
   done_touring:  "bg-yellow-100 text-yellow-900 border-yellow-300",
-  applied:       "bg-gray-200 text-gray-700 border-gray-300",
+  applied:       "bg-gray-100 text-gray-800 border-gray-300",
   closed:        "bg-green-100 text-green-800 border-green-300",
   archived:      "bg-slate-100 text-slate-700 border-slate-300",
 }
@@ -101,18 +101,31 @@ const STATUS_STYLES: Record<string, string> = {
 function CollapsibleNotes({
   title,
   defaultOpen,
+  storageKey,
   children,
 }: {
   title: string
   defaultOpen: boolean
+  storageKey?: string
   children: React.ReactNode
 }) {
-  const [open, setOpen] = useState(defaultOpen)
+  // Persist expand/collapse per section (see lib/preferences.ts) so the
+  // panel reopens exactly how the locator left it; falls back to defaultOpen.
+  const [open, setOpen] = useState(() =>
+    storageKey ? readSectionExpanded(storageKey, defaultOpen) : defaultOpen
+  )
+  function toggle() {
+    setOpen((o) => {
+      const next = !o
+      if (storageKey) writeSectionExpanded(storageKey, next)
+      return next
+    })
+  }
   return (
     <div className="bg-[var(--crm-panel)] border border-[var(--crm-border-soft)] rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.04),0_4px_10px_rgba(var(--crm-shadow-color),0.06)]">
       <div
         className="px-4 py-2 border-b border-[var(--crm-border-soft)] bg-[var(--crm-card)] flex items-center gap-2 cursor-pointer select-none"
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggle}
       >
         <svg
           className={`w-3 h-3 text-[var(--crm-text-muted)] transition-transform duration-200 ${open ? "rotate-90" : "rotate-0"}`}
@@ -140,19 +153,32 @@ function SectionCard({
   shaded = false,
   collapsible = false,
   defaultOpen = true,
+  storageKey,
 }: {
   title: string
   children: React.ReactNode
   shaded?: boolean
   collapsible?: boolean
   defaultOpen?: boolean
+  storageKey?: string
 }) {
-  const [open, setOpen] = useState(defaultOpen)
+  // Collapsible sections remember their state per section (lib/preferences.ts),
+  // so the panel reopens the way the locator left it; falls back to defaultOpen.
+  const [open, setOpen] = useState(() =>
+    collapsible && storageKey ? readSectionExpanded(storageKey, defaultOpen) : defaultOpen
+  )
+  function toggle() {
+    setOpen((o) => {
+      const next = !o
+      if (storageKey) writeSectionExpanded(storageKey, next)
+      return next
+    })
+  }
   return (
     <div className="bg-[var(--crm-panel)] border border-[var(--crm-border-soft)] rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.04),0_4px_10px_rgba(var(--crm-shadow-color),0.06)]">
       <div
         className={`px-4 py-2 border-b border-[var(--crm-border-soft)] bg-[var(--crm-card)] flex items-center gap-2 ${collapsible ? "cursor-pointer select-none" : ""}`}
-        onClick={collapsible ? () => setOpen((o) => !o) : undefined}
+        onClick={collapsible ? toggle : undefined}
       >
         {collapsible && (
           <svg
@@ -942,86 +968,6 @@ export default function LeadPanel({
           </div>
         )}
 
-        {/* ── Action buttons ── */}
-        <p className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-2">Quick Actions</p>
-        <div className="bg-[var(--crm-card)] border border-[var(--crm-border-soft)] rounded-2xl shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.04),0_4px_10px_rgba(var(--crm-shadow-color),0.06)] p-3">
-
-          {/* Row 1: primary actions */}
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={handleFirstText}
-              className="crm-cta text-xs font-semibold px-3 py-2 rounded-lg border"
-            >
-                Contact Lead
-              </button>
-
-              <button
-                onClick={() => {
-                  const name = normalizeName(lead.first_name || "")
-                  const message = `Hey ${name}, I found 3 excellent options for you!\n\n${topMatches.slice(0, 3).map((p, i) => {
-                    const url = p.website?.startsWith("http") ? p.website : `https://${p.website || ""}`
-                    return `${i + 1}. ${p.name}\n${url}`
-                  }).join("\n\n")}\n\nWhich one do you like most?`
-                  if (lead.phone) window.open(`sms:${lead.phone}?&body=${encodeURIComponent(message)}`, "_self")
-                }}
-                className="text-xs font-medium px-3 py-2 rounded-lg border bg-[var(--crm-panel)] text-[var(--crm-text-secondary)] border-[var(--crm-border)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] transition-colors"
-              >
-                Text Top 3
-              </button>
-
-              <button
-                onClick={() => {
-                  const name = normalizeName(lead.first_name || "")
-                  openSMS(`Hey ${name}, I just sent your list over!\n\nCan you ❤️ your top 2–3 favorites?\n\nI'll get tours set up or tweak the list for you`)
-                }}
-                className="text-xs font-medium px-3 py-2 rounded-lg border bg-[var(--crm-panel)] text-[var(--crm-text-secondary)] border-[var(--crm-border)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] transition-colors"
-              >
-                List Sent
-              </button>
-
-              <button
-                onClick={() => setShowVoiceScript(true)}
-                className="text-xs font-medium px-3 py-2 rounded-lg border bg-[var(--crm-panel)] text-[var(--crm-text-secondary)] border-[var(--crm-border)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] transition-colors"
-              >
-                AI Voice Script
-              </button>
-            </div>
-
-            {/* Row 2: follow-up sequence — mt-3 (was the shared space-y-2
-                on the parent, ~8.5px) gives this its own slightly larger
-                gap beneath Quick Actions' Row 1, separating the two
-                functional groups without feeling disconnected. */}
-            <div className="mt-3 flex items-center gap-1.5">
-              <span className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mr-1">Follow Up</span>
-              {[1, 2, 3].map((step) => (
-                <button
-                  key={step}
-                  onClick={async () => {
-                    await setFollowUpCount(step)
-                    const msgs: Record<number, string> = {
-                      1: `Hey! Did you see any properties on the list that you'd like to tour?`,
-                      2: `Is there one that stands out or would you like me to narrow the list down a bit more?`,
-                      3: `I'm calling communities you were interested in to get updated pricing and specials. Are you still looking to move?`,
-                    }
-                    openSMS(msgs[step])
-                  }}
-                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors ${getFUStyle(step)}`}
-                >
-                  FU{step}
-                </button>
-              ))}
-              <button
-                onClick={() => {
-                  const name = normalizeName(lead.first_name || "")
-                  openSMS(`Hey ${name}, I haven't heard back so I'll pause your search for now. No rush, just let me know when you'd like me to pick it back up!`)
-                }}
-                className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border bg-[var(--crm-panel)] text-[var(--crm-text-secondary)] border-[var(--crm-border)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] transition-colors"
-              >
-                Final FU
-              </button>
-            </div>
-
-          </div>
         </div>
 
       {/* ── Panel body ── */}
@@ -1157,8 +1103,53 @@ export default function LeadPanel({
           </button>
         </div>
 
+        {/* Section: Search Criteria */}
+        <SectionCard title="Search Criteria" shaded collapsible defaultOpen={true} storageKey="search-criteria">
+          <Field label={inferredMarket ? "Interest" : "City"} value={inferredMarket || lead.city} />
+          <Field label="Budget" value={formatRent(lead.desired_rent)} />
+          <Field label="Property Type" value={lead.property_type} />
+          <Field label="Beds / Baths" value={lead.beds || lead.baths ? `${lead.beds || "—"} / ${lead.baths || "—"}` : null} />
+          <Field label="Move Date" value={formatDate(lead.move_date)} />
+          {lead.neighborhoods && <Field label="Desired Areas" value={lead.neighborhoods} />}
+          {lead.source && (
+            <div className="flex items-start justify-between gap-4">
+              <span className="text-[12.5px] text-[var(--crm-text-muted)] flex-none">Source</span>
+              <span
+                className="text-[11px] font-semibold px-2 py-0.5 rounded-full border crm-src-pill"
+                style={{ ["--src-color"]: getSourceStyle(lead.source).color } as React.CSSProperties}
+              >
+                {getSourceStyle(lead.source).label}
+              </span>
+            </div>
+          )}
+        </SectionCard>
+
+        {/* Section: Screening — only what's useful. Credit Score / History /
+            Criminal Background always show (the last reassures the locator it
+            was checked); Broken Lease and Eviction rows appear only when the
+            lead actually has one, with the age folded in. No "No" rows. */}
+        <SectionCard title="Credit Screening" collapsible defaultOpen={true} storageKey="credit-screening">
+          <Field label="Credit Score" value={lead.credit_score} />
+          <Field label="Credit History" value={lead.credit_history} />
+          {String(lead.credit_history || "").toLowerCase().includes("broken") && (
+            <Field label="Broken Lease" value={lead.broken_lease_age ? `${lead.broken_lease_age} ago` : "Yes"} />
+          )}
+          {lead.credit_history === "Eviction" && (
+            <Field label="Eviction" value={lead.eviction_age ? `${lead.eviction_age} ago` : "Yes"} />
+          )}
+          {(() => {
+            const cb = lead.criminal_background
+            let value = "None"
+            if (cb && cb !== "None") {
+              const age = cb === "Felony" ? lead.felony_age : cb === "Misdemeanor" ? lead.misdemeanor_age : null
+              value = age ? `${cb} (${age})` : cb
+            }
+            return <Field label="Criminal Background" value={value} />
+          })()}
+        </SectionCard>
+
         {/* Section: Favorite Properties (Phase 1 — manual only) */}
-        <SectionCard title="Favorite Properties" collapsible defaultOpen={false}>
+        <SectionCard title="Favorite Properties" collapsible defaultOpen={false} storageKey="favorite-properties">
           {leadFavorites.length === 0 ? (
             <p className="text-[12.5px] text-[var(--crm-text-muted)]">No favorite properties added.</p>
           ) : (
@@ -1222,55 +1213,89 @@ export default function LeadPanel({
           </button>
         </SectionCard>
 
-        {/* Section: Search Criteria */}
-        <SectionCard title="Search Criteria" shaded collapsible defaultOpen={false}>
-          <Field label={inferredMarket ? "Interest" : "City"} value={inferredMarket || lead.city} />
-          <Field label="Budget" value={formatRent(lead.desired_rent)} />
-          <Field label="Property Type" value={lead.property_type} />
-          <Field label="Beds / Baths" value={lead.beds || lead.baths ? `${lead.beds || "—"} / ${lead.baths || "—"}` : null} />
-          <Field label="Move Date" value={formatDate(lead.move_date)} />
-          {lead.neighborhoods && <Field label="Desired Areas" value={lead.neighborhoods} />}
-          {lead.source && (
-            <div className="flex items-start justify-between gap-4">
-              <span className="text-[12.5px] text-[var(--crm-text-muted)] flex-none">Source</span>
-              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${getSourceStyle(lead.source).badgeClassName}`}>
-                {getSourceStyle(lead.source).label}
-              </span>
-            </div>
-          )}
-        </SectionCard>
+        {/* Section: Quick Actions — secondary tools, collapsed by default and
+            moved beneath the primary workflow (Next Action / Search / Credit). */}
+        <SectionCard title="Quick Actions" collapsible defaultOpen={false} storageKey="quick-actions">
+          <div>
+            {/* Row 1: primary actions */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={handleFirstText}
+                className="crm-cta text-xs font-semibold px-3 py-2 rounded-lg border"
+              >
+                Contact Lead
+              </button>
 
-        {/* Section: Screening */}
-        <SectionCard title="Credit Screening" collapsible defaultOpen={false}>
-          <Field label="Credit Score" value={lead.credit_score} />
-          <Field label="Credit History" value={lead.credit_history} />
-          <Field label="Eviction Court" value={lead.eviction_court === "Yes" ? "Yes" : "No"} />
-          {lead.eviction_court === "Yes" && (
-            <>
-              <Field label="Eviction Age" value={lead.eviction_age} />
-              <Field label="Eviction Balance" value={lead.eviction_balance} />
-            </>
-          )}
-          <Field
-            label="Broken Lease"
-            value={String(lead.credit_history || "").toLowerCase().includes("broken") ? "Yes" : "No"}
-          />
-          {String(lead.credit_history || "").toLowerCase().includes("broken") && (
-            <>
-              <Field label="Broken Lease Age" value={lead.broken_lease_age} />
-              <Field label="Broken Lease Amount" value={lead.broken_lease_amount} />
-            </>
-          )}
-          <Field label="Criminal Background" value={lead.criminal_background || "None"} />
-          {lead.criminal_charge && <Field label="Criminal Charge" value={lead.criminal_charge} />}
-          {lead.criminal_background === "Felony" && <Field label="Felony Age" value={lead.felony_age} />}
-          {lead.criminal_background === "Misdemeanor" && <Field label="Misdemeanor Age" value={lead.misdemeanor_age} />}
+              <button
+                onClick={() => {
+                  const name = normalizeName(lead.first_name || "")
+                  const message = `Hey ${name}, I found 3 excellent options for you!\n\n${topMatches.slice(0, 3).map((p, i) => {
+                    const url = p.website?.startsWith("http") ? p.website : `https://${p.website || ""}`
+                    return `${i + 1}. ${p.name}\n${url}`
+                  }).join("\n\n")}\n\nWhich one do you like most?`
+                  if (lead.phone) window.open(`sms:${lead.phone}?&body=${encodeURIComponent(message)}`, "_self")
+                }}
+                className="text-xs font-medium px-3 py-2 rounded-lg border bg-[var(--crm-panel)] text-[var(--crm-text-secondary)] border-[var(--crm-border)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] transition-colors"
+              >
+                Text Top 3
+              </button>
+
+              <button
+                onClick={() => {
+                  const name = normalizeName(lead.first_name || "")
+                  openSMS(`Hey ${name}, I just sent your list over!\n\nCan you ❤️ your top 2–3 favorites?\n\nI'll get tours set up or tweak the list for you`)
+                }}
+                className="text-xs font-medium px-3 py-2 rounded-lg border bg-[var(--crm-panel)] text-[var(--crm-text-secondary)] border-[var(--crm-border)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] transition-colors"
+              >
+                List Sent
+              </button>
+
+              <button
+                onClick={() => setShowVoiceScript(true)}
+                className="text-xs font-medium px-3 py-2 rounded-lg border bg-[var(--crm-panel)] text-[var(--crm-text-secondary)] border-[var(--crm-border)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] transition-colors"
+              >
+                AI Voice Script
+              </button>
+            </div>
+
+            {/* Row 2: follow-up sequence */}
+            <div className="mt-3 flex items-center gap-1.5">
+              <span className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mr-1">Follow Up</span>
+              {[1, 2, 3].map((step) => (
+                <button
+                  key={step}
+                  onClick={async () => {
+                    await setFollowUpCount(step)
+                    const msgs: Record<number, string> = {
+                      1: `Hey! Did you see any properties on the list that you'd like to tour?`,
+                      2: `Is there one that stands out or would you like me to narrow the list down a bit more?`,
+                      3: `I'm calling communities you were interested in to get updated pricing and specials. Are you still looking to move?`,
+                    }
+                    openSMS(msgs[step])
+                  }}
+                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors ${getFUStyle(step)}`}
+                >
+                  FU{step}
+                </button>
+              ))}
+              <button
+                onClick={() => {
+                  const name = normalizeName(lead.first_name || "")
+                  openSMS(`Hey ${name}, I haven't heard back so I'll pause your search for now. No rush, just let me know when you'd like me to pick it back up!`)
+                }}
+                className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border bg-[var(--crm-panel)] text-[var(--crm-text-secondary)] border-[var(--crm-border)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] transition-colors"
+              >
+                Final FU
+              </button>
+            </div>
+          </div>
         </SectionCard>
 
         {/* Section: Client Notes */}
         <CollapsibleNotes
           title="Client Notes"
           defaultOpen={!!(lead.notes && lead.notes.trim())}
+          storageKey="client-notes"
         >
           <textarea
             value={lead.notes || ""}
@@ -1284,6 +1309,7 @@ export default function LeadPanel({
         <CollapsibleNotes
           title="Locator Notes"
           defaultOpen={!!(lead.locator_notes && lead.locator_notes.trim())}
+          storageKey="locator-notes"
         >
           <textarea
             value={lead.locator_notes || ""}

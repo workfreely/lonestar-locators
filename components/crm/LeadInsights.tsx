@@ -356,11 +356,15 @@ function AiInsightsCard({ leadId }: { leadId: string }) {
   }
 
   const hasInsights = brief && brief.insights.length > 0
+  // Full timestamp (month, day, year, time) so it's unambiguous even years
+  // later — e.g. "Jul 20, 2026 • 2:43 PM".
   const lastSynced = brief?.last_synced_at
-    ? new Date(brief.last_synced_at).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      })
+    ? (() => {
+        const d = new Date(brief.last_synced_at)
+        const date = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+        const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+        return `${date} • ${time}`
+      })()
     : null
 
   return (
@@ -383,12 +387,12 @@ function AiInsightsCard({ leadId }: { leadId: string }) {
         </div>
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
           <span className="text-[11px] text-[var(--crm-text-muted)]">
-            {lastSynced ? `Updated ${lastSynced}` : "Never synced"}
+            {lastSynced ? `Phone Sync: ${lastSynced}` : "Phone Sync: Never synced"}
           </span>
           <button
             onClick={handleSync}
             disabled={syncing || !leadId}
-            className="text-[11px] text-[var(--crm-text-secondary)] bg-[var(--crm-inset)] border border-[var(--crm-border)] rounded-full px-2.5 py-0.5 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[var(--crm-card)] transition-colors"
+            className="text-[11px] text-[var(--crm-text-secondary)] bg-[var(--crm-inset)] border border-[var(--crm-border)] rounded-full px-3.5 py-1 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[var(--crm-card)] transition-colors"
           >
             {syncing ? "Syncing..." : lastSynced ? "Refresh" : "Sync"}
           </button>

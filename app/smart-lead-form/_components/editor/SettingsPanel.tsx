@@ -11,16 +11,18 @@ import SharePanel from "./panels/SharePanel"
 type Tab = "sections" | "branding" | "content" | "consent" | "share"
 type Updater = (updater: (prev: SmartLeadFormConfig) => SmartLeadFormConfig) => void
 
+// Ordered to match the natural build workflow: brand the page, write the
+// content, configure the form fields, set consent/privacy, then publish.
 const TABS: { id: Tab; label: string }[] = [
-  { id: "sections", label: "Sections" },
   { id: "branding", label: "Branding" },
   { id: "content", label: "Content" },
+  { id: "sections", label: "Sections" },
   { id: "consent", label: "Consent" },
   { id: "share", label: "Share" },
 ]
 
 export default function SettingsPanel({ config, onChange }: { config: SmartLeadFormConfig; onChange: Updater }) {
-  const [tab, setTab] = useState<Tab>("sections")
+  const [tab, setTab] = useState<Tab>("branding")
 
   return (
     <div className="flex h-full flex-col">

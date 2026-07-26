@@ -9,6 +9,7 @@ import LeadInsights from "./LeadInsights"
 import LeadFormModal from "../LeadFormModal"
 import WorkflowActionToast from "./WorkflowActionToast"
 import { emitWorkflowActionCreated, type WorkflowToastAction } from "@/lib/workflowToast"
+import { readAgendaExpanded, writeAgendaExpanded, DEFAULT_AGENDA_EXPANDED } from "@/lib/preferences"
 import Logo from "./Logo"
 import ProfileAvatarMenu from "./ProfileAvatarMenu"
 import { CRM_PRIMARY_BUTTON, CRM_SECONDARY_BUTTON } from "@/lib/crmButtonStyles"
@@ -28,7 +29,7 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
   const [localNextActions, setLocalNextActions] = useState(nextActions)
   const [localFavorites, setLocalFavorites] = useState(favorites)
   const [showLeadModal, setShowLeadModal] = useState(false)
-  const [followUpsOpen, setFollowUpsOpen] = useState(true)
+  const [followUpsOpen, setFollowUpsOpen] = useState(DEFAULT_AGENDA_EXPANDED)
   const [pendingEditActionId, setPendingEditActionId] = useState<number | null>(null)
 
   // Workflow Engine — a drag-triggered stage change created this action;
@@ -40,14 +41,13 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
   }
 
   useEffect(() => {
-    const stored = localStorage.getItem("follow-ups-expanded")
-    if (stored === "true" || stored === "false") setFollowUpsOpen(stored === "true")
+    setFollowUpsOpen(readAgendaExpanded())
   }, [])
 
   function toggleFollowUps() {
     setFollowUpsOpen((prev) => {
       const next = !prev
-      localStorage.setItem("follow-ups-expanded", String(next))
+      writeAgendaExpanded(next)
       return next
     })
   }
@@ -113,7 +113,7 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
         {/* LEFT SIDEBAR — Agenda (Follow-ups). Recessed column-like panel so
             its task cards (Kanban card surfaces) read as the focus. */}
         {followUpsOpen ? (
-          <div className="relative z-10 flex-none w-[220px] my-2 ml-2 rounded-xl overflow-hidden bg-[var(--kb-col)] border border-[var(--kb-col-border)] shadow-[var(--kb-col-shadow)]">
+          <div className="relative z-10 flex-none w-[220px] my-2 ml-2 rounded-xl overflow-hidden bg-[var(--kb-col)] border border-[var(--kb-bg)] shadow-[var(--kb-col-shadow)]">
             <FollowUpRow
               leads={localLeads}
               nextActions={localNextActions}
@@ -126,7 +126,7 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
             />
           </div>
         ) : (
-          <div className="relative z-10 flex-none w-10 my-2 ml-2 rounded-xl bg-[var(--kb-col)] border border-[var(--kb-col-border)] shadow-[var(--kb-col-shadow)] flex items-start justify-center pt-3">
+          <div className="relative z-10 flex-none w-10 my-2 ml-2 rounded-xl bg-[var(--kb-col)] border border-[var(--kb-bg)] shadow-[var(--kb-col-shadow)] flex items-start justify-center pt-3">
             <button
               onClick={toggleFollowUps}
               className="w-6 h-6 flex items-center justify-center rounded-lg text-[var(--kb-ink-muted)] hover:text-[var(--kb-ink)] transition-colors"
@@ -164,7 +164,7 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
             <div className="flex gap-2 w-full h-full pointer-events-auto">
 
               {/* LEAD PANEL */}
-              <div className="w-[420px] flex-none rounded-2xl bg-white overflow-hidden shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_10px_rgba(15,23,42,0.06),0_10px_24px_rgba(15,23,42,0.10)]">
+              <div className="w-[420px] flex-none rounded-2xl bg-[var(--crm-panel)] overflow-hidden shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.06),0_4px_10px_rgba(var(--crm-shadow-color),0.14),0_10px_28px_rgba(var(--crm-shadow-color),0.28)]">
                 <LeadPanel
                   lead={selectedLead}
                   topMatches={topMatches}

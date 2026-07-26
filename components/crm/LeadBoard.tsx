@@ -9,6 +9,7 @@ import {
 } from "@dnd-kit/core"
 import LeadColumn from "./LeadColumn"
 import LeadCard from "./LeadCard"
+import { readKanbanDensity, writeKanbanDensity, DEFAULT_KANBAN_DENSITY } from "@/lib/preferences"
 
 const columns = [
   { id: "new", title: "🟡 New" },
@@ -76,20 +77,19 @@ export default function LeadBoard({
 }) {
   const [mounted, setMounted] = useState(false)
   const [activeLead, setActiveLead] = useState<any | null>(null)
-  const [view, setView] = useState<KanbanView>("detailed")
+  const [view, setView] = useState<KanbanView>(DEFAULT_KANBAN_DENSITY)
   const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
     setMounted(true)
-    const stored = localStorage.getItem("kanban-view-mode")
-    if (stored === "detailed" || stored === "compact" || stored === "overview") {
-      setView(stored)
-    }
+    // First-time users get Compact (the preference default); returning users
+    // get whichever density they last selected.
+    setView(readKanbanDensity())
   }, [])
 
   function selectView(mode: KanbanView) {
     setView(mode)
-    localStorage.setItem("kanban-view-mode", mode)
+    writeKanbanDensity(mode)
   }
 
   if (!mounted) return null
