@@ -59,6 +59,7 @@ export default function LeadCard({
   lead,
   isSelected,
   onSelect,
+  onArchive,
   view = "detailed",
 }: any) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
@@ -188,6 +189,31 @@ export default function LeadCard({
     </span>
   )
 
+  // Quick-archive from the board — same icon as the Lead panel, scaled per
+  // density in CSS. Archives immediately (no confirm) like dragging to the
+  // Archived column; the archive reason is chosen later in the panel. Hidden
+  // for already-archived leads and when no handler is wired (e.g. drag ghost).
+  const archiveButton =
+    onArchive && lead.crm_status !== "archived" ? (
+      <button
+        type="button"
+        className="kb-archive-btn"
+        title="Archive lead"
+        aria-label="Archive lead"
+        onClick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          onArchive(lead.id)
+        }}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2.5" y="3.5" width="19" height="5" rx="1.2" />
+          <path d="M4.5 8.5V19a1.5 1.5 0 001.5 1.5h12a1.5 1.5 0 001.5-1.5V8.5" />
+          <path d="M10 12.5h4" />
+        </svg>
+      </button>
+    ) : null
+
   function nameEl() {
     return (
       <h3 className="kb-nm">
@@ -207,16 +233,26 @@ export default function LeadCard({
     )
   }
 
+  // Phone number on the left; the quick utility actions (Archive, Copy) grouped
+  // together on the right of the same row — kept away from the drag handle,
+  // which stays alone in the top-right corner for reordering.
   function phoneRow() {
-    if (!lead.phone) return null
+    if (!lead.phone && !archiveButton) return null
     return (
       <div className="kb-phone-row">
-        <a href={`tel:${lead.phone}`} onClick={(e) => e.stopPropagation()} className="kb-phone">
-          {formatPhone(lead.phone)}
-        </a>
-        <button type="button" onClick={copyPhone} className={`kb-copy${copied ? " kb-copy--done" : ""}`}>
-          {copied ? "✓" : "Copy"}
-        </button>
+        {lead.phone && (
+          <a href={`tel:${lead.phone}`} onClick={(e) => e.stopPropagation()} className="kb-phone">
+            {formatPhone(lead.phone)}
+          </a>
+        )}
+        <span className="kb-card-tools">
+          {archiveButton}
+          {lead.phone && (
+            <button type="button" onClick={copyPhone} className={`kb-copy${copied ? " kb-copy--done" : ""}`}>
+              {copied ? "✓" : "Copy"}
+            </button>
+          )}
+        </span>
       </div>
     )
   }

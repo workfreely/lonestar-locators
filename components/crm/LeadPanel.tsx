@@ -13,12 +13,14 @@ import { inferMarketFromLandingPage } from "@/lib/leads/inferMarketFromLandingPa
 import { ARCHIVE_REASONS } from "@/lib/leads/archiveReasons"
 import { rankLeadActions } from "@/lib/nextActions"
 import { getNextFollowUpAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
+import { autoDueInDays } from "@/lib/workflow/autoDueDate"
 import { emitWorkflowActionCreated } from "@/lib/workflowToast"
 import { getActionIcon, formatDueDateTime } from "@/lib/actionDisplay"
 import AiVoiceScriptModal from "./AiVoiceScriptModal"
 import ConfirmDialog from "./ConfirmDialog"
 import AddNextActionModal from "./AddNextActionModal"
 import { SectionCard } from "./LeadPanelSections"
+import InvoiceDetailsSection from "./InvoiceDetailsSection"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -221,21 +223,19 @@ export default function LeadPanel({
       recordTimelineEvent({ leadId: lead.id, type: "follow_up", method: "text", sequence: nextFollowUpCount })
     }
 
-    const now = new Date()
-    let nextDate: Date | null = new Date()
+    // Automatic follow-up: 9:00 AM local, N days out (steps 1/2/3), so the
+    // reminder lands as a clean morning task rather than at the current clock
+    // time. Steps beyond 3 end the chain (no scheduled date).
+    const nextDateISO =
+      nextFollowUpCount >= 1 && nextFollowUpCount <= 3 ? autoDueInDays(nextFollowUpCount) : null
 
-    if (nextFollowUpCount === 1) nextDate.setDate(now.getDate() + 1)
-    else if (nextFollowUpCount === 2) nextDate.setDate(now.getDate() + 2)
-    else if (nextFollowUpCount === 3) nextDate.setDate(now.getDate() + 3)
-    else nextDate = null
-
-    setNextActionDate(nextDate ? nextDate.toISOString() : null)
+    setNextActionDate(nextDateISO)
 
     if (onUpdateLead) {
       onUpdateLead({
         ...lead,
         follow_up_count: nextFollowUpCount,
-        next_action_date: nextDate ? nextDate.toISOString() : null,
+        next_action_date: nextDateISO,
       })
     }
 
@@ -243,7 +243,7 @@ export default function LeadPanel({
       .from("leads")
       .update({
         follow_up_count: nextFollowUpCount,
-        next_action_date: nextDate ? nextDate.toISOString() : null,
+        next_action_date: nextDateISO,
       })
       .eq("id", lead.id)
       .select("*")
@@ -449,9 +449,9 @@ export default function LeadPanel({
   }
 
   async function handleDoneForNow(days: number) {
-    const newDate = new Date()
-    newDate.setDate(newDate.getDate() + days)
-    const newDateISO = newDate.toISOString()
+    // Automatic reschedule → 9:00 AM local on the target day, consistent with
+    // every other workflow-generated follow-up.
+    const newDateISO = autoDueInDays(days)
 
     // Optimistic update — disappears from Follow-Ups sidebar immediately
     setNextActionDate(newDateISO)
@@ -1157,6 +1157,12 @@ export default function LeadPanel({
             return <Field label="Criminal Background" value={value} />
           })()}
         </SectionCard>
+
+        {/* Section: Invoice Details — post-close lease + commission record.
+            Only for Closed leads; collapsed by default like the others. */}
+        {lead.crm_status === "closed" && (
+          <InvoiceDetailsSection lead={lead} onUpdateLead={onUpdateLead} />
+        )}
 
         {/* Section: Quick Actions — secondary tools, collapsed by default and
             moved beneath the primary workflow (Next Action / Search / Credit). */}

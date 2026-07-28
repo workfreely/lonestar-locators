@@ -14,6 +14,7 @@ type Props = {
   leads: Lead[]
   selectedLeadId?: string | number | null
   onSelectLead?: (leadId: string | number) => void
+  onArchiveLead?: (leadId: string | number) => void
   view?: KanbanView
   emptyMessage?: string
 }
@@ -43,6 +44,7 @@ export default function LeadColumn({
   leads,
   selectedLeadId,
   onSelectLead,
+  onArchiveLead,
   view = "detailed",
   emptyMessage = "No leads",
 }: Props) {
@@ -66,6 +68,7 @@ export default function LeadColumn({
             lead={lead}
             isSelected={String(selectedLeadId) === String(lead.id)}
             onSelect={onSelectLead}
+            onArchive={onArchiveLead}
             view={view}
           />
         ))}

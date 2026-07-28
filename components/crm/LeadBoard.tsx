@@ -9,6 +9,9 @@ import {
 } from "@dnd-kit/core"
 import LeadColumn from "./LeadColumn"
 import LeadCard from "./LeadCard"
+import ArchiveLeadDialog from "./ArchiveLeadDialog"
+import { supabase } from "@/lib/supabase/client"
+import { autoDueInDays } from "@/lib/workflow/autoDueDate"
 import { readKanbanDensity, writeKanbanDensity, DEFAULT_KANBAN_DENSITY } from "@/lib/preferences"
 
 const columns = [
@@ -79,6 +82,8 @@ export default function LeadBoard({
   const [activeLead, setActiveLead] = useState<any | null>(null)
   const [view, setView] = useState<KanbanView>(DEFAULT_KANBAN_DENSITY)
   const [searchQuery, setSearchQuery] = useState("")
+  // Lead awaiting archive-reason confirmation (null = dialog closed).
+  const [pendingArchiveId, setPendingArchiveId] = useState<string | number | null>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -115,9 +120,9 @@ export default function LeadBoard({
       newStage === "ready_to_tour" ||
       newStage === "done_touring"
     ) {
-      const d = new Date()
-      d.setDate(d.getDate() + 1)
-      nextDate = d.toISOString()
+      // Automatic follow-up: tomorrow at 9:00 AM (not the current clock time),
+      // so the dashboard shows a clean morning workload.
+      nextDate = autoDueInDays(1)
     } else if (newStage === "archived") {
       // Archiving pauses the workflow, it doesn't erase it — preserve
       // whatever due date the lead already had so restoring it resumes
@@ -145,6 +150,12 @@ export default function LeadBoard({
                   ? followUpReset
                   : lead.follow_up_count,
               ...(nextDate !== undefined ? { next_action_date: nextDate } : {}),
+              // Stamp the close date locally so Beast Milestone evaluation (and
+              // the dashboard's closed-this-month math) sees it immediately —
+              // mirrors what the update-stage route sets once server-side.
+              ...(newStage === "closed" && !lead.closed_at
+                ? { closed_at: new Date().toISOString() }
+                : {}),
               _justDropped: true,
             }
           : { ...lead, _justDropped: false }
@@ -172,6 +183,54 @@ export default function LeadBoard({
     // new stage has a rule and none already exists) and returns it here.
     const json = await res.json().catch(() => null)
     if (json?.workflowAction) onWorkflowAction?.(json.workflowAction)
+  }
+
+  // A card's archive icon opens the confirmation dialog — the actual archive
+  // only happens once a reason is chosen and confirmed (see confirmArchive).
+  function handleArchive(leadId: string | number) {
+    setPendingArchiveId(leadId)
+  }
+
+  const pendingArchiveLead =
+    pendingArchiveId != null
+      ? leads.find((l) => String(l.id) === String(pendingArchiveId))
+      : null
+  const pendingArchiveName = pendingArchiveLead
+    ? `${pendingArchiveLead.first_name ?? ""} ${pendingArchiveLead.last_name ?? ""}`.trim()
+    : ""
+
+  // Confirmed archive with a chosen reason. Writes directly via Supabase (like
+  // the Lead panel's own archive) so the reason + restore metadata are saved:
+  // pause the workflow without erasing it — next_action_date and follow_up_count
+  // are left untouched so restoring the lead resumes it automatically.
+  async function confirmArchive(reason: string) {
+    const leadId = pendingArchiveId
+    if (leadId == null) return
+    setPendingArchiveId(null)
+
+    const target = leads.find((l) => String(l.id) === String(leadId))
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    const updates = {
+      crm_status: "archived",
+      archive_reason: reason,
+      deleted_at: new Date().toISOString(),
+      deleted_by: user?.email ?? null,
+      pre_delete_status: target?.crm_status ?? null,
+    }
+
+    setLeads((currentLeads) =>
+      currentLeads.map((lead) =>
+        String(lead.id) === String(leadId)
+          ? { ...lead, ...updates, _justDropped: true }
+          : { ...lead, _justDropped: false }
+      )
+    )
+
+    const { error } = await supabase.from("leads").update(updates).eq("id", leadId)
+    if (error) console.error("[archive-lead] update failed:", error.message)
   }
 
   return (
@@ -264,6 +323,7 @@ export default function LeadBoard({
                 })}
               selectedLeadId={selectedLeadId}
               onSelectLead={onSelectLead}
+              onArchiveLead={handleArchive}
             />
           ))}
         </div>
@@ -282,6 +342,13 @@ export default function LeadBoard({
           </div>
         ) : null}
       </DragOverlay>
+
+      <ArchiveLeadDialog
+        open={pendingArchiveId != null}
+        leadName={pendingArchiveName}
+        onCancel={() => setPendingArchiveId(null)}
+        onConfirm={confirmArchive}
+      />
     </DndContext>
   )
 }

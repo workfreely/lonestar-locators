@@ -12,6 +12,7 @@ import MonthlyPerformanceHistory from "./MonthlyPerformanceHistory"
 import CollapsibleSection from "@/components/crm/CollapsibleSection"
 import AppHeader from "@/components/crm/AppHeader"
 import { CRM_SECONDARY_BUTTON } from "@/lib/crmButtonStyles"
+import type { ProjectionMethod } from "@/lib/leads/commissionEstimate"
 
 // Composes the Phase 1 Performance page from the reusable pieces above.
 // Deliberately thin — Phase 2 (ROI, spend, charts, funnels) adds new
@@ -23,11 +24,13 @@ export default function PerformanceClient({
   dashboardLeads,
   monthlyGoal,
   avgCommission,
+  projectionMethod,
 }: {
   leads: any[]
   dashboardLeads: any[]
   monthlyGoal?: number
   avgCommission?: number
+  projectionMethod?: ProjectionMethod
 }) {
   return (
     <div className="relative h-screen w-full flex flex-col bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]">
@@ -52,7 +55,7 @@ export default function PerformanceClient({
             Commission, Closed This Month); expanded by default and stays at
             the top. */}
         <CollapsibleSection title="Sales Overview" storageKey="dashboard-metrics-expanded" defaultOpen={true}>
-          <DashboardStats leads={dashboardLeads} monthlyGoal={monthlyGoal} avgCommission={avgCommission} />
+          <DashboardStats leads={dashboardLeads} monthlyGoal={monthlyGoal} avgCommission={avgCommission} projectionMethod={projectionMethod} />
         </CollapsibleSection>
 
         {/* Operational metrics — cities, lead sources, landing pages. Most

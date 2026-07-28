@@ -41,7 +41,11 @@ if (stage === "list_sent") {
   // =====================================================
   // 🏁 CLOSED
   // =====================================================
-  if (stage === "closed") return "Request Referral"
+  // After closing, the required next step is collecting the lease + invoice
+  // info needed to get paid — NOT a referral (referrals are optional and not
+  // part of the workflow). Short "Invoice Details" label for the Kanban card;
+  // the workflow action itself is "Get Invoice Details" (see workflowEngine).
+  if (stage === "closed") return "Invoice Details"
 
   return "Next Action"
 }

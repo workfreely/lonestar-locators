@@ -25,7 +25,7 @@ function getActionLabel(crm_status: string, follow_up_count: number | null | und
     case "applied":
       return "Check App"
     case "closed":
-      return "Request Referral"
+      return "Invoice Details"
     default:
       return "Follow Up"
   }

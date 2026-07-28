@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase/client"
 import { exitDemoWorkspace } from "@/lib/demo/exitDemo"
 import ConfirmDialog from "@/components/crm/ConfirmDialog"
 import SettingsShell, { SettingsCard, settingsLabelCls } from "@/components/crm/settings/SettingsShell"
+import { DEFAULT_PROJECTION_METHOD, type ProjectionMethod } from "@/lib/leads/commissionEstimate"
 
 function formatCurrency(raw: string): string {
   const digits = raw.replace(/[^\d]/g, "")
@@ -23,14 +24,17 @@ export default function SettingsClient({
   demoMode,
   monthlyGoal,
   avgCommission,
+  projectionMethod = DEFAULT_PROJECTION_METHOD,
 }: {
   demoMode: boolean
   monthlyGoal: number
   avgCommission: number
+  projectionMethod?: ProjectionMethod
 }) {
   const router = useRouter()
   const [goal, setGoal] = useState(monthlyGoal.toLocaleString("en-US"))
   const [avg, setAvg] = useState(avgCommission.toLocaleString("en-US"))
+  const [method, setMethod] = useState<ProjectionMethod>(projectionMethod)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -48,6 +52,7 @@ export default function SettingsClient({
         .update({
           monthly_commission_goal: toNumber(goal),
           avg_commission_per_lease: toNumber(avg),
+          projection_method: method,
         })
         .eq("id", user.id)
     }
@@ -66,8 +71,8 @@ export default function SettingsClient({
   }
 
   return (
-    <SettingsShell title="Business Goals" description="These drive your dashboard's monthly progress and projected pipeline.">
-      <SettingsCard title="Business Goal Settings">
+    <SettingsShell title="Sales Goals" description="These drive your dashboard's monthly progress and projected pipeline.">
+      <SettingsCard title="Sales Goal Settings">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
             <label className={settingsLabelCls}>Average Commission per Lease</label>
@@ -84,6 +89,58 @@ export default function SettingsClient({
             </div>
           </div>
         </div>
+
+        {/* Projection Method — how the dashboard estimates commission. */}
+        <div className="mt-5">
+          <label className={settingsLabelCls}>Projection Method</label>
+          <p className="mt-1 mb-2.5 text-[12.5px] text-[#6b7280]">
+            How your dashboard estimates commission for pipeline and projections.
+          </p>
+          <div className="flex flex-col gap-2">
+            {[
+              {
+                value: "avg_commission" as ProjectionMethod,
+                label: "Average Commission Per Lease",
+                recommended: true,
+                desc: "Values every lead at your average commission — simple and predictable.",
+              },
+              {
+                value: "lead_budget" as ProjectionMethod,
+                label: "Lead Budget",
+                recommended: false,
+                desc: "Uses the lower end of each lead's budget range, falling back to your average when no budget is set.",
+              },
+            ].map((opt) => {
+              const active = method === opt.value
+              return (
+                <label
+                  key={opt.value}
+                  className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3.5 py-3 transition-colors ${
+                    active ? "border-[#2f6bff] bg-[#f4f7ff]" : "border-[#e5e7ee] bg-white hover:bg-[#f4f5f8]"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="projection-method"
+                    className="mt-0.5 h-4 w-4 accent-[#2f6bff]"
+                    checked={active}
+                    onChange={() => setMethod(opt.value)}
+                  />
+                  <span className="min-w-0">
+                    <span className="text-[13.5px] font-semibold text-[#111318]">
+                      {opt.label}
+                      {opt.recommended && (
+                        <span className="ml-1.5 text-[12px] font-semibold text-[#2f6bff]">(Recommended)</span>
+                      )}
+                    </span>
+                    <span className="mt-0.5 block text-[12px] text-[#6b7280]">{opt.desc}</span>
+                  </span>
+                </label>
+              )
+            })}
+          </div>
+        </div>
+
         <div className="mt-5 flex items-center gap-3">
           <button
             type="button"

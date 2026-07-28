@@ -4,7 +4,11 @@ export const dynamic = "force-dynamic"
 import DashboardClient from "@/components/crm/DashboardClient"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
-import { DEMO_ALL_LEADS, DEMO_NEXT_ACTIONS, DEMO_FAVORITES } from "@/lib/demo/demoWorkspace"
+import { DEMO_ALL_LEADS, DEMO_NEXT_ACTIONS, DEMO_FAVORITES, DEFAULT_AVG_COMMISSION_PER_LEASE } from "@/lib/demo/demoWorkspace"
+
+// Fallback per-close commission when a profile hasn't set its own — matches
+// the dashboard's REVENUE_PER_CLOSE default. Drives Beast Milestone thresholds.
+const DEFAULT_AVG_COMMISSION = 1_000
 
 function dedupeLeads(leads: any[]) {
   const seen = new Set()
@@ -77,16 +81,16 @@ async function getFavorites() {
 // first_name personalizes the demo welcome banner.
 type AgentProfile = { name: string; brokerage: string; phone: string; email: string }
 
-async function getProfileContext(): Promise<{ demoMode: boolean; firstName: string; googleConnected: boolean; agent: AgentProfile }> {
+async function getProfileContext(): Promise<{ demoMode: boolean; firstName: string; googleConnected: boolean; agent: AgentProfile; avgCommission: number }> {
   const emptyAgent: AgentProfile = { name: "", brokerage: "", phone: "", email: "" }
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) return { demoMode: false, firstName: "", googleConnected: false, agent: emptyAgent }
+  if (!user) return { demoMode: false, firstName: "", googleConnected: false, agent: emptyAgent, avgCommission: DEFAULT_AVG_COMMISSION }
   const { data: profile } = await supabase
     .from("profiles")
-    .select("demo_mode, first_name, last_name, preferred_name, email, brokerage, phone_number, google_connected")
+    .select("demo_mode, first_name, last_name, preferred_name, email, brokerage, phone_number, google_connected, avg_commission_per_lease")
     .eq("id", user.id)
     .single()
   // Preferred Name is the display name shown throughout Locator Beast; the
@@ -104,11 +108,12 @@ async function getProfileContext(): Promise<{ demoMode: boolean; firstName: stri
     firstName: preferred || (profile?.first_name ?? ""),
     googleConnected: !!profile?.google_connected,
     agent,
+    avgCommission: Number(profile?.avg_commission_per_lease) || DEFAULT_AVG_COMMISSION,
   }
 }
 
 export default async function Page() {
-  const { demoMode, firstName, googleConnected, agent } = await getProfileContext()
+  const { demoMode, firstName, googleConnected, agent, avgCommission } = await getProfileContext()
 
   if (demoMode) {
     return (
@@ -120,6 +125,7 @@ export default async function Page() {
         firstName={firstName}
         googleConnected={googleConnected}
         agent={agent}
+        avgCommission={DEFAULT_AVG_COMMISSION_PER_LEASE}
       />
     )
   }
@@ -130,5 +136,5 @@ export default async function Page() {
     getFavorites(),
   ])
 
-  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} agent={agent} />
+  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} agent={agent} avgCommission={avgCommission} />
 }

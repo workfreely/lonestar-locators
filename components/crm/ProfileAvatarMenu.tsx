@@ -39,10 +39,10 @@ function ChevronIcon({ open, light }: { open: boolean; light: boolean }) {
 
 // Navigation links (everything except Appearance, which stays an inline
 // theme picker for instant visual feedback). Order per spec: Profile,
-// Appearance, Smart Lead Form, Business Goals, Integrations, Billing.
+// Appearance, Smart Lead Form, Sales Goals, Integrations, Billing.
 const LINKS_AFTER_APPEARANCE: { label: string; href: string }[] = [
   { label: "Smart Lead Form", href: "/smart-lead-form" },
-  { label: "Business Goals", href: "/admin/settings" },
+  { label: "Sales Goals", href: "/admin/settings" },
   { label: "Integrations", href: "/admin/integrations" },
   { label: "Billing", href: "/admin/billing" },
 ]

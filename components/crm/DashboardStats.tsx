@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { getSourceBarColor } from "@/lib/leads/sourceStyles"
+import { sumEstimatedCommission, DEFAULT_PROJECTION_METHOD, type ProjectionMethod } from "@/lib/leads/commissionEstimate"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 // Fallbacks when a profile hasn't set its own goals (real operator today).
@@ -79,24 +80,32 @@ export default function DashboardStats({
   leads,
   monthlyGoal = MONTHLY_REVENUE_GOAL,
   avgCommission = REVENUE_PER_CLOSE,
+  projectionMethod = DEFAULT_PROJECTION_METHOD,
   animate = true,
 }: {
   leads: any[]
   monthlyGoal?: number
   avgCommission?: number
+  projectionMethod?: ProjectionMethod
   animate?: boolean
 }) {
+
+  // Every commission figure below is an ESTIMATE governed by the account's
+  // Projection Method: "avg_commission" values each lead at avgCommission
+  // (identical to the old count × avg), "lead_budget" uses the lower end of the
+  // lead's budget range (falling back to avg). One helper keeps them consistent.
+  const estimate = (ls: any[]) => sumEstimatedCommission(ls, projectionMethod, avgCommission)
 
   // Active pipeline — only leads still in the active workflow (excludes
   // both Closed and Archived)
   const activeLeads         = leads.filter((l) => ACTIVE_STATUSES.has(l.crm_status))
-  const activePipelineValue = activeLeads.length * avgCommission
+  const activePipelineValue = estimate(activeLeads)
 
   // Closed this month — keyed off closed_at (the lead's actual closed
   // date), not crm_status, so this stays correct after the monthly Closed
   // cleanup archives a lead out of the Closed column.
   const closedThisMonth  = leads.filter((l) => l.closed_at && isThisMonth(l.closed_at))
-  const revenueThisMonth = closedThisMonth.length * avgCommission
+  const revenueThisMonth = estimate(closedThisMonth)
   const progressPct      = Math.min(Math.round((revenueThisMonth / monthlyGoal) * 100), 100)
 
   // Leads generated this month
@@ -119,7 +128,7 @@ export default function DashboardStats({
   // yet (Searching, List Sent, Ready to Tour, etc.) — intentionally simple
   // until there's more production data to base a smarter model on.
   const appliedLeads = leads.filter((l) => l.crm_status === "applied")
-  const projectedCommission = appliedLeads.length * avgCommission
+  const projectedCommission = estimate(appliedLeads)
 
   return (
     <div className="flex-none bg-[var(--crm-card)] border-b border-[var(--crm-border)] px-5 pt-3 pb-5">

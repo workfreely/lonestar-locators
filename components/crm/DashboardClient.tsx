@@ -10,6 +10,8 @@ import LeadFavorites from "./LeadFavorites"
 import LeadNotes from "./LeadNotes"
 import LeadFormModal from "../LeadFormModal"
 import WorkflowActionToast from "./WorkflowActionToast"
+import BeastMilestoneToast from "./BeastMilestoneToast"
+import { useBeastMilestones } from "@/lib/beastMilestones/useBeastMilestones"
 import { emitWorkflowActionCreated, type WorkflowToastAction } from "@/lib/workflowToast"
 import { readAgendaExpanded, writeAgendaExpanded, DEFAULT_AGENDA_EXPANDED, readDemoBannerDismissed, writeDemoBannerDismissed } from "@/lib/preferences"
 import { exitDemoWorkspace } from "@/lib/demo/exitDemo"
@@ -22,7 +24,7 @@ function titleCaseName(name: string): string {
   return name.trim().replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
-export default function DashboardClient({ leads, nextActions, favorites, demoMode = false, firstName = "", googleConnected = false, agent }: { leads: any[]; nextActions: any[]; favorites: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent }) {
+export default function DashboardClient({ leads, nextActions, favorites, demoMode = false, firstName = "", googleConnected = false, agent, avgCommission = 1000 }: { leads: any[]; nextActions: any[]; favorites: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; avgCommission?: number }) {
   const router = useRouter()
   const [selectedLeadId, setSelectedLeadId] = useState<string | number | null>(null)
   const [bannerVisible, setBannerVisible] = useState(false)
@@ -59,6 +61,11 @@ export default function DashboardClient({ leads, nextActions, favorites, demoMod
   const [showLeadModal, setShowLeadModal] = useState(false)
   const [followUpsOpen, setFollowUpsOpen] = useState(DEFAULT_AGENDA_EXPANDED)
   const [pendingEditActionId, setPendingEditActionId] = useState<number | null>(null)
+
+  // Beast Milestones — watches the live board for newly-earned achievements
+  // (First Lease, monthly commission thresholds) and fires a celebration.
+  // Silent on mount for anything already earned, so only fresh crossings pop.
+  useBeastMilestones(localLeads, avgCommission, demoMode)
 
   // Workflow Engine — a drag-triggered stage change created this action;
   // mirror it into local state and show the toast the same way
@@ -225,11 +232,29 @@ export default function DashboardClient({ leads, nextActions, favorites, demoMod
                     router.push("/admin/leads")
                   }}
                   onUpdateLead={(updatedLead) => {
-                    setLocalLeads((prev) =>
-                      prev.map((l) =>
-                        l.id === updatedLead.id ? updatedLead : l
-                      )
-                    )
+                    setLocalLeads((prev) => {
+                      const prevLead = prev.find((l) => l.id === updatedLead.id)
+                      // A workflow-driven stage change (New→Contacted, etc.)
+                      // pins the lead to the TOP of its destination column via
+                      // _justDropped — the same flag drag uses — so it's
+                      // immediately visible where the user looks to confirm the
+                      // move, never buried at the bottom. Non-stage updates
+                      // (notes, follow-up count, dates) never reorder anything.
+                      const stageChanged =
+                        !!prevLead && prevLead.crm_status !== updatedLead.crm_status
+                      return prev.map((l) => {
+                        if (l.id === updatedLead.id) {
+                          return stageChanged
+                            ? { ...updatedLead, _justDropped: true }
+                            : updatedLead
+                        }
+                        // Clear any prior pin so only the just-moved lead stays
+                        // on top of its column.
+                        return stageChanged && l._justDropped
+                          ? { ...l, _justDropped: false }
+                          : l
+                      })
+                    })
                   }}
                   pendingEditActionId={pendingEditActionId}
                   onPendingEditHandled={() => setPendingEditActionId(null)}
@@ -279,6 +304,8 @@ export default function DashboardClient({ leads, nextActions, favorites, demoMod
           setPendingEditActionId(action.id)
         }}
       />
+
+      <BeastMilestoneToast />
 
       {demoMode && <FirstRunChecklist googleConnected={googleConnected} />}
     </div>

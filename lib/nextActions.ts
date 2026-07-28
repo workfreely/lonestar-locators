@@ -105,7 +105,17 @@ export function rankLeadActions(
     }
   }
 
-  const openManual = manualActions.filter((a) => !a.completed && a.lead_id === lead.id)
+  let openManual = manualActions.filter((a) => !a.completed && a.lead_id === lead.id)
+
+  // Once a lead is Closed, its required next step is "Get Invoice Details". The
+  // Applied-stage "Check App" row is created earlier and never auto-deleted, so
+  // it can linger as an open row and (if overdue) outrank the invoice step —
+  // making a Closed lead show "Check App" as its current Next Action. Suppress
+  // that stale row for Closed leads so the invoice action wins. (The card badge
+  // can't show it anyway — getNextAction is purely stage-derived.)
+  if (lead.crm_status === "closed") {
+    openManual = openManual.filter((a) => a.title.trim().toLowerCase() !== "check app")
+  }
 
   // The Workflow Engine (lib/workflowEngine.ts) now creates real
   // lead_next_actions rows for most stage transitions, often titled

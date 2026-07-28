@@ -10,13 +10,12 @@
 //
 // Timezone note: this schema has no per-user/per-lead timezone column
 // (confirmed — the only existing timezone handling in the codebase is a
-// hardcoded "America/Chicago" for Google Calendar events). "9:30 AM
-// local" here follows the same convention already established by
-// AddNextActionModal's getDefaultDueAt(): plain Date math in whichever
-// environment this code runs (the browser for client-triggered actions,
-// the server for the update-stage API route's stage-driven actions).
+// hardcoded "America/Chicago" for Google Calendar events). Deferred actions
+// are due 9:00 AM local on their target day — see lib/workflow/autoDueDate.ts,
+// the single source of truth for the automatic-action time convention.
 
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { autoDueInDays, autoDueOnDate } from "./workflow/autoDueDate"
 
 export type WorkflowActionSpec = {
   title: string
@@ -31,8 +30,9 @@ export type CreatedWorkflowAction = {
   priority: "low" | "medium" | "high"
 }
 
-// Immediate Actions are created due "now" rather than at 9:30 AM on some
-// future date — everything else is a Review Action, due 9:30 AM local.
+// Immediate Actions are created due "now" (do-this-right-away tasks like
+// contacting a fresh lead) rather than deferred to 9:00 AM on a future day —
+// everything else is a Review Action, due 9:00 AM local on its target day.
 const IMMEDIATE_TITLES = new Set(["Contact Lead", "Send List", "Setup Tour", "Email Guest Card"])
 
 export function isImmediateAction(title: string): boolean {
@@ -41,20 +41,6 @@ export function isImmediateAction(title: string): boolean {
 
 function immediateNow(): string {
   return new Date().toISOString()
-}
-
-function nineThirtyLocalDaysFromNow(days: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() + days)
-  d.setHours(9, 30, 0, 0)
-  return d.toISOString()
-}
-
-function nineThirtyOnDate(base: Date, dayOffset = 0): string {
-  const d = new Date(base)
-  d.setDate(d.getDate() + dayOffset)
-  d.setHours(9, 30, 0, 0)
-  return d.toISOString()
 }
 
 /**
@@ -79,13 +65,13 @@ export function getStageWorkflowAction(
       // already exist"; "stage is still Contacted" is trivially true here
       // since this only runs on transitions INTO contacted.
       if ((lead.follow_up_count ?? 0) > 0) return null
-      return { title: "Follow Up", dueAt: nineThirtyLocalDaysFromNow(2) }
+      return { title: "Follow Up", dueAt: autoDueInDays(2) }
 
     case "searching":
       return { title: "Send List", dueAt: immediateNow() }
 
     case "list_sent":
-      return { title: "FU1", dueAt: nineThirtyLocalDaysFromNow(1) }
+      return { title: "FU1", dueAt: autoDueInDays(1) }
 
     case "ready_to_tour": {
       const moveDate = lead.move_date ? new Date(lead.move_date) : null
@@ -96,21 +82,21 @@ export function getStageWorkflowAction(
       }
       const daysUntilMove = Math.ceil((moveDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
       if (daysUntilMove > 90) {
-        return { title: "Reconnect Client", dueAt: nineThirtyOnDate(moveDate, -90) }
+        return { title: "Reconnect Client", dueAt: autoDueOnDate(moveDate, -90) }
       }
       return { title: "Setup Tour", dueAt: immediateNow() }
     }
 
     case "applied":
-      return { title: "Check App", dueAt: nineThirtyLocalDaysFromNow(3) }
+      return { title: "Check App", dueAt: autoDueInDays(3) }
 
     case "closed":
-      return { title: "Get Invoice Details", dueAt: nineThirtyOnDate(new Date()) }
+      return { title: "Get Invoice Details", dueAt: autoDueOnDate(new Date()) }
 
     // "archived": no automatic actions (explicit).
     // "done_touring": Tour Management ("Tour Scheduled") isn't implemented
     // yet — no rule here by design. Once it exists, it should create
-    // "Tour Follow-Up" due 9:30 AM the day after the scheduled tour.
+    // "Tour Follow-Up" due 9:00 AM the day after the scheduled tour.
     default:
       return null
   }
@@ -122,9 +108,9 @@ export function getStageWorkflowAction(
  */
 export function getNextFollowUpAction(completedTitle: string): WorkflowActionSpec | null {
   switch (completedTitle) {
-    case "FU1": return { title: "FU2", dueAt: nineThirtyLocalDaysFromNow(2) }
-    case "FU2": return { title: "FU3", dueAt: nineThirtyLocalDaysFromNow(3) }
-    case "FU3": return { title: "Final", dueAt: nineThirtyLocalDaysFromNow(7) }
+    case "FU1": return { title: "FU2", dueAt: autoDueInDays(2) }
+    case "FU2": return { title: "FU3", dueAt: autoDueInDays(3) }
+    case "FU3": return { title: "Final", dueAt: autoDueInDays(7) }
     default: return null
   }
 }

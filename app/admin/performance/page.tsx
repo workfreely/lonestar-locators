@@ -9,6 +9,7 @@ import {
   DEFAULT_MONTHLY_COMMISSION_GOAL,
   DEFAULT_AVG_COMMISSION_PER_LEASE,
 } from "@/lib/demo/demoWorkspace"
+import { DEFAULT_PROJECTION_METHOD, type ProjectionMethod } from "@/lib/leads/commissionEstimate"
 
 async function getLeads() {
   const { data, error } = await supabaseAdmin
@@ -58,22 +59,23 @@ async function getProfileContext() {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) {
-    return { demoMode: false, monthlyGoal: DEFAULT_MONTHLY_COMMISSION_GOAL, avgCommission: DEFAULT_AVG_COMMISSION_PER_LEASE }
+    return { demoMode: false, monthlyGoal: DEFAULT_MONTHLY_COMMISSION_GOAL, avgCommission: DEFAULT_AVG_COMMISSION_PER_LEASE, projectionMethod: DEFAULT_PROJECTION_METHOD }
   }
   const { data: profile } = await supabase
     .from("profiles")
-    .select("demo_mode, monthly_commission_goal, avg_commission_per_lease")
+    .select("demo_mode, monthly_commission_goal, avg_commission_per_lease, projection_method")
     .eq("id", user.id)
     .single()
   return {
     demoMode: !!profile?.demo_mode,
     monthlyGoal: profile?.monthly_commission_goal ?? DEFAULT_MONTHLY_COMMISSION_GOAL,
     avgCommission: profile?.avg_commission_per_lease ?? DEFAULT_AVG_COMMISSION_PER_LEASE,
+    projectionMethod: (profile?.projection_method as ProjectionMethod) ?? DEFAULT_PROJECTION_METHOD,
   }
 }
 
 export default async function PerformancePage() {
-  const { demoMode, monthlyGoal, avgCommission } = await getProfileContext()
+  const { demoMode, monthlyGoal, avgCommission, projectionMethod } = await getProfileContext()
 
   if (demoMode) {
     return (
@@ -82,6 +84,7 @@ export default async function PerformancePage() {
         dashboardLeads={DEMO_ALL_LEADS}
         monthlyGoal={monthlyGoal}
         avgCommission={avgCommission}
+        projectionMethod={projectionMethod}
       />
     )
   }
@@ -94,6 +97,7 @@ export default async function PerformancePage() {
       dashboardLeads={dashboardLeads}
       monthlyGoal={monthlyGoal}
       avgCommission={avgCommission}
+      projectionMethod={projectionMethod}
     />
   )
 }
