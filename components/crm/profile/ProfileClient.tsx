@@ -20,6 +20,17 @@ type ProfileInitial = {
   photoUrl: string | null
 }
 
+// Progressive US phone formatting for the input — shows "(210) 555-1234" as the
+// user types and normalizes whatever is loaded from the DB to the same shape.
+function formatPhoneInput(value: string): string {
+  let d = value.replace(/\D/g, "")
+  if (d.length === 11 && d.startsWith("1")) d = d.slice(1) // drop a leading US "1"
+  d = d.slice(0, 10)
+  if (d.length < 4) return d
+  if (d.length < 7) return `(${d.slice(0, 3)}) ${d.slice(3)}`
+  return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`
+}
+
 function DefaultAvatar({ className = "" }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -37,7 +48,7 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
   const [preferredName, setPreferredName] = useState(initial.preferredName)
   const [brokerage, setBrokerage] = useState(initial.brokerage)
   const [licenseNumber, setLicenseNumber] = useState(initial.licenseNumber)
-  const [phone, setPhone] = useState(initial.phone)
+  const [phone, setPhone] = useState(formatPhoneInput(initial.phone))
   const [email, setEmail] = useState(initial.email)
   const [photoUrl, setPhotoUrl] = useState<string | null>(initial.photoUrl)
 
@@ -172,7 +183,7 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
             label="Preferred Name"
             hint="This is the name shown throughout Locator Beast — on guest cards, email & SMS templates, AI messages, and your dashboard."
           >
-            <input value={preferredName} onChange={(e) => setPreferredName(e.target.value)} placeholder="e.g. Jay" className={settingsInputCls} />
+            <input value={preferredName} onChange={(e) => setPreferredName(e.target.value)} placeholder="e.g. Bob" className={settingsInputCls} />
           </SettingsField>
         </div>
       </SettingsCard>
@@ -190,10 +201,28 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
             <input value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)} className={settingsInputCls} />
           </SettingsField>
           <SettingsField label="Phone Number">
-            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className={settingsInputCls} />
+            {/* No `type` attribute at all (like the other Profile fields) so it
+                doesn't match the global input[type="text"|"tel"|…] rule that
+                overrides font/padding — that rule targets typed inputs only,
+                and the other fields are type-less. inputMode keeps the phone
+                keypad on mobile. */}
+            <input
+              inputMode="tel"
+              value={phone}
+              onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
+              placeholder="(210) 555-1234"
+              className={settingsInputCls}
+            />
           </SettingsField>
           <SettingsField label="Email Address">
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={settingsInputCls} />
+            {/* Type-less for the same reason — inputMode keeps the email
+                keyboard on mobile. */}
+            <input
+              inputMode="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={settingsInputCls}
+            />
           </SettingsField>
         </div>
       </SettingsCard>

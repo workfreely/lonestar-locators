@@ -39,10 +39,13 @@ function ChevronIcon({ open, light }: { open: boolean; light: boolean }) {
 
 // Navigation links (everything except Appearance, which stays an inline
 // theme picker for instant visual feedback). Order per spec: Profile,
-// Appearance, Smart Lead Form, Sales Goals, Integrations, Billing.
+// Appearance, Smart Lead Form, Sales Goals, Analytics, Integrations, Billing.
+// Analytics is an account-level page (same /admin/performance the top-nav
+// Analytics button opens) — this is an additional shortcut, not a replacement.
 const LINKS_AFTER_APPEARANCE: { label: string; href: string }[] = [
   { label: "Smart Lead Form", href: "/smart-lead-form" },
   { label: "Sales Goals", href: "/admin/settings" },
+  { label: "Analytics", href: "/admin/performance" },
   { label: "Integrations", href: "/admin/integrations" },
   { label: "Billing", href: "/admin/billing" },
 ]
@@ -95,8 +98,8 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
   }
 
   const buttonCls = light
-    ? "w-8 h-8 rounded-full bg-white border border-[#e5e7ee] flex items-center justify-center text-[#9098a8] overflow-hidden flex-none transition-shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2f6bff] focus-visible:ring-offset-1"
-    : "w-8 h-8 rounded-full bg-[var(--crm-inset)] border border-[var(--crm-border)] flex items-center justify-center text-[var(--crm-text-muted)] overflow-hidden flex-none transition-shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--crm-accent)] focus-visible:ring-offset-1"
+    ? "w-[44px] h-[44px] rounded-full bg-white border border-[#e5e7ee] flex items-center justify-center text-[#9098a8] overflow-hidden flex-none transition-shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2f6bff] focus-visible:ring-offset-1"
+    : "w-[44px] h-[44px] rounded-full bg-[var(--crm-inset)] border border-[var(--crm-border)] flex items-center justify-center text-[var(--crm-text-muted)] overflow-hidden flex-none transition-shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--crm-accent)] focus-visible:ring-offset-1"
 
   const panelCls = light
     ? "absolute right-0 top-full mt-2 w-60 bg-white border border-[#e5e7ee] rounded-xl shadow-[0_12px_32px_rgba(15,23,42,0.14)] py-1.5 z-50"
@@ -129,7 +132,7 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
           // eslint-disable-next-line @next/next/no-img-element
           <img src={photoUrl} alt="" className="w-full h-full object-cover" />
         ) : (
-          <DefaultAvatar className="w-4 h-4" />
+          <DefaultAvatar className="w-6 h-6" />
         )}
       </button>
 

@@ -166,6 +166,30 @@ export default function LeadPanel({
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
   const [showAddAction, setShowAddAction] = useState(false)
   const [editingAction, setEditingAction] = useState<any | null>(null)
+  // Copy-the-phone-number affordance in the header (revealed on phone hover).
+  const [copiedPhone, setCopiedPhone] = useState(false)
+
+  async function copyPhone(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!lead.phone) return
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(lead.phone)
+      } else {
+        const ta = document.createElement("textarea")
+        ta.value = lead.phone
+        document.body.appendChild(ta)
+        ta.select()
+        document.execCommand("copy")
+        document.body.removeChild(ta)
+      }
+      setCopiedPhone(true)
+      setTimeout(() => setCopiedPhone(false), 1500)
+    } catch (err) {
+      console.error("Copy failed:", err)
+    }
+  }
   // Auto-completion of the current action: armed when the user opens the
   // action's template/workflow, then stamped Completed when they return to the
   // app (i.e. after actually sending the message / making the call).
@@ -919,12 +943,29 @@ export default function LeadPanel({
               </span>
             </div>
             {lead.phone && (
-              <a
-                href={`tel:${lead.phone}`}
-                className="text-lg font-semibold text-[var(--kb-accent)] mt-0.5 mb-1.5 block hover:underline"
-              >
-                {formatPhone(lead.phone)}
-              </a>
+              // group/phone: the Copy action only appears while hovering the
+              // phone number (or the button itself), then stays visible briefly
+              // after a copy to confirm it.
+              <div className="group/phone flex items-center gap-2 mt-0.5 mb-1.5">
+                <a
+                  href={`tel:${lead.phone}`}
+                  className="text-lg font-semibold text-[var(--kb-accent)] hover:underline"
+                >
+                  {formatPhone(lead.phone)}
+                </a>
+                <button
+                  type="button"
+                  onClick={copyPhone}
+                  aria-label="Copy phone number"
+                  className={`flex-none text-[11px] font-semibold px-2 py-0.5 rounded-md border transition-all ${
+                    copiedPhone
+                      ? "opacity-100 bg-emerald-500 text-white border-emerald-500"
+                      : "opacity-0 group-hover/phone:opacity-100 border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]"
+                  }`}
+                >
+                  {copiedPhone ? "✓ Copied" : "Copy"}
+                </button>
+              </div>
             )}
           </div>
 

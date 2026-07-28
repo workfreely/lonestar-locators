@@ -245,13 +245,16 @@ export default function LeadCard({
             {formatPhone(lead.phone)}
           </a>
         )}
+        {/* Copy sits immediately beside the phone number it refers to; the
+            Archive icon is a separate action to its right. Same order in every
+            density (Overview/Compact/Detailed). */}
         <span className="kb-card-tools">
-          {archiveButton}
           {lead.phone && (
             <button type="button" onClick={copyPhone} className={`kb-copy${copied ? " kb-copy--done" : ""}`}>
               {copied ? "✓" : "Copy"}
             </button>
           )}
+          {archiveButton}
         </span>
       </div>
     )

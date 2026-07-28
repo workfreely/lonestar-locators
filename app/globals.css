@@ -1753,13 +1753,20 @@ body.jaybot-open {
 /* Quick utility actions (Archive, Copy) grouped at the right of the phone row,
    away from the drag handle. Revealed on hover like the Copy button. Icon size
    scales per density; the interaction is identical across all three views. */
-.kb-card-tools { margin-left:auto; display:flex; align-items:center; gap:6px; }
+/* Grouped with the phone number (immediately to its right), NOT pushed to the
+   far edge — leaves the drag handle visually isolated in the top-right corner.
+   No margin-left:auto, so the cluster stays on the left in every density. */
+.kb-card-tools { display:flex; align-items:center; gap:6px; }
 .kb-archive-btn { display:grid; place-items:center; padding:2px; border:1px solid transparent; border-radius:6px; background:transparent; color:var(--kb-ink-muted); opacity:0; transition:opacity .2s, background .2s, color .2s; cursor:pointer; }
 .kb-card:hover .kb-archive-btn { opacity:1; }
 .kb-archive-btn:hover { background:var(--kb-inset); color:var(--kb-ink); }
 .kb-archive-btn svg { width:14px; height:14px; display:block; }
-.kb-board[data-density="overview"] .kb-card-tools { gap:5px; }
+.kb-board[data-density="overview"] .kb-card-tools { gap:4px; }
 .kb-board[data-density="overview"] .kb-archive-btn svg { width:12px; height:12px; }
+/* Overview only: the narrowest card. Tuck the Archive/Copy cluster a little
+   tighter to the right (smaller Copy padding) so the phone number keeps its
+   single line — Compact/Detailed keep the roomier default. */
+.kb-board[data-density="overview"] .kb-copy { padding:2px 4px; }
 .kb-nm { margin:0; font-size:16.5px; font-weight:650; letter-spacing:-0.015em; line-height:1.15; color:var(--kb-ink); }
 .kb-board[data-density="compact"] .kb-nm { font-size:14.5px; }
 .kb-phone-row { display:flex; align-items:center; gap:7px; margin-top:3px; }
@@ -1819,7 +1826,8 @@ body.jaybot-open {
 .kb-board[data-density="overview"] .kb-card-pad { padding:5px 8px; }
 .kb-board[data-density="overview"] .kb-nm { font-size:11.5px; line-height:1.1; }
 .kb-board[data-density="overview"] .kb-phone-row { margin-top:1px; gap:5px; }
-.kb-board[data-density="overview"] .kb-phone { font-size:10px; }
+/* Keep the number on one line and don't let the utility cluster squeeze it. */
+.kb-board[data-density="overview"] .kb-phone { font-size:10px; white-space:nowrap; flex:0 0 auto; }
 .kb-board[data-density="overview"] .kb-grid { padding:4px 6px; gap:2px; margin-top:4px; border-radius:7px; }
 .kb-board[data-density="overview"] .kb-k { font-size:8.5px; }
 .kb-board[data-density="overview"] .kb-v { font-size:9.5px; }

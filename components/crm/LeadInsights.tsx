@@ -488,6 +488,15 @@ export default function LeadInsights({
     if (!lead?.id) return
 
     async function fetchFavorites() {
+      // Demo-workspace leads have string ids like "demo-11" that are invalid
+      // for the bigint lead_properties.lead_id column — querying with one throws
+      // Postgres 22P02 (the "{}" error). The demo workspace intentionally never
+      // touches real tables, so keep its favorites local-only and skip the DB.
+      if (isDemoLeadId(lead.id)) {
+        setFavoriteIds(new Set())
+        return
+      }
+
       const { data, error } = await supabase
         .from("lead_properties")
         .select("property_id")
@@ -495,7 +504,11 @@ export default function LeadInsights({
         .eq("status", "favorite")
 
       if (error) {
-        console.error("Failed to load favorites:", error)
+        // Log the real Supabase error, not "{}" — a bare PostgrestError often
+        // serializes to an empty object in the console.
+        console.error(
+          `Failed to load favorites — code=${error.code} message=${error.message} details=${error.details} hint=${error.hint}`,
+        )
         return
       }
 
@@ -517,6 +530,11 @@ export default function LeadInsights({
       else next.add(id)
       return next
     })
+
+    // Demo leads are client-only — never write to the DB (their string id isn't
+    // a valid bigint and the demo workspace never touches real tables). The
+    // optimistic update above already reflects the toggle locally.
+    if (isDemoLeadId(lead.id)) return
 
     if (isCurrentlyFavorited) {
       // Remove the row
