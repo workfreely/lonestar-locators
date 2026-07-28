@@ -78,9 +78,34 @@ read-only PostgREST introspection (no dump/Docker needed).
 **Reference dump:** `supabase/reference/lonestar_public_schema.sql` is a placeholder/how-to only —
 it is explicitly NOT the baseline and must not be applied.
 
-**Still to verify (needs the new project):** run the FULL migration chain on a fresh empty project and
-confirm it builds cleanly end-to-end (catches any remaining cross-object dependency). The known core gap
-(`leads`, `lead_properties`) is now closed; no kept migration references an excluded table.
+### Final reproducibility audit (2026-07-28) — PASSED (static)
+
+Full static dependency analysis of all 40 migrations, in order. No missing dependencies, ordering
+problems, circular references, or empty-DB-breaking data assumptions found. Key verifications:
+
+- **Create-before-reference:** `leads`/`lead_properties` (baseline `20260601`) precede `ai_client_briefs`
+  (`20260615`, FK→leads) and every other `lead_id` FK. `profiles` is created by `20260724` (with
+  `handle_new_user` + `on_auth_user_created` trigger) before any profiles reference. `workspaces`
+  (`…04`) precedes all `workspace_id`/membership references. All FK types match (`leads.id` bigint).
+- **Functions before use:** `is_active_workspace_member`, `ensure_solo_workspace`, `resolve_smart_form`,
+  ownership-trigger fns — all defined before the policies/triggers that call them. App makes **zero**
+  `.rpc()` calls; no untracked functions or views.
+- **No data assumptions that break on empty:** the `20260724` "mark existing users onboarded" and
+  `20260725` trial backfill are `SELECT`/`UPDATE`-based → **no-ops** on an empty DB (no hardcoded ids,
+  no FK failures). `location_clusters` seeds are self-contained (create→seed→update same table).
+  Signup provisioning (`…06`) only runs at app runtime, never during migration.
+- **No circular references:** `leads → smart_forms → workspaces`, no back-edge; `possible_duplicate_of`
+  is a benign self-FK.
+- **Storage + auth are in-migration** (not manual): `20260724` creates the `branding` bucket + its
+  RLS policies and the `auth.users` signup trigger.
+- **RLS chain is consistent:** baseline enables RLS closed on leads/lead_properties; each feature table's
+  permissive policy is replaced by `…08` with the workspace-scoped policy; `beast_milestones` stays
+  user-scoped.
+
+**Remaining (needs the live project, can't run here):** execute the chain on a genuinely empty Supabase
+project to confirm the runtime result matches this static analysis. Minor non-blocking robustness note:
+a few one-time statements (`create function handle_new_user`, `create trigger`, storage `create policy`)
+are not `if-exists`-guarded — fine for a single fresh build; only relevant if migrations are re-run.
 
 ## Edge functions — audit result: **exclude all three**
 
