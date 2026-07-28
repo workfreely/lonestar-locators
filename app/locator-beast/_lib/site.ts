@@ -1,6 +1,6 @@
 export const SITE_URL = "https://locatorbeast.com";
 export const SITE_NAME = "Locator Beast";
-export const SITE_TAGLINE = "Find • Match • Close";
+export const SITE_TAGLINE = "The Operating System for Apartment Locators";
 export const SITE_DESCRIPTION =
   "The operating system built exclusively for apartment locators. Replace Trello, Google Forms, spreadsheets, sticky notes, and disconnected tools with one desktop application.";
 

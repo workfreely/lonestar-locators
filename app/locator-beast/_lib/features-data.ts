@@ -43,7 +43,6 @@ export const FEATURE_SECTIONS = [
 ] as const;
 
 export const COMING_SOON_FEATURES = [
-  { title: "Smart Property Matching", body: "Automatically match clients to the right properties." },
   { title: "Call Recording", body: "Every conversation captured, automatically." },
   { title: "AI Call Summaries", body: "Know what was said without replaying the call." },
   { title: "Voicemail Drops", body: "Leave a follow-up voicemail without dialing." },

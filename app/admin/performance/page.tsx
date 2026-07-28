@@ -2,7 +2,13 @@ export const dynamic = "force-dynamic"
 
 import PerformanceClient from "@/components/crm/performance/PerformanceClient"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { createClient } from "@/lib/supabase/server"
 import { dedupeLeads } from "@/lib/leads/dedupeLeads"
+import {
+  DEMO_ALL_LEADS,
+  DEFAULT_MONTHLY_COMMISSION_GOAL,
+  DEFAULT_AVG_COMMISSION_PER_LEASE,
+} from "@/lib/demo/demoWorkspace"
 
 async function getLeads() {
   const { data, error } = await supabaseAdmin
@@ -44,8 +50,50 @@ async function getDashboardLeads() {
   return dedupeLeads(data || [])
 }
 
+// Read the signed-in user's demo flag + commission goals so analytics are
+// goal-driven and reflect the sample workspace when demo_mode is on.
+async function getProfileContext() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) {
+    return { demoMode: false, monthlyGoal: DEFAULT_MONTHLY_COMMISSION_GOAL, avgCommission: DEFAULT_AVG_COMMISSION_PER_LEASE }
+  }
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("demo_mode, monthly_commission_goal, avg_commission_per_lease")
+    .eq("id", user.id)
+    .single()
+  return {
+    demoMode: !!profile?.demo_mode,
+    monthlyGoal: profile?.monthly_commission_goal ?? DEFAULT_MONTHLY_COMMISSION_GOAL,
+    avgCommission: profile?.avg_commission_per_lease ?? DEFAULT_AVG_COMMISSION_PER_LEASE,
+  }
+}
+
 export default async function PerformancePage() {
+  const { demoMode, monthlyGoal, avgCommission } = await getProfileContext()
+
+  if (demoMode) {
+    return (
+      <PerformanceClient
+        leads={DEMO_ALL_LEADS}
+        dashboardLeads={DEMO_ALL_LEADS}
+        monthlyGoal={monthlyGoal}
+        avgCommission={avgCommission}
+      />
+    )
+  }
+
   const [leads, dashboardLeads] = await Promise.all([getLeads(), getDashboardLeads()])
 
-  return <PerformanceClient leads={leads} dashboardLeads={dashboardLeads} />
+  return (
+    <PerformanceClient
+      leads={leads}
+      dashboardLeads={dashboardLeads}
+      monthlyGoal={monthlyGoal}
+      avgCommission={avgCommission}
+    />
+  )
 }

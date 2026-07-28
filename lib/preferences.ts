@@ -7,50 +7,12 @@
 // storage directly. As new UI choices become persistent, add their accessors
 // to this file rather than scattering localStorage keys across components.
 //
-// Persisted here: first-contact method, Kanban density (defaults to Compact
-// for first-time users, then their last choice sticks), the Agenda panel's
-// expanded/collapsed state, and each Lead Panel section's expanded/collapsed
-// state. Theme is the one sibling kept in its own module (lib/theme.ts)
-// because it needs an inline anti-flash script that runs before React
-// hydrates — treat it as part of this same preferences family.
-//
-// Nothing here is imported by lib/workflowEngine.ts — the Workflow Engine
-// always creates "Contact Lead" regardless of the first-contact setting;
-// only the Lead Panel's button for executing that action reads it. If a real
-// per-user settings table is added later, only these read*/write* helpers
-// need to change — every call site already goes through them.
-
-export type FirstContactPreference = "text" | "call" | "ask"
-
-export const FIRST_CONTACT_STORAGE_KEY = "first-contact-preference"
-
-export function isFirstContactPreference(value: unknown): value is FirstContactPreference {
-  return value === "text" || value === "call" || value === "ask"
-}
-
-export function readFirstContactPreference(): FirstContactPreference {
-  if (typeof window === "undefined") return "text"
-  const stored = window.localStorage.getItem(FIRST_CONTACT_STORAGE_KEY)
-  return isFirstContactPreference(stored) ? stored : "text"
-}
-
-export function writeFirstContactPreference(pref: FirstContactPreference) {
-  window.localStorage.setItem(FIRST_CONTACT_STORAGE_KEY, pref)
-  window.dispatchEvent(new CustomEvent<FirstContactPreference>(FIRST_CONTACT_EVENT, { detail: pref }))
-}
-
-const FIRST_CONTACT_EVENT = "first-contact-preference-changed"
-
-// Lets an already-open Lead Panel pick up a preference change made from
-// the profile menu without needing a reload — same small window-event
-// pattern already used by lib/workflowToast.ts.
-export function onFirstContactPreferenceChanged(handler: (pref: FirstContactPreference) => void): () => void {
-  function listener(e: Event) {
-    handler((e as CustomEvent<FirstContactPreference>).detail)
-  }
-  window.addEventListener(FIRST_CONTACT_EVENT, listener as EventListener)
-  return () => window.removeEventListener(FIRST_CONTACT_EVENT, listener as EventListener)
-}
+// Persisted here: Kanban density (defaults to Compact for first-time users,
+// then their last choice sticks), the Agenda panel's expanded/collapsed
+// state, and each Lead Panel section's expanded/collapsed state. Theme is the
+// one sibling kept in its own module (lib/theme.ts) because it needs an inline
+// anti-flash script that runs before React hydrates — treat it as part of this
+// same preferences family.
 
 // ─── Generic localStorage core (SSR-safe) ──────────────────────────────
 // Every preference below reads/writes through these so window guards and
@@ -132,4 +94,40 @@ export function readSectionExpanded(section: string, fallback: boolean): boolean
 
 export function writeSectionExpanded(section: string, expanded: boolean) {
   writeRaw(leadPanelSectionKey(section), String(expanded))
+}
+
+// ─── Demo workspace welcome banner ────────────────────────────────────
+// One-time "sample workspace" banner shown on first entry into the demo CRM.
+// Dismissed once the user clicks Explore or Start Fresh.
+export const DEMO_BANNER_DISMISSED_KEY = "demo-welcome-banner-dismissed"
+
+export function readDemoBannerDismissed(): boolean {
+  return readBool(DEMO_BANNER_DISMISSED_KEY, false)
+}
+
+export function writeDemoBannerDismissed(dismissed: boolean) {
+  writeRaw(DEMO_BANNER_DISMISSED_KEY, String(dismissed))
+}
+
+// ─── Interactive first-run checklist ──────────────────────────────────
+// Progress (which items are checked off) and permanent dismissal for the
+// guided first-run checklist shown in the demo workspace.
+export const FIRST_RUN_CHECKLIST_DISMISSED_KEY = "first-run-checklist-dismissed"
+export const FIRST_RUN_CHECKLIST_DONE_KEY = "first-run-checklist-done"
+
+export function readChecklistDismissed(): boolean {
+  return readBool(FIRST_RUN_CHECKLIST_DISMISSED_KEY, false)
+}
+
+export function writeChecklistDismissed(dismissed: boolean) {
+  writeRaw(FIRST_RUN_CHECKLIST_DISMISSED_KEY, String(dismissed))
+}
+
+export function readChecklistDone(): string[] {
+  const raw = readRaw(FIRST_RUN_CHECKLIST_DONE_KEY)
+  return raw ? raw.split(",").filter(Boolean) : []
+}
+
+export function writeChecklistDone(ids: string[]) {
+  writeRaw(FIRST_RUN_CHECKLIST_DONE_KEY, ids.join(","))
 }

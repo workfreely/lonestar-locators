@@ -92,6 +92,21 @@ export default function SharePanel() {
       </div>
 
       <div>
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">Landing Page</p>
+        <div className="flex items-center gap-3 rounded-xl border border-[#e5e7ee] bg-[#f9fafb] px-3.5 py-3">
+          <span className="flex-1 text-[13.5px] font-medium text-[#111318]">View your live landing page</span>
+          <a
+            href={PUBLIC_PAGE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 rounded-full border border-[#e5e7ee] bg-white px-4 py-2 text-[13px] font-semibold text-[#111318] transition-colors hover:bg-[#f4f5f8]"
+          >
+            Open
+          </a>
+        </div>
+      </div>
+
+      <div>
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">QR Code</p>
         <div className="flex flex-col items-center gap-3 rounded-xl border border-[#e5e7ee] bg-[#f9fafb] p-5">
           {qrDataUrl ? (

@@ -167,7 +167,7 @@ export default function LeadFormModal({
             </div>
 
             <div className="text-sm text-[var(--crm-text-secondary)] mt-1">
-              Create a new CRM lead manually
+              Create a new lead manually
             </div>
           </div>
 

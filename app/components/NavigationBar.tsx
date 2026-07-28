@@ -11,7 +11,8 @@ const NavigationBar = () => {
   if (
   pathname === "/get-my-list" ||
   pathname === "/second-chance-apartments" ||
-  pathname.startsWith("/admin")
+  pathname.startsWith("/admin") ||
+  pathname.startsWith("/smart-lead-form")
 ) {
   return null;
 }

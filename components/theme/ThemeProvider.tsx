@@ -61,3 +61,12 @@ export function useTheme(): ThemeContextValue {
   if (!ctx) throw new Error("useTheme must be used within a ThemeProvider")
   return ctx
 }
+
+// Non-throwing variant for shared components (e.g. ProfileAvatarMenu) that
+// render both inside the CRM (where the provider exists) and outside it (the
+// Smart Lead Form editor, which is not a CRM page and has no ThemeProvider).
+// Returns null when there's no provider so the caller can hide theme controls
+// rather than crash.
+export function useOptionalTheme(): ThemeContextValue | null {
+  return useContext(ThemeContext)
+}

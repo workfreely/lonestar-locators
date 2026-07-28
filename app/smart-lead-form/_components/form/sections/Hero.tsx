@@ -28,7 +28,7 @@ const HERO_BOTTOM_PADDING_PX = 32
 export default function Hero({ config }: { config: SmartLeadFormConfig }) {
   const { headline, subheadline } = config.copy
   const { heroTheme, heroImageUrl, heroOverlay, logoUrl, agentPhotoSize, profileImagePosition } = config.branding
-  const { highlights: showHighlights, agentProfile: showAgentProfile } = config.sections.visibility
+  const { headline: showHeadline, highlights: showHighlights, agentProfile: showAgentProfile } = config.sections.visibility
 
   // "custom" uses the locator's own upload; any built-in theme uses its
   // bundled default image once that photography exists.
@@ -76,7 +76,12 @@ export default function Hero({ config }: { config: SmartLeadFormConfig }) {
           <img src={logoUrl} alt="" className="mx-auto mb-4 h-8 w-auto object-contain" />
         )}
 
-        <h1 className="break-words text-[28px] font-semibold leading-[1.15] tracking-tight sm:text-[38px]">{headline}</h1>
+        {/* Headline is optional — hiding it removes its space entirely so the
+            hero collapses upward and the background image becomes the primary
+            visual (image-focused style). */}
+        {showHeadline && (
+          <h1 className="break-words text-[28px] font-semibold leading-[1.15] tracking-tight sm:text-[38px]">{headline}</h1>
+        )}
 
         {showPhotoUnderHeadline ? (
           <>

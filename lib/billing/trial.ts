@@ -1,5 +1,5 @@
 export const TRIAL_LENGTH_DAYS = 30
-export const MONTHLY_PRICE_USD = 149
+export const MONTHLY_PRICE_USD = 99
 
 export function computeTrialWindow(startedAt: Date = new Date()) {
   const trialStartedAt = startedAt

@@ -17,8 +17,14 @@ export default function SmartLeadFormEditor() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-[#f4f5f8]">
-      <EditorToolbar device={device} onDeviceChange={setDevice} onReset={() => setConfig(DEFAULT_CONFIG)} />
+    // Viewport-anchored (fixed inset-0), matching the Business Settings shell
+    // (components/crm/settings/SettingsShell.tsx). This keeps the shared header
+    // at the top-level shell — full width on the FIRST client-side navigation —
+    // instead of inside the root layout's constrained <main> (max-width 1200 +
+    // padding), whose presence depends on the root layout's server-decided
+    // branch and never re-runs on client nav (which caused the clipping).
+    <div className="fixed inset-0 z-30 flex flex-col overflow-hidden bg-[#f4f5f8]">
+      <EditorToolbar device={device} onDeviceChange={setDevice} />
 
       <div className="flex flex-1 overflow-hidden">
         <div className="flex flex-1 items-start justify-center overflow-y-auto p-8">

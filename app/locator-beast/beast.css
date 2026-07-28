@@ -106,3 +106,16 @@
 .beast-pop {
   animation: beast-pop 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* The global stylesheet (app/globals.css) gives every <input> a green focus
+   ring (border-color:#28a745 + green box-shadow). That's the CRM/marketing
+   convention, but inside the onboarding flow it flashes green behind the
+   fields. Re-scope focus to the brand blue here — .beast-root selectors
+   outrank the bare `input:focus` rule, so no green bleeds through. */
+.beast-root input:focus,
+.beast-root select:focus,
+.beast-root textarea:focus {
+  border-color: var(--beast-blue);
+  box-shadow: none;
+  outline: none;
+}

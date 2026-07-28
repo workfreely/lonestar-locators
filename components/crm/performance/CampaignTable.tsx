@@ -10,7 +10,7 @@
 // campaign bucket (most commonly "(no campaign data)") would report a
 // single arbitrary source for a count that spans every source in it.
 
-import { getSourceStyle } from "@/lib/leads/sourceStyles"
+import LeadSourceBadge from "@/components/crm/LeadSourceBadge"
 import CollapsibleSection from "@/components/crm/CollapsibleSection"
 
 export default function CampaignTable({ leads }: { leads: any[] }) {
@@ -39,17 +39,11 @@ export default function CampaignTable({ leads }: { leads: any[] }) {
           </thead>
           <tbody>
             {rows.map((row) => {
-              const style = getSourceStyle(row.source)
               return (
                 <tr key={`${row.campaign} ${row.source ?? ""}`} className="border-b border-[var(--crm-border-soft)] last:border-0">
                   <td className="py-2 text-[var(--crm-text-primary)]">{row.campaign}</td>
                   <td className="py-2">
-                    <span
-                      className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full border crm-src-pill"
-                      style={{ ["--src-color"]: style.color } as React.CSSProperties}
-                    >
-                      {style.label}
-                    </span>
+                    <LeadSourceBadge source={row.source} className="text-[11px] px-2 py-0.5" />
                   </td>
                   <td className="py-2 text-right font-semibold text-[var(--crm-text-primary)]">{row.count}</td>
                 </tr>

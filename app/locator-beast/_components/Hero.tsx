@@ -21,9 +21,9 @@ export default function Hero() {
           className="beast-fade-up mt-6 max-w-4xl text-[40px] font-semibold leading-[1.08] tracking-tight sm:text-[56px] md:text-[68px]"
           style={{ animationDelay: "80ms" }}
         >
-          Become a Beast at
+          Stop Losing Leads.
           <br />
-          Apartment Locating.
+          Close More Leases.
         </h1>
 
         <div className="beast-fade-up mt-10 flex w-full justify-center" style={{ animationDelay: "140ms" }}>
@@ -31,18 +31,11 @@ export default function Hero() {
         </div>
 
         <p
-          className="beast-fade-up mt-10 max-w-xl text-[18px] leading-relaxed text-[var(--beast-ink-inverse-soft)] md:text-[20px]"
+          className="beast-fade-up mt-10 max-w-2xl text-[18px] leading-relaxed text-[var(--beast-ink-inverse-soft)] md:text-[20px]"
           style={{ animationDelay: "200ms" }}
         >
-          The operating system built exclusively for apartment locators.
-        </p>
-
-        <p
-          className="beast-fade-up mt-3 max-w-lg text-[15px] leading-relaxed text-[var(--beast-ink-inverse-soft)]"
-          style={{ animationDelay: "260ms" }}
-        >
-          Replace Trello, Google Forms, spreadsheets, sticky notes, and disconnected tools with
-          one desktop application.
+          Manage leads, automate follow-ups, build Smart Lead Forms, and grow your apartment
+          locating business from one modern workspace.
         </p>
 
         <div

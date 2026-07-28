@@ -31,7 +31,8 @@ export default function SmartLeadForm({ config }: { config: SmartLeadFormConfig 
 
       {afterForm.map((id) => (visibility[id] ? <div key={id}>{AFTER_FORM_REGISTRY[id](config)}</div> : null))}
 
-      {visibility.footer && <Footer config={config} />}
+      {/* Footer always renders — it's a fixed closing anchor with no toggle. */}
+      <Footer config={config} />
     </div>
   )
 }

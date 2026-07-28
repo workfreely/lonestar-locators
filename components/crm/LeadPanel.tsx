@@ -2,20 +2,23 @@
 
 import { supabase } from "@/lib/supabase/client"
 import { getNextAction } from "@/lib/nextAction"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { formatPhone } from "@/lib/utils/formatPhone"
-import { getSourceStyle } from "@/lib/leads/sourceStyles"
+import GuestCardModal from "./GuestCardModal"
+import type { GuestCardAgent } from "@/lib/leads/guestCard"
+import { isGuestCardTitle } from "@/lib/leads/guestCardWorkflow"
+import { recordTimelineEvent } from "@/lib/leads/timeline"
+import LeadSourceBadge from "./LeadSourceBadge"
 import { inferMarketFromLandingPage } from "@/lib/leads/inferMarketFromLandingPage"
 import { ARCHIVE_REASONS } from "@/lib/leads/archiveReasons"
 import { rankLeadActions } from "@/lib/nextActions"
 import { getNextFollowUpAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
 import { emitWorkflowActionCreated } from "@/lib/workflowToast"
 import { getActionIcon, formatDueDateTime } from "@/lib/actionDisplay"
-import { readFirstContactPreference, onFirstContactPreferenceChanged, type FirstContactPreference, readSectionExpanded, writeSectionExpanded } from "@/lib/preferences"
 import AiVoiceScriptModal from "./AiVoiceScriptModal"
 import ConfirmDialog from "./ConfirmDialog"
 import AddNextActionModal from "./AddNextActionModal"
-import FavoriteModal, { type FavoriteInput } from "./FavoriteModal"
+import { SectionCard } from "./LeadPanelSections"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -48,6 +51,17 @@ function formatActionDueDate(date: string) {
     day: "numeric",
     year: "2-digit",
   })
+}
+
+// Desired Areas display. When the client selected an entire market, the
+// neighborhoods carry an "All of {city}" entry — collapse that to just the
+// market name so the panel doesn't list every neighborhood. Specific
+// selections render as-is.
+function formatDesiredAreas(neighborhoods: unknown, city: string | null | undefined): string | null {
+  const raw = (neighborhoods ?? "").toString().trim()
+  if (!raw) return null
+  if (/all of/i.test(raw)) return (city ?? "").trim() || raw.replace(/^all of\s*/i, "").trim()
+  return raw
 }
 
 function formatRent(rent: string) {
@@ -98,107 +112,8 @@ const STATUS_STYLES: Record<string, string> = {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function CollapsibleNotes({
-  title,
-  defaultOpen,
-  storageKey,
-  children,
-}: {
-  title: string
-  defaultOpen: boolean
-  storageKey?: string
-  children: React.ReactNode
-}) {
-  // Persist expand/collapse per section (see lib/preferences.ts) so the
-  // panel reopens exactly how the locator left it; falls back to defaultOpen.
-  const [open, setOpen] = useState(() =>
-    storageKey ? readSectionExpanded(storageKey, defaultOpen) : defaultOpen
-  )
-  function toggle() {
-    setOpen((o) => {
-      const next = !o
-      if (storageKey) writeSectionExpanded(storageKey, next)
-      return next
-    })
-  }
-  return (
-    <div className="bg-[var(--crm-panel)] border border-[var(--crm-border-soft)] rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.04),0_4px_10px_rgba(var(--crm-shadow-color),0.06)]">
-      <div
-        className="px-4 py-2 border-b border-[var(--crm-border-soft)] bg-[var(--crm-card)] flex items-center gap-2 cursor-pointer select-none"
-        onClick={toggle}
-      >
-        <svg
-          className={`w-3 h-3 text-[var(--crm-text-muted)] transition-transform duration-200 ${open ? "rotate-90" : "rotate-0"}`}
-          viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-          strokeLinecap="round" strokeLinejoin="round"
-        >
-          <polyline points="9 18 15 12 9 6" />
-        </svg>
-        <p className="text-[10.5px] font-semibold text-[var(--crm-text-secondary)] uppercase tracking-widest">
-          {title}
-        </p>
-      </div>
-      {open && (
-        <div className="px-4 py-3 space-y-2.5 bg-[var(--crm-panel)]">
-          {children}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function SectionCard({
-  title,
-  children,
-  shaded = false,
-  collapsible = false,
-  defaultOpen = true,
-  storageKey,
-}: {
-  title: string
-  children: React.ReactNode
-  shaded?: boolean
-  collapsible?: boolean
-  defaultOpen?: boolean
-  storageKey?: string
-}) {
-  // Collapsible sections remember their state per section (lib/preferences.ts),
-  // so the panel reopens the way the locator left it; falls back to defaultOpen.
-  const [open, setOpen] = useState(() =>
-    collapsible && storageKey ? readSectionExpanded(storageKey, defaultOpen) : defaultOpen
-  )
-  function toggle() {
-    setOpen((o) => {
-      const next = !o
-      if (storageKey) writeSectionExpanded(storageKey, next)
-      return next
-    })
-  }
-  return (
-    <div className="bg-[var(--crm-panel)] border border-[var(--crm-border-soft)] rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.04),0_4px_10px_rgba(var(--crm-shadow-color),0.06)]">
-      <div
-        className={`px-4 py-2 border-b border-[var(--crm-border-soft)] bg-[var(--crm-card)] flex items-center gap-2 ${collapsible ? "cursor-pointer select-none" : ""}`}
-        onClick={collapsible ? toggle : undefined}
-      >
-        {collapsible && (
-          <svg
-            className={`w-3 h-3 text-[var(--crm-text-muted)] transition-transform duration-200 ${open ? "rotate-90" : "rotate-0"}`}
-            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-            strokeLinecap="round" strokeLinejoin="round"
-          >
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        )}
-        <p className="text-[10.5px] font-semibold text-[var(--crm-text-secondary)] uppercase tracking-widest">
-          {title}
-        </p>
-      </div>
-      {(!collapsible || open) && <div className={`px-4 py-3 space-y-2.5 ${shaded ? "bg-[var(--crm-card)]/60" : "bg-[var(--crm-panel)]"}`}>
-        {children}
-      </div>}
-    </div>
-  )
-}
+// SectionCard + CollapsibleNotes moved to ./LeadPanelSections (shared with the
+// right-panel Favorite Properties + Notes components).
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -217,7 +132,7 @@ export default function LeadPanel({
   nextActions = [],
   setNextActions,
   favorites = [],
-  setFavorites,
+  agent,
   onClose,
   onUpdateLead,
   pendingEditActionId,
@@ -228,7 +143,7 @@ export default function LeadPanel({
   nextActions?: any[]
   setNextActions?: React.Dispatch<React.SetStateAction<any[]>>
   favorites?: any[]
-  setFavorites?: React.Dispatch<React.SetStateAction<any[]>>
+  agent?: GuestCardAgent
   onClose: () => void
   onUpdateLead?: (updatedLead: any) => void
   // Set by the Workflow Engine's "✓ Next Action Created" toast's Edit
@@ -246,13 +161,26 @@ export default function LeadPanel({
   const [doneMsg, setDoneMsg] = useState<string | null>(null)
   const [showVoiceScript, setShowVoiceScript] = useState(false)
   const [archiveReason, setArchiveReason] = useState(lead.archive_reason || "")
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
   const [showAddAction, setShowAddAction] = useState(false)
   const [editingAction, setEditingAction] = useState<any | null>(null)
-  const [showFavoriteModal, setShowFavoriteModal] = useState(false)
-  const [editingFavorite, setEditingFavorite] = useState<any | null>(null)
-  const [deletingFavoriteId, setDeletingFavoriteId] = useState<number | null>(null)
-  const [contactPref, setContactPref] = useState<FirstContactPreference>("text")
+  // Auto-completion of the current action: armed when the user opens the
+  // action's template/workflow, then stamped Completed when they return to the
+  // app (i.e. after actually sending the message / making the call).
+  const [completedAtTs, setCompletedAtTs] = useState<string | null>(null)
+  const armedActionRef = useRef(false)
+  const [showGuestCard, setShowGuestCard] = useState(false)
+  // The specific property + action the open Guest Card modal is emailing about
+  // (each Favorite Property has its own guest card).
+  const [guestCardProperty, setGuestCardProperty] = useState<any | null>(null)
+  const [activeGuestCardActionId, setActiveGuestCardActionId] = useState<number | null>(null)
+
+  // The locator's Preferred Name (first token) for outbound message templates
+  // — e.g. "Hey Sarah it's Jay!". Falls back to "Jay" for the single-operator
+  // default when no profile name is set yet.
+  const locatorFirstName = ((agent?.name || "").trim().split(/\s+/)[0]) || "Jay"
+
+  const leadFavorites = favorites.filter((f) => f.lead_id === lead.id)
 
   useEffect(() => {
     setFollowUps(Number(lead.follow_up_count || 0))
@@ -260,15 +188,6 @@ export default function LeadPanel({
     setArchiveReason(lead.archive_reason || "")
   }, [lead.id, lead.follow_up_count, lead.next_action_date, lead.archive_reason])
 
-  // Preferred first-contact method — read once on mount and kept in sync
-  // if changed from the profile menu while this panel is open. Purely a
-  // display/execution choice: it never touches which Workflow Engine
-  // action gets created (still always "Contact Lead"), only which
-  // button(s) execute it below.
-  useEffect(() => {
-    setContactPref(readFirstContactPreference())
-    return onFirstContactPreferenceChanged(setContactPref)
-  }, [])
 
   // Workflow Engine toast "Edit" — open the editor for the action it
   // named, but only once this lead's own next-actions have actually
@@ -294,6 +213,13 @@ export default function LeadPanel({
     const alreadyAtStep = Number(followUps) >= nextFollowUpCount
 
     setFollowUps(nextFollowUpCount)
+
+    // Append this follow-up to the immutable lead timeline — one row per
+    // genuine advance (the duplicate guard keeps a re-click from logging twice).
+    // `follow_up_count` on `leads` stays the workflow cache; this is history.
+    if (!alreadyAtStep) {
+      recordTimelineEvent({ leadId: lead.id, type: "follow_up", method: "text", sequence: nextFollowUpCount })
+    }
 
     const now = new Date()
     let nextDate: Date | null = new Date()
@@ -379,7 +305,7 @@ export default function LeadPanel({
   // existed — but it has always really meant "first contact," and that's
   // preserved exactly as-is here; only the trigger point moved.
 
-  function recordFirstContact() {
+  function recordFirstContact(method: "call" | "text") {
     const shouldAdvanceStage = lead.crm_status === "new"
     const contactedAt = new Date().toISOString()
 
@@ -438,6 +364,15 @@ export default function LeadPanel({
       .then(({ error }) => {
         if (error) console.error("[first-contact] Failed to record contact timestamp:", error)
       })
+
+    // Append the first-contact event to the immutable lead timeline — done
+    // LAST and best-effort, after every workflow-critical write above, so a
+    // timeline failure can never affect the New → Contacted workflow. History
+    // only; `leads` remains the source of truth for live state. Fires once, on
+    // the genuine New → Contacted transition, regardless of which button ran it.
+    if (shouldAdvanceStage) {
+      recordTimelineEvent({ leadId: lead.id, type: "first_contact", method, sequence: 0, occurredAt: contactedAt })
+    }
   }
 
   // ─── Shared First Text handler ─────────────────────────────────────────
@@ -450,8 +385,8 @@ export default function LeadPanel({
       lead.property_type === "High-Rise" ? "high-rise" :
       lead.beds ? `${String(lead.beds).replace("-", "").trim()} bed` : ""
     const monthText = lead.move_date ? ` in ${new Date(lead.move_date).toLocaleString("en-US", { month: "long" })}` : ""
-    openSMS(`Hey ${name} it's Jay! I got your form for a ${bedsText} move${monthText}. Are you trying to stay near a specific address or side of town?`)
-    recordFirstContact()
+    openSMS(`Hey ${name} it's ${locatorFirstName}! I got your form for a ${bedsText} move${monthText}. Are you trying to stay near a specific address or side of town?`)
+    recordFirstContact("text")
   }
 
   // ─── Call Client (first-contact preference: "call" or "ask") ──────────
@@ -460,7 +395,26 @@ export default function LeadPanel({
   function handleCallClient() {
     if (!lead.phone) return
     window.open(`tel:${lead.phone}`, "_self")
-    recordFirstContact()
+    recordFirstContact("call")
+  }
+
+  // ─── Header Call / Text Client buttons ────────────────────────────────
+  // These live under the phone number and are available at every stage as
+  // generic communication shortcuts. But on a NEW lead, a call or a text IS
+  // first contact — so they run the exact same automation as Contact Lead
+  // (complete Contact Lead, stamp the contact time, advance New → Contacted,
+  // generate the next action). No confirmation. On leads already past New
+  // they stay pure comms and never rewrite the first-contact timestamp.
+  function handleHeaderCall() {
+    if (!lead.phone) return
+    window.open(`tel:${lead.phone}`, "_self")
+    if (lead.crm_status === "new") recordFirstContact("call")
+  }
+
+  function handleHeaderText() {
+    if (!lead.phone) return
+    window.open(`sms:${lead.phone}`, "_self")
+    if (lead.crm_status === "new") recordFirstContact("text")
   }
 
   function handleNextActionClick() {
@@ -536,8 +490,13 @@ export default function LeadPanel({
 
   // ─── Delete / Restore (soft delete only — never a physical DELETE) ─────
 
-  async function handleDeleteLead() {
-    setShowDeleteConfirm(false)
+  // Archive (never a permanent delete) — moves the lead out of the active CRM
+  // while preserving everything (notes, workflow/comms history, analytics) and
+  // recording pre_delete_status so it can be restored at any time. Uses the
+  // existing soft-delete columns (deleted_at/deleted_by/pre_delete_status) as
+  // archive metadata.
+  async function handleArchiveLead() {
+    setShowArchiveConfirm(false)
 
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -549,13 +508,13 @@ export default function LeadPanel({
     // resume the workflow without the user manually resetting a due date.
     const updates = {
       crm_status: "archived",
-      archive_reason: "deleted_by_user",
+      archive_reason: "archived_by_user",
       deleted_at: new Date().toISOString(),
       deleted_by: user?.email ?? null,
       pre_delete_status: lead.crm_status,
     }
 
-    setArchiveReason("deleted_by_user")
+    setArchiveReason("archived_by_user")
     if (onUpdateLead) onUpdateLead({ ...lead, ...updates })
 
     const { error } = await supabase
@@ -564,7 +523,7 @@ export default function LeadPanel({
       .eq("id", lead.id)
 
     if (error) {
-      console.error("[delete-lead] update failed:", error)
+      console.error("[archive-lead] update failed:", error)
     }
   }
 
@@ -688,87 +647,8 @@ export default function LeadPanel({
   }
 
 
-  // ─── Favorites (Phase 1 — manual only) ──────────────────────────────────
-  // No automation, no Property Matches integration yet. Just save/edit/
-  // delete a client's favorite communities by hand.
-
-  const leadFavorites = favorites.filter((f) => f.lead_id === lead.id)
-
-  async function handleSaveFavorite(entries: FavoriteInput[]): Promise<boolean> {
-    if (editingFavorite) {
-      // Editing is always exactly one slot — the modal only ever sends a
-      // single entry in this branch.
-      const input = entries[0]
-      const { data, error } = await supabase
-        .from("lead_favorites")
-        .update({
-          property_name: input.propertyName || null,
-          property_url: input.propertyUrl || null,
-          property_address: input.propertyAddress || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", editingFavorite.id)
-        .select("*")
-        .single()
-
-      if (error) {
-        console.error("[favorite] update failed:", error)
-        return false
-      }
-
-      setFavorites?.((prev) => prev.map((f) => (f.id === data.id ? data : f)))
-      setShowFavoriteModal(false)
-      setEditingFavorite(null)
-      return true
-    }
-
-    // Add flow — one to three completed slots, saved together.
-    const { data, error } = await supabase
-      .from("lead_favorites")
-      .insert(entries.map((input) => ({
-        lead_id: lead.id,
-        property_name: input.propertyName || null,
-        property_url: input.propertyUrl || null,
-        property_address: input.propertyAddress || null,
-      })))
-      .select("*")
-
-    if (error) {
-      console.error("[favorite] create failed:", error)
-      return false
-    }
-
-    setFavorites?.((prev) => [...prev, ...(data ?? [])])
-    setShowFavoriteModal(false)
-    return true
-  }
-
-  function openEditFavorite(favorite: any) {
-    setEditingFavorite(favorite)
-    setShowFavoriteModal(true)
-  }
-
-  function closeFavoriteModal() {
-    setShowFavoriteModal(false)
-    setEditingFavorite(null)
-  }
-
-  async function handleDeleteFavorite() {
-    const id = deletingFavoriteId
-    setDeletingFavoriteId(null)
-    if (id == null) return
-
-    setFavorites?.((prev) => prev.filter((f) => f.id !== id))
-
-    const { error } = await supabase
-      .from("lead_favorites")
-      .delete()
-      .eq("id", id)
-
-    if (error) {
-      console.error("[favorite] delete failed:", error)
-    }
-  }
+  // Favorite Properties + Client/Locator Notes moved to the right workspace
+  // panel (LeadFavorites.tsx / LeadNotes.tsx) for V1.
 
   // ─── Derived values ────────────────────────────────────────────────────
 
@@ -779,11 +659,39 @@ export default function LeadPanel({
   // button above always has) against this lead's open manual actions.
   // Requirement 7: completing/adding a manual action never deletes or
   // replaces the automatic one — this only decides which currently wins.
-  const { primary: primaryAction, others: otherActions } = rankLeadActions(
+  const { primary: primaryAction } = rankLeadActions(
     { ...lead, next_action_date: nextActionDate },
     nextActions,
     action
   )
+
+  // The Next Action card answers two questions in order: "what did I just do?"
+  // (Last Action) and "what should I do next?" (Next Action).
+  //
+  // Just contacted = the New → Contacted first-contact window (before any
+  // follow-up). Its completion timestamp is the PERSISTED first_text_sent_at,
+  // so the completed state survives a close/reopen and a refresh.
+  const justContacted =
+    lead.crm_status === "contacted" &&
+    (Number(lead.follow_up_count) || 0) === 0 &&
+    !!lead.first_text_sent_at
+
+  // Last Action — the most recently completed action + when. First contact uses
+  // the persisted first_text_sent_at; a message action completed in place (its
+  // own button, via the return-to-focus stamp) uses completedAtTs.
+  const lastAction: { title: string; completedAt: string } | null =
+    justContacted && lead.first_text_sent_at
+      ? { title: "Contact Lead", completedAt: lead.first_text_sent_at }
+      : completedAtTs
+      ? { title: primaryAction.title, completedAt: completedAtTs }
+      : null
+
+  // Next Action — the next OPEN, actionable task. Null when the primary was just
+  // completed in place (completedAtTs) or is the passive "Waiting for Response"
+  // state, which is a workflow status, never surfaced as an action here. Tied to
+  // `primaryAction` so the button's openAction() always targets the right task.
+  const nextOpenAction =
+    completedAtTs || primaryAction.title === "Waiting for Response" ? null : primaryAction
 
   // ─── Short-form market inference (display only) ────────────────────────
   const inferredMarket =
@@ -868,6 +776,127 @@ export default function LeadPanel({
     }
   }
 
+  // Open (NOT complete) the current action so the user can actually perform it.
+  // Message-based actions open the prefilled SMS template so the user can
+  // review/edit before sending; a manual action with no template opens its
+  // details in the editor. Opening never marks the action complete or advances
+  // the workflow — that's the Complete button's job.
+  function openAction() {
+    const title = primaryAction.title
+    const name = normalizeName(lead.first_name || "")
+
+    // Email Guest Card opens its own workflow (PDF + email preview) for THIS
+    // action's specific property, not a text template — and it's completed
+    // from inside the modal, so it must never arm the return-to-focus
+    // auto-complete.
+    if (isGuestCardTitle(title)) {
+      const ma = primaryAction.manualAction
+      const prop =
+        (ma?.property_id != null ? leadFavorites.find((f) => f.id === ma.property_id) : null) ??
+        (ma?.property_name ? { property_name: ma.property_name } : null) ??
+        leadFavorites[0] ??
+        null
+      setGuestCardProperty(prop)
+      setActiveGuestCardActionId(ma?.id ?? null)
+      setShowGuestCard(true)
+      return
+    }
+
+    // Contact Lead IS first contact — clicking it must ADVANCE the workflow
+    // (New → Contacted + generate the next action), not merely open the message
+    // and wait for a return-to-focus "complete" (which only stamps a visual
+    // Completed for automatic actions and never persists anything). handleFirstText
+    // opens the same first-contact SMS AND runs recordFirstContact(). Do NOT arm
+    // the auto-complete here: recordFirstContact advances the stage, which retires
+    // the Contact Lead action on its own.
+    if (title === "Contact Lead") {
+      handleFirstText()
+      return
+    }
+
+    const template = MESSAGE_TEMPLATES[title]
+    if (template) {
+      openSMS(template(name))
+      armedActionRef.current = true
+      return
+    }
+
+    // Non-message action (Setup Tour, Check App, custom manual action) — open
+    // its details so the user can review/edit what needs doing.
+    if (primaryAction.kind === "manual" && primaryAction.manualAction) {
+      setEditingAction(primaryAction.manualAction)
+      setShowAddAction(true)
+    }
+  }
+
+  // The Guest Card email for one property was launched — mark THAT action
+  // complete. Only once every property's guest card is done do we open the
+  // next step, Setup Tour (the lead stays in List Sent until a tour is
+  // actually scheduled). If more properties are added later, each spawns its
+  // own guest card that ranks ahead of Setup Tour.
+  async function handleGuestCardSent() {
+    const id = activeGuestCardActionId
+    if (id != null) {
+      await supabase
+        .from("lead_next_actions")
+        .update({ completed: true, completed_at: new Date().toISOString() })
+        .eq("id", id)
+    }
+    // Any OTHER guest cards still pending for this lead?
+    const remainingGuestCards = nextActions.filter(
+      (a) => a.lead_id === lead.id && !a.completed && a.id !== id && isGuestCardTitle(a.title)
+    )
+    let created: any = null
+    if (remainingGuestCards.length === 0) {
+      created = await createWorkflowActionIfNeeded(supabase, lead.id, {
+        title: "Setup Tour",
+        dueAt: new Date().toISOString(),
+      })
+    }
+    setNextActions?.((prev) => {
+      let next = id != null ? prev.filter((a) => a.id !== id) : prev
+      if (created) next = [...next, created]
+      return next
+    })
+    setActiveGuestCardActionId(null)
+  }
+
+  // Reset the per-action completion display when switching leads.
+  useEffect(() => {
+    setCompletedAtTs(null)
+    armedActionRef.current = false
+    setShowGuestCard(false)
+    setGuestCardProperty(null)
+    setActiveGuestCardActionId(null)
+  }, [lead.id])
+
+  // Auto-complete: opening an action's template arms it; the next time the app
+  // regains focus (the user came back from sending the text / making the call)
+  // we stamp the action Completed. Opening alone never marks it complete.
+  useEffect(() => {
+    function onReturn() {
+      if (document.visibilityState !== "visible") return
+      if (!armedActionRef.current || completedAtTs) return
+      armedActionRef.current = false
+      const ts = new Date().toISOString()
+      setCompletedAtTs(ts)
+      // Persist for a real manual-action row (demo rows simply match nothing).
+      if (primaryAction.kind === "manual" && primaryAction.manualAction) {
+        supabase
+          .from("lead_next_actions")
+          .update({ completed: true, completed_at: ts })
+          .eq("id", primaryAction.manualAction.id)
+          .then(() => {})
+      }
+    }
+    document.addEventListener("visibilitychange", onReturn)
+    window.addEventListener("focus", onReturn)
+    return () => {
+      document.removeEventListener("visibilitychange", onReturn)
+      window.removeEventListener("focus", onReturn)
+    }
+  }, [completedAtTs, primaryAction])
+
   // ─── Render ────────────────────────────────────────────────────────────
 
   return (
@@ -875,13 +904,20 @@ export default function LeadPanel({
     <div className="w-full h-full flex flex-col bg-[var(--crm-panel)]">
 
       {/* ── Panel header ── */}
-      <div className="flex-none bg-[var(--crm-panel)] border-b border-[var(--crm-border)] px-5 pt-5 pb-4 shadow-[0_1px_4px_rgba(var(--crm-shadow-color),0.08)]">
+      <div className="flex-none bg-[var(--crm-panel)] border-b border-[var(--crm-border)] px-5 pt-4 pb-3 shadow-[0_1px_4px_rgba(var(--crm-shadow-color),0.08)]">
 
-        <div className="flex items-start justify-between gap-3 mb-3">
-          <div className="min-w-0">
-            <h2 className="text-[22px] font-bold text-[var(--crm-text-primary)] tracking-tight leading-tight truncate">
-              {normalizeName(lead.first_name)} {normalizeName(lead.last_name)}
-            </h2>
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <div className="min-w-0 flex-1">
+            {/* Name + status together — status stays in the header, next to
+                the client, separate from the communication + workflow below. */}
+            <div className="flex items-center gap-2 min-w-0">
+              <h2 className="min-w-0 text-[22px] font-bold text-[var(--crm-text-primary)] tracking-tight leading-tight truncate">
+                {normalizeName(lead.first_name)} {normalizeName(lead.last_name)}
+              </h2>
+              <span className={`flex-none text-[11px] font-semibold px-2.5 py-1 rounded-full border ${statusStyle}`}>
+                {formatStatus(lead.crm_status)}
+              </span>
+            </div>
             {lead.phone && (
               <a
                 href={`tel:${lead.phone}`}
@@ -893,15 +929,18 @@ export default function LeadPanel({
           </div>
 
           <div className="flex-none flex items-center gap-1 mt-0.5">
-            {lead.archive_reason !== "deleted_by_user" && (
+            {lead.crm_status !== "archived" && (
               <button
-                onClick={() => setShowDeleteConfirm(true)}
-                className="w-7 h-7 flex items-center justify-center rounded-lg text-[var(--crm-text-muted)] hover:text-red-600 hover:bg-red-50 transition-colors"
-                aria-label="Delete lead"
-                title="Delete lead"
+                onClick={() => setShowArchiveConfirm(true)}
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)] hover:bg-[var(--crm-card)] transition-colors"
+                aria-label="Archive Lead"
+                title="Archive Lead"
               >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M2 3.5h10M5 3.5V2a1 1 0 011-1h2a1 1 0 011 1v1.5M5.5 6.5v4M8.5 6.5v4M3 3.5l.6 8a1 1 0 001 .9h4.8a1 1 0 001-.9l.6-8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                {/* Archive box/tray icon */}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2.5" y="3.5" width="19" height="5" rx="1.2" />
+                  <path d="M4.5 8.5V19a1.5 1.5 0 001.5 1.5h12a1.5 1.5 0 001.5-1.5V8.5" />
+                  <path d="M10 12.5h4" />
                 </svg>
               </button>
             )}
@@ -918,19 +957,27 @@ export default function LeadPanel({
           </div>
         </div>
 
-        {/* Status + follow-up indicator */}
-        <div className="flex items-center gap-2 flex-wrap mb-4">
-          <span className={`text-[11.5px] font-semibold px-2.5 py-1 rounded-full border ${statusStyle}`}>
-            {formatStatus(lead.crm_status)}
-          </span>
-
-          {nextActionDate && (() => {
-            const s = getFollowUpStatus(nextActionDate)
-            if (s === "overdue") return <span className="text-[11.5px] font-semibold text-red-500">· Overdue Follow-Up</span>
-            if (s === "today")   return <span className="text-[11.5px] font-semibold text-amber-600">· Follow Up Today</span>
-            return <span className="text-[11.5px] text-[var(--crm-text-muted)]">· Next: {formatDate(nextActionDate)}</span>
-          })()}
-        </div>
+        {/* Communication actions — always available beneath the phone number,
+            independent of the workflow. The two most common actions, one tap
+            away, so a locator never hunts for how to reach a client. */}
+        {lead.phone && (
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <button
+              type="button"
+              onClick={handleHeaderCall}
+              className="crm-cta-soft inline-flex items-center justify-center gap-1.5 text-[13px] font-semibold px-3 py-2 rounded-lg transition-colors"
+            >
+              <span aria-hidden>📞</span> Call Client
+            </button>
+            <button
+              type="button"
+              onClick={handleHeaderText}
+              className="crm-cta-soft inline-flex items-center justify-center gap-1.5 text-[13px] font-semibold px-3 py-2 rounded-lg transition-colors"
+            >
+              <span aria-hidden>💬</span> Text Client
+            </button>
+          </div>
+        )}
 
         {/* Archive Reason — archived leads only */}
         {lead.crm_status === "archived" && (
@@ -951,15 +998,15 @@ export default function LeadPanel({
               ))}
             </select>
 
-            {archiveReason === "deleted_by_user" && (
-              <div className="mt-2 bg-red-50 border border-red-100 rounded-lg px-3 py-2.5">
-                <p className="text-[11.5px] text-red-700">
-                  Deleted{lead.deleted_by ? ` by ${lead.deleted_by}` : ""}
+            {(archiveReason === "archived_by_user" || archiveReason === "deleted_by_user") && (
+              <div className="mt-2 bg-[var(--crm-inset)] border border-[var(--crm-border)] rounded-lg px-3 py-2.5">
+                <p className="text-[11.5px] text-[var(--crm-text-secondary)]">
+                  Archived{lead.deleted_by ? ` by ${lead.deleted_by}` : ""}
                   {lead.deleted_at ? ` on ${formatDate(lead.deleted_at)}` : ""}.
                 </p>
                 <button
                   onClick={handleRestoreLead}
-                  className="mt-2 w-full px-3 py-1.5 rounded-lg bg-[var(--crm-panel)] border border-red-300 text-red-700 text-[12.5px] font-semibold hover:bg-red-100 transition-colors"
+                  className="mt-2 w-full px-3 py-1.5 rounded-lg bg-[var(--crm-panel)] border border-[var(--crm-border)] text-[var(--crm-text-primary)] text-[12.5px] font-semibold hover:bg-[var(--crm-card)] transition-colors"
                 >
                   ↩️ Restore Lead
                 </button>
@@ -972,122 +1019,87 @@ export default function LeadPanel({
 
       {/* ── Panel body ── */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-7">
-        {/* Next Action — same clean two-column layout regardless of
-            whether the primary action is automatic or manual. Left shows
-            what it is, when it's due, and — only for message-based
-            actions — a Message Client button. Right shows how to
-            complete it (when there's a way to). This section answers one
-            question only: what's next. */}
-        <div className="bg-[var(--crm-card)] border border-[var(--crm-border-soft)] rounded-2xl shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.04),0_4px_10px_rgba(var(--crm-shadow-color),0.06)] px-4 py-3">
-          <div className="grid grid-cols-2 gap-3 items-stretch">
-            <div className="flex flex-col">
-              <p className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-1.5">Next Action</p>
-              <p className="text-sm font-semibold text-[var(--crm-text-primary)] px-3 py-1.5 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-panel)] w-full truncate">
-                {primaryAction.title}
-              </p>
-              {/* Fixed-height slot regardless of whether this action has a
-                  due date — keeps every lead's card the same height instead
-                  of growing/shrinking by workflow action (see task: UI
-                  Polish Pass point 1). */}
-              <p className="text-[11px] text-[var(--crm-text-secondary)] mt-1.5 h-[14px] leading-[14px]">
-                {primaryAction.dueAt ? formatDueDateTime(primaryAction.dueAt) : " "}
-              </p>
-              {/* Reserved slot for the contextual execution button(s) — a
-                  real button (Message Client/Call Client) renders at 32px
-                  regardless, so this minimum only matters for actions with
-                  no button at all (Setup Tour, Check App, etc.). Sized down
-                  to 10px (final alignment pass) so "+ Add Next Action"
-                  below reads as centered in the remaining card space
-                  instead of visibly closer to the card's bottom edge. */}
-              <div className="mt-1.5 min-h-[10px] flex items-center gap-1.5">
-                {primaryAction.title === "Contact Lead" ? (
-                  <>
-                    {(contactPref === "text" || contactPref === "ask") && (
-                      <button
-                        type="button"
-                        onClick={handleMessageClient}
-                        className="crm-cta-soft text-[11.5px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
-                      >
-                        {contactPref === "ask" ? "Message" : "Message Client"}
-                      </button>
-                    )}
-                    {(contactPref === "call" || contactPref === "ask") && (
-                      <button
-                        type="button"
-                        onClick={handleCallClientAction}
-                        className="crm-cta-soft text-[11.5px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
-                      >
-                        {contactPref === "ask" ? "Call" : "Call Client"}
-                      </button>
-                    )}
-                  </>
-                ) : MESSAGE_BASED_TITLES.has(primaryAction.title) && (
-                  <button
-                    type="button"
-                    onClick={handleMessageClient}
-                    className="crm-cta-soft text-[11.5px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
-                  >
-                    Message Client
-                  </button>
-                )}
+        {/* Next Action card — answers two questions in order: "what did I just
+            do?" (Last Action) then "what should I do next?" (Next Action). */}
+        <div className="bg-[var(--crm-card)] border border-[var(--crm-border-soft)] rounded-2xl shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.04),0_4px_10px_rgba(var(--crm-shadow-color),0.06)] px-4 py-3.5">
+          {/* LAST ACTION — what was just completed + when. The timestamp comes
+              from persisted state, so it survives a close/reopen and a refresh. */}
+          {lastAction && (
+            <div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--crm-text-secondary)]">Last Action</span>
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--crm-text-secondary)]">Status</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <span className="max-w-[62%] truncate rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] px-4 py-2 text-sm font-semibold text-[var(--crm-text-secondary)]">
+                  {lastAction.title}
+                </span>
+                <span className="flex-none text-right text-sm font-semibold text-emerald-600">Completed</span>
+              </div>
+              <div className="mt-2.5 truncate text-[12.5px] text-[var(--crm-text-muted)]">
+                Completed:{" "}
+                <span className="font-medium text-emerald-600">{formatDueDateTime(lastAction.completedAt)}</span>
               </div>
             </div>
+          )}
 
-            {/* Same fixed-height shape as the left column whether or not
-                this primary action can be completed — invisible but still
-                occupies its layout space so the grid row's height (and
-                therefore the whole card) never depends on which action is
-                showing. Top-anchored (no justify-end) so Status pairs with
-                the title row and Mark Complete pairs with the due-date row
-                on the left, instead of both sinking to the card's bottom. */}
-            <div className={`flex flex-col items-end${canCompletePrimary ? "" : " invisible"}`}>
-              <p className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-1 whitespace-nowrap">
-                {primaryAction.kind === "automatic" && doneMsg ? "Status: Complete" : "Status: Pending"}
-              </p>
-              <button
-                type="button"
-                onClick={canCompletePrimary ? handleCompletePrimary : undefined}
-                tabIndex={canCompletePrimary ? 0 : -1}
-                className={[
-                  // Matches the left column's Setup Tour/title pill exactly
-                  // (text-sm, px-3 py-1.5, rounded-lg, font-semibold) so the
-                  // two buttons share identical width/height/padding —
-                  // w-full stretches both to fill their equal grid-cols-2
-                  // column, the only thing that differs is color/border.
-                  "w-full text-sm font-semibold px-3 py-1.5 rounded-lg border transition-colors truncate text-center",
-                  primaryAction.kind === "automatic" && doneMsg
-                    ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                    : "border-[var(--crm-border)] bg-[var(--crm-inset)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)]",
-                ].join(" ")}
-              >
-                {primaryAction.kind === "automatic" && doneMsg ? "✓ Completed" : "Mark Complete"}
-              </button>
-            </div>
-          </div>
+          {/* Divider between the two sections when both are present */}
+          {lastAction && nextOpenAction && <div className="my-3.5 border-t border-[var(--crm-border-soft)]" />}
 
-          {/* Other Open Actions — a plain list, nothing more. Hidden
-              entirely when there's nothing else open. */}
-          {otherActions.length > 0 && (
-            <div className="mt-1 pt-1 border-t border-[var(--crm-border-soft)]">
-              <p className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-1.5">
-                Other Open Actions
-              </p>
-              <ul className="space-y-1 text-[11.5px] text-[var(--crm-text-secondary)]">
-                {otherActions.map((other, i) => (
-                  <li
-                    key={other.manualAction?.id ?? `automatic-${i}`}
-                    className="flex items-center justify-between gap-3"
-                  >
-                    <span className="truncate">• {other.title}</span>
-                    {other.dueAt && (
-                      <span className="flex-none text-[var(--crm-text-muted)] whitespace-nowrap">
-                        {formatActionDueDate(other.dueAt)}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
+          {/* NEXT ACTION — the next OPEN, actionable task. "Waiting for Response"
+              is a workflow state, not an action, so it never appears here. */}
+          {nextOpenAction && (
+            <div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--crm-text-secondary)]">Next Action</span>
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--crm-text-secondary)]">Status</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={openAction}
+                  title="Open this action"
+                  className="crm-cta max-w-[62%] truncate rounded-lg px-4 py-2 text-sm font-semibold"
+                >
+                  {nextOpenAction.title}
+                </button>
+                <span className="flex-none text-right text-sm font-semibold">
+                  {(() => {
+                    let s: string
+                    if (nextOpenAction.dueAt && getFollowUpStatus(nextOpenAction.dueAt) === "overdue") s = "Overdue"
+                    else {
+                      const t = nextOpenAction.title
+                      if (t === "Build List" || t === "Send List") s = "In Progress"
+                      else if (t === "Setup Tour") s = "Scheduled"
+                      else if (t === "Check App") s = "Waiting on Client"
+                      else s = "Pending"
+                    }
+                    const c = s === "Overdue" ? "text-red-500" : "text-[var(--crm-text-primary)]"
+                    return <span className={c}>{s}</span>
+                  })()}
+                </span>
+              </div>
+
+              {/* Which property this guest card is for (each Favorite Property
+                  gets its own Email Guest Card action). */}
+              {isGuestCardTitle(nextOpenAction.title) && nextOpenAction.manualAction?.property_name && (
+                <div className="mt-1.5 truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">
+                  {nextOpenAction.manualAction.property_name}
+                </div>
+              )}
+
+              <div className="mt-2.5 truncate text-[12.5px] text-[var(--crm-text-muted)]">
+                Due:{" "}
+                <span className="font-medium text-[var(--crm-text-secondary)]">
+                  {nextOpenAction.dueAt ? formatDueDateTime(nextOpenAction.dueAt) : "—"}
+                </span>
+              </div>
             </div>
+          )}
+
+          {/* Genuinely nothing open (no completion + no next task) */}
+          {!lastAction && !nextOpenAction && (
+            <p className="text-[12.5px] text-[var(--crm-text-muted)]">No open action — add the next step below.</p>
           )}
 
           {/* Add a manual action */}
@@ -1097,9 +1109,9 @@ export default function LeadPanel({
               setEditingAction(null)
               setShowAddAction(true)
             }}
-            className="mt-1 w-full text-[11.5px] font-semibold px-3 py-1.5 rounded-lg border border-dashed border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] transition-colors"
+            className="mt-6 w-full text-[12px] font-semibold px-3 py-2 rounded-lg border-2 border-dashed border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-accent)] hover:text-[var(--crm-text-primary)] transition-colors"
           >
-            + Add Next Action
+            + Add Task
           </button>
         </div>
 
@@ -1110,16 +1122,14 @@ export default function LeadPanel({
           <Field label="Property Type" value={lead.property_type} />
           <Field label="Beds / Baths" value={lead.beds || lead.baths ? `${lead.beds || "—"} / ${lead.baths || "—"}` : null} />
           <Field label="Move Date" value={formatDate(lead.move_date)} />
-          {lead.neighborhoods && <Field label="Desired Areas" value={lead.neighborhoods} />}
+          {(() => {
+            const areas = formatDesiredAreas(lead.neighborhoods, lead.city)
+            return areas ? <Field label="Desired Areas" value={areas} /> : null
+          })()}
           {lead.source && (
             <div className="flex items-start justify-between gap-4">
               <span className="text-[12.5px] text-[var(--crm-text-muted)] flex-none">Source</span>
-              <span
-                className="text-[11px] font-semibold px-2 py-0.5 rounded-full border crm-src-pill"
-                style={{ ["--src-color"]: getSourceStyle(lead.source).color } as React.CSSProperties}
-              >
-                {getSourceStyle(lead.source).label}
-              </span>
+              <LeadSourceBadge source={lead.source} className="text-[11px] px-2 py-0.5" />
             </div>
           )}
         </SectionCard>
@@ -1146,71 +1156,6 @@ export default function LeadPanel({
             }
             return <Field label="Criminal Background" value={value} />
           })()}
-        </SectionCard>
-
-        {/* Section: Favorite Properties (Phase 1 — manual only) */}
-        <SectionCard title="Favorite Properties" collapsible defaultOpen={false} storageKey="favorite-properties">
-          {leadFavorites.length === 0 ? (
-            <p className="text-[12.5px] text-[var(--crm-text-muted)]">No favorite properties added.</p>
-          ) : (
-            <div className="space-y-1.5">
-              {leadFavorites.map((fav) => (
-                <div
-                  key={fav.id}
-                  className="flex items-center gap-2 bg-[var(--crm-card)] border border-[var(--crm-border)] rounded-lg px-3 py-2 hover:border-[var(--crm-text-muted)] hover:bg-[var(--crm-inset)] transition-colors"
-                >
-                  {fav.property_url ? (
-                    <a
-                      href={fav.property_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="min-w-0 flex-1"
-                    >
-                      <p className="text-[12.5px] font-semibold text-[var(--crm-accent)] hover:underline truncate">
-                        {fav.property_name || fav.property_url}
-                      </p>
-                      {fav.property_address && (
-                        <p className="text-[11px] text-[var(--crm-text-muted)] truncate">{fav.property_address}</p>
-                      )}
-                    </a>
-                  ) : (
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[12.5px] font-semibold text-[var(--crm-text-primary)] truncate">
-                        {fav.property_name}
-                      </p>
-                      {fav.property_address && (
-                        <p className="text-[11px] text-[var(--crm-text-muted)] truncate">{fav.property_address}</p>
-                      )}
-                    </div>
-                  )}
-                  <div className="flex-none flex items-center gap-2.5">
-                    <button
-                      type="button"
-                      onClick={() => openEditFavorite(fav)}
-                      className="text-[10.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeletingFavoriteId(fav.id)}
-                      className="text-[10.5px] font-semibold text-red-500 hover:text-red-700"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setShowFavoriteModal(true)}
-            className="mt-2.5 w-full text-[11.5px] font-semibold px-3 py-1.5 rounded-lg border border-dashed border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:border-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)] transition-colors"
-          >
-            + Add Favorites
-          </button>
         </SectionCard>
 
         {/* Section: Quick Actions — secondary tools, collapsed by default and
@@ -1291,43 +1236,6 @@ export default function LeadPanel({
           </div>
         </SectionCard>
 
-        {/* Section: Client Notes */}
-        <CollapsibleNotes
-          title="Client Notes"
-          defaultOpen={!!(lead.notes && lead.notes.trim())}
-          storageKey="client-notes"
-        >
-          <textarea
-            value={lead.notes || ""}
-            readOnly
-            placeholder="No notes submitted."
-            className="w-full h-20 text-[12.5px] bg-[var(--crm-card)] border border-[var(--crm-border)] rounded-xl px-3 py-2 resize-none cursor-default text-[var(--crm-text-secondary)] placeholder-[var(--crm-text-muted)] focus:outline-none"
-          />
-        </CollapsibleNotes>
-
-        {/* Section: Locator Notes */}
-        <CollapsibleNotes
-          title="Locator Notes"
-          defaultOpen={!!(lead.locator_notes && lead.locator_notes.trim())}
-          storageKey="locator-notes"
-        >
-          <textarea
-            value={lead.locator_notes || ""}
-            onChange={async (e) => {
-              const newNotes = e.target.value
-              if (onUpdateLead) onUpdateLead({ ...lead, locator_notes: newNotes })
-              await supabase
-                .from("leads")
-                .update({ locator_notes: newNotes })
-                .eq("id", lead.id)
-                .select("*")
-            }}
-            placeholder="Internal notes about this client..."
-            className="w-full h-24 text-[12.5px] bg-[var(--crm-inset)] border border-[var(--crm-border)] rounded-xl px-3 py-2 resize-none text-[var(--crm-text-primary)] placeholder-[var(--crm-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--crm-accent)] focus:border-transparent transition-shadow"
-          />
-        </CollapsibleNotes>
-
-
       </div>
     </div>
 
@@ -1336,17 +1244,17 @@ export default function LeadPanel({
       onClose={() => setShowVoiceScript(false)}
       lead={lead}
       topMatches={topMatches}
+      locatorName={locatorFirstName}
     />
 
     <ConfirmDialog
-      open={showDeleteConfirm}
-      title="Delete this lead?"
-      message={`Are you sure you want to delete ${normalizeName(lead.first_name)} ${normalizeName(lead.last_name)}? The lead will be archived, not permanently removed — you can restore it later from the Archived column.`}
-      confirmLabel="Delete Lead"
+      open={showArchiveConfirm}
+      title="Archive this lead?"
+      message="This lead will be removed from your active CRM but can be restored at any time from Archived Leads."
+      confirmLabel="Archive Lead"
       cancelLabel="Cancel"
-      danger
-      onConfirm={handleDeleteLead}
-      onCancel={() => setShowDeleteConfirm(false)}
+      onConfirm={handleArchiveLead}
+      onCancel={() => setShowArchiveConfirm(false)}
     />
 
     <AddNextActionModal
@@ -1361,23 +1269,15 @@ export default function LeadPanel({
       crmStatus={lead.crm_status}
     />
 
-    <FavoriteModal
-      open={showFavoriteModal}
-      editing={editingFavorite}
-      onClose={closeFavoriteModal}
-      onSave={handleSaveFavorite}
+    <GuestCardModal
+      open={showGuestCard}
+      onClose={() => setShowGuestCard(false)}
+      lead={lead}
+      property={guestCardProperty}
+      agent={agent ?? {}}
+      onSent={handleGuestCardSent}
     />
 
-    <ConfirmDialog
-      open={deletingFavoriteId !== null}
-      title="Delete this favorite?"
-      message="This will remove the saved property from this lead's favorites. This can't be undone."
-      confirmLabel="Delete"
-      cancelLabel="Cancel"
-      danger
-      onConfirm={handleDeleteFavorite}
-      onCancel={() => setDeletingFavoriteId(null)}
-    />
     </>
   )
 }

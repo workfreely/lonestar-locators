@@ -17,7 +17,7 @@ export default function PricingHero() {
           className="beast-fade-up mt-9 text-[56px] font-semibold leading-none tracking-tight md:text-[64px]"
           style={{ animationDelay: "100ms" }}
         >
-          $149
+          $99
           <span className="text-[18px] font-medium text-[var(--beast-ink-inverse-soft)]">/month</span>
         </p>
 

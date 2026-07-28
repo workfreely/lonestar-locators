@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import DatePicker from "react-datepicker"
 import "react-datepicker/dist/react-datepicker.css"
 import { formatPhone } from "@/lib/utils/formatPhone"
@@ -9,10 +8,7 @@ import {
   PROPERTY_TYPES,
   BED_OPTIONS,
   CREDIT_HISTORY_OPTIONS,
-  HISTORY_AGE_OPTIONS,
-  BALANCE_OPTIONS,
   CRIMINAL_BACKGROUND_OPTIONS,
-  CRIMINAL_CHARGE_OPTIONS,
   RENT_RANGE_OPTIONS,
 } from "@/lib/formOptions"
 
@@ -52,13 +48,6 @@ export default function LeadFields({
   form: any
   updateField: (key: string, value: string) => void
 }) {
-  const [showAdvanced, setShowAdvanced] = useState(false)
-
-  const creditHistory  = form.credit_history      || ""
-  const criminal       = form.criminal_background  || ""
-  const hasBrokenLease = creditHistory === "Broken Lease"
-  const hasEviction    = creditHistory === "Eviction"
-
   return (
     <div className="space-y-6">
 
@@ -186,36 +175,50 @@ export default function LeadFields({
         </Full>
       </Group>
 
-      {/* ── Screening ────────────────────────────────────────────────────── */}
+      {/* ── Screening — Credit Score (compact) + Rental & Criminal Background
+             in one row; notes below. Detailed screening sub-fields come from
+             the Smart Lead Form, not this quick manual add. */}
       <Group title="Screening">
-        <input
-          className={inputCls}
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          placeholder="Credit Score (300–850)"
-          value={form.credit_score || ""}
-          onChange={e => {
-            const v = e.target.value.replace(/\D/g, "")
-            if (v === "") { updateField("credit_score", ""); return }
-            if (v.length <= 3) updateField("credit_score", v)
-          }}
-          onBlur={e => {
-            const n = Number(e.target.value)
-            if (e.target.value && (n < 300 || n > 850)) updateField("credit_score", "")
-          }}
-        />
-
-        <select
-          className={selectCls}
-          value={form.credit_history || ""}
-          onChange={e => updateField("credit_history", e.target.value)}
-        >
-          <option value="">Rental Background</option>
-          {CREDIT_HISTORY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
+        <Full>
+          <div className="grid grid-cols-[120px_1fr_1fr] gap-3">
+            <input
+              className={inputCls}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              placeholder="Credit Score"
+              value={form.credit_score || ""}
+              onChange={e => {
+                const v = e.target.value.replace(/\D/g, "")
+                if (v === "") { updateField("credit_score", ""); return }
+                if (v.length <= 3) updateField("credit_score", v)
+              }}
+              onBlur={e => {
+                const n = Number(e.target.value)
+                if (e.target.value && (n < 300 || n > 850)) updateField("credit_score", "")
+              }}
+            />
+            <select
+              className={selectCls}
+              value={form.credit_history || ""}
+              onChange={e => updateField("credit_history", e.target.value)}
+            >
+              <option value="">Rental Background</option>
+              {CREDIT_HISTORY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <select
+              className={selectCls}
+              value={form.criminal_background || ""}
+              onChange={e => updateField("criminal_background", e.target.value)}
+            >
+              <option value="">Criminal Background</option>
+              {CRIMINAL_BACKGROUND_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+        </Full>
 
         <Full>
+          <p className={sectionLabelCls}>Client Notes</p>
           <textarea
             className={inputCls + " resize-none h-20"}
             placeholder="Client notes..."
@@ -223,141 +226,17 @@ export default function LeadFields({
             onChange={e => updateField("notes", e.target.value)}
           />
         </Full>
+
+        <Full>
+          <p className={sectionLabelCls}>Locator Notes</p>
+          <textarea
+            className={inputCls + " resize-none h-20"}
+            placeholder="Internal notes (not visible to client)..."
+            value={form.locator_notes || ""}
+            onChange={e => updateField("locator_notes", e.target.value)}
+          />
+        </Full>
       </Group>
-
-      {/* ── Additional Screening (collapsible) ───────────────────────────── */}
-      <div>
-        <button
-          type="button"
-          onClick={() => setShowAdvanced(v => !v)}
-          className="flex items-center gap-2 text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest hover:text-[var(--crm-text-secondary)] transition-colors"
-        >
-          <svg
-            width="10" height="10" viewBox="0 0 10 10" fill="none"
-            className={`transition-transform duration-200 ${showAdvanced ? "rotate-90" : ""}`}
-          >
-            <path d="M3 1.5l4 3.5-4 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Additional Screening Details
-        </button>
-
-        {showAdvanced && (
-          <div className="mt-4 pl-3 border-l-2 border-[var(--crm-border-soft)] space-y-5">
-
-            {/* Broken Lease sub-fields — only when Broken Lease selected */}
-            {hasBrokenLease && (
-              <Group title="Broken Lease">
-                <select
-                  className={selectCls}
-                  value={form.broken_lease_age || ""}
-                  onChange={e => updateField("broken_lease_age", e.target.value)}
-                >
-                  <option value="">How old is the broken lease?</option>
-                  {HISTORY_AGE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                </select>
-                <select
-                  className={selectCls}
-                  value={form.broken_lease_amount || ""}
-                  onChange={e => updateField("broken_lease_amount", e.target.value)}
-                >
-                  <option value="">Balance owed</option>
-                  {BALANCE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                </select>
-              </Group>
-            )}
-
-            {/* Eviction sub-fields — only when Eviction selected */}
-            {hasEviction && (
-              <Group title="Eviction">
-                <select
-                  className={selectCls}
-                  value={form.eviction_court || ""}
-                  onChange={e => updateField("eviction_court", e.target.value)}
-                >
-                  <option value="">Did it go to court?</option>
-                  <option value="Yes">Yes</option>
-                  <option value="No">No</option>
-                </select>
-                <select
-                  className={selectCls}
-                  value={form.eviction_age || ""}
-                  onChange={e => updateField("eviction_age", e.target.value)}
-                >
-                  <option value="">How old is the eviction?</option>
-                  {HISTORY_AGE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                </select>
-                <select
-                  className={selectCls}
-                  value={form.eviction_balance || ""}
-                  onChange={e => updateField("eviction_balance", e.target.value)}
-                >
-                  <option value="">Balance owed</option>
-                  {BALANCE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                </select>
-              </Group>
-            )}
-
-            {/* Criminal Background */}
-            <Group title="Criminal Background">
-              <select
-                className={selectCls}
-                value={form.criminal_background || ""}
-                onChange={e => updateField("criminal_background", e.target.value)}
-              >
-                <option value="">Select Criminal Background</option>
-                {CRIMINAL_BACKGROUND_OPTIONS.map(o => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-
-              {criminal && criminal !== "None" && (
-                <select
-                  className={selectCls}
-                  value={form.criminal_charge || ""}
-                  onChange={e => updateField("criminal_charge", e.target.value)}
-                >
-                  <option value="">Charge type</option>
-                  {CRIMINAL_CHARGE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                </select>
-              )}
-
-              {criminal === "Felony" && (
-                <select
-                  className={selectCls}
-                  value={form.felony_age || ""}
-                  onChange={e => updateField("felony_age", e.target.value)}
-                >
-                  <option value="">How old is the felony?</option>
-                  {HISTORY_AGE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                </select>
-              )}
-
-              {criminal === "Misdemeanor" && (
-                <select
-                  className={selectCls}
-                  value={form.misdemeanor_age || ""}
-                  onChange={e => updateField("misdemeanor_age", e.target.value)}
-                >
-                  <option value="">How old is the misdemeanor?</option>
-                  {HISTORY_AGE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                </select>
-              )}
-            </Group>
-
-            {/* Locator Notes */}
-            <div>
-              <p className={sectionLabelCls}>Locator Notes</p>
-              <textarea
-                className={inputCls + " resize-none h-20"}
-                placeholder="Internal notes (not visible to client)..."
-                value={form.locator_notes || ""}
-                onChange={e => updateField("locator_notes", e.target.value)}
-              />
-            </div>
-
-          </div>
-        )}
-      </div>
 
     </div>
   )

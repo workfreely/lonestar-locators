@@ -4,7 +4,7 @@ import { useDraggable } from "@dnd-kit/core"
 import { getNextAction } from "@/lib/nextAction"
 import { useState, useRef, useLayoutEffect } from "react"
 import { formatPhone } from "@/lib/utils/formatPhone"
-import { getSourceStyle } from "@/lib/leads/sourceStyles"
+import LeadSourceBadge from "./LeadSourceBadge"
 import { inferMarketFromLandingPage } from "@/lib/leads/inferMarketFromLandingPage"
 import { getArchiveReasonBadgeLabel } from "@/lib/leads/archiveReasons"
 
@@ -264,7 +264,7 @@ export default function LeadCard({
           {extras && lead.source && (
             <div className="kb-row">
               <span className="kb-k">Source</span>
-              <span className="kb-pill kb-pill--src">{getSourceStyle(lead.source).label}</span>
+              <LeadSourceBadge source={lead.source} className="text-[11px] px-2 py-0.5" />
             </div>
           )}
         </div>

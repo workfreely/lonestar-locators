@@ -11,7 +11,7 @@
 // exist in the known list yet still shows up (graceful fallback) instead
 // of being silently dropped.
 
-import { getSourceStyle } from "@/lib/leads/sourceStyles"
+import LeadSourceBadge from "@/components/crm/LeadSourceBadge"
 
 export default function LeadSourcesCard({ leads }: { leads: any[] }) {
   const counts: Record<string, number> = {}
@@ -36,15 +36,9 @@ export default function LeadSourcesCard({ leads }: { leads: any[] }) {
       <div className="space-y-2">
         {rows.map(([source, count]) => {
           const pct = total > 0 ? Math.round((count / total) * 100) : 0
-          const style = getSourceStyle(source)
           return (
             <div key={source} className="flex items-center gap-3">
-              <span
-                className="flex-none text-[11px] font-semibold px-2 py-0.5 rounded-full border crm-src-pill"
-                style={{ ["--src-color"]: style.color } as React.CSSProperties}
-              >
-                {style.label}
-              </span>
+              <LeadSourceBadge source={source} className="flex-none text-[11px] px-2 py-0.5" />
               <div className="flex-1 h-2 bg-[var(--crm-inset)] rounded-full overflow-hidden">
                 <div
                   className="h-full bg-[var(--kb-accent)] rounded-full transition-all duration-500"

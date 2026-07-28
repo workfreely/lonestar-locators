@@ -9,7 +9,7 @@
 // as LeadSourcesCard.tsx (same lib/leads/sourceStyles.ts module, same
 // classes) so the two stay visually consistent.
 
-import { getSourceStyle } from "@/lib/leads/sourceStyles"
+import LeadSourceBadge from "@/components/crm/LeadSourceBadge"
 
 const TOURED_STATUSES = new Set(["done_touring", "applied", "closed"])
 
@@ -60,12 +60,7 @@ export default function PerformanceStats({ leads }: { leads: any[] }) {
         <p className={labelCls}>Top Source</p>
         <div className="mt-1">
           {topSource ? (
-            <span
-              className="inline-block text-sm font-semibold px-2.5 py-1 rounded-full border crm-src-pill"
-              style={{ ["--src-color"]: getSourceStyle(topSource).color } as React.CSSProperties}
-            >
-              {getSourceStyle(topSource).label}
-            </span>
+            <LeadSourceBadge source={topSource} className="text-sm px-2.5 py-1" />
           ) : (
             <p className={valueCls}>—</p>
           )}

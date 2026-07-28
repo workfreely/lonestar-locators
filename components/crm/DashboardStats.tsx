@@ -1,8 +1,11 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { getSourceBarColor } from "@/lib/leads/sourceStyles"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
+// Fallbacks when a profile hasn't set its own goals (real operator today).
+// Demo / goal-driven callers pass monthlyGoal + avgCommission explicitly.
 const MONTHLY_REVENUE_GOAL = 100_000
 const REVENUE_PER_CLOSE    = 1_000
 const MONTHLY_LEAD_GOAL    = 300
@@ -43,19 +46,58 @@ function fmt(n: number): string {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function DashboardStats({ leads }: { leads: any[] }) {
+// Count a number up from 0 to `target` on mount (easeOutCubic) so the demo /
+// dashboard analytics feel alive. Disabled → renders the target immediately.
+function useCountUp(target: number, enabled: boolean, durationMs = 1200): number {
+  const [value, setValue] = useState(enabled ? 0 : target)
+  useEffect(() => {
+    if (!enabled) {
+      setValue(target)
+      return
+    }
+    let raf = 0
+    const start = performance.now()
+    const tick = (now: number) => {
+      const t = Math.min((now - start) / durationMs, 1)
+      const eased = 1 - Math.pow(1 - t, 3)
+      setValue(target * eased)
+      if (t < 1) raf = requestAnimationFrame(tick)
+      else setValue(target)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [target, enabled, durationMs])
+  return value
+}
+
+function CountNum({ value, prefix = "", enabled }: { value: number; prefix?: string; enabled: boolean }) {
+  const v = useCountUp(value, enabled)
+  return <>{prefix}{fmt(Math.round(v))}</>
+}
+
+export default function DashboardStats({
+  leads,
+  monthlyGoal = MONTHLY_REVENUE_GOAL,
+  avgCommission = REVENUE_PER_CLOSE,
+  animate = true,
+}: {
+  leads: any[]
+  monthlyGoal?: number
+  avgCommission?: number
+  animate?: boolean
+}) {
 
   // Active pipeline — only leads still in the active workflow (excludes
   // both Closed and Archived)
   const activeLeads         = leads.filter((l) => ACTIVE_STATUSES.has(l.crm_status))
-  const activePipelineValue = activeLeads.length * REVENUE_PER_CLOSE
+  const activePipelineValue = activeLeads.length * avgCommission
 
   // Closed this month — keyed off closed_at (the lead's actual closed
   // date), not crm_status, so this stays correct after the monthly Closed
   // cleanup archives a lead out of the Closed column.
   const closedThisMonth  = leads.filter((l) => l.closed_at && isThisMonth(l.closed_at))
-  const revenueThisMonth = closedThisMonth.length * REVENUE_PER_CLOSE
-  const progressPct      = Math.min(Math.round((revenueThisMonth / MONTHLY_REVENUE_GOAL) * 100), 100)
+  const revenueThisMonth = closedThisMonth.length * avgCommission
+  const progressPct      = Math.min(Math.round((revenueThisMonth / monthlyGoal) * 100), 100)
 
   // Leads generated this month
   const generatedThisMonth = leads.filter((l) => isThisMonth(l.created_at))
@@ -77,7 +119,7 @@ export default function DashboardStats({ leads }: { leads: any[] }) {
   // yet (Searching, List Sent, Ready to Tour, etc.) — intentionally simple
   // until there's more production data to base a smarter model on.
   const appliedLeads = leads.filter((l) => l.crm_status === "applied")
-  const projectedCommission = appliedLeads.length * REVENUE_PER_CLOSE
+  const projectedCommission = appliedLeads.length * avgCommission
 
   return (
     <div className="flex-none bg-[var(--crm-card)] border-b border-[var(--crm-border)] px-5 pt-3 pb-5">
@@ -89,9 +131,9 @@ export default function DashboardStats({ leads }: { leads: any[] }) {
           <div className="mt-1">
             <div className="flex items-baseline gap-1.5">
               <span className="text-xl font-bold text-[var(--crm-text-primary)] leading-none">
-                ${fmt(revenueThisMonth)}
+                <CountNum value={revenueThisMonth} prefix="$" enabled={animate} />
               </span>
-              <span className="text-xs text-[var(--crm-text-muted)]">/ ${fmt(MONTHLY_REVENUE_GOAL)}</span>
+              <span className="text-xs text-[var(--crm-text-muted)]">/ ${fmt(monthlyGoal)}</span>
             </div>
             <div className="mt-1.5 h-1 w-full bg-[var(--crm-inset)] rounded-full overflow-hidden">
               <div
@@ -107,7 +149,7 @@ export default function DashboardStats({ leads }: { leads: any[] }) {
         <div className="bg-[var(--crm-panel)] rounded-xl border border-[var(--crm-border)] shadow-sm px-4 py-2 flex flex-col justify-between transition-shadow transition-colors duration-200 hover:border-blue-200 hover:shadow-[0_4px_20px_rgba(59,130,246,0.12),0_8px_24px_rgba(0,0,0,0.08)]">
           <p className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest">Active Pipeline</p>
           <div className="mt-1">
-            <p className="text-xl font-bold text-[var(--crm-text-primary)] leading-none">${fmt(activePipelineValue)}</p>
+            <p className="text-xl font-bold text-[var(--crm-text-primary)] leading-none"><CountNum value={activePipelineValue} prefix="$" enabled={animate} /></p>
             <p className="text-[10px] text-[var(--crm-text-muted)] mt-1">{activeLeads.length} active {activeLeads.length === 1 ? "lead" : "leads"}</p>
           </div>
         </div>
@@ -127,7 +169,7 @@ export default function DashboardStats({ leads }: { leads: any[] }) {
               <p className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest">Leads This Month</p>
               <div className="mt-1">
                 <div className="flex items-baseline gap-1.5">
-                  <span className="text-xl font-bold text-[var(--crm-text-primary)] leading-none">{total}</span>
+                  <span className="text-xl font-bold text-[var(--crm-text-primary)] leading-none"><CountNum value={total} enabled={animate} /></span>
                   <span className="text-xs text-[var(--crm-text-muted)]">/ {MONTHLY_LEAD_GOAL}</span>
                 </div>
 
@@ -166,7 +208,7 @@ export default function DashboardStats({ leads }: { leads: any[] }) {
         <div className="bg-[var(--crm-panel)] rounded-xl border border-[var(--crm-border)] shadow-sm px-4 py-2 flex flex-col justify-between transition-shadow transition-colors duration-200 hover:border-blue-200 hover:shadow-[0_4px_20px_rgba(59,130,246,0.12),0_8px_24px_rgba(0,0,0,0.08)]">
           <p className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest">Projected Commission</p>
           <div className="mt-1">
-            <p className="text-xl font-bold text-[var(--crm-text-primary)] leading-none">${fmt(projectedCommission)}</p>
+            <p className="text-xl font-bold text-[var(--crm-text-primary)] leading-none"><CountNum value={projectedCommission} prefix="$" enabled={animate} /></p>
             <p className="text-[10px] text-[var(--crm-text-muted)] mt-1">{appliedLeads.length} applied {appliedLeads.length === 1 ? "lead" : "leads"}</p>
           </div>
         </div>
@@ -175,7 +217,7 @@ export default function DashboardStats({ leads }: { leads: any[] }) {
         <div className="bg-[var(--crm-panel)] rounded-xl border border-[var(--crm-border)] shadow-sm px-4 py-2 flex flex-col justify-between transition-shadow transition-colors duration-200 hover:border-blue-200 hover:shadow-[0_4px_20px_rgba(59,130,246,0.12),0_8px_24px_rgba(0,0,0,0.08)]">
           <p className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest">Closed This Month</p>
           <div className="mt-1">
-            <p className="text-xl font-bold text-[var(--crm-text-primary)] leading-none">{closedThisMonth.length}</p>
+            <p className="text-xl font-bold text-[var(--crm-text-primary)] leading-none"><CountNum value={closedThisMonth.length} enabled={animate} /></p>
             <p className="text-[10px] text-[var(--crm-text-muted)] mt-1">{progressPct}% of revenue goal</p>
           </div>
         </div>

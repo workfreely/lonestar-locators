@@ -6,17 +6,45 @@ import FollowUpRow from "./FollowUpRow"
 import LeadBoard from "./LeadBoard"
 import LeadPanel from "./LeadPanel"
 import LeadInsights from "./LeadInsights"
+import LeadFavorites from "./LeadFavorites"
+import LeadNotes from "./LeadNotes"
 import LeadFormModal from "../LeadFormModal"
 import WorkflowActionToast from "./WorkflowActionToast"
 import { emitWorkflowActionCreated, type WorkflowToastAction } from "@/lib/workflowToast"
-import { readAgendaExpanded, writeAgendaExpanded, DEFAULT_AGENDA_EXPANDED } from "@/lib/preferences"
-import Logo from "./Logo"
-import ProfileAvatarMenu from "./ProfileAvatarMenu"
+import { readAgendaExpanded, writeAgendaExpanded, DEFAULT_AGENDA_EXPANDED, readDemoBannerDismissed, writeDemoBannerDismissed } from "@/lib/preferences"
+import { exitDemoWorkspace } from "@/lib/demo/exitDemo"
+import FirstRunChecklist from "./FirstRunChecklist"
+import AppHeader from "./AppHeader"
 import { CRM_PRIMARY_BUTTON, CRM_SECONDARY_BUTTON } from "@/lib/crmButtonStyles"
+import type { GuestCardAgent } from "@/lib/leads/guestCard"
 
-export default function DashboardClient({ leads, nextActions, favorites }: { leads: any[]; nextActions: any[]; favorites: any[] }) {
+function titleCaseName(name: string): string {
+  return name.trim().replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+export default function DashboardClient({ leads, nextActions, favorites, demoMode = false, firstName = "", googleConnected = false, agent }: { leads: any[]; nextActions: any[]; favorites: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent }) {
   const router = useRouter()
   const [selectedLeadId, setSelectedLeadId] = useState<string | number | null>(null)
+  const [bannerVisible, setBannerVisible] = useState(false)
+  const [leavingDemo, setLeavingDemo] = useState(false)
+
+  // Show the sample-workspace banner once per user (until Explore/Start Fresh).
+  useEffect(() => {
+    if (demoMode) setBannerVisible(!readDemoBannerDismissed())
+  }, [demoMode])
+
+  function exploreDemo() {
+    writeDemoBannerDismissed(true)
+    setBannerVisible(false)
+  }
+
+  // Turn the demo workspace off and reveal the real (clean) CRM.
+  async function startFresh() {
+    setLeavingDemo(true)
+    await exitDemoWorkspace()
+    setBannerVisible(false)
+    router.refresh()
+  }
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -65,31 +93,51 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
           dropdown, despite its own z-50, is bounded by the header's lower
           context and renders behind AI Insights/Property Matches/Lead
           Panel whenever a lead is selected (see UI Polish Pass point 2). */}
-      <header className="crm-header relative z-50 flex-none py-2 bg-[var(--crm-panel)] border-b border-[var(--crm-border)] flex items-center px-5 gap-4 shadow-[0_1px_3px_rgba(var(--crm-shadow-color),0.06)]">
+      {/* zClass z-50 (not z-30) so the header's stacking context sits above
+          the z-40 Lead Detail Overlay — otherwise the profile dropdown renders
+          behind the Lead Panel whenever a lead is selected. */}
+      <AppHeader variant="dark" zClass="z-50">
+        <Link href="/admin/performance" className={CRM_SECONDARY_BUTTON}>
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+            <rect x="1" y="8" width="3" height="5" rx="0.5" fill="currentColor"/>
+            <rect x="5.5" y="4" width="3" height="9" rx="0.5" fill="currentColor"/>
+            <rect x="10" y="1" width="3" height="12" rx="0.5" fill="currentColor"/>
+          </svg>
+          Analytics
+        </Link>
+        <button
+          onClick={() => setShowLeadModal(true)}
+          className={CRM_PRIMARY_BUTTON}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+          Add Lead
+        </button>
+      </AppHeader>
 
-        <Logo />
-
-        <div className="ml-auto flex items-center gap-2">
-          <Link href="/admin/performance" className={CRM_SECONDARY_BUTTON}>
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
-              <rect x="1" y="8" width="3" height="5" rx="0.5" fill="currentColor"/>
-              <rect x="5.5" y="4" width="3" height="9" rx="0.5" fill="currentColor"/>
-              <rect x="10" y="1" width="3" height="12" rx="0.5" fill="currentColor"/>
-            </svg>
-            Analytics
-          </Link>
-          <button
-            onClick={() => setShowLeadModal(true)}
-            className={CRM_PRIMARY_BUTTON}
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-            Add Lead
-          </button>
-          <ProfileAvatarMenu />
+      {/* ─── SAMPLE WORKSPACE WELCOME BANNER (demo mode, first entry) ─── */}
+      {bannerVisible && (
+        <div className="crm-fade-in relative z-20 flex-none mx-2 mt-2">
+          <div className="flex flex-wrap items-center gap-4 rounded-xl border border-[var(--crm-border)] bg-[var(--crm-panel)] px-5 py-3 shadow-[0_1px_3px_rgba(var(--crm-shadow-color),0.08)]">
+            <div className="text-2xl leading-none">🎉</div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-[var(--crm-text-primary)]">
+                {firstName.trim() ? `Welcome, ${titleCaseName(firstName)}!` : "Welcome!"}
+              </p>
+              <p className="text-[12.5px] text-[var(--crm-text-secondary)]">
+                We&apos;ve created a Sample Workspace so you can explore every feature before adding your own leads.
+              </p>
+            </div>
+            <div className="flex flex-none items-center gap-2">
+              <button onClick={exploreDemo} className={CRM_PRIMARY_BUTTON}>Explore Demo Workspace</button>
+              <button onClick={startFresh} disabled={leavingDemo} className={CRM_SECONDARY_BUTTON}>
+                {leavingDemo ? "Clearing…" : "Start Fresh"}
+              </button>
+            </div>
+          </div>
         </div>
-      </header>
+      )}
 
       {/* ─── BODY ─── */}
       <div className="relative flex-1 flex overflow-hidden">
@@ -144,7 +192,7 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
         <div
           className={`relative z-10 flex-1 overflow-hidden ${
             selectedLead ? "hidden" : "block"
-          }`}
+          } ${demoMode ? "crm-fade-in" : ""}`}
         >
           <LeadBoard
             leads={localLeads}
@@ -171,7 +219,7 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
                   nextActions={localNextActions}
                   setNextActions={setLocalNextActions}
                   favorites={localFavorites}
-                  setFavorites={setLocalFavorites}
+                  agent={agent}
                   onClose={() => {
                     setSelectedLeadId(null)
                     router.push("/admin/leads")
@@ -190,10 +238,21 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
 
               {/* INSIGHTS PANEL */}
               <div className="flex-1 bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)] p-6 overflow-y-auto">
-                <LeadInsights
-                  lead={selectedLead}
-                  onMatchesChange={setTopMatches}
-                />
+                <LeadInsights lead={selectedLead} onMatchesChange={setTopMatches}>
+                  <LeadFavorites
+                    lead={selectedLead}
+                    favorites={localFavorites}
+                    setFavorites={setLocalFavorites}
+                    nextActions={localNextActions}
+                    setNextActions={setLocalNextActions}
+                  />
+                  <LeadNotes
+                    lead={selectedLead}
+                    onUpdateLead={(updatedLead) =>
+                      setLocalLeads((prev) => prev.map((l) => (l.id === updatedLead.id ? updatedLead : l)))
+                    }
+                  />
+                </LeadInsights>
               </div>
 
             </div>
@@ -220,6 +279,8 @@ export default function DashboardClient({ leads, nextActions, favorites }: { lea
           setPendingEditActionId(action.id)
         }}
       />
+
+      {demoMode && <FirstRunChecklist googleConnected={googleConnected} />}
     </div>
   )
 }

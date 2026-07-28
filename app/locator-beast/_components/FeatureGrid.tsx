@@ -10,7 +10,6 @@ import {
   HiOutlineListBullet,
   HiOutlineDocumentDuplicate,
   HiOutlineChartPie,
-  HiOutlineMapPin,
 } from "react-icons/hi2";
 import type { IconType } from "react-icons";
 import Reveal from "./Reveal";
@@ -27,7 +26,6 @@ const FEATURES: { icon: IconType; title: string; body: string; comingSoon?: bool
   { icon: HiOutlineListBullet, title: "Agenda", body: "Your day, laid out — no more digging through notes." },
   { icon: HiOutlineDocumentDuplicate, title: "Templates", body: "Reusable messages that keep every follow-up consistent." },
   { icon: HiOutlineChartPie, title: "Analytics", body: "Understand what's actually driving your closed leases." },
-  { icon: HiOutlineMapPin, title: "Smart Property Matching", body: "Automatically match clients to the right properties.", comingSoon: true },
 ];
 
 export default function FeatureGrid() {

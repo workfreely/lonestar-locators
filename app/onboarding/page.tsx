@@ -24,14 +24,19 @@ export default async function OnboardingPage() {
   }
 
   const initialData: OnboardingData = {
+    first_name: profile?.first_name ?? "",
+    last_name: profile?.last_name ?? "",
     full_name: profile?.full_name ?? "",
     business_name: profile?.business_name ?? "",
+    email: profile?.email ?? user.email ?? "",
     brokerage: profile?.brokerage ?? "",
     phone_number: profile?.phone_number ?? "",
     service_areas: profile?.service_areas ?? [],
     profile_photo_url: profile?.profile_photo_url ?? null,
     business_logo_url: profile?.business_logo_url ?? null,
     brand_color: profile?.brand_color ?? null,
+    monthly_commission_goal: profile?.monthly_commission_goal ?? null,
+    avg_commission_per_lease: profile?.avg_commission_per_lease ?? null,
     google_connected: profile?.google_connected ?? false,
     phone_sync_connected: profile?.phone_sync_connected ?? false,
     leads_import_status: profile?.leads_import_status ?? null,

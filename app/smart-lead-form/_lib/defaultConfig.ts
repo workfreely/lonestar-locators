@@ -4,11 +4,11 @@ export const DEFAULT_CONFIG: SmartLeadFormConfig = {
   sections: {
     afterForm: ["testimonials", "faq"],
     visibility: {
+      headline: true,
       agentProfile: true,
       highlights: true,
       testimonials: true,
       faq: true,
-      footer: true,
       brokerageInfo: true,
       serviceAreas: true,
       socialLinks: false,

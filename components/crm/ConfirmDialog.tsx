@@ -2,7 +2,8 @@
 
 // Small reusable confirmation modal — styled to match the app's card
 // language (rounded-2xl, shadow-2xl) rather than a native window.confirm().
-// Currently used for the Delete Lead confirmation in LeadPanel.tsx.
+// Used for confirmations like Archive Lead (LeadPanel), Delete Demo Workspace
+// (Settings), and Delete Favorite.
 
 export default function ConfirmDialog({
   open,

@@ -128,11 +128,17 @@ export default function SectionsPanel({
       <div>
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">Hero</p>
         <div className="flex flex-col gap-2">
+          <ToggleRow
+            label="Headline"
+            note="Hide for an image-focused hero — the background image leads instead."
+            checked={visibility.headline}
+            onToggle={() => toggleVisibility("headline")}
+          />
           <ToggleRow label="Highlights" checked={visibility.highlights} onToggle={() => toggleVisibility("highlights")} />
           <ToggleRow label="Agent Information" checked={visibility.agentProfile} onToggle={() => toggleVisibility("agentProfile")} />
         </div>
         <p className="mt-2 text-[11.5px] leading-relaxed text-[#9098a8]">
-          Highlights and Agent Information are part of the hero and always appear in this order — show/hide only, not reorderable.
+          The headline, Highlights, and Agent Information are part of the hero and always appear in this order — show/hide only, not reorderable.
         </p>
       </div>
 
@@ -153,16 +159,6 @@ export default function SectionsPanel({
         }
         onToggle={(id) => toggleVisibility(id as VisibilityKey)}
       />
-
-      <div>
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">Footer</p>
-        <ToggleRow
-          label="Footer"
-          note="Always appears at the very bottom of the page."
-          checked={visibility.footer}
-          onToggle={() => toggleVisibility("footer")}
-        />
-      </div>
     </div>
   )
 }

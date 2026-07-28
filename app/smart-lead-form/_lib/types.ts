@@ -13,13 +13,15 @@ export type SmartLeadFormConfig = {
   sections: {
     afterForm: AfterFormSectionId[]
     visibility: {
+      // The large hero headline. Hiding it collapses the hero upward so the
+      // background image becomes the primary visual (image-focused style).
+      // The footer, like Consent, is a fixed closing anchor that ALWAYS
+      // renders — it has no visibility toggle.
+      headline: boolean
       agentProfile: boolean
       highlights: boolean
       testimonials: boolean
       faq: boolean
-      // Footer is a fixed closing anchor (like Consent), not part of a
-      // reorderable zone — this just turns it on/off from the Sections tab.
-      footer: boolean
       brokerageInfo: boolean
       serviceAreas: boolean
       socialLinks: boolean

@@ -3,6 +3,15 @@
 import { useEffect, useRef, useState } from "react"
 import { supabase } from "@/lib/supabase/client"
 import type { AiClientBrief } from "@/lib/types/aiClientBrief"
+import { getDemoBrief, isDemoLeadId } from "@/lib/demo/demoWorkspace"
+
+// V1 launch flag — Property Matches / AI property suggestions are hidden from
+// the Lead Panel UI while the matching engine stays FULLY intact behind the
+// scenes: fetchProperties still runs, scores, and feeds topMatches (Text Top 3
+// / AI Voice Script). Nothing is deleted. Flip to true to reintroduce the
+// section in a future release (ideally above Favorite Properties). Do NOT
+// remove the matching code — it returns later as an enhancement.
+const SHOW_PROPERTY_MATCHES = false
 
 import { MANAGEMENT_PROFILES }
 from "@/lib/managementProfiles"
@@ -310,6 +319,17 @@ function AiInsightsCard({ leadId }: { leadId: string }) {
   const initialOpenSet = useRef(false)
 
   function loadBrief() {
+    // Demo leads carry their AI brief client-side (see lib/demo) — never hit
+    // the DB or the sync API for them.
+    const demo = getDemoBrief(leadId)
+    if (demo) {
+      setBrief(demo)
+      if (!initialOpenSet.current) {
+        initialOpenSet.current = true
+        setOpen(demo.insights.length > 0 || !!demo.last_conversation)
+      }
+      return
+    }
     supabase
       .from("ai_client_briefs")
       .select("*")
@@ -334,6 +354,11 @@ function AiInsightsCard({ leadId }: { leadId: string }) {
   }, [leadId])
 
   async function handleSync() {
+    // Demo leads have no real conversation to sync — just re-show the fixture.
+    if (isDemoLeadId(leadId)) {
+      loadBrief()
+      return
+    }
     setSyncing(true)
     setSyncError(null)
     try {
@@ -382,7 +407,7 @@ function AiInsightsCard({ leadId }: { leadId: string }) {
             <polyline points="9 18 15 12 9 6" />
           </svg>
           <h3 className="text-xs font-semibold text-[var(--crm-text-secondary)] whitespace-nowrap">
-            🧠 AI INSIGHTS
+            🧠 AI ASSISTANT
           </h3>
         </div>
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -441,9 +466,13 @@ function AiInsightsCard({ leadId }: { leadId: string }) {
 export default function LeadInsights({
   lead,
   onMatchesChange,
+  children,
 }: {
   lead: any
   onMatchesChange?: (matches: any[]) => void
+  // Rendered directly under the AI Assistant card — the right-panel property
+  // workspace (Favorite Properties) and notes for V1.
+  children?: React.ReactNode
 }) {
   const [properties, setProperties] = useState<any[]>([])
   const [propertiesOpen, setPropertiesOpen] = useState(true)
@@ -669,10 +698,15 @@ if (Number(lead.credit_score) <= 580) {
   return (
     <div className="space-y-2 pt-0 -mt-6">
 
-      {/* AI INSIGHTS */}
+      {/* AI ASSISTANT */}
       <AiInsightsCard leadId={String(lead.id)} />
 
-      {/* RECOMMENDED */}
+      {/* Right-panel workspace — Favorite Properties + Notes (see DashboardClient) */}
+      {children}
+
+      {/* PROPERTY MATCHES — hidden from the V1 UI (see SHOW_PROPERTY_MATCHES).
+          The matching engine above still runs; only this section is not shown. */}
+      {SHOW_PROPERTY_MATCHES && (
       <div className="bg-[var(--crm-panel)] border border-[var(--crm-border-soft)] rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.04),0_4px_10px_rgba(var(--crm-shadow-color),0.06)]">
         <div
           className="px-4 py-2 border-b border-[var(--crm-border-soft)] flex items-center gap-2 cursor-pointer select-none"
@@ -799,6 +833,7 @@ if (Number(lead.credit_score) <= 580) {
           })}
         </div>}
       </div>
+      )}
 
       {/* INSIGHTS */}
       <div className="bg-[var(--crm-panel)] border border-[var(--crm-border-soft)] rounded-2xl p-4 shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.04),0_4px_10px_rgba(var(--crm-shadow-color),0.06)]">

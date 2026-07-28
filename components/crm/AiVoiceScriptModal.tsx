@@ -9,6 +9,8 @@ type Props = {
   onClose: () => void
   lead: any
   topMatches?: any[]
+  // The locator's Preferred Name (first token), shown as the script's sender.
+  locatorName?: string
 }
 
 type TabId = "list_sent" | "ready_to_tour" | "tour_prep"
@@ -26,7 +28,7 @@ function firstName(lead: any): string {
     : "there"
 }
 
-function buildListSent(lead: any, topMatches: any[]): string {
+function buildListSent(lead: any, topMatches: any[], locatorName: string): string {
   const name             = firstName(lead)
   const propType         = formatPropertyTypeDisplay(lead.property_type) || "apartment"
   const topProperty      = topMatches[0]?.name || "one of the top options"
@@ -36,7 +38,7 @@ function buildListSent(lead: any, topMatches: any[]): string {
   const keyFeatures      = "the details that matter most to you"
   const tourTimeframe    = "your preferred timeline"
 
-  return `Morning ${name}, it's Jay!
+  return `Morning ${name}, it's ${locatorName}!
 
 I just sent your list over. I narrowed it down to the best ${propType} options that fit what you're looking for, and I think you're going to love what I found.
 
@@ -55,10 +57,10 @@ Please let me know which ones stand out to you, and I'll help get your tours set
 Talk soon!`
 }
 
-function buildReadyToTour(lead: any): string {
+function buildReadyToTour(lead: any, locatorName: string): string {
   const name = firstName(lead)
 
-  return `Morning ${name}, it's Jay!
+  return `Morning ${name}, it's ${locatorName}!
 
 I saw the properties you liked, and I think you picked some great options.
 
@@ -69,10 +71,10 @@ Keep in mind that availability and specials can change quickly, so the sooner we
 Send me your availability and I'll get everything set up. Alright, talk soon!`
 }
 
-function buildTourPrep(lead: any): string {
+function buildTourPrep(lead: any, locatorName: string): string {
   const name = firstName(lead)
 
-  return `Morning ${name}, it's Jay!
+  return `Morning ${name}, it's ${locatorName}!
 
 Just wanted to check in before your tours. You're going to see some great options.
 
@@ -83,17 +85,17 @@ After your tours, send me your top favorites and I'll help you compare everythin
 Also, don't forget to bring a valid photo ID for the tour. Alright, talk soon!`
 }
 
-function getScript(tab: TabId, lead: any, topMatches: any[]): string {
-  if (tab === "list_sent")     return buildListSent(lead, topMatches)
-  if (tab === "ready_to_tour") return buildReadyToTour(lead)
-  return buildTourPrep(lead)
+function getScript(tab: TabId, lead: any, topMatches: any[], locatorName: string): string {
+  if (tab === "list_sent")     return buildListSent(lead, topMatches, locatorName)
+  if (tab === "ready_to_tour") return buildReadyToTour(lead, locatorName)
+  return buildTourPrep(lead, locatorName)
 }
 
-function ModalContent({ onClose, lead, topMatches = [] }: Props) {
+function ModalContent({ onClose, lead, topMatches = [], locatorName = "Jay" }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>("list_sent")
   const [copied, setCopied]       = useState(false)
 
-  const script = getScript(activeTab, lead, topMatches)
+  const script = getScript(activeTab, lead, topMatches, locatorName)
 
   function handleTabChange(tab: TabId) {
     setActiveTab(tab)

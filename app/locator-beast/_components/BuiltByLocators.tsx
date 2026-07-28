@@ -13,9 +13,9 @@ export default function BuiltByLocators() {
       <div className="beast-container grid gap-12 md:grid-cols-2 md:items-center md:gap-16">
         <Reveal>
           <h2 className="text-[32px] font-semibold leading-tight tracking-tight text-[var(--beast-ink)] md:text-[42px]">
-            Built by locators.
+            Modern software,
             <br />
-            For locators.
+            built for apartment locators.
           </h2>
           <p className="mt-5 max-w-md text-[16px] leading-relaxed text-[var(--beast-ink-soft)]">
             This isn&apos;t a generic real estate CRM with a few fields renamed. Locator Beast is

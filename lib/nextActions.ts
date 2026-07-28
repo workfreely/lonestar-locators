@@ -29,6 +29,10 @@ export type ManualNextAction = {
   completed_at: string | null
   notes: string | null
   created_at: string
+  // Set only on property-specific actions (Email Guest Card) — see
+  // lib/leads/guestCardWorkflow.ts.
+  property_id?: number | null
+  property_name?: string | null
 }
 
 export type RankedAction = {
@@ -116,7 +120,18 @@ export function rankLeadActions(
     (a) => a.title.trim().toLowerCase() === automaticLabel.trim().toLowerCase()
   )
 
-  const automatic: RankedAction | null = hasEquivalentManual ? null : {
+  // Guest Card progression: once a List Sent lead has an open "Email Guest
+  // Card" or "Setup Tour" action, it has moved past the follow-up chase — so
+  // the computed FU automatic action is suppressed (see lib/leads/
+  // guestCardWorkflow.ts). The lead stays in List Sent regardless.
+  const hasGuestCardProgression =
+    lead.crm_status === "list_sent" &&
+    openManual.some((a) => {
+      const t = a.title.trim().toLowerCase()
+      return t === "email guest card" || t === "setup tour"
+    })
+
+  const automatic: RankedAction | null = hasEquivalentManual || hasGuestCardProgression ? null : {
     kind: "automatic",
     title: automaticLabel,
     dueAt: lead.next_action_date ?? null,

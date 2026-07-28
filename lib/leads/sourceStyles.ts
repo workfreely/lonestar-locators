@@ -45,6 +45,19 @@ const KNOWN_SOURCES: Record<string, SourceStyle> = {
   // whichever of those eventually writes `source`, it should write
   // "ai_assistant" to get this styling rather than falling back to gray.
   ai_assistant: { label: "AI Assistant", badgeClassName: "bg-indigo-50 text-indigo-700 border-indigo-200", barColor: "#4f46e5", color: "#6366f1" },
+
+  // Listing-site + walk-in sources. Distinct identity hues so each platform is
+  // recognizable by color alone. Aliases cover the likely stored spellings
+  // (dotted / spaced / hyphenated) since the lookup is an exact lowercase match.
+  zillow:                  { label: "Zillow",               badgeClassName: "bg-sky-50 text-sky-700 border-sky-200",          barColor: "#0284c7", color: "#0ea5e9" },
+  "apartments.com":        { label: "Apartments.com",       badgeClassName: "bg-teal-50 text-teal-700 border-teal-200",       barColor: "#0d9488", color: "#14b8a6" },
+  apartments:              { label: "Apartments.com",       badgeClassName: "bg-teal-50 text-teal-700 border-teal-200",       barColor: "#0d9488", color: "#14b8a6" },
+  smart_apartment_data:    { label: "Smart Apartment Data", badgeClassName: "bg-violet-50 text-violet-700 border-violet-200", barColor: "#7c3aed", color: "#8b5cf6" },
+  "smart apartment data":  { label: "Smart Apartment Data", badgeClassName: "bg-violet-50 text-violet-700 border-violet-200", barColor: "#7c3aed", color: "#8b5cf6" },
+  "walk-in":               { label: "Walk-In",              badgeClassName: "bg-slate-50 text-slate-700 border-slate-200",    barColor: "#475569", color: "#64748b" },
+  walk_in:                 { label: "Walk-In",              badgeClassName: "bg-slate-50 text-slate-700 border-slate-200",    barColor: "#475569", color: "#64748b" },
+  "walk in":               { label: "Walk-In",              badgeClassName: "bg-slate-50 text-slate-700 border-slate-200",    barColor: "#475569", color: "#64748b" },
+  other:                   { label: "Other",                badgeClassName: "bg-gray-50 text-gray-600 border-gray-200",       barColor: "#9ca3af", color: "#94a3b8" },
 }
 
 const FALLBACK_BADGE_CLASS = "bg-gray-50 text-gray-600 border-gray-200"

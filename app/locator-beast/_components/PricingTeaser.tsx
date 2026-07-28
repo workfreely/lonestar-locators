@@ -19,7 +19,7 @@ export default function PricingTeaser() {
               One Plan
             </p>
             <p className="mt-6 text-[56px] font-semibold leading-none tracking-tight text-[var(--beast-ink)]">
-              $149
+              $99
               <span className="text-[18px] font-medium text-[var(--beast-ink-soft)]">/month</span>
             </p>
             <p className="mt-3 text-[15px] text-[var(--beast-ink-soft)]">30-day free trial</p>

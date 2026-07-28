@@ -33,7 +33,7 @@ export type CreatedWorkflowAction = {
 
 // Immediate Actions are created due "now" rather than at 9:30 AM on some
 // future date — everything else is a Review Action, due 9:30 AM local.
-const IMMEDIATE_TITLES = new Set(["Contact Lead", "Send List", "Setup Tour"])
+const IMMEDIATE_TITLES = new Set(["Contact Lead", "Send List", "Setup Tour", "Email Guest Card"])
 
 export function isImmediateAction(title: string): boolean {
   return IMMEDIATE_TITLES.has(title)

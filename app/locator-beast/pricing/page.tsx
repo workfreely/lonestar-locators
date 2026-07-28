@@ -10,7 +10,7 @@ import { PRICING_FAQ } from "../_lib/faq-data";
 export const metadata: Metadata = {
   title: "Pricing",
   description:
-    "One price, everything included. $149/month with a 30-day free trial — no basic plan, no upsells, every future feature included.",
+    "One price, everything included. $99/month with a 30-day free trial — no basic plan, no upsells, every future feature included.",
   alternates: { canonical: "https://locatorbeast.com/pricing" },
 };
 

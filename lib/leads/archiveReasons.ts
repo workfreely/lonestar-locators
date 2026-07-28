@@ -7,7 +7,7 @@ export const ARCHIVE_REASONS: { value: string; label: string }[] = [
   { value: "rented_elsewhere", label: "🏠 Rented Elsewhere" },
   { value: "moving_later", label: "📅 Moving Later" },
   { value: "closed", label: "🏁 Closed / Monthly Cleanup" },
-  { value: "deleted_by_user", label: "🗑️ Deleted by User" },
+  { value: "archived_by_user", label: "🗄️ Archived by User" },
   { value: "other", label: "✏️ Other" },
 ]
 

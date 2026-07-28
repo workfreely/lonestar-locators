@@ -57,7 +57,7 @@ const jsonLd = {
   url: SITE_URL,
   offers: {
     "@type": "Offer",
-    price: "149",
+    price: "99",
     priceCurrency: "USD",
   },
 };
