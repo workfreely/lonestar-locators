@@ -53,18 +53,34 @@ workspace (solo | brokerage)
 
 > These build **on top of** a clean baseline schema (see below); they do not create `leads`/`profiles`/etc.
 
-## Reproducible baseline (required before applying to the new project)
+## Reproducible baseline — NO dump inheritance (decided 2026-07-28)
 
-Goal: a new dev can create an empty Supabase project, run migrations in order, and get the full
-schema **without the Lone Star DB**. Because `leads`/`lead_properties` are untracked drift, they must
-be reconstructed as an explicit early baseline migration.
+**Locator Beast does NOT inherit its schema from a Lone Star dump.** Everything exists because it was
+intentionally authored as a migration. Lone Star is a **read-only reference only** (to verify column
+names/types/behavior), never the foundation. Goal: clone repo → empty Supabase project → run migrations
+in order → complete schema, with **zero** Lone Star access.
 
-Steps (need Docker or the DB connection string — not available in the agent env):
-1. Produce the read-only structure dump (`supabase/reference/lonestar_public_schema.sql` — see that file for commands).
-2. Audit it; **include** only what Locator Beast needs; **exclude** Lone Star-specific/obsolete objects, permissive RLS, hardcoded values, disabled features.
-3. Write clean create-table migrations for the untracked tables (`leads`, `lead_properties`), dated **before** the earliest `ALTER` that references them, so ordering holds.
-4. Establish the full chain: baseline → existing feature migrations → `…04`–`…09`.
-5. Verify a second empty project can be built from migrations alone.
+**Done:** the only CRM-core untracked tables (`leads`, `lead_properties`) are now recreated as a clean,
+hand-authored baseline — `20260601000000_core_crm_tables.sql` (dated first). It defines the original
+columns; later feature migrations add marketing/archive/closed/soft-delete/invoice/ownership on top;
+workspace foundation (`…04`–`…09`) layers last. `leads` types verified against the live schema via the
+read-only PostgREST introspection (no dump/Docker needed).
+
+**Intentional exclusions:**
+- **Tables** (Lone Star marketing/content, not SaaS core): `properties*`, `*_reviews`, `blogs*`,
+  `new_home_leads`, `reported_leases`, `property_amenities`, `property_tags`, `future_test_table`,
+  `test_auto_secure`. `lead_properties.property_id` is decoupled from the excluded `properties` table
+  (now a plain `uuid`, not a FK).
+- **Columns** (zero app references — SMS-automation drift): `last_sms_at`, `welcome_sms_sent_at`,
+  `email_opt_in`, `internal_notes`. Remaining `sms_*` columns are kept only because the app still
+  references them (flagged as legacy candidates for future cleanup).
+
+**Reference dump:** `supabase/reference/lonestar_public_schema.sql` is a placeholder/how-to only —
+it is explicitly NOT the baseline and must not be applied.
+
+**Still to verify (needs the new project):** run the FULL migration chain on a fresh empty project and
+confirm it builds cleanly end-to-end (catches any remaining cross-object dependency). The known core gap
+(`leads`, `lead_properties`) is now closed; no kept migration references an excluded table.
 
 ## Edge functions — audit result: **exclude all three**
 
