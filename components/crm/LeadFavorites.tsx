@@ -127,7 +127,7 @@ export default function LeadFavorites({
             {leadFavorites.map((fav) => (
               <div
                 key={fav.id}
-                className="flex items-center gap-2 bg-white border border-[#e2e5ec] rounded-lg px-3 py-2 hover:border-[#c7ccd6] hover:bg-[#f7f8fa] transition-colors"
+                className="flex items-center gap-2 bg-[var(--crm-inset)] border border-[var(--crm-border)] rounded-lg px-3 py-2 hover:border-[var(--crm-text-muted)] hover:bg-[var(--crm-card)] transition-colors"
               >
                 {fav.property_url ? (
                   <a href={fav.property_url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1">
@@ -135,14 +135,14 @@ export default function LeadFavorites({
                       {fav.property_name || fav.property_url}
                     </p>
                     {fav.property_address && (
-                      <p className="text-[11px] text-[#6b7280] truncate">{fav.property_address}</p>
+                      <p className="text-[11px] text-[var(--crm-text-muted)] truncate">{fav.property_address}</p>
                     )}
                   </a>
                 ) : (
                   <div className="min-w-0 flex-1">
-                    <p className="text-[12.5px] font-semibold text-[#1f232b] truncate">{fav.property_name}</p>
+                    <p className="text-[12.5px] font-semibold text-[var(--crm-text-primary)] truncate">{fav.property_name}</p>
                     {fav.property_address && (
-                      <p className="text-[11px] text-[#6b7280] truncate">{fav.property_address}</p>
+                      <p className="text-[11px] text-[var(--crm-text-muted)] truncate">{fav.property_address}</p>
                     )}
                   </div>
                 )}
@@ -150,7 +150,7 @@ export default function LeadFavorites({
                   <button
                     type="button"
                     onClick={() => openEditFavorite(fav)}
-                    className="text-[10.5px] font-semibold text-[#4b5563] hover:text-[#1f232b]"
+                    className="text-[10.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]"
                   >
                     Edit
                   </button>
