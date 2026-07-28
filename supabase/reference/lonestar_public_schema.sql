@@ -1,0 +1,26 @@
+-- ============================================================================
+-- PLACEHOLDER — Lone Star public-schema reference dump (NOT a migration)
+-- ============================================================================
+-- This file lives under supabase/reference/ (NOT supabase/migrations/) so it is
+-- never applied. It is a READ-ONLY audit reference only — it must NOT be used as
+-- the Locator Beast baseline. Per the approved strategy, required objects are
+-- reconstructed as clean, explicit migrations instead of inheriting Lone Star
+-- drift/tech-debt.
+--
+-- The authoritative dump could NOT be produced in the current agent environment:
+--   • `supabase db dump` requires Docker Desktop (not running here), and
+--   • a direct `pg_dump`/`psql` needs the DB connection string/password, which is
+--     not present in .env.local (only the PostgREST API keys are).
+--
+-- To generate it (READ-ONLY; never writes to Lone Star), run ONE of:
+--
+--   # A) Supabase CLI (needs Docker running):
+--   supabase db dump --schema public -f supabase/reference/lonestar_public_schema.sql
+--
+--   # B) pg_dump with the project's DB connection string (Dashboard → Settings → Database):
+--   pg_dump "$LONESTAR_DB_URL" --schema=public --schema-only --no-owner --no-privileges \
+--     -f supabase/reference/lonestar_public_schema.sql
+--
+-- Then audit it and convert ONLY the required untracked structures (primarily
+-- `leads` and `lead_properties`) into clean Locator Beast baseline migrations —
+-- see docs/workspace-foundation.md ("Reproducible baseline").

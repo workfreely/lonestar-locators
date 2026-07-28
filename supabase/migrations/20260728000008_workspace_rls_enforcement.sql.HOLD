@@ -1,0 +1,5 @@
+-- SUPERSEDED. The RLS-enforcement migration is now a normal migration:
+--   20260728000008_workspace_rls_enforcement.sql
+-- The `.HOLD` guard existed only to protect the live Lone Star production DB,
+-- which Locator Beast no longer uses. This placeholder can be deleted.
+-- (Left in place only because file rename/delete was blocked at authoring time.)
