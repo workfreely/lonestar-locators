@@ -1,7 +1,6 @@
 export const dynamic = "force-dynamic"
 
 import PerformanceClient from "@/components/crm/performance/PerformanceClient"
-import { supabaseAdmin } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 import { dedupeLeads } from "@/lib/leads/dedupeLeads"
 import {
@@ -12,7 +11,9 @@ import {
 import { DEFAULT_PROJECTION_METHOD, type ProjectionMethod } from "@/lib/leads/commissionEstimate"
 
 async function getLeads() {
-  const { data, error } = await supabaseAdmin
+  // Authenticated, RLS-enforced client — scopes to the caller's workspace.
+  const supabase = await createClient()
+  const { data, error } = await supabase
     .from("leads")
     .select("*")
     .order("created_at", { ascending: false })
@@ -37,7 +38,8 @@ async function getLeads() {
 // Analytics section. Fetched separately so neither scope leaks into the
 // other and no calculation actually changes.
 async function getDashboardLeads() {
-  const { data, error } = await supabaseAdmin
+  const supabase = await createClient()
+  const { data, error } = await supabase
     .from("leads")
     .select("*")
     .order("created_at", { ascending: false })

@@ -2,7 +2,6 @@
 export const dynamic = "force-dynamic"
 
 import DashboardClient from "@/components/crm/DashboardClient"
-import { supabaseAdmin } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 import { DEMO_ALL_LEADS, DEMO_NEXT_ACTIONS, DEMO_FAVORITES, DEFAULT_AVG_COMMISSION_PER_LEASE } from "@/lib/demo/demoWorkspace"
 
@@ -27,7 +26,10 @@ function dedupeLeads(leads: any[]) {
 }
 
 async function getLeads() {
-  const { data, error } = await supabaseAdmin
+  // Authenticated, RLS-enforced client — scopes to the caller's workspace via
+  // is_active_workspace_member(workspace_id). NOT the service-role client.
+  const supabase = await createClient()
+  const { data, error } = await supabase
     .from("leads")
     .select("*")
     .order("created_at", { ascending: false })
@@ -45,7 +47,8 @@ async function getLeads() {
 // participate in the unified queue or ranking, so there's no reason to
 // ship them to the client on every page load.
 async function getOpenNextActions() {
-  const { data, error } = await supabaseAdmin
+  const supabase = await createClient()
+  const { data, error } = await supabase
     .from("lead_next_actions")
     .select("*")
     .eq("completed", false)
@@ -62,7 +65,8 @@ async function getOpenNextActions() {
 // Favorites Phase 1 — manual only, no filtering by status (there isn't
 // one yet), just every saved favorite across all leads.
 async function getFavorites() {
-  const { data, error } = await supabaseAdmin
+  const supabase = await createClient()
+  const { data, error } = await supabase
     .from("lead_favorites")
     .select("*")
     .order("created_at", { ascending: true })
