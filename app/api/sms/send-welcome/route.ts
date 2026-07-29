@@ -1,9 +1,7 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { Resend } from "resend";
-
-const resend = new Resend(process.env.RESEND_API_KEY!);
+import { resend, resendConfigured } from "@/lib/resend/client";
 
 export async function POST(req: Request) {
   try {
@@ -13,6 +11,13 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
+      );
+    }
+
+    if (!resendConfigured) {
+      return NextResponse.json(
+        { error: "Email service is not configured (RESEND_API_KEY missing)." },
+        { status: 503 }
       );
     }
 
