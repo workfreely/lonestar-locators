@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import Image from "next/image";
 import { HiOutlineArrowUpTray } from "react-icons/hi2";
 import { supabase } from "@/lib/supabase/client";
+import { MARKET_OPTIONS } from "@/lib/markets/catalog";
 import StepCard from "../StepCard";
 import StepNav from "../StepNav";
 import type { StepProps } from "../../_lib/types";
@@ -34,12 +35,21 @@ export default function StepBusinessProfile({
   const [lastName, setLastName] = useState(data.last_name);
   const [email, setEmail] = useState(data.email);
   const [phoneNumber, setPhoneNumber] = useState(data.phone_number);
+  const [businessName, setBusinessName] = useState(data.business_name);
   const [brokerage, setBrokerage] = useState(data.brokerage);
-  const [serviceAreas, setServiceAreas] = useState(data.service_areas.join(", "));
+  // Service areas are now the workspace's selected markets (slugs from the
+  // catalog), not free text — they drive which cities the Smart Lead Form shows.
+  const [selectedMarkets, setSelectedMarkets] = useState<string[]>(data.service_areas ?? []);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const canContinue = firstName.trim().length > 0 && lastName.trim().length > 0;
+
+  function toggleMarket(slug: string) {
+    setSelectedMarkets((prev) =>
+      prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]
+    );
+  }
 
   async function handleFile(file: File) {
     setUploading(true);
@@ -51,20 +61,33 @@ export default function StepBusinessProfile({
     }
   }
 
-  function handleNext() {
+  async function handleNext() {
     const first = firstName.trim();
     const last = lastName.trim();
+
+    const business = businessName.trim();
+
+    // Write the selected markets to the workspace and generate the PERMANENT
+    // public slug (once) — business name if provided, else the owner's name.
+    // Auto-generated and never edited during onboarding. Wrapped so onboarding
+    // never blocks if the migration/RPCs aren't deployed yet.
+    try {
+      await supabase.rpc("set_workspace_service_areas", { p_areas: selectedMarkets });
+      const slugBase = business || `${first} ${last}`.trim();
+      await supabase.rpc("ensure_workspace_slug", { p_base: slugBase });
+    } catch (err) {
+      console.error("Workspace service-area / slug setup failed:", err);
+    }
+
     onNext({
       first_name: first,
       last_name: last,
       full_name: `${first} ${last}`.trim(),
+      business_name: business,
       email: email.trim(),
       phone_number: phoneNumber.trim(),
       brokerage: brokerage.trim(),
-      service_areas: serviceAreas
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean),
+      service_areas: selectedMarkets,
     });
   }
 
@@ -124,19 +147,50 @@ export default function StepBusinessProfile({
         </div>
 
         <div className="flex flex-col gap-2">
+          <label className={labelClass}>Business Name <span className="text-[var(--beast-ink-soft)]">(optional)</span></label>
+          <input value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="e.g. Lone Star Locators" className={inputClass} />
+          <p className="text-[12px] text-[var(--beast-ink-soft)]">Used for your public form link. Leave blank to use your name.</p>
+        </div>
+
+        <div className="flex flex-col gap-2">
           <label className={labelClass}>Brokerage</label>
           <input value={brokerage} onChange={(e) => setBrokerage(e.target.value)} className={inputClass} />
         </div>
 
         <div className="flex flex-col gap-2">
           <label className={labelClass}>Service Areas</label>
-          <input
-            value={serviceAreas}
-            onChange={(e) => setServiceAreas(e.target.value)}
-            placeholder="Austin, San Antonio, Dallas"
-            className={inputClass}
-          />
-          <p className="text-[12px] text-[var(--beast-ink-soft)]">Separate multiple areas with commas.</p>
+          <div className="grid grid-cols-2 gap-2">
+            {MARKET_OPTIONS.map((m) => {
+              const active = selectedMarkets.includes(m.slug);
+              return (
+                <button
+                  key={m.slug}
+                  type="button"
+                  onClick={() => toggleMarket(m.slug)}
+                  aria-pressed={active}
+                  className={`flex items-center justify-between rounded-xl border px-4 py-3 text-[14px] font-medium transition-colors ${
+                    active
+                      ? "border-[var(--beast-blue)] bg-[var(--beast-blue)]/5 text-[var(--beast-ink)]"
+                      : "border-[var(--beast-border)] bg-white text-[var(--beast-ink)] hover:border-[#c7ccd6]"
+                  }`}
+                >
+                  <span>{m.name}</span>
+                  <span
+                    className={`flex h-5 w-5 items-center justify-center rounded-md border ${
+                      active ? "border-[var(--beast-blue)] bg-[var(--beast-blue)] text-white" : "border-[var(--beast-border)] text-transparent"
+                    }`}
+                  >
+                    <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                      <path d="M2.5 6.5l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[12px] text-[var(--beast-ink-soft)]">
+            These set which cities your Smart Lead Form shows. You can change them anytime in Settings.
+          </p>
         </div>
       </div>
 

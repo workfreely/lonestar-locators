@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import type { SmartLeadFormConfig } from "../../../_lib/types"
+import { MARKETS, getMarketByName, marketsForSlugs } from "@/lib/markets/catalog"
 import {
   PROPERTY_TYPES,
   BED_OPTIONS,
@@ -13,6 +14,15 @@ import {
   RENT_RANGE_OPTIONS,
 } from "@/lib/formOptions"
 
+// The full neighborhood option list for a city = the catalog's neighborhoods
+// with a generated "All of {city}" at the top (matches the historical shape;
+// the "All of" pseudo-option is never stored in the catalog).
+function neighborhoodOptions(cityName: string): string[] {
+  const m = getMarketByName(cityName)
+  if (!m) return []
+  return [`All of ${cityName}`, ...m.neighborhoods]
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Fields, conditional logic, and validation are ported 1:1 from LandingForm.tsx
 // (the source of truth) — same field names, options, and rules — restyled with
@@ -22,31 +32,6 @@ import {
 // This is the builder preview, so on submit it shows the confirmation state
 // rather than posting a lead (unchanged from before).
 // ─────────────────────────────────────────────────────────────────────────────
-
-// Per-city neighborhoods — copied verbatim from LandingForm.tsx.
-const cityNeighborhoods: Record<string, string[]> = {
-  Austin: [
-    "All of Austin", "Downtown Austin", "South Congress (SoCo)", "East Austin", "Zilker",
-    "Mueller", "Domain", "Barton Creek", "Westlake", "Riverside", "North Loop", "South Lamar",
-  ],
-  Dallas: [
-    "All of Dallas", "Downtown Dallas", "Uptown", "Midtown", "Deep Ellum", "Medical District",
-    "Bishop Arts District", "Knox-Henderson", "Oak Lawn", "Design District", "Victory Park",
-    "Lower Greenville", "Trinity Groves", "South Dallas",
-  ],
-  Houston: [
-    "All of Houston", "Downtown Houston", "Midtown", "Montrose", "The Heights", "Medical Center",
-    "Museum District", "River Oaks", "Galleria", "Washington Ave", "East Downtown (EaDo)",
-    "Greenway / Upper Kirby",
-  ],
-  "San Antonio": [
-    "All of San Antonio", "Downtown San Antonio", "La Cantera/The Rim", "The Dominion", "Stone Oak",
-    "Alamo Ranch", "Southtown", "UTSA", "Medical Center", "Universal City/Converse",
-    "Westover Hills", "Alamo Heights",
-  ],
-}
-
-const SA_SUBMARKETS = ["New Braunfels", "Boerne", "Schertz", "San Marcos"]
 
 // Shared styling (matches the existing Smart Lead Form light form aesthetic).
 const inputClass =
@@ -91,9 +76,21 @@ const INITIAL: FormData = {
   criminalCharge: "", felonyAge: "", misdemeanorAge: "", notes: "", website: "", sms_consent: false,
 }
 
-export default function LeadFormFields({ config }: { config: SmartLeadFormConfig }) {
+export default function LeadFormFields({
+  config,
+  serviceAreaSlugs,
+}: {
+  config: SmartLeadFormConfig
+  serviceAreaSlugs?: string[]
+}) {
   const [formData, setFormData] = useState<FormData>(INITIAL)
   const [submitted, setSubmitted] = useState(false)
+
+  // Cities shown = the workspace's selected markets (live). Fall back to the
+  // full catalog when no selection is provided (e.g. an unconfigured workspace
+  // or a bare editor preview) so the form is never empty.
+  const enabledMarkets =
+    serviceAreaSlugs && serviceAreaSlugs.length ? marketsForSlugs(serviceAreaSlugs) : MARKETS
 
   const { buttonColor } = config.branding
   const { enabled: consentEnabled, text: consentText } = config.consent
@@ -161,7 +158,7 @@ export default function LeadFormFields({ config }: { config: SmartLeadFormConfig
   // Neighborhood toggle with the "All of {city}" logic from LandingForm.
   function toggleNeighborhood(checked: boolean, value: string) {
     setFormData((prev) => {
-      const all = cityNeighborhoods[prev.city] || []
+      const all = neighborhoodOptions(prev.city)
       let updated = [...prev.neighborhoods]
       if (value.startsWith("All of")) {
         updated = checked ? [...all] : []
@@ -224,7 +221,8 @@ export default function LeadFormFields({ config }: { config: SmartLeadFormConfig
     )
   }
 
-  const neighborhoodList = formData.city ? cityNeighborhoods[formData.city] : null
+  const selectedMarket = formData.city ? getMarketByName(formData.city) : undefined
+  const neighborhoodList = selectedMarket ? neighborhoodOptions(formData.city) : null
 
   return (
     <section className="px-5 py-8 sm:px-8" id="smart-lead-form">
@@ -269,8 +267,8 @@ export default function LeadFormFields({ config }: { config: SmartLeadFormConfig
           <label className={labelClass}>City</label>
           <select name="city" value={formData.city} onChange={handleChange} required className={`${inputClass} cursor-pointer`}>
             <option value="">Select City</option>
-            {Object.keys(cityNeighborhoods).map((c) => (
-              <option key={c} value={c}>{c}</option>
+            {enabledMarkets.map((m) => (
+              <option key={m.slug} value={m.name}>{m.name}</option>
             ))}
           </select>
         </div>
@@ -299,12 +297,12 @@ export default function LeadFormFields({ config }: { config: SmartLeadFormConfig
               ))}
             </div>
 
-            {/* Nearby submarkets — San Antonio only */}
-            {formData.city === "San Antonio" && (
+            {/* Nearby submarkets — any market that defines them (catalog-driven) */}
+            {selectedMarket && selectedMarket.submarkets.length > 0 && (
               <div className="mt-3 flex flex-col gap-2">
                 <label className={`${labelClass} font-semibold`}>Nearby Submarkets</label>
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => set("submarkets", [...SA_SUBMARKETS])}
+                  <button type="button" onClick={() => set("submarkets", [...selectedMarket.submarkets])}
                     className="rounded-lg border border-[#e2e4ea] bg-[#f7f8fa] px-3 py-1.5 text-[12.5px] font-medium text-[#4b5162] hover:bg-[#eef0f4]">
                     Select All
                   </button>
@@ -314,7 +312,7 @@ export default function LeadFormFields({ config }: { config: SmartLeadFormConfig
                   </button>
                 </div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {SA_SUBMARKETS.map((s) => (
+                  {selectedMarket.submarkets.map((s) => (
                     <label key={s} className="flex min-w-0 cursor-pointer items-center gap-2 rounded-xl border border-[#e2e4ea] bg-white px-3 py-2.5 text-[14px] text-[#111318] transition-colors hover:border-[#c7ccd6]">
                       <input type="checkbox" name="submarkets" value={s} checked={formData.submarkets.includes(s)}
                         onChange={(e) => toggleSubmarket(e.target.checked, s)} className="h-4 w-4 shrink-0" />

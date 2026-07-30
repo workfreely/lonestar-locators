@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { DEFAULT_CONFIG } from "../../_lib/defaultConfig"
 import type { SmartLeadFormConfig } from "../../_lib/types"
+import { supabase } from "@/lib/supabase/client"
 import EditorToolbar from "./EditorToolbar"
 import SettingsPanel from "./SettingsPanel"
 import PreviewFrame from "../preview/PreviewFrame"
@@ -11,6 +12,22 @@ import SmartLeadForm from "../form/SmartLeadForm"
 export default function SmartLeadFormEditor() {
   const [config, setConfig] = useState<SmartLeadFormConfig>(DEFAULT_CONFIG)
   const [device, setDevice] = useState<"mobile" | "desktop">("mobile")
+  // The workspace's selected markets — the preview shows exactly the cities the
+  // public form will, and reflects Service Areas changes on reload.
+  const [serviceAreaSlugs, setServiceAreaSlugs] = useState<string[]>([])
+
+  useEffect(() => {
+    let active = true
+    ;(async () => {
+      const { data } = await supabase.rpc("get_current_workspace")
+      if (!active) return
+      const row = Array.isArray(data) ? data[0] : data
+      if (row?.service_areas) setServiceAreaSlugs(row.service_areas)
+    })()
+    return () => {
+      active = false
+    }
+  }, [])
 
   function updateConfig(updater: (prev: SmartLeadFormConfig) => SmartLeadFormConfig) {
     setConfig(updater)
@@ -29,7 +46,7 @@ export default function SmartLeadFormEditor() {
       <div className="flex flex-1 overflow-hidden">
         <div className="flex flex-1 items-start justify-center overflow-y-auto p-8">
           <PreviewFrame device={device}>
-            <SmartLeadForm config={config} />
+            <SmartLeadForm config={config} serviceAreaSlugs={serviceAreaSlugs} />
           </PreviewFrame>
         </div>
 

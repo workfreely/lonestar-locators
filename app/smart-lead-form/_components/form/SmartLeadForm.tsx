@@ -1,4 +1,5 @@
 import type { SmartLeadFormConfig, AfterFormSectionId } from "../../_lib/types"
+import { serviceAreasLabel } from "@/lib/markets/catalog"
 import Hero from "./sections/Hero"
 import AgentProfile from "./sections/AgentProfile"
 import LeadFormFields from "./sections/LeadFormFields"
@@ -11,12 +12,29 @@ const AFTER_FORM_REGISTRY: Record<AfterFormSectionId, (config: SmartLeadFormConf
   faq: (config) => <FAQ config={config} />,
 }
 
-export default function SmartLeadForm({ config }: { config: SmartLeadFormConfig }) {
-  const { afterForm, visibility } = config.sections
+export default function SmartLeadForm({
+  config,
+  serviceAreaSlugs,
+}: {
+  config: SmartLeadFormConfig
+  // The workspace's selected market slugs — drives which cities the form shows.
+  // Read live (not baked into config), so Settings changes reflect immediately.
+  serviceAreaSlugs?: string[]
+}) {
+  // The displayed "Service Areas" text is derived from the selected markets
+  // (single source of truth), overriding the editor copy when a selection
+  // exists. Every section reads config.copy.serviceAreas, so overriding here
+  // updates the whole page with no extra threading.
+  const displayConfig: SmartLeadFormConfig =
+    serviceAreaSlugs && serviceAreaSlugs.length
+      ? { ...config, copy: { ...config.copy, serviceAreas: serviceAreasLabel(serviceAreaSlugs) } }
+      : config
+
+  const { afterForm, visibility } = displayConfig.sections
   // Under Headline puts the photo and agent info text inside Hero itself,
   // so AgentProfile (the white, overlapping-only section) is only rendered
   // for the Overlapping position.
-  const showOverlappingAgentProfile = visibility.agentProfile && config.branding.profileImagePosition !== "underHeadline"
+  const showOverlappingAgentProfile = visibility.agentProfile && displayConfig.branding.profileImagePosition !== "underHeadline"
 
   return (
     <div className="min-h-full bg-white">
@@ -24,15 +42,15 @@ export default function SmartLeadForm({ config }: { config: SmartLeadFormConfig 
           unit — Highlights render inside Hero itself, and AgentProfile is
           always the very next sibling so its photo overlaps Hero's own
           bottom edge, not a section that could land between them. */}
-      <Hero config={config} />
-      {showOverlappingAgentProfile && <AgentProfile config={config} />}
+      <Hero config={displayConfig} />
+      {showOverlappingAgentProfile && <AgentProfile config={displayConfig} />}
 
-      <LeadFormFields config={config} />
+      <LeadFormFields config={displayConfig} serviceAreaSlugs={serviceAreaSlugs} />
 
-      {afterForm.map((id) => (visibility[id] ? <div key={id}>{AFTER_FORM_REGISTRY[id](config)}</div> : null))}
+      {afterForm.map((id) => (visibility[id] ? <div key={id}>{AFTER_FORM_REGISTRY[id](displayConfig)}</div> : null))}
 
       {/* Footer always renders — it's a fixed closing anchor with no toggle. */}
-      <Footer config={config} />
+      <Footer config={displayConfig} />
     </div>
   )
 }
