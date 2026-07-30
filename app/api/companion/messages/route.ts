@@ -2,6 +2,7 @@ export const runtime = "nodejs"
 
 import { NextResponse } from "next/server"
 import { requireDeviceToken } from "@/lib/companion/auth"
+import { getFeatureEntitlement } from "@/lib/companion/entitlement"
 import { rateLimit } from "@/lib/rateLimit"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
@@ -32,6 +33,17 @@ export async function POST(req: Request) {
     return NextResponse.json(
       { error: "Too many requests" },
       { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
+    )
+  }
+
+  // Entitlement gate — if the workspace can't use Messages Sync (expired trial /
+  // canceled / past due), reject and tell the Companion to pause. `entitled` is
+  // echoed so the client can react without a separate status call.
+  const entitlement = await getFeatureEntitlement(userId, workspaceId, "messages_sync")
+  if (!entitlement.entitled) {
+    return NextResponse.json(
+      { error: "Messages Sync is not active for this workspace", entitled: false, reason: entitlement.reason },
+      { status: 403 }
     )
   }
 
@@ -107,5 +119,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Failed to store messages" }, { status: 500 })
   }
 
-  return NextResponse.json({ accepted: rows.length })
+  return NextResponse.json({ accepted: rows.length, entitled: true })
 }

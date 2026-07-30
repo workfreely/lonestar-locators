@@ -3,6 +3,7 @@ export const runtime = "nodejs"
 import { NextResponse } from "next/server"
 import { requireWorkspaceMember } from "@/lib/auth/requireWorkspaceMember"
 import { generateDeviceToken } from "@/lib/companion/auth"
+import { getFeatureEntitlement } from "@/lib/companion/entitlement"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 // Issue a device token for a Mac Companion. Called from the authenticated
@@ -12,6 +13,17 @@ export async function POST(req: Request) {
   const guard = await requireWorkspaceMember()
   if (!guard.ok) return guard.response
   const { userId, workspaceId } = guard
+
+  // Entitlement is checked at pairing time too — a non-entitled workspace
+  // cannot pair a new device. (Existing tokens stay paired but unusable when
+  // entitlement later lapses; the ingest/status gates handle that.)
+  const entitlement = await getFeatureEntitlement(userId, workspaceId, "messages_sync")
+  if (!entitlement.entitled) {
+    return NextResponse.json(
+      { error: "Messages Sync is not active for this workspace", entitled: false, reason: entitlement.reason },
+      { status: 403 }
+    )
+  }
 
   let deviceName = "Mac Companion"
   try {
