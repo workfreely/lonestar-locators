@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { google } from "googleapis"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { requireWorkspaceMember } from "@/lib/auth/requireWorkspaceMember"
 import { buildContactNotes } from "@/lib/google/buildContactNotes"
 import { updateGoogleContactNotes } from "@/lib/google/updateContactNotes"
 import { getOAuthClient } from "@/lib/google/getOAuthClient"
@@ -98,6 +99,12 @@ async function findContactByPhone(formattedPhone: string): Promise<string | null
 
 export async function POST(request: Request) {
   try {
+    // Auth (401) + active workspace membership (403). workspaceId comes from the
+    // session, never the request body.
+    const guard = await requireWorkspaceMember()
+    if (!guard.ok) return guard.response
+    const { workspaceId, supabase } = guard
+
     const body = await request.json()
 
     const { leadId, crm_status, next_action_date, follow_up_count } = body
@@ -110,16 +117,23 @@ export async function POST(request: Request) {
     }
 
     // =====================================================
-    // READ OLD STAGE (needed for Calendar automation guards)
+    // OWNERSHIP + OLD STAGE — RLS-scoped read verifies the lead belongs to the
+    // caller's workspace. A lead in another workspace (or a bad id) returns
+    // null → safe 404 (never reveals whether it exists elsewhere). The
+    // service-role side-effects below only run after this check passes.
     // =====================================================
 
-    const { data: leadBefore } = await supabaseAdmin
+    const { data: leadBefore } = await supabase
       .from("leads")
       .select("crm_status")
       .eq("id", leadId)
-      .single()
+      .maybeSingle()
 
-    const oldStage = leadBefore?.crm_status ?? null
+    if (!leadBefore) {
+      return NextResponse.json({ error: "Lead not found" }, { status: 404 })
+    }
+
+    const oldStage = leadBefore.crm_status ?? null
 
     // =====================================================
     // SUPABASE STAGE UPDATE
@@ -143,6 +157,7 @@ export async function POST(request: Request) {
       .from("leads")
       .update(stageUpdate)
       .eq("id", leadId)
+      .eq("workspace_id", workspaceId)
 
     if (error) {
       return NextResponse.json(
@@ -159,6 +174,7 @@ export async function POST(request: Request) {
       .from("leads")
       .select("*")
       .eq("id", leadId)
+      .eq("workspace_id", workspaceId)
       .single()
 
     if (!lead) {
