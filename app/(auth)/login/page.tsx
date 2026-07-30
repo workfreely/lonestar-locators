@@ -35,7 +35,11 @@ export default function LoginPage() {
       .eq("id", data.user.id)
       .single();
 
-    router.push(profile?.onboarding_completed ? "/admin/leads" : "/onboarding");
+    // Honor a safe same-origin `next` (e.g. the companion pairing flow).
+    const next = new URLSearchParams(window.location.search).get("next");
+    const safeNext = next && next.startsWith("/") ? next : null;
+
+    router.push(safeNext ?? (profile?.onboarding_completed ? "/admin/leads" : "/onboarding"));
     router.refresh();
   }
 

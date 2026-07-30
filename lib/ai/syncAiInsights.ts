@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { getTranscript, normalizePhone } from "@/lib/messages/getTranscript"
+import { getCompanionTranscript } from "@/lib/messages/getCompanionTranscript"
 import { generateAiInsights } from "@/lib/ai/generateAiInsights"
 
 export async function syncAiInsights(leadId: string | number): Promise<void> {
@@ -25,9 +26,27 @@ export async function syncAiInsights(leadId: string | number): Promise<void> {
 
   const phone = normalizePhone(lead.phone as string)
 
-  // 2. Extract transcript from iMessage
-  const { transcript, messageCount, lastMessageRowId, lastMessageDate } =
-    await getTranscript(phone)
+  // 2. Build the transcript. Production source is companion_messages (ingested
+  // by the macOS Companion). If none exist yet, fall back to the LEGACY on-device
+  // chat.db reader — only usable when running locally with Full Disk Access, and
+  // non-fatal in production (no chat.db → caught → treated as "no messages yet").
+  let { transcript, messageCount, lastMessageRowId, lastMessageDate } =
+    await getCompanionTranscript(leadIdNum)
+
+  if (messageCount === 0) {
+    try {
+      ;({ transcript, messageCount, lastMessageRowId, lastMessageDate } =
+        await getTranscript(phone))
+    } catch {
+      // No companion messages and no local chat.db — leave the empty result.
+    }
+  }
+
+  if (messageCount === 0) {
+    throw new Error(
+      `No messages found for lead ${leadId} yet. Connect the Mac Companion or wait for it to sync.`
+    )
+  }
 
   // 3. Generate AI insights
   const { insights, last_conversation } = await generateAiInsights(transcript)

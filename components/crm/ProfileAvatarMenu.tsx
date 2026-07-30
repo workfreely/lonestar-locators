@@ -40,7 +40,7 @@ function ChevronIcon({ open, light }: { open: boolean; light: boolean }) {
 // Navigation links (everything except Appearance, which stays an inline
 // theme picker for instant visual feedback). Order per spec: Profile,
 // Appearance, Smart Lead Form, Service Areas, Sales Goals, Analytics,
-// Integrations, Import Leads, Billing.
+// Integrations, Connected Devices, Import Leads, Billing.
 // Analytics is an account-level page (same /admin/performance the top-nav
 // Analytics button opens) — this is an additional shortcut, not a replacement.
 const LINKS_AFTER_APPEARANCE: { label: string; href: string }[] = [
@@ -49,6 +49,7 @@ const LINKS_AFTER_APPEARANCE: { label: string; href: string }[] = [
   { label: "Sales Goals", href: "/admin/settings" },
   { label: "Analytics", href: "/admin/performance" },
   { label: "Integrations", href: "/admin/integrations" },
+  { label: "Connected Devices", href: "/admin/devices" },
   { label: "Import Leads", href: "/admin/import" },
   { label: "Billing", href: "/admin/billing" },
 ]
