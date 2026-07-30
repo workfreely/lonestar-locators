@@ -8,6 +8,7 @@ import GuestCardModal from "./GuestCardModal"
 import type { GuestCardAgent } from "@/lib/leads/guestCard"
 import { isGuestCardTitle } from "@/lib/leads/guestCardWorkflow"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
+import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import LeadSourceBadge from "./LeadSourceBadge"
 import { inferMarketFromLandingPage } from "@/lib/leads/inferMarketFromLandingPage"
 import { ARCHIVE_REASONS } from "@/lib/leads/archiveReasons"
@@ -263,6 +264,9 @@ export default function LeadPanel({
       })
     }
 
+    // Demo leads: optimistic-only — no leads write, no Google follow-up sync.
+    if (isDemoLeadId(lead.id)) return
+
     const { data, error } = await supabase
       .from("leads")
       .update({
@@ -345,6 +349,15 @@ export default function LeadPanel({
       })
     }
 
+    // Demo leads live entirely client-side. Their ids are strings ("demo-1"),
+    // but leads.id is bigint — so ANY write to the real `leads` table (here, the
+    // update-stage route, or the timeline) throws Postgres 22P02 "invalid input
+    // syntax for type bigint". The optimistic update above is all a demo lead
+    // needs; skip every DB write. (This is the actual cause of the empty-object
+    // "[first-contact] Failed to record contact timestamp" error — not a missing
+    // column or migration; first_text_sent_at exists and RLS is fine.)
+    if (isDemoLeadId(lead.id)) return
+
     // Auto-advance stage: New → Contacted — unchanged: same endpoint, same
     // payload, same guard. Only fires the first time a "new" lead is
     // contacted.
@@ -385,8 +398,20 @@ export default function LeadPanel({
       .from("leads")
       .update({ first_text_sent_at: contactedAt })
       .eq("id", lead.id)
-      .then(({ error }) => {
-        if (error) console.error("[first-contact] Failed to record contact timestamp:", error)
+      .then(({ data, error, status, statusText }) => {
+        // Log the full response — a PostgrestError serializes to "{}" via a bare
+        // console.error, which hid the real failure; log its fields explicitly.
+        if (error) {
+          console.error("[first-contact] Failed to record contact timestamp:", {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+            hint: error.hint,
+            status,
+            statusText,
+            data,
+          })
+        }
       })
 
     // Append the first-contact event to the immutable lead timeline — done
@@ -481,6 +506,13 @@ export default function LeadPanel({
     setNextActionDate(newDateISO)
     if (onUpdateLead) onUpdateLead({ ...lead, next_action_date: newDateISO })
 
+    // Demo leads: identical UX (optimistic + toast), no DB write.
+    if (isDemoLeadId(lead.id)) {
+      setDoneMsg("✓ Follow-up scheduled")
+      setTimeout(() => setDoneMsg(null), 3000)
+      return
+    }
+
     const { error } = await supabase
       .from("leads")
       .update({ next_action_date: newDateISO })
@@ -501,6 +533,7 @@ export default function LeadPanel({
   async function handleArchiveReasonChange(reason: string) {
     setArchiveReason(reason)
     if (onUpdateLead) onUpdateLead({ ...lead, archive_reason: reason })
+    if (isDemoLeadId(lead.id)) return // demo: optimistic only
 
     const { error } = await supabase
       .from("leads")
@@ -540,6 +573,7 @@ export default function LeadPanel({
 
     setArchiveReason("archived_by_user")
     if (onUpdateLead) onUpdateLead({ ...lead, ...updates })
+    if (isDemoLeadId(lead.id)) return // demo: optimistic only
 
     const { error } = await supabase
       .from("leads")
@@ -562,6 +596,7 @@ export default function LeadPanel({
 
     setArchiveReason("")
     if (onUpdateLead) onUpdateLead({ ...lead, ...updates })
+    if (isDemoLeadId(lead.id)) return // demo: optimistic only
 
     const { error } = await supabase
       .from("leads")
@@ -583,6 +618,22 @@ export default function LeadPanel({
     priority: "low" | "medium" | "high"
     notes: string
   }): Promise<boolean> {
+    // Demo leads: add a local-only action row (identical UX, no DB write).
+    if (isDemoLeadId(lead.id)) {
+      const demoAction = {
+        id: `demo-act-${Date.now()}`,
+        lead_id: lead.id,
+        title: input.title,
+        due_at: input.dueAt,
+        priority: input.priority,
+        notes: input.notes || null,
+        completed: false,
+      }
+      setNextActions?.((prev) => [...prev, demoAction])
+      setShowAddAction(false)
+      return true
+    }
+
     const { data, error } = await supabase
       .from("lead_next_actions")
       .insert([{
@@ -614,6 +665,20 @@ export default function LeadPanel({
     priority: "low" | "medium" | "high"
     notes: string
   }): Promise<boolean> {
+    // Demo leads: update the local action row only (no DB write).
+    if (isDemoLeadId(lead.id)) {
+      setNextActions?.((prev) =>
+        prev.map((a) =>
+          a.id === actionId
+            ? { ...a, title: input.title, due_at: input.dueAt, priority: input.priority, notes: input.notes || null }
+            : a
+        )
+      )
+      setShowAddAction(false)
+      setEditingAction(null)
+      return true
+    }
+
     const { data, error } = await supabase
       .from("lead_next_actions")
       .update({
@@ -644,6 +709,29 @@ export default function LeadPanel({
     // Optimistic — drop it out of the open list immediately so ranking
     // re-computes without waiting on the network round trip.
     setNextActions?.((prev) => prev.filter((a) => a.id !== actionId))
+
+    // Demo leads: no DB write, but mirror the workflow follow-up chain LOCALLY
+    // so the experience is identical (FU1 → FU2 → FU3 → Final, one at a time).
+    if (isDemoLeadId(lead.id)) {
+      if (completedAction) {
+        const nextSpec = getNextFollowUpAction(completedAction.title)
+        if (nextSpec) {
+          // Local-only action (string "demo-" id so WorkflowActionToast skips the
+          // DB delete); typed any to match the any[] nextActions + toast helper.
+          const demoNext: any = {
+            id: `demo-act-${Date.now()}`,
+            lead_id: lead.id,
+            title: nextSpec.title,
+            due_at: nextSpec.dueAt,
+            priority: "medium",
+            completed: false,
+          }
+          setNextActions?.((prev) => [...prev, demoNext])
+          emitWorkflowActionCreated(demoNext)
+        }
+      }
+      return
+    }
 
     const { error } = await supabase
       .from("lead_next_actions")
@@ -860,7 +948,9 @@ export default function LeadPanel({
   // own guest card that ranks ahead of Setup Tour.
   async function handleGuestCardSent() {
     const id = activeGuestCardActionId
-    if (id != null) {
+    // Demo leads: skip the DB write (optimistic removal below still runs; the
+    // Setup-Tour creation is centrally no-op'd in createWorkflowActionIfNeeded).
+    if (id != null && !isDemoLeadId(lead.id)) {
       await supabase
         .from("lead_next_actions")
         .update({ completed: true, completed_at: new Date().toISOString() })
@@ -872,10 +962,20 @@ export default function LeadPanel({
     )
     let created: any = null
     if (remainingGuestCards.length === 0) {
-      created = await createWorkflowActionIfNeeded(supabase, lead.id, {
-        title: "Setup Tour",
-        dueAt: new Date().toISOString(),
-      })
+      // Demo leads chain the Setup Tour LOCALLY (identical UX, no DB write).
+      created = isDemoLeadId(lead.id)
+        ? {
+            id: `demo-act-${Date.now()}`,
+            lead_id: lead.id,
+            title: "Setup Tour",
+            due_at: new Date().toISOString(),
+            priority: "medium",
+            completed: false,
+          }
+        : await createWorkflowActionIfNeeded(supabase, lead.id, {
+            title: "Setup Tour",
+            dueAt: new Date().toISOString(),
+          })
     }
     setNextActions?.((prev) => {
       let next = id != null ? prev.filter((a) => a.id !== id) : prev
@@ -904,8 +1004,11 @@ export default function LeadPanel({
       armedActionRef.current = false
       const ts = new Date().toISOString()
       setCompletedAtTs(ts)
-      // Persist for a real manual-action row (demo rows simply match nothing).
-      if (primaryAction.kind === "manual" && primaryAction.manualAction) {
+      // Persist for a real manual-action row. Demo leads are client-side only —
+      // their string ids can't key the bigint table, so skip the write entirely
+      // (the earlier "demo rows match nothing" assumption was wrong: a demo id
+      // throws a bigint cast error, it doesn't no-op).
+      if (primaryAction.kind === "manual" && primaryAction.manualAction && !isDemoLeadId(lead.id)) {
         supabase
           .from("lead_next_actions")
           .update({ completed: true, completed_at: ts })

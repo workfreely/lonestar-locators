@@ -16,6 +16,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { autoDueInDays, autoDueOnDate } from "./workflow/autoDueDate"
+import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 
 export type WorkflowActionSpec = {
   title: string
@@ -128,6 +129,10 @@ export async function createWorkflowActionIfNeeded(
   leadId: number | string,
   action: WorkflowActionSpec
 ): Promise<CreatedWorkflowAction | null> {
+  // Demo leads are client-side only (string ids like "demo-1"); a
+  // lead_next_actions write (lead_id bigint) would throw 22P02. Never write.
+  if (isDemoLeadId(leadId)) return null
+
   const { data: existing, error: checkError } = await client
     .from("lead_next_actions")
     .select("id")

@@ -6,6 +6,7 @@ import FavoriteModal, { type FavoriteInput } from "./FavoriteModal"
 import ConfirmDialog from "./ConfirmDialog"
 import { SectionCard } from "./LeadPanelSections"
 import { triggerGuestCardForFavorite } from "@/lib/leads/guestCardWorkflow"
+import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 
 // Favorite Properties — the primary property workspace for V1 (Property
 // Matches is hidden; the engine stays intact behind the scenes). Lives in the
@@ -32,6 +33,33 @@ export default function LeadFavorites({
   const leadFavorites = favorites.filter((f) => f.lead_id === lead.id)
 
   async function handleSaveFavorite(entries: FavoriteInput[]): Promise<boolean> {
+    // Demo leads are client-side only. Mirror the same UX with local rows —
+    // no DB write, no guest-card workflow (all lead-id keyed / bigint).
+    if (isDemoLeadId(lead.id)) {
+      if (editingFavorite) {
+        const input = entries[0]
+        const updated = {
+          ...editingFavorite,
+          property_name: input.propertyName || null,
+          property_url: input.propertyUrl || null,
+          property_address: input.propertyAddress || null,
+        }
+        setFavorites?.((prev) => prev.map((f) => (f.id === editingFavorite.id ? updated : f)))
+      } else {
+        const rows = entries.map((input, i) => ({
+          id: `demo-fav-${Date.now()}-${i}`,
+          lead_id: lead.id,
+          property_name: input.propertyName || null,
+          property_url: input.propertyUrl || null,
+          property_address: input.propertyAddress || null,
+        }))
+        setFavorites?.((prev) => [...prev, ...rows])
+      }
+      setShowFavoriteModal(false)
+      setEditingFavorite(null)
+      return true
+    }
+
     if (editingFavorite) {
       const input = entries[0]
       const { data, error } = await supabase
@@ -112,6 +140,9 @@ export default function LeadFavorites({
     if (id == null) return
 
     setFavorites?.((prev) => prev.filter((f) => f.id !== id))
+
+    // Demo favorites are local-only rows — nothing to delete server-side.
+    if (isDemoLeadId(lead.id)) return
 
     const { error } = await supabase.from("lead_favorites").delete().eq("id", id)
     if (error) console.error("[favorite] delete failed:", error)

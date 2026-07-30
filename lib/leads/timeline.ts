@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase/client"
+import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 
 // The CRM's append-only activity history (table: lead_timeline). Today it
 // records only communication events; the union widens as the activity feed
@@ -37,6 +38,10 @@ const LEAD_TIMELINE_ENABLED = false
  */
 export function recordTimelineEvent(event: TimelineEventInput): void {
   if (!LEAD_TIMELINE_ENABLED) return
+
+  // Demo leads have string ids ("demo-1") and live entirely client-side; a
+  // lead_timeline insert (lead_id bigint) would throw 22P02. Demo never writes.
+  if (isDemoLeadId(event.leadId)) return
 
   // Fully isolated best-effort logging: a try/catch guards any synchronous
   // throw, and the second `.then` arg swallows a rejected promise — so a

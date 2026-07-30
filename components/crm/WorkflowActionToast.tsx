@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase/client"
+import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { onWorkflowActionCreated, type WorkflowToastAction } from "@/lib/workflowToast"
 import { formatDueDateTime } from "@/lib/actionDisplay"
 
@@ -41,8 +42,12 @@ export default function WorkflowActionToast({
     if (!action) return
     setUndone(true)
     onUndo(action.id)
-    const { error } = await supabase.from("lead_next_actions").delete().eq("id", action.id)
-    if (error) console.error("[workflow-toast] undo failed:", error)
+    // Demo actions are client-side only (ids like "demo-act-…") — nothing to
+    // delete server-side; onUndo() above already removed it locally.
+    if (!isDemoLeadId(String(action.id))) {
+      const { error } = await supabase.from("lead_next_actions").delete().eq("id", action.id)
+      if (error) console.error("[workflow-toast] undo failed:", error)
+    }
     setTimeout(() => setAction(null), 900)
   }
 

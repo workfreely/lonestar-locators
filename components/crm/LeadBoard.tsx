@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { createPortal } from "react-dom"
 import {
   DndContext,
   DragEndEvent,
@@ -11,6 +12,7 @@ import LeadColumn from "./LeadColumn"
 import LeadCard from "./LeadCard"
 import ArchiveLeadDialog from "./ArchiveLeadDialog"
 import { supabase } from "@/lib/supabase/client"
+import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { autoDueInDays } from "@/lib/workflow/autoDueDate"
 import { readKanbanDensity, writeKanbanDensity, DEFAULT_KANBAN_DENSITY } from "@/lib/preferences"
 
@@ -162,6 +164,10 @@ export default function LeadBoard({
       )
     )
 
+    // Demo leads are client-side only ("demo-1" ids); the optimistic update
+    // above is all they need — never hit the bigint-keyed backend.
+    if (isDemoLeadId(String(leadId))) return
+
     // =====================================================
     // ✅ SAVE TO BACKEND
     // =====================================================
@@ -228,6 +234,9 @@ export default function LeadBoard({
           : { ...lead, _justDropped: false }
       )
     )
+
+    // Demo leads: optimistic-only, no DB write (string id can't key a bigint).
+    if (isDemoLeadId(String(leadId))) return
 
     const { error } = await supabase.from("leads").update(updates).eq("id", leadId)
     if (error) console.error("[archive-lead] update failed:", error.message)
@@ -329,19 +338,32 @@ export default function LeadBoard({
         </div>
       </div>
 
-      {/* 🔥 THIS FIXES THE DRAG OVERLAY ISSUE */}
-      <DragOverlay>
-        {activeLead ? (
-          <div className="opacity-90 scale-105">
-            <LeadCard
-              lead={activeLead}
-              isSelected={false}
-              view={view}
-              onSelect={() => {}}
-            />
-          </div>
-        ) : null}
-      </DragOverlay>
+      {/* Drag ghost — PORTALED to <body>. DragOverlay renders inline by default,
+          which placed it inside the admin's `fixed inset-0` shell + the
+          overflow-hidden board wrapper + the scrollable .kb-board — so its
+          position:fixed resolved against those, not the viewport, offsetting it
+          down/right. Portaling to document.body makes the overlay a direct body
+          child, so fixed = viewport-relative and it tracks the cursor exactly
+          (how Trello/Linear/Notion mount their drag layer).
+
+          data-density gives it the current view's card sizing; .kb-drag-overlay
+          neutralizes hover/selected transforms so it sits under the cursor at
+          the source card's exact dimensions (see globals.css). */}
+      {createPortal(
+        <DragOverlay>
+          {activeLead ? (
+            <div className="kb-drag-overlay" data-density={view}>
+              <LeadCard
+                lead={activeLead}
+                isSelected={false}
+                view={view}
+                onSelect={() => {}}
+              />
+            </div>
+          ) : null}
+        </DragOverlay>,
+        document.body
+      )}
 
       <ArchiveLeadDialog
         open={pendingArchiveId != null}

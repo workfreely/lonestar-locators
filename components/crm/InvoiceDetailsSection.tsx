@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase/client"
+import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { SectionCard } from "./LeadPanelSections"
 
 // Post-close commission tracking for a Closed lead — a structured home for the
@@ -72,6 +73,9 @@ export default function InvoiceDetailsSection({
   // still shows via onUpdateLead.
   async function persist(patch: Record<string, unknown>) {
     if (onUpdateLead) onUpdateLead({ ...lead, ...patch })
+    // Demo leads are client-side only ("demo-1" ids) — optimistic update above
+    // is enough; never write to the bigint-keyed leads table.
+    if (isDemoLeadId(lead.id)) return
     const { error } = await supabase.from("leads").update(patch).eq("id", lead.id)
     if (error) console.error("[invoice-details] save failed:", error.message)
   }

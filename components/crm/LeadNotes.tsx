@@ -1,6 +1,7 @@
 "use client"
 
 import { supabase } from "@/lib/supabase/client"
+import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { CollapsibleNotes } from "./LeadPanelSections"
 
 // Client Notes (read-only, submitted by the client) + Locator Notes (the
@@ -32,6 +33,8 @@ export default function LeadNotes({
           onChange={async (e) => {
             const newNotes = e.target.value
             if (onUpdateLead) onUpdateLead({ ...lead, locator_notes: newNotes })
+            // Demo leads: optimistic only — never write to the bigint leads table.
+            if (isDemoLeadId(lead.id)) return
             await supabase.from("leads").update({ locator_notes: newNotes }).eq("id", lead.id).select("*")
           }}
           placeholder="Internal notes about this client..."

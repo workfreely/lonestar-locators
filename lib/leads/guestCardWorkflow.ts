@@ -14,6 +14,7 @@
 // selected property's guest card is done — not after the first one.
 
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 
 const FOLLOW_UP_TITLES = new Set(["fu1", "fu2", "fu3", "final", "final fu", "follow up"])
 
@@ -62,6 +63,8 @@ export async function triggerGuestCardForFavorite(
   openActions: OpenActionRow[]
 ): Promise<{ created: CreatedGuestCardAction | null; removedIds: number[] } | null> {
   if (lead.crm_status !== "list_sent") return null
+  // Demo leads are client-side only — never write lead_next_actions rows.
+  if (isDemoLeadId(lead.id)) return null
 
   // Clear the pending follow-up(s) once — the lead has progressed.
   const pendingFollowUps = openActions.filter(
