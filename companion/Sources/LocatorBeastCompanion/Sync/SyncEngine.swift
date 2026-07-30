@@ -2,7 +2,8 @@ import Foundation
 
 enum SyncPhase: Equatable {
     case needsPairing            // no token
-    case disconnected            // token revoked server-side
+    case disconnected            // token revoked/invalid server-side
+    case pairingReset            // credential rotation — token cleared, must re-pair
     case needsFullDiskAccess
     case needsUpdate             // version < server minimum
     case maintenance             // global service pause
@@ -103,7 +104,8 @@ final class SyncEngine {
             case .paused(let reason): setPhase(.paused(reason: reason)); return true
             case .maintenance: setPhase(.maintenance); return true
             case .updateRequired: setPhase(.needsUpdate); return true
-            case .unpaired: Keychain.clearToken(); setPhase(.disconnected); return true
+            case .unpaired, .revoked: Keychain.clearToken(); setPhase(.disconnected); return true
+            case .reset: Keychain.clearToken(); setPhase(.pairingReset); return true
             case .offline: setPhase(.offline); return true // cursor not advanced → retry
             case .rateLimited: return true
             case .failure(let msg): setError(msg); return true
@@ -130,7 +132,8 @@ final class SyncEngine {
             } else {
                 enterPaused(reason: s.reason)
             }
-        case .unpaired: Keychain.clearToken(); setPhase(.disconnected)
+        case .unpaired, .revoked: Keychain.clearToken(); setPhase(.disconnected)
+        case .reset: Keychain.clearToken(); setPhase(.pairingReset)
         case .maintenance: setPhase(.maintenance)
         case .updateRequired: setPhase(.needsUpdate)
         case .notEntitled(let r): enterPaused(reason: r)
@@ -141,7 +144,7 @@ final class SyncEngine {
 
     private var isBlockedPhase: Bool {
         switch status.phase {
-        case .paused, .maintenance, .needsUpdate, .disconnected, .offline: return true
+        case .paused, .maintenance, .needsUpdate, .disconnected, .pairingReset, .offline: return true
         default: return false
         }
     }

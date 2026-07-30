@@ -53,16 +53,22 @@ export async function requireDeviceToken(req: Request): Promise<DeviceAuthOk | D
 
   const { data: device } = await supabaseAdmin
     .from("device_tokens")
-    .select("id, user_id, workspace_id, revoked_at, sync_paused")
+    .select("id, user_id, workspace_id, revoked_at, pairing_reset_at, sync_paused")
     .eq("token_hash", hashToken(raw))
     .maybeSingle()
 
-  // A revoked (or unknown) token is indistinguishable from never-paired to the
-  // caller — a plain 401. The Companion, which knows it HELD a token, treats a
-  // 401 as "this device was disconnected".
-  if (!device || device.revoked_at) {
-    return { ok: false, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-  }
+  // 401s carry a machine `code` so the Companion reacts correctly:
+  //   invalid  → unknown/dead token → disconnected
+  //   revoked  → device retired → disconnected
+  //   reset    → credential rotation → clear Keychain + prompt to reconnect
+  const fail = (code: "invalid" | "revoked" | "reset") => ({
+    ok: false as const,
+    response: NextResponse.json({ error: "Unauthorized", code }, { status: 401 }),
+  })
+
+  if (!device) return fail("invalid")
+  if (device.revoked_at) return fail("revoked")
+  if (device.pairing_reset_at) return fail("reset")
 
   // Best-effort activity + version stamp — never block on it.
   const appVersion = parseCompanionVersion(req.headers.get("user-agent"))

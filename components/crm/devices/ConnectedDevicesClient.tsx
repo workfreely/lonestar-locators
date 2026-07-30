@@ -13,6 +13,7 @@ type Device = {
   last_used_at: string | null
   last_synced_at: string | null
   sync_paused: boolean | null
+  pairing_reset_at: string | null
   revoked_at: string | null
 }
 
@@ -34,6 +35,7 @@ function relative(ts: string | null): string {
 
 function connectionStatus(d: Device): { label: string; tone: "ok" | "warn" | "bad" } {
   if (d.revoked_at) return { label: "Revoked", tone: "bad" }
+  if (d.pairing_reset_at) return { label: "Reset — reconnect required", tone: "warn" }
   if (d.sync_paused) return { label: "Paused", tone: "warn" }
   const seen = d.last_used_at ? Date.now() - new Date(d.last_used_at).getTime() : Infinity
   if (seen < ONLINE_WINDOW_MS) return { label: "Connected", tone: "ok" }
@@ -52,7 +54,7 @@ export default function ConnectedDevicesClient() {
   async function load() {
     const { data } = await supabase
       .from("device_tokens")
-      .select("id, device_name, token_prefix, app_version, created_at, last_used_at, last_synced_at, sync_paused, revoked_at")
+      .select("id, device_name, token_prefix, app_version, created_at, last_used_at, last_synced_at, sync_paused, pairing_reset_at, revoked_at")
       .order("created_at", { ascending: false })
     setDevices((data as Device[]) || [])
     setLoading(false)
@@ -63,18 +65,32 @@ export default function ConnectedDevicesClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function revoke(id: string) {
+  // All controls are plain RLS-scoped updates (the "members revoke device_tokens"
+  // policy permits members to update their workspace's devices); the server-side
+  // token guard enforces the effect on the device's next check-in.
+  async function apply(id: string, patch: Record<string, unknown>) {
     setRevoking(id)
-    await supabase.from("device_tokens").update({ revoked_at: new Date().toISOString() }).eq("id", id)
+    await supabase.from("device_tokens").update(patch).eq("id", id)
     setRevoking(null)
     load()
   }
+
+  const pause = (id: string) => apply(id, { sync_paused: true })
+  const resume = (id: string) => apply(id, { sync_paused: false })
+  const revoke = (id: string) => apply(id, { revoked_at: new Date().toISOString() })
+  // Reset = invalidate the current token + require re-pair, preserving history.
+  const resetPairing = (id: string) =>
+    apply(id, { pairing_reset_at: new Date().toISOString(), sync_paused: false })
 
   const toneClass = {
     ok: "bg-[#e7f6ee] text-[#16794c]",
     warn: "bg-[#fdf3e3] text-[#9a6a12]",
     bad: "bg-[#fdecec] text-[#c0392b]",
   }
+  const neutralBtn =
+    "rounded-lg border border-[#e5e7ee] bg-white px-3.5 py-2 text-[13px] font-semibold text-[#111318] transition-colors hover:bg-[#f4f5f8] disabled:opacity-60"
+  const dangerBtn =
+    "rounded-lg border border-[#f0c9c9] bg-white px-3.5 py-2 text-[13px] font-semibold text-[#c0392b] transition-colors hover:bg-[#fdecec] disabled:opacity-60"
 
   return (
     <SettingsShell
@@ -111,14 +127,24 @@ export default function ConnectedDevicesClient() {
                     </p>
                   </div>
                   {!revoked && (
-                    <button
-                      type="button"
-                      onClick={() => revoke(d.id)}
-                      disabled={revoking === d.id}
-                      className="flex-none rounded-lg border border-[#f0c9c9] bg-white px-4 py-2 text-[13px] font-semibold text-[#c0392b] transition-colors hover:bg-[#fdecec] disabled:opacity-60"
-                    >
-                      {revoking === d.id ? "Revoking…" : "Revoke Device"}
-                    </button>
+                    <div className="flex flex-none flex-wrap items-center justify-end gap-2">
+                      {!d.pairing_reset_at &&
+                        (d.sync_paused ? (
+                          <button type="button" onClick={() => resume(d.id)} disabled={revoking === d.id} className={neutralBtn}>
+                            Resume
+                          </button>
+                        ) : (
+                          <button type="button" onClick={() => pause(d.id)} disabled={revoking === d.id} className={neutralBtn}>
+                            Pause
+                          </button>
+                        ))}
+                      <button type="button" onClick={() => resetPairing(d.id)} disabled={revoking === d.id} className={neutralBtn}>
+                        Reset Pairing
+                      </button>
+                      <button type="button" onClick={() => revoke(d.id)} disabled={revoking === d.id} className={dangerBtn}>
+                        Revoke
+                      </button>
+                    </div>
                   )}
                 </div>
               )

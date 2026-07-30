@@ -5,7 +5,9 @@ import Foundation
 // SyncEngine reacts to.
 enum BackendResult<T> {
     case ok(T)
-    case unpaired            // 401 — token revoked/invalid → show "disconnected"
+    case unpaired            // 401 invalid — dead token → disconnected
+    case revoked             // 401 revoked — device retired → disconnected
+    case reset               // 401 reset — credential rotation → clear token + reconnect
     case notEntitled(String) // 403 entitlement — reason → pause
     case paused(String)      // 403 per-device remote pause → pause
     case updateRequired      // 426 — force update
@@ -88,7 +90,12 @@ final class BackendClient {
         let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
         switch http.statusCode {
         case 200: return .ok(make(json))
-        case 401: return .unpaired
+        case 401:
+            switch json["code"] as? String {
+            case "reset": return .reset
+            case "revoked": return .revoked
+            default: return .unpaired
+            }
         case 403:
             if (json["syncPaused"] as? Bool) == true { return .paused((json["reason"] as? String) ?? "device_paused") }
             return .notEntitled((json["reason"] as? String) ?? "not_entitled")

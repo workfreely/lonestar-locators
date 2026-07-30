@@ -37,6 +37,31 @@ export async function POST(req: Request) {
 
   const { raw, hash, prefix } = generateDeviceToken()
 
+  // If a device is awaiting re-pair after a Reset (pairing_reset_at set, not
+  // revoked), REUSE that row so its history (name, created_at, last_synced_at)
+  // is preserved and credentials simply rotate. Otherwise create a new device.
+  const { data: resetRow } = await supabaseAdmin
+    .from("device_tokens")
+    .select("id")
+    .eq("workspace_id", workspaceId)
+    .not("pairing_reset_at", "is", null)
+    .is("revoked_at", null)
+    .order("pairing_reset_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (resetRow) {
+    const { error } = await supabaseAdmin
+      .from("device_tokens")
+      .update({ token_hash: hash, token_prefix: prefix, pairing_reset_at: null })
+      .eq("id", resetRow.id)
+    if (error) {
+      console.error("[companion/pair] reset re-pair failed:", error.message)
+      return NextResponse.json({ error: "Failed to pair device" }, { status: 500 })
+    }
+    return NextResponse.json({ token: raw, deviceName })
+  }
+
   const { error } = await supabaseAdmin.from("device_tokens").insert({
     user_id: userId,
     workspace_id: workspaceId,

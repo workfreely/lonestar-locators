@@ -37,7 +37,7 @@ final class MenuBarController: NSObject {
         menu.addItem(.separator())
 
         switch s.phase {
-        case .needsPairing, .disconnected:
+        case .needsPairing, .disconnected, .pairingReset:
             menu.addItem(action("Connect Locator Beast…", #selector(connect)))
         case .needsFullDiskAccess:
             menu.addItem(action("Grant Full Disk Access…", #selector(openFDA)))
@@ -94,6 +94,7 @@ final class MenuBarController: NSObject {
         switch phase {
         case .needsPairing: return "Not connected"
         case .disconnected: return "Disconnected"
+        case .pairingReset: return "Pairing reset"
         case .needsFullDiskAccess: return "Needs Full Disk Access"
         case .needsUpdate: return "Update required"
         case .maintenance: return "Temporarily unavailable"
@@ -108,6 +109,8 @@ final class MenuBarController: NSObject {
         switch phase {
         case .disconnected:
             return ["This device was disconnected.", "Reconnect to resume syncing."]
+        case .pairingReset:
+            return ["Pairing has been reset.", "Please reconnect this Mac to Locator Beast."]
         case .maintenance:
             return ["Locator Beast is temporarily unavailable."]
         case .needsUpdate:
