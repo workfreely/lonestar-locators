@@ -2,6 +2,8 @@ import { google } from "googleapis";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { buildContactNotes } from "@/lib/google/buildContactNotes";
+// LEGACY global Google account — TODO(phase-2): migrate to per-user
+// google_credentials. See getOAuthClient.ts. Do not extend this path.
 import { getOAuthClient } from "@/lib/google/getOAuthClient";
 
 export async function POST(req: Request) {

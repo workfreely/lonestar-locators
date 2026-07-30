@@ -4,6 +4,8 @@ import { supabaseAdmin } from "@/lib/supabase/admin"
 import { requireWorkspaceMember } from "@/lib/auth/requireWorkspaceMember"
 import { buildContactNotes } from "@/lib/google/buildContactNotes"
 import { updateGoogleContactNotes } from "@/lib/google/updateContactNotes"
+// LEGACY global Google account — TODO(phase-2): migrate the contacts + calendar
+// side-effects below to per-user google_credentials. See getOAuthClient.ts.
 import { getOAuthClient } from "@/lib/google/getOAuthClient"
 import { createListSentCalendarEvent } from "@/lib/google/createCalendarEvent"
 import { getStageWorkflowAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"

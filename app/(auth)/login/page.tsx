@@ -52,7 +52,7 @@ export default function LoginPage() {
         </>
       }
     >
-      <GoogleButton next="/onboarding" label="Continue with Google" />
+      <GoogleButton next="/onboarding" label="Continue with Google" recommended />
       <Divider />
 
       <form onSubmit={handleLogin} className="flex flex-col gap-4">

@@ -29,9 +29,11 @@ export function GoogleIcon() {
 export default function GoogleButton({
   next = "/onboarding",
   label = "Continue with Google",
+  recommended = false,
 }: {
   next?: string;
   label?: string;
+  recommended?: boolean;
 }) {
   const [loading, setLoading] = useState(false);
 
@@ -48,10 +50,15 @@ export default function GoogleButton({
       type="button"
       onClick={handleClick}
       disabled={loading}
-      className="flex w-full items-center justify-center gap-3 rounded-full border border-[var(--beast-border)] bg-white px-6 py-3.5 text-[14px] font-semibold text-[var(--beast-ink)] transition-colors hover:bg-[#f7f8fa] disabled:opacity-60"
+      className="relative flex w-full items-center justify-center gap-3 rounded-full border border-[var(--beast-blue)] bg-white px-6 py-3.5 text-[14px] font-semibold text-[var(--beast-ink)] transition-colors hover:bg-[#f7f8fa] disabled:opacity-60"
     >
       <GoogleIcon />
       {loading ? "Redirecting…" : label}
+      {recommended && (
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-[var(--beast-blue)]/10 px-2 py-0.5 text-[11px] font-semibold text-[var(--beast-blue)]">
+          Recommended
+        </span>
+      )}
     </button>
   );
 }

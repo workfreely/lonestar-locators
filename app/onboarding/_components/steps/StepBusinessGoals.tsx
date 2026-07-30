@@ -70,7 +70,7 @@ export default function StepBusinessGoals({ data, onNext, onBack, saving }: Step
 
   return (
     <StepCard
-      eyebrow="Step 2"
+      eyebrow="Step 3"
       title="Sales Goals"
       subtitle="Two quick numbers so your dashboard tracks what matters to you."
     >

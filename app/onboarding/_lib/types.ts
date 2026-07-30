@@ -21,12 +21,16 @@ export type OnboardingData = {
   leads_import_status: "imported" | "skipped" | null;
 };
 
-// Six internal screens: Welcome (unnumbered) → Business Profile → Business
-// Goals → Connect → Import → Building. Welcome doesn't count as a numbered
-// step, so the five NUMBERED steps are Business Profile (1) … Building (5).
-// Displayed number = internal step − 1. Building is a full-screen finale.
-export const TOTAL_STEPS = 6;
-export const NUMBERED_STEPS = 5;
+// Five internal screens: Welcome (unnumbered) → Business Profile → Connect →
+// Sales Goals → Building. Welcome doesn't count as a numbered step, so the
+// four NUMBERED steps are Business Profile (1) … Building (4). Displayed
+// number = internal step − 1. Building is a full-screen finale.
+//
+// Import Leads was removed from onboarding (2026-07-29) so a new user reaches
+// their dashboard fast — the import feature now lives on its own page at
+// /admin/import. `leads_import_status` stays on the profile/type for that page.
+export const TOTAL_STEPS = 5;
+export const NUMBERED_STEPS = 4;
 
 // Used when the user skips the Business Goals step — sensible starting values
 // they can change anytime in Settings.

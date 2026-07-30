@@ -43,7 +43,7 @@ export default function FirstRunChecklist({ googleConnected }: { googleConnected
     { id: "analytics", label: "Explore Analytics", desc: "Projected pipeline, monthly goals, and commission forecasting.", href: "/admin/performance", cta: "Open" },
     { id: "form", label: "Share Your Smart Lead Form", desc: "Share it to Instagram, TikTok, Facebook, or your website.", cta: "Copy" },
     ...(googleConnected ? [] : [{ id: "google", label: "Connect Google", desc: "Sync tours, reminders, and contacts.", href: "/onboarding", cta: "Connect" }]),
-    { id: "import", label: "Import Your Leads", desc: "Bring in your existing clients via CSV.", href: "/onboarding", cta: "Import" },
+    { id: "import", label: "Import Your Leads", desc: "Bring in your existing clients via CSV.", href: "/admin/import", cta: "Import" },
     { id: "delete", label: "Delete Demo Workspace", desc: "When you're ready, remove all demo data in Settings.", href: "/admin/settings", cta: "Open", danger: true },
   ]
 

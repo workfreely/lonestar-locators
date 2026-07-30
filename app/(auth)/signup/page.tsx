@@ -68,7 +68,7 @@ export default function SignupPage() {
         </>
       }
     >
-      <GoogleButton next="/onboarding" label="Continue with Google" />
+      <GoogleButton next="/onboarding" label="Continue with Google" recommended />
       <Divider />
 
       <form onSubmit={handleSignup} className="flex flex-col gap-4">

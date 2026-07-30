@@ -6,6 +6,7 @@ const INTEGRATIONS: { name: string; description: string }[] = [
   { name: "Google Calendar", description: "Automatically create tours and reminders on your calendar." },
   { name: "Google Contacts", description: "Keep your client contact information in sync." },
   { name: "Phone Sync", description: "See client calls and texts in one place." },
+  { name: "Meta Ads", description: "Bring in leads from your Facebook and Instagram ad campaigns." },
 ]
 
 export default function IntegrationsClient() {

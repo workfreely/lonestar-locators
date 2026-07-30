@@ -15,12 +15,20 @@ export default function StepConnect({ data, onChange, onNext, onBack, saving }: 
   // Which connection (if any) is mid-connect, for the button spinner.
   const [connecting, setConnecting] = useState<"google" | "phone" | null>(null);
 
-  // Placeholder connects — real OAuth / phone-provider wiring plugs in here
-  // later without changing this UI. Google Calendar + Contacts share one flag.
+  // Google is a real OAuth redirect: a single consent grants both Calendar and
+  // Contacts, so either Google card sends the user to /api/google/auth. On
+  // return, /onboarding reloads with google_connected reflecting the stored
+  // token, so both cards show "Connected". Phone Sync stays a placeholder until
+  // a phone provider is wired.
   function connect(kind: "google" | "phone") {
-    setConnecting(kind);
+    if (kind === "google") {
+      setConnecting("google");
+      window.location.href = "/api/google/auth?next=/onboarding";
+      return;
+    }
+    setConnecting("phone");
     setTimeout(() => {
-      onChange(kind === "google" ? { google_connected: true } : { phone_sync_connected: true });
+      onChange({ phone_sync_connected: true });
       setConnecting(null);
     }, 800);
   }
@@ -32,6 +40,7 @@ export default function StepConnect({ data, onChange, onNext, onBack, saving }: 
       title: "Google Contacts",
       benefit: "Automatically keeps your client information synchronized.",
       connected: data.google_connected,
+      recommended: true,
     },
     {
       key: "google" as const,
@@ -39,6 +48,7 @@ export default function StepConnect({ data, onChange, onNext, onBack, saving }: 
       title: "Google Calendar",
       benefit: "Automatically creates tours and reminders.",
       connected: data.google_connected,
+      recommended: true,
     },
     {
       key: "phone" as const,
@@ -46,6 +56,7 @@ export default function StepConnect({ data, onChange, onNext, onBack, saving }: 
       title: "Phone Sync",
       benefit: "See client communication in one place.",
       connected: data.phone_sync_connected,
+      recommended: false,
     },
   ];
 
@@ -53,7 +64,7 @@ export default function StepConnect({ data, onChange, onNext, onBack, saving }: 
 
   return (
     <StepCard
-      eyebrow="Step 3"
+      eyebrow="Step 2"
       title="Let's connect your business"
       subtitle="These power the automation behind the scenes — connect now or skip and do it later."
     >
@@ -67,7 +78,14 @@ export default function StepConnect({ data, onChange, onNext, onBack, saving }: 
               <c.icon className="h-5 w-5 text-[var(--beast-blue)]" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[14px] font-semibold text-[var(--beast-ink)]">{c.title}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-[14px] font-semibold text-[var(--beast-ink)]">{c.title}</p>
+                {c.recommended && !c.connected && (
+                  <span className="rounded-full bg-[var(--beast-blue)]/10 px-2 py-0.5 text-[11px] font-semibold text-[var(--beast-blue)]">
+                    Recommended
+                  </span>
+                )}
+              </div>
               <p className="text-[13px] leading-snug text-[var(--beast-ink-soft)]">{c.benefit}</p>
             </div>
             {c.connected ? (

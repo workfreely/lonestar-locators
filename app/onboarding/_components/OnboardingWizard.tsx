@@ -8,7 +8,6 @@ import Step1Welcome from "./steps/Step1Welcome";
 import StepBusinessProfile from "./steps/StepBusinessProfile";
 import StepBusinessGoals from "./steps/StepBusinessGoals";
 import StepConnect from "./steps/StepConnect";
-import Step6ImportLeads from "./steps/Step6ImportLeads";
 import StepBuilding from "./steps/StepBuilding";
 
 export default function OnboardingWizard({
@@ -105,9 +104,8 @@ export default function OnboardingWizard({
         <div className="w-full max-w-xl">
           {step === 1 && <Step1Welcome {...stepProps} />}
           {step === 2 && <StepBusinessProfile {...stepProps} userId={userId} />}
-          {step === 3 && <StepBusinessGoals {...stepProps} />}
-          {step === 4 && <StepConnect {...stepProps} />}
-          {step === 5 && <Step6ImportLeads {...stepProps} />}
+          {step === 3 && <StepConnect {...stepProps} />}
+          {step === 4 && <StepBusinessGoals {...stepProps} />}
         </div>
       </main>
     </div>
