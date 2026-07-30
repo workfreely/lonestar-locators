@@ -27,7 +27,7 @@ final class PairingService {
                 guard let self else { return }
                 if case .ready = st, let port = listener.port?.rawValue {
                     let url = Config.pairPageURL(port: Int(port), state: self.state)
-                    AppLog.info("Pairing: opening \(url.absoluteString)")
+                    AppLog.info("Pairing: opening browser")
                     NSWorkspace.shared.open(url)
                 } else if case .failed = st {
                     self.finish(.failure(PairingError.listenFailed))

@@ -6,7 +6,19 @@ import os
 enum AppLog {
     private static let log = Logger(subsystem: "app.locatorbeast.companion", category: "companion")
 
-    static func info(_ msg: String) { log.info("\(msg, privacy: .public)") }
+    // info/debug compile OUT of Release builds (`swift build -c release` doesn't
+    // define DEBUG), so distributed builds carry no verbose development logs.
+    // Only errors are logged in Release, and never with message content marked
+    // private so PII can't leak.
+    static func info(_ msg: String) {
+        #if DEBUG
+        log.info("\(msg, privacy: .public)")
+        #endif
+    }
+    static func debug(_ msg: String) {
+        #if DEBUG
+        log.debug("\(msg, privacy: .public)")
+        #endif
+    }
     static func error(_ msg: String) { log.error("\(msg, privacy: .public)") }
-    static func debug(_ msg: String) { log.debug("\(msg, privacy: .public)") }
 }

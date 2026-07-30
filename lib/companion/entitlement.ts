@@ -5,6 +5,28 @@ import { getAccessState } from "@/lib/billing/access"
 // forcing an update when Apple changes chat.db (bump on a breaking release).
 export const MIN_COMPANION_VERSION = "1.0.0"
 
+// Global remote maintenance switch (Vercel env). When "true", every device
+// heartbeat reports maintenance and uploads are rejected — service off with no
+// new build.
+export function isCompanionMaintenance(): boolean {
+  return process.env.COMPANION_MAINTENANCE === "true"
+}
+
+// Is the reported Companion version >= MIN_COMPANION_VERSION? Unknown version
+// (no/garbled UA) is treated as supported (best-effort; the token + entitlement
+// gates still apply) rather than hard-blocking legitimate clients.
+export function isVersionSupported(version: string | null): boolean {
+  if (!version) return true
+  const pa = version.split(".").map((n) => parseInt(n, 10) || 0)
+  const pb = MIN_COMPANION_VERSION.split(".").map((n) => parseInt(n, 10) || 0)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] ?? 0
+    const y = pb[i] ?? 0
+    if (x !== y) return x > y
+  }
+  return true
+}
+
 // Feature-based entitlement (NOT plan-name based) so we can enable/disable
 // specific capabilities per plan later without touching call sites. V1 gates
 // one feature; add keys here as the surface grows.

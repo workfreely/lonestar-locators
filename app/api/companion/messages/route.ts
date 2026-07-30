@@ -2,7 +2,11 @@ export const runtime = "nodejs"
 
 import { NextResponse } from "next/server"
 import { requireDeviceToken } from "@/lib/companion/auth"
-import { getFeatureEntitlement } from "@/lib/companion/entitlement"
+import {
+  getFeatureEntitlement,
+  isCompanionMaintenance,
+  isVersionSupported,
+} from "@/lib/companion/entitlement"
 import { rateLimit } from "@/lib/rateLimit"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
@@ -25,7 +29,31 @@ type IncomingMessage = {
 export async function POST(req: Request) {
   const auth = await requireDeviceToken(req)
   if (!auth.ok) return auth.response
-  const { userId, workspaceId, deviceId } = auth
+  const { userId, workspaceId, deviceId, syncPaused, appVersion } = auth
+
+  // Global maintenance — reject all uploads, tell the device to pause.
+  if (isCompanionMaintenance()) {
+    return NextResponse.json(
+      { error: "Service temporarily unavailable", entitled: true, syncEnabled: false, maintenance: true },
+      { status: 503 }
+    )
+  }
+
+  // Unsupported version — force an update before accepting data.
+  if (!isVersionSupported(appVersion)) {
+    return NextResponse.json(
+      { error: "Update required", entitled: true, syncEnabled: false, updateRequired: true },
+      { status: 426 }
+    )
+  }
+
+  // Per-device remote pause.
+  if (syncPaused) {
+    return NextResponse.json(
+      { error: "This device is paused", entitled: true, syncEnabled: false, syncPaused: true },
+      { status: 403 }
+    )
+  }
 
   // 120 batches/min per device — comfortably above steady-state sync.
   const limit = rateLimit(`companion:${deviceId}`, 120, 60_000)
@@ -119,5 +147,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Failed to store messages" }, { status: 500 })
   }
 
-  return NextResponse.json({ accepted: rows.length, entitled: true })
+  // Stamp last successful sync for the Connected Devices "Last Sync" display.
+  await supabaseAdmin
+    .from("device_tokens")
+    .update({ last_synced_at: new Date().toISOString() })
+    .eq("id", deviceId)
+
+  return NextResponse.json({ accepted: rows.length, entitled: true, syncEnabled: true })
 }

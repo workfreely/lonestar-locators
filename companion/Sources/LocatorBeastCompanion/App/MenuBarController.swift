@@ -29,25 +29,24 @@ final class MenuBarController: NSObject {
 
         menu.addItem(disabled("Messages Sync: \(phaseTitle(s.phase))"))
         menu.addItem(disabled("Last Sync: \(lastSyncText(s.lastSyncAt))"))
+        menu.addItem(disabled("Version: \(Config.appVersion)"))
 
-        // Paused explanation (entitlement).
-        if case .paused = s.phase {
-            menu.addItem(disabled("Your Locator Beast trial or subscription"))
-            menu.addItem(disabled("is no longer active."))
-        }
+        // Contextual explanation lines.
+        for line in explanation(for: s.phase) { menu.addItem(disabled(line)) }
 
         menu.addItem(.separator())
 
         switch s.phase {
-        case .needsPairing:
+        case .needsPairing, .disconnected:
             menu.addItem(action("Connect Locator Beast…", #selector(connect)))
         case .needsFullDiskAccess:
             menu.addItem(action("Grant Full Disk Access…", #selector(openFDA)))
         case .needsUpdate:
             menu.addItem(action("Update Required — Open Locator Beast…", #selector(openBilling)))
-        case .paused:
-            menu.addItem(action("Open Billing", #selector(openBilling)))
-        case .idle, .syncing, .offline:
+        case .paused(let reason):
+            // Entitlement lapses point to Billing; an admin/device pause doesn't.
+            if reason != "device_paused" { menu.addItem(action("Open Billing", #selector(openBilling))) }
+        case .maintenance, .idle, .syncing, .offline:
             break
         }
 
@@ -94,12 +93,31 @@ final class MenuBarController: NSObject {
     private func phaseTitle(_ phase: SyncPhase) -> String {
         switch phase {
         case .needsPairing: return "Not connected"
+        case .disconnected: return "Disconnected"
         case .needsFullDiskAccess: return "Needs Full Disk Access"
         case .needsUpdate: return "Update required"
+        case .maintenance: return "Temporarily unavailable"
         case .paused: return "Paused"
-        case .idle: return "On"
+        case .idle: return "Connected"
         case .syncing: return "Syncing…"
         case .offline: return "Offline — will retry"
+        }
+    }
+
+    private func explanation(for phase: SyncPhase) -> [String] {
+        switch phase {
+        case .disconnected:
+            return ["This device was disconnected.", "Reconnect to resume syncing."]
+        case .maintenance:
+            return ["Locator Beast is temporarily unavailable."]
+        case .needsUpdate:
+            return ["A newer Companion version is required."]
+        case .paused(let reason):
+            return reason == "device_paused"
+                ? ["This device has been paused."]
+                : ["Your Locator Beast trial or subscription", "is no longer active."]
+        default:
+            return []
         }
     }
     private func lastSyncText(_ date: Date?) -> String {

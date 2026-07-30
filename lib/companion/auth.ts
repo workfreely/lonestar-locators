@@ -26,8 +26,17 @@ export type DeviceAuthOk = {
   deviceId: string
   userId: string
   workspaceId: string
+  syncPaused: boolean
+  appVersion: string | null
 }
 export type DeviceAuthFail = { ok: false; response: NextResponse }
+
+// Parse the Companion's reported version from its User-Agent
+// ("LocatorBeastCompanion/1.2.3"). Untrusted, display/gate only.
+export function parseCompanionVersion(userAgent: string | null): string | null {
+  const m = (userAgent || "").match(/LocatorBeastCompanion\/([0-9]+\.[0-9]+\.[0-9]+)/)
+  return m ? m[1] : null
+}
 
 /**
  * Validates the `Authorization: Bearer <token>` header against device_tokens
@@ -44,19 +53,30 @@ export async function requireDeviceToken(req: Request): Promise<DeviceAuthOk | D
 
   const { data: device } = await supabaseAdmin
     .from("device_tokens")
-    .select("id, user_id, workspace_id, revoked_at")
+    .select("id, user_id, workspace_id, revoked_at, sync_paused")
     .eq("token_hash", hashToken(raw))
     .maybeSingle()
 
+  // A revoked (or unknown) token is indistinguishable from never-paired to the
+  // caller — a plain 401. The Companion, which knows it HELD a token, treats a
+  // 401 as "this device was disconnected".
   if (!device || device.revoked_at) {
     return { ok: false, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
   }
 
-  // Best-effort activity stamp — never block ingest on it.
+  // Best-effort activity + version stamp — never block on it.
+  const appVersion = parseCompanionVersion(req.headers.get("user-agent"))
   await supabaseAdmin
     .from("device_tokens")
-    .update({ last_used_at: new Date().toISOString() })
+    .update({ last_used_at: new Date().toISOString(), app_version: appVersion })
     .eq("id", device.id)
 
-  return { ok: true, deviceId: device.id, userId: device.user_id, workspaceId: device.workspace_id }
+  return {
+    ok: true,
+    deviceId: device.id,
+    userId: device.user_id,
+    workspaceId: device.workspace_id,
+    syncPaused: device.sync_paused === true,
+    appVersion,
+  }
 }

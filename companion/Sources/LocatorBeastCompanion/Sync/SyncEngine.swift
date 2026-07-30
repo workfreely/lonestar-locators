@@ -1,10 +1,12 @@
 import Foundation
 
 enum SyncPhase: Equatable {
-    case needsPairing
+    case needsPairing            // no token
+    case disconnected            // token revoked server-side
     case needsFullDiskAccess
-    case needsUpdate
-    case paused(reason: String)   // entitlement lapsed — server authoritative
+    case needsUpdate             // version < server minimum
+    case maintenance             // global service pause
+    case paused(reason: String)  // entitlement lapsed or per-device pause
     case idle
     case syncing
     case offline
@@ -14,17 +16,12 @@ struct EngineStatus: Equatable {
     var phase: SyncPhase = .needsPairing
     var lastSyncAt: Date?
     var lastError: String?
-    var reason: String = ""
 }
 
-// Orchestrates all MessageSources → backend. V1 registers only
-// AppleMessagesSource, but nothing here is Apple-specific, so Gmail/Outlook/
-// CallSummary sources drop in by conforming to MessageSource and being added to
-// `sources`.
-//
-// Entitlement is SERVER-AUTHORITATIVE: we pause on any 403 / entitled:false from
-// ingest, keep re-checking /status on an interval, and auto-resume the moment
-// the server says we're entitled again — no repair/reinstall needed.
+// Orchestrates all MessageSources → backend. Server-authoritative: the engine
+// only reads/normalizes/batches/uploads and reflects server verdicts. All
+// access decisions (entitlement, revocation, maintenance, version) come from
+// the backend heartbeat; nothing is decided locally.
 @MainActor
 final class SyncEngine {
     private let sources: [MessageSource]
@@ -32,7 +29,7 @@ final class SyncEngine {
     private let backend = BackendClient()
 
     private var syncTimer: Timer?
-    private var entitlementTimer: Timer?
+    private var heartbeatTimer: Timer?
     private var isRunning = false
 
     private(set) var status = EngineStatus()
@@ -46,25 +43,18 @@ final class SyncEngine {
 
     var isPaired: Bool { Keychain.loadToken() != nil }
 
-    // ── Lifecycle ─────────────────────────────────────────────────────────
     func start() {
         syncTimer = Timer.scheduledTimer(withTimeInterval: Config.syncInterval, repeats: true) { [weak self] _ in
             Task { await self?.runSyncCycle(force: false) }
         }
-        entitlementTimer = Timer.scheduledTimer(withTimeInterval: Config.entitlementInterval, repeats: true) { [weak self] _ in
-            Task { await self?.recheckEntitlement() }
+        heartbeatTimer = Timer.scheduledTimer(withTimeInterval: Config.entitlementInterval, repeats: true) { [weak self] _ in
+            Task { await self?.heartbeat() }
         }
-        Task { await runSyncCycle(force: true) }
+        Task { await heartbeat(); await runSyncCycle(force: true) }
     }
 
-    func manualRefresh() {
-        Task { await runSyncCycle(force: true) }
-    }
-
-    func onPaired() {
-        // Fresh pairing — resume immediately.
-        Task { await runSyncCycle(force: true) }
-    }
+    func manualRefresh() { Task { await heartbeat(); await runSyncCycle(force: true) } }
+    func onPaired() { Task { await runSyncCycle(force: true) } }
 
     // ── Core cycle ────────────────────────────────────────────────────────
     private func runSyncCycle(force: Bool) async {
@@ -75,18 +65,16 @@ final class SyncEngine {
 
         guard FullDiskAccess.isGranted() else { setPhase(.needsFullDiskAccess); return }
 
-        // If currently paused for entitlement, confirm via /status before doing work.
-        if case .paused = status.phase {
-            await recheckEntitlement()
-            if case .paused = status.phase { return }
+        // Don't upload while blocked by a server verdict — confirm via heartbeat.
+        if isBlockedPhase {
+            await heartbeat()
+            if isBlockedPhase { return }
         }
 
         setPhase(.syncing)
         for source in sources where source.isAvailable() {
-            let stop = await syncSource(source)
-            if stop { return } // paused / unpaired / offline — stop this cycle
+            if await syncSource(source) { return } // stop on block/offline
         }
-
         state.lastSyncAt = Date()
         state.lastSyncError = nil
         state.save()
@@ -94,68 +82,69 @@ final class SyncEngine {
         setPhase(.idle)
     }
 
-    /// Returns true if the whole cycle should stop (pause/unpaired/offline).
+    /// Returns true if the whole cycle should stop.
     private func syncSource(_ source: MessageSource) async -> Bool {
         guard let token = Keychain.loadToken() else { setPhase(.needsPairing); return true }
-
         var cursor = state.cursor(for: source.sourceId)
         while true {
             let batch: [SourceMessage]
-            do {
-                batch = try source.fetchNewMessages(afterCursor: cursor, limit: Config.batchSize)
-            } catch {
-                setError("Read failed: \(error)")
-                return true
-            }
-            if batch.isEmpty { return false } // caught up
+            do { batch = try source.fetchNewMessages(afterCursor: cursor, limit: Config.batchSize) }
+            catch { setError("Read failed: \(error)"); return true }
+            if batch.isEmpty { return false }
 
             switch await backend.ingest(batch, token: token) {
             case .ok(let outcome):
-                if !outcome.entitled { enterPaused(reason: state.lastKnownReason); return true }
-                // Advance cursor ONLY after ACK (at-least-once; guid dedups).
-                cursor = batch.last!.cursor
+                if !outcome.syncEnabled { await heartbeat(); return true } // server paused us
+                cursor = batch.last!.cursor          // advance ONLY on ACK
                 state.cursorsBySource[source.sourceId] = cursor
                 state.save()
-                if batch.count < Config.batchSize { return false } // drained
-            case .notEntitled(let reason):
-                enterPaused(reason: reason); return true
-            case .unpaired:
-                Keychain.clearToken(); setPhase(.needsPairing); return true
-            case .offline:
-                setPhase(.offline); return true // cursor NOT advanced — retry next tick
-            case .rateLimited:
-                return true // back off; next scheduled tick retries
-            case .failure(let msg):
-                setError(msg); return true
+                if batch.count < Config.batchSize { return false }
+            case .notEntitled(let reason): enterPaused(reason: reason); return true
+            case .paused(let reason): setPhase(.paused(reason: reason)); return true
+            case .maintenance: setPhase(.maintenance); return true
+            case .updateRequired: setPhase(.needsUpdate); return true
+            case .unpaired: Keychain.clearToken(); setPhase(.disconnected); return true
+            case .offline: setPhase(.offline); return true // cursor not advanced → retry
+            case .rateLimited: return true
+            case .failure(let msg): setError(msg); return true
             }
         }
     }
 
-    // ── Entitlement (server-authoritative) ──────────────────────────────────
-    private func recheckEntitlement() async {
+    // ── Heartbeat (server-authoritative state) ──────────────────────────────
+    private func heartbeat() async {
         guard let token = Keychain.loadToken() else { setPhase(.needsPairing); return }
         switch await backend.status(token: token) {
         case .ok(let s):
             state.lastKnownEntitled = s.entitled
             state.lastKnownReason = s.reason
             state.save()
-            if versionLessThan(Config.appVersion, s.minVersion) {
+            if s.updateRequired {
                 setPhase(.needsUpdate)
-            } else if s.entitled {
-                if isPausedPhase { setPhase(.idle); await runSyncCycle(force: true) } // auto-resume
+            } else if s.maintenance {
+                setPhase(.maintenance)
+            } else if s.syncEnabled {
+                if isBlockedPhase { setPhase(.idle); await runSyncCycle(force: true) } // auto-resume
+            } else if s.syncPaused {
+                setPhase(.paused(reason: "device_paused"))
             } else {
                 enterPaused(reason: s.reason)
             }
-        case .notEntitled(let reason):
-            enterPaused(reason: reason)
-        case .unpaired:
-            Keychain.clearToken(); setPhase(.needsPairing)
-        case .offline, .rateLimited, .failure:
-            break // keep prior phase; try again next interval
+        case .unpaired: Keychain.clearToken(); setPhase(.disconnected)
+        case .maintenance: setPhase(.maintenance)
+        case .updateRequired: setPhase(.needsUpdate)
+        case .notEntitled(let r): enterPaused(reason: r)
+        case .paused(let r): setPhase(.paused(reason: r))
+        case .offline, .rateLimited, .failure: break // keep prior phase
         }
     }
 
-    private var isPausedPhase: Bool { if case .paused = status.phase { return true }; return false }
+    private var isBlockedPhase: Bool {
+        switch status.phase {
+        case .paused, .maintenance, .needsUpdate, .disconnected, .offline: return true
+        default: return false
+        }
+    }
 
     private func enterPaused(reason: String) {
         state.lastKnownEntitled = false
@@ -164,11 +153,7 @@ final class SyncEngine {
         setPhase(.paused(reason: reason))
     }
 
-    // ── Status plumbing ─────────────────────────────────────────────────────
-    private func setPhase(_ phase: SyncPhase) {
-        status.phase = phase
-        onChange?()
-    }
+    private func setPhase(_ phase: SyncPhase) { status.phase = phase; onChange?() }
     private func setError(_ msg: String) {
         AppLog.error(msg)
         state.lastSyncError = msg
@@ -176,16 +161,4 @@ final class SyncEngine {
         status.phase = .offline
         onChange?()
     }
-}
-
-// Minimal semver "a < b" for the update kill-switch.
-func versionLessThan(_ a: String, _ b: String) -> Bool {
-    let pa = a.split(separator: ".").map { Int($0) ?? 0 }
-    let pb = b.split(separator: ".").map { Int($0) ?? 0 }
-    for i in 0..<max(pa.count, pb.count) {
-        let x = i < pa.count ? pa[i] : 0
-        let y = i < pb.count ? pb[i] : 0
-        if x != y { return x < y }
-    }
-    return false
 }
