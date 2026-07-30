@@ -38,18 +38,17 @@ function ChevronIcon({ open, light }: { open: boolean; light: boolean }) {
 }
 
 // Navigation links (everything except Appearance, which stays an inline
-// theme picker for instant visual feedback). Order per spec: Profile,
-// Appearance, Smart Lead Form, Service Areas, Sales Goals, Analytics,
-// Integrations, Connected Devices, Import Leads, Billing.
+// theme picker for instant visual feedback). Menu order: Profile, Appearance,
+// Smart Lead Form, Sales Goals, Analytics, Integrations, Import Leads, Billing,
+// Sign Out. Service Areas lives inside the Profile page and Connected Devices
+// inside the Integrations page — they are not top-level menu items.
 // Analytics is an account-level page (same /admin/performance the top-nav
 // Analytics button opens) — this is an additional shortcut, not a replacement.
 const LINKS_AFTER_APPEARANCE: { label: string; href: string }[] = [
   { label: "Smart Lead Form", href: "/smart-lead-form" },
-  { label: "Service Areas", href: "/admin/service-areas" },
   { label: "Sales Goals", href: "/admin/settings" },
   { label: "Analytics", href: "/admin/performance" },
   { label: "Integrations", href: "/admin/integrations" },
-  { label: "Connected Devices", href: "/admin/devices" },
   { label: "Import Leads", href: "/admin/import" },
   { label: "Billing", href: "/admin/billing" },
 ]

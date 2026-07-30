@@ -1,6 +1,7 @@
 "use client"
 
 import SettingsShell, { SettingsCard } from "@/components/crm/settings/SettingsShell"
+import ConnectedDevicesSection from "@/components/crm/devices/ConnectedDevicesSection"
 
 const INTEGRATIONS: { name: string; description: string }[] = [
   { name: "Google Calendar", description: "Automatically create tours and reminders on your calendar." },
@@ -31,6 +32,9 @@ export default function IntegrationsClient() {
           ))}
         </div>
       </SettingsCard>
+
+      {/* Connected Devices — part of the Beast Companion integration. */}
+      <ConnectedDevicesSection />
     </SettingsShell>
   )
 }

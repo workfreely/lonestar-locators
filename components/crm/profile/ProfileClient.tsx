@@ -8,6 +8,7 @@ import SettingsShell, {
   SettingsField,
   settingsInputCls,
 } from "@/components/crm/settings/SettingsShell"
+import ServiceAreasSection from "@/components/crm/service-areas/ServiceAreasSection"
 
 type ProfileInitial = {
   firstName: string
@@ -238,6 +239,10 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
         </button>
         {saved && <span className="text-[12.5px] font-semibold text-emerald-600">✓ Saved</span>}
       </div>
+
+      {/* Service Areas — part of the user's business profile; the markets that
+          drive the Smart Lead Form. Self-contained (its own save). */}
+      <ServiceAreasSection />
     </SettingsShell>
   )
 }

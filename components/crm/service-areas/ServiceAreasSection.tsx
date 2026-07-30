@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase/client"
 import { MARKET_OPTIONS } from "@/lib/markets/catalog"
-import SettingsShell, { SettingsCard } from "@/components/crm/settings/SettingsShell"
+import { SettingsCard } from "@/components/crm/settings/SettingsShell"
 
-// Service Areas management. Reads/writes only the workspace's selected market
-// slugs (workspaces.service_areas) — the markets/neighborhoods catalog lives in
-// code. Changes take effect on the Smart Lead Form immediately (it reads the
-// selection live), so removing a market here removes that city from the form.
-export default function ServiceAreasClient() {
+// Service Areas — the workspace's selected market slugs (workspaces.service_areas).
+// The markets/neighborhoods catalog lives in code; changes apply to the Smart
+// Lead Form immediately (it reads the selection live). Rendered as embeddable
+// SettingsCards (no shell) so it lives inside the Profile page as part of the
+// user's business profile.
+export default function ServiceAreasSection() {
   const [selected, setSelected] = useState<string[]>([])
   const [slug, setSlug] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -47,11 +48,11 @@ export default function ServiceAreasClient() {
   }
 
   return (
-    <SettingsShell
-      title="Service Areas"
-      description="Choose the markets you serve. Your Smart Lead Form shows only these cities and their neighborhoods — changes apply instantly."
-    >
-      <SettingsCard title="Markets" description="Selected markets appear on your public Smart Lead Form.">
+    <>
+      <SettingsCard
+        title="Service Areas"
+        description="Choose the markets you serve. Your Smart Lead Form shows only these cities and their neighborhoods — changes apply instantly."
+      >
         {loading ? (
           <p className="text-[13px] text-[#6b7280]">Loading…</p>
         ) : (
@@ -110,6 +111,6 @@ export default function ServiceAreasClient() {
           </p>
         </SettingsCard>
       )}
-    </SettingsShell>
+    </>
   )
 }

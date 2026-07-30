@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react"
 import { supabase } from "@/lib/supabase/client"
 import type { AiClientBrief } from "@/lib/types/aiClientBrief"
 import { getDemoBrief, isDemoLeadId } from "@/lib/demo/demoWorkspace"
+import { SectionCard } from "@/components/crm/LeadPanelSections"
+import { getLeadResponsiveness, computeCloseRatioPercent } from "@/lib/ai/leadResponsiveness"
 
 // V1 launch flag — Property Matches / AI property suggestions are hidden from
 // the Lead Panel UI while the matching engine stays FULLY intact behind the
@@ -290,23 +292,18 @@ function getApprovalProbability(lead: any) {
 }
 
 // =====================================================
-// 🔥 CLOSE PROBABILITY (STAGE BASED)
+// 🔥 CLOSE RATIO — overall likelihood they'll successfully lease.
+// Combines Approval Probability (can they qualify?), Lead Responsiveness (how
+// engaged?), and pipeline progress (how far along?). No longer credit-only.
+// The UI is unchanged — still a single percentage. See lib/ai/leadResponsiveness.
 // =====================================================
-function getCloseProbability(lead: any) {
-  const stage = lead.crm_status
-
-  const map: Record<string, { label: string; color: string }> = {
-    new: { label: "10%", color: "text-gray-500" },
-    contacted: { label: "20%", color: "text-blue-500" },
-    searching: { label: "35%", color: "text-purple-500" },
-    list_sent: { label: "50%", color: "text-green-500" },
-    ready_to_tour: { label: "65%", color: "text-orange-500" },
-    done_touring: { label: "80%", color: "text-yellow-600" },
-    applied: { label: "95%", color: "text-emerald-600" },
-    closed: { label: "100%", color: "text-green-700" },
-  }
-
-  return map[stage] || { label: "0%", color: "text-gray-400" }
+function getCloseRatio(
+  lead: any,
+  approvalLabel: string,
+  responsiveness: "Low" | "Moderate" | "High"
+) {
+  const pct = computeCloseRatioPercent(lead.crm_status, approvalLabel, responsiveness)
+  return { label: `${pct}%` }
 }
 
 // ─── AI Insights Card ─────────────────────────────────────────────────────────
@@ -481,7 +478,8 @@ export default function LeadInsights({
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set())
 
   const approval = getApprovalProbability(lead)
-  const close = getCloseProbability(lead)
+  const responsiveness = getLeadResponsiveness(lead)
+  const close = getCloseRatio(lead, approval.label, responsiveness)
 
   // ── Load existing favorites for this lead from Supabase ──────────────────
   useEffect(() => {
@@ -853,12 +851,10 @@ if (Number(lead.credit_score) <= 580) {
       </div>
       )}
 
-      {/* INSIGHTS */}
-      <div className="bg-[var(--crm-panel)] border border-[var(--crm-border-soft)] rounded-2xl p-4 shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.04),0_4px_10px_rgba(var(--crm-shadow-color),0.06)]">
-        <h3 className="text-xs font-semibold text-[var(--crm-text-secondary)] mb-2">
-          INSIGHTS
-        </h3>
-
+      {/* AI INSIGHTS — collapsible like the other Lead Panel sections. Pill /
+          badge styling, colors, and spacing are unchanged; only the section
+          chrome (collapsible header) and one new insight were added. */}
+      <SectionCard title="AI Insights" collapsible defaultOpen storageKey="lead-ai-insights">
         <div className="text-xs text-[var(--crm-text-secondary)] space-y-2">
 
           <div className="flex items-center justify-between">
@@ -876,6 +872,20 @@ if (Number(lead.credit_score) <= 580) {
 
 <div className="flex items-center justify-between">
 
+  {/* RESPONSIVENESS LABEL — standard blue on the same 100/700 scale as the
+      green (Approval) and purple (Close) pills; identical size/padding/type. */}
+  <span className="bg-blue-100 text-blue-700 px-2 py-[2px] rounded text-[10px] font-medium">
+    Lead Responsiveness
+  </span>
+
+  {/* RESPONSIVENESS VALUE */}
+  <span className="font-semibold text-[var(--crm-text-primary)]">
+    {responsiveness}
+  </span>
+</div>
+
+<div className="flex items-center justify-between">
+
   {/* CLOSE LABEL */}
   <span className="bg-purple-100 text-purple-700 px-2 py-[2px] rounded text-[10px] font-medium">
     Close Ratio
@@ -887,7 +897,7 @@ if (Number(lead.credit_score) <= 580) {
   </span>
 </div>
         </div>
-      </div>
+      </SectionCard>
     </div>
   )
 }
