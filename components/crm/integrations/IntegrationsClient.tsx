@@ -1,12 +1,14 @@
 "use client"
 
 import SettingsShell, { SettingsCard } from "@/components/crm/settings/SettingsShell"
+import BeastCompanionSection from "@/components/crm/integrations/BeastCompanionSection"
 import ConnectedDevicesSection from "@/components/crm/devices/ConnectedDevicesSection"
 
+// Phone Sync lives in its own Beast Companion section below (it's the desktop
+// Companion), so it's no longer a generic "Soon" row here.
 const INTEGRATIONS: { name: string; description: string }[] = [
   { name: "Google Calendar", description: "Automatically create tours and reminders on your calendar." },
   { name: "Google Contacts", description: "Keep your client contact information in sync." },
-  { name: "Phone Sync", description: "See client calls and texts in one place." },
   { name: "Meta Ads", description: "Bring in leads from your Facebook and Instagram ad campaigns." },
 ]
 
@@ -33,7 +35,10 @@ export default function IntegrationsClient() {
         </div>
       </SettingsCard>
 
-      {/* Connected Devices — part of the Beast Companion integration. */}
+      {/* Beast Companion — the product; macOS + Windows are supported platforms. */}
+      <BeastCompanionSection />
+
+      {/* Connected Devices — the paired Companions (any platform) + controls. */}
       <ConnectedDevicesSection />
     </SettingsShell>
   )

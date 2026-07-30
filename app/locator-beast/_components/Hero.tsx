@@ -1,12 +1,12 @@
 import Link from "next/link";
 import DemoVideo from "./DemoVideo";
+import { AppleIcon, WindowsIcon } from "@/components/icons/PlatformIcons";
 import { DEMO_URL, SITE_TAGLINE, TRIAL_URL } from "../_lib/site";
 
 const TRUST_ITEMS = [
   "30-Day Free Trial",
   "No credit card required",
   "Setup in under 30 minutes",
-  "Windows & Mac",
 ];
 
 export default function Hero() {
@@ -66,6 +66,19 @@ export default function Hero() {
               {item}
             </li>
           ))}
+          {/* Supported desktop platforms — official monochrome glyphs that
+              inherit the muted bullet text color (macOS listed first). */}
+          <li className="flex items-center gap-2">
+            <span className="h-1 w-1 rounded-full bg-[var(--beast-blue-bright)]" />
+            <span className="inline-flex items-center gap-1.5">
+              <AppleIcon className="h-3.5 w-auto" />
+              macOS
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <WindowsIcon className="h-3 w-auto" />
+              Windows
+            </span>
+          </li>
         </ul>
       </div>
     </section>
