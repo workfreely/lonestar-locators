@@ -7,6 +7,7 @@ const NAV_ITEMS: FooterLinkItem[] = [
   { label: "Features", href: NAV_LINKS[0].href },
   { label: "Pricing", href: NAV_LINKS[1].href },
   { label: "FAQ", href: FAQ_URL },
+  { label: "Support", href: "/support" },
   { label: "Contact", href: "/contact" },
   { label: "Privacy Policy", href: "/locator-beast/privacy" },
   { label: "Terms of Service", href: "/locator-beast/terms" },
