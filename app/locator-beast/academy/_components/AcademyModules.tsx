@@ -32,8 +32,12 @@ export default function AcademyModules() {
 
   return (
     <>
-      <div className="bg-[var(--beast-bg-dark)]">
-        <div className="beast-container space-y-14 py-16 md:space-y-20 md:py-24">
+      {/* Pull the modules up into the hero's bottom padding (negative margin)
+          and cut the section's own top padding, so Module 01 sits much closer
+          to the hero — the first row of cards is visible on a 1440px desktop
+          without scrolling — while the hero text and bottom rhythm stay generous. */}
+      <div className="-mt-10 bg-[var(--beast-bg-dark)] md:-mt-14">
+        <div className="beast-container space-y-14 pb-16 pt-8 md:space-y-20 md:pb-24 md:pt-10">
           {ACADEMY_MODULES.map((module, mi) => (
             <Reveal key={module.slug}>
               <section>
