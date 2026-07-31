@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { HiOutlineArrowUpTray } from "react-icons/hi2";
 import { supabase } from "@/lib/supabase/client";
@@ -37,11 +37,26 @@ export default function StepBusinessProfile({
   const [phoneNumber, setPhoneNumber] = useState(data.phone_number);
   const [businessName, setBusinessName] = useState(data.business_name);
   const [brokerage, setBrokerage] = useState(data.brokerage);
-  // Service areas are now the workspace's selected markets (slugs from the
-  // catalog), not free text — they drive which cities the Smart Lead Form shows.
+  // Service areas are the workspace's selected markets (slugs from the catalog),
+  // not free text — they drive which cities the Smart Lead Form shows. The
+  // canonical store is workspaces.service_areas (read/written via the RPCs), so
+  // seed from there rather than keeping a second copy on the profile.
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>(data.service_areas ?? []);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const { data: ws } = await supabase.rpc("get_current_workspace");
+      if (!active) return;
+      const row = Array.isArray(ws) ? ws[0] : ws;
+      if (row?.service_areas?.length) setSelectedMarkets(row.service_areas);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const canContinue = firstName.trim().length > 0 && lastName.trim().length > 0;
 
@@ -79,6 +94,10 @@ export default function StepBusinessProfile({
       console.error("Workspace service-area / slug setup failed:", err);
     }
 
+    // Note: service_areas is intentionally NOT written to the profile here — the
+    // single source of truth is workspaces.service_areas (set via the RPC
+    // above). Keeping a second copy on the profile is what let Profile and the
+    // Smart Lead Form drift out of sync.
     onNext({
       first_name: first,
       last_name: last,
@@ -87,7 +106,6 @@ export default function StepBusinessProfile({
       email: email.trim(),
       phone_number: phoneNumber.trim(),
       brokerage: brokerage.trim(),
-      service_areas: selectedMarkets,
     });
   }
 

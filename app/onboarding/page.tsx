@@ -31,7 +31,9 @@ export default async function OnboardingPage() {
     email: profile?.email ?? user.email ?? "",
     brokerage: profile?.brokerage ?? "",
     phone_number: profile?.phone_number ?? "",
-    service_areas: profile?.service_areas ?? [],
+    // Canonical service areas live in workspaces.service_areas (not the
+    // profile); StepBusinessProfile loads them from the workspace RPC.
+    service_areas: [],
     profile_photo_url: profile?.profile_photo_url ?? null,
     business_logo_url: profile?.business_logo_url ?? null,
     brand_color: profile?.brand_color ?? null,
