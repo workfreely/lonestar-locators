@@ -1,16 +1,15 @@
 // Beast Academy — single source of truth for modules + lessons.
 //
-// Pure, serializable data (strings/numbers/booleans only — no React, no icons)
-// so it can be swapped for a database later without touching the UI: replace
-// the ACADEMY_MODULES constant + the helpers below with DB-backed equivalents
-// that return the same shapes.
+// Academy is positioned as premium, members-only content included with a
+// Locator Beast membership. Every lesson is locked; clicking one opens a
+// "start your free trial" modal (see _components/AcademyModules.tsx) rather than
+// navigating anywhere. Pure serializable data so it can move to a database
+// later without UI changes.
 
 export type Lesson = {
   slug: string;
   title: string;
-  description: string;
-  durationMin: number; // placeholder estimate (3–5)
-  comingSoon: boolean;
+  durationMin: number; // placeholder estimate shown on the locked card
 };
 
 export type Module = {
@@ -24,178 +23,51 @@ export const ACADEMY_MODULES: Module[] = [
   {
     slug: "getting-started",
     title: "Getting Started",
-    description: "Set up your account and be ready to receive your first lead.",
+    description: "For new locators and first-time setup.",
     lessons: [
-      {
-        slug: "welcome-to-locator-beast",
-        title: "Welcome to Locator Beast",
-        description: "A quick tour of what Locator Beast does and how it fits into your locating business.",
-        durationMin: 3,
-        comingSoon: true,
-      },
-      {
-        slug: "setting-up-your-profile",
-        title: "Setting Up Your Profile",
-        description: "Add your name, brokerage, and details so your guest cards and messages look professional.",
-        durationMin: 4,
-        comingSoon: true,
-      },
-      {
-        slug: "connecting-your-business",
-        title: "Connecting Your Business",
-        description: "Connect the tools and accounts Locator Beast uses to run your workflow.",
-        durationMin: 5,
-        comingSoon: true,
-      },
-      {
-        slug: "your-first-lead",
-        title: "Your First Lead",
-        description: "What happens when a lead comes in — and how to work it from the very first message.",
-        durationMin: 4,
-        comingSoon: true,
-      },
+      { slug: "welcome-to-beast-academy", title: "Welcome to Beast Academy", durationMin: 3 },
+      { slug: "setting-up-your-profile", title: "Setting Up Your Profile", durationMin: 4 },
+      { slug: "connecting-your-business", title: "Connecting Your Business", durationMin: 5 },
+      { slug: "your-first-lead", title: "Your First Lead", durationMin: 4 },
     ],
   },
   {
     slug: "using-locator-beast",
     title: "Using Locator Beast",
-    description: "Learn every core feature of the platform.",
+    description: "Teach users how to use the platform effectively.",
     lessons: [
-      {
-        slug: "the-lead-board",
-        title: "The Lead Board",
-        description: "Move leads through your pipeline with a fast, visual board.",
-        durationMin: 5,
-        comingSoon: true,
-      },
-      {
-        slug: "next-actions",
-        title: "Next Actions",
-        description: "Never lose a lead — let Locator Beast tell you exactly what to do next.",
-        durationMin: 4,
-        comingSoon: true,
-      },
-      {
-        slug: "ai-client-insights",
-        title: "AI Client Insights",
-        description: "Understand each client's responsiveness and likelihood to close.",
-        durationMin: 4,
-        comingSoon: true,
-      },
-      {
-        slug: "property-matching",
-        title: "Property Matching",
-        description: "Find and save the right communities for each client.",
-        durationMin: 5,
-        comingSoon: true,
-      },
-      {
-        slug: "dashboard-and-reports",
-        title: "Dashboard & Reports",
-        description: "Track your pipeline, commissions, and goals at a glance.",
-        durationMin: 3,
-        comingSoon: true,
-      },
+      { slug: "lead-board", title: "Lead Board", durationMin: 5 },
+      { slug: "next-actions", title: "Next Actions", durationMin: 4 },
+      { slug: "ai-client-insights", title: "AI Client Insights", durationMin: 4 },
+      { slug: "ai-property-matching", title: "AI Property Matching", durationMin: 5 },
+      { slug: "approval-intelligence", title: "Approval Intelligence", durationMin: 4 },
+      { slug: "smart-forms", title: "Smart Forms", durationMin: 4 },
+      { slug: "templates-and-automations", title: "Templates & Automations", durationMin: 5 },
     ],
   },
   {
-    slug: "getting-leads",
-    title: "Getting Leads",
-    description: "Learn how to consistently generate apartment locating leads.",
+    slug: "growing-your-business",
+    title: "Growing Your Business",
+    description: "Focus on becoming a better apartment locator.",
     lessons: [
-      {
-        slug: "facebook-ads",
-        title: "Facebook Ads",
-        description: "Run ads that consistently bring in renters looking for an apartment.",
-        durationMin: 5,
-        comingSoon: true,
-      },
-      {
-        slug: "instagram-and-tiktok",
-        title: "Instagram & TikTok",
-        description: "Turn short-form content into a steady stream of locating leads.",
-        durationMin: 5,
-        comingSoon: true,
-      },
-      {
-        slug: "referral-partners",
-        title: "Referral Partners",
-        description: "Build partnerships that send you qualified clients on repeat.",
-        durationMin: 4,
-        comingSoon: true,
-      },
-      {
-        slug: "building-your-brand",
-        title: "Building Your Brand",
-        description: "Become the locator renters know, trust, and refer.",
-        durationMin: 4,
-        comingSoon: true,
-      },
+      { slug: "managing-more-clients", title: "Managing More Clients", durationMin: 4 },
+      { slug: "following-up-consistently", title: "Following Up Consistently", durationMin: 4 },
+      { slug: "tour-best-practices", title: "Tour Best Practices", durationMin: 5 },
+      { slug: "closing-more-leases", title: "Closing More Leases", durationMin: 5 },
+      { slug: "building-client-referrals", title: "Building Client Referrals", durationMin: 4 },
     ],
   },
   {
-    slug: "closing-more-leases",
-    title: "Closing More Leases",
-    description: "Improve your closing rate and earn more commissions.",
+    slug: "marketing",
+    title: "Marketing",
+    description: "Teach locators how to generate business.",
     lessons: [
-      {
-        slug: "qualifying-clients",
-        title: "Qualifying Clients",
-        description: "Spend your time on the clients most likely to lease.",
-        durationMin: 3,
-        comingSoon: true,
-      },
-      {
-        slug: "building-the-perfect-list",
-        title: "Building the Perfect List",
-        description: "Assemble a tour list that gets clients excited to move.",
-        durationMin: 5,
-        comingSoon: true,
-      },
-      {
-        slug: "setting-up-tours",
-        title: "Setting Up Tours",
-        description: "Book tours that convert interest into signed leases.",
-        durationMin: 4,
-        comingSoon: true,
-      },
-      {
-        slug: "following-up",
-        title: "Following Up",
-        description: "Stay top-of-mind with follow-ups that feel helpful, not pushy.",
-        durationMin: 4,
-        comingSoon: true,
-      },
-      {
-        slug: "closing-the-lease",
-        title: "Closing the Lease",
-        description: "Guide clients across the finish line and earn your commission.",
-        durationMin: 5,
-        comingSoon: true,
-      },
+      { slug: "instagram", title: "Instagram", durationMin: 4 },
+      { slug: "facebook-ads", title: "Facebook Ads", durationMin: 5 },
+      { slug: "tiktok", title: "TikTok", durationMin: 4 },
+      { slug: "google-business-profile", title: "Google Business Profile", durationMin: 4 },
+      { slug: "building-your-personal-brand", title: "Building Your Personal Brand", durationMin: 5 },
+      { slug: "converting-leads", title: "Converting Leads", durationMin: 4 },
     ],
   },
 ];
-
-// ── Access helpers (swap these for DB queries later; keep the return shapes) ──
-
-export function getModule(moduleSlug: string): Module | undefined {
-  return ACADEMY_MODULES.find((m) => m.slug === moduleSlug);
-}
-
-export function getLesson(
-  moduleSlug: string,
-  lessonSlug: string
-): { module: Module; lesson: Lesson } | undefined {
-  const module = getModule(moduleSlug);
-  const lesson = module?.lessons.find((l) => l.slug === lessonSlug);
-  if (!module || !lesson) return undefined;
-  return { module, lesson };
-}
-
-// Every (module, lesson) pair — used by generateStaticParams for the lesson route.
-export function allLessonParams(): { module: string; lesson: string }[] {
-  return ACADEMY_MODULES.flatMap((m) =>
-    m.lessons.map((l) => ({ module: m.slug, lesson: l.slug }))
-  );
-}
