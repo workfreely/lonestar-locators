@@ -1,8 +1,14 @@
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
+import { logActiveSupabaseProject } from "./projects"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
+// Dev-only: log the active Supabase project (and warn on the frozen legacy DB)
+// once at server-client module load, so the dev-server terminal shows which
+// database you're connected to. No-op in production.
+logActiveSupabaseProject(supabaseUrl)
 
 // Cookie-based Supabase client for Server Components and Route Handlers —
 // used only by /onboarding and /auth/callback. The existing browser client

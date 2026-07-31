@@ -2,7 +2,21 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, run the development server:
+First, set up your environment:
+
+```bash
+cp .env.example .env.local
+```
+
+> **⚠️ Pick the right Supabase project.** This repo can talk to two separate
+> Supabase projects: **Locator Beast** (`onwrrajmklxtnabekzcy`, the SaaS — the
+> default) and **Lone Star Locators** (`ukkxisleiprdpptaaxcs`, a *frozen* legacy
+> DB for the marketing routes only). Pointing local dev at the wrong one makes
+> features look broken. `.env.example` defaults to Locator Beast, and the dev
+> server prints which database you're connected to. See
+> [docs/environments.md](docs/environments.md).
+
+Then run the development server:
 
 ```bash
 pnpm dev
