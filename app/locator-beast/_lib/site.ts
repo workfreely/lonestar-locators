@@ -7,6 +7,8 @@ export const SITE_DESCRIPTION =
 export const NAV_LINKS = [
   { label: "Features", href: "/features" },
   { label: "Pricing", href: "/pricing" },
+  { label: "Beast Academy", href: "/academy" },
+  { label: "Support", href: "/support" },
 ] as const;
 
 export const TRIAL_URL = "/signup";

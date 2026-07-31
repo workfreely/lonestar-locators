@@ -45,13 +45,12 @@ export default function LoginPage() {
 
   return (
     <AuthCard
-      title="Welcome back"
-      subtitle="Log in to your Locator Beast workspace."
+      title="Log in to your workspace"
       footer={
         <>
           Don&apos;t have an account?{" "}
           <Link href="/signup" className="font-semibold text-[var(--beast-blue)] hover:text-[var(--beast-blue-bright)]">
-            Sign up
+            Start your free trial
           </Link>
         </>
       }

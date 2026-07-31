@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Image from "next/image";
+import Link from "next/link";
 import "../locator-beast/beast.css";
 import { LOGO_FOR_LIGHT_BG } from "../locator-beast/_lib/site";
 
@@ -31,6 +32,21 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           className="mb-10"
         />
         {children}
+
+        {/* Lightweight auth footer — legal + support only. No marketing nav. */}
+        <nav className="mt-8 flex items-center gap-2.5 text-[13px] text-[var(--beast-ink-soft)]">
+          <Link href="/privacy" className="transition-colors hover:text-[var(--beast-ink)]">
+            Privacy
+          </Link>
+          <span aria-hidden="true">•</span>
+          <Link href="/terms" className="transition-colors hover:text-[var(--beast-ink)]">
+            Terms
+          </Link>
+          <span aria-hidden="true">•</span>
+          <Link href="/support" className="transition-colors hover:text-[var(--beast-ink)]">
+            Support
+          </Link>
+        </nav>
       </div>
     </div>
   );
