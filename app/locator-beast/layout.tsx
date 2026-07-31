@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./beast.css";
 import Nav from "./_components/Nav";
 import Footer from "./_components/Footer";
+import AskBeastAI from "@/components/beast-ai/AskBeastAI";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "./_lib/site";
 
 const inter = Inter({
@@ -76,6 +77,7 @@ export default function LocatorBeastLayout({
       <Nav />
       <main style={{ flex: 1 }}>{children}</main>
       <Footer />
+      <AskBeastAI />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { Inter } from "next/font/google";
 import "../locator-beast/beast.css";
+import AskBeastAI from "@/components/beast-ai/AskBeastAI";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -13,5 +14,10 @@ export const metadata = {
 };
 
 export default function SmartLeadFormLayout({ children }: { children: React.ReactNode }) {
-  return <div className={`beast-root ${inter.variable}`}>{children}</div>;
+  return (
+    <div className={`beast-root ${inter.variable}`}>
+      {children}
+      <AskBeastAI />
+    </div>
+  );
 }

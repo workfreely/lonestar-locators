@@ -6,6 +6,7 @@ import { Inter } from "next/font/google"
 import LandingWrapper from "@/app/components/LandingWrapper"
 import { supabase } from "@/lib/supabase/client"
 import { ThemeProvider } from "@/components/theme/ThemeProvider"
+import AskBeastAI from "@/components/beast-ai/AskBeastAI"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -81,6 +82,7 @@ export default function AdminLayout({
 
         </div>
       </div>
+      <AskBeastAI />
     </ThemeProvider>
   )
 }
