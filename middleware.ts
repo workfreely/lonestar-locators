@@ -12,12 +12,14 @@ import { NextRequest, NextResponse } from "next/server";
 const LOCATOR_BEAST_HOST_PATTERN = /(^|\.)locatorbeast\.(com|app)$/i;
 const LOCATOR_BEAST_PREFIX = "/locator-beast";
 
-// Top-level app routes (auth/onboarding/etc.) are NOT part of the marketing
-// rewrite, so on the locatorbeast.com host they must stay at their real path
-// rather than being rewritten under /locator-beast. This pattern is used ONLY
-// to exclude them from the rewrite — never for layout selection.
-const BARE_SHELL_PATH_PATTERN =
-  /^\/(login|signup|forgot-password|reset-password|onboarding|billing|smart-lead-form)(\/|$)/;
+// Top-level app / infrastructure routes live at the ROOT, not under the
+// /locator-beast marketing tree — so on the locatorbeast.com host they must
+// stay at their real path and NOT be rewritten under /locator-beast (otherwise
+// the CRM, OAuth callback, and API routes 404 on the live domain). Everything
+// else on that host is a marketing page served from app/locator-beast/*.
+// Used ONLY to exclude these from the rewrite — never for layout selection.
+const APP_PATH_PATTERN =
+  /^\/(login|signup|forgot-password|reset-password|onboarding|billing|smart-lead-form|admin|api|auth|companion|ai)(\/|$)/;
 
 export function middleware(request: NextRequest) {
   const hostname = (request.headers.get("host") || "").split(":")[0];
@@ -26,9 +28,9 @@ export function middleware(request: NextRequest) {
   const isLocatorBeastHost = LOCATOR_BEAST_HOST_PATTERN.test(hostname);
   const isLocatorBeastPath =
     pathname === LOCATOR_BEAST_PREFIX || pathname.startsWith(`${LOCATOR_BEAST_PREFIX}/`);
-  const isBareShellPath = isLocatorBeastPath || BARE_SHELL_PATH_PATTERN.test(pathname);
+  const isAppPath = isLocatorBeastPath || APP_PATH_PATTERN.test(pathname);
 
-  if (isLocatorBeastHost && !isBareShellPath) {
+  if (isLocatorBeastHost && !isAppPath) {
     const url = request.nextUrl.clone();
     url.pathname = `${LOCATOR_BEAST_PREFIX}${pathname === "/" ? "" : pathname}`;
     return NextResponse.rewrite(url);
