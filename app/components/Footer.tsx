@@ -2,21 +2,12 @@
 
 import React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { FaYoutube, FaCookieBite } from "react-icons/fa";
 
+// Rendered ONLY inside app/(lonestar)/layout.tsx, so it appears exclusively on
+// Lone Star marketing pages. No pathname suppression is needed — isolation is
+// structural.
 const Footer = () => {
-    const pathname = usePathname();
-
-  // Hide footer on landing + admin pages
-  if (
-    pathname === "/get-my-list" ||
-    pathname === "/second-chance-apartments" ||
-    pathname.startsWith("/admin") ||
-    pathname.startsWith("/smart-lead-form")
-  ) {
-    return null;
-  }
   const linkStyle: React.CSSProperties = {
     color: "white",
     textDecoration: "none",

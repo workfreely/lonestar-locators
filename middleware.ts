@@ -3,15 +3,19 @@ import { NextRequest, NextResponse } from "next/server";
 // Locator Beast (B2B SaaS marketing site) is served from its own domain but
 // lives inside this repo as app/locator-beast/*. Requests to that host are
 // rewritten to the /locator-beast prefix internally; the URL bar still shows
-// locatorbeast.com/, /features, /pricing, etc. All other hosts (including
-// lonestarlocators.app and /admin) fall through unchanged.
+// locatorbeast.com/, /features, /pricing, etc.
+//
+// This middleware controls ROUTE MAPPING ONLY (which files serve a URL on the
+// locatorbeast.com host). It does NOT control which visual layout renders —
+// that is now purely structural (route groups + per-segment layouts). There is
+// no x-site header and no layout branching anywhere.
 const LOCATOR_BEAST_HOST_PATTERN = /(^|\.)locatorbeast\.(com|app)$/i;
 const LOCATOR_BEAST_PREFIX = "/locator-beast";
 
-// Auth + onboarding pages reuse the Locator Beast design system (beast.css,
-// Inter, no marketing nav/footer) but are top-level routes, not rewritten
-// paths — so they get the same bare-shell treatment as locator-beast paths
-// without being part of the marketing site rewrite.
+// Top-level app routes (auth/onboarding/etc.) are NOT part of the marketing
+// rewrite, so on the locatorbeast.com host they must stay at their real path
+// rather than being rewritten under /locator-beast. This pattern is used ONLY
+// to exclude them from the rewrite — never for layout selection.
 const BARE_SHELL_PATH_PATTERN =
   /^\/(login|signup|forgot-password|reset-password|onboarding|billing|smart-lead-form)(\/|$)/;
 
@@ -24,16 +28,13 @@ export function middleware(request: NextRequest) {
     pathname === LOCATOR_BEAST_PREFIX || pathname.startsWith(`${LOCATOR_BEAST_PREFIX}/`);
   const isBareShellPath = isLocatorBeastPath || BARE_SHELL_PATH_PATTERN.test(pathname);
 
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-site", isLocatorBeastHost || isBareShellPath ? "locator-beast" : "lonestar");
-
   if (isLocatorBeastHost && !isBareShellPath) {
     const url = request.nextUrl.clone();
     url.pathname = `${LOCATOR_BEAST_PREFIX}${pathname === "/" ? "" : pathname}`;
-    return NextResponse.rewrite(url, { request: { headers: requestHeaders } });
+    return NextResponse.rewrite(url);
   }
 
-  return NextResponse.next({ request: { headers: requestHeaders } });
+  return NextResponse.next();
 }
 
 export const config = {

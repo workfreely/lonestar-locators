@@ -1,7 +1,7 @@
 // app/(site)/[city]/apartments/[slug]/page.tsx
 
 
-import ListingLayout from "../../../../components/ListingLayout";
+import ListingLayout from "@/app/components/ListingLayout";
 import { createClient } from "@supabase/supabase-js";
 
 

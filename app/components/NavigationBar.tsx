@@ -2,21 +2,11 @@
 
 import React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 
+// Rendered ONLY inside app/(lonestar)/layout.tsx, so it appears exclusively on
+// Lone Star marketing pages. No pathname suppression is needed — isolation is
+// structural.
 const NavigationBar = () => {
-  const pathname = usePathname();
-
-  // Hide navbar on landing pages
-  if (
-  pathname === "/get-my-list" ||
-  pathname === "/second-chance-apartments" ||
-  pathname.startsWith("/admin") ||
-  pathname.startsWith("/smart-lead-form")
-) {
-  return null;
-}
-
   return (
     <nav
       aria-label="Main Navigation"
