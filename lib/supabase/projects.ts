@@ -74,19 +74,12 @@ export function logActiveSupabaseProject(url: string | undefined | null): void {
   if (process.env.NODE_ENV === "production") return
 
   const project = resolveSupabaseProject(url)
-  if (!project) {
-    console.warn("[supabase] NEXT_PUBLIC_SUPABASE_URL is missing or malformed — cannot identify the project.")
-    return
-  }
+  const value = project
+    ? `${project.name} (${project.ref})`
+    : "(unknown — NEXT_PUBLIC_SUPABASE_URL missing or malformed)"
 
-  if (project.frozen) {
-    console.warn(
-      `\n⚠️  [supabase] Connected to ${project.name} (${project.ref}) — this is the FROZEN legacy DB.\n` +
-        `    Locator Beast SaaS features (CRM, service areas, companion, onboarding) will look BROKEN here\n` +
-        `    because their tables/RPCs don't exist on this project. Point NEXT_PUBLIC_SUPABASE_URL at the\n` +
-        `    Locator Beast project (onwrrajmklxtnabekzcy) for LB dev. See docs/environments.md.\n`
-    )
-  } else {
-    console.info(`[supabase] Connected to ${project.name} (${project.ref}).`)
-  }
+  // One clean line at startup so we always know which database we're on before
+  // debugging. Uses console.info — NOT console.error — so it never triggers the
+  // Next.js dev error overlay.
+  console.info(`Connected Supabase Project:\n${value}`)
 }

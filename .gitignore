@@ -45,3 +45,7 @@ pnpm-debug.log*
 *.swo
 
 .vercel
+
+# Local Supabase env backups (may contain secrets) — never commit
+.env.local.*
+.env.*.bak

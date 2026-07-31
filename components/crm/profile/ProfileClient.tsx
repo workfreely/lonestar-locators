@@ -167,12 +167,17 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
       if (profileError || areasError) {
         const failure = toRpcFailure(areasError, areasStatus, areasStatusText)
 
+        // This is an EXPECTED application failure (the RPC returned an error;
+        // it did not throw), so log with console.warn — NOT console.error — so
+        // the full diagnostics still reach the console without tripping the
+        // Next.js dev error overlay. console.error/throws are reserved for
+        // genuinely unexpected conditions (see the catch below).
         if (process.env.NODE_ENV !== "production") {
           // DEV ONLY — the complete diagnostics (never shown in the UI): full
           // RPC response, the real connected Supabase project, the workspace
           // the RPC targets, membership status, and a classified cause.
           const diag = failure ? await gatherWorkspaceDiagnostics() : null
-          console.error("[profile] Service-area save failed — developer diagnostics", {
+          console.warn("[profile] Service-area save failed — developer diagnostics", {
             rpc: "set_workspace_service_areas",
             likelyCause: failure ? likelyCause(failure) : "profiles UPDATE failed",
             rpcResponse: {
@@ -201,7 +206,8 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
         } else {
           // PRODUCTION — a concise, non-sensitive breadcrumb for support triage.
           // No project/DB/RPC names in the payload; nothing reaches the UI.
-          console.error("[profile] Service-area save failed", {
+          // console.warn (expected failure), not console.error.
+          console.warn("[profile] Service-area save failed", {
             code: failure?.code ?? null,
             status: failure?.status ?? null,
           })
