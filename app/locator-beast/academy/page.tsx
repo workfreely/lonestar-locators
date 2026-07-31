@@ -1,75 +1,77 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { HiOutlineRocketLaunch, HiOutlinePlayCircle, HiOutlineDocumentText } from "react-icons/hi2";
 import PageHero from "../_components/PageHero";
 import Reveal from "../_components/Reveal";
-import { TRIAL_URL } from "../_lib/site";
+import { ACADEMY_MODULES } from "@/app/locator-beast/academy/_data/modules";
 
 export const metadata: Metadata = {
   title: "Beast Academy",
-  description:
-    "Playbooks, guides, and video training to help apartment locators close more leases with Locator Beast.",
+  description: "Learn how to use Locator Beast and grow your apartment locating business.",
   alternates: { canonical: "https://locatorbeast.com/academy" },
 };
 
-const TRACKS = [
-  {
-    icon: HiOutlineRocketLaunch,
-    title: "Getting started",
-    body: "Set up your workspace, import leads, and send your first guest card in under an hour.",
-  },
-  {
-    icon: HiOutlinePlayCircle,
-    title: "Video walkthroughs",
-    body: "Short, focused videos on every part of the pipeline — from first contact to closed lease.",
-  },
-  {
-    icon: HiOutlineDocumentText,
-    title: "Locator playbooks",
-    body: "Proven follow-up cadences, templates, and scripts from top-producing locators.",
-  },
-];
+function PlayIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14z" />
+    </svg>
+  );
+}
 
 export default function BeastAcademyPage() {
   return (
     <>
       <PageHero
-        eyebrow="Beast Academy"
-        title={
-          <>
-            Master the craft
-            <br />
-            of locating.
-          </>
-        }
-        subtitle="Guides, playbooks, and video training to help you close more leases. Rolling out to every workspace."
-      >
-        <Link
-          href={TRIAL_URL}
-          className="inline-block rounded-full bg-[var(--beast-blue)] px-7 py-3.5 text-[15px] font-semibold text-white transition-transform duration-300 hover:scale-[1.02]"
-        >
-          Start your free trial
-        </Link>
-      </PageHero>
+        title="Beast Academy"
+        subtitle="Learn how to use Locator Beast and grow your apartment locating business."
+      />
 
-      <section className="bg-white py-20 md:py-28">
-        <div className="beast-container grid gap-6 md:grid-cols-3">
-          {TRACKS.map((t, i) => {
-            const Icon = t.icon;
-            return (
-              <Reveal key={t.title} delayMs={i * 100}>
-                <div className="flex h-full flex-col rounded-2xl border border-[var(--beast-border)] bg-white p-7">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--beast-blue)]/10">
-                    <Icon className="h-5 w-5 text-[var(--beast-blue)]" />
+      <div className="bg-[var(--beast-bg-dark)]">
+        <div className="beast-container space-y-14 py-16 md:space-y-20 md:py-24">
+          {ACADEMY_MODULES.map((module, mi) => (
+            <Reveal key={module.slug}>
+              <section>
+                {/* Module header — numbered because the modules are a sequence. */}
+                <div className="flex items-start gap-4">
+                  <span className="mt-1 text-[15px] font-bold tabular-nums text-[var(--beast-blue-bright)]">
+                    {String(mi + 1).padStart(2, "0")}
+                  </span>
+                  <div>
+                    <h2 className="text-[22px] font-semibold text-white md:text-[26px]">{module.title}</h2>
+                    <p className="mt-1.5 max-w-2xl text-[14.5px] leading-relaxed text-white/60">
+                      {module.description}
+                    </p>
                   </div>
-                  <p className="mt-5 text-[16px] font-semibold text-[var(--beast-ink)]">{t.title}</p>
-                  <p className="mt-2 text-[14px] leading-relaxed text-[var(--beast-ink-soft)]">{t.body}</p>
                 </div>
-              </Reveal>
-            );
-          })}
+
+                {/* Lesson cards */}
+                <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {module.lessons.map((lesson) => (
+                    <Link
+                      key={lesson.slug}
+                      href={`/academy/${module.slug}/${lesson.slug}`}
+                      className="group flex flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-colors hover:border-[var(--beast-blue)]/50 hover:bg-white/[0.06]"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--beast-blue)]/15 text-[var(--beast-blue-bright)]">
+                          <PlayIcon className="h-4 w-4" />
+                        </span>
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-white/50">
+                          Coming Soon
+                        </span>
+                      </div>
+                      <p className="mt-3 text-[14.5px] font-semibold text-white group-hover:text-white">
+                        {lesson.title}
+                      </p>
+                      <p className="mt-1 text-[12.5px] tabular-nums text-white/45">{lesson.durationMin} min</p>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            </Reveal>
+          ))}
         </div>
-      </section>
+      </div>
     </>
   );
 }
