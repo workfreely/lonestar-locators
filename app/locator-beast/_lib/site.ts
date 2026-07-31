@@ -27,7 +27,7 @@ export const LOGO_FOR_LIGHT_BG = "/locator-beast/locator-beast-on-light.png";
 export const MARKETS: { state: string; cities: string[] }[] = [
   {
     state: "Texas",
-    cities: ["Abilene", "Amarillo", "Austin", "Corpus Christi", "Dallas–Fort Worth", "Houston", "San Antonio"],
+    cities: ["Austin", "Corpus Christi", "Dallas–Fort Worth", "Houston", "New Braunfels", "San Antonio", "San Marcos"],
   },
   { state: "Georgia", cities: ["Atlanta", "Savannah", "Augusta"] },
   { state: "Arizona", cities: ["Phoenix", "Tucson", "Flagstaff"] },
