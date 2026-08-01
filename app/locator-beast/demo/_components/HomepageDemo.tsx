@@ -75,7 +75,7 @@ const FORM_CONFIG: SmartLeadFormConfig = {
     agentName: "Sarah Mitchell",
     agentTitle: "Austin Apartment Locator",
     brokerageName: "Mitchell Residential Group",
-    highlights: ["100% Free", "Cash Rebate", "Same-Day Tours"],
+    highlights: ["100% Free", "Cash Rebate", "Free Movers"],
     buttonText: "Submit Lead",
   },
 };
@@ -160,7 +160,7 @@ export default function HomepageDemo() {
       {
         id: 99001,
         lead_id: HERO_ID,
-        title: "Send List",
+        title: "Build List",
         due_at: stamp,
         priority: "high",
         notes: "3–4 modern communities in Downtown + SoCo under $1,700.",
@@ -273,7 +273,7 @@ export default function HomepageDemo() {
               >
                 <StepHead n={s.n} active={isActive} done={isDone} title={s.title} sub={s.sub} />
 
-                <PreviewFrame natW={s.natW} frameH={s.frameH} active={isActive} hoverGlow={s.key === "form"}>
+                <PreviewFrame natW={s.natW} frameH={s.frameH} active={isActive} hoverGlow={s.key === "form" || s.key === "panel"}>
                   {s.key === "form" && <FormPreview onSubmit={startDemo} />}
                   {s.key === "board" && (
                     <BoardPreview
@@ -300,7 +300,7 @@ export default function HomepageDemo() {
                           if (/Call Client|Text Client/.test(t)) {
                             e.preventDefault();
                             e.stopPropagation();
-                          } else if (/^Send List/.test(t.trim())) {
+                          } else if (/^Build List/.test(t.trim())) {
                             // Don't open Messages — mark the task completed in place,
                             // exactly like a finished workflow action.
                             e.preventDefault();
