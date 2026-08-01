@@ -118,6 +118,17 @@ export default function HomepageDemo() {
     setProcRunning(true);
   }
 
+  // Manual replay only — the demo never auto-loops; it rests on the final state.
+  function replayDemo() {
+    setLeads(DEMO_LEADS.filter((l) => BOARD_LEAD_IDS.includes(l.id)));
+    setNextActions(DEMO_NEXT_ACTIONS);
+    setMoved(false);
+    setShowCta(false);
+    setProcStep(0);
+    setProcRunning(false);
+    setStage("form");
+  }
+
   // Processing overlay on the board while the workflow is "created".
   useEffect(() => {
     if (stage !== "board" || !procRunning) return;
@@ -149,7 +160,7 @@ export default function HomepageDemo() {
       {
         id: 99001,
         lead_id: HERO_ID,
-        title: "Send Maria her first list",
+        title: "Send List",
         due_at: stamp,
         priority: "high",
         notes: "3–4 modern communities in Downtown + SoCo under $1,700.",
@@ -172,6 +183,18 @@ export default function HomepageDemo() {
     const el = rowRef.current?.querySelector(`[data-stage="${activeStage}"]`);
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [activeStage]);
+
+  // Demo Call/Text buttons look real but must never dial or text — label them
+  // with a hover tooltip (clicks are blocked by onClickCapture on the wrapper).
+  useEffect(() => {
+    const wrap = panelWrapRef.current;
+    if (!wrap) return;
+    const btns = Array.from(wrap.querySelectorAll("button")).filter((b) => /Call Client|Text Client/.test(b.textContent || ""));
+    btns.forEach((b) => {
+      b.setAttribute("title", "Available after signup");
+      (b as HTMLElement).style.cursor = "default";
+    });
+  }, [selected]);
 
   // Auto-tour the Lead Panel once it's the focus, then reveal the CTA.
   useEffect(() => {
@@ -249,7 +272,19 @@ export default function HomepageDemo() {
                     <ThemeProvider>
                       {/* Explicit natural height (frameH / zoom) so LeadPanel's
                           h-full resolves and its body can scroll for the tour. */}
-                      <div ref={panelWrapRef} style={{ height: Math.round((s.frameH ?? 380) / (DISPLAY_W / s.natW)) }}>
+                      <div
+                        ref={panelWrapRef}
+                        style={{ height: Math.round((s.frameH ?? 380) / (DISPLAY_W / s.natW)) }}
+                        onClickCapture={(e) => {
+                          // Neutralize the real Call/Text buttons in the demo —
+                          // block the tel: action without touching LeadPanel.
+                          const btn = (e.target as HTMLElement).closest("button");
+                          if (btn && /Call Client|Text Client/.test(btn.textContent || "")) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }
+                        }}
+                      >
                         <LeadPanel
                           lead={selected}
                           nextActions={nextActions}
@@ -286,6 +321,13 @@ export default function HomepageDemo() {
           Start Your Free 30-Day Trial
         </Link>
         <p className="mt-2 text-[12.5px] text-white/45">No credit card required.</p>
+        <button
+          type="button"
+          onClick={replayDemo}
+          className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-white/55 transition-colors hover:text-white"
+        >
+          <span aria-hidden>↻</span> Replay Demo
+        </button>
       </div>
 
       <style>{`
