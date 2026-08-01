@@ -99,12 +99,17 @@ export default function HomepageDemo() {
   const [nextActions, setNextActions] = useState<any[]>(DEMO_NEXT_ACTIONS);
   const [moved, setMoved] = useState(false);
   const [showCta, setShowCta] = useState(false);
+  // Which stage the premium glow sits on — a hovered stage wins, otherwise it
+  // tracks the active step automatically. UI-only; never touches the workflow.
+  const [hoveredStage, setHoveredStage] = useState<number | null>(null);
 
   const panelWrapRef = useRef<HTMLDivElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
 
   const selected = leads.find((l) => l.id === HERO_ID) ?? null;
   const activeStage = stage === "form" ? 1 : stage === "board" ? 2 : 3;
+  // The glow follows the hovered stage when present, otherwise the active step.
+  const glowStage = hoveredStage ?? activeStage;
 
   function moveHeroToContacted() {
     setLeads((prev) =>
@@ -264,6 +269,8 @@ export default function HomepageDemo() {
             <Fragment key={s.key}>
               <div
                 data-stage={s.n}
+                onMouseEnter={() => setHoveredStage(s.n)}
+                onMouseLeave={() => setHoveredStage(null)}
                 className="flex flex-none flex-col items-center transition-all duration-500"
                 style={{
                   transform: isActive ? `scale(${s.activeScale})` : "scale(0.8)",
@@ -273,7 +280,7 @@ export default function HomepageDemo() {
               >
                 <StepHead n={s.n} active={isActive} done={isDone} title={s.title} sub={s.sub} />
 
-                <PreviewFrame natW={s.natW} frameH={s.frameH} active={isActive} hoverGlow={s.key === "form" || s.key === "panel"}>
+                <PreviewFrame natW={s.natW} frameH={s.frameH} active={isActive} glow={glowStage === s.n}>
                   {s.key === "form" && <FormPreview onSubmit={startDemo} />}
                   {s.key === "board" && (
                     <BoardPreview
@@ -374,16 +381,21 @@ export default function HomepageDemo() {
         }
         .hp-moved .kb-card.kb-card--selected { animation: hpCardPop 1.6s ease-out 2; }
 
-        /* Premium animated blue glow when hovering the Smart Lead Form */
+        /* Premium animated blue glow — on the active step during playback and on
+           whichever stage is hovered afterward (driven by hp-glow-on). */
         @keyframes hpFormGlow {
           0%, 100% { box-shadow: 0 0 0 1px rgba(47,107,255,.45), 0 0 22px 2px rgba(47,107,255,.28); }
           50% { box-shadow: 0 0 0 1px rgba(47,107,255,.65), 0 0 34px 6px rgba(47,107,255,.42); }
         }
-        .hp-form-frame { transition: box-shadow .45s ease; }
-        .hp-form-frame:hover { animation: hpFormGlow 2.4s ease-in-out infinite; }
+        .hp-glow-frame { transition: box-shadow .5s ease; }
+        .hp-glow-frame.hp-glow-on { animation: hpFormGlow 2.4s ease-in-out infinite; }
 
         @media (prefers-reduced-motion: reduce) {
-          .hp-step-glow, .hp-ai-badge, .hp-form-frame:hover, .hp-moved .kb-card.kb-card--selected { animation: none; }
+          .hp-step-glow, .hp-ai-badge, .hp-glow-frame.hp-glow-on, .hp-moved .kb-card.kb-card--selected { animation: none; }
+        }
+        /* Reduced motion still gets a steady (non-pulsing) glow on the active/hovered stage. */
+        @media (prefers-reduced-motion: reduce) {
+          .hp-glow-frame.hp-glow-on { box-shadow: 0 0 0 1px rgba(47,107,255,.6), 0 0 30px 4px rgba(47,107,255,.4); }
         }
       `}</style>
     </div>
@@ -439,23 +451,23 @@ function PreviewFrame({
   natW,
   frameH,
   active,
-  hoverGlow,
+  glow,
   children,
 }: {
   natW: number;
   frameH: number | null;
   active: boolean;
-  hoverGlow?: boolean;
+  glow?: boolean;
   children: React.ReactNode;
 }) {
   const zoom = DISPLAY_W / natW;
   return (
     <div
-      className={`mt-4 overflow-hidden rounded-2xl border bg-[#0b0f1a] transition-all duration-500 ${
-        hoverGlow ? "hp-form-frame" : ""
+      className={`hp-glow-frame mt-4 overflow-hidden rounded-2xl border bg-[#0b0f1a] transition-all duration-500 ${
+        glow ? "hp-glow-on" : ""
       } ${
         active
-          ? "border-[var(--beast-blue)]/60 shadow-[0_24px_70px_-24px_rgba(47,107,255,0.55)]"
+          ? "border-[var(--beast-blue)]/60"
           : "border-white/10 shadow-[0_16px_40px_-24px_rgba(0,0,0,0.7)]"
       }`}
       style={{ width: DISPLAY_W, height: frameH ?? undefined }}
