@@ -1,4 +1,7 @@
 import HomepageDemo from "../demo/_components/HomepageDemo";
+import { AppleIcon, WindowsIcon } from "@/components/icons/PlatformIcons";
+
+const TRUST_ITEMS = ["30-Day Free Trial", "No credit card required", "Setup in under 10 minutes"];
 
 export default function Hero() {
   return (
@@ -31,6 +34,33 @@ export default function Hero() {
         >
           <HomepageDemo />
         </div>
+
+        {/* Feature/benefit row — anchors the bottom of the hero beneath the
+            demo's CTA. Same small text + blue separator dots as before. */}
+        <ul
+          className="beast-fade-up mt-12 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-[13px] text-[var(--beast-ink-inverse-soft)]"
+          style={{ animationDelay: "380ms" }}
+        >
+          {TRUST_ITEMS.map((item) => (
+            <li key={item} className="flex items-center gap-2">
+              <span className="h-1 w-1 rounded-full bg-[var(--beast-blue-bright)]" />
+              {item}
+            </li>
+          ))}
+          {/* Supported desktop platforms — official monochrome glyphs that
+              inherit the muted bullet text color (macOS listed first). */}
+          <li className="flex items-center gap-2">
+            <span className="h-1 w-1 rounded-full bg-[var(--beast-blue-bright)]" />
+            <span className="inline-flex items-center gap-1.5">
+              <AppleIcon className="h-3.5 w-auto" />
+              macOS
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <WindowsIcon className="h-3 w-auto" />
+              Windows
+            </span>
+          </li>
+        </ul>
       </div>
     </section>
   );
