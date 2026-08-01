@@ -1,58 +1,122 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import LeadBoard from "@/components/crm/LeadBoard";
 import LeadPanel from "@/components/crm/LeadPanel";
+import Hero from "@/app/smart-lead-form/_components/form/sections/Hero";
+import { DEFAULT_CONFIG } from "@/app/smart-lead-form/_lib/defaultConfig";
+import type { SmartLeadFormConfig } from "@/app/smart-lead-form/_lib/types";
 import { DEMO_LEADS, DEMO_NEXT_ACTIONS, DEMO_FAVORITES } from "@/lib/demo/demoWorkspace";
 import { TRIAL_URL } from "@/app/locator-beast/_lib/site";
 
-// The guided homepage demo: a single sample lead moving through the REAL CRM.
-// Everything after "Submit Lead" is the production LeadBoard + LeadPanel fed
-// with demo data — no fake components. Every demo-* lead skips all Supabase
-// reads/writes (guards + demo branches), so it's fully read-only.
+// ─────────────────────────────────────────────────────────────────────────────
+// The guided /demo story. One sample lead (Maria) travels through the ACTUAL
+// production surfaces: the real Smart Lead Form shell (Hero), the real
+// LeadBoard, and the real LeadPanel — all fed read-only demo data that never
+// touches Supabase. This file only supplies FRAMING (step headings, the
+// branded form's shortened field set, board/panel proportions). It never
+// changes the production components.
+// ─────────────────────────────────────────────────────────────────────────────
 
-const HERO_ID = "demo-1"; // Maria Gonzalez — our protagonist
+const HERO_ID = "demo-1"; // Maria Gonzalez — the protagonist
 const COLUMNS = [
   { id: "new", title: "🟡 New" },
   { id: "contacted", title: "🔵 Contacted" },
 ];
+// Focused cast: Maria + one companion in New, one lead in Contacted.
+const BOARD_LEAD_IDS = ["demo-1", "demo-2", "demo-4"];
 const now = () => new Date().toISOString();
+
+// A realistic locator's branded Smart Lead Form — same component the product
+// renders, just with demo branding so a visitor pictures it as their own.
+const FORM_CONFIG: SmartLeadFormConfig = {
+  ...DEFAULT_CONFIG,
+  sections: {
+    ...DEFAULT_CONFIG.sections,
+    visibility: { ...DEFAULT_CONFIG.sections.visibility, phoneNumber: false },
+  },
+  branding: {
+    ...DEFAULT_CONFIG.branding,
+    agentPhotoUrl: "/reviews/stephanie.png",
+    agentPhotoSize: "medium",
+    profileImagePosition: "underHeadline",
+    heroTheme: "custom",
+    heroImageUrl: null,
+    heroOverlay: "medium",
+    buttonColor: "#2f6bff",
+  },
+  copy: {
+    ...DEFAULT_CONFIG.copy,
+    headline: "Find Your Next Apartment — Free",
+    subheadline:
+      "Tell me what you're looking for and I'll send a personalized list that fits your budget and lifestyle.",
+    agentName: "Stephanie Brooks",
+    agentTitle: "Licensed Apartment Locator",
+    brokerageName: "Brooks Residential Group",
+    serviceAreas: "Austin & Round Rock",
+    highlights: ["100% Free", "Cash Rebate", "Same-Day Tours"],
+    buttonText: "Submit Lead",
+  },
+};
 
 type Stage = "form" | "analyzing" | "board" | "panel";
 
+const STEP = {
+  form: {
+    n: 1,
+    kicker: "Capture the Lead",
+    heading: "Your lead fills out your Smart Lead Form",
+    copy: "Your branded form captures the information you need and sends the lead directly into Locator Beast.",
+  },
+  board: {
+    n: 2,
+    kicker: "Automate the Workflow",
+    heading: "The lead is automatically added to your Lead Board",
+    copy: "Locator Beast organizes the lead, evaluates the client profile, and gives you the next action so nothing slips through the cracks.",
+  },
+  panel: {
+    n: 3,
+    kicker: "Close With Everything in One Place",
+    heading: "Everything you need to move the client forward",
+    copy: "Open the lead to see AI insights, search criteria, notes, approval information, follow-ups, and the next action — all in one place.",
+  },
+} as const;
+
+const inputClass =
+  "w-full rounded-xl border border-[#e2e4ea] bg-white px-4 py-3.5 text-[15px] text-[#111318] outline-none read-only:cursor-default";
+const labelClass = "text-[13px] font-medium text-[#4b5162]";
+
 export default function HomepageDemo() {
   const [stage, setStage] = useState<Stage>("form");
-  const initial = useMemo(
-    () => DEMO_LEADS.filter((l) => l.crm_status === "new" || l.crm_status === "contacted"),
-    []
+  const [leads, setLeads] = useState<any[]>(() =>
+    DEMO_LEADS.filter((l) => BOARD_LEAD_IDS.includes(l.id))
   );
-  const [leads, setLeads] = useState<any[]>(initial);
   const [nextActions, setNextActions] = useState<any[]>(DEMO_NEXT_ACTIONS);
-  const [selectedId, setSelectedId] = useState<string | number | null>(null);
   const [moved, setMoved] = useState(false);
+  const topRef = useRef<HTMLDivElement>(null);
+  const mountedRef = useRef(false);
 
-  const selected = leads.find((l) => l.id === selectedId) ?? null;
+  const selected = leads.find((l) => l.id === HERO_ID) ?? null;
+  const stepKey: keyof typeof STEP = stage === "board" ? "board" : stage === "panel" ? "panel" : "form";
+  const step = STEP[stepKey];
 
-  // Step 1 → Step 3: submit → "AI is analyzing…" → board.
+  // form → analyzing → board.
   useEffect(() => {
     if (stage !== "analyzing") return;
-    const t = setTimeout(() => setStage("board"), 1900);
+    const t = setTimeout(() => setStage("board"), 2100);
     return () => clearTimeout(t);
   }, [stage]);
 
-  // Step 4/5: detect the hero lead reaching Contacted (drag OR tap) → automation
-  // injects the follow-up the workflow would create.
+  // The hero lead reaching Contacted (drag / tap / card click) → automation:
+  // mirror what the real workflow engine does — log first contact and queue the
+  // follow-up (due today + high priority so it wins the next-action ranking).
   useEffect(() => {
     if (moved) return;
     const hero = leads.find((l) => l.id === HERO_ID);
     if (hero?.crm_status === "contacted") {
       setMoved(true);
-      // Mirror what the real workflow engine does on New → Contacted: stamp the
-      // first-contact time (so "Contact Lead ✓" shows as the Last Action) and
-      // queue the follow-up. Due today + high priority so it wins ranking over
-      // the passive "Waiting for Response" automatic state.
       const stamp = now();
       setLeads((prev) => prev.map((l) => (l.id === HERO_ID ? { ...l, first_text_sent_at: stamp } : l)));
       setNextActions((prev) => [
@@ -71,16 +135,22 @@ export default function HomepageDemo() {
     }
   }, [leads, moved]);
 
-  // Once the automation has fired, open the real Lead Panel after a beat.
-  // (Separate effect so flipping `moved` doesn't cancel the pending timeout.)
+  // Once the automation has fired, open the Lead Panel after a beat. (Separate
+  // effect so flipping `moved` doesn't cancel the pending timeout.)
   useEffect(() => {
     if (!moved) return;
-    const t = setTimeout(() => {
-      setSelectedId(HERO_ID);
-      setStage("panel");
-    }, 1700);
+    const t = setTimeout(() => setStage("panel"), 1700);
     return () => clearTimeout(t);
   }, [moved]);
+
+  // Keep the current step in view as the story advances (never on first mount).
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      return;
+    }
+    topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [stage]);
 
   function moveHeroToContacted() {
     setLeads((prev) =>
@@ -88,134 +158,206 @@ export default function HomepageDemo() {
     );
   }
 
-  // ── Step 1 — prefilled shortened Smart Lead Form (no typing) ────────────────
-  if (stage === "form") {
-    return (
-      <div className="mx-auto w-full max-w-lg rounded-2xl border border-white/10 bg-[#0b0f1a] p-6 sm:p-8">
-        <p className="text-center text-[12px] font-semibold uppercase tracking-[0.2em] text-[var(--beast-blue-bright)]">
-          A renter fills out your Smart Lead Form
-        </p>
-        <h3 className="mt-2 text-center text-[20px] font-semibold text-white">Find me an apartment</h3>
-        <div className="mt-6 grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-          {[
-            ["Name", "Maria Gonzalez"],
-            ["Phone", "(512) 555-0142"],
-            ["Bedrooms", "1 Bedroom"],
-            ["Budget", "$1,500 – $1,700"],
-            ["Preferred Area", "Downtown Austin"],
-            ["Move Date", "This month"],
-          ].map(([label, value]) => (
-            <div key={label} className="flex flex-col gap-1.5">
-              <span className="text-[12px] font-medium text-white/50">{label}</span>
-              <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-[14px] text-white">
-                {value}
+  return (
+    <div className="w-full">
+      {/* scroll anchor — sits just above the step heading, clears the sticky nav */}
+      <div ref={topRef} className="scroll-mt-24" />
+
+      {/* ── Step heading (Step 1 / 2 / 3) ─────────────────────────────────── */}
+      <div key={`step-${stepKey}`} className="hp-anim mx-auto max-w-xl text-center">
+        <div className="flex items-center justify-center gap-2 text-[12px] font-semibold uppercase tracking-[0.18em] text-[var(--beast-blue-bright)]">
+          <span>Step {step.n}</span>
+          <span className="h-1 w-1 rounded-full bg-[var(--beast-blue-bright)]/60" />
+          <span>{step.kicker}</span>
+        </div>
+        <h3 className="mt-3 text-[22px] font-semibold leading-tight text-white sm:text-[26px]">{step.heading}</h3>
+        <p className="mx-auto mt-2.5 max-w-lg text-[14.5px] leading-relaxed text-white/55">{step.copy}</p>
+
+        {/* progress dots */}
+        <div className="mt-5 flex items-center justify-center gap-2">
+          {[1, 2, 3].map((n) => (
+            <span
+              key={n}
+              className={`h-1.5 rounded-full transition-all duration-500 ${
+                n === step.n ? "w-6 bg-[var(--beast-blue)]" : n < step.n ? "w-1.5 bg-[var(--beast-blue)]/70" : "w-1.5 bg-white/20"
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* ── Stage content ─────────────────────────────────────────────────── */}
+      <div key={`stage-${stage}`} className="hp-anim mt-8">
+        {stage === "form" && <FormStep onSubmit={() => setStage("analyzing")} />}
+
+        {stage === "analyzing" && <AnalyzingStep />}
+
+        {stage === "board" && (
+          <ThemeProvider>
+            <div className="hp-demo-board mx-auto w-full max-w-[660px]">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
+                <p className="text-[13px] text-[var(--crm-text-secondary)]">
+                  {moved ? (
+                    <span className="font-medium text-[var(--crm-text-primary)]">✓ Automation triggered — opening Maria…</span>
+                  ) : (
+                    <>
+                      <span className="hidden sm:inline">Drag </span>
+                      <span className="sm:hidden">Tap to move </span>
+                      <span className="font-semibold text-[var(--crm-text-primary)]">Maria</span> into{" "}
+                      <span className="font-semibold text-[var(--crm-text-primary)]">Contacted</span>
+                      <span className="hidden sm:inline"> — or use the button.</span>
+                    </>
+                  )}
+                </p>
+                {!moved && (
+                  <button
+                    type="button"
+                    onClick={moveHeroToContacted}
+                    className="crm-cta rounded-lg px-3.5 py-2 text-[13px] font-semibold text-white"
+                  >
+                    Move Maria to Contacted →
+                  </button>
+                )}
+              </div>
+              <div className="h-[520px] overflow-hidden rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-background)] shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.06),0_18px_44px_rgba(var(--crm-shadow-color),0.28)]">
+                <LeadBoard
+                  leads={leads}
+                  setLeads={setLeads}
+                  selectedLeadId={HERO_ID}
+                  onSelectLead={(id) => {
+                    if (id === HERO_ID && !moved) moveHeroToContacted();
+                  }}
+                  columns={COLUMNS}
+                />
               </div>
             </div>
-          ))}
-          <div className="flex flex-col gap-1.5 sm:col-span-2">
-            <span className="text-[12px] font-medium text-white/50">Notes</span>
-            <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-[14px] text-white">
-              Relocating to Austin for a role at Dell. First apartment on her own.
-            </div>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => setStage("analyzing")}
-          className="mt-6 w-full rounded-full bg-[var(--beast-blue)] px-6 py-3.5 text-[15px] font-semibold text-white transition-transform duration-200 hover:scale-[1.01]"
-        >
-          Submit Lead
-        </button>
-      </div>
-    );
-  }
-
-  // ── Step 3 — "AI is analyzing your client…" ────────────────────────────────
-  if (stage === "analyzing") {
-    return (
-      <div className="flex min-h-[360px] flex-col items-center justify-center text-center">
-        <span className="h-12 w-12 animate-spin rounded-full border-2 border-white/15 border-t-[var(--beast-blue)]" />
-        <p className="mt-6 text-[17px] font-semibold text-white">AI is analyzing your client…</p>
-        <p className="mt-1.5 max-w-sm text-[13.5px] text-white/45">
-          Scoring approval odds, matching communities, and drafting the next action.
-        </p>
-      </div>
-    );
-  }
-
-  // ── Steps 2/4/5/6 — the REAL CRM ───────────────────────────────────────────
-  return (
-    <ThemeProvider>
-      <div className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-background)] p-4 text-[var(--crm-text-primary)] sm:p-5">
-        {stage === "board" && (
-          <>
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[13px] text-[var(--crm-text-secondary)]">
-                {moved ? (
-                  "✓ Automation triggered — opening the lead…"
-                ) : (
-                  <>
-                    Maria just landed in <span className="font-semibold text-[var(--crm-text-primary)]">New</span>.{" "}
-                    <span className="hidden sm:inline">Drag her card into </span>
-                    <span className="sm:hidden">Tap to move her to </span>
-                    <span className="font-semibold text-[var(--crm-text-primary)]">Contacted</span>
-                    <span className="hidden sm:inline"> — or use the button.</span>
-                  </>
-                )}
-              </p>
-              {/* Drag is the primary desktop interaction; this button keeps the
-                  guided demo foolproof (and is the mobile tap path). */}
-              {!moved && (
-                <button
-                  type="button"
-                  onClick={moveHeroToContacted}
-                  className="crm-cta rounded-lg px-3.5 py-2 text-[13px] font-semibold text-white"
-                >
-                  Move Maria to Contacted →
-                </button>
-              )}
-            </div>
-            <LeadBoard
-              leads={leads}
-              setLeads={setLeads}
-              selectedLeadId={selectedId}
-              onSelectLead={(id) => {
-                setSelectedId(id);
-                setStage("panel");
-              }}
-              columns={COLUMNS}
-            />
-          </>
+          </ThemeProvider>
         )}
 
         {stage === "panel" && selected && (
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-            <div className="w-full flex-none overflow-hidden rounded-2xl bg-[var(--crm-panel)] shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.06),0_10px_28px_rgba(var(--crm-shadow-color),0.28)] lg:w-[420px]">
-              <LeadPanel
-                lead={selected}
-                nextActions={nextActions}
-                setNextActions={setNextActions}
-                favorites={DEMO_FAVORITES}
-                onClose={() => setStage("board")}
-                onUpdateLead={(u: any) => setLeads((prev) => prev.map((l) => (l.id === u.id ? u : l)))}
-              />
+          <ThemeProvider>
+            <div className="mx-auto w-full max-w-[440px]">
+              <div className="h-[600px] overflow-hidden rounded-2xl border border-[var(--crm-border)] shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.06),0_18px_44px_rgba(var(--crm-shadow-color),0.3)]">
+                <LeadPanel
+                  lead={selected}
+                  nextActions={nextActions}
+                  setNextActions={setNextActions}
+                  favorites={DEMO_FAVORITES}
+                  onClose={() => setStage("board")}
+                  onUpdateLead={(u: any) => setLeads((prev) => prev.map((l) => (l.id === u.id ? u : l)))}
+                />
+              </div>
+
+              {/* Final CTA — beneath the full panel, never beside a crop */}
+              <div className="mx-auto mt-7 max-w-md text-center">
+                <p className="text-[17px] font-semibold text-white">
+                  From lead capture to follow-up, Locator Beast keeps every client organized.
+                </p>
+                <Link
+                  href={TRIAL_URL}
+                  className="mt-5 inline-block rounded-full bg-[var(--beast-blue)] px-8 py-3.5 text-[15px] font-semibold text-white transition-transform duration-200 hover:scale-[1.02]"
+                >
+                  Start Your Free 30-Day Trial
+                </Link>
+                <p className="mt-3 text-[12.5px] text-white/45">No credit card required.</p>
+              </div>
             </div>
-            <div className="flex-1 rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-8 text-center">
-              <p className="text-[19px] font-semibold text-[var(--crm-text-primary)]">Ready to stop losing leads?</p>
-              <p className="mx-auto mt-2 max-w-sm text-[14px] text-[var(--crm-text-secondary)]">
-                That entire flow — capture, automation, and AI insights — is what happens in Locator Beast every time a renter submits.
-              </p>
-              <Link
-                href={TRIAL_URL}
-                className="crm-cta mt-6 inline-block rounded-full px-8 py-3.5 text-[15px] font-semibold text-white"
-              >
-                Start Your Free 30-Day Trial
-              </Link>
-              <p className="mt-3 text-[12.5px] text-[var(--crm-text-muted)]">No credit card required.</p>
-            </div>
-          </div>
+          </ThemeProvider>
         )}
       </div>
-    </ThemeProvider>
+
+      {/* Demo-only framing styles. Scoped to `.hp-demo-board` / `.hp-anim`,
+          so nothing here touches the production CRM. */}
+      <style>{`
+        @keyframes hpFade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+        .hp-anim { animation: hpFade .55s cubic-bezier(.16,1,.3,1); }
+        /* Keep the two demo columns at their real CRM width and centered,
+           instead of growing to fill the frame (production has 9 columns, so
+           it never stretches — the demo only shows 2). */
+        .hp-demo-board .kb-board { justify-content: center; }
+        .hp-demo-board .kb-column { flex-grow: 0; flex-shrink: 0; }
+        @media (prefers-reduced-motion: reduce) { .hp-anim { animation: none; } }
+      `}</style>
+    </div>
+  );
+}
+
+// ── Step 1 — the branded Smart Lead Form (real Hero + shortened fields) ──────
+function FormStep({ onSubmit }: { onSubmit: () => void }) {
+  return (
+    <div className="mx-auto max-w-lg overflow-hidden rounded-2xl border border-[#e5e7ee] bg-white shadow-[0_30px_80px_-40px_rgba(2,6,23,0.75)]">
+      {/* The exact production hero: photo, name, brokerage, intro, highlights */}
+      <Hero config={FORM_CONFIG} />
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSubmit();
+        }}
+        className="flex flex-col gap-4 px-5 pb-7 pt-6 sm:px-7"
+      >
+        <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[#9098a8]">
+          Prefilled for this demo
+        </p>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="First Name" value="Maria" />
+          <Field label="Last Name" value="Gonzalez" />
+        </div>
+        <Field label="Phone Number" value="(512) 555-0142" />
+        <Field label="Desired Move-In Date" value="This month" />
+        <Field label="City" value="Austin" />
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Property Type" value="Apartment" />
+          <Field label="Bedrooms" value="1 Bedroom" />
+        </div>
+        <Field label="Desired Monthly Rent" value="$1,500 – $1,700" />
+
+        <div className="flex flex-col gap-1.5">
+          <label className={labelClass}>Anything else we should know?</label>
+          <textarea
+            readOnly
+            rows={2}
+            value="Relocating to Austin for a role at Dell. First apartment on my own."
+            className={`${inputClass} resize-none`}
+          />
+        </div>
+
+        <label className="mt-1 flex items-start gap-2.5 border-t border-[#eef0f4] pt-4 text-[12.5px] leading-relaxed text-[#6b7280]">
+          <input type="checkbox" checked readOnly className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#d0d3dc]" />
+          <span>I agree to receive text messages or emails regarding my apartment search.</span>
+        </label>
+
+        <button
+          type="submit"
+          className="mt-2 w-full rounded-full px-6 py-4 text-[15px] font-semibold text-white transition-transform duration-300 hover:scale-[1.01]"
+          style={{ backgroundColor: FORM_CONFIG.branding.buttonColor }}
+        >
+          Submit Lead
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <label className={labelClass}>{label}</label>
+      <input readOnly value={value} className={inputClass} />
+    </div>
+  );
+}
+
+// ── Bridge — "Lead received, analyzing the client" ──────────────────────────
+function AnalyzingStep() {
+  return (
+    <div className="mx-auto flex min-h-[320px] max-w-lg flex-col items-center justify-center rounded-2xl border border-white/10 bg-[#0b0f1a] px-6 text-center">
+      <span className="h-11 w-11 animate-spin rounded-full border-2 border-white/15 border-t-[var(--beast-blue)]" />
+      <p className="mt-6 text-[17px] font-semibold text-white">Lead received — Locator Beast is analyzing the client</p>
+      <p className="mt-2 max-w-sm text-[13.5px] leading-relaxed text-white/50">
+        Scoring approval odds, matching communities, and drafting the next action.
+      </p>
+    </div>
   );
 }
