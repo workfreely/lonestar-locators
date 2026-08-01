@@ -34,9 +34,9 @@ const PROC_STEPS = ["Lead received", "AI analyzing", "Creating workflow"];
 // at this width, then the frame zooms it down to DISPLAY_W).
 const DISPLAY_W = 320;
 const STAGES = [
-  { n: 1, key: "form", title: "Capture the Lead", sub: "Smart Lead Form", natW: 384, frameH: 496 as number | null },
-  { n: 2, key: "board", title: "Automate the Workflow", sub: "Lead Board + AI", natW: 500, frameH: 470 },
-  { n: 3, key: "panel", title: "Close the Deal", sub: "Everything in one place", natW: 360, frameH: 470 },
+  { n: 1, key: "form", title: "Capture the Lead", sub: "Smart Lead Form", natW: 384, frameH: 496 as number | null, activeScale: 1.08 },
+  { n: 2, key: "board", title: "Automate the Workflow", sub: "Lead Board + AI", natW: 500, frameH: 470, activeScale: 1.2 },
+  { n: 3, key: "panel", title: "Close the Deal", sub: "Everything in one place", natW: 360, frameH: 470, activeScale: 1.08 },
 ] as const;
 
 const T = {
@@ -184,16 +184,34 @@ export default function HomepageDemo() {
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [activeStage]);
 
-  // Demo Call/Text buttons look real but must never dial or text — label them
-  // with a hover tooltip (clicks are blocked by onClickCapture on the wrapper).
+  // The demo must NEVER launch phone / text / messaging apps. Neutralize any
+  // tel:/sms: window.open for the life of the demo (belt-and-suspenders on top
+  // of the click blocking below). LeadPanel itself is untouched.
+  useEffect(() => {
+    const orig = window.open;
+    window.open = function (url?: string | URL, ...rest: any[]) {
+      if (typeof url === "string" && /^(tel:|sms:)/i.test(url)) return null;
+      return (orig as any).call(window, url, ...rest);
+    } as typeof window.open;
+    return () => {
+      window.open = orig;
+    };
+  }, []);
+
+  // Panel demo touch-ups: label the Call/Text buttons with a hover tooltip and
+  // hide the Quick Actions section (demo only — the real CRM keeps it).
   useEffect(() => {
     const wrap = panelWrapRef.current;
     if (!wrap) return;
-    const btns = Array.from(wrap.querySelectorAll("button")).filter((b) => /Call Client|Text Client/.test(b.textContent || ""));
-    btns.forEach((b) => {
-      b.setAttribute("title", "Available after signup");
-      (b as HTMLElement).style.cursor = "default";
-    });
+    Array.from(wrap.querySelectorAll("button"))
+      .filter((b) => /Call Client|Text Client/.test(b.textContent || ""))
+      .forEach((b) => {
+        b.setAttribute("title", "Available after signup");
+        (b as HTMLElement).style.cursor = "default";
+      });
+    const quickHead = Array.from(wrap.querySelectorAll("p")).find((p) => p.textContent?.trim() === "Quick Actions");
+    const card = quickHead?.parentElement?.parentElement; // header <p> → header row → SectionCard root
+    if (card) (card as HTMLElement).style.display = "none";
   }, [selected]);
 
   // Auto-tour the Lead Panel once it's the focus, then reveal the CTA.
@@ -235,14 +253,6 @@ export default function HomepageDemo() {
 
   return (
     <div className="w-full">
-      {/* TEMPORARY verification banner — remove after confirming render. */}
-      <div
-        style={{ background: "#e11d2e", color: "#fff" }}
-        className="mb-5 rounded-md px-4 py-2.5 text-center text-[14px] font-bold tracking-wide"
-      >
-        HomepageDemo v3 — three connected stages
-      </div>
-
       <div
         ref={rowRef}
         className="flex flex-col items-center gap-6 lg:flex-row lg:items-start lg:justify-center lg:gap-2"
@@ -256,17 +266,24 @@ export default function HomepageDemo() {
                 data-stage={s.n}
                 className="flex flex-none flex-col items-center transition-all duration-500"
                 style={{
-                  transform: isActive ? "scale(1.08)" : "scale(0.8)",
+                  transform: isActive ? `scale(${s.activeScale})` : "scale(0.8)",
                   opacity: isActive ? 1 : 0.48,
                   transformOrigin: "top center",
                 }}
               >
                 <StepHead n={s.n} active={isActive} done={isDone} title={s.title} sub={s.sub} />
 
-                <PreviewFrame natW={s.natW} frameH={s.frameH} active={isActive}>
+                <PreviewFrame natW={s.natW} frameH={s.frameH} active={isActive} hoverGlow={s.key === "form"}>
                   {s.key === "form" && <FormPreview onSubmit={startDemo} />}
                   {s.key === "board" && (
-                    <BoardPreview leads={leads} setLeads={setLeads} procRunning={procRunning} procStep={procStep} />
+                    <BoardPreview
+                      leads={leads}
+                      setLeads={setLeads}
+                      procRunning={procRunning}
+                      procStep={procStep}
+                      moved={moved}
+                      aiBadge={moved && stage === "board"}
+                    />
                   )}
                   {s.key === "panel" && selected && (
                     <ThemeProvider>
@@ -276,12 +293,19 @@ export default function HomepageDemo() {
                         ref={panelWrapRef}
                         style={{ height: Math.round((s.frameH ?? 380) / (DISPLAY_W / s.natW)) }}
                         onClickCapture={(e) => {
-                          // Neutralize the real Call/Text buttons in the demo —
-                          // block the tel: action without touching LeadPanel.
                           const btn = (e.target as HTMLElement).closest("button");
-                          if (btn && /Call Client|Text Client/.test(btn.textContent || "")) {
+                          if (!btn) return;
+                          const t = btn.textContent || "";
+                          // Call/Text look real but do nothing in the demo.
+                          if (/Call Client|Text Client/.test(t)) {
                             e.preventDefault();
                             e.stopPropagation();
+                          } else if (/^Send List/.test(t.trim())) {
+                            // Don't open Messages — mark the task completed in place,
+                            // exactly like a finished workflow action.
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setNextActions((prev) => prev.map((a) => (a.id === 99001 ? { ...a, completed: true } : a)));
                           }
                         }}
                       >
@@ -311,9 +335,7 @@ export default function HomepageDemo() {
           showCta ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0"
         }`}
       >
-        <p className="text-[16px] font-semibold text-white">
-          Everything you need to close the lease. Organized automatically.
-        </p>
+        <p className="text-[16px] font-semibold text-white">Everything you need to close the lease.</p>
         <Link
           href={TRIAL_URL}
           className="mt-3 inline-block rounded-full bg-[var(--beast-blue)] px-8 py-3 text-[15px] font-semibold text-white transition-transform duration-200 hover:scale-[1.02]"
@@ -339,7 +361,30 @@ export default function HomepageDemo() {
         .hp-step-glow { animation: hpPulse 1.9s ease-out infinite; }
         .hp-demo-board .kb-board { justify-content: center; }
         .hp-demo-board .kb-column { flex-grow: 0; flex-shrink: 0; }
-        @media (prefers-reduced-motion: reduce) { .hp-step-glow { animation: none; } }
+
+        /* AI badge pop as the lead lands in Contacted */
+        @keyframes hpBadgePop { 0% { opacity: 0; transform: translateY(-6px) scale(.9); } 100% { opacity: 1; transform: none; } }
+        .hp-ai-badge { animation: hpBadgePop .28s cubic-bezier(.16,1,.3,1); }
+
+        /* Highlight the lead card the moment it moves into Contacted */
+        @keyframes hpCardPop {
+          0% { box-shadow: 0 0 0 0 rgba(47,107,255,0); }
+          25% { box-shadow: 0 0 0 3px rgba(47,107,255,.85), 0 0 22px 4px rgba(47,107,255,.6); }
+          100% { box-shadow: 0 0 0 0 rgba(47,107,255,0); }
+        }
+        .hp-moved .kb-card.kb-card--selected { animation: hpCardPop 1.6s ease-out 2; }
+
+        /* Premium animated blue glow when hovering the Smart Lead Form */
+        @keyframes hpFormGlow {
+          0%, 100% { box-shadow: 0 0 0 1px rgba(47,107,255,.45), 0 0 22px 2px rgba(47,107,255,.28); }
+          50% { box-shadow: 0 0 0 1px rgba(47,107,255,.65), 0 0 34px 6px rgba(47,107,255,.42); }
+        }
+        .hp-form-frame { transition: box-shadow .45s ease; }
+        .hp-form-frame:hover { animation: hpFormGlow 2.4s ease-in-out infinite; }
+
+        @media (prefers-reduced-motion: reduce) {
+          .hp-step-glow, .hp-ai-badge, .hp-form-frame:hover, .hp-moved .kb-card.kb-card--selected { animation: none; }
+        }
       `}</style>
     </div>
   );
@@ -394,17 +439,21 @@ function PreviewFrame({
   natW,
   frameH,
   active,
+  hoverGlow,
   children,
 }: {
   natW: number;
   frameH: number | null;
   active: boolean;
+  hoverGlow?: boolean;
   children: React.ReactNode;
 }) {
   const zoom = DISPLAY_W / natW;
   return (
     <div
       className={`mt-4 overflow-hidden rounded-2xl border bg-[#0b0f1a] transition-all duration-500 ${
+        hoverGlow ? "hp-form-frame" : ""
+      } ${
         active
           ? "border-[var(--beast-blue)]/60 shadow-[0_24px_70px_-24px_rgba(47,107,255,0.55)]"
           : "border-white/10 shadow-[0_16px_40px_-24px_rgba(0,0,0,0.7)]"
@@ -422,15 +471,27 @@ function BoardPreview({
   setLeads,
   procRunning,
   procStep,
+  moved,
+  aiBadge,
 }: {
   leads: any[];
   setLeads: React.Dispatch<React.SetStateAction<any[]>>;
   procRunning: boolean;
   procStep: number;
+  moved: boolean;
+  aiBadge: boolean;
 }) {
   return (
     <ThemeProvider>
-      <div className="hp-demo-board relative h-[734px] bg-[var(--crm-background)]">
+      <div className={`hp-demo-board relative h-[734px] bg-[var(--crm-background)] ${moved ? "hp-moved" : ""}`}>
+        {/* Brief "AI did the work" badge as the lead lands in Contacted. */}
+        {aiBadge && (
+          <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex justify-center">
+            <span className="hp-ai-badge inline-flex items-center gap-1.5 rounded-full bg-[var(--beast-blue)] px-3.5 py-1.5 text-[15px] font-semibold text-white shadow-[0_8px_24px_rgba(47,107,255,0.5)]">
+              <span aria-hidden>✓</span> AI organized your lead
+            </span>
+          </div>
+        )}
         <LeadBoard
           leads={leads}
           setLeads={setLeads}
