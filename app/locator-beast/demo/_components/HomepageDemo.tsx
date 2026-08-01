@@ -214,6 +214,15 @@ export default function HomepageDemo() {
 
   return (
     <div className="w-full">
+      {/* TEMPORARY verification banner — remove after confirming this component
+          is the one rendering at /locator-beast/demo. */}
+      <div
+        style={{ background: "#e11d2e", color: "#fff" }}
+        className="mb-4 rounded-md px-4 py-3 text-center text-[15px] font-bold tracking-wide"
+      >
+        HomepageDemo v2
+      </div>
+
       {/* Permanent workflow indicator — narrates the whole story, stays put. */}
       <WorkflowStepper active={activeStep} />
 
