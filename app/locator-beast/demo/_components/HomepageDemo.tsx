@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import LeadBoard from "@/components/crm/LeadBoard";
@@ -13,12 +13,11 @@ import { TRIAL_URL } from "@/app/locator-beast/_lib/site";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // One continuous, auto-playing story. The visitor performs a SINGLE action —
-// "Submit Lead" — and then watches one lead (Maria) travel through the real
-// production surfaces on its own: a branded Smart Lead Form → a processing
-// sequence → the real LeadBoard (auto-moved New → Contacted) → the real
-// LeadPanel (auto-toured) → the trial CTA. Everything after Submit is
-// automatic, and every CRM surface is fed read-only demo data (no Supabase).
-// This file only supplies framing; it never changes the production components.
+// "Submit Lead" — then watches one lead (Maria) travel through the real
+// production surfaces on its own. A permanent 3-step indicator (Capture →
+// Automate → Close) narrates where we are the whole time. Everything after
+// Submit is automatic, and every CRM surface is fed read-only demo data (no
+// Supabase). This file only supplies framing; it never changes the CRM.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const HERO_ID = "demo-1"; // Maria Gonzalez — the protagonist
@@ -29,16 +28,27 @@ const COLUMNS = [
 const BOARD_LEAD_IDS = ["demo-1", "demo-2", "demo-4"];
 const now = () => new Date().toISOString();
 
-const PROC_STEPS = ["Lead received", "AI analyzing client", "Approval calculated", "Workflow created"];
+// Shrinks the whole branded form proportionally (width, height, padding, photo,
+// skyline, fields, button) so it fits on screen. One knob — tune freely.
+const FORM_SCALE = 0.6;
 
-// Auto-play timings (ms).
+const PROC_STEPS = ["Lead received", "AI analyzing", "Creating workflow"];
+
+// Value-oriented workflow steps — Capture → Automate → Close.
+const WF_STEPS = [
+  { title: "Capture the Lead", sub: "Smart Lead Form" },
+  { title: "Automate the Workflow", sub: "Lead Board + AI" },
+  { title: "Close the Deal", sub: "Everything in one place" },
+];
+
+// Auto-play timings (ms) — the whole story lands in ~8s.
 const T = {
-  procStep: 400, // between processing checklist rows
-  procToBoard: 600, // after the last checklist row → board
-  boardPause: 1100, // Maria sits in New before auto-moving
-  moveToPanel: 1600, // after automation fires → open panel
-  panelHold: 800, // panel sits at the top before the tour scroll
-  panelTour: 3800, // duration of the auto-scroll tour
+  procStep: 550, // between processing checklist rows
+  procToBoard: 550, // after the last checklist row → board
+  boardPause: 900, // Maria sits in New before auto-moving
+  moveToPanel: 850, // after automation fires → open panel
+  panelHold: 700, // panel sits at the top before the tour scroll
+  panelTour: 4000, // duration of the auto-scroll tour
 };
 
 // A realistic locator's branded Smart Lead Form — the production Hero with a
@@ -77,11 +87,6 @@ const FORM_CONFIG: SmartLeadFormConfig = {
 
 type Stage = "form" | "processing" | "board" | "panel";
 
-const STAGE_HEADING: Partial<Record<Stage, string>> = {
-  form: "Your lead fills out your Smart Lead Form",
-  board: "Your lead is automatically added to your Lead Board",
-};
-
 const inputClass =
   "w-full rounded-lg border border-[#e2e4ea] bg-white px-3 py-2.5 text-[13.5px] text-[#111318] outline-none read-only:cursor-default";
 const labelClass = "text-[11.5px] font-medium text-[#4b5162]";
@@ -104,7 +109,8 @@ export default function HomepageDemo() {
   const mountedRef = useRef(false);
 
   const selected = leads.find((l) => l.id === HERO_ID) ?? null;
-  const heading = STAGE_HEADING[stage] ?? null;
+  // Capture (form) → Automate (processing + board) → Close (panel).
+  const activeStep = stage === "form" ? 1 : stage === "panel" ? 3 : 2;
 
   function moveHeroToContacted() {
     setLeads((prev) =>
@@ -119,7 +125,7 @@ export default function HomepageDemo() {
       const t = setTimeout(() => setStage("board"), T.procToBoard);
       return () => clearTimeout(t);
     }
-    const t = setTimeout(() => setProcStep((s) => s + 1), procStep === 0 ? 200 : T.procStep);
+    const t = setTimeout(() => setProcStep((s) => s + 1), procStep === 0 ? 300 : T.procStep);
     return () => clearTimeout(t);
   }, [stage, procStep]);
 
@@ -171,7 +177,7 @@ export default function HomepageDemo() {
     topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [stage]);
 
-  // Step 4 (cont.) — auto-tour the panel: hold at the top, then smoothly scroll
+  // Step 4 (cont.) — auto-tour the panel: hold at the top, smoothly scroll
   // through the sections, then reveal the CTA.
   useEffect(() => {
     if (stage !== "panel") return;
@@ -219,19 +225,12 @@ export default function HomepageDemo() {
 
   return (
     <div className="w-full">
-      {/* scroll anchor — sits just above the stage, clears the sticky nav */}
       <div ref={topRef} className="scroll-mt-24" />
 
-      {heading && (
-        <h2
-          key={`head-${stage}`}
-          className="hp-anim mx-auto max-w-xl text-center text-[20px] font-semibold leading-tight text-white sm:text-[24px]"
-        >
-          {heading}
-        </h2>
-      )}
+      {/* Permanent workflow indicator — narrates the whole story. */}
+      <WorkflowStepper active={activeStep} />
 
-      <div key={`stage-${stage}`} className={`hp-anim ${heading ? "mt-5" : "mt-0"}`}>
+      <div key={`stage-${stage}`} className="hp-anim mt-7">
         {stage === "form" && (
           <FormStep
             onSubmit={() => {
@@ -312,20 +311,86 @@ export default function HomepageDemo() {
       <style>{`
         @keyframes hpFade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
         .hp-anim { animation: hpFade .6s cubic-bezier(.16,1,.3,1); }
+        @keyframes hpPulse {
+          0% { box-shadow: 0 0 0 0 rgba(47,107,255,.5); }
+          70% { box-shadow: 0 0 0 8px rgba(47,107,255,0); }
+          100% { box-shadow: 0 0 0 0 rgba(47,107,255,0); }
+        }
+        .hp-step-glow { animation: hpPulse 1.9s ease-out infinite; }
         /* Keep the two demo columns at their real CRM width and centered, so the
            board reads as a cropped view of the actual CRM (not a stretched one). */
         .hp-demo-board .kb-board { justify-content: center; }
         .hp-demo-board .kb-column { flex-grow: 0; flex-shrink: 0; }
-        @media (prefers-reduced-motion: reduce) { .hp-anim { animation: none; } }
+        @media (prefers-reduced-motion: reduce) { .hp-anim, .hp-step-glow { animation: none; } }
       `}</style>
     </div>
   );
 }
 
-// ── Step 1 — the branded Smart Lead Form (real Hero + compact prefilled fields) ─
+// ── Permanent 3-step workflow indicator ─────────────────────────────────────
+function WorkflowStepper({ active }: { active: number }) {
+  return (
+    <div className="mx-auto flex max-w-xl items-start justify-center gap-1 sm:gap-2">
+      {WF_STEPS.map((s, i) => {
+        const n = i + 1;
+        const done = n < active;
+        const isActive = n === active;
+        return (
+          <Fragment key={s.title}>
+            <div className="flex w-[104px] flex-col items-center text-center sm:w-[132px]">
+              <span
+                className={`flex h-8 w-8 items-center justify-center rounded-full border text-[13px] font-semibold transition-all duration-500 ${
+                  isActive
+                    ? "hp-step-glow border-transparent bg-[var(--beast-blue)] text-white"
+                    : done
+                    ? "border-transparent bg-[var(--beast-blue)] text-white"
+                    : "border-white/25 text-white/40"
+                }`}
+              >
+                {done ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                ) : (
+                  n
+                )}
+              </span>
+              <span
+                className={`mt-2 text-[11.5px] font-semibold leading-tight transition-colors duration-500 sm:text-[13px] ${
+                  isActive || done ? "text-white" : "text-white/40"
+                }`}
+              >
+                {s.title}
+              </span>
+              <span
+                className={`mt-0.5 text-[10px] leading-tight transition-colors duration-500 sm:text-[11px] ${
+                  isActive || done ? "text-white/55" : "text-white/25"
+                }`}
+              >
+                {s.sub}
+              </span>
+            </div>
+            {i < WF_STEPS.length - 1 && (
+              <span
+                className={`mt-4 h-[2px] flex-1 rounded-full transition-colors duration-500 ${
+                  active > n ? "bg-[var(--beast-blue)]" : "bg-white/15"
+                }`}
+              />
+            )}
+          </Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Step 1 — the branded Smart Lead Form (scaled ~60% so it fits on screen) ──
 function FormStep({ onSubmit }: { onSubmit: () => void }) {
   return (
-    <div className="mx-auto max-w-sm overflow-hidden rounded-2xl border border-[#e5e7ee] bg-white shadow-[0_30px_80px_-40px_rgba(2,6,23,0.75)]">
+    <div
+      className="mx-auto max-w-sm overflow-hidden rounded-2xl border border-[#e5e7ee] bg-white shadow-[0_30px_80px_-40px_rgba(2,6,23,0.75)]"
+      style={{ zoom: FORM_SCALE }}
+    >
       <Hero config={FORM_CONFIG} />
 
       <form
