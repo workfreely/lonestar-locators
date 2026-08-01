@@ -17,8 +17,8 @@ export default function Hero() {
           className="beast-fade-up mt-6 max-w-2xl text-[18px] leading-relaxed text-[var(--beast-ink-inverse-soft)] md:text-[20px]"
           style={{ animationDelay: "160ms" }}
         >
-          Manage leads, automate follow-ups, build Smart Lead Forms, and grow your apartment
-          locating business from one modern workspace.
+          Automate your workflow, never miss another follow-up, and let AI help you close more
+          leases.
         </p>
 
         {/* The homepage demonstrates the product automatically — the interactive
