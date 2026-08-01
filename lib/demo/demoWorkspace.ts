@@ -36,7 +36,7 @@ export const DEMO_LEADS: any[] = [
   // ── New (3) ──
   {
     id: "demo-1", is_demo: true, crm_status: "new", lead_type: "long",
-    first_name: "maria", last_name: "gonzalez", phone: "2140000000", email: "maria.g@example.com",
+    first_name: "maria", last_name: "gonzalez", phone: "2142221234", email: "maria.g@example.com",
     city: "Dallas", neighborhoods: "Downtown Dallas", desired_rent: "$2,500-$2,700",
     property_type: "High-rise", beds: "1", baths: "1", move_date: daysFromNow(30),
     credit_score: 748, credit_history: "Clean", eviction_court: "No", criminal_background: "None",

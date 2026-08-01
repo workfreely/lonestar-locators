@@ -338,11 +338,11 @@ export default function HomepageDemo() {
 
       {/* Final CTA — fades in once the panel has finished presenting itself. */}
       <div
-        className={`mx-auto mt-8 max-w-md text-center transition-all duration-700 ${
+        className={`mx-auto mt-8 max-w-md pt-8 text-center transition-all duration-700 ${
           showCta ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0"
         }`}
       >
-        <p className="text-[16px] font-semibold text-white">Everything you need to close the lease.</p>
+        <p className="text-[16px] font-semibold text-white">Stop Losing Leads. Close More Leases.</p>
         <Link
           href={TRIAL_URL}
           className="mt-3 inline-block rounded-full bg-[var(--beast-blue)] px-8 py-3 text-[15px] font-semibold text-white transition-transform duration-200 hover:scale-[1.02]"
@@ -559,7 +559,7 @@ function FormPreview({ onSubmit }: { onSubmit: () => void }) {
           <Field label="Last Name" value="Gonzalez" />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Phone" value="(214) 000-0000" />
+          <Field label="Phone" value="(214) 222-1234" />
           <Field label="City" value="Dallas" />
         </div>
         <div className="grid grid-cols-2 gap-3">
