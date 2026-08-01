@@ -1,16 +1,11 @@
 import HomepageDemo from "../demo/_components/HomepageDemo";
-import { SITE_TAGLINE } from "../_lib/site";
 
 export default function Hero() {
   return (
     <section className="beast-glow relative overflow-hidden bg-[var(--beast-bg-dark)] pb-20 pt-10 text-white md:pb-28 md:pt-14">
       <div className="beast-container relative flex flex-col items-center text-center">
-        <p className="beast-fade-up text-[13px] font-semibold uppercase tracking-[0.35em] text-[var(--beast-blue-bright)]">
-          {SITE_TAGLINE}
-        </p>
-
         <h1
-          className="beast-fade-up mt-6 max-w-4xl text-[40px] font-semibold leading-[1.08] tracking-tight sm:text-[56px] md:text-[68px]"
+          className="beast-fade-up max-w-4xl text-[40px] font-semibold leading-[1.08] tracking-tight sm:text-[56px] md:text-[68px]"
           style={{ animationDelay: "80ms" }}
         >
           Stop Losing Leads.
