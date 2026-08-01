@@ -104,9 +104,7 @@ export default function HomepageDemo() {
   const [moved, setMoved] = useState(false);
   const [showCta, setShowCta] = useState(false);
 
-  const topRef = useRef<HTMLDivElement>(null);
   const panelWrapRef = useRef<HTMLDivElement>(null);
-  const mountedRef = useRef(false);
 
   const selected = leads.find((l) => l.id === HERO_ID) ?? null;
   // Capture (form) → Automate (processing + board) → Close (panel).
@@ -168,15 +166,6 @@ export default function HomepageDemo() {
     return () => clearTimeout(t);
   }, [moved]);
 
-  // Keep the active stage in view as the story auto-advances (never on mount).
-  useEffect(() => {
-    if (!mountedRef.current) {
-      mountedRef.current = true;
-      return;
-    }
-    topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [stage]);
-
   // Step 4 (cont.) — auto-tour the panel: hold at the top, smoothly scroll
   // through the sections, then reveal the CTA.
   useEffect(() => {
@@ -225,12 +214,14 @@ export default function HomepageDemo() {
 
   return (
     <div className="w-full">
-      <div ref={topRef} className="scroll-mt-24" />
-
-      {/* Permanent workflow indicator — narrates the whole story. */}
+      {/* Permanent workflow indicator — narrates the whole story, stays put. */}
       <WorkflowStepper active={activeStep} />
 
-      <div key={`stage-${stage}`} className="hp-anim mt-7">
+      {/* Single stage: the content below swaps in place (no stacking, no page
+          scroll) so the visitor's eyes stay in one spot — a product tour, not a
+          long page. */}
+      <div className="mt-5 flex min-h-[460px] items-center justify-center">
+        <div key={`stage-${stage}`} className="hp-anim w-full">
         {stage === "form" && (
           <FormStep
             onSubmit={() => {
@@ -257,7 +248,7 @@ export default function HomepageDemo() {
                   </span>
                 )}
               </div>
-              <div className="h-[500px] overflow-hidden rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-background)] shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.06),0_18px_44px_rgba(var(--crm-shadow-color),0.28)]">
+              <div className="h-[440px] overflow-hidden rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-background)] shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.06),0_18px_44px_rgba(var(--crm-shadow-color),0.28)]">
                 <LeadBoard
                   leads={leads}
                   setLeads={setLeads}
@@ -275,7 +266,7 @@ export default function HomepageDemo() {
             <div className="mx-auto w-full max-w-[430px]">
               <div
                 ref={panelWrapRef}
-                className="h-[560px] overflow-hidden rounded-2xl border border-[var(--crm-border)] shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.06),0_18px_44px_rgba(var(--crm-shadow-color),0.3)]"
+                className="h-[360px] overflow-hidden rounded-2xl border border-[var(--crm-border)] shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.06),0_18px_44px_rgba(var(--crm-shadow-color),0.3)]"
               >
                 <LeadPanel
                   lead={selected}
@@ -288,24 +279,25 @@ export default function HomepageDemo() {
               </div>
 
               <div
-                className={`mx-auto mt-6 max-w-md text-center transition-all duration-700 ${
+                className={`mx-auto mt-4 max-w-md text-center transition-all duration-700 ${
                   showCta ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0"
                 }`}
               >
-                <p className="text-[16.5px] font-semibold text-white">
+                <p className="text-[15px] font-semibold leading-snug text-white">
                   Everything you need to close the lease. Organized automatically.
                 </p>
                 <Link
                   href={TRIAL_URL}
-                  className="mt-4 inline-block rounded-full bg-[var(--beast-blue)] px-8 py-3.5 text-[15px] font-semibold text-white transition-transform duration-200 hover:scale-[1.02]"
+                  className="mt-3 inline-block rounded-full bg-[var(--beast-blue)] px-7 py-2.5 text-[14.5px] font-semibold text-white transition-transform duration-200 hover:scale-[1.02]"
                 >
                   Start Your Free 30-Day Trial
                 </Link>
-                <p className="mt-2.5 text-[12.5px] text-white/45">No credit card required.</p>
+                <p className="mt-2 text-[12px] text-white/45">No credit card required.</p>
               </div>
             </div>
           </ThemeProvider>
         )}
+        </div>
       </div>
 
       <style>{`
