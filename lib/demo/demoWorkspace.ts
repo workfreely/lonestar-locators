@@ -36,18 +36,18 @@ export const DEMO_LEADS: any[] = [
   // ── New (3) ──
   {
     id: "demo-1", is_demo: true, crm_status: "new", lead_type: "long",
-    first_name: "maria", last_name: "gonzalez", phone: "5125550142", email: "maria.g@example.com",
-    city: "Austin", neighborhoods: "Downtown Austin, South Congress (SoCo)", desired_rent: "$1,500-$1,700",
-    property_type: "Apartment", beds: "1", baths: "1", move_date: thisMonth(28),
+    first_name: "maria", last_name: "gonzalez", phone: "2140000000", email: "maria.g@example.com",
+    city: "Dallas", neighborhoods: "Downtown Dallas", desired_rent: "$2,500-$2,700",
+    property_type: "High-rise", beds: "1", baths: "1", move_date: daysFromNow(30),
     credit_score: 748, credit_history: "Clean", eviction_court: "No", criminal_background: "None",
-    source: "tiktok", follow_up_count: 0, next_action_date: daysFromNow(0),
-    notes: "Relocating to Austin for a role at Dell. First apartment on her own.",
+    source: "instagram_ads", follow_up_count: 0, next_action_date: daysFromNow(0),
+    notes: "Relocating to Dallas for a new role. First apartment on her own.",
     created_at: thisMonth(24),
   },
   {
     id: "demo-2", is_demo: true, crm_status: "new", lead_type: "long",
-    first_name: "jalen", last_name: "brooks", phone: "5125550178", email: "jalen.b@example.com",
-    city: "Austin", neighborhoods: "East Austin, Mueller", desired_rent: "$1,300-$1,500",
+    first_name: "jalen", last_name: "brooks", phone: "7130000000", email: "jalen.b@example.com",
+    city: "Houston", neighborhoods: "Midtown, Montrose", desired_rent: "$1,300-$1,500",
     property_type: "Apartment", beds: "1", baths: "1", move_date: thisMonth(28),
     credit_score: 694, credit_history: "Clean", eviction_court: "No", criminal_background: "None",
     source: "instagram", follow_up_count: 0, next_action_date: daysFromNow(-1),
@@ -68,7 +68,7 @@ export const DEMO_LEADS: any[] = [
   // ── Contacted (2) ──
   {
     id: "demo-4", is_demo: true, crm_status: "contacted", lead_type: "long",
-    first_name: "devon", last_name: "carter", phone: "5125550120", email: "devon.c@example.com",
+    first_name: "devon", last_name: "carter", phone: "5120000000", email: "devon.c@example.com",
     city: "Austin", neighborhoods: "All of Austin", desired_rent: "$1,200-$1,400",
     property_type: "Apartment", beds: "1", baths: "1", move_date: thisMonth(26),
     credit_score: 640, credit_history: "Clean", eviction_court: "No", criminal_background: "None",
@@ -313,10 +313,10 @@ function brief(idNum: number, insights: string[], last: string, syncDay = 0): Ai
 
 const DEMO_BRIEFS: Record<string, AiClientBrief> = {
   "demo-1": brief(1, [
-    "Relocating to Austin for a new position at Dell.",
+    "Relocating to Dallas for a new position.",
     "First apartment on her own.",
-    "Wants modern communities with a gym.",
-    "Budget under $1,700. Prefers newer construction.",
+    "Wants modern high-rises with a gym.",
+    "Budget $2,500–$2,700. Prefers newer construction.",
   ], "Client loved the first two properties. Asked if we could find something with a larger kitchen before scheduling tours."),
   "demo-2": brief(2, [
     "Found us through an Instagram reel.",

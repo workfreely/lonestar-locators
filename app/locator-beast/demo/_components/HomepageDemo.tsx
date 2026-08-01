@@ -73,7 +73,7 @@ const FORM_CONFIG: SmartLeadFormConfig = {
     ...DEFAULT_CONFIG.copy,
     subheadline: "",
     agentName: "Sarah Mitchell",
-    agentTitle: "Austin Apartment Locator",
+    agentTitle: "Dallas Apartment Locator",
     brokerageName: "Mitchell Residential Group",
     highlights: ["100% Free", "Cash Rebate", "Free Movers"],
     buttonText: "Submit Lead",
@@ -163,7 +163,7 @@ export default function HomepageDemo() {
         title: "Build List",
         due_at: stamp,
         priority: "high",
-        notes: "3–4 modern communities in Downtown + SoCo under $1,700.",
+        notes: "3–4 modern high-rises in Downtown Dallas under $2,700.",
         completed: false,
         created_at: stamp,
       },
@@ -547,12 +547,12 @@ function FormPreview({ onSubmit }: { onSubmit: () => void }) {
           <Field label="Last Name" value="Gonzalez" />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Phone" value="(512) 555-0142" />
-          <Field label="City" value="Austin" />
+          <Field label="Phone" value="(214) 000-0000" />
+          <Field label="City" value="Dallas" />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Bedrooms" value="1 Bedroom" />
-          <Field label="Monthly Rent" value="$1,500 – $1,700" />
+          <Field label="Property Type" value="High-rise" />
+          <Field label="Monthly Rent" value="$2,500 – $2,700" />
         </div>
         <button
           type="submit"
