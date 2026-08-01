@@ -29,33 +29,36 @@ const COLUMNS = [
 const BOARD_LEAD_IDS = ["demo-1", "demo-2", "demo-4"];
 const now = () => new Date().toISOString();
 
-// A realistic locator's branded Smart Lead Form — same component the product
-// renders, just with demo branding so a visitor pictures it as their own.
+// A realistic locator's branded Smart Lead Form — the same production Hero the
+// product renders, with a demo agent (Sarah Mitchell) over an Austin skyline so
+// a visitor instantly pictures it as their own branded form.
 const FORM_CONFIG: SmartLeadFormConfig = {
   ...DEFAULT_CONFIG,
   sections: {
     ...DEFAULT_CONFIG.sections,
-    visibility: { ...DEFAULT_CONFIG.sections.visibility, phoneNumber: false },
+    visibility: {
+      ...DEFAULT_CONFIG.sections.visibility,
+      headline: false, // agent branding is the header, not a marketing headline
+      serviceAreas: false, // folded into the one-line subheadline instead
+      phoneNumber: false,
+    },
   },
   branding: {
     ...DEFAULT_CONFIG.branding,
-    agentPhotoUrl: "/reviews/stephanie.png",
-    agentPhotoSize: "medium",
+    agentPhotoUrl: "/demo/agent-sarah.svg",
+    agentPhotoSize: "large",
     profileImagePosition: "underHeadline",
     heroTheme: "custom",
-    heroImageUrl: null,
+    heroImageUrl: "/demo/austin-skyline.svg",
     heroOverlay: "medium",
     buttonColor: "#2f6bff",
   },
   copy: {
     ...DEFAULT_CONFIG.copy,
-    headline: "Find Your Next Apartment — Free",
-    subheadline:
-      "Tell me what you're looking for and I'll send a personalized list that fits your budget and lifestyle.",
-    agentName: "Stephanie Brooks",
-    agentTitle: "Licensed Apartment Locator",
-    brokerageName: "Brooks Residential Group",
-    serviceAreas: "Austin & Round Rock",
+    subheadline: "Free, personalized apartment matches across Austin & Round Rock.",
+    agentName: "Sarah Mitchell",
+    agentTitle: "Austin Apartment Locator",
+    brokerageName: "Mitchell Residential Group",
     highlights: ["100% Free", "Cash Rebate", "Same-Day Tours"],
     buttonText: "Submit Lead",
   },
@@ -63,26 +66,13 @@ const FORM_CONFIG: SmartLeadFormConfig = {
 
 type Stage = "form" | "analyzing" | "board" | "panel";
 
-const STEP = {
-  form: {
-    n: 1,
-    kicker: "Capture the Lead",
-    heading: "Your lead fills out your Smart Lead Form",
-    copy: "Your branded form captures the information you need and sends the lead directly into Locator Beast.",
-  },
-  board: {
-    n: 2,
-    kicker: "Automate the Workflow",
-    heading: "The lead is automatically added to your Lead Board",
-    copy: "Locator Beast organizes the lead, evaluates the client profile, and gives you the next action so nothing slips through the cracks.",
-  },
-  panel: {
-    n: 3,
-    kicker: "Close With Everything in One Place",
-    heading: "Everything you need to move the client forward",
-    copy: "Open the lead to see AI insights, search criteria, notes, approval information, follow-ups, and the next action — all in one place.",
-  },
-} as const;
+// One clean heading per stage — no step numbers, no paragraphs. The product
+// tells the rest of the story.
+const STAGE_HEADING: Partial<Record<Stage, string>> = {
+  form: "Your lead fills out your Smart Lead Form",
+  board: "Your lead is automatically added to your Lead Board",
+  panel: "Everything you need to close the lease",
+};
 
 const inputClass =
   "w-full rounded-xl border border-[#e2e4ea] bg-white px-4 py-3.5 text-[15px] text-[#111318] outline-none read-only:cursor-default";
@@ -99,8 +89,7 @@ export default function HomepageDemo() {
   const mountedRef = useRef(false);
 
   const selected = leads.find((l) => l.id === HERO_ID) ?? null;
-  const stepKey: keyof typeof STEP = stage === "board" ? "board" : stage === "panel" ? "panel" : "form";
-  const step = STEP[stepKey];
+  const heading = STAGE_HEADING[stage] ?? null;
 
   // form → analyzing → board.
   useEffect(() => {
@@ -160,34 +149,18 @@ export default function HomepageDemo() {
 
   return (
     <div className="w-full">
-      {/* scroll anchor — sits just above the step heading, clears the sticky nav */}
+      {/* scroll anchor — sits just above the stage heading, clears the sticky nav */}
       <div ref={topRef} className="scroll-mt-24" />
 
-      {/* ── Step heading (Step 1 / 2 / 3) ─────────────────────────────────── */}
-      <div key={`step-${stepKey}`} className="hp-anim mx-auto max-w-xl text-center">
-        <div className="flex items-center justify-center gap-2 text-[12px] font-semibold uppercase tracking-[0.18em] text-[var(--beast-blue-bright)]">
-          <span>Step {step.n}</span>
-          <span className="h-1 w-1 rounded-full bg-[var(--beast-blue-bright)]/60" />
-          <span>{step.kicker}</span>
-        </div>
-        <h3 className="mt-3 text-[22px] font-semibold leading-tight text-white sm:text-[26px]">{step.heading}</h3>
-        <p className="mx-auto mt-2.5 max-w-lg text-[14.5px] leading-relaxed text-white/55">{step.copy}</p>
-
-        {/* progress dots */}
-        <div className="mt-5 flex items-center justify-center gap-2">
-          {[1, 2, 3].map((n) => (
-            <span
-              key={n}
-              className={`h-1.5 rounded-full transition-all duration-500 ${
-                n === step.n ? "w-6 bg-[var(--beast-blue)]" : n < step.n ? "w-1.5 bg-[var(--beast-blue)]/70" : "w-1.5 bg-white/20"
-              }`}
-            />
-          ))}
-        </div>
-      </div>
+      {/* ── One clean heading per stage (no numbers, no paragraphs) ────────── */}
+      {heading && (
+        <h2 key={`head-${stage}`} className="hp-anim mx-auto max-w-xl text-center text-[21px] font-semibold leading-tight text-white sm:text-[25px]">
+          {heading}
+        </h2>
+      )}
 
       {/* ── Stage content ─────────────────────────────────────────────────── */}
-      <div key={`stage-${stage}`} className="hp-anim mt-8">
+      <div key={`stage-${stage}`} className="hp-anim mt-5">
         {stage === "form" && <FormStep onSubmit={() => setStage("analyzing")} />}
 
         {stage === "analyzing" && <AnalyzingStep />}
@@ -296,10 +269,6 @@ function FormStep({ onSubmit }: { onSubmit: () => void }) {
         }}
         className="flex flex-col gap-4 px-5 pb-7 pt-6 sm:px-7"
       >
-        <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[#9098a8]">
-          Prefilled for this demo
-        </p>
-
         <div className="grid grid-cols-2 gap-4">
           <Field label="First Name" value="Maria" />
           <Field label="Last Name" value="Gonzalez" />

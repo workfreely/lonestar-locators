@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import PageHero from "../_components/PageHero";
 import HomepageDemo from "./_components/HomepageDemo";
 
 export const metadata: Metadata = {
@@ -34,16 +33,16 @@ export default function DemoPage() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <PageHero
-        eyebrow="Live Demo"
-        title="See Locator Beast in action"
-        subtitle="Create a lead, watch the workflow automate, and meet your AI insights — in under a minute. No signup required."
-      />
-      <div className="bg-[var(--beast-bg-dark)]">
-        <div className="beast-container -mt-8 max-w-5xl pb-20 md:-mt-12 md:pb-28">
-          <HomepageDemo />
+      <section className="beast-glow relative overflow-hidden bg-[var(--beast-bg-dark)] pb-16 pt-8 text-white md:pb-24 md:pt-10">
+        <div className="beast-container relative">
+          <h1 className="beast-fade-up mx-auto max-w-3xl text-center text-[30px] font-semibold leading-[1.12] tracking-tight sm:text-[38px] md:text-[44px]">
+            See Locator Beast in Action
+          </h1>
+          <div className="mt-7 md:mt-8">
+            <HomepageDemo />
+          </div>
         </div>
-      </div>
+      </section>
     </>
   );
 }
