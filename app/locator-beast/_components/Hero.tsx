@@ -1,13 +1,5 @@
-import Link from "next/link";
-import DemoVideo from "./DemoVideo";
-import { AppleIcon, WindowsIcon } from "@/components/icons/PlatformIcons";
-import { DEMO_URL, SITE_TAGLINE, TRIAL_URL } from "../_lib/site";
-
-const TRUST_ITEMS = [
-  "30-Day Free Trial",
-  "No credit card required",
-  "Setup in under 30 minutes",
-];
+import HomepageDemo from "../demo/_components/HomepageDemo";
+import { SITE_TAGLINE } from "../_lib/site";
 
 export default function Hero() {
   return (
@@ -26,60 +18,24 @@ export default function Hero() {
           Close More Leases.
         </h1>
 
-        <div className="beast-fade-up mt-10 flex w-full justify-center" style={{ animationDelay: "140ms" }}>
-          <DemoVideo />
-        </div>
-
         <p
-          className="beast-fade-up mt-10 max-w-2xl text-[18px] leading-relaxed text-[var(--beast-ink-inverse-soft)] md:text-[20px]"
-          style={{ animationDelay: "200ms" }}
+          className="beast-fade-up mt-6 max-w-2xl text-[18px] leading-relaxed text-[var(--beast-ink-inverse-soft)] md:text-[20px]"
+          style={{ animationDelay: "160ms" }}
         >
           Manage leads, automate follow-ups, build Smart Lead Forms, and grow your apartment
           locating business from one modern workspace.
         </p>
 
+        {/* The homepage demonstrates the product automatically — the interactive
+            demo replaces the old hero video and ends on its own CTA + Replay.
+            `id` + scroll-margin let the "Live Demo" nav link smooth-scroll here. */}
         <div
-          className="beast-fade-up mt-10 flex flex-col items-center gap-4 sm:flex-row"
-          style={{ animationDelay: "320ms" }}
+          id="live-demo"
+          className="beast-fade-up mt-12 w-full scroll-mt-24"
+          style={{ animationDelay: "240ms" }}
         >
-          <Link
-            href={TRIAL_URL}
-            className="rounded-full bg-[var(--beast-blue)] px-7 py-3.5 text-[15px] font-semibold text-white transition-transform duration-300 hover:scale-[1.03] hover:bg-[var(--beast-blue-bright)]"
-          >
-            Start Your 30-Day Free Trial
-          </Link>
-          <Link
-            href={DEMO_URL}
-            className="rounded-full border border-white/20 px-7 py-3.5 text-[15px] font-semibold text-white/90 transition-colors duration-300 hover:border-white/40 hover:text-white"
-          >
-            Watch Demo
-          </Link>
+          <HomepageDemo />
         </div>
-
-        <ul
-          className="beast-fade-up mt-12 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-[13px] text-[var(--beast-ink-inverse-soft)]"
-          style={{ animationDelay: "380ms" }}
-        >
-          {TRUST_ITEMS.map((item) => (
-            <li key={item} className="flex items-center gap-2">
-              <span className="h-1 w-1 rounded-full bg-[var(--beast-blue-bright)]" />
-              {item}
-            </li>
-          ))}
-          {/* Supported desktop platforms — official monochrome glyphs that
-              inherit the muted bullet text color (macOS listed first). */}
-          <li className="flex items-center gap-2">
-            <span className="h-1 w-1 rounded-full bg-[var(--beast-blue-bright)]" />
-            <span className="inline-flex items-center gap-1.5">
-              <AppleIcon className="h-3.5 w-auto" />
-              macOS
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <WindowsIcon className="h-3 w-auto" />
-              Windows
-            </span>
-          </li>
-        </ul>
       </div>
     </section>
   );

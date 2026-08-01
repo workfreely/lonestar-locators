@@ -8,7 +8,7 @@ export const NAV_LINKS = [
   { label: "Features", href: "/features" },
   { label: "Pricing", href: "/pricing" },
   { label: "Beast Academy", href: "/academy" },
-  { label: "Live Demo", href: "/demo" },
+  { label: "Live Demo", href: "/#live-demo" },
 ] as const;
 
 export const TRIAL_URL = "/signup";
@@ -27,10 +27,10 @@ export const LOGO_FOR_LIGHT_BG = "/locator-beast/locator-beast-on-light.png";
 export const MARKETS: { state: string; cities: string[] }[] = [
   {
     state: "Texas",
-    cities: ["Austin", "Corpus Christi", "Dallas–Fort Worth", "Houston", "New Braunfels", "San Antonio", "San Marcos"],
+    cities: ["Austin", "Dallas–Fort Worth", "Houston", "New Braunfels", "San Antonio", "San Marcos"],
   },
-  { state: "Georgia", cities: ["Atlanta", "Savannah", "Augusta"] },
-  { state: "Arizona", cities: ["Phoenix", "Tucson", "Flagstaff"] },
+  { state: "Georgia", cities: ["Atlanta"] },
+  { state: "Arizona", cities: ["Phoenix", "Tucson"] },
   { state: "Florida", cities: ["Miami–Fort Lauderdale", "Orlando"] },
   { state: "Illinois", cities: ["Chicago"] },
   { state: "Colorado", cities: ["Denver"] },

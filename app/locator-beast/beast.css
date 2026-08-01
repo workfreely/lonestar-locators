@@ -6,6 +6,13 @@
    default `:root` variables in app/globals.css. This file is imported only
    by app/locator-beast/layout.tsx. */
 
+/* Smooth in-page anchor scrolling (e.g. the "Live Demo" nav item scrolling to
+   the homepage demo section). Scoped to marketing pages — this file loads only
+   via app/locator-beast/layout.tsx. */
+html {
+  scroll-behavior: smooth;
+}
+
 .beast-root {
   --beast-bg: #ffffff;
   --beast-bg-dark: #05070d;
