@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import PageHero from "../_components/PageHero";
-import LiveDemo from "./_components/LiveDemo";
+import HomepageDemo from "./_components/HomepageDemo";
 
 export const metadata: Metadata = {
   title: "Live Demo",
@@ -39,7 +39,11 @@ export default function DemoPage() {
         title="See Locator Beast in action"
         subtitle="Create a lead, watch the workflow automate, and meet your AI insights — in under a minute. No signup required."
       />
-      <LiveDemo />
+      <div className="bg-[var(--beast-bg-dark)]">
+        <div className="beast-container -mt-8 max-w-5xl pb-20 md:-mt-12 md:pb-28">
+          <HomepageDemo />
+        </div>
+      </div>
     </>
   );
 }

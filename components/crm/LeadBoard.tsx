@@ -16,7 +16,7 @@ import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { autoDueInDays } from "@/lib/workflow/autoDueDate"
 import { readKanbanDensity, writeKanbanDensity, DEFAULT_KANBAN_DENSITY } from "@/lib/preferences"
 
-const columns = [
+const ALL_COLUMNS = [
   { id: "new", title: "🟡 New" },
   { id: "contacted", title: "🔵 Contacted" },
   { id: "searching", title: "🟣 Searching" },
@@ -70,6 +70,7 @@ export default function LeadBoard({
   selectedLeadId,
   onSelectLead,
   onWorkflowAction,
+  columns = ALL_COLUMNS,
 }: {
   leads: any[]
   setLeads: React.Dispatch<React.SetStateAction<any[]>>
@@ -79,6 +80,10 @@ export default function LeadBoard({
   // drag-triggered stage change — lets the caller mirror it into local
   // next-actions state and surface the "✓ Next Action Created" toast.
   onWorkflowAction?: (action: any) => void
+  // Optional subset/override of the pipeline columns (defaults to all stages).
+  // Used by the public marketing demo to show only New → Contacted; the CRM
+  // never passes this, so its behavior is unchanged.
+  columns?: { id: string; title: string }[]
 }) {
   const [mounted, setMounted] = useState(false)
   const [activeLead, setActiveLead] = useState<any | null>(null)
