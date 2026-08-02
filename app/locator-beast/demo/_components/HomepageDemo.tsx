@@ -34,9 +34,9 @@ const PROC_STEPS = ["Lead received", "AI analyzing", "Creating workflow"];
 // at this width, then the frame zooms it down to DISPLAY_W).
 const DISPLAY_W = 320;
 const STAGES = [
-  { n: 1, key: "form", title: "Capture Your Leads", sub: "Smart Lead Form", natW: 384, frameH: null as number | null, activeScale: 1.08 },
-  { n: 2, key: "board", title: "Automate Your Workflow", sub: "Lead Board + AI", natW: 500, frameH: 470, activeScale: 1.2 },
-  { n: 3, key: "panel", title: "Close More Deals", sub: "Everything in one place", natW: 360, frameH: 470, activeScale: 1.08 },
+  { n: 1, key: "form", title: "Capture Leads", sub: "Smart Lead Form", natW: 384, frameH: null as number | null, activeScale: 1.08 },
+  { n: 2, key: "board", title: "Automate Follow-Ups", sub: "Lead Board + AI", natW: 500, frameH: 470, activeScale: 1.2 },
+  { n: 3, key: "panel", title: "Close More Leases", sub: "Everything in one place", natW: 360, frameH: 470, activeScale: 1.08 },
 ] as const;
 
 const T = {
@@ -260,7 +260,7 @@ export default function HomepageDemo() {
     <div className="w-full">
       <div
         ref={rowRef}
-        className="flex flex-col items-center gap-6 lg:flex-row lg:items-start lg:justify-center lg:gap-2"
+        className="flex flex-col items-center gap-5 lg:flex-row lg:items-start lg:justify-center lg:gap-2"
       >
         {STAGES.map((s, i) => {
           const isActive = activeStage === s.n;
@@ -269,9 +269,12 @@ export default function HomepageDemo() {
             <Fragment key={s.key}>
               <div
                 data-stage={s.n}
+                data-active={isActive}
                 onMouseEnter={() => setHoveredStage(s.n)}
                 onMouseLeave={() => setHoveredStage(null)}
-                className="flex flex-none flex-col items-center transition-all duration-500"
+                className={`flex flex-none flex-col items-center transition-all duration-500 ${
+                  i === 0 ? "mb-3 lg:mb-0" : ""
+                }`}
                 style={{
                   transform: isActive ? `scale(${s.activeScale})` : "scale(0.8)",
                   opacity: isActive ? 1 : 0.48,
@@ -338,7 +341,7 @@ export default function HomepageDemo() {
 
       {/* Final CTA — fades in once the panel has finished presenting itself. */}
       <div
-        className={`mx-auto mt-8 max-w-md pt-8 text-center transition-all duration-700 ${
+        className={`mx-auto hidden max-w-md text-center transition-all duration-700 lg:block lg:mt-8 lg:pt-8 ${
           showCta ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0"
         }`}
       >
@@ -368,6 +371,14 @@ export default function HomepageDemo() {
         .hp-step-glow { animation: hpPulse 1.9s ease-out infinite; }
         .hp-demo-board .kb-board { justify-content: center; }
         .hp-demo-board .kb-column { flex-grow: 0; flex-shrink: 0; }
+
+        /* Mobile: the board (step 2) active-zoom (1.2) pushes the 320px frame to
+           384px — wider than a phone — clipping the Contacted column. Cap it so
+           both New and Contacted stay fully in view and the lead's New -> Contacted
+           move reads in a single viewport. Desktop keeps the 1.2 emphasis. */
+        @media (max-width: 1023px) {
+          [data-stage="2"][data-active="true"] { transform: scale(1) !important; }
+        }
 
         /* AI badge pop as the lead lands in Contacted */
         @keyframes hpBadgePop { 0% { opacity: 0; transform: translateY(-6px) scale(.9); } 100% { opacity: 1; transform: none; } }
@@ -407,7 +418,7 @@ function StepHead({ n, active, done, title, sub }: { n: number; active: boolean;
   return (
     <div className="flex flex-col items-center text-center">
       <span
-        className={`flex h-8 w-8 items-center justify-center rounded-full border text-[13px] font-semibold transition-all duration-500 ${
+        className={`flex h-11 w-11 items-center justify-center rounded-full border text-[19px] font-semibold transition-all duration-500 lg:h-8 lg:w-8 lg:text-[13px] ${
           active
             ? "hp-step-glow border-transparent bg-[var(--beast-blue)] text-white"
             : done
@@ -416,15 +427,15 @@ function StepHead({ n, active, done, title, sub }: { n: number; active: boolean;
         }`}
       >
         {done ? (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" className="h-[19px] w-[19px] lg:h-3.5 lg:w-3.5">
             <path d="M20 6 9 17l-5-5" />
           </svg>
         ) : (
           n
         )}
       </span>
-      <span className={`mt-2 text-[13px] font-semibold leading-tight text-white`}>{title}</span>
-      <span className="mt-0.5 text-[11px] leading-tight text-white/55">{sub}</span>
+      <span className="mt-2.5 text-[16px] font-bold leading-tight text-white lg:mt-2 lg:text-[13px] lg:font-semibold">{title}</span>
+      <span className="mt-1 text-[12.5px] leading-tight text-white/70 lg:mt-0.5 lg:text-[11px] lg:text-white/55">{sub}</span>
     </div>
   );
 }
@@ -463,7 +474,7 @@ function PreviewFrame({
   const zoom = DISPLAY_W / natW;
   return (
     <div
-      className={`hp-glow-frame mt-4 overflow-hidden rounded-2xl border bg-[#0b0f1a] transition-all duration-500 ${
+      className={`hp-glow-frame mt-2 overflow-hidden rounded-2xl border bg-[#0b0f1a] transition-all duration-500 lg:mt-4 ${
         glow ? "hp-glow-on" : ""
       } ${
         active

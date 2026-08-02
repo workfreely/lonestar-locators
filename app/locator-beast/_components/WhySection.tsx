@@ -51,14 +51,14 @@ function CheckIcon() {
 
 export default function WhySection() {
   return (
-    <section className="bg-white py-20 md:py-28">
+    <section className="bg-white pt-12 pb-20 md:py-28">
       <div className="beast-container">
         <Reveal>
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-[32px] font-semibold leading-tight tracking-tight text-[var(--beast-ink)] md:text-[42px]">
-              Why Apartment Locators
+            <h2 className="text-[clamp(21px,6.7vw,32px)] font-semibold leading-tight tracking-tight text-[var(--beast-ink)] md:text-[42px]">
+              <span className="whitespace-nowrap">Why Apartment Locators</span>
               <br />
-              Switch to Locator Beast
+              <span className="whitespace-nowrap">Switch to Locator Beast</span>
             </h2>
             <p className="mt-4 text-[16px] leading-relaxed text-[var(--beast-ink-soft)] md:text-[18px]">
               Stop wasting time fighting your CRM. Start closing more leases.
@@ -66,7 +66,7 @@ export default function WhySection() {
           </div>
         </Reveal>
 
-        <div className="mx-auto mt-14 grid max-w-4xl gap-6 md:grid-cols-2 md:gap-8">
+        <div className="mx-auto mt-8 grid max-w-4xl gap-6 md:mt-14 md:grid-cols-2 md:gap-8">
           {/* Traditional CRM — the muted "before" column */}
           <Reveal>
             <div className="h-full rounded-2xl border border-[var(--beast-border)] bg-[#f7f8fa] p-8 md:p-10">

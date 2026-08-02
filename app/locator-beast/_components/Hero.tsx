@@ -1,11 +1,13 @@
+import Link from "next/link";
 import HomepageDemo from "../demo/_components/HomepageDemo";
 import { AppleIcon, WindowsIcon } from "@/components/icons/PlatformIcons";
+import { TRIAL_URL } from "@/app/locator-beast/_lib/site";
 
 const TRUST_ITEMS = ["30-Day Free Trial", "No credit card required", "Setup in under 10 minutes"];
 
 export default function Hero() {
   return (
-    <section className="beast-glow relative overflow-hidden bg-[var(--beast-bg-dark)] pb-20 pt-10 text-white md:pb-28 md:pt-14">
+    <section className="beast-glow relative overflow-hidden bg-[var(--beast-bg-dark)] pb-12 pt-10 text-white md:pb-28 md:pt-14">
       <div className="beast-container relative flex flex-col items-center text-center">
         <h1
           className="beast-fade-up max-w-4xl text-[40px] font-semibold leading-[1.08] tracking-tight sm:text-[56px] md:text-[68px]"
@@ -38,7 +40,7 @@ export default function Hero() {
         {/* Feature/benefit row — anchors the bottom of the hero beneath the
             demo's CTA. Same small text + blue separator dots as before. */}
         <ul
-          className="beast-fade-up mt-12 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-[13px] text-[var(--beast-ink-inverse-soft)]"
+          className="beast-fade-up mt-8 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-[13px] text-[var(--beast-ink-inverse-soft)] lg:mt-12"
           style={{ animationDelay: "380ms" }}
         >
           {TRUST_ITEMS.map((item) => (
@@ -61,6 +63,15 @@ export default function Hero() {
             </span>
           </li>
         </ul>
+
+        {/* Mobile-only full-width CTA — gives phone visitors a clear next step
+            after scrolling the stacked workflow steps, before the comparison. */}
+        <Link
+          href={TRIAL_URL}
+          className="mt-10 block w-full rounded-full bg-[var(--beast-blue)] px-8 py-4 text-center text-[16px] font-semibold text-white transition-transform duration-200 active:scale-[0.99] lg:hidden"
+        >
+          Start Your 30-Day Free Trial
+        </Link>
       </div>
     </section>
   );
