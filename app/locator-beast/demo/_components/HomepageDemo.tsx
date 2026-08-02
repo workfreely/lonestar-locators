@@ -260,7 +260,7 @@ export default function HomepageDemo() {
     <div className="w-full">
       <div
         ref={rowRef}
-        className="flex flex-col items-center gap-5 lg:flex-row lg:items-start lg:justify-center lg:gap-2"
+        className="flex flex-col items-center gap-12 lg:flex-row lg:items-start lg:justify-center lg:gap-2"
       >
         {STAGES.map((s, i) => {
           const isActive = activeStage === s.n;
@@ -272,9 +272,7 @@ export default function HomepageDemo() {
                 data-active={isActive}
                 onMouseEnter={() => setHoveredStage(s.n)}
                 onMouseLeave={() => setHoveredStage(null)}
-                className={`flex flex-none flex-col items-center transition-all duration-500 ${
-                  i === 0 ? "mb-3 lg:mb-0" : ""
-                }`}
+                className="flex flex-none flex-col items-center transition-all duration-500"
                 style={{
                   transform: isActive ? `scale(${s.activeScale})` : "scale(0.8)",
                   opacity: isActive ? 1 : 0.48,
@@ -372,12 +370,19 @@ export default function HomepageDemo() {
         .hp-demo-board .kb-board { justify-content: center; }
         .hp-demo-board .kb-column { flex-grow: 0; flex-shrink: 0; }
 
-        /* Mobile: the board (step 2) active-zoom (1.2) pushes the 320px frame to
-           384px — wider than a phone — clipping the Contacted column. Cap it so
-           both New and Contacted stay fully in view and the lead's New -> Contacted
-           move reads in a single viewport. Desktop keeps the 1.2 emphasis. */
+        /* Mobile: every workflow step is a full-size, equally-emphasized showcase.
+           Neutralize the focus-zoom's per-step scale + opacity so no step shrinks
+           or dims (this also keeps the board's two columns in view). The only motion
+           is inside each product screenshot. Desktop keeps the focus animation. */
         @media (max-width: 1023px) {
-          [data-stage="2"][data-active="true"] { transform: scale(1) !important; }
+          [data-stage] { transform: none !important; opacity: 1 !important; }
+          /* Motion lives only inside the screenshots: silence the outer step
+             circle pulse and the frame glow. */
+          .hp-glow-frame.hp-glow-on, .hp-step-glow { animation: none !important; }
+          /* Every step reads like Step 1: filled-blue number circle and an
+             identical frame treatment, regardless of playback state. */
+          .hp-step-circle { background: var(--beast-blue) !important; border-color: transparent !important; color: #fff !important; }
+          .hp-glow-frame { border-color: rgba(255,255,255,0.12) !important; box-shadow: 0 16px 40px -24px rgba(0,0,0,0.7) !important; }
         }
 
         /* AI badge pop as the lead lands in Contacted */
@@ -418,7 +423,7 @@ function StepHead({ n, active, done, title, sub }: { n: number; active: boolean;
   return (
     <div className="flex flex-col items-center text-center">
       <span
-        className={`flex h-11 w-11 items-center justify-center rounded-full border text-[19px] font-semibold transition-all duration-500 lg:h-8 lg:w-8 lg:text-[13px] ${
+        className={`hp-step-circle flex h-14 w-14 items-center justify-center rounded-full border text-[24px] font-semibold transition-all duration-500 lg:h-8 lg:w-8 lg:text-[13px] ${
           active
             ? "hp-step-glow border-transparent bg-[var(--beast-blue)] text-white"
             : done
@@ -427,15 +432,15 @@ function StepHead({ n, active, done, title, sub }: { n: number; active: boolean;
         }`}
       >
         {done ? (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" className="h-[19px] w-[19px] lg:h-3.5 lg:w-3.5">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 lg:h-3.5 lg:w-3.5">
             <path d="M20 6 9 17l-5-5" />
           </svg>
         ) : (
           n
         )}
       </span>
-      <span className="mt-2.5 text-[16px] font-bold leading-tight text-white lg:mt-2 lg:text-[13px] lg:font-semibold">{title}</span>
-      <span className="mt-1 text-[12.5px] leading-tight text-white/70 lg:mt-0.5 lg:text-[11px] lg:text-white/55">{sub}</span>
+      <span className="mt-3 text-[23px] font-bold leading-tight text-white lg:mt-2 lg:text-[13px] lg:font-semibold">{title}</span>
+      <span className="mt-1 text-[15px] leading-tight text-white/85 lg:mt-0.5 lg:text-[11px] lg:text-white/55">{sub}</span>
     </div>
   );
 }
