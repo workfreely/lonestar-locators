@@ -61,9 +61,7 @@ export default function WhySection() {
               Switch to Locator Beast
             </h2>
             <p className="mt-4 text-[16px] leading-relaxed text-[var(--beast-ink-soft)] md:text-[18px]">
-              Stop wasting time fighting your CRM. Start closing more leases. See why
-              apartment locators are replacing generic CRMs with software built specifically
-              for their workflow.
+              Stop wasting time fighting your CRM. Start closing more leases.
             </p>
           </div>
         </Reveal>
@@ -72,8 +70,8 @@ export default function WhySection() {
           {/* Traditional CRM — the muted "before" column */}
           <Reveal>
             <div className="h-full rounded-2xl border border-[var(--beast-border)] bg-[#f7f8fa] p-8 md:p-10">
-              <p className="text-[22px] font-semibold text-[var(--beast-ink-soft)]">
-                Traditional CRM
+              <p className="text-center text-[30px] font-semibold tracking-tight text-[var(--beast-ink-soft)]">
+                Generic CRM
               </p>
               <ul className="mt-8 space-y-6">
                 {TRADITIONAL_CRM.map((item) => (
@@ -91,7 +89,7 @@ export default function WhySection() {
           {/* Locator Beast — the highlighted "winner" column */}
           <Reveal delayMs={100}>
             <div className="h-full rounded-2xl border-2 border-[var(--beast-blue)] bg-white p-8 shadow-[0_0_60px_-15px_rgba(47,107,255,0.4),0_24px_50px_-24px_rgba(47,107,255,0.35)] md:p-10">
-              <p className="text-[22px] font-semibold text-[var(--beast-ink)]">
+              <p className="text-center text-[30px] font-semibold tracking-tight text-[var(--beast-ink)]">
                 Locator Beast
               </p>
               <ul className="mt-8 space-y-6">
