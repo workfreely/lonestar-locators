@@ -75,7 +75,7 @@ const FORM_CONFIG: SmartLeadFormConfig = {
     agentName: "Sarah Mitchell",
     agentTitle: "Dallas Apartment Locator",
     brokerageName: "Mitchell Residential Group",
-    highlights: ["100% Free", "Cash Rebate", "Free Movers"],
+    highlights: ["100% Free Service", "Cash Rebate", "Free Movers"],
     buttonText: "Submit Lead",
   },
 };
@@ -299,6 +299,7 @@ export default function HomepageDemo() {
                           h-full resolves and its body can scroll for the tour. */}
                       <div
                         ref={panelWrapRef}
+                        className="hp-demo-panel"
                         style={{ height: Math.round((s.frameH ?? 380) / (DISPLAY_W / s.natW)) }}
                         onClickCapture={(e) => {
                           const btn = (e.target as HTMLElement).closest("button");
@@ -383,6 +384,25 @@ export default function HomepageDemo() {
              identical frame treatment, regardless of playback state. */
           .hp-step-circle { background: var(--beast-blue) !important; border-color: transparent !important; color: #fff !important; }
           .hp-glow-frame { border-color: rgba(255,255,255,0.12) !important; box-shadow: 0 16px 40px -24px rgba(0,0,0,0.7) !important; }
+
+          /* Step 2 — one clean, static Compact board: drop the search box and the
+             other view tabs so it reads as a showcase, not an interactive app. */
+          .hp-demo-board .kb-search { display: none !important; }
+          .hp-demo-board .kb-density button:not([aria-pressed="true"]) { display: none !important; }
+          .hp-demo-board .kb-card { cursor: default !important; }
+
+          /* Step 3 — trim the CRM panel to the essentials: name, phone, status
+             badge, Call/Text, and Next Action. Hide the window chrome (Archive/
+             Close) and the secondary collapsible sections (Search Criteria,
+             Credit Screening, Quick Actions). Let the full name show. */
+          .hp-demo-panel button[aria-label="Archive Lead"],
+          .hp-demo-panel button[aria-label="Close"] { display: none !important; }
+          .hp-demo-panel h2 { overflow: visible !important; text-overflow: clip !important; }
+          .hp-demo-panel div:has(> div > p.uppercase.tracking-widest) { display: none !important; }
+          /* With the secondary sections gone, hug the frame to the remaining
+             content (header + Call/Text + Next Action) instead of leaving a
+             tall empty panel. */
+          [data-stage="3"] .hp-glow-frame { height: 330px !important; }
         }
 
         /* AI badge pop as the lead lands in Contacted */

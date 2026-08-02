@@ -61,7 +61,10 @@ export default function WhySection() {
               <span className="whitespace-nowrap">Switch to Locator Beast</span>
             </h2>
             <p className="mt-4 text-[16px] leading-relaxed text-[var(--beast-ink-soft)] md:text-[18px]">
-              Stop wasting time fighting your CRM. Start closing more leases.
+              <span className="md:hidden">Stop wasting time. Start closing more leases.</span>
+              <span className="hidden md:inline">
+                Stop wasting time fighting your CRM. Start closing more leases.
+              </span>
             </p>
           </div>
         </Reveal>
