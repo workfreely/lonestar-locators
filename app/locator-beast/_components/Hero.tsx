@@ -40,25 +40,25 @@ export default function Hero() {
         {/* Feature/benefit row — anchors the bottom of the hero beneath the
             demo's CTA. Same small text + blue separator dots as before. */}
         <ul
-          className="beast-fade-up mt-8 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-[13px] text-[var(--beast-ink-inverse-soft)] lg:mt-12"
+          className="beast-fade-up mt-8 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-[15px] text-[var(--beast-ink-inverse-soft)] lg:mt-12"
           style={{ animationDelay: "380ms" }}
         >
           {TRUST_ITEMS.map((item) => (
             <li key={item} className="flex items-center gap-2">
-              <span className="h-1 w-1 rounded-full bg-[var(--beast-blue-bright)]" />
+              <span className="h-[5px] w-[5px] rounded-full bg-[var(--beast-blue-bright)]" />
               {item}
             </li>
           ))}
           {/* Supported desktop platforms — official monochrome glyphs that
               inherit the muted bullet text color (macOS listed first). */}
           <li className="flex items-center gap-2">
-            <span className="h-1 w-1 rounded-full bg-[var(--beast-blue-bright)]" />
+            <span className="h-[5px] w-[5px] rounded-full bg-[var(--beast-blue-bright)]" />
             <span className="inline-flex items-center gap-1.5">
-              <AppleIcon className="h-3.5 w-auto" />
+              <AppleIcon className="h-4 w-auto" />
               macOS
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <WindowsIcon className="h-3 w-auto" />
+              <WindowsIcon className="h-3.5 w-auto" />
               Windows
             </span>
           </li>

@@ -45,14 +45,14 @@ export default function FeatureGrid() {
             <Reveal key={feature.title} delayMs={(i % 3) * 80}>
               <div className="beast-hover-lift h-full rounded-2xl border border-[var(--beast-border)] bg-white p-6">
                 <div className="flex items-center justify-between">
-                  <feature.icon className="h-6 w-6 text-[var(--beast-blue)]" />
+                  <feature.icon className="h-7 w-7 text-[var(--beast-blue)]" />
                   {feature.comingSoon && (
                     <span className="rounded-full bg-[var(--beast-blue)]/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--beast-blue)]">
                       Coming Soon
                     </span>
                   )}
                 </div>
-                <p className="mt-4 text-[16px] font-semibold text-[var(--beast-ink)]">
+                <p className="mt-4 text-[18px] font-semibold text-[var(--beast-ink)]">
                   {feature.title}
                 </p>
                 <p className="mt-2 text-[14px] leading-relaxed text-[var(--beast-ink-soft)]">
