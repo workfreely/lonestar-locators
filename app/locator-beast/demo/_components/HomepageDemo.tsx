@@ -400,12 +400,13 @@ export default function HomepageDemo() {
 
           /* One uniform product-slide canvas for all three steps — same width,
              height, radius, and glow — so they read as three framed screenshots
-             of the same product. Taller (~540) so the full Submit Lead button +
-             its glow clear the frame, and Step 3's Next Action never crops. The
-             board + lead-panel inner heights are bumped to fill the same canvas. */
-          .hp-glow-frame { height: 540px !important; }
-          .hp-demo-panel { height: 608px !important; }
-          .hp-demo-board { height: 844px !important; }
+             of the same product. Taller (~600) so the full Submit Lead button +
+             its (intro) blue glow clear the frame with margin, and Step 3's Next
+             Action never crops. The board + lead-panel inner heights are bumped
+             to fill the same canvas. */
+          .hp-glow-frame { height: 600px !important; }
+          .hp-demo-panel { height: 675px !important; }
+          .hp-demo-board { height: 938px !important; }
         }
 
         /* Step 3 lead panel (all breakpoints) — drop the window chrome
@@ -624,7 +625,7 @@ function FormPreview({ onSubmit }: { onSubmit: () => void }) {
   };
 
   return (
-    <div className="bg-white">
+    <div className="bg-white min-h-[720px] lg:min-h-0">
       <Hero config={FORM_CONFIG} />
       <form
         onSubmit={(e) => {
