@@ -407,9 +407,10 @@ export default function HomepageDemo() {
           /* One uniform product-slide canvas for all three steps — same width,
              height, radius, and glow — so they read as three framed screenshots
              of the same product, not three different sizes. The premium form
-             sets the height (~480); the board and trimmed lead panel fill it. */
-          .hp-glow-frame { height: 480px !important; }
-          .hp-demo-panel { height: 540px !important; }
+             sets the height (~500, incl. the Submit hint line); the board and
+             trimmed lead panel fill it. */
+          .hp-glow-frame { height: 500px !important; }
+          .hp-demo-panel { height: 563px !important; }
         }
 
         /* AI badge pop as the lead lands in Contacted */
@@ -433,8 +434,24 @@ export default function HomepageDemo() {
         .hp-glow-frame { transition: box-shadow .5s ease; }
         .hp-glow-frame.hp-glow-on { animation: hpFormGlow 2.4s ease-in-out infinite; }
 
+        /* Submit-Lead attention cue: one slightly stronger intro pulse on load,
+           then a gentle breathing glow every ~2.6s. Removed the moment the demo
+           starts (the .hp-cta-attention class is dropped). */
+        @keyframes hpCtaIntro {
+          0%   { box-shadow: 0 0 0 0 rgba(47,107,255,.55); }
+          45%  { box-shadow: 0 0 30px 9px rgba(47,107,255,.75); }
+          100% { box-shadow: 0 0 12px 1px rgba(47,107,255,.32); }
+        }
+        @keyframes hpCtaGlow {
+          0%, 100% { box-shadow: 0 0 11px 0 rgba(47,107,255,.30); }
+          50%      { box-shadow: 0 0 24px 5px rgba(47,107,255,.55); }
+        }
+        .hp-cta-attention { animation: hpCtaIntro 1.3s ease-out 1, hpCtaGlow 2.6s ease-in-out 1.3s infinite; }
+
         @media (prefers-reduced-motion: reduce) {
           .hp-step-glow, .hp-ai-badge, .hp-glow-frame.hp-glow-on, .hp-moved .kb-card.kb-card--selected { animation: none; }
+          /* Keep a steady (non-pulsing) glow so the CTA still reads as the cue. */
+          .hp-cta-attention { animation: none; box-shadow: 0 0 16px 2px rgba(47,107,255,.45); }
         }
         /* Reduced motion still gets a steady (non-pulsing) glow on the active/hovered stage. */
         @media (prefers-reduced-motion: reduce) {
@@ -587,13 +604,30 @@ function BoardPreview({
 
 // ── Form preview: the branded Smart Lead Form (real Hero + compact fields) ───
 function FormPreview({ onSubmit }: { onSubmit: () => void }) {
+  // Attention cues to make the demo's interactivity obvious to first-time
+  // visitors: a breathing glow on Submit + a delayed helper hint. Both stop
+  // the instant the visitor presses the button (and never nag on replay).
+  const [interacted, setInteracted] = useState(false);
+  const [showHint, setShowHint] = useState(false);
+
+  useEffect(() => {
+    if (interacted) return;
+    const t = setTimeout(() => setShowHint(true), 2000);
+    return () => clearTimeout(t);
+  }, [interacted]);
+
+  const start = () => {
+    setInteracted(true);
+    onSubmit();
+  };
+
   return (
     <div className="bg-white">
       <Hero config={FORM_CONFIG} />
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          onSubmit();
+          start();
         }}
         className="flex flex-col gap-2.5 px-4 pb-4 pt-4"
       >
@@ -609,9 +643,21 @@ function FormPreview({ onSubmit }: { onSubmit: () => void }) {
           <Field label="Property Type" value="High-rise" />
           <Field label="Monthly Rent" value="$2,500 – $2,700" />
         </div>
+        {/* Helper hint — reserves its line so it can fade in/out without
+            shifting the button. */}
+        <p
+          className={`mt-0.5 h-[15px] text-center text-[11px] font-medium text-[#8b91a1] transition-opacity duration-500 ${
+            showHint && !interacted ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          Tap “Submit Lead” to see Locator Beast in action
+        </p>
         <button
           type="submit"
-          className="mt-1.5 w-full rounded-full px-6 py-3 text-[14.5px] font-semibold text-white transition-transform duration-300 hover:scale-[1.01]"
+          onClick={start}
+          className={`w-full rounded-full px-6 py-3 text-[14.5px] font-semibold text-white transition-transform duration-300 hover:scale-[1.01] ${
+            interacted ? "" : "hp-cta-attention"
+          }`}
           style={{ backgroundColor: FORM_CONFIG.branding.buttonColor }}
         >
           Submit Lead
