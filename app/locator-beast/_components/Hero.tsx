@@ -23,7 +23,7 @@ export default function Hero() {
           style={{ animationDelay: "160ms" }}
         >
           All-in-one platform built for apartment locators. Capture leads, manage clients, automate
-          workflow, never miss a follow-up, and close more leases with AI.
+          follow-ups, and close more leases with AI.
         </p>
 
         {/* The homepage demonstrates the product automatically — the interactive
