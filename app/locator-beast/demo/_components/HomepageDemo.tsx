@@ -40,11 +40,12 @@ const STAGES = [
 ] as const;
 
 const T = {
+  submitHold: 500,
   procStep: 520,
   procToBoard: 500,
-  boardPause: 850,
-  moveToPanel: 850,
-  panelHold: 650,
+  boardPause: 1000,
+  moveToPanel: 1000,
+  panelHold: 1000,
   panelTour: 3400,
 };
 
@@ -117,6 +118,21 @@ export default function HomepageDemo() {
     );
   }
 
+  // Subtle premium cue: a brief blue glow on the Credit Screening / Approval
+  // section as the panel tour brings it into view. One-shot — the class is
+  // removed after the animation so it can fire again on replay.
+  function highlightApprovalSection() {
+    const wrap = panelWrapRef.current;
+    if (!wrap) return;
+    const head = Array.from(wrap.querySelectorAll("p")).find(
+      (p) => p.textContent?.trim() === "Credit Screening"
+    );
+    const card = head?.parentElement?.parentElement; // <p> → header row → card root
+    if (!card) return;
+    card.classList.add("hp-approval-highlight");
+    window.setTimeout(() => card.classList.remove("hp-approval-highlight"), 900);
+  }
+
   function startDemo() {
     setStage("board");
     setProcStep(0);
@@ -182,12 +198,9 @@ export default function HomepageDemo() {
     return () => clearTimeout(t);
   }, [moved]);
 
-  // On small screens the three stages stack, so bring the active one into view.
-  useEffect(() => {
-    if (typeof window === "undefined" || window.innerWidth >= 1024) return;
-    const el = rowRef.current?.querySelector(`[data-stage="${activeStage}"]`);
-    el?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [activeStage]);
+  // The browser page must NEVER auto-scroll as the demo advances — only the
+  // Step 3 panel scrolls internally (see the panel-tour effect below). On small
+  // screens the visitor scrolls the stacked stages themselves.
 
   // The demo must NEVER launch phone / text / messaging apps. Neutralize any
   // tel:/sms: window.open for the life of the demo (belt-and-suspenders on top
@@ -231,7 +244,10 @@ export default function HomepageDemo() {
       : undefined;
 
     if (!scroller || prefersReducedMotion()) {
-      const t = setTimeout(() => setShowCta(true), 700);
+      const t = setTimeout(() => {
+        setShowCta(true);
+        highlightApprovalSection();
+      }, 700);
       return () => clearTimeout(t);
     }
 
@@ -245,10 +261,16 @@ export default function HomepageDemo() {
       const eased = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
       scroller.scrollTop = max * eased;
       if (p < 1) raf = requestAnimationFrame(tick);
-      else setShowCta(true);
+      else {
+        setShowCta(true);
+        highlightApprovalSection();
+      }
     };
     const hold = setTimeout(() => (raf = requestAnimationFrame(tick)), T.panelHold);
-    const fallback = setTimeout(() => setShowCta(true), T.panelHold + T.panelTour + 900);
+    const fallback = setTimeout(() => {
+      setShowCta(true);
+      highlightApprovalSection();
+    }, T.panelHold + T.panelTour + 900);
     return () => {
       clearTimeout(hold);
       clearTimeout(fallback);
@@ -448,6 +470,16 @@ export default function HomepageDemo() {
         }
         .hp-moved .kb-card.kb-card--selected { animation: hpCardPop 1.6s ease-out 2; }
 
+        /* Approval Intelligence cue — a brief, premium blue glow on the Credit
+           Screening section as the panel tour reveals it. A small "wow" without
+           being distracting (~750ms, one-shot). */
+        @keyframes hpApprovalGlow {
+          0%   { box-shadow: 0 0 0 0 rgba(47,107,255,0); border-color: var(--crm-border-soft); }
+          30%  { box-shadow: 0 0 0 2px rgba(47,107,255,.55), 0 0 24px 4px rgba(47,107,255,.42); border-color: rgba(47,107,255,.7); }
+          100% { box-shadow: 0 0 0 0 rgba(47,107,255,0); border-color: var(--crm-border-soft); }
+        }
+        .hp-approval-highlight { animation: hpApprovalGlow .75s ease-out; }
+
         /* Premium animated blue glow — on the active step during playback and on
            whichever stage is hovered afterward (driven by hp-glow-on). */
         @keyframes hpFormGlow {
@@ -472,7 +504,7 @@ export default function HomepageDemo() {
         .hp-cta-attention { animation: hpCtaIntro 1.3s ease-out 1, hpCtaGlow 2.6s ease-in-out 1.3s infinite; }
 
         @media (prefers-reduced-motion: reduce) {
-          .hp-step-glow, .hp-ai-badge, .hp-glow-frame.hp-glow-on, .hp-moved .kb-card.kb-card--selected { animation: none; }
+          .hp-step-glow, .hp-ai-badge, .hp-glow-frame.hp-glow-on, .hp-moved .kb-card.kb-card--selected, .hp-approval-highlight { animation: none; }
           /* Keep a steady (non-pulsing) glow so the CTA still reads as the cue. */
           .hp-cta-attention { animation: none; box-shadow: 0 0 16px 2px rgba(47,107,255,.45); }
         }
@@ -630,18 +662,26 @@ function FormPreview({ onSubmit }: { onSubmit: () => void }) {
   // Attention cues to make the demo's interactivity obvious to first-time
   // visitors: a breathing glow on Submit + a delayed helper hint. Both stop
   // the instant the visitor presses the button (and never nag on replay).
-  const [interacted, setInteracted] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [glowOff, setGlowOff] = useState(false);
   const [showHint, setShowHint] = useState(false);
 
   useEffect(() => {
-    if (interacted) return;
+    if (submitted) return;
     const t = setTimeout(() => setShowHint(true), 2000);
     return () => clearTimeout(t);
-  }, [interacted]);
+  }, [submitted]);
 
+  // On press, hold ~500ms with the blue glow still on so the visitor registers
+  // that they submitted a lead, then drop the glow exactly as the demo
+  // transitions to the Lead Board.
   const start = () => {
-    setInteracted(true);
-    onSubmit();
+    if (submitted) return;
+    setSubmitted(true);
+    window.setTimeout(() => {
+      setGlowOff(true);
+      onSubmit();
+    }, T.submitHold);
   };
 
   return (
@@ -670,7 +710,7 @@ function FormPreview({ onSubmit }: { onSubmit: () => void }) {
             shifting the button. */}
         <p
           className={`mt-0.5 h-[15px] text-center text-[11px] font-medium text-[#8b91a1] transition-opacity duration-500 ${
-            showHint && !interacted ? "opacity-100" : "opacity-0"
+            showHint && !submitted ? "opacity-100" : "opacity-0"
           }`}
         >
           Tap “Submit Lead” to see Locator Beast in action
@@ -679,7 +719,7 @@ function FormPreview({ onSubmit }: { onSubmit: () => void }) {
           type="submit"
           onClick={start}
           className={`w-full rounded-full px-6 py-3 text-[14.5px] font-semibold text-white transition-transform duration-300 hover:scale-[1.01] ${
-            interacted ? "" : "hp-cta-attention"
+            glowOff ? "" : "hp-cta-attention"
           }`}
           style={{ backgroundColor: FORM_CONFIG.branding.buttonColor }}
         >
