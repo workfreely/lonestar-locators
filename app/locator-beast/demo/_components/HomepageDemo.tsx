@@ -363,27 +363,27 @@ export default function HomepageDemo() {
       </div>
 
       {/* Final CTA — fades in once the panel has finished presenting itself.
-          Desktop shows the full CTA (headline + trial + Replay). Mobile shows
-          only the Replay Demo control (the mobile trial CTA already lives just
-          below the demo in the Hero, so the headline/trial parts stay
-          desktop-only to avoid duplicating it). */}
+          Desktop only. On mobile the Submit Lead button is the single action:
+          it both starts and replays the demo (pressing it after the demo rests
+          on Step 3 resets to Step 1 and replays), and the mobile trial CTA
+          already lives just below the demo in the Hero. */}
       <div
-        className={`mx-auto max-w-md text-center transition-all duration-700 mt-8 lg:mt-8 lg:pt-8 ${
+        className={`mx-auto hidden max-w-md text-center transition-all duration-700 lg:block lg:mt-8 lg:pt-8 ${
           showCta ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0"
         }`}
       >
-        <p className="hidden text-[16px] font-semibold text-white lg:block">Stop Losing Leads. Close More Leases.</p>
+        <p className="text-[16px] font-semibold text-white">Stop Losing Leads. Close More Leases.</p>
         <Link
           href={TRIAL_URL}
-          className="mt-3 hidden rounded-full bg-[var(--beast-blue)] px-8 py-3 text-[15px] font-semibold text-white transition-transform duration-200 hover:scale-[1.02] lg:inline-block"
+          className="mt-3 inline-block rounded-full bg-[var(--beast-blue)] px-8 py-3 text-[15px] font-semibold text-white transition-transform duration-200 hover:scale-[1.02]"
         >
           Start Your Free 30-Day Trial
         </Link>
-        <p className="mt-2 hidden text-[12.5px] text-white/45 lg:block">No credit card required.</p>
+        <p className="mt-2 text-[12.5px] text-white/45">No credit card required.</p>
         <button
           type="button"
           onClick={replayDemo}
-          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-white/55 transition-colors hover:text-white lg:mt-4"
+          className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-white/55 transition-colors hover:text-white"
         >
           <span aria-hidden>↻</span> Replay Demo
         </button>
