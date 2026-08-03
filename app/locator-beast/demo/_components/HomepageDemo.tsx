@@ -325,7 +325,13 @@ export default function HomepageDemo() {
                 <StepHead n={s.n} active={isActive} done={isDone} title={s.title} sub={s.sub} />
 
                 <PreviewFrame natW={s.natW} frameH={s.frameH} active={isActive} glow={glowStage === s.n}>
-                  {s.key === "form" && <FormPreview onReset={replayDemo} onSubmit={startDemo} />}
+                  {s.key === "form" && (
+                    <FormPreview
+                      onReset={replayDemo}
+                      onSubmit={startDemo}
+                      isRunning={stage !== "form" && !showCta}
+                    />
+                  )}
                   {s.key === "board" && (
                     <BoardPreview
                       leads={leads}
@@ -687,7 +693,15 @@ function BoardPreview({
 }
 
 // ── Form preview: the branded Smart Lead Form (real Hero + compact fields) ───
-function FormPreview({ onReset, onSubmit }: { onReset: () => void; onSubmit: () => void }) {
+function FormPreview({
+  onReset,
+  onSubmit,
+  isRunning,
+}: {
+  onReset: () => void;
+  onSubmit: () => void;
+  isRunning: boolean;
+}) {
   // Attention cues to make the demo's interactivity obvious to first-time
   // visitors: a breathing glow on Submit + a delayed helper hint. Both stop
   // the instant the visitor presses the button (and never nag on replay).
@@ -709,8 +723,14 @@ function FormPreview({ onReset, onSubmit }: { onReset: () => void; onSubmit: () 
   // blue glow so the visitor registers the submission, then drop the glow as
   // the demo transitions to the Lead Board. Works the first time and on every
   // replay thereafter.
+  //
+  // Ignore presses that land while the demo is already running (isRunning): on
+  // mobile the just-pressed Step 1 stays on screen while Steps 2/3 scroll in,
+  // so an impatient second tap would otherwise call onReset — flipping Step 1
+  // back to "1" and yanking the page back up — and never appear to progress.
+  // Only (re)start from rest (Step 1, or the completed Step 3).
   const start = () => {
-    if (holdRef.current) return;
+    if (holdRef.current || isRunning) return;
     holdRef.current = true;
     setStarted(true);
     onReset();
