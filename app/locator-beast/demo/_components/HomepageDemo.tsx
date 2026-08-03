@@ -385,11 +385,16 @@ export default function HomepageDemo() {
           .hp-step-circle { background: var(--beast-blue) !important; border-color: transparent !important; color: #fff !important; }
           .hp-glow-frame { border-color: rgba(255,255,255,0.12) !important; box-shadow: 0 16px 40px -24px rgba(0,0,0,0.7) !important; }
 
-          /* Step 2 — one clean, static Compact board: drop the search box and the
-             other view tabs so it reads as a showcase, not an interactive app. */
-          .hp-demo-board .kb-search { display: none !important; }
-          .hp-demo-board .kb-density button:not([aria-pressed="true"]) { display: none !important; }
+          /* Step 2 — one clean, static Compact board: drop the whole toolbar
+             (search + the Compact pill / view tabs) so it reads as a showcase,
+             not an interactive app, and the columns get that space. */
+          .hp-demo-board .kb-toolbar { display: none !important; }
           .hp-demo-board .kb-card { cursor: default !important; }
+          /* Keep every phone number on a single line. */
+          .hp-demo-board .kb-card a[href^="tel:"] { white-space: nowrap !important; }
+          /* Slightly wider board so the cards feel less compressed. */
+          [data-stage="2"] .hp-glow-frame { width: 344px !important; }
+          [data-stage="2"] .hp-glow-frame > div { zoom: 0.688 !important; }
 
           /* Step 3 (mobile only) — keep the first section (Search Criteria) as
              supporting context that fills the canvas beneath the focal Next
@@ -397,6 +402,10 @@ export default function HomepageDemo() {
              Actions) so the panel never runs into the full CRM. (Archive/Close
              chrome + full-name rules apply on all breakpoints — see below.) */
           .hp-demo-panel div:has(> div > p.uppercase.tracking-widest) ~ div:has(> div > p.uppercase.tracking-widest) { display: none !important; }
+          /* Align the lead name with the content below (Call Client, Next
+             Action, Search Criteria) — it inherits a left margin that indents
+             it; zero it out and keep the text left-aligned. */
+          .hp-demo-panel h2 { text-align: left !important; margin-left: 0 !important; }
 
           /* One uniform product-slide canvas for all three steps — same width,
              height, radius, and glow — so they read as three framed screenshots
