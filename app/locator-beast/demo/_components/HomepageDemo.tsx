@@ -200,9 +200,28 @@ export default function HomepageDemo() {
     return () => clearTimeout(t);
   }, [moved]);
 
-  // The browser page must NEVER auto-scroll as the demo advances — only the
-  // Step 3 panel scrolls internally (see the panel-tour effect below). On small
-  // screens the visitor scrolls the stacked stages themselves.
+  // On small screens the three stages are stacked vertically, so the browser
+  // viewport must follow the demo: whenever the active step changes, smoothly
+  // scroll it into view (its number/title/subtitle + frame), positioned just
+  // below the sticky header. The first run (initial Step 1 on load) is skipped
+  // so the page never jumps on mount; every later change scrolls — advancing to
+  // Step 2 then Step 3, and returning to Step 1 on replay. Desktop shows the
+  // three side by side and must NOT page-scroll (guarded by the width check).
+  // This moves the WINDOW; the Step 3 panel's own internal scroll is separate
+  // (the panel-tour effect below) and only runs once Step 3 is in view.
+  const didInitialStageScroll = useRef(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || window.innerWidth >= 1024) return;
+    if (!didInitialStageScroll.current) {
+      didInitialStageScroll.current = true;
+      return;
+    }
+    const el = rowRef.current?.querySelector(`[data-stage="${activeStage}"]`);
+    if (!el) return;
+    const HEADER_OFFSET = 80; // clear the ~69px sticky header + a small gap
+    const y = window.scrollY + el.getBoundingClientRect().top - HEADER_OFFSET;
+    window.scrollTo({ top: Math.max(0, y), behavior: prefersReducedMotion() ? "auto" : "smooth" });
+  }, [activeStage]);
 
   // The demo must NEVER launch phone / text / messaging apps. Neutralize any
   // tel:/sms: window.open for the life of the demo (belt-and-suspenders on top
