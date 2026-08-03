@@ -39,6 +39,7 @@ export const ACADEMY_MODULES: Module[] = [
       { slug: "lead-board", title: "Lead Board", durationMin: 5 },
       { slug: "next-actions", title: "Next Actions", durationMin: 4 },
       { slug: "ai-client-insights", title: "AI Client Insights", durationMin: 4 },
+      { slug: "approval-intelligence", title: "Approval Intelligence", durationMin: 4 },
       { slug: "smart-forms", title: "Smart Forms", durationMin: 4 },
       { slug: "templates-and-automations", title: "Templates & Automations", durationMin: 5 },
     ],
