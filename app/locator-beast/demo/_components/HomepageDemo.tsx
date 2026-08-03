@@ -65,7 +65,7 @@ const FORM_CONFIG: SmartLeadFormConfig = {
     agentPhotoSize: "small",
     profileImagePosition: "underHeadline",
     heroTheme: "custom",
-    heroImageUrl: "/demo/dallas-background.webp",
+    heroImageUrl: "/demo/dallas-skyline.png",
     heroOverlay: "medium",
     buttonColor: "#2f6bff",
   },
