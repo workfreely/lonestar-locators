@@ -362,24 +362,28 @@ export default function HomepageDemo() {
         })}
       </div>
 
-      {/* Final CTA — fades in once the panel has finished presenting itself. */}
+      {/* Final CTA — fades in once the panel has finished presenting itself.
+          Desktop shows the full CTA (headline + trial + Replay). Mobile shows
+          only the Replay Demo control (the mobile trial CTA already lives just
+          below the demo in the Hero, so the headline/trial parts stay
+          desktop-only to avoid duplicating it). */}
       <div
-        className={`mx-auto hidden max-w-md text-center transition-all duration-700 lg:block lg:mt-8 lg:pt-8 ${
+        className={`mx-auto max-w-md text-center transition-all duration-700 mt-8 lg:mt-8 lg:pt-8 ${
           showCta ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0"
         }`}
       >
-        <p className="text-[16px] font-semibold text-white">Stop Losing Leads. Close More Leases.</p>
+        <p className="hidden text-[16px] font-semibold text-white lg:block">Stop Losing Leads. Close More Leases.</p>
         <Link
           href={TRIAL_URL}
-          className="mt-3 inline-block rounded-full bg-[var(--beast-blue)] px-8 py-3 text-[15px] font-semibold text-white transition-transform duration-200 hover:scale-[1.02]"
+          className="mt-3 hidden rounded-full bg-[var(--beast-blue)] px-8 py-3 text-[15px] font-semibold text-white transition-transform duration-200 hover:scale-[1.02] lg:inline-block"
         >
           Start Your Free 30-Day Trial
         </Link>
-        <p className="mt-2 text-[12.5px] text-white/45">No credit card required.</p>
+        <p className="mt-2 hidden text-[12.5px] text-white/45 lg:block">No credit card required.</p>
         <button
           type="button"
           onClick={replayDemo}
-          className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-white/55 transition-colors hover:text-white"
+          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-white/55 transition-colors hover:text-white lg:mt-4"
         >
           <span aria-hidden>↻</span> Replay Demo
         </button>
@@ -428,12 +432,13 @@ export default function HomepageDemo() {
           [data-stage="2"] .hp-glow-frame > div { zoom: 0.688 !important; }
           [data-stage="3"] .hp-glow-frame > div { zoom: 0.956 !important; }
 
-          /* Step 3 (mobile only) — keep the first section (Search Criteria) as
-             supporting context that fills the canvas beneath the focal Next
-             Action card, but hide the deeper sections (Credit Screening, Quick
-             Actions) so the panel never runs into the full CRM. (Archive/Close
-             chrome + full-name rules apply on all breakpoints — see below.) */
-          .hp-demo-panel div:has(> div > p.uppercase.tracking-widest) ~ div:has(> div > p.uppercase.tracking-widest) { display: none !important; }
+          /* Step 3 (mobile) — show Search Criteria + Credit Screening, exactly
+             like desktop, so the internal panel scroll reveals the Approval /
+             Credit Screening section and its highlight glow is visible. Quick
+             Actions (the only deeper section for the demo lead) stays hidden by
+             the JS panel touch-up on every breakpoint, so nothing runs into the
+             full CRM. (Archive/Close chrome + full-name rules apply on all
+             breakpoints — see below.) */
           /* Align the lead name with the content below (Call Client, Next
              Action, Search Criteria) — it inherits auto side margins that indent
              it and push the status pill to the far right. Zero both so the name
