@@ -33,7 +33,7 @@ export default function FeatureGrid() {
     <section className="bg-[#f7f8fa] py-20 md:py-28">
       <div className="beast-container">
         <Reveal>
-          <h2 className="max-w-2xl text-[32px] font-semibold leading-tight tracking-tight text-[var(--beast-ink)] md:text-[42px]">
+          <h2 className="mx-auto max-w-2xl text-center text-[32px] font-semibold leading-tight tracking-tight text-[var(--beast-ink)] md:text-[42px]">
             Everything you need.
             <br />
             Nothing you don&apos;t.

@@ -19,7 +19,7 @@ export default function Hero() {
         </h1>
 
         <p
-          className="beast-fade-up mt-6 max-w-2xl text-[18px] leading-relaxed text-[var(--beast-ink-inverse-soft)] md:text-[20px] lg:max-w-none lg:whitespace-nowrap lg:text-[18px]"
+          className="beast-fade-up mt-6 max-w-2xl text-[18px] leading-relaxed text-[var(--beast-ink-inverse-soft)] md:text-[20px] lg:max-w-none lg:whitespace-nowrap lg:text-[19px]"
           style={{ animationDelay: "160ms" }}
         >
           Automate your apartment locating workflow, never miss a follow-up, and let AI help you

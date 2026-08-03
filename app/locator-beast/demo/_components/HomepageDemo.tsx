@@ -395,9 +395,14 @@ export default function HomepageDemo() {
              not an interactive app, and the columns get that space. */
           .hp-demo-board .kb-toolbar { display: none !important; }
           .hp-demo-board .kb-card { cursor: default !important; }
-          /* Slightly wider board so the cards feel less compressed. */
-          [data-stage="2"] .hp-glow-frame { width: 344px !important; }
+          /* All three frames share one slightly-wider width (~8% over 320) for
+             more horizontal breathing room, with comfortable margins even on a
+             360px Android viewport. Each panel's content fills its frame (zoom =
+             344 / natW) so they stay identical; heights are unchanged. */
+          .hp-glow-frame { width: 344px !important; }
+          [data-stage="1"] .hp-glow-frame > div { zoom: 0.896 !important; }
           [data-stage="2"] .hp-glow-frame > div { zoom: 0.688 !important; }
+          [data-stage="3"] .hp-glow-frame > div { zoom: 0.956 !important; }
 
           /* Step 3 (mobile only) — keep the first section (Search Criteria) as
              supporting context that fills the canvas beneath the focal Next
@@ -406,9 +411,12 @@ export default function HomepageDemo() {
              chrome + full-name rules apply on all breakpoints — see below.) */
           .hp-demo-panel div:has(> div > p.uppercase.tracking-widest) ~ div:has(> div > p.uppercase.tracking-widest) { display: none !important; }
           /* Align the lead name with the content below (Call Client, Next
-             Action, Search Criteria) — it inherits a left margin that indents
-             it; zero it out and keep the text left-aligned. */
-          .hp-demo-panel h2 { text-align: left !important; margin-left: 0 !important; }
+             Action, Search Criteria) — it inherits auto side margins that indent
+             it and push the status pill to the far right. Zero both so the name
+             sits at the left and the "New"/"Contacted" pill sits right beside it
+             (matching desktop). Left-anchored, so the pill never jumps when the
+             text changes New -> Contacted. */
+          .hp-demo-panel h2 { text-align: left !important; margin: 0 !important; }
 
           /* One uniform product-slide canvas for all three steps — same width,
              height, radius, and glow — so they read as three framed screenshots
