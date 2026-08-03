@@ -400,11 +400,12 @@ export default function HomepageDemo() {
 
           /* One uniform product-slide canvas for all three steps — same width,
              height, radius, and glow — so they read as three framed screenshots
-             of the same product, not three different sizes. The premium form
-             sets the height (~500, incl. the Submit hint line); the board and
-             trimmed lead panel fill it. */
-          .hp-glow-frame { height: 500px !important; }
-          .hp-demo-panel { height: 563px !important; }
+             of the same product. Taller (~540) so the full Submit Lead button +
+             its glow clear the frame, and Step 3's Next Action never crops. The
+             board + lead-panel inner heights are bumped to fill the same canvas. */
+          .hp-glow-frame { height: 540px !important; }
+          .hp-demo-panel { height: 608px !important; }
+          .hp-demo-board { height: 844px !important; }
         }
 
         /* Step 3 lead panel (all breakpoints) — drop the window chrome
@@ -630,7 +631,7 @@ function FormPreview({ onSubmit }: { onSubmit: () => void }) {
           e.preventDefault();
           start();
         }}
-        className="flex flex-col gap-2.5 px-4 pb-4 pt-4"
+        className="flex flex-col gap-2.5 px-4 pb-16 pt-4 lg:pb-4"
       >
         <div className="grid grid-cols-2 gap-3">
           <Field label="First Name" value="Maria" />
