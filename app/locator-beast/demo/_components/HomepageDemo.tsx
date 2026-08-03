@@ -61,11 +61,11 @@ const FORM_CONFIG: SmartLeadFormConfig = {
   },
   branding: {
     ...DEFAULT_CONFIG.branding,
-    agentPhotoUrl: "/demo/agent-sarah.svg",
+    agentPhotoUrl: "/demo/sarah-mitchell.png",
     agentPhotoSize: "small",
     profileImagePosition: "underHeadline",
     heroTheme: "custom",
-    heroImageUrl: "/demo/austin-skyline.svg",
+    heroImageUrl: "/demo/dallas-background.webp",
     heroOverlay: "medium",
     buttonColor: "#2f6bff",
   },
@@ -398,11 +398,18 @@ export default function HomepageDemo() {
           .hp-demo-panel button[aria-label="Archive Lead"],
           .hp-demo-panel button[aria-label="Close"] { display: none !important; }
           .hp-demo-panel h2 { overflow: visible !important; text-overflow: clip !important; }
-          .hp-demo-panel div:has(> div > p.uppercase.tracking-widest) { display: none !important; }
-          /* With the secondary sections gone, hug the frame to the remaining
-             content (header + Call/Text + Next Action) instead of leaving a
-             tall empty panel. */
-          [data-stage="3"] .hp-glow-frame { height: 330px !important; }
+          /* Keep the first section (Search Criteria) as supporting context that
+             fills the canvas beneath the focal Next Action card, but hide the
+             deeper sections (Credit Screening, Quick Actions) so the panel never
+             runs into the full CRM. */
+          .hp-demo-panel div:has(> div > p.uppercase.tracking-widest) ~ div:has(> div > p.uppercase.tracking-widest) { display: none !important; }
+
+          /* One uniform product-slide canvas for all three steps — same width,
+             height, radius, and glow — so they read as three framed screenshots
+             of the same product, not three different sizes. The premium form
+             sets the height (~480); the board and trimmed lead panel fill it. */
+          .hp-glow-frame { height: 480px !important; }
+          .hp-demo-panel { height: 540px !important; }
         }
 
         /* AI badge pop as the lead lands in Contacted */
