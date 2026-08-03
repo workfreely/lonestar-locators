@@ -44,17 +44,17 @@ export default function FeatureGrid() {
           {FEATURES.map((feature, i) => (
             <Reveal key={feature.title} delayMs={(i % 3) * 80}>
               <div className="beast-hover-lift h-full rounded-2xl border border-[var(--beast-border)] bg-white p-6">
-                <div className="flex items-center justify-between">
-                  <feature.icon className="h-7 w-7 text-[var(--beast-blue)]" />
+                <div className="flex items-center gap-3">
+                  <feature.icon className="h-8 w-8 shrink-0 text-[var(--beast-blue)]" />
+                  <p className="text-[18px] font-semibold text-[var(--beast-ink)]">
+                    {feature.title}
+                  </p>
                   {feature.comingSoon && (
-                    <span className="rounded-full bg-[var(--beast-blue)]/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--beast-blue)]">
+                    <span className="ml-auto rounded-full bg-[var(--beast-blue)]/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--beast-blue)]">
                       Coming Soon
                     </span>
                   )}
                 </div>
-                <p className="mt-4 text-[18px] font-semibold text-[var(--beast-ink)]">
-                  {feature.title}
-                </p>
                 <p className="mt-2 text-[14px] leading-relaxed text-[var(--beast-ink-soft)]">
                   {feature.body}
                 </p>

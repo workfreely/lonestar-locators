@@ -26,8 +26,8 @@ export default function HowItWorks() {
         <ol className="mt-14 flex flex-col divide-y divide-[var(--beast-border)] border-y border-[var(--beast-border)]">
           {STEPS.map((step, i) => (
             <Reveal key={step.title} delayMs={(i % 4) * 60}>
-              <li className="flex flex-col gap-2 py-6 sm:flex-row sm:items-baseline sm:gap-8 md:py-7">
-                <span className="text-[13px] font-semibold tabular-nums text-[var(--beast-blue)] sm:w-10">
+              <li className="flex flex-row items-baseline gap-4 py-6 sm:gap-8 md:py-7">
+                <span className="w-9 text-[16px] font-semibold tabular-nums text-[var(--beast-blue)] sm:w-10 sm:text-[15px]">
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <div>

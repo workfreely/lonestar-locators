@@ -370,6 +370,11 @@ export default function HomepageDemo() {
         .hp-step-glow { animation: hpPulse 1.9s ease-out infinite; }
         .hp-demo-board .kb-board { justify-content: center; }
         .hp-demo-board .kb-column { flex-grow: 0; flex-shrink: 0; }
+        /* Left-align the lead name so it lines up with the phone number and the
+           rest of the card content (it otherwise inherits centered text in the
+           demo). Keep every phone number on one line. Desktop + mobile. */
+        .hp-demo-board .kb-nm { text-align: left !important; }
+        .hp-demo-board .kb-phone { white-space: nowrap !important; }
 
         /* Mobile: every workflow step is a full-size, equally-emphasized showcase.
            Neutralize the focus-zoom's per-step scale + opacity so no step shrinks
@@ -390,8 +395,6 @@ export default function HomepageDemo() {
              not an interactive app, and the columns get that space. */
           .hp-demo-board .kb-toolbar { display: none !important; }
           .hp-demo-board .kb-card { cursor: default !important; }
-          /* Keep every phone number on a single line. */
-          .hp-demo-board .kb-card a[href^="tel:"] { white-space: nowrap !important; }
           /* Slightly wider board so the cards feel less compressed. */
           [data-stage="2"] .hp-glow-frame { width: 344px !important; }
           [data-stage="2"] .hp-glow-frame > div { zoom: 0.688 !important; }
