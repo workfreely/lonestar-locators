@@ -130,7 +130,7 @@ export default function HomepageDemo() {
     const card = head?.parentElement?.parentElement; // <p> → header row → card root
     if (!card) return;
     card.classList.add("hp-approval-highlight");
-    window.setTimeout(() => card.classList.remove("hp-approval-highlight"), 900);
+    window.setTimeout(() => card.classList.remove("hp-approval-highlight"), 2700);
   }
 
   function startDemo() {
@@ -139,7 +139,9 @@ export default function HomepageDemo() {
     setProcRunning(true);
   }
 
-  // Manual replay only — the demo never auto-loops; it rests on the final state.
+  // Reset back to Step 1. The demo never auto-loops; it rests on the final
+  // state until the visitor presses Submit Lead again (or the Replay button),
+  // both of which run this reset before replaying from the beginning.
   function replayDemo() {
     setLeads(DEMO_LEADS.filter((l) => BOARD_LEAD_IDS.includes(l.id)));
     setNextActions(DEMO_NEXT_ACTIONS);
@@ -304,7 +306,7 @@ export default function HomepageDemo() {
                 <StepHead n={s.n} active={isActive} done={isDone} title={s.title} sub={s.sub} />
 
                 <PreviewFrame natW={s.natW} frameH={s.frameH} active={isActive} glow={glowStage === s.n}>
-                  {s.key === "form" && <FormPreview onSubmit={startDemo} />}
+                  {s.key === "form" && <FormPreview onReset={replayDemo} onSubmit={startDemo} />}
                   {s.key === "board" && (
                     <BoardPreview
                       leads={leads}
@@ -470,15 +472,18 @@ export default function HomepageDemo() {
         }
         .hp-moved .kb-card.kb-card--selected { animation: hpCardPop 1.6s ease-out 2; }
 
-        /* Approval Intelligence cue — a brief, premium blue glow on the Credit
-           Screening section as the panel tour reveals it. A small "wow" without
-           being distracting (~750ms, one-shot). */
+        /* Approval Intelligence cue — a premium blue glow on the Credit
+           Screening section as the panel tour reveals it. Same glow effect: it
+           ramps in, HOLDS at full intensity so visitors have time to notice it,
+           then fades. ~2.5s total, one-shot. (Peak values unchanged; only the
+           hold/duration is longer.) */
         @keyframes hpApprovalGlow {
           0%   { box-shadow: 0 0 0 0 rgba(47,107,255,0); border-color: var(--crm-border-soft); }
-          30%  { box-shadow: 0 0 0 2px rgba(47,107,255,.55), 0 0 24px 4px rgba(47,107,255,.42); border-color: rgba(47,107,255,.7); }
+          9%   { box-shadow: 0 0 0 2px rgba(47,107,255,.55), 0 0 24px 4px rgba(47,107,255,.42); border-color: rgba(47,107,255,.7); }
+          79%  { box-shadow: 0 0 0 2px rgba(47,107,255,.55), 0 0 24px 4px rgba(47,107,255,.42); border-color: rgba(47,107,255,.7); }
           100% { box-shadow: 0 0 0 0 rgba(47,107,255,0); border-color: var(--crm-border-soft); }
         }
-        .hp-approval-highlight { animation: hpApprovalGlow .75s ease-out; }
+        .hp-approval-highlight { animation: hpApprovalGlow 2.5s ease-out; }
 
         /* Premium animated blue glow — on the active step during playback and on
            whichever stage is hovered afterward (driven by hp-glow-on). */
@@ -658,28 +663,36 @@ function BoardPreview({
 }
 
 // ── Form preview: the branded Smart Lead Form (real Hero + compact fields) ───
-function FormPreview({ onSubmit }: { onSubmit: () => void }) {
+function FormPreview({ onReset, onSubmit }: { onReset: () => void; onSubmit: () => void }) {
   // Attention cues to make the demo's interactivity obvious to first-time
   // visitors: a breathing glow on Submit + a delayed helper hint. Both stop
   // the instant the visitor presses the button (and never nag on replay).
-  const [submitted, setSubmitted] = useState(false);
+  const [started, setStarted] = useState(false);
   const [glowOff, setGlowOff] = useState(false);
   const [showHint, setShowHint] = useState(false);
+  // True only during the ~500ms submit hold. Blocks a double-fire (button
+  // onClick + form onSubmit) WITHOUT permanently disabling the button, so the
+  // demo replays every time Submit is pressed — no page refresh needed.
+  const holdRef = useRef(false);
 
   useEffect(() => {
-    if (submitted) return;
+    if (started) return;
     const t = setTimeout(() => setShowHint(true), 2000);
     return () => clearTimeout(t);
-  }, [submitted]);
+  }, [started]);
 
-  // On press, hold ~500ms with the blue glow still on so the visitor registers
-  // that they submitted a lead, then drop the glow exactly as the demo
-  // transitions to the Lead Board.
+  // On press: reset the demo back to Step 1, hold ~500ms with the (first-run)
+  // blue glow so the visitor registers the submission, then drop the glow as
+  // the demo transitions to the Lead Board. Works the first time and on every
+  // replay thereafter.
   const start = () => {
-    if (submitted) return;
-    setSubmitted(true);
+    if (holdRef.current) return;
+    holdRef.current = true;
+    setStarted(true);
+    onReset();
     window.setTimeout(() => {
       setGlowOff(true);
+      holdRef.current = false;
       onSubmit();
     }, T.submitHold);
   };
@@ -710,7 +723,7 @@ function FormPreview({ onSubmit }: { onSubmit: () => void }) {
             shifting the button. */}
         <p
           className={`mt-0.5 h-[15px] text-center text-[11px] font-medium text-[#8b91a1] transition-opacity duration-500 ${
-            showHint && !submitted ? "opacity-100" : "opacity-0"
+            showHint && !started ? "opacity-100" : "opacity-0"
           }`}
         >
           Tap “Submit Lead” to see Locator Beast in action
