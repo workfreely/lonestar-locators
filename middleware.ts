@@ -29,8 +29,13 @@ export function middleware(request: NextRequest) {
   const isLocatorBeastPath =
     pathname === LOCATOR_BEAST_PREFIX || pathname.startsWith(`${LOCATOR_BEAST_PREFIX}/`);
   const isAppPath = isLocatorBeastPath || APP_PATH_PATTERN.test(pathname);
+  // Static files in /public (e.g. /demo/sarah-mitchell.png, og images, robots.txt)
+  // live at the root, not under /locator-beast. Rewriting them 404s on the
+  // custom domain, so leave any path with a file extension untouched. The
+  // matcher already excludes _next/static, _next/image, and favicon.ico.
+  const isStaticAsset = /\.[^/]+$/.test(pathname);
 
-  if (isLocatorBeastHost && !isAppPath) {
+  if (isLocatorBeastHost && !isAppPath && !isStaticAsset) {
     const url = request.nextUrl.clone();
     url.pathname = `${LOCATOR_BEAST_PREFIX}${pathname === "/" ? "" : pathname}`;
     return NextResponse.rewrite(url);
