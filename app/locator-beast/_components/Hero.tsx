@@ -19,11 +19,11 @@ export default function Hero() {
         </h1>
 
         <p
-          className="beast-fade-up mt-6 max-w-2xl text-[18px] leading-relaxed text-[var(--beast-ink-inverse-soft)] md:text-[20px] lg:max-w-3xl lg:text-[19px] lg:[text-wrap:balance]"
+          className="beast-fade-up mt-6 max-w-2xl text-[18px] leading-relaxed text-[var(--beast-ink-inverse-soft)] [text-wrap:balance] md:text-[20px] lg:max-w-3xl lg:text-[19px]"
           style={{ animationDelay: "160ms" }}
         >
-          All-in-one platform built for apartment locators. Capture leads, manage clients, automate
-          follow-ups, and close more leases with AI.
+          All-in-one platform built for apartment locators. Automate your workflow, manage clients,
+          and close more deals with AI.
         </p>
 
         {/* The homepage demonstrates the product automatically — the interactive
