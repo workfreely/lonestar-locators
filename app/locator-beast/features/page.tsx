@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import PageHero from "../_components/PageHero";
 import FeatureDetailSection from "../_components/FeatureDetailSection";
-import ComingSoonSection from "../_components/ComingSoonSection";
+// Coming Soon section hidden for now — restore this import when re-enabling it.
+// import ComingSoonSection from "../_components/ComingSoonSection";
 import ClosingCTA from "../_components/ClosingCTA";
 import { FEATURE_SECTIONS } from "../_lib/features-data";
 
@@ -37,7 +38,8 @@ export default function FeaturesPage() {
         />
       ))}
 
-      <ComingSoonSection />
+      {/* Coming Soon section hidden for now — restore when re-enabling.
+      <ComingSoonSection /> */}
 
       <ClosingCTA
         title="Ready to become a Beast?"

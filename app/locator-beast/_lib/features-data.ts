@@ -13,10 +13,10 @@ export const FEATURE_SECTIONS = [
   {
     title: "AI Client Insights",
     description: "Instant summaries of every client.",
-    bullets: ["AI summaries", "Buying signals", "Conversation history", "Recommendations"],
+    bullets: ["AI summaries", "Conversation history", "Recommendations"],
   },
   {
-    title: "Landing Pages",
+    title: "Smart Form Pages",
     description: "High-converting landing pages built specifically for apartment locators.",
     bullets: ["Custom branding", "Built-in lead forms", "Conditional logic", "Automatic CRM integration"],
   },
@@ -31,9 +31,17 @@ export const FEATURE_SECTIONS = [
     bullets: ["Google Calendar", "Google Contacts", "Automatic contact creation", "Tour scheduling"],
   },
   {
-    title: "Performance Dashboard",
+    title: "Analytics Dashboard",
     description: "Know exactly how your business is performing.",
-    bullets: ["Lead sources", "Conversion rates", "Closings", "Revenue", "Marketing performance"],
+    bullets: [
+      "Lead sources",
+      "Conversion rates",
+      "Closings",
+      "Revenue",
+      "Sales Performance",
+      "Marketing Performance",
+      "Facebook/Instagram Ad Analytics",
+    ],
   },
   {
     title: "Templates",
