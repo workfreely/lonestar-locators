@@ -84,7 +84,7 @@ type Stage = "form" | "board" | "panel";
 
 const inputClass =
   "w-full rounded-lg border border-[#e2e4ea] bg-white px-3 py-2.5 text-[13.5px] text-[#111318] outline-none read-only:cursor-default";
-const labelClass = "text-[11.5px] font-medium text-[#4b5162]";
+const labelClass = "text-left text-[11.5px] font-medium text-[#4b5162]";
 
 const prefersReducedMotion = () =>
   typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -391,17 +391,11 @@ export default function HomepageDemo() {
           .hp-demo-board .kb-density button:not([aria-pressed="true"]) { display: none !important; }
           .hp-demo-board .kb-card { cursor: default !important; }
 
-          /* Step 3 — trim the CRM panel to the essentials: name, phone, status
-             badge, Call/Text, and Next Action. Hide the window chrome (Archive/
-             Close) and the secondary collapsible sections (Search Criteria,
-             Credit Screening, Quick Actions). Let the full name show. */
-          .hp-demo-panel button[aria-label="Archive Lead"],
-          .hp-demo-panel button[aria-label="Close"] { display: none !important; }
-          .hp-demo-panel h2 { overflow: visible !important; text-overflow: clip !important; }
-          /* Keep the first section (Search Criteria) as supporting context that
-             fills the canvas beneath the focal Next Action card, but hide the
-             deeper sections (Credit Screening, Quick Actions) so the panel never
-             runs into the full CRM. */
+          /* Step 3 (mobile only) — keep the first section (Search Criteria) as
+             supporting context that fills the canvas beneath the focal Next
+             Action card, but hide the deeper sections (Credit Screening, Quick
+             Actions) so the panel never runs into the full CRM. (Archive/Close
+             chrome + full-name rules apply on all breakpoints — see below.) */
           .hp-demo-panel div:has(> div > p.uppercase.tracking-widest) ~ div:has(> div > p.uppercase.tracking-widest) { display: none !important; }
 
           /* One uniform product-slide canvas for all three steps — same width,
@@ -412,6 +406,13 @@ export default function HomepageDemo() {
           .hp-glow-frame { height: 500px !important; }
           .hp-demo-panel { height: 563px !important; }
         }
+
+        /* Step 3 lead panel (all breakpoints) — drop the window chrome
+           (Archive/Close) and let the lead's full name show; the focus is the
+           lead + Next Action, not interface controls. */
+        .hp-demo-panel button[aria-label="Archive Lead"],
+        .hp-demo-panel button[aria-label="Close"] { display: none !important; }
+        .hp-demo-panel h2 { overflow: visible !important; text-overflow: clip !important; white-space: nowrap !important; }
 
         /* AI badge pop as the lead lands in Contacted */
         @keyframes hpBadgePop { 0% { opacity: 0; transform: translateY(-6px) scale(.9); } 100% { opacity: 1; transform: none; } }
@@ -467,7 +468,7 @@ function StepHead({ n, active, done, title, sub }: { n: number; active: boolean;
   return (
     <div className="flex flex-col items-center text-center">
       <span
-        className={`hp-step-circle flex h-14 w-14 items-center justify-center rounded-full border text-[24px] font-semibold transition-all duration-500 lg:h-8 lg:w-8 lg:text-[13px] ${
+        className={`hp-step-circle flex h-14 w-14 items-center justify-center rounded-full border text-[24px] font-semibold transition-all duration-500 ${
           active
             ? "hp-step-glow border-transparent bg-[var(--beast-blue)] text-white"
             : done
@@ -476,15 +477,15 @@ function StepHead({ n, active, done, title, sub }: { n: number; active: boolean;
         }`}
       >
         {done ? (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 lg:h-3.5 lg:w-3.5">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
             <path d="M20 6 9 17l-5-5" />
           </svg>
         ) : (
           n
         )}
       </span>
-      <span className="mt-3 text-[23px] font-bold leading-tight text-white lg:mt-2 lg:text-[13px] lg:font-semibold">{title}</span>
-      <span className="mt-1 text-[15px] leading-tight text-white/85 lg:mt-0.5 lg:text-[11px] lg:text-white/55">{sub}</span>
+      <span className="mt-3 text-[23px] font-bold leading-tight text-white">{title}</span>
+      <span className="mt-1 text-[15px] leading-tight text-white/85">{sub}</span>
     </div>
   );
 }
