@@ -124,8 +124,14 @@ export default function HomepageDemo() {
   function highlightApprovalSection() {
     const wrap = panelWrapRef.current;
     if (!wrap) return;
+    // Desktop highlights Credit Screening (revealed near the end of the tour).
+    // On mobile that glow lands too far down the internal scroll to notice, so
+    // highlight the Search Criteria section instead — same glow style + duration.
+    // Credit Screening itself and the internal scroll are unchanged.
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 1024;
+    const targetTitle = isMobile ? "Search Criteria" : "Credit Screening";
     const head = Array.from(wrap.querySelectorAll("p")).find(
-      (p) => p.textContent?.trim() === "Credit Screening"
+      (p) => p.textContent?.trim() === targetTitle
     );
     const card = head?.parentElement?.parentElement; // <p> → header row → card root
     if (!card) return;
@@ -435,6 +441,9 @@ export default function HomepageDemo() {
            is inside each product screenshot. Desktop keeps the focus animation. */
         @media (max-width: 1023px) {
           [data-stage] { transform: none !important; opacity: 1 !important; }
+          /* Keep each processing step ("Creating workflow") on a single line —
+             mobile text-size adjustment can otherwise wrap it. Same font size. */
+          .hp-proc-step { white-space: nowrap !important; }
           /* Motion lives only inside the screenshots: silence the outer step
              circle pulse and the frame glow. */
           .hp-glow-frame.hp-glow-on, .hp-step-glow { animation: none !important; }
@@ -680,7 +689,7 @@ function BoardPreview({
                         <span className="h-1 w-1 rounded-full bg-white/30" />
                       )}
                     </span>
-                    <span className={`text-[12.5px] ${done || running ? "text-white" : "text-white/45"}`}>{label}</span>
+                    <span className={`hp-proc-step text-[12.5px] ${done || running ? "text-white" : "text-white/45"}`}>{label}</span>
                   </div>
                 );
               })}
