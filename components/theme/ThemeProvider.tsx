@@ -22,14 +22,24 @@ const ThemeContext = createContext<ThemeContextValue | null>(null)
 // in app/layout.tsx already applied the right theme before this ever
 // mounts; this just picks up that same state into React and keeps it in
 // sync when the user changes the Appearance setting.
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [preference, setPreferenceState] = useState<CrmTheme>(DEFAULT_THEME)
+export function ThemeProvider({
+  children,
+  forcedTheme,
+}: {
+  children: React.ReactNode
+  // When set, the provider is LOCKED to this theme and ignores (and never
+  // writes) the visitor's stored preference. Used by the public homepage demo
+  // so it always renders in the original demo theme regardless of whatever a
+  // logged-in user picked for their own CRM workspace.
+  forcedTheme?: CrmTheme
+}) {
+  const [preference, setPreferenceState] = useState<CrmTheme>(forcedTheme ?? DEFAULT_THEME)
 
   useEffect(() => {
-    const initial = readStoredTheme()
+    const initial = forcedTheme ?? readStoredTheme()
     setPreferenceState(initial)
     applyTheme(initial)
-  }, [])
+  }, [forcedTheme])
 
   // <body>'s own background is always the marketing site's white
   // (see globals.css) since toggling `.dark`/`data-theme` on <html> must
@@ -44,6 +54,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   function setPreference(next: CrmTheme) {
+    // Locked providers (homepage demo) ignore preference changes entirely.
+    if (forcedTheme) return
     setPreferenceState(next)
     window.localStorage.setItem(THEME_STORAGE_KEY, next)
     applyTheme(next)

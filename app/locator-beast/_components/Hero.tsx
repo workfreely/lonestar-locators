@@ -38,9 +38,12 @@ export default function Hero() {
         </div>
 
         {/* Feature/benefit row — anchors the bottom of the hero beneath the
-            demo's CTA. Same small text + blue separator dots as before. */}
+            demo's CTA. Same small text + blue separator dots as before.
+            Desktop only: on mobile this row (trial/platform bullets) is
+            redundant with the full-width CTA just below and only adds scrolling,
+            so it's hidden — the mobile flow goes demo → CTA directly. */}
         <ul
-          className="beast-fade-up mt-8 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-[15px] text-[var(--beast-ink-inverse-soft)] lg:mt-12"
+          className="beast-fade-up mt-8 hidden flex-wrap items-center justify-center gap-x-8 gap-y-3 text-[15px] text-[var(--beast-ink-inverse-soft)] lg:mt-12 lg:flex"
           style={{ animationDelay: "380ms" }}
         >
           {TRUST_ITEMS.map((item) => (

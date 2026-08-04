@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
+import { DEFAULT_THEME } from "@/lib/theme";
 import LeadBoard from "@/components/crm/LeadBoard";
 import LeadPanel from "@/components/crm/LeadPanel";
 import Hero from "@/app/smart-lead-form/_components/form/sections/Hero";
@@ -373,7 +374,7 @@ export default function HomepageDemo() {
                     />
                   )}
                   {s.key === "panel" && selected && (
-                    <ThemeProvider>
+                    <ThemeProvider forcedTheme={DEFAULT_THEME}>
                       {/* Explicit natural height (frameH / zoom) so LeadPanel's
                           h-full resolves and its body can scroll for the tour. */}
                       <div
@@ -458,6 +459,12 @@ export default function HomepageDemo() {
            demo). Keep every phone number on one line. Desktop + mobile. */
         .hp-demo-board .kb-nm { text-align: left !important; }
         .hp-demo-board .kb-phone { white-space: nowrap !important; }
+        /* Step 2 is a showcase, not an interactive app: drop the whole board
+           toolbar (search bar + Overview/Detailed/Compact view controls) on
+           every breakpoint. The board (.kb-board is flex:1) automatically
+           reclaims that space, giving the Kanban columns more room. The
+           animation + workflow are untouched. */
+        .hp-demo-board .kb-toolbar { display: none !important; }
 
         /* Mobile: every workflow step is a full-size, equally-emphasized showcase.
            Neutralize the focus-zoom's per-step scale + opacity so no step shrinks
@@ -476,10 +483,8 @@ export default function HomepageDemo() {
           .hp-step-circle { background: var(--beast-blue) !important; border-color: transparent !important; color: #fff !important; }
           .hp-glow-frame { border-color: rgba(255,255,255,0.12) !important; box-shadow: 0 16px 40px -24px rgba(0,0,0,0.7) !important; }
 
-          /* Step 2 — one clean, static Compact board: drop the whole toolbar
-             (search + the Compact pill / view tabs) so it reads as a showcase,
-             not an interactive app, and the columns get that space. */
-          .hp-demo-board .kb-toolbar { display: none !important; }
+          /* Step 2 — static showcase board (the toolbar is already hidden on
+             all breakpoints above); make the cards non-interactive on mobile. */
           .hp-demo-board .kb-card { cursor: default !important; }
           /* All three frames share one slightly-wider width (~8% over 320) for
              more horizontal breathing room, with comfortable margins even on a
@@ -557,6 +562,16 @@ export default function HomepageDemo() {
         .hp-glow-frame { transition: box-shadow .5s ease; }
         .hp-glow-frame.hp-glow-on { animation: hpFormGlow 2.4s ease-in-out infinite; }
 
+        /* Connector-arrow glow — a subtle, premium blue halo that gently breathes
+           on the arrow the workflow has just advanced through (hp-arrow-on). Off
+           (no filter) until the flow reaches it, so lighting up reads as motion. */
+        @keyframes hpArrowGlow {
+          0%, 100% { filter: drop-shadow(0 0 3px rgba(47,107,255,.45)); }
+          50%      { filter: drop-shadow(0 0 7px rgba(47,107,255,.75)); }
+        }
+        .hp-arrow svg { transition: filter .5s ease; }
+        .hp-arrow-on svg { animation: hpArrowGlow 2.2s ease-in-out infinite; }
+
         /* Submit-Lead attention cue: one slightly stronger intro pulse on load,
            then a gentle breathing glow every ~2.6s. Removed the moment the demo
            starts (the .hp-cta-attention class is dropped). */
@@ -575,6 +590,8 @@ export default function HomepageDemo() {
           .hp-step-glow, .hp-ai-badge, .hp-glow-frame.hp-glow-on, .hp-moved .kb-card.kb-card--selected, .hp-approval-highlight { animation: none; }
           /* Keep a steady (non-pulsing) glow so the CTA still reads as the cue. */
           .hp-cta-attention { animation: none; box-shadow: 0 0 16px 2px rgba(47,107,255,.45); }
+          /* Active arrows keep a steady blue glow instead of breathing. */
+          .hp-arrow-on svg { animation: none; filter: drop-shadow(0 0 5px rgba(47,107,255,.6)); }
         }
         /* Reduced motion still gets a steady (non-pulsing) glow on the active/hovered stage. */
         @media (prefers-reduced-motion: reduce) {
@@ -613,10 +630,14 @@ function StepHead({ n, active, done, title, sub }: { n: number; active: boolean;
 }
 
 // ── Connector arrow between stages (desktop only) ───────────────────────────
+// Signals that the workflow advances on its own: ~32% larger than before, and
+// when the flow reaches it (active) it turns Locator Beast blue and picks up a
+// subtle, premium blue glow that gently breathes. Step 1→2 lights up when the
+// lead is submitted; Step 2→3 when the workflow advances to the Lead Panel.
 function Arrow({ active }: { active: boolean }) {
   return (
-    <div className="hidden self-center pt-6 lg:block">
-      <svg width="34" height="16" viewBox="0 0 34 16" fill="none" className="transition-colors duration-500">
+    <div className={`hp-arrow hidden self-center pt-6 lg:block ${active ? "hp-arrow-on" : ""}`}>
+      <svg width="45" height="21" viewBox="0 0 34 16" fill="none" className="transition-all duration-500">
         <path
           d="M2 8h27m0 0-6-5m6 5-6 5"
           stroke={active ? "var(--beast-blue)" : "rgba(255,255,255,0.2)"}
@@ -677,7 +698,7 @@ function BoardPreview({
   aiBadge: boolean;
 }) {
   return (
-    <ThemeProvider>
+    <ThemeProvider forcedTheme={DEFAULT_THEME}>
       <div className={`hp-demo-board relative h-[734px] bg-[var(--crm-background)] ${moved ? "hp-moved" : ""}`}>
         {/* Brief "AI did the work" badge as the lead lands in Contacted. */}
         {aiBadge && (

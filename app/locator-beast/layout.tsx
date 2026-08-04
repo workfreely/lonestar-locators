@@ -12,7 +12,7 @@ const inter = Inter({
   display: "swap",
 });
 
-const TITLE = "Locator Beast | The Operating System for Apartment Locators";
+const TITLE = "Locator Beast | All-in-One Platform for Apartment Locators";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
