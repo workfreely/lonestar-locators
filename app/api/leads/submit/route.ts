@@ -35,6 +35,7 @@ import { createClient } from "@supabase/supabase-js"
 import { createNewLeadCalendarEvent } from "@/lib/google/createCalendarEvent"
 import { findDuplicateMatch, type LeadIdentity } from "@/lib/leads/duplicateDetection"
 import { getStageWorkflowAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
+import { sendNotification, newLeadEmail, absoluteUrl } from "@/lib/notifications"
 
 // Server-only client — SUPABASE_SERVICE_ROLE_KEY has no NEXT_PUBLIC_
 // prefix, so it is never bundled into browser JS.
@@ -488,6 +489,41 @@ export async function POST(request: Request) {
         })
       } catch (err) {
         console.error("[api/leads/submit] Failed to schedule Workflow Engine action:", err)
+      }
+    }
+
+    // ─── New Lead notification email → the locator (Smart Lead Form only) ─
+    // Only for genuinely new leads attributed to a workspace owner via their
+    // public Smart Lead Form (attributedOwnerId set). Deferred via after() and
+    // fully isolated so a mail failure can never affect the saved lead or the
+    // response. The existing Lone Star marketing forms (no formUsername) are
+    // unaffected — they keep their own confirmation flow.
+    if (isNewLead && attributedOwnerId) {
+      const ownerId = attributedOwnerId
+      const leadRow = data
+      try {
+        after(async () => {
+          try {
+            const { data: owner } = await supabaseAdmin
+              .from("profiles")
+              .select("email, first_name, full_name")
+              .eq("id", ownerId)
+              .maybeSingle()
+            if (!owner?.email) return
+            await sendNotification({
+              to: owner.email,
+              ...newLeadEmail({
+                locatorName: owner.full_name || owner.first_name,
+                leadUrl: absoluteUrl(`/admin/leads?id=${leadRow.id}`),
+                lead: leadRow,
+              }),
+            })
+          } catch (err) {
+            console.error("[api/leads/submit] New-lead notification email failed:", err)
+          }
+        })
+      } catch (err) {
+        console.error("[api/leads/submit] Failed to schedule new-lead notification email:", err)
       }
     }
 

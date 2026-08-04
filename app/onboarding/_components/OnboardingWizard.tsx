@@ -73,6 +73,11 @@ export default function OnboardingWizard({
       })
       .eq("id", userId);
 
+    // Fire-and-forget: send the Welcome + Trial-started emails now that the
+    // trial has been granted (server-side, via the centralized notification
+    // service). Never blocks navigation and never surfaces errors to the user.
+    void fetch("/api/notifications/account-welcome", { method: "POST" }).catch(() => {});
+
     router.push("/admin/leads");
     router.refresh();
   }

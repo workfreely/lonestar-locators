@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { computeTrialWindow } from "@/lib/billing/trial"
+import { sendAccountStartedEmails } from "@/lib/notifications"
 
 // Mirror of the SQL lb_normalize_phone(): last 10 digits, or null if fewer.
 function normalizePhone(phone: string | null | undefined): string | null {
@@ -25,7 +26,7 @@ export async function POST() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("trial_started_at, subscription_status, phone_number")
+    .select("trial_started_at, subscription_status, phone_number, first_name, full_name")
     .eq("id", user.id)
     .single()
 
@@ -73,6 +74,15 @@ export async function POST() {
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 })
   }
+
+  // Welcome + trial-started emails (fallback path). Non-blocking and self-
+  // contained — sendAccountStartedEmails never throws, so a mail failure can't
+  // fail the trial grant.
+  await sendAccountStartedEmails({
+    to: email,
+    name: profile?.full_name || profile?.first_name,
+    trialEndsAt: trialEndsAt.toISOString(),
+  })
 
   return NextResponse.json({ granted: true, trialEndsAt: trialEndsAt.toISOString() })
 }

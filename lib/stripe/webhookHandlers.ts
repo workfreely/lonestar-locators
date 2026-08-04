@@ -1,6 +1,26 @@
 import type Stripe from "stripe"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { stripe } from "./client"
+import { sendBillingNotification } from "@/lib/notifications"
+
+// Read the customer's currently-stored status BEFORE reconciliation, so a
+// handler can detect a transition (e.g. canceled → active = reactivation).
+// Best-effort: returns null on any error so notification logic degrades quietly.
+async function readStoredStatus(
+  supabaseAdmin: SupabaseClient,
+  customerId: string
+): Promise<string | null> {
+  try {
+    const { data } = await supabaseAdmin
+      .from("profiles")
+      .select("subscription_status")
+      .eq("stripe_customer_id", customerId)
+      .maybeSingle()
+    return data?.subscription_status ?? null
+  } catch {
+    return null
+  }
+}
 
 // Every handler resolves the customer id from its event, then RECONCILES the DB
 // against Stripe's authoritative current state (see reconcileCustomerSubscription).
@@ -85,11 +105,17 @@ export async function handleCheckoutCompleted(
   const customerId = customerIdOf(event.data.object.customer)
   if (!customerId) return
   await reconcileCustomerSubscription(customerId, supabaseAdmin)
+  // A completed checkout is the single "you subscribed" signal — subscription
+  // .created / invoice.paid stay silent so a new subscriber gets exactly one
+  // confirmation email.
+  await sendBillingNotification(supabaseAdmin, customerId, "successful")
 }
 
 export async function handleInvoicePaid(event: Stripe.InvoicePaidEvent, supabaseAdmin: SupabaseClient) {
   const customerId = customerIdOf(event.data.object.customer)
   if (!customerId) return
+  // No email here: monthly renewals shouldn't spam the customer (Stripe already
+  // emails receipts). New-subscription confirmation is handled by checkout.
   await reconcileCustomerSubscription(customerId, supabaseAdmin)
 }
 
@@ -100,6 +126,7 @@ export async function handleInvoicePaymentFailed(
   const customerId = customerIdOf(event.data.object.customer)
   if (!customerId) return
   await reconcileCustomerSubscription(customerId, supabaseAdmin)
+  await sendBillingNotification(supabaseAdmin, customerId, "payment_failed")
 }
 
 export async function handleSubscriptionCreated(
@@ -117,7 +144,14 @@ export async function handleSubscriptionUpdated(
 ) {
   const customerId = customerIdOf(event.data.object.customer)
   if (!customerId) return
-  await reconcileCustomerSubscription(customerId, supabaseAdmin)
+  // Capture the prior stored status so we can detect a reactivation. A brand-new
+  // subscription arrives via checkout (prev is null/none) and is confirmed there
+  // — only an explicit canceled → active transition is a "welcome back".
+  const prev = await readStoredStatus(supabaseAdmin, customerId)
+  const next = await reconcileCustomerSubscription(customerId, supabaseAdmin)
+  if (prev === "canceled" && next === "active") {
+    await sendBillingNotification(supabaseAdmin, customerId, "reactivated")
+  }
 }
 
 export async function handleSubscriptionDeleted(
@@ -132,4 +166,5 @@ export async function handleSubscriptionDeleted(
   if (effective === null) {
     await updateByCustomerId(supabaseAdmin, customerId, { subscription_status: "canceled" })
   }
+  await sendBillingNotification(supabaseAdmin, customerId, "canceled")
 }
