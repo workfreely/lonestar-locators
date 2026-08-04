@@ -124,14 +124,13 @@ export default function HomepageDemo() {
   function highlightApprovalSection() {
     const wrap = panelWrapRef.current;
     if (!wrap) return;
-    // Desktop highlights Credit Screening (revealed near the end of the tour).
-    // On mobile that glow lands too far down the internal scroll to notice, so
-    // highlight the Search Criteria section instead — same glow style + duration.
-    // Credit Screening itself and the internal scroll are unchanged.
-    const isMobile = typeof window !== "undefined" && window.innerWidth < 1024;
-    const targetTitle = isMobile ? "Search Criteria" : "Credit Screening";
+    // Desktop only: a Credit Screening glow as the tour reveals it. On mobile we
+    // skip the highlight — the page transitions straight to the CTA ~1s after
+    // the tour (see the effect above), which would cut the glow off — so we
+    // prioritize a clean CTA transition rather than force the highlight.
+    if (typeof window !== "undefined" && window.innerWidth < 1024) return;
     const head = Array.from(wrap.querySelectorAll("p")).find(
-      (p) => p.textContent?.trim() === targetTitle
+      (p) => p.textContent?.trim() === "Credit Screening"
     );
     const card = head?.parentElement?.parentElement; // <p> → header row → card root
     if (!card) return;
@@ -228,6 +227,31 @@ export default function HomepageDemo() {
     const y = window.scrollY + el.getBoundingClientRect().top - HEADER_OFFSET;
     window.scrollTo({ top: Math.max(0, y), behavior: prefersReducedMotion() ? "auto" : "smooth" });
   }, [activeStage]);
+
+  // Mobile only: once the Step 3 panel tour + internal scroll finish (showCta),
+  // pause ~1s, then smoothly bring the "Start Your 30-Day Free Trial" CTA fully
+  // into view — guiding the visitor straight from the completed demo to the CTA.
+  // Scrolls just enough (bottom-aligned with a small margin) and stops there; it
+  // never restarts the demo or touches the internal Step 3 panel scroll. Desktop
+  // is guarded out and is unchanged.
+  useEffect(() => {
+    if (!showCta) return;
+    if (typeof window === "undefined" || window.innerWidth >= 1024) return;
+    const t = setTimeout(() => {
+      const cta = Array.from(document.querySelectorAll("a")).find(
+        (a) => a.textContent?.trim() === "Start Your 30-Day Free Trial" && a.offsetParent !== null
+      );
+      if (!cta) return;
+      const rect = cta.getBoundingClientRect();
+      const MARGIN = 40; // breathing room below the button
+      const target = window.scrollY + rect.bottom + MARGIN - window.innerHeight;
+      // Only scroll DOWN toward the CTA, just enough to reveal it — never up.
+      if (target > window.scrollY + 1) {
+        window.scrollTo({ top: target, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+      }
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [showCta]);
 
   // The demo must NEVER launch phone / text / messaging apps. Neutralize any
   // tel:/sms: window.open for the life of the demo (belt-and-suspenders on top
