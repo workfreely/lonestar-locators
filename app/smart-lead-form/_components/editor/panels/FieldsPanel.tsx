@@ -72,9 +72,11 @@ export default function FieldsPanel({
           {FIELD_ROWS.map((row) => (
             <div
               key={row.key}
-              className="flex items-center gap-3 rounded-xl border border-[#e5e7ee] bg-white px-5 py-2"
+              className="flex items-center gap-3 rounded-xl border border-[#e5e7ee] bg-white px-2.5 py-2"
             >
-              <div className="flex-1">
+              {/* min-w-0 lets the label shrink so the shrink-0 switch can never be
+                  pushed past the panel's overflow-hidden edge and clipped. */}
+              <div className="min-w-0 flex-1">
                 <p className="text-[13.5px] font-medium text-[#111318]">{row.label}</p>
                 {row.note && <p className="text-[11.5px] text-[#9098a8]">{row.note}</p>}
               </div>

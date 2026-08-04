@@ -91,7 +91,7 @@ export default function SmartLeadFormEditor() {
           </PreviewFrame>
         </div>
 
-        <div className="w-[480px] shrink-0 overflow-hidden border-l border-[#e5e7ee] bg-white">
+        <div className="w-[500px] shrink-0 overflow-hidden border-l border-[#e5e7ee] bg-white">
           <SettingsPanel config={config} onChange={updateConfig} slug={slug} />
         </div>
       </div>
