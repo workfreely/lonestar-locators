@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { stripe } from "@/lib/stripe/client"
 import { createClient } from "@/lib/supabase/server"
+import { getPlan, resolvePriceId } from "@/lib/billing/plans"
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -12,7 +13,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
   }
 
-  const priceId = process.env.STRIPE_PRICE_ID
+  // Optional plan selector (future: annual/team). Defaults to the one plan.
+  // Body is optional — callers today POST with no body.
+  let planKey: string | undefined
+  try {
+    const body = await request.json()
+    planKey = typeof body?.plan === "string" ? body.plan : undefined
+  } catch {
+    planKey = undefined
+  }
+
+  const plan = getPlan(planKey)
+  const priceId = resolvePriceId(plan)
   if (!priceId) {
     return NextResponse.json({ error: "Billing is not configured yet" }, { status: 500 })
   }
@@ -42,7 +54,10 @@ export async function POST(request: Request) {
     customer: customerId,
     client_reference_id: user.id,
     line_items: [{ price: priceId, quantity: 1 }],
-    subscription_data: { metadata: { supabase_user_id: user.id } },
+    subscription_data: { metadata: { supabase_user_id: user.id, plan: plan.key } },
+    // Let Stripe collect promotion codes at checkout — ready for coupons/promos
+    // with no code change when you create them in the dashboard.
+    allow_promotion_codes: true,
     success_url: `${origin}/billing?checkout=success`,
     cancel_url: `${origin}/billing?checkout=canceled`,
   })

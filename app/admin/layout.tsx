@@ -7,6 +7,7 @@ import LandingWrapper from "@/app/components/LandingWrapper"
 import { supabase } from "@/lib/supabase/client"
 import { ThemeProvider } from "@/components/theme/ThemeProvider"
 import AskBeastAI from "@/components/beast-ai/AskBeastAI"
+import TrialReminder from "@/components/crm/billing/TrialReminder"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -83,6 +84,7 @@ export default function AdminLayout({
         </div>
       </div>
       <AskBeastAI />
+      <TrialReminder />
     </ThemeProvider>
   )
 }

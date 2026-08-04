@@ -66,6 +66,19 @@ export default function OnboardingWizard({
         onboarding_step: TOTAL_STEPS,
       })
       .eq("id", userId);
+
+    // Start the 30-day free trial the moment onboarding finishes, so the user
+    // lands inside the CRM with an active trial and never has to visit Billing
+    // to begin. The endpoint is idempotent and abuse-ledger protected server-
+    // side, so a re-run (or an email that already used its trial) is a safe
+    // no-op — the billing gate will route those users to /billing to subscribe.
+    try {
+      await fetch("/api/billing/start-trial", { method: "POST" });
+    } catch {
+      // Non-fatal — the user still enters; if the trial didn't start, the
+      // server-side billing gate will surface the subscribe prompt on /billing.
+    }
+
     router.push("/admin/leads");
     router.refresh();
   }

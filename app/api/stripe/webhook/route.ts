@@ -6,6 +6,7 @@ import {
   handleCheckoutCompleted,
   handleInvoicePaid,
   handleInvoicePaymentFailed,
+  handleSubscriptionCreated,
   handleSubscriptionUpdated,
   handleSubscriptionDeleted,
 } from "@/lib/stripe/webhookHandlers"
@@ -27,36 +28,59 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `Invalid signature: ${(err as Error).message}` }, { status: 400 })
   }
 
-  // Idempotency — Stripe retries deliveries, so skip anything already
-  // processed rather than double-applying a status change.
-  const { error: insertError } = await supabaseAdmin
+  // Idempotency — Stripe retries deliveries, so skip anything already fully
+  // processed rather than double-applying a status change. We check FIRST and
+  // only record the event as processed AFTER it succeeds (below), so a transient
+  // failure returns 500 and Stripe safely retries instead of the event being
+  // permanently deduped and lost. The handlers themselves are idempotent
+  // (they write Stripe's reported status), so the small check→mark window is
+  // harmless even under a rare concurrent duplicate delivery.
+  const { data: existing } = await supabaseAdmin
     .from("processed_stripe_events")
-    .insert({ event_id: event.id })
+    .select("event_id")
+    .eq("event_id", event.id)
+    .maybeSingle()
 
-  if (insertError) {
-    // Unique violation means we've already handled this event.
+  if (existing) {
     return NextResponse.json({ received: true, deduped: true })
   }
 
-  switch (event.type) {
-    case "checkout.session.completed":
-      await handleCheckoutCompleted(event, supabaseAdmin)
-      break
-    case "invoice.paid":
-      await handleInvoicePaid(event, supabaseAdmin)
-      break
-    case "invoice.payment_failed":
-      await handleInvoicePaymentFailed(event, supabaseAdmin)
-      break
-    case "customer.subscription.updated":
-      await handleSubscriptionUpdated(event, supabaseAdmin)
-      break
-    case "customer.subscription.deleted":
-      await handleSubscriptionDeleted(event, supabaseAdmin)
-      break
-    default:
-      break
+  try {
+    switch (event.type) {
+      case "checkout.session.completed":
+        await handleCheckoutCompleted(event, supabaseAdmin)
+        break
+      case "invoice.paid":
+        await handleInvoicePaid(event, supabaseAdmin)
+        break
+      case "invoice.payment_failed":
+        await handleInvoicePaymentFailed(event, supabaseAdmin)
+        break
+      case "customer.subscription.created":
+        await handleSubscriptionCreated(event, supabaseAdmin)
+        break
+      case "customer.subscription.updated":
+        await handleSubscriptionUpdated(event, supabaseAdmin)
+        break
+      case "customer.subscription.deleted":
+        await handleSubscriptionDeleted(event, supabaseAdmin)
+        break
+      default:
+        // Unhandled event type — record it as processed (below) so Stripe
+        // stops retrying, but take no action.
+        break
+    }
+  } catch (err) {
+    // Let Stripe retry — do NOT mark the event processed.
+    return NextResponse.json(
+      { error: `Handler failed: ${(err as Error).message}` },
+      { status: 500 }
+    )
   }
+
+  // Success — record the event so retries are deduped. A unique-violation race
+  // here just means a concurrent delivery already recorded it; that's fine.
+  await supabaseAdmin.from("processed_stripe_events").insert({ event_id: event.id })
 
   return NextResponse.json({ received: true })
 }
