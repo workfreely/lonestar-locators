@@ -50,7 +50,7 @@ export default function SettingsPanel({
           </button>
         ))}
       </div>
-      <div className="flex-1 overflow-y-auto px-4 py-2">
+      <div className="flex-1 overflow-y-auto px-6 py-2">
         {tab === "branding" && <BrandingPanel config={config} onChange={onChange} />}
         {tab === "content" && <ContentPanel config={config} onChange={onChange} />}
         {tab === "fields" && <FieldsPanel config={config} onChange={onChange} />}
