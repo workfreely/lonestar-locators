@@ -34,7 +34,13 @@ export default function Nav() {
           ))}
         </nav>
 
-        <div className="hidden items-center gap-3 md:flex">
+        <div className="hidden items-center gap-5 md:flex">
+          <Link
+            href="/login"
+            className="text-[15px] font-medium text-[var(--beast-ink-soft)] transition-colors hover:text-[var(--beast-ink)]"
+          >
+            Log In
+          </Link>
           <Link
             href={TRIAL_URL}
             className="rounded-full bg-[var(--beast-ink)] px-5 py-2.5 text-[14px] font-semibold text-white transition-transform duration-300 hover:scale-[1.03] hover:bg-[var(--beast-blue)]"
@@ -75,9 +81,16 @@ export default function Nav() {
               </Link>
             ))}
             <Link
+              href="/login"
+              onClick={() => setOpen(false)}
+              className="mt-2 text-[15px] font-medium text-[var(--beast-ink-soft)]"
+            >
+              Log In
+            </Link>
+            <Link
               href={TRIAL_URL}
               onClick={() => setOpen(false)}
-              className="mt-2 rounded-full bg-[var(--beast-ink)] px-5 py-3 text-center text-[14px] font-semibold text-white"
+              className="rounded-full bg-[var(--beast-ink)] px-5 py-3 text-center text-[14px] font-semibold text-white"
             >
               Start Free Trial
             </Link>
