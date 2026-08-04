@@ -1,13 +1,14 @@
-import { BRAND, absoluteUrl } from "./branding"
+import { BRAND, absoluteUrl, type SenderCategory } from "./branding"
 import { renderEmail, paragraph, infoTable, esc } from "./layout"
 
 // Every notification the app can send lives here as a pure builder:
-//   (params) => { subject, html, text? }
-// Builders never send — they only produce content. Call sendNotification() with
-// the result. Adding a new notification = add one builder here; nothing else in
-// the system needs to change.
+//   (params) => { subject, html, category, text? }
+// Builders never send — they only produce content, INCLUDING which sender
+// identity (category) the email goes out under. Call sendNotification() with the
+// result. Adding a new notification = add one builder here (with its category);
+// nothing else in the system needs to change.
 
-export type BuiltEmail = { subject: string; html: string; text?: string }
+export type BuiltEmail = { subject: string; html: string; category: SenderCategory; text?: string }
 
 // A greeting line that gracefully handles a missing name.
 function greeting(name?: string | null): string {
@@ -61,6 +62,7 @@ export function newLeadEmail({ locatorName, leadUrl, lead }: NewLeadEmailParams)
     ${paragraph("Open the lead in Locator Beast to start the workflow and follow up fast.")}
   `
   return {
+    category: "leads",
     subject: `New lead: ${fullName}`,
     html: renderEmail({
       preheader: `${fullName} just submitted your Smart Lead Form.`,
@@ -101,6 +103,7 @@ export function leadAssignedEmail({
     ${paragraph("Open the lead to review the details and start following up.")}
   `
   return {
+    category: "leads",
     subject: `You've been assigned a lead: ${fullName}`,
     html: renderEmail({
       preheader: `${fullName} was assigned to you.`,
@@ -120,6 +123,7 @@ export function welcomeEmail(params: { name?: string | null }): BuiltEmail {
     ${paragraph("Jump into your dashboard to get set up.")}
   `
   return {
+    category: "transactional",
     subject: "Welcome to Locator Beast 🐆",
     html: renderEmail({
       preheader: "Your Locator Beast account is ready.",
@@ -148,6 +152,7 @@ export function trialStartedEmail(params: {
     ${paragraph("Make the most of it — set up your Smart Lead Form and start capturing leads today.")}
   `
   return {
+    category: "transactional",
     subject: "Your Locator Beast trial has started",
     html: renderEmail({
       preheader: "30 days of full access — no credit card required.",
@@ -174,6 +179,7 @@ export function trialEndingEmail(params: {
     ${paragraph("Subscribe now to keep your leads, workflows, and Smart Lead Form running without interruption — just $99/month.")}
   `
   return {
+    category: "transactional",
     subject: `Your Locator Beast trial ends in ${params.daysLeft} ${dayWord}`,
     html: renderEmail({
       preheader: "Subscribe to keep your access after the trial.",
@@ -197,6 +203,8 @@ export function subscriptionSuccessfulEmail(params: { name?: string | null }): B
     ${paragraph("You can manage your subscription or update payment details any time from Billing.")}
   `
   return {
+    // "Subscription created" — mapped to transactional per the sender spec.
+    category: "transactional",
     subject: "Your Locator Beast subscription is active",
     html: renderEmail({
       preheader: "Thanks for subscribing — you have full access.",
@@ -215,6 +223,7 @@ export function paymentFailedEmail(params: { name?: string | null }): BuiltEmail
     ${paragraph("This usually means a card expired or was declined. To avoid losing access, please update your payment method — we'll automatically retry.")}
   `
   return {
+    category: "billing",
     subject: "Action needed: your Locator Beast payment failed",
     html: renderEmail({
       preheader: "Update your payment method to keep your access.",
@@ -236,6 +245,7 @@ export function subscriptionCanceledEmail(params: { name?: string | null }): Bui
     ${paragraph("We'd love to have you back.")}
   `
   return {
+    category: "billing",
     subject: "Your Locator Beast subscription was canceled",
     html: renderEmail({
       preheader: "You can reactivate any time.",
@@ -254,6 +264,7 @@ export function subscriptionReactivatedEmail(params: { name?: string | null }): 
     ${paragraph("Everything is right where you left it — jump back in and keep closing leases.")}
   `
   return {
+    category: "billing",
     subject: "Welcome back — your Locator Beast subscription is active",
     html: renderEmail({
       preheader: "Your subscription is active again.",
@@ -277,6 +288,7 @@ export function passwordResetEmail(params: { actionUrl: string; name?: string | 
     ${paragraph("If you didn't request this, you can safely ignore this email — your password won't change.")}
   `
   return {
+    category: "transactional",
     subject: "Reset your Locator Beast password",
     html: renderEmail({
       preheader: "Reset your Locator Beast password.",
@@ -295,6 +307,7 @@ export function emailVerificationEmail(params: { actionUrl: string; name?: strin
     ${paragraph("If you didn't create this account, you can safely ignore this email.")}
   `
   return {
+    category: "transactional",
     subject: "Confirm your email for Locator Beast",
     html: renderEmail({
       preheader: "Confirm your email to activate your account.",

@@ -1,5 +1,5 @@
 import { resend, resendConfigured } from "@/lib/resend/client"
-import { FROM_EMAIL, REPLY_TO_EMAIL } from "./branding"
+import { resolveSender, type SenderCategory } from "./branding"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The ONE place the app talks to Resend for notifications.
@@ -24,7 +24,9 @@ export type NotificationEmail = {
   html: string
   /** Optional plain-text fallback. */
   text?: string
-  /** Override the default support reply-to for this message. */
+  /** Which sender identity to send under. Templates set this; defaults to transactional. */
+  category?: SenderCategory
+  /** Override the category's reply-to for this message. */
   replyTo?: string
 }
 
@@ -53,13 +55,19 @@ export async function sendNotification(email: NotificationEmail): Promise<SendRe
       return { ok: false, error: "not_configured", skipped: true }
     }
 
+    // Pick the sender identity for this notification's category (leads /
+    // transactional / billing / marketing). Reply-to is the category's default
+    // unless the caller overrides it; the leads sender has none (notification-only).
+    const sender = resolveSender(email.category)
+    const replyTo = email.replyTo ?? sender.replyTo
+
     const { data, error } = await resend.emails.send({
-      from: FROM_EMAIL,
+      from: sender.from,
       to,
       subject: email.subject,
       html: email.html,
       ...(email.text ? { text: email.text } : {}),
-      replyTo: email.replyTo ?? REPLY_TO_EMAIL,
+      ...(replyTo ? { replyTo } : {}),
     })
 
     if (error) {

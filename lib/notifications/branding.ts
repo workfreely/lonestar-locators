@@ -20,13 +20,34 @@ export const BRAND = {
   cardBg: "#ffffff",
 } as const
 
-// Sender identity for ALL Locator Beast transactional email. Fixed business
-// addresses (not secrets), so they live in code, not env — only RESEND_API_KEY
-// comes from the environment. Sends from the verified locatorbeast.com domain;
-// replies are routed to the real Zoho mailbox (admin@locatorbeast.com).
-export const FROM_EMAIL = "Locator Beast <notifications@locatorbeast.com>"
+// ─── Sender identities ───────────────────────────────────────────────────────
+// Every Locator Beast email is sent under ONE of four sender identities, chosen
+// by the notification's category. All send from the verified `send.locatorbeast.com`
+// subdomain (via the single RESEND_API_KEY account); replies route to the real
+// Zoho mailbox admin@locatorbeast.com. Fixed business addresses (not secrets), so
+// they live in code — only the API key comes from the environment.
+//
+//   leads         → lead notifications to a locator (notification-only, no reply-to)
+//   transactional → account/auth/trial lifecycle
+//   billing       → money/subscription lifecycle
+//   marketing     → announcements/newsletters (no templates yet; sender is ready)
+export type SenderCategory = "leads" | "transactional" | "billing" | "marketing"
 
-export const REPLY_TO_EMAIL = BRAND.supportEmail // admin@locatorbeast.com
+const REPLY_TO = "admin@locatorbeast.com"
+
+export const SENDERS: Record<SenderCategory, { from: string; replyTo?: string }> = {
+  leads: { from: "Locator Beast Leads <leads@send.locatorbeast.com>" },
+  transactional: { from: "Locator Beast <notifications@send.locatorbeast.com>", replyTo: REPLY_TO },
+  billing: { from: "Locator Beast Billing <billing@send.locatorbeast.com>", replyTo: REPLY_TO },
+  marketing: { from: "Locator Beast <news@send.locatorbeast.com>", replyTo: REPLY_TO },
+}
+
+// Safe fallback when a caller/template doesn't declare a category.
+export const DEFAULT_SENDER: SenderCategory = "transactional"
+
+export function resolveSender(category?: SenderCategory) {
+  return SENDERS[category ?? DEFAULT_SENDER]
+}
 
 // Absolute URL helper — email clients need fully-qualified links, never
 // root-relative paths.
