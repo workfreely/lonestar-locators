@@ -249,9 +249,14 @@ export default function BillingSettingsClient({
               </span>
             </p>
           ) : (
-            <p className="text-[13.5px] text-[#6b7280]">No card on file.</p>
+            <p className="text-[13.5px] text-[#6b7280]">
+              {hasStripeCustomer ? "No card on file." : "You'll add a card when you subscribe."}
+            </p>
           )}
-          {hasStripeCustomer ? (
+          {/* The Stripe Customer Portal only exists once a customer does (created
+              at checkout), so the update control is shown only when there's a
+              customer — no dead/disabled button for trial-only users. */}
+          {hasStripeCustomer && (
             <button
               type="button"
               onClick={manageBilling}
@@ -259,14 +264,6 @@ export default function BillingSettingsClient({
               className="flex-none rounded-lg border border-[#d9deea] bg-white px-4 py-2 text-[13px] font-semibold text-[#111318] transition-colors hover:bg-[#f7f8fa] disabled:opacity-60"
             >
               {loading === "portal" ? "Opening…" : paymentMethod ? "Update" : "Add Card"}
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled
-              className="flex-none cursor-not-allowed rounded-lg border border-[#e5e7ee] bg-[#f4f5f8] px-4 py-2 text-[13px] font-semibold text-[#9098a8]"
-            >
-              Update
             </button>
           )}
         </div>
