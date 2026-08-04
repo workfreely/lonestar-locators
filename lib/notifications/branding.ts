@@ -6,7 +6,9 @@
 export const BRAND = {
   name: "Locator Beast",
   siteUrl: "https://locatorbeast.com",
-  supportEmail: "support@locatorbeast.com",
+  // The only real Locator Beast mailbox (Zoho) — where replies + support
+  // requests land. Shown in the email footer and used as the Reply-To below.
+  supportEmail: "admin@locatorbeast.com",
 
   // Palette (hex only — email clients don't support CSS variables).
   ink: "#05070d", // near-black, primary text + dark header band
@@ -18,16 +20,13 @@ export const BRAND = {
   cardBg: "#ffffff",
 } as const
 
-// Sender identity. Overridable via env so the "from" can move to a verified
-// locatorbeast.com address without a code change. The default uses the domain
-// already verified in Resend (lonestarlocators.app) with the Locator Beast
-// display name, so notifications deliver today; swap NOTIFICATIONS_FROM_EMAIL
-// once a Locator Beast domain is verified in Resend.
-export const FROM_EMAIL =
-  process.env.NOTIFICATIONS_FROM_EMAIL || "Locator Beast <jay@lonestarlocators.app>"
+// Sender identity for ALL Locator Beast transactional email. Fixed business
+// addresses (not secrets), so they live in code, not env — only RESEND_API_KEY
+// comes from the environment. Sends from the verified locatorbeast.com domain;
+// replies are routed to the real Zoho mailbox (admin@locatorbeast.com).
+export const FROM_EMAIL = "Locator Beast <notifications@locatorbeast.com>"
 
-export const REPLY_TO_EMAIL =
-  process.env.NOTIFICATIONS_REPLY_TO || BRAND.supportEmail
+export const REPLY_TO_EMAIL = BRAND.supportEmail // admin@locatorbeast.com
 
 // Absolute URL helper — email clients need fully-qualified links, never
 // root-relative paths.

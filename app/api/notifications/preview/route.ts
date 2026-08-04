@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import {
   newLeadEmail,
+  leadAssignedEmail,
   welcomeEmail,
   trialStartedEmail,
   trialEndingEmail,
@@ -52,6 +53,13 @@ const BUILDERS: Record<string, () => BuiltEmail> = {
         notes: "Has a small dog. Prefers a pool.",
         source: "smart_lead_form",
       },
+    }),
+  "lead-assigned": () =>
+    leadAssignedEmail({
+      assigneeName: "Jordan",
+      assignedByName: "Alex",
+      leadUrl: "https://locatorbeast.com/admin/leads?id=demo",
+      lead: { first_name: "Maria", last_name: "Gonzalez", city: "Dallas" },
     }),
   welcome: () => welcomeEmail({ name: SAMPLE.name }),
   "trial-started": () => trialStartedEmail({ name: SAMPLE.name, trialEndsAt: SAMPLE.trialEndsAt }),

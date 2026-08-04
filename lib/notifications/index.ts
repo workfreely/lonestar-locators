@@ -30,6 +30,7 @@ export type { NotificationEmail, SendResult } from "./send"
 
 export {
   newLeadEmail,
+  leadAssignedEmail,
   welcomeEmail,
   trialStartedEmail,
   trialEndingEmail,
@@ -40,7 +41,7 @@ export {
   passwordResetEmail,
   emailVerificationEmail,
 } from "./templates"
-export type { BuiltEmail, NewLeadEmailParams } from "./templates"
+export type { BuiltEmail, NewLeadEmailParams, LeadAssignedEmailParams } from "./templates"
 
 export { sendBillingNotification } from "./billing"
 export type { BillingNotificationKind } from "./billing"

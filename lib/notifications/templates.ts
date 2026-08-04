@@ -71,6 +71,46 @@ export function newLeadEmail({ locatorName, leadUrl, lead }: NewLeadEmailParams)
   }
 }
 
+// ─── Lead assignment → assigned agent ────────────────────────────────────────
+// Ready for when multi-agent workspaces support assigning a lead to a teammate.
+// Not wired to a trigger yet (the app is solo-workspace today, so every lead is
+// owned by the workspace owner) — call it from the assignment action once that
+// feature exists.
+
+export type LeadAssignedEmailParams = {
+  assigneeName?: string | null
+  assignedByName?: string | null
+  leadUrl: string
+  lead: { first_name?: string | null; last_name?: string | null; city?: string | null }
+}
+
+export function leadAssignedEmail({
+  assigneeName,
+  assignedByName,
+  leadUrl,
+  lead,
+}: LeadAssignedEmailParams): BuiltEmail {
+  const fullName = [lead.first_name, lead.last_name].filter(Boolean).join(" ").trim() || "a lead"
+  const by = (assignedByName ?? "").trim()
+  const contentHtml = `
+    ${paragraph(`${greeting(assigneeName)} ${by ? `${esc(by)} assigned` : "you've been assigned"} a lead to you in Locator Beast.`)}
+    ${infoTable([
+      { label: "Lead", value: [lead.first_name, lead.last_name].filter(Boolean).join(" ") },
+      { label: "City", value: lead.city },
+    ])}
+    ${paragraph("Open the lead to review the details and start following up.")}
+  `
+  return {
+    subject: `You've been assigned a lead: ${fullName}`,
+    html: renderEmail({
+      preheader: `${fullName} was assigned to you.`,
+      heading: "A lead was assigned to you",
+      contentHtml,
+      cta: { label: "Open lead in Locator Beast", url: leadUrl },
+    }),
+  }
+}
+
 // ─── Account: Welcome ────────────────────────────────────────────────────────
 
 export function welcomeEmail(params: { name?: string | null }): BuiltEmail {
