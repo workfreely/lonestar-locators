@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { resend, resendConfigured } from "@/lib/resend/client";
+import { lonestarResend, lonestarResendConfigured } from "@/lib/resend/lonestar";
 import { rateLimit, clientIpFromHeaders } from "@/lib/rateLimit";
 
 // This route is intentionally PUBLIC: the marketing lead forms (Landing /
@@ -62,14 +62,14 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!resendConfigured) {
+    if (!lonestarResendConfigured) {
       return NextResponse.json(
-        { error: "Email service is not configured (RESEND_API_KEY missing)." },
+        { error: "Email service is not configured (LONESTAR_RESEND_API_KEY missing)." },
         { status: 503 }
       );
     }
 
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await lonestarResend.emails.send({
       from: "Jay Morris <jay@lonestarlocators.app>",
       to: to.trim(),
       subject,

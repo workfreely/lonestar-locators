@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { resend, resendConfigured } from "@/lib/resend/client";
+import { lonestarResend, lonestarResendConfigured } from "@/lib/resend/lonestar";
 
 export async function POST(req: Request) {
   try {
@@ -14,14 +14,14 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!resendConfigured) {
+    if (!lonestarResendConfigured) {
       return NextResponse.json(
-        { error: "Email service is not configured (RESEND_API_KEY missing)." },
+        { error: "Email service is not configured (LONESTAR_RESEND_API_KEY missing)." },
         { status: 503 }
       );
     }
 
-    const { error } = await resend.emails.send({
+    const { error } = await lonestarResend.emails.send({
       from: "Jay Morris <jay@lonestarlocators.app>",
       to,
       subject,
