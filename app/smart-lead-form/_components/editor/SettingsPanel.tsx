@@ -54,7 +54,11 @@ export default function SettingsPanel({
           </button>
         ))}
       </div>
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      {/* Left gutter stays 24px (aligns with the tab bar); the right gutter is a
+          touch wider (pr-8 ≈ 32px) so switches and right-aligned controls sit
+          comfortably inside the content column instead of hugging the edge.
+          Intentionally asymmetric — visual balance, not mathematical symmetry. */}
+      <div className="flex-1 overflow-y-auto pb-4 pl-6 pr-8 pt-4">
         {tab === "branding" && <BrandingPanel config={config} onChange={onChange} />}
         {tab === "content" && <ContentPanel config={config} onChange={onChange} />}
         {tab === "fields" && <FieldsPanel config={config} onChange={onChange} />}
