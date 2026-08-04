@@ -35,22 +35,26 @@ export default function SettingsPanel({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex shrink-0 border-b border-[#e5e7ee] px-3">
+      {/* Tab bar shares the panel's 24px gutter (px-6): the first tab label sits
+          on the same left grid line as the content below. Tabs carry no
+          horizontal padding — they're spaced with gap-6 — so nothing drifts off
+          the grid, and the last tab keeps the full 24px right gutter. */}
+      <div className="flex shrink-0 gap-6 border-b border-[#e5e7ee] px-6">
         {TABS.map((t) => (
           <button
             key={t.id}
             type="button"
             onClick={() => setTab(t.id)}
-            className={`relative px-3 py-3.5 text-[13px] font-semibold transition-colors ${
+            className={`relative py-3.5 text-[13px] font-semibold transition-colors ${
               tab === t.id ? "text-[#111318]" : "text-[#9098a8] hover:text-[#4b5162]"
             }`}
           >
             {t.label}
-            {tab === t.id && <span className="absolute inset-x-3 -bottom-px h-[2px] rounded-full bg-[#2f6bff]" />}
+            {tab === t.id && <span className="absolute inset-x-0 -bottom-px h-[2px] rounded-full bg-[#2f6bff]" />}
           </button>
         ))}
       </div>
-      <div className="flex-1 overflow-y-auto px-3 py-2">
+      <div className="flex-1 overflow-y-auto px-6 py-4">
         {tab === "branding" && <BrandingPanel config={config} onChange={onChange} />}
         {tab === "content" && <ContentPanel config={config} onChange={onChange} />}
         {tab === "fields" && <FieldsPanel config={config} onChange={onChange} />}

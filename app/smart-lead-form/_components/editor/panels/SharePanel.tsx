@@ -5,6 +5,7 @@ import QRCode from "qrcode"
 import type { IconType } from "react-icons"
 import { FaInstagram, FaFacebook, FaTiktok, FaYoutube, FaGoogle, FaEnvelope } from "react-icons/fa6"
 import CopyButton from "../ui/CopyButton"
+import Card from "../ui/Card"
 import {
   FALLBACK_USERNAME,
   SHARE_PLATFORMS,
@@ -81,10 +82,10 @@ export default function SharePanel({ slug }: { slug: string | null }) {
 
       <div>
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">Your Public Page</p>
-        <div className="flex items-center gap-2 rounded-xl border border-[#e5e7ee] bg-[#f9fafb] px-3.5 py-3">
+        <Card className="flex items-center gap-2">
           <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium text-[#111318]">{pagePath}</span>
           <CopyButton value={pageUrl} label="Copy" />
-        </div>
+        </Card>
       </div>
 
       <div>
@@ -94,19 +95,16 @@ export default function SharePanel({ slug }: { slug: string | null }) {
             const Icon = PLATFORM_ICONS[platform.id]
             const color = PLATFORM_COLORS[platform.id]
             return (
-              <div
-                key={platform.id}
-                className="flex items-center gap-3 rounded-xl border border-[#e5e7ee] bg-white px-3 py-2.5"
-              >
+              <Card key={platform.id} className="flex items-center gap-3">
                 <span
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
                   style={{ backgroundColor: `${color}1a` }}
                 >
                   <Icon className="h-4 w-4" style={{ color }} />
                 </span>
-                <span className="flex-1 text-[13.5px] font-medium text-[#111318]">{platform.label}</span>
+                <span className="min-w-0 flex-1 text-[13.5px] font-medium text-[#111318]">{platform.label}</span>
                 <CopyButton value={buildShareUrl(username, platform.utmSource)} label="Copy" />
-              </div>
+              </Card>
             )
           })}
         </div>
@@ -114,7 +112,7 @@ export default function SharePanel({ slug }: { slug: string | null }) {
 
       <div>
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">QR Code</p>
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-[#e5e7ee] bg-[#f9fafb] p-5">
+        <Card className="flex flex-col items-center gap-3">
           {qrDataUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={qrDataUrl} alt="QR code linking to your public page" className="h-36 w-36 rounded-lg" />
@@ -129,7 +127,7 @@ export default function SharePanel({ slug }: { slug: string | null }) {
           >
             Download QR Code
           </button>
-        </div>
+        </Card>
       </div>
     </div>
   )

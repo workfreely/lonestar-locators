@@ -1,7 +1,8 @@
 "use client"
 
 import type { SmartLeadFormConfig } from "../../../_lib/types"
-import Switch from "../ui/Switch"
+import ToggleRow from "../ui/ToggleRow"
+import Card from "../ui/Card"
 
 type Updater = (updater: (prev: SmartLeadFormConfig) => SmartLeadFormConfig) => void
 type FieldKey = keyof SmartLeadFormConfig["fields"]
@@ -50,9 +51,9 @@ export default function FieldsPanel({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="rounded-xl bg-[#f4f5f8] p-3 text-[12px] leading-relaxed text-[#6b7280]">
+      <Card muted className="text-[12px] leading-relaxed text-[#6b7280]">
         Choose which fields your form collects. Hide any you don&apos;t need — the essentials stay required.
-      </div>
+      </Card>
 
       <div>
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">Always required</p>
@@ -67,21 +68,16 @@ export default function FieldsPanel({
       </div>
 
       <div>
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">Optional fields</p>
-        <div className="flex flex-col gap-2">
+        <p className="mb-1 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">Optional fields</p>
+        <div className="divide-y divide-[#f0f1f5]">
           {FIELD_ROWS.map((row) => (
-            <div
+            <ToggleRow
               key={row.key}
-              className="flex items-center gap-3 rounded-xl border border-[#e5e7ee] bg-white px-2.5 py-2"
-            >
-              {/* min-w-0 lets the label shrink so the shrink-0 switch can never be
-                  pushed past the panel's overflow-hidden edge and clipped. */}
-              <div className="min-w-0 flex-1">
-                <p className="text-[13.5px] font-medium text-[#111318]">{row.label}</p>
-                {row.note && <p className="text-[11.5px] text-[#9098a8]">{row.note}</p>}
-              </div>
-              <Switch checked={fields[row.key]} onChange={() => toggle(row.key)} />
-            </div>
+              label={row.label}
+              note={row.note}
+              checked={fields[row.key]}
+              onChange={() => toggle(row.key)}
+            />
           ))}
         </div>
       </div>
