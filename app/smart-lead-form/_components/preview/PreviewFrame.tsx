@@ -9,7 +9,7 @@ export default function PreviewFrame({
     return (
       <div className="rounded-[2.5rem] border-[10px] border-[#111318] bg-[#111318] shadow-[0_30px_80px_-30px_rgba(15,23,42,0.4)]">
         <div className="h-6 w-full" />
-        <div className="h-[720px] w-[375px] overflow-y-auto rounded-b-[1.75rem] rounded-t-lg bg-white">
+        <div className="h-[720px] w-[405px] overflow-y-auto rounded-b-[1.75rem] rounded-t-lg bg-white">
           {children}
         </div>
       </div>

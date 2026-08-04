@@ -72,7 +72,7 @@ export default function FieldsPanel({
           {FIELD_ROWS.map((row) => (
             <div
               key={row.key}
-              className="flex items-center gap-3 rounded-xl border border-[#e5e7ee] bg-white px-4 py-2"
+              className="flex items-center gap-3 rounded-xl border border-[#e5e7ee] bg-white px-5 py-2"
             >
               <div className="flex-1">
                 <p className="text-[13.5px] font-medium text-[#111318]">{row.label}</p>
