@@ -57,6 +57,12 @@ export default function OnboardingWizard({
   // shared leads table).
   async function finish() {
     setSaving(true);
+    // Completing onboarding also starts the 30-day free trial ATOMICALLY: the
+    // `trg_grant_trial_on_onboarding` DB trigger stamps trial_started_at /
+    // trial_ends_at / subscription_status='trialing' in this same write (guarded
+    // by the trial_usage ledger so it's idempotent and never grants a second
+    // trial to a reused email). No client-side trial call — a completed
+    // onboarding always yields valid trial access for a new email.
     await supabase
       .from("profiles")
       .update({
@@ -66,18 +72,6 @@ export default function OnboardingWizard({
         onboarding_step: TOTAL_STEPS,
       })
       .eq("id", userId);
-
-    // Start the 30-day free trial the moment onboarding finishes, so the user
-    // lands inside the CRM with an active trial and never has to visit Billing
-    // to begin. The endpoint is idempotent and abuse-ledger protected server-
-    // side, so a re-run (or an email that already used its trial) is a safe
-    // no-op — the billing gate will route those users to /billing to subscribe.
-    try {
-      await fetch("/api/billing/start-trial", { method: "POST" });
-    } catch {
-      // Non-fatal — the user still enters; if the trial didn't start, the
-      // server-side billing gate will surface the subscribe prompt on /billing.
-    }
 
     router.push("/admin/leads");
     router.refresh();

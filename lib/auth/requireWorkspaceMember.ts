@@ -16,6 +16,14 @@ import { createClient } from "@/lib/supabase/server"
 //
 // Routes must never trust a client-supplied workspace_id / user_id / owner id;
 // use the returned workspaceId instead.
+//
+// By default this ALSO enforces billing entitlement (active subscription or a
+// live trial for the workspace owner) via the lb_workspace_has_access() DB
+// function — the same source of truth the RLS policies use. These CRM routes
+// run with the service role (which bypasses RLS), so this is the server-side
+// gate that stops a lapsed user from mutating CRM data through direct API
+// calls. Pass { requireBilling: false } only for routes that must work without
+// an active subscription (none today).
 export type WorkspaceGuardOk = {
   ok: true
   userId: string
@@ -24,7 +32,10 @@ export type WorkspaceGuardOk = {
 }
 export type WorkspaceGuardFail = { ok: false; response: NextResponse }
 
-export async function requireWorkspaceMember(): Promise<WorkspaceGuardOk | WorkspaceGuardFail> {
+export async function requireWorkspaceMember(
+  opts: { requireBilling?: boolean } = {}
+): Promise<WorkspaceGuardOk | WorkspaceGuardFail> {
+  const requireBilling = opts.requireBilling ?? true
   const supabase = await createClient()
 
   const {
@@ -45,6 +56,26 @@ export async function requireWorkspaceMember(): Promise<WorkspaceGuardOk | Works
 
   if (!membership?.workspace_id) {
     return { ok: false, response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
+  }
+
+  if (requireBilling) {
+    // Server-side entitlement check via the shared DB function. Fail CLOSED on a
+    // definitive "not entitled" (false); fail OPEN only on an unexpected error
+    // (e.g., the function isn't migrated yet) so a transient issue can't lock
+    // out paying customers. The RLS layer still enforces entitlement for any
+    // browser-client (session) access regardless.
+    const { data: entitled, error } = await supabase.rpc("lb_workspace_has_access", {
+      ws: membership.workspace_id,
+    })
+    if (!error && entitled === false) {
+      return {
+        ok: false,
+        response: NextResponse.json(
+          { error: "Subscription required", reason: "billing", manageBillingUrl: "/billing" },
+          { status: 403 }
+        ),
+      }
+    }
   }
 
   return { ok: true, userId: user.id, workspaceId: membership.workspace_id, supabase }
