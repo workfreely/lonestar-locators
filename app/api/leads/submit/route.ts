@@ -291,6 +291,31 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, leadId: null })
   }
 
+  // ─── Per-agent attribution (public Smart Lead Form: /{username}) ──────────
+  // When the request carries a formUsername, resolve it SERVER-SIDE to the
+  // owning workspace + agent (never trust owner/workspace from the body — those
+  // aren't in the allowlist). New leads are stamped with these so they land in
+  // the right tenant, and duplicate detection is scoped to that workspace so a
+  // public form can never read/update another tenant's lead. Requests without a
+  // formUsername (the existing Lone Star forms) are unchanged.
+  const formUsername = typeof body?.formUsername === "string" ? body.formUsername : null
+  let attributedOwnerId: string | null = null
+  let attributedWorkspaceId: string | null = null
+  if (formUsername) {
+    const { data: resolved } = await supabaseAdmin.rpc("lb_resolve_public_form", {
+      p_username: formUsername,
+    })
+    const row = Array.isArray(resolved) ? resolved[0] : resolved
+    if (!row?.workspace_id) {
+      return NextResponse.json(
+        { success: false, error: "This form is no longer available." },
+        { status: 404 }
+      )
+    }
+    attributedOwnerId = row.owner_user_id
+    attributedWorkspaceId = row.workspace_id
+  }
+
   try {
     // ─── Duplicate detection ────────────────────────────────────────────
     // Soft-deleted leads are excluded from matching — a deletion is a
@@ -298,11 +323,18 @@ export async function POST(request: Request) {
     // resubmission from that person should create a fresh lead rather than
     // silently reviving or mutating the deleted one. Leads archived for
     // any other reason (ghosted, unqualified, etc.) remain valid targets.
-    const { data: existingLeads, error: existingError } = await supabaseAdmin
+    let existingQuery = supabaseAdmin
       .from("leads")
       .select("id, first_name, last_name, phone, email, move_date")
       .is("deleted_at", null)
-      .order("created_at", { ascending: false })
+    // Scope duplicate matching to the attributed workspace so a public agent
+    // form never matches (and thus never updates) a lead in another tenant.
+    if (attributedWorkspaceId) {
+      existingQuery = existingQuery.eq("workspace_id", attributedWorkspaceId)
+    }
+    const { data: existingLeads, error: existingError } = await existingQuery.order("created_at", {
+      ascending: false,
+    })
 
     if (existingError) {
       // Fail open — duplicate detection is a quality-of-life feature, not
@@ -370,10 +402,15 @@ export async function POST(request: Request) {
       isNewLead = false
       dedupAction = "updated_existing"
     } else {
+      // Stamp attribution (server-resolved) on new public-form leads so the
+      // ownership trigger routes them to the right agent/workspace.
+      const basePayload = attributedWorkspaceId
+        ? { ...result.payload, owner_user_id: attributedOwnerId, workspace_id: attributedWorkspaceId }
+        : result.payload
       const insertPayload =
         match.confidence === "possible" && match.matchedLead
-          ? { ...result.payload, possible_duplicate_of: (match.matchedLead as any).id }
-          : result.payload
+          ? { ...basePayload, possible_duplicate_of: (match.matchedLead as any).id }
+          : basePayload
 
       const { data: created, error: insertError } = await supabaseAdmin
         .from("leads")

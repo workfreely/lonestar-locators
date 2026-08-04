@@ -9,6 +9,7 @@ import SettingsShell, {
   settingsInputCls,
 } from "@/components/crm/settings/SettingsShell"
 import { MARKET_OPTIONS } from "@/lib/markets/catalog"
+import UsernameField from "./UsernameField"
 import {
   toRpcFailure,
   userMessageForServiceAreaError,
@@ -404,16 +405,7 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
       </SettingsCard>
       </div>
 
-      {publicSlug && (
-        <SettingsCard
-          title="Public form URL"
-          description="Your permanent Smart Lead Form link. It never changes when you update service areas."
-        >
-          <p className="rounded-lg border border-[#e5e7ee] bg-[#f4f5f8] px-4 py-2.5 font-mono text-[13px] text-[#111318]">
-            locatorbeast.com/{publicSlug}
-          </p>
-        </SettingsCard>
-      )}
+      {areasLoaded && <UsernameField initialUsername={publicSlug} />}
 
       {/* Single Save — persists Business Information + Service Areas together,
           bottom-right of the page. */}

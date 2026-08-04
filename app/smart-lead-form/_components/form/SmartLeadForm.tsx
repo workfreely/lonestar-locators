@@ -15,11 +15,16 @@ const AFTER_FORM_REGISTRY: Record<AfterFormSectionId, (config: SmartLeadFormConf
 export default function SmartLeadForm({
   config,
   serviceAreaSlugs,
+  submitUsername,
 }: {
   config: SmartLeadFormConfig
   // The workspace's selected market slugs — drives which cities the form shows.
   // Read live (not baked into config), so Settings changes reflect immediately.
   serviceAreaSlugs?: string[]
+  // When set (the public /{username} page), the form submits real, attributed
+  // leads to /api/leads/submit for this username. When absent (editor preview),
+  // submit is a no-op confirmation.
+  submitUsername?: string
 }) {
   // The displayed "Service Areas" text is derived from the selected markets
   // (single source of truth), overriding the editor copy when a selection
@@ -45,7 +50,7 @@ export default function SmartLeadForm({
       <Hero config={displayConfig} />
       {showOverlappingAgentProfile && <AgentProfile config={displayConfig} />}
 
-      <LeadFormFields config={displayConfig} serviceAreaSlugs={serviceAreaSlugs} />
+      <LeadFormFields config={displayConfig} serviceAreaSlugs={serviceAreaSlugs} submitUsername={submitUsername} />
 
       {afterForm.map((id) => (visibility[id] ? <div key={id}>{AFTER_FORM_REGISTRY[id](displayConfig)}</div> : null))}
 

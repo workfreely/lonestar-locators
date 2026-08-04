@@ -79,12 +79,17 @@ const INITIAL: FormData = {
 export default function LeadFormFields({
   config,
   serviceAreaSlugs,
+  submitUsername,
 }: {
   config: SmartLeadFormConfig
   serviceAreaSlugs?: string[]
+  // Public page: submit real, attributed leads for this username. Absent in the
+  // editor preview (submit is a no-op confirmation there).
+  submitUsername?: string
 }) {
   const [formData, setFormData] = useState<FormData>(INITIAL)
   const [submitted, setSubmitted] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   // Cities shown = the workspace's selected markets (live). Fall back to the
   // full catalog when no selection is provided (e.g. an unconfigured workspace
@@ -183,8 +188,9 @@ export default function LeadFormFields({
     })
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (submitting) return
 
     // ─── Validation — ported from LandingForm ───
     if (!formData.moveDate) return alert("Please select your move date.")
@@ -204,8 +210,61 @@ export default function LeadFormFields({
     // Honeypot — silently ignore bot submissions.
     if (formData.website) return
 
-    // Builder preview — confirm rather than post (unchanged behavior).
-    setSubmitted(true)
+    // Editor preview (no username) — confirm rather than post (unchanged).
+    if (!submitUsername) {
+      setSubmitted(true)
+      return
+    }
+
+    // Public page — post a real, attributed lead. The username is resolved
+    // server-side to the owning workspace/agent (never trusted from the body).
+    setSubmitting(true)
+    try {
+      const res = await fetch("/api/leads/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          formType: "full",
+          formUsername: submitUsername,
+          lead: {
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            phone: formData.phone,
+            email: formData.email,
+            move_date: formData.moveDate || null,
+            city: formData.city,
+            neighborhoods: formData.neighborhoods.join(", "),
+            submarkets: formData.submarkets?.join(", "),
+            property_type: formData.propertyType,
+            desired_rent: formData.desiredRent,
+            beds: formData.beds,
+            baths: formData.baths,
+            credit_history: formData.creditHistory,
+            credit_score: formData.creditScore,
+            broken_lease_age: formData.brokenLeaseAge,
+            broken_lease_amount: formData.brokenLeaseAmount,
+            eviction_court: formData.evictionCourt,
+            eviction_age: formData.evictionAge,
+            eviction_balance: formData.evictionBalance,
+            criminal_background: formData.criminalBackground,
+            criminal_charge: formData.criminalCharge,
+            felony_age: formData.felonyAge,
+            misdemeanor_age: formData.misdemeanorAge,
+            notes: formData.notes,
+            website: formData.website,
+            sms_opt_in: formData.sms_consent,
+            sms_consent_at: formData.sms_consent ? new Date().toISOString() : null,
+            source: "smart_lead_form",
+          },
+        }),
+      })
+      if (!res.ok) throw new Error("submit_failed")
+      setSubmitted(true)
+    } catch {
+      alert("Something went wrong submitting your request. Please try again.")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   if (submitted) {
