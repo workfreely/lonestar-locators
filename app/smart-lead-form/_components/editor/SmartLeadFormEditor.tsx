@@ -92,7 +92,7 @@ export default function SmartLeadFormEditor() {
         </div>
 
         <div className="w-[430px] shrink-0 overflow-hidden border-l border-[#e5e7ee] bg-white">
-          <SettingsPanel config={config} onChange={updateConfig} />
+          <SettingsPanel config={config} onChange={updateConfig} slug={slug} />
         </div>
       </div>
     </div>

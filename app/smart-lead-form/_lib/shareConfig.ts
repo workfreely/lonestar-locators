@@ -1,12 +1,18 @@
-// Placeholder identity for this milestone — usernames aren't implemented
-// yet, so this stands in for what will eventually be the locator's own
-// chosen slug. Swapping this for real per-user data later doesn't change
-// anything downstream (SharePanel, the QR code) since they only ever read
-// PUBLIC_PAGE_URL.
-export const DEMO_USERNAME = "jaymorris"
+// Public URL helpers for the Smart Lead Form. The username IS the workspace slug
+// (already hyphenated by the DB `slugify`, e.g. "Jay Morris" → "jay-morris"), so
+// these just format it — they never re-derive or concatenate a name. SharePanel
+// passes the real slug in; FALLBACK_USERNAME stands in only until one is assigned
+// (kept hyphenated so it matches the real format).
 export const PUBLIC_URL_HOST = "locatorbeast.com"
-export const PUBLIC_PAGE_PATH = `${PUBLIC_URL_HOST}/${DEMO_USERNAME}`
-export const PUBLIC_PAGE_URL = `https://${PUBLIC_PAGE_PATH}`
+export const FALLBACK_USERNAME = "your-username"
+
+export function publicPagePath(username: string) {
+  return `${PUBLIC_URL_HOST}/${username}`
+}
+
+export function publicPageUrl(username: string) {
+  return `https://${publicPagePath(username)}`
+}
 
 export type SharePlatform = {
   id: string
@@ -26,6 +32,6 @@ export const SHARE_PLATFORMS: SharePlatform[] = [
   { id: "email", label: "Email", utmSource: "email" },
 ]
 
-export function buildShareUrl(utmSource: string) {
-  return `${PUBLIC_PAGE_URL}?utm_source=${utmSource}`
+export function buildShareUrl(username: string, utmSource: string) {
+  return `${publicPageUrl(username)}?utm_source=${utmSource}`
 }

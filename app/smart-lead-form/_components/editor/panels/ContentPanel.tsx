@@ -1,9 +1,38 @@
 import type { SmartLeadFormConfig, TestimonialItem, FaqItem } from "../../../_lib/types"
 import { TextField } from "../ui/TextField"
 import Toggle from "../ui/Toggle"
+import Switch from "../ui/Switch"
 import UploadTile from "../ui/UploadTile"
 
 type Updater = (updater: (prev: SmartLeadFormConfig) => SmartLeadFormConfig) => void
+
+// A page-section header: the section title on the left, its Visible/Hidden blue
+// toggle on the right (same Switch used throughout the editor). "Always shown"
+// sections (the Smart Lead Form itself) render a static label instead of a toggle.
+// This replaces the old separate Sections tab — section show/hide now lives right
+// next to each section's content, and the page order is fixed (not reorderable).
+function SectionHeader({
+  title,
+  checked,
+  onToggle,
+  alwaysOn,
+}: {
+  title: string
+  checked?: boolean
+  onToggle?: (v: boolean) => void
+  alwaysOn?: boolean
+}) {
+  return (
+    <div className="flex items-center justify-between py-1">
+      <p className="text-[13px] font-semibold text-[#111318]">{title}</p>
+      {alwaysOn ? (
+        <span className="text-[11px] font-medium text-[#9098a8]">Always shown</span>
+      ) : (
+        <Switch checked={!!checked} onChange={onToggle!} />
+      )}
+    </div>
+  )
+}
 
 export default function ContentPanel({ config, onChange }: { config: SmartLeadFormConfig; onChange: Updater }) {
   const copy = config.copy
@@ -51,8 +80,23 @@ export default function ContentPanel({ config, onChange }: { config: SmartLeadFo
 
   return (
     <div className="flex flex-col divide-y divide-[#f0f1f5]">
-      <div>
-        <p className="pb-1 pt-1 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">Headline</p>
+      {/* The sections below appear on the public page in this fixed order. */}
+      <div className="pb-3">
+        <div className="rounded-xl bg-[#f4f5f8] p-3 text-[12px] leading-relaxed text-[#6b7280]">
+          These are your page sections, shown in the order they appear. Toggle any on or off — the
+          order is fixed.
+        </div>
+      </div>
+
+      {/* ── Hero (Headline · Highlights · Agent Information) ─────────────────── */}
+      <div className="pt-3">
+        <p className="pb-1 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">Hero</p>
+
+        <SectionHeader
+          title="Headline"
+          checked={visibility.headline}
+          onToggle={(v) => updateVisibility({ headline: v })}
+        />
         <TextField label="Headline" value={copy.headline} onChange={(v) => updateCopy({ headline: v })} multiline maxLength={45} />
         <TextField
           label="Subheadline"
@@ -62,36 +106,57 @@ export default function ContentPanel({ config, onChange }: { config: SmartLeadFo
           maxLength={110}
         />
         <TextField label="Button Text" value={copy.buttonText} onChange={(v) => updateCopy({ buttonText: v })} />
+
+        <div className="pt-3">
+          <SectionHeader
+            title="Highlights"
+            checked={visibility.highlights}
+            onToggle={(v) => updateVisibility({ highlights: v })}
+          />
+          <TextField label="Highlight 1" value={copy.highlights[0]} onChange={(v) => updateHighlight(0, v)} />
+          <TextField label="Highlight 2" value={copy.highlights[1]} onChange={(v) => updateHighlight(1, v)} />
+          <TextField label="Highlight 3" value={copy.highlights[2]} onChange={(v) => updateHighlight(2, v)} />
+        </div>
+
+        <div className="pt-3">
+          <SectionHeader
+            title="Agent Information"
+            checked={visibility.agentProfile}
+            onToggle={(v) => updateVisibility({ agentProfile: v })}
+          />
+          <TextField label="Agent Name" value={copy.agentName} onChange={(v) => updateCopy({ agentName: v })} />
+          <TextField label="Agent Title" value={copy.agentTitle} onChange={(v) => updateCopy({ agentTitle: v })} />
+          <Toggle label="Show brokerage info" checked={visibility.brokerageInfo} onChange={(v) => updateVisibility({ brokerageInfo: v })} />
+          {visibility.brokerageInfo && (
+            <TextField label="Brokerage Name" value={copy.brokerageName} onChange={(v) => updateCopy({ brokerageName: v })} />
+          )}
+          <Toggle label="Show service areas" checked={visibility.serviceAreas} onChange={(v) => updateVisibility({ serviceAreas: v })} />
+          {visibility.serviceAreas && (
+            <TextField label="Service Areas" value={copy.serviceAreas} onChange={(v) => updateCopy({ serviceAreas: v })} />
+          )}
+          <Toggle label="Show phone number" checked={visibility.phoneNumber} onChange={(v) => updateVisibility({ phoneNumber: v })} />
+          {visibility.phoneNumber && (
+            <TextField label="Phone Number" value={copy.phoneNumber} onChange={(v) => updateCopy({ phoneNumber: v })} />
+          )}
+        </div>
       </div>
 
+      {/* ── Smart Lead Form (always shown; fields live in the Fields tab) ────── */}
       <div className="pt-3">
-        <p className="pb-1 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">Agent Information</p>
-        <TextField label="Agent Name" value={copy.agentName} onChange={(v) => updateCopy({ agentName: v })} />
-        <TextField label="Agent Title" value={copy.agentTitle} onChange={(v) => updateCopy({ agentTitle: v })} />
-        <Toggle label="Show brokerage info" checked={visibility.brokerageInfo} onChange={(v) => updateVisibility({ brokerageInfo: v })} />
-        {visibility.brokerageInfo && (
-          <TextField label="Brokerage Name" value={copy.brokerageName} onChange={(v) => updateCopy({ brokerageName: v })} />
-        )}
-        <Toggle label="Show service areas" checked={visibility.serviceAreas} onChange={(v) => updateVisibility({ serviceAreas: v })} />
-        {visibility.serviceAreas && (
-          <TextField label="Service Areas" value={copy.serviceAreas} onChange={(v) => updateCopy({ serviceAreas: v })} />
-        )}
-        <Toggle label="Show phone number" checked={visibility.phoneNumber} onChange={(v) => updateVisibility({ phoneNumber: v })} />
-        {visibility.phoneNumber && (
-          <TextField label="Phone Number" value={copy.phoneNumber} onChange={(v) => updateCopy({ phoneNumber: v })} />
-        )}
+        <SectionHeader title="Smart Lead Form" alwaysOn />
+        <p className="pb-1 text-[11.5px] leading-relaxed text-[#9098a8]">
+          The lead form always appears here. Choose which fields it collects in the Fields tab.
+        </p>
       </div>
 
+      {/* ── Testimonials (optional) ─────────────────────────────────────────── */}
       <div className="pt-3">
-        <p className="pb-1 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">Highlights</p>
-        <TextField label="Highlight 1" value={copy.highlights[0]} onChange={(v) => updateHighlight(0, v)} />
-        <TextField label="Highlight 2" value={copy.highlights[1]} onChange={(v) => updateHighlight(1, v)} />
-        <TextField label="Highlight 3" value={copy.highlights[2]} onChange={(v) => updateHighlight(2, v)} />
-      </div>
-
-      <div className="pt-3">
-        <p className="pb-1 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">Testimonials</p>
-        <div className="flex flex-col gap-3 pb-2">
+        <SectionHeader
+          title="Testimonials"
+          checked={visibility.testimonials}
+          onToggle={(v) => updateVisibility({ testimonials: v })}
+        />
+        <div className="flex flex-col gap-3 pb-2 pt-1">
           {copy.testimonials.map((t, i) => (
             <div key={i} className="rounded-xl border border-[#e5e7ee] p-3">
               <p className="pb-1 text-[12px] font-semibold text-[#4b5162]">Testimonial {i + 1}</p>
@@ -113,9 +178,10 @@ export default function ContentPanel({ config, onChange }: { config: SmartLeadFo
         </div>
       </div>
 
+      {/* ── FAQs (optional) — always after Testimonials ─────────────────────── */}
       <div className="pt-3">
-        <p className="pb-1 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">FAQs</p>
-        <div className="flex flex-col gap-3 pb-2">
+        <SectionHeader title="FAQs" checked={visibility.faq} onToggle={(v) => updateVisibility({ faq: v })} />
+        <div className="flex flex-col gap-3 pb-2 pt-1">
           {copy.faqs.map((item, i) => (
             <div key={i} className="rounded-xl border border-[#e5e7ee] p-3">
               <p className="pb-1 text-[12px] font-semibold text-[#4b5162]">FAQ {i + 1}</p>
@@ -126,6 +192,7 @@ export default function ContentPanel({ config, onChange }: { config: SmartLeadFo
         </div>
       </div>
 
+      {/* ── Footer (fixed closing anchor; only your business details are editable) */}
       <div className="pt-3">
         <p className="pb-1 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">Footer</p>
         <p className="pb-2 text-[12px] leading-relaxed text-[#9098a8]">

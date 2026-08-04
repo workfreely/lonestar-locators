@@ -12,6 +12,11 @@ const AFTER_FORM_REGISTRY: Record<AfterFormSectionId, (config: SmartLeadFormConf
   faq: (config) => <FAQ config={config} />,
 }
 
+// Fixed page order — Testimonials always render before FAQs. Reordering was
+// removed from the editor, so this order is no longer configurable (any legacy
+// `sections.afterForm` value in a saved config is intentionally ignored).
+const AFTER_FORM_ORDER: AfterFormSectionId[] = ["testimonials", "faq"]
+
 export default function SmartLeadForm({
   config,
   serviceAreaSlugs,
@@ -35,7 +40,7 @@ export default function SmartLeadForm({
       ? { ...config, copy: { ...config.copy, serviceAreas: serviceAreasLabel(serviceAreaSlugs) } }
       : config
 
-  const { afterForm, visibility } = displayConfig.sections
+  const { visibility } = displayConfig.sections
   // Under Headline puts the photo and agent info text inside Hero itself,
   // so AgentProfile (the white, overlapping-only section) is only rendered
   // for the Overlapping position.
@@ -52,7 +57,7 @@ export default function SmartLeadForm({
 
       <LeadFormFields config={displayConfig} serviceAreaSlugs={serviceAreaSlugs} submitUsername={submitUsername} />
 
-      {afterForm.map((id) => (visibility[id] ? <div key={id}>{AFTER_FORM_REGISTRY[id](displayConfig)}</div> : null))}
+      {AFTER_FORM_ORDER.map((id) => (visibility[id] ? <div key={id}>{AFTER_FORM_REGISTRY[id](displayConfig)}</div> : null))}
 
       {/* Footer always renders — it's a fixed closing anchor with no toggle. */}
       <Footer config={displayConfig} />
