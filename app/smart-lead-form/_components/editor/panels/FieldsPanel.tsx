@@ -8,13 +8,13 @@ type FieldKey = keyof SmartLeadFormConfig["fields"]
 
 const FIELD_ROWS: { key: FieldKey; label: string; note?: string }[] = [
   { key: "moveDate", label: "Move-in date" },
-  { key: "location", label: "City & neighborhoods" },
-  { key: "propertyDetails", label: "Property type & beds/baths" },
-  { key: "desiredRent", label: "Desired monthly rent" },
-  { key: "income", label: "Monthly household income" },
-  { key: "creditScore", label: "Estimated credit score" },
-  { key: "rentalBackground", label: "Rental background", note: "Includes broken-lease / eviction follow-ups." },
-  { key: "criminalBackground", label: "Criminal background" },
+  { key: "location", label: "City" },
+  { key: "propertyDetails", label: "Property" },
+  { key: "desiredRent", label: "Monthly Rent" },
+  { key: "income", label: "Household Income" },
+  { key: "creditScore", label: "Credit Score" },
+  { key: "rentalBackground", label: "Rental History", note: "Includes broken-lease / eviction follow-ups." },
+  { key: "criminalBackground", label: "Criminal History" },
   { key: "notes", label: "Notes" },
 ]
 
@@ -72,7 +72,7 @@ export default function FieldsPanel({
           {FIELD_ROWS.map((row) => (
             <div
               key={row.key}
-              className="flex items-center gap-1.5 rounded-xl border border-[#e5e7ee] bg-white pl-4 pr-3 py-2.5"
+              className="flex items-center gap-3 rounded-xl border border-[#e5e7ee] bg-white px-4 py-2"
             >
               <div className="flex-1">
                 <p className="text-[13.5px] font-medium text-[#111318]">{row.label}</p>
