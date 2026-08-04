@@ -80,7 +80,9 @@ export default function BillingClient({
       return
     }
     if (json.reason === "trial_already_used") {
-      setActionError("This email has already used a free trial. Subscribe to get started.")
+      setActionError(
+        "It looks like you've already used your free trial. Subscribe below to continue, or contact us if you need help."
+      )
     } else {
       setActionError("Something went wrong starting your trial. Please try again.")
     }

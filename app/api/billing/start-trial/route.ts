@@ -3,6 +3,16 @@ import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { computeTrialWindow } from "@/lib/billing/trial"
 
+// Mirror of the SQL lb_normalize_phone(): last 10 digits, or null if fewer.
+function normalizePhone(phone: string | null | undefined): string | null {
+  const digits = (phone ?? "").replace(/\D/g, "")
+  if (digits.length < 10) return null
+  return digits.slice(-10)
+}
+
+// Manual/fallback trial start (the primary path is the DB trigger on onboarding
+// completion). Enforces the SAME one-trial-per-person rule: denied if the email
+// OR the normalized phone already appears in the trial_usage ledger.
 export async function POST() {
   const supabase = await createClient()
   const {
@@ -15,7 +25,7 @@ export async function POST() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("trial_started_at, subscription_status")
+    .select("trial_started_at, subscription_status, phone_number")
     .eq("id", user.id)
     .single()
 
@@ -24,18 +34,28 @@ export async function POST() {
     return NextResponse.json({ granted: false, reason: "already_initialized" })
   }
 
-  const email = user.email.toLowerCase()
+  const email = user.email.toLowerCase().trim()
+  const phone = normalizePhone(profile?.phone_number)
 
-  // Fraud-prevention ledger — service role only, checked server-side so it
-  // can't be bypassed by client tampering. Email-only for now; verified-
-  // phone dedup lands when this connects to onboarding in a later
-  // milestone.
+  // Fraud-prevention ledger — service role only, checked server-side so it can't
+  // be bypassed by client tampering. One trial per person: same email OR phone.
+  const { data: existing } = await supabaseAdmin
+    .from("trial_usage")
+    .select("id")
+    .or(phone ? `email.eq.${email},phone.eq.${phone}` : `email.eq.${email}`)
+    .limit(1)
+    .maybeSingle()
+
+  if (existing) {
+    return NextResponse.json({ granted: false, reason: "trial_already_used" })
+  }
+
   const { error: ledgerError } = await supabaseAdmin
     .from("trial_usage")
-    .insert({ email, user_id: user.id })
+    .insert({ email, phone, user_id: user.id })
 
   if (ledgerError) {
-    // Unique violation — this email has already used a free trial.
+    // Unique violation on email or phone — this person already used a free trial.
     return NextResponse.json({ granted: false, reason: "trial_already_used" })
   }
 
