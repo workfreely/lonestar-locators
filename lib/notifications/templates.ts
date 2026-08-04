@@ -203,8 +203,8 @@ export function subscriptionSuccessfulEmail(params: { name?: string | null }): B
     ${paragraph("You can manage your subscription or update payment details any time from Billing.")}
   `
   return {
-    // "Subscription created" — mapped to transactional per the sender spec.
-    category: "transactional",
+    // Billing: all subscription/payment communication comes from billing@.
+    category: "billing",
     subject: "Your Locator Beast subscription is active",
     html: renderEmail({
       preheader: "Thanks for subscribing — you have full access.",
