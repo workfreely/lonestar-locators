@@ -75,6 +75,18 @@ export default function Hero() {
         >
           Start Your 30-Day Free Trial
         </Link>
+
+        {/* Mobile-only trust highlights — the two original trust bullets, now
+            placed BELOW the CTA (not above). Same bullet styling as the desktop
+            row for a consistent feel. Desktop keeps the full row above. */}
+        <ul className="mt-6 flex flex-col items-center gap-y-3 text-[15px] text-[var(--beast-ink-inverse-soft)] lg:hidden">
+          {["No credit card required", "Ready in 10 minutes"].map((item) => (
+            <li key={item} className="flex items-center gap-2">
+              <span className="h-[5px] w-[5px] rounded-full bg-[var(--beast-blue-bright)]" />
+              {item}
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   );
