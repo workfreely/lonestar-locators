@@ -26,14 +26,20 @@ function BillingCard({
   title,
   subtitle,
   children,
+  center = false,
 }: {
   eyebrow?: string
   title: string
   subtitle?: string
   children?: React.ReactNode
+  center?: boolean
 }) {
   return (
-    <div className="w-full rounded-3xl border border-[var(--beast-border)] bg-white p-8 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.25)] sm:p-10">
+    <div
+      className={`w-full rounded-3xl border border-[var(--beast-border)] bg-white p-8 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.25)] sm:p-10 ${
+        center ? "text-center" : ""
+      }`}
+    >
       {eyebrow && (
         <p className="text-[12px] font-semibold uppercase tracking-[0.25em] text-[var(--beast-blue)]">{eyebrow}</p>
       )}
@@ -150,6 +156,7 @@ export default function BillingClient({
           </div>
 
           <BillingCard
+            center
             title={
               isFresh
                 ? "Start your free trial"
@@ -176,7 +183,7 @@ export default function BillingClient({
               <span className="text-[16px] font-medium text-[var(--beast-ink-soft)]">/month</span>
             </p>
 
-            <ul className="mt-6 flex flex-col gap-2.5">
+            <ul className="mt-6 mx-auto flex w-fit flex-col gap-2.5 text-left">
               {INCLUDED.map((item) => (
                 <li key={item} className="flex items-center gap-3 text-[14px] font-medium text-[var(--beast-ink)]">
                   <HiOutlineCheckCircle className="h-5 w-5 shrink-0 text-[var(--beast-blue)]" />
