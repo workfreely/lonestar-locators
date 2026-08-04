@@ -2,10 +2,11 @@ import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { sendAccountStartedEmails } from "@/lib/notifications"
 
-// Sends the Welcome + Trial-started emails for the PRIMARY trial path: a user
-// completing onboarding (which grants the trial via DB trigger, so there's no
-// server route to hook otherwise). The onboarding wizard calls this once,
-// fire-and-forget, after marking onboarding complete.
+// Sends the Welcome + Trial-started emails once a user has completed onboarding
+// and their trial is active. Kept SEPARATE from the trial grant (/api/billing/
+// start-trial) so the emails fire exactly once regardless of whether the trial
+// was granted by the DB trigger or the start-trial fallback. Called fire-and-
+// forget by the onboarding wizard after the trial has been ensured.
 //
 // Auth-gated to the signed-in user and gated on onboarding actually being
 // complete, so it can't be used to spam arbitrary addresses. sendAccountStarted

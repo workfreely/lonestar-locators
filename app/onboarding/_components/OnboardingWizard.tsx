@@ -73,9 +73,21 @@ export default function OnboardingWizard({
       })
       .eq("id", userId);
 
-    // Fire-and-forget: send the Welcome + Trial-started emails now that the
-    // trial has been granted (server-side, via the centralized notification
-    // service). Never blocks navigation and never surfaces errors to the user.
+    // Explicitly ensure the 30-day trial is granted before entering the CRM.
+    // This does NOT rely solely on the atomic DB trigger firing — it calls the
+    // idempotent, ledger-guarded trial grant directly, so completing onboarding
+    // always yields trial access (the /admin billing gate checks it on the very
+    // next navigation). Idempotent: if the trigger already granted the trial,
+    // this no-ops. Awaited so the trial exists before we navigate; a failure
+    // here is non-fatal and must not trap the user on the building screen.
+    try {
+      await fetch("/api/billing/start-trial", { method: "POST" });
+    } catch {
+      // Non-fatal — proceed to the CRM; the billing gate / page handles the rest.
+    }
+
+    // Welcome + trial-started emails (fire-and-forget; sent once, independent of
+    // which path granted the trial). Never blocks navigation.
     void fetch("/api/notifications/account-welcome", { method: "POST" }).catch(() => {});
 
     router.push("/admin/leads");

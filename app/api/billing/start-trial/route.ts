@@ -2,7 +2,6 @@ import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { computeTrialWindow } from "@/lib/billing/trial"
-import { sendAccountStartedEmails } from "@/lib/notifications"
 
 // Mirror of the SQL lb_normalize_phone(): last 10 digits, or null if fewer.
 function normalizePhone(phone: string | null | undefined): string | null {
@@ -11,9 +10,14 @@ function normalizePhone(phone: string | null | undefined): string | null {
   return digits.slice(-10)
 }
 
-// Manual/fallback trial start (the primary path is the DB trigger on onboarding
-// completion). Enforces the SAME one-trial-per-person rule: denied if the email
-// OR the normalized phone already appears in the trial_usage ledger.
+// Grants the 30-day free trial. Called explicitly at the end of onboarding (and
+// available as a manual/billing-page fallback) so completing onboarding ALWAYS
+// yields trial access — it does not depend on the atomic DB trigger having fired.
+// Idempotent: if a trial/subscription already exists (e.g. the trigger already
+// granted it), it no-ops. Enforces one-trial-per-person via the trial_usage
+// ledger (same email OR normalized phone). Grant-only — the welcome/trial-started
+// emails are sent separately (see /api/notifications/account-welcome) so they
+// fire exactly once regardless of which path granted the trial.
 export async function POST() {
   const supabase = await createClient()
   const {
@@ -26,7 +30,7 @@ export async function POST() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("trial_started_at, subscription_status, phone_number, first_name, full_name")
+    .select("trial_started_at, subscription_status, phone_number")
     .eq("id", user.id)
     .single()
 
@@ -62,7 +66,10 @@ export async function POST() {
 
   const { trialStartedAt, trialEndsAt } = computeTrialWindow()
 
-  const { error: updateError } = await supabase
+  // Billing fields are server-authoritative — write them with the service role
+  // (not the user's session) so the grant never depends on the profiles UPDATE
+  // RLS policy, mirroring the SECURITY DEFINER trigger's intent.
+  const { error: updateError } = await supabaseAdmin
     .from("profiles")
     .update({
       trial_started_at: trialStartedAt.toISOString(),
@@ -74,15 +81,6 @@ export async function POST() {
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 })
   }
-
-  // Welcome + trial-started emails (fallback path). Non-blocking and self-
-  // contained — sendAccountStartedEmails never throws, so a mail failure can't
-  // fail the trial grant.
-  await sendAccountStartedEmails({
-    to: email,
-    name: profile?.full_name || profile?.first_name,
-    trialEndsAt: trialEndsAt.toISOString(),
-  })
 
   return NextResponse.json({ granted: true, trialEndsAt: trialEndsAt.toISOString() })
 }
