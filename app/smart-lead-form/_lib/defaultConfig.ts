@@ -69,4 +69,15 @@ export const DEFAULT_CONFIG: SmartLeadFormConfig = {
     enabled: true,
     text: "I agree to receive text messages or emails regarding my apartment search.",
   },
+  fields: {
+    moveDate: true,
+    location: true,
+    propertyDetails: true,
+    desiredRent: true,
+    income: true,
+    creditScore: true,
+    rentalBackground: true,
+    criminalBackground: true,
+    notes: true,
+  },
 }

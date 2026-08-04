@@ -50,6 +50,7 @@ type FormData = {
   submarkets: string[]
   propertyType: string
   desiredRent: string
+  income: string
   beds: string
   baths: string
   creditScore: string
@@ -68,9 +69,33 @@ type FormData = {
   sms_consent: boolean
 }
 
+// Monthly household income brackets — helps qualify against the ~3x-rent rule.
+const INCOME_OPTIONS = [
+  "Under $2,500 / month",
+  "$2,500 – $4,000 / month",
+  "$4,000 – $6,000 / month",
+  "$6,000 – $8,000 / month",
+  "$8,000 – $10,000 / month",
+  "$10,000+ / month",
+]
+
+// Every field group is shown by default (used when a saved config predates the
+// per-field toggles, so older published forms keep showing everything).
+const ALL_FIELDS_VISIBLE = {
+  moveDate: true,
+  location: true,
+  propertyDetails: true,
+  desiredRent: true,
+  income: true,
+  creditScore: true,
+  rentalBackground: true,
+  criminalBackground: true,
+  notes: true,
+}
+
 const INITIAL: FormData = {
   firstName: "", lastName: "", phone: "", email: "", moveDate: "", city: "",
-  neighborhoods: [], submarkets: [], propertyType: "", desiredRent: "", beds: "", baths: "",
+  neighborhoods: [], submarkets: [], propertyType: "", desiredRent: "", income: "", beds: "", baths: "",
   creditScore: "", creditHistory: "", brokenLeaseAge: "", brokenLeaseAmount: "",
   evictionCourt: "", evictionAge: "", evictionBalance: "", criminalBackground: "",
   criminalCharge: "", felonyAge: "", misdemeanorAge: "", notes: "", website: "", sms_consent: false,
@@ -99,6 +124,9 @@ export default function LeadFormFields({
 
   const { buttonColor } = config.branding
   const { enabled: consentEnabled, text: consentText } = config.consent
+  // Per-field visibility (First/Last/Email/Phone are always shown + required and
+  // are not in this map). Falls back to all-visible for pre-toggle configs.
+  const f = config.fields ?? ALL_FIELDS_VISIBLE
 
   function set<K extends keyof FormData>(key: K, value: FormData[K]) {
     setFormData((prev) => ({ ...prev, [key]: value }))
@@ -192,16 +220,19 @@ export default function LeadFormFields({
     e.preventDefault()
     if (submitting) return
 
-    // ─── Validation — ported from LandingForm ───
-    if (!formData.moveDate) return alert("Please select your move date.")
-    if (formData.neighborhoods.length === 0)
+    // ─── Validation — ported from LandingForm, gated by field visibility so a
+    // hidden field can never block submission ───
+    if (f.moveDate && !formData.moveDate) return alert("Please select your move date.")
+    if (f.location && formData.neighborhoods.length === 0)
       return alert("Please select at least one preferred neighborhood.")
     if (
+      f.rentalBackground &&
       formData.creditHistory === "Broken Lease" &&
       (!formData.brokenLeaseAge || !formData.brokenLeaseAmount)
     )
       return alert("Please complete the broken lease details.")
     if (
+      f.rentalBackground &&
       formData.creditHistory === "Eviction" &&
       (!formData.evictionAge || !formData.evictionBalance)
     )
@@ -237,6 +268,7 @@ export default function LeadFormFields({
             submarkets: formData.submarkets?.join(", "),
             property_type: formData.propertyType,
             desired_rent: formData.desiredRent,
+            income: formData.income,
             beds: formData.beds,
             baths: formData.baths,
             credit_history: formData.creditHistory,
@@ -255,14 +287,20 @@ export default function LeadFormFields({
             sms_opt_in: formData.sms_consent,
             sms_consent_at: formData.sms_consent ? new Date().toISOString() : null,
             source: "smart_lead_form",
+            // Match the Lone Star renter path so the shared submit route fires
+            // the same new-lead notification + Workflow Engine "Contact Lead".
+            lead_type: "renter",
+            lead_category: "renter",
           },
         }),
       })
       if (!res.ok) throw new Error("submit_failed")
-      setSubmitted(true)
+      // Reuse the existing Lone Star thank-you page flow.
+      const params = new URLSearchParams({ firstName: formData.firstName, city: formData.city })
+      window.location.href = `/thank-you?${params.toString()}`
+      return
     } catch {
       alert("Something went wrong submitting your request. Please try again.")
-    } finally {
       setSubmitting(false)
     }
   }
@@ -316,24 +354,28 @@ export default function LeadFormFields({
         </div>
 
         {/* Move-in date */}
-        <div className="flex flex-col gap-1.5">
-          <label className={labelClass}>Desired Move-In Date</label>
-          <input type="date" name="moveDate" value={formData.moveDate} onChange={handleChange} required className={`${inputClass} slf-date-input cursor-pointer`} />
-        </div>
+        {f.moveDate && (
+          <div className="flex flex-col gap-1.5">
+            <label className={labelClass}>Desired Move-In Date</label>
+            <input type="date" name="moveDate" value={formData.moveDate} onChange={handleChange} required className={`${inputClass} slf-date-input cursor-pointer`} />
+          </div>
+        )}
 
         {/* City */}
-        <div className="flex flex-col gap-1.5">
-          <label className={labelClass}>City</label>
-          <select name="city" value={formData.city} onChange={handleChange} required className={`${inputClass} cursor-pointer`}>
-            <option value="">Select City</option>
-            {enabledMarkets.map((m) => (
-              <option key={m.slug} value={m.name}>{m.name}</option>
-            ))}
-          </select>
-        </div>
+        {f.location && (
+          <div className="flex flex-col gap-1.5">
+            <label className={labelClass}>City</label>
+            <select name="city" value={formData.city} onChange={handleChange} required className={`${inputClass} cursor-pointer`}>
+              <option value="">Select City</option>
+              {enabledMarkets.map((m) => (
+                <option key={m.slug} value={m.name}>{m.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Neighborhoods */}
-        {neighborhoodList && (
+        {f.location && neighborhoodList && (
           <div className="flex flex-col gap-2">
             <label className={`${labelClass} font-semibold`}>Preferred Neighborhoods</label>
             <div className="flex gap-2">
@@ -385,18 +427,20 @@ export default function LeadFormFields({
         )}
 
         {/* Property type */}
-        <div className="flex flex-col gap-1.5">
-          <label className={labelClass}>Property Type</label>
-          <select name="propertyType" value={formData.propertyType} onChange={handlePropertyType} required className={`${inputClass} cursor-pointer`}>
-            <option value="">Select Property Type</option>
-            {PROPERTY_TYPES.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-        </div>
+        {f.propertyDetails && (
+          <div className="flex flex-col gap-1.5">
+            <label className={labelClass}>Property Type</label>
+            <select name="propertyType" value={formData.propertyType} onChange={handlePropertyType} required className={`${inputClass} cursor-pointer`}>
+              <option value="">Select Property Type</option>
+              {PROPERTY_TYPES.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Bedrooms */}
-        {formData.propertyType !== "Studio" && (
+        {f.propertyDetails && formData.propertyType !== "Studio" && (
           <div className="flex flex-col gap-1.5">
             <label className={labelClass}>Number of Bedrooms</label>
             <select name="beds" value={formData.beds} onChange={handleBeds} required disabled={formData.propertyType === "Rental Home"} className={`${inputClass} cursor-pointer disabled:cursor-not-allowed disabled:opacity-60`}>
@@ -412,7 +456,7 @@ export default function LeadFormFields({
         )}
 
         {/* Bathrooms */}
-        {formData.propertyType !== "Studio" && formData.beds && (
+        {f.propertyDetails && formData.propertyType !== "Studio" && formData.beds && (
           <div className="flex flex-col gap-1.5">
             <label className={labelClass}>Number of Bathrooms</label>
             <select name="baths" value={formData.baths} onChange={handleChange} required className={`${inputClass} cursor-pointer`}>
@@ -425,17 +469,34 @@ export default function LeadFormFields({
         )}
 
         {/* Desired rent */}
-        <div className="flex flex-col gap-1.5">
-          <label className={labelClass}>Desired Monthly Rent</label>
-          <select name="desiredRent" value={formData.desiredRent} onChange={handleChange} required className={`${inputClass} cursor-pointer`}>
-            <option value="">Desired Monthly Rent</option>
-            {RENT_RANGE_OPTIONS.map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
-        </div>
+        {f.desiredRent && (
+          <div className="flex flex-col gap-1.5">
+            <label className={labelClass}>Desired Monthly Rent</label>
+            <select name="desiredRent" value={formData.desiredRent} onChange={handleChange} required className={`${inputClass} cursor-pointer`}>
+              <option value="">Desired Monthly Rent</option>
+              {RENT_RANGE_OPTIONS.map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Income */}
+        {f.income && (
+          <div className="flex flex-col gap-1.5">
+            <label className={labelClass}>Monthly Household Income</label>
+            <select name="income" value={formData.income} onChange={handleChange} required className={`${inputClass} cursor-pointer`}>
+              <option value="">Select Monthly Income</option>
+              {INCOME_OPTIONS.map((o) => (
+                <option key={o} value={o}>{o}</option>
+              ))}
+            </select>
+            <div className={noteClass}>Most communities require income of about 3x the monthly rent.</div>
+          </div>
+        )}
 
         {/* Credit score */}
+        {f.creditScore && (
         <div className="flex flex-col gap-1.5">
           <label className={labelClass}>Estimated Credit Score</label>
           <input type="number" name="creditScore" value={formData.creditScore} onChange={handleCreditScore}
@@ -444,8 +505,11 @@ export default function LeadFormFields({
             You can check Credit Karma for free. Your exact score helps us match you with apartments that are more likely to approve you.
           </div>
         </div>
+        )}
 
-        {/* Rental background */}
+        {/* Rental background (+ broken-lease / eviction follow-ups) */}
+        {f.rentalBackground && (
+        <>
         <div className="flex flex-col gap-1.5">
           <label className={`${labelClass} font-semibold`}>Rental Background</label>
           <select name="creditHistory" value={formData.creditHistory} onChange={handleChange} required className={`${inputClass} cursor-pointer`}>
@@ -506,8 +570,12 @@ export default function LeadFormFields({
             </div>
           </>
         )}
+        </>
+        )}
 
-        {/* Criminal background */}
+        {/* Criminal background (+ charge type / age follow-ups) */}
+        {f.criminalBackground && (
+        <>
         <div className="flex flex-col gap-1.5">
           <label className={`${labelClass} font-semibold`}>Criminal Background</label>
           <select name="criminalBackground" value={formData.criminalBackground} onChange={handleChange} required className={`${inputClass} cursor-pointer`}>
@@ -553,12 +621,16 @@ export default function LeadFormFields({
             </select>
           </div>
         )}
+        </>
+        )}
 
         {/* Notes */}
-        <div className="flex flex-col gap-1.5">
-          <label className={labelClass}>Anything else we should know?</label>
-          <textarea name="notes" value={formData.notes} onChange={handleChange} rows={4} placeholder="Anything else we should know?" className={`${inputClass} resize-y`} />
-        </div>
+        {f.notes && (
+          <div className="flex flex-col gap-1.5">
+            <label className={labelClass}>Anything else we should know?</label>
+            <textarea name="notes" value={formData.notes} onChange={handleChange} rows={4} placeholder="Anything else we should know?" className={`${inputClass} resize-y`} />
+          </div>
+        )}
 
         {/* Honeypot (hidden) */}
         <input type="text" name="website" value={formData.website} onChange={handleChange} className="hidden" tabIndex={-1} autoComplete="off" aria-hidden="true" />

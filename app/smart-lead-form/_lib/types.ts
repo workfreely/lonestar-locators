@@ -87,6 +87,21 @@ export type SmartLeadFormConfig = {
     enabled: boolean
     text: string
   }
+  // Per-field visibility for the lead form itself. First Name, Last Name, Email,
+  // and Phone are ALWAYS shown + required and are intentionally not toggleable.
+  // Every other field group is optional and can be hidden. A hidden field is
+  // neither rendered nor required (so it can't block submission).
+  fields: {
+    moveDate: boolean
+    location: boolean // city + neighborhoods + submarkets
+    propertyDetails: boolean // property type + beds + baths
+    desiredRent: boolean
+    income: boolean
+    creditScore: boolean
+    rentalBackground: boolean // rental background + broken-lease / eviction follow-ups
+    criminalBackground: boolean // + charge type / age follow-ups
+    notes: boolean
+  }
 }
 
 export type TestimonialItem = {

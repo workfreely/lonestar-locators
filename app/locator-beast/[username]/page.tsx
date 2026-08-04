@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import SmartLeadForm from "@/app/smart-lead-form/_components/form/SmartLeadForm"
-import { DEFAULT_CONFIG } from "@/app/smart-lead-form/_lib/defaultConfig"
+import { mergeSmartFormConfig } from "@/app/smart-lead-form/_lib/mergeConfig"
 import type { SmartLeadFormConfig } from "@/app/smart-lead-form/_lib/types"
 
 export const dynamic = "force-dynamic"
@@ -13,14 +13,16 @@ type PublicForm = {
   brokerage_name: string | null
   photo_url: string | null
   service_areas: string[]
+  form_config: unknown
+  published_at: string | null
 }
 
 // Public per-agent Smart Lead Form — served at locatorbeast.com/{username}
 // (rewritten to /locator-beast/{username} on the marketing host). The username
-// is the workspace's public slug; everything shown is resolved SERVER-SIDE from
-// public branding only (lb_resolve_public_form) — no private data, no client
-// trust. Real marketing pages (features, pricing, …) are explicit sibling
-// routes and take precedence over this dynamic segment.
+// is the workspace's public slug; everything is resolved SERVER-SIDE from public
+// data only (lb_resolve_public_form) — no private data, no client trust. Real
+// marketing pages (features, pricing, …) are explicit sibling routes and take
+// precedence over this dynamic segment. Only PUBLISHED forms render.
 export default async function PublicSmartLeadFormPage({
   params,
 }: {
@@ -32,30 +34,25 @@ export default async function PublicSmartLeadFormPage({
   const { data, error } = await supabase.rpc("lb_resolve_public_form", { p_username: username })
 
   const form = (Array.isArray(data) ? data[0] : data) as PublicForm | undefined
-  if (error || !form) {
+  // Not found, or the form hasn't been published yet → 404 (no public page).
+  if (error || !form || !form.published_at) {
     notFound()
   }
 
-  // Build the render config from the shared default + the agent's real branding.
-  // Testimonials are hidden (the default set is placeholder copy — never show
-  // fabricated social proof on a real agent's page); the FAQ is generic/accurate.
+  // Render the agent's OWN published config, with the field toggles they chose,
+  // over sane defaults. Agent identity (name/brokerage/photo) always comes from
+  // the live profile so it reflects account edits rather than stale editor copy.
+  const saved = mergeSmartFormConfig(form.form_config)
   const config: SmartLeadFormConfig = {
-    ...DEFAULT_CONFIG,
-    sections: {
-      ...DEFAULT_CONFIG.sections,
-      visibility: {
-        ...DEFAULT_CONFIG.sections.visibility,
-        testimonials: false,
-      },
-    },
+    ...saved,
     branding: {
-      ...DEFAULT_CONFIG.branding,
-      agentPhotoUrl: form.photo_url ?? DEFAULT_CONFIG.branding.agentPhotoUrl,
+      ...saved.branding,
+      agentPhotoUrl: form.photo_url ?? saved.branding.agentPhotoUrl,
     },
     copy: {
-      ...DEFAULT_CONFIG.copy,
+      ...saved.copy,
       agentName: form.agent_name,
-      brokerageName: form.brokerage_name ?? DEFAULT_CONFIG.copy.brokerageName,
+      brokerageName: form.brokerage_name ?? saved.copy.brokerageName,
     },
   }
 
