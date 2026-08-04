@@ -56,6 +56,10 @@ grant execute on function public.get_smart_form() to authenticated;
 -- /{username} page can render the agent's OWN configured form (only when live).
 -- Agent identity (name/brokerage/photo) still comes from the live profile so it
 -- reflects account edits, not stale editor copy.
+-- An earlier migration (20260730000004) created this function with a narrower
+-- return type; Postgres can't change a function's OUT columns via CREATE OR
+-- REPLACE, so drop it first (idempotent on a fresh DB too).
+drop function if exists public.lb_resolve_public_form(text);
 create or replace function public.lb_resolve_public_form(p_username text)
 returns table (
   workspace_id   uuid,
