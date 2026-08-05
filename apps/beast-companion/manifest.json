@@ -18,6 +18,7 @@
   "content_scripts": [
     {
       "matches": [
+        "https://app.smartapartmentdata.com/*",
         "https://smartapartmentdata.com/*",
         "https://*.smartapartmentdata.com/*"
       ],

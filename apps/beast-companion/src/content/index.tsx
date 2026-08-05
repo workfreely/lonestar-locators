@@ -39,11 +39,17 @@ function init(): void {
     handle = null;
   };
 
-  // Clean up on navigation away / bfcache and on extension reload/disable.
-  window.addEventListener("pagehide", teardown, { once: true });
+  // IMPORTANT: we deliberately do NOT tear down on `pagehide`.
+  //
+  // Smart Apartment Data is an ASP.NET app that redirects (root → app.) and does
+  // full-page postbacks; each of those fires `pagehide`. Tearing down there made
+  // the tab "flash then disappear". A real navigation destroys the page anyway
+  // (and re-injects this script fresh), so no pagehide cleanup is needed — and
+  // on bfcache restore we WANT the already-mounted tab to stay.
+  //
+  // We only clean up when the extension itself goes away (update/disable), so no
+  // injected styles are ever left orphaned on the host page.
   try {
-    // When the extension is updated/disabled the port disconnects; we tear down
-    // so no injected styles are left behind on the host page.
     chrome.runtime.connect().onDisconnect.addListener(teardown);
   } catch {
     // chrome.runtime may be unavailable in some edge contexts — non-fatal.
