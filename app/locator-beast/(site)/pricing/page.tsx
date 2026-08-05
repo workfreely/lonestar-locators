@@ -34,7 +34,7 @@ export default function PricingPage() {
         </div>
       </section>
 
-      <ClosingCTA title="Become a Beast." subtitle="Start your Free Trial today." />
+      <ClosingCTA title="Become a Beast." noCardNote />
     </>
   );
 }
