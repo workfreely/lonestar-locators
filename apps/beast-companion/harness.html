@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Beast Companion — UI harness (mock host page)</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: system-ui, -apple-system, sans-serif; color: #1a2230; background: #f3f5fa; }
+      header { background: #10233f; color: #fff; padding: 18px 28px; font-size: 18px; font-weight: 700; }
+      header small { display:block; font-weight: 400; opacity: .8; font-size: 13px; margin-top: 4px; }
+      .content { padding: 28px; }
+      .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+      .card { background: #fff; border: 1px solid #dfe3ec; border-radius: 10px; padding: 18px; box-shadow: 0 1px 2px rgba(16,35,63,.05); }
+      .card h3 { margin: 0 0 8px; font-size: 15px; }
+      .card p { margin: 0; font-size: 13px; color: #5b6577; line-height: 1.5; }
+    </style>
+  </head>
+  <body>
+    <header>
+      Mock host page (stands in for smartapartmentdata.com)
+      <small>Watch this content shift LEFT when the Beast panel opens, and restore when it closes.</small>
+    </header>
+    <div class="content"><div class="grid" id="grid"></div></div>
+
+    <script>
+      // Populate the page with enough content to see the page-shift clearly.
+      const g = document.getElementById("grid");
+      for (let i = 1; i <= 18; i++) {
+        const c = document.createElement("div");
+        c.className = "card";
+        c.innerHTML = "<h3>Property " + i + "</h3><p>Sample host-page content. When Beast Companion expands, the page reflows to make room on the right.</p>";
+        g.appendChild(c);
+      }
+
+      // Minimal chrome.* stub so the real built content.js runs OUTSIDE an
+      // extension. This lets us verify the UI/interaction; the extension itself
+      // uses the real chrome.* APIs when loaded in Chrome.
+      (function () {
+        const store = {};
+        const changeListeners = [];
+        window.chrome = {
+          storage: {
+            local: {
+              get: (k) => Promise.resolve(typeof k === "string" ? { [k]: store[k] } : { ...store }),
+              set: (obj) => {
+                Object.assign(store, obj);
+                const changes = Object.fromEntries(Object.entries(obj).map(([kk, vv]) => [kk, { newValue: vv }]));
+                changeListeners.forEach((f) => f(changes, "local"));
+                return Promise.resolve();
+              },
+            },
+            onChanged: { addListener: (f) => changeListeners.push(f), removeListener: () => {} },
+          },
+          runtime: {
+            onMessage: { addListener: () => {}, removeListener: () => {} },
+            connect: () => ({ onDisconnect: { addListener: () => {} } }),
+            getURL: (p) => p,
+          },
+        };
+      })();
+    </script>
+    <!-- The REAL production build of the content script. -->
+    <script src="./dist/content.js"></script>
+  </body>
+</html>
