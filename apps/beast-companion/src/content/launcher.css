@@ -1,0 +1,68 @@
+/*
+ * Launcher styles — injected ONLY into the launcher's Shadow DOM. Nothing here
+ * touches the host page. This is the small docked tab that toggles the native
+ * Chrome Side Panel; it is the ONLY thing this extension injects into the page.
+ */
+
+.bc-root {
+  --bc-blue: #2f6bff;
+  --bc-blue-bright: #5b8bff;
+  --bc-panel-dark: #0b0f1a;
+  all: initial;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.bc-root *,
+.bc-root *::before,
+.bc-root *::after {
+  box-sizing: border-box;
+}
+
+/* Docked seam tab: fixed to the page's right edge, ~22% down. When the native
+   side panel opens, Chrome narrows the page, so this edge (and the tab) slides
+   left and sits flush against the panel — reading as a tab protruding from the
+   panel's left boundary, Apollo-style. No page-shift math involved. */
+.bc-tab {
+  position: fixed;
+  right: 0;
+  top: 22vh;
+  width: 30px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  pointer-events: auto;
+  background: var(--bc-panel-dark);
+  /* Rounded on the page-facing (left) side; a thin light divider + soft shadow
+     define a clean boundary between the website and the Companion. */
+  border-radius: 12px 0 0 12px;
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: -3px 0 14px rgba(5, 7, 13, 0.28);
+  transition:
+    width 160ms ease,
+    box-shadow 200ms ease,
+    background 200ms ease;
+}
+
+.bc-tab:hover {
+  width: 34px;
+  background: #111827;
+  box-shadow:
+    -3px 0 16px rgba(5, 7, 13, 0.34),
+    0 0 0 1px rgba(91, 139, 255, 0.4),
+    0 0 20px rgba(47, 107, 255, 0.5);
+}
+
+.bc-tab:focus-visible {
+  outline: 2px solid var(--bc-blue-bright);
+  outline-offset: 2px;
+}
+
+.bc-tab svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+}

@@ -1,14 +1,13 @@
-import { HOST_ID } from "./mount";
+import { HOST_ID } from "./launcher";
 import { log, warn } from "@/utils/log";
 
 /**
- * Keeps our single host node attached to the page.
+ * Keeps our single launcher host attached to the page.
  *
  * Some host pages (Smart Apartment Data is an ASP.NET app that rewrites DOM
  * subtrees on postbacks) may detach or replace the element we injected. If that
- * happens we re-attach the SAME host node — React stays mounted inside its
- * Shadow DOM the whole time, so the tab reappears instantly with NO re-render
- * and NO duplicate panel.
+ * happens we re-attach the SAME host node — the launcher lives inside its Shadow
+ * DOM the whole time, so the tab reappears instantly with NO duplicate.
  *
  * Two triggers, for resilience:
  *  - a MutationObserver reacts immediately to DOM structure changes,

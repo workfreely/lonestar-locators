@@ -1,22 +1,20 @@
 /**
- * Shared types for the extension's internal contracts.
+ * Shared internal contracts.
  *
- * These are intentionally small for phase 1. When the CRM API and Smart
- * Apartment Data integration land, their DTOs should live in a shared
- * `packages/types` workspace (see README/ARCHITECTURE) and be imported here so
- * the CRM and the companion never diverge on shape.
+ * Native hybrid model:
+ *  - the launcher (content script) asks the BACKGROUND to open the native side
+ *    panel (Chrome requires this to originate from a user gesture),
+ *  - and asks the SIDE PANEL page to close itself (the panel calls window.close(),
+ *    since Chrome has no programmatic close API).
  */
 
-/** Whether the companion panel is expanded or collapsed. */
+/** Whether the companion side panel is open or closed (tracked in storage). */
 export type PanelState = "open" | "closed";
 
-/**
- * Messages passed between the background service worker and the content script.
- * A discriminated union keeps every sender/handler type-safe and makes adding a
- * new message (e.g. an auth handshake later) a compile-time-checked change.
- */
-export type RuntimeMessage = { type: "TOGGLE_PANEL" } | { type: "PING" };
+/** Content → Background: open the native side panel for the sender's tab. */
+export type OpenPanelMessage = { type: "OPEN_PANEL" };
 
-/** How the host page makes room for the panel. `push` is preferred; `overlay`
- *  is the safe fallback for pages that cannot be resized cleanly. */
-export type LayoutMode = "push" | "overlay";
+/** Content → Side-panel page: the panel should close itself. */
+export type ClosePanelMessage = { type: "CLOSE_PANEL" };
+
+export type RuntimeMessage = OpenPanelMessage | ClosePanelMessage;

@@ -1,0 +1,163 @@
+/*
+ * Native side-panel styles. This is a normal (Chrome-owned) document, so no
+ * Shadow DOM is needed — nothing on the host website can reach it.
+ *
+ * Separation treatment (priority #4): a dark-navy Locator Beast header frames
+ * the top of the panel and visually connects to the dark launcher tab sitting at
+ * the seam, while the workspace below stays clean white. Chrome draws the actual
+ * panel/page boundary; we don't fake a border.
+ */
+
+:root {
+  --bc-blue: #2f6bff;
+  --bc-panel-dark: #0b0f1a;
+  --bc-ink: #05070d;
+  --bc-ink-soft: #4b5162;
+  --bc-white: #ffffff;
+  --bc-border: #e9ebf1;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bc-white);
+  color: var(--bc-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    "Apple Color Emoji", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  height: 100%;
+}
+
+.bc-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* ── Dark navy brand header (frames the panel) ─────────────────────────── */
+.bc-panel-header {
+  flex: none;
+  height: 52px;
+  padding: 0 12px 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bc-panel-dark);
+  color: var(--bc-white);
+}
+
+.bc-logo-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.bc-logo-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.bc-logo-wordmark {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--bc-white);
+  white-space: nowrap;
+}
+
+.bc-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.72);
+  background: transparent;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.bc-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--bc-white);
+}
+
+.bc-close:focus-visible {
+  outline: 2px solid var(--bc-blue);
+  outline-offset: 1px;
+}
+
+/* ── White workspace ───────────────────────────────────────────────────── */
+.bc-panel-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.bc-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+}
+
+.bc-hero .bc-logo-mark {
+  margin-bottom: 14px;
+  box-shadow: 0 10px 30px -12px rgba(47, 107, 255, 0.7);
+}
+
+.bc-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.bc-subtitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--bc-ink-soft);
+}
+
+.bc-version {
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: #9098a8;
+}
+
+.bc-badge {
+  margin-top: 16px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--bc-blue);
+  background: rgba(47, 107, 255, 0.1);
+  border-radius: 999px;
+}
+
+/* Phase-A diagnostic only (removed once the native shell is confirmed). */
+.bc-panel-diag {
+  flex: none;
+  padding: 8px 16px;
+  font-size: 11px;
+  color: #9098a8;
+  border-top: 1px solid var(--bc-border);
+  text-align: center;
+}
