@@ -71,7 +71,7 @@ export default function SharePanel({ slug }: { slug: string | null }) {
       <div>
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">Preview</p>
         <a
-          href={`/${username}`}
+          href={pageUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="block w-full rounded-full bg-[#2f6bff] px-8 py-3 text-center text-[14px] font-semibold text-white transition-transform duration-200 hover:scale-[1.01]"

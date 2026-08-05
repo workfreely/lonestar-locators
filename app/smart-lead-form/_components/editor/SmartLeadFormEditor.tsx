@@ -17,12 +17,14 @@ export default function SmartLeadFormEditor() {
   // The workspace's selected markets — the preview shows exactly the cities the
   // public form will, and reflects Service Areas changes on reload.
   const [serviceAreaSlugs, setServiceAreaSlugs] = useState<string[]>([])
-  // Publish state — the username is the public URL; a form is live once
-  // published_at is set (persisted on the workspace).
+  // Save state — every account has ONE always-live form at its public slug.
+  // Saving persists the config and it's immediately live; there is no publish
+  // step and no draft/published split. `saved` shows a brief confirmation and
+  // clears the moment the user edits again.
   const [slug, setSlug] = useState<string | null>(null)
-  const [publishedAt, setPublishedAt] = useState<string | null>(null)
-  const [publishing, setPublishing] = useState(false)
-  const [publishError, setPublishError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -37,9 +39,8 @@ export default function SmartLeadFormEditor() {
 
       const formRow = Array.isArray(form) ? form[0] : form
       if (formRow?.slug) setSlug(formRow.slug)
-      if (formRow?.published_at) setPublishedAt(formRow.published_at)
-      // Start editing from the saved (live) config so re-publishing edits the
-      // existing form rather than resetting to defaults.
+      // Start editing from the saved (live) config so saving edits the existing
+      // form rather than resetting to defaults.
       if (formRow?.config) {
         setConfig(mergeSmartFormConfig(formRow.config))
       } else {
@@ -59,22 +60,24 @@ export default function SmartLeadFormEditor() {
 
   function updateConfig(updater: (prev: SmartLeadFormConfig) => SmartLeadFormConfig) {
     setConfig(updater)
+    // Any edit clears the "Saved" confirmation so the button invites another save.
+    setSaved(false)
   }
 
-  async function publish() {
-    setPublishing(true)
-    setPublishError(null)
-    const { data, error } = await supabase.rpc("publish_smart_form", { p_config: config })
-    setPublishing(false)
+  async function save() {
+    setSaving(true)
+    setSaveError(null)
+    const { error } = await supabase.rpc("save_smart_form", { p_config: config })
+    setSaving(false)
     if (error) {
-      setPublishError(
+      setSaveError(
         error.message?.includes("no_workspace")
-          ? "Finish onboarding before publishing your form."
-          : "Couldn't publish. Please try again."
+          ? "Finish onboarding before saving your form."
+          : "Save failed. Please try again."
       )
       return
     }
-    setPublishedAt(typeof data === "string" ? data : new Date().toISOString())
+    setSaved(true)
   }
 
   return (
@@ -88,11 +91,11 @@ export default function SmartLeadFormEditor() {
       <EditorToolbar
         device={device}
         onDeviceChange={setDevice}
-        onPublish={publish}
-        publishing={publishing}
-        published={Boolean(publishedAt)}
+        onSave={save}
+        saving={saving}
+        saved={saved}
         slug={slug}
-        publishError={publishError}
+        saveError={saveError}
       />
 
       <div className="flex flex-1 overflow-hidden">

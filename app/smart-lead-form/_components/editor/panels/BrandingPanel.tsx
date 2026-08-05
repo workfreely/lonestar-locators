@@ -68,7 +68,7 @@ export default function BrandingPanel({ config, onChange }: { config: SmartLeadF
       <div className="py-3">
         <p className="mb-2 text-[12px] font-semibold text-[#6b7280]">Hero Background</p>
         <Select
-          label="Theme"
+          label="Background"
           groups={THEME_GROUPS}
           options={CUSTOM_OPTION}
           value={heroTheme}
@@ -94,7 +94,7 @@ export default function BrandingPanel({ config, onChange }: { config: SmartLeadF
           // Built-in theme with no photography yet — it stays selectable and the
           // hero falls back to the default background.
           <p className="rounded-lg border border-dashed border-[#e5e7ee] bg-[#f9fafb] px-3 py-2.5 text-[12px] leading-relaxed text-[#9098a8]">
-            No photography for this theme yet — your hero will use the default background. Choose Custom to upload your own.
+            No photo for this background yet — your hero will use the default. Choose Custom to upload your own.
           </p>
         )}
 

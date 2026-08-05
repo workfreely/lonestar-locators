@@ -2,26 +2,29 @@
 
 import { HiOutlineComputerDesktop, HiOutlineDevicePhoneMobile } from "react-icons/hi2"
 import { SettingsHeader } from "@/components/crm/settings/SettingsShell"
+import { publicPageUrl, publicPagePath } from "../../_lib/shareConfig"
 
 export default function EditorToolbar({
   device,
   onDeviceChange,
-  onPublish,
-  publishing,
-  published,
+  onSave,
+  saving,
+  saved,
   slug,
-  publishError,
+  saveError,
 }: {
   device: "mobile" | "desktop"
   onDeviceChange: (device: "mobile" | "desktop") => void
-  onPublish: () => void
-  publishing: boolean
-  published: boolean
+  onSave: () => void
+  saving: boolean
+  saved: boolean
   slug: string | null
-  publishError: string | null
+  saveError: string | null
 }) {
   // Reuses the shared Business Settings header; the editor-specific controls
-  // (device toggle, live link, Publish) slot in between Dashboard and Profile.
+  // (device toggle, always-live link, Save) slot in between Dashboard and
+  // Profile. Every account has ONE always-live form, so the public link is
+  // ALWAYS shown (never gated on a publish state) and opens the live public URL.
   return (
     <SettingsHeader>
       <div className="flex rounded-full border border-[#e5e7ee] bg-[#f4f5f8] p-1">
@@ -48,24 +51,24 @@ export default function EditorToolbar({
       </div>
 
       <div className="flex items-center gap-3">
-        {published && slug && (
+        {slug && (
           <a
-            href={`/${slug}`}
+            href={publicPageUrl(slug)}
             target="_blank"
             rel="noopener noreferrer"
             className="hidden text-[12.5px] font-medium text-emerald-600 hover:underline sm:inline"
           >
-            ● Live at locatorbeast.com/{slug}
+            ● Live at {publicPagePath(slug)}
           </a>
         )}
-        {publishError && <span className="text-[12.5px] font-medium text-red-600">{publishError}</span>}
+        {saveError && <span className="text-[12.5px] font-medium text-red-600">{saveError}</span>}
         <button
           type="button"
-          onClick={onPublish}
-          disabled={publishing}
+          onClick={onSave}
+          disabled={saving}
           className="rounded-full bg-[#111318] px-5 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#2f6bff] disabled:opacity-60"
         >
-          {publishing ? "Publishing…" : published ? "Update & Publish" : "Publish"}
+          {saving ? "Saving…" : saved ? "Saved" : "Save Changes"}
         </button>
       </div>
     </SettingsHeader>

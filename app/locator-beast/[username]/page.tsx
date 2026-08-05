@@ -22,7 +22,12 @@ type PublicForm = {
 // is the workspace's public slug; everything is resolved SERVER-SIDE from public
 // data only (lb_resolve_public_form) — no private data, no client trust. Real
 // marketing pages (features, pricing, …) are explicit sibling routes and take
-// precedence over this dynamic segment. Only PUBLISHED forms render.
+// precedence over this dynamic segment.
+//
+// Every account has ONE always-live Smart Form: there is no draft/published
+// split. The form renders whenever the slug resolves to a workspace — it renders
+// the latest SAVED config (merged over defaults), so `published_at` is NOT a
+// gate. Only an unknown/invalid slug (no row) or an RPC error 404s.
 export default async function PublicSmartLeadFormPage({
   params,
 }: {
@@ -34,8 +39,9 @@ export default async function PublicSmartLeadFormPage({
   const { data, error } = await supabase.rpc("lb_resolve_public_form", { p_username: username })
 
   const form = (Array.isArray(data) ? data[0] : data) as PublicForm | undefined
-  // Not found, or the form hasn't been published yet → 404 (no public page).
-  if (error || !form || !form.published_at) {
+  // Only an unknown slug (no workspace) or a resolver error 404s — never an
+  // "unpublished" state, which no longer exists.
+  if (error || !form) {
     notFound()
   }
 

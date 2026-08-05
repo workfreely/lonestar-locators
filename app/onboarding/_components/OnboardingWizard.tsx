@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { NUMBERED_STEPS, TOTAL_STEPS, type OnboardingData } from "../_lib/types";
+import { buildInitialSmartFormConfig } from "@/app/smart-lead-form/_lib/initialConfig";
 import Step1Welcome from "./steps/Step1Welcome";
 import StepBusinessProfile from "./steps/StepBusinessProfile";
 import StepBusinessGoals from "./steps/StepBusinessGoals";
@@ -72,6 +73,32 @@ export default function OnboardingWizard({
         onboarding_step: TOTAL_STEPS,
       })
       .eq("id", userId);
+
+    // Auto-create the account's always-live Smart Form from the onboarding data,
+    // so the user has a professional, personalized public form the instant
+    // onboarding finishes (name, brokerage, phone, photo, service areas, and a
+    // default hero background from their FIRST selected market). Guarded so it
+    // never overwrites an existing config, and non-fatal so a failure here can
+    // never trap the user on the building screen.
+    try {
+      const { data: existing } = await supabase.rpc("get_smart_form");
+      const existingRow = Array.isArray(existing) ? existing[0] : existing;
+      if (!existingRow?.config) {
+        const { data: ws } = await supabase.rpc("get_current_workspace");
+        const wsRow = Array.isArray(ws) ? ws[0] : ws;
+        const serviceAreas: string[] = wsRow?.service_areas ?? data.service_areas ?? [];
+        const config = buildInitialSmartFormConfig({
+          agentName: data.full_name || `${data.first_name} ${data.last_name}`,
+          brokerageName: data.brokerage || data.business_name,
+          phoneNumber: data.phone_number,
+          profilePhotoUrl: data.profile_photo_url,
+          serviceAreas,
+        });
+        await supabase.rpc("save_smart_form", { p_config: config });
+      }
+    } catch (err) {
+      console.error("Smart Form auto-create failed:", err);
+    }
 
     // Explicitly ensure the 30-day trial is granted before entering the CRM.
     // This does NOT rely solely on the atomic DB trigger firing — it calls the
