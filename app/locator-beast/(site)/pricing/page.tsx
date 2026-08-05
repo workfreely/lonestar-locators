@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import PricingHero from "@/app/locator-beast/(site)/_components/PricingHero";
+import PricingSection from "@/app/locator-beast/(site)/_components/PricingSection";
 import IncludedChecklist from "@/app/locator-beast/(site)/_components/IncludedChecklist";
 import NoConfusingPricing from "@/app/locator-beast/(site)/_components/NoConfusingPricing";
 import FAQList from "@/app/locator-beast/(site)/_components/FAQList";
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 export default function PricingPage() {
   return (
     <>
-      <PricingHero />
+      <PricingSection />
       <IncludedChecklist />
       <NoConfusingPricing />
 

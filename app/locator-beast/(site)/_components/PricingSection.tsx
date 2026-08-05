@@ -2,7 +2,10 @@ import Link from "next/link";
 import { TRIAL_URL } from "@/app/locator-beast/_lib/site";
 import { MONTHLY_PRICE_USD, STANDARD_PRICE_USD } from "@/lib/billing/trial";
 
-export default function PricingHero() {
+// The ONE pricing section, shared by BOTH the Pricing page (top) and the
+// homepage (bottom) so there's a single source of truth — any copy/design edit
+// here updates both places. Full-width dark navy-to-black band.
+export default function PricingSection() {
   return (
     <section className="beast-glow relative overflow-hidden bg-[var(--beast-bg-dark)] pb-16 pt-14 text-white md:pb-20 md:pt-20">
       <div className="beast-container relative flex flex-col items-center text-center">
