@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import QRCode from "qrcode"
 import type { IconType } from "react-icons"
 import { FaInstagram, FaFacebook, FaTiktok, FaYoutube, FaGoogle, FaEnvelope } from "react-icons/fa6"
+import { HiOutlineGlobeAlt } from "react-icons/hi2"
 import CopyButton from "../ui/CopyButton"
 import Card from "../ui/Card"
 import {
@@ -67,23 +68,21 @@ export default function SharePanel({ slug }: { slug: string | null }) {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Preview → Copy Link → Share, top to bottom. */}
+      {/* Smart Form Link (clickable → opens live page) → Share, top to bottom.
+          The live editing preview lives in the editor itself, so there's no
+          separate Preview action here. */}
       <div>
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">Preview</p>
-        <a
-          href={pageUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block w-full rounded-full bg-[#2f6bff] px-8 py-3 text-center text-[14px] font-semibold text-white transition-transform duration-200 hover:scale-[1.01]"
-        >
-          Preview Smart Form
-        </a>
-      </div>
-
-      <div>
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">Your Public Page</p>
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">Smart Form Link</p>
         <Card className="flex items-center gap-2">
-          <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium text-[#111318]">{pagePath}</span>
+          <a
+            href={pageUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex min-w-0 flex-1 items-center gap-2 text-[13.5px] font-medium text-[#111318] transition-colors hover:text-[#2f6bff] hover:underline"
+          >
+            <HiOutlineGlobeAlt className="h-4 w-4 shrink-0 text-[#9098a8]" />
+            <span className="min-w-0 truncate">{pagePath}</span>
+          </a>
           <CopyButton value={pageUrl} label="Copy" />
         </Card>
       </div>
