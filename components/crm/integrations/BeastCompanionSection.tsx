@@ -73,7 +73,7 @@ export default function BeastCompanionSection() {
   return (
     <SettingsCard
       title="Beast Sync"
-      description="Install Beast Companion on your desktop to sync your messages into your CRM."
+      description="Install Beast Sync on your desktop to sync your messages into your CRM."
     >
       <div className="divide-y divide-[#eceef3]">
         {PLATFORMS.map((p) => {

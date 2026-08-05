@@ -94,14 +94,14 @@ export default function ConnectedDevicesSection() {
   return (
     <SettingsCard
       title="Connected Devices"
-      description="Macs running the Locator Beast Companion. Revoke a device to immediately stop its access on its next check-in."
+      description="Macs running Beast Sync. Revoke a device to immediately stop its access on its next check-in."
     >
       {loading ? (
         <p className="text-[13px] text-[#6b7280]">Loading…</p>
       ) : devices.length === 0 ? (
         <div className="py-6 text-center">
           <p className="text-[14px] font-semibold text-[#111318]">No devices connected</p>
-          <p className="mt-1 text-[12.5px] text-[#6b7280]">Open the Locator Beast Companion on your Mac and click Connect to pair it.</p>
+          <p className="mt-1 text-[12.5px] text-[#6b7280]">Open Beast Sync on your Mac and click Connect to pair it.</p>
         </div>
       ) : (
         <div className="divide-y divide-[#eceef3]">
@@ -112,7 +112,7 @@ export default function ConnectedDevicesSection() {
               <div key={d.id} className="flex items-start justify-between gap-4 py-4 first:pt-0 last:pb-0">
                 <div className="min-w-0">
                   <p className="text-[14px] font-semibold text-[#111318]">
-                    {d.device_name || "Mac Companion"}{" "}
+                    {d.device_name || "Beast Sync (Mac)"}{" "}
                     <span className="font-mono text-[12px] text-[#9098a8]">{d.token_prefix}…</span>
                   </p>
                   <p className="mt-1 flex items-center gap-2 text-[12.5px] text-[#4b5162]">
