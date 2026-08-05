@@ -1,53 +1,44 @@
-// ── Locator Beast market catalog (Phase 1: Texas) ───────────────────────────
+// ── Locator Beast market catalog (SUPPORTED_MARKETS) ────────────────────────
 //
+// The SINGLE source of truth for supported *markets* — where a locator works.
 // Static reference data, maintained in code (NOT the database). The database
 // only stores which of these markets a workspace has selected — see
 // workspaces.service_areas (an array of market SLUGS from this file).
 //
-// The Smart Lead Form is a pure renderer: it reads the workspace's selected
-// slugs, looks them up here, and shows only those cities + their neighborhoods.
+// A market is NOT a visual theme. A theme is the landing-page background image;
+// those live in `lib/themes/config.ts`. The two are related only through
+// `defaultTheme` below (and the derived DEFAULT_THEME_BY_MARKET): the theme a
+// new Smart Form starts on for that market. After creation the user can pick any
+// other theme in the Hero Background dropdown and the market is left untouched —
+// market and background are independent once the initial default is applied.
 //
-// Adding a market later (Phoenix, Denver, Atlanta, Seattle, Chicago, Miami,
-// Tampa, …) = append a Market entry here and redeploy. Nothing else changes:
-// the onboarding selector, Settings, and the public form all read from MARKETS.
+// The list order is authoritative: onboarding, Settings, and the public form all
+// render markets in this exact order (grouped by state). Adding a market = append
+// a Market entry here (with its defaultTheme) and redeploy. Nothing else changes.
 //
 // `slug` is the stable key (stored on the workspace, used in code). `name` is
-// the display label AND the value submitted as the lead's `city` (kept equal to
-// the historical city strings so existing lead data/analytics stay consistent).
-// The form generates the "All of {name}" option itself — do not list it here.
+// the display label AND the value submitted as the lead's `city`. `defaultTheme`
+// is a theme slug from lib/themes/config.ts (note DFW → "dallas", Miami–Fort
+// Lauderdale → "miami" — intentional). The form generates the "All of {name}"
+// option itself — do not list it in neighborhoods.
 
 export type Market = {
   slug: string
   name: string
   state: string
+  /** Theme slug (lib/themes/config.ts) this market defaults its hero background to. */
+  defaultTheme: string
   neighborhoods: string[]
   submarkets: string[]
 }
 
 export const MARKETS: Market[] = [
-  {
-    slug: "san-antonio",
-    name: "San Antonio",
-    state: "TX",
-    neighborhoods: [
-      "Downtown San Antonio",
-      "La Cantera/The Rim",
-      "The Dominion",
-      "Stone Oak",
-      "Alamo Ranch",
-      "Southtown",
-      "UTSA",
-      "Medical Center",
-      "Universal City/Converse",
-      "Westover Hills",
-      "Alamo Heights",
-    ],
-    submarkets: ["New Braunfels", "Boerne", "Schertz", "San Marcos"],
-  },
+  // ── Texas ──
   {
     slug: "austin",
     name: "Austin",
     state: "TX",
+    defaultTheme: "austin",
     neighborhoods: [
       "Downtown Austin",
       "South Congress (SoCo)",
@@ -64,9 +55,12 @@ export const MARKETS: Market[] = [
     submarkets: [],
   },
   {
+    // Slug kept as "dallas" so existing workspace selections keep resolving; the
+    // market is presented as Dallas–Fort Worth and defaults to the Dallas theme.
     slug: "dallas",
-    name: "Dallas",
+    name: "Dallas–Fort Worth",
     state: "TX",
+    defaultTheme: "dallas",
     neighborhoods: [
       "Downtown Dallas",
       "Uptown",
@@ -88,6 +82,7 @@ export const MARKETS: Market[] = [
     slug: "houston",
     name: "Houston",
     state: "TX",
+    defaultTheme: "houston",
     neighborhoods: [
       "Downtown Houston",
       "Midtown",
@@ -103,7 +98,83 @@ export const MARKETS: Market[] = [
     ],
     submarkets: [],
   },
+  {
+    slug: "new-braunfels",
+    name: "New Braunfels",
+    state: "TX",
+    defaultTheme: "new-braunfels",
+    neighborhoods: [],
+    submarkets: [],
+  },
+  {
+    slug: "san-antonio",
+    name: "San Antonio",
+    state: "TX",
+    defaultTheme: "san-antonio",
+    neighborhoods: [
+      "Downtown San Antonio",
+      "La Cantera/The Rim",
+      "The Dominion",
+      "Stone Oak",
+      "Alamo Ranch",
+      "Southtown",
+      "UTSA",
+      "Medical Center",
+      "Universal City/Converse",
+      "Westover Hills",
+      "Alamo Heights",
+    ],
+    submarkets: ["Boerne", "Schertz"],
+  },
+  {
+    slug: "san-marcos",
+    name: "San Marcos",
+    state: "TX",
+    defaultTheme: "san-marcos",
+    neighborhoods: [],
+    submarkets: [],
+  },
+  // ── Georgia ──
+  { slug: "atlanta", name: "Atlanta", state: "GA", defaultTheme: "atlanta", neighborhoods: [], submarkets: [] },
+  // ── Arizona ──
+  { slug: "phoenix", name: "Phoenix", state: "AZ", defaultTheme: "phoenix", neighborhoods: [], submarkets: [] },
+  { slug: "tucson", name: "Tucson", state: "AZ", defaultTheme: "tucson", neighborhoods: [], submarkets: [] },
+  // ── Florida ──
+  {
+    // Presented as Miami–Fort Lauderdale; defaults to the Miami theme.
+    slug: "miami-fort-lauderdale",
+    name: "Miami–Fort Lauderdale",
+    state: "FL",
+    defaultTheme: "miami",
+    neighborhoods: [],
+    submarkets: [],
+  },
+  { slug: "orlando", name: "Orlando", state: "FL", defaultTheme: "orlando", neighborhoods: [], submarkets: [] },
+  // ── Illinois ──
+  { slug: "chicago", name: "Chicago", state: "IL", defaultTheme: "chicago", neighborhoods: [], submarkets: [] },
+  // ── Colorado ──
+  { slug: "denver", name: "Denver", state: "CO", defaultTheme: "denver", neighborhoods: [], submarkets: [] },
+  // ── Tennessee ──
+  { slug: "nashville", name: "Nashville", state: "TN", defaultTheme: "nashville", neighborhoods: [], submarkets: [] },
 ]
+
+/** Alias — markets are the supported markets. Kept for intent-revealing imports. */
+export const SUPPORTED_MARKETS = MARKETS
+
+/** market slug → default hero theme slug. Derived so there's no second list. */
+export const DEFAULT_THEME_BY_MARKET: Record<string, string> = Object.fromEntries(
+  MARKETS.map((m) => [m.slug, m.defaultTheme])
+)
+
+/**
+ * The theme a new Smart Form should start on, given the workspace's selected
+ * market slugs (uses the first/primary market). Returns null when there's no
+ * market or no mapping — the caller falls back to "custom"/default background.
+ */
+export function defaultThemeForMarkets(slugs: string[] | null | undefined): string | null {
+  const primary = slugs?.find((s) => s in DEFAULT_THEME_BY_MARKET)
+  return primary ? DEFAULT_THEME_BY_MARKET[primary] : null
+}
 
 const BY_SLUG: Record<string, Market> = Object.fromEntries(MARKETS.map((m) => [m.slug, m]))
 const BY_NAME: Record<string, Market> = Object.fromEntries(MARKETS.map((m) => [m.name, m]))

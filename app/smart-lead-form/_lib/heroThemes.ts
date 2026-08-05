@@ -1,10 +1,13 @@
-// Placeholder theme registry. Long-term, this list will be generated from
-// the service areas a locator selects during onboarding, and each city's
-// `defaultImageUrl` will point at bundled photography. Until that system
-// exists, city themes have no default image yet — the panel shows a
-// "coming soon" note instead of a broken image. "Custom" is the only theme
-// that ever reads from `branding.heroImageUrl`.
-export type HeroThemeId = "san-antonio" | "austin" | "dallas" | "custom"
+import { AVAILABLE_THEMES, CUSTOM_THEME_ID, themeImageUrl, themeLabel } from "@/lib/themes/config"
+
+// Adapter over the centralized theme catalog (lib/themes/config.ts). The theme
+// list, ordering, labels, and image mapping all live there; this module just
+// exposes the small shape the public form renderer needs. A theme id is a city
+// theme slug (e.g. "austin") or "custom" — "custom" is the only theme that reads
+// from `branding.heroImageUrl`. A built-in theme with no bundled image resolves
+// to `defaultImageUrl: null`, so the form gracefully falls back to its default
+// (dark) background — the option is never hidden.
+export type HeroThemeId = string
 
 export type HeroTheme = {
   id: HeroThemeId
@@ -12,13 +15,19 @@ export type HeroTheme = {
   defaultImageUrl: string | null
 }
 
+const CUSTOM: HeroTheme = { id: CUSTOM_THEME_ID, label: "Custom", defaultImageUrl: null }
+
+/** Flat list of every built-in theme + Custom last (order preserved). */
 export const HERO_THEMES: HeroTheme[] = [
-  { id: "san-antonio", label: "San Antonio", defaultImageUrl: null },
-  { id: "austin", label: "Austin", defaultImageUrl: null },
-  { id: "dallas", label: "Dallas", defaultImageUrl: null },
-  { id: "custom", label: "Custom", defaultImageUrl: null },
+  ...AVAILABLE_THEMES.map((t) => ({ id: t.slug, label: t.label, defaultImageUrl: themeImageUrl(t.slug) })),
+  CUSTOM,
 ]
 
 export function getHeroTheme(id: HeroThemeId): HeroTheme {
-  return HERO_THEMES.find((theme) => theme.id === id) ?? HERO_THEMES[HERO_THEMES.length - 1]
+  if (id === CUSTOM_THEME_ID) return CUSTOM
+  // Unknown ids (e.g. a theme removed from the catalog) fall back to Custom.
+  const label = themeLabel(id)
+  return label === id && !AVAILABLE_THEMES.some((t) => t.slug === id)
+    ? CUSTOM
+    : { id, label, defaultImageUrl: themeImageUrl(id) }
 }

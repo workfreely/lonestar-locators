@@ -5,6 +5,7 @@ import { DEFAULT_CONFIG } from "../../_lib/defaultConfig"
 import { mergeSmartFormConfig } from "../../_lib/mergeConfig"
 import type { SmartLeadFormConfig } from "../../_lib/types"
 import { supabase } from "@/lib/supabase/client"
+import { defaultThemeForMarkets } from "@/lib/markets/catalog"
 import EditorToolbar from "./EditorToolbar"
 import SettingsPanel from "./SettingsPanel"
 import PreviewFrame from "../preview/PreviewFrame"
@@ -39,7 +40,17 @@ export default function SmartLeadFormEditor() {
       if (formRow?.published_at) setPublishedAt(formRow.published_at)
       // Start editing from the saved (live) config so re-publishing edits the
       // existing form rather than resetting to defaults.
-      if (formRow?.config) setConfig(mergeSmartFormConfig(formRow.config))
+      if (formRow?.config) {
+        setConfig(mergeSmartFormConfig(formRow.config))
+      } else {
+        // New form: seed the Hero Background from the workspace's primary market
+        // (market → default theme). Applied ONCE, only when no config is saved —
+        // after this the user can pick any theme and the market is left alone.
+        const themeSlug = defaultThemeForMarkets(wsRow?.service_areas)
+        if (themeSlug) {
+          setConfig((prev) => ({ ...prev, branding: { ...prev.branding, heroTheme: themeSlug } }))
+        }
+      }
     })()
     return () => {
       active = false

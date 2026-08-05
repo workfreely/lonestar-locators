@@ -65,7 +65,13 @@ export default function Hero({ config }: { config: SmartLeadFormConfig }) {
       {backgroundUrl && (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={backgroundUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+          <img
+            src={backgroundUrl}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
           <div className={`absolute inset-0 ${OVERLAY_OPACITY[heroOverlay]}`} />
         </>
       )}

@@ -1,10 +1,19 @@
 import type { SmartLeadFormConfig } from "../../../_lib/types"
-import { HERO_THEMES } from "../../../_lib/heroThemes"
+import { getHeroTheme } from "../../../_lib/heroThemes"
+import { AVAILABLE_THEME_GROUPS, CUSTOM_THEME_ID } from "@/lib/themes/config"
 import UploadTile from "../ui/UploadTile"
 import SegmentedControl from "../ui/SegmentedControl"
 import Select from "../ui/Select"
 
 type Updater = (updater: (prev: SmartLeadFormConfig) => SmartLeadFormConfig) => void
+
+// Hero Background dropdown, rendered straight from the centralized theme catalog
+// in its fixed order (grouped by state), with Custom always the final option.
+const THEME_GROUPS = AVAILABLE_THEME_GROUPS.map((g) => ({
+  label: g.state,
+  options: g.themes.map((t) => ({ id: t.slug, label: t.label })),
+}))
+const CUSTOM_OPTION = [{ id: CUSTOM_THEME_ID, label: "Custom" }]
 
 const SWATCHES = ["#2f6bff", "#7c3aed", "#0f9d58", "#e11d48", "#ea580c", "#0891b2"]
 
@@ -60,16 +69,32 @@ export default function BrandingPanel({ config, onChange }: { config: SmartLeadF
         <p className="mb-2 text-[12px] font-semibold text-[#6b7280]">Hero Background</p>
         <Select
           label="Theme"
-          options={HERO_THEMES.map((theme) => ({ id: theme.id, label: theme.label }))}
+          groups={THEME_GROUPS}
+          options={CUSTOM_OPTION}
           value={heroTheme}
           onChange={(value) => updateBranding({ heroTheme: value })}
         />
 
-        {heroTheme === "custom" ? (
+        {heroTheme === CUSTOM_THEME_ID ? (
           <UploadTile label="Background Image" imageUrl={heroImageUrl} onChange={(url) => updateBranding({ heroImageUrl: url })} wide />
+        ) : getHeroTheme(heroTheme).defaultImageUrl ? (
+          // Bundled photography exists for this city — show a live preview so the
+          // locator sees exactly what the hero background will be.
+          <div className="mt-2 overflow-hidden rounded-lg border border-[#e5e7ee]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={getHeroTheme(heroTheme).defaultImageUrl as string}
+              alt={`${getHeroTheme(heroTheme).label} skyline`}
+              loading="lazy"
+              decoding="async"
+              className="h-24 w-full object-cover"
+            />
+          </div>
         ) : (
+          // Built-in theme with no photography yet — it stays selectable and the
+          // hero falls back to the default background.
           <p className="rounded-lg border border-dashed border-[#e5e7ee] bg-[#f9fafb] px-3 py-2.5 text-[12px] leading-relaxed text-[#9098a8]">
-            Built-in city photography for this theme is coming soon. Switch to Custom to upload your own background.
+            No photography for this theme yet — your hero will use the default background. Choose Custom to upload your own.
           </p>
         )}
 
