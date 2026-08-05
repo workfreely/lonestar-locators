@@ -78,9 +78,9 @@ export default function SharePanel({ slug }: { slug: string | null }) {
             href={pageUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex min-w-0 flex-1 items-center gap-2 text-[13.5px] font-medium text-[#111318] transition-colors hover:text-[#2f6bff] hover:underline"
+            className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-[13.5px] font-medium text-[#2f6bff] underline-offset-2 transition-colors hover:underline"
           >
-            <HiOutlineGlobeAlt className="h-4 w-4 shrink-0 text-[#9098a8]" />
+            <HiOutlineGlobeAlt className="h-4 w-4 shrink-0 text-[#2f6bff]" />
             <span className="min-w-0 truncate">{pagePath}</span>
           </a>
           <CopyButton value={pageUrl} label="Copy" />

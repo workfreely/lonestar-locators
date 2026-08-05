@@ -94,7 +94,6 @@ export default function SmartLeadFormEditor() {
         onSave={save}
         saving={saving}
         saved={saved}
-        slug={slug}
         saveError={saveError}
       />
 

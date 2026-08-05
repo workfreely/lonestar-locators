@@ -1,4 +1,4 @@
-import type { FAQItem } from "../_components/FAQList";
+import type { FAQItem } from "@/app/locator-beast/(site)/_components/FAQList";
 
 export const PRICING_FAQ: FAQItem[] = [
   {

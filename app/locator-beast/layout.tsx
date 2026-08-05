@@ -1,10 +1,14 @@
-import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./beast.css";
-import Nav from "./_components/Nav";
-import Footer from "./_components/Footer";
-import AskBeastAI from "@/components/beast-ai/AskBeastAI";
-import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "./_lib/site";
+
+// Shared shell for everything under the Locator Beast host: the beast-root
+// design-token scope + the Inter brand font. It renders NO marketing chrome.
+//
+// Chrome ownership is structural (see app/layout.tsx): the marketing Nav/Footer/
+// Ask-Beast-AI live in the (site) route group's layout, which wraps only the
+// marketing pages. The public per-agent Smart Form at [username] is a sibling of
+// (site), so it inherits ONLY this bare shell — it renders as a completely
+// standalone landing page with no website navigation, footer, or marketing UI.
 
 const inter = Inter({
   subsets: ["latin"],
@@ -12,72 +16,10 @@ const inter = Inter({
   display: "swap",
 });
 
-const TITLE = "Locator Beast | All-in-One Platform for Apartment Locators";
-
-export const metadata: Metadata = {
-  metadataBase: new URL(SITE_URL),
-  title: {
-    default: TITLE,
-    template: "%s | Locator Beast",
-  },
-  description: SITE_DESCRIPTION,
-  keywords: [
-    "apartment locator software",
-    "apartment locator CRM",
-    "lead management for apartment locators",
-    "apartment locating business software",
-  ],
-  openGraph: {
-    title: TITLE,
-    description: SITE_DESCRIPTION,
-    url: SITE_URL,
-    siteName: SITE_NAME,
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: TITLE,
-    description: SITE_DESCRIPTION,
-  },
-  alternates: {
-    canonical: SITE_URL,
-  },
-  robots: {
-    index: true,
-    follow: true,
-  },
-};
-
-const jsonLd = {
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  name: SITE_NAME,
-  applicationCategory: "BusinessApplication",
-  operatingSystem: "Windows, macOS",
-  description: SITE_DESCRIPTION,
-  url: SITE_URL,
-  offers: {
-    "@type": "Offer",
-    price: "99",
-    priceCurrency: "USD",
-  },
-};
-
 export default function LocatorBeastLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <div className={`beast-root ${inter.variable}`}>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
-      <Nav />
-      <main style={{ flex: 1 }}>{children}</main>
-      <Footer />
-      <AskBeastAI />
-    </div>
-  );
+  return <div className={`beast-root ${inter.variable}`}>{children}</div>;
 }
