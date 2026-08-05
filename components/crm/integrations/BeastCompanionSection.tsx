@@ -5,10 +5,12 @@ import { supabase } from "@/lib/supabase/client"
 import { SettingsCard } from "@/components/crm/settings/SettingsShell"
 import { AppleIcon, WindowsIcon } from "@/components/icons/PlatformIcons"
 
-// Beast Companion — the desktop app that syncs Apple Messages into the CRM.
-// The PRODUCT is "Beast Companion"; macOS and Windows are supported platforms.
-// Both rows share one layout so Windows becomes active later by flipping
-// `released` + setting a download URL — no layout changes.
+// Beast Sync — the desktop app that syncs Apple Messages into the CRM.
+// (Presented on the Integrations page as "Beast Sync"; the "Beast Companion"
+// name now belongs to the upcoming Chrome extension card above this one.)
+// macOS and Windows are supported platforms. Both rows share one layout so
+// Windows becomes active later by flipping `released` + setting a download
+// URL — no layout changes.
 //
 // Backend/pairing stays platform-agnostic: both desktop apps use the same
 // /api/companion/{pair,messages,status} endpoints + device-token auth. (A
@@ -70,7 +72,7 @@ export default function BeastCompanionSection() {
 
   return (
     <SettingsCard
-      title="Beast Companion"
+      title="Beast Sync"
       description="Install Beast Companion on your desktop to sync your messages into your CRM."
     >
       <div className="divide-y divide-[#eceef3]">

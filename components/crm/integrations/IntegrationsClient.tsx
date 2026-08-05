@@ -1,6 +1,7 @@
 "use client"
 
 import SettingsShell, { SettingsCard } from "@/components/crm/settings/SettingsShell"
+import BeastCompanionExtensionSection from "@/components/crm/integrations/BeastCompanionExtensionSection"
 import BeastCompanionSection from "@/components/crm/integrations/BeastCompanionSection"
 import ConnectedDevicesSection from "@/components/crm/devices/ConnectedDevicesSection"
 
@@ -35,7 +36,10 @@ export default function IntegrationsClient() {
         </div>
       </SettingsCard>
 
-      {/* Beast Companion — the product; macOS + Windows are supported platforms. */}
+      {/* Beast Companion — upcoming Chrome extension (placeholder, above Beast Sync). */}
+      <BeastCompanionExtensionSection />
+
+      {/* Beast Sync — the desktop app; macOS + Windows are supported platforms. */}
       <BeastCompanionSection />
 
       {/* Connected Devices — the paired Companions (any platform) + controls. */}
