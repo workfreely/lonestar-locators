@@ -1,16 +1,23 @@
-import { mountSidebar, type MountHandle } from "./mount";
-import { teardownLayout } from "./pageShift";
+import { HOST_ID, mountSidebar, type MountHandle } from "./mount";
+import { startPersistenceGuard } from "./persistence";
+import { log, logError } from "@/utils/log";
 
 /**
  * Content-script entry point.
  *
- * Reminder on security: this file only ever runs because manifest.json's
- * content_scripts.matches limited it to https://*.smartapartmentdata.com/*.
- * Chrome does not load it anywhere else, so there is no runtime domain check to
- * get wrong — on every other site this code simply does not exist on the page.
+ * Security reminder: this only runs because manifest.json's content_scripts
+ * .matches limits it to smartapartmentdata.com (incl. app.). Chrome does not
+ * load it anywhere else — there's no runtime domain check to get wrong.
  *
- * Responsibilities: guard against double-injection, mount the Shadow-DOM UI, and
- * guarantee the host page is restored to its original layout when we unload.
+ * Responsibilities: guard against double-injection, mount the Shadow-DOM UI,
+ * keep it attached, and log every step for diagnosis.
+ *
+ * WHAT WE DELIBERATELY DO NOT DO (these caused "flash then disappear"):
+ *  - No teardown on `pagehide`: ASP.NET redirects/postbacks fire it constantly.
+ *  - No teardown on a `chrome.runtime` port disconnect: in MV3 the background
+ *    service worker sleeps, which disconnects such ports shortly after load —
+ *    which unmounted the whole UI. A real navigation re-injects this script
+ *    fresh anyway, so no lifecycle-based teardown is needed at all.
  */
 
 const INJECTED_FLAG = "__beastCompanionInjected";
@@ -22,37 +29,23 @@ declare global {
 }
 
 function init(): void {
-  if (window[INJECTED_FLAG]) return; // idempotent — never mount twice
-  window[INJECTED_FLAG] = true;
-
-  // Diagnostic breadcrumb — lets you confirm injection in the page's DevTools
-  // console (Smart Apartment Data tab). Harmless; kept intentionally.
-  console.info("[Beast Companion] content script injected on", location.href);
-
-  let handle: MountHandle | null = mountSidebar();
-  console.info("[Beast Companion] sidebar mounted (look for the tab on the right edge)");
-
-  const teardown = () => {
-    // Restore the host page's layout and remove our UI. Safe to call twice.
-    teardownLayout();
-    handle?.unmount();
-    handle = null;
-  };
-
-  // IMPORTANT: we deliberately do NOT tear down on `pagehide`.
-  //
-  // Smart Apartment Data is an ASP.NET app that redirects (root → app.) and does
-  // full-page postbacks; each of those fires `pagehide`. Tearing down there made
-  // the tab "flash then disappear". A real navigation destroys the page anyway
-  // (and re-injects this script fresh), so no pagehide cleanup is needed — and
-  // on bfcache restore we WANT the already-mounted tab to stay.
-  //
-  // We only clean up when the extension itself goes away (update/disable), so no
-  // injected styles are ever left orphaned on the host page.
   try {
-    chrome.runtime.connect().onDisconnect.addListener(teardown);
-  } catch {
-    // chrome.runtime may be unavailable in some edge contexts — non-fatal.
+    log("content script start on", location.href);
+
+    // Idempotent: never mount twice (flag + a DOM check, so a stray host from a
+    // prior context can't lead to duplicates).
+    if (window[INJECTED_FLAG] || document.getElementById(HOST_ID)) {
+      log("already injected — skipping");
+      return;
+    }
+    window[INJECTED_FLAG] = true;
+
+    const handle: MountHandle = mountSidebar();
+    startPersistenceGuard(handle.host);
+
+    log("ready — the Beast tab should be visible on the right edge and stay put");
+  } catch (err) {
+    logError("init failed:", err);
   }
 }
 

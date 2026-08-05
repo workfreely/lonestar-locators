@@ -5,23 +5,19 @@ import App from "@/sidebar/App";
 // host page. We inject it ONLY inside our Shadow DOM, so host CSS can't reach our
 // UI and our CSS can't touch the host page.
 import sidebarCss from "@/sidebar/sidebar.css?inline";
+import { log } from "@/utils/log";
 
-const HOST_ID = "beast-companion-host";
+export const HOST_ID = "beast-companion-host";
 
-export type MountHandle = { unmount: () => void };
+export type MountHandle = { host: HTMLElement; unmount: () => void };
 
 /**
  * Create an isolated Shadow DOM host and mount the React sidebar into it.
- *
- * Isolation strategy:
- *  - A single host <div> is appended to <html>. It is fixed, full-viewport, and
- *    pointer-events:none, so it never blocks the page; only the tab/panel inside
- *    it capture clicks.
- *  - `attachShadow({ mode: "open" })` gives us a style boundary: the host site's
- *    CSS cannot cross into our tree, and our injected CSS is scoped to the shadow
- *    root — it cannot modify any host element.
+ * Logs each lifecycle step so the host page's console shows exactly how far the
+ * mount got if anything goes wrong.
  */
 export function mountSidebar(): MountHandle {
+  log("host: creating element");
   const host = document.createElement("div");
   host.id = HOST_ID;
   // Inline, high-specificity host styling so a stray host-page rule can't move
@@ -39,6 +35,7 @@ export function mountSidebar(): MountHandle {
     "pointer-events: none",
   ].join(";");
 
+  log("shadow: attaching (open)");
   const shadow = host.attachShadow({ mode: "open" });
 
   const style = document.createElement("style");
@@ -49,17 +46,25 @@ export function mountSidebar(): MountHandle {
   mountPoint.className = "bc-root";
   shadow.appendChild(mountPoint);
 
+  // Attach to <html> so a host-page `body.innerHTML` reset (common in ASP.NET
+  // partial updates) doesn't take our host with it. The persistence guard
+  // re-attaches if the page removes it anyway.
   document.documentElement.appendChild(host);
+  log("host: attached under <html>");
 
+  log("react: creating root + rendering");
   const root: Root = createRoot(mountPoint);
   root.render(
     <StrictMode>
       <App />
     </StrictMode>,
   );
+  log("react: initial render committed");
 
   return {
+    host,
     unmount() {
+      log("react: unmounting + removing host");
       root.unmount();
       host.remove();
     },
