@@ -65,7 +65,7 @@ export default function Footer() {
             <img src={EQUAL_HOUSING_LOGO} alt="Equal Housing Opportunity" style={{ height: 26, width: "auto" }} />
             <p>&copy; {year} Locator Beast. All rights reserved.</p>
           </div>
-          <p>All-in-One Platform for Apartment Locators.</p>
+          <p>The AI-powered CRM platform built for apartment locators.</p>
         </div>
       </div>
     </footer>

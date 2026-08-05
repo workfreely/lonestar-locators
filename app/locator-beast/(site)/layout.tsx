@@ -11,7 +11,7 @@ import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/app/locator-beast/_lib/
 // renders standalone with none of this chrome. The shared beast-root wrapper +
 // Inter font live in the parent app/locator-beast/layout.tsx (used by both).
 
-const TITLE = "Locator Beast | All-in-One Platform for Apartment Locators";
+const TITLE = "Locator Beast | The AI-powered CRM platform built for apartment locators.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
