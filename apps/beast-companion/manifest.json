@@ -24,7 +24,10 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://*.smartapartmentdata.com/*"],
+      "matches": [
+        "https://smartapartmentdata.com/*",
+        "https://*.smartapartmentdata.com/*"
+      ],
       "js": ["src/content/index.tsx"],
       "run_at": "document_idle"
     }

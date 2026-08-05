@@ -25,7 +25,12 @@ function init(): void {
   if (window[INJECTED_FLAG]) return; // idempotent — never mount twice
   window[INJECTED_FLAG] = true;
 
+  // Diagnostic breadcrumb — lets you confirm injection in the page's DevTools
+  // console (Smart Apartment Data tab). Harmless; kept intentionally.
+  console.info("[Beast Companion] content script injected on", location.href);
+
   let handle: MountHandle | null = mountSidebar();
+  console.info("[Beast Companion] sidebar mounted (look for the tab on the right edge)");
 
   const teardown = () => {
     // Restore the host page's layout and remove our UI. Safe to call twice.

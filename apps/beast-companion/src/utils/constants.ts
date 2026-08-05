@@ -43,4 +43,7 @@ export const ANIM_MS = 280;
  * Chrome never injects this extension outside those match patterns, so on any
  * non-approved site there is literally no code, no observer, and no sidebar.
  */
-export const SUPPORTED_DOMAINS = ["*.smartapartmentdata.com"] as const;
+export const SUPPORTED_DOMAINS = [
+  "smartapartmentdata.com",
+  "*.smartapartmentdata.com",
+] as const;
