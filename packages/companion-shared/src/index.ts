@@ -84,3 +84,15 @@ export {
   paletteToCssVars,
 } from "./tokens/tokens";
 export type { CrmPalette, BadgeToneStyle } from "./tokens/tokens";
+
+// Theme registry (all CRM themes, semantic tokens, safe Midnight fallback)
+export {
+  THEME_IDS,
+  DEFAULT_THEME_ID,
+  THEME_REGISTRY,
+  isThemeId,
+  resolveThemeId,
+  themeIdSchema,
+  semanticToCssVars,
+} from "./tokens/themes";
+export type { ThemeId, SemanticTokens } from "./tokens/themes";

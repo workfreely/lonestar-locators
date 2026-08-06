@@ -1,0 +1,73 @@
+/*
+ * Shared LB theme tokens (semantic `--lb-*`). Kept in sync with themes.ts.
+ * `:root` = Midnight so the panel paints correctly BEFORE any [data-lb-theme]
+ * attribute is set (no white flash). Switch themes by setting
+ * `data-lb-theme="<id>"` on <html>; unknown ids keep the :root Midnight values.
+ *
+ * Status colors (success/warning/danger/info) are identical across all themes.
+ */
+
+:root,
+:root[data-lb-theme="midnight"] {
+  --lb-background: #04060c;
+  --lb-surface: #0e1119;
+  --lb-surface-elevated: #1b2030;
+  --lb-section-header: #12151f;
+  --lb-border: #2b3242;
+  --lb-text-primary: #f4f6fb;
+  --lb-text-secondary: #b7bec9;
+  --lb-accent: #2f6bff;
+  --lb-accent-soft: color-mix(in srgb, #2f6bff 16%, transparent);
+  --lb-success: #22c55e;
+  --lb-warning: #f59e0b;
+  --lb-danger: #ef4444;
+  --lb-info: #3b82f6;
+}
+
+:root[data-lb-theme="evergreen"] {
+  --lb-background: #0c1512;
+  --lb-surface: #14201b;
+  --lb-surface-elevated: #203029;
+  --lb-section-header: #142019;
+  --lb-border: #2a3f34;
+  --lb-text-primary: #eef4f0;
+  --lb-text-secondary: #c2ccc6;
+  --lb-accent: #22885e;
+  --lb-accent-soft: color-mix(in srgb, #22885e 16%, transparent);
+}
+
+:root[data-lb-theme="purple"] {
+  --lb-background: #120b1c;
+  --lb-surface: #1b1229;
+  --lb-surface-elevated: #2a1c40;
+  --lb-section-header: #1a1128;
+  --lb-border: #3a2d50;
+  --lb-text-primary: #f2eefb;
+  --lb-text-secondary: #c9c0d6;
+  --lb-accent: #8358d8;
+  --lb-accent-soft: color-mix(in srgb, #8358d8 16%, transparent);
+}
+
+:root[data-lb-theme="obsidian"] {
+  --lb-background: #000000;
+  --lb-surface: #0e1014;
+  --lb-surface-elevated: #191b21;
+  --lb-section-header: #0f1116;
+  --lb-border: #262a31;
+  --lb-text-primary: #f6f7f9;
+  --lb-text-secondary: #b6bac1;
+  --lb-accent: #3f78ff;
+  --lb-accent-soft: color-mix(in srgb, #3f78ff 16%, transparent);
+}
+
+:root[data-lb-theme="rose"] {
+  --lb-background: #1c1019;
+  --lb-surface: #271823;
+  --lb-surface-elevated: #46283a;
+  --lb-section-header: #201019;
+  --lb-border: #4b3541;
+  --lb-text-primary: #fcf0f4;
+  --lb-text-secondary: #cdbcc4;
+  --lb-accent: #c14f70;
+  --lb-accent-soft: color-mix(in srgb, #c14f70 16%, transparent);
+}
