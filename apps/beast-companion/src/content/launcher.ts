@@ -24,6 +24,8 @@ const LOGO_SVG = `
 
 export type Launcher = {
   host: HTMLElement;
+  /** Dock/mirror the launcher to the panel's edge ("right" default, "left" mirrored). */
+  setSide: (side: "left" | "right") => void;
 };
 
 export function createLauncher(onOpen: () => void): Launcher {
@@ -51,16 +53,17 @@ export function createLauncher(onOpen: () => void): Launcher {
 
   const root = document.createElement("div");
   root.className = "bc-root";
+  root.dataset.side = "right"; // default; mirrored to "left" when the panel is left-docked
   shadow.appendChild(root);
 
   const tab = document.createElement("button");
   tab.type = "button";
   tab.className = "bc-tab";
   tab.innerHTML = LOGO_SVG;
-  // The launcher ALWAYS opens (never toggles): closing is Chrome's native X, so
-  // stale open/closed state can never make a click do the wrong thing.
-  tab.setAttribute("aria-label", "Open Beast Companion");
-  tab.title = "Open Beast Companion";
+  // The launcher toggles: the service worker holds authoritative open/closed
+  // state (from Chrome's native lifecycle events), so a click can't misfire.
+  tab.setAttribute("aria-label", "Toggle Beast Companion");
+  tab.title = "Beast Companion";
   tab.addEventListener("click", onOpen);
   root.appendChild(tab);
 
@@ -68,5 +71,10 @@ export function createLauncher(onOpen: () => void): Launcher {
   document.documentElement.appendChild(host);
   log("launcher: attached under <html>");
 
-  return { host };
+  return {
+    host,
+    setSide(side: "left" | "right") {
+      root.dataset.side = side;
+    },
+  };
 }

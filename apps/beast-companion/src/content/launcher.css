@@ -67,3 +67,21 @@
   width: 30px;
   height: 30px;
 }
+
+/* ── Left-docked mirror (panel on the left edge) ───────────────────────── */
+.bc-root[data-side="left"] .bc-tab {
+  right: auto;
+  left: 0;
+  border-radius: 0 14px 14px 0;
+  border-left: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 3px 0 14px rgba(5, 7, 13, 0.28);
+}
+
+.bc-root[data-side="left"] .bc-tab:hover {
+  transform: translateX(2px);
+  box-shadow:
+    3px 0 16px rgba(5, 7, 13, 0.34),
+    0 0 0 1px rgba(91, 139, 255, 0.4),
+    0 0 22px rgba(47, 107, 255, 0.55);
+}

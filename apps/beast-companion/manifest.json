@@ -23,11 +23,13 @@
       "matches": [
         "https://app.smartapartmentdata.com/*",
         "https://smartapartmentdata.com/*",
-        "https://*.smartapartmentdata.com/*"
+        "https://*.smartapartmentdata.com/*",
+        "https://locatorbeast.com/admin/*",
+        "https://www.locatorbeast.com/admin/*"
       ],
       "js": ["content.js"],
       "run_at": "document_start"
     }
   ],
-  "permissions": ["storage", "sidePanel"]
+  "permissions": ["sidePanel"]
 }
