@@ -17,6 +17,7 @@ import { getNextFollowUpAction, createWorkflowActionIfNeeded } from "@/lib/workf
 import { autoDueInDays } from "@/lib/workflow/autoDueDate"
 import { emitWorkflowActionCreated } from "@/lib/workflowToast"
 import { getActionIcon, formatDueDateTime } from "@/lib/actionDisplay"
+import { formatWorkflowActionLabel } from "@/lib/leads/workflowActionLabels"
 import AiVoiceScriptModal from "./AiVoiceScriptModal"
 import ConfirmDialog from "./ConfirmDialog"
 import AddNextActionModal from "./AddNextActionModal"
@@ -1175,8 +1176,11 @@ export default function LeadPanel({
                 <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--crm-text-secondary)]">Status</span>
               </div>
               <div className="mt-2 flex items-center justify-between gap-3">
-                <span className="max-w-[62%] truncate rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] px-4 py-2 text-sm font-semibold text-[var(--crm-text-secondary)]">
-                  {lastAction.title}
+                <span
+                  title={formatWorkflowActionLabel(lastAction.title)}
+                  className="max-w-[62%] truncate rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] px-4 py-2 text-sm font-semibold text-[var(--crm-text-secondary)]"
+                >
+                  {formatWorkflowActionLabel(lastAction.title)}
                 </span>
                 <span className="flex-none text-right text-sm font-semibold text-emerald-600">Completed</span>
               </div>
@@ -1202,10 +1206,10 @@ export default function LeadPanel({
                 <button
                   type="button"
                   onClick={openAction}
-                  title="Open this action"
+                  title={`Open this action — ${formatWorkflowActionLabel(nextOpenAction.title)}`}
                   className="crm-cta max-w-[62%] truncate rounded-lg px-4 py-2 text-sm font-semibold"
                 >
-                  {nextOpenAction.title}
+                  {formatWorkflowActionLabel(nextOpenAction.title)}
                 </button>
                 <span className="flex-none text-right text-sm font-semibold">
                   {(() => {
@@ -1368,6 +1372,10 @@ export default function LeadPanel({
                     }
                     openSMS(msgs[step])
                   }}
+                  /* Verified ultra-compact inline row → compact "FU{n}" with the
+                     full phrase in title + aria-label (per the labeling rule). */
+                  title={`Follow-Up ${step}`}
+                  aria-label={`Follow-Up ${step}`}
                   className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors ${getFUStyle(step)}`}
                 >
                   FU{step}
@@ -1378,9 +1386,11 @@ export default function LeadPanel({
                   const name = normalizeName(lead.first_name || "")
                   openSMS(`Hey ${name}, I haven't heard back so I'll pause your search for now. No rush, just let me know when you'd like me to pick it back up!`)
                 }}
+                title="Final Follow-Up"
+                aria-label="Final Follow-Up"
                 className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border bg-[var(--crm-panel)] text-[var(--crm-text-secondary)] border-[var(--crm-border)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] transition-colors"
               >
-                Final FU
+                Final
               </button>
             </div>
           </div>

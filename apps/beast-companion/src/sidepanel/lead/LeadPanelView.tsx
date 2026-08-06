@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { LeadSummaryDTO, NextActionDTO } from "@bc/companion-shared";
+import { formatWorkflowActionLabel } from "@bc/companion-shared";
 import { SectionCard, Field, StageBadge, StatusPill, Button } from "./primitives";
 
 /**
@@ -78,8 +79,12 @@ export function LeadPanelView({
           {openAction ? (
             <>
               <div className="lp-action-row">
-                <Button variant="solid" onClick={() => demo(openAction.title)} title="Open this action (demo)">
-                  {openAction.title}
+                <Button
+                  variant="solid"
+                  onClick={() => demo(formatWorkflowActionLabel(openAction.title))}
+                  title={`Open — ${formatWorkflowActionLabel(openAction.title)} (demo)`}
+                >
+                  {formatWorkflowActionLabel(openAction.title)}
                 </Button>
                 <StatusPill tone={lead.workflow.followUpCount > 0 ? "accent" : "muted"}>
                   {openAction.priority === "high" ? "Overdue" : "Pending"}
@@ -145,13 +150,26 @@ export function LeadPanelView({
           </div>
           <div className="lp-fu-row">
             <span className="lp-fu-label">Follow Up</span>
+            {/* Verified ultra-compact inline row → compact "FU{n}" with the full
+                phrase in title + aria-label. */}
             {[1, 2, 3].map((n) => (
-              <Button key={n} variant="ghost" onClick={() => demo(`FU${n}`)}>
+              <Button
+                key={n}
+                variant="ghost"
+                onClick={() => demo(`Follow-Up ${n}`)}
+                title={`Follow-Up ${n}`}
+                ariaLabel={`Follow-Up ${n}`}
+              >
                 FU{n}
               </Button>
             ))}
-            <Button variant="ghost" onClick={() => demo("Final FU")}>
-              Final FU
+            <Button
+              variant="ghost"
+              onClick={() => demo("Final Follow-Up")}
+              title="Final Follow-Up"
+              ariaLabel="Final Follow-Up"
+            >
+              Final
             </Button>
           </div>
         </SectionCard>

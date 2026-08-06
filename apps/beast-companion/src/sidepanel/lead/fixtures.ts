@@ -93,13 +93,13 @@ export const DEMO_FIXTURES: DemoFixture[] = [
     },
     nextActions: [
       {
+        // Identity stays the internal FU title; the UI renders "Follow-Up 1".
         id: "demo-act-2",
         leadId: "demo-listsent",
-        title: "Email Guest Card",
+        title: "FU1",
         dueAt: "2026-08-07T14:00:00.000Z",
         priority: "high",
         completed: false,
-        propertyName: "Sample Property A (demo)",
       },
     ],
   },

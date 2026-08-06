@@ -2,6 +2,7 @@
 
 import { useDraggable } from "@dnd-kit/core"
 import { getNextAction } from "@/lib/nextAction"
+import { formatWorkflowActionLabel } from "@/lib/leads/workflowActionLabels"
 import { useState, useRef, useLayoutEffect } from "react"
 import { formatPhone } from "@/lib/utils/formatPhone"
 import LeadSourceBadge from "./LeadSourceBadge"
@@ -120,7 +121,9 @@ export default function LeadCard({
 
   const nextClass =
     followUpStatus === "overdue" ? "kb-pill--crit" : followUpStatus === "today" ? "kb-pill--warn" : "kb-pill--info"
-  const nextText = `${action}${followUpStatus === "today" ? " · Today" : followUpStatus === "overdue" ? " · Overdue" : ""}`
+  // Full follow-up label ("Follow-Up 1" …); non-FU actions pass through unchanged.
+  const actionLabel = formatWorkflowActionLabel(action)
+  const nextText = `${actionLabel}${followUpStatus === "today" ? " · Today" : followUpStatus === "overdue" ? " · Overdue" : ""}`
 
   // ─── Short-form market inference (display only) ─────────────────────────
   const inferredMarket =
@@ -309,7 +312,7 @@ export default function LeadCard({
         </div>
         <div className="kb-badges" data-fit="0" ref={badgesRef}>
           <span className={`kb-pill ${approvalClass}`}>{approvalLabel}</span>
-          <span className={`kb-pill kb-pill--push ${nextClass}`}>{nextText}</span>
+          <span className={`kb-pill kb-pill--push ${nextClass}`} title={nextText}>{nextText}</span>
         </div>
       </>
     )

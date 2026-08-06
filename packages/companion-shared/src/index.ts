@@ -85,6 +85,13 @@ export {
 } from "./tokens/tokens";
 export type { CrmPalette, BadgeToneStyle } from "./tokens/tokens";
 
+// Workflow-action display labels (identity stays fu1/fu2/fu3/final_follow_up)
+export {
+  isFollowUpAction,
+  formatWorkflowActionLabel,
+  workflowActionCompactLabel,
+} from "./labels/workflowActions";
+
 // Theme registry (all CRM themes, semantic tokens, safe Midnight fallback)
 export {
   THEME_IDS,
