@@ -41,20 +41,21 @@
      define a clean Apollo-style boundary between the website and the Companion. */
   border-radius: 14px 0 0 14px;
   border-left: 1px solid rgba(255, 255, 255, 0.14);
+  /* Webpage-facing shadow only (points AWAY from the seam, toward the page). */
   box-shadow: -3px 0 14px rgba(5, 7, 13, 0.28);
+  /* Never transition transform/left/right/margin — the tab is a fixed handle
+     bolted to the panel edge and must never move in any state. */
   transition:
-    transform 160ms ease,
     box-shadow 200ms ease,
     background 200ms ease;
 }
 
-.bc-tab:hover {
-  transform: translateX(-2px);
+/* Hover/active feedback: light up in place. No positional movement — no
+   transform, no left/right/margin change — so the outer seam stays flush. */
+.bc-tab:hover,
+.bc-tab:active {
   background: #111827;
-  box-shadow:
-    -3px 0 16px rgba(5, 7, 13, 0.34),
-    0 0 0 1px rgba(91, 139, 255, 0.4),
-    0 0 22px rgba(47, 107, 255, 0.55);
+  box-shadow: -4px 0 18px rgba(5, 7, 13, 0.4);
 }
 
 .bc-tab:focus-visible {
@@ -66,6 +67,19 @@
   display: block;
   width: 30px;
   height: 30px;
+  /* Only the inner icon may animate — a subtle scale/brighten that never shifts
+     the outer tab away from the edge. transform-origin centered so it grows in
+     place. */
+  transform-origin: center;
+  transition:
+    transform 160ms ease,
+    filter 160ms ease;
+}
+
+.bc-tab:hover svg,
+.bc-tab:active svg {
+  transform: scale(1.08);
+  filter: brightness(1.12);
 }
 
 /* ── Left-docked mirror (panel on the left edge) ───────────────────────── */
@@ -75,13 +89,11 @@
   border-radius: 0 14px 14px 0;
   border-left: 0;
   border-right: 1px solid rgba(255, 255, 255, 0.14);
+  /* Webpage-facing shadow mirrored to point right (toward the page). */
   box-shadow: 3px 0 14px rgba(5, 7, 13, 0.28);
 }
 
-.bc-root[data-side="left"] .bc-tab:hover {
-  transform: translateX(2px);
-  box-shadow:
-    3px 0 16px rgba(5, 7, 13, 0.34),
-    0 0 0 1px rgba(91, 139, 255, 0.4),
-    0 0 22px rgba(47, 107, 255, 0.55);
+.bc-root[data-side="left"] .bc-tab:hover,
+.bc-root[data-side="left"] .bc-tab:active {
+  box-shadow: 4px 0 18px rgba(5, 7, 13, 0.4);
 }
