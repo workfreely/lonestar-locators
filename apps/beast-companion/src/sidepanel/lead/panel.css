@@ -41,9 +41,9 @@
 }
 .lp-phone {
   margin-top: 2px;
-  font-size: 15px;
+  font-size: 17px; /* +2px; stays below the 19px client name. Weight/spacing unchanged. */
   font-weight: 600;
-  color: var(--lb-accent);
+  color: var(--lb-accent); /* semantic accent — follows the active theme, never hard-coded */
 }
 .lp-comm-row {
   margin-top: 10px;
