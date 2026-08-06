@@ -1,9 +1,22 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-lb-theme="midnight">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Locator Beast Companion</title>
+    <!-- Pre-React paint: the Midnight background/text are set inline so the panel
+         is dark on the very first frame, before the stylesheet or React load.
+         Keep these two values in sync with @bc theme.css :root (Midnight). -->
+    <style>
+      html {
+        background: #04060c;
+        color: #f4f6fb;
+      }
+      body {
+        margin: 0;
+        background: #04060c;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

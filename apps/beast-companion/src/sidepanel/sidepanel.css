@@ -1,18 +1,17 @@
 /*
- * Native side-panel styles. A normal (Chrome-owned) document — no Shadow DOM
- * needed. Dark-navy Locator Beast toolbar frames the top and connects to the
- * dark launcher tab at the seam; the workspace below stays clean white.
+ * Native side-panel chrome. Consumes the SHARED theme tokens (@bc theme.css)
+ * rather than a copied CRM stylesheet. Dark by default (Midnight) — the panel
+ * paints dark before React mounts (see sidepanel.html inline paint) so there is
+ * no white flash.
  */
 
+/* Shared theme tokens (@bc/tokens/theme.css) are imported from main.tsx BEFORE
+   this file, so the --lb-* custom properties are defined when these rules read
+   them. (A CSS @import via the path alias isn't reliably resolved by Vite.) */
+
 :root {
-  --bc-blue: #2f6bff;
-  --bc-panel-dark: #0b0f1a;
-  --bc-ink: #05070d;
-  --bc-ink-soft: #4b5162;
-  --bc-white: #ffffff;
-  --bc-border: #e9ebf1;
+  --bc-panel-dark: #0b0f1a; /* the internal toolbar / launcher-seam navy */
   --bc-toolbar-h: 48px;
-  /* Shared content gutter — the hamburger and workspace content line up on it. */
   --bc-gutter: 16px;
 }
 
@@ -24,8 +23,8 @@ html,
 body {
   margin: 0;
   height: 100%;
-  background: var(--bc-white);
-  color: var(--bc-ink);
+  background: var(--lb-background);
+  color: var(--lb-text-primary);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
     "Apple Color Emoji", sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -36,15 +35,16 @@ body {
 }
 
 .bc-panel {
-  position: relative; /* the drawer overlays within this box */
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
+  background: var(--lb-background);
 }
 
-/* ── Compact dark toolbar (hamburger + brand; NO whole-panel close) ─────── */
+/* ── Compact dark toolbar (hamburger only) ── */
 .bc-toolbar {
   flex: none;
   height: var(--bc-toolbar-h);
@@ -52,16 +52,12 @@ body {
   display: flex;
   align-items: center;
   background: var(--bc-panel-dark);
-  color: var(--bc-white);
+  color: #fff;
 }
-
-/* Pull the icon button's transparent padding back so the ICON (not the button
-   box) lines up with the workspace content gutter. */
 .bc-toolbar .bc-icon-btn,
 .bc-drawer-head .bc-icon-btn {
   margin-left: -7px;
 }
-
 .bc-icon-btn {
   display: inline-flex;
   align-items: center;
@@ -75,83 +71,22 @@ body {
   background: transparent;
   transition: background 150ms ease, color 150ms ease;
 }
-
-.bc-toolbar .bc-icon-btn {
-  color: rgba(255, 255, 255, 0.78);
-}
-
-.bc-toolbar .bc-icon-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--bc-white);
-}
-
+.bc-toolbar .bc-icon-btn { color: rgba(255, 255, 255, 0.78); }
+.bc-toolbar .bc-icon-btn:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
 .bc-icon-btn:focus-visible {
-  outline: 2px solid var(--bc-blue);
+  outline: 2px solid var(--lb-accent);
   outline-offset: 1px;
 }
 
-.bc-logo-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-}
-
-/* ── Persistent white workspace ────────────────────────────────────────── */
+/* ── Persistent client workspace ── */
 .bc-workspace {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px var(--bc-gutter);
+  background: var(--lb-background);
 }
 
-.bc-hero {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 6px;
-}
-
-.bc-hero .bc-logo-mark {
-  margin-bottom: 14px;
-  box-shadow: 0 10px 30px -12px rgba(47, 107, 255, 0.7);
-}
-
-.bc-title {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-
-.bc-subtitle {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--bc-ink-soft);
-}
-
-.bc-version {
-  margin-top: 4px;
-  font-size: 12.5px;
-  color: #9098a8;
-}
-
-.bc-badge {
-  margin-top: 16px;
-  padding: 6px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--bc-blue);
-  background: rgba(47, 107, 255, 0.1);
-  border-radius: 999px;
-}
-
-/* ── Navigation / settings drawer (overlays the workspace) ─────────────── */
+/* ── Navigation / settings drawer (overlays the workspace) ── */
 .bc-drawer {
   position: absolute;
   top: var(--bc-toolbar-h);
@@ -160,16 +95,12 @@ body {
   bottom: 0;
   display: flex;
   flex-direction: column;
-  background: var(--bc-white);
+  background: var(--lb-surface);
   transform: translateX(-100%);
-  transition: transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 12px 0 40px -24px rgba(5, 7, 13, 0.4);
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 12px 0 40px -24px rgba(0, 0, 0, 0.55);
 }
-
-.bc-drawer.is-open {
-  transform: translateX(0);
-}
-
+.bc-drawer.is-open { transform: translateX(0); }
 .bc-drawer-head {
   flex: none;
   height: 46px;
@@ -177,33 +108,10 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  border-bottom: 1px solid var(--bc-border);
+  border-bottom: 1px solid var(--lb-border);
 }
-
-.bc-drawer .bc-icon-btn {
-  color: var(--bc-ink-soft);
-}
-
-.bc-drawer .bc-icon-btn:hover {
-  background: #f4f5f8;
-  color: var(--bc-ink);
-}
-
-.bc-drawer-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--bc-ink);
-}
-
-.bc-drawer-body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 20px;
-}
-
-.bc-drawer-note {
-  margin: 0;
-  font-size: 13px;
-  color: var(--bc-ink-soft);
-}
+.bc-drawer .bc-icon-btn { color: var(--lb-text-secondary); }
+.bc-drawer .bc-icon-btn:hover { background: var(--lb-surface-elevated); color: var(--lb-text-primary); }
+.bc-drawer-title { font-size: 14px; font-weight: 600; color: var(--lb-text-primary); }
+.bc-drawer-body { flex: 1; min-height: 0; overflow-y: auto; padding: 20px; }
+.bc-drawer-note { margin: 0; font-size: 13px; color: var(--lb-text-secondary); }

@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { LogoMark } from "@/components/Logo";
-import { VERSION } from "@/utils/constants";
+import type { LeadSummaryDTO, NextActionDTO } from "@bc/companion-shared";
+import { LeadPanelView } from "./lead/LeadPanelView";
+import { PanelStateView, type PanelState } from "./lead/PanelStates";
+import "./lead/panel.css";
 
 /**
  * The Companion's single interface, rendered in the native side panel.
@@ -12,18 +14,26 @@ import { VERSION } from "@/utils/constants";
  *  - The drawer's back arrow closes ONLY the drawer and returns to the workspace.
  *
  * State preservation: the drawer OVERLAYS the workspace, which stays mounted the
- * whole time. Opening/closing the drawer never unmounts the workspace, so the
- * active client, selected section, form state, and scroll position are all
- * preserved automatically.
+ * whole time, so the active client, section, form state, and scroll are kept.
+ *
+ * Phase 3: the workspace renders the lead panel from PROPS only — sanitized demo
+ * data in the dev harness, or a non-loaded state in production (no live data yet).
  */
-export function PanelApp() {
+export function PanelApp({
+  state = "no-client",
+  lead,
+  nextActions = [],
+}: {
+  state?: PanelState;
+  lead?: LeadSummaryDTO | null;
+  nextActions?: NextActionDTO[];
+}) {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   return (
     <div className="bc-panel">
-      {/* Compact dark toolbar — hamburger ONLY. No logo/wordmark (Chrome's native
-          header already shows "Locator Beast Companion") and no close (Chrome's
-          native X). */}
+      {/* Compact dark toolbar — hamburger ONLY (Chrome's native header shows the
+          name; Chrome's native X closes). */}
       <header className="bc-toolbar">
         <button
           type="button"
@@ -39,19 +49,16 @@ export function PanelApp() {
         </button>
       </header>
 
-      {/* Persistent client workspace (placeholder for now — always mounted). */}
+      {/* Persistent client workspace — always mounted. */}
       <div className="bc-workspace">
-        <div className="bc-hero">
-          <LogoMark size={56} radius={14} />
-          <h1 className="bc-title">Locator Beast Companion</h1>
-          <p className="bc-subtitle">Chrome Extension</p>
-          <span className="bc-version">Version {VERSION}</span>
-          <span className="bc-badge">Coming Soon</span>
-        </div>
+        {state === "loaded" && lead ? (
+          <LeadPanelView lead={lead} nextActions={nextActions} />
+        ) : (
+          <PanelStateView state={state === "loaded" ? "no-client" : state} />
+        )}
       </div>
 
-      {/* Navigation / settings drawer — overlays the workspace below the toolbar.
-          The back arrow closes ONLY the drawer. */}
+      {/* Navigation / settings drawer — overlays the workspace below the toolbar. */}
       <nav className={`bc-drawer ${drawerOpen ? "is-open" : ""}`} aria-hidden={!drawerOpen}>
         <div className="bc-drawer-head">
           <button
