@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Beast Companion",
+  "name": "Locator Beast Companion",
   "version": "0.1.0",
   "description": "Brings Locator Beast into supported websites through a contextual companion side panel.",
   "icons": {
@@ -10,7 +10,7 @@
     "128": "icons/icon-128.png"
   },
   "action": {
-    "default_title": "Beast Companion"
+    "default_title": "Locator Beast Companion"
   },
   "side_panel": {
     "default_path": "sidepanel.html"

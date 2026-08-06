@@ -12,6 +12,8 @@
   --bc-white: #ffffff;
   --bc-border: #e9ebf1;
   --bc-toolbar-h: 48px;
+  /* Shared content gutter — the hamburger and workspace content line up on it. */
+  --bc-gutter: 16px;
 }
 
 * {
@@ -46,12 +48,18 @@ body {
 .bc-toolbar {
   flex: none;
   height: var(--bc-toolbar-h);
-  padding: 0 8px;
+  padding: 0 var(--bc-gutter);
   display: flex;
   align-items: center;
-  gap: 8px;
   background: var(--bc-panel-dark);
   color: var(--bc-white);
+}
+
+/* Pull the icon button's transparent padding back so the ICON (not the button
+   box) lines up with the workspace content gutter. */
+.bc-toolbar .bc-icon-btn,
+.bc-drawer-head .bc-icon-btn {
+  margin-left: -7px;
 }
 
 .bc-icon-btn {
@@ -82,25 +90,11 @@ body {
   outline-offset: 1px;
 }
 
-.bc-logo-lockup {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-}
-
 .bc-logo-mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: none;
-}
-
-.bc-logo-wordmark {
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--bc-white);
-  white-space: nowrap;
 }
 
 /* ── Persistent white workspace ────────────────────────────────────────── */
@@ -111,7 +105,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 24px var(--bc-gutter);
 }
 
 .bc-hero {
@@ -179,7 +173,7 @@ body {
 .bc-drawer-head {
   flex: none;
   height: 46px;
-  padding: 0 8px;
+  padding: 0 var(--bc-gutter);
   display: flex;
   align-items: center;
   gap: 8px;

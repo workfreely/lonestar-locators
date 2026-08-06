@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LogoLockup, LogoMark } from "@/components/Logo";
+import { LogoMark } from "@/components/Logo";
 import { VERSION } from "@/utils/constants";
 
 /**
@@ -21,7 +21,9 @@ export function PanelApp() {
 
   return (
     <div className="bc-panel">
-      {/* Compact dark toolbar — hamburger only; no whole-panel close here. */}
+      {/* Compact dark toolbar — hamburger ONLY. No logo/wordmark (Chrome's native
+          header already shows "Locator Beast Companion") and no close (Chrome's
+          native X). */}
       <header className="bc-toolbar">
         <button
           type="button"
@@ -35,14 +37,13 @@ export function PanelApp() {
             <path d="M3 6h14M3 10h14M3 14h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
           </svg>
         </button>
-        <LogoLockup />
       </header>
 
       {/* Persistent client workspace (placeholder for now — always mounted). */}
       <div className="bc-workspace">
         <div className="bc-hero">
           <LogoMark size={56} radius={14} />
-          <h1 className="bc-title">Beast Companion</h1>
+          <h1 className="bc-title">Locator Beast Companion</h1>
           <p className="bc-subtitle">Chrome Extension</p>
           <span className="bc-version">Version {VERSION}</span>
           <span className="bc-badge">Coming Soon</span>
