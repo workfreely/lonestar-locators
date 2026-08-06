@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { LeadSummaryDTO, NextActionDTO } from "@bc/companion-shared";
-import { formatWorkflowActionLabel, isFollowUpAction, formatDateDisplay, formatDueDateTime } from "@bc/companion-shared";
+import { formatWorkflowActionLabel, isFollowUpAction, formatDateDisplay, formatDueDateTime, isPastDue } from "@bc/companion-shared";
 import { SectionCard, Field, StageBadge, StatusPill, Button } from "./primitives";
 
 /**
@@ -189,6 +189,10 @@ export function LeadPanelBody({
   onDemo: OnDemo;
 }) {
   const openAction = nextActions.find((a) => !a.completed) ?? null;
+  // Status is derived from the DUE TIMESTAMP, never a priority flag — a future
+  // due (e.g. Tomorrow) can never read as "Overdue". Overdue = the due instant
+  // has already passed; otherwise it is still Pending.
+  const overdue = openAction ? isPastDue(openAction.dueAt) : false;
   const sc = lead.searchCriteria;
   const cs = lead.creditScreening;
 
@@ -210,8 +214,8 @@ export function LeadPanelBody({
               >
                 {formatWorkflowActionLabel(openAction.title)}
               </Button>
-              <StatusPill tone={lead.workflow.followUpCount > 0 ? "accent" : "muted"}>
-                {openAction.priority === "high" ? "Overdue" : "Pending"}
+              <StatusPill tone={overdue ? "danger" : "muted"}>
+                {overdue ? "Overdue" : "Pending"}
               </StatusPill>
             </div>
             {openAction.propertyName && <div className="lp-action-prop">{openAction.propertyName}</div>}

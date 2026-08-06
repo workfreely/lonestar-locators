@@ -56,6 +56,19 @@ function timeInZone(d: Date, timeZone?: string): string {
   });
 }
 
+/**
+ * Whether a due timestamp has already passed relative to `now`. "Overdue" is a
+ * pure instant comparison (both sides are absolute instants), so it is
+ * independent of time zone. A missing/invalid timestamp is treated as
+ * not-overdue. Use this to derive Next-Action status from the due timestamp —
+ * never from an unrelated priority flag (a future due can't be "Overdue").
+ */
+export function isPastDue(dueAt: string | null | undefined, now: Date = new Date()): boolean {
+  if (!dueAt) return false;
+  const t = new Date(dueAt).getTime();
+  return Number.isFinite(t) && t < now.getTime();
+}
+
 export function formatDueDateTime(dueAt: string, options: DueDateFormatOptions = {}): string {
   const { verbose, timeZone, now } = options;
   const due = new Date(dueAt);

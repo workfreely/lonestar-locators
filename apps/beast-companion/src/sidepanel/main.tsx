@@ -1,5 +1,5 @@
 import { StrictMode, Suspense, lazy } from "react";
-import { createRoot } from "react-dom/client";
+import { createRoot, type Root } from "react-dom/client";
 import { PanelApp } from "./PanelApp";
 import "./sidepanel.css";
 import { applyTheme } from "./applyTheme";
@@ -25,7 +25,13 @@ applyTheme();
 
 const container = document.getElementById("root");
 if (container) {
-  const root = createRoot(container);
+  // Idempotent mount: reuse the existing root if this entry module is ever
+  // evaluated twice (HMR re-exec, an accidental duplicate <script>, or a
+  // re-run side-panel document). Creating a SECOND createRoot() on #root would
+  // mount a second, overlapping panel (two hamburgers / duplicated content) —
+  // this makes that structurally impossible.
+  const store = window as unknown as { __bcSidePanelRoot?: Root };
+  const root = store.__bcSidePanelRoot ?? (store.__bcSidePanelRoot = createRoot(container));
   if (import.meta.env.DEV) {
     const DevHarness = lazy(() =>
       import("./dev/DevHarness").then((m) => ({ default: m.DevHarness })),
