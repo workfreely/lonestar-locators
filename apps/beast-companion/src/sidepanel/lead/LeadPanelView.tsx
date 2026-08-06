@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { LeadSummaryDTO, NextActionDTO } from "@bc/companion-shared";
 import { formatWorkflowActionLabel, isFollowUpAction, formatDateDisplay } from "@bc/companion-shared";
 import { SectionCard, Field, StageBadge, StatusPill, Button } from "./primitives";
@@ -33,15 +34,89 @@ function fmtDateTime(iso?: string | null) {
 }
 
 export function LeadIdentityHeader({ lead, onDemo }: { lead: LeadSummaryDTO; onDemo: OnDemo }) {
+  // Copy-the-phone affordance — mirrors the CRM lead panel exactly: the Copy
+  // control is revealed on hover/focus of the phone row (and always shown on
+  // touch, where there is no hover), copies the formatted number to the
+  // clipboard, then flips to "✓ Copied" for 1500ms. This is a REAL clipboard
+  // action (harmless, and what the request asks for) — unlike Call/Text/Archive,
+  // which stay inert during the sanitized presentation phase.
+  const [copiedPhone, setCopiedPhone] = useState(false);
+
+  async function copyPhone() {
+    if (!lead.phone) return;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(lead.phone);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = lead.phone;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      setCopiedPhone(true);
+      window.setTimeout(() => setCopiedPhone(false), 1500);
+    } catch (err) {
+      console.error("Copy phone failed:", err);
+    }
+  }
+
   return (
     <header className="lp-header">
-      <div className="lp-id-row">
-        <h1 className="lp-name" title={fullName(lead)}>
-          {fullName(lead)}
-        </h1>
-        <StageBadge stage={lead.stage} />
+      {/* Top row: name + stage together on the left (stage sits immediately
+          after the name and wraps gracefully at 360px); Archive on the right.
+          The Archive icon lives here — Chrome's native side-panel X is the sole
+          close control, so there is no second internal X. */}
+      <div className="lp-header-top">
+        <div className="lp-id-row">
+          <h1 className="lp-name" title={fullName(lead)}>
+            {fullName(lead)}
+          </h1>
+          <StageBadge stage={lead.stage} />
+        </div>
+        {/* Inert during the sanitized presentation phase — no state change, no
+            API, no simulated archive. Live integration will wire this to the
+            SAME authorized archive op the CRM lead card uses. */}
+        <button
+          type="button"
+          className="lp-archive"
+          onClick={() => onDemo("Archive Lead")}
+          aria-label="Archive Lead"
+          title="Archive Lead"
+        >
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <rect x="2.5" y="3.5" width="19" height="5" rx="1.2" />
+            <path d="M4.5 8.5V19a1.5 1.5 0 001.5 1.5h12a1.5 1.5 0 001.5-1.5V8.5" />
+            <path d="M10 12.5h4" />
+          </svg>
+        </button>
       </div>
-      {lead.phone && <div className="lp-phone">{lead.phone}</div>}
+
+      {lead.phone && (
+        <div className="lp-phone-row">
+          <span className="lp-phone">{lead.phone}</span>
+          <button
+            type="button"
+            className={`lp-copy${copiedPhone ? " is-copied" : ""}`}
+            onClick={copyPhone}
+            aria-label={copiedPhone ? "Phone number copied" : "Copy phone number"}
+          >
+            {copiedPhone ? "✓ Copied" : "Copy"}
+          </button>
+        </div>
+      )}
+
       <div className="lp-comm-row">
         <Button variant="soft" full onClick={() => onDemo("Call Client")} ariaLabel="Call Client (demo)">
           <span aria-hidden>📞</span> Call Client
