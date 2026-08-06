@@ -131,11 +131,21 @@ export const DEMO_FIXTURES: DemoFixture[] = [
       },
       workflow: {
         followUpCount: 0,
-        nextActionDate: null,
+        nextActionDate: "2026-08-06T14:00:00.000Z",
         firstContactAt: "2026-06-20T16:00:00.000Z",
       },
     },
-    nextActions: [],
+    nextActions: [
+      {
+        // Legacy identity "Invoice Details"; the UI renders "Get Invoice Details".
+        id: "demo-act-3",
+        leadId: "demo-closed",
+        title: "Invoice Details",
+        dueAt: "2026-08-06T14:00:00.000Z",
+        priority: "medium",
+        completed: false,
+      },
+    ],
   },
 ];
 

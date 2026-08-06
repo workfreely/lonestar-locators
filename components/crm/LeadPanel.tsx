@@ -17,7 +17,7 @@ import { getNextFollowUpAction, createWorkflowActionIfNeeded } from "@/lib/workf
 import { autoDueInDays } from "@/lib/workflow/autoDueDate"
 import { emitWorkflowActionCreated } from "@/lib/workflowToast"
 import { getActionIcon, formatDueDateTime } from "@/lib/actionDisplay"
-import { formatWorkflowActionLabel } from "@/lib/leads/workflowActionLabels"
+import { formatWorkflowActionLabel, isFollowUpAction } from "@/lib/leads/workflowActionLabels"
 import AiVoiceScriptModal from "./AiVoiceScriptModal"
 import ConfirmDialog from "./ConfirmDialog"
 import AddNextActionModal from "./AddNextActionModal"
@@ -163,6 +163,10 @@ export default function LeadPanel({
   const [followUps, setFollowUps] = useState(Number(lead.follow_up_count || 0))
   const [nextActionDate, setNextActionDate] = useState(lead.next_action_date || null)
   const [doneMsg, setDoneMsg] = useState<string | null>(null)
+  // Messaging Tools: the contextual follow-up control is INERT until Phase 3.5
+  // wires editable templates + the canonical-key completion route. This note is
+  // its only side effect for now.
+  const [fuToolNote, setFuToolNote] = useState<string | null>(null)
   const [showVoiceScript, setShowVoiceScript] = useState(false)
   const [archiveReason, setArchiveReason] = useState(lead.archive_reason || "")
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
@@ -1312,19 +1316,13 @@ export default function LeadPanel({
           <InvoiceDetailsSection lead={lead} onUpdateLead={onUpdateLead} />
         )}
 
-        {/* Section: Quick Actions — secondary tools, collapsed by default and
-            moved beneath the primary workflow (Next Action / Search / Credit). */}
-        <SectionCard title="Quick Actions" collapsible defaultOpen={false} storageKey="quick-actions">
+        {/* Section: Messaging Tools — message shortcuts only (not workflow/status
+            actions). Contact Lead + List Sent removed (Call/Text live in the
+            header; List Sent is a workflow action). The four-FU row is replaced
+            by ONE contextual follow-up control. */}
+        <SectionCard title="Messaging Tools" collapsible defaultOpen={false} storageKey="quick-actions">
           <div>
-            {/* Row 1: primary actions */}
             <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={handleFirstText}
-                className="crm-cta text-xs font-semibold px-3 py-2 rounded-lg border"
-              >
-                Contact Lead
-              </button>
-
               <button
                 onClick={() => {
                   const name = normalizeName(lead.first_name || "")
@@ -1340,16 +1338,6 @@ export default function LeadPanel({
               </button>
 
               <button
-                onClick={() => {
-                  const name = normalizeName(lead.first_name || "")
-                  openSMS(`Hey ${name}, I just sent your list over!\n\nCan you ❤️ your top 2–3 favorites?\n\nI'll get tours set up or tweak the list for you`)
-                }}
-                className="text-xs font-medium px-3 py-2 rounded-lg border bg-[var(--crm-panel)] text-[var(--crm-text-secondary)] border-[var(--crm-border)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] transition-colors"
-              >
-                List Sent
-              </button>
-
-              <button
                 onClick={() => setShowVoiceScript(true)}
                 className="text-xs font-medium px-3 py-2 rounded-lg border bg-[var(--crm-panel)] text-[var(--crm-text-secondary)] border-[var(--crm-border)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] transition-colors"
               >
@@ -1357,42 +1345,27 @@ export default function LeadPanel({
               </button>
             </div>
 
-            {/* Row 2: follow-up sequence */}
-            <div className="mt-3 flex items-center gap-1.5">
-              <span className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mr-1">Follow Up</span>
-              {[1, 2, 3].map((step) => (
+            {/* Contextual follow-up control — the single next follow-up step for
+                this lead. INERT for now (no template, no send, no completion, no
+                follow-up-count write). Phase 3.5 wires the editable template. */}
+            {isFollowUpAction(action) && (
+              <div className="mt-3">
                 <button
-                  key={step}
-                  onClick={async () => {
-                    await setFollowUpCount(step)
-                    const msgs: Record<number, string> = {
-                      1: `Hey! Did you see any properties on the list that you'd like to tour?`,
-                      2: `Is there one that stands out or would you like me to narrow the list down a bit more?`,
-                      3: `I'm calling communities you were interested in to get updated pricing and specials. Are you still looking to move?`,
-                    }
-                    openSMS(msgs[step])
+                  type="button"
+                  onClick={() => {
+                    setFuToolNote("Editable follow-up templates are coming soon.")
+                    setTimeout(() => setFuToolNote(null), 2500)
                   }}
-                  /* Verified ultra-compact inline row → compact "FU{n}" with the
-                     full phrase in title + aria-label (per the labeling rule). */
-                  title={`Follow-Up ${step}`}
-                  aria-label={`Follow-Up ${step}`}
-                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors ${getFUStyle(step)}`}
+                  title={`Send ${formatWorkflowActionLabel(action)} (template coming soon)`}
+                  className="w-full text-xs font-semibold px-3 py-2 rounded-lg border bg-[var(--crm-panel)] text-[var(--crm-text-secondary)] border-[var(--crm-border)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] transition-colors"
                 >
-                  FU{step}
+                  Send {formatWorkflowActionLabel(action)}
                 </button>
-              ))}
-              <button
-                onClick={() => {
-                  const name = normalizeName(lead.first_name || "")
-                  openSMS(`Hey ${name}, I haven't heard back so I'll pause your search for now. No rush, just let me know when you'd like me to pick it back up!`)
-                }}
-                title="Final Follow-Up"
-                aria-label="Final Follow-Up"
-                className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border bg-[var(--crm-panel)] text-[var(--crm-text-secondary)] border-[var(--crm-border)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] transition-colors"
-              >
-                Final
-              </button>
-            </div>
+                {fuToolNote && (
+                  <p className="mt-1.5 text-[11px] text-[var(--crm-text-muted)]">{fuToolNote}</p>
+                )}
+              </div>
+            )}
           </div>
         </SectionCard>
 

@@ -12,14 +12,14 @@ function getActionLabel(crm_status: string, follow_up_count: number | null | und
     case "contacted":
       return "Send List"
     case "list_sent": {
-      // Standardized follow-up labels (was: Tour Favorites / List Feedback /
-      // Final Check / Pause Search) — consistent with Kanban, Lead panel, and
-      // Companion. count N = about to do Follow-Up N+1.
+      // The Agenda keeps its own DESCRIPTIVE labels (what the follow-up is for) —
+      // intentionally different from the standardized "Follow-Up N" used on the
+      // Kanban badge / Next Action / Companion / calendar.
       const count = Number(follow_up_count ?? 0)
-      if (count === 0) return "Follow-Up 1"
-      if (count === 1) return "Follow-Up 2"
-      if (count === 2) return "Follow-Up 3"
-      return "Final Follow-Up"
+      if (count === 0) return "Tour Favorites"
+      if (count === 1) return "List Feedback"
+      if (count === 2) return "Final Check"
+      return "Pause Search"
     }
     case "ready_to_tour":
       return "Setup Tour"
@@ -28,7 +28,7 @@ function getActionLabel(crm_status: string, follow_up_count: number | null | und
     case "applied":
       return "Check App"
     case "closed":
-      return "Invoice Details"
+      return "Get Invoice Details"
     default:
       return "Follow Up"
   }

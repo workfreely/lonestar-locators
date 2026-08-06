@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { LeadSummaryDTO, NextActionDTO } from "@bc/companion-shared";
-import { formatWorkflowActionLabel } from "@bc/companion-shared";
+import { formatWorkflowActionLabel, isFollowUpAction } from "@bc/companion-shared";
 import { SectionCard, Field, StageBadge, StatusPill, Button } from "./primitives";
 
 /**
@@ -132,46 +132,32 @@ export function LeadPanelView({
           </SectionCard>
         )}
 
-        {/* ── Quick Actions ── */}
-        <SectionCard title="Quick Actions" defaultOpen={false}>
+        {/* ── Messaging Tools ── (message shortcuts only; Contact Lead + List
+            Sent removed — Call/Text are in the header, List Sent is a workflow
+            action) */}
+        <SectionCard title="Messaging Tools" defaultOpen={false}>
           <div className="lp-grid-2">
-            <Button variant="solid" onClick={() => demo("Contact Lead")}>
-              Contact Lead
-            </Button>
             <Button variant="ghost" onClick={() => demo("Text Top 3")}>
               Text Top 3
-            </Button>
-            <Button variant="ghost" onClick={() => demo("List Sent")}>
-              List Sent
             </Button>
             <Button variant="ghost" onClick={() => demo("AI Voice Script")}>
               AI Voice Script
             </Button>
           </div>
-          <div className="lp-fu-row">
-            <span className="lp-fu-label">Follow Up</span>
-            {/* Verified ultra-compact inline row → compact "FU{n}" with the full
-                phrase in title + aria-label. */}
-            {[1, 2, 3].map((n) => (
+          {/* One contextual follow-up control for the CURRENT next action. Inert
+              in demo; Phase 3.5 wires the editable template. Never completes. */}
+          {openAction && isFollowUpAction(openAction.title) && (
+            <div style={{ marginTop: "10px" }}>
               <Button
-                key={n}
                 variant="ghost"
-                onClick={() => demo(`Follow-Up ${n}`)}
-                title={`Follow-Up ${n}`}
-                ariaLabel={`Follow-Up ${n}`}
+                full
+                onClick={() => demo(`Send ${formatWorkflowActionLabel(openAction.title)}`)}
+                title={`Send ${formatWorkflowActionLabel(openAction.title)} (template coming soon)`}
               >
-                FU{n}
+                Send {formatWorkflowActionLabel(openAction.title)}
               </Button>
-            ))}
-            <Button
-              variant="ghost"
-              onClick={() => demo("Final Follow-Up")}
-              title="Final Follow-Up"
-              ariaLabel="Final Follow-Up"
-            >
-              Final
-            </Button>
-          </div>
+            </div>
+          )}
         </SectionCard>
       </div>
 
