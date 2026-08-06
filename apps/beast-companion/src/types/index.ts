@@ -25,8 +25,11 @@ export type PageContext = {
   url: string;
 };
 
-/** Content → Background: toggle the native side panel for the sender's tab. */
-export type TogglePanelMessage = { type: "TOGGLE_PANEL" };
+/**
+ * Content → Background: toggle the native side panel for the sender's WINDOW.
+ * `clickTs` is a performance.now() stamp from the click, for latency logging.
+ */
+export type TogglePanelMessage = { type: "TOGGLE_PANEL"; clickTs?: number };
 
 /** Content → Background: which side is the panel on? Response: { side: PanelSide }. */
 export type GetPanelSideMessage = { type: "GET_PANEL_SIDE" };
