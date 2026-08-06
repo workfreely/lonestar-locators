@@ -16,16 +16,21 @@ export default function LeadNotes({
 }) {
   return (
     <>
-      <CollapsibleNotes title="Client Notes" defaultOpen={!!(lead.notes && lead.notes.trim())} storageKey="client-notes">
-        {/* Content uses the shared theme tokens (like Search Criteria / Credit
-            Screening) so every section reads as one cohesive surface. */}
-        <textarea
-          value={lead.notes || ""}
-          readOnly
-          placeholder="No notes submitted."
-          className="w-full h-20 text-[12.5px] bg-[var(--crm-inset)] border border-[var(--crm-border)] rounded-xl px-3 py-2 resize-none cursor-default text-[var(--crm-text-primary)] placeholder-[var(--crm-text-muted)] focus:outline-none"
-        />
-      </CollapsibleNotes>
+      {/* Client Notes is read-only client-submitted data — show it ONLY when the
+          lead actually submitted notes. When empty, the whole section is hidden
+          (no "No notes submitted." placeholder), same conditional rule as Search
+          Criteria / Credit Screening. Locator Notes below stays always-editable. */}
+      {!!(lead.notes && lead.notes.trim()) && (
+        <CollapsibleNotes title="Client Notes" defaultOpen storageKey="client-notes">
+          {/* Content uses the shared theme tokens (like Search Criteria / Credit
+              Screening) so every section reads as one cohesive surface. */}
+          <textarea
+            value={lead.notes}
+            readOnly
+            className="w-full h-20 text-[12.5px] bg-[var(--crm-inset)] border border-[var(--crm-border)] rounded-xl px-3 py-2 resize-none cursor-default text-[var(--crm-text-primary)] placeholder-[var(--crm-text-muted)] focus:outline-none"
+          />
+        </CollapsibleNotes>
+      )}
 
       <CollapsibleNotes title="Locator Notes" defaultOpen={!!(lead.locator_notes && lead.locator_notes.trim())} storageKey="locator-notes">
         <textarea

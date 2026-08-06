@@ -57,11 +57,14 @@ export function SectionCard({
   );
 }
 
+// A single label/value row. Callers only render a Field when the value is
+// meaningful (see FieldSection), so there is no empty-state dash here — an
+// uncollected field is omitted entirely, never shown as "—".
 export function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="lp-field">
       <span className="lp-field-label">{label}</span>
-      <span className="lp-field-value">{value || "—"}</span>
+      <span className="lp-field-value">{value}</span>
     </div>
   );
 }

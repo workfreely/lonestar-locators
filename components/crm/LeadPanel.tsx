@@ -68,6 +68,18 @@ function formatDesiredAreas(neighborhoods: unknown, city: string | null | undefi
   return raw
 }
 
+// A saved value is "meaningful" only when present and non-blank. The single
+// gate for conditional rendering: an uncollected field is omitted entirely —
+// never shown as a blank, "$0", "Not listed", a placeholder dash, or "Not
+// specified". The lead's saved submission is the source of truth, so a
+// previously-collected value still shows even if the field was later disabled
+// on the current SmartLead Form.
+function hasValue(v: unknown): boolean {
+  if (v === null || v === undefined) return false
+  if (typeof v === "string") return v.trim().length > 0
+  return true
+}
+
 function formatRent(rent: string) {
   if (!rent) return "Not listed"
   const matches = rent.match(/\d[\d,]*/g)
@@ -1267,48 +1279,74 @@ export default function LeadPanel({
           </button>
         </div>
 
-        {/* Section: Search Criteria */}
-        <SectionCard title="Search Criteria" shaded collapsible defaultOpen={true} storageKey="search-criteria">
-          <Field label={inferredMarket ? "Interest" : "City"} value={inferredMarket || lead.city} />
-          <Field label="Budget" value={formatRent(lead.desired_rent)} />
-          <Field label="Property Type" value={lead.property_type} />
-          <Field label="Beds / Baths" value={lead.beds || lead.baths ? `${lead.beds || "—"} / ${lead.baths || "—"}` : null} />
-          <Field label="Move Date" value={formatDate(lead.move_date)} />
-          {(() => {
-            const areas = formatDesiredAreas(lead.neighborhoods, lead.city)
-            return areas ? <Field label="Desired Areas" value={areas} /> : null
-          })()}
-          {lead.source && (
-            <div className="flex items-start justify-between gap-4">
-              <span className="text-[12.5px] text-[var(--crm-text-muted)] flex-none">Source</span>
-              <LeadSourceBadge source={lead.source} className="text-[11px] px-2 py-0.5" />
-            </div>
-          )}
-        </SectionCard>
+        {/* Section: Search Criteria — canonical order; each row shows only when
+            the lead actually has that saved value, and the whole section hides
+            when the lead has none of them. No blank/"$0"/"Not listed"/dash rows.
+            Income = the SmartLead Form's Monthly Household Income range, rendered
+            verbatim (incl. "/ month"), directly after Budget. */}
+        {(() => {
+          const cityValue = inferredMarket || lead.city
+          const bedsBaths = lead.beds || lead.baths ? `${lead.beds || "—"} / ${lead.baths || "—"}` : null
+          const moveDate = hasValue(lead.move_date) ? formatDate(lead.move_date) : null
+          const areas = formatDesiredAreas(lead.neighborhoods, lead.city)
+          const anyPresent =
+            hasValue(cityValue) || hasValue(lead.desired_rent) || hasValue(lead.income) ||
+            hasValue(lead.property_type) || hasValue(bedsBaths) || hasValue(moveDate) ||
+            hasValue(areas) || hasValue(lead.source)
+          if (!anyPresent) return null
+          return (
+            <SectionCard title="Search Criteria" shaded collapsible defaultOpen={true} storageKey="search-criteria">
+              {hasValue(cityValue) && <Field label={inferredMarket ? "Interest" : "City"} value={cityValue} />}
+              {hasValue(lead.desired_rent) && <Field label="Budget" value={formatRent(lead.desired_rent)} />}
+              {hasValue(lead.income) && <Field label="Income" value={lead.income} />}
+              {hasValue(lead.property_type) && <Field label="Property Type" value={lead.property_type} />}
+              {hasValue(bedsBaths) && <Field label="Beds / Baths" value={bedsBaths} />}
+              {hasValue(moveDate) && <Field label="Move Date" value={moveDate} />}
+              {hasValue(areas) && <Field label="Desired Areas" value={areas} />}
+              {hasValue(lead.source) && (
+                <div className="flex items-start justify-between gap-4">
+                  <span className="text-[12.5px] text-[var(--crm-text-muted)] flex-none">Source</span>
+                  <LeadSourceBadge source={lead.source} className="text-[11px] px-2 py-0.5" />
+                </div>
+              )}
+            </SectionCard>
+          )
+        })()}
 
-        {/* Section: Screening — only what's useful. Credit Score / History /
-            Criminal Background always show (the last reassures the locator it
-            was checked); Broken Lease and Eviction rows appear only when the
-            lead actually has one, with the age folded in. No "No" rows. */}
-        <SectionCard title="Credit Screening" collapsible defaultOpen={true} storageKey="credit-screening">
-          <Field label="Credit Score" value={lead.credit_score} />
-          <Field label="Credit History" value={lead.credit_history} />
-          {String(lead.credit_history || "").toLowerCase().includes("broken") && (
-            <Field label="Broken Lease" value={lead.broken_lease_age ? `${lead.broken_lease_age} ago` : "Yes"} />
-          )}
-          {lead.credit_history === "Eviction" && (
-            <Field label="Eviction" value={lead.eviction_age ? `${lead.eviction_age} ago` : "Yes"} />
-          )}
-          {(() => {
+        {/* Section: Screening — each row shows only when the lead has that saved
+            value, and the whole section hides when there is no screening data.
+            Broken Lease / Eviction appear only when the history indicates one,
+            with the age folded in. Criminal Background shows the saved answer
+            (incl. "None" when that was actually recorded) but is omitted
+            entirely when the field was never collected — no invented rows. */}
+        {(() => {
+          const brokenLease = String(lead.credit_history || "").toLowerCase().includes("broken")
+            ? (lead.broken_lease_age ? `${lead.broken_lease_age} ago` : "Yes")
+            : null
+          const eviction = lead.credit_history === "Eviction"
+            ? (lead.eviction_age ? `${lead.eviction_age} ago` : "Yes")
+            : null
+          const criminal = (() => {
             const cb = lead.criminal_background
-            let value = "None"
-            if (cb && cb !== "None") {
-              const age = cb === "Felony" ? lead.felony_age : cb === "Misdemeanor" ? lead.misdemeanor_age : null
-              value = age ? `${cb} (${age})` : cb
-            }
-            return <Field label="Criminal Background" value={value} />
-          })()}
-        </SectionCard>
+            if (!hasValue(cb)) return null
+            if (cb === "None") return "None"
+            const age = cb === "Felony" ? lead.felony_age : cb === "Misdemeanor" ? lead.misdemeanor_age : null
+            return age ? `${cb} (${age})` : cb
+          })()
+          const anyPresent =
+            hasValue(lead.credit_score) || hasValue(lead.credit_history) ||
+            hasValue(brokenLease) || hasValue(eviction) || hasValue(criminal)
+          if (!anyPresent) return null
+          return (
+            <SectionCard title="Credit Screening" collapsible defaultOpen={true} storageKey="credit-screening">
+              {hasValue(lead.credit_score) && <Field label="Credit Score" value={lead.credit_score} />}
+              {hasValue(lead.credit_history) && <Field label="Credit History" value={lead.credit_history} />}
+              {hasValue(brokenLease) && <Field label="Broken Lease" value={brokenLease} />}
+              {hasValue(eviction) && <Field label="Eviction" value={eviction} />}
+              {hasValue(criminal) && <Field label="Criminal Background" value={criminal} />}
+            </SectionCard>
+          )
+        })()}
 
         {/* Section: Invoice Details — post-close lease + commission record.
             Only for Closed leads; collapsed by default like the others. */}

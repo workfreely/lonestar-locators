@@ -38,6 +38,51 @@ function fmtDue(iso?: string | null) {
   return formatDueDateTime(iso, { timeZone: PREVIEW_TIME_ZONE });
 }
 
+/**
+ * A saved value is "meaningful" only when it is present and non-blank. This is
+ * the single gate for conditional rendering: uncollected fields are omitted
+ * entirely — never shown as blank, "$0", a placeholder dash, or "Not specified".
+ */
+function hasValue(v: unknown): boolean {
+  if (v === null || v === undefined) return false;
+  if (typeof v === "string") return v.trim().length > 0;
+  return true;
+}
+
+interface DisplayRow {
+  label: string;
+  value: string | null | undefined;
+}
+
+/**
+ * A collapsible field section that renders ONLY the rows with a meaningful
+ * saved value, in the caller's canonical order, and hides itself entirely when
+ * no row has data. The lead's saved submission is the source of truth — a row
+ * shows because THIS lead has that value, independent of whether the field is
+ * still enabled on the current SmartLead Form.
+ */
+function FieldSection({
+  title,
+  rows,
+  shaded,
+  defaultOpen,
+}: {
+  title: string;
+  rows: DisplayRow[];
+  shaded?: boolean;
+  defaultOpen?: boolean;
+}) {
+  const visible = rows.filter((r) => hasValue(r.value));
+  if (visible.length === 0) return null;
+  return (
+    <SectionCard title={title} shaded={shaded} defaultOpen={defaultOpen}>
+      {visible.map((r) => (
+        <Field key={r.label} label={r.label} value={r.value} />
+      ))}
+    </SectionCard>
+  );
+}
+
 export function LeadIdentityHeader({ lead, onDemo }: { lead: LeadSummaryDTO; onDemo: OnDemo }) {
   // Copy-the-phone affordance — mirrors the CRM lead panel exactly: the Copy
   // control is revealed on hover/focus of the phone row (and always shown on
@@ -182,39 +227,53 @@ export function LeadPanelBody({
         </Button>
       </div>
 
-      {/* ── Search Criteria ── */}
-      <SectionCard title="Search Criteria" shaded defaultOpen>
-        <Field label={sc.interest ? "Interest" : "City"} value={sc.interest || sc.city} />
-        <Field label="Budget" value={sc.budgetText} />
-        <Field label="Property Type" value={sc.propertyType} />
-        <Field label="Beds / Baths" value={sc.beds || sc.baths ? `${sc.beds || "—"} / ${sc.baths || "—"}` : null} />
-        <Field label="Move Date" value={formatDateDisplay(sc.moveDate)} />
-        <Field label="Desired Areas" value={sc.desiredAreas} />
-        <Field label="Source" value={sc.source} />
-      </SectionCard>
+      {/* ── Search Criteria ── (canonical order; each row shows only when the
+          lead actually has that saved value. Income = the SmartLead Form's
+          "Monthly Household Income" range, rendered verbatim (incl. "/ month"),
+          directly after Budget.) */}
+      <FieldSection
+        title="Search Criteria"
+        shaded
+        defaultOpen
+        rows={[
+          { label: sc.interest ? "Interest" : "City", value: sc.interest || sc.city },
+          { label: "Budget", value: sc.budgetText },
+          { label: "Income", value: sc.income },
+          { label: "Property Type", value: sc.propertyType },
+          { label: "Beds / Baths", value: sc.beds || sc.baths ? `${sc.beds || "—"} / ${sc.baths || "—"}` : null },
+          { label: "Move Date", value: hasValue(sc.moveDate) ? formatDateDisplay(sc.moveDate) : null },
+          { label: "Desired Areas", value: sc.desiredAreas },
+          { label: "Source", value: sc.source },
+        ]}
+      />
 
-      {/* ── Credit Screening ── */}
-      <SectionCard title="Credit Screening" defaultOpen>
-        <Field label="Credit Score" value={cs.creditScore} />
-        <Field label="Credit History" value={cs.creditHistory} />
-        {cs.brokenLeaseAge && <Field label="Broken Lease" value={`${cs.brokenLeaseAge} ago`} />}
-        {cs.evictionAge && <Field label="Eviction" value={`${cs.evictionAge} ago`} />}
-        <Field label="Criminal Background" value={cs.criminalBackground} />
-      </SectionCard>
+      {/* ── Credit Screening ── (same rule; whole section hides if the lead has
+          no screening data at all) */}
+      <FieldSection
+        title="Credit Screening"
+        defaultOpen
+        rows={[
+          { label: "Credit Score", value: cs.creditScore },
+          { label: "Credit History", value: cs.creditHistory },
+          { label: "Broken Lease", value: hasValue(cs.brokenLeaseAge) ? `${cs.brokenLeaseAge} ago` : null },
+          { label: "Eviction", value: hasValue(cs.evictionAge) ? `${cs.evictionAge} ago` : null },
+          { label: "Criminal Background", value: cs.criminalBackground },
+        ]}
+      />
 
       {/* ── Client Notes ── (read-only, client's form-submitted notes; same
           existing data as the CRM's Client Notes = leads.notes. Locator Notes
           stays in the LB workspace.)
-          Collapsed by default. Keyed by lead id so the collapsed/expanded state
+          Rendered ONLY when this lead actually submitted notes — no "No notes
+          submitted." placeholder; an uncollected notes field hides the whole
+          section. Collapsed by default and keyed by lead id so the state
           persists while THIS client stays active (and across popover open/close,
-          since the body never unmounts) but resets to collapsed for a new client.
-          No preview is shown when collapsed — the read-only text lives only
-          inside the section. */}
-      <SectionCard key={`client-notes-${lead.id}`} title="Client Notes" defaultOpen={false}>
-        <p className={`lp-notes${lead.clientNotes && lead.clientNotes.trim() ? "" : " is-empty"}`}>
-          {lead.clientNotes && lead.clientNotes.trim() ? lead.clientNotes : "No notes submitted."}
-        </p>
-      </SectionCard>
+          since the body never unmounts) but resets for a new client. */}
+      {hasValue(lead.clientNotes) && (
+        <SectionCard key={`client-notes-${lead.id}`} title="Client Notes" defaultOpen={false}>
+          <p className="lp-notes">{lead.clientNotes}</p>
+        </SectionCard>
+      )}
 
       {/* ── Invoice Details (Closed only) ── */}
       {lead.isClosed && (

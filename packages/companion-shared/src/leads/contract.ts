@@ -29,6 +29,10 @@ export const searchCriteriaSchema = z.object({
   interest: z.string().nullish(), // inferred market for short leads
   budgetText: z.string().nullish(), // preserves the "$1,149 – $1,958" display form
   budget: rangeSchema.nullish(),
+  // Monthly Household Income — the SmartLead Form's canonical range string,
+  // stored verbatim (value === label), e.g. "$4,000 – $6,000 / month". Nullish
+  // when the form did not collect it; the row is then omitted (never blank/$0).
+  income: z.string().nullish(),
   propertyType: z.string().nullish(),
   beds: z.string().nullish(),
   baths: z.string().nullish(),

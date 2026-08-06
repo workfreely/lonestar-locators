@@ -29,6 +29,7 @@ export const DEMO_FIXTURES: DemoFixture[] = [
       searchCriteria: {
         city: "Sampleton",
         budgetText: "$1,200 – $1,800",
+        income: "$4,000 – $6,000 / month", // canonical SmartLead Form option
         propertyType: "Apartment",
         beds: "1-2",
         baths: "1-2",
@@ -74,6 +75,7 @@ export const DEMO_FIXTURES: DemoFixture[] = [
       searchCriteria: {
         city: "Sampleton",
         budgetText: "$2,000 – $2,600",
+        income: "$6,000 – $8,000 / month", // canonical SmartLead Form option
         propertyType: "High-Rise",
         beds: "2",
         baths: "2",

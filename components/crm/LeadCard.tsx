@@ -43,6 +43,14 @@ function formatRent(rent: string) {
   return formatted[0] ?? "Not listed"
 }
 
+// A saved value is "meaningful" only when present and non-blank. Uncollected
+// card rows are omitted entirely — never shown as "—" / "Not listed" / "$0".
+function hasValue(v: unknown): boolean {
+  if (v === null || v === undefined) return false
+  if (typeof v === "string") return v.trim().length > 0
+  return true
+}
+
 function getFollowUpStatus(date: string) {
   if (!date) return "none"
   const today = new Date()
@@ -276,34 +284,49 @@ export default function LeadCard({
         {nameEl()}
         {phoneRow()}
         {archiveLine()}
+        {/* Canonical order (subset of the panel): City, Budget, Income,
+            Property, Move Date, Credit, Source. Each row shows only when the
+            lead has that saved value — no "—" / "Not listed" / "$0" rows.
+            Income (SmartLead Form Monthly Household Income) sits directly after
+            Budget, on the layouts that show Budget (detailed + compact). */}
         <div className="kb-grid">
-          <div className="kb-row">
-            <span className="kb-k">{inferredMarket ? "Interest" : "City"}</span>
-            <span className="kb-v">{inferredMarket || lead.city || "—"}</span>
-          </div>
-          {!twoFields && (
+          {hasValue(inferredMarket || lead.city) && (
+            <div className="kb-row">
+              <span className="kb-k">{inferredMarket ? "Interest" : "City"}</span>
+              <span className="kb-v">{inferredMarket || lead.city}</span>
+            </div>
+          )}
+          {!twoFields && hasValue(lead.desired_rent) && (
             <div className="kb-row">
               <span className="kb-k">Budget</span>
               <span className="kb-v">{formatRent(lead.desired_rent)}</span>
             </div>
           )}
-          {extras && (
+          {!twoFields && hasValue(lead.income) && (
+            <div className="kb-row">
+              <span className="kb-k">Income</span>
+              <span className="kb-v">{lead.income}</span>
+            </div>
+          )}
+          {extras && hasValue(lead.property_type) && (
             <div className="kb-row">
               <span className="kb-k">Property</span>
-              <span className="kb-v">{lead.property_type || "—"}</span>
+              <span className="kb-v">{lead.property_type}</span>
             </div>
           )}
-          <div className="kb-row">
-            <span className="kb-k">Move Date</span>
-            <span className="kb-v">{formatDate(lead.move_date) || "—"}</span>
-          </div>
-          {!twoFields && (
+          {hasValue(lead.move_date) && (
+            <div className="kb-row">
+              <span className="kb-k">Move Date</span>
+              <span className="kb-v">{formatDate(lead.move_date)}</span>
+            </div>
+          )}
+          {!twoFields && hasValue(lead.credit_score) && (
             <div className="kb-row">
               <span className="kb-k">Credit</span>
-              <span className="kb-v">{lead.credit_score || "—"}</span>
+              <span className="kb-v">{lead.credit_score}</span>
             </div>
           )}
-          {extras && lead.source && (
+          {extras && hasValue(lead.source) && (
             <div className="kb-row">
               <span className="kb-k">Source</span>
               <LeadSourceBadge source={lead.source} className="text-[11px] px-2 py-0.5" />
