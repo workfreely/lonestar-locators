@@ -1,23 +1,21 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { LeadSummaryDTO, NextActionDTO } from "@bc/companion-shared";
-import { LeadPanelView } from "./lead/LeadPanelView";
+import { LeadIdentityHeader, LeadPanelBody } from "./lead/LeadPanelView";
 import { PanelStateView, type PanelState } from "./lead/PanelStates";
+import { CompanionDrawer } from "./drawer/CompanionDrawer";
 import "./lead/panel.css";
 
 /**
  * The Companion's single interface, rendered in the native side panel.
  *
- * Control model (per product direction):
- *  - Chrome's native side-panel X is the SOLE control that closes the whole
- *    Companion. There is intentionally NO close control in our internal toolbar.
- *  - The internal toolbar's hamburger toggles the navigation/settings DRAWER.
- *  - The drawer's back arrow closes ONLY the drawer and returns to the workspace.
+ * Layout: toolbar (hamburger) · the active-client identity header (stays visible
+ * when a client is loaded) · the body region. The hamburger drawer overlays ONLY
+ * the body region — so the identity + Call/Text stay visible, and the body's
+ * section/scroll state is preserved underneath and restored on close.
  *
- * State preservation: the drawer OVERLAYS the workspace, which stays mounted the
- * whole time, so the active client, section, form state, and scroll are kept.
- *
- * Phase 3: the workspace renders the lead panel from PROPS only — sanitized demo
- * data in the dev harness, or a non-loaded state in production (no live data yet).
+ * Control model: Chrome's native side-panel X is the sole close for the whole
+ * Companion. The hamburger toggles the drawer; the drawer's back arrow returns to
+ * the panel (or up one level from a drawer sub-view).
  */
 export function PanelApp({
   state = "no-client",
@@ -29,17 +27,26 @@ export function PanelApp({
   nextActions?: NextActionDTO[];
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [demoNote, setDemoNote] = useState<string | null>(null);
+  const noteTimer = useRef<number | undefined>(undefined);
+
+  function onDemo(label: string) {
+    setDemoNote(`Demo preview — “${label}” is inactive`);
+    if (noteTimer.current) window.clearTimeout(noteTimer.current);
+    noteTimer.current = window.setTimeout(() => setDemoNote(null), 2200);
+  }
+
+  const isLoaded = state === "loaded" && !!lead;
 
   return (
     <div className="bc-panel">
-      {/* Compact dark toolbar — hamburger ONLY (Chrome's native header shows the
-          name; Chrome's native X closes). */}
+      {/* Compact dark toolbar — hamburger ONLY. */}
       <header className="bc-toolbar">
         <button
           type="button"
           className="bc-icon-btn"
           onClick={() => setDrawerOpen((o) => !o)}
-          aria-label="Open navigation menu"
+          aria-label={drawerOpen ? "Close menu" : "Open menu"}
           aria-expanded={drawerOpen}
           title="Menu"
         >
@@ -49,35 +56,27 @@ export function PanelApp({
         </button>
       </header>
 
-      {/* Persistent client workspace — always mounted. */}
-      <div className="bc-workspace">
-        {state === "loaded" && lead ? (
-          <LeadPanelView lead={lead} nextActions={nextActions} />
-        ) : (
-          <PanelStateView state={state === "loaded" ? "no-client" : state} />
-        )}
+      {/* Identity header — stays visible above the drawer when a client is loaded. */}
+      {isLoaded && <LeadIdentityHeader lead={lead!} onDemo={onDemo} />}
+
+      {/* Body region — the drawer overlays ONLY this. The scroll container stays
+          mounted underneath the drawer, preserving section + scroll state. */}
+      <div className="bc-below">
+        <div className="bc-below-scroll">
+          {isLoaded ? (
+            <LeadPanelBody lead={lead!} nextActions={nextActions} onDemo={onDemo} />
+          ) : (
+            <PanelStateView state={state === "loaded" ? "no-client" : state} />
+          )}
+        </div>
+        <CompanionDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} onDemo={onDemo} />
       </div>
 
-      {/* Navigation / settings drawer — overlays the workspace below the toolbar. */}
-      <nav className={`bc-drawer ${drawerOpen ? "is-open" : ""}`} aria-hidden={!drawerOpen}>
-        <div className="bc-drawer-head">
-          <button
-            type="button"
-            className="bc-icon-btn"
-            onClick={() => setDrawerOpen(false)}
-            aria-label="Back to workspace"
-            title="Back"
-          >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <path d="M16 10H4M9 5l-5 5 5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-          <span className="bc-drawer-title">Menu</span>
+      {demoNote && (
+        <div className="lp-demo-toast" role="status">
+          {demoNote}
         </div>
-        <div className="bc-drawer-body">
-          <p className="bc-drawer-note">Navigation &amp; settings coming soon.</p>
-        </div>
-      </nav>
+      )}
     </div>
   );
 }
