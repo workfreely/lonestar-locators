@@ -55,39 +55,30 @@
 }
 .bc-menu-item.is-quiet:hover { background: var(--lb-surface-elevated); color: var(--lb-text-primary); }
 
-/* ── Appearance (theme swatches) ── */
-.bc-appearance {
-  margin-top: 6px;
-  padding: 11px 12px;
+/* ── Inline Theme dropdown ── */
+.bc-theme-row {
+  cursor: default;
+}
+.bc-theme-row:hover {
+  background: var(--lb-surface); /* the row itself isn't a button — no hover */
+}
+.bc-theme-select {
+  flex: none;
+  min-width: 118px;
+  padding: 6px 8px;
+  border-radius: 8px;
   border: 1px solid var(--lb-border);
-  border-radius: 12px;
-}
-.bc-appearance-label {
-  display: block;
-  font-size: 11px;
+  background: var(--lb-surface-elevated);
+  color: var(--lb-text-primary);
+  font-family: inherit;
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--lb-text-secondary);
-  margin-bottom: 9px;
-}
-.bc-swatches { display: flex; gap: 8px; }
-.bc-swatch {
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
-  border: 2px solid var(--lb-border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   cursor: pointer;
-  padding: 0;
-  transition: transform 120ms ease, border-color 120ms ease;
 }
-.bc-swatch:hover { transform: translateY(-1px); }
-.bc-swatch.is-active { border-color: var(--lb-accent); }
-.bc-swatch:focus-visible { outline: 2px solid var(--lb-accent); outline-offset: 2px; }
-.bc-swatch-dot { width: 13px; height: 13px; border-radius: 50%; display: block; }
+.bc-theme-select:focus-visible {
+  outline: 2px solid var(--lb-accent);
+  outline-offset: 2px;
+}
 
 /* ── Footer: restrained account / status ── */
 .bc-drawer-foot {

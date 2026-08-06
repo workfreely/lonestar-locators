@@ -11,7 +11,9 @@
 
 import { z } from "zod";
 
-export const THEME_IDS = ["midnight", "evergreen", "purple", "obsidian", "rose"] as const;
+// Order matches the CRM's canonical theme list (lib/theme.ts CRM_THEMES /
+// ProfileAvatarMenu THEME_OPTIONS) so the Companion Theme dropdown reads the same.
+export const THEME_IDS = ["midnight", "obsidian", "rose", "evergreen", "purple"] as const;
 export type ThemeId = (typeof THEME_IDS)[number];
 
 export const DEFAULT_THEME_ID: ThemeId = "midnight";

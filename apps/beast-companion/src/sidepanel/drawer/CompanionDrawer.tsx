@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { THEME_IDS, THEME_REGISTRY, type ThemeId } from "@bc/companion-shared";
+import { THEME_IDS, type ThemeId } from "@bc/companion-shared";
 import { applyTheme } from "../applyTheme";
 import { VERSION } from "@/utils/constants";
 import "./drawer.css";
@@ -26,12 +26,8 @@ const TEMPLATE_NAMES = [
 // Sanitized preview account/status — no real user data (Phase 4 auth wires this).
 const DEMO_ACCOUNT = { name: "Jamie R.", workspace: "Demo Workspace", initial: "J" };
 
-function ExternalIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M14 4h6v6M20 4l-9 9M18 13v6a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h6" />
-    </svg>
-  );
+function cap(id: string) {
+  return id.charAt(0).toUpperCase() + id.slice(1);
 }
 function Chevron() {
   return (
@@ -87,37 +83,28 @@ export function CompanionDrawer({
       ) : (
         <div className="bc-drawer-body">
           <div className="bc-menu-top">
-            <button type="button" className="bc-menu-item is-primary" onClick={() => onDemo("Open Locator Beast")}>
-              <ExternalIcon />
-              <span className="bc-menu-label">Open Locator Beast</span>
-            </button>
-
             <button type="button" className="bc-menu-item" onClick={() => setView("templates")}>
               <span className="bc-menu-label">Message Templates</span>
               <Chevron />
             </button>
 
-            <div className="bc-appearance">
-              <span className="bc-appearance-label">Appearance</span>
-              <div className="bc-swatches" role="group" aria-label="Theme">
-                {THEME_IDS.map((id) => {
-                  const p = THEME_REGISTRY[id];
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      className={`bc-swatch ${theme === id ? "is-active" : ""}`}
-                      onClick={() => pickTheme(id)}
-                      title={id[0].toUpperCase() + id.slice(1)}
-                      aria-label={id}
-                      aria-pressed={theme === id}
-                      style={{ background: p.surface, borderColor: p.border }}
-                    >
-                      <span className="bc-swatch-dot" style={{ background: p.accent }} />
-                    </button>
-                  );
-                })}
-              </div>
+            {/* Inline Theme dropdown — same option names/order as the CRM. Applies
+                locally (no persistence) this phase; later a single shared user
+                preference syncs the theme between Locator Beast and the Companion. */}
+            <div className="bc-menu-item bc-theme-row">
+              <span className="bc-menu-label" id="bc-theme-label">Theme</span>
+              <select
+                className="bc-theme-select"
+                value={theme}
+                onChange={(e) => pickTheme(e.target.value as ThemeId)}
+                aria-labelledby="bc-theme-label"
+              >
+                {THEME_IDS.map((id) => (
+                  <option key={id} value={id}>
+                    {cap(id)}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
