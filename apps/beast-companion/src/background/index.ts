@@ -2,81 +2,52 @@ import type { PageContext, PanelSide, RuntimeMessage } from "@/types";
 import { log, logError } from "@/utils/log";
 
 /**
- * Background service worker — the single source of truth for panel state.
+ * Background service worker — OPEN-ONLY lifecycle.
  *
- * The launcher never decides open-vs-close; it just forwards a TOGGLE. This SW
- * tracks which tabs currently have the panel open, learning the truth from
- * Chrome's native lifecycle events (onOpened / onClosed) rather than pagehide or
- * delayed storage. That means the native X, the toolbar icon, and the launcher
- * all keep the same authoritative state, so a toggle can never misfire.
+ * Evidence-backed pattern (matches Apollo's native side-panel usage: it calls
+ * open() but never close()): the launcher only ever OPENS the panel; Chrome's
+ * native X is the sole close control; the toolbar icon is a fallback opener via
+ * openPanelOnActionClick. There is NO toggle, NO programmatic close(), and NO
+ * open/closed state to track — so there is nothing to desync and no stuck state.
  *
- * It NEVER disables the panel merely to close it — close() is the close path.
+ * One GLOBAL native panel per Chrome window (manifest side_panel.default_path +
+ * open({windowId})), so the same panel persists across tab switches, refresh,
+ * and navigation within a window.
+ *
+ * CRITICAL: open() must be called SYNCHRONOUSLY in the message handler (no await
+ * before it) or Chrome rejects it for losing the user gesture.
  */
 
 const SIDE_PANEL_PATH = "sidepanel.html";
 
-// ── Defensive facade over the newer sidePanel surface ────────────────────────
-// close() is Chrome 141+, onOpened 141+, onClosed 142+, getLayout 140+. @types/chrome
-// may not type all of these, so reach them through a cast and feature-detect.
-type CloseOptions = { tabId?: number; windowId?: number };
+// getLayout() is Chrome 140+; @types/chrome may not type it, so reach it via a
+// cast and feature-detect (fallback "right").
 type PanelLayout = { side?: PanelSide };
-type PanelOpenedInfo = { path: string; tabId?: number; windowId: number };
-type PanelClosedInfo = { path: string; tabId?: number; windowId: number };
-type EventLike<T> = { addListener: (cb: (info: T) => void) => void };
-
-type SidePanelExtra = {
-  close?: (options: CloseOptions) => Promise<void>;
+const sidePanel = chrome.sidePanel as unknown as typeof chrome.sidePanel & {
   getLayout?: () => Promise<PanelLayout>;
-  onOpened?: EventLike<PanelOpenedInfo>;
-  onClosed?: EventLike<PanelClosedInfo>;
 };
 
-const sidePanel = chrome.sidePanel as unknown as typeof chrome.sidePanel & SidePanelExtra;
-
-const CAN_CLOSE = typeof sidePanel.close === "function";
-const CAN_TRACK =
-  Boolean(sidePanel.onOpened?.addListener) && Boolean(sidePanel.onClosed?.addListener);
-const CAN_TOGGLE = CAN_CLOSE && CAN_TRACK;
-
-// ── Authoritative open-state, keyed by tab (our panels are tab-specific) ─────
-const openTabs = new Set<number>();
-// Latest page context per tab (URL/site/section) — reported by the content script.
+// Latest page context per tab (URL/site/section) — reported by the content
+// script. This is NOT panel state; it's the context-reporting pipe.
 const contextByTab = new Map<number, PageContext>();
 
-function enableActionOpen(): void {
-  // Toolbar icon opens the panel — a 100%-reliable user gesture and the fallback
-  // whenever the in-page launcher hits Chrome's post-manual-close gesture bug.
+function enablePanel(): void {
+  // Enable the GLOBAL panel (no tabId) and make the toolbar icon a reliable
+  // fallback opener. Neither is in the click path, so no user-gesture concern.
+  chrome.sidePanel
+    .setOptions({ path: SIDE_PANEL_PATH, enabled: true })
+    .catch((err) => logError("setOptions(global enable) failed:", err));
   chrome.sidePanel
     .setPanelBehavior({ openPanelOnActionClick: true })
     .catch((err) => logError("setPanelBehavior failed:", err));
 }
+chrome.runtime.onInstalled.addListener(enablePanel);
+enablePanel(); // also on worker startup
+log("background ready — OPEN-ONLY; native X closes; toolbar icon is the fallback opener");
 
-chrome.runtime.onInstalled.addListener(enableActionOpen);
-enableActionOpen(); // also on worker startup
-log(
-  `background ready — CAN_CLOSE=${CAN_CLOSE} CAN_TRACK=${CAN_TRACK} ` +
-    `→ ${CAN_TOGGLE ? "native toggle" : "open-only fallback (native X to close)"}`,
-);
+// Housekeeping only (context cache); no panel state is kept.
+chrome.tabs.onRemoved.addListener((tabId) => contextByTab.delete(tabId));
 
-// ── Learn the true state from Chrome's native lifecycle events ───────────────
-if (CAN_TRACK) {
-  sidePanel.onOpened!.addListener((info) => {
-    if (typeof info.tabId === "number") openTabs.add(info.tabId);
-    log(`native onOpened — tab=${info.tabId ?? "?"} window=${info.windowId} path=${info.path}`);
-  });
-  sidePanel.onClosed!.addListener((info) => {
-    if (typeof info.tabId === "number") openTabs.delete(info.tabId);
-    log(`native onClosed — tab=${info.tabId ?? "?"} window=${info.windowId} path=${info.path}`);
-  });
-}
-
-// Housekeeping: forget tabs that go away.
-chrome.tabs.onRemoved.addListener((tabId) => {
-  openTabs.delete(tabId);
-  contextByTab.delete(tabId);
-});
-
-// ── getLayout()-backed panel side (Chrome 140+), for launcher mirroring ──────
 async function getPanelSide(): Promise<PanelSide> {
   try {
     if (typeof sidePanel.getLayout !== "function") return "right";
@@ -88,44 +59,20 @@ async function getPanelSide(): Promise<PanelSide> {
   }
 }
 
-function ensureEnabledAndOpen(tabId: number): void {
-  // Ensure this tab's panel is enabled with the correct path (idempotent).
-  // Fire-and-forget so it doesn't insert an async gap before open() that would
-  // cost us the user gesture.
+function openPanel(windowId: number): void {
+  // Synchronous open — preserves the content-script user gesture. Global panel,
+  // keyed by window. (@types/chrome wrongly marks windowId required on the type.)
   chrome.sidePanel
-    .setOptions({ tabId, path: SIDE_PANEL_PATH, enabled: true })
-    .catch((err) => logError("setOptions(enable) failed:", err));
-  // Open synchronously to preserve the content-script user gesture. (@types/chrome
-  // wrongly marks windowId required on OpenOptions; the runtime accepts tabId-only.)
-  const open = chrome.sidePanel.open({ tabId } as unknown as chrome.sidePanel.OpenOptions);
-  open
-    .then(() => log(`open SUCCESS for tab ${tabId}`))
+    .open({ windowId } as unknown as chrome.sidePanel.OpenOptions)
+    .then(() => log(`open SUCCESS for window ${windowId}`))
     .catch((err) =>
       logError(
-        `open FAILURE for tab ${tabId} — use the toolbar icon as fallback. Full error:`,
+        `open FAILURE for window ${windowId} — use the toolbar icon as fallback. Full error:`,
         err,
         "| message:",
         (err as Error)?.message,
       ),
     );
-}
-
-function toggle(tabId: number): void {
-  if (CAN_TOGGLE && openTabs.has(tabId)) {
-    log(`TOGGLE tab ${tabId}: state=open → close()`);
-    sidePanel
-      .close!({ tabId })
-      .then(() => {
-        openTabs.delete(tabId); // optimistic; onClosed confirms
-        log(`close SUCCESS for tab ${tabId}`);
-      })
-      .catch((err) => logError(`close FAILURE for tab ${tabId}:`, err));
-    return;
-  }
-  // Closed (or we can't track/close) → open. In the open-only fallback this is
-  // always an open; the native X remains the way to close.
-  log(`TOGGLE tab ${tabId}: state=${CAN_TOGGLE ? "closed" : "unknown(fallback)"} → open()`);
-  ensureEnabledAndOpen(tabId);
 }
 
 chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendResponse) => {
@@ -141,16 +88,16 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
       `context — tab=${tabId ?? "?"} site=${message.context.site} ` +
         `${message.context.host}${message.context.path}`,
     );
-    return; // no response
+    return;
   }
 
-  if (message.type === "TOGGLE_PANEL") {
-    const tabId = sender.tab?.id;
-    if (typeof tabId !== "number") {
-      logError("TOGGLE_PANEL received without a tab id — ignoring");
+  if (message.type === "OPEN_PANEL") {
+    const windowId = sender.tab?.windowId;
+    if (typeof windowId !== "number") {
+      logError("OPEN_PANEL received without a window id — ignoring");
       return;
     }
-    toggle(tabId);
+    openPanel(windowId); // synchronous — no await before open()
     return;
   }
 });

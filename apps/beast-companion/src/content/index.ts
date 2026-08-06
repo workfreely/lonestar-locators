@@ -11,10 +11,12 @@ import type { PanelSide } from "@/types";
  * (smartapartmentdata.com everywhere; locatorbeast.com ONLY under /admin/*, never
  * the public marketing pages).
  *
- * Jobs: paint the launcher tab, keep it attached, TOGGLE the native side panel on
+ * Jobs: paint the launcher tab, keep it attached, OPEN the native side panel on
  * click, mirror the launcher to the panel's docked side, and report lightweight
- * page context (URL/site/section — no client data). Open/closed state lives in the
- * service worker; this script never tracks it.
+ * page context (URL/site/section — no client data).
+ *
+ * OPEN-ONLY: the launcher never toggles or closes. Chrome's native X is the sole
+ * close control, so there is no open/closed state to track and nothing to desync.
  */
 
 const INJECTED_FLAG = "__beastCompanionInjected";
@@ -24,12 +26,12 @@ declare global {
   }
 }
 
-function requestToggle(): void {
-  log("launcher click → requesting TOGGLE");
-  // Ask the background to open/close the native panel for this tab. Sent
+function requestOpen(): void {
+  log("launcher click → requesting OPEN");
+  // Ask the background to open the global native panel for this window. Sent
   // synchronously inside the click handler to preserve the user gesture.
-  chrome.runtime.sendMessage({ type: "TOGGLE_PANEL" }).catch((err) => {
-    logError("sendMessage(TOGGLE_PANEL) failed:", err);
+  chrome.runtime.sendMessage({ type: "OPEN_PANEL" }).catch((err) => {
+    logError("sendMessage(OPEN_PANEL) failed:", err);
   });
 }
 
@@ -79,7 +81,7 @@ function init(): void {
     }
     window[INJECTED_FLAG] = true;
 
-    const launcher = createLauncher(requestToggle);
+    const launcher = createLauncher(requestOpen);
     startPersistenceGuard(launcher.host);
 
     // Mirror to the panel's side now, and again whenever the user returns to the
@@ -91,7 +93,7 @@ function init(): void {
     reportContext();
     startContextWatcher();
 
-    log("ready — launcher docked; click toggles the native side panel");
+    log("ready — launcher docked; click opens the native side panel (native X closes)");
   } catch (err) {
     logError("init failed:", err);
   }

@@ -91,10 +91,9 @@ export function createLauncher(onOpen: () => void): Launcher {
   tab.type = "button";
   tab.className = "bc-tab";
   tab.innerHTML = LOGO_SVG;
-  // The launcher toggles: the service worker holds authoritative open/closed
-  // state (from Chrome's native lifecycle events), so a click can't misfire.
-  tab.setAttribute("aria-label", "Toggle Beast Companion");
-  tab.title = "Beast Companion";
+  // Open-only: a click always opens the native panel; Chrome's native X closes.
+  tab.setAttribute("aria-label", "Open Locator Beast Companion");
+  tab.title = "Open Locator Beast Companion";
   tab.addEventListener("click", onOpen);
   shadow.appendChild(tab);
 

@@ -1,13 +1,11 @@
 /**
  * Shared internal contracts.
  *
- * Native hybrid model: the launcher (content script) asks the BACKGROUND to
- * open/close the native side panel. Chrome requires open() (and close()) to
- * originate from a user gesture, so the launcher forwards the click synchronously.
- *
- * The SERVICE WORKER is the single source of truth for open/closed state. It
- * learns the true state from Chrome's native lifecycle events (sidePanel.onOpened
- * / onClosed) — never from pagehide or delayed storage — and toggles accordingly.
+ * Native hybrid model, OPEN-ONLY: the launcher (content script) asks the
+ * BACKGROUND to OPEN the global native side panel for its window. Chrome requires
+ * open() to originate from a user gesture, so the launcher forwards the click
+ * synchronously. There is no programmatic close and no open/closed state — the
+ * native X is the sole close control (matches Apollo's native-panel usage).
  */
 
 /** Which browser edge the native side panel is docked to (Chrome 140+ getLayout). */
@@ -25,8 +23,8 @@ export type PageContext = {
   url: string;
 };
 
-/** Content → Background: toggle the native side panel for the sender's tab. */
-export type TogglePanelMessage = { type: "TOGGLE_PANEL" };
+/** Content → Background: open the global native side panel for the sender's window. */
+export type OpenPanelMessage = { type: "OPEN_PANEL" };
 
 /** Content → Background: which side is the panel on? Response: { side: PanelSide }. */
 export type GetPanelSideMessage = { type: "GET_PANEL_SIDE" };
@@ -35,6 +33,6 @@ export type GetPanelSideMessage = { type: "GET_PANEL_SIDE" };
 export type ReportContextMessage = { type: "REPORT_CONTEXT"; context: PageContext };
 
 export type RuntimeMessage =
-  | TogglePanelMessage
+  | OpenPanelMessage
   | GetPanelSideMessage
   | ReportContextMessage;
