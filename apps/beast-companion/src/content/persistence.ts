@@ -30,11 +30,14 @@ export function startPersistenceGuard(host: HTMLElement): () => void {
   const ensureAttached = () => {
     dedupe();
     if (host.isConnected) return;
-    const parent = document.body ?? document.documentElement;
+    // Reattach under <html>, NEVER <body>: the host is position:fixed, and a
+    // transform/filter/perspective on <body> would otherwise become its
+    // containing block and pull the handle away from the true viewport edge.
+    const parent = document.documentElement;
     if (!parent) return;
     parent.appendChild(host);
     reattachCount += 1;
-    warn(`host was detached by the page — reattached (#${reattachCount}) under <${parent.tagName.toLowerCase()}>`);
+    warn(`host was detached by the page — reattached (#${reattachCount}) under <html>`);
   };
 
   const observer = new MutationObserver(ensureAttached);

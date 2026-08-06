@@ -1,41 +1,42 @@
 /*
  * Launcher styles — injected ONLY into the launcher's Shadow DOM. Nothing here
- * touches the host page. This is the small docked tab that toggles the native
- * Chrome Side Panel; it is the ONLY thing this extension injects into the page.
+ * touches the host page. This styles the small dark handle that toggles the
+ * native Chrome Side Panel; it is the ONLY thing this extension injects.
+ *
+ * The OUTER HOST is positioned by inline !important styles in launcher.ts
+ * (position:fixed; right/left:0; 52×52). Nothing here positions the host — the
+ * button just FILLS it — so the handle stays flush with the panel divider during
+ * a live resize with zero JavaScript.
  */
 
-.bc-root {
+:host {
   --bc-blue: #2f6bff;
   --bc-blue-bright: #5b8bff;
   --bc-panel-dark: #0b0f1a;
-  all: initial;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-.bc-root *,
-.bc-root *::before,
-.bc-root *::after {
+.bc-tab,
+.bc-tab *,
+.bc-tab *::before,
+.bc-tab *::after {
   box-sizing: border-box;
 }
 
-/* Docked seam tab: fixed to the page's right edge, ~22% down. When the native
-   side panel opens, Chrome narrows the page, so this edge (and the tab) slides
-   left and sits flush against the panel — reading as a tab protruding from the
-   panel's left boundary, Apollo-style. No page-shift math involved. */
+/* The handle: fills the fixed 52×52 host. It does NOT position itself — no
+   position:fixed, no top/left/right here — so it can never lag the host, which
+   is the element Chrome re-anchors to the viewport edge. */
 .bc-tab {
-  position: fixed;
-  right: 0;
-  top: 22vh;
-  /* Original ~52x52 presence (visual sizing correction). */
-  width: 52px;
-  height: 52px;
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
+  margin: 0;
   border: 0;
   cursor: pointer;
   pointer-events: auto;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: var(--bc-panel-dark);
   /* Rounded on the page-facing (left) side; a thin light divider + soft shadow
      define a clean Apollo-style boundary between the website and the Companion. */
@@ -43,15 +44,14 @@
   border-left: 1px solid rgba(255, 255, 255, 0.14);
   /* Webpage-facing shadow only (points AWAY from the seam, toward the page). */
   box-shadow: -3px 0 14px rgba(5, 7, 13, 0.28);
-  /* Never transition transform/left/right/margin — the tab is a fixed handle
-     bolted to the panel edge and must never move in any state. */
+  /* Only paint transitions — NEVER geometry (no transform/left/right/width). */
   transition:
     box-shadow 200ms ease,
     background 200ms ease;
 }
 
-/* Hover/active feedback: light up in place. No positional movement — no
-   transform, no left/right/margin change — so the outer seam stays flush. */
+/* Hover/active feedback lights up in place: no transform, no position change, so
+   the outer seam stays flush with the panel edge in every state. */
 .bc-tab:hover,
 .bc-tab:active {
   background: #111827;
@@ -68,8 +68,7 @@
   width: 30px;
   height: 30px;
   /* Only the inner icon may animate — a subtle scale/brighten that never shifts
-     the outer tab away from the edge. transform-origin centered so it grows in
-     place. */
+     the outer tab away from the edge. */
   transform-origin: center;
   transition:
     transform 160ms ease,
@@ -82,10 +81,10 @@
   filter: brightness(1.12);
 }
 
-/* ── Left-docked mirror (panel on the left edge) ───────────────────────── */
-.bc-root[data-side="left"] .bc-tab {
-  right: auto;
-  left: 0;
+/* ── Left-docked mirror (host carries data-side="left") ─────────────────────
+   Only the VISUAL seam flips here (corners, border side, shadow direction). The
+   host's left/right anchoring is handled by inline styles in launcher.ts. */
+:host([data-side="left"]) .bc-tab {
   border-radius: 0 14px 14px 0;
   border-left: 0;
   border-right: 1px solid rgba(255, 255, 255, 0.14);
@@ -93,7 +92,7 @@
   box-shadow: 3px 0 14px rgba(5, 7, 13, 0.28);
 }
 
-.bc-root[data-side="left"] .bc-tab:hover,
-.bc-root[data-side="left"] .bc-tab:active {
+:host([data-side="left"]) .bc-tab:hover,
+:host([data-side="left"]) .bc-tab:active {
   box-shadow: 4px 0 18px rgba(5, 7, 13, 0.4);
 }
