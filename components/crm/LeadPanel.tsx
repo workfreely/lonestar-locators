@@ -651,6 +651,9 @@ export default function LeadPanel({
       return true
     }
 
+    // Custom "Add Task" — a MANUAL row. Tagged explicitly (not via DB default)
+    // so it is never mistaken for a workflow action: no canonical action_key,
+    // action_type=manual, origin=custom → exempt from workflow dedup.
     const { data, error } = await supabase
       .from("lead_next_actions")
       .insert([{
@@ -659,6 +662,10 @@ export default function LeadPanel({
         due_at: input.dueAt,
         priority: input.priority,
         notes: input.notes || null,
+        action_key: null,
+        action_type: "manual",
+        origin: "custom",
+        status: "open",
       }])
       .select("*")
       .single()
@@ -992,6 +999,7 @@ export default function LeadPanel({
         : await createWorkflowActionIfNeeded(supabase, lead.id, {
             title: "Setup Tour",
             dueAt: new Date().toISOString(),
+            actionKey: "setup_tour",
           })
     }
     setNextActions?.((prev) => {

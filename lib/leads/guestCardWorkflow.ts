@@ -14,6 +14,7 @@
 // selected property's guest card is done — not after the first one.
 
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { CURRENT_WORKFLOW_VERSION } from "@bc/companion-shared"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 
 const FOLLOW_UP_TITLES = new Set(["fu1", "fu2", "fu3", "final", "final fu", "follow up"])
@@ -78,12 +79,15 @@ export async function triggerGuestCardForFavorite(
 
   // Per-property dedup: skip if a guest card for this property already exists,
   // whether it's still open or already completed.
+  // Per-property dedup keyed on action_key + property_id (NOT title): a guest
+  // card is intentionally one-open-PER-PROPERTY, so it is excluded from the
+  // one-open-per-action unique index and deduped here per property instead.
   const { data: existing, error: checkError } = await client
     .from("lead_next_actions")
     .select("id")
     .eq("lead_id", lead.id)
     .eq("property_id", favorite.id)
-    .ilike("title", "Email Guest Card")
+    .eq("action_key", "email_guest_card")
     .limit(1)
 
   if (checkError) {
@@ -104,6 +108,13 @@ export async function triggerGuestCardForFavorite(
         priority: "high",
         property_id: favorite.id,
         property_name: propertyName,
+        // Canonical workflow identity (per-property guest card).
+        action_key: "email_guest_card",
+        action_type: "workflow",
+        origin: "workflow",
+        sequence: null,
+        workflow_version: CURRENT_WORKFLOW_VERSION,
+        status: "open",
       },
     ])
     .select("*")

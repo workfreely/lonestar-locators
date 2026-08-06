@@ -92,6 +92,21 @@ export { formatDateDisplay } from "./format/date";
 export { formatDueDateTime, isPastDue } from "./format/dueDate";
 export type { DueDateFormatOptions } from "./format/dueDate";
 
+// Canonical workflow action identity (stable action_key set, shared CRM↔Companion)
+export {
+  WORKFLOW_ACTION_KEYS,
+  workflowActionKeySchema,
+  isWorkflowActionKey,
+  ACTION_TYPES,
+  actionTypeSchema,
+  ACTION_ORIGINS,
+  actionOriginSchema,
+  ACTION_STATUSES,
+  actionStatusSchema,
+  CURRENT_WORKFLOW_VERSION,
+} from "./leads/actionKeys";
+export type { WorkflowActionKey, ActionType, ActionOrigin, ActionStatus } from "./leads/actionKeys";
+
 // Workflow-action display labels (identity stays fu1/fu2/fu3/final_follow_up)
 export {
   isFollowUpAction,

@@ -14,22 +14,28 @@ const url = env.NEXT_PUBLIC_SUPABASE_URL;
 const key = env.SUPABASE_SERVICE_ROLE_KEY;
 const db = createClient(url, key, { auth: { persistSession: false } });
 
-// Canonical title → action_key map (known workflow labels only).
+// Legacy title → canonical action_key fallback, for any pre-canonicalization
+// rows whose action_key column is null. Post-A.1, rows carry action_key
+// directly and this map is only a fallback. Values are the CANONICAL keys.
 const KEY_MAP = new Map([
   ["contact lead", "contact_lead"],
-  ["follow up", "follow_up"],            // contacted-stage action (NOT in the user's canonical list — flag)
+  ["follow up", "contacted_follow_up"],  // contacted-stage chase (distinct from the FU chain)
   ["send list", "send_list"],
-  ["build list", "build_list"],          // virtual label; a real row would be unusual
-  ["fu1", "fu1"], ["fu2", "fu2"], ["fu3", "fu3"],
+  ["build list", "build_list"],
+  ["fu1", "follow_up_1"], ["fu2", "follow_up_2"], ["fu3", "follow_up_3"],
   ["final", "final_follow_up"],
-  ["reconnect client", "reconnect_client"], // ready_to_tour far-move action (flag — not in canonical list)
+  ["reconnect client", "reconnect_client"],
   ["setup tour", "setup_tour"],
-  ["tour follow-up", "tour_follow_up"],  // virtual/unimplemented
-  ["email guest card", "email_guest_card"], // flag — not in canonical list
+  ["tour follow-up", "tour_follow_up"],
+  ["email guest card", "email_guest_card"],
   ["check app", "check_application"],
-  ["get invoice details", "get_invoice_details"], // canonical list calls this confirm_lease — flag
+  ["get invoice details", "get_invoice_details"],
 ]);
 const WORKFLOW_KEYS = new Set(KEY_MAP.values());
+// Prefer the stable action_key column; fall back to the legacy title map only
+// for rows with a null key (never treat a manual/custom row as a workflow key).
+const keyOf = (a) =>
+  a.action_type === "manual" ? null : (a.action_key ?? KEY_MAP.get(norm(a.title)) ?? null);
 const norm = (t) => (t ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 
 async function fetchAll(table, cols) {
@@ -44,7 +50,7 @@ async function fetchAll(table, cols) {
   return out;
 }
 
-const actions = await fetchAll("lead_next_actions", "id,lead_id,title,completed,completed_at,due_at,created_at");
+const actions = await fetchAll("lead_next_actions", "id,lead_id,title,completed,completed_at,due_at,created_at,action_key,action_type,origin,status");
 const leads = await fetchAll("leads", "id,crm_status,follow_up_count,next_action_date");
 
 // ── 1) totals ────────────────────────────────────────────────────────────────
@@ -60,7 +66,7 @@ const keyStats = new Map(); // key -> {open, completed}
 const customTitleFreq = new Map(); // normalized custom title -> {rows, leads:Set}
 let unmappedRows = 0;
 for (const a of actions) {
-  const key = KEY_MAP.get(norm(a.title));
+  const key = keyOf(a);
   if (key) {
     const s = keyStats.get(key) ?? { open: 0, completed: 0 };
     a.completed ? s.completed++ : s.open++;
@@ -85,7 +91,7 @@ const suppressedCustomTitles = customTitleFreq.size - systematicUnmapped.length;
 // ── 4) duplicate OPEN workflow actions per (lead, canonical key) ──────────────
 const openWfGroups = new Map(); // `${lead}|${key}` -> count
 for (const a of open) {
-  const key = KEY_MAP.get(norm(a.title));
+  const key = keyOf(a);
   if (key && WORKFLOW_KEYS.has(key)) {
     const g = `${a.lead_id}|${key}`;
     openWfGroups.set(g, (openWfGroups.get(g) ?? 0) + 1);
@@ -102,12 +108,12 @@ let dupAnyGroups = 0; for (const n of openAnyGroups.values()) if (n > 1) dupAnyG
 // ── 6) dual FU state (virtual vs row) for list_sent leads ────────────────────
 const openFuByLead = new Map(); // lead_id -> Set of fu keys open
 for (const a of open) {
-  const key = KEY_MAP.get(norm(a.title));
-  if (key && ["fu1", "fu2", "fu3", "final_follow_up"].includes(key)) {
+  const key = keyOf(a);
+  if (key && ["follow_up_1", "follow_up_2", "follow_up_3", "final_follow_up"].includes(key)) {
     const s = openFuByLead.get(a.lead_id) ?? new Set(); s.add(key); openFuByLead.set(a.lead_id, s);
   }
 }
-const virtualFuFor = (fu) => (fu === 0 ? "fu1" : fu === 1 ? "fu2" : fu === 2 ? "fu3" : "final_follow_up");
+const virtualFuFor = (fu) => (fu === 0 ? "follow_up_1" : fu === 1 ? "follow_up_2" : fu === 2 ? "follow_up_3" : "final_follow_up");
 let listSentLeads = 0, listSentWithOpenFuRow = 0, fuDesyncLeads = 0, leadsWithMultipleOpenFu = 0;
 for (const l of leads) {
   if (l.crm_status !== "list_sent") continue;

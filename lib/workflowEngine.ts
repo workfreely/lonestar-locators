@@ -15,12 +15,15 @@
 // the single source of truth for the automatic-action time convention.
 
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { CURRENT_WORKFLOW_VERSION, type WorkflowActionKey } from "@bc/companion-shared"
 import { autoDueInDays, autoDueOnDate } from "./workflow/autoDueDate"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 
 export type WorkflowActionSpec = {
-  title: string
+  title: string // presentation label ONLY — never identity
   dueAt: string // ISO string
+  actionKey: WorkflowActionKey // stable canonical identity of this workflow action
+  sequence?: number | null // intra-chain ordering (follow-up steps); null otherwise
 }
 
 export type CreatedWorkflowAction = {
@@ -56,7 +59,7 @@ export function getStageWorkflowAction(
 ): WorkflowActionSpec | null {
   switch (newStage) {
     case "new":
-      return { title: "Contact Lead", dueAt: immediateNow() }
+      return { title: "Contact Lead", dueAt: immediateNow(), actionKey: "contact_lead" }
 
     case "contacted":
       // "Client has not responded" has no clean signal in this schema (no
@@ -65,34 +68,38 @@ export function getStageWorkflowAction(
       // createWorkflowActionIfNeeded covers "active Follow Up doesn't
       // already exist"; "stage is still Contacted" is trivially true here
       // since this only runs on transitions INTO contacted.
+      //
+      // contacted_follow_up is the contacted-stage chase — a DISTINCT canonical
+      // action from the post-list-sent follow_up_1/2/3 chain. Label stays
+      // "Follow Up" (unchanged); only the identity is canonicalized.
       if ((lead.follow_up_count ?? 0) > 0) return null
-      return { title: "Follow Up", dueAt: autoDueInDays(2) }
+      return { title: "Follow Up", dueAt: autoDueInDays(2), actionKey: "contacted_follow_up" }
 
     case "searching":
-      return { title: "Send List", dueAt: immediateNow() }
+      return { title: "Send List", dueAt: immediateNow(), actionKey: "send_list" }
 
     case "list_sent":
-      return { title: "FU1", dueAt: autoDueInDays(1) }
+      return { title: "FU1", dueAt: autoDueInDays(1), actionKey: "follow_up_1", sequence: 1 }
 
     case "ready_to_tour": {
       const moveDate = lead.move_date ? new Date(lead.move_date) : null
       if (!moveDate || isNaN(moveDate.getTime())) {
         // No usable Move Date to branch on — Setup Tour is always the
         // safe default rather than silently creating nothing.
-        return { title: "Setup Tour", dueAt: immediateNow() }
+        return { title: "Setup Tour", dueAt: immediateNow(), actionKey: "setup_tour" }
       }
       const daysUntilMove = Math.ceil((moveDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
       if (daysUntilMove > 90) {
-        return { title: "Reconnect Client", dueAt: autoDueOnDate(moveDate, -90) }
+        return { title: "Reconnect Client", dueAt: autoDueOnDate(moveDate, -90), actionKey: "reconnect_client" }
       }
-      return { title: "Setup Tour", dueAt: immediateNow() }
+      return { title: "Setup Tour", dueAt: immediateNow(), actionKey: "setup_tour" }
     }
 
     case "applied":
-      return { title: "Check App", dueAt: autoDueInDays(3) }
+      return { title: "Check App", dueAt: autoDueInDays(3), actionKey: "check_application" }
 
     case "closed":
-      return { title: "Get Invoice Details", dueAt: autoDueOnDate(new Date()) }
+      return { title: "Get Invoice Details", dueAt: autoDueOnDate(new Date()), actionKey: "get_invoice_details" }
 
     // "archived": no automatic actions (explicit).
     // "done_touring": Tour Management ("Tour Scheduled") isn't implemented
@@ -109,9 +116,9 @@ export function getStageWorkflowAction(
  */
 export function getNextFollowUpAction(completedTitle: string): WorkflowActionSpec | null {
   switch (completedTitle) {
-    case "FU1": return { title: "FU2", dueAt: autoDueInDays(2) }
-    case "FU2": return { title: "FU3", dueAt: autoDueInDays(3) }
-    case "FU3": return { title: "Final", dueAt: autoDueInDays(7) }
+    case "FU1": return { title: "FU2", dueAt: autoDueInDays(2), actionKey: "follow_up_2", sequence: 2 }
+    case "FU2": return { title: "FU3", dueAt: autoDueInDays(3), actionKey: "follow_up_3", sequence: 3 }
+    case "FU3": return { title: "Final", dueAt: autoDueInDays(7), actionKey: "final_follow_up", sequence: 4 }
     default: return null
   }
 }
@@ -133,12 +140,16 @@ export async function createWorkflowActionIfNeeded(
   // lead_next_actions write (lead_id bigint) would throw 22P02. Never write.
   if (isDemoLeadId(leadId)) return null
 
+  // Dedup keyed on the stable action_key (NOT lower(title)): at most one OPEN
+  // row per canonical action per lead. The DB unique index enforces the same
+  // invariant as a backstop. (email_guest_card is per-property and is created
+  // via lib/leads/guestCardWorkflow.ts, not this helper.)
   const { data: existing, error: checkError } = await client
     .from("lead_next_actions")
     .select("id")
     .eq("lead_id", leadId)
-    .eq("completed", false)
-    .ilike("title", action.title)
+    .eq("status", "open")
+    .eq("action_key", action.actionKey)
     .limit(1)
 
   if (checkError) {
@@ -150,7 +161,20 @@ export async function createWorkflowActionIfNeeded(
 
   const { data: created, error: insertError } = await client
     .from("lead_next_actions")
-    .insert([{ lead_id: leadId, title: action.title, due_at: action.dueAt, priority: "medium" }])
+    .insert([{
+      lead_id: leadId,
+      title: action.title,
+      due_at: action.dueAt,
+      priority: "medium",
+      // Canonical workflow identity — every engine-emitted row is tagged
+      // explicitly (no reliance on column defaults, which are manual/custom).
+      action_key: action.actionKey,
+      action_type: "workflow",
+      origin: "workflow",
+      sequence: action.sequence ?? null,
+      workflow_version: CURRENT_WORKFLOW_VERSION,
+      status: "open",
+    }])
     .select("*")
     .single()
 
