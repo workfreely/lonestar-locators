@@ -169,15 +169,21 @@ export type ExtAuthOk = {
 };
 export type ExtAuthFail = { ok: false; response: NextResponse };
 
-function fail(code: string, status = 401): ExtAuthFail {
-  // Machine `code` so the extension reacts correctly (disconnect / reconnect / upgrade).
-  return { ok: false, response: NextResponse.json({ error: "Unauthorized", code }, { status }) };
+// GENERIC failure only — never reveal whether a user/connection/token exists,
+// or which specific check failed. The extension's client logic is uniform: on
+// 401 it attempts one refresh, and if that also fails it clears credentials and
+// shows Disconnected. `server_error` (500) is only the fail-closed config case.
+function denied(): ExtAuthFail {
+  return { ok: false, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+}
+function serverError(): ExtAuthFail {
+  return { ok: false, response: NextResponse.json({ error: "Server error" }, { status: 500 }) };
 }
 
 export async function verifyAccessBearer(req: Request): Promise<ExtAuthOk | ExtAuthFail> {
   const authz = req.headers.get("authorization") || "";
   const raw = authz.startsWith("Bearer ") ? authz.slice(7).trim() : "";
-  if (!raw.startsWith(ACCESS_TOKEN_PREFIX)) return fail("invalid");
+  if (!raw.startsWith(ACCESS_TOKEN_PREFIX)) return denied();
 
   // 1) access token exists, not revoked, not expired
   const { data: tok } = await supabaseAdmin
@@ -185,8 +191,8 @@ export async function verifyAccessBearer(req: Request): Promise<ExtAuthOk | ExtA
     .select("id, connection_id, expires_at, revoked_at")
     .eq("token_hash", sha256Hex(raw))
     .maybeSingle();
-  if (!tok || tok.revoked_at) return fail("invalid");
-  if (new Date(tok.expires_at).getTime() <= Date.now()) return fail("expired");
+  if (!tok || tok.revoked_at) return denied();
+  if (new Date(tok.expires_at).getTime() <= Date.now()) return denied();
 
   // 2) connection exists + not revoked
   const { data: conn } = await supabaseAdmin
@@ -194,19 +200,19 @@ export async function verifyAccessBearer(req: Request): Promise<ExtAuthOk | ExtA
     .select("id, user_id, workspace_id, extension_id, scopes, revoked_at")
     .eq("id", tok.connection_id)
     .maybeSingle();
-  if (!conn || conn.revoked_at) return fail("revoked");
+  if (!conn || conn.revoked_at) return denied();
 
   // 3) extension client still allowed (fail closed on prod misconfig)
   let extAllowed = false;
   try {
     extAllowed = isAllowedExtensionId(conn.extension_id);
   } catch {
-    return fail("server_error", 500);
+    return serverError();
   }
-  if (!extAllowed) return fail("revoked");
+  if (!extAllowed) return denied();
 
   // 4) scope
-  if (!Array.isArray(conn.scopes) || !conn.scopes.includes(REQUIRED_SCOPE)) return fail("insufficient_scope", 403);
+  if (!Array.isArray(conn.scopes) || !conn.scopes.includes(REQUIRED_SCOPE)) return denied();
 
   // 5) ACTIVE workspace membership (covers active-user + membership-revoked)
   const { data: member } = await supabaseAdmin
@@ -216,13 +222,13 @@ export async function verifyAccessBearer(req: Request): Promise<ExtAuthOk | ExtA
     .eq("workspace_id", conn.workspace_id)
     .eq("status", "active")
     .maybeSingle();
-  if (!member) return fail("membership_revoked", 403);
+  if (!member) return denied();
 
   // 6) entitlement / trial (owner billing) — same source RLS uses; fail closed on definitive false
   const { data: entitled, error: entErr } = await supabaseAdmin.rpc("lb_workspace_has_access", {
     ws: conn.workspace_id,
   });
-  if (!entErr && entitled === false) return fail("billing", 403);
+  if (!entErr && entitled === false) return denied();
 
   // best-effort activity stamp — never block on it
   const nowIso = new Date().toISOString();
