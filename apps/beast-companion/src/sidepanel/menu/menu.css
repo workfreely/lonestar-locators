@@ -21,8 +21,7 @@
   z-index: 51;
   width: 260px;
   max-width: calc(100% - 2 * var(--bc-gutter));
-  max-height: calc(100% - var(--bc-toolbar-h) - 12px);
-  overflow-y: auto;
+  overflow: visible; /* let the Theme listbox extend beyond the popover box */
   padding: 6px;
   display: flex;
   flex-direction: column;
@@ -63,15 +62,27 @@
 .bc-pop-item.is-quiet { color: var(--lb-text-secondary); font-weight: 500; }
 .bc-pop-item.is-quiet:hover { color: var(--lb-text-primary); }
 
-/* Theme row (not a button — holds the label + select) */
+/* Theme row (not a button — holds the label + the custom picker) */
 .bc-theme-row { cursor: default; }
 .bc-theme-row:hover { background: transparent; }
-.bc-theme-select {
+
+/* ── Custom theme picker (listbox) — matches the CRM swatch/pill/selected look ── */
+.bc-tsel { position: relative; flex: none; }
+.bc-tsel-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
   flex: none;
-  min-width: 116px;
-  padding: 6px 8px;
-  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+.bc-tsel-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 128px;
+  padding: 6px 10px;
   border: 1px solid var(--lb-border);
+  border-radius: 999px; /* pill, like the CRM */
   background: var(--lb-surface-elevated);
   color: var(--lb-text-primary);
   font-family: inherit;
@@ -79,7 +90,49 @@
   font-weight: 600;
   cursor: pointer;
 }
-.bc-theme-select:focus-visible { outline: 2px solid var(--lb-accent); outline-offset: 2px; }
+.bc-tsel-trigger:hover { border-color: var(--lb-text-secondary); }
+.bc-tsel-trigger:focus-visible { outline: 2px solid var(--lb-accent); outline-offset: 2px; }
+.bc-tsel-name { flex: 1; text-align: left; }
+.bc-tsel-chev { color: var(--lb-text-secondary); flex: none; }
+
+.bc-tsel-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  min-width: 172px;
+  max-width: 216px;
+  max-height: 244px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 5px;
+  list-style: none;
+  background: var(--lb-surface);
+  border: 1px solid var(--lb-border);
+  border-radius: 12px;
+  box-shadow: 0 14px 40px -14px rgba(0, 0, 0, 0.6);
+  outline: none;
+}
+.bc-tsel-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 9px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lb-text-primary);
+}
+.bc-tsel-opt .bc-tsel-name { flex: 1; }
+.bc-tsel-opt.is-active:not(.is-selected) { background: var(--lb-surface-elevated); }
+.bc-tsel-opt.is-selected {
+  background: var(--lb-accent);
+  border-color: var(--lb-accent);
+  color: #ffffff;
+}
+.bc-tsel-check { color: #ffffff; flex: none; }
 
 .bc-pop-divider {
   height: 1px;

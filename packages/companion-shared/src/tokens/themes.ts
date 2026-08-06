@@ -125,6 +125,24 @@ export function resolveThemeId(value: unknown): ThemeId {
   return isThemeId(value) ? value : DEFAULT_THEME_ID;
 }
 
+/**
+ * Per-theme "brand chip" swatch colors — the exact values the CRM's theme
+ * selector uses (ProfileAvatarMenu THEME_OPTIONS.swatch). Distinct from the
+ * applied `accent` token; this is the representative color shown in a picker.
+ */
+export const THEME_SWATCHES: Record<ThemeId, string> = {
+  midnight: "#2f6bff",
+  obsidian: "#0d0e12",
+  rose: "#e06a8c",
+  evergreen: "#34c288",
+  purple: "#a06bf0",
+};
+
+/** Title-cased display label (matches the CRM: Midnight, Obsidian, …). */
+export function themeLabel(id: ThemeId): string {
+  return id.charAt(0).toUpperCase() + id.slice(1);
+}
+
 /** Zod schema with a built-in safe fallback to Midnight. */
 export const themeIdSchema = z.enum(THEME_IDS).catch(DEFAULT_THEME_ID);
 

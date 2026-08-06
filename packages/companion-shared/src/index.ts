@@ -97,6 +97,8 @@ export {
   THEME_IDS,
   DEFAULT_THEME_ID,
   THEME_REGISTRY,
+  THEME_SWATCHES,
+  themeLabel,
   isThemeId,
   resolveThemeId,
   themeIdSchema,

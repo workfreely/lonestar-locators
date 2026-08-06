@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { THEME_IDS, type ThemeId } from "@bc/companion-shared";
+import type { ThemeId } from "@bc/companion-shared";
+import { ThemeSelect } from "./ThemeSelect";
 import "./menu.css";
 
 /**
@@ -15,7 +16,6 @@ import "./menu.css";
  */
 
 const TEMPLATE_NAMES = ["Text Top 3", "Follow-Up 1", "Follow-Up 2", "Follow-Up 3", "Final Follow-Up"];
-const cap = (id: string) => id.charAt(0).toUpperCase() + id.slice(1);
 
 function Chevron() {
   return (
@@ -86,19 +86,8 @@ export function CompanionMenu({
         </button>
 
         <div className="bc-pop-item bc-theme-row">
-          <span className="bc-pop-label" id="bc-theme-label">Theme</span>
-          <select
-            className="bc-theme-select"
-            value={theme}
-            onChange={(e) => onPickTheme(e.target.value as ThemeId)}
-            aria-labelledby="bc-theme-label"
-          >
-            {THEME_IDS.map((id) => (
-              <option key={id} value={id}>
-                {cap(id)}
-              </option>
-            ))}
-          </select>
+          <span className="bc-pop-label">Theme</span>
+          <ThemeSelect value={theme} onChange={onPickTheme} />
         </div>
 
         <div className="bc-pop-divider" />
