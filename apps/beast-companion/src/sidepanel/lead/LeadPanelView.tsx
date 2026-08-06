@@ -122,6 +122,15 @@ export function LeadPanelBody({
         <Field label="Criminal Background" value={cs.criminalBackground} />
       </SectionCard>
 
+      {/* ── Client Notes ── (read-only, client's form-submitted notes; same
+          existing data as the CRM's Client Notes = leads.notes. Locator Notes
+          stays in the LB workspace.) */}
+      <SectionCard title="Client Notes" defaultOpen>
+        <p className={`lp-notes${lead.clientNotes && lead.clientNotes.trim() ? "" : " is-empty"}`}>
+          {lead.clientNotes && lead.clientNotes.trim() ? lead.clientNotes : "No notes submitted."}
+        </p>
+      </SectionCard>
+
       {/* ── Invoice Details (Closed only) ── */}
       {lead.isClosed && (
         <SectionCard title="Invoice Details" defaultOpen={false}>

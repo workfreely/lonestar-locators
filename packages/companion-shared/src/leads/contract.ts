@@ -82,6 +82,12 @@ export const leadSummarySchema = z.object({
   searchCriteria: searchCriteriaSchema,
   creditScreening: creditScreeningSchema,
   workflow: workflowStateSchema,
+  /**
+   * Client Notes — the client's original FORM-SUBMITTED notes, read-only. Maps to
+   * the existing `leads.notes` column (the same data the CRM's Client Notes shows).
+   * NOT a new field, and NOT the editable Locator Notes (`leads.locator_notes`).
+   */
+  clientNotes: z.string().nullish(),
 });
 export type LeadSummaryDTO = z.infer<typeof leadSummarySchema>;
 

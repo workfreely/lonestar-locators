@@ -46,6 +46,8 @@ export const DEMO_FIXTURES: DemoFixture[] = [
         nextActionDate: "2026-08-08T14:00:00.000Z",
         firstContactAt: "2026-08-06T15:30:00.000Z",
       },
+      clientNotes:
+        "Moving for a new job downtown. Prefers a quiet building with in-unit laundry, and has a small dog. Flexible on move date by a couple weeks. (demo)",
     },
     nextActions: [
       {
@@ -90,6 +92,7 @@ export const DEMO_FIXTURES: DemoFixture[] = [
         nextActionDate: "2026-08-07T14:00:00.000Z",
         firstContactAt: "2026-08-05T18:00:00.000Z",
       },
+      clientNotes: "Wants a 2-bed high-rise near downtown with a gym. Budget is firm. (demo)",
     },
     nextActions: [
       {
@@ -134,6 +137,7 @@ export const DEMO_FIXTURES: DemoFixture[] = [
         nextActionDate: "2026-08-06T14:00:00.000Z",
         firstContactAt: "2026-06-20T16:00:00.000Z",
       },
+      clientNotes: "", // empty → shows the "No notes submitted." placeholder
     },
     nextActions: [
       {

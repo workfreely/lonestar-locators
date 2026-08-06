@@ -106,6 +106,20 @@
   color: var(--lb-text-secondary);
 }
 
+/* Client Notes — read-only text, preserves the client's line breaks. */
+.lp-notes {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--lb-text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.lp-notes.is-empty {
+  color: var(--lb-text-secondary);
+  font-style: italic;
+}
+
 /* ── Sections (accordion) ── */
 .lp-section {
   border: 1px solid var(--lb-border);
