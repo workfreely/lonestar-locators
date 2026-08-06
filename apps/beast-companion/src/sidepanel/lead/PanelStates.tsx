@@ -77,7 +77,7 @@ export function PanelStateView({ state }: { state: Exclude<PanelState, "loaded">
         <Centered
           icon="🗂️"
           title="No client selected"
-          body="Open a client from your Locator Beast Kanban to see their profile and next actions here."
+          body="Select a lead from your CRM to view their profile here."
         />
       );
     case "not-connected":
