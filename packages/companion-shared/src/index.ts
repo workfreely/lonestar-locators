@@ -85,6 +85,9 @@ export {
 } from "./tokens/tokens";
 export type { CrmPalette, BadgeToneStyle } from "./tokens/tokens";
 
+// Date display formatting (timezone-safe, MM/DD/YYYY)
+export { formatDateDisplay } from "./format/date";
+
 // Workflow-action display labels (identity stays fu1/fu2/fu3/final_follow_up)
 export {
   isFollowUpAction,

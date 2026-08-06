@@ -1,5 +1,5 @@
 import type { LeadSummaryDTO, NextActionDTO } from "@bc/companion-shared";
-import { formatWorkflowActionLabel, isFollowUpAction } from "@bc/companion-shared";
+import { formatWorkflowActionLabel, isFollowUpAction, formatDateDisplay } from "@bc/companion-shared";
 import { SectionCard, Field, StageBadge, StatusPill, Button } from "./primitives";
 
 /**
@@ -108,7 +108,7 @@ export function LeadPanelBody({
         <Field label="Budget" value={sc.budgetText} />
         <Field label="Property Type" value={sc.propertyType} />
         <Field label="Beds / Baths" value={sc.beds || sc.baths ? `${sc.beds || "—"} / ${sc.baths || "—"}` : null} />
-        <Field label="Move Date" value={sc.moveDate} />
+        <Field label="Move Date" value={formatDateDisplay(sc.moveDate)} />
         <Field label="Desired Areas" value={sc.desiredAreas} />
         <Field label="Source" value={sc.source} />
       </SectionCard>
@@ -124,8 +124,13 @@ export function LeadPanelBody({
 
       {/* ── Client Notes ── (read-only, client's form-submitted notes; same
           existing data as the CRM's Client Notes = leads.notes. Locator Notes
-          stays in the LB workspace.) */}
-      <SectionCard title="Client Notes" defaultOpen>
+          stays in the LB workspace.)
+          Collapsed by default. Keyed by lead id so the collapsed/expanded state
+          persists while THIS client stays active (and across popover open/close,
+          since the body never unmounts) but resets to collapsed for a new client.
+          No preview is shown when collapsed — the read-only text lives only
+          inside the section. */}
+      <SectionCard key={`client-notes-${lead.id}`} title="Client Notes" defaultOpen={false}>
         <p className={`lp-notes${lead.clientNotes && lead.clientNotes.trim() ? "" : " is-empty"}`}>
           {lead.clientNotes && lead.clientNotes.trim() ? lead.clientNotes : "No notes submitted."}
         </p>
