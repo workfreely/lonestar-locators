@@ -4,17 +4,15 @@ import { PanelApp } from "./PanelApp";
 import "./sidepanel.css";
 import { setPanelState } from "@/services/storage";
 import { log } from "@/utils/log";
-import type { RuntimeMessage } from "@/types";
 
 /**
  * Side-panel entry point. This runs in the NATIVE Chrome side panel document,
  * which Chrome owns and never re-injects on host-page navigation — that's what
  * eliminates the flicker.
  *
- * Lifecycle: on load we mark the panel "open" (so the injected launcher can show
- * the right tooltip and restore state); on unload we mark it "closed". Because
- * Chrome has no programmatic close API, we also listen for the launcher's
- * CLOSE_PANEL request and close ourselves.
+ * Lifecycle: on load we mark the panel "open"; on unload/close we clear it to
+ * "closed" (used for future state restore). Closing the whole Companion is done
+ * only with Chrome's native side-panel X — there is no programmatic close.
  */
 
 log("side panel: loaded");
@@ -25,9 +23,6 @@ if (typeof chrome !== "undefined" && chrome.storage) {
   void setPanelState("open");
   window.addEventListener("pagehide", () => {
     void setPanelState("closed");
-  });
-  chrome.runtime.onMessage.addListener((message: RuntimeMessage) => {
-    if (message.type === "CLOSE_PANEL") window.close();
   });
 }
 

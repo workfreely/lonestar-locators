@@ -26,7 +26,7 @@ chrome.runtime.onInstalled.addListener(enableActionOpen);
 enableActionOpen(); // also on worker startup
 
 chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender) => {
-  if (message.type !== "OPEN_PANEL") return; // CLOSE_PANEL is handled by the panel page
+  if (message.type !== "OPEN_PANEL") return; // closing is Chrome's native X only
 
   const tabId = sender.tab?.id;
   if (typeof tabId !== "number") {

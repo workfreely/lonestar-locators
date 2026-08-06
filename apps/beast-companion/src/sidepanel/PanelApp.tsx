@@ -1,45 +1,45 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { LogoLockup, LogoMark } from "@/components/Logo";
 import { VERSION } from "@/utils/constants";
 
 /**
  * The Companion's single interface, rendered in the native side panel.
  *
- * Phase-1 shell: a branded header with a close control, and centered placeholder
- * content. Kept presentational so the real surfaces (active client, workflow,
- * best matches, property actions) drop into the body later without touching the
- * open/close/panel lifecycle.
+ * Control model (per product direction):
+ *  - Chrome's native side-panel X is the SOLE control that closes the whole
+ *    Companion. There is intentionally NO close control in our internal toolbar.
+ *  - The internal toolbar's hamburger toggles the navigation/settings DRAWER.
+ *  - The drawer's back arrow closes ONLY the drawer and returns to the workspace.
  *
- * The small width readout in the footer is a Phase-A diagnostic for the
- * resize/divider test and will be removed once the native shell is confirmed.
+ * State preservation: the drawer OVERLAYS the workspace, which stays mounted the
+ * whole time. Opening/closing the drawer never unmounts the workspace, so the
+ * active client, selected section, form state, and scroll position are all
+ * preserved automatically.
  */
 export function PanelApp() {
-  const [width, setWidth] = useState<number>(() => window.innerWidth);
-
-  useEffect(() => {
-    const onResize = () => setWidth(window.innerWidth);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   return (
     <div className="bc-panel">
-      <header className="bc-panel-header">
-        <LogoLockup />
+      {/* Compact dark toolbar — hamburger only; no whole-panel close here. */}
+      <header className="bc-toolbar">
         <button
           type="button"
-          className="bc-close"
-          onClick={() => window.close()}
-          aria-label="Close Beast Companion"
-          title="Close Beast Companion"
+          className="bc-icon-btn"
+          onClick={() => setDrawerOpen((o) => !o)}
+          aria-label="Open navigation menu"
+          aria-expanded={drawerOpen}
+          title="Menu"
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M3 6h14M3 10h14M3 14h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
           </svg>
         </button>
+        <LogoLockup />
       </header>
 
-      <div className="bc-panel-body">
+      {/* Persistent client workspace (placeholder for now — always mounted). */}
+      <div className="bc-workspace">
         <div className="bc-hero">
           <LogoMark size={56} radius={14} />
           <h1 className="bc-title">Beast Companion</h1>
@@ -49,7 +49,27 @@ export function PanelApp() {
         </div>
       </div>
 
-      <footer className="bc-panel-diag">Panel width: {width}px</footer>
+      {/* Navigation / settings drawer — overlays the workspace below the toolbar.
+          The back arrow closes ONLY the drawer. */}
+      <nav className={`bc-drawer ${drawerOpen ? "is-open" : ""}`} aria-hidden={!drawerOpen}>
+        <div className="bc-drawer-head">
+          <button
+            type="button"
+            className="bc-icon-btn"
+            onClick={() => setDrawerOpen(false)}
+            aria-label="Back to workspace"
+            title="Back"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path d="M16 10H4M9 5l-5 5 5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          <span className="bc-drawer-title">Menu</span>
+        </div>
+        <div className="bc-drawer-body">
+          <p className="bc-drawer-note">Navigation &amp; settings coming soon.</p>
+        </div>
+      </nav>
     </div>
   );
 }
