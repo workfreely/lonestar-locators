@@ -67,23 +67,18 @@
   display: block;
   width: 30px;
   height: 30px;
-  /* Brightness only — NO scale/transform. During movement diagnosis the launcher
-     must have zero motion anywhere (inner icon included). */
-  transition: filter 160ms ease;
+  /* Only the inner icon may animate — a subtle scale/brighten that never shifts
+     the outer tab away from the edge. */
+  transform-origin: center;
+  transition:
+    transform 160ms ease,
+    filter 160ms ease;
 }
 
 .bc-tab:hover svg,
 .bc-tab:active svg {
+  transform: scale(1.08);
   filter: brightness(1.12);
-}
-
-/* Resize mask: while the viewport is actively resizing (native panel open/close
-   animation), hide the handle so it can't show a transient cross-layer seam.
-   Opacity only — no coordinate math, no slide. Revealed flush once stable.
-   Instant (no opacity transition) so there's no fading ghost mid-animation. */
-:host([data-resizing]) .bc-tab {
-  opacity: 0;
-  pointer-events: none;
 }
 
 /* ── Left-docked mirror (host carries data-side="left") ─────────────────────
