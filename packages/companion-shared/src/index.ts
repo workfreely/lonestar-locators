@@ -88,6 +88,10 @@ export type { CrmPalette, BadgeToneStyle } from "./tokens/tokens";
 // Date display formatting (timezone-safe, MM/DD/YYYY)
 export { formatDateDisplay } from "./format/date";
 
+// Next-Action due date/time formatting (Today/Tomorrow • time; shared with the CRM)
+export { formatDueDateTime } from "./format/dueDate";
+export type { DueDateFormatOptions } from "./format/dueDate";
+
 // Workflow-action display labels (identity stays fu1/fu2/fu3/final_follow_up)
 export {
   isFollowUpAction,

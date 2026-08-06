@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { LeadSummaryDTO, NextActionDTO } from "@bc/companion-shared";
-import { formatWorkflowActionLabel, isFollowUpAction, formatDateDisplay } from "@bc/companion-shared";
+import { formatWorkflowActionLabel, isFollowUpAction, formatDateDisplay, formatDueDateTime } from "@bc/companion-shared";
 import { SectionCard, Field, StageBadge, StatusPill, Button } from "./primitives";
 
 /**
@@ -21,16 +21,21 @@ type OnDemo = (label: string) => void;
 function fullName(l: LeadSummaryDTO) {
   return [l.firstName, l.lastName].filter(Boolean).join(" ") || "Unnamed Lead";
 }
-function fmtDateTime(iso?: string | null) {
+
+/**
+ * Sanitized-preview clock. Today/Tomorrow must be decided on the workspace's
+ * calendar days, never on the viewer's machine zone or UTC — so the preview
+ * pins one consistent zone (the Phase 3.5 workspace default, America/Chicago).
+ * Phase 3.5 replaces this constant with the authoritative user/workspace time
+ * zone; the shared formatter already takes a `timeZone`, so only this value
+ * changes.
+ */
+const PREVIEW_TIME_ZONE = "America/Chicago";
+
+/** Next-Action due, via the ONE shared formatter (identical to the CRM). */
+function fmtDue(iso?: string | null) {
   if (!iso) return "—";
-  const d = new Date(iso);
-  return d.toLocaleString("en-US", {
-    weekday: "short",
-    month: "numeric",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return formatDueDateTime(iso, { timeZone: PREVIEW_TIME_ZONE });
 }
 
 export function LeadIdentityHeader({ lead, onDemo }: { lead: LeadSummaryDTO; onDemo: OnDemo }) {
@@ -166,7 +171,7 @@ export function LeadPanelBody({
             </div>
             {openAction.propertyName && <div className="lp-action-prop">{openAction.propertyName}</div>}
             <div className="lp-due">
-              Due: <span className="lp-due-val">{fmtDateTime(openAction.dueAt)}</span>
+              Due: <span className="lp-due-val">{fmtDue(openAction.dueAt)}</span>
             </div>
           </>
         ) : (
