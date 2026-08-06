@@ -1,21 +1,14 @@
 import { HOST_ID, createLauncher } from "./launcher";
 import { startPersistenceGuard } from "./persistence";
-import { getPanelState, onPanelStateChanged } from "@/services/storage";
 import { log, logError } from "@/utils/log";
-import type { RuntimeMessage } from "@/types";
 
 /**
- * Content-script entry (runs at document_start on smartapartmentdata.com only).
+ * Content-script entry (document_start, smartapartmentdata.com only).
  *
- * Its ONLY jobs are: paint the launcher tab, keep it attached, and toggle the
- * NATIVE Chrome side panel. It injects no panel UI and no page-shift — Chrome
- * resizes the page for the native panel, so there is nothing to flicker on
- * navigation and nothing to clean up.
- *
- * Opening the native panel must come from a user gesture, so the launcher click
- * asks the background to call chrome.sidePanel.open() synchronously. Closing has
- * no API, so we ask the panel page to window.close() itself. The toolbar icon is
- * a guaranteed fallback for opening (see background: openPanelOnActionClick).
+ * Jobs: paint the launcher tab, keep it attached, and REQUEST OPEN of the native
+ * side panel on click. It never toggles and never closes — closing is Chrome's
+ * native X — so stale open/closed state can't make a click misfire (the reopen
+ * bug). No injected panel, no page-shift.
  */
 
 const INJECTED_FLAG = "__beastCompanionInjected";
@@ -23,10 +16,6 @@ declare global {
   interface Window {
     [INJECTED_FLAG]?: boolean;
   }
-}
-
-function send(message: RuntimeMessage): void {
-  void chrome.runtime.sendMessage(message).catch(() => {});
 }
 
 function init(): void {
@@ -39,33 +28,19 @@ function init(): void {
     }
     window[INJECTED_FLAG] = true;
 
-    let isOpen = false;
-
-    const toggle = () => {
-      if (isOpen) {
-        // Ask the panel page to close itself (no programmatic close API).
-        send({ type: "CLOSE_PANEL" });
-      } else {
-        // Ask the background to open the native panel (needs this gesture).
-        send({ type: "OPEN_PANEL" });
-      }
+    const requestOpen = () => {
+      log("launcher click → requesting OPEN");
+      // Ask the background to open the native panel for this tab. Sent
+      // synchronously inside the click handler to preserve the user gesture.
+      chrome.runtime.sendMessage({ type: "OPEN_PANEL" }).catch((err) => {
+        logError("sendMessage(OPEN_PANEL) failed:", err);
+      });
     };
 
-    const launcher = createLauncher(toggle);
+    const launcher = createLauncher(requestOpen);
     startPersistenceGuard(launcher.host);
 
-    // Reflect the panel's open/closed state on the launcher tooltip. The side
-    // panel page writes this to storage when it loads/unloads.
-    void getPanelState().then((s) => {
-      isOpen = s === "open";
-      launcher.setOpen(isOpen);
-    });
-    onPanelStateChanged((s) => {
-      isOpen = s === "open";
-      launcher.setOpen(isOpen);
-    });
-
-    log("ready — launcher docked; click it to toggle the native side panel");
+    log("ready — launcher docked; click opens the native side panel");
   } catch (err) {
     logError("init failed:", err);
   }

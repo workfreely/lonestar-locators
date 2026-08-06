@@ -26,8 +26,9 @@
   position: fixed;
   right: 0;
   top: 22vh;
-  width: 30px;
-  height: 54px;
+  /* Original ~52x52 presence (visual sizing correction). */
+  width: 52px;
+  height: 52px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -37,23 +38,23 @@
   pointer-events: auto;
   background: var(--bc-panel-dark);
   /* Rounded on the page-facing (left) side; a thin light divider + soft shadow
-     define a clean boundary between the website and the Companion. */
-  border-radius: 12px 0 0 12px;
+     define a clean Apollo-style boundary between the website and the Companion. */
+  border-radius: 14px 0 0 14px;
   border-left: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: -3px 0 14px rgba(5, 7, 13, 0.28);
   transition:
-    width 160ms ease,
+    transform 160ms ease,
     box-shadow 200ms ease,
     background 200ms ease;
 }
 
 .bc-tab:hover {
-  width: 34px;
+  transform: translateX(-2px);
   background: #111827;
   box-shadow:
     -3px 0 16px rgba(5, 7, 13, 0.34),
     0 0 0 1px rgba(91, 139, 255, 0.4),
-    0 0 20px rgba(47, 107, 255, 0.5);
+    0 0 22px rgba(47, 107, 255, 0.55);
 }
 
 .bc-tab:focus-visible {
@@ -63,6 +64,6 @@
 
 .bc-tab svg {
   display: block;
-  width: 18px;
-  height: 18px;
+  width: 30px;
+  height: 30px;
 }

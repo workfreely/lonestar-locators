@@ -24,11 +24,9 @@ const LOGO_SVG = `
 
 export type Launcher = {
   host: HTMLElement;
-  /** Reflect open/closed state in the tab's tooltip/label. */
-  setOpen: (open: boolean) => void;
 };
 
-export function createLauncher(onToggle: () => void): Launcher {
+export function createLauncher(onOpen: () => void): Launcher {
   log("launcher: creating host");
   const host = document.createElement("div");
   host.id = HOST_ID;
@@ -59,21 +57,16 @@ export function createLauncher(onToggle: () => void): Launcher {
   tab.type = "button";
   tab.className = "bc-tab";
   tab.innerHTML = LOGO_SVG;
+  // The launcher ALWAYS opens (never toggles): closing is Chrome's native X, so
+  // stale open/closed state can never make a click do the wrong thing.
   tab.setAttribute("aria-label", "Open Beast Companion");
   tab.title = "Open Beast Companion";
-  tab.addEventListener("click", onToggle);
+  tab.addEventListener("click", onOpen);
   root.appendChild(tab);
 
   // Attach to <html> so a host-page body reset doesn't take it with it.
   document.documentElement.appendChild(host);
   log("launcher: attached under <html>");
 
-  return {
-    host,
-    setOpen(open: boolean) {
-      const label = open ? "Close Beast Companion" : "Open Beast Companion";
-      tab.setAttribute("aria-label", label);
-      tab.title = label;
-    },
-  };
+  return { host };
 }
