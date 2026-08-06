@@ -1,0 +1,27 @@
+/*
+ * Shared Companion theme — the Midnight `--crm-*` palette (matches the CRM dark
+ * chrome + Beast brand accent). Import this in the extension's side panel so it
+ * consumes the SAME tokens as the web app instead of a copied CRM stylesheet.
+ *
+ * White-flash prevention: the extension's sidepanel.html should ALSO set the two
+ * critical values inline in <head> (background + text color) so the panel paints
+ * dark on first frame, before React and before this stylesheet's cascade settles.
+ * Values here are copied verbatim from tokens.ts MIDNIGHT — keep them in sync.
+ */
+
+:root {
+  --crm-background: #04060c;
+  --crm-workspace: #04060c;
+  --crm-panel: #0e1119;
+  --crm-card: #1b2030;
+  --crm-inset: #12151f;
+  --crm-border: #2b3242;
+  --crm-border-soft: #0a0d14;
+  --crm-text-primary: #f4f6fb;
+  --crm-text-secondary: #b7bec9;
+  --crm-text-muted: #8b93a0;
+  --crm-shadow-color: 0, 0, 0;
+  --crm-accent: #2758d1;
+  --crm-accent-hover: #2f6bff;
+  --crm-accent-contrast: #ffffff;
+}

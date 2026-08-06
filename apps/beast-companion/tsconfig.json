@@ -24,11 +24,13 @@
     /* Types available to the extension runtime */
     "types": ["chrome", "vite/client"],
 
-    /* Future shared-package alias (see ARCHITECTURE). Points nowhere yet; kept
-       so imports like `@bc/*` are ready when packages/ is introduced. */
+    /* Shared package (packages/companion-shared) — domain types, Zod contracts,
+       and design tokens shared with the Locator Beast web app. */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@bc/companion-shared": ["../../packages/companion-shared/src/index.ts"],
+      "@bc/*": ["../../packages/companion-shared/src/*"]
     }
   },
   "include": ["src"],

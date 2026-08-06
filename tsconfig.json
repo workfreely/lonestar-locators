@@ -25,6 +25,12 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@bc/companion-shared": [
+        "./packages/companion-shared/src/index.ts"
+      ],
+      "@bc/*": [
+        "./packages/companion-shared/src/*"
       ]
     }
   },

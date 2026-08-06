@@ -15,7 +15,14 @@ import react from "@vitejs/plugin-react";
  */
 export default defineConfig({
   resolve: {
-    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // Shared domain types / Zod contracts / design tokens (packages/companion-shared).
+      "@bc/companion-shared": fileURLToPath(
+        new URL("../../packages/companion-shared/src/index.ts", import.meta.url),
+      ),
+      "@bc": fileURLToPath(new URL("../../packages/companion-shared/src", import.meta.url)),
+    },
   },
   css: {
     // Isolate from the parent Next.js app's PostCSS/Tailwind config.
