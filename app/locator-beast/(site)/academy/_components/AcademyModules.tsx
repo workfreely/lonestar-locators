@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Reveal from "@/app/locator-beast/(site)/_components/Reveal";
-import { ACADEMY_MODULES } from "@/app/locator-beast/(site)/academy/_data/modules";
+import { ACADEMY_MODULES, type Access } from "@/app/locator-beast/(site)/academy/_data/modules";
 import { TRIAL_URL } from "@/app/locator-beast/_lib/site";
+
+const PRICING_URL = "/pricing";
 
 function LockIcon({ className }: { className?: string }) {
   return (
@@ -16,19 +18,36 @@ function LockIcon({ className }: { className?: string }) {
   );
 }
 
-// Every Academy lesson is members-only. A locked card opens this modal rather
-// than navigating anywhere — Academy is premium content unlocked by a trial.
+function PlayIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <circle cx="12" cy="12" r="9.5" stroke="currentColor" strokeWidth="2" />
+      <path d="M10 8.5l6 3.5-6 3.5v-7z" fill="currentColor" />
+    </svg>
+  );
+}
+
+/**
+ * Public marketing Academy. There is NO authenticated subscription status on
+ * this page, so lesson cards render their access TIER statically from the
+ * module's `access` field (trial vs paid) rather than a per-user unlock:
+ *   - trial tier → "Included in Trial" badge; clicking prompts to start the trial.
+ *   - paid tier  → "Paid Members" badge (locked); clicking explains the full
+ *                  Academy is included with a paid membership + an upgrade CTA.
+ * When the Academy is wired into the authenticated app, the same `access` field
+ * drives real lock/unlock against the app's authoritative status.
+ */
 export default function AcademyModules() {
-  const [open, setOpen] = useState(false);
+  const [modalTier, setModalTier] = useState<Access | null>(null);
 
   useEffect(() => {
-    if (!open) return;
+    if (!modalTier) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") setModalTier(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [modalTier]);
 
   return (
     <>
@@ -38,83 +57,110 @@ export default function AcademyModules() {
           without scrolling — while the hero text and bottom rhythm stay generous. */}
       <div className="-mt-10 bg-[var(--beast-bg-dark)] md:-mt-14">
         <div className="beast-container space-y-14 pb-16 pt-8 md:space-y-20 md:pb-24 md:pt-10">
-          {ACADEMY_MODULES.map((module, mi) => (
-            <Reveal key={module.slug}>
-              <section>
-                {/* Module header — numbered because the modules are a learning path. */}
-                <div className="flex items-start gap-4">
-                  <span className="mt-1 text-[15px] font-bold tabular-nums text-[var(--beast-blue-bright)]">
-                    {String(mi + 1).padStart(2, "0")}
-                  </span>
-                  <div>
-                    <h2 className="text-[22px] font-semibold text-white md:text-[26px]">{module.title}</h2>
-                    <p className="mt-1.5 max-w-2xl text-[14.5px] leading-relaxed text-white/60">
-                      {module.description}
-                    </p>
+          {ACADEMY_MODULES.map((module, mi) => {
+            const isTrial = module.access === "trial";
+            return (
+              <Reveal key={module.slug}>
+                <section>
+                  {/* Module header — numbered because the modules are a learning path. */}
+                  <div className="flex items-start gap-4">
+                    <span className="mt-1 text-[15px] font-bold tabular-nums text-[var(--beast-blue-bright)]">
+                      {String(mi + 1).padStart(2, "0")}
+                    </span>
+                    <div>
+                      <h2 className="text-[22px] font-semibold text-white md:text-[26px]">{module.title}</h2>
+                      <p className="mt-1.5 max-w-2xl text-[14.5px] leading-relaxed text-white/60">
+                        {module.description}
+                      </p>
+                    </div>
                   </div>
-                </div>
 
-                {/* Locked lesson cards */}
-                <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {module.lessons.map((lesson) => (
-                    <button
-                      key={lesson.slug}
-                      type="button"
-                      onClick={() => setOpen(true)}
-                      aria-haspopup="dialog"
-                      className="group flex flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left transition-colors hover:border-[var(--beast-blue)]/50 hover:bg-white/[0.06]"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--beast-blue)]/15 text-[var(--beast-blue-bright)]">
-                          <LockIcon className="h-4 w-4" />
-                        </span>
-                        <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-white/60">
-                          🔒 Members Only
-                        </span>
-                      </div>
-                      <p className="mt-3 text-[14.5px] font-semibold text-white">{lesson.title}</p>
-                      <p className="mt-1 text-[12.5px] tabular-nums text-white/45">{lesson.durationMin} min</p>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            </Reveal>
-          ))}
+                  {/* Lesson cards — tier-aware. align-items:stretch (grid default)
+                      keeps cards in a row equal height even when longer titles wrap. */}
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {module.lessons.map((lesson) => (
+                      <button
+                        key={lesson.slug}
+                        type="button"
+                        onClick={() => setModalTier(module.access)}
+                        aria-haspopup="dialog"
+                        className="group flex h-full flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left transition-colors hover:border-[var(--beast-blue)]/50 hover:bg-white/[0.06]"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-[var(--beast-blue)]/15 text-[var(--beast-blue-bright)]">
+                            {isTrial ? <PlayIcon className="h-4 w-4" /> : <LockIcon className="h-4 w-4" />}
+                          </span>
+                          {isTrial ? (
+                            <span className="flex-none rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+                              Included in Trial
+                            </span>
+                          ) : (
+                            <span className="flex-none rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-white/60">
+                              🔒 Paid Members
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-3 text-[14.5px] font-semibold leading-snug text-white">{lesson.title}</p>
+                        <p className="mt-1 text-[12.5px] tabular-nums text-white/45">{lesson.durationMin} min</p>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              </Reveal>
+            );
+          })}
         </div>
       </div>
 
-      {/* Members-only modal */}
-      {open && (
+      {/* Tier-aware access modal */}
+      {modalTier && (
         <div
           className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
           role="dialog"
           aria-modal="true"
-          aria-label="Unlock Beast Academy"
+          aria-label={modalTier === "trial" ? "Start your free trial" : "Unlock the full Beast Academy"}
         >
           <button
             type="button"
             aria-label="Close"
-            onClick={() => setOpen(false)}
+            onClick={() => setModalTier(null)}
             className="absolute inset-0 cursor-default bg-black/70 backdrop-blur-sm"
           />
           <div className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-[#0b0f1a] p-7 text-center shadow-[0_30px_80px_-20px_rgba(0,0,0,0.7)]">
             <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--beast-blue)]/15 text-[var(--beast-blue-bright)]">
-              <LockIcon className="h-6 w-6" />
+              {modalTier === "trial" ? <PlayIcon className="h-6 w-6" /> : <LockIcon className="h-6 w-6" />}
             </span>
-            <h3 className="mt-5 text-[19px] font-semibold text-white">Beast Academy is members only</h3>
-            <p className="mt-2 text-[14px] leading-relaxed text-white/65">
-              Every lesson is included with your Locator Beast membership. Start your free trial to unlock the full
-              Academy.
-            </p>
-            <Link
-              href={TRIAL_URL}
-              className="mt-6 block w-full rounded-full bg-[var(--beast-blue)] px-6 py-3 text-[14.5px] font-semibold text-white transition-transform duration-200 hover:scale-[1.02]"
-            >
-              Start your free trial
-            </Link>
+            {modalTier === "trial" ? (
+              <>
+                <h3 className="mt-5 text-[19px] font-semibold text-white">Included in your free trial</h3>
+                <p className="mt-2 text-[14px] leading-relaxed text-white/65">
+                  This lesson is included when you start your Locator Beast free trial. Start your trial to set up
+                  Locator Beast and begin managing clients.
+                </p>
+                <Link
+                  href={TRIAL_URL}
+                  className="mt-6 block w-full rounded-full bg-[var(--beast-blue)] px-6 py-3 text-[14.5px] font-semibold text-white transition-transform duration-200 hover:scale-[1.02]"
+                >
+                  Start your free trial
+                </Link>
+              </>
+            ) : (
+              <>
+                <h3 className="mt-5 text-[19px] font-semibold text-white">Included with a paid membership</h3>
+                <p className="mt-2 text-[14px] leading-relaxed text-white/65">
+                  The full Beast Academy — including this lesson — is included with a paid Locator Beast membership.
+                </p>
+                <Link
+                  href={PRICING_URL}
+                  className="mt-6 block w-full rounded-full bg-[var(--beast-blue)] px-6 py-3 text-[14.5px] font-semibold text-white transition-transform duration-200 hover:scale-[1.02]"
+                >
+                  See membership plans
+                </Link>
+              </>
+            )}
             <button
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={() => setModalTier(null)}
               className="mt-3 text-[13px] font-medium text-white/50 transition-colors hover:text-white"
             >
               Maybe later
