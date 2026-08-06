@@ -1,0 +1,146 @@
+/*
+ * Compact anchored Companion menu — popover + templates subview. Semantic --lb-*
+ * tokens only. Positioned within .bc-panel (position: relative).
+ */
+
+/* Transparent full-panel backdrop — catches outside clicks (incl. the hamburger,
+   so a second click closes). The panel behind stays mounted (state preserved). */
+.bc-pop-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: transparent;
+}
+
+/* Anchored dropdown beneath the hamburger (top-left). Stays within the viewport
+   at 360px via max-width. */
+.bc-popover {
+  position: absolute;
+  top: calc(var(--bc-toolbar-h) - 2px);
+  left: var(--bc-gutter);
+  z-index: 51;
+  width: 260px;
+  max-width: calc(100% - 2 * var(--bc-gutter));
+  max-height: calc(100% - var(--bc-toolbar-h) - 12px);
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--lb-surface);
+  border: 1px solid var(--lb-border);
+  border-radius: 12px;
+  box-shadow: 0 14px 40px -14px rgba(0, 0, 0, 0.6);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bc-popover { animation: bc-pop-in 130ms ease; }
+}
+@keyframes bc-pop-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.bc-pop-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--lb-text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: background 120ms ease;
+}
+.bc-pop-item:hover { background: var(--lb-surface-elevated); }
+.bc-pop-item:focus-visible { outline: 2px solid var(--lb-accent); outline-offset: -2px; }
+.bc-pop-label { flex: 1; }
+.bc-pop-item.is-quiet { color: var(--lb-text-secondary); font-weight: 500; }
+.bc-pop-item.is-quiet:hover { color: var(--lb-text-primary); }
+
+/* Theme row (not a button — holds the label + select) */
+.bc-theme-row { cursor: default; }
+.bc-theme-row:hover { background: transparent; }
+.bc-theme-select {
+  flex: none;
+  min-width: 116px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--lb-border);
+  background: var(--lb-surface-elevated);
+  color: var(--lb-text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.bc-theme-select:focus-visible { outline: 2px solid var(--lb-accent); outline-offset: 2px; }
+
+.bc-pop-divider {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--lb-border);
+}
+
+.bc-pop-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 2px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--lb-text-secondary);
+}
+.bc-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--lb-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--lb-success) 22%, transparent);
+}
+
+/* ── Message Templates subview (the only view with a back arrow) ── */
+.bc-subview {
+  position: absolute;
+  top: var(--bc-toolbar-h);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 52;
+  display: flex;
+  flex-direction: column;
+  background: var(--lb-background);
+}
+.bc-subview-head {
+  flex: none;
+  height: 46px;
+  padding: 0 var(--bc-gutter);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--lb-border);
+}
+.bc-subview-head .bc-icon-btn { color: var(--lb-text-secondary); margin-left: -7px; }
+.bc-subview-head .bc-icon-btn:hover { background: var(--lb-surface-elevated); color: var(--lb-text-primary); }
+.bc-subview-title { font-size: 14px; font-weight: 600; color: var(--lb-text-primary); }
+.bc-subview-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px var(--bc-gutter); }
+
+.bc-note { margin: 0; font-size: 13px; color: var(--lb-text-secondary); }
+.bc-tpl-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.bc-tpl-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  border: 1px solid var(--lb-border);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lb-text-primary);
+}
+.bc-soon { font-size: 11px; font-weight: 600; color: var(--lb-text-secondary); opacity: 0.85; }

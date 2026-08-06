@@ -92,33 +92,5 @@ body {
   overflow-y: auto;
 }
 
-/* ── Companion menu drawer (overlays the body region) ── */
-.bc-drawer {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--lb-background); /* opaque — hides the body underneath */
-  transform: translateX(-100%);
-  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 12px 0 40px -24px rgba(0, 0, 0, 0.55);
-}
-.bc-drawer.is-open { transform: translateX(0); }
-/* Subtle only — honor reduced-motion. */
-@media (prefers-reduced-motion: reduce) {
-  .bc-drawer { transition: none; }
-}
-.bc-drawer-head {
-  flex: none;
-  height: 46px;
-  padding: 0 var(--bc-gutter);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border-bottom: 1px solid var(--lb-border);
-}
-.bc-drawer .bc-icon-btn { color: var(--lb-text-secondary); }
-.bc-drawer .bc-icon-btn:hover { background: var(--lb-surface-elevated); color: var(--lb-text-primary); }
-.bc-drawer-title { font-size: 14px; font-weight: 600; color: var(--lb-text-primary); }
-.bc-drawer-body { flex: 1; min-height: 0; overflow-y: auto; padding: 20px; }
-.bc-drawer-note { margin: 0; font-size: 13px; color: var(--lb-text-secondary); }
+/* The compact anchored menu (popover) + Message Templates subview live in
+   menu/menu.css. */

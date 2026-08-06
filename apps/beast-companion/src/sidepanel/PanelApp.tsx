@@ -1,21 +1,23 @@
-import { useRef, useState } from "react";
-import type { LeadSummaryDTO, NextActionDTO } from "@bc/companion-shared";
+import { useEffect, useRef, useState } from "react";
+import type { LeadSummaryDTO, NextActionDTO, ThemeId } from "@bc/companion-shared";
 import { LeadIdentityHeader, LeadPanelBody } from "./lead/LeadPanelView";
 import { PanelStateView, type PanelState } from "./lead/PanelStates";
-import { CompanionDrawer } from "./drawer/CompanionDrawer";
+import { CompanionMenu } from "./menu/CompanionMenu";
+import { applyTheme } from "./applyTheme";
 import "./lead/panel.css";
+
+type MenuMode = "closed" | "popover" | "templates";
 
 /**
  * The Companion's single interface, rendered in the native side panel.
  *
- * Layout: toolbar (hamburger) · the active-client identity header (stays visible
- * when a client is loaded) · the body region. The hamburger drawer overlays ONLY
- * the body region — so the identity + Call/Text stay visible, and the body's
- * section/scroll state is preserved underneath and restored on close.
+ * Layout: toolbar (hamburger) · identity header (visible when loaded) · body.
+ * The hamburger toggles a COMPACT ANCHORED popover beneath it (not a full-height
+ * drawer): click opens, click again / outside-click / Escape closes. The client
+ * panel + its scroll/section state stay mounted behind the popover. Message
+ * Templates opens a dedicated subview — the only view with a back arrow.
  *
- * Control model: Chrome's native side-panel X is the sole close for the whole
- * Companion. The hamburger toggles the drawer; the drawer's back arrow returns to
- * the panel (or up one level from a drawer sub-view).
+ * Chrome's native side-panel X remains the sole close for the whole Companion.
  */
 export function PanelApp({
   state = "no-client",
@@ -26,8 +28,9 @@ export function PanelApp({
   lead?: LeadSummaryDTO | null;
   nextActions?: NextActionDTO[];
 }) {
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [menu, setMenu] = useState<MenuMode>("closed");
   const [demoNote, setDemoNote] = useState<string | null>(null);
+  const [theme, setTheme] = useState<ThemeId>("midnight");
   const noteTimer = useRef<number | undefined>(undefined);
 
   function onDemo(label: string) {
@@ -35,19 +38,33 @@ export function PanelApp({
     if (noteTimer.current) window.clearTimeout(noteTimer.current);
     noteTimer.current = window.setTimeout(() => setDemoNote(null), 2200);
   }
+  function pickTheme(id: ThemeId) {
+    setTheme(applyTheme(id)); // local only — no persistence this phase
+  }
+
+  // Escape closes the menu (popover or subview).
+  useEffect(() => {
+    if (menu === "closed") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenu("closed");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menu]);
 
   const isLoaded = state === "loaded" && !!lead;
 
   return (
     <div className="bc-panel">
-      {/* Compact dark toolbar — hamburger ONLY. */}
+      {/* Compact dark toolbar — hamburger is the menu toggle. */}
       <header className="bc-toolbar">
         <button
           type="button"
           className="bc-icon-btn"
-          onClick={() => setDrawerOpen((o) => !o)}
-          aria-label={drawerOpen ? "Close menu" : "Open menu"}
-          aria-expanded={drawerOpen}
+          onClick={() => setMenu((m) => (m === "closed" ? "popover" : "closed"))}
+          aria-haspopup="menu"
+          aria-expanded={menu === "popover"}
+          aria-label={menu === "closed" ? "Open menu" : "Close menu"}
           title="Menu"
         >
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -56,11 +73,9 @@ export function PanelApp({
         </button>
       </header>
 
-      {/* Identity header — stays visible above the drawer when a client is loaded. */}
       {isLoaded && <LeadIdentityHeader lead={lead!} onDemo={onDemo} />}
 
-      {/* Body region — the drawer overlays ONLY this. The scroll container stays
-          mounted underneath the drawer, preserving section + scroll state. */}
+      {/* Body — stays mounted behind the menu, so scroll + section state persist. */}
       <div className="bc-below">
         <div className="bc-below-scroll">
           {isLoaded ? (
@@ -69,8 +84,19 @@ export function PanelApp({
             <PanelStateView state={state === "loaded" ? "no-client" : state} />
           )}
         </div>
-        <CompanionDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} onDemo={onDemo} />
       </div>
+
+      {menu !== "closed" && (
+        <CompanionMenu
+          mode={menu}
+          onClose={() => setMenu("closed")}
+          onOpenTemplates={() => setMenu("templates")}
+          onBack={() => setMenu("closed")}
+          onDemo={onDemo}
+          theme={theme}
+          onPickTheme={pickTheme}
+        />
+      )}
 
       {demoNote && (
         <div className="lp-demo-toast" role="status">
