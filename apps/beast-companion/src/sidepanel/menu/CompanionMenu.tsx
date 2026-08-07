@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { ThemeId } from "@bc/companion-shared";
 import { ThemeSelect } from "./ThemeSelect";
+import type { CompanionConnection } from "../connection";
 import "./menu.css";
 
 /**
@@ -33,6 +34,9 @@ export function CompanionMenu({
   onDemo,
   theme,
   onPickTheme,
+  connection,
+  onConnect,
+  onDisconnect,
 }: {
   mode: "popover" | "templates";
   onClose: () => void;
@@ -41,6 +45,9 @@ export function CompanionMenu({
   onDemo: (label: string) => void;
   theme: ThemeId;
   onPickTheme: (id: ThemeId) => void;
+  connection: CompanionConnection;
+  onConnect: () => void;
+  onDisconnect: () => void;
 }) {
   const firstItemRef = useRef<HTMLButtonElement>(null);
 
@@ -96,8 +103,39 @@ export function CompanionMenu({
           <span className="bc-pop-label">Help &amp; Feedback</span>
         </button>
 
-        <div className="bc-pop-status">
-          <span className="bc-dot" aria-hidden /> Connected
+        {/* Connection status — derived ONLY from the authenticated state, never
+            hard-coded. Disconnected is the correct default until the service
+            worker reports a verified, authenticated connection. */}
+        <div className="bc-pop-conn">
+          {connection.status === "connected" ? (
+            <>
+              <div className="bc-pop-status">
+                <span className="bc-dot" aria-hidden /> Connected as {connection.name || "your account"}
+              </div>
+              {connection.workspace && <div className="bc-pop-workspace">{connection.workspace}</div>}
+              <div className="bc-pop-conn-actions">
+                <button type="button" className="bc-pop-linkbtn" onClick={onConnect}>
+                  Switch account/workspace
+                </button>
+                <button type="button" className="bc-pop-linkbtn is-danger" onClick={onDisconnect}>
+                  Disconnect
+                </button>
+              </div>
+            </>
+          ) : connection.status === "connecting" ? (
+            <div className="bc-pop-status is-off">
+              <span className="bc-dot is-off" aria-hidden /> Connecting…
+            </div>
+          ) : (
+            <>
+              <div className="bc-pop-status is-off">
+                <span className="bc-dot is-off" aria-hidden /> Not connected
+              </div>
+              <button type="button" className="bc-pop-connectbtn" onClick={onConnect}>
+                Connect to Locator Beast
+              </button>
+            </>
+          )}
         </div>
       </div>
     </>

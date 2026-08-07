@@ -4,6 +4,7 @@ import { PanelApp } from "../PanelApp";
 import { applyTheme } from "../applyTheme";
 import { NON_LOADED_STATES, type PanelState } from "../lead/PanelStates";
 import { DEMO_FIXTURES, DEFAULT_FIXTURE_KEY } from "../lead/fixtures";
+import type { CompanionConnection } from "../connection";
 
 /**
  * DEVELOPMENT-ONLY preview harness. Gated behind import.meta.env.DEV in main.tsx,
@@ -14,6 +15,15 @@ import { DEMO_FIXTURES, DEFAULT_FIXTURE_KEY } from "../lead/fixtures";
 
 const WIDTHS = [360, 400, 600] as const;
 const ALL_STATES: PanelState[] = ["loaded", ...NON_LOADED_STATES];
+
+// Dev harness maps the selected state to a connection so the authenticated UI
+// (and the "Connected as …" footer) can be exercised — production derives this
+// from the service worker only.
+function connectionFor(state: PanelState): CompanionConnection {
+  if (state === "not-connected") return { status: "disconnected" };
+  if (state === "connecting") return { status: "connecting" };
+  return { status: "connected", name: "Jordan Demo", workspace: "Demo Workspace" };
+}
 
 export function DevHarness() {
   const [fixtureKey, setFixtureKey] = useState(DEFAULT_FIXTURE_KEY);
@@ -98,6 +108,9 @@ export function DevHarness() {
             state={state}
             lead={state === "loaded" ? fixture.lead : null}
             nextActions={state === "loaded" ? fixture.nextActions : []}
+            connection={connectionFor(state)}
+            onConnect={() => setState("loaded")}
+            onDisconnect={() => setState("not-connected")}
           />
         </div>
       </div>

@@ -10,6 +10,7 @@ import { Button } from "./primitives";
 export type PanelState =
   | "loaded"
   | "loading"
+  | "connecting"
   | "no-client"
   | "not-connected"
   | "unauthorized"
@@ -18,6 +19,7 @@ export type PanelState =
   | "offline";
 
 export const NON_LOADED_STATES: Exclude<PanelState, "loaded">[] = [
+  "connecting",
   "loading",
   "no-client",
   "not-connected",
@@ -68,11 +70,26 @@ function LoadingSkeleton() {
   );
 }
 
-export function PanelStateView({ state }: { state: Exclude<PanelState, "loaded"> }) {
+export function PanelStateView({
+  state,
+  onConnect,
+}: {
+  state: Exclude<PanelState, "loaded">;
+  onConnect?: () => void;
+}) {
   switch (state) {
     case "loading":
       return <LoadingSkeleton />;
+    case "connecting":
+      return (
+        <Centered
+          icon="⏳"
+          title="Connecting…"
+          body="Finishing sign-in with Locator Beast. This only takes a moment."
+        />
+      );
     case "no-client":
+      // Authenticated-but-no-active-lead. Only reached once connected.
       return (
         <Centered
           icon="🗂️"
@@ -81,12 +98,13 @@ export function PanelStateView({ state }: { state: Exclude<PanelState, "loaded">
         />
       );
     case "not-connected":
+      // Pre-authenticated state — the user must connect first.
       return (
         <Centered
           icon="🔌"
-          title="Connect Locator Beast"
-          body="Companion isn’t connected to your Locator Beast account yet. Connect to load your clients."
-          action={{ label: "Connect Locator Beast" }}
+          title="Not connected"
+          body="Connect the Companion to your Locator Beast account to view your clients here."
+          action={{ label: "Connect to Locator Beast", onClick: onConnect }}
         />
       );
     case "unauthorized":

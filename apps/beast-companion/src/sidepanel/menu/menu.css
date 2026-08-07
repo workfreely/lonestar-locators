@@ -156,6 +156,62 @@
   background: var(--lb-success);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--lb-success) 22%, transparent);
 }
+/* Not connected / connecting — neutral, NOT the green "connected" dot. */
+.bc-dot.is-off {
+  background: var(--lb-text-secondary);
+  box-shadow: none;
+  opacity: 0.6;
+}
+.bc-pop-status.is-off {
+  color: var(--lb-text-secondary);
+}
+
+/* ── Connection block (status-driven; never hard-coded) ── */
+.bc-pop-conn {
+  padding-bottom: 6px;
+}
+.bc-pop-workspace {
+  padding: 0 10px 2px 24px;
+  font-size: 11px;
+  color: var(--lb-text-secondary);
+}
+.bc-pop-connectbtn {
+  display: block;
+  width: calc(100% - 16px);
+  margin: 6px 8px 2px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--lb-accent);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+.bc-pop-connectbtn:hover {
+  background: color-mix(in srgb, var(--lb-accent) 88%, #fff);
+}
+.bc-pop-conn-actions {
+  display: flex;
+  gap: 12px;
+  padding: 4px 10px 2px 24px;
+}
+.bc-pop-linkbtn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--lb-accent);
+  cursor: pointer;
+}
+.bc-pop-linkbtn:hover {
+  text-decoration: underline;
+}
+.bc-pop-linkbtn.is-danger {
+  color: var(--lb-danger);
+}
 
 /* ── Message Templates subview (the only view with a back arrow) ── */
 .bc-subview {

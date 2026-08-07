@@ -4,6 +4,7 @@ import { LeadIdentityHeader, LeadPanelBody } from "./lead/LeadPanelView";
 import { PanelStateView, type PanelState } from "./lead/PanelStates";
 import { CompanionMenu } from "./menu/CompanionMenu";
 import { applyTheme } from "./applyTheme";
+import { DISCONNECTED, type CompanionConnection } from "./connection";
 import "./lead/panel.css";
 
 type MenuMode = "closed" | "popover" | "templates";
@@ -23,10 +24,18 @@ export function PanelApp({
   state = "no-client",
   lead,
   nextActions = [],
+  connection = DISCONNECTED,
+  onConnect,
+  onDisconnect,
 }: {
   state?: PanelState;
   lead?: LeadSummaryDTO | null;
   nextActions?: NextActionDTO[];
+  // Connection is derived from the SW's authenticated state. Production defaults
+  // to DISCONNECTED — the panel is authenticated ONLY when this is "connected".
+  connection?: CompanionConnection;
+  onConnect?: () => void;
+  onDisconnect?: () => void;
 }) {
   const [menu, setMenu] = useState<MenuMode>("closed");
   const [demoNote, setDemoNote] = useState<string | null>(null);
@@ -52,7 +61,11 @@ export function PanelApp({
     return () => window.removeEventListener("keydown", onKey);
   }, [menu]);
 
-  const isLoaded = state === "loaded" && !!lead;
+  const connected = connection.status === "connected";
+  // The lead panel is authenticated data — only shown when truly connected.
+  const isLoaded = connected && state === "loaded" && !!lead;
+  const handleConnect = () => onConnect?.();
+  const handleDisconnect = () => onDisconnect?.();
 
   return (
     <div className="bc-panel">
@@ -78,10 +91,16 @@ export function PanelApp({
       {/* Body — stays mounted behind the menu, so scroll + section state persist. */}
       <div className="bc-below">
         <div className="bc-below-scroll">
-          {isLoaded ? (
+          {!connected ? (
+            // Pre-authenticated: never show lead data. Explain the user must connect.
+            <PanelStateView
+              state={connection.status === "connecting" ? "connecting" : "not-connected"}
+              onConnect={handleConnect}
+            />
+          ) : isLoaded ? (
             <LeadPanelBody lead={lead!} nextActions={nextActions} onDemo={onDemo} />
           ) : (
-            <PanelStateView state={state === "loaded" ? "no-client" : state} />
+            <PanelStateView state={state === "loaded" ? "no-client" : state} onConnect={handleConnect} />
           )}
         </div>
       </div>
@@ -95,6 +114,9 @@ export function PanelApp({
           onDemo={onDemo}
           theme={theme}
           onPickTheme={pickTheme}
+          connection={connection}
+          onConnect={handleConnect}
+          onDisconnect={handleDisconnect}
         />
       )}
 

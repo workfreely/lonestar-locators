@@ -1,6 +1,6 @@
 import { StrictMode, Suspense, lazy } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { PanelApp } from "./PanelApp";
+import { ProductionPanel } from "./ProductionPanel";
 import "./sidepanel.css";
 import { applyTheme } from "./applyTheme";
 import { log } from "@/utils/log";
@@ -46,7 +46,7 @@ if (container) {
   } else {
     root.render(
       <StrictMode>
-        <PanelApp />
+        <ProductionPanel />
       </StrictMode>,
     );
   }
