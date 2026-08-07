@@ -1,5 +1,6 @@
 import { BRAND, absoluteUrl, type SenderCategory } from "./branding"
 import { renderEmail, paragraph, infoTable, esc } from "./layout"
+import { cityBanner } from "./cityHeader"
 
 // Every notification the app can send lives here as a pure builder:
 //   (params) => { subject, html, category, text? }
@@ -65,10 +66,110 @@ export function newLeadEmail({ locatorName, leadUrl, lead }: NewLeadEmailParams)
     category: "leads",
     subject: `New lead: ${fullName}`,
     html: renderEmail({
+      ...cityBanner(lead.city), // city skyline follows the LEAD's market
       preheader: `${fullName} just submitted your Smart Lead Form.`,
       heading: "You've got a new lead 🎯",
       contentHtml,
       cta: { label: "Open lead in Locator Beast", url: leadUrl },
+    }),
+  }
+}
+
+// ─── Smart Lead Form: confirmation → the renter (customer) ───────────────────
+// Adapts the approved Lone Star renter confirmation (Search Summary + What
+// Happens Next) into the Locator Beast layout + branding, with the city skyline
+// header, the Monthly Household Income field, and an agent-aware signature.
+// Category "transactional"; the caller sets replyTo to the workspace owner so
+// the renter's replies reach their locator. No CRM CTA (customer-facing).
+export type LeadConfirmationEmailParams = {
+  locatorName?: string | null
+  lead: {
+    first_name?: string | null
+    city?: string | null
+    move_date?: string | null
+    desired_rent?: string | null
+    income?: string | null
+    beds?: string | null
+    baths?: string | null
+    property_type?: string | null
+    neighborhoods?: string | null
+    submarkets?: string | null
+    credit_score?: string | null
+    credit_history?: string | null
+    broken_lease_age?: string | null
+    broken_lease_amount?: string | null
+    eviction_court?: string | null
+    eviction_age?: string | null
+    eviction_balance?: string | null
+    criminal_background?: string | null
+    criminal_charge?: string | null
+    felony_age?: string | null
+    misdemeanor_age?: string | null
+    notes?: string | null
+  }
+}
+
+export function leadConfirmationEmail({ locatorName, lead }: LeadConfirmationEmailParams): BuiltEmail {
+  const city = (lead.city ?? "").trim() || "your area"
+  const first = (lead.first_name ?? "").trim().split(/\s+/)[0]
+  const heading = first ? `Hi ${first},` : "Hi there," // renderEmail escapes this
+  const layout = lead.beds || lead.baths ? [lead.beds, lead.baths].filter(Boolean).join(" / ") : null
+  const isBrokenLease = (lead.credit_history ?? "").toLowerCase().includes("broken")
+  const isEviction = lead.credit_history === "Eviction"
+  const hasCriminal = !!lead.criminal_background && lead.criminal_background !== "None"
+  const locatorFirst = (locatorName ?? "").trim().split(/\s+/)[0]
+
+  const step = (n: number, text: string) =>
+    `<div style="margin-bottom:14px;font-size:15px;line-height:1.6;color:${BRAND.inkSoft};"><span style="font-weight:700;color:${BRAND.ink};">Step ${n}:</span> ${text}</div>`
+
+  const contentHtml = `
+    ${paragraph(
+      `Thanks for reaching out about your search in <strong>${esc(
+        city
+      )}</strong>! We've received your details and are reviewing your budget, move timeline, and location preferences to find the best available options for you.`
+    )}
+    <h2 style="margin:24px 0 6px 0;font-size:17px;font-weight:700;color:${BRAND.ink};">Your search summary</h2>
+    ${infoTable([
+      { label: "Move date", value: lead.move_date },
+      { label: "Budget", value: lead.desired_rent },
+      { label: "Monthly income", value: lead.income },
+      { label: "Layout", value: layout },
+      { label: "Property type", value: lead.property_type },
+      { label: "Preferred areas", value: lead.neighborhoods },
+      { label: "Nearby areas", value: lead.submarkets },
+      { label: "Estimated credit score", value: lead.credit_score },
+      { label: "Credit background", value: lead.credit_history },
+      { label: "Broken lease age", value: isBrokenLease ? lead.broken_lease_age : null },
+      { label: "Broken lease balance", value: isBrokenLease ? lead.broken_lease_amount : null },
+      { label: "Went to court", value: isEviction ? lead.eviction_court : null },
+      { label: "Eviction age", value: isEviction ? lead.eviction_age : null },
+      { label: "Eviction balance", value: isEviction ? lead.eviction_balance : null },
+      { label: "Criminal background", value: hasCriminal ? lead.criminal_background : null },
+      { label: "Criminal charge", value: hasCriminal ? lead.criminal_charge : null },
+      { label: "Felony age", value: hasCriminal ? lead.felony_age : null },
+      { label: "Misdemeanor age", value: hasCriminal ? lead.misdemeanor_age : null },
+      { label: "Notes", value: lead.notes },
+    ])}
+    <h2 style="margin:26px 0 12px 0;font-size:17px;font-weight:700;color:${BRAND.ink};">What happens next?</h2>
+    ${step(1, "Your locator reviews real-time pricing and availability to find the best options for your approval profile.")}
+    ${step(2, "You receive a focused, custom list with clear pricing and any current incentives.")}
+    ${step(3, "You tour only the properties that make the most sense for you.")}
+    ${paragraph(
+      `If anything changes with your budget, location, or timeline, just reply to this email${
+        locatorFirst ? ` and ${esc(locatorFirst)} will help` : ""
+      }.`
+    )}
+    ${paragraph(`— ${esc((locatorName ?? "").trim() || "Your Locator Beast locator")}`)}
+  `
+
+  return {
+    category: "transactional",
+    subject: `${city} Search Update`,
+    html: renderEmail({
+      ...cityBanner(lead.city), // city skyline follows the LEAD's market
+      preheader: `We've received your ${city} apartment search and are finding your best options.`,
+      heading,
+      contentHtml,
     }),
   }
 }

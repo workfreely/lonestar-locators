@@ -77,9 +77,19 @@ export type EmailLayoutInput = {
   cta?: { label: string; url: string }
   /** Optional small print above the standard footer. */
   footerNote?: string
+  /**
+   * Optional city-skyline banner shown at the very top (above the wordmark).
+   * Absolute URL from the shared theme registry (see cityHeader.ts). Rendered
+   * inside the dark branded band with a `!mso` guard, so clients that can't show
+   * the image (Outlook desktop / .webp) fall back to the neutral branded band —
+   * never a broken image. The band is Locator-Beast-branded regardless; the
+   * image only follows the LEAD's market.
+   */
+  bannerImageUrl?: string | null
+  bannerAlt?: string
 }
 
-export function renderEmail({ preheader, heading, contentHtml, cta, footerNote }: EmailLayoutInput): string {
+export function renderEmail({ preheader, heading, contentHtml, cta, footerNote, bannerImageUrl, bannerAlt }: EmailLayoutInput): string {
   const year = "2026"
   return `<!DOCTYPE html>
 <html lang="en">
@@ -103,11 +113,26 @@ ${
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px;background:${
         BRAND.cardBg
       };border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(5,7,13,0.06);">
+        <!-- City skyline banner (optional) + Locator Beast wordmark. The band is
+             always the dark brand color, so a client that can't render the image
+             (Outlook desktop / .webp) shows a clean neutral branded header. -->
+        ${
+          bannerImageUrl
+            ? `<tr>
+          <td bgcolor="${BRAND.ink}" style="background:${BRAND.ink};font-size:0;line-height:0;">
+            <!--[if !mso]><!-->
+            <img src="${bannerImageUrl}" alt="${esc(bannerAlt ?? "")}" width="600"
+                 style="display:block;width:100%;max-width:600px;height:auto;border:0;outline:none;text-decoration:none;" />
+            <!--<![endif]-->
+          </td>
+        </tr>`
+            : ""
+        }
         <!-- Branding header -->
         <tr>
           <td align="center" bgcolor="${BRAND.ink}" style="background:${
     BRAND.ink
-  };padding:26px 40px;">
+  };padding:${bannerImageUrl ? "16px" : "26px"} 40px;">
             <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;font-weight:700;letter-spacing:-0.01em;color:#ffffff;">Locator&nbsp;Beast</span>
           </td>
         </tr>

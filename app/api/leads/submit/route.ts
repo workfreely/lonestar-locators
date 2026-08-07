@@ -35,7 +35,7 @@ import { createClient } from "@supabase/supabase-js"
 import { createNewLeadCalendarEvent } from "@/lib/google/createCalendarEvent"
 import { findDuplicateMatch, type LeadIdentity } from "@/lib/leads/duplicateDetection"
 import { getStageWorkflowAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
-import { sendNotification, newLeadEmail, absoluteUrl } from "@/lib/notifications"
+import { sendNotification, newLeadEmail, leadConfirmationEmail, absoluteUrl } from "@/lib/notifications"
 
 // Server-only client — SUPABASE_SERVICE_ROLE_KEY has no NEXT_PUBLIC_
 // prefix, so it is never bundled into browser JS.
@@ -524,6 +524,40 @@ export async function POST(request: Request) {
         })
       } catch (err) {
         console.error("[api/leads/submit] Failed to schedule new-lead notification email:", err)
+      }
+    }
+
+    // ─── Confirmation email → the renter (Smart Lead Form only) ──────────────
+    // Only for genuinely new leads from a public Smart Lead Form (attributedOwnerId
+    // set) that provided an email. Scoped this way so the legacy Lone Star marketing
+    // forms keep their own confirmation flow and no visitor is double-emailed.
+    // Deferred + isolated so a mail failure never affects the saved lead. The
+    // renter replies land with their locator (Reply-To = the owner's email); the
+    // city skyline header follows the lead's market via the shared theme registry.
+    if (isNewLead && attributedOwnerId && result.payload.email) {
+      const ownerId = attributedOwnerId
+      const leadRow = data
+      const customerEmail = result.payload.email as string
+      try {
+        after(async () => {
+          try {
+            const { data: owner } = await supabaseAdmin
+              .from("profiles")
+              .select("email, first_name, full_name, preferred_name")
+              .eq("id", ownerId)
+              .maybeSingle()
+            const locatorName = owner?.preferred_name || owner?.full_name || owner?.first_name || null
+            await sendNotification({
+              to: customerEmail,
+              replyTo: owner?.email || undefined, // renter replies reach their locator
+              ...leadConfirmationEmail({ locatorName, lead: leadRow }),
+            })
+          } catch (err) {
+            console.error("[api/leads/submit] Customer confirmation email failed:", err)
+          }
+        })
+      } catch (err) {
+        console.error("[api/leads/submit] Failed to schedule customer confirmation email:", err)
       }
     }
 
