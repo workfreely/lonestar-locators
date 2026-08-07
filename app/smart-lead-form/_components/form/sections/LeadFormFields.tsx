@@ -1,6 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
+import DatePicker from "react-datepicker"
+import "react-datepicker/dist/react-datepicker.css"
 import type { SmartLeadFormConfig } from "../../../_lib/types"
 import { MARKETS, getMarketByName, marketsForSlugs } from "@/lib/markets/catalog"
 import {
@@ -38,6 +40,30 @@ const inputClass =
   "w-full rounded-xl border border-[#e2e4ea] bg-white px-4 py-3.5 text-[15px] text-[#111318] outline-none transition-colors focus:border-[#2f6bff]"
 const labelClass = "text-[13px] font-medium text-[#4b5162]"
 const noteClass = "mt-1.5 text-[12.5px] leading-relaxed text-[#6b7280]"
+
+// ── Move-in date helpers (timezone-safe) ─────────────────────────────────────
+// Parse a stored "YYYY-MM-DD" as a LOCAL calendar date (via parts, never
+// new Date(iso) which is UTC-midnight and can shift a day). Keeps the calendar
+// showing the exact submitted day.
+function parseLocalDate(value: string | null | undefined): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((value ?? "").trim())
+  if (!m) return null
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+}
+// Serialize a selected Date back to "YYYY-MM-DD" from LOCAL parts (never
+// toISOString, which shifts the day in some timezones). This is the exact value
+// the DB, CRM, emails, Companion, and guest card already expect for move_date.
+function formatLocalYMD(date: Date): string {
+  const y = date.getFullYear()
+  const mm = String(date.getMonth() + 1).padStart(2, "0")
+  const dd = String(date.getDate()).padStart(2, "0")
+  return `${y}-${mm}-${dd}`
+}
+// Local midnight today — the earliest selectable move-in date (no past dates).
+function startOfToday(): Date {
+  const d = new Date()
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate())
+}
 
 type FormData = {
   firstName: string
@@ -113,6 +139,9 @@ export default function LeadFormFields({
   submitUsername?: string
 }) {
   const [formData, setFormData] = useState<FormData>(INITIAL)
+  // Earliest selectable move-in date (today); memoized so the picker isn't handed
+  // a new Date object on every keystroke-driven re-render.
+  const minMoveDate = useMemo(() => startOfToday(), [])
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
@@ -353,11 +382,33 @@ export default function LeadFormFields({
           <input type="email" name="email" value={formData.email} onChange={handleChange} required autoComplete="email" className={inputClass} />
         </div>
 
-        {/* Move-in date */}
+        {/* Move-in date — react-datepicker popover (adapted from the marketing
+            form). Clicking/tapping anywhere in the field opens a visible, month-
+            navigable calendar; selecting a date fills the field and closes it.
+            Value is stored/serialized as local "YYYY-MM-DD" (timezone-safe) — the
+            exact move_date format the DB/CRM/emails/Companion/guest card expect. */}
         {f.moveDate && (
           <div className="flex flex-col gap-1.5">
-            <label className={labelClass}>Desired Move-In Date</label>
-            <input type="date" name="moveDate" value={formData.moveDate} onChange={handleChange} required className={`${inputClass} slf-date-input cursor-pointer`} />
+            <label htmlFor="slf-move-date" className={labelClass}>Desired Move-In Date</label>
+            <div className="slf-datepicker">
+              <DatePicker
+                id="slf-move-date"
+                name="moveDate"
+                selected={parseLocalDate(formData.moveDate)}
+                onChange={(date: Date | null) =>
+                  setFormData((prev) => ({ ...prev, moveDate: date ? formatLocalYMD(date) : "" }))
+                }
+                minDate={minMoveDate}
+                dateFormat="MM/dd/yyyy"
+                placeholderText="MM/DD/YYYY"
+                className={`${inputClass} cursor-pointer`}
+                wrapperClassName="w-full"
+                popperPlacement="bottom-start"
+                popperProps={{ strategy: "fixed" }}
+                required
+                autoComplete="off"
+              />
+            </div>
           </div>
         )}
 
@@ -657,21 +708,33 @@ export default function LeadFormFields({
         </button>
       </form>
 
-      {/* Scoped reset for the native date field: the global stylesheet stretches
-          the calendar-picker indicator to a full-size absolute overlay (a
-          click-anywhere hack for the marketing date fields). That overlay
-          escapes here and covers part of the form, so restore the normal
-          inline calendar icon — for THIS form's date input only. */}
+      {/* Scoped styling for the move-in date picker: make the react-datepicker
+          input match THIS form's light input aesthetic, overriding the site-wide
+          marketing `.react-datepicker__input-container input` rule (higher
+          specificity via the `.slf-datepicker` wrapper). Only affects this form. */}
       <style>{`
-        input[type="date"].slf-date-input::-webkit-calendar-picker-indicator {
-          position: static;
-          inset: auto;
-          width: auto;
-          height: auto;
-          z-index: auto;
-          opacity: 0.6;
-          cursor: pointer;
+        .slf-datepicker .react-datepicker-wrapper { display: block; width: 100%; }
+        .slf-datepicker .react-datepicker__input-container input {
+          width: 100%;
+          box-sizing: border-box;
+          border-radius: 0.75rem;
+          border: 1px solid #e2e4ea;
+          background: #ffffff;
+          padding: 0.875rem 1rem;
+          font-size: 15px;
+          line-height: 1.4;
+          color: #111318;
+          font-family: inherit;
+          transition: border-color 0.15s ease;
         }
+        .slf-datepicker .react-datepicker__input-container input::placeholder { color: #9aa0ad; }
+        .slf-datepicker .react-datepicker__input-container input:focus {
+          outline: none;
+          border-color: #2f6bff;
+          box-shadow: none;
+        }
+        /* Keep the calendar popover above the form and legible on the light card. */
+        .react-datepicker-popper { z-index: 60; }
       `}</style>
     </section>
   )
