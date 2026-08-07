@@ -46,6 +46,15 @@ export function button(label: string, url: string): string {
   </table>`
 }
 
+// Reusable chip/pill for the AI Lead Summary. Omits itself when the value is
+// blank (so an absent field — e.g. income — simply doesn't render a chip).
+export function pill(label: string, value: string | null | undefined): string {
+  if (value === undefined || value === null || String(value).trim() === "") return ""
+  return `<span style="display:inline-block;background:#e8f2ff;color:#0b3a75;padding:6px 10px;border-radius:6px;font-size:13px;margin:4px 6px 4px 0;white-space:nowrap;"><strong>${esc(
+    label,
+  )}:</strong> ${esc(value)}</span>`
+}
+
 // Reusable label/value table — used for lead details and any structured summary.
 // Values are escaped here; labels are trusted (developer-supplied) constants.
 export function infoTable(rows: { label: string; value: string | null | undefined }[]): string {
@@ -87,10 +96,56 @@ export type EmailLayoutInput = {
    */
   bannerImageUrl?: string | null
   bannerAlt?: string
+  /**
+   * When true, the top of the email is ONLY a thin (~60px) city-skyline band —
+   * no dark "Locator Beast" wordmark band beneath it. If the skyline image is
+   * unavailable (unsupported market, .webp on Outlook, blocked images), the band
+   * collapses to a clean neutral dark strip — never a broken-image icon (the
+   * <img> carries an empty alt and sits on a matching bgcolor). Used by the
+   * lead-facing emails; other notifications keep the wordmark header.
+   */
+  hideWordmark?: boolean
 }
 
-export function renderEmail({ preheader, heading, contentHtml, cta, footerNote, bannerImageUrl, bannerAlt }: EmailLayoutInput): string {
+export function renderEmail({ preheader, heading, contentHtml, cta, footerNote, bannerImageUrl, bannerAlt, hideWordmark }: EmailLayoutInput): string {
   const year = "2026"
+
+  // Thin skyline band: fixed ~60px, full-width, object-fit cover, empty alt +
+  // matching bgcolor so a missing/blocked image degrades to a neutral strip.
+  const skylineBand = `<tr>
+          <td bgcolor="${BRAND.ink}" height="60" style="background:${BRAND.ink};height:60px;font-size:0;line-height:0;">
+            ${
+              bannerImageUrl
+                ? `<!--[if !mso]><!-->
+            <img src="${bannerImageUrl}" alt="" width="600" height="60" style="display:block;width:100%;max-width:600px;height:60px;object-fit:cover;border:0;outline:none;text-decoration:none;" />
+            <!--<![endif]-->`
+                : ""
+            }
+          </td>
+        </tr>`
+
+  const header = hideWordmark
+    ? skylineBand
+    : `${
+        bannerImageUrl
+          ? `<tr>
+          <td bgcolor="${BRAND.ink}" style="background:${BRAND.ink};font-size:0;line-height:0;">
+            <!--[if !mso]><!-->
+            <img src="${bannerImageUrl}" alt="${esc(bannerAlt ?? "")}" width="600"
+                 style="display:block;width:100%;max-width:600px;height:auto;border:0;outline:none;text-decoration:none;" />
+            <!--<![endif]-->
+          </td>
+        </tr>`
+          : ""
+      }
+        <tr>
+          <td align="center" bgcolor="${BRAND.ink}" style="background:${BRAND.ink};padding:${
+            bannerImageUrl ? "16px" : "26px"
+          } 40px;">
+            <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;font-weight:700;letter-spacing:-0.01em;color:#ffffff;">Locator&nbsp;Beast</span>
+          </td>
+        </tr>`
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -113,29 +168,9 @@ ${
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px;background:${
         BRAND.cardBg
       };border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(5,7,13,0.06);">
-        <!-- City skyline banner (optional) + Locator Beast wordmark. The band is
-             always the dark brand color, so a client that can't render the image
-             (Outlook desktop / .webp) shows a clean neutral branded header. -->
-        ${
-          bannerImageUrl
-            ? `<tr>
-          <td bgcolor="${BRAND.ink}" style="background:${BRAND.ink};font-size:0;line-height:0;">
-            <!--[if !mso]><!-->
-            <img src="${bannerImageUrl}" alt="${esc(bannerAlt ?? "")}" width="600"
-                 style="display:block;width:100%;max-width:600px;height:auto;border:0;outline:none;text-decoration:none;" />
-            <!--<![endif]-->
-          </td>
-        </tr>`
-            : ""
-        }
-        <!-- Branding header -->
-        <tr>
-          <td align="center" bgcolor="${BRAND.ink}" style="background:${
-    BRAND.ink
-  };padding:${bannerImageUrl ? "16px" : "26px"} 40px;">
-            <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;font-weight:700;letter-spacing:-0.01em;color:#ffffff;">Locator&nbsp;Beast</span>
-          </td>
-        </tr>
+        <!-- Header: thin city-skyline band (hideWordmark) OR optional banner +
+             Locator Beast wordmark. Composed above (see the header variable). -->
+        ${header}
         <!-- Body -->
         <tr>
           <td style="padding:36px 40px 32px 40px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">

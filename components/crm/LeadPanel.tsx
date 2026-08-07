@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react"
 import { formatPhone } from "@/lib/utils/formatPhone"
 import GuestCardModal from "./GuestCardModal"
 import type { GuestCardAgent } from "@/lib/leads/guestCard"
+import type { ResolvedAgentIdentity } from "@/lib/notifications/agentSignature"
 import { isGuestCardTitle } from "@/lib/leads/guestCardWorkflow"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
@@ -149,6 +150,7 @@ export default function LeadPanel({
   setNextActions,
   favorites = [],
   agent,
+  signature = null,
   onClose,
   onUpdateLead,
   pendingEditActionId,
@@ -160,6 +162,7 @@ export default function LeadPanel({
   setNextActions?: React.Dispatch<React.SetStateAction<any[]>>
   favorites?: any[]
   agent?: GuestCardAgent
+  signature?: ResolvedAgentIdentity | null
   onClose: () => void
   onUpdateLead?: (updatedLead: any) => void
   // Set by the Workflow Engine's "✓ Next Action Created" toast's Edit
@@ -1454,6 +1457,7 @@ export default function LeadPanel({
       lead={lead}
       property={guestCardProperty}
       agent={agent ?? {}}
+      signature={signature}
       onSent={handleGuestCardSent}
     />
 

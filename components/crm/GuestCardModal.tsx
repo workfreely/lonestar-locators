@@ -5,10 +5,17 @@ import {
   buildGuestCardFields,
   buildGuestCardSubject,
   buildGuestCardBody,
+  buildGuestCardLocatorFallback,
   guestCardPdfFilename,
   type GuestCardFields,
   type GuestCardAgent,
 } from "@/lib/leads/guestCard"
+import { drawGuestCard, type PdfImage } from "@/lib/leads/guestCardPdf"
+import {
+  buildClientSignatureText,
+  decideIabs,
+  type ResolvedAgentIdentity,
+} from "@/lib/notifications/agentSignature"
 
 // Email Guest Card workflow. Step 1 auto-generates a branded Guest Card PDF
 // (populated from the Smart Lead Form + the selected Favorite Property + the
@@ -17,76 +24,72 @@ import {
 // the PDF and opens their own email client (mailto) pre-filled so they attach
 // the PDF and send from their real address. Completing this launches Setup Tour.
 
-const ACCENT: [number, number, number] = [79, 70, 229] // indigo-600
-const INK: [number, number, number] = [31, 35, 43]
-const MUTED: [number, number, number] = [107, 114, 128]
-const HAIRLINE: [number, number, number] = [214, 217, 224]
+// Load a remote image → PNG data URL + dims for jsPDF, via <canvas> so any format
+// the browser decodes (webp/png/jpg) works. Returns null on error OR a CORS-
+// tainted canvas, so the PDF still generates without the image (graceful).
+async function loadPdfImage(url: string | null | undefined, square: boolean): Promise<PdfImage> {
+  if (!url) return null
+  return new Promise<PdfImage>((resolve) => {
+    const img = new Image()
+    img.crossOrigin = "anonymous"
+    img.onerror = () => resolve(null)
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas")
+        if (square) {
+          const s = Math.min(img.naturalWidth, img.naturalHeight) || 1
+          canvas.width = s
+          canvas.height = s
+          const ctx = canvas.getContext("2d")
+          if (!ctx) return resolve(null)
+          ctx.drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, 0, 0, s, s)
+        } else {
+          // Cap the longest side so a large logo upload can't bloat the PDF.
+          let w = img.naturalWidth || 1
+          let h = img.naturalHeight || 1
+          const max = 600
+          if (Math.max(w, h) > max) {
+            const s = max / Math.max(w, h)
+            w = Math.round(w * s)
+            h = Math.round(h * s)
+          }
+          canvas.width = w
+          canvas.height = h
+          const ctx = canvas.getContext("2d")
+          if (!ctx) return resolve(null)
+          ctx.drawImage(img, 0, 0, w, h)
+        }
+        resolve({ dataUrl: canvas.toDataURL("image/png"), width: canvas.width, height: canvas.height })
+      } catch {
+        resolve(null) // tainted canvas (CORS) — skip the image, keep the PDF
+      }
+    }
+    img.src = url
+  })
+}
 
-async function generateAndDownloadPdf(f: GuestCardFields) {
+async function generateAndDownloadPdf(
+  f: GuestCardFields,
+  signature: ResolvedAgentIdentity | null,
+  showDisclosure: boolean,
+  leasingEmail: string,
+  generatedDate: string,
+) {
   const { jsPDF } = await import("jspdf")
   const doc = new jsPDF({ unit: "pt", format: "letter" })
-  const pageW = doc.internal.pageSize.getWidth()
-  const marginX = 54
-
-  // Header band.
-  doc.setFillColor(...ACCENT)
-  doc.rect(0, 0, pageW, 96, "F")
-  doc.setTextColor(255, 255, 255)
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(11)
-  doc.text("GUEST CARD", marginX, 40)
-  doc.setFontSize(20)
-  doc.text(f.brokerage, marginX, 66)
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(11)
-  doc.text(f.propertyName, marginX, 84)
-
-  let y = 140
-
-  const section = (title: string) => {
-    doc.setTextColor(...ACCENT)
-    doc.setFont("helvetica", "bold")
-    doc.setFontSize(11)
-    doc.text(title.toUpperCase(), marginX, y)
-    y += 8
-    doc.setDrawColor(...HAIRLINE)
-    doc.setLineWidth(1)
-    doc.line(marginX, y, pageW - marginX, y)
-    y += 20
-  }
-
-  const row = (label: string, value: string) => {
-    if (!value || !value.trim()) return // omit empty rows (e.g. Pets / Parking)
-    doc.setFont("helvetica", "normal")
-    doc.setFontSize(10)
-    doc.setTextColor(...MUTED)
-    doc.text(label, marginX, y)
-    doc.setFont("helvetica", "bold")
-    doc.setTextColor(...INK)
-    doc.setFontSize(11)
-    const wrapped = doc.splitTextToSize(value, pageW - marginX - 190)
-    doc.text(wrapped, marginX + 150, y)
-    y += Math.max(22, wrapped.length * 14 + 8)
-  }
-
-  section("Client Information")
-  row("Name", f.clientName)
-  row("Email", f.clientEmail)
-  row("Phone", f.clientPhone)
-  row("Touring Property", f.propertyName)
-  row("Bedroom", f.bedroom)
-  row("Budget", f.budget)
-  row("Move-in Date", f.moveIn)
-  row("Pets", f.pets)
-  row("Parking Preferences", f.parking)
-
-  y += 12
-  section("Locator Information")
-  row("Locator", f.agentName)
-  row("Brokerage", f.brokerage)
-  row("Phone", f.agentPhone)
-  row("Email", f.agentEmail)
-
+  const [agentPhoto, brokerageLogo] = await Promise.all([
+    loadPdfImage(signature?.photoUrl, true),
+    loadPdfImage(signature?.logoUrl, false),
+  ])
+  drawGuestCard(doc, {
+    fields: f,
+    signature,
+    showDisclosure,
+    leasingEmail,
+    generatedDate,
+    agentPhoto,
+    brokerageLogo,
+  })
   doc.save(guestCardPdfFilename(f))
 }
 
@@ -96,6 +99,7 @@ export default function GuestCardModal({
   lead,
   property,
   agent,
+  signature = null,
   prefillTo = "",
   onSent,
 }: {
@@ -104,6 +108,8 @@ export default function GuestCardModal({
   lead: any
   property: any
   agent: GuestCardAgent
+  /** Resolved signed-in locator identity for the shared disclosure + signature. */
+  signature?: ResolvedAgentIdentity | null
   prefillTo?: string
   onSent?: () => void
 }) {
@@ -112,9 +118,28 @@ export default function GuestCardModal({
     [lead, property, agent]
   )
 
+  // Texas IABS shows when the agent serves TX, the lead's market is TX, or an
+  // IABS URL is explicitly configured (decideIabs). Resolved from the signature.
+  const showDisclosure = useMemo(
+    () => (signature ? decideIabs(signature, { leadCity: lead?.city }).show : false),
+    [signature, lead]
+  )
+
+  // Date the card was generated, MM/DD/YYYY in the locator's local time.
+  const generatedDate = useMemo(() => {
+    const d = new Date()
+    return `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}/${d.getFullYear()}`
+  }, [])
+
   const [to, setTo] = useState(prefillTo)
   const [subject, setSubject] = useState(() => buildGuestCardSubject(fields))
-  const [body, setBody] = useState(() => buildGuestCardBody(fields))
+  const [body, setBody] = useState(() => {
+    const base = buildGuestCardBody(fields, { leasingEmail: prefillTo, generatedDate })
+    const sig = signature
+      ? buildClientSignatureText(signature, { showDisclosure })
+      : buildGuestCardLocatorFallback(fields)
+    return `${base}\n\n${sig}`
+  })
   const [busy, setBusy] = useState(false)
 
   if (!open) return null
@@ -122,7 +147,7 @@ export default function GuestCardModal({
   async function handleContinue() {
     setBusy(true)
     try {
-      await generateAndDownloadPdf(fields)
+      await generateAndDownloadPdf(fields, signature, showDisclosure, to, generatedDate)
     } catch (err) {
       console.error("[guest-card] PDF generation failed:", err)
     }
@@ -173,7 +198,7 @@ export default function GuestCardModal({
             <p className="mt-1.5 text-[13.5px] font-semibold text-[var(--crm-text-primary)]">{fields.propertyName}</p>
             <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[12px] text-[var(--crm-text-secondary)]">
               <span>Client: <span className="text-[var(--crm-text-primary)]">{fields.clientName}</span></span>
-              <span>Bedroom: <span className="text-[var(--crm-text-primary)]">{fields.bedroom}</span></span>
+              <span>Beds/Baths: <span className="text-[var(--crm-text-primary)]">{fields.bedsBaths || "—"}</span></span>
               <span>Budget: <span className="text-[var(--crm-text-primary)]">{fields.budget}</span></span>
               <span>Move-in: <span className="text-[var(--crm-text-primary)]">{fields.moveIn}</span></span>
               <span>Locator: <span className="text-[var(--crm-text-primary)]">{fields.agentName}</span></span>
@@ -211,7 +236,7 @@ export default function GuestCardModal({
         {/* Footer */}
         <div className="flex items-center justify-between gap-3 border-t border-[var(--crm-border)] px-6 py-4">
           <p className="text-[11.5px] text-[var(--crm-text-muted)]">
-            The PDF downloads so you can attach it in your email app.
+            The PDF isn&apos;t auto-attached — it downloads so you can attach it in your email app before sending.
           </p>
           <div className="flex items-center gap-2">
             <button

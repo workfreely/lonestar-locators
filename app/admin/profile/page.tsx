@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 
 import ProfileClient from "@/components/crm/profile/ProfileClient"
 import { createClient } from "@/lib/supabase/server"
+import { resolveAgentIdentityForOwner, iabsComplianceWarning } from "@/lib/notifications/agentSignature"
 
 export default async function ProfilePage() {
   const supabase = await createClient()
@@ -22,6 +23,8 @@ export default async function ProfilePage() {
       }
     | null = null
 
+  let iabsWarning: string | null = null
+
   if (user) {
     const { data } = await supabase
       .from("profiles")
@@ -29,10 +32,35 @@ export default async function ProfilePage() {
       .eq("id", user.id)
       .single()
     profile = data
+
+    // Compliance fail-safe: a Texas agent with no IABS URL configured is warned
+    // here rather than ever substituting another brokerage's form on client mail.
+    const identity = await resolveAgentIdentityForOwner(supabase, user.id)
+    iabsWarning = identity ? iabsComplianceWarning(identity) : null
   }
 
   return (
-    <ProfileClient
+    <>
+      {iabsWarning ? (
+        <div
+          role="alert"
+          style={{
+            margin: "0 auto 16px",
+            maxWidth: 720,
+            padding: "12px 16px",
+            borderRadius: 12,
+            border: "1px solid #f0c36d",
+            background: "#fff8e6",
+            color: "#7a5b00",
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}
+        >
+          <strong>Action needed — Texas IABS form: </strong>
+          {iabsWarning}
+        </div>
+      ) : null}
+      <ProfileClient
       userId={user?.id ?? ""}
       initial={{
         firstName: profile?.first_name ?? "",
@@ -45,5 +73,6 @@ export default async function ProfilePage() {
         photoUrl: profile?.profile_photo_url ?? null,
       }}
     />
+    </>
   )
 }

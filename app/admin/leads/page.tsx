@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic"
 
 import DashboardClient from "@/components/crm/DashboardClient"
 import { createClient } from "@/lib/supabase/server"
+import { resolveAgentIdentityForOwner, type ResolvedAgentIdentity } from "@/lib/notifications/agentSignature"
 import { DEMO_ALL_LEADS, DEMO_NEXT_ACTIONS, DEMO_FAVORITES, DEFAULT_AVG_COMMISSION_PER_LEASE } from "@/lib/demo/demoWorkspace"
 
 // Fallback per-close commission when a profile hasn't set its own — matches
@@ -85,13 +86,13 @@ async function getFavorites() {
 // first_name personalizes the demo welcome banner.
 type AgentProfile = { name: string; brokerage: string; phone: string; email: string }
 
-async function getProfileContext(): Promise<{ demoMode: boolean; firstName: string; googleConnected: boolean; agent: AgentProfile; avgCommission: number }> {
+async function getProfileContext(): Promise<{ demoMode: boolean; firstName: string; googleConnected: boolean; agent: AgentProfile; signature: ResolvedAgentIdentity | null; avgCommission: number }> {
   const emptyAgent: AgentProfile = { name: "", brokerage: "", phone: "", email: "" }
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) return { demoMode: false, firstName: "", googleConnected: false, agent: emptyAgent, avgCommission: DEFAULT_AVG_COMMISSION }
+  if (!user) return { demoMode: false, firstName: "", googleConnected: false, agent: emptyAgent, signature: null, avgCommission: DEFAULT_AVG_COMMISSION }
   const { data: profile } = await supabase
     .from("profiles")
     .select("demo_mode, first_name, last_name, preferred_name, email, brokerage, phone_number, google_connected, avg_commission_per_lease")
@@ -107,17 +108,21 @@ async function getProfileContext(): Promise<{ demoMode: boolean; firstName: stri
     phone: profile?.phone_number ?? "",
     email: profile?.email ?? user.email ?? "",
   }
+  // Full identity for the shared guest-card disclosure + signature, resolved from
+  // the signed-in locator (the CORRECT workspace owner for their own guest cards).
+  const signature = await resolveAgentIdentityForOwner(supabase, user.id)
   return {
     demoMode: !!profile?.demo_mode,
     firstName: preferred || (profile?.first_name ?? ""),
     googleConnected: !!profile?.google_connected,
     agent,
+    signature,
     avgCommission: Number(profile?.avg_commission_per_lease) || DEFAULT_AVG_COMMISSION,
   }
 }
 
 export default async function Page() {
-  const { demoMode, firstName, googleConnected, agent, avgCommission } = await getProfileContext()
+  const { demoMode, firstName, googleConnected, agent, signature, avgCommission } = await getProfileContext()
 
   if (demoMode) {
     return (
@@ -129,6 +134,7 @@ export default async function Page() {
         firstName={firstName}
         googleConnected={googleConnected}
         agent={agent}
+        signature={signature}
         avgCommission={DEFAULT_AVG_COMMISSION_PER_LEASE}
       />
     )
@@ -140,5 +146,5 @@ export default async function Page() {
     getFavorites(),
   ])
 
-  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} agent={agent} avgCommission={avgCommission} />
+  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} agent={agent} signature={signature} avgCommission={avgCommission} />
 }

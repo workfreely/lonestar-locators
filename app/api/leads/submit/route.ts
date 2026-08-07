@@ -36,6 +36,7 @@ import { createNewLeadCalendarEvent } from "@/lib/google/createCalendarEvent"
 import { findDuplicateMatch, type LeadIdentity } from "@/lib/leads/duplicateDetection"
 import { getStageWorkflowAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
 import { sendNotification, newLeadEmail, leadConfirmationEmail, absoluteUrl } from "@/lib/notifications"
+import { resolveAgentIdentityForOwner } from "@/lib/notifications/agentSignature"
 
 // Server-only client — SUPABASE_SERVICE_ROLE_KEY has no NEXT_PUBLIC_
 // prefix, so it is never bundled into browser JS.
@@ -541,16 +542,13 @@ export async function POST(request: Request) {
       try {
         after(async () => {
           try {
-            const { data: owner } = await supabaseAdmin
-              .from("profiles")
-              .select("email, first_name, full_name, preferred_name")
-              .eq("id", ownerId)
-              .maybeSingle()
-            const locatorName = owner?.preferred_name || owner?.full_name || owner?.first_name || null
+            // Resolve the CORRECT workspace owner's identity for the shared
+            // compliance disclosure + signature block (Texas IABS + contact card).
+            const signature = await resolveAgentIdentityForOwner(supabaseAdmin, ownerId)
             await sendNotification({
               to: customerEmail,
-              replyTo: owner?.email || undefined, // renter replies reach their locator
-              ...leadConfirmationEmail({ locatorName, lead: leadRow }),
+              replyTo: signature?.email || undefined, // renter replies reach their locator
+              ...leadConfirmationEmail({ locatorName: signature?.name ?? null, signature, lead: leadRow }),
             })
           } catch (err) {
             console.error("[api/leads/submit] Customer confirmation email failed:", err)

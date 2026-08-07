@@ -1,6 +1,12 @@
 import { BRAND, absoluteUrl, type SenderCategory } from "./branding"
-import { renderEmail, paragraph, infoTable, esc } from "./layout"
+import { renderEmail, paragraph, infoTable, pill, esc } from "./layout"
 import { cityBanner } from "./cityHeader"
+import { formatDateDisplay } from "@bc/companion-shared"
+import {
+  renderClientSignatureHtml,
+  decideIabs,
+  type ResolvedAgentIdentity,
+} from "./agentSignature"
 
 // Every notification the app can send lives here as a pure builder:
 //   (params) => { subject, html, category, text? }
@@ -29,6 +35,7 @@ export type NewLeadEmailParams = {
     phone?: string | null
     city?: string | null
     neighborhoods?: string | null
+    submarkets?: string | null
     move_date?: string | null
     property_type?: string | null
     beds?: string | null
@@ -36,39 +43,195 @@ export type NewLeadEmailParams = {
     desired_rent?: string | null
     income?: string | null
     credit_score?: string | null
+    credit_history?: string | null
+    broken_lease_age?: string | null
+    broken_lease_amount?: string | null
+    eviction_court?: string | null
+    eviction_age?: string | null
+    eviction_balance?: string | null
+    criminal_background?: string | null
+    criminal_charge?: string | null
+    felony_age?: string | null
+    misdemeanor_age?: string | null
     notes?: string | null
     source?: string | null
   }
 }
 
+// ── Owner-alert helpers (shared with the AI Lead Summary) ────────────────────
+// Move-in window bucket, matching the CRM/owner-alert phrasing.
+function moveWindow(dateStr?: string | null): string {
+  if (!dateStr) return ""
+  const move = new Date(dateStr)
+  if (isNaN(move.getTime())) return ""
+  const days = Math.ceil((move.getTime() - Date.now()) / 86_400_000)
+  if (days <= 30) return "0–30 days"
+  if (days <= 60) return "30–60 days"
+  if (days <= 90) return "60–90 days"
+  return "90+ days"
+}
+
+// Combined "Beds / Baths" using the EXACT values saved by the Smart Lead Form
+// (beds/baths are "1" | "2" | "3+"; a Studio submission saves no beds/baths, so
+// the property type carries it). Never infers/broadens (no "1-2 / 1-2"). Examples:
+//   "1 / 1", "2 / 2", "3+ / 2", "Studio". Returns null when nothing was saved.
+function bedsBathsLabel(lead: {
+  beds?: string | null
+  baths?: string | null
+  property_type?: string | null
+}): string | null {
+  const beds = (lead.beds ?? "").trim()
+  const baths = (lead.baths ?? "").trim()
+  const isStudio = (lead.property_type ?? "").trim() === "Studio"
+  const bedsPart = beds || (isStudio ? "Studio" : "")
+  if (bedsPart && baths) return `${bedsPart} / ${baths}`
+  return bedsPart || baths || null
+}
+
+// A titled two-column detail section that renders nothing when every row is empty
+// (so a section with no meaningful data is omitted entirely — no blank headings).
+function section(title: string, rows: { label: string; value: string | null | undefined }[]): string {
+  const hasAny = rows.some((r) => r.value !== undefined && r.value !== null && String(r.value).trim() !== "")
+  if (!hasAny) return ""
+  return `<h2 style="margin:24px 0 4px 0;font-size:16px;font-weight:700;color:${BRAND.ink};">${esc(
+    title,
+  )}</h2>${infoTable(rows)}`
+}
+
+// Field-aware screening suppression. We drop ONLY genuine non-answers — null,
+// blank/whitespace, an em/en-dash placeholder, or "Not specified"/"N/A". We
+// PRESERVE explicit semantic answers such as "Clean", "None", "No", "0", "$0",
+// because for their field those are real, meaningful submissions (e.g. "Criminal
+// Background: None" is important). Field-specific rules (e.g. credit score) live
+// in their own helpers rather than in this generic placeholder list.
+const SCREENING_PLACEHOLDERS = new Set(["-", "—", "–", "n/a", "na", "not specified", "unspecified"])
+function screeningValue(v: string | null | undefined): string | null {
+  const t = (v ?? "").trim()
+  if (!t) return null
+  return SCREENING_PLACEHOLDERS.has(t.toLowerCase()) ? null : t
+}
+// Estimated credit score has a valid range (~300–850); "0" is only an internal
+// placeholder, never a real answer, so it is omitted for THIS field specifically
+// (not via the generic suppressor, which must keep a legitimate "0" elsewhere).
+function creditScoreValue(v: string | null | undefined): string | null {
+  const t = screeningValue(v)
+  if (!t) return null
+  return /^\$?0(\.0+)?$/.test(t) ? null : t
+}
+// Show a conditional detail row only when its parent answer is present.
+function whenParent(active: boolean, v: string | null | undefined): string | null {
+  return active ? screeningValue(v) : null
+}
+
 export function newLeadEmail({ locatorName, leadUrl, lead }: NewLeadEmailParams): BuiltEmail {
-  const fullName = [lead.first_name, lead.last_name].filter(Boolean).join(" ").trim() || "New lead"
+  void locatorName // signature kept for callers; the owner alert is name-agnostic
+  const fullName = [lead.first_name, lead.last_name].filter(Boolean).join(" ").trim() || "New Lead"
+
+  const win = moveWindow(lead.move_date)
+  const strongCredit = !!lead.credit_score && Number(lead.credit_score) >= 680
+  const hasIncome = !!lead.income && String(lead.income).trim() !== ""
+  const newHomeCandidate = strongCredit && hasIncome && win !== "90+ days"
+
+  const moveChip = lead.move_date ? `${formatDateDisplay(lead.move_date)}${win ? ` (${win})` : ""}` : null
+  const bedsBaths = bedsBathsLabel(lead)
+  const creditChip = lead.credit_history
+    ? `${lead.credit_history}${lead.credit_score ? ` (${lead.credit_score})` : ""}`
+    : null
+  const sourceLabel =
+    lead.source === "direct"
+      ? "Website"
+      : lead.source
+        ? lead.source.charAt(0).toUpperCase() + lead.source.slice(1)
+        : "Website"
+
+  // Blue "AI Lead Summary" box — plain-English narrative + at-a-glance chips.
+  // Income is incorporated two ways: the narrative notes whether it was provided,
+  // and (when present) an Income chip surfaces the exact saved range verbatim.
+  const aiSummary = `
+    <div style="background:#f1f7ff;border-radius:8px;padding:16px 18px;margin:0 0 24px 0;">
+      <div style="font-size:16px;font-weight:700;color:#0b3a75;margin-bottom:10px;">AI Lead Summary</div>
+      <p style="margin:0 0 10px 0;font-size:14px;line-height:1.5;color:${BRAND.ink};">
+        This lead is planning a move ${win ? `within ${win}` : "in the future"} and is looking for ${esc(
+          lead.property_type ?? "housing",
+        )} in ${esc(lead.city ?? "the area")}. ${
+          strongCredit ? "Credit appears strong" : "Credit may require additional review"
+        }${hasIncome ? ", and income was provided." : ", though income was not listed."}${
+          newHomeCandidate
+            ? " This lead may be a potential candidate for new home or builder programs."
+            : ""
+        }
+      </p>
+      ${pill("Move", moveChip)}
+      ${pill("Beds / Baths", bedsBaths)}
+      ${pill("Rent", lead.desired_rent)}
+      ${pill("Income", lead.income)}
+      ${pill("Credit", creditChip)}
+      ${pill("City", lead.city)}
+      ${pill("Source", sourceLabel)}
+      ${newHomeCandidate ? pill("AI Recommendation", "New Home Candidate") : ""}
+    </div>
+  `
+
   const contentHtml = `
-    ${paragraph(`${greeting(locatorName)} you just captured a new lead through your Smart Lead Form.`)}
-    ${infoTable([
-      { label: "Name", value: [lead.first_name, lead.last_name].filter(Boolean).join(" ") },
-      { label: "Email", value: lead.email },
+    ${aiSummary}
+    ${section("Client", [
+      { label: "First Name", value: lead.first_name },
+      { label: "Last Name", value: lead.last_name },
       { label: "Phone", value: lead.phone },
+      { label: "Email", value: lead.email },
+    ])}
+    ${section("Move Preferences", [
+      { label: "Move Date", value: moveChip },
       { label: "City", value: lead.city },
       { label: "Neighborhoods", value: lead.neighborhoods },
-      { label: "Move date", value: lead.move_date },
-      { label: "Property type", value: lead.property_type },
-      { label: "Beds / Baths", value: [lead.beds, lead.baths].filter(Boolean).join(" / ") },
-      { label: "Desired rent", value: lead.desired_rent },
-      { label: "Monthly income", value: lead.income },
-      { label: "Credit score", value: lead.credit_score },
-      { label: "Notes", value: lead.notes },
-      { label: "Source", value: lead.source },
+      { label: "Submarkets", value: lead.submarkets },
     ])}
-    ${paragraph("Open the lead in Locator Beast to start the workflow and follow up fast.")}
+    ${section("Housing Preferences", [
+      { label: "Property Type", value: lead.property_type },
+      { label: "Desired Rent", value: lead.desired_rent },
+      { label: "Monthly Income", value: lead.income },
+      { label: "Beds", value: lead.beds },
+      { label: "Baths", value: lead.baths },
+    ])}
+    ${(() => {
+      // Parent answers gate their conditional detail rows (broken-lease details
+      // only when Broken Lease was chosen, etc.). Explicit "Clean"/"None" show.
+      const creditHistory = screeningValue(lead.credit_history)
+      const criminal = screeningValue(lead.criminal_background)
+      const isBrokenLease = creditHistory === "Broken Lease"
+      const isEviction = creditHistory === "Eviction"
+      return section("Credit Screening", [
+        { label: "Estimated Credit Score", value: creditScoreValue(lead.credit_score) },
+        { label: "Credit History", value: creditHistory },
+        { label: "Broken Lease Age", value: whenParent(isBrokenLease, lead.broken_lease_age) },
+        { label: "Broken Lease Balance", value: whenParent(isBrokenLease, lead.broken_lease_amount) },
+        { label: "Went to Court", value: whenParent(isEviction, lead.eviction_court) },
+        { label: "Eviction Age", value: whenParent(isEviction, lead.eviction_age) },
+        { label: "Eviction Balance", value: whenParent(isEviction, lead.eviction_balance) },
+        { label: "Criminal Background", value: criminal },
+        { label: "Charge / Offense", value: whenParent(criminal === "Felony" || criminal === "Misdemeanor", lead.criminal_charge) },
+        { label: "Felony Age", value: whenParent(criminal === "Felony", lead.felony_age) },
+        { label: "Misdemeanor Age", value: whenParent(criminal === "Misdemeanor", lead.misdemeanor_age) },
+      ])
+    })()}
+    ${section("Lead Source", [{ label: "Lead Source", value: sourceLabel }])}
+    ${
+      lead.notes && String(lead.notes).trim() !== ""
+        ? `<h2 style="margin:24px 0 4px 0;font-size:16px;font-weight:700;color:${BRAND.ink};">Notes</h2>${paragraph(
+            esc(lead.notes),
+          )}`
+        : ""
+    }
   `
+
   return {
     category: "leads",
-    subject: `New lead: ${fullName}`,
+    subject: `New Renter Lead: ${fullName}`,
     html: renderEmail({
       ...cityBanner(lead.city), // city skyline follows the LEAD's market
-      preheader: `${fullName} just submitted your Smart Lead Form.`,
-      heading: "You've got a new lead 🎯",
+      hideWordmark: true, // thin skyline band only — no wordmark band
+      preheader: `${fullName}${lead.city ? ` · ${lead.city}` : ""} just submitted your Smart Lead Form.`,
+      heading: `New Renter Lead: ${fullName}${lead.city ? ` (${lead.city})` : ""}`,
       contentHtml,
       cta: { label: "Open lead in Locator Beast", url: leadUrl },
     }),
@@ -83,6 +246,12 @@ export function newLeadEmail({ locatorName, leadUrl, lead }: NewLeadEmailParams)
 // the renter's replies reach their locator. No CRM CTA (customer-facing).
 export type LeadConfirmationEmailParams = {
   locatorName?: string | null
+  /**
+   * Resolved workspace-owner identity (see agentSignature.ts). When provided, the
+   * email renders the shared compliance disclosure + agent signature block. The
+   * caller resolves this from the CORRECT owner; the template never hard-codes it.
+   */
+  signature?: ResolvedAgentIdentity | null
   lead: {
     first_name?: string | null
     city?: string | null
@@ -109,14 +278,11 @@ export type LeadConfirmationEmailParams = {
   }
 }
 
-export function leadConfirmationEmail({ locatorName, lead }: LeadConfirmationEmailParams): BuiltEmail {
+export function leadConfirmationEmail({ locatorName, signature, lead }: LeadConfirmationEmailParams): BuiltEmail {
   const city = (lead.city ?? "").trim() || "your area"
   const first = (lead.first_name ?? "").trim().split(/\s+/)[0]
   const heading = first ? `Hi ${first},` : "Hi there," // renderEmail escapes this
-  const layout = lead.beds || lead.baths ? [lead.beds, lead.baths].filter(Boolean).join(" / ") : null
-  const isBrokenLease = (lead.credit_history ?? "").toLowerCase().includes("broken")
-  const isEviction = lead.credit_history === "Eviction"
-  const hasCriminal = !!lead.criminal_background && lead.criminal_background !== "None"
+  const layout = bedsBathsLabel(lead)
   const locatorFirst = (locatorName ?? "").trim().split(/\s+/)[0]
 
   const step = (n: number, text: string) =>
@@ -130,25 +296,16 @@ export function leadConfirmationEmail({ locatorName, lead }: LeadConfirmationEma
     )}
     <h2 style="margin:24px 0 6px 0;font-size:17px;font-weight:700;color:${BRAND.ink};">Your search summary</h2>
     ${infoTable([
-      { label: "Move date", value: lead.move_date },
+      { label: "Move date", value: lead.move_date ? formatDateDisplay(lead.move_date) : null },
       { label: "Budget", value: lead.desired_rent },
-      { label: "Monthly income", value: lead.income },
+      { label: "Monthly Income", value: lead.income },
       { label: "Layout", value: layout },
       { label: "Property type", value: lead.property_type },
       { label: "Preferred areas", value: lead.neighborhoods },
       { label: "Nearby areas", value: lead.submarkets },
-      { label: "Estimated credit score", value: lead.credit_score },
-      { label: "Credit background", value: lead.credit_history },
-      { label: "Broken lease age", value: isBrokenLease ? lead.broken_lease_age : null },
-      { label: "Broken lease balance", value: isBrokenLease ? lead.broken_lease_amount : null },
-      { label: "Went to court", value: isEviction ? lead.eviction_court : null },
-      { label: "Eviction age", value: isEviction ? lead.eviction_age : null },
-      { label: "Eviction balance", value: isEviction ? lead.eviction_balance : null },
-      { label: "Criminal background", value: hasCriminal ? lead.criminal_background : null },
-      { label: "Criminal charge", value: hasCriminal ? lead.criminal_charge : null },
-      { label: "Felony age", value: hasCriminal ? lead.felony_age : null },
-      { label: "Misdemeanor age", value: hasCriminal ? lead.misdemeanor_age : null },
       { label: "Notes", value: lead.notes },
+      // PRIVACY: credit/eviction/criminal screening is NEVER shown to the renter.
+      // It stays internal to the workspace-owner notification only.
     ])}
     <h2 style="margin:26px 0 12px 0;font-size:17px;font-weight:700;color:${BRAND.ink};">What happens next?</h2>
     ${step(1, "Your locator reviews real-time pricing and availability to find the best options for your approval profile.")}
@@ -159,7 +316,13 @@ export function leadConfirmationEmail({ locatorName, lead }: LeadConfirmationEma
         locatorFirst ? ` and ${esc(locatorFirst)} will help` : ""
       }.`
     )}
-    ${paragraph(`— ${esc((locatorName ?? "").trim() || "Your Locator Beast locator")}`)}
+    ${
+      signature
+        ? renderClientSignatureHtml(signature, {
+            showDisclosure: decideIabs(signature, { leadCity: lead.city }).show,
+          })
+        : paragraph(`— ${esc((locatorName ?? "").trim() || "Your Locator Beast locator")}`)
+    }
   `
 
   return {
@@ -167,6 +330,7 @@ export function leadConfirmationEmail({ locatorName, lead }: LeadConfirmationEma
     subject: `${city} Search Update`,
     html: renderEmail({
       ...cityBanner(lead.city), // city skyline follows the LEAD's market
+      hideWordmark: true, // thin skyline band only — no wordmark band
       preheader: `We've received your ${city} apartment search and are finding your best options.`,
       heading,
       contentHtml,

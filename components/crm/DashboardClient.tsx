@@ -19,12 +19,13 @@ import FirstRunChecklist from "./FirstRunChecklist"
 import AppHeader from "./AppHeader"
 import { CRM_PRIMARY_BUTTON, CRM_SECONDARY_BUTTON } from "@/lib/crmButtonStyles"
 import type { GuestCardAgent } from "@/lib/leads/guestCard"
+import type { ResolvedAgentIdentity } from "@/lib/notifications/agentSignature"
 
 function titleCaseName(name: string): string {
   return name.trim().replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
-export default function DashboardClient({ leads, nextActions, favorites, demoMode = false, firstName = "", googleConnected = false, agent, avgCommission = 1000 }: { leads: any[]; nextActions: any[]; favorites: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; avgCommission?: number }) {
+export default function DashboardClient({ leads, nextActions, favorites, demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000 }: { leads: any[]; nextActions: any[]; favorites: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number }) {
   const router = useRouter()
   const [selectedLeadId, setSelectedLeadId] = useState<string | number | null>(null)
   const [bannerVisible, setBannerVisible] = useState(false)
@@ -227,6 +228,7 @@ export default function DashboardClient({ leads, nextActions, favorites, demoMod
                   setNextActions={setLocalNextActions}
                   favorites={localFavorites}
                   agent={agent}
+                  signature={signature}
                   onClose={() => {
                     setSelectedLeadId(null)
                     router.push("/admin/leads")
