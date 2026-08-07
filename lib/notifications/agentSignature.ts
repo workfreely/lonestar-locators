@@ -114,7 +114,9 @@ export function buildAgentIdentity(input: RawIdentityInput): ResolvedAgentIdenti
     phone: clean(p.phone_number) ?? clean(w.phone) ?? clean(cfg.copy?.phoneNumber),
     email: clean(p.email) ?? clean(w.email),
     website: withProtocol(w.website) ?? withProtocol(cfg.footer?.brokerageWebsiteUrl),
-    photoUrl: clean(p.profile_photo_url) ?? clean(cfg.branding?.agentPhotoUrl),
+    // Single source of truth — the agent photo is ALWAYS the live profile photo.
+    // No Smart-Form-config fallback (that separate field is not maintained).
+    photoUrl: clean(p.profile_photo_url),
     logoUrl: clean(p.business_logo_url) ?? clean(w.logo_url) ?? clean(cfg.branding?.logoUrl),
     iabsUrl: withProtocol(cfg.footer?.iabsUrl),
     servesTexas,

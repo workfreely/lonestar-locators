@@ -33,7 +33,9 @@ export function buildInitialSmartFormConfig(input: InitialFormInput): SmartLeadF
   const phone = clean(input.phoneNumber)
   const areasLabel = clean(serviceAreasLabel(areas))
   const heroTheme = defaultThemeForMarkets(areas) ?? undefined
-  const photoUrl = clean(input.profilePhotoUrl)
+  // NOTE: the agent photo is intentionally NOT snapshotted into the form config.
+  // It resolves live from profiles.profile_photo_url everywhere (single source of
+  // truth), so a later Profile change propagates without editing the form.
 
   const copy: Record<string, unknown> = {}
   const branding: Record<string, unknown> = {}
@@ -47,7 +49,6 @@ export function buildInitialSmartFormConfig(input: InitialFormInput): SmartLeadF
     visibility.phoneNumber = true
   }
   if (heroTheme) branding.heroTheme = heroTheme
-  if (photoUrl) branding.agentPhotoUrl = photoUrl
 
   const partial: Record<string, unknown> = {}
   if (Object.keys(copy).length) partial.copy = copy

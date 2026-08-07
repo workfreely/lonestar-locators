@@ -53,7 +53,11 @@ export default async function PublicSmartLeadFormPage({
     ...saved,
     branding: {
       ...saved.branding,
-      agentPhotoUrl: form.photo_url ?? saved.branding.agentPhotoUrl,
+      // Single source of truth: the agent photo is ALWAYS the live profile photo
+      // (profiles.profile_photo_url, returned as form.photo_url). We do NOT fall
+      // back to a stale config snapshot — when the profile has no photo, the form
+      // shows the initials fallback.
+      agentPhotoUrl: form.photo_url,
     },
     copy: {
       ...saved.copy,

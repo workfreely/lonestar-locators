@@ -35,7 +35,7 @@ const PROFILE_IMAGE_POSITION_OPTIONS: { id: SmartLeadFormConfig["branding"]["pro
 ]
 
 export default function BrandingPanel({ config, onChange }: { config: SmartLeadFormConfig; onChange: Updater }) {
-  const { logoUrl, agentPhotoUrl, agentPhotoSize, profileImagePosition, heroTheme, heroImageUrl, heroOverlay, buttonColor } =
+  const { logoUrl, agentPhotoSize, profileImagePosition, heroTheme, heroImageUrl, heroOverlay, buttonColor } =
     config.branding
 
   function updateBranding(patch: Partial<SmartLeadFormConfig["branding"]>) {
@@ -45,7 +45,12 @@ export default function BrandingPanel({ config, onChange }: { config: SmartLeadF
   return (
     <div className="flex flex-col gap-1">
       <div className="grid grid-cols-2 gap-8">
-        <UploadTile label="Agent Photo" imageUrl={agentPhotoUrl} onChange={(url) => updateBranding({ agentPhotoUrl: url })} round />
+        <div className="flex flex-col gap-1.5">
+          <p className="text-[12px] font-semibold text-[#6b7280]">Agent Photo</p>
+          <p className="text-[11px] leading-snug text-[#9098a8]">
+            Uses your Profile photo automatically. Update it under Profile and it appears here and on your live form.
+          </p>
+        </div>
         <UploadTile label="Logo" imageUrl={logoUrl} onChange={(url) => updateBranding({ logoUrl: url })} />
       </div>
 

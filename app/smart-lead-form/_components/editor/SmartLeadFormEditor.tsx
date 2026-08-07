@@ -25,17 +25,30 @@ export default function SmartLeadFormEditor() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  // The agent photo is the LIVE profile photo (profiles.profile_photo_url) — a
+  // single source of truth shared with the nav avatar, public form, and every
+  // client-facing signature. It's overlaid onto the preview only (below); it is
+  // never written into the saved form config, so a Profile update shows here on
+  // reload without re-uploading anything.
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
     ;(async () => {
-      const [{ data: ws }, { data: form }] = await Promise.all([
+      const [{ data: ws }, { data: form }, { data: userData }] = await Promise.all([
         supabase.rpc("get_current_workspace"),
         supabase.rpc("get_smart_form"),
+        supabase.auth.getUser(),
       ])
       if (!active) return
       const wsRow = Array.isArray(ws) ? ws[0] : ws
       if (wsRow?.service_areas) setServiceAreaSlugs(wsRow.service_areas)
+
+      const uid = userData?.user?.id
+      if (uid) {
+        const { data: prof } = await supabase.from("profiles").select("profile_photo_url").eq("id", uid).maybeSingle()
+        if (active) setProfilePhotoUrl(prof?.profile_photo_url ?? null)
+      }
 
       const formRow = Array.isArray(form) ? form[0] : form
       if (formRow?.slug) setSlug(formRow.slug)
@@ -62,6 +75,14 @@ export default function SmartLeadFormEditor() {
     setConfig(updater)
     // Any edit clears the "Saved" confirmation so the button invites another save.
     setSaved(false)
+  }
+
+  // Preview config = the edited config with the LIVE profile photo overlaid for
+  // the agent photo. The overlay is preview-only: `config` (what save persists)
+  // never carries the photo, so profiles.profile_photo_url stays the one source.
+  const previewConfig: SmartLeadFormConfig = {
+    ...config,
+    branding: { ...config.branding, agentPhotoUrl: profilePhotoUrl },
   }
 
   async function save() {
@@ -100,7 +121,7 @@ export default function SmartLeadFormEditor() {
       <div className="flex flex-1 overflow-hidden">
         <div className="flex flex-1 items-start justify-center overflow-y-auto p-8">
           <PreviewFrame device={device}>
-            <SmartLeadForm config={config} serviceAreaSlugs={serviceAreaSlugs} />
+            <SmartLeadForm config={previewConfig} serviceAreaSlugs={serviceAreaSlugs} />
           </PreviewFrame>
         </div>
 
