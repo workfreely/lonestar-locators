@@ -27,17 +27,24 @@ function PlayIcon({ className }: { className?: string }) {
   );
 }
 
+// The visitor's real entitlement, resolved server-side by the page:
+//   "none"  → logged-out / expired / canceled / past_due (everything locked)
+//   "trial" → active free trial (trial-tier modules unlocked)
+//   "paid"  → active subscription (everything unlocked)
+export type AcademyAccess = "none" | "trial" | "paid";
+
 /**
- * Public marketing Academy. There is NO authenticated subscription status on
- * this page, so lesson cards render their access TIER statically from the
- * module's `access` field (trial vs paid) rather than a per-user unlock:
- *   - trial tier → "Included in Trial" badge; clicking prompts to start the trial.
- *   - paid tier  → "Paid Members" badge (locked); clicking explains the full
- *                  Academy is included with a paid membership + an upgrade CTA.
- * When the Academy is wired into the authenticated app, the same `access` field
- * drives real lock/unlock against the app's authoritative status.
+ * Academy modules. The lock vs play icon and the click behavior are derived from
+ * the visitor's REAL access (the `access` prop) combined with each module's tier
+ * (`module.access`) — never from the section alone:
+ *   - playable → play icon; the lesson is unlocked (no upsell modal).
+ *   - locked   → lock icon; clicking opens the tier-appropriate modal (start the
+ *                free trial for trial-tier modules, or see plans for paid-tier).
+ * The green "Included in Free Trial" / "Paid Members" pills always reflect the
+ * module TIER (so logged-out visitors still see which modules the trial unlocks),
+ * independent of the play/lock state.
  */
-export default function AcademyModules() {
+export default function AcademyModules({ access }: { access: AcademyAccess }) {
   const [modalTier, setModalTier] = useState<Access | null>(null);
 
   useEffect(() => {
@@ -58,7 +65,11 @@ export default function AcademyModules() {
       <div className="-mt-10 bg-[var(--beast-bg-dark)] md:-mt-14">
         <div className="beast-container space-y-14 pb-16 pt-8 md:space-y-20 md:pb-24 md:pt-10">
           {ACADEMY_MODULES.map((module, mi) => {
+            // Pill reflects the module TIER (unchanged). The icon/click reflect
+            // the visitor's REAL access: a trial-tier module is playable on an
+            // active trial or paid plan; a paid-tier module only on a paid plan.
             const isTrial = module.access === "trial";
+            const playable = access === "paid" || (isTrial && access === "trial");
             return (
               <Reveal key={module.slug}>
                 <section>
@@ -82,13 +93,17 @@ export default function AcademyModules() {
                       <button
                         key={lesson.slug}
                         type="button"
-                        onClick={() => setModalTier(module.access)}
-                        aria-haspopup="dialog"
+                        onClick={() => {
+                          // Locked lessons open the tier upsell; unlocked lessons
+                          // have no upsell (the visitor already has access).
+                          if (!playable) setModalTier(module.access);
+                        }}
+                        aria-haspopup={playable ? undefined : "dialog"}
                         className="group flex h-full flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left transition-colors hover:border-[var(--beast-blue)]/50 hover:bg-white/[0.06]"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <span className="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-[var(--beast-blue)]/15 text-[var(--beast-blue-bright)]">
-                            {isTrial ? <PlayIcon className="h-4 w-4" /> : <LockIcon className="h-4 w-4" />}
+                            {playable ? <PlayIcon className="h-4 w-4" /> : <LockIcon className="h-4 w-4" />}
                           </span>
                           {isTrial ? (
                             <span className="flex-none rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
