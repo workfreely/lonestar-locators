@@ -92,7 +92,7 @@ export default function AcademyModules() {
                           </span>
                           {isTrial ? (
                             <span className="flex-none rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
-                              Included in Trial
+                              Included in Free Trial
                             </span>
                           ) : (
                             <span className="flex-none rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-white/60">
