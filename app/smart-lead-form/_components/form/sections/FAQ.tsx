@@ -10,7 +10,7 @@ export default function FAQ({ config }: { config: SmartLeadFormConfig }) {
   return (
     <section className="px-5 py-10 sm:px-8">
       <div className="mx-auto max-w-lg">
-        <p className="text-center text-[13px] font-semibold uppercase tracking-[0.2em] text-[#9098a8]">
+        <p className="text-center text-[14px] font-semibold uppercase tracking-[0.2em] text-[#9098a8] sm:text-[13px]">
           FAQ&apos;s
         </p>
         <div className="mt-5 flex flex-col divide-y divide-[#eef0f4] border-y border-[#eef0f4]">
@@ -23,7 +23,7 @@ export default function FAQ({ config }: { config: SmartLeadFormConfig }) {
                   onClick={() => setOpenIndex(isOpen ? null : i)}
                   className="flex w-full min-w-0 items-center justify-between gap-4 py-4 text-left"
                 >
-                  <span className="min-w-0 break-words text-[14px] font-semibold text-[#111318]">{item.question}</span>
+                  <span className="min-w-0 break-words text-[15px] font-semibold text-[#111318] sm:text-[14px]">{item.question}</span>
                   <HiOutlineChevronDown
                     className={`h-4 w-4 shrink-0 text-[#9098a8] transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`}
                   />
@@ -33,7 +33,7 @@ export default function FAQ({ config }: { config: SmartLeadFormConfig }) {
                   style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}
                 >
                   <div className="overflow-hidden">
-                    <p className="break-words pb-4 text-[13.5px] leading-relaxed text-[#6b7280]">{item.answer}</p>
+                    <p className="break-words pb-4 text-[14.5px] leading-relaxed text-[#6b7280] sm:text-[13.5px]">{item.answer}</p>
                   </div>
                 </div>
               </div>
