@@ -86,7 +86,7 @@ export default function Hero({ config }: { config: SmartLeadFormConfig }) {
             hero collapses upward and the background image becomes the primary
             visual (image-focused style). */}
         {showHeadline && (
-          <h1 className="break-words text-[28px] font-semibold leading-[1.15] tracking-tight sm:text-[38px]">{headline}</h1>
+          <h1 className="text-balance break-words text-[clamp(22px,7vw,32px)] font-bold leading-[1.14] tracking-tight sm:text-[40px]">{headline}</h1>
         )}
 
         {showPhotoUnderHeadline ? (

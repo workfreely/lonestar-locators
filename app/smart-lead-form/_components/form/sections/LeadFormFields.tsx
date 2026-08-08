@@ -36,10 +36,13 @@ function neighborhoodOptions(cityName: string): string[] {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Shared styling (matches the existing Smart Lead Form light form aesthetic).
+// Controls are 17px so they read clearly on a phone AND stay ≥16px, which stops
+// iOS from zooming the page on focus (the "intermediate bubble"). White fields on
+// the off-white form surface, with a stronger #cbd0da border for separation.
 const inputClass =
-  "w-full rounded-xl border border-[#e2e4ea] bg-white px-4 py-3.5 text-[15px] text-[#111318] outline-none transition-colors focus:border-[#2f6bff]"
-const labelClass = "text-[13px] font-medium text-[#4b5162]"
-const noteClass = "mt-1.5 text-[12.5px] leading-relaxed text-[#6b7280]"
+  "w-full rounded-xl border border-[#cbd0da] bg-white px-4 py-3.5 text-[17px] text-[#111318] outline-none transition-colors focus:border-[#2f6bff]"
+const labelClass = "text-[14px] font-semibold text-[#374151]"
+const noteClass = "mt-1.5 text-[15px] leading-relaxed text-[#4b5563]"
 
 // ── Move-in date helpers (timezone-safe) ─────────────────────────────────────
 // Parse a stored "YYYY-MM-DD" as a LOCAL calendar date (via parts, never
@@ -354,7 +357,7 @@ export default function LeadFormFields({
     <section className="px-5 py-8 sm:px-8" id="smart-lead-form">
       <form
         onSubmit={handleSubmit}
-        className="mx-auto flex max-w-lg flex-col gap-4 rounded-2xl border border-[#e2e4ea] bg-white p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] sm:p-7"
+        className="mx-auto flex max-w-lg flex-col gap-4 rounded-2xl border border-[#e6e8ee] bg-[#f8f9fb] p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] sm:p-7"
       >
         {/* First / Last name */}
         <div className="flex flex-col gap-1.5">
@@ -689,10 +692,10 @@ export default function LeadFormFields({
         {/* Consent */}
         {consentEnabled && (
           <div className="mt-1 border-t border-[#eef0f4] pt-4">
-            <label className="flex min-w-0 items-start gap-2.5 text-[12.5px] leading-relaxed text-[#6b7280]">
+            <label className="flex min-w-0 items-start gap-2.5 text-[16px] leading-relaxed text-[#4b5563]">
               <input type="checkbox" required checked={formData.sms_consent}
                 onChange={(e) => set("sms_consent", e.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#d0d3dc]" />
+                className="mt-0.5 h-5 w-5 shrink-0 rounded border-[#cbd0da]" />
               <span className="min-w-0 break-words">{consentText}</span>
             </label>
           </div>
@@ -701,7 +704,7 @@ export default function LeadFormFields({
         {/* Submit */}
         <button
           type="submit"
-          className="mt-2 w-full break-words rounded-full px-6 py-4 text-[15px] font-semibold text-white transition-transform duration-300 hover:scale-[1.01]"
+          className="mt-2 w-full break-words rounded-full px-6 py-4 text-[17px] font-semibold text-white transition-transform duration-300 hover:scale-[1.01]"
           style={{ backgroundColor: buttonColor }}
         >
           {config.copy.buttonText}
@@ -718,10 +721,10 @@ export default function LeadFormFields({
           width: 100%;
           box-sizing: border-box;
           border-radius: 0.75rem;
-          border: 1px solid #e2e4ea;
+          border: 1px solid #cbd0da;
           background: #ffffff;
           padding: 0.875rem 1rem;
-          font-size: 15px;
+          font-size: 17px;
           line-height: 1.4;
           color: #111318;
           font-family: inherit;
