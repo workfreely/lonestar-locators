@@ -95,8 +95,8 @@ export default function Hero({ config }: { config: SmartLeadFormConfig }) {
               <AgentPhoto config={config} />
             </div>
             <AgentInfoText config={config} theme="dark" />
-            {highlightsNode}
             {subheadlineNode}
+            {highlightsNode}
           </>
         ) : (
           <>

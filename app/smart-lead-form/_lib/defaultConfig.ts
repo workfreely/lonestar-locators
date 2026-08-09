@@ -9,7 +9,10 @@ export const DEFAULT_CONFIG: SmartLeadFormConfig = {
       highlights: true,
       testimonials: true,
       faq: true,
-      brokerageInfo: true,
+      // Minimal, conversion-focused hero by default. Brokerage + phone are OFF
+      // for new forms (still toggle-able by the agent, and shown in footer/IABS/
+      // emails/guest cards/CRM/profile). serviceAreas stays on.
+      brokerageInfo: false,
       serviceAreas: true,
       socialLinks: false,
       phoneNumber: false,
@@ -31,8 +34,9 @@ export const DEFAULT_CONFIG: SmartLeadFormConfig = {
   },
   copy: {
     headline: "Stop Wasting Time Searching for Apartments",
-    subheadline:
-      "Tell me what you're looking for and get a personalized list of apartments that match your budget and lifestyle",
+    // Short promise by default (no long descriptive paragraph). The agent can
+    // replace this with longer copy in the editor if they choose.
+    subheadline: "Get Your Free Custom Apartment List",
     buttonText: "Get My Apartment List",
     agentName: "Jordan Blake",
     agentTitle: "Licensed Apartment Locator",
