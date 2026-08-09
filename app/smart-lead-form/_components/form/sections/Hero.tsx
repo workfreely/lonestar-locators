@@ -93,7 +93,12 @@ export default function Hero({ config }: { config: SmartLeadFormConfig }) {
 
         {showPhotoUnderHeadline ? (
           <>
-            <div className="mt-4 flex justify-center">
+            {/* Gap above the photo is conditional on the headline: a bit more
+                breathing room under a visible headline (~27px); when the headline
+                is hidden it isn't rendered at all (no leftover empty space) and
+                the photo relies on the hero section's own pt-5 (~20px) for a
+                compact, intentional top padding. */}
+            <div className={`${showHeadline ? "mt-[27px]" : "mt-0"} flex justify-center`}>
               <AgentPhoto config={config} />
             </div>
             {/* Identity group (name · title · service areas) — one compact unit,
