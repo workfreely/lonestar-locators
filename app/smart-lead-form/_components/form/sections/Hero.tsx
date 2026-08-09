@@ -45,14 +45,16 @@ export default function Hero({ config }: { config: SmartLeadFormConfig }) {
   // matter which order they render in — reordering them (Under Headline
   // only) never invents new spacing values, it just changes which
   // existing gap ends up next to which element.
+  // The short promise — read as the OFFER (17px semibold, full white), not a
+  // muted metadata line. Extra top gap separates it from the identity group.
   const subheadlineNode = (
-    <p className="mx-auto mt-2.5 max-w-md break-words text-[15px] leading-relaxed text-white/80 sm:text-[17px]">
+    <p className="mx-auto mt-6 max-w-md break-words text-[17px] font-semibold leading-snug text-white">
       {subheadline}
     </p>
   )
 
   const highlightsNode = showHighlights && (
-    <div className="mt-5">
+    <div className="mt-6">
       <Highlights config={config} />
     </div>
   )
@@ -94,7 +96,11 @@ export default function Hero({ config }: { config: SmartLeadFormConfig }) {
             <div className="mt-4 flex justify-center">
               <AgentPhoto config={config} />
             </div>
-            <AgentInfoText config={config} theme="dark" />
+            {/* Identity group (name · title · service areas) — one compact unit,
+                separated from the photo above and the promise below. */}
+            <div className="mt-6">
+              <AgentInfoText config={config} theme="dark" />
+            </div>
             {subheadlineNode}
             {highlightsNode}
           </>
