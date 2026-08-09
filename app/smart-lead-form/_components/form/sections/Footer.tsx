@@ -30,9 +30,12 @@ function FooterLink({ href, label }: { href?: string; label: string }) {
 }
 
 export default function Footer({ config }: { config: SmartLeadFormConfig }) {
-  const { footerBrokerageWebsite, footerOfficePhone, footerIabs, footerConsumerProtectionNotice } =
+  const { footerBrokerageWebsite, footerOfficePhone, footerIabs, footerConsumerProtectionNotice, brokerageInfo } =
     config.sections.visibility
   const { brokerageWebsiteUrl, officePhone, iabsUrl, consumerProtectionNoticeUrl } = config.footer
+  // Brokerage in the identity row reads the existing config source (copy.brokerageName)
+  // and the existing brokerageInfo visibility — no new field. Omitted when blank or hidden.
+  const showBrokerage = brokerageInfo && (config.copy.brokerageName ?? "").trim().length > 0
 
   return (
     <footer className="border-t border-[#eef0f4] px-5 py-8 text-center sm:px-8">
@@ -76,15 +79,23 @@ export default function Footer({ config }: { config: SmartLeadFormConfig }) {
           </div>
         )}
 
-        {/* 3 — Official Equal Housing logo + label */}
-        <div className="flex items-center justify-center gap-2">
+        {/* 3 — Compact identity row: Equal Housing icon · [Brokerage] · Powered by.
+            flex-wrap + intentional gaps so a long brokerage name wraps cleanly at
+            320px; each "· label" is kept together so a separator never orphans. */}
+        <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[13px] font-medium text-[#6b7280]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={EQUAL_HOUSING_LOGO} alt="Equal Housing Opportunity" className="h-6 w-auto" />
-          <span className="text-[13px] font-medium text-[#6b7280]">Equal Housing Opportunity</span>
+          <img src={EQUAL_HOUSING_LOGO} alt="Equal Housing Opportunity" className="h-[19px] w-auto shrink-0" />
+          {showBrokerage && (
+            <span className="inline-flex items-center gap-x-2">
+              <Dot />
+              <span className="break-words">{config.copy.brokerageName}</span>
+            </span>
+          )}
+          <span className="inline-flex items-center gap-x-2">
+            <Dot />
+            <span>Powered by Locator Beast</span>
+          </span>
         </div>
-
-        {/* 4 — Powered by Locator Beast */}
-        <p className="text-[12px] text-[#9aa0ad]">Powered by Locator Beast</p>
       </div>
     </footer>
   )
