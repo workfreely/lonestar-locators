@@ -82,6 +82,11 @@ export type SmartLeadFormConfig = {
     officePhone: string
     iabsUrl: string
     consumerProtectionNoticeUrl: string
+    // Reusable additional legal/disclosure links (editable title + url), rendered
+    // in the public footer as clickable text using the saved title. Persisted in
+    // the JSON config — no schema/RPC/migration change. Incomplete rows (missing
+    // title or url) are skipped when rendering.
+    customDisclosures: { title: string; url: string }[]
   }
   consent: {
     enabled: boolean

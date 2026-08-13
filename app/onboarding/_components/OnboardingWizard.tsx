@@ -9,6 +9,7 @@ import Step1Welcome from "./steps/Step1Welcome";
 import StepBusinessProfile from "./steps/StepBusinessProfile";
 import StepBusinessGoals from "./steps/StepBusinessGoals";
 import StepConnect from "./steps/StepConnect";
+import StepTools from "./steps/StepTools";
 import StepBuilding from "./steps/StepBuilding";
 
 export default function OnboardingWizard({
@@ -157,6 +158,7 @@ export default function OnboardingWizard({
           {step === 2 && <StepBusinessProfile {...stepProps} userId={userId} />}
           {step === 3 && <StepConnect {...stepProps} />}
           {step === 4 && <StepBusinessGoals {...stepProps} />}
+          {step === 5 && <StepTools {...stepProps} />}
         </div>
       </main>
     </div>

@@ -50,6 +50,31 @@ export default function ContentPanel({ config, onChange }: { config: SmartLeadFo
     }))
   }
 
+  // Additional Legal & Disclosure Links — reusable custom rows (title + url),
+  // persisted in the JSON config alongside the Texas presets.
+  function addDisclosure() {
+    onChange((prev) => ({
+      ...prev,
+      footer: { ...prev.footer, customDisclosures: [...(prev.footer.customDisclosures ?? []), { title: "", url: "" }] },
+    }))
+  }
+  function updateDisclosure(index: number, patch: Partial<{ title: string; url: string }>) {
+    onChange((prev) => {
+      const rows = [...(prev.footer.customDisclosures ?? [])]
+      rows[index] = { ...rows[index], ...patch }
+      return { ...prev, footer: { ...prev.footer, customDisclosures: rows } }
+    })
+  }
+  function removeDisclosure(index: number) {
+    onChange((prev) => ({
+      ...prev,
+      footer: {
+        ...prev.footer,
+        customDisclosures: (prev.footer.customDisclosures ?? []).filter((_, i) => i !== index),
+      },
+    }))
+  }
+
   return (
     <div className="flex flex-col divide-y divide-[#f0f1f5]">
       {/* The sections below appear on the public page in this fixed order. */}
@@ -151,48 +176,54 @@ export default function ContentPanel({ config, onChange }: { config: SmartLeadFo
         </div>
       </div>
 
-      {/* ── Footer (fixed closing anchor; only your business details are editable) */}
+      {/* ── Legal & Disclosures ─────────────────────────────────────────────── */}
       <div className="pt-3">
-        <p className="pb-1 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">Footer</p>
-        <p className="pb-1 text-[12px] leading-relaxed text-[#9098a8]">
-          Privacy Policy, Terms of Service, and &ldquo;Powered by Locator Beast&rdquo; always appear and aren&apos;t editable.
+        <p className="pb-1 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">Legal &amp; Disclosures</p>
+        <p className="pb-2 text-[12px] leading-relaxed text-[#9098a8]">
+          Add the legal notices and disclosure links required for your business. These links appear in your
+          Smart Form footer. Privacy Policy, Terms of Service, and &ldquo;Powered by Locator Beast&rdquo; always appear.
         </p>
 
-        <ToggleRow
-          label="Show brokerage website"
-          checked={visibility.footerBrokerageWebsite}
-          onChange={(v) => updateVisibility({ footerBrokerageWebsite: v })}
+        {/* Texas TREC disclosure presets. Enter the document URL to display each in
+            the footer; leaving a field blank shows nothing (no toggle to hide). */}
+        <TextField
+          label="Texas Real Estate Commission Information About Brokerage Services"
+          value={footer.iabsUrl}
+          onChange={(v) => updateFooter({ iabsUrl: v })}
         />
-        {visibility.footerBrokerageWebsite && (
-          <TextField label="Brokerage Website URL" value={footer.brokerageWebsiteUrl} onChange={(v) => updateFooter({ brokerageWebsiteUrl: v })} />
-        )}
-
-        <ToggleRow
-          label="Show office phone"
-          checked={visibility.footerOfficePhone}
-          onChange={(v) => updateVisibility({ footerOfficePhone: v })}
+        <TextField
+          label="Texas Real Estate Commission Consumer Protection Notice"
+          value={footer.consumerProtectionNoticeUrl}
+          onChange={(v) => updateFooter({ consumerProtectionNoticeUrl: v })}
         />
-        {visibility.footerOfficePhone && (
-          <TextField label="Office Phone" value={footer.officePhone} onChange={(v) => updateFooter({ officePhone: v })} />
-        )}
 
-        <ToggleRow label="Show IABS (Texas)" checked={visibility.footerIabs} onChange={(v) => updateVisibility({ footerIabs: v })} />
-        {visibility.footerIabs && (
-          <TextField label="IABS Document URL" value={footer.iabsUrl} onChange={(v) => updateFooter({ iabsUrl: v })} />
-        )}
-
-        <ToggleRow
-          label="Show Consumer Protection Notice (Texas)"
-          checked={visibility.footerConsumerProtectionNotice}
-          onChange={(v) => updateVisibility({ footerConsumerProtectionNotice: v })}
-        />
-        {visibility.footerConsumerProtectionNotice && (
-          <TextField
-            label="Consumer Protection Notice URL"
-            value={footer.consumerProtectionNoticeUrl}
-            onChange={(v) => updateFooter({ consumerProtectionNoticeUrl: v })}
-          />
-        )}
+        {/* Additional Legal & Disclosure Links — reusable rows (title + url). */}
+        <div className="pt-4">
+          <p className="pb-0.5 text-[12.5px] font-semibold text-[#4b5162]">Additional Legal &amp; Disclosure Links</p>
+          <p className="pb-2 text-[12px] leading-relaxed text-[#9098a8]">
+            Add any other disclosure your business needs. The title you enter is shown as the footer link text.
+          </p>
+          {footer.customDisclosures.map((row, i) => (
+            <div key={i} className="mb-2 rounded-lg border border-[#e5e7ee] p-3">
+              <TextField label="Link Title" value={row.title} onChange={(v) => updateDisclosure(i, { title: v })} />
+              <TextField label="URL" value={row.url} onChange={(v) => updateDisclosure(i, { url: v })} />
+              <button
+                type="button"
+                onClick={() => removeDisclosure(i)}
+                className="mt-1 text-[12px] font-semibold text-red-600 transition-colors hover:text-red-700"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={addDisclosure}
+            className="mt-1 text-[13px] font-semibold text-[#2f6bff] transition-colors hover:text-[#265fe0]"
+          >
+            + Add disclosure
+          </button>
+        </div>
       </div>
     </div>
   )

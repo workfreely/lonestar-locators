@@ -69,6 +69,10 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
   const [open, setOpen] = useState(false)
   const [appearanceOpen, setAppearanceOpen] = useState(false)
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
+  // Beast Network nav entry is shown only to network members (any status) and to
+  // the platform owner — never to regular $99 customers. Resolved best-effort;
+  // hidden on any error (incl. before the Beast Network migrations are applied).
+  const [showNetwork, setShowNetwork] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -82,6 +86,25 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
         .single()
       setPhotoUrl(profile?.profile_photo_url ?? null)
     })
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    ;(async () => {
+      try {
+        const [{ data: overview }, { data: admin }] = await Promise.all([
+          supabase.rpc("lb_my_network_overview"),
+          supabase.rpc("is_platform_admin"),
+        ])
+        const row = Array.isArray(overview) ? overview[0] : overview
+        if (active) setShowNetwork(Boolean(row?.status) || Boolean(admin))
+      } catch {
+        if (active) setShowNetwork(false)
+      }
+    })()
+    return () => {
+      active = false
+    }
   }, [])
 
   useEffect(() => {
@@ -145,6 +168,13 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
           <Link href="/admin/profile" onClick={() => setOpen(false)} className={linkCls}>
             Profile
           </Link>
+
+          {/* Beast Network — members + owner only */}
+          {showNetwork && (
+            <Link href="/admin/network" onClick={() => setOpen(false)} className={linkCls}>
+              Beast Referral Network
+            </Link>
+          )}
 
           {/* Appearance — inline workspace theme picker (instant feedback).
               Only shown where a ThemeProvider exists (i.e. inside the CRM). */}

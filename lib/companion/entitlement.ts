@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { getAccessState } from "@/lib/billing/access"
+import { getOrganizationStatus } from "@/lib/billing/organization"
 
 // Minimum Companion version the server will accept — the kill-switch for
 // forcing an update when Apple changes chat.db (bump on a breaking release).
@@ -37,6 +38,7 @@ export type Feature = "messages_sync"
 export type EntitlementReason =
   | "trialing"
   | "subscribed"
+  | "organization"
   | "trial_expired"
   | "canceled"
   | "past_due"
@@ -87,9 +89,15 @@ export async function getFeatureEntitlement(
     return { entitled: false, reason: "no_subscription" }
   }
 
+  // Organization-Included (Beast Network): the third access source. Read with the
+  // service-role client (any row); resolves to null on error so paid/trial are
+  // unaffected.
+  const organizationStatus = await getOrganizationStatus(supabaseAdmin, ownerUserId)
+
   const access = getAccessState({
     subscription_status: profile.subscription_status ?? null,
     trial_ends_at: profile.trial_ends_at ?? null,
+    organization_status: organizationStatus,
   })
 
   return { entitled: access.allowed, reason: access.reason as EntitlementReason }

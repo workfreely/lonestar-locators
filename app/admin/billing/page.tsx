@@ -5,6 +5,7 @@ import type Stripe from "stripe"
 import { createClient } from "@/lib/supabase/server"
 import { stripe } from "@/lib/stripe/client"
 import { getAccessState } from "@/lib/billing/access"
+import { getOrganizationStatus } from "@/lib/billing/organization"
 import BillingSettingsClient, {
   type PaymentMethod,
   type Invoice,
@@ -24,9 +25,12 @@ export default async function BillingSettingsPage() {
     .eq("id", user.id)
     .single()
 
+  const organizationStatus = await getOrganizationStatus(supabase, user.id)
+
   const access = getAccessState({
     subscription_status: profile?.subscription_status ?? null,
     trial_ends_at: profile?.trial_ends_at ?? null,
+    organization_status: organizationStatus,
   })
 
   // Best-effort live Stripe data — the page still renders sensibly if Stripe

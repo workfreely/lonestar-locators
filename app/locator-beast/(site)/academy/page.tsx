@@ -3,6 +3,7 @@ import PageHero from "@/app/locator-beast/(site)/_components/PageHero";
 import AcademyModules, { type AcademyAccess } from "@/app/locator-beast/(site)/academy/_components/AcademyModules";
 import { createClient } from "@/lib/supabase/server";
 import { getAccessState } from "@/lib/billing/access";
+import { getOrganizationStatus } from "@/lib/billing/organization";
 
 export const metadata: Metadata = {
   title: "Beast Academy",
@@ -31,8 +32,12 @@ async function resolveAcademyAccess(): Promise<AcademyAccess> {
     .eq("id", user.id)
     .maybeSingle();
   if (!profile) return "none";
-  const state = getAccessState(profile);
-  if (state.allowed) return state.reason === "subscribed" ? "paid" : "trial";
+  const organizationStatus = await getOrganizationStatus(supabase, user.id);
+  const state = getAccessState({ ...profile, organization_status: organizationStatus });
+  // Complimentary (organization) and paid subscribers both get full unlock.
+  if (state.allowed) {
+    return state.reason === "subscribed" || state.reason === "organization" ? "paid" : "trial";
+  }
   return "none";
 }
 

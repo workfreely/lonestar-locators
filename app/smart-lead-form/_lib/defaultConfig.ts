@@ -68,6 +68,10 @@ export const DEFAULT_CONFIG: SmartLeadFormConfig = {
     officePhone: "",
     iabsUrl: "",
     consumerProtectionNoticeUrl: "",
+    // Reusable additional legal/disclosure links (title + url). Empty by default;
+    // persisted in the JSON config (no schema change). Incomplete rows are skipped
+    // when rendering the public footer.
+    customDisclosures: [],
   },
   consent: {
     enabled: true,

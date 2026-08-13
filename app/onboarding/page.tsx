@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { REFERRAL_COOKIE } from "@/lib/network/referralCookie";
 import OnboardingWizard from "./_components/OnboardingWizard";
 import type { OnboardingData } from "./_lib/types";
 
@@ -11,6 +13,21 @@ export default async function OnboardingPage() {
 
   if (!user) {
     redirect("/login");
+  }
+
+  // Beast Network safety net: claim the referral here too, in case sign-up did
+  // NOT pass through /auth/callback (e.g. email confirmation disabled → an
+  // immediate session). Idempotent (on-conflict-do-nothing; token marked
+  // consumed), so running it again after the callback already claimed is a
+  // harmless no-op. Cookie clearing is left to the callback; a consumed token is
+  // inert regardless. Best-effort — never block onboarding.
+  try {
+    const token = (await cookies()).get(REFERRAL_COOKIE)?.value;
+    if (token) {
+      await supabase.rpc("lb_claim_referral", { p_token: token });
+    }
+  } catch {
+    // ignore — attribution must never break onboarding
   }
 
   const { data: profile } = await supabase

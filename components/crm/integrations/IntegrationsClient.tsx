@@ -16,6 +16,17 @@ const INTEGRATIONS: { name: string; description: string }[] = [
 export default function IntegrationsClient() {
   return (
     <SettingsShell title="Integrations" description="Connect the tools you already use. More integrations are on the way.">
+      {/* Locator Beast's own tools appear first (Beast Companion, then Beast Sync),
+          followed by third-party integrations. Presentation order only — the
+          sections themselves are unchanged. */}
+
+      {/* Beast Companion — upcoming Chrome extension (placeholder, above Beast Sync). */}
+      <BeastCompanionExtensionSection />
+
+      {/* Beast Sync — the desktop app; macOS + Windows are supported platforms. */}
+      <BeastCompanionSection />
+
+      {/* Third-party integrations — below Locator Beast's own tools. */}
       <SettingsCard>
         <div className="divide-y divide-[#eceef3]">
           {INTEGRATIONS.map((item) => (
@@ -35,12 +46,6 @@ export default function IntegrationsClient() {
           ))}
         </div>
       </SettingsCard>
-
-      {/* Beast Companion — upcoming Chrome extension (placeholder, above Beast Sync). */}
-      <BeastCompanionExtensionSection />
-
-      {/* Beast Sync — the desktop app; macOS + Windows are supported platforms. */}
-      <BeastCompanionSection />
 
       {/* Connected Devices — the paired Companions (any platform) + controls. */}
       <ConnectedDevicesSection />

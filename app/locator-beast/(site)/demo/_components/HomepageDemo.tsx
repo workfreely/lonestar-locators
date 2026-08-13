@@ -466,6 +466,25 @@ export default function HomepageDemo() {
            animation + workflow are untouched. */
         .hp-demo-board .kb-toolbar { display: none !important; }
 
+        /* Capture-stage incentive pill — DEMO ONLY. The shared Highlights pill
+           (from the real Smart Lead Form) wraps to two lines at this narrow
+           preview width, dropping "Free Movers" below. Lock the whole phrase
+           (100% Free Service · Cash Rebate · Free Movers) to one centered line by
+           tightening ONLY the pill's own type/padding/gap. Scoped to the demo's
+           form preview via .hp-demo-form and to the pill SPAN specifically (the
+           agent avatar is a rounded-full DIV, so it's unaffected) — the shared
+           Highlights/Hero components and every real public/agent form are
+           untouched. */
+        .hp-demo-form span.rounded-full {
+          flex-wrap: nowrap !important;
+          white-space: nowrap !important;
+          font-size: 12px !important;
+          padding-left: 0.7rem !important;
+          padding-right: 0.7rem !important;
+          column-gap: 0.375rem !important;
+        }
+        .hp-demo-form span.rounded-full span { white-space: nowrap !important; }
+
         /* Mobile: every workflow step is a full-size, equally-emphasized showcase.
            Neutralize the focus-zoom's per-step scale + opacity so no step shrinks
            or dims (this also keeps the board's two columns in view). The only motion
@@ -796,7 +815,7 @@ function FormPreview({
   };
 
   return (
-    <div className="bg-white min-h-[720px] lg:min-h-0">
+    <div className="hp-demo-form bg-white min-h-[720px] lg:min-h-0">
       <Hero config={FORM_CONFIG} />
       <form
         onSubmit={(e) => {

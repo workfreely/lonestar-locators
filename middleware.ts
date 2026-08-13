@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { getAccessState } from "@/lib/billing/access";
+import { getAccessState, type OrganizationStatus } from "@/lib/billing/access";
 
 // Locator Beast (B2B SaaS marketing site) is served from its own domain but
 // lives inside this repo as app/locator-beast/*. Requests to that host are
@@ -86,9 +86,27 @@ async function billingGate(request: NextRequest): Promise<NextResponse | null> {
   // (and the trial only starts once onboarding completes).
   if (!profile.onboarding_completed) return null;
 
+  // Organization-Included (Beast Network): the third access source. Fail-safe —
+  // resolves to null (not a member) on any error, so a network lookup can never
+  // lock out a paying/trialing user. CRITICAL: without this, an active
+  // complimentary member with no Stripe subscription would be redirected to
+  // /billing on every /admin navigation.
+  let organizationStatus: OrganizationStatus | null = null;
+  try {
+    const { data: member } = await supabase
+      .from("network_members")
+      .select("status")
+      .eq("user_id", userId)
+      .maybeSingle();
+    organizationStatus = (member?.status as OrganizationStatus | undefined) ?? null;
+  } catch {
+    organizationStatus = null; // fail open
+  }
+
   const access = getAccessState({
     subscription_status: profile.subscription_status ?? null,
     trial_ends_at: profile.trial_ends_at ?? null,
+    organization_status: organizationStatus,
   });
 
   if (!access.allowed) {

@@ -4,33 +4,26 @@ import { useState } from "react";
 import {
   HiOutlineCalendarDays,
   HiOutlineIdentification,
-  HiOutlineDevicePhoneMobile,
   HiOutlineCheck,
 } from "react-icons/hi2";
 import StepCard from "../StepCard";
 import StepNav from "../StepNav";
 import type { StepProps } from "../../_lib/types";
 
-export default function StepConnect({ data, onChange, onNext, onBack, saving }: StepProps) {
+export default function StepConnect({ data, onNext, onBack, saving }: StepProps) {
   // Which connection (if any) is mid-connect, for the button spinner.
-  const [connecting, setConnecting] = useState<"google" | "phone" | null>(null);
+  const [connecting, setConnecting] = useState<"google" | null>(null);
 
   // Google is a real OAuth redirect: a single consent grants both Calendar and
   // Contacts, so either Google card sends the user to /api/google/auth. On
-  // return, /onboarding reloads with google_connected reflecting the stored
-  // token, so both cards show "Connected". Phone Sync stays a placeholder until
-  // a phone provider is wired.
-  function connect(kind: "google" | "phone") {
+  // return, /onboarding reloads with google_connected reflecting the stored token,
+  // so both cards show "Connected". (Beast Sync is introduced honestly on the next
+  // step — it is NOT faked here as a "Phone Sync" connection.)
+  function connect(kind: "google") {
     if (kind === "google") {
       setConnecting("google");
       window.location.href = "/api/google/auth?next=/onboarding";
-      return;
     }
-    setConnecting("phone");
-    setTimeout(() => {
-      onChange({ phone_sync_connected: true });
-      setConnecting(null);
-    }, 800);
   }
 
   const connections = [
@@ -50,17 +43,9 @@ export default function StepConnect({ data, onChange, onNext, onBack, saving }: 
       connected: data.google_connected,
       recommended: true,
     },
-    {
-      key: "phone" as const,
-      icon: HiOutlineDevicePhoneMobile,
-      title: "Phone Sync",
-      benefit: "See client communication in one place.",
-      connected: data.phone_sync_connected,
-      recommended: false,
-    },
   ];
 
-  const allConnected = data.google_connected && data.phone_sync_connected;
+  const allConnected = data.google_connected;
 
   return (
     <StepCard

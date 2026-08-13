@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
-import { LOGO_FOR_LIGHT_BG, NAV_LINKS, TRIAL_URL } from "@/app/locator-beast/_lib/site";
+import Logo from "@/components/crm/Logo";
+import { NAV_LINKS, TRIAL_URL } from "@/app/locator-beast/_lib/site";
 
 export default function Nav() {
   const [open, setOpen] = useState(false);
@@ -11,15 +11,11 @@ export default function Nav() {
   return (
     <header className="sticky top-0 z-50 border-b border-[var(--beast-border)] bg-white/80 backdrop-blur-md">
       <div className="beast-container flex h-16 items-center justify-between md:h-20">
-        <Link href="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
-          <Image
-            src={LOGO_FOR_LIGHT_BG}
-            alt="Locator Beast"
-            width={172}
-            height={40}
-            priority
-            style={{ height: "28px", width: "auto" }}
-          />
+        <Link href="/" aria-label="Locator Beast home" className="flex items-center" onClick={() => setOpen(false)}>
+          {/* Canonical brand mark — the same shared Locator Beast logo the CRM
+              header uses (components/crm/Logo). Reused here so the mark is visible
+              on the public marketing site with one source of truth. */}
+          <Logo tone="light" />
         </Link>
 
         <nav className="hidden items-center gap-8 md:flex">

@@ -10,9 +10,9 @@ type FieldKey = keyof SmartLeadFormConfig["fields"]
 const FIELD_ROWS: { key: FieldKey; label: string; note?: string }[] = [
   { key: "moveDate", label: "Move-in date" },
   { key: "location", label: "City" },
-  { key: "propertyDetails", label: "Property" },
+  { key: "propertyDetails", label: "Property Type" },
   { key: "desiredRent", label: "Monthly Rent" },
-  { key: "income", label: "Household Income" },
+  { key: "income", label: "Monthly Income" },
   { key: "creditScore", label: "Credit Score" },
   { key: "rentalBackground", label: "Rental History", note: "Includes broken-lease / eviction follow-ups." },
   { key: "criminalBackground", label: "Criminal History" },

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { stripe } from "@/lib/stripe/client"
 import { getAccessState } from "@/lib/billing/access"
+import { getOrganizationStatus } from "@/lib/billing/organization"
 import BillingClient from "./_components/BillingClient"
 
 export default async function BillingPage() {
@@ -22,9 +23,12 @@ export default async function BillingPage() {
     .eq("id", user.id)
     .single()
 
+  const organizationStatus = await getOrganizationStatus(supabase, user.id)
+
   const access = getAccessState({
     subscription_status: profile?.subscription_status ?? null,
     trial_ends_at: profile?.trial_ends_at ?? null,
+    organization_status: organizationStatus,
   })
 
   // Best-effort live Stripe data — the billing page still has to render a
