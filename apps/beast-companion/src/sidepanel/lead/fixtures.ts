@@ -98,7 +98,7 @@ export const DEMO_FIXTURES: DemoFixture[] = [
     },
     nextActions: [
       {
-        // Identity stays the internal FU title; the UI renders "Follow-Up 1".
+        // Identity stays the internal FU title; the UI renders "1st Follow-Up".
         id: "demo-act-2",
         leadId: "demo-listsent",
         title: "FU1",

@@ -9,6 +9,7 @@ import { updateGoogleContactNotes } from "@/lib/google/updateContactNotes"
 import { getOAuthClient } from "@/lib/google/getOAuthClient"
 import { createListSentCalendarEvent } from "@/lib/google/createCalendarEvent"
 import { getStageWorkflowAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
+import { resolveUserTimeZone } from "@/lib/timezone/server"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -105,11 +106,16 @@ export async function POST(request: Request) {
     // session, never the request body.
     const guard = await requireWorkspaceMember()
     if (!guard.ok) return guard.response
-    const { workspaceId, supabase } = guard
+    const { userId, workspaceId, supabase } = guard
+
+    // Authoritative locator timezone (profiles → workspaces → America/Chicago) so
+    // the workflow successor's 9:00 AM deadline is computed in the locator's saved
+    // zone, not the production server zone. Reuses the resolve_timezone DB fn.
+    const timeZone = await resolveUserTimeZone(supabase, userId, workspaceId)
 
     const body = await request.json()
 
-    const { leadId, crm_status, next_action_date, follow_up_count } = body
+    const { leadId, crm_status, next_action_date, follow_up_count, skipWorkflowAction } = body
 
     if (!leadId || !crm_status) {
       return NextResponse.json(
@@ -194,8 +200,11 @@ export async function POST(request: Request) {
 
     let workflowAction = null as Awaited<ReturnType<typeof createWorkflowActionIfNeeded>>
 
-    if (oldStage !== crm_status) {
-      const spec = getStageWorkflowAction(crm_status, lead)
+    // `skipWorkflowAction` suppresses the successor for this transition — used by
+    // the Build List START move (Contacted → Searching) so build_list stays the
+    // open action and Send List is created only on explicit "Mark List Built".
+    if (oldStage !== crm_status && !skipWorkflowAction) {
+      const spec = getStageWorkflowAction(crm_status, lead, timeZone)
       if (spec) {
         workflowAction = await createWorkflowActionIfNeeded(supabaseAdmin, leadId, spec)
       }

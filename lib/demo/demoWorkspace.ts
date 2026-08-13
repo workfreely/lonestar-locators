@@ -1,7 +1,7 @@
 // Demo Workspace — a client-side sample business shown while a profile has
 // demo_mode on. NOTHING here is ever written to the shared leads table; these
 // fixtures are passed straight into the CRM's client components in place of
-// real data (see app/admin/leads/page.tsx and app/admin/performance/page.tsx),
+// real data (see app/admin/leads/page.tsx and app/admin/analytics/page.tsx),
 // so Kanban, Agenda, AI Insights, Lead Panel and Analytics all populate.
 // "Delete Demo Workspace" simply flips demo_mode off.
 //

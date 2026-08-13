@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { LeadSummaryDTO, NextActionDTO } from "@bc/companion-shared";
-import { formatWorkflowActionLabel, isFollowUpAction, formatDateDisplay, formatDueDateTime, isPastDue } from "@bc/companion-shared";
+import { formatWorkflowActionLabel, formatLastActionLabel, isFollowUpAction, formatDateDisplay, formatDueDateTime, isPastDue, formatPersonName, formatPhone } from "@bc/companion-shared";
 import { SectionCard, Field, StageBadge, StatusPill, Button } from "./primitives";
 
 /**
@@ -19,7 +19,8 @@ import { SectionCard, Field, StageBadge, StatusPill, Button } from "./primitives
 type OnDemo = (label: string) => void;
 
 function fullName(l: LeadSummaryDTO) {
-  return [l.firstName, l.lastName].filter(Boolean).join(" ") || "Unnamed Lead";
+  // Display formatting only — the stored first/last name are never modified.
+  return [formatPersonName(l.firstName), formatPersonName(l.lastName)].filter(Boolean).join(" ") || "Unnamed Lead";
 }
 
 /**
@@ -32,10 +33,12 @@ function fullName(l: LeadSummaryDTO) {
  */
 const PREVIEW_TIME_ZONE = "America/Chicago";
 
-/** Next-Action due, via the ONE shared formatter (identical to the CRM). */
-function fmtDue(iso?: string | null) {
+/** Next-Action due, via the ONE shared formatter (identical to the CRM). Formats
+ *  in the saved locator zone (`tz`), falling back to the workspace default when
+ *  the payload didn't carry one. */
+function fmtDue(iso: string | null | undefined, tz: string) {
   if (!iso) return "—";
-  return formatDueDateTime(iso, { timeZone: PREVIEW_TIME_ZONE });
+  return formatDueDateTime(iso, { timeZone: tz });
 }
 
 /**
@@ -83,7 +86,18 @@ function FieldSection({
   );
 }
 
-export function LeadIdentityHeader({ lead, onDemo }: { lead: LeadSummaryDTO; onDemo: OnDemo }) {
+export function LeadIdentityHeader({
+  lead,
+  onDemo,
+  onContact,
+}: {
+  lead: LeadSummaryDTO;
+  onDemo: OnDemo;
+  // Phase 3 (Slice A). When provided (production), Call/Text open sms:/tel: and
+  // run the canonical first-contact cascade via the CRM. When omitted (fixtures),
+  // they fall back to the inert demo note — the visual design is unchanged.
+  onContact?: (method: "call" | "text") => void;
+}) {
   // Copy-the-phone affordance — mirrors the CRM lead panel exactly: the Copy
   // control is revealed on hover/focus of the phone row (and always shown on
   // touch, where there is no hover), copies the formatted number to the
@@ -92,14 +106,18 @@ export function LeadIdentityHeader({ lead, onDemo }: { lead: LeadSummaryDTO; onD
   // which stay inert during the sanitized presentation phase.
   const [copiedPhone, setCopiedPhone] = useState(false);
 
+  // Display value only — the raw `lead.phone` in the DTO is preserved unchanged
+  // for future Call/Text (tel:/sms:). Copy copies the formatted number the user sees.
+  const phoneDisplay = formatPhone(lead.phone);
+
   async function copyPhone() {
     if (!lead.phone) return;
     try {
       if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(lead.phone);
+        await navigator.clipboard.writeText(phoneDisplay);
       } else {
         const ta = document.createElement("textarea");
-        ta.value = lead.phone;
+        ta.value = phoneDisplay;
         document.body.appendChild(ta);
         ta.select();
         document.execCommand("copy");
@@ -155,7 +173,7 @@ export function LeadIdentityHeader({ lead, onDemo }: { lead: LeadSummaryDTO; onD
 
       {lead.phone && (
         <div className="lp-phone-row">
-          <span className="lp-phone">{lead.phone}</span>
+          <span className="lp-phone">{phoneDisplay}</span>
           <button
             type="button"
             className={`lp-copy${copiedPhone ? " is-copied" : ""}`}
@@ -168,10 +186,20 @@ export function LeadIdentityHeader({ lead, onDemo }: { lead: LeadSummaryDTO; onD
       )}
 
       <div className="lp-comm-row">
-        <Button variant="soft" full onClick={() => onDemo("Call Client")} ariaLabel="Call Client (demo)">
+        <Button
+          variant="soft"
+          full
+          onClick={() => (onContact ? onContact("call") : onDemo("Call Client"))}
+          ariaLabel="Call Client"
+        >
           <span aria-hidden>📞</span> Call Client
         </Button>
-        <Button variant="soft" full onClick={() => onDemo("Text Client")} ariaLabel="Text Client (demo)">
+        <Button
+          variant="soft"
+          full
+          onClick={() => (onContact ? onContact("text") : onDemo("Text Client"))}
+          ariaLabel="Text Client"
+        >
           <span aria-hidden>💬</span> Text Client
         </Button>
       </div>
@@ -183,11 +211,42 @@ export function LeadPanelBody({
   lead,
   nextActions,
   onDemo,
+  onContactLead,
+  onBuildList,
+  onCompleteBuildList,
+  onSendList,
+  onSendFollowUp,
+  onBackToCrm,
+  timeZone,
 }: {
   lead: LeadSummaryDTO;
   nextActions: NextActionDTO[];
   onDemo: OnDemo;
+  // Saved locator IANA timezone for Due/Completed formatting.
+  timeZone?: string | null;
+  // Phase 3: the Contact Lead Next Action opens the call/text method chooser
+  // (the shared contact bottom sheet). It performs no contact itself.
+  onContactLead?: () => void;
+  // Phase 3: clicking the "Build List" Next Action opens Smart Apartment Data
+  // AND advances the lead Contacted → Searching. build_list stays open and Send
+  // List is NOT created yet — completion is the separate "Mark List Built" click.
+  onBuildList?: () => void;
+  // Explicit Build List completion (the "Mark List Built ✓" state) — runs the
+  // canonical Contacted → Searching transition (Send List successor).
+  onCompleteBuildList?: () => void;
+  // Clicking the "Send List" Next Action opens the confirmation sheet ("Did you
+  // send the client's list?"). Confirming runs the canonical Searching → List Sent
+  // transition (completes send_list, creates FU1). Opens no SMS/site.
+  onSendList?: () => void;
+  // Clicking a Follow-Up (FU1/FU2/FU3/Final) launches the client's SMS with the
+  // matching template, then opens the "Did you send the follow-up?" sheet.
+  // Launching SMS does NOT complete the follow-up — confirming does.
+  onSendFollowUp?: () => void;
+  // Focus the existing Locator Beast CRM tab (shown while building the list in the
+  // external platform). Navigation only — never completes/advances anything.
+  onBackToCrm?: () => void;
 }) {
+  const tz = timeZone ?? PREVIEW_TIME_ZONE;
   const openAction = nextActions.find((a) => !a.completed) ?? null;
   // Status is derived from the DUE TIMESTAMP, never a priority flag — a future
   // due (e.g. Tomorrow) can never read as "Overdue". Overdue = the due instant
@@ -195,11 +254,68 @@ export function LeadPanelBody({
   const overdue = openAction ? isPastDue(openAction.dueAt) : false;
   const sc = lead.searchCriteria;
   const cs = lead.creditScreening;
+  // Last Action — the most recently completed workflow action (canonical, from
+  // the DTO). Null for a brand-new lead → the row is hidden, never fabricated.
+  const lastAction = lead.lastAction ?? null;
+
+  // Two-state Build List: clicking "Build List" opens SAD AND advances the lead
+  // Contacted → Searching (build_list stays open), so the button flips to
+  // "✓ Mark List Built" (the explicit completion that creates Send List). The
+  // flipped state is derived from the lead already being in Searching with
+  // build_list still open — robust across a panel remount — plus a local flag
+  // keyed by lead id that flips instantly (before the stage move round-trips back)
+  // and auto-resets when the active client changes.
+  const [launchedBuildFor, setLaunchedBuildFor] = useState<string | number | null>(null);
+  const isBuildList = (openAction?.title ?? "").trim().toLowerCase() === "build list";
+  const buildLaunched =
+    isBuildList &&
+    (String(lead.stage) === "searching" ||
+      (launchedBuildFor != null && String(launchedBuildFor) === String(lead.id)));
+  // Contact Lead is a prominent Next Action INDICATOR — the real execution
+  // controls are Call/Text Client in the header, so its button performs no
+  // ambiguous contact action (no auto call/text choice).
+  const isContactLead = (openAction?.title ?? "").trim().toLowerCase() === "contact lead";
+  const isSendList = (openAction?.title ?? "").trim().toLowerCase() === "send list";
+  const isFollowUp = isFollowUpAction(openAction?.title);
 
   return (
     <div className="lp-body">
-      {/* ── Next Action card ── */}
+      {/* ── Last Action + Next Action card ──
+          "What did I do last?" (Last Action, top) then "what do I do next?"
+          (Next Action, below the divider) — mirrors the CRM Lead Panel's approved
+          treatment. Last Action is hidden entirely when nothing is completed. */}
       <div className="lp-card">
+        {lastAction && (
+          <>
+            <div className="lp-card-cols">
+              <span className="lp-eyebrow">Last Action</span>
+            </div>
+            {/* Last Action value, with its timestamp stacked directly beneath it
+                (not pushed to the far right). Next Action's Status pill layout is
+                unchanged. Presentation only — same values. */}
+            <div style={{ marginTop: 15 }}>
+              <div
+                style={{ fontSize: 14, fontWeight: 600, color: "var(--lb-text, #e6ebf5)" }}
+                title={formatLastActionLabel(lastAction.title)}
+              >
+                {formatLastActionLabel(lastAction.title)}
+              </div>
+              {lastAction.completedAt && (
+                <div className="lp-completed">
+                  Completed: <span className="lp-completed-val">{fmtDue(lastAction.completedAt, tz)}</span>
+                </div>
+              )}
+            </div>
+            <div
+              style={{
+                margin: "18px 0 12px",
+                // Same single divider, only slightly stronger so it reads as one
+                // card with two sections (not two cards). Thin + subtle.
+                borderTop: "1px solid color-mix(in srgb, var(--lb-border, rgba(255,255,255,0.12)) 70%, var(--lb-text-muted, #9aa4b2) 30%)",
+              }}
+            />
+          </>
+        )}
         <div className="lp-card-cols">
           <span className="lp-eyebrow">Next Action</span>
           <span className="lp-eyebrow">Status</span>
@@ -207,28 +323,107 @@ export function LeadPanelBody({
         {openAction ? (
           <>
             <div className="lp-action-row">
-              <Button
-                variant="solid"
-                onClick={() => onDemo(formatWorkflowActionLabel(openAction.title))}
-                title={`Open — ${formatWorkflowActionLabel(openAction.title)} (demo)`}
-              >
-                {formatWorkflowActionLabel(openAction.title)}
-              </Button>
-              <StatusPill tone={overdue ? "danger" : "muted"}>
-                {overdue ? "Overdue" : "Pending"}
+              {isBuildList && onBuildList ? (
+                buildLaunched ? (
+                  <Button
+                    variant="solid"
+                    onClick={() => onCompleteBuildList?.()}
+                    title="Mark the list built — completes Build List and advances to Send List"
+                  >
+                    Mark List Built ✓
+                  </Button>
+                ) : (
+                  <Button
+                    variant="solid"
+                    onClick={() => {
+                      onBuildList();
+                      setLaunchedBuildFor(lead.id);
+                    }}
+                    title="Open Smart Apartment Data to build the list"
+                  >
+                    {formatWorkflowActionLabel(openAction.title)}
+                  </Button>
+                )
+              ) : isContactLead ? (
+                // Entry into the shared contact flow: opens the "call or text?"
+                // chooser. Performs no contact itself — no auto Call/Text, no
+                // stage change, no "coming soon" toast.
+                <Button
+                  variant="solid"
+                  onClick={() => onContactLead?.()}
+                  title="Call or text this lead"
+                >
+                  {formatWorkflowActionLabel(openAction.title)}
+                </Button>
+              ) : isSendList && onSendList ? (
+                // Opens the "Did you send the client's list?" confirmation sheet.
+                // Performs nothing itself — no SMS, no site, no stage change until
+                // the locator confirms "Yes, Sent".
+                <Button
+                  variant="solid"
+                  onClick={() => onSendList()}
+                  title="Mark the list sent — completes Send List and advances to List Sent"
+                >
+                  {formatWorkflowActionLabel(openAction.title)}
+                </Button>
+              ) : isFollowUp && onSendFollowUp ? (
+                // Launches the client's SMS with the follow-up template, then opens
+                // the "Did you send the follow-up?" sheet. Launching SMS does NOT
+                // complete the follow-up — confirming does.
+                <Button
+                  variant="solid"
+                  onClick={() => onSendFollowUp()}
+                  title="Text this follow-up, then confirm it was sent"
+                >
+                  {formatWorkflowActionLabel(openAction.title)}
+                </Button>
+              ) : (
+                <Button
+                  variant="solid"
+                  onClick={() => onDemo(formatWorkflowActionLabel(openAction.title))}
+                  title={`Open — ${formatWorkflowActionLabel(openAction.title)} (coming soon)`}
+                >
+                  {formatWorkflowActionLabel(openAction.title)}
+                </Button>
+              )}
+              <StatusPill tone={overdue ? "danger" : openAction.statusLabel ? "accent" : "muted"}>
+                {overdue ? "Overdue" : openAction.statusLabel ?? "Pending"}
               </StatusPill>
             </div>
             {openAction.propertyName && <div className="lp-action-prop">{openAction.propertyName}</div>}
             <div className="lp-due">
-              Due: <span className="lp-due-val">{fmtDue(openAction.dueAt)}</span>
+              Due: <span className="lp-due-val">{fmtDue(openAction.dueAt, tz)}</span>
             </div>
+            {/* Contextual "← Back to CRM" — only while building the list in the
+                external platform. Focuses the existing CRM tab; changes nothing. */}
+            {isBuildList && buildLaunched && onBackToCrm && (
+              <button
+                type="button"
+                onClick={onBackToCrm}
+                title="Focus the Locator Beast CRM tab"
+                style={{
+                  marginTop: 8,
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "var(--lb-text-muted, #9aa4b2)",
+                }}
+              >
+                ← Back to CRM
+              </button>
+            )}
           </>
         ) : (
           <p className="lp-muted">No open action — add the next step below.</p>
         )}
-        <Button variant="dashed" full onClick={() => onDemo("Add Task")}>
-          + Add Task
-        </Button>
+        <div style={{ marginTop: 12 }}>
+          <Button variant="dashed" full onClick={() => onDemo("Add Task")}>
+            + Add Task
+          </Button>
+        </div>
       </div>
 
       {/* ── Search Criteria ── (canonical order; each row shows only when the

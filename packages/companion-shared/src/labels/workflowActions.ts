@@ -17,11 +17,16 @@
 // renamed actions. "Get Invoice Details" is a DISPLAY rename only — it stays a
 // separate action from Confirm Lease; legacy identity is unchanged.
 const FULL: Record<string, string> = {
-  fu1: "Follow-Up 1",
-  fu2: "Follow-Up 2",
-  fu3: "Follow-Up 3",
+  fu1: "1st Follow-Up",
+  fu2: "2nd Follow-Up",
+  fu3: "3rd Follow-Up",
   final_follow_up: "Final Follow-Up",
   invoice_details: "Get Invoice Details",
+  // Display renames only — the internal titles ("Check App", "Waiting for
+  // Response") and keys (check_application) are unchanged; this maps them to the
+  // standardized user-facing text everywhere formatWorkflowActionLabel is used.
+  check_application: "Check Application",
+  waiting_for_response: "Waiting for Reply",
 };
 
 const COMPACT: Record<string, string> = {
@@ -45,6 +50,12 @@ const TO_KEY: Record<string, string> = {
   "invoice details": "invoice_details",
   "get invoice details": "invoice_details",
   invoice_details: "invoice_details",
+  "check app": "check_application",
+  "check application": "check_application",
+  check_application: "check_application",
+  "waiting for response": "waiting_for_response",
+  "waiting for reply": "waiting_for_response",
+  waiting_for_response: "waiting_for_response",
 };
 
 function keyOf(titleOrKey: string | null | undefined): string | null {
@@ -58,7 +69,7 @@ export function isFollowUpAction(titleOrKey: string | null | undefined): boolean
   return key !== null && FOLLOW_UP_KEYS.has(key);
 }
 
-/** Full display label ("Follow-Up 1", "Get Invoice Details", …). Others pass through. */
+/** Full display label ("1st Follow-Up", "Get Invoice Details", …). Others pass through. */
 export function formatWorkflowActionLabel(titleOrKey: string): string {
   const key = keyOf(titleOrKey);
   return key ? FULL[key] : titleOrKey;
@@ -70,4 +81,33 @@ export function workflowActionCompactLabel(titleOrKey: string): string {
   const key = keyOf(titleOrKey);
   if (key && FOLLOW_UP_KEYS.has(key)) return COMPACT[key];
   return key ? FULL[key] : titleOrKey;
+}
+
+// Last Action (completed-state) DISPLAY labels, keyed by the Next Action display
+// label. DISPLAY ONLY — never touches internal identity/keys/stages. Unmapped
+// canonical actions (contacted_follow_up "Follow Up", reconnect_client, and
+// email_guest_card) intentionally fall back to their Next Action label until a
+// completed-state term is provided.
+const LAST_ACTION_BY_DISPLAY: Record<string, string> = {
+  "Contact Lead": "Contacted Lead",
+  "Build List": "Built List",
+  "Send List": "Sent List",
+  // Follow-ups intentionally fall through to their base label ("1st Follow-Up",
+  // …) — the panel section is already titled LAST ACTION, so a "Completed" prefix
+  // is redundant. Identity/keys (fu1/follow_up_1/…) are unchanged.
+  "Setup Tour": "Tour Scheduled",
+  "Tour Follow-Up": "Completed Tour Follow-Up",
+  "Check Application": "Checked Application",
+  "Confirm Lease": "Confirmed Lease",
+  "Setup Movers": "Movers Scheduled",
+  "Send Rebate": "Sent Rebate",
+  "Get Invoice Details": "Got Invoice Details",
+};
+
+/** Completed-state label for the Last Action row ("Contacted Lead", "Built List",
+ *  "Completed 1st Follow-Up", …). Canonicalizes to the Next Action label first,
+ *  then maps to its completed form; unmapped actions pass through unchanged. */
+export function formatLastActionLabel(titleOrKey: string): string {
+  const nextLabel = formatWorkflowActionLabel(titleOrKey);
+  return LAST_ACTION_BY_DISPLAY[nextLabel] ?? nextLabel;
 }

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 
 import ProfileClient from "@/components/crm/profile/ProfileClient"
+import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { createClient } from "@/lib/supabase/server"
 import { resolveAgentIdentityForOwner, iabsComplianceWarning } from "@/lib/notifications/agentSignature"
 
@@ -20,6 +21,7 @@ export default async function ProfilePage() {
         license_number?: string | null
         phone_number?: string | null
         profile_photo_url?: string | null
+        timezone?: string | null
       }
     | null = null
 
@@ -28,7 +30,7 @@ export default async function ProfilePage() {
   if (user) {
     const { data } = await supabase
       .from("profiles")
-      .select("first_name, last_name, preferred_name, email, brokerage, license_number, phone_number, profile_photo_url")
+      .select("first_name, last_name, preferred_name, email, brokerage, license_number, phone_number, profile_photo_url, timezone")
       .eq("id", user.id)
       .single()
     profile = data
@@ -71,6 +73,7 @@ export default async function ProfilePage() {
         phone: profile?.phone_number ?? "",
         email: profile?.email ?? user?.email ?? "",
         photoUrl: profile?.profile_photo_url ?? null,
+        timeZone: (profile?.timezone ?? "").trim() || DEFAULT_TIMEZONE,
       }}
     />
     </>

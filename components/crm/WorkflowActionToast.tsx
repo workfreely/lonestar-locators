@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase/client"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { onWorkflowActionCreated, type WorkflowToastAction } from "@/lib/workflowToast"
 import { formatDueDateTime } from "@/lib/actionDisplay"
+import { formatWorkflowActionLabel } from "@/lib/leads/workflowActionLabels"
 
 const AUTO_DISMISS_MS = 8000
 
@@ -65,7 +66,7 @@ export default function WorkflowActionToast({
         ) : (
           <>
             <p className="text-[13px] font-semibold text-emerald-600">✓ Next Action Created</p>
-            <p className="text-[14.5px] font-bold text-[var(--crm-text-primary)] mt-1">{action.title}</p>
+            <p className="text-[14.5px] font-bold text-[var(--crm-text-primary)] mt-1">{formatWorkflowActionLabel(action.title)}</p>
             <p className="text-[12px] text-[var(--crm-text-secondary)] mt-0.5">
               Due: {formatDueDateTime(action.due_at, { verbose: true })}
             </p>

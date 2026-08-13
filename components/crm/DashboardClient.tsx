@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import FollowUpRow from "./FollowUpRow"
@@ -8,6 +8,8 @@ import LeadPanel from "./LeadPanel"
 import LeadInsights from "./LeadInsights"
 import LeadFavorites from "./LeadFavorites"
 import LeadNotes from "./LeadNotes"
+import ClientWorkspaceTools from "./ClientWorkspaceTools"
+import BestMatches from "./BestMatches"
 import LeadFormModal from "../LeadFormModal"
 import WorkflowActionToast from "./WorkflowActionToast"
 import BeastMilestoneToast from "./BeastMilestoneToast"
@@ -15,19 +17,51 @@ import { useBeastMilestones } from "@/lib/beastMilestones/useBeastMilestones"
 import { emitWorkflowActionCreated, type WorkflowToastAction } from "@/lib/workflowToast"
 import { readAgendaExpanded, writeAgendaExpanded, DEFAULT_AGENDA_EXPANDED, readDemoBannerDismissed, writeDemoBannerDismissed } from "@/lib/preferences"
 import { exitDemoWorkspace } from "@/lib/demo/exitDemo"
+import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import FirstRunChecklist from "./FirstRunChecklist"
 import AppHeader from "./AppHeader"
 import { CRM_PRIMARY_BUTTON, CRM_SECONDARY_BUTTON } from "@/lib/crmButtonStyles"
 import type { GuestCardAgent } from "@/lib/leads/guestCard"
+import { buildActiveClientPayload, COMPANION_MSG_SOURCE, type LatestOutreach } from "@/lib/companion/leadToDto"
+import { recordFirstContact } from "@/lib/leads/contactWorkflow"
+import { recordPendingOutreach } from "@/lib/leads/pendingOutreach"
+import { completeBuildList, startBuildList } from "@/lib/leads/buildListWorkflow"
+import { completeSendList } from "@/lib/leads/sendListWorkflow"
+import { completeFollowUp } from "@/lib/leads/followUpWorkflow"
+import { getNextFollowUpAction } from "@/lib/workflowEngine"
+import { followUpSuccessorDueAt } from "@/lib/workflow/moveDateCadence"
+import { autoDueInDays } from "@/lib/workflow/autoDueDate"
+import { DEFAULT_TIMEZONE } from "@/lib/timezone"
+import { dialUrl, launchExternalProtocol } from "@/lib/leads/launchCommunication"
+import { formatPersonName, buildIntroSmsBody } from "@bc/companion-shared"
 import type { ResolvedAgentIdentity } from "@/lib/notifications/agentSignature"
 
 function titleCaseName(name: string): string {
   return name.trim().replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
-export default function DashboardClient({ leads, nextActions, favorites, demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000 }: { leads: any[]; nextActions: any[]; favorites: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number }) {
+// Phase 1 preview (localhost only): the temporary Lead Panel is HIDDEN in the
+// selected-client workspace during development so the center working canvas can
+// be evaluated at full available width beside the real Chrome Beast Companion.
+// Production still renders the Lead Panel unchanged — it remains the fallback /
+// source of truth until Companion reaches automation parity (Phase 5).
+// `LeadPanel.tsx` and all of its wiring/props stay fully intact; this ONLY gates
+// whether the component mounts. Set to `true` to show it again in dev.
+const SHOW_LEGACY_LEAD_PANEL = process.env.NODE_ENV === "production"
+
+export default function DashboardClient({ leads, nextActions, favorites, outreach = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, timeZone = DEFAULT_TIMEZONE }: { leads: any[]; nextActions: any[]; favorites: any[]; outreach?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; timeZone?: string }) {
   const router = useRouter()
   const [selectedLeadId, setSelectedLeadId] = useState<string | number | null>(null)
+  // Centered CRM contact modal for a New→Contacted DRAG (the Kanban presentation
+  // of the canonical contact flow). Identity captured at drag time is immutable —
+  // the modal + write stay bound to this leadId regardless of the active client.
+  const [dragContact, setDragContact] = useState<null | {
+    leadId: string | number
+    name: string
+    phone: string | null
+    method: "call" | "text" | null
+    phase: "choose-method" | "confirm-result"
+  }>(null)
   const [bannerVisible, setBannerVisible] = useState(false)
   const [leavingDemo, setLeavingDemo] = useState(false)
 
@@ -55,13 +89,61 @@ export default function DashboardClient({ leads, nextActions, favorites, demoMod
     if (id) setSelectedLeadId(id)
   }, [])
 
+  // Testing-only persistence of the Agenda side (no DB). Reads once on mount.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("lb-agenda-side")
+      if (saved === "left" || saved === "right") setAgendaSide(saved)
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  function toggleAgendaSide() {
+    setAgendaSide((s) => {
+      const next = s === "left" ? "right" : "left"
+      try {
+        localStorage.setItem("lb-agenda-side", next)
+      } catch {
+        /* ignore */
+      }
+      return next
+    })
+  }
+
   const [topMatches, setTopMatches] = useState<any[]>([])
   const [localLeads, setLocalLeads] = useState(leads)
   const [localNextActions, setLocalNextActions] = useState(nextActions)
+
+  // Latest NON-successful outreach per lead (leadId → {type, method, occurredAt}),
+  // the discriminator that turns a still-New lead's Follow Up into "Called — No
+  // Answer" / "No Answer" vs "Sent Text" / "Waiting for Reply". Seeded from the
+  // server (survives refresh) and updated optimistically on each No Answer / Text
+  // Sent so the Companion reflects it immediately. `outreach` is ordered newest-
+  // first, so the FIRST row seen per lead is the latest — keep that one.
+  const [latestOutreach, setLatestOutreach] = useState<Record<string, LatestOutreach>>(() => {
+    const map: Record<string, LatestOutreach> = {}
+    for (const e of outreach || []) {
+      const key = String(e.lead_id)
+      if (map[key]) continue
+      map[key] = { type: e.type, method: e.method ?? null, occurredAt: e.occurred_at }
+    }
+    return map
+  })
+  const latestOutreachRef = useRef(latestOutreach)
+  useEffect(() => { latestOutreachRef.current = latestOutreach }, [latestOutreach])
+  const outreachFor = (leadId: string | number): LatestOutreach =>
+    latestOutreachRef.current[String(leadId)] ?? null
   const [localFavorites, setLocalFavorites] = useState(favorites)
   const [showLeadModal, setShowLeadModal] = useState(false)
   const [followUpsOpen, setFollowUpsOpen] = useState(DEFAULT_AGENDA_EXPANDED)
   const [pendingEditActionId, setPendingEditActionId] = useState<number | null>(null)
+
+  // Agenda orientation — DEFAULT "left" (approved layout) or ALTERNATE "right",
+  // a pure mirror so the CRM complements the user's chosen Chrome Companion side.
+  // Testing-only for now: local state + localStorage (key below), NO DB/schema.
+  // Defaults to "left", so production/first-load is unchanged.
+  const [agendaSide, setAgendaSide] = useState<"left" | "right">("left")
 
   // Beast Milestones — watches the live board for newly-earned achievements
   // (First Lease, monthly commission thresholds) and fires a celebration.
@@ -92,6 +174,605 @@ export default function DashboardClient({ leads, nextActions, favorites, demoMod
     (l) => String(l.id) === String(selectedLeadId)
   )
 
+  // ── Beast Companion: active-client broadcast (Phase 2, read-only) ──────────
+  // When a client is selected (Kanban/Agenda → workspace), push a read-only DTO
+  // to the Companion through the local content-script bridge (window.postMessage
+  // → content script → chrome.storage.local). Re-posts when the selected lead's
+  // data or its next-actions change, so Companion stays in sync. It NEVER posts a
+  // clear: closing the workspace (X) leaves selectedLead undefined, so the last
+  // active client persists in Companion — matching the required lifecycle.
+  useEffect(() => {
+    if (!selectedLead) return
+    if (typeof window === "undefined") return
+    try {
+      const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone)
+      companionLeadIdRef.current = selectedLead.id // this lead is now what Companion shows
+      window.postMessage(
+        { source: COMPANION_MSG_SOURCE, type: "active-client", payload },
+        window.location.origin
+      )
+    } catch {
+      /* bridge is best-effort; never block the CRM on a Companion push */
+    }
+  }, [selectedLead, localNextActions, agent?.name, latestOutreach])
+
+  // ── Beast Companion → CRM workflow verbs (Phase 3, Slice A: Contact) ────────
+  // Refs so the once-registered verb listener always sees current CRM state
+  // without re-subscribing on every keystroke of state change.
+  const localLeadsRef = useRef(localLeads)
+  const localNextActionsRef = useRef(localNextActions)
+  const selectedLeadIdRef = useRef(selectedLeadId)
+  useEffect(() => { localLeadsRef.current = localLeads }, [localLeads])
+  useEffect(() => { localNextActionsRef.current = localNextActions }, [localNextActions])
+  useEffect(() => { selectedLeadIdRef.current = selectedLeadId }, [selectedLeadId])
+
+  // The lead Beast Companion is CURRENTLY SHOWING — distinct from selectedLeadId.
+  // closeWorkspace() clears the selection (setSelectedLeadId(null)) to return to
+  // the Kanban board, but the Companion keeps showing the last client (the CRM
+  // never posts a clear). So a post-write refresh must target the SHOWN lead, not
+  // the (now-null) selection — otherwise No Answer / Text Sent update local state
+  // but never re-broadcast until the card is re-selected. Updated on every
+  // broadcast below; set directly when a pending outreach acts on a lead.
+  const companionLeadIdRef = useRef<string | number | null>(null)
+
+  // Push an active-client payload for a SPECIFIC lead (used right after a
+  // Companion verb runs, so the panel reflects the new stage / Next Action /
+  // Last Action immediately, independent of the selectedLead broadcast above).
+  //
+  // GUARD: only refresh the client the panel is CURRENTLY SHOWING (companionLeadIdRef,
+  // NOT the CRM selection — the two diverge when the workspace is closed but the
+  // Companion still shows the last client). A verb can resolve against a lead the
+  // locator has since navigated away from (e.g. call Priya, then select Hannah, then
+  // answer): selecting Hannah moves companionLeadIdRef to Hannah, so re-posting Priya
+  // is still blocked — no yank. Its Kanban/Agenda changes still flow through localLeads.
+  function postCompanionActiveClient(lead: any, nextActionsForLead: any[]) {
+    if (typeof window === "undefined" || !lead) return
+    if (String(lead.id) !== String(companionLeadIdRef.current)) return
+    try {
+      const payload = buildActiveClientPayload(lead, nextActionsForLead, agent?.name, outreachFor(lead.id), timeZone)
+      window.postMessage(
+        { source: COMPANION_MSG_SOURCE, type: "active-client", payload },
+        window.location.origin
+      )
+    } catch {
+      /* best-effort */
+    }
+  }
+
+  // ── Canonical contact appliers — the ONE implementation used by BOTH the
+  // Companion verb path and the Kanban-drag centered CRM modal. No duplication:
+  // both presentations call these. ──────────────────────────────────────────
+  //
+  // "Yes, Contacted": canonical first contact. Advances only a NEW lead (New →
+  // Contacted), pins the card to the top of Contacted, and re-posts so Companion/
+  // Kanban/Agenda/Lead Panel refresh — identical to the existing verb behavior.
+  function applyFirstContact(lead: any, method: "call" | "text") {
+    if (lead.crm_status !== "new") return
+    recordFirstContact({
+      lead,
+      method,
+      onOptimistic: (updated) => {
+        setLocalLeads((prev) =>
+          prev.map((l) =>
+            String(l.id) === String(updated.id)
+              ? { ...l, ...updated, _justDropped: true }
+              : { ...l, _justDropped: false }
+          )
+        )
+        postCompanionActiveClient({ ...lead, ...updated }, localNextActionsRef.current)
+      },
+      onWorkflowAction: (a) => {
+        setLocalNextActions((prev) => [...prev, a])
+        const merged = [...localNextActionsRef.current, a]
+        const updatedLead = localLeadsRef.current.find((l: any) => String(l.id) === String(lead.id)) ?? lead
+        postCompanionActiveClient(updatedLead, merged)
+      },
+    })
+  }
+
+  // Pending outreach — a New lead was called (no answer) or texted (sent) but NOT
+  // reached. The ONE implementation behind BOTH the No Answer and Text Sent
+  // outcomes, for BOTH presentations (Companion verb + Kanban-drag modal). Routes
+  // through the canonical recordPendingOutreach (timeline event + the +2-day
+  // contacted_follow_up "Follow Up" row) — NEVER advances the stage, never runs
+  // recordFirstContact, never writes first_text_sent_at. The lead stays New.
+  function applyPendingOutreach(lead: any, method: "call" | "text", outcome: "no-answer" | "text-sent") {
+    // This outreach is happening on the lead the user is looking at in the
+    // Companion / drag modal right now — so it IS the lead the Companion is
+    // showing. Record that so the refreshes below reach it even when the CRM
+    // workspace has been closed (selectedLeadId === null) and the panel is
+    // running purely on its last-broadcast client.
+    companionLeadIdRef.current = lead.id
+
+    // Optimistic outreach → Companion shows the Last Action ("Called — No Answer"
+    // / "Sent Text") and Status ("No Answer" / "Waiting for Reply") immediately,
+    // before the async Follow Up row lands.
+    const occurredAt = new Date().toISOString()
+    const type = outcome === "text-sent" ? "text_sent" : "contact_attempt"
+    const nextMap = { ...latestOutreachRef.current, [String(lead.id)]: { type, method, occurredAt } }
+    latestOutreachRef.current = nextMap
+    setLatestOutreach(nextMap)
+    postCompanionActiveClient(lead, localNextActionsRef.current)
+
+    void recordPendingOutreach({
+      lead,
+      method,
+      outcome,
+      timeZone,
+      onFollowUpAction: (row) => {
+        setLocalNextActions((prev) => [...prev, row])
+        const merged = [...localNextActionsRef.current, row]
+        postCompanionActiveClient(lead, merged)
+      },
+    })
+  }
+  // "No Answer" / "Text Sent" — thin canonical entry points onto the shared
+  // applier above (kept as named handlers so the drag modal and verb bridge read
+  // clearly and to preserve the "No Answer = call attempt" pairing).
+  function applyContactAttempt(lead: any, method: "call" | "text") {
+    applyPendingOutreach(lead, method, "no-answer")
+  }
+  function applyTextSent(lead: any, method: "call" | "text") {
+    applyPendingOutreach(lead, method, "text-sent")
+  }
+
+  // ── Kanban-drag centered CRM modal handlers ────────────────────────────────
+  // Step 1 (choose-method) → Step 2 (confirm-result), both bound to the captured
+  // dragContact identity. Call/Text use the SAME communication mechanism (an
+  // anchor click on the CRM page, within this gesture); Yes/No Answer feed the
+  // SAME canonical appliers above.
+  function dragChooseMethod(method: "call" | "text") {
+    const dc = dragContact
+    if (!dc) return
+    // Prefill the ONE canonical intro SMS when texting a still-New lead (built from
+    // the lead's existing fields + locator first name). NOT contact — Text → Yes,
+    // Sent semantics are unchanged. Blank sms for call / non-New, exactly as before.
+    const lead = localLeadsRef.current.find((l: any) => String(l.id) === String(dc.leadId))
+    const body =
+      method === "text" && lead && lead.crm_status === "new"
+        ? buildIntroSmsBody({
+            firstName: formatPersonName(lead.first_name) || "",
+            locatorFirstName: (agent?.name ?? "").trim().split(/\s+/)[0] ?? "",
+            propertyType: lead.property_type,
+            beds: lead.beds,
+            moveDate: lead.move_date,
+          })
+        : undefined
+    launchExternalProtocol(dialUrl(method, dc.phone, body)) // tel:/sms: from the CRM page
+    setDragContact({ ...dc, method, phase: "confirm-result" })
+  }
+  function dragResolve(outcome: "yes" | "no-answer") {
+    const dc = dragContact
+    setDragContact(null)
+    if (!dc || !dc.method) return
+    const lead = localLeadsRef.current.find((l: any) => String(l.id) === String(dc.leadId))
+    if (!lead) return
+    if (outcome === "yes") applyFirstContact(lead, dc.method)
+    else applyContactAttempt(lead, dc.method)
+  }
+  // Text path — "Did you send the text?" → "Yes, Sent". Feeds the SAME canonical
+  // pending-outreach applier (Follow Up + text_sent timeline event → Status
+  // "Waiting for Reply"). A sent text is NOT "Yes, Contacted": no recordFirstContact,
+  // no New → Contacted, no Build List — the lead stays New.
+  function dragResolveTextSent() {
+    const dc = dragContact
+    setDragContact(null)
+    if (!dc || !dc.method) return
+    const lead = localLeadsRef.current.find((l: any) => String(l.id) === String(dc.leadId))
+    if (!lead) return
+    applyTextSent(lead, dc.method)
+  }
+
+  // The panel posts a verb request (panel → chrome.storage → content script →
+  // window.postMessage). We run the SAME canonical cascade the Lead Panel uses
+  // (lib/leads/contactWorkflow), update local CRM state (Kanban + Agenda re-render
+  // from localLeads/localNextActions), and re-post the active client so Companion
+  // reflects the result — no extra taps, no manual refresh. SECURITY: same-origin
+  // + source-tag checked, and this only performs what the authenticated user can
+  // already do from this page; it never grants new capability to page scripts.
+  useEffect(() => {
+    function onVerb(e: MessageEvent) {
+      if (e.source !== window || e.origin !== window.location.origin) return
+      const d: any = e.data
+      if (!d || d.source !== COMPANION_MSG_SOURCE || d.type !== "workflow-verb") return
+      const payload = d.payload || {}
+      if (
+        payload.verb !== "contact" &&
+        payload.verb !== "contact-attempt" &&
+        payload.verb !== "text-sent" &&
+        payload.verb !== "start-build-list" &&
+        payload.verb !== "complete-build-list" &&
+        payload.verb !== "complete-send-list" &&
+        payload.verb !== "complete-follow-up"
+      )
+        return
+
+      const lead = localLeadsRef.current.find((l: any) => String(l.id) === String(payload.leadId))
+      if (!lead) return
+
+      // "Build List" START — open SAD happens in the panel; here we advance the
+      // workflow Contacted → Searching WITHOUT creating Send List and WITHOUT
+      // completing build_list (it stays the open action). Pin the card to the top
+      // of Searching and re-post so Companion/Kanban/Agenda/Lead Panel refresh.
+      if (payload.verb === "start-build-list") {
+        // Demo/virtual leads have no persisted build_list row, so once the stage
+        // moves to Searching the Companion's Next Action would synthesize to
+        // "Send List" and hide Mark List Built / Back to CRM. Synthesize a local
+        // OPEN build_list row (the exact state a real lead already has) so the Next
+        // Action stays "Build List" until Mark List Built completes it. Never
+        // persisted; the complete-build-list handler finds and completes this row.
+        const hasBuildRow = localNextActionsRef.current.some(
+          (a: any) =>
+            String(a.lead_id) === String(lead.id) &&
+            !a.completed &&
+            (String(a.action_key ?? "") === "build_list" ||
+              String(a.title ?? "").trim().toLowerCase() === "build list")
+        )
+        const localBuildRow: any = !hasBuildRow
+          ? {
+              id: `local-build-${lead.id}-${Date.now()}`,
+              lead_id: lead.id,
+              title: "Build List",
+              action_key: "build_list",
+              // Backstop due — 9:00 AM next calendar day (mirrors the real Build
+              // List row created by getStageWorkflowAction), so it reads Pending,
+              // not instantly Overdue.
+              due_at: autoDueInDays(1, timeZone),
+              priority: "medium",
+              completed: false,
+              status: "open",
+            }
+          : null
+
+        startBuildList({
+          lead,
+          onOptimistic: (updated) => {
+            setLocalLeads((prev) =>
+              prev.map((l) =>
+                String(l.id) === String(updated.id)
+                  ? { ...l, ...updated, _justDropped: true }
+                  : { ...l, _justDropped: false }
+              )
+            )
+            const merged = localBuildRow
+              ? [...localNextActionsRef.current, localBuildRow]
+              : localNextActionsRef.current
+            if (localBuildRow) setLocalNextActions(merged)
+            postCompanionActiveClient({ ...lead, ...updated }, merged)
+          },
+        })
+        return
+      }
+
+      // "✓ Mark List Built" — the explicit Build List completion. The lead is
+      // already in Searching (moved by the Build List START), so this does NOT
+      // change the stage: it completes the build_list row (kept in place + marked
+      // done so Last Action derives "Built List"), creates Send List exactly once,
+      // re-pins the card, and re-posts so Companion/Kanban/Agenda/Lead Panel refresh.
+      if (payload.verb === "complete-build-list") {
+        const now = new Date().toISOString()
+        const buildRow = localNextActionsRef.current.find(
+          (a: any) =>
+            String(a.lead_id) === String(lead.id) &&
+            !a.completed &&
+            (String(a.action_key ?? "") === "build_list" ||
+              String(a.title ?? "").trim().toLowerCase() === "build list")
+        )
+
+        // No persisted build_list row to mark (demo leads, or a virtual/
+        // synthesized Build List): record the COMPLETED build_list activity
+        // locally with the real completion timestamp so Last Action derives
+        // "Built List" from genuine completed history — NOT from the stage.
+        const completedBuildLocal = !buildRow
+          ? {
+              id: `local-build-${lead.id}-${Date.now()}`,
+              lead_id: lead.id,
+              title: "Build List",
+              action_key: "build_list",
+              completed: true,
+              completed_at: now,
+              status: "completed",
+            }
+          : null
+
+        // Demo leads never hit the DB, so completeBuildList returns before it can
+        // create the Send List successor — synthesize it locally so Next Action
+        // becomes Send List. Real leads get their successor from completeBuildList.
+        // Typed `any` (string "demo-" id) to match the existing demo-synthesis
+        // pattern in LeadPanel — WorkflowActionToast skips the DB delete for these.
+        const demoSendList: any = isDemoLeadId(lead.id)
+          ? {
+              id: `demo-act-send-${lead.id}-${Date.now()}`,
+              lead_id: lead.id,
+              title: "Send List",
+              action_key: "send_list",
+              // Backstop due — 9:00 AM next calendar day (mirrors the real Send List
+              // row from getStageWorkflowAction), so it reads Pending, not Overdue.
+              due_at: autoDueInDays(1, timeZone),
+              priority: "medium",
+              completed: false,
+            }
+          : null
+
+        completeBuildList({
+          lead,
+          buildRow: buildRow ? { id: buildRow.id } : null,
+          onOptimistic: (updated) => {
+            setLocalLeads((prev) =>
+              prev.map((l) =>
+                String(l.id) === String(updated.id)
+                  ? { ...l, ...updated, _justDropped: true }
+                  : { ...l, _justDropped: false }
+              )
+            )
+            const marked = localNextActionsRef.current.map((a: any) =>
+              buildRow && String(a.id) === String(buildRow.id)
+                ? { ...a, completed: true, completed_at: now }
+                : a
+            )
+            const merged = [
+              ...marked,
+              ...(completedBuildLocal ? [completedBuildLocal] : []),
+              ...(demoSendList ? [demoSendList] : []),
+            ]
+            setLocalNextActions(merged)
+            postCompanionActiveClient({ ...lead, ...updated }, merged)
+            if (demoSendList) emitWorkflowActionCreated(demoSendList)
+          },
+          onWorkflowAction: (a) => {
+            setLocalNextActions((prev) => [...prev, a])
+            postCompanionActiveClient(
+              { ...lead, crm_status: "searching" },
+              [...localNextActionsRef.current, a]
+            )
+          },
+        })
+        return
+      }
+
+      // "Yes, Sent" (Send List confirmation) — the explicit Send List completion.
+      // Completes the open send_list row (Last Action derives "Sent List"), moves
+      // Searching → List Sent with follow_up_count reset to 0, and lets the
+      // update-stage route create the single FU1 successor (real leads). Mirrors
+      // the Mark List Built path; re-posts so Companion updates without a re-click.
+      if (payload.verb === "complete-send-list") {
+        const now = new Date().toISOString()
+        const sendRow = localNextActionsRef.current.find(
+          (a: any) =>
+            String(a.lead_id) === String(lead.id) &&
+            !a.completed &&
+            (String(a.action_key ?? "") === "send_list" ||
+              String(a.title ?? "").trim().toLowerCase() === "send list")
+        )
+
+        // No persisted send_list row to mark (demo leads, or a virtual/synthesized
+        // Send List): record the COMPLETED send_list activity locally with the real
+        // completion timestamp so Last Action derives "Sent List" — NOT the stage.
+        const completedSendLocal = !sendRow
+          ? {
+              id: `local-send-${lead.id}-${Date.now()}`,
+              lead_id: lead.id,
+              title: "Send List",
+              action_key: "send_list",
+              completed: true,
+              completed_at: now,
+              status: "completed",
+            }
+          : null
+
+        // Demo leads never hit the DB, so completeSendList returns before the
+        // update-stage route can create FU1 — synthesize the ONE FU1 locally with
+        // the existing due-date helper (next calendar day at 9:00 AM local). Real
+        // leads get FU1 from the route (deduped on follow_up_1), never here.
+        // Typed `any` (string "demo-" id) to match the existing demo-synthesis
+        // pattern — WorkflowActionToast skips the DB delete for these.
+        const demoFu1: any = isDemoLeadId(lead.id)
+          ? {
+              id: `demo-act-fu1-${lead.id}-${Date.now()}`,
+              lead_id: lead.id,
+              title: "FU1",
+              action_key: "follow_up_1",
+              due_at: autoDueInDays(1, timeZone),
+              priority: "medium",
+              completed: false,
+              sequence: 1,
+            }
+          : null
+
+        completeSendList({
+          lead,
+          sendRow: sendRow ? { id: sendRow.id } : null,
+          timeZone,
+          onOptimistic: (updated) => {
+            setLocalLeads((prev) =>
+              prev.map((l) =>
+                String(l.id) === String(updated.id)
+                  ? { ...l, ...updated, _justDropped: true }
+                  : { ...l, _justDropped: false }
+              )
+            )
+            const marked = localNextActionsRef.current.map((a: any) =>
+              sendRow && String(a.id) === String(sendRow.id)
+                ? { ...a, completed: true, completed_at: now }
+                : a
+            )
+            const merged = [
+              ...marked,
+              ...(completedSendLocal ? [completedSendLocal] : []),
+              ...(demoFu1 ? [demoFu1] : []),
+            ]
+            setLocalNextActions(merged)
+            postCompanionActiveClient({ ...lead, ...updated }, merged)
+            if (demoFu1) emitWorkflowActionCreated(demoFu1)
+          },
+          onWorkflowAction: (a) => {
+            setLocalNextActions((prev) => [...prev, a])
+            postCompanionActiveClient(
+              { ...lead, crm_status: "list_sent", follow_up_count: 0 },
+              [...localNextActionsRef.current, a]
+            )
+          },
+        })
+        return
+      }
+
+      // "Yes, Sent" (Follow-Up confirmation) — completes the exact captured
+      // follow-up, keeps the lead in List Sent, creates ONE successor via the
+      // existing sequence engine with the move-date cadence due date, and records
+      // the text_sent signal so the successor shows "Waiting for Reply". Mirrors
+      // the Send List path; re-posts so Companion updates without a re-click.
+      if (payload.verb === "complete-follow-up") {
+        const now = new Date().toISOString()
+        // Resolve the EXACT captured row (by id first — survives an active-client
+        // switch — then by action_key as a fallback for synthesized rows).
+        const followRow = localNextActionsRef.current.find(
+          (a: any) =>
+            String(a.lead_id) === String(lead.id) &&
+            !a.completed &&
+            (String(a.id) === String(payload.actionId) ||
+              (payload.actionKey && String(a.action_key ?? "") === String(payload.actionKey)))
+        )
+        const completedTitle = String(followRow?.title ?? payload.title ?? "").trim()
+        if (!completedTitle) return
+
+        // No persisted row to mark (a purely DTO-synthesized follow-up): record the
+        // COMPLETED follow-up locally with the real timestamp so Last Action derives
+        // the follow-up label. Real/demo persisted rows are marked in place below.
+        const completedFollowLocal = !followRow
+          ? {
+              id: `local-fu-${lead.id}-${Date.now()}`,
+              lead_id: lead.id,
+              title: completedTitle,
+              action_key:
+                completedTitle === "FU1"
+                  ? "follow_up_1"
+                  : completedTitle === "FU2"
+                  ? "follow_up_2"
+                  : completedTitle === "FU3"
+                  ? "follow_up_3"
+                  : "final_follow_up",
+              completed: true,
+              completed_at: now,
+              status: "completed",
+            }
+          : null
+
+        // Demo successor (real leads get theirs from completeFollowUp) — identity
+        // from the engine, due date from the approved move-date cadence.
+        const succSpec = getNextFollowUpAction(completedTitle, timeZone)
+        const demoSuccessor: any =
+          isDemoLeadId(lead.id) && succSpec
+            ? {
+                id: `demo-act-${succSpec.actionKey}-${lead.id}-${Date.now()}`,
+                lead_id: lead.id,
+                title: succSpec.title,
+                action_key: succSpec.actionKey,
+                due_at: followUpSuccessorDueAt(completedTitle, lead, succSpec.dueAt, timeZone),
+                priority: "medium",
+                completed: false,
+                sequence: succSpec.sequence ?? null,
+              }
+            : null
+
+        completeFollowUp({
+          lead,
+          followRow: followRow ? { id: followRow.id } : null,
+          completedTitle,
+          now,
+          timeZone,
+          onOptimistic: (updated) => {
+            setLocalLeads((prev) =>
+              prev.map((l) =>
+                String(l.id) === String(updated.id)
+                  ? { ...l, ...updated, _justDropped: true }
+                  : { ...l, _justDropped: false }
+              )
+            )
+            // Retain the completed follow-up (mark in place — do NOT drop it, so
+            // Last Action can derive it) and add any synthesized rows.
+            const marked = localNextActionsRef.current.map((a: any) =>
+              followRow && String(a.id) === String(followRow.id)
+                ? { ...a, completed: true, completed_at: now }
+                : a
+            )
+            const merged = [
+              ...marked,
+              ...(completedFollowLocal ? [completedFollowLocal] : []),
+              ...(demoSuccessor ? [demoSuccessor] : []),
+            ]
+            setLocalNextActions(merged)
+            // Waiting-for-Reply signal (same text_sent → latestOutreach mechanism
+            // the New-lead flow uses). Same `now` as the completion so the derived
+            // status resolves. Persisted for real leads via completeFollowUp.
+            const nextMap = {
+              ...latestOutreachRef.current,
+              [String(lead.id)]: { type: "text_sent" as const, method: "text" as const, occurredAt: now },
+            }
+            latestOutreachRef.current = nextMap
+            setLatestOutreach(nextMap)
+            postCompanionActiveClient({ ...lead, ...updated }, merged)
+            if (demoSuccessor) emitWorkflowActionCreated(demoSuccessor)
+          },
+          onWorkflowAction: (a) => {
+            setLocalNextActions((prev) => [...prev, a])
+            postCompanionActiveClient({ ...lead }, [...localNextActionsRef.current, a])
+          },
+        })
+        return
+      }
+
+      const method: "call" | "text" = payload.method === "call" ? "call" : "text"
+
+      if (payload.verb === "contact-attempt") {
+        // "No Answer" — pending call outreach (Follow Up + Status "No Answer").
+        applyContactAttempt(lead, method)
+        return
+      }
+
+      if (payload.verb === "text-sent") {
+        // "Yes, Sent" — pending text outreach (Follow Up + Status "Waiting for
+        // Reply"). NOT successful contact — the lead stays New.
+        applyTextSent(lead, method)
+        return
+      }
+
+      // "Yes, Contacted" — canonical first contact (only advances a NEW lead).
+      applyFirstContact(lead, method)
+    }
+    window.addEventListener("message", onVerb)
+    return () => window.removeEventListener("message", onVerb)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Workspace navigation ONLY. Closes the selected-client workspace and returns
+  // the center to the Kanban. Makes NO change to the lead: no stage change, no
+  // Next/Last Action change, no follow-up, no workflow automation, no client
+  // data write — identical to the Lead Panel's existing onClose.
+  //
+  // Phase-2 note (state-lifecycle separation): `selectedLeadId` here is the
+  // WORKSPACE selection (Kanban vs. client workspace). It is intentionally the
+  // ONLY thing cleared. Beast Companion's persistent active-client state will be
+  // a SEPARATE variable (e.g. companionActiveLeadId), set on selection and NOT
+  // cleared by this control — so returning to the Kanban never blanks Companion.
+  function closeWorkspace() {
+    setSelectedLeadId(null)
+    router.push("/admin/leads")
+  }
+
+  // ── Agenda orientation (pure mirror) ──────────────────────────────────────
+  // Same components, same widths/margins/insets — only the SIDE flips. The BODY
+  // flex reverses; the Agenda's OUTER margin moves to the opposite edge; and the
+  // absolute veil/overlay insets swap left↔right (identical pixel values).
+  const agendaOnRight = agendaSide === "right"
+  const bodyFlexCls = agendaOnRight ? "flex-row-reverse" : "flex-row"
+  const agendaMarginCls = agendaOnRight ? "mr-2" : "ml-2"
+  const veilInsetCls = agendaOnRight
+    ? followUpsOpen ? "left-0 right-[228px]" : "left-0 right-[48px]"
+    : followUpsOpen ? "left-[228px] right-0" : "left-[48px] right-0"
+  const overlayInsetCls = agendaOnRight
+    ? followUpsOpen ? "left-0 right-[242px]" : "left-0 right-[62px]"
+    : followUpsOpen ? "left-[242px] right-0" : "left-[62px] right-0"
+
   return (
     <div className="relative h-screen w-full flex flex-col bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]">
 
@@ -104,8 +785,13 @@ export default function DashboardClient({ leads, nextActions, favorites, demoMod
       {/* zClass z-50 (not z-30) so the header's stacking context sits above
           the z-40 Lead Detail Overlay — otherwise the profile dropdown renders
           behind the Lead Panel whenever a lead is selected. */}
+      {/* Full-bleed the top header to the CRM shell edges — counteracts the admin
+          layout's px-4 inset so the bar spans from the far-left of the app area to
+          the web-viewport right edge (where the Chrome Companion begins). The
+          body/Agenda below stay inset; only the header is full width. */}
+      <div className="-mx-4 flex-none">
       <AppHeader variant="dark" zClass="z-50">
-        <Link href="/admin/performance" className={CRM_SECONDARY_BUTTON}>
+        <Link href="/admin/analytics" className={CRM_SECONDARY_BUTTON}>
           <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
             <rect x="1" y="8" width="3" height="5" rx="0.5" fill="currentColor"/>
             <rect x="5.5" y="4" width="3" height="9" rx="0.5" fill="currentColor"/>
@@ -123,6 +809,7 @@ export default function DashboardClient({ leads, nextActions, favorites, demoMod
           Add Lead
         </button>
       </AppHeader>
+      </div>
 
       {/* ─── SAMPLE WORKSPACE WELCOME BANNER (demo mode, first entry) ─── */}
       {bannerVisible && (
@@ -147,8 +834,12 @@ export default function DashboardClient({ leads, nextActions, favorites, demoMod
         </div>
       )}
 
-      {/* ─── BODY ─── */}
-      <div className="relative flex-1 flex overflow-hidden">
+      {/* ─── BODY ─── (Agenda side mirrors via bodyFlexCls)
+          mt-2 (8px) gives the whole workspace row breathing room below the top
+          nav. Applied to the row as a unit (not to Agenda/center/cards) so it
+          holds for Agenda left/right, expanded/collapsed, Kanban, and the client
+          workspace — and shifts the absolute veil down with it (no misalignment). */}
+      <div className={`relative flex-1 flex ${bodyFlexCls} overflow-hidden mt-2`}>
 
         {/* Workspace background comes from the board's own themed surface
             (.kb-workspace) and the container gradient above. The old dark
@@ -163,13 +854,13 @@ export default function DashboardClient({ leads, nextActions, favorites, demoMod
             sidebar itself, so its frosted-glass look over the dark photo
             is fully preserved. */}
         {selectedLead && (
-          <div className={`absolute top-2 bottom-2 ${followUpsOpen ? "left-[228px]" : "left-[48px]"} right-0 bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]`} />
+          <div className={`absolute top-2 bottom-2 ${veilInsetCls} bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]`} />
         )}
 
         {/* LEFT SIDEBAR — Agenda (Follow-ups). Recessed column-like panel so
             its task cards (Kanban card surfaces) read as the focus. */}
         {followUpsOpen ? (
-          <div className="relative z-10 flex-none w-[220px] my-2 ml-2 rounded-xl overflow-hidden bg-[var(--kb-col)] border border-[var(--kb-bg)] shadow-[var(--kb-col-shadow)]">
+          <div className={`relative z-10 flex-none w-[220px] my-2 ${agendaMarginCls} rounded-xl overflow-hidden bg-[var(--kb-col)] border border-[var(--kb-bg)] shadow-[var(--kb-col-shadow)]`}>
             <FollowUpRow
               leads={localLeads}
               nextActions={localNextActions}
@@ -179,10 +870,12 @@ export default function DashboardClient({ leads, nextActions, favorites, demoMod
                 router.push(`/admin/leads?id=${id}`)
               }}
               onCollapse={toggleFollowUps}
+              collapseToward={agendaSide}
+              timeZone={timeZone}
             />
           </div>
         ) : (
-          <div className="relative z-10 flex-none w-10 my-2 ml-2 rounded-xl bg-[var(--kb-col)] border border-[var(--kb-bg)] shadow-[var(--kb-col-shadow)] flex items-start justify-center pt-3">
+          <div className={`relative z-10 flex-none w-10 my-2 ${agendaMarginCls} rounded-xl bg-[var(--kb-col)] border border-[var(--kb-bg)] shadow-[var(--kb-col-shadow)] flex items-start justify-center pt-3`}>
             <button
               onClick={toggleFollowUps}
               className="w-6 h-6 flex items-center justify-center rounded-lg text-[var(--kb-ink-muted)] hover:text-[var(--kb-ink)] transition-colors"
@@ -190,7 +883,9 @@ export default function DashboardClient({ leads, nextActions, favorites, demoMod
               title="Expand Agenda"
             >
               <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="9 18 15 12 9 6" />
+                {/* Expand points INWARD (toward center): › when Agenda is on the
+                    left, ‹ when on the right. */}
+                <polyline points={agendaOnRight ? "15 18 9 12 15 6" : "9 18 15 12 9 6"} />
               </svg>
             </button>
           </div>
@@ -211,15 +906,35 @@ export default function DashboardClient({ leads, nextActions, favorites, demoMod
               router.push(`/admin/leads?id=${id}`)
             }}
             onWorkflowAction={handleWorkflowAction}
+            onInitiateContact={(lead) => {
+              // Drag New→Contacted: select the lead (so Companion loads it via the
+              // Phase 2 active-client bridge) and open the CENTERED CRM MODAL where
+              // the drag originated. No Companion chooser handoff. No stage change —
+              // applyFirstContact only runs on "Yes, Contacted". One pending at a
+              // time: ignore a new drag while a contact modal is unresolved.
+              if (dragContact) return
+              setSelectedLeadId(lead.id)
+              router.push(`/admin/leads?id=${lead.id}`)
+              setDragContact({
+                leadId: lead.id,
+                name: formatPersonName(lead.first_name) || "this client",
+                phone: lead.phone ?? null,
+                method: null,
+                phase: "choose-method",
+              })
+            }}
+            timeZone={timeZone}
           />
         </div>
 
         {/* LEAD DETAIL OVERLAY */}
         {selectedLead && (
-          <div className={`absolute top-2 bottom-2 ${followUpsOpen ? "left-[242px]" : "left-[62px]"} right-0 z-40 flex pointer-events-none`}>
+          <div className={`absolute top-2 bottom-2 ${overlayInsetCls} z-40 flex pointer-events-none`}>
             <div className="flex gap-2 w-full h-full pointer-events-auto">
 
-              {/* LEAD PANEL */}
+              {/* LEAD PANEL — hidden in the dev Phase-1 preview (see
+                  SHOW_LEGACY_LEAD_PANEL); intact + rendered in production. */}
+              {SHOW_LEGACY_LEAD_PANEL && (
               <div className="w-[420px] flex-none rounded-2xl bg-[var(--crm-panel)] overflow-hidden shadow-[0_1px_2px_rgba(var(--crm-shadow-color),0.06),0_4px_10px_rgba(var(--crm-shadow-color),0.14),0_10px_28px_rgba(var(--crm-shadow-color),0.28)]">
                 <LeadPanel
                   lead={selectedLead}
@@ -260,12 +975,24 @@ export default function DashboardClient({ leads, nextActions, favorites, demoMod
                   }}
                   pendingEditActionId={pendingEditActionId}
                   onPendingEditHandled={() => setPendingEditActionId(null)}
+                  timeZone={timeZone}
                 />
               </div>
+              )}
 
-              {/* INSIGHTS PANEL */}
+              {/* INSIGHTS PANEL (Phase 1 center working canvas) */}
               <div className="flex-1 bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)] p-6 overflow-y-auto">
-                <LeadInsights lead={selectedLead} onMatchesChange={setTopMatches}>
+                {/* Hierarchy: AI Assistant → Best Matches → Favorite Properties →
+                    Locator Notes → Client Tools → AI Insights. The workspace-close
+                    X lives inside the AI Assistant header (passed below), NOT at the
+                    scrollbar edge; shown only when the legacy Lead Panel isn't
+                    rendered so production UI is unchanged. */}
+                <LeadInsights
+                  lead={selectedLead}
+                  onMatchesChange={setTopMatches}
+                  onCloseWorkspace={SHOW_LEGACY_LEAD_PANEL ? undefined : closeWorkspace}
+                >
+                  <BestMatches lead={selectedLead} />
                   <LeadFavorites
                     lead={selectedLead}
                     favorites={localFavorites}
@@ -275,9 +1002,15 @@ export default function DashboardClient({ leads, nextActions, favorites, demoMod
                   />
                   <LeadNotes
                     lead={selectedLead}
+                    showClientNotes={false}
                     onUpdateLead={(updatedLead) =>
                       setLocalLeads((prev) => prev.map((l) => (l.id === updatedLead.id ? updatedLead : l)))
                     }
+                  />
+                  <ClientWorkspaceTools
+                    lead={selectedLead}
+                    topMatches={topMatches}
+                    locatorName={((agent?.name || "").trim().split(/\s+/)[0]) || ""}
                   />
                 </LeadInsights>
               </div>
@@ -310,6 +1043,103 @@ export default function DashboardClient({ leads, nextActions, favorites, demoMod
       <BeastMilestoneToast />
 
       {demoMode && <FirstRunChecklist googleConnected={googleConnected} />}
+
+      {/* TEMPORARY (localhost only) Agenda-side toggle — for visually testing the
+          two orientations before we decide where the permanent setting lives.
+          Never rendered in production. No DB; localStorage only. */}
+      {process.env.NODE_ENV !== "production" && (
+        <button
+          type="button"
+          onClick={toggleAgendaSide}
+          className="fixed bottom-3 left-3 z-[60] rounded-full border border-[var(--crm-border)] bg-[var(--crm-panel)] px-3 py-1.5 text-[11px] font-semibold text-[var(--crm-text-secondary)] shadow-[0_4px_10px_rgba(15,23,42,0.18)] hover:text-[var(--crm-text-primary)] transition-colors"
+          title="Temporary (localhost): switch which side the Agenda is on"
+        >
+          Agenda: {agendaOnRight ? "Right" : "Left"} → switch
+        </button>
+      )}
+
+      {/* Centered CRM contact modal — the Kanban-drag presentation of the SAME
+          canonical contact flow (Companion uses its bottom sheet). Compact, no
+          explanatory paragraph; same wording as Companion. */}
+      {dragContact && (
+        <div className="fixed inset-0 z-[10000] bg-black/40 backdrop-blur-sm flex items-center justify-center px-4">
+          <div className="w-full max-w-xs bg-[var(--crm-panel)] rounded-2xl shadow-2xl p-5">
+            {dragContact.phase === "choose-method" ? (
+              <>
+                <h3 className="text-base font-bold text-[var(--crm-text-primary)] mb-4 text-center">
+                  Would you like to call or text {dragContact.name}?
+                </h3>
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => dragChooseMethod("call")}
+                    className="w-full px-4 py-2.5 rounded-xl text-sm font-semibold crm-cta transition-colors"
+                  >
+                    Call
+                  </button>
+                  <button
+                    onClick={() => dragChooseMethod("text")}
+                    className="w-full px-4 py-2.5 rounded-xl border border-[var(--crm-border)] text-sm font-semibold text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] transition-colors"
+                  >
+                    Text
+                  </button>
+                  <button
+                    onClick={() => setDragContact(null)}
+                    className="w-full px-4 py-2 rounded-xl text-sm font-medium text-[var(--crm-text-muted)] hover:bg-[var(--crm-card)] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : dragContact.method === "text" ? (
+              <>
+                <h3 className="text-base font-bold text-[var(--crm-text-primary)] mb-4 text-center">
+                  Did you send the text to {dragContact.name}?
+                </h3>
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => dragResolveTextSent()}
+                    className="w-full px-4 py-2.5 rounded-xl text-sm font-semibold crm-cta transition-colors"
+                  >
+                    Yes, Sent
+                  </button>
+                  <button
+                    onClick={() => setDragContact(null)}
+                    className="w-full px-4 py-2 rounded-xl text-sm font-medium text-[var(--crm-text-muted)] hover:bg-[var(--crm-card)] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="text-base font-bold text-[var(--crm-text-primary)] mb-4 text-center">
+                  Were you able to contact {dragContact.name}?
+                </h3>
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => dragResolve("yes")}
+                    className="w-full px-4 py-2.5 rounded-xl text-sm font-semibold crm-cta transition-colors"
+                  >
+                    Yes, Contacted
+                  </button>
+                  <button
+                    onClick={() => dragResolve("no-answer")}
+                    className="w-full px-4 py-2.5 rounded-xl border border-[var(--crm-border)] text-sm font-semibold text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] transition-colors"
+                  >
+                    No Answer
+                  </button>
+                  <button
+                    onClick={() => setDragContact(null)}
+                    className="w-full px-4 py-2 rounded-xl text-sm font-medium text-[var(--crm-text-muted)] hover:bg-[var(--crm-card)] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

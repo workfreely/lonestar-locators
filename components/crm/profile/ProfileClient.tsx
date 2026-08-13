@@ -10,6 +10,7 @@ import SettingsShell, {
 } from "@/components/crm/settings/SettingsShell"
 import { MARKET_OPTIONS } from "@/lib/markets/catalog"
 import UsernameField from "./UsernameField"
+import TimezoneSetting from "./TimezoneSetting"
 import {
   toRpcFailure,
   userMessageForServiceAreaError,
@@ -26,6 +27,7 @@ type ProfileInitial = {
   phone: string
   email: string
   photoUrl: string | null
+  timeZone: string
 }
 
 // Progressive US phone formatting for the input — shows "(210) 555-1234" as the
@@ -404,6 +406,11 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
         )}
       </SettingsCard>
       </div>
+
+      {/* Time Zone — between Service Areas and Public Form URL. Reuses the shared
+          TimezoneSetting control + persistence route; independent of the Save
+          Changes button below (it saves through its own timezone route). */}
+      <TimezoneSetting initialTimeZone={initial.timeZone} />
 
       {areasLoaded && <UsernameField initialUsername={publicSlug} />}
 

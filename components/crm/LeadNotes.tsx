@@ -10,9 +10,14 @@ import { CollapsibleNotes } from "./LeadPanelSections"
 export default function LeadNotes({
   lead,
   onUpdateLead,
+  // UI-placement only: Client Notes belong to Beast Companion (core client
+  // context), so the center workspace hides them. The read-only Client Notes
+  // code + data are untouched — this just controls whether the section renders.
+  showClientNotes = true,
 }: {
   lead: any
   onUpdateLead?: (updatedLead: any) => void
+  showClientNotes?: boolean
 }) {
   return (
     <>
@@ -20,7 +25,7 @@ export default function LeadNotes({
           lead actually submitted notes. When empty, the whole section is hidden
           (no "No notes submitted." placeholder), same conditional rule as Search
           Criteria / Credit Screening. Locator Notes below stays always-editable. */}
-      {!!(lead.notes && lead.notes.trim()) && (
+      {showClientNotes && !!(lead.notes && lead.notes.trim()) && (
         <CollapsibleNotes title="Client Notes" defaultOpen storageKey="client-notes">
           {/* Content uses the shared theme tokens (like Search Criteria / Credit
               Screening) so every section reads as one cohesive surface. */}

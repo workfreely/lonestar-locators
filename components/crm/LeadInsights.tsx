@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react"
 import { supabase } from "@/lib/supabase/client"
 import type { AiClientBrief } from "@/lib/types/aiClientBrief"
 import { getDemoBrief, isDemoLeadId } from "@/lib/demo/demoWorkspace"
-import { SectionCard } from "@/components/crm/LeadPanelSections"
 import { getLeadResponsiveness, computeCloseRatioPercent } from "@/lib/ai/leadResponsiveness"
 
 // V1 launch flag — Property Matches / AI property suggestions are hidden from
@@ -308,7 +307,7 @@ function getCloseRatio(
 
 // ─── AI Insights Card ─────────────────────────────────────────────────────────
 
-function AiInsightsCard({ leadId }: { leadId: string }) {
+function AiInsightsCard({ leadId, onCloseWorkspace, beastInsight }: { leadId: string; onCloseWorkspace?: () => void; beastInsight: string }) {
   const [brief, setBrief] = useState<AiClientBrief | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
@@ -404,7 +403,7 @@ function AiInsightsCard({ leadId }: { leadId: string }) {
             <polyline points="9 18 15 12 9 6" />
           </svg>
           <h3 className="text-xs font-semibold text-[var(--crm-text-secondary)] whitespace-nowrap">
-            🧠 AI ASSISTANT
+            🧠 AI INSIGHTS
           </h3>
         </div>
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -418,6 +417,26 @@ function AiInsightsCard({ leadId }: { leadId: string }) {
           >
             {syncing ? "Syncing..." : lastSynced ? "Refresh" : "Sync"}
           </button>
+          {/* Close the ENTIRE selected-client workspace (back to Kanban). Set
+              apart from Refresh by a divider + margin so it doesn't read as part
+              of it. Strictly navigation — never mutates the lead, and unrelated
+              to the Chrome Companion's own X. Rendered only when provided. */}
+          {onCloseWorkspace && (
+            <>
+              <span className="ml-1.5 w-px h-4 bg-[var(--crm-border)]" aria-hidden="true" />
+              <button
+                type="button"
+                onClick={onCloseWorkspace}
+                className="-mr-2.5 w-6 h-6 flex items-center justify-center rounded-lg text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)] hover:bg-[var(--crm-card)] transition-colors"
+                aria-label="Close client workspace"
+                title="Close — back to board"
+              >
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                  <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -429,7 +448,17 @@ function AiInsightsCard({ leadId }: { leadId: string }) {
         {hasInsights ? (
           <>
             <ul className="space-y-1.5">
-              {brief.insights.map((bullet, i) => (
+              {/* Bullet 1 (fixed): the AI lead assessment, reusing the existing
+                  Approval / Responsiveness / Close Ratio values (no new AI
+                  generation). Same bullet styling as the three below. */}
+              <li key="beast-insight" className="flex items-start gap-2">
+                <span className="mt-[5px] w-1.5 h-1.5 rounded-full bg-indigo-400 flex-none" />
+                <span className="text-[12.5px] text-[var(--crm-text-primary)] leading-snug">{beastInsight}</span>
+              </li>
+              {/* Bullets 2–4: the existing AI-generated insights, unchanged. Only
+                  the first three DISPLAYED insights come from brief.insights; the
+                  generation pipeline (brief.insights) itself is untouched. */}
+              {brief.insights.slice(0, 3).map((bullet, i) => (
                 <li key={i} className="flex items-start gap-2">
                   <span className="mt-[5px] w-1.5 h-1.5 rounded-full bg-indigo-400 flex-none" />
                   <span className="text-[12.5px] text-[var(--crm-text-primary)] leading-snug">{bullet}</span>
@@ -463,10 +492,13 @@ function AiInsightsCard({ leadId }: { leadId: string }) {
 export default function LeadInsights({
   lead,
   onMatchesChange,
+  onCloseWorkspace,
   children,
 }: {
   lead: any
   onMatchesChange?: (matches: any[]) => void
+  // Optional: renders the workspace-close X inside the AI Assistant header.
+  onCloseWorkspace?: () => void
   // Rendered directly under the AI Assistant card — the right-panel property
   // workspace (Favorite Properties) and notes for V1.
   children?: React.ReactNode
@@ -611,7 +643,13 @@ export default function LeadInsights({
         .limit(1000)
 
         if (error) {
-  console.error(error)
+  // The property catalog ('properties') is not provisioned in every environment
+  // (e.g. the Locator Beast database pre-launch) — PostgREST reports that as
+  // PGRST205 (relation not in the schema cache). That's an expected, benign
+  // state: the matching engine simply has no catalog to score against, so it
+  // degrades to "no matches" (topMatches stays empty) instead of surfacing a dev
+  // overlay. Any OTHER error still logs so real failures aren't hidden.
+  if (error.code !== "PGRST205") console.error(error)
   return
 }
 
@@ -714,8 +752,12 @@ if (Number(lead.credit_score) <= 580) {
   return (
     <div className="space-y-2 pt-0 -mt-6">
 
-      {/* AI ASSISTANT */}
-      <AiInsightsCard leadId={String(lead.id)} />
+      {/* AI INSIGHTS */}
+      <AiInsightsCard
+        leadId={String(lead.id)}
+        onCloseWorkspace={onCloseWorkspace}
+        beastInsight={`${approval.label} approval likelihood with ${responsiveness.toLowerCase()} responsiveness and a ${close.label} close probability.`}
+      />
 
       {/* Right-panel workspace — Favorite Properties + Notes (see DashboardClient) */}
       {children}
@@ -851,53 +893,12 @@ if (Number(lead.credit_score) <= 580) {
       </div>
       )}
 
-      {/* AI INSIGHTS — collapsible like the other Lead Panel sections. Pill /
-          badge styling, colors, and spacing are unchanged; only the section
-          chrome (collapsible header) and one new insight were added. */}
-      <SectionCard title="AI Insights" collapsible defaultOpen storageKey="lead-ai-insights">
-        <div className="text-xs text-[var(--crm-text-secondary)] space-y-2">
-
-          <div className="flex items-center justify-between">
-
-  {/* APPROVAL LABEL */}
-  <span className="bg-green-100 text-green-700 px-2 py-[2px] rounded text-[10px] font-medium">
-    Approval Probability
-  </span>
-
-  {/* APPROVAL VALUE */}
-  <span className="font-semibold text-[var(--crm-text-primary)]">
-    {approval.label}
-  </span>
-</div>
-
-<div className="flex items-center justify-between">
-
-  {/* RESPONSIVENESS LABEL — standard blue on the same 100/700 scale as the
-      green (Approval) and purple (Close) pills; identical size/padding/type. */}
-  <span className="bg-blue-100 text-blue-700 px-2 py-[2px] rounded text-[10px] font-medium">
-    Lead Responsiveness
-  </span>
-
-  {/* RESPONSIVENESS VALUE */}
-  <span className="font-semibold text-[var(--crm-text-primary)]">
-    {responsiveness}
-  </span>
-</div>
-
-<div className="flex items-center justify-between">
-
-  {/* CLOSE LABEL */}
-  <span className="bg-purple-100 text-purple-700 px-2 py-[2px] rounded text-[10px] font-medium">
-    Close Ratio
-  </span>
-
-  {/* CLOSE VALUE */}
-  <span className="font-semibold text-[var(--crm-text-primary)]">
-    {close.label}
-  </span>
-</div>
-        </div>
-      </SectionCard>
+      {/* The standalone AI Insights section was removed from the workspace UI:
+          its Approval / Responsiveness / Close Ratio values are now surfaced in
+          the top card's fixed 4th bullet (see AiInsightsCard `beastInsight`). The
+          underlying calculations (getApprovalProbability / getLeadResponsiveness /
+          getCloseRatio) are unchanged and still computed above — only this UI
+          block is gone. */}
     </div>
   )
 }

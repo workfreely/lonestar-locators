@@ -9,6 +9,8 @@ import type { GuestCardAgent } from "@/lib/leads/guestCard"
 import type { ResolvedAgentIdentity } from "@/lib/notifications/agentSignature"
 import { isGuestCardTitle } from "@/lib/leads/guestCardWorkflow"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
+import { recordFirstContact as recordFirstContactCascade } from "@/lib/leads/contactWorkflow"
+import { advanceBuildListToSearching } from "@/lib/leads/buildListWorkflow"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import LeadSourceBadge from "./LeadSourceBadge"
 import { inferMarketFromLandingPage } from "@/lib/leads/inferMarketFromLandingPage"
@@ -18,7 +20,7 @@ import { getNextFollowUpAction, createWorkflowActionIfNeeded } from "@/lib/workf
 import { autoDueInDays } from "@/lib/workflow/autoDueDate"
 import { emitWorkflowActionCreated } from "@/lib/workflowToast"
 import { getActionIcon, formatDueDateTime } from "@/lib/actionDisplay"
-import { formatWorkflowActionLabel, isFollowUpAction } from "@/lib/leads/workflowActionLabels"
+import { formatWorkflowActionLabel, formatLastActionLabel, isFollowUpAction } from "@/lib/leads/workflowActionLabels"
 import AiVoiceScriptModal from "./AiVoiceScriptModal"
 import ConfirmDialog from "./ConfirmDialog"
 import AddNextActionModal from "./AddNextActionModal"
@@ -155,6 +157,7 @@ export default function LeadPanel({
   onUpdateLead,
   pendingEditActionId,
   onPendingEditHandled,
+  timeZone,
 }: {
   lead: any
   topMatches?: any[]
@@ -165,6 +168,9 @@ export default function LeadPanel({
   signature?: ResolvedAgentIdentity | null
   onClose: () => void
   onUpdateLead?: (updatedLead: any) => void
+  // Saved locator IANA timezone — Next Action Due/Completed render in this zone,
+  // and the auto follow-up cache date is computed in it (matches the created row).
+  timeZone?: string | null
   // Set by the Workflow Engine's "✓ Next Action Created" toast's Edit
   // button — when this matches one of this lead's own open actions, the
   // Next Action editor opens for it automatically. Cleared via
@@ -272,7 +278,7 @@ export default function LeadPanel({
     // reminder lands as a clean morning task rather than at the current clock
     // time. Steps beyond 3 end the chain (no scheduled date).
     const nextDateISO =
-      nextFollowUpCount >= 1 && nextFollowUpCount <= 3 ? autoDueInDays(nextFollowUpCount) : null
+      nextFollowUpCount >= 1 && nextFollowUpCount <= 3 ? autoDueInDays(nextFollowUpCount, timeZone) : null
 
     setNextActionDate(nextDateISO)
 
@@ -354,94 +360,18 @@ export default function LeadPanel({
   // preserved exactly as-is here; only the trigger point moved.
 
   function recordFirstContact(method: "call" | "text") {
-    const shouldAdvanceStage = lead.crm_status === "new"
-    const contactedAt = new Date().toISOString()
-
-    // Optimistic UI update — merges the (conditional) stage advance with the
-    // (unconditional) contact-timestamp write below into one consistent
-    // object, so a re-click on an already-Contacted lead can't regress
-    // crm_status back to "new" via a stale closure.
-    if (onUpdateLead) {
-      onUpdateLead({
-        ...lead,
-        ...(shouldAdvanceStage ? { crm_status: "contacted" } : {}),
-        first_text_sent_at: contactedAt,
-      })
-    }
-
-    // Demo leads live entirely client-side. Their ids are strings ("demo-1"),
-    // but leads.id is bigint — so ANY write to the real `leads` table (here, the
-    // update-stage route, or the timeline) throws Postgres 22P02 "invalid input
-    // syntax for type bigint". The optimistic update above is all a demo lead
-    // needs; skip every DB write. (This is the actual cause of the empty-object
-    // "[first-contact] Failed to record contact timestamp" error — not a missing
-    // column or migration; first_text_sent_at exists and RLS is fine.)
-    if (isDemoLeadId(lead.id)) return
-
-    // Auto-advance stage: New → Contacted — unchanged: same endpoint, same
-    // payload, same guard. Only fires the first time a "new" lead is
-    // contacted.
-    if (shouldAdvanceStage) {
-      // Persist to Supabase + trigger Google Contact sync (non-blocking)
-      fetch("/api/admin/leads/update-stage", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          leadId: lead.id,
-          crm_status: "contacted",
-          follow_up_count: lead.follow_up_count ?? 0,
-          next_action_date: lead.next_action_date ?? null,
-        }),
-      })
-        .then((res) => res.json())
-        .then((json) => {
-          // Workflow Engine — surfaces whatever automatic action (if any)
-          // the New → Contacted transition just created.
-          if (json?.workflowAction) {
-            setNextActions?.((prev) => [...prev, json.workflowAction])
-            emitWorkflowActionCreated(json.workflowAction)
-          }
-        })
-        .catch((err) => {
-          console.error("First contact stage update failed:", err)
-        })
-    }
-
-    // Record the moment this lead was intentionally contacted — fires on
-    // every first-contact click, independent of the stage-advance above and
-    // of /api/admin/leads/update-stage, so none of that route's other side
-    // effects (Google Contact sync, List Sent calendar) run an extra time.
-    // This is deliberately the ONLY place first_text_sent_at is written —
-    // not a Kanban drag, not a lead edit. Powers the daily 7-day
-    // no-response auto-archive (app/api/cron/auto-archive-no-response).
-    supabase
-      .from("leads")
-      .update({ first_text_sent_at: contactedAt })
-      .eq("id", lead.id)
-      .then(({ data, error, status, statusText }) => {
-        // Log the full response — a PostgrestError serializes to "{}" via a bare
-        // console.error, which hid the real failure; log its fields explicitly.
-        if (error) {
-          console.error("[first-contact] Failed to record contact timestamp:", {
-            message: error.message,
-            code: error.code,
-            details: error.details,
-            hint: error.hint,
-            status,
-            statusText,
-            data,
-          })
-        }
-      })
-
-    // Append the first-contact event to the immutable lead timeline — done
-    // LAST and best-effort, after every workflow-critical write above, so a
-    // timeline failure can never affect the New → Contacted workflow. History
-    // only; `leads` remains the source of truth for live state. Fires once, on
-    // the genuine New → Contacted transition, regardless of which button ran it.
-    if (shouldAdvanceStage) {
-      recordTimelineEvent({ leadId: lead.id, type: "first_contact", method, sequence: 0, occurredAt: contactedAt })
-    }
+    // Delegates to the canonical shared cascade (lib/leads/contactWorkflow) so
+    // the CRM Lead Panel and Beast Companion run the EXACT same first-contact
+    // automation — no duplicated workflow. Behavior is unchanged: onUpdateLead =
+    // optimistic merge, the created successor action is appended to this panel's
+    // open-actions list, and the "✓ Next Action Created" toast fires inside the
+    // shared cascade.
+    recordFirstContactCascade({
+      lead,
+      method,
+      onOptimistic: (updated) => onUpdateLead?.(updated),
+      onWorkflowAction: (a) => setNextActions?.((prev) => [...prev, a]),
+    })
   }
 
   // ─── Shared First Text handler ─────────────────────────────────────────
@@ -520,7 +450,7 @@ export default function LeadPanel({
   async function handleDoneForNow(days: number) {
     // Automatic reschedule → 9:00 AM local on the target day, consistent with
     // every other workflow-generated follow-up.
-    const newDateISO = autoDueInDays(days)
+    const newDateISO = autoDueInDays(days, timeZone)
 
     // Optimistic update — disappears from Follow-Ups sidebar immediately
     setNextActionDate(newDateISO)
@@ -781,6 +711,17 @@ export default function LeadPanel({
           setNextActions?.((prev) => [...prev, created])
           emitWorkflowActionCreated(created)
         }
+      } else if (
+        String(completedAction.action_key ?? "") === "build_list" ||
+        String(completedAction.title ?? "").trim().toLowerCase() === "build list"
+      ) {
+        // Build List complete → the canonical Contacted → Searching transition
+        // (creates the Send List successor). Row is already completed above.
+        advanceBuildListToSearching({
+          lead,
+          onOptimistic: (u) => onUpdateLead?.(u),
+          onWorkflowAction: (a) => setNextActions?.((prev) => [...prev, a]),
+        })
       }
     }
   }
@@ -1204,16 +1145,16 @@ export default function LeadPanel({
               </div>
               <div className="mt-2 flex items-center justify-between gap-3">
                 <span
-                  title={formatWorkflowActionLabel(lastAction.title)}
+                  title={formatLastActionLabel(lastAction.title)}
                   className="max-w-[62%] truncate rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] px-4 py-2 text-sm font-semibold text-[var(--crm-text-secondary)]"
                 >
-                  {formatWorkflowActionLabel(lastAction.title)}
+                  {formatLastActionLabel(lastAction.title)}
                 </span>
                 <span className="flex-none text-right text-sm font-semibold text-emerald-600">Completed</span>
               </div>
               <div className="mt-2.5 truncate text-[12.5px] text-[var(--crm-text-muted)]">
                 Completed:{" "}
-                <span className="font-medium text-emerald-600">{formatDueDateTime(lastAction.completedAt)}</span>
+                <span className="font-medium text-emerald-600">{formatDueDateTime(lastAction.completedAt, { timeZone: timeZone ?? undefined })}</span>
               </div>
             </div>
           )}
@@ -1266,7 +1207,7 @@ export default function LeadPanel({
               <div className="mt-2.5 truncate text-[12.5px] text-[var(--crm-text-muted)]">
                 Due:{" "}
                 <span className="font-medium text-[var(--crm-text-secondary)]">
-                  {nextOpenAction.dueAt ? formatDueDateTime(nextOpenAction.dueAt) : "—"}
+                  {nextOpenAction.dueAt ? formatDueDateTime(nextOpenAction.dueAt, { timeZone: timeZone ?? undefined }) : "—"}
                 </span>
               </div>
             </div>

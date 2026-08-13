@@ -61,6 +61,14 @@ export const nextActionSchema = z.object({
   completed: z.boolean(),
   completedAt: z.string().nullish(),
   propertyName: z.string().nullish(),
+  /**
+   * Resting status label for this open action, when it differs from the default
+   * Pending/Overdue derivation — e.g. a New lead's Follow Up that came from a
+   * "No Answer" ("No Answer") or a sent text ("Waiting for Reply"). Overdue still
+   * wins when the due date passes (decided in the panel from dueAt). Nullish for
+   * ordinary actions, which stay Pending/Overdue.
+   */
+  statusLabel: z.string().nullish(),
   /** Optional extension point — reserved, not collected today. */
   outcome: z.string().nullish(),
 });
@@ -71,6 +79,18 @@ export const workflowStateSchema = z.object({
   nextActionDate: z.string().nullish(),
   firstContactAt: z.string().nullish(),
 });
+
+/**
+ * Last Action — the most recently successfully COMPLETED workflow action (title
+ * + when). Null for a brand-new lead where nothing has been completed yet (do
+ * NOT fabricate one). Derived canonically (see lib/companion/leadToDto), never
+ * from UI state; a "No Answer" attempt is NOT a completion and never appears here.
+ */
+export const lastActionSchema = z.object({
+  title: z.string(),
+  completedAt: z.string().nullish(),
+});
+export type LastActionDTO = z.infer<typeof lastActionSchema>;
 
 /** The safe lead projection the panel renders. No workspace_id, no soft-delete
  *  bookkeeping beyond what the UI needs. */
@@ -86,6 +106,9 @@ export const leadSummarySchema = z.object({
   searchCriteria: searchCriteriaSchema,
   creditScreening: creditScreeningSchema,
   workflow: workflowStateSchema,
+  /** Most recently COMPLETED workflow action (see lastActionSchema). Null when
+   *  nothing has been completed yet — the panel then hides the Last Action row. */
+  lastAction: lastActionSchema.nullish(),
   /**
    * Client Notes — the client's original FORM-SUBMITTED notes, read-only. Maps to
    * the existing `leads.notes` column (the same data the CRM's Client Notes shows).

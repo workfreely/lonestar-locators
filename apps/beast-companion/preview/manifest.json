@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Locator Beast Companion — Phase 3 Preview",
+  "version": "0.1.0",
+  "description": "TEMPORARY sanitized Phase 3 UI preview. No network, no Supabase, no Locator Beast API, no real data. Opens from its toolbar icon only. Not for production.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_title": "Locator Beast Companion — Phase 3 Preview"
+  },
+  "side_panel": {
+    "default_path": "preview/preview.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["sidePanel"]
+}

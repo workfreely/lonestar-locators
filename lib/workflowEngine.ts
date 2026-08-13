@@ -37,7 +37,7 @@ export type CreatedWorkflowAction = {
 // Immediate Actions are created due "now" (do-this-right-away tasks like
 // contacting a fresh lead) rather than deferred to 9:00 AM on a future day —
 // everything else is a Review Action, due 9:00 AM local on its target day.
-const IMMEDIATE_TITLES = new Set(["Contact Lead", "Send List", "Setup Tour", "Email Guest Card"])
+const IMMEDIATE_TITLES = new Set(["Contact Lead", "Build List", "Send List", "Setup Tour", "Email Guest Card"])
 
 export function isImmediateAction(title: string): boolean {
   return IMMEDIATE_TITLES.has(title)
@@ -55,31 +55,36 @@ function immediateNow(): string {
  */
 export function getStageWorkflowAction(
   newStage: string,
-  lead: { follow_up_count?: number | null; move_date?: string | null }
+  lead: { follow_up_count?: number | null; move_date?: string | null },
+  // Saved locator IANA timezone. When provided, every 9:00 AM deadline below is
+  // computed in that zone (stored UTC). Omitted → runtime-local (unchanged).
+  timeZone?: string | null
 ): WorkflowActionSpec | null {
   switch (newStage) {
     case "new":
-      return { title: "Contact Lead", dueAt: immediateNow(), actionKey: "contact_lead" }
+      // Actionable IMMEDIATELY — the moment a lead lands, Contact Lead is the Next
+      // Action and is clickable right away. The due date is a BACKSTOP, not a
+      // "start now" value: 9:00 AM the next calendar day (autoDueInDays(1)), so it
+      // reads Pending on creation and only goes Overdue after that deadline passes.
+      return { title: "Contact Lead", dueAt: autoDueInDays(1, timeZone), actionKey: "contact_lead" }
 
     case "contacted":
-      // "Client has not responded" has no clean signal in this schema (no
-      // inbound-message-read tracking) — treated as "no manual follow-up
-      // progress yet" (follow_up_count still 0). The duplicate check in
-      // createWorkflowActionIfNeeded covers "active Follow Up doesn't
-      // already exist"; "stage is still Contacted" is trivially true here
-      // since this only runs on transitions INTO contacted.
-      //
-      // contacted_follow_up is the contacted-stage chase — a DISTINCT canonical
-      // action from the post-list-sent follow_up_1/2/3 chain. Label stays
-      // "Follow Up" (unchanged); only the identity is canonicalized.
+      // After first contact, the canonical next step is building the client's
+      // property list — an IMMEDIATE do-it-now action (product decision, Phase 3
+      // Slice A: replaces the former +2-day "Follow Up" chase). The follow_up_count
+      // guard keeps this from re-creating on a contacted lead that has already
+      // progressed through follow-ups; createWorkflowActionIfNeeded dedups on the
+      // canonical build_list key so a repeated contact never doubles it.
       if ((lead.follow_up_count ?? 0) > 0) return null
-      return { title: "Follow Up", dueAt: autoDueInDays(2), actionKey: "contacted_follow_up" }
+      // Actionable immediately; due is a backstop — 9:00 AM the next calendar day.
+      return { title: "Build List", dueAt: autoDueInDays(1, timeZone), actionKey: "build_list" }
 
     case "searching":
-      return { title: "Send List", dueAt: immediateNow(), actionKey: "send_list" }
+      // Actionable immediately; due is a backstop — 9:00 AM the next calendar day.
+      return { title: "Send List", dueAt: autoDueInDays(1, timeZone), actionKey: "send_list" }
 
     case "list_sent":
-      return { title: "FU1", dueAt: autoDueInDays(1), actionKey: "follow_up_1", sequence: 1 }
+      return { title: "FU1", dueAt: autoDueInDays(1, timeZone), actionKey: "follow_up_1", sequence: 1 }
 
     case "ready_to_tour": {
       const moveDate = lead.move_date ? new Date(lead.move_date) : null
@@ -90,16 +95,16 @@ export function getStageWorkflowAction(
       }
       const daysUntilMove = Math.ceil((moveDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
       if (daysUntilMove > 90) {
-        return { title: "Reconnect Client", dueAt: autoDueOnDate(moveDate, -90), actionKey: "reconnect_client" }
+        return { title: "Reconnect Client", dueAt: autoDueOnDate(moveDate, -90, timeZone), actionKey: "reconnect_client" }
       }
       return { title: "Setup Tour", dueAt: immediateNow(), actionKey: "setup_tour" }
     }
 
     case "applied":
-      return { title: "Check App", dueAt: autoDueInDays(3), actionKey: "check_application" }
+      return { title: "Check App", dueAt: autoDueInDays(3, timeZone), actionKey: "check_application" }
 
     case "closed":
-      return { title: "Get Invoice Details", dueAt: autoDueOnDate(new Date()), actionKey: "get_invoice_details" }
+      return { title: "Get Invoice Details", dueAt: autoDueOnDate(new Date(), 0, timeZone), actionKey: "get_invoice_details" }
 
     // "archived": no automatic actions (explicit).
     // "done_touring": Tour Management ("Tour Scheduled") isn't implemented
@@ -114,11 +119,11 @@ export function getStageWorkflowAction(
  * FU1 -> FU2 -> FU3 -> Final. Only ever the ONE next step, triggered by
  * completing the previous step — never the whole sequence at once.
  */
-export function getNextFollowUpAction(completedTitle: string): WorkflowActionSpec | null {
+export function getNextFollowUpAction(completedTitle: string, timeZone?: string | null): WorkflowActionSpec | null {
   switch (completedTitle) {
-    case "FU1": return { title: "FU2", dueAt: autoDueInDays(2), actionKey: "follow_up_2", sequence: 2 }
-    case "FU2": return { title: "FU3", dueAt: autoDueInDays(3), actionKey: "follow_up_3", sequence: 3 }
-    case "FU3": return { title: "Final", dueAt: autoDueInDays(7), actionKey: "final_follow_up", sequence: 4 }
+    case "FU1": return { title: "FU2", dueAt: autoDueInDays(2, timeZone), actionKey: "follow_up_2", sequence: 2 }
+    case "FU2": return { title: "FU3", dueAt: autoDueInDays(3, timeZone), actionKey: "follow_up_3", sequence: 3 }
+    case "FU3": return { title: "Final", dueAt: autoDueInDays(7, timeZone), actionKey: "final_follow_up", sequence: 4 }
     default: return null
   }
 }

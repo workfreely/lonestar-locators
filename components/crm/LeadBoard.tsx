@@ -70,7 +70,9 @@ export default function LeadBoard({
   selectedLeadId,
   onSelectLead,
   onWorkflowAction,
+  onInitiateContact,
   columns = ALL_COLUMNS,
+  timeZone,
 }: {
   leads: any[]
   setLeads: React.Dispatch<React.SetStateAction<any[]>>
@@ -80,10 +82,17 @@ export default function LeadBoard({
   // drag-triggered stage change — lets the caller mirror it into local
   // next-actions state and surface the "✓ Next Action Created" toast.
   onWorkflowAction?: (action: any) => void
+  // A New→Contacted drag hands off here instead of advancing the lead: the
+  // caller selects it as the active Companion client and initiates the canonical
+  // Contact Lead flow in Companion (call/text chooser → result confirmation).
+  onInitiateContact?: (lead: any) => void
   // Optional subset/override of the pipeline columns (defaults to all stages).
   // Used by the public marketing demo to show only New → Contacted; the CRM
   // never passes this, so its behavior is unchanged.
   columns?: { id: string; title: string }[]
+  // Saved locator IANA timezone — the drag-set follow-up cache date is computed
+  // in it so it matches the server-created action (no zone disagreement).
+  timeZone?: string | null
 }) {
   const [mounted, setMounted] = useState(false)
   const [activeLead, setActiveLead] = useState<any | null>(null)
@@ -116,6 +125,20 @@ export default function LeadBoard({
     const leadId = active.id
     const newStage = over.id as string
 
+    // 📞 CONTACT GATE — a New→Contacted drag must NOT directly advance the lead.
+    // Instead, select the dragged lead as the active Beast Companion client and
+    // initiate the SAME canonical Contact Lead flow in Companion ("Would you like
+    // to call or text [Name]?"). No stage change here: the card stays in New until
+    // the locator confirms contact in Companion (which runs recordFirstContact via
+    // the existing verb bridge). No second contact UI, no duplicated workflow.
+    {
+      const dragged = leads.find((l) => String(l.id) === String(leadId))
+      if (newStage === "contacted" && dragged?.crm_status === "new") {
+        onInitiateContact?.(dragged)
+        return
+      }
+    }
+
     // ⏰ FOLLOW-UP TIMING
     // undefined = leave next_action_date untouched (not sent to the
     // backend at all, so the existing column value is preserved).
@@ -129,7 +152,7 @@ export default function LeadBoard({
     ) {
       // Automatic follow-up: tomorrow at 9:00 AM (not the current clock time),
       // so the dashboard shows a clean morning workload.
-      nextDate = autoDueInDays(1)
+      nextDate = autoDueInDays(1, timeZone)
     } else if (newStage === "archived") {
       // Archiving pauses the workflow, it doesn't erase it — preserve
       // whatever due date the lead already had so restoring it resumes
@@ -376,6 +399,7 @@ export default function LeadBoard({
         onCancel={() => setPendingArchiveId(null)}
         onConfirm={confirmArchive}
       />
+
     </DndContext>
   )
 }

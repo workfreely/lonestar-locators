@@ -129,7 +129,7 @@ export default function LeadCard({
 
   const nextClass =
     followUpStatus === "overdue" ? "kb-pill--crit" : followUpStatus === "today" ? "kb-pill--warn" : "kb-pill--info"
-  // Full follow-up label ("Follow-Up 1" …); non-FU actions pass through unchanged.
+  // Full follow-up label ("1st Follow-Up" …); non-FU actions pass through unchanged.
   const actionLabel = formatWorkflowActionLabel(action)
   const nextText = `${actionLabel}${followUpStatus === "today" ? " · Today" : followUpStatus === "overdue" ? " · Overdue" : ""}`
 

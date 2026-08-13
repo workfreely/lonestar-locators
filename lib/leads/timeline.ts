@@ -4,7 +4,12 @@ import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 // The CRM's append-only activity history (table: lead_timeline). Today it
 // records only communication events; the union widens as the activity feed
 // grows (notes, stage changes, tours, …) without a new table.
-export type LeadTimelineType = "first_contact" | "follow_up"
+// 'contact_attempt' = a call/text was attempted but contact was NOT confirmed
+// (e.g. "No Answer") — logged as activity WITHOUT advancing the lead's stage.
+// 'text_sent' = an outreach text WAS sent to a still-New lead but is NOT
+// successful contact (the client hasn't replied) — drives "Sent Text" / "Waiting
+// for Reply". The type column is free `text` (no CHECK), so no migration.
+export type LeadTimelineType = "first_contact" | "follow_up" | "contact_attempt" | "text_sent"
 export type LeadTimelineMethod = "call" | "text" | "email"
 
 export type TimelineEventInput = {
@@ -19,15 +24,12 @@ export type TimelineEventInput = {
   occurredAt?: string
 }
 
-// Master switch for background timeline logging. The lead_timeline table +
-// migration exist, but the migration isn't applied and the feature is parked,
-// so logging is a COMPLETE NO-OP for now: no insert, no "[lead-timeline] insert
-// failed" console error, and zero effect on the workflow (Last/Next Action,
-// stage movement, workflow generation, card movement, status — all unchanged).
-// To bring it back later: apply the migration (`supabase db push`) and flip
-// this to true. The call sites and helper stay in place so re-enabling is a
-// one-line change.
-const LEAD_TIMELINE_ENABLED = false
+// Master switch for background timeline logging. The lead_timeline table is
+// applied on LB (verified) and RLS-scoped, so logging is ENABLED: append-only,
+// best-effort, and still fully non-blocking (a write can never affect the
+// workflow — Last/Next Action, stage movement, workflow generation, card
+// movement, status are all driven by `leads`/`lead_next_actions`, never this).
+const LEAD_TIMELINE_ENABLED = true
 
 /**
  * Append one immutable row to the lead timeline. Deliberately

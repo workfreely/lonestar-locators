@@ -55,10 +55,11 @@ export const MARKETS: Market[] = [
     submarkets: [],
   },
   {
-    // Slug kept as "dallas" so existing workspace selections keep resolving; the
-    // market is presented as Dallas–Fort Worth and defaults to the Dallas theme.
+    // Dallas and Fort Worth are SEPARATELY selectable — a locator may serve one
+    // but not the other. Slug kept as "dallas" so existing workspace selections
+    // keep resolving (they now mean Dallas specifically).
     slug: "dallas",
-    name: "Dallas–Fort Worth",
+    name: "Dallas",
     state: "TX",
     defaultTheme: "dallas",
     neighborhoods: [
@@ -76,6 +77,14 @@ export const MARKETS: Market[] = [
       "Trinity Groves",
       "South Dallas",
     ],
+    submarkets: [],
+  },
+  {
+    slug: "fort-worth",
+    name: "Fort Worth",
+    state: "TX",
+    defaultTheme: "fort-worth",
+    neighborhoods: [],
     submarkets: [],
   },
   {
@@ -141,9 +150,20 @@ export const MARKETS: Market[] = [
   { slug: "tucson", name: "Tucson", state: "AZ", defaultTheme: "tucson", neighborhoods: [], submarkets: [] },
   // ── Florida ──
   {
-    // Presented as Miami–Fort Lauderdale; defaults to the Miami theme.
-    slug: "miami-fort-lauderdale",
-    name: "Miami–Fort Lauderdale",
+    // Miami and Fort Lauderdale are SEPARATELY selectable. No existing workspace
+    // had the old combined "miami-fort-lauderdale" slug (verified), so renaming
+    // the slug to "miami" orphans no saved selection.
+    slug: "miami",
+    name: "Miami",
+    state: "FL",
+    defaultTheme: "miami",
+    neighborhoods: [],
+    submarkets: [],
+  },
+  {
+    // No dedicated Fort Lauderdale hero theme yet — defaults to the Miami theme.
+    slug: "fort-lauderdale",
+    name: "Fort Lauderdale",
     state: "FL",
     defaultTheme: "miami",
     neighborhoods: [],

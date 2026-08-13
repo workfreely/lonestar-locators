@@ -75,7 +75,7 @@
    is always visible on touch, where hover doesn't exist). Both the number and
    the copied state use semantic theme tokens — never a hard-coded blue/green. */
 .lp-phone-row {
-  margin-top: 3px;
+  margin-top: 1px; /* hug the name/status row — phone reads as part of the identity */
   display: flex;
   align-items: center;
   gap: 8px;
@@ -123,7 +123,7 @@
   .lp-copy { opacity: 1; }
 }
 .lp-comm-row {
-  margin-top: 10px;
+  margin-top: 18px; /* clear gap after the identity group, before the comm actions */
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
@@ -142,22 +142,38 @@
   background: var(--lb-surface-elevated);
   border: 1px solid var(--lb-border);
   border-radius: 16px;
-  padding: 14px;
+  /* Slightly more breathing room above LAST ACTION; left/right/bottom unchanged. */
+  padding: 18px 14px 14px;
 }
 .lp-card-cols {
   display: flex;
   justify-content: space-between;
   gap: 12px;
 }
+/* All three section headings — LAST ACTION, NEXT ACTION, and STATUS — share ONE
+   identical, enlarged treatment (~1.4× the old 11px) for stronger hierarchy
+   without crowding the narrow panel. STATUS stays right-aligned via its row. */
 .lp-eyebrow {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
+  font-size: 14px; /* trimmed ~1.5px from 15.5px — still clearly larger than the original 11px */
+  font-weight: 700;
+  letter-spacing: 0.1em; /* eased from 0.14em so the larger uppercase text stays balanced */
   text-transform: uppercase;
   color: var(--lb-text-secondary);
 }
+/* STATUS is the 2nd heading in the Next Action row. It and its dynamic value
+   (.lp-status) form ONE right-side column: same fixed width + left-aligned text +
+   same right-edge inset, so the heading and the value share a left edge. Short
+   values (Overdue) sit at that left edge; longer ones (Waiting for Reply) extend
+   right toward — but not into — the card edge. Last Action's row has a single
+   heading (nth-child(1)), so it is unaffected; NEXT ACTION stays the left column. */
+.lp-card-cols .lp-eyebrow:nth-child(2) {
+  flex: none;
+  width: 120px;
+  margin-right: 10px;
+  text-align: left;
+}
 .lp-action-row {
-  margin-top: 8px;
+  margin-top: 15px; /* below the NEXT ACTION / STATUS heading row, before its control/value */
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -169,13 +185,27 @@
   font-weight: 600;
 }
 .lp-due {
-  margin-top: 10px;
+  margin-top: 13px;
   font-size: 12.5px;
   color: var(--lb-text-secondary);
 }
 .lp-due-val {
   font-weight: 600;
   color: var(--lb-text-primary);
+}
+/* Last Action's "Completed:" line — mirrors the Due line's label/value hierarchy
+   (same margin-top, size, and subtle-label + bold-value split) but in green: a
+   lighter/subtle-green label and a bold, stronger-green timestamp. */
+.lp-completed {
+  margin-top: 13px;
+  font-size: 12.5px;
+  /* Softer, lighter muted green — clearly less bright than the Next Action button. */
+  color: color-mix(in srgb, var(--lb-success, #10b981) 42%, var(--lb-text-muted, #9aa4b2));
+}
+.lp-completed-val {
+  font-weight: 600;
+  /* Stronger green than the label, but still toned down vs the solid green button. */
+  color: color-mix(in srgb, var(--lb-success, #10b981) 78%, var(--lb-text-muted, #9aa4b2));
 }
 .lp-muted {
   margin: 0;
@@ -277,6 +307,13 @@
 .lp-status {
   font-size: 13px;
   font-weight: 600;
+  /* Same column geometry as the STATUS heading above → shared left edge. Left-
+     aligned; long statuses extend right (nowrap) instead of wrapping. */
+  flex: none;
+  width: 120px;
+  margin-right: 10px;
+  text-align: left;
+  white-space: nowrap;
 }
 .lp-status.tone-muted { color: var(--lb-text-primary); }
 .lp-status.tone-danger { color: var(--lb-danger); }

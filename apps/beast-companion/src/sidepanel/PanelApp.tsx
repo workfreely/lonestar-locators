@@ -5,7 +5,13 @@ import { PanelStateView, type PanelState } from "./lead/PanelStates";
 import { CompanionMenu } from "./menu/CompanionMenu";
 import { applyTheme } from "./applyTheme";
 import { DISCONNECTED, type CompanionConnection } from "./connection";
+import { isThemeId } from "@bc/companion-shared";
 import "./lead/panel.css";
+
+// Shared LOCAL canonical theme key (chrome.storage.local) — mirrors the content
+// script's CANONICAL_KEY so the CRM and the Companion stay in sync. Stage T2 will
+// layer the account preference (profiles.theme) on top of this local canonical.
+const THEME_STORE_KEY = "lb-theme";
 
 type MenuMode = "closed" | "popover" | "templates";
 
@@ -27,6 +33,14 @@ export function PanelApp({
   connection = DISCONNECTED,
   onConnect,
   onDisconnect,
+  onContact,
+  onContactLead,
+  onBuildList,
+  onCompleteBuildList,
+  onSendList,
+  onSendFollowUp,
+  onBackToCrm,
+  timeZone,
 }: {
   state?: PanelState;
   lead?: LeadSummaryDTO | null;
@@ -36,6 +50,26 @@ export function PanelApp({
   connection?: CompanionConnection;
   onConnect?: () => void;
   onDisconnect?: () => void;
+  // Phase 3 (Slice A) — real Call/Text. Opens sms:/tel: and requests the
+  // canonical first-contact cascade via the CRM. Omitted in the dev harness
+  // (fixtures), where Call/Text fall back to the inert demo note.
+  onContact?: (method: "call" | "text") => void;
+  // Phase 3 — the Contact Lead Next Action opens the call/text method chooser
+  // (same bottom sheet, "choose-method" phase).
+  onContactLead?: () => void;
+  // Phase 3 — clicking the "Build List" Next Action opens Smart Apartment Data.
+  onBuildList?: () => void;
+  // Phase 3 — explicit Build List completion (the "Mark List Built ✓" state).
+  onCompleteBuildList?: () => void;
+  // Phase 3 — clicking the "Send List" Next Action opens the confirmation sheet.
+  onSendList?: () => void;
+  // Phase 3 — clicking a Follow-Up launches SMS then opens the confirmation sheet.
+  onSendFollowUp?: () => void;
+  // Phase 3 — focus the existing CRM tab from the list-building workflow.
+  onBackToCrm?: () => void;
+  // Saved locator IANA timezone for Due/Completed formatting (falls back inside
+  // LeadPanelBody to the workspace default when absent).
+  timeZone?: string | null;
 }) {
   const [menu, setMenu] = useState<MenuMode>("closed");
   const [demoNote, setDemoNote] = useState<string | null>(null);
@@ -43,13 +77,43 @@ export function PanelApp({
   const noteTimer = useRef<number | undefined>(undefined);
 
   function onDemo(label: string) {
-    setDemoNote(`Demo preview — “${label}” is inactive`);
+    // Neutral "coming soon" copy — a control that isn't wired yet (Add Task, AI
+    // Voice, etc.) must never imply the LEAD is a demo. Real leads are fully
+    // real; these controls are simply not implemented in this phase.
+    setDemoNote(`“${label}” — coming soon`);
     if (noteTimer.current) window.clearTimeout(noteTimer.current);
     noteTimer.current = window.setTimeout(() => setDemoNote(null), 2200);
   }
   function pickTheme(id: ThemeId) {
-    setTheme(applyTheme(id)); // local only — no persistence this phase
+    const applied = applyTheme(id);
+    setTheme(applied);
+    // Persist to the shared local canonical so it survives close/reopen and the
+    // CRM bridge picks it up. chrome is undefined in the dev harness — no-op there.
+    chrome?.storage?.local?.set({ [THEME_STORE_KEY]: applied });
   }
+
+  // Load the persisted theme on mount and react to canonical changes coming from
+  // the CRM (via the content-script bridge) or another surface. Compare-before-
+  // apply against the DOM attribute so an unchanged value never re-applies/loops.
+  useEffect(() => {
+    const store = chrome?.storage?.local;
+    if (!store) return; // dev harness (no extension APIs) — theme stays in-memory
+    store.get(THEME_STORE_KEY, (res) => {
+      const t = res[THEME_STORE_KEY];
+      if (isThemeId(t) && document.documentElement.getAttribute("data-lb-theme") !== t) {
+        setTheme(applyTheme(t));
+      }
+    });
+    function onChanged(changes: { [key: string]: chrome.storage.StorageChange }, area: string) {
+      if (area !== "local" || !changes[THEME_STORE_KEY]) return;
+      const t = changes[THEME_STORE_KEY].newValue;
+      if (isThemeId(t) && document.documentElement.getAttribute("data-lb-theme") !== t) {
+        setTheme(applyTheme(t));
+      }
+    }
+    chrome.storage.onChanged.addListener(onChanged);
+    return () => chrome.storage.onChanged.removeListener(onChanged);
+  }, []);
 
   // Escape closes the menu (popover or subview).
   useEffect(() => {
@@ -86,7 +150,7 @@ export function PanelApp({
         </button>
       </header>
 
-      {isLoaded && <LeadIdentityHeader lead={lead!} onDemo={onDemo} />}
+      {isLoaded && <LeadIdentityHeader lead={lead!} onDemo={onDemo} onContact={onContact} />}
 
       {/* Body — stays mounted behind the menu, so scroll + section state persist. */}
       <div className="bc-below">
@@ -98,7 +162,18 @@ export function PanelApp({
               onConnect={handleConnect}
             />
           ) : isLoaded ? (
-            <LeadPanelBody lead={lead!} nextActions={nextActions} onDemo={onDemo} />
+            <LeadPanelBody
+              lead={lead!}
+              nextActions={nextActions}
+              onDemo={onDemo}
+              onContactLead={onContactLead}
+              onBuildList={onBuildList}
+              onCompleteBuildList={onCompleteBuildList}
+              onSendList={onSendList}
+              onSendFollowUp={onSendFollowUp}
+              onBackToCrm={onBackToCrm}
+              timeZone={timeZone}
+            />
           ) : (
             <PanelStateView state={state === "loaded" ? "no-client" : state} onConnect={handleConnect} />
           )}

@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase/client"
 import { ThemeProvider } from "@/components/theme/ThemeProvider"
 import AskBeastAI from "@/components/beast-ai/AskBeastAI"
 import TrialReminder from "@/components/crm/billing/TrialReminder"
+import TimezoneConfirmModal from "@/components/crm/TimezoneConfirmModal"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -21,6 +22,9 @@ export default function AdminLayout({
 }) {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
+  // First-login timezone confirmation is shown only when profiles.timezone is
+  // still null — for new AND existing users. Once saved, never shown again.
+  const [needsTimezone, setNeedsTimezone] = useState(false)
 
   useEffect(() => {
     async function checkAuth() {
@@ -35,7 +39,7 @@ export default function AdminLayout({
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("onboarding_completed")
+        .select("onboarding_completed, timezone")
         .eq("id", session.user.id)
         .single()
 
@@ -43,6 +47,11 @@ export default function AdminLayout({
         router.replace("/onboarding")
         return
       }
+
+      // Gate the confirmation on a genuinely-unset saved timezone. We never read
+      // the device zone here to overwrite — that only happens inside the modal
+      // as a suggestion the user confirms.
+      if (profile && !((profile.timezone ?? "").trim())) setNeedsTimezone(true)
 
       setLoading(false)
     }
@@ -85,6 +94,16 @@ export default function AdminLayout({
       </div>
       <AskBeastAI />
       <TrialReminder />
+      {needsTimezone && (
+        <TimezoneConfirmModal
+          onSaved={() => {
+            setNeedsTimezone(false)
+            // Re-render server components so the leads page re-resolves the newly
+            // saved zone for calculation + display.
+            router.refresh()
+          }}
+        />
+      )}
     </ThemeProvider>
   )
 }

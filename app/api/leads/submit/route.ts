@@ -35,6 +35,7 @@ import { createClient } from "@supabase/supabase-js"
 import { createNewLeadCalendarEvent } from "@/lib/google/createCalendarEvent"
 import { findDuplicateMatch, type LeadIdentity } from "@/lib/leads/duplicateDetection"
 import { getStageWorkflowAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
+import { resolveUserTimeZone } from "@/lib/timezone/server"
 import { sendNotification, newLeadEmail, leadConfirmationEmail, absoluteUrl } from "@/lib/notifications"
 import { resolveAgentIdentityForOwner } from "@/lib/notifications/agentSignature"
 
@@ -482,7 +483,16 @@ export async function POST(request: Request) {
       try {
         after(async () => {
           try {
-            const spec = getStageWorkflowAction("new", data)
+            // Resolve the OWNING locator's saved timezone (profiles → workspaces →
+            // America/Chicago) so Contact Lead's 9:00 AM deadline lands in the
+            // locator's zone, not the production server zone. The lead submits via
+            // a public form, so identity comes from the attributed owner/workspace.
+            const timeZone = await resolveUserTimeZone(
+              supabaseAdmin,
+              data.owner_user_id ?? null,
+              data.workspace_id ?? null,
+            )
+            const spec = getStageWorkflowAction("new", data, timeZone)
             if (spec) await createWorkflowActionIfNeeded(supabaseAdmin, data.id, spec)
           } catch (err) {
             console.error("[api/leads/submit] Workflow Engine action failed:", err)

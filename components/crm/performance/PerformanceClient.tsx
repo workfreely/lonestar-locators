@@ -36,11 +36,15 @@ export default function PerformanceClient({
     <div className="relative h-screen w-full flex flex-col bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]">
 
       {/* ─── TOP NAVIGATION BAR — the shared app header ─── */}
+      {/* Full-bleed to the CRM shell edges — counteracts the admin layout's px-4
+          inset so the bar spans edge-to-edge, matching /admin/leads. */}
+      <div className="-mx-4 flex-none">
       <AppHeader variant="dark">
         <Link href="/admin/leads" className={CRM_SECONDARY_BUTTON}>
           ← Back to Dashboard
         </Link>
       </AppHeader>
+      </div>
 
       {/* ─── BODY ─── */}
       <div className="flex-1 overflow-y-auto p-5 space-y-5">

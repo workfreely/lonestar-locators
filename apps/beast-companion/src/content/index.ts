@@ -1,6 +1,11 @@
 import { HOST_ID, createLauncher, type Launcher } from "./launcher";
 import { startPersistenceGuard } from "./persistence";
 import { detectSite, readPageContext } from "./context";
+import { startThemeBridge } from "./themeBridge";
+import { startActiveClientBridge } from "./activeClientBridge";
+import { startWorkflowVerbBridge } from "./workflowVerbBridge";
+import { startCommLaunchBridge } from "./commLaunchBridge";
+import { startCardOpenBridge } from "./cardOpenBridge";
 import { log, logError } from "@/utils/log";
 import type { PanelSide } from "@/types";
 
@@ -92,6 +97,26 @@ function init(): void {
 
     reportContext();
     startContextWatcher();
+
+    // Local theme sync (Stage T1) — no-op on non-CRM pages; self-gated inside.
+    startThemeBridge();
+
+    // Active-client bridge (Phase 2, read-only) — relays the CRM's selected
+    // client into chrome.storage for the panel. Self-gated to CRM pages.
+    startActiveClientBridge();
+
+    // Workflow-verb bridge (Phase 3) — relays Companion action requests from
+    // chrome.storage to the authenticated CRM page. Self-gated to CRM pages.
+    startWorkflowVerbBridge();
+
+    // Comm-launch bridge (Phase 3) — initiates tel:/sms: from the CRM page itself
+    // so no protocol tab is created. Self-gated to CRM pages.
+    startCommLaunchBridge();
+
+    // Card-open bridge (Phase 3) — an intentional lead-card click opens the native
+    // side panel, still inside the click gesture. Self-gated to CRM pages; distinct
+    // from the passive active-client sync above.
+    startCardOpenBridge();
 
     log("ready — launcher docked; click opens the native side panel (native X closes)");
   } catch (err) {

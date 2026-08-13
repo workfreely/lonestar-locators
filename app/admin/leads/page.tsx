@@ -4,6 +4,8 @@ export const dynamic = "force-dynamic"
 import DashboardClient from "@/components/crm/DashboardClient"
 import { createClient } from "@/lib/supabase/server"
 import { resolveAgentIdentityForOwner, type ResolvedAgentIdentity } from "@/lib/notifications/agentSignature"
+import { resolveUserTimeZone } from "@/lib/timezone/server"
+import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { DEMO_ALL_LEADS, DEMO_NEXT_ACTIONS, DEMO_FAVORITES, DEFAULT_AVG_COMMISSION_PER_LEASE } from "@/lib/demo/demoWorkspace"
 
 // Fallback per-close commission when a profile hasn't set its own — matches
@@ -63,6 +65,28 @@ async function getOpenNextActions() {
   return data || []
 }
 
+// Pending-outreach events — the most recent NON-successful outreach per lead
+// (a No-Answer call = 'contact_attempt', or a sent-but-unanswered text =
+// 'text_sent'). Ordered newest-first so the client keeps the first (latest) it
+// sees per lead. This is what turns a still-New lead's Follow Up into "Called —
+// No Answer" / "No Answer" vs "Sent Text" / "Waiting for Reply". RLS-scoped.
+async function getLatestOutreach() {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("lead_timeline")
+    .select("lead_id, type, method, occurred_at")
+    .in("type", ["contact_attempt", "text_sent"])
+    .order("occurred_at", { ascending: false })
+    .limit(500)
+
+  if (error) {
+    console.error("Error fetching outreach timeline:", error.message)
+    return []
+  }
+
+  return data || []
+}
+
 // Favorites Phase 1 — manual only, no filtering by status (there isn't
 // one yet), just every saved favorite across all leads.
 async function getFavorites() {
@@ -86,18 +110,30 @@ async function getFavorites() {
 // first_name personalizes the demo welcome banner.
 type AgentProfile = { name: string; brokerage: string; phone: string; email: string }
 
-async function getProfileContext(): Promise<{ demoMode: boolean; firstName: string; googleConnected: boolean; agent: AgentProfile; signature: ResolvedAgentIdentity | null; avgCommission: number }> {
+async function getProfileContext(): Promise<{ demoMode: boolean; firstName: string; googleConnected: boolean; agent: AgentProfile; signature: ResolvedAgentIdentity | null; avgCommission: number; timeZone: string }> {
   const emptyAgent: AgentProfile = { name: "", brokerage: "", phone: "", email: "" }
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) return { demoMode: false, firstName: "", googleConnected: false, agent: emptyAgent, signature: null, avgCommission: DEFAULT_AVG_COMMISSION }
+  if (!user) return { demoMode: false, firstName: "", googleConnected: false, agent: emptyAgent, signature: null, avgCommission: DEFAULT_AVG_COMMISSION, timeZone: DEFAULT_TIMEZONE }
   const { data: profile } = await supabase
     .from("profiles")
     .select("demo_mode, first_name, last_name, preferred_name, email, brokerage, phone_number, google_connected, avg_commission_per_lease")
     .eq("id", user.id)
     .single()
+
+  // Authoritative locator timezone (profiles → workspaces → America/Chicago), so
+  // client-created + demo workflow dates AND display use the saved zone — never
+  // the browser's device zone. Same resolver the server routes use.
+  const { data: membership } = await supabase
+    .from("workspace_members")
+    .select("workspace_id")
+    .eq("user_id", user.id)
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle()
+  const timeZone = await resolveUserTimeZone(supabase, user.id, membership?.workspace_id ?? null)
   // Preferred Name is the display name shown throughout Locator Beast; the
   // legal first/last name is the fallback when it isn't set.
   const preferred = (profile?.preferred_name ?? "").trim()
@@ -118,11 +154,12 @@ async function getProfileContext(): Promise<{ demoMode: boolean; firstName: stri
     agent,
     signature,
     avgCommission: Number(profile?.avg_commission_per_lease) || DEFAULT_AVG_COMMISSION,
+    timeZone,
   }
 }
 
 export default async function Page() {
-  const { demoMode, firstName, googleConnected, agent, signature, avgCommission } = await getProfileContext()
+  const { demoMode, firstName, googleConnected, agent, signature, avgCommission, timeZone } = await getProfileContext()
 
   if (demoMode) {
     return (
@@ -130,21 +167,24 @@ export default async function Page() {
         leads={DEMO_ALL_LEADS}
         nextActions={DEMO_NEXT_ACTIONS}
         favorites={DEMO_FAVORITES}
+        outreach={[]}
         demoMode
         firstName={firstName}
         googleConnected={googleConnected}
         agent={agent}
         signature={signature}
         avgCommission={DEFAULT_AVG_COMMISSION_PER_LEASE}
+        timeZone={timeZone}
       />
     )
   }
 
-  const [leads, nextActions, favorites] = await Promise.all([
+  const [leads, nextActions, favorites, outreach] = await Promise.all([
     getLeads(),
     getOpenNextActions(),
     getFavorites(),
+    getLatestOutreach(),
   ])
 
-  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} agent={agent} signature={signature} avgCommission={avgCommission} />
+  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} outreach={outreach} agent={agent} signature={signature} avgCommission={avgCommission} timeZone={timeZone} />
 }

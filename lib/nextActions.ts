@@ -117,6 +117,14 @@ export function rankLeadActions(
     openManual = openManual.filter((a) => a.title.trim().toLowerCase() !== "check app")
   }
 
+  // Once a lead reaches Searching, its next step is Send List — the Contacted-
+  // stage "Build List" row is completed on the transition, but suppress any
+  // lingering open one here too so a stale Build List can never compete with or
+  // outrank Send List. (Same backstop pattern as the Closed/"Check App" case.)
+  if (lead.crm_status === "searching") {
+    openManual = openManual.filter((a) => a.title.trim().toLowerCase() !== "build list")
+  }
+
   // The Workflow Engine (lib/workflowEngine.ts) now creates real
   // lead_next_actions rows for most stage transitions, often titled
   // exactly what this automatic label already says (e.g. "Contact Lead",

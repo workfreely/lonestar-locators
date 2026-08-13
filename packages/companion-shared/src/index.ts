@@ -92,6 +92,15 @@ export { formatDateDisplay } from "./format/date";
 export { formatDueDateTime, isPastDue } from "./format/dueDate";
 export type { DueDateFormatOptions } from "./format/dueDate";
 
+// Person-name + phone display formatting (mirrors the CRM helpers; raw values
+// are never modified — display/copy only)
+export { formatPersonName } from "./format/name";
+export { formatPhone } from "./format/phone";
+
+// Canonical New-lead intro SMS body (prefilled first-outreach text; NOT contact)
+export { buildIntroSmsBody } from "./format/introSms";
+export { buildFollowUpSmsBody } from "./format/followUpSms";
+
 // Canonical workflow action identity (stable action_key set, shared CRM↔Companion)
 export {
   WORKFLOW_ACTION_KEYS,
@@ -112,6 +121,7 @@ export {
   isFollowUpAction,
   formatWorkflowActionLabel,
   workflowActionCompactLabel,
+  formatLastActionLabel,
 } from "./labels/workflowActions";
 
 // Theme registry (all CRM themes, semantic tokens, safe Midnight fallback)

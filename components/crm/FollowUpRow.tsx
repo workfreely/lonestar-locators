@@ -26,7 +26,7 @@ function getActionLabel(crm_status: string, follow_up_count: number | null | und
     case "done_touring":
       return "Tour Follow-Up"
     case "applied":
-      return "Check App"
+      return "Check Application"
     case "closed":
       return "Get Invoice Details"
     default:
@@ -42,12 +42,19 @@ export default function FollowUpRow({
   selectedLeadId,
   onSelectLead,
   onCollapse,
+  // Which outer edge the Agenda collapses toward — drives the collapse arrow
+  // direction so it always points at the nearest app edge. Mirrors agendaSide.
+  collapseToward = "left",
+  timeZone,
 }: {
   leads: any[]
   nextActions: any[]
   selectedLeadId?: string | number | null
   onSelectLead?: (leadId: string | number) => void
   onCollapse?: () => void
+  collapseToward?: "left" | "right"
+  // Saved locator IANA timezone — Agenda due times render in this zone.
+  timeZone?: string | null
 }) {
   const [activeFilter, setActiveFilter] = useState<FilterType | null>(null)
 
@@ -100,7 +107,7 @@ export default function FollowUpRow({
           {onCollapse && (
             <button onClick={onCollapse} className="ag-collapse" aria-label="Collapse Agenda" title="Collapse Agenda">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 18 9 12 15 6" />
+                <polyline points={collapseToward === "right" ? "9 18 15 12 9 6" : "15 18 9 12 15 6"} />
               </svg>
             </button>
           )}
@@ -147,7 +154,7 @@ export default function FollowUpRow({
                 {getActionIcon(primary.title)} {primary.title}
               </p>
               {/* When */}
-              <p className={`ag-due ag-due--${urg}`}>{primary.dueAt ? formatDueDateTime(primary.dueAt) : ""}</p>
+              <p className={`ag-due ag-due--${urg}`}>{primary.dueAt ? formatDueDateTime(primary.dueAt, { timeZone: timeZone ?? undefined }) : ""}</p>
             </div>
           )
         })}

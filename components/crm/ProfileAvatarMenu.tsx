@@ -42,12 +42,12 @@ function ChevronIcon({ open, light }: { open: boolean; light: boolean }) {
 // Smart Lead Form, Sales Goals, Analytics, Integrations, Import Leads, Billing,
 // Sign Out. Service Areas lives inside the Profile page and Connected Devices
 // inside the Integrations page — they are not top-level menu items.
-// Analytics is an account-level page (same /admin/performance the top-nav
+// Analytics is an account-level page (same /admin/analytics the top-nav
 // Analytics button opens) — this is an additional shortcut, not a replacement.
 const LINKS_AFTER_APPEARANCE: { label: string; href: string }[] = [
   { label: "Smart Lead Form", href: "/smart-lead-form" },
   { label: "Sales Goals", href: "/admin/settings" },
-  { label: "Analytics", href: "/admin/performance" },
+  { label: "Analytics", href: "/admin/analytics" },
   { label: "Integrations", href: "/admin/integrations" },
   { label: "Import Leads", href: "/admin/import" },
   { label: "Billing", href: "/admin/billing" },

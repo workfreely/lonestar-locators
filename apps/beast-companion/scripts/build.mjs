@@ -1,4 +1,4 @@
-import { cpSync, copyFileSync, mkdirSync, rmSync } from "node:fs";
+import { cpSync, mkdirSync, rmSync, readFileSync, writeFileSync } from "node:fs";
 import { build } from "vite";
 
 /**
@@ -60,7 +60,21 @@ async function buildSidePanel() {
 
 rmSync("dist", { recursive: true, force: true });
 mkdirSync("dist", { recursive: true });
-copyFileSync("manifest.json", "dist/manifest.json");
+
+// Copy the manifest. In --watch (DEV ONLY) also allow the local CRM origin so the
+// theme-sync content script injects on http://localhost:3000/admin/* for testing.
+// Production builds keep the manifest exactly as committed (no localhost, no extra
+// permissions beyond what ships).
+const manifest = JSON.parse(readFileSync("manifest.json", "utf8"));
+if (watch) {
+  const matches = manifest.content_scripts?.[0]?.matches;
+  if (Array.isArray(matches)) {
+    for (const m of ["http://localhost:3000/admin/*", "http://127.0.0.1:3000/admin/*"]) {
+      if (!matches.includes(m)) matches.push(m);
+    }
+  }
+}
+writeFileSync("dist/manifest.json", JSON.stringify(manifest, null, 2));
 cpSync("public/icons", "dist/icons", { recursive: true });
 
 await buildSidePanel();

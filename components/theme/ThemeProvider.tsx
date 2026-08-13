@@ -7,7 +7,13 @@ import {
   type CrmTheme,
   readStoredTheme,
   applyTheme,
+  isCrmTheme,
 } from "@/lib/theme"
+
+// Stage T1 theme sync envelope (window.postMessage) between the CRM page and the
+// Beast Companion extension's content-script bridge. "changed" = the CRM user
+// picked a theme; "apply" = the bridge asks the CRM to adopt the shared theme.
+const THEME_MSG_SOURCE = "lb-theme"
 
 type ThemeContextValue = {
   preference: CrmTheme
@@ -53,13 +59,47 @@ export function ThemeProvider({
     return () => document.body.classList.remove("crm-admin-shell")
   }, [])
 
-  function setPreference(next: CrmTheme) {
-    // Locked providers (homepage demo) ignore preference changes entirely.
-    if (forcedTheme) return
+  // Apply a theme to React state + localStorage + the DOM. `broadcast` posts the
+  // change to the Companion bridge; it's FALSE when we're applying a theme that
+  // came FROM the bridge, which prevents an echo loop.
+  function applyPreference(next: CrmTheme, broadcast: boolean) {
     setPreferenceState(next)
     window.localStorage.setItem(THEME_STORAGE_KEY, next)
     applyTheme(next)
+    if (broadcast) {
+      try {
+        window.postMessage(
+          { source: THEME_MSG_SOURCE, type: "changed", theme: next },
+          window.location.origin,
+        )
+      } catch {
+        /* ignore — sync is best-effort */
+      }
+    }
   }
+
+  function setPreference(next: CrmTheme) {
+    // Locked providers (homepage demo) ignore preference changes entirely.
+    if (forcedTheme) return
+    applyPreference(next, true)
+  }
+
+  // Adopt theme changes pushed from Beast Companion via the content-script bridge.
+  // Compare-before-apply against the live DOM attribute (the currently-applied
+  // theme) so an unchanged value is a no-op and never re-broadcasts.
+  useEffect(() => {
+    if (forcedTheme) return
+    function onMessage(e: MessageEvent) {
+      if (e.source !== window) return
+      const d = e.data
+      if (!d || d.source !== THEME_MSG_SOURCE || d.type !== "apply" || !isCrmTheme(d.theme)) return
+      if (document.documentElement.getAttribute("data-theme") === d.theme) return
+      applyPreference(d.theme, false)
+    }
+    window.addEventListener("message", onMessage)
+    return () => window.removeEventListener("message", onMessage)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forcedTheme])
 
   return (
     <ThemeContext.Provider value={{ preference, setPreference }}>

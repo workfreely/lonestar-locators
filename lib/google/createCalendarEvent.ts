@@ -200,7 +200,7 @@ export async function createListSentCalendarEvent(lead: ListSentEventInput): Pro
 
   console.log(`📅 [list-sent-event] Lead: ${fullName} | Scheduled: ${startDateTime} America/Chicago`)
 
-  const title = formatEventTitle("📋", lead.first_name, lead.last_name, "Follow-Up 1")
+  const title = formatEventTitle("📋", lead.first_name, lead.last_name, "1st Follow-Up")
 
   const eventBody = {
     summary: title,
@@ -226,7 +226,7 @@ export async function createListSentCalendarEvent(lead: ListSentEventInput): Pro
 const FU_NEXT_EVENT: Record<number, { emoji: string; action: string; actions: string[] }> = {
   1: {
     emoji:  "📋",
-    action: "Follow-Up 2",
+    action: "2nd Follow-Up",
     actions: [
       "Check whether they reviewed the apartment list.",
       "Answer questions about the properties.",
@@ -235,7 +235,7 @@ const FU_NEXT_EVENT: Record<number, { emoji: string; action: string; actions: st
   },
   2: {
     emoji:  "📋",
-    action: "Follow-Up 3",
+    action: "3rd Follow-Up",
     actions: [
       "Final attempt to re-engage.",
       "Offer to revise the apartment list.",

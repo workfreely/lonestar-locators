@@ -8,14 +8,18 @@ export function getNextAction(lead: any) {
   if (stage === "new") return "Contact Lead"
 
   // =====================================================
-  // 🔵 CONTACTED (NO FOLLOW UPS YET)
+  // 🔵 CONTACTED — next canonical step is building the client's list
+  // (Phase 3 Slice A: replaced the passive "Waiting for Response" with the
+  // active "Build List"; the Workflow Engine creates the matching build_list row).
   // =====================================================
-  if (stage === "contacted") return "Waiting for Response"
+  if (stage === "contacted") return "Build List"
 
   // =====================================================
   // 🟣 SEARCHING
   // =====================================================
-  if (stage === "searching") return "Build List"
+  // Build List belongs to Contacted now (Phase 3); the Searching stage's action
+  // is Send List (matches getStageWorkflowAction("searching") = send_list).
+  if (stage === "searching") return "Send List"
 
   // =====================================================
 // 🟢 LIST SENT → FOLLOW-UP SEQUENCE STARTS HERE

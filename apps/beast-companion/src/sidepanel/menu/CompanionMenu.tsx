@@ -16,7 +16,7 @@ import "./menu.css";
  * No full-height canvas, no large footer, no CRM navigation.
  */
 
-const TEMPLATE_NAMES = ["Text Top 3", "Follow-Up 1", "Follow-Up 2", "Follow-Up 3", "Final Follow-Up"];
+const TEMPLATE_NAMES = ["Text Top 3", "1st Follow-Up", "2nd Follow-Up", "3rd Follow-Up", "Final Follow-Up"];
 
 function Chevron() {
   return (

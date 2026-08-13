@@ -45,8 +45,19 @@ chrome.runtime.onInstalled.addListener(enablePanel);
 enablePanel(); // also on worker startup
 log("background ready — OPEN-ONLY; native X closes; toolbar icon is the fallback opener");
 
-// Housekeeping only (context cache); no panel state is kept.
-chrome.tabs.onRemoved.addListener((tabId) => contextByTab.delete(tabId));
+// chrome.storage key holding { tabId, windowId } of the CRM tab that most
+// recently supplied the Companion active client — the "← Back to CRM" target.
+const CRM_TAB_KEY = "lb-crm-tab";
+
+// Housekeeping only (context cache); no panel state is kept. Also drop the stored
+// CRM tab if that exact tab closes, so "← Back to CRM" falls back to the URL query
+// instead of trying to activate a tab that no longer exists.
+chrome.tabs.onRemoved.addListener((tabId) => {
+  contextByTab.delete(tabId);
+  chrome.storage.local.get(CRM_TAB_KEY, (res) => {
+    if (res?.[CRM_TAB_KEY]?.tabId === tabId) chrome.storage.local.remove(CRM_TAB_KEY);
+  });
+});
 
 async function getPanelSide(): Promise<PanelSide> {
   try {
@@ -88,6 +99,16 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
       `context — tab=${tabId ?? "?"} site=${message.context.site} ` +
         `${message.context.host}${message.context.path}`,
     );
+    return;
+  }
+
+  if (message.type === "REPORT_CRM_TAB") {
+    const tabId = sender.tab?.id;
+    const windowId = sender.tab?.windowId;
+    if (typeof tabId === "number" && typeof windowId === "number") {
+      chrome.storage.local.set({ [CRM_TAB_KEY]: { tabId, windowId } });
+      log(`crm-tab — remembered tab=${tabId} window=${windowId} for ← Back to CRM`);
+    }
     return;
   }
 

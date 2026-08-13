@@ -32,7 +32,15 @@ export type GetPanelSideMessage = { type: "GET_PANEL_SIDE" };
 /** Content → Background: report the current page context (URL/site/section). */
 export type ReportContextMessage = { type: "REPORT_CONTEXT"; context: PageContext };
 
+/**
+ * Content → Background: the sender IS the CRM tab that just supplied the Companion
+ * active client. The background stamps sender.tab.id/windowId into storage so
+ * "← Back to CRM" can return to the EXACT originating tab (not a URL-pattern guess).
+ */
+export type ReportCrmTabMessage = { type: "REPORT_CRM_TAB" };
+
 export type RuntimeMessage =
   | OpenPanelMessage
   | GetPanelSideMessage
-  | ReportContextMessage;
+  | ReportContextMessage
+  | ReportCrmTabMessage;

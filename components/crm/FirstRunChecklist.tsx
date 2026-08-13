@@ -40,7 +40,7 @@ export default function FirstRunChecklist({ googleConnected }: { googleConnected
   const items: ChecklistItem[] = [
     { id: "kanban", label: "Explore the Kanban Board", desc: "Learn how leads move through each stage." },
     { id: "lead", label: "Open a Demo Client", desc: "See the AI Assistant, Search Criteria, Credit Screening, and Next Action." },
-    { id: "analytics", label: "Explore Analytics", desc: "Projected pipeline, monthly goals, and commission forecasting.", href: "/admin/performance", cta: "Open" },
+    { id: "analytics", label: "Explore Analytics", desc: "Projected pipeline, monthly goals, and commission forecasting.", href: "/admin/analytics", cta: "Open" },
     { id: "form", label: "Share Your Smart Lead Form", desc: "Share it to Instagram, TikTok, Facebook, or your website.", cta: "Copy" },
     ...(googleConnected ? [] : [{ id: "google", label: "Connect Google", desc: "Sync tours, reminders, and contacts.", href: "/onboarding", cta: "Connect" }]),
     { id: "import", label: "Import Your Leads", desc: "Bring in your existing clients via CSV.", href: "/admin/import", cta: "Import" },
