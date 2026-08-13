@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import type { LeadSummaryDTO, NextActionDTO } from "@bc/companion-shared";
-import { formatPersonName, buildIntroSmsBody, buildFollowUpSmsBody, isFollowUpAction } from "@bc/companion-shared";
+import { formatPersonName, buildIntroSmsBody, buildFollowUpSmsBody, isFollowUpAction, formatWorkflowActionLabel } from "@bc/companion-shared";
 import { PanelApp } from "./PanelApp";
 import { DISCONNECTED, type CompanionConnection } from "./connection";
 
@@ -532,7 +532,9 @@ export function ProductionPanel() {
           }}
         >
           <div onClick={(e) => e.stopPropagation()} style={SHEET_STYLE}>
-            <p style={SHEET_QUESTION_STYLE}>Did you send the follow-up?</p>
+            <p style={SHEET_QUESTION_STYLE}>
+              Did you send the {formatWorkflowActionLabel(followUpConfirm.title)} text to {followUpConfirm.name}?
+            </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <button type="button" onClick={confirmFollowUp} style={SHEET_PRIMARY_BTN}>
                 Yes, Sent

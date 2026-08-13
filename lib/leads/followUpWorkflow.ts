@@ -4,6 +4,7 @@ import { recordTimelineEvent } from "@/lib/leads/timeline"
 import { getNextFollowUpAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
 import { followUpSuccessorDueAt } from "@/lib/workflow/moveDateCadence"
 import { emitWorkflowActionCreated } from "@/lib/workflowToast"
+import { isFollowUpAction } from "@/lib/leads/workflowActionLabels"
 
 /**
  * CANONICAL List Sent follow-up completion — one generic handler for the whole
@@ -54,6 +55,18 @@ export async function completeFollowUp(opts: {
   const succ = getNextFollowUpAction(completedTitle, timeZone)
   const successorDue = succ ? followUpSuccessorDueAt(completedTitle, lead, succ.dueAt, timeZone) : null
 
+  // Terminal transition: completing the FINAL follow-up (a follow-up title with
+  // no successor) ends the List Sent sequence with no reply. Move the lead to
+  // Archive with the canonical "No Response" reason — the SAME status/reason pair
+  // the automated no-response archive already uses (crm_status "archived" +
+  // "ghosted" → "👻 Ghosted / No Response"; see app/api/cron/auto-archive-no-
+  // response and lib/leads/archiveReasons). Non-final completions are untouched,
+  // and no successor is created below either way (succ is null here).
+  const terminalArchive =
+    !succ && isFollowUpAction(completedTitle)
+      ? { crm_status: "archived", archive_reason: "ghosted" }
+      : null
+
   // 2) Complete the persisted follow-up row (real leads) so Last Action derives
   //    the follow-up label. Demo never hits the DB — caller synthesizes locally.
   if (!isDemoLeadId(lead.id) && followRow?.id != null) {
@@ -64,15 +77,18 @@ export async function completeFollowUp(opts: {
     if (error) console.error("[follow-up] complete row failed:", error)
   }
 
-  // 3) Stay in List Sent — no stage change. Reflect the advanced cache locally.
-  onOptimistic?.({ ...lead, follow_up_count: newCount, next_action_date: successorDue })
+  // 3) Reflect the advanced cache locally. Stays in List Sent for FU1–FU3; the
+  //    Final completion additionally archives (terminalArchive) — one merged
+  //    optimistic update so the Kanban / Lead Panel / Companion all follow.
+  onOptimistic?.({ ...lead, follow_up_count: newCount, next_action_date: successorDue, ...(terminalArchive ?? {}) })
 
   if (isDemoLeadId(lead.id)) return
 
   // 3b) Persist the advanced cache for real leads (RLS-scoped by the client).
+  //     Includes the terminal Archive transition on the Final completion.
   const { error: cacheErr } = await supabase
     .from("leads")
-    .update({ follow_up_count: newCount, next_action_date: successorDue })
+    .update({ follow_up_count: newCount, next_action_date: successorDue, ...(terminalArchive ?? {}) })
     .eq("id", lead.id)
   if (cacheErr) console.error("[follow-up] advance cache failed:", cacheErr)
 

@@ -316,6 +316,24 @@ export function LeadPanelBody({
             />
           </>
         )}
+        {lead.isArchived ? (
+          /* Archived leads intentionally have no active Next Action. Replace the
+             Next Action / Status / due area with the canonical Archive Reason
+             (DTO-provided label from lib/leads/archiveReasons), and render no
+             "+ Add Task". Last Action above stays exactly as derived. This is a
+             presentation state only — no Next Action/workflow data is mutated. */
+          <>
+            <div className="lp-card-cols">
+              <span className="lp-eyebrow">Archive Reason</span>
+            </div>
+            <div style={{ marginTop: 15 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--lb-text, #e6ebf5)" }}>
+                {lead.archiveReasonLabel ?? "Archived"}
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
         <div className="lp-card-cols">
           <span className="lp-eyebrow">Next Action</span>
           <span className="lp-eyebrow">Status</span>
@@ -424,6 +442,8 @@ export function LeadPanelBody({
             + Add Task
           </Button>
         </div>
+          </>
+        )}
       </div>
 
       {/* ── Search Criteria ── (canonical order; each row shows only when the

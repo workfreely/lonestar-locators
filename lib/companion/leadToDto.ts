@@ -2,6 +2,7 @@ import type { LeadSummaryDTO, NextActionDTO } from "@bc/companion-shared"
 import { isLeadStage } from "@bc/companion-shared"
 import { getNextAction } from "@/lib/nextAction"
 import { getSourceStyle } from "@/lib/leads/sourceStyles"
+import { getArchiveReasonLabel } from "@/lib/leads/archiveReasons"
 
 // Phase 2 — active-client bridge payload (CRM page → content script → panel).
 //
@@ -171,6 +172,9 @@ export function buildActiveClientPayload(
     stage: (isLeadStage(crmStatus) ? crmStatus : "new") as LeadSummaryDTO["stage"],
     isArchived: crmStatus === "archived" || !!lead.deleted_at,
     archiveReason: str(lead.archive_reason),
+    // Canonical label via the ONE map in lib/leads/archiveReasons — the Companion
+    // renders this verbatim in its Archive Reason row (no duplicate label logic).
+    archiveReasonLabel: getArchiveReasonLabel(str(lead.archive_reason)),
     isClosed: crmStatus === "closed",
     searchCriteria: {
       city: str(lead.city),

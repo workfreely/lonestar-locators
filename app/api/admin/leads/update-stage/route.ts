@@ -161,6 +161,21 @@ export async function POST(request: Request) {
       stageUpdate.closed_at = new Date().toISOString()
     }
 
+    // ↩️ RESTORE — moving a lead OUT of "archived" into any active stage is a
+    // canonical restore. Server-authoritatively clear the archive-only metadata
+    // (the same fields the Lead-Panel Restore clears) and reset the now-historical
+    // terminal follow_up_count to 0, so the workflow-engine side-effect below
+    // derives the destination stage's canonical action without a stale count
+    // suppressing it (e.g. Contacted's Build List). Completed lead_next_actions
+    // rows and Last Action history are never touched here.
+    if (oldStage === "archived" && crm_status !== "archived") {
+      stageUpdate.archive_reason = null
+      stageUpdate.deleted_at = null
+      stageUpdate.deleted_by = null
+      stageUpdate.pre_delete_status = null
+      stageUpdate.follow_up_count = 0
+    }
+
     const { error } = await supabaseAdmin
       .from("leads")
       .update(stageUpdate)

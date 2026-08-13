@@ -125,19 +125,28 @@ export default function LeadBoard({
     const leadId = active.id
     const newStage = over.id as string
 
+    const draggedLead = leads.find((l) => String(l.id) === String(leadId))
+    const oldStage = draggedLead?.crm_status ?? null
+
     // 📞 CONTACT GATE — a New→Contacted drag must NOT directly advance the lead.
     // Instead, select the dragged lead as the active Beast Companion client and
     // initiate the SAME canonical Contact Lead flow in Companion ("Would you like
     // to call or text [Name]?"). No stage change here: the card stays in New until
     // the locator confirms contact in Companion (which runs recordFirstContact via
     // the existing verb bridge). No second contact UI, no duplicated workflow.
-    {
-      const dragged = leads.find((l) => String(l.id) === String(leadId))
-      if (newStage === "contacted" && dragged?.crm_status === "new") {
-        onInitiateContact?.(dragged)
-        return
-      }
+    if (newStage === "contacted" && oldStage === "new" && draggedLead) {
+      onInitiateContact?.(draggedLead)
+      return
     }
+
+    // ↩️ RESTORE — dragging a card OUT of Archived into any active stage is an
+    // intentional restore. Clear the archive-only metadata (the SAME field set the
+    // canonical Lead-Panel Restore uses) so CRM/Kanban/Agenda/Lead-Panel/Companion
+    // all agree the lead is active again, and reset the now-historical terminal
+    // follow_up_count (below) so the destination stage's canonical Next Action is
+    // produced — e.g. Contacted's Build List isn't suppressed by a stale count.
+    // Completed workflow rows and Last Action history are left fully intact.
+    const isRestore = oldStage === "archived" && newStage !== "archived"
 
     // ⏰ FOLLOW-UP TIMING
     // undefined = leave next_action_date untouched (not sent to the
@@ -165,6 +174,10 @@ export default function LeadBoard({
 
     if (newStage === "new") followUpReset = 0
     if (newStage === "list_sent") followUpReset = 0
+    // A restore resets the (historical) terminal follow_up_count to 0 for every
+    // destination, so no destination stage's canonical Next Action is blocked by
+    // a stale count. History (completed rows / Last Action) is not touched.
+    if (isRestore) followUpReset = 0
 
     // =====================================================
     // ✅ UPDATE STATE
@@ -185,6 +198,17 @@ export default function LeadBoard({
               // mirrors what the update-stage route sets once server-side.
               ...(newStage === "closed" && !lead.closed_at
                 ? { closed_at: new Date().toISOString() }
+                : {}),
+              // Restore: clear archive-only metadata locally so the Companion's
+              // isArchived (crm_status || deleted_at) flips to active immediately
+              // and the archive badge/reason drop — same fields the route clears.
+              ...(isRestore
+                ? {
+                    archive_reason: null,
+                    deleted_at: null,
+                    deleted_by: null,
+                    pre_delete_status: null,
+                  }
                 : {}),
               _justDropped: true,
             }

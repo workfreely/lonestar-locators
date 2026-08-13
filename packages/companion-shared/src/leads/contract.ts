@@ -102,6 +102,11 @@ export const leadSummarySchema = z.object({
   stage: leadStageSchema,
   isArchived: z.boolean().default(false),
   archiveReason: z.string().nullish(),
+  /** Pre-formatted canonical archive-reason label (e.g. "👻 Ghosted / No
+   *  Response"), computed CRM-side via the ONE canonical map in
+   *  lib/leads/archiveReasons so the Companion never re-derives or duplicates
+   *  reason labels. Null for active leads / unmapped reasons. */
+  archiveReasonLabel: z.string().nullish(),
   isClosed: z.boolean().default(false),
   searchCriteria: searchCriteriaSchema,
   creditScreening: creditScreeningSchema,

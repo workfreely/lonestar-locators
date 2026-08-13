@@ -177,7 +177,6 @@ export default function LeadPanel({
 }) {
   if (!lead) return null
 
-  const [followUps, setFollowUps] = useState(Number(lead.follow_up_count || 0))
   const [nextActionDate, setNextActionDate] = useState(lead.next_action_date || null)
   const [doneMsg, setDoneMsg] = useState<string | null>(null)
   // Messaging Tools: the contextual follow-up control is INERT until Phase 3.5
@@ -232,7 +231,6 @@ export default function LeadPanel({
   const leadFavorites = favorites.filter((f) => f.lead_id === lead.id)
 
   useEffect(() => {
-    setFollowUps(Number(lead.follow_up_count || 0))
     setNextActionDate(lead.next_action_date || null)
     setArchiveReason(lead.archive_reason || "")
   }, [lead.id, lead.follow_up_count, lead.next_action_date, lead.archive_reason])
@@ -251,92 +249,6 @@ export default function LeadPanel({
       onPendingEditHandled?.()
     }
   }, [pendingEditActionId, nextActions])
-
-  // ─── Follow-up actions ─────────────────────────────────────────────────
-
-  async function setFollowUpCount(step: number) {
-    const nextFollowUpCount = Number(step)
-
-    // Duplicate guard — prevents double-click from scheduling two calendar events.
-    // followUps state updates synchronously, so a rapid second click sees the updated value.
-    const alreadyAtStep = Number(followUps) >= nextFollowUpCount
-
-    setFollowUps(nextFollowUpCount)
-
-    // Append this follow-up to the immutable lead timeline — one row per
-    // genuine advance (the duplicate guard keeps a re-click from logging twice).
-    // `follow_up_count` on `leads` stays the workflow cache; this is history.
-    if (!alreadyAtStep) {
-      recordTimelineEvent({ leadId: lead.id, type: "follow_up", method: "text", sequence: nextFollowUpCount })
-    }
-
-    // Automatic follow-up: 9:00 AM local, N days out (steps 1/2/3), so the
-    // reminder lands as a clean morning task rather than at the current clock
-    // time. Steps beyond 3 end the chain (no scheduled date).
-    const nextDateISO =
-      nextFollowUpCount >= 1 && nextFollowUpCount <= 3 ? autoDueInDays(nextFollowUpCount, timeZone) : null
-
-    setNextActionDate(nextDateISO)
-
-    if (onUpdateLead) {
-      onUpdateLead({
-        ...lead,
-        follow_up_count: nextFollowUpCount,
-        next_action_date: nextDateISO,
-      })
-    }
-
-    // Demo leads: optimistic-only — no leads write, no Google follow-up sync.
-    if (isDemoLeadId(lead.id)) return
-
-    const { data, error } = await supabase
-      .from("leads")
-      .update({
-        follow_up_count: nextFollowUpCount,
-        next_action_date: nextDateISO,
-      })
-      .eq("id", lead.id)
-      .select("*")
-
-    if (error) console.log("Follow-up update failed:", JSON.stringify(error, null, 2))
-
-    // ── FU chain Calendar reminder ───────────────────────────────────────────
-    // Only fires for list_sent leads (the FU chain lives in that stage).
-    // Skipped if this step was already recorded (duplicate-click guard).
-    // Steps 1, 2, 3 each schedule the NEXT reminder; 4+ ends the chain.
-    if (
-      lead.crm_status === "list_sent" &&
-      !alreadyAtStep &&
-      nextFollowUpCount >= 1 &&
-      nextFollowUpCount <= 3
-    ) {
-      fetch("/api/google/followup-event", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          completed_step: nextFollowUpCount,
-          first_name:     lead.first_name,
-          last_name:      lead.last_name,
-          phone:          lead.phone,
-          city:           lead.city,
-          source:         lead.source,
-          desired_rent:   lead.desired_rent,
-          beds:           lead.beds,
-          move_date:      lead.move_date,
-        }),
-      }).catch((err) => {
-        console.error("FU chain Calendar event failed:", err)
-      })
-    }
-  }
-
-  function getFUStyle(step: number) {
-    if (Number(followUps) === step)
-      return "crm-cta shadow-sm"
-    if (Number(followUps) > step)
-      return "bg-[var(--crm-inset)] text-[var(--crm-text-muted)] border-[var(--crm-border)]"
-    return "bg-[var(--crm-panel)] text-[var(--crm-text-secondary)] border-[var(--crm-border)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)]"
-  }
 
   function openSMS(message: string) {
     if (!lead.phone) return
@@ -411,68 +323,6 @@ export default function LeadPanel({
     window.open(`sms:${lead.phone}`, "_self")
     if (lead.crm_status === "new") recordFirstContact("text")
   }
-
-  function handleNextActionClick() {
-    const fu = lead.follow_up_count || 0
-    const action = getNextAction({ ...lead, follow_up_count: followUps })
-
-    if (lead.crm_status === "contacted") {
-      if (fu === 0) { setFollowUpCount(1); openSMS(`Hey! Did you see any properties on the list that you'd like to tour?`); return }
-      if (fu === 1) { setFollowUpCount(2); openSMS(`Is there one that stands out or would you like me to narrow the list down a bit more?`); return }
-      if (fu === 2) { setFollowUpCount(3); openSMS(`I'm calling communities you were interested in to get updated pricing and specials. Are you still looking to move?`); return }
-      openSMS(`Hey, I haven't heard back so I'll pause your search for now. Let me know when you're ready!`); return
-    }
-
-    if (action === "Contact Lead") {
-      handleFirstText()
-      return
-    }
-    if (action === "Build List") { openSMS(`Hey ${name}, I just sent your list over!\n\nCan you ❤️ your top 2–3 favorites?\n\nI'll get tours set up or tweak the list for you`); return }
-    if (action === "FU1") { setFollowUpCount(1); openSMS(`Hey! Did you see any properties on the list that you'd like to tour?`); return }
-    if (action === "FU2") { setFollowUpCount(2); openSMS(`Is there one that stands out or would you like me to narrow the list down a bit more?`); return }
-    if (action === "FU3") { setFollowUpCount(3); openSMS(`I'm calling communities you were interested in to get updated pricing and specials. Are you still looking to move?`); return }
-    if (action === "Final FU") { openSMS(`Hey ${name}, I haven't heard back so I'll pause your search for now. No rush, just let me know when you'd like me to pick it back up!`); return }
-  }
-
-  // ─── Done-for-now completion ───────────────────────────────────────────
-
-  const DONE_CONFIG: Record<string, { days: number }> = {
-    ready_to_tour: { days: 1  },
-    done_touring:  { days: 2  },
-    applied:       { days: 3  },
-    closed:        { days: 14 },
-  }
-
-  async function handleDoneForNow(days: number) {
-    // Automatic reschedule → 9:00 AM local on the target day, consistent with
-    // every other workflow-generated follow-up.
-    const newDateISO = autoDueInDays(days, timeZone)
-
-    // Optimistic update — disappears from Follow-Ups sidebar immediately
-    setNextActionDate(newDateISO)
-    if (onUpdateLead) onUpdateLead({ ...lead, next_action_date: newDateISO })
-
-    // Demo leads: identical UX (optimistic + toast), no DB write.
-    if (isDemoLeadId(lead.id)) {
-      setDoneMsg("✓ Follow-up scheduled")
-      setTimeout(() => setDoneMsg(null), 3000)
-      return
-    }
-
-    const { error } = await supabase
-      .from("leads")
-      .update({ next_action_date: newDateISO })
-      .eq("id", lead.id)
-
-    if (error) {
-      console.error("[done-for-now] update failed:", error)
-    } else {
-      setDoneMsg("✓ Follow-up scheduled")
-      setTimeout(() => setDoneMsg(null), 3000)
-    }
-  }
-
-  const doneConfig = DONE_CONFIG[lead.crm_status] ?? null
 
   // ─── Archive reason (archived leads only) ──────────────────────────────
 
@@ -655,100 +505,16 @@ export default function LeadPanel({
     return true
   }
 
-  async function handleCompleteAction(actionId: number) {
-    const completedAt = new Date().toISOString()
-    const completedAction = nextActions.find((a) => a.id === actionId)
-
-    // Optimistic — drop it out of the open list immediately so ranking
-    // re-computes without waiting on the network round trip.
-    setNextActions?.((prev) => prev.filter((a) => a.id !== actionId))
-
-    // Demo leads: no DB write, but mirror the workflow follow-up chain LOCALLY
-    // so the experience is identical (FU1 → FU2 → FU3 → Final, one at a time).
-    if (isDemoLeadId(lead.id)) {
-      if (completedAction) {
-        const nextSpec = getNextFollowUpAction(completedAction.title)
-        if (nextSpec) {
-          const nextDue = followUpSuccessorDueAt(completedAction.title, lead, nextSpec.dueAt, timeZone)
-          const newCount = (Number(lead.follow_up_count) || 0) + 1
-          // Local-only action (string "demo-" id so WorkflowActionToast skips the
-          // DB delete); typed any to match the any[] nextActions + toast helper.
-          const demoNext: any = {
-            id: `demo-act-${Date.now()}`,
-            lead_id: lead.id,
-            title: nextSpec.title,
-            action_key: nextSpec.actionKey,
-            due_at: nextDue,
-            priority: "medium",
-            completed: false,
-          }
-          setNextActions?.((prev) => [...prev, demoNext])
-          // Advance the follow-up cache so the count-based automatic Next Action
-          // stays in lockstep with the successor (Kanban badge / Agenda / Companion
-          // all agree). After Final there is no successor, so this branch is skipped.
-          setFollowUps(newCount)
-          onUpdateLead?.({ ...lead, follow_up_count: newCount, next_action_date: nextDue })
-          emitWorkflowActionCreated(demoNext)
-        }
-      }
-      return
-    }
-
-    const { error } = await supabase
-      .from("lead_next_actions")
-      .update({ completed: true, completed_at: completedAt })
-      .eq("id", actionId)
-
-    if (error) {
-      console.error("[next-action] complete failed:", error)
-      return
-    }
-
-    // Workflow Engine — FU1 -> FU2 -> FU3 -> Final, one step at a time,
-    // only after the previous step is actually completed (never the whole
-    // sequence at once).
-    if (completedAction) {
-      const nextSpec = getNextFollowUpAction(completedAction.title)
-      if (nextSpec) {
-        const nextDue = followUpSuccessorDueAt(completedAction.title, lead, nextSpec.dueAt, timeZone)
-        const newCount = (Number(lead.follow_up_count) || 0) + 1
-        const created = await createWorkflowActionIfNeeded(supabase, lead.id, { ...nextSpec, dueAt: nextDue })
-        if (created) {
-          setNextActions?.((prev) => [...prev, created])
-          emitWorkflowActionCreated(created)
-        }
-        // Advance the follow-up cache (count + next_action_date) in lockstep with
-        // the successor so the count-based automatic Next Action matches the open
-        // successor everywhere — Kanban badge, Agenda, Lead Panel, Companion.
-        setFollowUps(newCount)
-        onUpdateLead?.({ ...lead, follow_up_count: newCount, next_action_date: nextDue })
-        const { error: cacheErr } = await supabase
-          .from("leads")
-          .update({ follow_up_count: newCount, next_action_date: nextDue })
-          .eq("id", lead.id)
-        if (cacheErr) console.error("[next-action] advance cache failed:", cacheErr)
-      } else if (
-        String(completedAction.action_key ?? "") === "build_list" ||
-        String(completedAction.title ?? "").trim().toLowerCase() === "build list"
-      ) {
-        // Build List complete → the canonical Contacted → Searching transition
-        // (creates the Send List successor). Row is already completed above.
-        advanceBuildListToSearching({
-          lead,
-          onOptimistic: (u) => onUpdateLead?.(u),
-          onWorkflowAction: (a) => setNextActions?.((prev) => [...prev, a]),
-        })
-      }
-    }
-  }
-
-
   // Favorite Properties + Client/Locator Notes moved to the right workspace
   // panel (LeadFavorites.tsx / LeadNotes.tsx) for V1.
 
   // ─── Derived values ────────────────────────────────────────────────────
 
-  const action = getNextAction({ ...lead, follow_up_count: followUps })
+  // Automatic stage action from the lead's OWN current follow_up_count (kept in
+  // sync by the canonical completion path). Formerly read a local `followUps`
+  // mirror that only reset on lead switch; using the prop directly is what the
+  // Kanban/Agenda already do, so all surfaces stay consistent.
+  const action = getNextAction(lead)
   const statusStyle = STATUS_STYLES[lead.crm_status] ?? "bg-gray-100 text-gray-700 border-gray-300"
 
   // Rank the automatic stage action (labeled exactly as the existing
@@ -795,39 +561,9 @@ export default function LeadPanel({
       ? inferMarketFromLandingPage(lead.landing_page)
       : null
 
-  // The single control that resolves whatever's currently shown as the
-  // primary Next Action — a manual action's own completion when a manual
-  // action won ranking, or the automatic action's stage-based defer
-  // otherwise. Only rendered when one of those actually applies.
-  const canCompletePrimary = (primaryAction.kind === "manual" && !!primaryAction.manualAction) || !!doneConfig
-
-  function handleCompletePrimary() {
-    if (primaryAction.kind === "manual" && primaryAction.manualAction) {
-      handleCompleteAction(primaryAction.manualAction.id)
-    } else if (doneConfig) {
-      handleDoneForNow(doneConfig.days)
-    }
-  }
-
-  // ─── Message Client (Next Action left-side contextual button) ─────────
-  // Only message-based actions get this button — everything else relies
-  // solely on the right-side Mark Complete. "Contact Lead" reuses
-  // handleFirstText's own rich, beds/move-date-aware template; every
-  // other message-based title has a fixed template below. Either way,
-  // sending the message also resolves the current primary action, same
-  // as clicking it already did before Workflow Engine actions existed.
-  // Includes both the new Workflow Engine titles AND the legacy automatic
-  // virtual labels that already sent a message when clicked (see
-  // handleNextActionClick below) — a lead can sit on one of those for a
-  // while before the Workflow Engine's real row takes over (e.g.
-  // "Waiting for Response"/"Build List" before the 2-day Follow Up or the
-  // immediate Send List action exists), and it shouldn't lose messaging
-  // in the meantime.
-  const MESSAGE_BASED_TITLES = new Set([
-    "Contact Lead", "Follow Up", "Send List", "FU1", "FU2", "FU3", "Final", "Reconnect Client",
-    "Waiting for Response", "Build List", "Final FU",
-  ])
-
+  // Message templates for the Next Action button (openAction). NOTE: opening a
+  // message never completes an action — a follow-up is completed only by the
+  // Beast Companion "Yes, Sent" confirmation (the authoritative path).
   const MESSAGE_TEMPLATES: Record<string, (name: string) => string> = {
     "Follow Up": (name) => `Hey ${name}! Just checking in — have you had a chance to look at your options? Let me know if you have any questions!`,
     "Send List": (name) => `Hey ${name}, I just sent your list over!\n\nCan you ❤️ your top 2–3 favorites?\n\nI'll get tours set up or tweak the list for you`,
@@ -836,40 +572,6 @@ export default function LeadPanel({
     "FU3": () => `I'm calling communities you were interested in to get updated pricing and specials. Are you still looking to move?`,
     "Final": (name) => `Hey ${name}, I haven't heard back so I'll pause your search for now. No rush, just let me know when you'd like me to pick it back up!`,
     "Reconnect Client": (name) => `Hey ${name}! Just checking in — your move date is getting closer. Are you still planning to move, and would you like me to start setting up tours?`,
-  }
-
-  function handleMessageClient() {
-    const title = primaryAction.title
-
-    if (title === "Contact Lead") {
-      handleFirstText()
-    } else {
-      const template = MESSAGE_TEMPLATES[title]
-      if (template) openSMS(template(normalizeName(lead.first_name || "")))
-    }
-
-    if (primaryAction.kind === "manual" && primaryAction.manualAction) {
-      handleCompleteAction(primaryAction.manualAction.id)
-    } else if (primaryAction.kind === "automatic" && title !== "Contact Lead") {
-      // Preserves existing behavior for stages the Workflow Engine hasn't
-      // created a real action for yet (e.g. the FU1/FU2/FU3 reached via
-      // the Quick Actions FU buttons rather than entering List Sent).
-      handleNextActionClick()
-    }
-  }
-
-  // ─── Call Client (Next Action left-side button) ────────────────────────
-  // Only ever offered for "Contact Lead" — the preferred first-contact
-  // method setting is specifically about *first* contact with a new lead,
-  // not every message-based follow-up. handleCallClient already records
-  // the "contacted" signal itself (recordFirstContact), so this only
-  // additionally needs to resolve a real Workflow Engine row if one won
-  // ranking.
-  function handleCallClientAction() {
-    handleCallClient()
-    if (primaryAction.kind === "manual" && primaryAction.manualAction) {
-      handleCompleteAction(primaryAction.manualAction.id)
-    }
   }
 
   // Open (NOT complete) the current action so the user can actually perform it.
@@ -913,7 +615,12 @@ export default function LeadPanel({
     const template = MESSAGE_TEMPLATES[title]
     if (template) {
       openSMS(template(name))
-      armedActionRef.current = true
+      // A List Sent follow-up (1st/2nd/3rd/Final) is completed ONLY by the explicit
+      // Beast Companion "Yes, Sent" confirmation — opening the message or returning
+      // focus must never complete or advance it. So do NOT arm the return-to-focus
+      // auto-complete for a follow-up. Other message-based actions keep their
+      // existing arm-on-open behavior (unchanged).
+      if (!isFollowUpAction(title)) armedActionRef.current = true
       return
     }
 
@@ -987,6 +694,10 @@ export default function LeadPanel({
       if (document.visibilityState !== "visible") return
       if (!armedActionRef.current || completedAtTs) return
       armedActionRef.current = false
+      // Follow-ups are never armed above and must never be completed by returning
+      // focus — the authoritative completion is the explicit Companion "Yes, Sent"
+      // confirmation. Guard here too so this can never regress.
+      if (isFollowUpAction(primaryAction.title)) return
       const ts = new Date().toISOString()
       setCompletedAtTs(ts)
       // Persist for a real manual-action row. Demo leads are client-side only —
