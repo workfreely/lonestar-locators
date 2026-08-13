@@ -120,7 +120,7 @@ export const DEMO_LEADS: any[] = [
     created_at: daysFromNow(-10),
   },
 
-  // ── List Sent (4) ──
+  // ── List Sent (5) ──
   {
     id: "demo-9", is_demo: true, crm_status: "list_sent", lead_type: "long",
     first_name: "Emily", last_name: "Watson", phone: "5125550166", email: "emily.w@example.com",
@@ -162,6 +162,19 @@ export const DEMO_LEADS: any[] = [
     source: "referral", follow_up_count: 3, next_action_date: daysFromNow(0),
     notes: "On the final nudge before pausing — sent the list a while back, still deciding.",
     created_at: daysFromNow(-14),
+  },
+  {
+    // Follow-up sequence COMPLETE — the Final Follow-Up is done (follow_up_count 4),
+    // so there is NO automatic next action and nothing repeats. The client stays in
+    // List Sent for the locator to reconnect, move, or archive manually.
+    id: "demo-25", is_demo: true, crm_status: "list_sent", lead_type: "long",
+    first_name: "Trevor", last_name: "Nash", phone: "5125550240", email: "trevor.n@example.com",
+    city: "Austin", neighborhoods: "East Austin", desired_rent: "$1,400-$1,600",
+    property_type: "Apartment", beds: "1", baths: "1", move_date: thisMonth(28),
+    credit_score: 719, credit_history: "Clean", eviction_court: "No", criminal_background: "None",
+    source: "google", follow_up_count: 4, next_action_date: null,
+    notes: "Completed the full follow-up sequence — no reply after the final nudge. Paused, awaiting the client.",
+    created_at: daysFromNow(-16),
   },
 
   // ── Ready to Tour (2) ──
@@ -304,6 +317,9 @@ export const DEMO_ALL_LEADS: any[] = DEMO_LEADS
 // "Tour Follow-Up", "Check Application" — never the raw tokens.
 export const DEMO_NEXT_ACTIONS: any[] = [
   { id: 9001, lead_id: "demo-11", title: "FU3", action_key: "follow_up_3", due_at: daysFromNow(-1), priority: "high", notes: "Nudge for favorites", completed: false, created_at: daysFromNow(-13) },
+  // Completed Final Follow-Up for demo-25 — Last Action derives "Final Follow-Up"
+  // and the follow-up sequence is done, so no successor and nothing repeats.
+  { id: 9005, lead_id: "demo-25", title: "Final", action_key: "final_follow_up", due_at: daysFromNow(-3), priority: "medium", notes: "Final nudge sent — no reply", completed: true, completed_at: daysFromNow(-2), created_at: daysFromNow(-9) },
   { id: 9002, lead_id: "demo-12", title: "Setup Tour", action_key: "setup_tour", due_at: daysFromNow(1), priority: "high", notes: "Book weekend tours", completed: false, created_at: daysFromNow(-14) },
   { id: 9003, lead_id: "demo-14", title: "Tour Follow-Up", action_key: "tour_follow_up", due_at: daysFromNow(0), priority: "medium", notes: "Which community won?", completed: false, created_at: daysFromNow(-15) },
   { id: 9004, lead_id: "demo-16", title: "Check App", action_key: "check_application", due_at: daysFromNow(0), priority: "medium", notes: "Confirm approval", completed: false, created_at: daysFromNow(-17) },
@@ -472,6 +488,12 @@ const DEMO_BRIEFS: Record<string, AiClientBrief> = {
     "Prefers South Austin near work; budget is firm.",
     "Responsive but slow to decide — needs a gentle close.",
   ], "Said she's still comparing and will circle back this week.", -1),
+  "demo-25": brief(25, [
+    "Completed the full follow-up sequence — no reply after the final nudge.",
+    "Search is paused; awaiting the client to re-engage.",
+    "Prefers East Austin; budget $1,400–$1,600.",
+    "Good candidate for a reconnect when the move date nears.",
+  ], "Went quiet after the final follow-up — paused the search.", -3),
 }
 
 export function getDemoBrief(leadId: string | number): AiClientBrief | null {

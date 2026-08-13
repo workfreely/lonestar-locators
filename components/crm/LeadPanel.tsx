@@ -18,6 +18,7 @@ import { ARCHIVE_REASONS } from "@/lib/leads/archiveReasons"
 import { rankLeadActions } from "@/lib/nextActions"
 import { getNextFollowUpAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
 import { autoDueInDays } from "@/lib/workflow/autoDueDate"
+import { followUpSuccessorDueAt } from "@/lib/workflow/moveDateCadence"
 import { emitWorkflowActionCreated } from "@/lib/workflowToast"
 import { getActionIcon, formatDueDateTime } from "@/lib/actionDisplay"
 import { formatPersonName } from "@bc/companion-shared"
@@ -668,17 +669,25 @@ export default function LeadPanel({
       if (completedAction) {
         const nextSpec = getNextFollowUpAction(completedAction.title)
         if (nextSpec) {
+          const nextDue = followUpSuccessorDueAt(completedAction.title, lead, nextSpec.dueAt, timeZone)
+          const newCount = (Number(lead.follow_up_count) || 0) + 1
           // Local-only action (string "demo-" id so WorkflowActionToast skips the
           // DB delete); typed any to match the any[] nextActions + toast helper.
           const demoNext: any = {
             id: `demo-act-${Date.now()}`,
             lead_id: lead.id,
             title: nextSpec.title,
-            due_at: nextSpec.dueAt,
+            action_key: nextSpec.actionKey,
+            due_at: nextDue,
             priority: "medium",
             completed: false,
           }
           setNextActions?.((prev) => [...prev, demoNext])
+          // Advance the follow-up cache so the count-based automatic Next Action
+          // stays in lockstep with the successor (Kanban badge / Agenda / Companion
+          // all agree). After Final there is no successor, so this branch is skipped.
+          setFollowUps(newCount)
+          onUpdateLead?.({ ...lead, follow_up_count: newCount, next_action_date: nextDue })
           emitWorkflowActionCreated(demoNext)
         }
       }
@@ -701,11 +710,23 @@ export default function LeadPanel({
     if (completedAction) {
       const nextSpec = getNextFollowUpAction(completedAction.title)
       if (nextSpec) {
-        const created = await createWorkflowActionIfNeeded(supabase, lead.id, nextSpec)
+        const nextDue = followUpSuccessorDueAt(completedAction.title, lead, nextSpec.dueAt, timeZone)
+        const newCount = (Number(lead.follow_up_count) || 0) + 1
+        const created = await createWorkflowActionIfNeeded(supabase, lead.id, { ...nextSpec, dueAt: nextDue })
         if (created) {
           setNextActions?.((prev) => [...prev, created])
           emitWorkflowActionCreated(created)
         }
+        // Advance the follow-up cache (count + next_action_date) in lockstep with
+        // the successor so the count-based automatic Next Action matches the open
+        // successor everywhere — Kanban badge, Agenda, Lead Panel, Companion.
+        setFollowUps(newCount)
+        onUpdateLead?.({ ...lead, follow_up_count: newCount, next_action_date: nextDue })
+        const { error: cacheErr } = await supabase
+          .from("leads")
+          .update({ follow_up_count: newCount, next_action_date: nextDue })
+          .eq("id", lead.id)
+        if (cacheErr) console.error("[next-action] advance cache failed:", cacheErr)
       } else if (
         String(completedAction.action_key ?? "") === "build_list" ||
         String(completedAction.title ?? "").trim().toLowerCase() === "build list"

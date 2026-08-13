@@ -48,7 +48,7 @@ function makeMockClient(opts: { existing?: unknown[]; insertResult?: unknown }) 
 // ── Proof 1: each workflow action receives the correct canonical key ──────────
 const stageExpect: Record<string, { title: string; key: string }> = {
   new: { title: "Contact Lead", key: "contact_lead" },
-  contacted: { title: "Follow Up", key: "contacted_follow_up" },
+  contacted: { title: "Build List", key: "build_list" }, // Phase 3: Contacted's stage action is Build List (was the passive follow-up chase)
   searching: { title: "Send List", key: "send_list" },
   list_sent: { title: "FU1", key: "follow_up_1" },
   applied: { title: "Check App", key: "check_application" },
@@ -78,8 +78,10 @@ ok(
 );
 ok(new Set(fuKeys).size === 4, "FU chain has 4 distinct keys");
 ok(
-  fu1?.actionKey !== "contacted_follow_up" && stageExpect.contacted.key === "contacted_follow_up",
-  "contacted_follow_up is distinct from follow_up_1",
+  fu1?.actionKey === "follow_up_1" &&
+    WORKFLOW_ACTION_KEYS.includes("contacted_follow_up" as any) &&
+    fu1?.actionKey !== "contacted_follow_up",
+  "contacted_follow_up is a distinct canonical key from follow_up_1",
 );
 
 // ── Proof 3: Get Invoice Details separate from Confirm Lease ───────────────────
@@ -124,15 +126,15 @@ async function run() {
 
   // ── Proof 6: existing display labels unchanged ──────────────────────────────
   const labelCases: [string, string][] = [
-    ["FU1", "Follow-Up 1"],
-    ["FU2", "Follow-Up 2"],
-    ["FU3", "Follow-Up 3"],
+    ["FU1", "1st Follow-Up"],
+    ["FU2", "2nd Follow-Up"],
+    ["FU3", "3rd Follow-Up"],
     ["Final", "Final Follow-Up"],
     ["Get Invoice Details", "Get Invoice Details"],
     ["Contact Lead", "Contact Lead"],
-    ["Follow Up", "Follow Up"], // contacted-stage label unchanged
+    ["Follow Up", "Follow Up"], // contacted_follow_up label unchanged
     ["Send List", "Send List"],
-    ["Setup Tour", "Setup Tour"],
+    ["Setup Tour", "Schedule Tour"], // display rename (identity stays setup_tour)
   ];
   for (const [title, expected] of labelCases) {
     ok(formatWorkflowActionLabel(title) === expected, `label "${title}" → "${expected}"`, `got "${formatWorkflowActionLabel(title)}"`);

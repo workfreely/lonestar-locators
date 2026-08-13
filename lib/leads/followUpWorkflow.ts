@@ -42,6 +42,18 @@ export async function completeFollowUp(opts: {
   //    recordTimelineEvent guards demo ids; the caller sets it optimistically).
   recordTimelineEvent({ leadId: lead.id, type: "text_sent", method: "text", sequence: null, occurredAt: now })
 
+  // Advance the follow-up cache in LOCKSTEP with the successor. follow_up_count is
+  // the completed-follow-up count (0→1→2→3→4); next_action_date mirrors the
+  // successor's due (null after Final). Without this the count-based automatic
+  // Next Action (getNextAction) stays stuck on the FIRST follow-up while the real
+  // successor rows advance, so the Kanban badge / Agenda / Lead Panel / Companion
+  // disagree. Keeping them in step also lets rankLeadActions dedup the automatic
+  // against the matching open successor. Identity/due come from the same engine +
+  // move-date cadence the successor row uses, so the automatic and the row match.
+  const newCount = (Number(lead.follow_up_count) || 0) + 1
+  const succ = getNextFollowUpAction(completedTitle, timeZone)
+  const successorDue = succ ? followUpSuccessorDueAt(completedTitle, lead, succ.dueAt, timeZone) : null
+
   // 2) Complete the persisted follow-up row (real leads) so Last Action derives
   //    the follow-up label. Demo never hits the DB — caller synthesizes locally.
   if (!isDemoLeadId(lead.id) && followRow?.id != null) {
@@ -52,20 +64,25 @@ export async function completeFollowUp(opts: {
     if (error) console.error("[follow-up] complete row failed:", error)
   }
 
-  // 3) Stay in List Sent — no stage change. Reflect locally.
-  onOptimistic?.({ ...lead })
+  // 3) Stay in List Sent — no stage change. Reflect the advanced cache locally.
+  onOptimistic?.({ ...lead, follow_up_count: newCount, next_action_date: successorDue })
 
   if (isDemoLeadId(lead.id)) return
 
+  // 3b) Persist the advanced cache for real leads (RLS-scoped by the client).
+  const { error: cacheErr } = await supabase
+    .from("leads")
+    .update({ follow_up_count: newCount, next_action_date: successorDue })
+    .eq("id", lead.id)
+  if (cacheErr) console.error("[follow-up] advance cache failed:", cacheErr)
+
   // 4) Exactly one successor — identity from the existing engine, due date from
-  //    the move-date cadence, recalculated NOW from the current move date
-  //    (existing fixed timing preserved for 120+ days / past / missing move date).
+  //    the move-date cadence (same value stamped on next_action_date above).
   //    Deduped one-open-per-key by the engine helper.
-  const succ = getNextFollowUpAction(completedTitle, timeZone)
   if (succ) {
     const created = await createWorkflowActionIfNeeded(supabase, lead.id, {
       ...succ,
-      dueAt: followUpSuccessorDueAt(completedTitle, lead, succ.dueAt, timeZone),
+      dueAt: successorDue ?? succ.dueAt,
     })
     if (created) {
       onWorkflowAction?.(created)
