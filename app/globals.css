@@ -1834,7 +1834,7 @@ body.jaybot-open {
    toggle alike (both render .kb-card under a data-density="overview" board).
    Detailed/Compact untouched. */
 .kb-board[data-density="overview"] { gap:8px; padding:12px; }
-[data-density="overview"] .kb-column { flex-basis:166px; border-radius:11px; }
+[data-density="overview"] .kb-column { flex-basis:166px; flex-grow:0; border-radius:11px; }
 [data-density="overview"] .kb-col-body { gap:8px; padding:6px; }
 [data-density="overview"] .kb-card { border-radius:9px; }
 [data-density="overview"] .kb-card-pad { padding:5px 8px; }

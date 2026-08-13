@@ -1,7 +1,7 @@
 import { BRAND, absoluteUrl, type SenderCategory } from "./branding"
 import { renderEmail, paragraph, infoTable, pill, esc } from "./layout"
 import { cityBanner } from "./cityHeader"
-import { formatDateDisplay } from "@bc/companion-shared"
+import { formatDateDisplay, formatPersonName } from "@bc/companion-shared"
 import {
   renderClientSignatureHtml,
   decideIabs,
@@ -125,7 +125,7 @@ function whenParent(active: boolean, v: string | null | undefined): string | nul
 
 export function newLeadEmail({ locatorName, leadUrl, lead }: NewLeadEmailParams): BuiltEmail {
   void locatorName // signature kept for callers; the owner alert is name-agnostic
-  const fullName = [lead.first_name, lead.last_name].filter(Boolean).join(" ").trim() || "New Lead"
+  const fullName = formatPersonName([lead.first_name, lead.last_name].filter(Boolean).join(" ")) || "New Lead"
 
   const win = moveWindow(lead.move_date)
   const strongCredit = !!lead.credit_score && Number(lead.credit_score) >= 680
@@ -357,12 +357,12 @@ export function leadAssignedEmail({
   leadUrl,
   lead,
 }: LeadAssignedEmailParams): BuiltEmail {
-  const fullName = [lead.first_name, lead.last_name].filter(Boolean).join(" ").trim() || "a lead"
+  const fullName = formatPersonName([lead.first_name, lead.last_name].filter(Boolean).join(" ")) || "a lead"
   const by = (assignedByName ?? "").trim()
   const contentHtml = `
     ${paragraph(`${greeting(assigneeName)} ${by ? `${esc(by)} assigned` : "you've been assigned"} a lead to you in Locator Beast.`)}
     ${infoTable([
-      { label: "Lead", value: [lead.first_name, lead.last_name].filter(Boolean).join(" ") },
+      { label: "Lead", value: formatPersonName([lead.first_name, lead.last_name].filter(Boolean).join(" ")) },
       { label: "City", value: lead.city },
     ])}
     ${paragraph("Open the lead to review the details and start following up.")}

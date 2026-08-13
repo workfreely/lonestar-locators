@@ -11,24 +11,33 @@
 export { formatDueDateTime } from "@bc/format/dueDate"
 export type { DueDateFormatOptions } from "@bc/format/dueDate"
 
+import { formatWorkflowActionLabel } from "@/lib/leads/workflowActionLabels"
+
+// Icon map keyed by the CANONICAL display label (formatWorkflowActionLabel's
+// output). Every emoji value is UNCHANGED from before — the map was only re-keyed
+// from legacy titles to canonical labels so each action keeps the exact same emoji
+// under its new wording (FU1/FU2/FU3/Final → the four follow-ups all keep 💬;
+// Setup Tour → Schedule Tour keeps 📅; Check App → Check Application keeps 📄).
+// No new emojis are introduced. getActionIcon canonicalizes its input first, so a
+// renamed label never falls back to the default pin.
 const ACTION_ICONS: Record<string, string> = {
   "Contact Lead": "📞",
   "Follow Up": "💬",
   "Send List": "🏠",
-  "FU1": "💬",
-  "FU2": "💬",
-  "FU3": "💬",
-  "Final": "💬",
+  "1st Follow-Up": "💬",
+  "2nd Follow-Up": "💬",
+  "3rd Follow-Up": "💬",
+  "Final Follow-Up": "💬",
   "Reconnect Client": "🔄",
-  "Setup Tour": "📅",
+  "Schedule Tour": "📅",
   "Tour Follow-Up": "🚶",
-  "Check App": "📄",
+  "Check Application": "📄",
   "Get Invoice Details": "🧾",
 }
 
 const DEFAULT_ICON = "📌"
 
-export function getActionIcon(title: string): string {
-  return ACTION_ICONS[title] ?? DEFAULT_ICON
+export function getActionIcon(titleOrKey: string): string {
+  return ACTION_ICONS[formatWorkflowActionLabel(titleOrKey)] ?? DEFAULT_ICON
 }
 

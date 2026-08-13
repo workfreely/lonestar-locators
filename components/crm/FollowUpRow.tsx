@@ -2,37 +2,18 @@
 
 import { useState } from "react"
 import { rankLeadActions } from "@/lib/nextActions"
+import { getNextAction } from "@/lib/nextAction"
+import { formatWorkflowActionLabel } from "@/lib/leads/workflowActionLabels"
 import { getActionIcon, formatDueDateTime } from "@/lib/actionDisplay"
+import { formatPersonName } from "@bc/companion-shared"
 
-/** Returns a short action label based on the lead's CRM status and follow-up count. */
-function getActionLabel(crm_status: string, follow_up_count: number | null | undefined): string {
-  switch (crm_status) {
-    case "new":
-      return "TEXT ASAP"
-    case "contacted":
-      return "Send List"
-    case "list_sent": {
-      // The Agenda keeps its own DESCRIPTIVE labels (what the follow-up is for) —
-      // intentionally different from the standardized "Follow-Up N" used on the
-      // Kanban badge / Next Action / Companion / calendar.
-      const count = Number(follow_up_count ?? 0)
-      if (count === 0) return "Tour Favorites"
-      if (count === 1) return "List Feedback"
-      if (count === 2) return "Final Check"
-      return "Pause Search"
-    }
-    case "ready_to_tour":
-      return "Setup Tour"
-    case "done_touring":
-      return "Tour Follow-Up"
-    case "applied":
-      return "Check Application"
-    case "closed":
-      return "Get Invoice Details"
-    default:
-      return "Follow Up"
-  }
-}
+// The Agenda no longer keeps its own label switch. Its automatic Next Action is
+// the CANONICAL stage action (lib/nextAction.getNextAction — same source the
+// Kanban badge / Lead Panel / Companion use), and every displayed title (manual
+// or automatic) is run through the shared formatWorkflowActionLabel so wording
+// stays aligned everywhere and can't drift. Raw titles are still passed to
+// rankLeadActions/getActionIcon so ranking, suppression, and the existing emoji
+// lookup keep matching on stable identity.
 
 type FilterType = "overdue" | "today"
 
@@ -64,11 +45,15 @@ export default function FollowUpRow({
     .filter((lead) => lead.crm_status !== "closed" && lead.crm_status !== "archived")
     .map((lead) => ({
       lead,
-      ...rankLeadActions(lead, nextActions, getActionLabel(lead.crm_status, lead.follow_up_count)),
+      ...rankLeadActions(lead, nextActions, getNextAction(lead)),
     }))
 
   const dueLeads = ranked.filter(
-    ({ primary }) => primary.urgency === "overdue" || primary.urgency === "today"
+    ({ primary }) =>
+      // "Next Action" is the generic no-real-step sentinel (e.g. a List Sent
+      // client whose Final Follow-Up is done) — never surface it in the Agenda.
+      primary.title !== "Next Action" &&
+      (primary.urgency === "overdue" || primary.urgency === "today")
   )
 
   const filterMatch = ({ primary }: (typeof ranked)[number]): boolean => {
@@ -147,11 +132,11 @@ export default function FollowUpRow({
               <span className={`ag-strip ag-strip--${urg}`} />
               {/* Who */}
               <p className="ag-name">
-                {lead.first_name} {lead.last_name}
+                {formatPersonName(`${lead.first_name ?? ""} ${lead.last_name ?? ""}`)}
               </p>
               {/* What */}
               <p className="ag-action">
-                {getActionIcon(primary.title)} {primary.title}
+                {getActionIcon(primary.title)} {formatWorkflowActionLabel(primary.title)}
               </p>
               {/* When */}
               <p className={`ag-due ag-due--${urg}`}>{primary.dueAt ? formatDueDateTime(primary.dueAt, { timeZone: timeZone ?? undefined }) : ""}</p>

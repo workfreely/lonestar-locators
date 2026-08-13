@@ -20,10 +20,12 @@ const FULL: Record<string, string> = {
   fu3: "3rd Follow-Up",
   final_follow_up: "Final Follow-Up",
   invoice_details: "Get Invoice Details",
-  // Display renames only — the internal titles ("Check App", "Waiting for
-  // Response") and keys (check_application) are unchanged; this maps them to the
-  // standardized user-facing text everywhere formatWorkflowActionLabel is used.
+  // Display renames only — the internal titles ("Check App", "Setup Tour",
+  // "Waiting for Response") and keys (check_application, setup_tour) are
+  // unchanged; this maps them to the standardized user-facing text everywhere
+  // formatWorkflowActionLabel is used.
   check_application: "Check Application",
+  setup_tour: "Schedule Tour",
   waiting_for_response: "Waiting for Reply",
 }
 
@@ -50,6 +52,9 @@ const TO_KEY: Record<string, string> = {
   "check app": "check_application",
   "check application": "check_application",
   check_application: "check_application",
+  "setup tour": "setup_tour",
+  "schedule tour": "setup_tour",
+  setup_tour: "setup_tour",
   "waiting for response": "waiting_for_response",
   "waiting for reply": "waiting_for_response",
   waiting_for_response: "waiting_for_response",
@@ -91,7 +96,7 @@ const LAST_ACTION_BY_DISPLAY: Record<string, string> = {
   // Follow-ups intentionally fall through to their base label ("1st Follow-Up",
   // …) — the panel section is already titled LAST ACTION, so a "Completed" prefix
   // is redundant. Identity/keys (fu1/follow_up_1/…) are unchanged.
-  "Setup Tour": "Tour Scheduled",
+  "Schedule Tour": "Tour Scheduled",
   "Tour Follow-Up": "Completed Tour Follow-Up",
   "Check Application": "Checked Application",
   "Confirm Lease": "Confirmed Lease",

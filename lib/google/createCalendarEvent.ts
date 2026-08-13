@@ -2,6 +2,8 @@ import { google } from "googleapis"
 // LEGACY global Google account — TODO(phase-2): migrate to per-user
 // google_credentials. See getOAuthClient.ts. Do not extend this path.
 import { getOAuthClient } from "./getOAuthClient"
+import { formatPersonName } from "@bc/companion-shared"
+import { formatWorkflowActionLabel } from "@/lib/leads/workflowActionLabels"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,10 +54,10 @@ function formatSource(source: string): string {
  * Builds a calendar event title in the format:
  *   {emoji} {First} {L}. ({action})
  *
- * Examples:
- *   🔥 Sarah M. (TEXT ASAP)
- *   📋 Gerald B. (FU1)
- *   🛑 John D. (FINAL)
+ * Examples (action routed through the canonical workflow formatter):
+ *   📋 Gerald B. (1st Follow-Up)
+ *   🛑 John D. (Final Follow-Up)
+ * (The new-lead event uses a distinct "📞 Contact Lead: {Full Name}" format.)
  *
  * Falls back to "Unknown" when name data is missing.
  */
@@ -65,10 +67,12 @@ function formatEventTitle(
   lastName: string | null | undefined,
   action: string
 ): string {
-  const first = firstName?.trim() || "Unknown"
+  const first = formatPersonName(firstName?.trim() || "") || "Unknown"
   const lastInitial = lastName?.trim()?.[0]?.toUpperCase()
   const nameStr = lastInitial ? `${first} ${lastInitial}.` : first
-  return `${emoji} ${nameStr} (${action})`
+  // Route the action label through the canonical workflow formatter so calendar
+  // titles never drift from the rest of the product's wording.
+  return `${emoji} ${nameStr} (${formatWorkflowActionLabel(action)})`
 }
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
@@ -321,7 +325,7 @@ export async function createFollowUpCalendarEvent(
 // ─── New Lead event ───────────────────────────────────────────────────────────
 
 /**
- * Creates a "🔥 NEW LEAD (TEXT ASAP)" Google Calendar event.
+ * Creates a "📞 Contact Lead: {Client Name}" Google Calendar event.
  * Starts at current time + 5 minutes, runs for 15 minutes.
  * Includes a popup reminder at event time.
  *
@@ -338,7 +342,10 @@ export async function createNewLeadCalendarEvent(lead: NewLeadEventInput): Promi
 
   const toISO = (ms: number) => new Date(ms).toISOString()
 
-  const title = formatEventTitle("🔥", lead.first_name, lead.last_name, "TEXT ASAP")
+  // New-lead calendar event — canonical "Contact Lead" wording (was "TEXT ASAP"),
+  // with the client's name run through the shared person-name formatter.
+  const clientName = formatPersonName([lead.first_name, lead.last_name].filter(Boolean).join(" ")) || "New Lead"
+  const title = `📞 Contact Lead: ${clientName}`
 
   const eventBody = {
     summary: title,

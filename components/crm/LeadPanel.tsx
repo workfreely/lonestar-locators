@@ -20,6 +20,7 @@ import { getNextFollowUpAction, createWorkflowActionIfNeeded } from "@/lib/workf
 import { autoDueInDays } from "@/lib/workflow/autoDueDate"
 import { emitWorkflowActionCreated } from "@/lib/workflowToast"
 import { getActionIcon, formatDueDateTime } from "@/lib/actionDisplay"
+import { formatPersonName } from "@bc/companion-shared"
 import { formatWorkflowActionLabel, formatLastActionLabel, isFollowUpAction } from "@/lib/leads/workflowActionLabels"
 import AiVoiceScriptModal from "./AiVoiceScriptModal"
 import ConfirmDialog from "./ConfirmDialog"
@@ -29,16 +30,10 @@ import InvoiceDetailsSection from "./InvoiceDetailsSection"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function normalizeName(name: string) {
-  if (!name) return ""
-  return name
-    .trim()
-    .toLowerCase()
-    .split(" ")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ")
-}
+// Canonical, shared person-name display formatter (see packages/companion-shared
+// /format/name). Aliased so the existing call sites are unchanged, but every
+// surface — Agenda, Card, Panel, Companion — now formats names identically.
+const normalizeName = formatPersonName
 
 function formatDate(date: string) {
   if (!date) return "—"

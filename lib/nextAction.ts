@@ -28,7 +28,11 @@ if (stage === "list_sent") {
   if (fu === 0) return "FU1"
   if (fu === 1) return "FU2"
   if (fu === 2) return "FU3"
-  return "Final FU"
+  if (fu === 3) return "Final FU"
+  // fu >= 4 → the Final Follow-Up has been completed: the automatic follow-up
+  // sequence is finished, so there is no further automatic action. The client
+  // stays in List Sent for the locator to move / reconnect / archive manually.
+  return "Next Action"
 }
 
   // =====================================================

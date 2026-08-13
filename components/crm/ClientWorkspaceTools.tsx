@@ -3,13 +3,11 @@
 import { useState } from "react"
 import { SectionCard } from "./LeadPanelSections"
 import AiVoiceScriptModal from "./AiVoiceScriptModal"
+import { formatPersonName } from "@bc/companion-shared"
 
-// Title-cases the first token — mirrors LeadPanel.normalizeName so the composed
-// message reads identically to the existing Lead Panel version.
-function normalizeName(name: string) {
-  const n = (name || "").trim()
-  return n ? n.charAt(0).toUpperCase() + n.slice(1).toLowerCase() : ""
-}
+// Canonical, shared person-name display formatter — same one the Lead Panel /
+// Agenda / Companion use, so the composed message reads identically everywhere.
+const normalizeName = formatPersonName
 
 // Phase 1 — center selected-client workspace comms tools.
 //

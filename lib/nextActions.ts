@@ -149,7 +149,31 @@ export function rankLeadActions(
       return t === "email guest card" || t === "setup tour"
     })
 
-  const automatic: RankedAction | null = hasEquivalentManual || hasGuestCardProgression ? null : {
+  // Follow-up sequence complete: the Final Follow-Up has been COMPLETED and no
+  // follow-up remains open. The engine creates no successor after Final, so
+  // WITHOUT this the automatic stage action (getNextAction) would re-surface the
+  // same follow-up — repeating "Final Follow-Up" (or "1st Follow-Up" when the
+  // count is 0). Suppress it so the client simply drops off the queue, staying in
+  // List Sent for the locator to move / reconnect / archive manually. Identity is
+  // matched on the stable action_key / legacy title, never the display label.
+  const isFollowUpRow = (a: ManualNextAction) => {
+    const k = String((a as any).action_key ?? "").toLowerCase()
+    if (k === "follow_up_1" || k === "follow_up_2" || k === "follow_up_3" || k === "final_follow_up") return true
+    const t = a.title.trim().toLowerCase()
+    return ["fu1", "fu2", "fu3", "final", "final fu"].includes(t)
+  }
+  const finalFollowUpCompleted =
+    lead.crm_status === "list_sent" &&
+    manualActions.some((a) => {
+      if (String(a.lead_id) !== String(lead.id)) return false
+      if (!(a.completed === true || (a as any).status === "completed")) return false
+      const k = String((a as any).action_key ?? "").toLowerCase()
+      const t = a.title.trim().toLowerCase()
+      return k === "final_follow_up" || t === "final" || t === "final fu"
+    })
+  const sequenceComplete = finalFollowUpCompleted && !openManual.some(isFollowUpRow)
+
+  const automatic: RankedAction | null = hasEquivalentManual || hasGuestCardProgression || sequenceComplete ? null : {
     kind: "automatic",
     title: automaticLabel,
     dueAt: lead.next_action_date ?? null,
@@ -169,6 +193,16 @@ export function rankLeadActions(
   const all: RankedAction[] = automatic
     ? [automatic, ...manualRanked].sort(compareActions)
     : manualRanked.sort(compareActions)
+
+  // No actionable item (e.g. the follow-up sequence is complete and nothing else
+  // is open): return a non-due sentinel so callers never see `undefined`. Its
+  // "none" urgency keeps it out of the Agenda's due queue.
+  if (all.length === 0) {
+    return {
+      primary: { kind: "automatic", title: automaticLabel, dueAt: null, priority: "medium", urgency: "none" },
+      others: [],
+    }
+  }
 
   return { primary: all[0], others: all.slice(1) }
 }

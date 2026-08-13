@@ -8,17 +8,11 @@ import { formatPhone } from "@/lib/utils/formatPhone"
 import LeadSourceBadge from "./LeadSourceBadge"
 import { inferMarketFromLandingPage } from "@/lib/leads/inferMarketFromLandingPage"
 import { getArchiveReasonBadgeLabel } from "@/lib/leads/archiveReasons"
+import { formatPersonName } from "@bc/companion-shared"
 
-function normalizeName(name: string) {
-  if (!name) return ""
-  return name
-    .trim()
-    .toLowerCase()
-    .split(" ")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ")
-}
+// Canonical, shared person-name display formatter — the Agenda, Lead Card, Lead
+// Panel and Companion all use it, so a client's name never renders two ways.
+const normalizeName = formatPersonName
 
 function formatDate(date: string) {
   if (!date) return ""
