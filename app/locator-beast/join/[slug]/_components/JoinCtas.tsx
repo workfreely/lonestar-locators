@@ -103,15 +103,15 @@ export default function JoinCtas({
         </button>
       </div>
 
-      {/* STEP 3 — Build Your Network (informational, no button) */}
+      {/* STEP 3 — Get Your Referral Link (informational, no button) */}
       <div className="rounded-2xl border border-[#eef0f4] bg-[#f8f9fb] p-6 text-left">
         <div className="flex items-center gap-3">
           <StepBadge n={3} />
-          <h3 className="text-[19px] font-bold leading-tight text-[#0b0f1a]">Step 3: Build Your Network</h3>
+          <h3 className="text-[19px] font-bold leading-tight text-[#0b0f1a]">Step 3: Get Your Referral Link</h3>
         </div>
         <p className="mt-3 text-[16px] leading-relaxed text-[#4b5563]">
-          As soon as your membership is active, you&rsquo;ll get your own referral link in the Locator
-          Beast CRM dashboard to invite other agents and give them the same benefit.
+          Once your membership is active, you&rsquo;ll get your own personal referral link in your Locator
+          Beast CRM dashboard to invite other agents and give them free access to Locator Beast.
         </p>
       </div>
 

@@ -90,14 +90,14 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
             {hasBrokerageName ? `Join my network at ${brokerage}` : "Join my network"}
           </p>
           <h1 className="mt-2 text-balance break-words text-[clamp(26px,7vw,36px)] font-bold leading-[1.12] tracking-tight">
-            {/* Desktop (md+) only: force a clean two-line structure —
-                "Get Exclusive Access to the" / "AI-Powered Locator Beast CRM" —
-                instead of the browser wrapping mid-word after "AI-". The <br> is
-                display:none below md, so mobile keeps its existing natural wrap.
-                The nowrap is md-scoped too, so it never alters mobile behavior. */}
-            Get Exclusive Access to the{" "}
-            <br className="hidden md:block" />
-            <span className="md:whitespace-nowrap">AI-Powered</span> Locator Beast CRM
+            {/* Force a clean two-line structure on ALL viewports —
+                "Get Free Access to the" / "AI-Powered Locator Beast CRM" — so the
+                second line always begins with "AI-Powered" (desktop AND mobile),
+                and keep "AI-Powered" from ever breaking between "AI-" and
+                "Powered". Headline sizing/weight/colors are unchanged. */}
+            Get Free Access to the{" "}
+            <br />
+            <span className="whitespace-nowrap">AI-Powered</span> Locator Beast CRM
           </h1>
 
           <div className="mt-8 flex justify-center">
@@ -108,7 +108,7 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
           </div>
 
           <p className="mx-auto mt-3 max-w-lg break-words text-[16px] font-medium leading-snug text-white/85 sm:text-[17px]">
-            Join my {brokerage} network and get Locator Beast free.
+            Join my {brokerage} network. Get Locator Beast free.
           </p>
           <a
             href={LOCATOR_BEAST_FEATURES_URL}

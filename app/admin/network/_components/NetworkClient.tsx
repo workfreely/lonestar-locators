@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { HiOutlineGlobeAlt } from "react-icons/hi2"
 import { supabase } from "@/lib/supabase/client"
 import AppHeader from "@/components/crm/AppHeader"
 import { CRM_PRIMARY_BUTTON, CRM_SECONDARY_BUTTON } from "@/lib/crmButtonStyles"
@@ -195,12 +196,20 @@ function CopyLink({ link }: { link: string }) {
   }
   return (
     <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-      <input
-        readOnly
-        value={link}
-        onFocus={(e) => e.currentTarget.select()}
-        className="min-w-0 flex-1 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] px-3 py-2 text-[13px] text-[var(--crm-text-primary)]"
-      />
+      {/* Clickable public referral link — mirrors the Smart Lead Form "Smart Form
+          Link" (SharePanel): opens the member's EXISTING public join page in a new
+          tab so they don't lose their place in the CRM. Same URL the Copy Link
+          button copies; no new referral source or attribution change. */}
+      <a
+        href={link}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] px-3 py-2 text-[13px] font-medium text-[var(--crm-accent)] underline-offset-2 transition-colors hover:underline"
+        title="Preview your public referral page"
+      >
+        <HiOutlineGlobeAlt className="h-4 w-4 shrink-0" aria-hidden="true" />
+        <span className="min-w-0 truncate">{link}</span>
+      </a>
       <button type="button" onClick={copy} className={`${CRM_PRIMARY_BUTTON} justify-center`}>
         {copied ? "Copied!" : "Copy Link"}
       </button>
