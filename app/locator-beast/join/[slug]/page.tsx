@@ -102,7 +102,7 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
           <p className="text-[13px] font-semibold uppercase tracking-[0.16em] text-[#8fb3ff]">
             {hasBrokerageName ? `Join my network at ${brokerage}` : "Join my network"}
           </p>
-          <h1 className="mt-2 text-balance break-words text-[clamp(22px,6.1vw,26px)] font-bold leading-[1.12] tracking-tight sm:text-[clamp(26px,7vw,36px)]">
+          <h1 className="mt-4 text-balance break-words text-[clamp(22px,6.1vw,26px)] font-bold leading-[1.12] tracking-tight sm:text-[clamp(26px,7vw,36px)]">
             {/* Two clean lines on ALL viewports — "Get Free Access to the" /
                 "AI-Powered Locator Beast CRM" — via the intentional <br> before
                 "AI-Powered" plus a nowrap so it never splits at the hyphen. On

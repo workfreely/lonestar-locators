@@ -61,7 +61,7 @@ export default function JoinCtas({
       <div className="rounded-2xl border border-[#eef0f4] bg-[#f8f9fb] p-6 text-left">
         <div className="flex items-center gap-3">
           <StepBadge n={1} />
-          <h3 className="text-[19px] font-bold leading-tight text-[#0b0f1a]">Step 1: Join My Brokerage</h3>
+          <h3 className="text-[21px] font-bold leading-tight text-[#0b0f1a]">Step 1: Join My Brokerage</h3>
         </div>
         <p className="mt-3 text-[16px] leading-relaxed text-[#4b5563]">
           To become part of my network, you must join using my official {brokerageName} referral link
@@ -88,7 +88,7 @@ export default function JoinCtas({
       <div className="rounded-2xl border border-[#eef0f4] bg-[#f8f9fb] p-6 text-left">
         <div className="flex items-center gap-3">
           <StepBadge n={2} />
-          <h3 className="text-[19px] font-bold leading-tight text-[#0b0f1a]">Step 2: Get Locator Beast</h3>
+          <h3 className="text-[21px] font-bold leading-tight text-[#0b0f1a]">Step 2: Get Locator Beast</h3>
         </div>
         <p className="mt-3 text-[16px] leading-relaxed text-[#4b5563]">
           Already joined using my referral link? Create your Locator Beast account to request access.
@@ -107,7 +107,7 @@ export default function JoinCtas({
       <div className="rounded-2xl border border-[#eef0f4] bg-[#f8f9fb] p-6 text-left">
         <div className="flex items-center gap-3">
           <StepBadge n={3} />
-          <h3 className="text-[19px] font-bold leading-tight text-[#0b0f1a]">Step 3: Get Your Referral Link</h3>
+          <h3 className="text-[21px] font-bold leading-tight text-[#0b0f1a]">Step 3: Get Your Referral Link</h3>
         </div>
         <p className="mt-3 text-[16px] leading-relaxed text-[#4b5563]">
           Once active, you&rsquo;ll get your own referral link to invite other agents and give them free
