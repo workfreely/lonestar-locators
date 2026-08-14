@@ -89,12 +89,14 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
           <p className="text-[13px] font-semibold uppercase tracking-[0.16em] text-[#8fb3ff]">
             {hasBrokerageName ? `Join my network at ${brokerage}` : "Join my network"}
           </p>
-          <h1 className="mt-2 text-balance break-words text-[clamp(26px,7vw,36px)] font-bold leading-[1.12] tracking-tight">
-            {/* Force a clean two-line structure on ALL viewports —
-                "Get Free Access to the" / "AI-Powered Locator Beast CRM" — so the
-                second line always begins with "AI-Powered" (desktop AND mobile),
-                and keep "AI-Powered" from ever breaking between "AI-" and
-                "Powered". Headline sizing/weight/colors are unchanged. */}
+          <h1 className="mt-2 text-balance break-words text-[clamp(20px,5.9vw,23px)] font-bold leading-[1.12] tracking-tight sm:text-[clamp(26px,7vw,36px)]">
+            {/* Two clean lines on ALL viewports — "Get Free Access to the" /
+                "AI-Powered Locator Beast CRM" — via the intentional <br> before
+                "AI-Powered" plus a nowrap so it never splits at the hyphen. On
+                MOBILE the second line is too wide at the desktop size, so the
+                base font is reduced (clamp 20–23px) just enough to keep it to ONE
+                line at common iPhone widths without overflow; sm+ restores the
+                original desktop size (clamp 26–36px), which is unchanged. */}
             Get Free Access to the{" "}
             <br />
             <span className="whitespace-nowrap">AI-Powered</span> Locator Beast CRM

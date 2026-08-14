@@ -110,8 +110,8 @@ export default function JoinCtas({
           <h3 className="text-[19px] font-bold leading-tight text-[#0b0f1a]">Step 3: Get Your Referral Link</h3>
         </div>
         <p className="mt-3 text-[16px] leading-relaxed text-[#4b5563]">
-          Once your membership is active, you&rsquo;ll get your own personal referral link in your Locator
-          Beast CRM dashboard to invite other agents and give them free access to Locator Beast.
+          Once active, you&rsquo;ll get your own referral link to invite other agents and give them free
+          Locator Beast access.
         </p>
       </div>
 
