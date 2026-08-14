@@ -14,6 +14,19 @@ export const dynamic = "force-dynamic"
 // without losing this recruiting page.
 const LOCATOR_BEAST_FEATURES_URL = "https://locatorbeast.com"
 
+// DISPLAY-ONLY short forms for the hero supporting copy ("Join my {short}
+// network."). The STORED brokerage value is never modified — Step 1, the FAQ,
+// referral logic, and profile data all keep the full name. This is an EXPLICIT
+// allow-list, not word-stripping: only names listed here are shortened; every
+// other brokerage renders its full value verbatim. Keyed on the trimmed, lower-
+// cased full name. Add new mappings here as needed.
+const BROKERAGE_SHORT_NAMES: Record<string, string> = {
+  "relive realty": "Relive",
+}
+function brokerageShortName(fullName: string): string {
+  return BROKERAGE_SHORT_NAMES[fullName.trim().toLowerCase()] ?? fullName
+}
+
 type PublicJoin = {
   agent_name: string
   brokerage_name: string | null
@@ -89,14 +102,14 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
           <p className="text-[13px] font-semibold uppercase tracking-[0.16em] text-[#8fb3ff]">
             {hasBrokerageName ? `Join my network at ${brokerage}` : "Join my network"}
           </p>
-          <h1 className="mt-2 text-balance break-words text-[clamp(20px,5.9vw,23px)] font-bold leading-[1.12] tracking-tight sm:text-[clamp(26px,7vw,36px)]">
+          <h1 className="mt-2 text-balance break-words text-[clamp(22px,6.1vw,26px)] font-bold leading-[1.12] tracking-tight sm:text-[clamp(26px,7vw,36px)]">
             {/* Two clean lines on ALL viewports — "Get Free Access to the" /
                 "AI-Powered Locator Beast CRM" — via the intentional <br> before
                 "AI-Powered" plus a nowrap so it never splits at the hyphen. On
-                MOBILE the second line is too wide at the desktop size, so the
-                base font is reduced (clamp 20–23px) just enough to keep it to ONE
-                line at common iPhone widths without overflow; sm+ restores the
-                original desktop size (clamp 26–36px), which is unchanged. */}
+                MOBILE the base font is the LARGEST that still keeps line 2 on one
+                line at common iPhone widths (375/390/430) with no overflow:
+                clamp(22px,6.1vw,26px) → ~23px @375, ~24px @390, 26px @430. sm+
+                restores the original desktop size (clamp 26–36px), unchanged. */}
             Get Free Access to the{" "}
             <br />
             <span className="whitespace-nowrap">AI-Powered</span> Locator Beast CRM
@@ -110,7 +123,7 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
           </div>
 
           <p className="mx-auto mt-3 max-w-lg break-words text-[16px] font-medium leading-snug text-white/85 sm:text-[17px]">
-            Join my {brokerage} network. Get Locator Beast free.
+            Join my {brokerageShortName(brokerage)} network. Get Locator Beast free.
           </p>
           <a
             href={LOCATOR_BEAST_FEATURES_URL}
