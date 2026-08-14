@@ -14,19 +14,6 @@ export const dynamic = "force-dynamic"
 // without losing this recruiting page.
 const LOCATOR_BEAST_FEATURES_URL = "https://locatorbeast.com"
 
-// DISPLAY-ONLY short forms for the hero supporting copy ("Join my {short}
-// network."). The STORED brokerage value is never modified — Step 1, the FAQ,
-// referral logic, and profile data all keep the full name. This is an EXPLICIT
-// allow-list, not word-stripping: only names listed here are shortened; every
-// other brokerage renders its full value verbatim. Keyed on the trimmed, lower-
-// cased full name. Add new mappings here as needed.
-const BROKERAGE_SHORT_NAMES: Record<string, string> = {
-  "relive realty": "Relive",
-}
-function brokerageShortName(fullName: string): string {
-  return BROKERAGE_SHORT_NAMES[fullName.trim().toLowerCase()] ?? fullName
-}
-
 type PublicJoin = {
   agent_name: string
   brokerage_name: string | null
@@ -122,14 +109,11 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
             <AgentInfoText config={config} theme="dark" />
           </div>
 
-          <p className="mx-auto mt-3 max-w-lg break-words text-[16px] font-medium leading-snug text-white/85 sm:text-[17px]">
-            Join my {brokerageShortName(brokerage)} network. Get Locator Beast free.
-          </p>
           <a
             href={LOCATOR_BEAST_FEATURES_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-5 inline-flex items-center gap-1.5 text-[16px] font-semibold text-[#8fb3ff] transition-colors hover:text-white"
+            className="mt-5 inline-flex items-center gap-1.5 text-[18px] font-semibold text-[#8fb3ff] transition-colors hover:text-white"
           >
             See what&rsquo;s included in Locator Beast <span aria-hidden="true">&rarr;</span>
           </a>
