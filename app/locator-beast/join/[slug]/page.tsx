@@ -113,7 +113,7 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
             href={LOCATOR_BEAST_FEATURES_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-5 inline-flex items-center gap-1.5 text-[18px] font-semibold text-[#8fb3ff] transition-colors hover:text-white"
+            className="mt-3 inline-flex items-center gap-1.5 text-[18px] font-semibold text-[#8fb3ff] transition-colors hover:text-white"
           >
             See what&rsquo;s included in Locator Beast <span aria-hidden="true">&rarr;</span>
           </a>
