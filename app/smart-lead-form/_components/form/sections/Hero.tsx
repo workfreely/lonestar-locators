@@ -53,8 +53,14 @@ export default function Hero({ config }: { config: SmartLeadFormConfig }) {
     </p>
   )
 
+  // Gap from the CTA offer line (subheadline "Get Your Free Custom Apartment
+  // List") down to the highlights band. This single wrapper is the ONE rule for
+  // that boundary in BOTH photo-position modes (Under Headline and Overlapping
+  // both render subheadlineNode → highlightsNode in this file), so tightening it
+  // here moves the highlights ~8px closer to the CTA in both — and only there;
+  // it never touches the photo/identity spacing or the subheadline's own top gap.
   const highlightsNode = showHighlights && (
-    <div className="mt-6">
+    <div className="mt-4">
       <Highlights config={config} />
     </div>
   )
