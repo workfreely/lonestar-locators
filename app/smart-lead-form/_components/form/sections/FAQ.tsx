@@ -5,7 +5,11 @@ import { HiOutlineChevronDown } from "react-icons/hi2"
 import type { SmartLeadFormConfig } from "../../../_lib/types"
 
 export default function FAQ({ config }: { config: SmartLeadFormConfig }) {
-  const [openIndex, setOpenIndex] = useState<number | null>(0)
+  // Expanded by default (like the public Beast Referral Network FAQ): visitors
+  // can immediately scan every question AND answer on load. Still an accordion —
+  // we track only the indices the visitor has explicitly COLLAPSED, so the
+  // default (empty set) shows all open and any newly-added FAQ opens too.
+  const [closedIndices, setClosedIndices] = useState<Set<number>>(() => new Set())
 
   return (
     <section className="px-5 py-10 sm:px-8">
@@ -15,12 +19,19 @@ export default function FAQ({ config }: { config: SmartLeadFormConfig }) {
         </p>
         <div className="mt-5 flex flex-col divide-y divide-[#eef0f4] border-y border-[#eef0f4]">
           {config.copy.faqs.map((item, i) => {
-            const isOpen = openIndex === i
+            const isOpen = !closedIndices.has(i)
             return (
               <div key={i}>
                 <button
                   type="button"
-                  onClick={() => setOpenIndex(isOpen ? null : i)}
+                  onClick={() =>
+                    setClosedIndices((prev) => {
+                      const next = new Set(prev)
+                      if (next.has(i)) next.delete(i)
+                      else next.add(i)
+                      return next
+                    })
+                  }
                   className="flex w-full min-w-0 items-center justify-between gap-4 py-4 text-left"
                 >
                   <span className="min-w-0 break-words text-[17px] font-semibold text-[#111318]">{item.question}</span>

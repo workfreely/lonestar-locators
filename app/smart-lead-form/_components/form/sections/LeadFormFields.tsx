@@ -43,6 +43,9 @@ const inputClass =
   "w-full rounded-xl border border-[#cbd0da] bg-white px-4 py-3.5 text-[17px] text-[#111318] outline-none transition-colors focus:border-[#2f6bff]"
 const labelClass = "text-[14px] font-semibold text-[#374151]"
 const noteClass = "mt-1.5 text-[15px] leading-relaxed text-[#4b5563]"
+// Yellow informational box shared by the Rental Background and Criminal
+// Background explanations (single source so the two never visually drift).
+const infoBoxClass = "mt-1 rounded-lg border border-[#f0d98a] bg-[#fff8e1] p-3 text-[13px] leading-relaxed text-[#6b5b2e]"
 
 // ── Move-in date helpers (timezone-safe) ─────────────────────────────────────
 // Parse a stored "YYYY-MM-DD" as a LOCAL calendar date (via parts, never
@@ -545,7 +548,7 @@ export default function LeadFormFields({
                 <option key={o} value={o}>{o}</option>
               ))}
             </select>
-            <div className={noteClass}>Most communities require income of about 3x the monthly rent.</div>
+            <div className={noteClass}>Most communities require 3× the rent.</div>
           </div>
         )}
 
@@ -572,7 +575,7 @@ export default function LeadFormFields({
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
-          <div className="mt-1 rounded-lg border border-[#f0d98a] bg-[#fff8e1] p-3 text-[13px] leading-relaxed text-[#6b5b2e]">
+          <div className={infoBoxClass}>
             Please answer honestly. Some apartments are flexible depending on the situation, and this helps us match you with communities that are more likely to approve you.
           </div>
         </div>
@@ -638,7 +641,7 @@ export default function LeadFormFields({
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
-          <div className={noteClass}>
+          <div className={infoBoxClass}>
             Some communities have restrictions based on certain offenses. This helps us avoid wasting your time on properties that may not work.
           </div>
         </div>

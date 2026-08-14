@@ -137,8 +137,9 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
               Locator Beast access.
             </Faq>
             <Faq q={`What if I'm already with ${brokerage}?`}>
-              You must join through a Beast Referral Network Member&rsquo;s referral link to qualify. This benefit
-              cannot be added after joining through another referral.
+              To qualify, you must join {brokerage} through a Locator Beast Referral Network member&rsquo;s
+              referral link. Free access cannot be added after joining through an agent who is not a Locator
+              Beast member.
             </Faq>
             <Faq q="When do I get access to Locator Beast?">
               After joining, create your Locator Beast account. Your free access will be activated once
