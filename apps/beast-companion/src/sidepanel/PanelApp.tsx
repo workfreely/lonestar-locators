@@ -39,6 +39,7 @@ export function PanelApp({
   onCompleteBuildList,
   onSendList,
   onSendFollowUp,
+  onScheduleTour,
   onBackToCrm,
   timeZone,
 }: {
@@ -65,6 +66,8 @@ export function PanelApp({
   onSendList?: () => void;
   // Phase 3 — clicking a Follow-Up launches SMS then opens the confirmation sheet.
   onSendFollowUp?: () => void;
+  // Clicking "Schedule Tour" opens the tour-scheduled confirmation sheet (MVP).
+  onScheduleTour?: () => void;
   // Phase 3 — focus the existing CRM tab from the list-building workflow.
   onBackToCrm?: () => void;
   // Saved locator IANA timezone for Due/Completed formatting (falls back inside
@@ -171,6 +174,7 @@ export function PanelApp({
               onCompleteBuildList={onCompleteBuildList}
               onSendList={onSendList}
               onSendFollowUp={onSendFollowUp}
+              onScheduleTour={onScheduleTour}
               onBackToCrm={onBackToCrm}
               timeZone={timeZone}
             />

@@ -1,4 +1,4 @@
-import type { LeadSummaryDTO, NextActionDTO } from "@bc/companion-shared"
+import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO } from "@bc/companion-shared"
 import { isLeadStage } from "@bc/companion-shared"
 import { getNextAction } from "@/lib/nextAction"
 import { getSourceStyle } from "@/lib/leads/sourceStyles"
@@ -16,6 +16,10 @@ export const COMPANION_MSG_SOURCE = "lb-companion"
 export type CompanionActiveClientPayload = {
   lead: LeadSummaryDTO
   nextActions: NextActionDTO[]
+  /** THIS client's saved Favorite Properties — the ONLY properties a tour can be
+   *  scheduled against (Schedule Tour requires one). Same lead_favorites records
+   *  the CRM shows; never a separate copy. */
+  favorites?: FavoriteDTO[]
   agentName?: string | null
   /** The locator's saved IANA timezone — the Companion formats Due / Completed /
    *  workflow times in THIS zone (via formatDueDateTime's timeZone), so display
@@ -122,6 +126,9 @@ export function buildActiveClientPayload(
   agentName?: string | null,
   latestOutreach: LatestOutreach = null,
   timeZone?: string | null,
+  // THIS lead's saved Favorite Properties (lead_favorites rows). Mapped to the
+  // read-only FavoriteDTO the Schedule Tour dropdown renders.
+  favorites: any[] = [],
 ): CompanionActiveClientPayload {
   const crmStatus = str(lead.crm_status) ?? "new"
   const historyLower = String(lead.credit_history || "").toLowerCase()
@@ -252,5 +259,14 @@ export function buildActiveClientPayload(
     }
   }
 
-  return { lead: dto, nextActions: actions, agentName: str(agentName), timeZone: str(timeZone) }
+  const favoriteDtos: FavoriteDTO[] = (favorites || [])
+    .filter((f: any) => String(f.lead_id) === String(lead.id))
+    .map((f: any) => ({
+      id: f.id,
+      propertyName: str(f.property_name) ?? "Property",
+      propertyAddress: str(f.property_address),
+      propertyUrl: str(f.property_url),
+    }))
+
+  return { lead: dto, nextActions: actions, favorites: favoriteDtos, agentName: str(agentName), timeZone: str(timeZone) }
 }

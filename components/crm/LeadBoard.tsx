@@ -67,6 +67,7 @@ function matchesSearch(lead: any, query: string): boolean {
 export default function LeadBoard({
   leads,
   setLeads,
+  nextActions,
   selectedLeadId,
   onSelectLead,
   onWorkflowAction,
@@ -76,6 +77,12 @@ export default function LeadBoard({
 }: {
   leads: any[]
   setLeads: React.Dispatch<React.SetStateAction<any[]>>
+  // Open workflow/manual actions for all leads — passed to the cards so each
+  // card's Next Action derives from the SAME canonical ranked state as the Lead
+  // Panel / Agenda (e.g. shows "Tour Follow-Up" after a tour is scheduled, not
+  // the stage's automatic "Schedule Tour"). Optional: cards fall back to the
+  // stage action when omitted (unchanged behavior).
+  nextActions?: any[]
   selectedLeadId?: string | number | null
   onSelectLead?: (id: string | number) => void
   // Called with whatever the Workflow Engine created (if anything) for a
@@ -349,6 +356,7 @@ export default function LeadBoard({
               id={col.id}
               title={col.title}
               view={view}
+              nextActions={nextActions}
               emptyMessage={searchQuery.trim() ? "No matching leads found." : "No leads"}
               leads={leads
                 .filter((lead) => lead.crm_status === col.id && matchesSearch(lead, searchQuery))
@@ -410,6 +418,7 @@ export default function LeadBoard({
                 isSelected={false}
                 view={view}
                 onSelect={() => {}}
+                nextActions={nextActions}
               />
             </div>
           ) : null}

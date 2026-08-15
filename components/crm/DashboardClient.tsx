@@ -28,6 +28,7 @@ import { recordPendingOutreach } from "@/lib/leads/pendingOutreach"
 import { completeBuildList, startBuildList } from "@/lib/leads/buildListWorkflow"
 import { completeSendList } from "@/lib/leads/sendListWorkflow"
 import { completeFollowUp } from "@/lib/leads/followUpWorkflow"
+import { completeSetupTour, rescheduleTour, cancelTour, localTourToUtc } from "@/lib/leads/setupTourWorkflow"
 import { getNextFollowUpAction } from "@/lib/workflowEngine"
 import { followUpSuccessorDueAt } from "@/lib/workflow/moveDateCadence"
 import { autoDueInDays } from "@/lib/workflow/autoDueDate"
@@ -49,7 +50,7 @@ function titleCaseName(name: string): string {
 // whether the component mounts. Set to `true` to show it again in dev.
 const SHOW_LEGACY_LEAD_PANEL = process.env.NODE_ENV === "production"
 
-export default function DashboardClient({ leads, nextActions, favorites, outreach = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, timeZone = DEFAULT_TIMEZONE }: { leads: any[]; nextActions: any[]; favorites: any[]; outreach?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; timeZone?: string }) {
+export default function DashboardClient({ leads, nextActions, favorites, outreach = [], tours = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, timeZone = DEFAULT_TIMEZONE }: { leads: any[]; nextActions: any[]; favorites: any[]; outreach?: any[]; tours?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; timeZone?: string }) {
   const router = useRouter()
   const [selectedLeadId, setSelectedLeadId] = useState<string | number | null>(null)
   // Centered CRM contact modal for a New→Contacted DRAG (the Kanban presentation
@@ -135,6 +136,11 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
   const outreachFor = (leadId: string | number): LatestOutreach =>
     latestOutreachRef.current[String(leadId)] ?? null
   const [localFavorites, setLocalFavorites] = useState(favorites)
+  // Canonical lead_tours appointments (read-only in the Workspace). Seeded from
+  // the server and appended optimistically on "Yes, Scheduled" so the Favorite's
+  // "Tour Scheduled" line appears without a manual refresh (same optimistic-state
+  // pattern as localFavorites / localNextActions — the CRM has no refetch path).
+  const [localTours, setLocalTours] = useState(tours)
   const [showLeadModal, setShowLeadModal] = useState(false)
   const [followUpsOpen, setFollowUpsOpen] = useState(DEFAULT_AGENDA_EXPANDED)
   const [pendingEditActionId, setPendingEditActionId] = useState<number | null>(null)
@@ -185,7 +191,7 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
     if (!selectedLead) return
     if (typeof window === "undefined") return
     try {
-      const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone)
+      const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites)
       companionLeadIdRef.current = selectedLead.id // this lead is now what Companion shows
       window.postMessage(
         { source: COMPANION_MSG_SOURCE, type: "active-client", payload },
@@ -194,16 +200,18 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
     } catch {
       /* bridge is best-effort; never block the CRM on a Companion push */
     }
-  }, [selectedLead, localNextActions, agent?.name, latestOutreach])
+  }, [selectedLead, localNextActions, agent?.name, latestOutreach, localFavorites])
 
   // ── Beast Companion → CRM workflow verbs (Phase 3, Slice A: Contact) ────────
   // Refs so the once-registered verb listener always sees current CRM state
   // without re-subscribing on every keystroke of state change.
   const localLeadsRef = useRef(localLeads)
   const localNextActionsRef = useRef(localNextActions)
+  const localFavoritesRef = useRef(localFavorites)
   const selectedLeadIdRef = useRef(selectedLeadId)
   useEffect(() => { localLeadsRef.current = localLeads }, [localLeads])
   useEffect(() => { localNextActionsRef.current = localNextActions }, [localNextActions])
+  useEffect(() => { localFavoritesRef.current = localFavorites }, [localFavorites])
   useEffect(() => { selectedLeadIdRef.current = selectedLeadId }, [selectedLeadId])
 
   // The lead Beast Companion is CURRENTLY SHOWING — distinct from selectedLeadId.
@@ -229,7 +237,7 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
     if (typeof window === "undefined" || !lead) return
     if (String(lead.id) !== String(companionLeadIdRef.current)) return
     try {
-      const payload = buildActiveClientPayload(lead, nextActionsForLead, agent?.name, outreachFor(lead.id), timeZone)
+      const payload = buildActiveClientPayload(lead, nextActionsForLead, agent?.name, outreachFor(lead.id), timeZone, localFavoritesRef.current)
       window.postMessage(
         { source: COMPANION_MSG_SOURCE, type: "active-client", payload },
         window.location.origin
@@ -237,6 +245,98 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
     } catch {
       /* best-effort */
     }
+  }
+
+  // ── Canonical tour edit/cancel (Workspace Favorite → Edit / Cancel Tour) ────
+  // Both route through the SAME rescheduleTour / cancelTour helpers as any future
+  // Companion edit would, and reconcile the SAME optimistic state (localTours +
+  // localNextActions + localLeads) + re-post to Companion, so the Next Action
+  // stays consistent across surfaces without a refresh.
+  function findOpenTourFollowUp(leadId: any) {
+    return localNextActionsRef.current.find(
+      (a: any) =>
+        String(a.lead_id) === String(leadId) &&
+        !a.completed &&
+        (String(a.action_key ?? "") === "tour_follow_up" || String(a.title ?? "").trim().toLowerCase() === "tour follow-up")
+    )
+  }
+  function findCompletedSetupTour(leadId: any) {
+    return localNextActionsRef.current.find(
+      (a: any) =>
+        String(a.lead_id) === String(leadId) &&
+        (a.completed === true || a.status === "completed") &&
+        (String(a.action_key ?? "") === "setup_tour" || String(a.title ?? "").trim().toLowerCase() === "setup tour")
+    )
+  }
+
+  async function handleRescheduleTour(lead: any, args: { tourId: number | string; propertyId: string; tourDate: string; tourTime: string }) {
+    const now = new Date().toISOString()
+    const tourDate = String(args.tourDate ?? "").trim()
+    const tourTime = String(args.tourTime ?? "").trim()
+    const rawProperty = String(args.propertyId ?? "").trim()
+    if (!tourDate || !tourTime || !rawProperty) return
+    // Only a numeric Favorite id links the tour; "__other__"/"__none__" → null.
+    const favProp: string | null = /^\d+$/.test(rawProperty) ? rawProperty : null
+    const favId = favProp == null ? null : Number(favProp)
+    const scheduledAt = localTourToUtc(tourDate, tourTime, timeZone ?? undefined)
+    const followRow = findOpenTourFollowUp(lead.id)
+
+    await rescheduleTour({
+      lead,
+      tourId: args.tourId,
+      scheduledAt,
+      propertyId: favProp,
+      followUpActionRow: followRow ? { id: followRow.id } : null,
+      now,
+      onOptimistic: (updated, due) => {
+        setLocalLeads((prev) => prev.map((l) => (String(l.id) === String(updated.id) ? { ...l, ...updated } : l)))
+        setLocalTours((prev) =>
+          prev.map((t) => (String(t.id) === String(args.tourId) ? { ...t, scheduled_at: scheduledAt, property_id: favId } : t))
+        )
+        const merged = localNextActionsRef.current.map((a: any) =>
+          followRow && String(a.id) === String(followRow.id) ? { ...a, due_at: due } : a
+        )
+        setLocalNextActions(merged)
+        postCompanionActiveClient({ ...lead, ...updated }, merged)
+      },
+    })
+  }
+
+  async function handleCancelTour(lead: any, args: { tourId: number | string }) {
+    const now = new Date().toISOString()
+    const followRow = findOpenTourFollowUp(lead.id)
+    const setupRow = findCompletedSetupTour(lead.id)
+
+    await cancelTour({
+      lead,
+      tourId: args.tourId,
+      setupTourRow: setupRow ? { id: setupRow.id } : null,
+      followUpActionRow: followRow ? { id: followRow.id } : null,
+      now,
+      onOptimistic: (updated, remainingDue) => {
+        setLocalLeads((prev) => prev.map((l) => (String(l.id) === String(updated.id) ? { ...l, ...updated } : l)))
+        // Mark this tour canceled locally → it drops off the Favorite display.
+        setLocalTours((prev) => prev.map((t) => (String(t.id) === String(args.tourId) ? { ...t, status: "canceled" } : t)))
+        let merged: any[]
+        if (remainingDue) {
+          // Other tours remain → retime the SAME follow-up; stay tour-scheduled.
+          merged = localNextActionsRef.current.map((a: any) =>
+            followRow && String(a.id) === String(followRow.id) ? { ...a, due_at: remainingDue } : a
+          )
+        } else {
+          // Fully canceled → drop the follow-up + reopen Schedule Tour (immediate).
+          merged = localNextActionsRef.current
+            .filter((a: any) => !(followRow && String(a.id) === String(followRow.id)))
+            .map((a: any) =>
+              setupRow && String(a.id) === String(setupRow.id)
+                ? { ...a, completed: false, completed_at: null, status: "open", due_at: now }
+                : a
+            )
+        }
+        setLocalNextActions(merged)
+        postCompanionActiveClient({ ...lead, ...updated }, merged)
+      },
+    })
   }
 
   // ── Canonical contact appliers — the ONE implementation used by BOTH the
@@ -383,7 +483,8 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
         payload.verb !== "start-build-list" &&
         payload.verb !== "complete-build-list" &&
         payload.verb !== "complete-send-list" &&
-        payload.verb !== "complete-follow-up"
+        payload.verb !== "complete-follow-up" &&
+        payload.verb !== "complete-setup-tour"
       )
         return
 
@@ -721,6 +822,104 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
         return
       }
 
+      // "Yes, Scheduled" (Schedule Tour confirmation) — inserts the canonical
+      // lead_tours appointment, completes the captured setup_tour row, KEEPS the
+      // lead in Ready to Tour (scheduling ≠ touring), and creates exactly ONE Tour
+      // Follow-Up due = last active scheduled tour + 2h (never Done Touring, never
+      // a second Schedule Tour). Canonical path is completeSetupTour; re-posts so
+      // Companion updates without a re-click.
+      if (payload.verb === "complete-setup-tour") {
+        const now = new Date().toISOString()
+        // The tour's local wall-clock (from the Companion) → the canonical UTC
+        // instant, using the locator's resolved zone. Bail if it's missing.
+        const tourDate = String(payload.tourDate ?? "").trim()
+        const tourTime = String(payload.tourTime ?? "").trim()
+        // A property CHOICE is required (a Favorite, "Other Property", or "Schedule
+        // Without Property"), but only a numeric Favorite id links the tour —
+        // the "__other__"/"__none__" sentinels leave property_id null (nullable).
+        const rawProperty = String(payload.propertyId ?? "").trim()
+        if (!tourDate || !tourTime || !rawProperty) return
+        const propertyId: string | null = /^\d+$/.test(rawProperty) ? rawProperty : null
+        const scheduledAt = localTourToUtc(tourDate, tourTime, timeZone ?? undefined)
+
+        const tourRow = localNextActionsRef.current.find(
+          (a: any) =>
+            String(a.lead_id) === String(lead.id) &&
+            !a.completed &&
+            (String(a.action_key ?? "") === "setup_tour" ||
+              String(a.title ?? "").trim().toLowerCase() === "setup tour")
+        )
+
+        // No persisted setup_tour row to mark (demo leads, or a synthesized Setup
+        // Tour): record the COMPLETED setup_tour locally so Last Action derives
+        // "Tour Scheduled" — NOT the stage.
+        const completedTourLocal = !tourRow
+          ? {
+              id: `local-tour-${lead.id}-${Date.now()}`,
+              lead_id: lead.id,
+              title: "Setup Tour",
+              action_key: "setup_tour",
+              completed: true,
+              completed_at: now,
+              status: "completed",
+            }
+          : null
+
+        completeSetupTour({
+          lead,
+          actionRow: tourRow ? { id: tourRow.id } : null,
+          scheduledAt,
+          propertyId,
+          now,
+          onOptimistic: (updated, tourFollowUpDue) => {
+            setLocalLeads((prev) =>
+              prev.map((l) =>
+                String(l.id) === String(updated.id)
+                  ? { ...l, ...updated, _justDropped: true }
+                  : { ...l, _justDropped: false }
+              )
+            )
+            const marked = localNextActionsRef.current.map((a: any) =>
+              tourRow && String(a.id) === String(tourRow.id)
+                ? { ...a, completed: true, completed_at: now }
+                : a
+            )
+            // Demo leads never hit the DB, so completeSetupTour returns before it
+            // creates the tour_follow_up — synthesize the ONE open Tour Follow-Up
+            // locally (real leads get it from onWorkflowAction below).
+            const demoTourFollowUp: any = isDemoLeadId(lead.id)
+              ? {
+                  id: `demo-act-tourfu-${lead.id}-${Date.now()}`,
+                  lead_id: lead.id,
+                  title: "Tour Follow-Up",
+                  action_key: "tour_follow_up",
+                  due_at: tourFollowUpDue,
+                  priority: "medium",
+                  completed: false,
+                }
+              : null
+            const merged = [
+              ...marked,
+              ...(completedTourLocal ? [completedTourLocal] : []),
+              ...(demoTourFollowUp ? [demoTourFollowUp] : []),
+            ]
+            setLocalNextActions(merged)
+            postCompanionActiveClient({ ...lead, ...updated }, merged)
+            if (demoTourFollowUp) emitWorkflowActionCreated(demoTourFollowUp)
+          },
+          onWorkflowAction: (a) => {
+            setLocalNextActions((prev) => [...prev, a])
+            postCompanionActiveClient({ ...lead }, [...localNextActionsRef.current, a])
+          },
+          onTourScheduled: (t) => {
+            // Surface the appointment under its Favorite in the Workspace right
+            // away (read-only); a fresh id keeps React keys stable pre-refetch.
+            setLocalTours((prev) => [...prev, { id: `local-tour-row-${lead.id}-${Date.now()}`, ...t }])
+          },
+        })
+        return
+      }
+
       const method: "call" | "text" = payload.method === "call" ? "call" : "text"
 
       if (payload.verb === "contact-attempt") {
@@ -900,6 +1099,7 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
           <LeadBoard
             leads={localLeads}
             setLeads={setLocalLeads}
+            nextActions={localNextActions}
             selectedLeadId={selectedLeadId}
             onSelectLead={(id) => {
               setSelectedLeadId(id)
@@ -999,6 +1199,10 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
                     setFavorites={setLocalFavorites}
                     nextActions={localNextActions}
                     setNextActions={setLocalNextActions}
+                    tours={localTours}
+                    timeZone={timeZone}
+                    onRescheduleTour={handleRescheduleTour}
+                    onCancelTour={handleCancelTour}
                   />
                   <LeadNotes
                     lead={selectedLead}

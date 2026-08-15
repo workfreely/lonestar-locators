@@ -104,6 +104,26 @@ async function getFavorites() {
   return data || []
 }
 
+// Scheduled tours — the canonical lead_tours appointments (source of truth) used
+// read-only in the Workspace to surface "Tour Scheduled" under the linked
+// Favorite. Only status='scheduled' rows are fetched; the client picks the
+// upcoming one per Favorite (see selectUpcomingTour).
+async function getScheduledTours() {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("lead_tours")
+    .select("id, lead_id, property_id, scheduled_at, status")
+    .eq("status", "scheduled")
+    .order("scheduled_at", { ascending: true })
+
+  if (error) {
+    console.error("Error fetching tours:", error.message)
+    return []
+  }
+
+  return data || []
+}
+
 // When the signed-in user's profile has demo_mode on, the CRM opens on a
 // fully populated sample workspace (client-side fixtures) instead of the real
 // shared leads — nothing is written to the leads table. See lib/demo.
@@ -168,6 +188,7 @@ export default async function Page() {
         nextActions={DEMO_NEXT_ACTIONS}
         favorites={DEMO_FAVORITES}
         outreach={[]}
+        tours={[]}
         demoMode
         firstName={firstName}
         googleConnected={googleConnected}
@@ -179,12 +200,13 @@ export default async function Page() {
     )
   }
 
-  const [leads, nextActions, favorites, outreach] = await Promise.all([
+  const [leads, nextActions, favorites, outreach, tours] = await Promise.all([
     getLeads(),
     getOpenNextActions(),
     getFavorites(),
     getLatestOutreach(),
+    getScheduledTours(),
   ])
 
-  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} outreach={outreach} agent={agent} signature={signature} avgCommission={avgCommission} timeZone={timeZone} />
+  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} outreach={outreach} tours={tours} agent={agent} signature={signature} avgCommission={avgCommission} timeZone={timeZone} />
 }

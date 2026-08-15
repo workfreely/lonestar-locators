@@ -130,6 +130,18 @@ export const leadDetailSchema = z.object({
 });
 export type LeadDetailDTO = z.infer<typeof leadDetailSchema>;
 
+/** A saved Favorite Property (lead_favorites) — the ONLY source of properties a
+ *  tour can be scheduled against. Read-only projection the Companion renders in
+ *  the Schedule Tour property dropdown; `id` is the stable lead_favorites.id that
+ *  the scheduled tour (lead_tours.property_id) references. */
+export const favoriteSchema = z.object({
+  id: z.union([z.number(), z.string()]),
+  propertyName: z.string(),
+  propertyAddress: z.string().nullish(),
+  propertyUrl: z.string().nullish(),
+});
+export type FavoriteDTO = z.infer<typeof favoriteSchema>;
+
 // ── Request DTOs (validate on the server) ────────────────────────────────────
 export const advanceStageInput = z.object({
   leadId: leadIdSchema,

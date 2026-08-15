@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useRef, useState } from "react"
+import { useMemo, useState } from "react"
+import { to24Hour, from24Hour } from "@bc/companion-shared"
 
 // A fully self-contained date + time picker. Unlike a native
 // <input type="date/datetime-local">, the calendar, the time controls, and the
@@ -51,11 +52,12 @@ export default function DateTimePicker({
     const base = initial?.date ?? now
     return new Date(base.getFullYear(), base.getMonth(), 1)
   })
-  // Time — default to a sensible 9:00 AM for new tasks.
-  const init12 = initial ? ((initial.hour24 % 12) || 12) : 9
-  const [hour12, setHour12] = useState<number>(init12)
-  const [minute, setMinute] = useState<number>(initial?.minute ?? 0)
-  const [period, setPeriod] = useState<"AM" | "PM">(initial ? (initial.hour24 >= 12 ? "PM" : "AM") : "AM")
+  // Time — default to a sensible 9:00 AM for new tasks. The 12h↔24h split is the
+  // shared helper (from24Hour), the same one the Companion Tour Time picker uses.
+  const initTime = initial ? from24Hour(`${pad(initial.hour24)}:${pad(initial.minute)}`) : { hour12: 9, minute: 0, period: "AM" as const }
+  const [hour12, setHour12] = useState<number>(initTime.hour12)
+  const [minute, setMinute] = useState<number>(initTime.minute)
+  const [period, setPeriod] = useState<"AM" | "PM">(initTime.period)
 
   const year = viewMonth.getFullYear()
   const month = viewMonth.getMonth()
@@ -76,9 +78,8 @@ export default function DateTimePicker({
 
   function handleApply() {
     if (!selectedDate) return
-    let h24 = hour12 % 12
-    if (period === "PM") h24 += 12
-    const v = `${selectedDate.getFullYear()}-${pad(selectedDate.getMonth() + 1)}-${pad(selectedDate.getDate())}T${pad(h24)}:${pad(minute)}`
+    const time = to24Hour(hour12, minute, period) // shared 12h→"HH:mm"
+    const v = `${selectedDate.getFullYear()}-${pad(selectedDate.getMonth() + 1)}-${pad(selectedDate.getDate())}T${time}`
     onApply(v)
   }
 

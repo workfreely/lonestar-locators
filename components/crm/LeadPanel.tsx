@@ -15,7 +15,7 @@ import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import LeadSourceBadge from "./LeadSourceBadge"
 import { inferMarketFromLandingPage } from "@/lib/leads/inferMarketFromLandingPage"
 import { ARCHIVE_REASONS } from "@/lib/leads/archiveReasons"
-import { rankLeadActions } from "@/lib/nextActions"
+import { rankLeadActions, isTourScheduled } from "@/lib/nextActions"
 import { getNextFollowUpAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
 import { autoDueInDays } from "@/lib/workflow/autoDueDate"
 import { followUpSuccessorDueAt } from "@/lib/workflow/moveDateCadence"
@@ -541,11 +541,28 @@ export default function LeadPanel({
   // Last Action — the most recently completed action + when. First contact uses
   // the persisted first_text_sent_at; a message action completed in place (its
   // own button, via the return-to-focus stamp) uses completedAtTs.
+  // Tour scheduled ("Yes, Scheduled" completed the setup_tour row): Last Action is
+  // "Tour Scheduled" (derived from that completed row via the label system) and the
+  // Next Action is the newly-open Tour Follow-Up — NOT "none". Shares the exact
+  // predicate the Agenda/ranking use, so every surface agrees.
+  const tourScheduled = isTourScheduled(lead, nextActions as any)
+  const completedSetupTourAt = tourScheduled
+    ? (nextActions as any[]).find(
+        (a) =>
+          String(a.lead_id) === String(lead.id) &&
+          (a.completed === true || a.status === "completed") &&
+          (String(a.action_key ?? "").toLowerCase() === "setup_tour" ||
+            String(a.title ?? "").trim().toLowerCase() === "setup tour")
+      )?.completed_at ?? null
+    : null
+
   const lastAction: { title: string; completedAt: string } | null =
     justContacted && lead.first_text_sent_at
       ? { title: "Contact Lead", completedAt: lead.first_text_sent_at }
       : completedAtTs
       ? { title: primaryAction.title, completedAt: completedAtTs }
+      : tourScheduled && completedSetupTourAt
+      ? { title: "Setup Tour", completedAt: completedSetupTourAt }
       : null
 
   // Next Action — the next OPEN, actionable task. Null when the primary was just

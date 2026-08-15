@@ -2,6 +2,7 @@
 
 import { useDraggable } from "@dnd-kit/core"
 import { getNextAction } from "@/lib/nextAction"
+import { rankLeadActions } from "@/lib/nextActions"
 import { formatWorkflowActionLabel } from "@/lib/leads/workflowActionLabels"
 import { useState, useRef, useLayoutEffect } from "react"
 import { formatPhone } from "@/lib/utils/formatPhone"
@@ -60,6 +61,7 @@ function getFollowUpStatus(date: string) {
 
 export default function LeadCard({
   lead,
+  nextActions,
   isSelected,
   onSelect,
   onArchive,
@@ -115,7 +117,19 @@ export default function LeadCard({
   const approvalClass = isHighRisk ? "kb-pill--crit" : isMediumRisk ? "kb-pill--warn" : "kb-pill--ok"
 
   // ─── Next action + urgency ──────────────────────────────────────────────
-  const action = getNextAction(lead)
+  // Derive the Next Action from the SAME canonical ranked state the Lead Panel /
+  // Agenda use — so a scheduled tour shows "Tour Follow-Up" (not the stage's
+  // automatic "Schedule Tour"), guest-card leads show the guest card, etc. Falls
+  // back to the stage action when the actions aren't provided (unchanged).
+  const rankedPrimary =
+    Array.isArray(nextActions)
+      ? rankLeadActions(
+          lead,
+          nextActions.filter((a: any) => String(a.lead_id) === String(lead.id)),
+          getNextAction(lead)
+        ).primary
+      : null
+  const action = rankedPrimary ? rankedPrimary.title : getNextAction(lead)
   const followUpStatus =
     lead.next_action_date && lead.crm_status !== "archived"
       ? getFollowUpStatus(lead.next_action_date)

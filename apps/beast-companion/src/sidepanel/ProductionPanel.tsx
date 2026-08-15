@@ -1,7 +1,8 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import type { LeadSummaryDTO, NextActionDTO } from "@bc/companion-shared";
-import { formatPersonName, buildIntroSmsBody, buildFollowUpSmsBody, isFollowUpAction, formatWorkflowActionLabel } from "@bc/companion-shared";
+import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO } from "@bc/companion-shared";
+import { formatPersonName, buildIntroSmsBody, buildFollowUpSmsBody, isFollowUpAction, formatWorkflowActionLabel, DEFAULT_TIME_VALUE } from "@bc/companion-shared";
 import { PanelApp } from "./PanelApp";
+import { TourTimeField } from "./lead/TourTimeField";
 import { DISCONNECTED, type CompanionConnection } from "./connection";
 
 /**
@@ -28,6 +29,9 @@ import { DISCONNECTED, type CompanionConnection } from "./connection";
 type ActiveClientPayload = {
   lead: LeadSummaryDTO;
   nextActions?: NextActionDTO[];
+  // THIS client's saved Favorite Properties — the only properties a tour can be
+  // scheduled against (Schedule Tour requires one).
+  favorites?: FavoriteDTO[];
   agentName?: string | null;
   // Saved locator IANA timezone — Companion formats Due/Completed times in this
   // zone so it matches the CRM regardless of the device's zone.
@@ -81,6 +85,21 @@ export function ProductionPanel() {
     name: string;
   }>(null);
 
+  // Schedule Tour confirmation ("Did you schedule the tour for {name}?"). Null =
+  // hidden. Captures the lead id + open setup_tour identity at click time so a
+  // later active-client switch cannot complete the wrong client's action.
+  const [scheduleTourConfirm, setScheduleTourConfirm] = useState<null | {
+    leadId: string | number;
+    actionId: string | number | null;
+    name: string;
+  }>(null);
+  // The selected Favorite Property (lead_favorites.id) + tour's local wall-clock.
+  // Captured in the sheet before confirming; a tour can ONLY be scheduled for an
+  // existing Favorite, so property is required alongside date/time.
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string>("");
+  const [tourDate, setTourDate] = useState<string>(""); // "YYYY-MM-DD"
+  const [tourTime, setTourTime] = useState<string>(""); // "HH:mm"
+
   // ── SW connection status (token auth — not yet built) ─────────────────────
   useEffect(() => {
     const rt = (globalThis as unknown as { chrome?: any }).chrome?.runtime;
@@ -125,6 +144,24 @@ export function ProductionPanel() {
     sc?.addListener(onChanged);
     return () => sc?.removeListener(onChanged);
   }, []);
+
+  // ── Client-context guard for Schedule Tour ────────────────────────────────
+  // The contact / send-list / follow-up sheets intentionally CAPTURE their lead
+  // identity and resolve against it even after a switch. Schedule Tour is
+  // different: it carries a multi-field DRAFT (Favorite + date + time) bound to
+  // ONE client's Favorites, so if the active client changes while it's open we
+  // must CLOSE it and discard the draft — never float Client A's half-filled
+  // sheet over Client B's data. No other Companion sheet does close-on-change, so
+  // this guard is Schedule-Tour-specific (audited: nothing canonical to share).
+  const activeLeadId = active?.lead?.id ?? null;
+  useEffect(() => {
+    if (scheduleTourConfirm && String(activeLeadId) !== String(scheduleTourConfirm.leadId)) {
+      setScheduleTourConfirm(null);
+      setSelectedPropertyId("");
+      setTourDate("");
+      setTourTime("");
+    }
+  }, [activeLeadId, scheduleTourConfirm]);
 
   const rt = () => (globalThis as unknown as { chrome?: any }).chrome?.runtime;
   const onConnect = () => rt()?.sendMessage?.({ type: "companion:start-connect" });
@@ -386,6 +423,66 @@ export function ProductionPanel() {
     }
   };
 
+  // Schedule Tour → open the confirmation sheet directly. MVP: there is no tour-
+  // scheduling workspace yet, so this is a temporary handoff — it opens NOTHING
+  // external and changes nothing until "Yes, Scheduled". (Later, the same action
+  // opens the real scheduler first, then reuses this confirmation/completion.)
+  // Captures the lead id + exact open setup_tour identity NOW.
+  // Make the ENTIRE native date/time field open its OS picker on click — not just
+  // the tiny calendar/clock icon (that's why the fields felt "not interactive").
+  // showPicker() is the standard control the browser's native inputs already use;
+  // guarded because it throws outside a user gesture / where unsupported.
+  const openNativePicker = (e: { currentTarget: HTMLInputElement }) => {
+    try {
+      (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
+    } catch {
+      /* no user gesture / unsupported — the field still works as a normal input */
+    }
+  };
+
+  const onScheduleTour = () => {
+    const lead = active?.lead;
+    if (!lead || lead.id === undefined || lead.id === null) return;
+    const open = (active?.nextActions ?? []).find(
+      (a) => !a.completed && (a.title ?? "").trim().toLowerCase() === "setup tour"
+    );
+    const name = formatPersonName(lead.firstName) || "this client";
+    // Property + Date open blank; Tour Time defaults to 9:00 AM (agent can change
+    // it). So the sheet's enable-gate becomes Property + Date (time is pre-filled).
+    setSelectedPropertyId("");
+    setTourDate("");
+    setTourTime(DEFAULT_TIME_VALUE);
+    setScheduleTourConfirm({ leadId: lead.id, actionId: open?.id ?? null, name });
+  };
+
+  // "Yes, Scheduled" → the canonical Schedule Tour completion runs on the
+  // authenticated CRM (inserts the lead_tours appointment, completes the
+  // setup_tour row, keeps the lead in Ready to Tour, creates ONE Tour Follow-Up
+  // due = tour + 2h). Sends the captured local date/time. Cancel just closes the
+  // sheet. Guarded: both date and time must be set before this can fire.
+  const confirmScheduleTour = () => {
+    const c = scheduleTourConfirm;
+    if (!c || !selectedPropertyId || !tourDate || !tourTime) return;
+    setScheduleTourConfirm(null);
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+    if (store) {
+      store.set({
+        "lb-workflow-verb": {
+          nonce: `${Date.now()}-${Math.random()}`,
+          leadId: c.leadId,
+          verb: "complete-setup-tour",
+          actionId: c.actionId ?? undefined,
+          propertyId: selectedPropertyId,
+          tourDate,
+          tourTime,
+        },
+      });
+    }
+    setSelectedPropertyId("");
+    setTourDate("");
+    setTourTime("");
+  };
+
   // The confirmation name comes from the CAPTURED pending contact, so it never
   // changes when the active client switches (Bug 2).
   // ← Back to CRM — focus the EXISTING Locator Beast CRM tab (the one hosting the
@@ -412,6 +509,7 @@ export function ProductionPanel() {
         onCompleteBuildList={onCompleteBuildList}
         onSendList={onSendList}
         onSendFollowUp={onSendFollowUp}
+        onScheduleTour={onScheduleTour}
         onBackToCrm={onBackToCrm}
         timeZone={active?.timeZone ?? null}
       />
@@ -546,6 +644,82 @@ export function ProductionPanel() {
           </div>
         </div>
       )}
+
+      {scheduleTourConfirm && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm tour scheduled"
+          onClick={() => setScheduleTourConfirm(null)}
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 60,
+            display: "flex",
+            alignItems: "flex-end",
+            background: "rgba(0,0,0,0.45)",
+          }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={SHEET_STYLE}>
+            {/* Pick the property + local date/time BEFORE confirming. A tour
+                prefers a saved Favorite, but lead_tours.property_id is nullable, so
+                "Other Property" / "Schedule Without Property" let scheduling proceed
+                when the client has no Favorites. Selecting/entering does NOT
+                complete the action — only "Yes, Scheduled" does. */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+              <label style={SHEET_FIELD_LABEL}>
+                Property *
+                <select
+                  value={selectedPropertyId}
+                  onChange={(e) => setSelectedPropertyId(e.target.value)}
+                  style={SHEET_INPUT_STYLE}
+                >
+                  <option value="">Select Favorite Property</option>
+                  {(active?.favorites ?? []).map((f) => (
+                    <option key={String(f.id)} value={String(f.id)}>
+                      {f.propertyName}
+                    </option>
+                  ))}
+                  <option value="__other__">Other Property</option>
+                  <option value="__none__">Schedule Without Property</option>
+                </select>
+              </label>
+              <label style={SHEET_FIELD_LABEL}>
+                Tour Date *
+                <input
+                  type="date"
+                  value={tourDate}
+                  onChange={(e) => setTourDate(e.target.value)}
+                  onClick={openNativePicker}
+                  style={SHEET_INPUT_STYLE}
+                />
+              </label>
+              <label style={SHEET_FIELD_LABEL}>
+                Tour Time *
+                {/* Deliberate Done/Apply time picker (shared 12h↔24h logic) — a
+                    changed-but-uncommitted draft never leaks into the field. */}
+                <TourTimeField value={tourTime} onChange={setTourTime} />
+              </label>
+            </div>
+            <p style={SHEET_QUESTION_STYLE}>
+              Did you schedule the tour for {scheduleTourConfirm.name}?
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button
+                type="button"
+                onClick={confirmScheduleTour}
+                disabled={!selectedPropertyId || !tourDate || !tourTime}
+                style={{ ...SHEET_PRIMARY_BTN, ...((!selectedPropertyId || !tourDate || !tourTime) ? SHEET_BTN_DISABLED : null) }}
+              >
+                Yes, Scheduled
+              </button>
+              <button type="button" onClick={() => setScheduleTourConfirm(null)} style={SHEET_CANCEL_BTN}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -577,6 +751,17 @@ const SHEET_CANCEL_BTN: CSSProperties = {
   width: "100%", padding: "8px 12px", borderRadius: 10, border: "none", background: "transparent",
   color: "var(--lb-text-muted, #9aa4b2)", fontWeight: 500, fontSize: 12.5, cursor: "pointer",
 };
+const SHEET_FIELD_LABEL: CSSProperties = {
+  display: "flex", flexDirection: "column", gap: 5,
+  fontSize: 12, fontWeight: 600, color: "var(--lb-text-muted, #9aa4b2)",
+};
+const SHEET_INPUT_STYLE: CSSProperties = {
+  width: "100%", boxSizing: "border-box", padding: "9px 10px", borderRadius: 9,
+  border: "1px solid var(--lb-border, rgba(255,255,255,0.14))",
+  background: "var(--lb-inset, rgba(255,255,255,0.04))",
+  color: "var(--lb-text, #e6ebf5)", fontSize: 14,
+};
+const SHEET_BTN_DISABLED: CSSProperties = { opacity: 0.5, cursor: "not-allowed" };
 
 // Normalize a raw phone to an E.164 tel:/sms: URL. 10 digits → +1XXXXXXXXXX;
 // 11 digits starting with 1 → +…; otherwise best-effort +digits. Empty if none.

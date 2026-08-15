@@ -216,6 +216,7 @@ export function LeadPanelBody({
   onCompleteBuildList,
   onSendList,
   onSendFollowUp,
+  onScheduleTour,
   onBackToCrm,
   timeZone,
 }: {
@@ -242,6 +243,10 @@ export function LeadPanelBody({
   // matching template, then opens the "Did you send the follow-up?" sheet.
   // Launching SMS does NOT complete the follow-up — confirming does.
   onSendFollowUp?: () => void;
+  // Clicking "Schedule Tour" opens the "Did you schedule the tour for {name}?"
+  // confirmation sheet. MVP handoff — opening completes nothing; only "Yes,
+  // Scheduled" does. (Later this opens the real tour scheduler first.)
+  onScheduleTour?: () => void;
   // Focus the existing Locator Beast CRM tab (shown while building the list in the
   // external platform). Navigation only — never completes/advances anything.
   onBackToCrm?: () => void;
@@ -277,6 +282,7 @@ export function LeadPanelBody({
   const isContactLead = (openAction?.title ?? "").trim().toLowerCase() === "contact lead";
   const isSendList = (openAction?.title ?? "").trim().toLowerCase() === "send list";
   const isFollowUp = isFollowUpAction(openAction?.title);
+  const isSetupTour = (openAction?.title ?? "").trim().toLowerCase() === "setup tour";
 
   return (
     <div className="lp-body">
@@ -392,6 +398,17 @@ export function LeadPanelBody({
                   variant="solid"
                   onClick={() => onSendFollowUp()}
                   title="Text this follow-up, then confirm it was sent"
+                >
+                  {formatWorkflowActionLabel(openAction.title)}
+                </Button>
+              ) : isSetupTour && onScheduleTour ? (
+                // Opens the "Did you schedule the tour for {name}?" confirmation
+                // sheet. MVP: no scheduler surface yet, so it opens the confirm
+                // directly. Opening completes nothing — only "Yes, Scheduled" does.
+                <Button
+                  variant="solid"
+                  onClick={() => onScheduleTour()}
+                  title="Confirm the tour was scheduled"
                 >
                   {formatWorkflowActionLabel(openAction.title)}
                 </Button>

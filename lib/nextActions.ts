@@ -44,6 +44,26 @@ export type RankedAction = {
   manualAction?: ManualNextAction
 }
 
+// A Ready-to-Tour lead whose "Schedule Tour" (setup_tour) action has been
+// COMPLETED via the explicit "Yes, Scheduled" confirmation and has no open one
+// left. Scheduling a tour is a one-time event, so the stage's automatic Schedule
+// Tour must NOT re-surface (the lead stays Ready to Tour; the actual tour is a
+// separate later step). Shared by rankLeadActions (suppresses the automatic) and
+// the CRM Lead Panel (neutralizes the Next Action display) so the rule lives in
+// exactly one place. Identity is matched on the stable action_key / legacy title.
+export function isTourScheduled(lead: any, actions: { lead_id: number | string; title: string; completed: boolean; action_key?: string | null; status?: string }[]): boolean {
+  if (lead.crm_status !== "ready_to_tour") return false
+  const isSetupTourRow = (a: { title: string; action_key?: string | null }) => {
+    const k = String(a.action_key ?? "").toLowerCase()
+    const t = String(a.title ?? "").trim().toLowerCase()
+    return k === "setup_tour" || t === "setup tour"
+  }
+  const forThisLead = actions.filter((a) => String(a.lead_id) === String(lead.id) && isSetupTourRow(a))
+  const hasCompleted = forThisLead.some((a) => a.completed === true || a.status === "completed")
+  const hasOpen = forThisLead.some((a) => a.completed !== true && a.status !== "completed")
+  return hasCompleted && !hasOpen
+}
+
 const PRIORITY_RANK: Record<"low" | "medium" | "high", number> = { high: 0, medium: 1, low: 2 }
 const URGENCY_RANK: Record<RankedAction["urgency"], number> = { overdue: 0, today: 1, upcoming: 2, none: 3 }
 
@@ -173,7 +193,13 @@ export function rankLeadActions(
     })
   const sequenceComplete = finalFollowUpCompleted && !openManual.some(isFollowUpRow)
 
-  const automatic: RankedAction | null = hasEquivalentManual || hasGuestCardProgression || sequenceComplete ? null : {
+  // Tour scheduled: the setup_tour action has been completed ("Yes, Scheduled")
+  // and none is open. Suppress the stage's automatic Schedule Tour so it does not
+  // re-surface — the lead stays Ready to Tour until the actual tour, handled
+  // later. Same shape as sequenceComplete; the predicate is the shared source.
+  const tourScheduledComplete = isTourScheduled(lead, manualActions)
+
+  const automatic: RankedAction | null = hasEquivalentManual || hasGuestCardProgression || sequenceComplete || tourScheduledComplete ? null : {
     kind: "automatic",
     title: automaticLabel,
     dueAt: lead.next_action_date ?? null,

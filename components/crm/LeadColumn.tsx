@@ -12,6 +12,9 @@ type Props = {
   id: string
   title: string
   leads: Lead[]
+  // All open actions (any lead) — forwarded to each card so its Next Action
+  // derives from the canonical ranked state. Optional (falls back to stage action).
+  nextActions?: any[]
   selectedLeadId?: string | number | null
   onSelectLead?: (leadId: string | number) => void
   onArchiveLead?: (leadId: string | number) => void
@@ -42,6 +45,7 @@ export default function LeadColumn({
   id,
   title,
   leads,
+  nextActions,
   selectedLeadId,
   onSelectLead,
   onArchiveLead,
@@ -66,6 +70,7 @@ export default function LeadColumn({
           <LeadCard
             key={lead.id}
             lead={lead}
+            nextActions={nextActions}
             isSelected={String(selectedLeadId) === String(lead.id)}
             onSelect={onSelectLead}
             onArchive={onArchiveLead}

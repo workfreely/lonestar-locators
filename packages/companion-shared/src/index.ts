@@ -37,6 +37,7 @@ export {
   workflowStateSchema,
   leadSummarySchema,
   leadDetailSchema,
+  favoriteSchema,
   advanceStageInput,
   setFollowUpInput,
   doneForNowInput,
@@ -53,6 +54,7 @@ export type {
   NextActionDTO,
   LeadSummaryDTO,
   LeadDetailDTO,
+  FavoriteDTO,
   MutationResultDTO,
   LeadSearchResultDTO,
 } from "./leads/contract";
@@ -91,6 +93,12 @@ export { formatDateDisplay } from "./format/date";
 // Next-Action due date/time formatting (Today/Tomorrow • time; shared with the CRM)
 export { formatDueDateTime, isPastDue } from "./format/dueDate";
 export type { DueDateFormatOptions } from "./format/dueDate";
+
+// 12h↔24h time-selection helpers (shared by the CRM DateTimePicker + the Beast
+// Companion Tour Time picker so a chosen hour/minute/AM-PM maps to "HH:mm" the
+// same way on both surfaces)
+export { to24Hour, from24Hour, formatTimeLabel, DEFAULT_TIME_PARTS, DEFAULT_TIME_VALUE } from "./format/time";
+export type { Period, TimeParts } from "./format/time";
 
 // Person-name + phone display formatting (mirrors the CRM helpers; raw values
 // are never modified — display/copy only)
