@@ -1182,7 +1182,7 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
 
               {/* INSIGHTS PANEL (Phase 1 center working canvas) */}
               <div className="flex-1 bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)] p-6 overflow-y-auto">
-                {/* Hierarchy: AI Assistant → Best Matches → Favorite Properties →
+                {/* Hierarchy: AI Assistant → Recommended Properties → Favorite Properties →
                     Locator Notes → Client Tools → AI Insights. The workspace-close
                     X lives inside the AI Assistant header (passed below), NOT at the
                     scrollbar edge; shown only when the legacy Lead Panel isn't
@@ -1248,19 +1248,18 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
 
       {demoMode && <FirstRunChecklist googleConnected={googleConnected} />}
 
-      {/* TEMPORARY (localhost only) Agenda-side toggle — for visually testing the
-          two orientations before we decide where the permanent setting lives.
-          Never rendered in production. No DB; localStorage only. */}
-      {process.env.NODE_ENV !== "production" && (
-        <button
-          type="button"
-          onClick={toggleAgendaSide}
-          className="fixed bottom-3 left-3 z-[60] rounded-full border border-[var(--crm-border)] bg-[var(--crm-panel)] px-3 py-1.5 text-[11px] font-semibold text-[var(--crm-text-secondary)] shadow-[0_4px_10px_rgba(15,23,42,0.18)] hover:text-[var(--crm-text-primary)] transition-colors"
-          title="Temporary (localhost): switch which side the Agenda is on"
-        >
-          Agenda: {agendaOnRight ? "Right" : "Left"} → switch
-        </button>
-      )}
+      {/* Agenda-side switch — available in every environment. Lets the agent flip
+          the Agenda between left and right to complement whichever side their
+          Chrome Beast Companion sits on. Side selection persists via localStorage
+          (see toggleAgendaSide); default is the approved "left". No DB/schema. */}
+      <button
+        type="button"
+        onClick={toggleAgendaSide}
+        className="fixed bottom-3 left-3 z-[60] rounded-full border border-[var(--crm-border)] bg-[var(--crm-panel)] px-3 py-1.5 text-[11px] font-semibold text-[var(--crm-text-secondary)] shadow-[0_4px_10px_rgba(15,23,42,0.18)] hover:text-[var(--crm-text-primary)] transition-colors"
+        title="Switch which side the Agenda is on"
+      >
+        Agenda: {agendaOnRight ? "Right" : "Left"} → switch
+      </button>
 
       {/* Centered CRM contact modal — the Kanban-drag presentation of the SAME
           canonical contact flow (Companion uses its bottom sheet). Compact, no

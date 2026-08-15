@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase/client"
 import FavoriteModal, { type FavoriteInput } from "./FavoriteModal"
 import ConfirmDialog from "./ConfirmDialog"
 import DateTimePicker from "./DateTimePicker"
+import PropertyThumb from "./PropertyThumb"
 import { SectionCard } from "./LeadPanelSections"
 import { triggerGuestCardForFavorite } from "@/lib/leads/guestCardWorkflow"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
@@ -93,6 +94,7 @@ export default function LeadFavorites({
           property_name: input.propertyName || null,
           property_url: input.propertyUrl || null,
           property_address: input.propertyAddress || null,
+          property_image_url: input.propertyImageUrl ?? null,
         }
         setFavorites?.((prev) => prev.map((f) => (f.id === editingFavorite.id ? updated : f)))
       } else {
@@ -102,6 +104,7 @@ export default function LeadFavorites({
           property_name: input.propertyName || null,
           property_url: input.propertyUrl || null,
           property_address: input.propertyAddress || null,
+          property_image_url: input.propertyImageUrl ?? null,
         }))
         setFavorites?.((prev) => [...prev, ...rows])
       }
@@ -118,6 +121,7 @@ export default function LeadFavorites({
           property_name: input.propertyName || null,
           property_url: input.propertyUrl || null,
           property_address: input.propertyAddress || null,
+          property_image_url: input.propertyImageUrl ?? null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", editingFavorite.id)
@@ -142,6 +146,7 @@ export default function LeadFavorites({
         property_name: input.propertyName || null,
         property_url: input.propertyUrl || null,
         property_address: input.propertyAddress || null,
+        property_image_url: input.propertyImageUrl ?? null,
       })))
       .select("*")
 
@@ -244,7 +249,12 @@ export default function LeadFavorites({
                   key={fav.id}
                   className="bg-[var(--crm-inset)] border border-[var(--crm-border)] rounded-lg px-3 py-2 hover:border-[var(--crm-text-muted)] hover:bg-[var(--crm-card)] transition-colors"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2.5">
+                    {/* Shared property thumbnail (same treatment as Recommended
+                        Properties). property_image_url carries the resolved image
+                        once persisted; until then PropertyThumb shows the clean
+                        placeholder — never a broken image. */}
+                    <PropertyThumb src={fav.property_image_url} alt={fav.property_name || ""} />
                     {fav.property_url ? (
                       <a href={fav.property_url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1">
                         <p className="text-[12.5px] font-semibold text-[var(--crm-accent)] hover:underline truncate">
@@ -268,7 +278,7 @@ export default function LeadFavorites({
                         onClick={() => openEditFavorite(fav)}
                         className="text-[10.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]"
                       >
-                        Edit
+                        Edit Property
                       </button>
                       <button
                         type="button"
@@ -304,7 +314,7 @@ export default function LeadFavorites({
                                 onClick={() => startEditTour(fav, tour)}
                                 className="text-[10.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]"
                               >
-                                Edit
+                                Reschedule
                               </button>
                             )}
                             {onCancelTour && (

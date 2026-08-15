@@ -30,11 +30,23 @@ export async function POST(request: Request) {
     if (!contentType.includes("text/html")) return NextResponse.json({ success: false })
 
     const html = await res.text()
-    const { name, address } = extractPropertyMetadata(html)
+    const { name, address, image } = extractPropertyMetadata(html)
 
     if (!name && !address) return NextResponse.json({ success: false })
 
-    return NextResponse.json({ success: true, propertyName: name, propertyAddress: address })
+    // Resolve the preview image (og:image) against the page URL so a relative or
+    // protocol-relative path becomes an absolute, reusable URL. Best-effort — a
+    // bad/unparseable image is simply dropped (the UI falls back to the placeholder).
+    let imageUrl: string | null = null
+    if (image) {
+      try {
+        imageUrl = new URL(image, normalizeUrl(url)).href
+      } catch {
+        imageUrl = null
+      }
+    }
+
+    return NextResponse.json({ success: true, propertyName: name, propertyAddress: address, imageUrl })
   } catch (error) {
     console.error("[detect-metadata] fetch failed:", error)
     return NextResponse.json({ success: false })

@@ -468,9 +468,10 @@ export function LeadPanelBody({
           "Monthly Household Income" range, rendered verbatim (incl. "/ month"),
           directly after Budget.) */}
       <FieldSection
+        key={`search-criteria-${lead.id}`}
         title="Search Criteria"
         shaded
-        defaultOpen
+        defaultOpen={false}
         rows={[
           { label: sc.interest ? "Interest" : "City", value: sc.interest || sc.city },
           { label: "Budget", value: sc.budgetText },
@@ -486,8 +487,9 @@ export function LeadPanelBody({
       {/* ── Credit Screening ── (same rule; whole section hides if the lead has
           no screening data at all) */}
       <FieldSection
+        key={`credit-screening-${lead.id}`}
         title="Credit Screening"
-        defaultOpen
+        defaultOpen={false}
         rows={[
           { label: "Credit Score", value: cs.creditScore },
           { label: "Credit History", value: cs.creditHistory },
@@ -520,8 +522,10 @@ export function LeadPanelBody({
         </SectionCard>
       )}
 
-      {/* ── Messaging Tools ── */}
-      <SectionCard title="Messaging Tools" defaultOpen={false}>
+      {/* ── Messaging Tools ── (collapsed per client, like the other secondary
+          sections; keyed by lead id so it resets closed whenever a new client
+          is opened while manual expand/collapse persists for the active client) */}
+      <SectionCard key={`messaging-tools-${lead.id}`} title="Messaging Tools" defaultOpen={false}>
         <div className="lp-grid-2">
           <Button variant="ghost" onClick={() => onDemo("Text Top 3")}>
             Text Top 3

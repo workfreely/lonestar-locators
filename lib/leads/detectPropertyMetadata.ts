@@ -8,6 +8,10 @@
 export type DetectedMetadata = {
   name: string | null
   address: string | null
+  // Best-available property preview image (og:image first). Absolute-or-relative
+  // as found on the page; the caller resolves it against the source URL. Null when
+  // the page exposes no usable image → the UI shows the shared placeholder.
+  image: string | null
 }
 
 function decodeHtmlEntities(str: string): string {
@@ -66,19 +70,45 @@ function formatAddress(address: any): string | null {
   return null
 }
 
+// A JSON-LD `image` may be a string, an array, or an ImageObject ({ url }).
+// Return the first usable URL string, or null.
+function extractImageFromJsonLd(image: unknown): string | null {
+  if (!image) return null
+  if (typeof image === "string") return image.trim() || null
+  if (Array.isArray(image)) {
+    for (const item of image) {
+      const u = extractImageFromJsonLd(item)
+      if (u) return u
+    }
+    return null
+  }
+  if (typeof image === "object" && typeof (image as { url?: unknown }).url === "string") {
+    return ((image as { url: string }).url).trim() || null
+  }
+  return null
+}
+
 export function extractPropertyMetadata(html: string): DetectedMetadata {
   let name: string | null = null
   let address: string | null = null
+  let image: string | null = null
 
   for (const block of extractJsonLdBlocks(html)) {
     if (!name && typeof block?.name === "string") name = decodeHtmlEntities(block.name)
     if (!address) address = formatAddress(block?.address)
-    if (name && address) break
+    if (!image) image = extractImageFromJsonLd(block?.image)
+    if (name && address && image) break
   }
 
   if (!name) name = extractMetaContent(html, "og:title")
   if (!name) name = extractMetaContent(html, "og:site_name")
   if (!name) name = extractTitle(html)
 
-  return { name, address }
+  // Preferred image order: og:image, then twitter:image, then any JSON-LD image
+  // captured above. og:image is the canonical preview image on marketing/listing
+  // pages, so it wins over a JSON-LD logo/thumbnail when both exist.
+  const ogImage = extractMetaContent(html, "og:image") || extractMetaContent(html, "twitter:image")
+  if (ogImage) image = ogImage
+
+  return { name, address, image }
 }

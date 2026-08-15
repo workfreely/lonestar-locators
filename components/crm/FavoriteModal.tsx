@@ -7,6 +7,10 @@ export type FavoriteInput = {
   propertyName: string
   propertyUrl: string
   propertyAddress: string
+  // Resolved once from the URL's metadata (og:image) during detection, or carried
+  // from an existing favorite on edit. Persisted to lead_favorites.property_image_url
+  // and reused on render — never re-fetched. Null → the shared placeholder.
+  propertyImageUrl?: string | null
 }
 
 type DetectionState = "idle" | "detecting" | "success" | "failed"
@@ -16,9 +20,13 @@ type Slot = {
   url: string
   address: string
   detection: DetectionState
+  // The resolved property image URL for this slot (from detection or carried from
+  // the edited favorite). Cleared when the URL is edited by hand so a stale image
+  // never sticks to a new URL.
+  image: string | null
 }
 
-const EMPTY_SLOT: Slot = { name: "", url: "", address: "", detection: "idle" }
+const EMPTY_SLOT: Slot = { name: "", url: "", address: "", detection: "idle", image: null }
 
 function isSlotEmpty(s: Slot) {
   return s.name.trim() === "" && s.url.trim() === ""
@@ -47,7 +55,7 @@ export default function FavoriteModal({
   // Non-null when editing a single existing favorite — shows one
   // pre-filled slot. Null means "add new," showing three empty slots so
   // several properties can be saved in one pass.
-  editing: { property_name: string | null; property_url: string | null; property_address: string | null } | null
+  editing: { property_name: string | null; property_url: string | null; property_address: string | null; property_image_url?: string | null } | null
   onClose: () => void
   // Receives only the slots that had at least a name or URL filled in —
   // fully blank slots are dropped before this is ever called. Returns
@@ -76,6 +84,9 @@ export default function FavoriteModal({
         url: editing.property_url ?? "",
         address: editing.property_address ?? "",
         detection: "idle",
+        // Carry the existing image so an edit that doesn't change the URL keeps it
+        // (no re-fetch). Changing the URL clears it (see updateSlot) → re-detected.
+        image: editing.property_image_url ?? null,
       }])
     } else {
       setSlots(Array.from({ length: 3 }, () => ({ ...EMPTY_SLOT })))
@@ -92,7 +103,7 @@ export default function FavoriteModal({
       // Editing the URL by hand invalidates whatever the last detection
       // pass found — the badge shouldn't keep claiming success/failure
       // for a URL that's no longer there.
-      if (field === "url") return { ...s, url: value, detection: "idle" }
+      if (field === "url") return { ...s, url: value, detection: "idle", image: null }
       return { ...s, [field]: value }
     }))
   }
@@ -121,6 +132,8 @@ export default function FavoriteModal({
           // Never clobber something the user already typed themselves.
           name: s.name.trim() === "" && data.propertyName ? data.propertyName : s.name,
           address: s.address.trim() === "" && data.propertyAddress ? data.propertyAddress : s.address,
+          // Resolved image from the same one-time metadata fetch (null if none).
+          image: data.imageUrl ?? null,
           detection: "success",
         }
       }))
@@ -148,6 +161,7 @@ export default function FavoriteModal({
       propertyName: s.name.trim(),
       propertyUrl: s.url.trim() ? normalizeUrl(s.url.trim()) : "",
       propertyAddress: s.address.trim(),
+      propertyImageUrl: s.image ?? null,
     }))
     const ok = await onSave(entries)
     setSubmitting(false)
