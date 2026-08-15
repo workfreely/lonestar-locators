@@ -41,14 +41,13 @@ function titleCaseName(name: string): string {
   return name.trim().replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
-// Phase 1 preview (localhost only): the temporary Lead Panel is HIDDEN in the
-// selected-client workspace during development so the center working canvas can
-// be evaluated at full available width beside the real Chrome Beast Companion.
-// Production still renders the Lead Panel unchanged — it remains the fallback /
-// source of truth until Companion reaches automation parity (Phase 5).
-// `LeadPanel.tsx` and all of its wiring/props stay fully intact; this ONLY gates
-// whether the component mounts. Set to `true` to show it again in dev.
-const SHOW_LEGACY_LEAD_PANEL = process.env.NODE_ENV === "production"
+// The legacy Lead Panel is HIDDEN in every environment (localhost AND production)
+// so the current Workspace is the one visible CRM layout while we finish Beast
+// Companion. It is intentionally HIDDEN, NOT deleted: `LeadPanel.tsx` and all of
+// its wiring/props (render block, import, pendingEditActionId, workflow) stay
+// fully intact so we can later retire it or offer it as an optional view. This
+// flag is the single on/off switch — set it back to `true` to show it again.
+const SHOW_LEGACY_LEAD_PANEL = false
 
 export default function DashboardClient({ leads, nextActions, favorites, outreach = [], tours = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, timeZone = DEFAULT_TIMEZONE }: { leads: any[]; nextActions: any[]; favorites: any[]; outreach?: any[]; tours?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; timeZone?: string }) {
   const router = useRouter()
