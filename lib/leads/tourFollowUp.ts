@@ -89,13 +89,18 @@ export function favoriteTourStateLabel(opts: {
   /** The lead is Closed (crm_status === "closed"). For the application property this
    *  is the furthest state — the lease was signed. */
   closedStage?: boolean
-  /** The invoice has been confirmed sent (leads.invoice_submitted). The furthest
-   *  closing milestone, surfaced above "Leased" for the application property. */
+  /** The invoice has been confirmed sent (leads.invoice_submitted). A closing
+   *  milestone, surfaced above "Leased" for the application property. */
   invoiceSent?: boolean
+  /** The commission payment was confirmed received (leads.invoice_commission_paid) —
+   *  the FURTHEST closing milestone. */
+  commissionPaid?: boolean
 }): string | null {
   if (opts.applyActionOpen) return "Toured · Ready to Apply"
   // Closed closing milestones (furthest first) for the application property:
-  //   invoice confirmed sent → "Invoice Sent"; otherwise (lease signed) → "Leased".
+  //   commission received → "Commission Paid"; invoice sent → "Invoice Sent";
+  //   otherwise (lease signed) → "Leased".
+  if (opts.closedStage && opts.isApplicationProperty && opts.commissionPaid) return "Toured · Commission Paid"
   if (opts.closedStage && opts.isApplicationProperty && opts.invoiceSent) return "Toured · Invoice Sent"
   if (opts.closedStage && opts.isApplicationProperty) return "Toured · Leased"
   // Application-phase furthest state takes precedence for the application property.

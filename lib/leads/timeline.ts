@@ -23,7 +23,11 @@ import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 // (Send Invoice → Yes, Invoice Sent): the explicit send point (metadata:
 // { send_action_id, property_id, property_name }). leads.invoice_submitted holds
 // the durable current state; this is the immutable "when/which property" record.
-export type LeadTimelineType = "first_contact" | "follow_up" | "contact_attempt" | "text_sent" | "tour_outcome" | "application_outcome" | "lease_signed" | "invoice_sent"
+// 'commission_paid' = the agent confirmed the commission payment was received
+// (Confirm Payment → Yes, Commission Paid): the explicit received point (metadata:
+// { commission_action_id, property_id, property_name }). leads.invoice_commission_paid
+// holds the durable current state; this is the immutable "when/which property" record.
+export type LeadTimelineType = "first_contact" | "follow_up" | "contact_attempt" | "text_sent" | "tour_outcome" | "application_outcome" | "lease_signed" | "invoice_sent" | "commission_paid"
 export type LeadTimelineMethod = "call" | "text" | "email"
 
 export type TimelineEventInput = {

@@ -37,6 +37,9 @@ const FULL: Record<string, string> = {
   confirm_lease: "Confirm Lease",
   // Post-invoice-collection closing step: email the invoice to the property.
   send_invoice: "Send Invoice",
+  // Terminal closing step: the OPEN action reads "Confirm Payment" (payment not yet
+  // received); completed it reads "Commission Paid" (see LAST_ACTION_BY_DISPLAY).
+  commission_paid: "Confirm Payment",
   email_guest_card: "Send Guest Card",
   waiting_for_response: "Waiting for Reply",
 };
@@ -78,6 +81,8 @@ const TO_KEY: Record<string, string> = {
   confirm_lease: "confirm_lease",
   "send invoice": "send_invoice",
   send_invoice: "send_invoice",
+  "confirm payment": "commission_paid",
+  commission_paid: "commission_paid",
   "email guest card": "email_guest_card",
   "send guest card": "email_guest_card",
   email_guest_card: "email_guest_card",
@@ -135,6 +140,8 @@ const LAST_ACTION_BY_DISPLAY: Record<string, string> = {
   "Confirm Lease": "Lease Signed",
   // Completing Send Invoice (agent confirmed sent) → "Invoice Sent · Property".
   "Send Invoice": "Invoice Sent",
+  // Completing Confirm Payment (agent confirmed received) → "Commission Paid · Property".
+  "Confirm Payment": "Commission Paid",
   "Setup Movers": "Movers Scheduled",
   "Send Rebate": "Sent Rebate",
   "Get Invoice Details": "Got Invoice Details",

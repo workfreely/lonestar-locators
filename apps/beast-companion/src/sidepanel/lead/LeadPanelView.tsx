@@ -235,6 +235,7 @@ export function LeadPanelBody({
   onConfirmLease,
   onGetInvoiceDetails,
   onSendInvoice,
+  onConfirmPayment,
   onAddTask,
   onBackToCrm,
   timeZone,
@@ -282,6 +283,8 @@ export function LeadPanelBody({
   onGetInvoiceDetails?: () => void;
   // "Send Invoice" — opens the invoice email composer in the CRM tab.
   onSendInvoice?: () => void;
+  // "Confirm Payment" — opens the "did you receive payment?" confirm in the CRM tab.
+  onConfirmPayment?: () => void;
   // "+ Add Task" — opens the custom-task sheet (title + date/time) for THIS
   // client. Omitted in fixtures, where the button falls back to the demo note.
   onAddTask?: () => void;
@@ -338,6 +341,7 @@ export function LeadPanelBody({
   const isConfirmLease = (openAction?.title ?? "").trim().toLowerCase() === "confirm lease";
   const isGetInvoice = (openAction?.title ?? "").trim().toLowerCase() === "get invoice details";
   const isSendInvoice = (openAction?.title ?? "").trim().toLowerCase() === "send invoice";
+  const isConfirmPayment = (openAction?.title ?? "").trim().toLowerCase() === "confirm payment";
 
   return (
     <div className="lp-body">
@@ -536,6 +540,16 @@ export function LeadPanelBody({
                   variant="solid"
                   onClick={() => onSendInvoice()}
                   title="Email the invoice to the property"
+                >
+                  {formatWorkflowActionLabel(openAction.title)}
+                </Button>
+              ) : isConfirmPayment && onConfirmPayment ? (
+                // Opens the "did you receive the commission payment?" confirm in the
+                // CRM tab for the Top Pick. Yes marks Commission Paid.
+                <Button
+                  variant="solid"
+                  onClick={() => onConfirmPayment()}
+                  title="Confirm the commission payment was received"
                 >
                   {formatWorkflowActionLabel(openAction.title)}
                 </Button>

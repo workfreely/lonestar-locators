@@ -712,6 +712,29 @@ export function ProductionPanel() {
     }
   };
 
+  // "Confirm Payment" → open the "did you receive the commission payment?" confirm
+  // in the CRM tab for the Closed lead's Top Pick. Same canonical confirmation as the
+  // Workspace — the extension has NO payment business logic of its own.
+  const onConfirmPayment = () => {
+    const lead = active?.lead;
+    if (!lead || lead.id === undefined || lead.id === null) return;
+    const cp = (active?.nextActions ?? []).find(
+      (a) => !a.completed && (a.title ?? "").trim().toLowerCase() === "confirm payment"
+    );
+    focusExistingCrmTab();
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+    if (store) {
+      store.set({
+        "lb-workflow-verb": {
+          nonce: `${Date.now()}-${Math.random()}`,
+          leadId: lead.id,
+          verb: "open-commission-paid",
+          actionId: cp?.id ?? null,
+        },
+      });
+    }
+  };
+
   const pendingName = pendingContact?.name ?? "this client";
 
   return (
@@ -737,6 +760,7 @@ export function ProductionPanel() {
         onConfirmLease={onConfirmLease}
         onGetInvoiceDetails={onGetInvoiceDetails}
         onSendInvoice={onSendInvoice}
+        onConfirmPayment={onConfirmPayment}
         onAddTask={onAddTask}
         onBackToCrm={onBackToCrm}
         timeZone={active?.timeZone ?? null}

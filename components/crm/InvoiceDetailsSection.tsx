@@ -261,15 +261,15 @@ export default function InvoiceDetailsSection({
           />
         </div>
 
-        {/* Commission Paid */}
+        {/* Commission Paid — READ-ONLY status. The canonical way to mark this is
+            the Confirm Payment workflow (which completes commission_paid + records
+            the timeline event); there is no second, uncontrolled write path here.
+            Reflects the same canonical boolean (leads.invoice_commission_paid). */}
         <div className={rowCls}>
           <label className={labelCls}>Commission Paid</label>
-          <input
-            type="checkbox"
-            className="w-4 h-4 rounded accent-[var(--kb-accent)] cursor-pointer"
-            checked={form.invoice_commission_paid}
-            onChange={(e) => saveBool("invoice_commission_paid", e.target.checked)}
-          />
+          <span className="text-[12.5px] font-semibold text-[var(--crm-text-primary)]">
+            {form.invoice_commission_paid ? "Yes" : "No"}
+          </span>
         </div>
 
         {/* Notes — free-text context from the property call (e.g. "Unable to

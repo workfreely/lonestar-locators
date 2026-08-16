@@ -44,6 +44,7 @@ export default function LeadFavorites({
   onConfirmLease,
   onGetInvoiceDetails,
   onSendInvoice,
+  onConfirmPayment,
 }: {
   lead: any
   favorites?: any[]
@@ -77,6 +78,9 @@ export default function LeadFavorites({
   // Open the Send Invoice composer for the Closed Top Pick's open send_invoice.
   // Absent → the control is hidden.
   onSendInvoice?: (lead: any, args: { action: any }) => void
+  // Open the "did you receive payment?" confirm for the Closed Top Pick's open
+  // commission_paid. Absent → the control is hidden.
+  onConfirmPayment?: (lead: any, args: { action: any }) => void
 }) {
   const [showFavoriteModal, setShowFavoriteModal] = useState(false)
   const [editingFavorite, setEditingFavorite] = useState<any | null>(null)
@@ -343,6 +347,19 @@ export default function LeadFavorites({
               // Durable Invoice Sent state (leads.invoice_submitted) — the furthest
               // closing milestone surfaced on the Top Pick once confirmed sent.
               const invoiceSent = !!lead.invoice_submitted
+              // This property's open Confirm Payment (created when Invoice Sent,
+              // property-scoped to the Top Pick). Invoice Sent → Confirm Payment.
+              const commissionPaidAction = nextActions.find(
+                (a: any) =>
+                  String(a.lead_id) === String(lead.id) &&
+                  String(a.property_id ?? "") === String(fav.id) &&
+                  !a.completed &&
+                  (String(a.action_key ?? "") === "commission_paid" || String(a.title ?? "").trim().toLowerCase() === "confirm payment"),
+              )
+              const commissionPaidOpen = !!commissionPaidAction
+              // Durable Commission Paid state (leads.invoice_commission_paid) — the
+              // FURTHEST closing milestone surfaced on the Top Pick once confirmed.
+              const commissionPaid = !!lead.invoice_commission_paid
               // Canonical surfaced state: always the FURTHEST canonical state —
               // "Ready to Apply" pre-submission → "Applied" once 'applied' → the
               // application-phase state (Approved / Application Pending / Application
@@ -357,6 +374,7 @@ export default function LeadFavorites({
                 isApplicationProperty,
                 closedStage,
                 invoiceSent,
+                commissionPaid,
               })
               return (
                 <div
@@ -583,9 +601,29 @@ export default function LeadFavorites({
                     </div>
                   )}
 
+                  {/* Invoice sent → Confirm Payment (property-scoped to the Top
+                      Pick). The terminal closing step; disappears once the agent
+                      confirms payment (favState then reads Commission Paid). */}
+                  {commissionPaidOpen && onConfirmPayment && (
+                    <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10.5px] font-semibold text-emerald-600">
+                          {isTopPick && "★ Top Pick · "}{favState}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => onConfirmPayment(lead, { action: commissionPaidAction })}
+                          className="flex-none text-[10.5px] font-semibold text-[var(--crm-accent)] hover:underline"
+                        >
+                          Confirm Payment
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Recorded outcome with no pending action — one compact muted line
                       (no badge stack). Top Pick shown inline when this property is it. */}
-                  {!tour && !tfAction && !applyAction && !checkAppOpen && !confirmLeaseOpen && !getInvoiceOpen && !sendInvoiceOpen && favState && (
+                  {!tour && !tfAction && !applyAction && !checkAppOpen && !confirmLeaseOpen && !getInvoiceOpen && !sendInvoiceOpen && !commissionPaidOpen && favState && (
                     <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
                       <p className="text-[11px] font-medium text-[var(--crm-text-muted)]">
                         {isTopPick && <span className="font-semibold text-emerald-600">★ Top Pick · </span>}

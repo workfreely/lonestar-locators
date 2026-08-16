@@ -186,6 +186,9 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
   // sets the durable Invoice Sent state (leads.invoice_submitted).
   const [sendInvoice, setSendInvoice] = useState<null | { lead: any; action: any; property: any }>(null)
   const [confirmInvoiceSent, setConfirmInvoiceSent] = useState<null | { lead: any; action: any }>(null)
+  // "Did you receive the commission payment?" confirmation — the terminal closing
+  // milestone. Yes sets the durable invoice_commission_paid; Not Yet keeps it open.
+  const [confirmPayment, setConfirmPayment] = useState<null | { lead: any; action: any }>(null)
   const [showLeadModal, setShowLeadModal] = useState(false)
   const [followUpsOpen, setFollowUpsOpen] = useState(DEFAULT_AGENDA_EXPANDED)
   const [pendingEditActionId, setPendingEditActionId] = useState<number | null>(null)
@@ -776,12 +779,70 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
       occurredAt: now,
       metadata: { send_action_id: action?.id ?? null, property_id: action?.property_id ?? null, property_name: action?.property_name ?? null },
     })
+    let merged = localNextActionsRef.current.map((a: any) =>
+      action?.id != null && String(a.id) === String(action.id) ? { ...a, completed: true, completed_at: now, status: "completed" } : a,
+    )
+    // Create the terminal closing action: Confirm Payment (commission_paid),
+    // property-scoped to the Top Pick. Deduped on action_key → no duplicates.
+    const propertyId = action?.property_id ?? lead.top_pick_favorite_id ?? null
+    const propFav = localFavoritesRef.current.find((f: any) => String(f.id) === String(propertyId))
+    const propertyName = action?.property_name ?? propFav?.property_name ?? null
+    const cpOpen = merged.some((a: any) => String(a.lead_id) === String(lead.id) && !a.completed && String(a.action_key ?? "") === "commission_paid")
+    let cpAction: any = null
+    if (!cpOpen) {
+      if (demo) {
+        cpAction = {
+          id: `demo-act-commission-paid-${now}`, lead_id: lead.id, title: "Confirm Payment", due_at: now, priority: "medium",
+          property_id: propertyId, property_name: propertyName, action_key: "commission_paid", action_type: "workflow", origin: "workflow", completed: false, status: "open",
+        }
+      } else {
+        cpAction = await createWorkflowActionIfNeeded(supabase, lead.id, { title: "Confirm Payment", dueAt: now, actionKey: "commission_paid", propertyId, propertyName })
+      }
+      if (cpAction) merged = [...merged, cpAction]
+    }
+    setLocalNextActions(merged)
+    const updatedLead = { ...lead, invoice_submitted: true }
+    setLocalLeads((prev) => prev.map((l) => (String(l.id) === String(lead.id) ? { ...l, invoice_submitted: true } : l)))
+    postCompanionActiveClient(updatedLead, merged)
+  }
+
+  // ── Confirm Payment (Closed → commission received) ──────────────────────────
+  // Open the "Did you receive the commission payment?" confirmation for the Closed
+  // lead's Top Pick. `action` is the open commission_paid row.
+  function handleConfirmPayment(lead: any, args: { action: any }) {
+    if (!lead || !args.action) return
+    setConfirmPayment({ lead, action: args.action })
+  }
+  // "Yes, Commission Paid" → complete commission_paid, set the durable state
+  // (invoice_commission_paid), record the immutable timeline event. Lead stays
+  // Closed, Top Pick unchanged. ("Not Yet" simply closes — commission_paid stays open.)
+  async function confirmPaymentYes() {
+    const cp = confirmPayment
+    setConfirmPayment(null)
+    if (!cp) return
+    const { lead, action } = cp
+    const now = new Date().toISOString()
+    const demo = isDemoLeadId(lead.id)
+    if (!demo) {
+      if (action?.id != null) {
+        const { error } = await supabase.from("lead_next_actions").update({ completed: true, completed_at: now, status: "completed" }).eq("id", action.id)
+        if (error) console.error("[commission-paid] complete commission_paid failed:", error)
+      }
+      const { error: leadErr } = await supabase.from("leads").update({ invoice_commission_paid: true }).eq("id", lead.id)
+      if (leadErr) console.error("[commission-paid] set invoice_commission_paid failed:", leadErr.message)
+    }
+    recordTimelineEvent({
+      leadId: lead.id,
+      type: "commission_paid",
+      occurredAt: now,
+      metadata: { commission_action_id: action?.id ?? null, property_id: action?.property_id ?? null, property_name: action?.property_name ?? null },
+    })
     const merged = localNextActionsRef.current.map((a: any) =>
       action?.id != null && String(a.id) === String(action.id) ? { ...a, completed: true, completed_at: now, status: "completed" } : a,
     )
     setLocalNextActions(merged)
-    const updatedLead = { ...lead, invoice_submitted: true }
-    setLocalLeads((prev) => prev.map((l) => (String(l.id) === String(lead.id) ? { ...l, invoice_submitted: true } : l)))
+    const updatedLead = { ...lead, invoice_commission_paid: true }
+    setLocalLeads((prev) => prev.map((l) => (String(l.id) === String(lead.id) ? { ...l, invoice_commission_paid: true } : l)))
     postCompanionActiveClient(updatedLead, merged)
   }
 
@@ -938,7 +999,8 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
         payload.verb !== "open-check-application" &&
         payload.verb !== "open-confirm-lease" &&
         payload.verb !== "open-invoice-details" &&
-        payload.verb !== "open-send-invoice"
+        payload.verb !== "open-send-invoice" &&
+        payload.verb !== "open-commission-paid"
       )
         return
 
@@ -1561,6 +1623,22 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
         return
       }
 
+      // Beast Companion "Confirm Payment" → open the "did you receive the payment?"
+      // confirmation in the CRM tab for the Top Pick's open commission_paid.
+      if (payload.verb === "open-commission-paid") {
+        const action =
+          localNextActionsRef.current.find((a: any) => payload.actionId != null && String(a.id) === String(payload.actionId)) ??
+          localNextActionsRef.current.find(
+            (a: any) =>
+              String(a.lead_id) === String(lead.id) &&
+              !a.completed &&
+              (String(a.action_key ?? "") === "commission_paid" || String(a.title ?? "").trim().toLowerCase() === "confirm payment")
+          )
+        if (!action) return
+        handleConfirmPayment(lead, { action })
+        return
+      }
+
       const method: "call" | "text" = payload.method === "call" ? "call" : "text"
 
       if (payload.verb === "contact-attempt") {
@@ -1851,6 +1929,7 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
                     onConfirmLease={handleConfirmLease}
                     onGetInvoiceDetails={handleGetInvoiceDetails}
                     onSendInvoice={handleSendInvoice}
+                    onConfirmPayment={handleConfirmPayment}
                   />
                   {/* Invoice Details — the Closed-lead commission/invoice record
                       (leads.invoice_*). Surfaced in the workspace (the legacy Lead
@@ -1993,6 +2072,19 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
         cancelLabel="Not Yet"
         onConfirm={confirmInvoiceSentYes}
         onCancel={() => setConfirmInvoiceSent(null)}
+      />
+
+      {/* "Did you receive the commission payment?" — the terminal closing
+          confirmation. Yes completes commission_paid + sets the durable
+          invoice_commission_paid; Not Yet keeps Confirm Payment open. Closed either way. */}
+      <ConfirmDialog
+        open={confirmPayment !== null}
+        title={`Did you receive the commission payment${confirmPayment?.action?.property_name ? ` for ${confirmPayment.action.property_name}` : ""}?`}
+        message="Only confirm once the commission payment has actually been received."
+        confirmLabel="Yes, Commission Paid"
+        cancelLabel="Not Yet"
+        onConfirm={confirmPaymentYes}
+        onCancel={() => setConfirmPayment(null)}
       />
 
       {/* Confirm Lease → Closed confirmation. 'closed' is reached ONLY here, on the
