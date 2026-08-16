@@ -11,6 +11,7 @@
  */
 import { seedInvoiceForm, buildInvoicePatch, computeInvoiceTotals, autoInvoicePropertyName, formatInvoiceCurrency, formatMoneyDisplay, formatPercentDisplay, rawNumericString } from "@/lib/leads/invoiceFields"
 import { buildActiveClientPayload } from "@/lib/companion/leadToDto"
+import { formatUnitDisplay } from "@bc/companion-shared"
 
 let pass = 0,
   fail = 0
@@ -102,6 +103,18 @@ const LEAD = "L-inv"
   // Formatting does not change the computed totals.
   const totals = computeInvoiceTotals({ invoice_base_rent: "$1,200", invoice_commission_pct: "100%", invoice_broker_split_pct: "70%" })
   ok(totals.totalInvoice === 1200 && totals.expectedCommission === 840, "totals compute identically whether inputs are raw or formatted")
+}
+
+// ── Unit-number display formatting (display-only "#", never stored, never doubled) ──
+{
+  ok(formatUnitDisplay("3456") === "#3456", "unit display → #3456")
+  ok(formatUnitDisplay("#3456") === "#3456", "existing # is not doubled (no ##3456)")
+  ok(formatUnitDisplay("") === "" && formatUnitDisplay(null) === "", "blank unit stays blank")
+  ok(formatUnitDisplay(" 12B ") === "#12B", "trims + prefixes alphanumeric units")
+  // Persistence is unaffected — the raw value is stored, never the "#".
+  const form = seedInvoiceForm({ id: LEAD }, null)
+  form.invoice_unit_number = "3456"
+  ok(buildInvoicePatch(form).invoice_unit_number === "3456", "stored unit stays raw (no # persisted)")
 }
 
 // ── Save completes get_invoice_details without duplicate / stage change (mirrors saveInvoiceDetails) ──

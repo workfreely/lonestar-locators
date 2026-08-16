@@ -128,6 +128,9 @@ export type { Period, TimeParts } from "./format/time";
 export { formatPersonName } from "./format/name";
 export { formatPhone } from "./format/phone";
 
+// Read-only unit-number display ("3456" → "#3456"); raw value is never modified.
+export { formatUnitDisplay } from "./format/unit";
+
 // Canonical New-lead intro SMS body (prefilled first-outreach text; NOT contact)
 export { buildIntroSmsBody } from "./format/introSms";
 export { buildFollowUpSmsBody } from "./format/followUpSms";

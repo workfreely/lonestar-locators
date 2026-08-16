@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { LeadSummaryDTO, NextActionDTO } from "@bc/companion-shared";
-import { formatWorkflowActionLabel, formatLastActionLabel, isFollowUpAction, formatDateDisplay, formatDueDateTime, isPastDue, formatPersonName, formatPhone } from "@bc/companion-shared";
+import { formatWorkflowActionLabel, formatLastActionLabel, isFollowUpAction, formatDateDisplay, formatDueDateTime, isPastDue, formatPersonName, formatPhone, formatUnitDisplay } from "@bc/companion-shared";
 import { SectionCard, Field, StageBadge, StatusPill, Button } from "./primitives";
 
 /**
@@ -638,7 +638,7 @@ export function LeadPanelBody({
           rows={[
             { label: "Contact", value: [lead.invoice.contactName, lead.invoice.contactTitle].filter(Boolean).join(" · ") || null },
             { label: "Property", value: lead.invoice.propertyName },
-            { label: "Unit", value: lead.invoice.unitNumber },
+            { label: "Unit", value: hasValue(lead.invoice.unitNumber) ? formatUnitDisplay(lead.invoice.unitNumber) : null },
             { label: "Lease Start", value: hasValue(lead.invoice.leaseStartDate) ? formatDateDisplay(lead.invoice.leaseStartDate!) : null },
             { label: "Lease Term (Months)", value: lead.invoice.leaseTerm },
             { label: "Base Rent", value: lead.invoice.baseRent != null ? invMoney(lead.invoice.baseRent) : null },
