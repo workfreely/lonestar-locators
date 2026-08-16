@@ -250,9 +250,9 @@ export default function InvoiceDetailsSection({
           </span>
         </div>
 
-        {/* Invoice Submitted */}
+        {/* Invoice Sent (durable state = leads.invoice_submitted; label only). */}
         <div className={rowCls}>
-          <label className={labelCls}>Invoice Submitted</label>
+          <label className={labelCls}>Invoice Sent</label>
           <input
             type="checkbox"
             className="w-4 h-4 rounded accent-[var(--kb-accent)] cursor-pointer"
