@@ -62,6 +62,45 @@ function budgetText(desiredRent: unknown): string | null {
 function priority(p: unknown): "low" | "medium" | "high" {
   return p === "low" || p === "high" ? p : "medium"
 }
+function num(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null
+  const n = Number(v)
+  return Number.isNaN(n) ? null : n
+}
+
+// Read-only invoice/commission summary from the lead's canonical leads.invoice_*
+// fields (the SAME data the CRM Invoice Details section shows). Totals are computed
+// live (never stored), mirroring the CRM. Surfaced ONLY for Closed leads that have
+// collected some data; null otherwise — so the Companion never shows an empty card.
+function buildInvoiceSummary(lead: any) {
+  if ((str(lead.crm_status) ?? "new") !== "closed") return null
+  const base = num(lead.invoice_base_rent)
+  const commPct = num(lead.invoice_commission_pct)
+  const brokerPct = num(lead.invoice_broker_split_pct)
+  const totalInvoice = base != null && commPct != null ? (base * commPct) / 100 : null
+  const expectedCommission = totalInvoice != null && brokerPct != null ? (totalInvoice * brokerPct) / 100 : null
+  const rebateType = str(lead.invoice_rebate_type)
+  const summary = {
+    contactName: str(lead.invoice_contact_name),
+    contactTitle: str(lead.invoice_contact_title),
+    notes: str(lead.invoice_notes),
+    propertyName: str(lead.invoice_property_name),
+    unitNumber: str(lead.invoice_unit_number),
+    leaseStartDate: (str(lead.invoice_lease_start_date) ?? "").slice(0, 10) || null,
+    leaseTerm: str(lead.invoice_lease_term),
+    baseRent: base,
+    commissionPct: commPct,
+    brokerSplitPct: brokerPct,
+    totalInvoice,
+    expectedCommission,
+    rebateType: rebateType && rebateType !== "None" ? rebateType : null,
+    rebateAmount: num(lead.invoice_rebate_amount),
+    submitted: lead.invoice_submitted === true ? true : null,
+    commissionPaid: lead.invoice_commission_paid === true ? true : null,
+  }
+  const hasAny = Object.values(summary).some((v) => v !== null && v !== undefined && v !== "")
+  return hasAny ? summary : null
+}
 
 // The most recent NON-successful outreach on a still-New lead, expressed as its
 // Last Action title. Returns null unless the lead is New and has such an event —
@@ -222,6 +261,8 @@ export function buildActiveClientPayload(
     topPickFavoriteId: str(lead.top_pick_favorite_id),
     // Durable application outcome (leads.application_status). Null until recorded.
     applicationStatus: str(lead.application_status),
+    // Read-only invoice/commission summary (Closed leads with collected data).
+    invoice: buildInvoiceSummary(lead),
     clientNotes: str(lead.notes),
   }
 

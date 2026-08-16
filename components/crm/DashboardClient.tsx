@@ -33,7 +33,9 @@ import { createManualTask } from "@/lib/leads/createManualTask"
 import GuestCardModal from "./GuestCardModal"
 import TourFollowUpModal from "./TourFollowUpModal"
 import CheckApplicationModal from "./CheckApplicationModal"
+import GetInvoiceDetailsModal from "./GetInvoiceDetailsModal"
 import InvoiceDetailsSection from "./InvoiceDetailsSection"
+import { autoInvoicePropertyName } from "@/lib/leads/invoiceFields"
 import ConfirmDialog from "./ConfirmDialog"
 import { isGuestCardTitle } from "@/lib/leads/guestCardWorkflow"
 import { completeTourFollowUp } from "@/lib/leads/tourFollowUpWorkflow"
@@ -173,6 +175,10 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
   // 'closed' is reached ONLY on the agent's explicit "Yes, Lease Signed" — approval
   // alone never marks Closed. Scoped to the Top Pick's open confirm_lease.
   const [confirmLease, setConfirmLease] = useState<null | { lead: any; action: any }>(null)
+  // Get Invoice Details intake modal (compact batch form). Opened from the Closed
+  // lead's Top Pick Favorite or the Companion verb; Save persists the canonical
+  // invoice_* fields and completes the get_invoice_details action.
+  const [getInvoice, setGetInvoice] = useState<null | { lead: any; action: any; property: any }>(null)
   const [showLeadModal, setShowLeadModal] = useState(false)
   const [followUpsOpen, setFollowUpsOpen] = useState(DEFAULT_AGENDA_EXPANDED)
   const [pendingEditActionId, setPendingEditActionId] = useState<number | null>(null)
@@ -637,32 +643,64 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
     postCompanionActiveClient(updatedLead, merged)
   }
 
-  // ── Get Invoice Details completion (Closed → invoice collected) ─────────────
-  // Marking "Invoice Submitted" completes the canonical get_invoice_details action
-  // (the terminal core-closing action); un-submitting reopens it. Property scope
-  // (Top Pick) is preserved on the row. No stage change — the lead is already Closed.
-  async function handleInvoiceSubmitted(lead: any, submitted: boolean) {
+  // ── Get Invoice Details (Closed → collect lease/commission info) ────────────
+  // Open the compact intake modal for the Closed lead's Top Pick. `action` is the
+  // open get_invoice_details row; the property is resolved from the Top Pick.
+  function openGetInvoiceDetails(lead: any, action: any) {
+    if (!lead) return
+    const property =
+      localFavoritesRef.current.find((f: any) => String(f.id) === String(lead.top_pick_favorite_id)) ??
+      localFavoritesRef.current.find((f: any) => String(f.id) === String(action?.property_id)) ??
+      (action?.property_name ? { property_name: action.property_name } : null)
+    setGetInvoice({ lead, action, property })
+  }
+  function handleGetInvoiceDetails(lead: any, args: { action: any }) {
+    openGetInvoiceDetails(lead, args.action)
+  }
+  // Save Invoice Details → persist the canonical invoice_* fields (one update),
+  // update the section immediately (localLeads), and COMPLETE the get_invoice_details
+  // action (Save is the completion trigger — decoupled from invoice_submitted). The
+  // lead stays Closed and the Top Pick/property association is untouched. No stage
+  // change, no duplicate action.
+  async function saveInvoiceDetails(patch: Record<string, unknown>) {
+    const gi = getInvoice
+    setGetInvoice(null)
+    if (!gi) return
+    const { lead } = gi
     const now = new Date().toISOString()
-    const inv = localNextActionsRef.current.find(
-      (a: any) =>
-        String(a.lead_id) === String(lead.id) &&
-        (String(a.action_key ?? "") === "get_invoice_details" || String(a.title ?? "").trim().toLowerCase() === "get invoice details"),
-    )
-    if (!inv) return
-    if (!isDemoLeadId(lead.id)) {
-      const patch = submitted
-        ? { completed: true, completed_at: now, status: "completed" }
-        : { completed: false, completed_at: null, status: "open" }
-      const { error } = await supabase.from("lead_next_actions").update(patch).eq("id", inv.id)
-      if (error) console.error("[invoice] complete get_invoice_details failed:", error)
+    const demo = isDemoLeadId(lead.id)
+    // 1) Persist the invoice_* fields to the lead. [real only]
+    if (!demo) {
+      const { error } = await supabase.from("leads").update(patch).eq("id", lead.id)
+      if (error) console.error("[invoice] save invoice details failed:", error.message)
     }
-    const merged = localNextActionsRef.current.map((a: any) =>
-      String(a.id) === String(inv.id)
-        ? { ...a, completed: submitted, completed_at: submitted ? now : null, status: submitted ? "completed" : "open" }
-        : a,
-    )
-    setLocalNextActions(merged)
-    postCompanionActiveClient(lead, merged)
+    // 2) Update the section immediately (same canonical lead object).
+    const updatedLead = { ...lead, ...patch }
+    setLocalLeads((prev) => prev.map((l) => (String(l.id) === String(lead.id) ? { ...l, ...patch } : l)))
+    // 3) Complete the get_invoice_details action (the terminal closing action).
+    const inv =
+      (gi.action && !gi.action.completed ? gi.action : null) ??
+      localNextActionsRef.current.find(
+        (a: any) =>
+          String(a.lead_id) === String(lead.id) &&
+          !a.completed &&
+          (String(a.action_key ?? "") === "get_invoice_details" || String(a.title ?? "").trim().toLowerCase() === "get invoice details"),
+      )
+    let merged = localNextActionsRef.current
+    if (inv) {
+      if (!demo) {
+        const { error } = await supabase
+          .from("lead_next_actions")
+          .update({ completed: true, completed_at: now, status: "completed" })
+          .eq("id", inv.id)
+        if (error) console.error("[invoice] complete get_invoice_details failed:", error)
+      }
+      merged = merged.map((a: any) =>
+        String(a.id) === String(inv.id) ? { ...a, completed: true, completed_at: now, status: "completed" } : a,
+      )
+      setLocalNextActions(merged)
+    }
+    postCompanionActiveClient(updatedLead, merged)
   }
 
   // ── Canonical contact appliers — the ONE implementation used by BOTH the
@@ -816,7 +854,8 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
         payload.verb !== "open-tour-follow-up" &&
         payload.verb !== "open-apply" &&
         payload.verb !== "open-check-application" &&
-        payload.verb !== "open-confirm-lease"
+        payload.verb !== "open-confirm-lease" &&
+        payload.verb !== "open-invoice-details"
       )
         return
 
@@ -1407,6 +1446,22 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
         return
       }
 
+      // Beast Companion "Get Invoice Details" → open the compact intake modal in the
+      // CRM tab for the Closed lead's Top Pick (same canonical fields + completion).
+      if (payload.verb === "open-invoice-details") {
+        const action =
+          localNextActionsRef.current.find((a: any) => payload.actionId != null && String(a.id) === String(payload.actionId)) ??
+          localNextActionsRef.current.find(
+            (a: any) =>
+              String(a.lead_id) === String(lead.id) &&
+              !a.completed &&
+              (String(a.action_key ?? "") === "get_invoice_details" || String(a.title ?? "").trim().toLowerCase() === "get invoice details")
+          )
+        if (!action) return
+        handleGetInvoiceDetails(lead, { action })
+        return
+      }
+
       const method: "call" | "text" = payload.method === "call" ? "call" : "text"
 
       if (payload.verb === "contact-attempt") {
@@ -1695,6 +1750,7 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
                     onStartApplication={handleStartApplication}
                     onCheckApplication={handleCheckApplication}
                     onConfirmLease={handleConfirmLease}
+                    onGetInvoiceDetails={handleGetInvoiceDetails}
                   />
                   {/* Invoice Details — the Closed-lead commission/invoice record
                       (leads.invoice_*). Surfaced in the workspace (the legacy Lead
@@ -1707,7 +1763,6 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
                       onUpdateLead={(updatedLead) =>
                         setLocalLeads((prev) => prev.map((l) => (l.id === updatedLead.id ? updatedLead : l)))
                       }
-                      onInvoiceSubmittedChange={(submitted) => handleInvoiceSubmitted(selectedLead, submitted)}
                     />
                   )}
                   <LeadNotes
@@ -1797,6 +1852,20 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
         cancelLabel="Not Yet"
         onConfirm={confirmApplicationSubmitted}
         onCancel={() => setConfirmApply(null)}
+      />
+
+      {/* Get Invoice Details — compact batch intake for the Closed lead's Top Pick.
+          Writes the canonical invoice_* fields, updates the persistent Invoice
+          Details section, and completes get_invoice_details. Blank lease fields are
+          allowed (agent can save contact + notes when a property refused to share). */}
+      <GetInvoiceDetailsModal
+        open={getInvoice !== null}
+        onClose={() => setGetInvoice(null)}
+        lead={getInvoice?.lead ?? null}
+        propertyName={getInvoice?.property?.property_name ?? getInvoice?.action?.property_name ?? null}
+        clientName={getInvoice?.lead ? (((getInvoice.lead.preferred_name || getInvoice.lead.first_name || "") + " " + (getInvoice.lead.last_name || "")).trim() || null) : null}
+        autoPropertyName={getInvoice?.lead ? autoInvoicePropertyName(getInvoice.lead, localFavoritesRef.current) : null}
+        onSave={saveInvoiceDetails}
       />
 
       {/* Confirm Lease → Closed confirmation. 'closed' is reached ONLY here, on the

@@ -42,6 +42,7 @@ export default function LeadFavorites({
   onStartApplication,
   onCheckApplication,
   onConfirmLease,
+  onGetInvoiceDetails,
 }: {
   lead: any
   favorites?: any[]
@@ -69,6 +70,9 @@ export default function LeadFavorites({
   // Open the "Did the client sign their lease?" confirm for the Top Pick's open
   // confirm_lease. Absent → the control is hidden.
   onConfirmLease?: (lead: any, args: { action: any }) => void
+  // Open the Get Invoice Details intake for the Closed Top Pick's open
+  // get_invoice_details. Absent → the control is hidden.
+  onGetInvoiceDetails?: (lead: any, args: { action: any }) => void
 }) {
   const [showFavoriteModal, setShowFavoriteModal] = useState(false)
   const [editingFavorite, setEditingFavorite] = useState<any | null>(null)
@@ -312,6 +316,16 @@ export default function LeadFavorites({
               )
               const confirmLeaseOpen = !!confirmLeaseAction
               const closedStage = String(lead.crm_status ?? "") === "closed"
+              // This property's open Get Invoice Details (created on Lease Signed,
+              // property-scoped to the Top Pick). Closed → Get Invoice Details.
+              const getInvoiceAction = nextActions.find(
+                (a: any) =>
+                  String(a.lead_id) === String(lead.id) &&
+                  String(a.property_id ?? "") === String(fav.id) &&
+                  !a.completed &&
+                  (String(a.action_key ?? "") === "get_invoice_details" || String(a.title ?? "").trim().toLowerCase() === "get invoice details"),
+              )
+              const getInvoiceOpen = !!getInvoiceAction
               // Canonical surfaced state: always the FURTHEST canonical state —
               // "Ready to Apply" pre-submission → "Applied" once 'applied' → the
               // application-phase state (Approved / Application Pending / Application
@@ -512,9 +526,28 @@ export default function LeadFavorites({
                     </div>
                   )}
 
+                  {/* Closed (lease signed) → Get Invoice Details (property-scoped to
+                      the Top Pick). Opens the compact invoice intake. */}
+                  {getInvoiceOpen && onGetInvoiceDetails && (
+                    <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10.5px] font-semibold text-emerald-600">
+                          {isTopPick && "★ Top Pick · "}{favState}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => onGetInvoiceDetails(lead, { action: getInvoiceAction })}
+                          className="flex-none text-[10.5px] font-semibold text-[var(--crm-accent)] hover:underline"
+                        >
+                          Get Invoice Details
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Recorded outcome with no pending action — one compact muted line
                       (no badge stack). Top Pick shown inline when this property is it. */}
-                  {!tour && !tfAction && !applyAction && !checkAppOpen && !confirmLeaseOpen && favState && (
+                  {!tour && !tfAction && !applyAction && !checkAppOpen && !confirmLeaseOpen && !getInvoiceOpen && favState && (
                     <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
                       <p className="text-[11px] font-medium text-[var(--crm-text-muted)]">
                         {isTopPick && <span className="font-semibold text-emerald-600">★ Top Pick · </span>}

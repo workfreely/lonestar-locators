@@ -96,6 +96,30 @@ export const lastActionSchema = z.object({
 });
 export type LastActionDTO = z.infer<typeof lastActionSchema>;
 
+/** Read-only invoice/commission summary for a Closed lead — the SAME canonical
+ *  leads.invoice_* data the CRM Invoice Details section shows, projected for the
+ *  Companion's read-only view. Populated only when the lead is Closed and has
+ *  collected invoice data; null otherwise. The Companion never writes it. */
+export const invoiceSummarySchema = z.object({
+  contactName: z.string().nullish(),
+  contactTitle: z.string().nullish(),
+  notes: z.string().nullish(),
+  propertyName: z.string().nullish(),
+  unitNumber: z.string().nullish(),
+  leaseStartDate: z.string().nullish(),
+  leaseTerm: z.string().nullish(),
+  baseRent: z.number().nullish(),
+  commissionPct: z.number().nullish(),
+  brokerSplitPct: z.number().nullish(),
+  totalInvoice: z.number().nullish(),
+  expectedCommission: z.number().nullish(),
+  rebateType: z.string().nullish(),
+  rebateAmount: z.number().nullish(),
+  submitted: z.boolean().nullish(),
+  commissionPaid: z.boolean().nullish(),
+});
+export type InvoiceSummaryDTO = z.infer<typeof invoiceSummarySchema>;
+
 /** The safe lead projection the panel renders. No workspace_id, no soft-delete
  *  bookkeeping beyond what the UI needs. */
 export const leadSummarySchema = z.object({
@@ -126,6 +150,9 @@ export const leadSummarySchema = z.object({
    *  (pending | approved | denied | other). Null until a Check Application outcome
    *  is recorded. One application per lead (MVP); property-scoped to the Top Pick. */
   applicationStatus: z.string().nullish(),
+  /** Read-only invoice/commission summary (Closed leads only). Same canonical
+   *  leads.invoice_* data as the CRM Invoice Details section; null until collected. */
+  invoice: invoiceSummarySchema.nullish(),
   /**
    * Client Notes — the client's original FORM-SUBMITTED notes, read-only. Maps to
    * the existing `leads.notes` column (the same data the CRM's Client Notes shows).

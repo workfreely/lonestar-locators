@@ -58,6 +58,11 @@ function hasValue(v: unknown): boolean {
   return true;
 }
 
+/** Compact USD for the read-only Invoice Details rows (mirrors the CRM section). */
+function invMoney(n: number): string {
+  return n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
 interface DisplayRow {
   label: string;
   value: string | null | undefined;
@@ -228,6 +233,7 @@ export function LeadPanelBody({
   onStartApplication,
   onCheckApplication,
   onConfirmLease,
+  onGetInvoiceDetails,
   onAddTask,
   onBackToCrm,
   timeZone,
@@ -271,6 +277,8 @@ export function LeadPanelBody({
   onCheckApplication?: () => void;
   // "Confirm Lease" — opens the "did the client sign?" confirm in the CRM tab.
   onConfirmLease?: () => void;
+  // "Get Invoice Details" — opens the compact invoice intake in the CRM tab.
+  onGetInvoiceDetails?: () => void;
   // "+ Add Task" — opens the custom-task sheet (title + date/time) for THIS
   // client. Omitted in fixtures, where the button falls back to the demo note.
   onAddTask?: () => void;
@@ -325,6 +333,7 @@ export function LeadPanelBody({
   const isApply = (openAction?.title ?? "").trim().toLowerCase() === "apply";
   const isCheckApp = (openAction?.title ?? "").trim().toLowerCase() === "check app";
   const isConfirmLease = (openAction?.title ?? "").trim().toLowerCase() === "confirm lease";
+  const isGetInvoice = (openAction?.title ?? "").trim().toLowerCase() === "get invoice details";
 
   return (
     <div className="lp-body">
@@ -506,6 +515,16 @@ export function LeadPanelBody({
                 >
                   {formatWorkflowActionLabel(openAction.title)}
                 </Button>
+              ) : isGetInvoice && onGetInvoiceDetails ? (
+                // Opens the compact invoice intake in the CRM tab for the Closed
+                // lead's Top Pick (same canonical invoice_* fields + completion).
+                <Button
+                  variant="solid"
+                  onClick={() => onGetInvoiceDetails()}
+                  title="Collect the lease/commission details for the invoice"
+                >
+                  {formatWorkflowActionLabel(openAction.title)}
+                </Button>
               ) : (
                 <Button
                   variant="solid"
@@ -608,13 +627,31 @@ export function LeadPanelBody({
         </SectionCard>
       )}
 
-      {/* ── Invoice Details (Closed only) ── */}
-      {lead.isClosed && (
-        <SectionCard title="Invoice Details" defaultOpen={false}>
-          <p className="lp-muted">
-            Post-close lease &amp; commission record. (Demo — fields load from Locator Beast in a later phase.)
-          </p>
-        </SectionCard>
+      {/* ── Invoice Details (Closed only) ── read-only projection of the SAME
+          canonical leads.invoice_* data the CRM section shows; only rows with a
+          value render (hidden entirely until the agent collects details). */}
+      {lead.isClosed && lead.invoice && (
+        <FieldSection
+          key={`invoice-${lead.id}`}
+          title="Invoice Details"
+          defaultOpen={false}
+          rows={[
+            { label: "Contact", value: [lead.invoice.contactName, lead.invoice.contactTitle].filter(Boolean).join(" · ") || null },
+            { label: "Property", value: lead.invoice.propertyName },
+            { label: "Unit", value: lead.invoice.unitNumber },
+            { label: "Lease Start", value: hasValue(lead.invoice.leaseStartDate) ? formatDateDisplay(lead.invoice.leaseStartDate!) : null },
+            { label: "Lease Term (Months)", value: lead.invoice.leaseTerm },
+            { label: "Base Rent", value: lead.invoice.baseRent != null ? invMoney(lead.invoice.baseRent) : null },
+            { label: "Commission", value: lead.invoice.commissionPct != null ? `${lead.invoice.commissionPct}%` : null },
+            { label: "Total Invoice", value: lead.invoice.totalInvoice != null ? invMoney(lead.invoice.totalInvoice) : null },
+            { label: "Broker Split", value: lead.invoice.brokerSplitPct != null ? `${lead.invoice.brokerSplitPct}%` : null },
+            { label: "Expected Commission", value: lead.invoice.expectedCommission != null ? invMoney(lead.invoice.expectedCommission) : null },
+            { label: "Client Rebate", value: lead.invoice.rebateType ? `${lead.invoice.rebateType}${lead.invoice.rebateAmount != null ? ` · ${invMoney(lead.invoice.rebateAmount)}` : ""}` : null },
+            { label: "Invoice Submitted", value: lead.invoice.submitted ? "Yes" : null },
+            { label: "Commission Paid", value: lead.invoice.commissionPaid ? "Yes" : null },
+            { label: "Notes", value: lead.invoice.notes },
+          ]}
+        />
       )}
 
       {/* ── Messaging Tools ── (collapsed per client, like the other secondary

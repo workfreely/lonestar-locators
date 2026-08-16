@@ -56,6 +56,7 @@ export {
   creditScreeningSchema,
   nextActionSchema,
   workflowStateSchema,
+  invoiceSummarySchema,
   leadSummarySchema,
   leadDetailSchema,
   favoriteSchema,
@@ -74,6 +75,7 @@ export {
 export type {
   NextActionDTO,
   LeadSummaryDTO,
+  InvoiceSummaryDTO,
   LeadDetailDTO,
   FavoriteDTO,
   MutationResultDTO,

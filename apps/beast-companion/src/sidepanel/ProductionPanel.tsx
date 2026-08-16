@@ -666,6 +666,29 @@ export function ProductionPanel() {
     }
   };
 
+  // "Get Invoice Details" → open the compact invoice intake in the CRM tab for the
+  // Closed lead's Top Pick. Same canonical workflow as the Workspace — the extension
+  // has NO invoice business logic of its own.
+  const onGetInvoiceDetails = () => {
+    const lead = active?.lead;
+    if (!lead || lead.id === undefined || lead.id === null) return;
+    const inv = (active?.nextActions ?? []).find(
+      (a) => !a.completed && (a.title ?? "").trim().toLowerCase() === "get invoice details"
+    );
+    focusExistingCrmTab();
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+    if (store) {
+      store.set({
+        "lb-workflow-verb": {
+          nonce: `${Date.now()}-${Math.random()}`,
+          leadId: lead.id,
+          verb: "open-invoice-details",
+          actionId: inv?.id ?? null,
+        },
+      });
+    }
+  };
+
   const pendingName = pendingContact?.name ?? "this client";
 
   return (
@@ -689,6 +712,7 @@ export function ProductionPanel() {
         onStartApplication={onStartApplication}
         onCheckApplication={onCheckApplication}
         onConfirmLease={onConfirmLease}
+        onGetInvoiceDetails={onGetInvoiceDetails}
         onAddTask={onAddTask}
         onBackToCrm={onBackToCrm}
         timeZone={active?.timeZone ?? null}

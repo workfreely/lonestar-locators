@@ -74,8 +74,9 @@ function signLease(s: S): S {
   return { lead: { ...s.lead, crm_status: "closed", closed_at: s.lead.closed_at ?? iso(0) }, actions }
 }
 
-// Mirrors handleInvoiceSubmitted (submitted = true).
-function submitInvoice(s: S): S {
+// Mirrors saveInvoiceDetails (Save Invoice Details completes the action — decoupled
+// from the invoice_submitted flag, which is now reserved for future Send Invoice).
+function saveInvoiceDetails(s: S): S {
   const actions = s.actions.map((a) => (a.action_key === "get_invoice_details" ? { ...a, completed: true, status: "completed", completed_at: iso(0) } : a))
   return { lead: { ...s.lead }, actions }
 }
@@ -112,8 +113,8 @@ const skylineTf = (s: S) => s.actions.find((a) => a.id === "sky-tf")
   const sDup = signLease(s)
   ok(openCount(sDup, "get_invoice_details") <= 1, "no duplicate Get Invoice Details on a re-run (action_key dedup)")
 
-  s = submitInvoice(s)
-  ok(s.actions.find((a) => a.action_key === "get_invoice_details").completed === true, "Invoice Submitted → Get Invoice Details completed (terminal)")
+  s = saveInvoiceDetails(s)
+  ok(s.actions.find((a) => a.action_key === "get_invoice_details").completed === true, "Save Invoice Details → Get Invoice Details completed (terminal)")
 
   // Skyline's follow-up is STILL open and untouched across the whole closing chain.
   ok(skylineTf(s).completed === false && skylineTf(s).property_id === SKYLINE, "other Favorite (Skyline) stays isolated through the entire closing chain")
