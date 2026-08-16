@@ -43,6 +43,7 @@ export default function LeadFavorites({
   onCheckApplication,
   onConfirmLease,
   onGetInvoiceDetails,
+  onSendInvoice,
 }: {
   lead: any
   favorites?: any[]
@@ -73,6 +74,9 @@ export default function LeadFavorites({
   // Open the Get Invoice Details intake for the Closed Top Pick's open
   // get_invoice_details. Absent → the control is hidden.
   onGetInvoiceDetails?: (lead: any, args: { action: any }) => void
+  // Open the Send Invoice composer for the Closed Top Pick's open send_invoice.
+  // Absent → the control is hidden.
+  onSendInvoice?: (lead: any, args: { action: any }) => void
 }) {
   const [showFavoriteModal, setShowFavoriteModal] = useState(false)
   const [editingFavorite, setEditingFavorite] = useState<any | null>(null)
@@ -326,6 +330,19 @@ export default function LeadFavorites({
                   (String(a.action_key ?? "") === "get_invoice_details" || String(a.title ?? "").trim().toLowerCase() === "get invoice details"),
               )
               const getInvoiceOpen = !!getInvoiceAction
+              // This property's open Send Invoice (created when Get Invoice Details
+              // completes, property-scoped to the Top Pick). Closed → Send Invoice.
+              const sendInvoiceAction = nextActions.find(
+                (a: any) =>
+                  String(a.lead_id) === String(lead.id) &&
+                  String(a.property_id ?? "") === String(fav.id) &&
+                  !a.completed &&
+                  (String(a.action_key ?? "") === "send_invoice" || String(a.title ?? "").trim().toLowerCase() === "send invoice"),
+              )
+              const sendInvoiceOpen = !!sendInvoiceAction
+              // Durable Invoice Sent state (leads.invoice_submitted) — the furthest
+              // closing milestone surfaced on the Top Pick once confirmed sent.
+              const invoiceSent = !!lead.invoice_submitted
               // Canonical surfaced state: always the FURTHEST canonical state —
               // "Ready to Apply" pre-submission → "Applied" once 'applied' → the
               // application-phase state (Approved / Application Pending / Application
@@ -339,6 +356,7 @@ export default function LeadFavorites({
                 applicationStatus,
                 isApplicationProperty,
                 closedStage,
+                invoiceSent,
               })
               return (
                 <div
@@ -545,9 +563,29 @@ export default function LeadFavorites({
                     </div>
                   )}
 
+                  {/* Invoice collected → Send Invoice (property-scoped to the Top
+                      Pick). Opens the invoice email composer. Disappears once the
+                      agent confirms Invoice Sent (favState then reads Invoice Sent). */}
+                  {sendInvoiceOpen && onSendInvoice && (
+                    <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10.5px] font-semibold text-emerald-600">
+                          {isTopPick && "★ Top Pick · "}{favState}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => onSendInvoice(lead, { action: sendInvoiceAction })}
+                          className="flex-none text-[10.5px] font-semibold text-[var(--crm-accent)] hover:underline"
+                        >
+                          Send Invoice
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Recorded outcome with no pending action — one compact muted line
                       (no badge stack). Top Pick shown inline when this property is it. */}
-                  {!tour && !tfAction && !applyAction && !checkAppOpen && !confirmLeaseOpen && !getInvoiceOpen && favState && (
+                  {!tour && !tfAction && !applyAction && !checkAppOpen && !confirmLeaseOpen && !getInvoiceOpen && !sendInvoiceOpen && favState && (
                     <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
                       <p className="text-[11px] font-medium text-[var(--crm-text-muted)]">
                         {isTopPick && <span className="font-semibold text-emerald-600">★ Top Pick · </span>}

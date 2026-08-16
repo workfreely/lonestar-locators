@@ -35,6 +35,8 @@ const FULL: Record<string, string> = {
   // The canonical post-approval action created by Check Application → Approved.
   // Its completion (Confirm Lease → Closed) is designed/wired separately.
   confirm_lease: "Confirm Lease",
+  // Post-invoice-collection closing step: email the invoice to the property.
+  send_invoice: "Send Invoice",
   email_guest_card: "Send Guest Card",
   waiting_for_response: "Waiting for Reply",
 };
@@ -74,6 +76,8 @@ const TO_KEY: Record<string, string> = {
   start_application: "start_application",
   "confirm lease": "confirm_lease",
   confirm_lease: "confirm_lease",
+  "send invoice": "send_invoice",
+  send_invoice: "send_invoice",
   "email guest card": "email_guest_card",
   "send guest card": "email_guest_card",
   email_guest_card: "email_guest_card",
@@ -129,6 +133,8 @@ const LAST_ACTION_BY_DISPLAY: Record<string, string> = {
   "Check Application": "Checked Application",
   // Completing Confirm Lease (client signed) → "Lease Signed · Property".
   "Confirm Lease": "Lease Signed",
+  // Completing Send Invoice (agent confirmed sent) → "Invoice Sent · Property".
+  "Send Invoice": "Invoice Sent",
   "Setup Movers": "Movers Scheduled",
   "Send Rebate": "Sent Rebate",
   "Get Invoice Details": "Got Invoice Details",

@@ -19,7 +19,11 @@ import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 // Yes, Lease Signed): the explicit close point (metadata: { confirm_action_id,
 // property_id, property_name }). The immutable record; crm_status 'closed' +
 // closed_at hold the current state.
-export type LeadTimelineType = "first_contact" | "follow_up" | "contact_attempt" | "text_sent" | "tour_outcome" | "application_outcome" | "lease_signed"
+// 'invoice_sent' = the agent confirmed they sent the invoice to the property
+// (Send Invoice → Yes, Invoice Sent): the explicit send point (metadata:
+// { send_action_id, property_id, property_name }). leads.invoice_submitted holds
+// the durable current state; this is the immutable "when/which property" record.
+export type LeadTimelineType = "first_contact" | "follow_up" | "contact_attempt" | "text_sent" | "tour_outcome" | "application_outcome" | "lease_signed" | "invoice_sent"
 export type LeadTimelineMethod = "call" | "text" | "email"
 
 export type TimelineEventInput = {

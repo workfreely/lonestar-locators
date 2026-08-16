@@ -689,6 +689,29 @@ export function ProductionPanel() {
     }
   };
 
+  // "Send Invoice" → open the invoice email composer in the CRM tab for the Closed
+  // lead's Top Pick. Same canonical composer/confirmation as the Workspace — the
+  // extension has NO invoice-sending business logic of its own.
+  const onSendInvoice = () => {
+    const lead = active?.lead;
+    if (!lead || lead.id === undefined || lead.id === null) return;
+    const inv = (active?.nextActions ?? []).find(
+      (a) => !a.completed && (a.title ?? "").trim().toLowerCase() === "send invoice"
+    );
+    focusExistingCrmTab();
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+    if (store) {
+      store.set({
+        "lb-workflow-verb": {
+          nonce: `${Date.now()}-${Math.random()}`,
+          leadId: lead.id,
+          verb: "open-send-invoice",
+          actionId: inv?.id ?? null,
+        },
+      });
+    }
+  };
+
   const pendingName = pendingContact?.name ?? "this client";
 
   return (
@@ -713,6 +736,7 @@ export function ProductionPanel() {
         onCheckApplication={onCheckApplication}
         onConfirmLease={onConfirmLease}
         onGetInvoiceDetails={onGetInvoiceDetails}
+        onSendInvoice={onSendInvoice}
         onAddTask={onAddTask}
         onBackToCrm={onBackToCrm}
         timeZone={active?.timeZone ?? null}

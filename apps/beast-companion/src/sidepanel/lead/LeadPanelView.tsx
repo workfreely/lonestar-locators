@@ -234,6 +234,7 @@ export function LeadPanelBody({
   onCheckApplication,
   onConfirmLease,
   onGetInvoiceDetails,
+  onSendInvoice,
   onAddTask,
   onBackToCrm,
   timeZone,
@@ -279,6 +280,8 @@ export function LeadPanelBody({
   onConfirmLease?: () => void;
   // "Get Invoice Details" — opens the compact invoice intake in the CRM tab.
   onGetInvoiceDetails?: () => void;
+  // "Send Invoice" — opens the invoice email composer in the CRM tab.
+  onSendInvoice?: () => void;
   // "+ Add Task" — opens the custom-task sheet (title + date/time) for THIS
   // client. Omitted in fixtures, where the button falls back to the demo note.
   onAddTask?: () => void;
@@ -334,6 +337,7 @@ export function LeadPanelBody({
   const isCheckApp = (openAction?.title ?? "").trim().toLowerCase() === "check app";
   const isConfirmLease = (openAction?.title ?? "").trim().toLowerCase() === "confirm lease";
   const isGetInvoice = (openAction?.title ?? "").trim().toLowerCase() === "get invoice details";
+  const isSendInvoice = (openAction?.title ?? "").trim().toLowerCase() === "send invoice";
 
   return (
     <div className="lp-body">
@@ -522,6 +526,16 @@ export function LeadPanelBody({
                   variant="solid"
                   onClick={() => onGetInvoiceDetails()}
                   title="Collect the lease/commission details for the invoice"
+                >
+                  {formatWorkflowActionLabel(openAction.title)}
+                </Button>
+              ) : isSendInvoice && onSendInvoice ? (
+                // Opens the invoice email composer in the CRM tab for the Top Pick
+                // (prefilled from the saved invoice; confirm sent to complete).
+                <Button
+                  variant="solid"
+                  onClick={() => onSendInvoice()}
+                  title="Email the invoice to the property"
                 >
                   {formatWorkflowActionLabel(openAction.title)}
                 </Button>

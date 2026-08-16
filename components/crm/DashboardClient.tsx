@@ -34,8 +34,10 @@ import GuestCardModal from "./GuestCardModal"
 import TourFollowUpModal from "./TourFollowUpModal"
 import CheckApplicationModal from "./CheckApplicationModal"
 import GetInvoiceDetailsModal from "./GetInvoiceDetailsModal"
+import SendInvoiceModal from "./SendInvoiceModal"
 import InvoiceDetailsSection from "./InvoiceDetailsSection"
 import { autoInvoicePropertyName } from "@/lib/leads/invoiceFields"
+import { recordTimelineEvent } from "@/lib/leads/timeline"
 import ConfirmDialog from "./ConfirmDialog"
 import { isGuestCardTitle } from "@/lib/leads/guestCardWorkflow"
 import { completeTourFollowUp } from "@/lib/leads/tourFollowUpWorkflow"
@@ -179,6 +181,11 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
   // lead's Top Pick Favorite or the Companion verb; Save persists the canonical
   // invoice_* fields and completes the get_invoice_details action.
   const [getInvoice, setGetInvoice] = useState<null | { lead: any; action: any; property: any }>(null)
+  // Send Invoice composer + "Did you send the invoice?" confirmation. Opening the
+  // email never marks it sent — only the explicit Yes completes send_invoice and
+  // sets the durable Invoice Sent state (leads.invoice_submitted).
+  const [sendInvoice, setSendInvoice] = useState<null | { lead: any; action: any; property: any }>(null)
+  const [confirmInvoiceSent, setConfirmInvoiceSent] = useState<null | { lead: any; action: any }>(null)
   const [showLeadModal, setShowLeadModal] = useState(false)
   const [followUpsOpen, setFollowUpsOpen] = useState(DEFAULT_AGENDA_EXPANDED)
   const [pendingEditActionId, setPendingEditActionId] = useState<number | null>(null)
@@ -698,8 +705,83 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
       merged = merged.map((a: any) =>
         String(a.id) === String(inv.id) ? { ...a, completed: true, completed_at: now, status: "completed" } : a,
       )
-      setLocalNextActions(merged)
     }
+    // 4) Create the next canonical closing action: Send Invoice, property-scoped to
+    //    the Top Pick. Deduped on action_key → re-saving never doubles it.
+    const propertyId = inv?.property_id ?? lead.top_pick_favorite_id ?? gi.property?.id ?? null
+    const propFav = localFavoritesRef.current.find((f: any) => String(f.id) === String(propertyId))
+    const propertyName = inv?.property_name ?? propFav?.property_name ?? gi.property?.property_name ?? null
+    const alreadyOpen = merged.some(
+      (a: any) => String(a.lead_id) === String(lead.id) && !a.completed && String(a.action_key ?? "") === "send_invoice",
+    )
+    let sendAction: any = null
+    if (!alreadyOpen) {
+      if (demo) {
+        sendAction = {
+          id: `demo-act-send-invoice-${now}`, lead_id: lead.id, title: "Send Invoice", due_at: now, priority: "medium",
+          property_id: propertyId, property_name: propertyName, action_key: "send_invoice", action_type: "workflow", origin: "workflow", completed: false, status: "open",
+        }
+      } else {
+        sendAction = await createWorkflowActionIfNeeded(supabase, lead.id, { title: "Send Invoice", dueAt: now, actionKey: "send_invoice", propertyId, propertyName })
+      }
+      if (sendAction) merged = [...merged, sendAction]
+    }
+    setLocalNextActions(merged)
+    postCompanionActiveClient(updatedLead, merged)
+  }
+
+  // ── Send Invoice (Closed → email the invoice → confirm sent) ────────────────
+  // Open the composer for the Closed lead's Top Pick. `action` is the open
+  // send_invoice row; the property is resolved from the Top Pick.
+  function openSendInvoice(lead: any, action: any) {
+    if (!lead) return
+    const property =
+      localFavoritesRef.current.find((f: any) => String(f.id) === String(lead.top_pick_favorite_id)) ??
+      localFavoritesRef.current.find((f: any) => String(f.id) === String(action?.property_id)) ??
+      (action?.property_name ? { property_name: action.property_name } : null)
+    setSendInvoice({ lead, action, property })
+  }
+  function handleSendInvoice(lead: any, args: { action: any }) {
+    openSendInvoice(lead, args.action)
+  }
+  // Open Email fired → the invoice email opened, but that does NOT prove it was
+  // sent. Close the composer and ask for explicit confirmation.
+  function handleInvoiceEmailOpened() {
+    const si = sendInvoice
+    setSendInvoice(null)
+    if (!si) return
+    setConfirmInvoiceSent({ lead: si.lead, action: si.action })
+  }
+  // "Yes, Invoice Sent" → complete send_invoice, set the durable Invoice Sent state
+  // (invoice_submitted), record the immutable timeline event. Lead stays Closed,
+  // Top Pick unchanged. ("Not Yet" simply closes — send_invoice stays open.)
+  async function confirmInvoiceSentYes() {
+    const ci = confirmInvoiceSent
+    setConfirmInvoiceSent(null)
+    if (!ci) return
+    const { lead, action } = ci
+    const now = new Date().toISOString()
+    const demo = isDemoLeadId(lead.id)
+    if (!demo) {
+      if (action?.id != null) {
+        const { error } = await supabase.from("lead_next_actions").update({ completed: true, completed_at: now, status: "completed" }).eq("id", action.id)
+        if (error) console.error("[send-invoice] complete send_invoice failed:", error)
+      }
+      const { error: leadErr } = await supabase.from("leads").update({ invoice_submitted: true }).eq("id", lead.id)
+      if (leadErr) console.error("[send-invoice] set invoice_submitted failed:", leadErr.message)
+    }
+    recordTimelineEvent({
+      leadId: lead.id,
+      type: "invoice_sent",
+      occurredAt: now,
+      metadata: { send_action_id: action?.id ?? null, property_id: action?.property_id ?? null, property_name: action?.property_name ?? null },
+    })
+    const merged = localNextActionsRef.current.map((a: any) =>
+      action?.id != null && String(a.id) === String(action.id) ? { ...a, completed: true, completed_at: now, status: "completed" } : a,
+    )
+    setLocalNextActions(merged)
+    const updatedLead = { ...lead, invoice_submitted: true }
+    setLocalLeads((prev) => prev.map((l) => (String(l.id) === String(lead.id) ? { ...l, invoice_submitted: true } : l)))
     postCompanionActiveClient(updatedLead, merged)
   }
 
@@ -855,7 +937,8 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
         payload.verb !== "open-apply" &&
         payload.verb !== "open-check-application" &&
         payload.verb !== "open-confirm-lease" &&
-        payload.verb !== "open-invoice-details"
+        payload.verb !== "open-invoice-details" &&
+        payload.verb !== "open-send-invoice"
       )
         return
 
@@ -1462,6 +1545,22 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
         return
       }
 
+      // Beast Companion "Send Invoice" → open the invoice email composer in the CRM
+      // tab for the Closed lead's Top Pick (same canonical composer + confirmation).
+      if (payload.verb === "open-send-invoice") {
+        const action =
+          localNextActionsRef.current.find((a: any) => payload.actionId != null && String(a.id) === String(payload.actionId)) ??
+          localNextActionsRef.current.find(
+            (a: any) =>
+              String(a.lead_id) === String(lead.id) &&
+              !a.completed &&
+              (String(a.action_key ?? "") === "send_invoice" || String(a.title ?? "").trim().toLowerCase() === "send invoice")
+          )
+        if (!action) return
+        handleSendInvoice(lead, { action })
+        return
+      }
+
       const method: "call" | "text" = payload.method === "call" ? "call" : "text"
 
       if (payload.verb === "contact-attempt") {
@@ -1751,6 +1850,7 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
                     onCheckApplication={handleCheckApplication}
                     onConfirmLease={handleConfirmLease}
                     onGetInvoiceDetails={handleGetInvoiceDetails}
+                    onSendInvoice={handleSendInvoice}
                   />
                   {/* Invoice Details — the Closed-lead commission/invoice record
                       (leads.invoice_*). Surfaced in the workspace (the legacy Lead
@@ -1866,6 +1966,33 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
         clientName={getInvoice?.lead ? (((getInvoice.lead.preferred_name || getInvoice.lead.first_name || "") + " " + (getInvoice.lead.last_name || "")).trim() || null) : null}
         autoPropertyName={getInvoice?.lead ? autoInvoicePropertyName(getInvoice.lead, localFavoritesRef.current) : null}
         onSave={saveInvoiceDetails}
+      />
+
+      {/* Send Invoice — the invoice email composer (same pattern as Email Guest
+          Card). Prefilled from the canonical invoice_* fields (property-facing
+          only); Open Email launches the agent's mail client and then asks for
+          explicit confirmation before marking Invoice Sent. */}
+      <SendInvoiceModal
+        open={sendInvoice !== null}
+        onClose={() => setSendInvoice(null)}
+        lead={sendInvoice?.lead ?? null}
+        propertyName={sendInvoice?.property?.property_name ?? sendInvoice?.action?.property_name ?? null}
+        clientName={sendInvoice?.lead ? (((sendInvoice.lead.preferred_name || sendInvoice.lead.first_name || "") + " " + (sendInvoice.lead.last_name || "")).trim() || null) : null}
+        signature={signature}
+        onOpened={handleInvoiceEmailOpened}
+      />
+
+      {/* "Did you send the invoice?" — opening the email never proves it was sent.
+          Yes completes send_invoice + sets the durable Invoice Sent state; Not Yet
+          keeps Send Invoice open. Lead stays Closed either way. */}
+      <ConfirmDialog
+        open={confirmInvoiceSent !== null}
+        title={`Did you send the invoice${confirmInvoiceSent?.action?.property_name ? ` for ${confirmInvoiceSent.action.property_name}` : ""}?`}
+        message="Only confirm once you've actually sent the invoice email to the property."
+        confirmLabel="Yes, Invoice Sent"
+        cancelLabel="Not Yet"
+        onConfirm={confirmInvoiceSentYes}
+        onCancel={() => setConfirmInvoiceSent(null)}
       />
 
       {/* Confirm Lease → Closed confirmation. 'closed' is reached ONLY here, on the

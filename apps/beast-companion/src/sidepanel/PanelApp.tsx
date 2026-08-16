@@ -46,6 +46,7 @@ export function PanelApp({
   onCheckApplication,
   onConfirmLease,
   onGetInvoiceDetails,
+  onSendInvoice,
   onAddTask,
   onBackToCrm,
   timeZone,
@@ -86,6 +87,8 @@ export function PanelApp({
   onConfirmLease?: () => void;
   // "Get Invoice Details" opens the CRM compact invoice intake.
   onGetInvoiceDetails?: () => void;
+  // "Send Invoice" opens the CRM invoice email composer.
+  onSendInvoice?: () => void;
   // "+ Add Task" opens the custom-task sheet (title + date/time). Omitted in the
   // dev harness (fixtures), where the button falls back to the inert demo note.
   onAddTask?: () => void;
@@ -202,6 +205,7 @@ export function PanelApp({
               onCheckApplication={onCheckApplication}
               onConfirmLease={onConfirmLease}
               onGetInvoiceDetails={onGetInvoiceDetails}
+              onSendInvoice={onSendInvoice}
               onAddTask={onAddTask}
               onBackToCrm={onBackToCrm}
               timeZone={timeZone}

@@ -24,6 +24,7 @@ export const WORKFLOW_ACTION_KEYS = [
   "check_application",
   "confirm_lease",
   "get_invoice_details",
+  "send_invoice",
   "setup_movers",
   "send_rebate",
   "follow_up_1",
