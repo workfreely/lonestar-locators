@@ -320,7 +320,13 @@ export function buildActiveClientPayload(
   let actions = orderedOpen
   if (orderedOpen.length === 0) {
     const computed = getNextAction({ ...lead, follow_up_count: dto.workflow.followUpCount })
-    if (computed && computed !== "Next Action") {
+    // Once the closing chain has completed (commission paid), the "closed" stage
+    // rule still returns "Invoice Details" — but that step is long done, so do NOT
+    // fabricate a "Get Invoice Details" placeholder. Any genuine post-payment action
+    // (Cash Rebate → Send Rebate) is a REAL open row and takes the orderedOpen path
+    // above; Free Movers / No Client Incentive correctly end with no next action.
+    const isSpentClosingPlaceholder = computed === "Invoice Details" && !!lead.invoice_commission_paid
+    if (computed && computed !== "Next Action" && !isSpentClosingPlaceholder) {
       actions = [
         {
           id: `computed-${lead.id}`,

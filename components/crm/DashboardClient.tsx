@@ -837,9 +837,35 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
       occurredAt: now,
       metadata: { commission_action_id: action?.id ?? null, property_id: action?.property_id ?? null, property_name: action?.property_name ?? null },
     })
-    const merged = localNextActionsRef.current.map((a: any) =>
+    let merged = localNextActionsRef.current.map((a: any) =>
       action?.id != null && String(a.id) === String(action.id) ? { ...a, completed: true, completed_at: now, status: "completed" } : a,
     )
+    // Client Incentive branch. Cash Rebate → the client is owed money back, so create
+    // the terminal Send Rebate action (property-scoped to the Top Pick, deduped on
+    // action_key → no duplicates). Free Movers and No Client Incentive create nothing:
+    // commission_paid ends the closing branch (the DTO no longer fabricates a stray
+    // "Get Invoice Details"). Setup Movers is intentionally NOT handled here — it will
+    // be scheduled earlier (post-lease, before move-in) in a separate pass.
+    if (String(lead.invoice_rebate_type ?? "") === "Cash Rebate") {
+      const propertyId = action?.property_id ?? lead.top_pick_favorite_id ?? null
+      const propFav = localFavoritesRef.current.find((f: any) => String(f.id) === String(propertyId))
+      const propertyName = action?.property_name ?? propFav?.property_name ?? null
+      const rebateOpen = merged.some(
+        (a: any) => String(a.lead_id) === String(lead.id) && !a.completed && String(a.action_key ?? "") === "send_rebate",
+      )
+      if (!rebateOpen) {
+        let rebateAction: any = null
+        if (demo) {
+          rebateAction = {
+            id: `demo-act-send-rebate-${now}`, lead_id: lead.id, title: "Send Rebate", due_at: now, priority: "medium",
+            property_id: propertyId, property_name: propertyName, action_key: "send_rebate", action_type: "workflow", origin: "workflow", completed: false, status: "open",
+          }
+        } else {
+          rebateAction = await createWorkflowActionIfNeeded(supabase, lead.id, { title: "Send Rebate", dueAt: now, actionKey: "send_rebate", propertyId, propertyName })
+        }
+        if (rebateAction) merged = [...merged, rebateAction]
+      }
+    }
     setLocalNextActions(merged)
     const updatedLead = { ...lead, invoice_commission_paid: true }
     setLocalLeads((prev) => prev.map((l) => (String(l.id) === String(lead.id) ? { ...l, invoice_commission_paid: true } : l)))

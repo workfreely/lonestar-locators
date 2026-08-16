@@ -38,6 +38,9 @@ const FULL: Record<string, string> = {
   // Terminal closing step: the OPEN action reads "Confirm Payment" (payment not yet
   // received); completed it reads "Commission Paid" (see LAST_ACTION_BY_DISPLAY).
   commission_paid: "Confirm Payment",
+  // Post-payment closing action for the Cash Rebate incentive only — the OPEN
+  // action reads "Send Rebate"; completed it reads "Sent Rebate" (LAST_ACTION).
+  send_rebate: "Send Rebate",
   email_guest_card: "Send Guest Card",
   waiting_for_response: "Waiting for Reply",
 }
@@ -80,6 +83,8 @@ const TO_KEY: Record<string, string> = {
   send_invoice: "send_invoice",
   "confirm payment": "commission_paid",
   commission_paid: "commission_paid",
+  "send rebate": "send_rebate",
+  send_rebate: "send_rebate",
   "email guest card": "email_guest_card",
   "send guest card": "email_guest_card",
   email_guest_card: "email_guest_card",

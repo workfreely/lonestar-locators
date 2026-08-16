@@ -14,6 +14,18 @@
 export const INVOICE_REBATE_TYPES = ["None", "Cash Rebate", "Free Movers", "Gift Card", "Other"] as const
 export type InvoiceRebateType = (typeof INVOICE_REBATE_TYPES)[number]
 
+// Client Incentive — the user-facing choices for the invoice_rebate_type column.
+// This is a TERMINOLOGY layer only: the underlying stored values are preserved
+// ("None" | "Cash Rebate" | "Free Movers"), so no schema/data migration is needed.
+// "No Client Incentive" persists as the existing "None". Cash Rebate is the ONLY
+// choice that creates a post-payment Send Rebate action; Free Movers is scheduled
+// separately (post-lease, before move-in) and is NOT handled at payment time.
+export const CLIENT_INCENTIVE_OPTIONS = [
+  { value: "None", label: "No Client Incentive" },
+  { value: "Cash Rebate", label: "Cash Rebate" },
+  { value: "Free Movers", label: "Free Movers" },
+] as const
+
 // Text/number fields are edited as strings; booleans as booleans. The persist
 // layer converts blanks → null (all columns are nullable — blank is allowed).
 export type InvoiceForm = {

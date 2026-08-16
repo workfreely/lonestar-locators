@@ -71,8 +71,68 @@ function afterInvoiceSent(): S {
   ok(s.lead.crm_status === "closed", "lead remains Closed")
   ok(String(s.lead.top_pick_favorite_id) === String(FOUNDRY), "Top Pick / property unchanged")
   ok(s.actions.find((a) => a.action_key === "send_invoice").completed === true, "Invoice Sent (send_invoice) remains completed/intact")
-  // No Rebate/Movers action created yet.
-  ok(!s.actions.some((a) => a.action_key === "send_rebate" || a.action_key === "setup_movers"), "no send_rebate / setup_movers created (terminal for this pass)")
+  // This lead has no Client Incentive set → no send_rebate; Setup Movers is never
+  // created at payment time (it belongs earlier, post-lease → separate pass).
+  ok(!s.actions.some((a) => a.action_key === "send_rebate" || a.action_key === "setup_movers"), "no send_rebate / setup_movers (no incentive on this lead)")
+}
+
+// ── Client Incentive branch at Commission Paid (mirrors confirmPaymentYes) ──
+// Pure model of the handler's incentive step: Cash Rebate creates exactly one
+// deduped Send Rebate; Free Movers / No Client Incentive create nothing.
+ok(formatWorkflowActionLabel("send_rebate") === "Send Rebate", "open send_rebate → 'Send Rebate'")
+ok(formatLastActionLabel("Send Rebate") === "Sent Rebate", "completed Send Rebate → 'Sent Rebate'")
+
+function afterCommissionPaid(rebateType: string): S {
+  // commission_paid completed + durable state set; incentive step then runs.
+  const base: any[] = [
+    { id: "send", lead_id: LEAD, action_key: "send_invoice", title: "Send Invoice", property_id: FOUNDRY, property_name: "The Foundry", completed: true, status: "completed", completed_at: "t1" },
+    { id: "cp", lead_id: LEAD, action_key: "commission_paid", title: "Confirm Payment", property_id: FOUNDRY, property_name: "The Foundry", completed: true, status: "completed", completed_at: "t2" },
+  ]
+  const lead = { id: LEAD, crm_status: "closed", top_pick_favorite_id: FOUNDRY, invoice_submitted: true, invoice_commission_paid: true, invoice_property_name: "The Foundry", invoice_rebate_type: rebateType }
+  let actions = base
+  if (String(lead.invoice_rebate_type ?? "") === "Cash Rebate") {
+    const open = actions.some((a) => String(a.lead_id) === String(LEAD) && !a.completed && a.action_key === "send_rebate")
+    if (!open) actions = [...actions, { id: "reb", lead_id: LEAD, action_key: "send_rebate", title: "Send Rebate", property_id: FOUNDRY, property_name: "The Foundry", completed: false, status: "open", due_at: "t2" }]
+  }
+  return { lead, actions }
+}
+
+// A. Cash Rebate → exactly one Send Rebate, scoped to the Top Pick; Next = Send Rebate.
+{
+  const s = afterCommissionPaid("Cash Rebate")
+  const rebs = s.actions.filter((a) => a.action_key === "send_rebate")
+  ok(rebs.length === 1, "Cash Rebate → exactly one send_rebate created")
+  ok(String(rebs[0].property_id) === String(FOUNDRY), "send_rebate scoped to the Top Pick property")
+  // Retry (dedup): an open send_rebate already exists → no second one.
+  const openReb = s.actions.some((a) => a.action_key === "send_rebate" && !a.completed)
+  ok(openReb, "an open send_rebate already exists → a retry creates no duplicate")
+  const openActions = s.actions.filter((a) => !a.completed)
+  const p = buildActiveClientPayload({ ...s.lead, first_name: "Carlos" }, s.actions, null, null, "America/Chicago", [], [])
+  ok((p.nextActions[0]?.title ?? "") === "Send Rebate", "Cash Rebate → Companion Next Action = 'Send Rebate'")
+  ok(openActions.length === 1 && openActions[0].action_key === "send_rebate", "Send Rebate is the only open action")
+}
+
+// B. Free Movers → NO send_rebate; and NO fabricated Get Invoice Details fallback.
+{
+  const s = afterCommissionPaid("Free Movers")
+  ok(!s.actions.some((a) => a.action_key === "send_rebate"), "Free Movers → no send_rebate created")
+  ok(!s.actions.some((a) => a.action_key === "setup_movers"), "Free Movers → no setup_movers created at payment time (separate pass)")
+  const p = buildActiveClientPayload({ ...s.lead, first_name: "Carlos" }, s.actions, null, null, "America/Chicago", [], [])
+  ok(!p.nextActions.some((a) => /invoice details/i.test(a.title)), "Free Movers → 'Get Invoice Details' does NOT reappear as Next Action")
+  ok(p.nextActions.length === 0, "Free Movers → no open Next Action (closing branch ended)")
+}
+
+// C. No Client Incentive → NO send_rebate; NO fabricated Get Invoice Details fallback.
+{
+  const s = afterCommissionPaid("None")
+  ok(!s.actions.some((a) => a.action_key === "send_rebate"), "No Client Incentive → no send_rebate created")
+  const p = buildActiveClientPayload({ ...s.lead, first_name: "Carlos" }, s.actions, null, null, "America/Chicago", [], [])
+  ok(!p.nextActions.some((a) => /invoice details/i.test(a.title)), "No Client Incentive → 'Get Invoice Details' does NOT reappear")
+  ok(p.nextActions.length === 0, "No Client Incentive → no open Next Action (terminal)")
+  // Last Action + Closed + Top Pick + durable state all intact regardless of branch.
+  ok(formatLastActionLabel(p.lead.lastAction?.title ?? "") === "Commission Paid", "Last Action stays 'Commission Paid'")
+  ok(p.lead.lastAction?.propertyName === "The Foundry", "Commission Paid Last Action still carries the Top Pick property")
+  ok(s.lead.crm_status === "closed" && s.lead.invoice_commission_paid === true, "lead stays Closed with invoice_commission_paid true")
 }
 
 // ── Favorite surfaced state: Invoice Sent → Commission Paid (furthest) ──

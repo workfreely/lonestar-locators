@@ -8,7 +8,7 @@ import {
   seedInvoiceForm,
   computeInvoiceTotals,
   formatInvoiceCurrency,
-  INVOICE_REBATE_TYPES,
+  CLIENT_INCENTIVE_OPTIONS,
   type InvoiceForm,
 } from "@/lib/leads/invoiceFields"
 
@@ -287,28 +287,29 @@ export default function InvoiceDetailsSection({
         </div>
       </SectionCard>
 
-      {/* Client Rebate — tracks concessions offered to the client, for future gross /
-          rebate / net commission reporting. */}
-      <SectionCard title="Client Rebate" collapsible defaultOpen={false} storageKey="invoice-rebate">
-        {/* Client Rebate Type */}
+      {/* Client Incentive — tracks concessions offered to the client, for future gross /
+          incentive / net commission reporting. Stored values are preserved (Cash Rebate /
+          Free Movers / None); only the terminology is "Client Incentive". */}
+      <SectionCard title="Client Incentive" collapsible defaultOpen={false} storageKey="invoice-rebate">
+        {/* Client Incentive */}
         <div className={rowCls}>
-          <label className={labelCls}>Client Rebate Type</label>
+          <label className={labelCls}>Client Incentive</label>
           <select
             className={`${inputCls} cursor-pointer [color-scheme:dark]`}
             value={form.invoice_rebate_type}
             onChange={(e) => saveRebateType(e.target.value)}
           >
-            {INVOICE_REBATE_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
+            {CLIENT_INCENTIVE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
               </option>
             ))}
           </select>
         </div>
 
-        {/* Client Rebate Amount */}
+        {/* Client Incentive Amount */}
         <div className={rowCls}>
-          <label className={labelCls}>Client Rebate Amount ($)</label>
+          <label className={labelCls}>Client Incentive Amount ($)</label>
           <input
             type="number"
             min="0"

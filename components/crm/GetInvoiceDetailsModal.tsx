@@ -8,7 +8,7 @@ import {
   formatInvoiceCurrency,
   formatMoneyDisplay,
   formatPercentDisplay,
-  INVOICE_REBATE_TYPES,
+  CLIENT_INCENTIVE_OPTIONS,
   type InvoiceForm,
 } from "@/lib/leads/invoiceFields"
 
@@ -156,16 +156,16 @@ export default function GetInvoiceDetailsModal({
           {readOnly("Expected Commission", expectedCommission)}
           <div className="hidden sm:block" />
 
-          <p className={groupLabel}>Client Rebate</p>
+          <p className={groupLabel}>Client Incentive</p>
           <div>
-            <label className={fieldLabel}>Client Rebate Type</label>
+            <label className={fieldLabel}>Client Incentive</label>
             <select className={`${inputCls} cursor-pointer [color-scheme:dark]`} value={form.invoice_rebate_type} onChange={(e) => set({ invoice_rebate_type: e.target.value })}>
-              {INVOICE_REBATE_TYPES.map((t) => (
-                <option key={t} value={t}>{t}</option>
+              {CLIENT_INCENTIVE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
           </div>
-          {numField("invoice_rebate_amount", "Client Rebate Amount ($)", "money")}
+          {numField("invoice_rebate_amount", "Client Incentive Amount ($)", "money")}
 
           <p className={groupLabel}>Notes</p>
           <textarea
