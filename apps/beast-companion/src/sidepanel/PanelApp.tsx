@@ -43,6 +43,8 @@ export function PanelApp({
   onSendGuestCard,
   onTourFollowUp,
   onStartApplication,
+  onCheckApplication,
+  onConfirmLease,
   onAddTask,
   onBackToCrm,
   timeZone,
@@ -77,6 +79,10 @@ export function PanelApp({
   // "Tour Follow-Up" / "Apply" open the canonical CRM outcome / confirm surfaces.
   onTourFollowUp?: () => void;
   onStartApplication?: () => void;
+  // "Check Application" opens the canonical CRM application-status outcome modal.
+  onCheckApplication?: () => void;
+  // "Confirm Lease" opens the CRM "did the client sign?" confirmation.
+  onConfirmLease?: () => void;
   // "+ Add Task" opens the custom-task sheet (title + date/time). Omitted in the
   // dev harness (fixtures), where the button falls back to the inert demo note.
   onAddTask?: () => void;
@@ -190,6 +196,8 @@ export function PanelApp({
               onSendGuestCard={onSendGuestCard}
               onTourFollowUp={onTourFollowUp}
               onStartApplication={onStartApplication}
+              onCheckApplication={onCheckApplication}
+              onConfirmLease={onConfirmLease}
               onAddTask={onAddTask}
               onBackToCrm={onBackToCrm}
               timeZone={timeZone}

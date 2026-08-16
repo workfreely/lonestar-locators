@@ -12,7 +12,14 @@ import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 // 'tour_outcome' = a Tour Follow-Up was recorded for a specific tour/property
 // (metadata: { tour_id, property_id, property_name, outcome, note? }). This is
 // the immutable history; lead_tours.outcome holds the fast current-state read.
-export type LeadTimelineType = "first_contact" | "follow_up" | "contact_attempt" | "text_sent" | "tour_outcome"
+// 'application_outcome' = a Check Application outcome was recorded for the Top Pick
+// (metadata: { check_action_id, property_id, property_name, status, note? }). The
+// immutable history; leads.application_status holds the fast current-state read.
+// 'lease_signed' = the client signed the lease for the Top Pick (Confirm Lease →
+// Yes, Lease Signed): the explicit close point (metadata: { confirm_action_id,
+// property_id, property_name }). The immutable record; crm_status 'closed' +
+// closed_at hold the current state.
+export type LeadTimelineType = "first_contact" | "follow_up" | "contact_attempt" | "text_sent" | "tour_outcome" | "application_outcome" | "lease_signed"
 export type LeadTimelineMethod = "call" | "text" | "email"
 
 export type TimelineEventInput = {

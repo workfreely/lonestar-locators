@@ -226,6 +226,8 @@ export function LeadPanelBody({
   onSendGuestCard,
   onTourFollowUp,
   onStartApplication,
+  onCheckApplication,
+  onConfirmLease,
   onAddTask,
   onBackToCrm,
   timeZone,
@@ -264,6 +266,11 @@ export function LeadPanelBody({
   // surfaced property's tour. "Apply" — opens the application-submitted confirm.
   onTourFollowUp?: () => void;
   onStartApplication?: () => void;
+  // "Check Application" — opens the canonical "What's the application status?"
+  // outcome modal in the CRM tab for the Top Pick's application.
+  onCheckApplication?: () => void;
+  // "Confirm Lease" — opens the "did the client sign?" confirm in the CRM tab.
+  onConfirmLease?: () => void;
   // "+ Add Task" — opens the custom-task sheet (title + date/time) for THIS
   // client. Omitted in fixtures, where the button falls back to the demo note.
   onAddTask?: () => void;
@@ -316,6 +323,8 @@ export function LeadPanelBody({
   const isGuestCard = (openAction?.title ?? "").trim().toLowerCase() === "email guest card";
   const isTourFollowUp = (openAction?.title ?? "").trim().toLowerCase() === "tour follow-up";
   const isApply = (openAction?.title ?? "").trim().toLowerCase() === "apply";
+  const isCheckApp = (openAction?.title ?? "").trim().toLowerCase() === "check app";
+  const isConfirmLease = (openAction?.title ?? "").trim().toLowerCase() === "confirm lease";
 
   return (
     <div className="lp-body">
@@ -474,6 +483,26 @@ export function LeadPanelBody({
                   variant="solid"
                   onClick={() => onStartApplication()}
                   title="Confirm the client submitted their application"
+                >
+                  {formatWorkflowActionLabel(openAction.title)}
+                </Button>
+              ) : isCheckApp && onCheckApplication ? (
+                // Opens the canonical "What's the application status?" outcome modal
+                // in the CRM tab for the Top Pick's application (same workflow).
+                <Button
+                  variant="solid"
+                  onClick={() => onCheckApplication()}
+                  title="Record the application status"
+                >
+                  {formatWorkflowActionLabel(openAction.title)}
+                </Button>
+              ) : isConfirmLease && onConfirmLease ? (
+                // Opens the "did the client sign their lease?" confirm in the CRM tab
+                // for the Top Pick. "Yes, Lease Signed" advances the lead to Closed.
+                <Button
+                  variant="solid"
+                  onClick={() => onConfirmLease()}
+                  title="Confirm the client signed their lease"
                 >
                   {formatWorkflowActionLabel(openAction.title)}
                 </Button>

@@ -32,11 +32,15 @@ import { completeSetupTour, rescheduleTour, cancelTour, localTourToUtc } from "@
 import { createManualTask } from "@/lib/leads/createManualTask"
 import GuestCardModal from "./GuestCardModal"
 import TourFollowUpModal from "./TourFollowUpModal"
+import CheckApplicationModal from "./CheckApplicationModal"
+import InvoiceDetailsSection from "./InvoiceDetailsSection"
 import ConfirmDialog from "./ConfirmDialog"
 import { isGuestCardTitle } from "@/lib/leads/guestCardWorkflow"
 import { completeTourFollowUp } from "@/lib/leads/tourFollowUpWorkflow"
+import { completeApplicationOutcome } from "@/lib/leads/applicationOutcomeWorkflow"
+import { completeConfirmLease } from "@/lib/leads/confirmLeaseWorkflow"
 import { createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
-import type { TourOutcome } from "@bc/companion-shared"
+import type { TourOutcome, ApplicationStatus } from "@bc/companion-shared"
 import { supabase } from "@/lib/supabase/client"
 import { getNextFollowUpAction } from "@/lib/workflowEngine"
 import { followUpSuccessorDueAt } from "@/lib/workflow/moveDateCadence"
@@ -160,6 +164,15 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
   // "Apply" (start_application) confirmation — advancing to 'applied' only on the
   // agent's explicit confirmation that the client submitted the application.
   const [confirmApply, setConfirmApply] = useState<null | { lead: any; action: any }>(null)
+  // Check Application outcome modal ("What's the application status?"). Scoped to
+  // the Top Pick's open check_application; completing it records the durable
+  // application_status + drives the next canonical action. Opened from the
+  // Workspace Favorite or the Companion verb.
+  const [checkApplication, setCheckApplication] = useState<null | { lead: any; action: any; property: any }>(null)
+  // Confirm Lease confirmation ("Did the client sign their lease for {Property}?").
+  // 'closed' is reached ONLY on the agent's explicit "Yes, Lease Signed" — approval
+  // alone never marks Closed. Scoped to the Top Pick's open confirm_lease.
+  const [confirmLease, setConfirmLease] = useState<null | { lead: any; action: any }>(null)
   const [showLeadModal, setShowLeadModal] = useState(false)
   const [followUpsOpen, setFollowUpsOpen] = useState(DEFAULT_AGENDA_EXPANDED)
   const [pendingEditActionId, setPendingEditActionId] = useState<number | null>(null)
@@ -499,6 +512,12 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
         title: "Check App",
         dueAt: autoDueInDays(3, timeZone),
         actionKey: "check_application",
+        // D5 — stamp the Top Pick property so the Check Application row is
+        // property-scoped identically for real and demo (start_application carries
+        // the Top Pick property_id/name). top_pick_favorite_id stays the durable
+        // source of the LIVE Top Pick.
+        propertyId: action.property_id ?? null,
+        propertyName: action.property_name ?? null,
       })
     } else {
       checkApp = {
@@ -522,6 +541,128 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
     const updatedLead = { ...lead, crm_status: "applied" }
     setLocalLeads((prev) => prev.map((l) => (String(l.id) === String(lead.id) ? { ...l, crm_status: "applied", _justDropped: true } : { ...l, _justDropped: false })))
     postCompanionActiveClient(updatedLead, merged)
+  }
+
+  // ── Check Application (property-scoped to the Top Pick) ──────────────────────
+  // Open the "What's the application status?" modal for the Top Pick's open
+  // check_application. `action` is that check_application row; the property is
+  // resolved from its stamped property_id (Top Pick).
+  function openCheckApplication(lead: any, action: any) {
+    if (!lead || !action) return
+    const property =
+      localFavoritesRef.current.find((f: any) => String(f.id) === String(action.property_id)) ??
+      (action.property_name ? { id: action.property_id ?? null, property_name: action.property_name } : null)
+    setCheckApplication({ lead, action, property })
+  }
+  function handleCheckApplication(lead: any, args: { action: any }) {
+    openCheckApplication(lead, args.action)
+  }
+  // The modal's status submit → the ONE canonical completion. Applies every local
+  // change in a single next-actions update (complete/re-date check_application, add
+  // the next canonical action, reopen setup_tour), plus the lead application_status
+  // + Top Pick patch. Never advances the lead to 'closed'.
+  async function handleCheckApplicationOutcome(status: ApplicationStatus, extras: { followUpDueAt?: string | null; note?: string | null }) {
+    const ca = checkApplication
+    setCheckApplication(null)
+    if (!ca) return
+    const now = new Date().toISOString()
+    const setupRow = findCompletedSetupTour(ca.lead.id)
+    const propId = ca.action.property_id ?? ca.property?.id ?? null
+    let leadPatch: any = {}
+    let nextActions = localNextActionsRef.current
+    await completeApplicationOutcome({
+      lead: ca.lead,
+      checkAction: { id: ca.action.id, property_id: propId, property_name: ca.property?.property_name ?? ca.action.property_name ?? null },
+      status,
+      setupTourRow: setupRow ? { id: setupRow.id } : null,
+      followUpDueAt: extras.followUpDueAt ?? null,
+      note: extras.note ?? null,
+      now,
+      onOptimistic: (patch) => {
+        leadPatch = patch.leadPatch
+        nextActions = nextActions.map((a: any) => {
+          if (patch.completedCheckId != null && String(a.id) === String(patch.completedCheckId)) return { ...a, completed: true, completed_at: now, status: "completed" }
+          if (patch.recheckedCheckId != null && String(a.id) === String(patch.recheckedCheckId)) return { ...a, due_at: patch.recheckedDueAt ?? a.due_at }
+          if (patch.reopenedSetupTourId != null && String(a.id) === String(patch.reopenedSetupTourId)) return { ...a, completed: false, completed_at: null, status: "open", due_at: now }
+          return a
+        })
+      },
+      onActionCreated: (action) => {
+        nextActions = [...nextActions, action]
+      },
+    })
+    setLocalNextActions(nextActions)
+    const updatedLead = { ...ca.lead, ...leadPatch }
+    setLocalLeads((prev) => prev.map((l) => (String(l.id) === String(ca.lead.id) ? { ...l, ...leadPatch } : l)))
+    postCompanionActiveClient(updatedLead, nextActions)
+  }
+
+  // ── Confirm Lease (Approved → Lease Signed → Closed) ────────────────────────
+  // Open the "Did the client sign their lease?" confirmation. Reaching 'closed'
+  // requires the explicit "Yes, Lease Signed" — approval alone never closes.
+  function handleConfirmLease(lead: any, args: { action: any }) {
+    if (!lead || !args.action) return
+    setConfirmLease({ lead, action: args.action })
+  }
+  async function confirmLeaseSigned() {
+    const cl = confirmLease
+    setConfirmLease(null)
+    if (!cl) return
+    const now = new Date().toISOString()
+    const { lead, action } = cl
+    let leadPatch: any = {}
+    let merged = localNextActionsRef.current
+    await completeConfirmLease({
+      lead,
+      confirmAction: { id: action.id, property_id: action.property_id ?? null, property_name: action.property_name ?? null },
+      now,
+      onOptimistic: (patch) => {
+        leadPatch = patch.leadPatch
+        merged = merged.map((a: any) =>
+          patch.completedConfirmLeaseId != null && String(a.id) === String(patch.completedConfirmLeaseId)
+            ? { ...a, completed: true, completed_at: now, status: "completed" }
+            : a,
+        )
+      },
+      onActionCreated: (invoiceAction) => {
+        merged = [...merged, invoiceAction]
+      },
+    })
+    setLocalNextActions(merged)
+    // _justDropped pins the card as it lands in Closed (same treatment as Applied).
+    const updatedLead = { ...lead, ...leadPatch }
+    setLocalLeads((prev) =>
+      prev.map((l) => (String(l.id) === String(lead.id) ? { ...l, ...leadPatch, _justDropped: true } : { ...l, _justDropped: false })),
+    )
+    postCompanionActiveClient(updatedLead, merged)
+  }
+
+  // ── Get Invoice Details completion (Closed → invoice collected) ─────────────
+  // Marking "Invoice Submitted" completes the canonical get_invoice_details action
+  // (the terminal core-closing action); un-submitting reopens it. Property scope
+  // (Top Pick) is preserved on the row. No stage change — the lead is already Closed.
+  async function handleInvoiceSubmitted(lead: any, submitted: boolean) {
+    const now = new Date().toISOString()
+    const inv = localNextActionsRef.current.find(
+      (a: any) =>
+        String(a.lead_id) === String(lead.id) &&
+        (String(a.action_key ?? "") === "get_invoice_details" || String(a.title ?? "").trim().toLowerCase() === "get invoice details"),
+    )
+    if (!inv) return
+    if (!isDemoLeadId(lead.id)) {
+      const patch = submitted
+        ? { completed: true, completed_at: now, status: "completed" }
+        : { completed: false, completed_at: null, status: "open" }
+      const { error } = await supabase.from("lead_next_actions").update(patch).eq("id", inv.id)
+      if (error) console.error("[invoice] complete get_invoice_details failed:", error)
+    }
+    const merged = localNextActionsRef.current.map((a: any) =>
+      String(a.id) === String(inv.id)
+        ? { ...a, completed: submitted, completed_at: submitted ? now : null, status: submitted ? "completed" : "open" }
+        : a,
+    )
+    setLocalNextActions(merged)
+    postCompanionActiveClient(lead, merged)
   }
 
   // ── Canonical contact appliers — the ONE implementation used by BOTH the
@@ -673,7 +814,9 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
         payload.verb !== "add-task" &&
         payload.verb !== "open-guest-card" &&
         payload.verb !== "open-tour-follow-up" &&
-        payload.verb !== "open-apply"
+        payload.verb !== "open-apply" &&
+        payload.verb !== "open-check-application" &&
+        payload.verb !== "open-confirm-lease"
       )
         return
 
@@ -1232,6 +1375,38 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
         return
       }
 
+      // Beast Companion "Check Application" → open the outcome modal in the CRM tab
+      // for the Top Pick's open check_application (same canonical workflow).
+      if (payload.verb === "open-check-application") {
+        const action =
+          localNextActionsRef.current.find((a: any) => payload.actionId != null && String(a.id) === String(payload.actionId)) ??
+          localNextActionsRef.current.find(
+            (a: any) =>
+              String(a.lead_id) === String(lead.id) &&
+              !a.completed &&
+              (String(a.action_key ?? "") === "check_application" || String(a.title ?? "").trim().toLowerCase() === "check app" || String(a.title ?? "").trim().toLowerCase() === "check application")
+          )
+        if (!action) return
+        handleCheckApplication(lead, { action })
+        return
+      }
+
+      // Beast Companion "Confirm Lease" → open the "did the client sign?" confirm
+      // in the CRM tab for the Top Pick's open confirm_lease (same canonical path).
+      if (payload.verb === "open-confirm-lease") {
+        const action =
+          localNextActionsRef.current.find((a: any) => payload.actionId != null && String(a.id) === String(payload.actionId)) ??
+          localNextActionsRef.current.find(
+            (a: any) =>
+              String(a.lead_id) === String(lead.id) &&
+              !a.completed &&
+              (String(a.action_key ?? "") === "confirm_lease" || String(a.title ?? "").trim().toLowerCase() === "confirm lease")
+          )
+        if (!action) return
+        handleConfirmLease(lead, { action })
+        return
+      }
+
       const method: "call" | "text" = payload.method === "call" ? "call" : "text"
 
       if (payload.verb === "contact-attempt") {
@@ -1518,7 +1693,23 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
                     onSendGuestCard={handleSendGuestCard}
                     onTourFollowUp={handleTourFollowUp}
                     onStartApplication={handleStartApplication}
+                    onCheckApplication={handleCheckApplication}
+                    onConfirmLease={handleConfirmLease}
                   />
+                  {/* Invoice Details — the Closed-lead commission/invoice record
+                      (leads.invoice_*). Surfaced in the workspace (the legacy Lead
+                      Panel that used to host it is off) so the Closed workflow can
+                      actually collect it; marking Invoice Submitted completes the
+                      canonical Get Invoice Details action. Shown for Closed leads only. */}
+                  {String(selectedLead.crm_status) === "closed" && (
+                    <InvoiceDetailsSection
+                      lead={selectedLead}
+                      onUpdateLead={(updatedLead) =>
+                        setLocalLeads((prev) => prev.map((l) => (l.id === updatedLead.id ? updatedLead : l)))
+                      }
+                      onInvoiceSubmittedChange={(submitted) => handleInvoiceSubmitted(selectedLead, submitted)}
+                    />
+                  )}
                   <LeadNotes
                     lead={selectedLead}
                     showClientNotes={false}
@@ -1585,16 +1776,40 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
         onSubmit={handleTourFollowUpOutcome}
       />
 
+      {/* Check Application outcome modal ("What's the application status?") —
+          property-scoped to the Top Pick; the ONE canonical completion drives the
+          next action per outcome (Confirm Lease / Schedule Tour / re-check / note). */}
+      <CheckApplicationModal
+        open={checkApplication !== null}
+        onClose={() => setCheckApplication(null)}
+        propertyName={checkApplication?.property?.property_name ?? checkApplication?.action?.property_name ?? null}
+        timeZone={timeZone}
+        onSubmit={handleCheckApplicationOutcome}
+      />
+
       {/* Apply → Applied confirmation. 'applied' is reached ONLY here, on explicit
           confirmation the client submitted (Ready to Apply never sets it). */}
       <ConfirmDialog
         open={confirmApply !== null}
         title={`Did the client submit their application${confirmApply?.action?.property_name ? ` for ${confirmApply.action.property_name}` : ""}?`}
-        message="This moves the lead to Applied and adds Check Application. Only confirm once the application has actually been submitted."
+        message="Only confirm once the application has been submitted."
         confirmLabel="Yes, Submitted"
         cancelLabel="Not Yet"
         onConfirm={confirmApplicationSubmitted}
         onCancel={() => setConfirmApply(null)}
+      />
+
+      {/* Confirm Lease → Closed confirmation. 'closed' is reached ONLY here, on the
+          explicit "Yes, Lease Signed" (approval alone never closes). Not Yet keeps
+          Confirm Lease open and preserves Approved + Top Pick. */}
+      <ConfirmDialog
+        open={confirmLease !== null}
+        title={`Did the client sign their lease${confirmLease?.action?.property_name ? ` for ${confirmLease.action.property_name}` : ""}?`}
+        message="Only confirm once the lease has been signed. This closes the lead."
+        confirmLabel="Yes, Lease Signed"
+        cancelLabel="Not Yet"
+        onConfirm={confirmLeaseSigned}
+        onCancel={() => setConfirmLease(null)}
       />
 
       {demoMode && <FirstRunChecklist googleConnected={googleConnected} />}

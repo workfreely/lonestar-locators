@@ -1,6 +1,6 @@
 import { fromZonedTime, formatInTimeZone } from "date-fns-tz"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
-import { TOUR_OUTCOME_LABELS, type TourOutcome } from "@bc/companion-shared"
+import { TOUR_OUTCOME_LABELS, APPLICATION_FAVORITE_STATE, type TourOutcome, type ApplicationStatus } from "@bc/companion-shared"
 
 // Pure tour date/time helpers (no DB) — safe to import anywhere, including tests.
 // The DB-touching completion lives in lib/leads/setupTourWorkflow.ts.
@@ -53,15 +53,26 @@ export type TourOutcomePlan = {
 
 /**
  * The compact surfaced state for a Favorite's tour, DERIVED from canonical
- * workflow/application state (never a second UI-only flag):
+ * workflow/application state (never a second UI-only flag). It always shows the
+ * FURTHEST canonical state, so earlier terminology is never left stale:
  *   • an open start_application  → "Toured · Ready to Apply" (pre-submission)
+ *   • the application property once the lead is Closed (lease signed) → "Toured ·
+ *     Leased" (the furthest canonical state)
+ *   • the application property once an outcome is recorded (property-scoped):
+ *       approved → "Toured · Approved"
+ *       pending  → "Toured · Application Pending"
+ *       canceled → "Toured · Application Canceled"
+ *       denied   → "Toured · Application Denied"
+ *       other    → "Toured · Applied"  (a note, not a positive/negative decision)
  *   • lead applied AND this property is the Top Pick → "Toured · Applied"
- *     (only after Yes-Submitted advances crm_status → 'applied'; property-scoped)
+ *     (after Yes-Submitted advances crm_status → 'applied', before any outcome)
  *   • no_show tour → "No-Show"
- *   • any other recorded outcome → "Toured · {outcome label}"
+ *   • any other recorded tour outcome → "Toured · {outcome label}"
  *   • nothing recorded → null
  * "Ready to Apply" is the PRE-submission state only; clicking Apply keeps it until
- * submission is explicitly confirmed. Only the applied Top Pick shows "Applied".
+ * submission is explicitly confirmed. The application-phase states derive from the
+ * durable leads.application_status, scoped to the application property (the one
+ * carrying the check_application row) — never mutating historical tour outcomes.
  */
 export function favoriteTourStateLabel(opts: {
   applyActionOpen: boolean
@@ -69,8 +80,23 @@ export function favoriteTourStateLabel(opts: {
   appliedStage: boolean
   tourStatus?: string | null
   outcome?: TourOutcome | null
+  /** The lead's durable application status (leads.application_status). */
+  applicationStatus?: ApplicationStatus | null
+  /** This Favorite is the application property (carries the check_application row).
+   *  Required for the application-status states to apply — they are property-scoped
+   *  to the Top Pick, so a different Favorite never surfaces the lead's app status. */
+  isApplicationProperty?: boolean
+  /** The lead is Closed (crm_status === "closed"). For the application property this
+   *  is the furthest state — the lease was signed. */
+  closedStage?: boolean
 }): string | null {
   if (opts.applyActionOpen) return "Toured · Ready to Apply"
+  // Closed (lease signed) is the furthest canonical state for the application property.
+  if (opts.closedStage && opts.isApplicationProperty) return "Toured · Leased"
+  // Application-phase furthest state takes precedence for the application property.
+  if (opts.isApplicationProperty && opts.applicationStatus) {
+    return `Toured · ${APPLICATION_FAVORITE_STATE[opts.applicationStatus]}`
+  }
   if (!opts.outcome) return null
   if (opts.tourStatus === "no_show") return "No-Show"
   if (opts.isTopPick && opts.appliedStage) return "Toured · Applied"

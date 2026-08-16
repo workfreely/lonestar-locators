@@ -1,5 +1,5 @@
 import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO } from "@bc/companion-shared"
-import { isLeadStage } from "@bc/companion-shared"
+import { isLeadStage, APPLICATION_LAST_ACTION_LABELS, isApplicationStatus } from "@bc/companion-shared"
 import { getNextAction } from "@/lib/nextAction"
 import { rankLeadActions } from "@/lib/nextActions"
 import { getSourceStyle } from "@/lib/leads/sourceStyles"
@@ -220,6 +220,8 @@ export function buildActiveClientPayload(
     lastAction: deriveLastAction(lead, nextActions, latestOutreach),
     // Durable one-per-lead Top Pick (leads.top_pick_favorite_id). Null when none.
     topPickFavoriteId: str(lead.top_pick_favorite_id),
+    // Durable application outcome (leads.application_status). Null until recorded.
+    applicationStatus: str(lead.application_status),
     clientNotes: str(lead.notes),
   }
 
@@ -310,6 +312,42 @@ export function buildActiveClientPayload(
         new Date(t.scheduled_at).getTime() <= Date.now(),
     )
     if (tour) dto.lastAction = { title: "Toured", completedAt: str(tour.scheduled_at), propertyName: primaryDto.propertyName }
+  }
+
+  // Furthest application-phase Last Action, in canonical order (later milestones
+  // win). Derived from durable state + the property-scoped rows — never fabricated:
+  //   • a completed Get Invoice Details → deriveLastAction already surfaced it
+  //     ("Got Invoice Details · Property") — leave it (the terminal record).
+  //   • else a completed Confirm Lease → "Lease Signed · Property".
+  //   • else an application outcome (leads.application_status) → the fully-contextual
+  //     application label ("Application Approved · Property", "Application Still
+  //     Pending · Property", …), anchored on the check_application row (open for
+  //     Pending — re-dated, not completed; completed for the terminal outcomes).
+  // Each is property-scoped to the Top Pick and never clobbers a later milestone.
+  const forLead = (nextActions || []).filter((a: any) => String(a.lead_id) === String(lead.id))
+  const isKey = (a: any, key: string, title: string) =>
+    String(a.action_key ?? "") === key || String(a.title ?? "").trim().toLowerCase() === title
+  const completedInvoice = forLead.some((a: any) => (a.completed === true || a.status === "completed") && isKey(a, "get_invoice_details", "get invoice details"))
+  const completedLease = forLead
+    .filter((a: any) => (a.completed === true || a.status === "completed") && isKey(a, "confirm_lease", "confirm lease") && !!str(a.completed_at))
+    .sort((x: any, y: any) => (str(x.completed_at)! < str(y.completed_at)! ? 1 : -1))[0]
+  const appStatus = str(lead.application_status)
+  if (completedInvoice) {
+    // deriveLastAction already produced "Got Invoice Details · Property" — terminal.
+  } else if (completedLease) {
+    dto.lastAction = { title: "Lease Signed", completedAt: str(completedLease.completed_at), propertyName: str(completedLease.property_name) }
+  } else if (isApplicationStatus(appStatus)) {
+    const check = forLead
+      .filter((a: any) => isKey(a, "check_application", "check app"))
+      .sort((x: any, y: any) => ((str(x.completed_at) ?? "") < (str(y.completed_at) ?? "") ? 1 : -1))[0]
+    if (check) {
+      const done = check.completed === true || check.status === "completed"
+      dto.lastAction = {
+        title: APPLICATION_LAST_ACTION_LABELS[appStatus],
+        completedAt: done ? str(check.completed_at) : null,
+        propertyName: str(check.property_name),
+      }
+    }
   }
 
   const favoriteDtos: FavoriteDTO[] = (favorites || [])

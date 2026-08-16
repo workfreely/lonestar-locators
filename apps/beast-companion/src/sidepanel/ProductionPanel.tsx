@@ -620,6 +620,52 @@ export function ProductionPanel() {
     }
   };
 
+  // "Check Application" → open the canonical application-status outcome modal in the
+  // CRM tab for the Top Pick's open check_application. Same canonical workflow as the
+  // Workspace — the extension has NO Check Application business logic of its own.
+  const onCheckApplication = () => {
+    const lead = active?.lead;
+    if (!lead || lead.id === undefined || lead.id === null) return;
+    const ca = (active?.nextActions ?? []).find(
+      (a) => !a.completed && (a.title ?? "").trim().toLowerCase() === "check app"
+    );
+    focusExistingCrmTab();
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+    if (store) {
+      store.set({
+        "lb-workflow-verb": {
+          nonce: `${Date.now()}-${Math.random()}`,
+          leadId: lead.id,
+          verb: "open-check-application",
+          actionId: ca?.id ?? null,
+        },
+      });
+    }
+  };
+
+  // "Confirm Lease" → open the "did the client sign?" confirm in the CRM tab for the
+  // Top Pick's open confirm_lease. Same canonical workflow as the Workspace — the
+  // extension has NO Confirm Lease business logic of its own.
+  const onConfirmLease = () => {
+    const lead = active?.lead;
+    if (!lead || lead.id === undefined || lead.id === null) return;
+    const cl = (active?.nextActions ?? []).find(
+      (a) => !a.completed && (a.title ?? "").trim().toLowerCase() === "confirm lease"
+    );
+    focusExistingCrmTab();
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+    if (store) {
+      store.set({
+        "lb-workflow-verb": {
+          nonce: `${Date.now()}-${Math.random()}`,
+          leadId: lead.id,
+          verb: "open-confirm-lease",
+          actionId: cl?.id ?? null,
+        },
+      });
+    }
+  };
+
   const pendingName = pendingContact?.name ?? "this client";
 
   return (
@@ -641,6 +687,8 @@ export function ProductionPanel() {
         onSendGuestCard={onSendGuestCard}
         onTourFollowUp={onTourFollowUp}
         onStartApplication={onStartApplication}
+        onCheckApplication={onCheckApplication}
+        onConfirmLease={onConfirmLease}
         onAddTask={onAddTask}
         onBackToCrm={onBackToCrm}
         timeZone={active?.timeZone ?? null}

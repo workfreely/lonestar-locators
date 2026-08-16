@@ -26,6 +26,17 @@ export {
 } from "./leads/tourOutcome";
 export type { TourStatus, TourOutcome } from "./leads/tourOutcome";
 
+// Domain — application status (durable outcome of a submitted application)
+export {
+  APPLICATION_STATUSES,
+  APPLICATION_OUTCOMES,
+  APPLICATION_OUTCOME_LABELS,
+  APPLICATION_FAVORITE_STATE,
+  APPLICATION_LAST_ACTION_LABELS,
+  isApplicationStatus,
+} from "./leads/applicationOutcome";
+export type { ApplicationStatus, ApplicationOutcome } from "./leads/applicationOutcome";
+
 // Internal DB row shapes (mapped to the contract server-side; not the public surface)
 export type {
   LeadRow,

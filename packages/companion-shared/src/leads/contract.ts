@@ -122,6 +122,10 @@ export const leadSummarySchema = z.object({
    *  property (durable, one-per-lead). Null when none chosen. Application-phase
    *  actions associate with this property, not a generic Favorite. */
   topPickFavoriteId: z.union([z.string(), z.number()]).nullish(),
+  /** Durable outcome of the client's submitted application for their Top Pick
+   *  (pending | approved | denied | other). Null until a Check Application outcome
+   *  is recorded. One application per lead (MVP); property-scoped to the Top Pick. */
+  applicationStatus: z.string().nullish(),
   /**
    * Client Notes — the client's original FORM-SUBMITTED notes, read-only. Maps to
    * the existing `leads.notes` column (the same data the CRM's Client Notes shows).

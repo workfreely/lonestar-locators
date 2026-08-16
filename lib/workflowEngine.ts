@@ -24,6 +24,11 @@ export type WorkflowActionSpec = {
   dueAt: string // ISO string
   actionKey: WorkflowActionKey // stable canonical identity of this workflow action
   sequence?: number | null // intra-chain ordering (follow-up steps); null otherwise
+  // Optional property scope. Application-phase actions (check_application) are
+  // stamped with the lead's Top Pick so real and demo rows carry the same property
+  // context; omitted → null (lead-level action, unchanged behavior).
+  propertyId?: number | string | null
+  propertyName?: string | null
 }
 
 export type CreatedWorkflowAction = {
@@ -177,6 +182,10 @@ export async function createWorkflowActionIfNeeded(
       action_type: "workflow",
       origin: "workflow",
       sequence: action.sequence ?? null,
+      // Optional property scope (Top Pick for application-phase actions). Null for
+      // the vast majority of workflow actions — identical to the prior behavior.
+      property_id: action.propertyId ?? null,
+      property_name: action.propertyName ?? null,
       workflow_version: CURRENT_WORKFLOW_VERSION,
       status: "open",
     }])

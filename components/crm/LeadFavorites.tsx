@@ -40,6 +40,8 @@ export default function LeadFavorites({
   onSendGuestCard,
   onTourFollowUp,
   onStartApplication,
+  onCheckApplication,
+  onConfirmLease,
 }: {
   lead: any
   favorites?: any[]
@@ -61,6 +63,12 @@ export default function LeadFavorites({
   onTourFollowUp?: (lead: any, args: { tour: any; favorite: any; actionId: number | string | null }) => void
   // Open the "Apply" confirmation for the Top Pick's start_application. Absent → hidden.
   onStartApplication?: (lead: any, action: any) => void
+  // Open the "What's the application status?" modal for the Top Pick's open
+  // check_application. Absent → the control is hidden.
+  onCheckApplication?: (lead: any, args: { action: any }) => void
+  // Open the "Did the client sign their lease?" confirm for the Top Pick's open
+  // confirm_lease. Absent → the control is hidden.
+  onConfirmLease?: (lead: any, args: { action: any }) => void
 }) {
   const [showFavoriteModal, setShowFavoriteModal] = useState(false)
   const [editingFavorite, setEditingFavorite] = useState<any | null>(null)
@@ -278,15 +286,45 @@ export default function LeadFavorites({
                 .filter((t: any) => String(t.property_id ?? "") === String(fav.id) && t.outcome)
                 .sort((a: any, b: any) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime())[0]
               const isTopPick = String(lead.top_pick_favorite_id ?? "") !== "" && String(lead.top_pick_favorite_id) === String(fav.id)
-              // Canonical surfaced state: "Ready to Apply" pre-submission, then
-              // "Applied" once the lead's crm_status is 'applied' AND this is the
-              // Top Pick (property-scoped). Derived, not a separate UI flag.
+              // This property's Check Application row (stamped property_id = Top
+              // Pick at creation, D5). Any status → this Favorite IS the application
+              // property (survives Denied clearing the live Top Pick, since the
+              // completed row keeps its property_id). MVP: one application per lead.
+              const checkAppAction = nextActions.find(
+                (a: any) =>
+                  String(a.lead_id) === String(lead.id) &&
+                  String(a.property_id ?? "") === String(fav.id) &&
+                  (String(a.action_key ?? "") === "check_application" ||
+                    String(a.title ?? "").trim().toLowerCase() === "check app" ||
+                    String(a.title ?? "").trim().toLowerCase() === "check application"),
+              )
+              const isApplicationProperty = !!checkAppAction
+              const checkAppOpen = !!checkAppAction && !(checkAppAction.completed === true || checkAppAction.status === "completed")
+              const applicationStatus = (lead.application_status ?? null) as any
+              // This property's open Confirm Lease (created on Approved, property-
+              // scoped to the Top Pick). Approved → Confirm Lease → Lease Signed.
+              const confirmLeaseAction = nextActions.find(
+                (a: any) =>
+                  String(a.lead_id) === String(lead.id) &&
+                  String(a.property_id ?? "") === String(fav.id) &&
+                  !a.completed &&
+                  (String(a.action_key ?? "") === "confirm_lease" || String(a.title ?? "").trim().toLowerCase() === "confirm lease"),
+              )
+              const confirmLeaseOpen = !!confirmLeaseAction
+              const closedStage = String(lead.crm_status ?? "") === "closed"
+              // Canonical surfaced state: always the FURTHEST canonical state —
+              // "Ready to Apply" pre-submission → "Applied" once 'applied' → the
+              // application-phase state (Approved / Application Pending / Application
+              // Denied) once an outcome is recorded. Derived, not a separate UI flag.
               const favState = favoriteTourStateLabel({
                 applyActionOpen: !!applyAction,
                 isTopPick,
                 appliedStage: String(lead.crm_status ?? "") === "applied",
                 tourStatus: outcomeTour?.status,
                 outcome: outcomeTour?.outcome ?? null,
+                applicationStatus,
+                isApplicationProperty,
+                closedStage,
               })
               return (
                 <div
@@ -434,9 +472,49 @@ export default function LeadFavorites({
                     </div>
                   )}
 
+                  {/* Application submitted → Check Application (property-scoped to the
+                      Top Pick). Surfaced while an open check_application exists; the
+                      state line advances Applied → Application Pending as outcomes
+                      are recorded, and the button reopens the same decision. */}
+                  {checkAppOpen && onCheckApplication && (
+                    <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10.5px] font-semibold text-emerald-600">
+                          {isTopPick && "★ Top Pick · "}{favState}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => onCheckApplication(lead, { action: checkAppAction })}
+                          className="flex-none text-[10.5px] font-semibold text-[var(--crm-accent)] hover:underline"
+                        >
+                          Check Application
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Application approved → Confirm Lease (property-scoped to the Top
+                      Pick). "Did the client sign?" — Yes advances to Closed. */}
+                  {confirmLeaseOpen && onConfirmLease && (
+                    <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10.5px] font-semibold text-emerald-600">
+                          {isTopPick && "★ Top Pick · "}{favState}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => onConfirmLease(lead, { action: confirmLeaseAction })}
+                          className="flex-none text-[10.5px] font-semibold text-[var(--crm-accent)] hover:underline"
+                        >
+                          Confirm Lease
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Recorded outcome with no pending action — one compact muted line
                       (no badge stack). Top Pick shown inline when this property is it. */}
-                  {!tour && !tfAction && !applyAction && favState && (
+                  {!tour && !tfAction && !applyAction && !checkAppOpen && !confirmLeaseOpen && favState && (
                     <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
                       <p className="text-[11px] font-medium text-[var(--crm-text-muted)]">
                         {isTopPick && <span className="font-semibold text-emerald-600">★ Top Pick · </span>}

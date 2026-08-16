@@ -30,6 +30,9 @@ const FULL: Record<string, string> = {
   // The new canonical application-start action ("Apply"). Completing it advances
   // the lead to 'applied' (which fires the existing check_application rule).
   start_application: "Apply",
+  // The canonical post-approval action created by Check Application → Approved.
+  // Its completion (Confirm Lease → Closed) is designed/wired separately.
+  confirm_lease: "Confirm Lease",
   email_guest_card: "Send Guest Card",
   waiting_for_response: "Waiting for Reply",
 }
@@ -66,6 +69,8 @@ const TO_KEY: Record<string, string> = {
   apply: "start_application",
   "start application": "start_application",
   start_application: "start_application",
+  "confirm lease": "confirm_lease",
+  confirm_lease: "confirm_lease",
   "email guest card": "email_guest_card",
   "send guest card": "email_guest_card",
   email_guest_card: "email_guest_card",
@@ -118,7 +123,8 @@ const LAST_ACTION_BY_DISPLAY: Record<string, string> = {
   // Completing "Apply" (client submitted) → "Applied · Property".
   "Apply": "Applied",
   "Check Application": "Checked Application",
-  "Confirm Lease": "Confirmed Lease",
+  // Completing Confirm Lease (client signed) → "Lease Signed · Property".
+  "Confirm Lease": "Lease Signed",
   "Setup Movers": "Movers Scheduled",
   "Send Rebate": "Sent Rebate",
   "Get Invoice Details": "Got Invoice Details",

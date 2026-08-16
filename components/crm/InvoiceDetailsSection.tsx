@@ -55,9 +55,13 @@ function formatCurrency(n: number): string {
 export default function InvoiceDetailsSection({
   lead,
   onUpdateLead,
+  onInvoiceSubmittedChange,
 }: {
   lead: any
   onUpdateLead?: (updatedLead: any) => void
+  // Fired when "Invoice Submitted" toggles — the natural completion signal for the
+  // canonical get_invoice_details closing action (marking it done / reopening it).
+  onInvoiceSubmittedChange?: (submitted: boolean) => void
 }) {
   const [form, setForm] = useState<InvoiceForm>(() => seedForm(lead))
 
@@ -107,6 +111,9 @@ export default function InvoiceDetailsSection({
   function saveBool(column: "invoice_submitted" | "invoice_commission_paid", value: boolean) {
     setForm((f) => ({ ...f, [column]: value }))
     persist({ [column]: value })
+    // Submitting the invoice completes the canonical Get Invoice Details action
+    // (and un-submitting reopens it) — the closing-workflow completion signal.
+    if (column === "invoice_submitted") onInvoiceSubmittedChange?.(value)
   }
 
   function saveRebateType(value: string) {
