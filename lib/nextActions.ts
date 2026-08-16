@@ -145,6 +145,22 @@ export function rankLeadActions(
     openManual = openManual.filter((a) => a.title.trim().toLowerCase() !== "build list")
   }
 
+  // Guest Card gating (Schedule Tour → Send Guest Card → Tour Follow-Up): while
+  // ANY per-property "Send Guest Card" is still open, the Tour Follow-Up must not
+  // become the Next Action — even if the tour time has passed and the follow-up is
+  // "overdue". Suppress the follow-up from ranking until every scheduled property's
+  // guest card is sent. The tour_follow_up row is untouched (its tour+2h due
+  // stands); it simply isn't surfaced yet, then wins once no guest card is open.
+  const isGuestCardRow = (a: ManualNextAction) =>
+    String((a as any).action_key ?? "").toLowerCase() === "email_guest_card" ||
+    a.title.trim().toLowerCase() === "email guest card"
+  const isTourFollowUpRow = (a: ManualNextAction) =>
+    String((a as any).action_key ?? "").toLowerCase() === "tour_follow_up" ||
+    a.title.trim().toLowerCase() === "tour follow-up"
+  if (openManual.some(isGuestCardRow)) {
+    openManual = openManual.filter((a) => !isTourFollowUpRow(a))
+  }
+
   // The Workflow Engine (lib/workflowEngine.ts) now creates real
   // lead_next_actions rows for most stage transitions, often titled
   // exactly what this automatic label already says (e.g. "Contact Lead",

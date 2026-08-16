@@ -16,6 +16,16 @@ export {
 } from "./leads/stages";
 export type { LeadStage, BadgeTone } from "./leads/stages";
 
+// Domain — tour completion status vs. client outcome
+export {
+  TOUR_STATUSES,
+  TOUR_OUTCOMES,
+  TOUR_OUTCOME_LABELS,
+  isTourOutcome,
+  tourStatusForOutcome,
+} from "./leads/tourOutcome";
+export type { TourStatus, TourOutcome } from "./leads/tourOutcome";
+
 // Internal DB row shapes (mapped to the contract server-side; not the public surface)
 export type {
   LeadRow,

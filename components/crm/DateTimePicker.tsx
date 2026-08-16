@@ -35,13 +35,31 @@ export default function DateTimePicker({
   value,
   onApply,
   onCancel,
+  onChange,
+  compact = false,
 }: {
   // Current committed value, "YYYY-MM-DDTHH:mm" or "".
   value: string
-  // Called with the new "YYYY-MM-DDTHH:mm" value when Apply is pressed.
-  onApply: (value: string) => void
-  onCancel: () => void
+  // Confirm-mode (Add Task): called with the new value only when Apply is pressed.
+  onApply?: (value: string) => void
+  onCancel?: () => void
+  // Live-commit mode (Reschedule): when provided, EVERY selection immediately
+  // emits the composed value and the internal Cancel/Apply footer is hidden — the
+  // caller's own Save Changes is the single commit. Confirm-mode is unchanged.
+  onChange?: (value: string) => void
+  // SIZING ONLY (opt-in): a denser calendar for tight surfaces (the Reschedule
+  // modal). Purely CSS class swaps — no behavior, state, or logic changes. Add
+  // Task does not pass this, so its picker keeps the default dimensions.
+  compact?: boolean
 }) {
+  const live = !!onChange
+  // Compact size tokens (default = current dimensions, unchanged for Add Task).
+  const boxPad = compact ? "p-2.5" : "p-3"
+  const cellSize = compact ? "h-7" : "h-8"
+  const weekdaySize = compact ? "h-5" : "h-6"
+  const gridGap = compact ? "gap-px" : "gap-0.5"
+  const navMb = compact ? "mb-1.5" : "mb-2"
+  const timeRowSpacing = compact ? "mt-2.5 pt-2.5" : "mt-3 pt-3"
   const initial = useMemo(() => parseValue(value), [value])
   const now = useMemo(() => new Date(), [])
 
@@ -76,11 +94,17 @@ export default function DateTimePicker({
     setViewMonth(new Date(year, month + delta, 1))
   }
 
+  const composeValue = (date: Date, h: number, m: number, p: "AM" | "PM") =>
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${to24Hour(h, m, p)}`
+
+  // Live-commit: emit on every selection (no Apply). Confirm-mode ignores this.
+  function emit(date: Date | null, h: number, m: number, p: "AM" | "PM") {
+    if (onChange && date) onChange(composeValue(date, h, m, p))
+  }
+
   function handleApply() {
     if (!selectedDate) return
-    const time = to24Hour(hour12, minute, period) // shared 12h→"HH:mm"
-    const v = `${selectedDate.getFullYear()}-${pad(selectedDate.getMonth() + 1)}-${pad(selectedDate.getDate())}T${time}`
-    onApply(v)
+    onApply?.(composeValue(selectedDate, hour12, minute, period))
   }
 
   // Selects inherit big full-width styling from a global `select { … }` rule, so
@@ -92,9 +116,9 @@ export default function DateTimePicker({
     "w-7 h-7 flex items-center justify-center rounded-md text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] transition-colors"
 
   return (
-    <div className="mt-2 rounded-xl border border-[var(--crm-border)] bg-[var(--crm-inset)] p-3 shadow-lg">
+    <div className={`mt-2 rounded-xl border border-[var(--crm-border)] bg-[var(--crm-inset)] shadow-lg ${boxPad}`}>
       {/* Month navigation */}
-      <div className="flex items-center justify-between mb-2">
+      <div className={`flex items-center justify-between ${navMb}`}>
         <button type="button" onClick={() => goMonth(-1)} className={navBtnCls} aria-label="Previous month">
           ‹
         </button>
@@ -107,18 +131,18 @@ export default function DateTimePicker({
       </div>
 
       {/* Weekday header */}
-      <div className="grid grid-cols-7 gap-0.5 mb-1">
+      <div className={`grid grid-cols-7 ${gridGap} mb-1`}>
         {WEEKDAYS.map((w, i) => (
-          <div key={i} className="h-6 flex items-center justify-center text-[10px] font-semibold text-[var(--crm-text-muted)]">
+          <div key={i} className={`${weekdaySize} flex items-center justify-center text-[10px] font-semibold text-[var(--crm-text-muted)]`}>
             {w}
           </div>
         ))}
       </div>
 
       {/* Day grid */}
-      <div className="grid grid-cols-7 gap-0.5">
+      <div className={`grid grid-cols-7 ${gridGap}`}>
         {cells.map((d, i) => {
-          if (d === null) return <div key={i} className="h-8" />
+          if (d === null) return <div key={i} className={cellSize} />
           const cellDate = new Date(year, month, d)
           const isSelected = selectedDate && sameDay(cellDate, selectedDate)
           const isToday = sameDay(cellDate, now)
@@ -126,9 +150,9 @@ export default function DateTimePicker({
             <button
               key={i}
               type="button"
-              onClick={() => setSelectedDate(cellDate)}
+              onClick={() => { setSelectedDate(cellDate); emit(cellDate, hour12, minute, period) }}
               className={
-                "h-8 rounded-md text-[12px] font-medium transition-colors " +
+                `${cellSize} rounded-md text-[12px] font-medium transition-colors ` +
                 (isSelected
                   ? "crm-cta"
                   : isToday
@@ -143,43 +167,46 @@ export default function DateTimePicker({
       </div>
 
       {/* Time row */}
-      <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-[var(--crm-border)]">
+      <div className={`flex items-center gap-1.5 border-t border-[var(--crm-border)] ${timeRowSpacing}`}>
         <span className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mr-1">Time</span>
-        <select className={selectCls} value={hour12} onChange={(e) => setHour12(Number(e.target.value))} aria-label="Hour">
+        <select className={selectCls} value={hour12} onChange={(e) => { const h = Number(e.target.value); setHour12(h); emit(selectedDate, h, minute, period) }} aria-label="Hour">
           {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
             <option key={h} value={h}>{h}</option>
           ))}
         </select>
         <span className="text-[13px] font-semibold text-[var(--crm-text-secondary)]">:</span>
-        <select className={selectCls} value={minute} onChange={(e) => setMinute(Number(e.target.value))} aria-label="Minute">
+        <select className={selectCls} value={minute} onChange={(e) => { const m = Number(e.target.value); setMinute(m); emit(selectedDate, hour12, m, period) }} aria-label="Minute">
           {Array.from({ length: 60 }, (_, i) => i).map((m) => (
             <option key={m} value={m}>{pad(m)}</option>
           ))}
         </select>
-        <select className={selectCls} value={period} onChange={(e) => setPeriod(e.target.value as "AM" | "PM")} aria-label="AM or PM">
+        <select className={selectCls} value={period} onChange={(e) => { const p = e.target.value as "AM" | "PM"; setPeriod(p); emit(selectedDate, hour12, minute, p) }} aria-label="AM or PM">
           <option value="AM">AM</option>
           <option value="PM">PM</option>
         </select>
       </div>
 
-      {/* Confirmation controls — inside the picker */}
-      <div className="flex justify-end gap-2 mt-3">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-3 py-1.5 rounded-lg border border-[var(--crm-border)] text-[12px] font-semibold text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] transition-colors"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={handleApply}
-          disabled={!selectedDate}
-          className="crm-cta px-4 py-1.5 rounded-lg text-[12px] font-semibold disabled:opacity-50"
-        >
-          Apply
-        </button>
-      </div>
+      {/* Confirmation controls — CONFIRM-MODE ONLY. In live-commit mode the caller
+          owns the single Save/Cancel, so the picker shows no internal buttons. */}
+      {!live && (
+        <div className="flex justify-end gap-2 mt-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-3 py-1.5 rounded-lg border border-[var(--crm-border)] text-[12px] font-semibold text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleApply}
+            disabled={!selectedDate}
+            className="crm-cta px-4 py-1.5 rounded-lg text-[12px] font-semibold disabled:opacity-50"
+          >
+            Apply
+          </button>
+        </div>
+      )}
     </div>
   )
 }

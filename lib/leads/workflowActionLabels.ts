@@ -26,6 +26,11 @@ const FULL: Record<string, string> = {
   // formatWorkflowActionLabel is used.
   check_application: "Check Application",
   setup_tour: "Schedule Tour",
+  tour_follow_up: "Tour Follow-Up",
+  // The new canonical application-start action ("Apply"). Completing it advances
+  // the lead to 'applied' (which fires the existing check_application rule).
+  start_application: "Apply",
+  email_guest_card: "Send Guest Card",
   waiting_for_response: "Waiting for Reply",
 }
 
@@ -55,6 +60,15 @@ const TO_KEY: Record<string, string> = {
   "setup tour": "setup_tour",
   "schedule tour": "setup_tour",
   setup_tour: "setup_tour",
+  "tour follow-up": "tour_follow_up",
+  "tour follow up": "tour_follow_up",
+  tour_follow_up: "tour_follow_up",
+  apply: "start_application",
+  "start application": "start_application",
+  start_application: "start_application",
+  "email guest card": "email_guest_card",
+  "send guest card": "email_guest_card",
+  email_guest_card: "email_guest_card",
   "waiting for response": "waiting_for_response",
   "waiting for reply": "waiting_for_response",
   waiting_for_response: "waiting_for_response",
@@ -97,7 +111,12 @@ const LAST_ACTION_BY_DISPLAY: Record<string, string> = {
   // …) — the panel section is already titled LAST ACTION, so a "Completed" prefix
   // is redundant. Identity/keys (fu1/follow_up_1/…) are unchanged.
   "Schedule Tour": "Tour Scheduled",
-  "Tour Follow-Up": "Completed Tour Follow-Up",
+  "Send Guest Card": "Guest Card Sent",
+  // A completed Tour Follow-Up reads as the tour having happened ("Toured ·
+  // Property") — the tour occurrence, not a generic "completed" prefix.
+  "Tour Follow-Up": "Toured",
+  // Completing "Apply" (client submitted) → "Applied · Property".
+  "Apply": "Applied",
   "Check Application": "Checked Application",
   "Confirm Lease": "Confirmed Lease",
   "Setup Movers": "Movers Scheduled",

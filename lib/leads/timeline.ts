@@ -9,7 +9,10 @@ import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 // 'text_sent' = an outreach text WAS sent to a still-New lead but is NOT
 // successful contact (the client hasn't replied) — drives "Sent Text" / "Waiting
 // for Reply". The type column is free `text` (no CHECK), so no migration.
-export type LeadTimelineType = "first_contact" | "follow_up" | "contact_attempt" | "text_sent"
+// 'tour_outcome' = a Tour Follow-Up was recorded for a specific tour/property
+// (metadata: { tour_id, property_id, property_name, outcome, note? }). This is
+// the immutable history; lead_tours.outcome holds the fast current-state read.
+export type LeadTimelineType = "first_contact" | "follow_up" | "contact_attempt" | "text_sent" | "tour_outcome"
 export type LeadTimelineMethod = "call" | "text" | "email"
 
 export type TimelineEventInput = {

@@ -100,6 +100,14 @@ export function ProductionPanel() {
   const [tourDate, setTourDate] = useState<string>(""); // "YYYY-MM-DD"
   const [tourTime, setTourTime] = useState<string>(""); // "HH:mm"
 
+  // "+ Add Task" — a custom manual task for the active client. Captures the lead
+  // identity at open so it always saves to THIS client; the client-switch guard
+  // closes it + clears the draft if the active client changes (like Schedule Tour).
+  const [addTaskConfirm, setAddTaskConfirm] = useState<null | { leadId: string | number; name: string }>(null);
+  const [taskTitle, setTaskTitle] = useState<string>("");
+  const [taskDate, setTaskDate] = useState<string>(""); // "YYYY-MM-DD"
+  const [taskTime, setTaskTime] = useState<string>(""); // "HH:mm"
+
   // ── SW connection status (token auth — not yet built) ─────────────────────
   useEffect(() => {
     const rt = (globalThis as unknown as { chrome?: any }).chrome?.runtime;
@@ -162,6 +170,18 @@ export function ProductionPanel() {
       setTourTime("");
     }
   }, [activeLeadId, scheduleTourConfirm]);
+
+  // Same protection for Add Task — its draft (title + date + time) is bound to ONE
+  // client, so a client switch closes it and discards the draft rather than risk
+  // saving the task to the wrong client.
+  useEffect(() => {
+    if (addTaskConfirm && String(activeLeadId) !== String(addTaskConfirm.leadId)) {
+      setAddTaskConfirm(null);
+      setTaskTitle("");
+      setTaskDate("");
+      setTaskTime("");
+    }
+  }, [activeLeadId, addTaskConfirm]);
 
   const rt = () => (globalThis as unknown as { chrome?: any }).chrome?.runtime;
   const onConnect = () => rt()?.sendMessage?.({ type: "companion:start-connect" });
@@ -483,6 +503,46 @@ export function ProductionPanel() {
     setTourTime("");
   };
 
+  // "+ Add Task" → open the task sheet for THIS client. Captures the lead id NOW
+  // (client-switch guard closes it if the active client changes). Task Time
+  // defaults to 9:00 AM (same as Schedule Tour); title + date open blank.
+  const onAddTask = () => {
+    const lead = active?.lead;
+    if (!lead || lead.id === undefined || lead.id === null) return;
+    const name = formatPersonName(lead.firstName) || "this client";
+    setTaskTitle("");
+    setTaskDate("");
+    setTaskTime(DEFAULT_TIME_VALUE);
+    setAddTaskConfirm({ leadId: lead.id, name });
+  };
+
+  // "Add Task" → post the canonical add-task verb to the authenticated CRM, which
+  // creates the manual lead_next_actions row (createManualTask) and re-posts so the
+  // Workspace + Companion reflect the new Next Action. Guarded: title + date + time
+  // required (time is pre-filled to 9 AM). Cancel just closes the sheet.
+  const confirmAddTask = () => {
+    const c = addTaskConfirm;
+    const title = taskTitle.trim();
+    if (!c || !title || !taskDate || !taskTime) return;
+    setAddTaskConfirm(null);
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+    if (store) {
+      store.set({
+        "lb-workflow-verb": {
+          nonce: `${Date.now()}-${Math.random()}`,
+          leadId: c.leadId,
+          verb: "add-task",
+          title,
+          taskDate,
+          taskTime,
+        },
+      });
+    }
+    setTaskTitle("");
+    setTaskDate("");
+    setTaskTime("");
+  };
+
   // The confirmation name comes from the CAPTURED pending contact, so it never
   // changes when the active client switches (Bug 2).
   // ← Back to CRM — focus the EXISTING Locator Beast CRM tab (the one hosting the
@@ -491,6 +551,74 @@ export function ProductionPanel() {
   // advances any workflow. Platform-agnostic — this is about the CRM, not
   // whichever list-building platform is configured.
   const onBackToCrm = () => focusExistingCrmTab();
+
+  // "Send Guest Card" → the Guest Card composer is a full CRM modal (jsPDF/mailto),
+  // so open it in the EXISTING CRM tab: focus that tab, then post the open-guest-card
+  // verb with THIS property's open guest-card action id. Nothing sends until the
+  // agent reviews + sends inside the composer.
+  const onSendGuestCard = () => {
+    const lead = active?.lead;
+    if (!lead || lead.id === undefined || lead.id === null) return;
+    const gc = (active?.nextActions ?? []).find(
+      (a) => !a.completed && (a.title ?? "").trim().toLowerCase() === "email guest card"
+    );
+    focusExistingCrmTab();
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+    if (store) {
+      store.set({
+        "lb-workflow-verb": {
+          nonce: `${Date.now()}-${Math.random()}`,
+          leadId: lead.id,
+          verb: "open-guest-card",
+          actionId: gc?.id ?? null,
+        },
+      });
+    }
+  };
+
+  // "Tour Follow-Up" → open the canonical outcome modal in the EXISTING CRM tab
+  // for the SURFACED property's open tour_follow_up. Same canonical workflow as the
+  // Workspace — the extension has NO Tour Follow-Up business logic of its own.
+  const onTourFollowUp = () => {
+    const lead = active?.lead;
+    if (!lead || lead.id === undefined || lead.id === null) return;
+    const tf = (active?.nextActions ?? []).find(
+      (a) => !a.completed && (a.title ?? "").trim().toLowerCase() === "tour follow-up"
+    );
+    focusExistingCrmTab();
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+    if (store) {
+      store.set({
+        "lb-workflow-verb": {
+          nonce: `${Date.now()}-${Math.random()}`,
+          leadId: lead.id,
+          verb: "open-tour-follow-up",
+          actionId: tf?.id ?? null,
+        },
+      });
+    }
+  };
+
+  // "Apply" → open the application-submitted confirmation in the CRM tab.
+  const onStartApplication = () => {
+    const lead = active?.lead;
+    if (!lead || lead.id === undefined || lead.id === null) return;
+    const ap = (active?.nextActions ?? []).find(
+      (a) => !a.completed && (a.title ?? "").trim().toLowerCase() === "apply"
+    );
+    focusExistingCrmTab();
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+    if (store) {
+      store.set({
+        "lb-workflow-verb": {
+          nonce: `${Date.now()}-${Math.random()}`,
+          leadId: lead.id,
+          verb: "open-apply",
+          actionId: ap?.id ?? null,
+        },
+      });
+    }
+  };
 
   const pendingName = pendingContact?.name ?? "this client";
 
@@ -510,6 +638,10 @@ export function ProductionPanel() {
         onSendList={onSendList}
         onSendFollowUp={onSendFollowUp}
         onScheduleTour={onScheduleTour}
+        onSendGuestCard={onSendGuestCard}
+        onTourFollowUp={onTourFollowUp}
+        onStartApplication={onStartApplication}
+        onAddTask={onAddTask}
         onBackToCrm={onBackToCrm}
         timeZone={active?.timeZone ?? null}
       />
@@ -714,6 +846,70 @@ export function ProductionPanel() {
                 Yes, Scheduled
               </button>
               <button type="button" onClick={() => setScheduleTourConfirm(null)} style={SHEET_CANCEL_BTN}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {addTaskConfirm && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Add task"
+          onClick={() => setAddTaskConfirm(null)}
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 60,
+            display: "flex",
+            alignItems: "flex-end",
+            background: "rgba(0,0,0,0.45)",
+          }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={SHEET_STYLE}>
+            <p style={SHEET_QUESTION_STYLE}>Add a task for {addTaskConfirm.name}</p>
+            {/* Task title + local date/time. Same Done/Apply time control and
+                whole-field native date picker as Schedule Tour. Nothing is saved
+                until "Add Task" (title + date + time all required; time pre-filled). */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+              <label style={SHEET_FIELD_LABEL}>
+                Task *
+                <input
+                  type="text"
+                  value={taskTitle}
+                  onChange={(e) => setTaskTitle(e.target.value)}
+                  placeholder="e.g. Call to confirm budget"
+                  autoFocus
+                  style={SHEET_INPUT_STYLE}
+                />
+              </label>
+              <label style={SHEET_FIELD_LABEL}>
+                Due Date *
+                <input
+                  type="date"
+                  value={taskDate}
+                  onChange={(e) => setTaskDate(e.target.value)}
+                  onClick={openNativePicker}
+                  style={SHEET_INPUT_STYLE}
+                />
+              </label>
+              <label style={SHEET_FIELD_LABEL}>
+                Due Time *
+                <TourTimeField value={taskTime} onChange={setTaskTime} />
+              </label>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button
+                type="button"
+                onClick={confirmAddTask}
+                disabled={!taskTitle.trim() || !taskDate || !taskTime}
+                style={{ ...SHEET_PRIMARY_BTN, ...((!taskTitle.trim() || !taskDate || !taskTime) ? SHEET_BTN_DISABLED : null) }}
+              >
+                Add Task
+              </button>
+              <button type="button" onClick={() => setAddTaskConfirm(null)} style={SHEET_CANCEL_BTN}>
                 Cancel
               </button>
             </div>

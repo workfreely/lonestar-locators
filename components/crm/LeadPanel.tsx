@@ -932,7 +932,7 @@ export default function LeadPanel({
                       if (t === "Build List" || t === "Send List") s = "In Progress"
                       else if (t === "Setup Tour") s = "Scheduled"
                       else if (t === "Check App") s = "Waiting on Client"
-                      else s = "Pending"
+                      else s = "In Progress"
                     }
                     const c = s === "Overdue" ? "text-red-500" : "text-[var(--crm-text-primary)]"
                     return <span className={c}>{s}</span>

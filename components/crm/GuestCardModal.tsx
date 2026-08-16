@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   buildGuestCardFields,
   buildGuestCardSubject,
@@ -13,7 +13,6 @@ import {
 import { drawGuestCard, type PdfImage } from "@/lib/leads/guestCardPdf"
 import {
   buildClientSignatureText,
-  decideIabs,
   type ResolvedAgentIdentity,
 } from "@/lib/notifications/agentSignature"
 
@@ -68,6 +67,13 @@ async function loadPdfImage(url: string | null | undefined, square: boolean): Pr
   })
 }
 
+// The email IS the Guest Card now: PDF generation is DISCONNECTED from the active
+// send flow (no auto-download, no attach step). The generator below + guestCardPdf
+// are intentionally PRESERVED (dormant) for a possible future "download Guest Card"
+// option — flip this to re-enable. Keeping the reference here also keeps the
+// generator + its helpers/imports live (never dead code).
+const ATTACH_PDF = false
+
 async function generateAndDownloadPdf(
   f: GuestCardFields,
   signature: ResolvedAgentIdentity | null,
@@ -118,12 +124,12 @@ export default function GuestCardModal({
     [lead, property, agent]
   )
 
-  // Texas IABS shows when the agent serves TX, the lead's market is TX, or an
-  // IABS URL is explicitly configured (decideIabs). Resolved from the signature.
-  const showDisclosure = useMemo(
-    () => (signature ? decideIabs(signature, { leadCity: lead?.city }).show : false),
-    [signature, lead]
-  )
+  // This property-facing Guest Card intentionally carries NO Texas IABS
+  // disclosure / Consumer Protection Notice — it goes to a leasing office, not a
+  // prospective client. The IABS infrastructure (decideIabs / buildIabsDisclosureText
+  // / buildClientSignatureText's disclosure arg) is preserved for the client-facing
+  // deliverables that DO require it; here we simply never render it.
+  const showDisclosure = false
 
   // Date the card was generated, MM/DD/YYYY in the locator's local time.
   const generatedDate = useMemo(() => {
@@ -132,25 +138,42 @@ export default function GuestCardModal({
   }, [])
 
   const [to, setTo] = useState(prefillTo)
-  const [subject, setSubject] = useState(() => buildGuestCardSubject(fields))
-  const [body, setBody] = useState(() => {
-    const base = buildGuestCardBody(fields, { leasingEmail: prefillTo, generatedDate })
+  const [subject, setSubject] = useState("")
+  const [body, setBody] = useState("")
+  const [busy, setBusy] = useState(false)
+
+  // Seed the editable To / Subject / Body from the CANONICAL fields each time the
+  // modal opens (and whenever the target lead/property changes). This component
+  // stays mounted (open is toggled by the parent), so a one-time useState
+  // initializer would capture the empty pre-open fields and render
+  // "Not specified" forever — reseeding on open is what binds the real client +
+  // property. `fields` is memoized on [lead, property, agent], so a re-render that
+  // doesn't change the target never clobbers the locator's in-progress edits.
+  useEffect(() => {
+    if (!open) return
+    setTo(prefillTo)
+    setSubject(buildGuestCardSubject(fields))
+    const base = buildGuestCardBody(fields)
     const sig = signature
       ? buildClientSignatureText(signature, { showDisclosure })
       : buildGuestCardLocatorFallback(fields)
-    return `${base}\n\n${sig}`
-  })
-  const [busy, setBusy] = useState(false)
+    setBody(`${base}\n\n${sig}`)
+  }, [open, fields, signature, prefillTo])
 
   if (!open) return null
 
   async function handleContinue() {
     setBusy(true)
-    try {
-      await generateAndDownloadPdf(fields, signature, showDisclosure, to, generatedDate)
-    } catch (err) {
-      console.error("[guest-card] PDF generation failed:", err)
+    // Dormant: the PDF no longer downloads in the active flow (the email is the
+    // Guest Card). Preserved behind ATTACH_PDF for a future download option.
+    if (ATTACH_PDF) {
+      try {
+        await generateAndDownloadPdf(fields, signature, showDisclosure, to, generatedDate)
+      } catch (err) {
+        console.error("[guest-card] PDF generation failed:", err)
+      }
     }
+    // Open the agent's own email client with the editable Subject + Body.
     const mailto = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
     window.open(mailto, "_self")
     setBusy(false)
@@ -170,7 +193,7 @@ export default function GuestCardModal({
           <div>
             <h3 className="text-[16px] font-bold text-[var(--crm-text-primary)]">Email Guest Card</h3>
             <p className="mt-0.5 text-[12.5px] text-[var(--crm-text-secondary)]">
-              Review the branded Guest Card, personalize the email, then continue to send.
+              Review the email, then open it to send.
             </p>
           </div>
           <button
@@ -185,27 +208,10 @@ export default function GuestCardModal({
           </button>
         </div>
 
-        {/* Body */}
+        {/* Body — begins directly with the editable email fields. The Subject and
+            Body already identify the property/client/tour, so no separate summary
+            block (and no PDF) is shown; this gives the body more vertical room. */}
         <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
-          {/* Guest Card summary — what the generated PDF contains */}
-          <div className="rounded-xl border border-[var(--crm-border-soft)] bg-[var(--crm-card)] p-4">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--crm-accent)]">
-                Guest Card PDF
-              </span>
-              <span className="text-[11px] text-[var(--crm-text-muted)]">Auto-generated &amp; downloaded on continue</span>
-            </div>
-            <p className="mt-1.5 text-[13.5px] font-semibold text-[var(--crm-text-primary)]">{fields.propertyName}</p>
-            <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[12px] text-[var(--crm-text-secondary)]">
-              <span>Client: <span className="text-[var(--crm-text-primary)]">{fields.clientName}</span></span>
-              <span>Beds/Baths: <span className="text-[var(--crm-text-primary)]">{fields.bedsBaths || "—"}</span></span>
-              <span>Budget: <span className="text-[var(--crm-text-primary)]">{fields.budget}</span></span>
-              <span>Move-in: <span className="text-[var(--crm-text-primary)]">{fields.moveIn}</span></span>
-              <span>Locator: <span className="text-[var(--crm-text-primary)]">{fields.agentName}</span></span>
-              <span>Brokerage: <span className="text-[var(--crm-text-primary)]">{fields.brokerage}</span></span>
-            </div>
-          </div>
-
           <div className="space-y-1.5">
             <label className={labelCls}>Leasing Office Email</label>
             <input
@@ -234,11 +240,8 @@ export default function GuestCardModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-3 border-t border-[var(--crm-border)] px-6 py-4">
-          <p className="text-[11.5px] text-[var(--crm-text-muted)]">
-            The PDF isn&apos;t auto-attached — it downloads so you can attach it in your email app before sending.
-          </p>
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-end gap-3 border-t border-[var(--crm-border)] px-6 py-4">
+          <div className="flex flex-none items-center gap-2">
             <button
               type="button"
               onClick={onClose}
@@ -250,9 +253,9 @@ export default function GuestCardModal({
               type="button"
               onClick={handleContinue}
               disabled={busy}
-              className="crm-cta rounded-lg px-4 py-2 text-[13px] font-semibold disabled:opacity-60"
+              className="crm-cta min-w-[120px] whitespace-nowrap rounded-lg px-4 py-2 text-center text-[13px] font-semibold disabled:opacity-60"
             >
-              {busy ? "Preparing…" : "Continue to Email"}
+              {busy ? "Preparing…" : "Open Email"}
             </button>
           </div>
         </div>

@@ -36,7 +36,11 @@ const LOGO_SVG = `
 /** Fixed host geometry that never changes, regardless of side or page CSS. */
 const HOST_FIXED_STYLE: Record<string, string> = {
   position: "fixed",
-  top: "22vh",
+  // Anchored just BELOW the site's top nav (matches the Apollo edge-tab height),
+  // not mid-viewport. A fixed px (not vh) keeps it clearing the ~64px header on
+  // any viewport height, while staying well below the Companion panel's own
+  // header/pin/close row. position:fixed keeps it put as the dashboard scrolls.
+  top: "104px",
   width: "52px",
   height: "52px",
   margin: "0",

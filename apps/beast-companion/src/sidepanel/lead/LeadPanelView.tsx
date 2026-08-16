@@ -18,6 +18,12 @@ import { SectionCard, Field, StageBadge, StatusPill, Button } from "./primitives
 
 type OnDemo = (label: string) => void;
 
+// "+ Add Task" is HIDDEN for now (manual tasks deferred). The whole Add Task
+// implementation — this button, its onAddTask wiring, the ProductionPanel sheet,
+// the add-task verb, createManualTask, and the tests — is PRESERVED intact; this
+// flag is the single on/off switch. Set to `true` to show it again.
+const SHOW_ADD_TASK = false;
+
 function fullName(l: LeadSummaryDTO) {
   // Display formatting only — the stored first/last name are never modified.
   return [formatPersonName(l.firstName), formatPersonName(l.lastName)].filter(Boolean).join(" ") || "Unnamed Lead";
@@ -217,6 +223,10 @@ export function LeadPanelBody({
   onSendList,
   onSendFollowUp,
   onScheduleTour,
+  onSendGuestCard,
+  onTourFollowUp,
+  onStartApplication,
+  onAddTask,
   onBackToCrm,
   timeZone,
 }: {
@@ -247,6 +257,16 @@ export function LeadPanelBody({
   // confirmation sheet. MVP handoff — opening completes nothing; only "Yes,
   // Scheduled" does. (Later this opens the real tour scheduler first.)
   onScheduleTour?: () => void;
+  // "Send Guest Card" — opens the reused Guest Card composer (in the CRM tab) for
+  // the scheduled property. Omitted in fixtures (falls back to the demo note).
+  onSendGuestCard?: () => void;
+  // "Tour Follow-Up" — opens the canonical outcome modal in the CRM tab for the
+  // surfaced property's tour. "Apply" — opens the application-submitted confirm.
+  onTourFollowUp?: () => void;
+  onStartApplication?: () => void;
+  // "+ Add Task" — opens the custom-task sheet (title + date/time) for THIS
+  // client. Omitted in fixtures, where the button falls back to the demo note.
+  onAddTask?: () => void;
   // Focus the existing Locator Beast CRM tab (shown while building the list in the
   // external platform). Navigation only — never completes/advances anything.
   onBackToCrm?: () => void;
@@ -262,6 +282,16 @@ export function LeadPanelBody({
   // Last Action — the most recently completed workflow action (canonical, from
   // the DTO). Null for a brand-new lead → the row is hidden, never fabricated.
   const lastAction = lead.lastAction ?? null;
+  // Property context shown inline on the Last Action line ("Tour Scheduled ·
+  // The Foundry"). Sourced from the completed action's OWN snapshot (never
+  // fabricated). SAFETY (multi-tour): suppress it when the currently-surfaced
+  // Next Action names a DIFFERENT property — so we never imply the last action
+  // was on the property the surfaced Guest Card actually belongs to.
+  const lastActionProperty =
+    lastAction?.propertyName &&
+    (!openAction?.propertyName || openAction.propertyName === lastAction.propertyName)
+      ? lastAction.propertyName
+      : null;
 
   // Two-state Build List: clicking "Build List" opens SAD AND advances the lead
   // Contacted → Searching (build_list stays open), so the button flips to
@@ -283,6 +313,9 @@ export function LeadPanelBody({
   const isSendList = (openAction?.title ?? "").trim().toLowerCase() === "send list";
   const isFollowUp = isFollowUpAction(openAction?.title);
   const isSetupTour = (openAction?.title ?? "").trim().toLowerCase() === "setup tour";
+  const isGuestCard = (openAction?.title ?? "").trim().toLowerCase() === "email guest card";
+  const isTourFollowUp = (openAction?.title ?? "").trim().toLowerCase() === "tour follow-up";
+  const isApply = (openAction?.title ?? "").trim().toLowerCase() === "apply";
 
   return (
     <div className="lp-body">
@@ -302,9 +335,10 @@ export function LeadPanelBody({
             <div style={{ marginTop: 15 }}>
               <div
                 style={{ fontSize: 14, fontWeight: 600, color: "var(--lb-text, #e6ebf5)" }}
-                title={formatLastActionLabel(lastAction.title)}
+                title={`${formatLastActionLabel(lastAction.title)}${lastActionProperty ? ` · ${lastActionProperty}` : ""}`}
               >
                 {formatLastActionLabel(lastAction.title)}
+                {lastActionProperty && <span className="lp-last-prop"> · {lastActionProperty}</span>}
               </div>
               {lastAction.completedAt && (
                 <div className="lp-completed">
@@ -314,7 +348,9 @@ export function LeadPanelBody({
             </div>
             <div
               style={{
-                margin: "18px 0 12px",
+                // 18px above the divider (below Last Action); +8px below it so the
+                // NEXT ACTION / STATUS row breathes a little more (subtle).
+                margin: "18px 0 20px",
                 // Same single divider, only slightly stronger so it reads as one
                 // card with two sections (not two cards). Thin + subtle.
                 borderTop: "1px solid color-mix(in srgb, var(--lb-border, rgba(255,255,255,0.12)) 70%, var(--lb-text-muted, #9aa4b2) 30%)",
@@ -412,6 +448,35 @@ export function LeadPanelBody({
                 >
                   {formatWorkflowActionLabel(openAction.title)}
                 </Button>
+              ) : isGuestCard && onSendGuestCard ? (
+                // Opens the reused Guest Card composer in the CRM tab for THIS
+                // scheduled property. Nothing sends until the agent reviews + sends.
+                <Button
+                  variant="solid"
+                  onClick={() => onSendGuestCard()}
+                  title="Review and send this property's guest card"
+                >
+                  {formatWorkflowActionLabel(openAction.title)}
+                </Button>
+              ) : isTourFollowUp && onTourFollowUp ? (
+                // Opens the canonical "How did the tour go?" outcome modal in the
+                // CRM tab for THIS property's tour (same workflow as the Workspace).
+                <Button
+                  variant="solid"
+                  onClick={() => onTourFollowUp()}
+                  title="Record how this property's tour went"
+                >
+                  {formatWorkflowActionLabel(openAction.title)}
+                </Button>
+              ) : isApply && onStartApplication ? (
+                // Opens the "did the client submit?" confirmation in the CRM tab.
+                <Button
+                  variant="solid"
+                  onClick={() => onStartApplication()}
+                  title="Confirm the client submitted their application"
+                >
+                  {formatWorkflowActionLabel(openAction.title)}
+                </Button>
               ) : (
                 <Button
                   variant="solid"
@@ -422,10 +487,9 @@ export function LeadPanelBody({
                 </Button>
               )}
               <StatusPill tone={overdue ? "danger" : openAction.statusLabel ? "accent" : "muted"}>
-                {overdue ? "Overdue" : openAction.statusLabel ?? "Pending"}
+                {overdue ? "Overdue" : openAction.statusLabel ?? "In Progress"}
               </StatusPill>
             </div>
-            {openAction.propertyName && <div className="lp-action-prop">{openAction.propertyName}</div>}
             <div className="lp-due">
               Due: <span className="lp-due-val">{fmtDue(openAction.dueAt, tz)}</span>
             </div>
@@ -454,11 +518,13 @@ export function LeadPanelBody({
         ) : (
           <p className="lp-muted">No open action — add the next step below.</p>
         )}
+        {SHOW_ADD_TASK && (
         <div style={{ marginTop: 12 }}>
-          <Button variant="dashed" full onClick={() => onDemo("Add Task")}>
+          <Button variant="dashed" full onClick={() => (onAddTask ? onAddTask() : onDemo("Add Task"))}>
             + Add Task
           </Button>
         </div>
+        )}
           </>
         )}
       </div>

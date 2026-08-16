@@ -1,6 +1,7 @@
 import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO } from "@bc/companion-shared"
 import { isLeadStage } from "@bc/companion-shared"
 import { getNextAction } from "@/lib/nextAction"
+import { rankLeadActions } from "@/lib/nextActions"
 import { getSourceStyle } from "@/lib/leads/sourceStyles"
 import { getArchiveReasonLabel } from "@/lib/leads/archiveReasons"
 
@@ -87,21 +88,24 @@ function deriveLastAction(
   lead: any,
   nextActions: any[] = [],
   latestOutreach: LatestOutreach = null,
-): { title: string; completedAt: string | null } | null {
-  const candidates: { title: string; completedAt: string }[] = []
+): { title: string; completedAt: string | null; propertyName: string | null } | null {
+  const candidates: { title: string; completedAt: string; propertyName: string | null }[] = []
 
   const firstContact = str(lead.first_text_sent_at)
-  if (firstContact) candidates.push({ title: "Contact Lead", completedAt: firstContact })
+  if (firstContact) candidates.push({ title: "Contact Lead", completedAt: firstContact, propertyName: null })
 
   const outreachTitle = outreachLastActionTitle(lead, latestOutreach)
-  if (outreachTitle && latestOutreach) candidates.push({ title: outreachTitle, completedAt: latestOutreach.occurredAt })
+  if (outreachTitle && latestOutreach) candidates.push({ title: outreachTitle, completedAt: latestOutreach.occurredAt, propertyName: null })
 
   for (const a of nextActions || []) {
     if (String(a.lead_id) !== String(lead.id)) continue
     const done = a.completed === true || a.status === "completed"
     const at = str(a.completed_at)
     const title = str(a.title)
-    if (done && at && title) candidates.push({ title, completedAt: at })
+    // Per-property completions (Tour Scheduled = setup_tour, Guest Card Sent =
+    // email_guest_card) carry their Favorite name so the Last Action line can read
+    // "Tour Scheduled · The Foundry". Non-property actions have none (stays null).
+    if (done && at && title) candidates.push({ title, completedAt: at, propertyName: str(a.property_name) })
   }
 
   // Lowest-priority fallback: the lead's own creation. Any real activity above
@@ -110,7 +114,7 @@ function deriveLastAction(
   // invented action. If created_at is somehow absent, stay null (can't invent).
   if (candidates.length === 0) {
     const createdAt = str(lead.created_at)
-    return createdAt ? { title: "Lead Created", completedAt: createdAt } : null
+    return createdAt ? { title: "Lead Created", completedAt: createdAt, propertyName: null } : null
   }
   candidates.sort((x, y) => (x.completedAt < y.completedAt ? 1 : x.completedAt > y.completedAt ? -1 : 0))
   return candidates[0]
@@ -129,6 +133,9 @@ export function buildActiveClientPayload(
   // THIS lead's saved Favorite Properties (lead_favorites rows). Mapped to the
   // read-only FavoriteDTO the Schedule Tour dropdown renders.
   favorites: any[] = [],
+  // THIS lead's lead_tours rows — used ONLY to derive the "Toured · Property"
+  // Last Action once the surfaced Tour Follow-Up's tour has occurred (read-only).
+  tours: any[] = [],
 ): CompanionActiveClientPayload {
   const crmStatus = str(lead.crm_status) ?? "new"
   const historyLower = String(lead.credit_history || "").toLowerCase()
@@ -211,6 +218,8 @@ export function buildActiveClientPayload(
       firstContactAt: str(lead.first_text_sent_at),
     },
     lastAction: deriveLastAction(lead, nextActions, latestOutreach),
+    // Durable one-per-lead Top Pick (leads.top_pick_favorite_id). Null when none.
+    topPickFavoriteId: str(lead.top_pick_favorite_id),
     clientNotes: str(lead.notes),
   }
 
@@ -228,6 +237,9 @@ export function buildActiveClientPayload(
       notes: str(a.notes),
       completed: false,
       completedAt: str(a.completed_at),
+      // Per-property actions (Send Guest Card, guest cards) carry the property so
+      // the panel can label "Send Guest Card — {property}".
+      propertyName: str(a.property_name),
       statusLabel:
         a.action_key === "contacted_follow_up"
           ? pendingFollowUpStatus
@@ -236,12 +248,34 @@ export function buildActiveClientPayload(
           : null,
     }))
 
+  // When a lead has MORE THAN ONE open row (e.g. a workflow action + a manual
+  // Add Task), order them by the SAME canonical ranker the Workspace/Kanban uses,
+  // so the Companion surfaces the same primary Next Action instead of arbitrary
+  // insertion order. Order-only — no row is added, removed, or mutated; single-
+  // open-row leads (the common case) are byte-identical to before (guarded).
+  let orderedOpen = openReal
+  if (openReal.length > 1) {
+    const openRaw = (nextActions || []).filter((a) => String(a.lead_id) === String(lead.id) && !a.completed)
+    const ranked = rankLeadActions(
+      { ...lead, follow_up_count: dto.workflow.followUpCount },
+      openRaw as any,
+      getNextAction({ ...lead, follow_up_count: dto.workflow.followUpCount }),
+    )
+    const rankIndex = new Map<string, number>()
+    ;[ranked.primary, ...ranked.others].forEach((ra, i) => {
+      if (ra.manualAction) rankIndex.set(String((ra.manualAction as any).id), i)
+    })
+    orderedOpen = [...openReal].sort(
+      (a, b) => (rankIndex.get(String(a.id)) ?? Number.MAX_SAFE_INTEGER) - (rankIndex.get(String(b.id)) ?? Number.MAX_SAFE_INTEGER),
+    )
+  }
+
   // If there's no real open row, synthesize the stage-computed action (same title
   // the CRM shows) so the Next Action still renders read-only. The generic "Next
   // Action" fallback (archived leads / stages with no workflow rule) is omitted —
   // it's a placeholder, not a real action, so those correctly show no open action.
-  let actions = openReal
-  if (openReal.length === 0) {
+  let actions = orderedOpen
+  if (orderedOpen.length === 0) {
     const computed = getNextAction({ ...lead, follow_up_count: dto.workflow.followUpCount })
     if (computed && computed !== "Next Action") {
       actions = [
@@ -257,6 +291,25 @@ export function buildActiveClientPayload(
         },
       ]
     }
+  }
+
+  // "Toured · Property" — once the SURFACED Tour Follow-Up's OWN tour has occurred
+  // (scheduled_at ≤ now, still awaiting its outcome), the Last Action reflects the
+  // tour happening, aligned to the exact property being surfaced. This can never
+  // show a different property's tour than the primary Tour Follow-Up (§15).
+  const primaryDto = actions[0]
+  if (primaryDto && (primaryDto.title || "").trim().toLowerCase() === "tour follow-up" && primaryDto.propertyName) {
+    const rawPrimary = (nextActions || []).find((a: any) => String(a.id) === String(primaryDto.id))
+    const propId = rawPrimary ? rawPrimary.property_id : null
+    const tour = (tours || []).find(
+      (t: any) =>
+        propId != null &&
+        String(t.property_id ?? "") === String(propId) &&
+        (String(t.status ?? "scheduled") === "scheduled" || String(t.status ?? "") === "completed") &&
+        Number.isFinite(new Date(t.scheduled_at).getTime()) &&
+        new Date(t.scheduled_at).getTime() <= Date.now(),
+    )
+    if (tour) dto.lastAction = { title: "Toured", completedAt: str(tour.scheduled_at), propertyName: primaryDto.propertyName }
   }
 
   const favoriteDtos: FavoriteDTO[] = (favorites || [])

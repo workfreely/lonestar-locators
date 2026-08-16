@@ -127,3 +127,58 @@ export async function triggerGuestCardForFavorite(
 
   return { created: created as CreatedGuestCardAction, removedIds }
 }
+
+/**
+ * Create the per-property "Send Guest Card" action for a SCHEDULED tour (the
+ * re-anchored trigger — a Favorite alone no longer spawns a guest card; a tour
+ * being scheduled for that property does). Same canonical identity + per-property
+ * dedup as the legacy trigger (one card per property, open OR completed), and due
+ * NOW so it becomes the primary Next Action immediately (not merely by priority).
+ * No stage gating, no follow-up clearing. Returns the created row, or null when a
+ * card for this property already exists (dedup).
+ */
+export async function createGuestCardForProperty(
+  client: SupabaseClient,
+  leadId: number | string,
+  favorite: FavoriteRow,
+): Promise<CreatedGuestCardAction | null> {
+  const { data: existing, error: checkError } = await client
+    .from("lead_next_actions")
+    .select("id")
+    .eq("lead_id", leadId)
+    .eq("property_id", favorite.id)
+    .eq("action_key", "email_guest_card")
+    .limit(1)
+  if (checkError) {
+    console.error("[guest-card-workflow] tour dedup check failed:", checkError)
+    return null
+  }
+  if (existing && existing.length > 0) return null
+
+  const propertyName = (favorite.property_name || favorite.property_address || "").trim() || null
+  const { data: created, error: insertError } = await client
+    .from("lead_next_actions")
+    .insert([
+      {
+        lead_id: leadId,
+        title: "Email Guest Card",
+        due_at: new Date().toISOString(), // immediate — the guest card is the next step now
+        priority: "high",
+        property_id: favorite.id,
+        property_name: propertyName,
+        action_key: "email_guest_card",
+        action_type: "workflow",
+        origin: "workflow",
+        sequence: null,
+        workflow_version: CURRENT_WORKFLOW_VERSION,
+        status: "open",
+      },
+    ])
+    .select("*")
+    .single()
+  if (insertError) {
+    console.error("[guest-card-workflow] tour guest-card create failed:", insertError)
+    return null
+  }
+  return created as CreatedGuestCardAction
+}

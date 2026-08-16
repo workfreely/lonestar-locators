@@ -89,6 +89,10 @@ export const workflowStateSchema = z.object({
 export const lastActionSchema = z.object({
   title: z.string(),
   completedAt: z.string().nullish(),
+  /** The property this completed action was for (Tour Scheduled / Guest Card
+   *  Sent snapshot its Favorite name). Null for non-property actions (Contact
+   *  Lead, follow-ups, …) so the panel appends "· {property}" only when real. */
+  propertyName: z.string().nullish(),
 });
 export type LastActionDTO = z.infer<typeof lastActionSchema>;
 
@@ -114,6 +118,10 @@ export const leadSummarySchema = z.object({
   /** Most recently COMPLETED workflow action (see lastActionSchema). Null when
    *  nothing has been completed yet — the panel then hides the Last Action row. */
   lastAction: lastActionSchema.nullish(),
+  /** The lead's current Top Pick — the lead_favorites id of the single leading
+   *  property (durable, one-per-lead). Null when none chosen. Application-phase
+   *  actions associate with this property, not a generic Favorite. */
+  topPickFavoriteId: z.union([z.string(), z.number()]).nullish(),
   /**
    * Client Notes — the client's original FORM-SUBMITTED notes, read-only. Maps to
    * the existing `leads.notes` column (the same data the CRM's Client Notes shows).

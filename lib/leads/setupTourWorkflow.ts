@@ -1,7 +1,8 @@
 import { supabase } from "@/lib/supabase/client"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
-import { createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
-import { tourFollowUpDueAt } from "@/lib/leads/tourFollowUp"
+import { createGuestCardForProperty } from "@/lib/leads/guestCardWorkflow"
+import { createTourFollowUpForProperty } from "@/lib/leads/tourFollowUpWorkflow"
+import { tourFollowUpDueAt, tourFollowUpDueForTour } from "@/lib/leads/tourFollowUp"
 
 // Pure tour date/time helpers now live in lib/leads/tourFollowUp.ts (no DB), so
 // tests can import them without pulling in the browser Supabase client. Re-export
@@ -39,35 +40,48 @@ export async function completeSetupTour(opts: {
   // Null when the agent chose "Other Property" / "Schedule Without Property"
   // (property_id is nullable — the tour is still created).
   propertyId: number | string | null
+  // The scheduled Favorite's display name (snapshot on the guest card action, so
+  // the Workspace/Companion can label "Send Guest Card — {property}").
+  propertyName?: string | null
   // Single completion timestamp for the setup_tour row.
   now: string
   // Reflect the advanced lead (next_action_date) locally + persist.
   onOptimistic?: (updatedLead: any, tourFollowUpDue: string) => void
   // Reflect the created tour_follow_up action row.
   onWorkflowAction?: (action: any) => void
+  // Reflect the per-property "Send Guest Card" action created for this scheduled
+  // property (Phase 1 of Schedule Tour → Send Guest Card → Tour Follow-Up).
+  onGuestCardCreated?: (action: any) => void
   // Reflect the new lead_tours appointment locally so the Workspace can surface
   // "Tour Scheduled" under the linked Favorite immediately (no manual refresh).
-  onTourScheduled?: (tour: { lead_id: number | string; property_id: number | null; scheduled_at: string; status: "scheduled" }) => void
+  onTourScheduled?: (tour: { id: number | string | null; lead_id: number | string; property_id: number | null; scheduled_at: string; status: "scheduled" }) => void
 }): Promise<void> {
-  const { lead, actionRow, scheduledAt, propertyId, now, onOptimistic, onWorkflowAction, onTourScheduled } = opts
+  const { lead, actionRow, scheduledAt, propertyId, propertyName, now, onOptimistic, onWorkflowAction, onTourScheduled, onGuestCardCreated } = opts
 
   const demo = isDemoLeadId(lead.id)
   const favoriteId = propertyId === "" || propertyId == null ? null : Number(propertyId)
 
-  // Optimistically surface the appointment against its Favorite (both demo and
-  // real). lead_tours stays the source of truth; this only mirrors the row the
-  // insert below persists so the UI reflects it without a refetch.
-  onTourScheduled?.({ lead_id: lead.id, property_id: favoriteId, scheduled_at: scheduledAt, status: "scheduled" })
-
   // 1) Insert the canonical appointment (real leads only), linked to the chosen
   //    Favorite (lead_tours.property_id → lead_favorites.id). RLS/ownership stamped
-  //    by the lead_tours trigger, exactly like every other CRM insert.
+  //    by the lead_tours trigger, exactly like every other CRM insert. Capture the
+  //    inserted id so the optimistic local row carries the SAME id the DB assigned:
+  //    otherwise the local row used a synthetic id and a later Reschedule's UPDATE
+  //    (keyed on the tour id) would miss the real row — the reschedule wouldn't persist.
+  let insertedTourId: number | string | null = null
   if (!demo) {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("lead_tours")
       .insert([{ lead_id: lead.id, scheduled_at: scheduledAt, property_id: favoriteId, status: "scheduled" }])
+      .select("id")
+      .maybeSingle()
     if (error) console.error("[setup-tour] insert lead_tours failed:", error)
+    insertedTourId = data?.id ?? null
   }
+
+  // Optimistically surface the appointment against its Favorite (both demo and
+  // real) — now with the real DB id when available (demo has no DB → the caller
+  // falls back to a synthetic id, which is fine since demo reschedules stay local).
+  onTourScheduled?.({ id: insertedTourId, lead_id: lead.id, property_id: favoriteId, scheduled_at: scheduledAt, status: "scheduled" })
 
   // 2) Compute the Tour Follow-Up due = last ACTIVE scheduled tour + 2h. For real
   //    leads read every scheduled tour (multi-tour ready); demo uses just this one.
@@ -82,11 +96,14 @@ export async function completeSetupTour(opts: {
     followUpDue = tourFollowUpDueAt(rows.length ? rows : [{ scheduledAt, status: "scheduled" }]) as string
   }
 
-  // 3) Complete the persisted setup_tour row (real leads) → Last Action "Tour Scheduled".
+  // 3) Complete the persisted setup_tour row (real leads) → Last Action "Tour
+  //    Scheduled". Snapshot the scheduled Favorite's name on the row so the Last
+  //    Action line can read "Tour Scheduled · {property}" (null for a
+  //    Without-Property tour → the line stays just "Tour Scheduled").
   if (!demo && actionRow?.id != null) {
     const { error } = await supabase
       .from("lead_next_actions")
-      .update({ completed: true, completed_at: now })
+      .update({ completed: true, completed_at: now, property_name: propertyName ?? null })
       .eq("id", actionRow.id)
     if (error) console.error("[setup-tour] complete setup_tour row failed:", error)
   }
@@ -103,14 +120,31 @@ export async function completeSetupTour(opts: {
     .eq("id", lead.id)
   if (cacheErr) console.error("[setup-tour] advance next_action_date failed:", cacheErr)
 
-  // 5) Exactly one Tour Follow-Up — deduped one-open-per-(lead, tour_follow_up) by
-  //    the engine helper, so a later Done Touring transition can never double it.
-  const created = await createWorkflowActionIfNeeded(supabase, lead.id, {
-    title: "Tour Follow-Up",
-    dueAt: followUpDue,
-    actionKey: "tour_follow_up",
-  })
-  if (created) onWorkflowAction?.(created)
+  // 5) PER-PROPERTY Tour Follow-Up — one per toured property, due THIS tour + 2h
+  //    (Foundry 9:00 → 11:00, Skyline 13:00 → 15:00), so completing one never
+  //    touches another. Only for a linked Favorite; "Without Property" tours get
+  //    none. Per-property dedup means re-scheduling the same property never doubles.
+  if (favoriteId != null) {
+    const followUp = await createTourFollowUpForProperty(
+      supabase,
+      lead.id,
+      { id: favoriteId, property_name: propertyName ?? null },
+      tourFollowUpDueForTour(scheduledAt),
+    )
+    if (followUp) onWorkflowAction?.(followUp)
+  }
+
+  // 6) Send Guest Card — the per-property action for THIS scheduled property
+  //    (only when the tour is linked to a Favorite; "Without Property" tours get
+  //    none). Due now, so it's the primary Next Action ahead of the future Tour
+  //    Follow-Up. Per-property dedup means a re-scheduled property never doubles.
+  if (favoriteId != null) {
+    const guestCard = await createGuestCardForProperty(supabase, lead.id, {
+      id: favoriteId,
+      property_name: propertyName ?? null,
+    })
+    if (guestCard) onGuestCardCreated?.(guestCard)
+  }
 }
 
 // Recompute the Tour Follow-Up due from every ACTIVE scheduled tour a lead has
@@ -163,12 +197,12 @@ export async function rescheduleTour(opts: {
     if (error) console.error("[setup-tour] reschedule lead_tours failed:", error)
   }
 
-  // 2) Recompute the follow-up due across all active tours (this one now updated).
-  const followUpDue = demo
-    ? (tourFollowUpDueAt([{ scheduledAt, status: "scheduled" }]) as string)
-    : ((await activeTourFollowUpDue(lead.id, scheduledAt)) as string)
+  // 2) THIS tour's follow-up recalculates to THIS tour + 2h (property-scoped) —
+  //    other properties' follow-ups are separate rows and are never touched.
+  const followUpDue = tourFollowUpDueForTour(scheduledAt)
 
-  // 3) Move the SAME tour_follow_up (never create a second one).
+  // 3) Move ONLY this property's tour_follow_up (the caller passes the row for
+  //    this tour's property). Its property_id is unchanged here.
   if (!demo && followUpActionRow?.id != null) {
     const { error } = await supabase
       .from("lead_next_actions")
@@ -208,10 +242,14 @@ export async function cancelTour(opts: {
   setupTourRow?: { id: number | string } | null
   // The open tour_follow_up row to remove/retime. Null → none.
   followUpActionRow?: { id: number | string } | null
+  // The canceled property's UNSENT "Send Guest Card" row to remove, so it stops
+  // gating Tour Follow-Up. Null when there is none, or when it was already SENT
+  // (a completed guest card is preserved as history — never passed here).
+  guestCardActionRow?: { id: number | string } | null
   now: string
   onOptimistic?: (updatedLead: any, remainingFollowUpDue: string | null) => void
 }): Promise<void> {
-  const { lead, tourId, setupTourRow, followUpActionRow, now, onOptimistic } = opts
+  const { lead, tourId, setupTourRow, followUpActionRow, guestCardActionRow, now, onOptimistic } = opts
   const demo = isDemoLeadId(lead.id)
 
   // 1) Cancel the appointment (preserve history — NOT a hard delete).
@@ -220,27 +258,36 @@ export async function cancelTour(opts: {
     if (error) console.error("[setup-tour] cancel lead_tours failed:", error)
   }
 
+  // 1b) Remove this property's UNSENT guest card (if any) — a canceled tour no
+  //     longer needs a card, and it must stop gating Tour Follow-Up. A card that
+  //     was already SENT is left intact (history; not passed in).
+  if (!demo && guestCardActionRow?.id != null) {
+    const { error } = await supabase.from("lead_next_actions").delete().eq("id", guestCardActionRow.id)
+    if (error) console.error("[setup-tour] remove unsent guest card failed:", error)
+  }
+
+  // 1c) Remove THIS canceled property's tour_follow_up (property-scoped — other
+  //     properties' follow-ups are separate rows and stay untouched). The tour is
+  //     canceled, so its follow-up can never come due.
+  if (!demo && followUpActionRow?.id != null) {
+    const { error } = await supabase.from("lead_next_actions").delete().eq("id", followUpActionRow.id)
+    if (error) console.error("[setup-tour] remove tour_follow_up failed:", error)
+  }
+
   // 2) Any OTHER active scheduled tours left? (multi-tour). Demo is single-tour,
-  //    so treat it as fully canceled → restore Schedule Tour.
+  //    so treat it as fully canceled → restore Schedule Tour. remainingDue is only
+  //    a next_action_date cache hint; each remaining property keeps its own follow-up.
   const remainingDue = demo ? null : await activeTourFollowUpDue(lead.id)
 
   if (remainingDue) {
-    // Still touring other properties: retime the SAME follow-up; stay scheduled.
-    if (!demo && followUpActionRow?.id != null) {
-      const { error } = await supabase.from("lead_next_actions").update({ due_at: remainingDue }).eq("id", followUpActionRow.id)
-      if (error) console.error("[setup-tour] retime tour_follow_up failed:", error)
-    }
+    // Still touring other properties — their follow-ups are already correct; just
+    // refresh the lead's next_action_date cache and stay Ready to Tour (scheduled).
     onOptimistic?.({ ...lead, next_action_date: remainingDue }, remainingDue)
     if (!demo) await supabase.from("leads").update({ next_action_date: remainingDue }).eq("id", lead.id)
     return
   }
 
-  // 3) No active tour remains → remove the Follow-Up so it can never come due,
-  //    then reopen Schedule Tour.
-  if (!demo && followUpActionRow?.id != null) {
-    const { error } = await supabase.from("lead_next_actions").delete().eq("id", followUpActionRow.id)
-    if (error) console.error("[setup-tour] remove tour_follow_up failed:", error)
-  }
+  // 3) No active tour remains → reopen Schedule Tour.
   if (!demo && setupTourRow?.id != null) {
     // Reopen (fresh, immediate) so isTourScheduled() flips false and the stage's
     // Schedule Tour surfaces again as the actionable Next Action.

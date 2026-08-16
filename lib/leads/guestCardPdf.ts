@@ -89,6 +89,8 @@ export function drawGuestCard(doc: jsPDF, input: DrawGuestCardInput): void {
   // PROPERTY
   section("Property")
   row("Community", f.propertyName)
+  // Scheduled-tour date/time when this card is for a booked tour (Mode A).
+  row("Tour Date", f.tourDate && f.tourTime ? `${f.tourDate} at ${f.tourTime}` : "")
   row("Leasing Office Email", (leasingEmail ?? "").trim())
   row("Date Generated", (generatedDate ?? "").trim())
 
@@ -98,7 +100,7 @@ export function drawGuestCard(doc: jsPDF, input: DrawGuestCardInput): void {
   row("Name", f.clientName)
   row("Phone", f.clientPhone)
   row("Email", f.clientEmail)
-  row("Move-in Date", f.moveIn)
+  row("Move Date", f.moveIn)
   row("Beds / Baths", f.bedsBaths)
   row("Desired Rent", f.budget)
 

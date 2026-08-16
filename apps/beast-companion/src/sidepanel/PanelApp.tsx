@@ -40,6 +40,10 @@ export function PanelApp({
   onSendList,
   onSendFollowUp,
   onScheduleTour,
+  onSendGuestCard,
+  onTourFollowUp,
+  onStartApplication,
+  onAddTask,
   onBackToCrm,
   timeZone,
 }: {
@@ -68,6 +72,14 @@ export function PanelApp({
   onSendFollowUp?: () => void;
   // Clicking "Schedule Tour" opens the tour-scheduled confirmation sheet (MVP).
   onScheduleTour?: () => void;
+  // "Send Guest Card" opens the reused Guest Card composer in the CRM tab.
+  onSendGuestCard?: () => void;
+  // "Tour Follow-Up" / "Apply" open the canonical CRM outcome / confirm surfaces.
+  onTourFollowUp?: () => void;
+  onStartApplication?: () => void;
+  // "+ Add Task" opens the custom-task sheet (title + date/time). Omitted in the
+  // dev harness (fixtures), where the button falls back to the inert demo note.
+  onAddTask?: () => void;
   // Phase 3 — focus the existing CRM tab from the list-building workflow.
   onBackToCrm?: () => void;
   // Saved locator IANA timezone for Due/Completed formatting (falls back inside
@@ -175,6 +187,10 @@ export function PanelApp({
               onSendList={onSendList}
               onSendFollowUp={onSendFollowUp}
               onScheduleTour={onScheduleTour}
+              onSendGuestCard={onSendGuestCard}
+              onTourFollowUp={onTourFollowUp}
+              onStartApplication={onStartApplication}
+              onAddTask={onAddTask}
               onBackToCrm={onBackToCrm}
               timeZone={timeZone}
             />

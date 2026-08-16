@@ -20,6 +20,7 @@ export const WORKFLOW_ACTION_KEYS = [
   "send_list",
   "setup_tour",
   "tour_follow_up",
+  "start_application",
   "check_application",
   "confirm_lease",
   "get_invoice_details",
