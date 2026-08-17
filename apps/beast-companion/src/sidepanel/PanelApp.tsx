@@ -36,6 +36,8 @@ export function PanelApp({
   favorites = [],
   recommendations = [],
   currentProperty = null,
+  onAddRecommendation,
+  onAddFavorite,
   connection = DISCONNECTED,
   onConnect,
   onDisconnect,
@@ -72,6 +74,10 @@ export function PanelApp({
   // separate storage key). Independent of the active client. Null when not on a
   // property-detail page. Read-only display in the Properties view.
   currentProperty?: CurrentProperty | null;
+  // Add the detected Current Property to the ACTIVE client's canonical collection
+  // (via the Companion → CRM verb bridge). Omitted in fixtures.
+  onAddRecommendation?: () => void;
+  onAddFavorite?: () => void;
   // Connection is derived from the SW's authenticated state. Production defaults
   // to DISCONNECTED — the panel is authenticated ONLY when this is "connected".
   connection?: CompanionConnection;
@@ -252,7 +258,13 @@ export function PanelApp({
                 timeZone={timeZone}
               />
             ) : (
-              <PropertiesView favorites={favorites} recommendations={recommendations} currentProperty={currentProperty} />
+              <PropertiesView
+                favorites={favorites}
+                recommendations={recommendations}
+                currentProperty={currentProperty}
+                onAddRecommendation={onAddRecommendation}
+                onAddFavorite={onAddFavorite}
+              />
             )
           ) : (
             <PanelStateView state={state === "loaded" ? "no-client" : state} onConnect={handleConnect} />

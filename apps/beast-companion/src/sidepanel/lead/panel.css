@@ -559,16 +559,35 @@
   align-items: center;
   gap: 10px;
 }
-.bc-current-prop-thumb {
+/* Shared property thumbnail (Current Property; reusable for rec/fav rows). Image
+   fills; the empty state shows the building placeholder — never a broken glyph. */
+.bc-prop-thumb {
   flex: none;
-  width: 46px;
-  height: 46px;
+  overflow: hidden;
   border-radius: 10px;
   border: 1px solid var(--lb-border);
   background-color: var(--lb-surface-elevated);
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+}
+.bc-prop-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.bc-prop-thumb--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--lb-text-muted, #9aa4b2);
+}
+/* Clickable property name — opens propertyUrl in a new tab. */
+.bc-prop-link {
+  color: var(--lb-accent);
+  text-decoration: none;
+  cursor: pointer;
+}
+.bc-prop-link:hover {
+  text-decoration: underline;
 }
 .bc-current-prop-body {
   min-width: 0;
@@ -588,4 +607,41 @@
   font-size: 11.5px;
   line-height: 1.35;
   color: var(--lb-text-secondary);
+}
+
+/* Compact add-to-collection actions under the Current Property. */
+.bc-current-prop-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.bc-cp-action {
+  flex: 1 1 50%;
+  appearance: none;
+  cursor: pointer;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid var(--lb-border);
+  background: var(--lb-surface-elevated);
+  color: var(--lb-text-primary);
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+.bc-cp-action:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--lb-accent) 55%, var(--lb-border));
+}
+/* Already in the collection: calm "on" state, non-interactive. */
+.bc-cp-action.is-on {
+  color: var(--lb-success, #10b981);
+  border-color: color-mix(in srgb, var(--lb-success, #10b981) 45%, var(--lb-border));
+  background: color-mix(in srgb, var(--lb-success, #10b981) 10%, var(--lb-surface-elevated));
+}
+.bc-cp-action:disabled {
+  cursor: default;
+}
+.bc-cp-action:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--lb-accent) 55%, transparent);
 }

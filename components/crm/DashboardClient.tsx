@@ -154,8 +154,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     latestOutreachRef.current[String(leadId)] ?? null
   const [localFavorites, setLocalFavorites] = useState(favorites)
   // Canonical per-client Recommendations (lead_recommendations), same local-state
-  // pattern as localFavorites. Read-only in this pass; the CRM has no refetch path.
-  const [localRecommendations] = useState(recommendations)
+  // pattern as localFavorites. Written by the Companion "+ Recommendation" verb
+  // (Phase 2C); the CRM has no refetch path, so we advance this optimistically.
+  const [localRecommendations, setLocalRecommendations] = useState(recommendations)
   // Canonical lead_tours appointments (read-only in the Workspace). Seeded from
   // the server and appended optimistically on "Yes, Scheduled" so the Favorite's
   // "Tour Scheduled" line appears without a manual refresh (same optimistic-state
@@ -1117,7 +1118,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         payload.verb !== "open-invoice-details" &&
         payload.verb !== "open-send-invoice" &&
         payload.verb !== "open-commission-paid" &&
-        payload.verb !== "open-send-rebate"
+        payload.verb !== "open-send-rebate" &&
+        payload.verb !== "add-recommendation" &&
+        payload.verb !== "add-favorite"
       )
         return
 
@@ -1611,6 +1614,65 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           setLocalNextActions((prev) => [...prev, created])
           postCompanionActiveClient({ ...lead }, [...localNextActionsRef.current, created])
         })
+        return
+      }
+
+      // Beast Companion "+ Recommendation" / "♡ Favorite" — add the Companion's
+      // detected Current Property to the ACTIVE client's canonical collection
+      // (lead_recommendations / lead_favorites). Same write the Workspace uses; the
+      // property comes from the payload (already detected — never re-scraped here).
+      // Deduped on (lead_id, property_url) — the SAD ViewProperty URL embeds the
+      // stable propertyID, so a repeat click is a no-op. Re-posts the active client
+      // so both the Companion and the Workspace reflect it with no refresh.
+      if (payload.verb === "add-recommendation" || payload.verb === "add-favorite") {
+        const p = payload.property as
+          | { propertyName?: string; propertyAddress?: string | null; propertyUrl?: string; propertyImageUrl?: string | null }
+          | undefined
+        const propertyUrl = String(p?.propertyUrl ?? "").trim()
+        const propertyName = String(p?.propertyName ?? "").trim()
+        if (!propertyUrl || !propertyName) return // primary identity required
+        const isFav = payload.verb === "add-favorite"
+        const currentList = isFav ? localFavoritesRef.current : localRecommendationsRef.current
+        // Duplicate guard: same client + same property URL already present.
+        if (currentList.some((r: any) => String(r.lead_id) === String(lead.id) && String(r.property_url ?? "") === propertyUrl)) {
+          postCompanionActiveClient({ ...lead }, localNextActionsRef.current) // re-sync button state
+          return
+        }
+        const rowBase = {
+          lead_id: lead.id,
+          property_name: propertyName || null,
+          property_url: propertyUrl || null,
+          property_address: (p?.propertyAddress ?? null) || null,
+          property_image_url: p?.propertyImageUrl ?? null,
+        }
+        const applyLocal = (row: any) => {
+          if (isFav) {
+            const next = [...localFavoritesRef.current, row]
+            localFavoritesRef.current = next
+            setLocalFavorites(next)
+          } else {
+            const next = [...localRecommendationsRef.current, row]
+            localRecommendationsRef.current = next
+            setLocalRecommendations(next)
+          }
+          postCompanionActiveClient({ ...lead }, localNextActionsRef.current)
+        }
+        if (isDemoLeadId(lead.id)) {
+          applyLocal({ id: `demo-${isFav ? "fav" : "rec"}-${Date.now()}`, ...rowBase })
+          return
+        }
+        supabase
+          .from(isFav ? "lead_favorites" : "lead_recommendations")
+          .insert([rowBase])
+          .select("*")
+          .single()
+          .then(({ data, error }: { data: any; error: any }) => {
+            if (error) {
+              console.error(`[${isFav ? "favorite" : "recommendation"}] add failed:`, error.message)
+              return
+            }
+            if (data) applyLocal(data)
+          })
         return
       }
 

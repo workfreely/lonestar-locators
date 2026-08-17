@@ -781,6 +781,39 @@ export function ProductionPanel() {
     }
   };
 
+  // "+ Recommendation" / "♡ Favorite" on the Current Property — add the ALREADY
+  // detected property to the ACTIVE client's canonical collection via the existing
+  // verb bridge (no re-scrape, no Companion-side store). The CRM performs the
+  // lead_recommendations / lead_favorites insert and re-posts the active client.
+  // No-op when there is no active client or no detected property.
+  //
+  // KNOWN LIMITATION (current architecture): the actual database write is performed
+  // by DashboardClient on the Locator Beast CRM/admin page (the only authenticated
+  // Supabase context). The verb is delivered via chrome.storage → workflowVerbBridge,
+  // which runs ONLY on a CRM/admin tab. So these actions require an OPEN Locator
+  // Beast CRM/admin tab; with no CRM tab open the verb is not consumed and no write
+  // occurs. CRM-independent writes are a deferred phase (the existing PKCE extension
+  // token flow: /api/extension/connect/authorize + /api/extension/token + a new
+  // authenticated, ownership-checked companion write route) — intentionally NOT
+  // built yet. Do NOT add a hidden/auto-opened CRM tab or read Supabase cookies.
+  const addCurrentPropertyToCollection = (verb: "add-recommendation" | "add-favorite") => {
+    const lead = active?.lead;
+    if (!lead || lead.id === undefined || lead.id === null || !currentProperty) return;
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+    if (store) {
+      store.set({
+        "lb-workflow-verb": {
+          nonce: `${Date.now()}-${Math.random()}`,
+          leadId: lead.id,
+          verb,
+          property: currentProperty,
+        },
+      });
+    }
+  };
+  const onAddRecommendation = () => addCurrentPropertyToCollection("add-recommendation");
+  const onAddFavorite = () => addCurrentPropertyToCollection("add-favorite");
+
   const pendingName = pendingContact?.name ?? "this client";
 
   return (
@@ -793,6 +826,8 @@ export function ProductionPanel() {
         favorites={active?.favorites ?? []}
         recommendations={active?.recommendations ?? []}
         currentProperty={currentProperty}
+        onAddRecommendation={onAddRecommendation}
+        onAddFavorite={onAddFavorite}
         onConnect={onConnect}
         onDisconnect={onDisconnect}
         onContact={onContact}
