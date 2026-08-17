@@ -3,48 +3,44 @@
 import { SectionCard } from "./LeadPanelSections"
 import PropertyThumb from "./PropertyThumb"
 
-// Recommended Properties (Phase 1 placeholder).
-//
-// Conceptually distinct from Favorite Properties:
-//   • Recommended Properties = properties Locator Beast RECOMMENDS for this
-//     client based on their criteria (AI-ranked). NOT built/enabled here.
+// Recommended Properties — the canonical per-client Recommendations collection
+// (lead_recommendations). Conceptually distinct from Favorite Properties:
+//   • Recommended Properties = properties Locator Beast RECOMMENDS for this client.
 //   • Favorite Properties    = properties the locator INTENTIONALLY saved.
 //
-// This is a visual placeholder ONLY to establish the workspace hierarchy — it
-// does not re-enable or build the property-matching engine (see
-// SHOW_PROPERTY_MATCHES in LeadInsights). Static sample rows, no data source.
-// The `image` is intentionally absent for now → the shared PropertyThumb renders
-// its clean placeholder; when the recommendation engine is live it will carry a
-// real image the same way a Favorite does (and carry through if saved).
-const SAMPLE_MATCHES: { name: string; area: string; score: number; image?: string }[] = [
-  { name: "The Sample Residences", area: "Sample Heights", score: 94 },
-  { name: "Placeholder Park Apartments", area: "Demo District", score: 89 },
-  { name: "Example Flats at Northgate", area: "Sample Heights", score: 85 },
-]
+// Reads the SAME canonical collection the Beast Companion shows (one dataset, two
+// interfaces), filtered to the active client. Real clients render their rows
+// (empty → "No recommendations yet."); demo clients render DEMO_RECOMMENDATIONS
+// fed through the same recommendations state/payload path. Read-only here — the
+// section is unchanged; only its data source moved from a static sample to the
+// canonical model. The `property_image_url` (nullable) drives the shared thumbnail.
 
-export default function BestMatches(_props: { lead: any }) {
+export default function BestMatches({ lead, recommendations = [] }: { lead: any; recommendations?: any[] }) {
+  const leadRecommendations = (recommendations || []).filter(
+    (r) => String(r.lead_id) === String(lead?.id),
+  )
   return (
     <SectionCard title="Recommended Properties" collapsible defaultOpen storageKey="best-matches">
-      <p className="mb-2 text-[11px] text-[var(--crm-text-muted)]">
-        Sample preview — recommended properties based on this client&rsquo;s criteria will appear here.
-      </p>
-      <div className="space-y-1.5">
-        {SAMPLE_MATCHES.map((m) => (
-          <div
-            key={m.name}
-            className="flex items-center gap-2.5 rounded-lg border border-dashed border-[var(--crm-border)] bg-[var(--crm-inset)] px-3 py-2 opacity-80"
-          >
-            <PropertyThumb src={m.image} alt={m.name} />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{m.name}</p>
-              <p className="truncate text-[11px] text-[var(--crm-text-muted)]">{m.area}</p>
+      {leadRecommendations.length === 0 ? (
+        <p className="text-[11px] text-[var(--crm-text-muted)]">No recommendations yet.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {leadRecommendations.map((r) => (
+            <div
+              key={r.id}
+              className="flex items-center gap-2.5 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] px-3 py-2"
+            >
+              <PropertyThumb src={r.property_image_url} alt={r.property_name} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{r.property_name}</p>
+                {r.property_address && (
+                  <p className="truncate text-[11px] text-[var(--crm-text-muted)]">{r.property_address}</p>
+                )}
+              </div>
             </div>
-            <span className="flex-none rounded-full bg-[var(--crm-accent)]/15 px-2 py-0.5 text-[11px] font-semibold text-[var(--crm-accent)]">
-              {m.score}% match
-            </span>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </SectionCard>
   )
 }

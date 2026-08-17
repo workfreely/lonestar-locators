@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO } from "@bc/companion-shared";
+import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO, RecommendationDTO } from "@bc/companion-shared";
 import { formatPersonName, buildIntroSmsBody, buildFollowUpSmsBody, isFollowUpAction, formatWorkflowActionLabel, DEFAULT_TIME_VALUE } from "@bc/companion-shared";
 import { PanelApp } from "./PanelApp";
 import { TourTimeField } from "./lead/TourTimeField";
@@ -32,6 +32,8 @@ type ActiveClientPayload = {
   // THIS client's saved Favorite Properties — the only properties a tour can be
   // scheduled against (Schedule Tour requires one).
   favorites?: FavoriteDTO[];
+  // THIS client's canonical Recommended Properties (lead_recommendations).
+  recommendations?: RecommendationDTO[];
   agentName?: string | null;
   // Saved locator IANA timezone — Companion formats Due/Completed times in this
   // zone so it matches the CRM regardless of the device's zone.
@@ -767,6 +769,8 @@ export function ProductionPanel() {
         state={active ? "loaded" : "no-client"}
         lead={active?.lead ?? null}
         nextActions={active?.nextActions ?? []}
+        favorites={active?.favorites ?? []}
+        recommendations={active?.recommendations ?? []}
         onConnect={onConnect}
         onDisconnect={onDisconnect}
         onContact={onContact}

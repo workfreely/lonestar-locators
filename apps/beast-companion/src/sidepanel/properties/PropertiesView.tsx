@@ -1,63 +1,66 @@
 import { SectionCard } from "../lead/primitives";
+import type { FavoriteDTO, RecommendationDTO } from "@bc/companion-shared";
 
-// Properties view — PHASE 1 VISUAL SHELL ONLY.
+// Properties view — Phase 2A + 2 (Recommendations connection).
 //
-// This renders the layout/hierarchy for the future Properties experience so the
-// spacing, density, and accordion behavior can be reviewed. It is deliberately
-// inert: it does NOT read the page, detect the current property, touch CRM
-// Favorites/Recommendations, query Supabase, or persist anything. The rows below
-// are ISOLATED, COMPANION-ONLY presentation mock values (no ids, no data model)
-// that cannot be mistaken for real property records — real data arrives in a
-// later phase. The shared client identity header (LeadIdentityHeader) is rendered
-// by PanelApp ABOVE this view for BOTH tabs, so this view intentionally shows NO
-// client summary of its own.
+// Both Recommendations (lead_recommendations) and Favorite Properties
+// (lead_favorites) now show the ACTIVE client's real canonical records, delivered
+// through the EXISTING active-client payload (chrome.storage["lb-active-client"] →
+// ProductionPanel → PanelApp → here). Each follows the active client automatically
+// (the CRM re-posts the payload on every client switch, filtered per lead) and is
+// strictly READ-ONLY — the workspace stays the single source of truth; nothing is
+// written back. Current Property stays a Phase-1 placeholder (no page detection).
+//
+// Rows show ONLY data that reliably exists in the canonical record (property name
+// + address). Nothing (rent / commute / match / specials) is fabricated.
 
-// Companion-only visual placeholders. NOT persisted, NOT a data model.
-const SAMPLE_RECOMMENDATIONS: { name: string; sub: string }[] = [
-  { name: "The Catherine", sub: "$1,642 avg · 12 min" },
-  { name: "Bell South Lamar", sub: "$1,777 avg · 9 min" },
-  { name: "Windsor SoCo", sub: "$1,698 avg · 16 min" },
-];
-const SAMPLE_FAVORITES: { name: string; sub: string }[] = [
-  { name: "The Waller", sub: "$1,585 avg · 11 min" },
-  { name: "Éilan", sub: "$1,720 avg · 18 min" },
-];
-
-function PropertyRow({ name, sub }: { name: string; sub: string }) {
+function PropertyRow({ name, sub }: { name: string; sub?: string | null }) {
   return (
     <div className="bc-prop-row">
       <span className="bc-prop-name">{name}</span>
-      <span className="bc-prop-sub">{sub}</span>
+      {sub ? <span className="bc-prop-sub">{sub}</span> : null}
     </div>
   );
 }
 
-export function PropertiesView() {
+export function PropertiesView({
+  favorites,
+  recommendations,
+}: {
+  favorites: FavoriteDTO[];
+  recommendations: RecommendationDTO[];
+}) {
   return (
     <div className="bc-props">
-      {/* Current Property — visual placeholder only (no page detection in Phase 1). */}
+      {/* Current Property — visual placeholder only (no page detection in this pass). */}
       <SectionCard title="Current Property" defaultOpen={false}>
-        <p className="bc-props-placeholder">
-          The property you&apos;re viewing will appear here.
-        </p>
+        <p className="bc-props-placeholder">The property you&apos;re viewing will appear here.</p>
       </SectionCard>
 
-      {/* Recommendations — open by default for the visual review. Sample rows only. */}
+      {/* Recommendations — the active client's canonical lead_recommendations (read-only). */}
       <SectionCard title="Recommendations" defaultOpen>
-        <div className="bc-prop-list">
-          {SAMPLE_RECOMMENDATIONS.map((p) => (
-            <PropertyRow key={p.name} name={p.name} sub={p.sub} />
-          ))}
-        </div>
+        {recommendations.length === 0 ? (
+          <p className="bc-props-placeholder">No recommendations yet.</p>
+        ) : (
+          <div className="bc-prop-list">
+            {recommendations.map((r) => (
+              <PropertyRow key={String(r.id)} name={r.propertyName} sub={r.propertyAddress} />
+            ))}
+          </div>
+        )}
       </SectionCard>
 
-      {/* Favorite Properties — collapsed by default. Sample rows only. */}
+      {/* Favorite Properties — the active client's real lead_favorites (read-only). */}
       <SectionCard title="Favorite Properties" defaultOpen={false}>
-        <div className="bc-prop-list">
-          {SAMPLE_FAVORITES.map((p) => (
-            <PropertyRow key={p.name} name={p.name} sub={p.sub} />
-          ))}
-        </div>
+        {favorites.length === 0 ? (
+          <p className="bc-props-placeholder">No favorite properties yet.</p>
+        ) : (
+          <div className="bc-prop-list">
+            {favorites.map((f) => (
+              <PropertyRow key={String(f.id)} name={f.propertyName} sub={f.propertyAddress} />
+            ))}
+          </div>
+        )}
       </SectionCard>
     </div>
   );

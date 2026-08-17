@@ -67,7 +67,7 @@ function titleCaseName(name: string): string {
 // flag is the single on/off switch — set it back to `true` to show it again.
 const SHOW_LEGACY_LEAD_PANEL = false
 
-export default function DashboardClient({ leads, nextActions, favorites, outreach = [], tours = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, timeZone = DEFAULT_TIMEZONE }: { leads: any[]; nextActions: any[]; favorites: any[]; outreach?: any[]; tours?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; timeZone?: string }) {
+export default function DashboardClient({ leads, nextActions, favorites, recommendations = [], outreach = [], tours = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, timeZone = DEFAULT_TIMEZONE }: { leads: any[]; nextActions: any[]; favorites: any[]; recommendations?: any[]; outreach?: any[]; tours?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; timeZone?: string }) {
   const router = useRouter()
   const [selectedLeadId, setSelectedLeadId] = useState<string | number | null>(null)
   // Centered CRM contact modal for a New→Contacted DRAG (the Kanban presentation
@@ -153,6 +153,9 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
   const outreachFor = (leadId: string | number): LatestOutreach =>
     latestOutreachRef.current[String(leadId)] ?? null
   const [localFavorites, setLocalFavorites] = useState(favorites)
+  // Canonical per-client Recommendations (lead_recommendations), same local-state
+  // pattern as localFavorites. Read-only in this pass; the CRM has no refetch path.
+  const [localRecommendations] = useState(recommendations)
   // Canonical lead_tours appointments (read-only in the Workspace). Seeded from
   // the server and appended optimistically on "Yes, Scheduled" so the Favorite's
   // "Tour Scheduled" line appears without a manual refresh (same optimistic-state
@@ -243,7 +246,7 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
     if (!selectedLead) return
     if (typeof window === "undefined") return
     try {
-      const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites, localTours)
+      const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites, localTours, localRecommendations)
       companionLeadIdRef.current = selectedLead.id // this lead is now what Companion shows
       window.postMessage(
         { source: COMPANION_MSG_SOURCE, type: "active-client", payload },
@@ -252,13 +255,15 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
     } catch {
       /* bridge is best-effort; never block the CRM on a Companion push */
     }
-  }, [selectedLead, localNextActions, agent?.name, latestOutreach, localFavorites, localTours])
+  }, [selectedLead, localNextActions, agent?.name, latestOutreach, localFavorites, localTours, localRecommendations])
 
   // ── Beast Companion → CRM workflow verbs (Phase 3, Slice A: Contact) ────────
   // Refs so the once-registered verb listener always sees current CRM state
   // without re-subscribing on every keystroke of state change.
   const localLeadsRef = useRef(localLeads)
   const localNextActionsRef = useRef(localNextActions)
+  const localRecommendationsRef = useRef(localRecommendations)
+  useEffect(() => { localRecommendationsRef.current = localRecommendations }, [localRecommendations])
   const localFavoritesRef = useRef(localFavorites)
   const localToursRef = useRef(localTours)
   const selectedLeadIdRef = useRef(selectedLeadId)
@@ -291,7 +296,7 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
     if (typeof window === "undefined" || !lead) return
     if (String(lead.id) !== String(companionLeadIdRef.current)) return
     try {
-      const payload = buildActiveClientPayload(lead, nextActionsForLead, agent?.name, outreachFor(lead.id), timeZone, localFavoritesRef.current, localToursRef.current)
+      const payload = buildActiveClientPayload(lead, nextActionsForLead, agent?.name, outreachFor(lead.id), timeZone, localFavoritesRef.current, localToursRef.current, localRecommendationsRef.current)
       window.postMessage(
         { source: COMPANION_MSG_SOURCE, type: "active-client", payload },
         window.location.origin
@@ -2039,7 +2044,7 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
                   onMatchesChange={setTopMatches}
                   onCloseWorkspace={SHOW_LEGACY_LEAD_PANEL ? undefined : closeWorkspace}
                 >
-                  <BestMatches lead={selectedLead} />
+                  <BestMatches lead={selectedLead} recommendations={localRecommendations} />
                   <LeadFavorites
                     lead={selectedLead}
                     favorites={localFavorites}

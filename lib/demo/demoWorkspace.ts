@@ -334,6 +334,18 @@ export const DEMO_FAVORITES: any[] = [
   { id: 8004, lead_id: "demo-9", property_name: "The Independent", property_address: "301 West Ave, Austin", property_url: "https://example.com/independent", created_at: daysFromNow(-11) },
 ]
 
+// Demo-scoped Recommended Properties — the former static BestMatches sample rows,
+// now canonical-shaped and associated with specific demo clients so the demo
+// preserves a populated Recommendations experience (and demonstrates per-client
+// switching). Fed through the SAME recommendations state/payload path as real
+// lead_recommendations, so Workspace and Companion show identical demo data.
+// Demo clients not listed here correctly show the empty state.
+export const DEMO_RECOMMENDATIONS: any[] = [
+  { id: 9001, lead_id: "demo-6", property_name: "The Sample Residences", property_address: "Sample Heights, Austin", property_url: "https://example.com/sample-residences", created_at: daysFromNow(-9) },
+  { id: 9002, lead_id: "demo-6", property_name: "Placeholder Park Apartments", property_address: "Demo District, Austin", property_url: "https://example.com/placeholder-park", created_at: daysFromNow(-9) },
+  { id: 9003, lead_id: "demo-7", property_name: "Example Flats at Northgate", property_address: "Sample Heights, Austin", property_url: "https://example.com/example-flats", created_at: daysFromNow(-8) },
+]
+
 // AI Insights briefs — one per sample client, each telling a different story.
 function brief(idNum: number, insights: string[], last: string, syncDay = 0): AiClientBrief {
   return {

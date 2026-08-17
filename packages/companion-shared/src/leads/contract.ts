@@ -181,6 +181,18 @@ export const favoriteSchema = z.object({
 });
 export type FavoriteDTO = z.infer<typeof favoriteSchema>;
 
+/** A canonical Recommended Property (lead_recommendations) for THIS client — the
+ *  properties Locator Beast recommends, distinct from the locator's saved
+ *  Favorites. Read-only projection the Companion renders; same shape as
+ *  FavoriteDTO. `id` is the stable lead_recommendations.id. */
+export const recommendationSchema = z.object({
+  id: z.union([z.number(), z.string()]),
+  propertyName: z.string(),
+  propertyAddress: z.string().nullish(),
+  propertyUrl: z.string().nullish(),
+});
+export type RecommendationDTO = z.infer<typeof recommendationSchema>;
+
 // ── Request DTOs (validate on the server) ────────────────────────────────────
 export const advanceStageInput = z.object({
   leadId: leadIdSchema,

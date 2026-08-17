@@ -60,6 +60,7 @@ export {
   leadSummarySchema,
   leadDetailSchema,
   favoriteSchema,
+  recommendationSchema,
   advanceStageInput,
   setFollowUpInput,
   doneForNowInput,
@@ -78,6 +79,7 @@ export type {
   InvoiceSummaryDTO,
   LeadDetailDTO,
   FavoriteDTO,
+  RecommendationDTO,
   MutationResultDTO,
   LeadSearchResultDTO,
 } from "./leads/contract";

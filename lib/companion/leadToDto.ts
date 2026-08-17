@@ -1,4 +1,4 @@
-import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO } from "@bc/companion-shared"
+import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO, RecommendationDTO } from "@bc/companion-shared"
 import { isLeadStage, APPLICATION_LAST_ACTION_LABELS, isApplicationStatus } from "@bc/companion-shared"
 import { getNextAction } from "@/lib/nextAction"
 import { rankLeadActions } from "@/lib/nextActions"
@@ -21,6 +21,9 @@ export type CompanionActiveClientPayload = {
    *  scheduled against (Schedule Tour requires one). Same lead_favorites records
    *  the CRM shows; never a separate copy. */
   favorites?: FavoriteDTO[]
+  /** THIS client's canonical Recommended Properties (lead_recommendations). Same
+   *  records the Workspace shows; never a separate copy. Empty when none. */
+  recommendations?: RecommendationDTO[]
   agentName?: string | null
   /** The locator's saved IANA timezone — the Companion formats Due / Completed /
    *  workflow times in THIS zone (via formatDueDateTime's timeZone), so display
@@ -175,6 +178,9 @@ export function buildActiveClientPayload(
   // THIS lead's lead_tours rows — used ONLY to derive the "Toured · Property"
   // Last Action once the surfaced Tour Follow-Up's tour has occurred (read-only).
   tours: any[] = [],
+  // THIS lead's canonical Recommended Properties (lead_recommendations rows).
+  // Read-only; mapped to RecommendationDTO and filtered to this lead below.
+  recommendations: any[] = [],
 ): CompanionActiveClientPayload {
   const crmStatus = str(lead.crm_status) ?? "new"
   const historyLower = String(lead.credit_history || "").toLowerCase()
@@ -406,5 +412,16 @@ export function buildActiveClientPayload(
       propertyUrl: str(f.property_url),
     }))
 
-  return { lead: dto, nextActions: actions, favorites: favoriteDtos, agentName: str(agentName), timeZone: str(timeZone) }
+  // THIS lead's canonical recommendations — same lead_id filter as favorites, so
+  // no cross-client leakage. Empty array when the client has none.
+  const recommendationDtos: RecommendationDTO[] = (recommendations || [])
+    .filter((r: any) => String(r.lead_id) === String(lead.id))
+    .map((r: any) => ({
+      id: r.id,
+      propertyName: str(r.property_name) ?? "Property",
+      propertyAddress: str(r.property_address),
+      propertyUrl: str(r.property_url),
+    }))
+
+  return { lead: dto, nextActions: actions, favorites: favoriteDtos, recommendations: recommendationDtos, agentName: str(agentName), timeZone: str(timeZone) }
 }

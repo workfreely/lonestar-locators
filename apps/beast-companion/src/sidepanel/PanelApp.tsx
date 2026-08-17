@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { LeadSummaryDTO, NextActionDTO, ThemeId } from "@bc/companion-shared";
+import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO, RecommendationDTO, ThemeId } from "@bc/companion-shared";
 import { LeadIdentityHeader, LeadPanelBody } from "./lead/LeadPanelView";
 import { PanelStateView, type PanelState } from "./lead/PanelStates";
 import { ClientPropertiesNav, type CompanionView } from "./ClientPropertiesNav";
@@ -32,6 +32,8 @@ export function PanelApp({
   state = "no-client",
   lead,
   nextActions = [],
+  favorites = [],
+  recommendations = [],
   connection = DISCONNECTED,
   onConnect,
   onDisconnect,
@@ -58,6 +60,12 @@ export function PanelApp({
   state?: PanelState;
   lead?: LeadSummaryDTO | null;
   nextActions?: NextActionDTO[];
+  // THIS active client's saved Favorite Properties (lead_favorites), already in the
+  // active-client payload. Read-only; rendered in the Properties view. Never mutated.
+  favorites?: FavoriteDTO[];
+  // THIS active client's canonical Recommended Properties (lead_recommendations),
+  // in the active-client payload. Read-only; rendered in the Properties view.
+  recommendations?: RecommendationDTO[];
   // Connection is derived from the SW's authenticated state. Production defaults
   // to DISCONNECTED — the panel is authenticated ONLY when this is "connected".
   connection?: CompanionConnection;
@@ -231,7 +239,7 @@ export function PanelApp({
                 timeZone={timeZone}
               />
             ) : (
-              <PropertiesView />
+              <PropertiesView favorites={favorites} recommendations={recommendations} />
             )
           ) : (
             <PanelStateView state={state === "loaded" ? "no-client" : state} onConnect={handleConnect} />

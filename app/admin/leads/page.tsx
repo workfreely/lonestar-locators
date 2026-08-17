@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server"
 import { resolveAgentIdentityForOwner, type ResolvedAgentIdentity } from "@/lib/notifications/agentSignature"
 import { resolveUserTimeZone } from "@/lib/timezone/server"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
-import { DEMO_ALL_LEADS, DEMO_NEXT_ACTIONS, DEMO_FAVORITES, DEFAULT_AVG_COMMISSION_PER_LEASE } from "@/lib/demo/demoWorkspace"
+import { DEMO_ALL_LEADS, DEMO_NEXT_ACTIONS, DEMO_FAVORITES, DEMO_RECOMMENDATIONS, DEFAULT_AVG_COMMISSION_PER_LEASE } from "@/lib/demo/demoWorkspace"
 
 // Fallback per-close commission when a profile hasn't set its own — matches
 // the dashboard's REVENUE_PER_CLOSE default. Drives Beast Milestone thresholds.
@@ -104,6 +104,24 @@ async function getFavorites() {
   return data || []
 }
 
+// Recommendations — canonical per-client lead_recommendations, same read pattern
+// as favorites (every saved recommendation across all leads; the UI + Companion
+// payload filter by lead_id).
+async function getRecommendations() {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("lead_recommendations")
+    .select("*")
+    .order("created_at", { ascending: true })
+
+  if (error) {
+    console.error("Error fetching recommendations:", error.message)
+    return []
+  }
+
+  return data || []
+}
+
 // Scheduled tours — the canonical lead_tours appointments (source of truth) used
 // read-only in the Workspace to surface "Tour Scheduled" under the linked
 // Favorite. Only status='scheduled' rows are fetched; the client picks the
@@ -187,6 +205,7 @@ export default async function Page() {
         leads={DEMO_ALL_LEADS}
         nextActions={DEMO_NEXT_ACTIONS}
         favorites={DEMO_FAVORITES}
+        recommendations={DEMO_RECOMMENDATIONS}
         outreach={[]}
         tours={[]}
         demoMode
@@ -200,13 +219,14 @@ export default async function Page() {
     )
   }
 
-  const [leads, nextActions, favorites, outreach, tours] = await Promise.all([
+  const [leads, nextActions, favorites, recommendations, outreach, tours] = await Promise.all([
     getLeads(),
     getOpenNextActions(),
     getFavorites(),
+    getRecommendations(),
     getLatestOutreach(),
     getScheduledTours(),
   ])
 
-  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} outreach={outreach} tours={tours} agent={agent} signature={signature} avgCommission={avgCommission} timeZone={timeZone} />
+  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} recommendations={recommendations} outreach={outreach} tours={tours} agent={agent} signature={signature} avgCommission={avgCommission} timeZone={timeZone} />
 }
