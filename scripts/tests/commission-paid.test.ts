@@ -14,6 +14,7 @@ import { favoriteTourStateLabel } from "@/lib/leads/tourFollowUp"
 import { seedInvoiceForm, buildInvoicePatch } from "@/lib/leads/invoiceFields"
 import { buildActiveClientPayload } from "@/lib/companion/leadToDto"
 import { formatWorkflowActionLabel, formatLastActionLabel } from "@/lib/leads/workflowActionLabels"
+import { leaseFollowUpDueAt } from "@/lib/leads/leaseFollowUp"
 import { WORKFLOW_ACTION_KEYS } from "@bc/companion-shared"
 
 let pass = 0,
@@ -28,9 +29,9 @@ const LEAD = "L-cp"
 
 // ── Action key + intentional Confirm Payment / Commission Paid wording ──
 ok((WORKFLOW_ACTION_KEYS as readonly string[]).includes("commission_paid"), "commission_paid is a canonical action key")
-ok(formatWorkflowActionLabel("commission_paid") === "Confirm Payment", "open commission_paid → 'Confirm Payment' (not 'Commission Paid')")
-ok(formatWorkflowActionLabel("Confirm Payment") === "Confirm Payment", "'Confirm Payment' title → 'Confirm Payment'")
-ok(formatLastActionLabel("Confirm Payment") === "Commission Paid", "completed Confirm Payment → 'Commission Paid'")
+ok(formatWorkflowActionLabel("commission_paid") === "Confirm Invoice Paid", "open commission_paid → 'Confirm Invoice Paid' (display only; not 'Commission Paid')")
+ok(formatWorkflowActionLabel("Confirm Payment") === "Confirm Invoice Paid", "legacy 'Confirm Payment' title still resolves → 'Confirm Invoice Paid'")
+ok(formatLastActionLabel("Confirm Payment") === "Commission Paid", "completed commission_paid → 'Commission Paid' (unchanged)")
 
 // ── State model: Invoice Sent → create one property-scoped commission_paid ──
 type S = { lead: any; actions: any[] }
@@ -80,55 +81,74 @@ function afterInvoiceSent(): S {
 // Pure model of the handler's incentive step: Cash Rebate creates exactly one
 // deduped Send Rebate; Free Movers / No Client Incentive create nothing.
 ok(formatWorkflowActionLabel("send_rebate") === "Send Rebate", "open send_rebate → 'Send Rebate'")
-ok(formatLastActionLabel("Send Rebate") === "Sent Rebate", "completed Send Rebate → 'Sent Rebate'")
+ok(formatLastActionLabel("Send Rebate") === "Rebate Sent", "completed Send Rebate → 'Rebate Sent'")
 
+const TZ = "America/Chicago"
+const LEASE_START = "2026-08-28"
+const LEASE_TERM = "12"
+const EXPECTED_LF_DUE = leaseFollowUpDueAt(LEASE_START, LEASE_TERM, TZ) // 2027-05-30 09:00 local
+
+// Mirrors confirmPaymentYes: complete commission_paid, then the incentive branch.
+// Cash Rebate → create Send Rebate (Future Lease Follow-Up deferred to Rebate Sent).
+// No Incentive / Free Movers → Commission Paid is the last obligation → create the
+// Future Lease Follow-Up now (property-scoped, deduped, due = end − 90 days).
 function afterCommissionPaid(rebateType: string): S {
-  // commission_paid completed + durable state set; incentive step then runs.
   const base: any[] = [
     { id: "send", lead_id: LEAD, action_key: "send_invoice", title: "Send Invoice", property_id: FOUNDRY, property_name: "The Foundry", completed: true, status: "completed", completed_at: "t1" },
     { id: "cp", lead_id: LEAD, action_key: "commission_paid", title: "Confirm Payment", property_id: FOUNDRY, property_name: "The Foundry", completed: true, status: "completed", completed_at: "t2" },
   ]
-  const lead = { id: LEAD, crm_status: "closed", top_pick_favorite_id: FOUNDRY, invoice_submitted: true, invoice_commission_paid: true, invoice_property_name: "The Foundry", invoice_rebate_type: rebateType }
+  const lead = { id: LEAD, crm_status: "closed", top_pick_favorite_id: FOUNDRY, invoice_submitted: true, invoice_commission_paid: true, invoice_property_name: "The Foundry", invoice_rebate_type: rebateType, invoice_lease_start_date: LEASE_START, invoice_lease_term: LEASE_TERM }
   let actions = base
   if (String(lead.invoice_rebate_type ?? "") === "Cash Rebate") {
     const open = actions.some((a) => String(a.lead_id) === String(LEAD) && !a.completed && a.action_key === "send_rebate")
     if (!open) actions = [...actions, { id: "reb", lead_id: LEAD, action_key: "send_rebate", title: "Send Rebate", property_id: FOUNDRY, property_name: "The Foundry", completed: false, status: "open", due_at: "t2" }]
+  } else {
+    const has = actions.some((a) => String(a.lead_id) === String(LEAD) && a.action_key === "lease_follow_up")
+    if (!has) actions = [...actions, { id: "lf", lead_id: LEAD, action_key: "lease_follow_up", title: "Future Lease Follow-Up", property_id: FOUNDRY, property_name: "The Foundry", completed: false, status: "open", due_at: leaseFollowUpDueAt(lead.invoice_lease_start_date, lead.invoice_lease_term, TZ) ?? "now" }]
   }
   return { lead, actions }
 }
 
-// A. Cash Rebate → exactly one Send Rebate, scoped to the Top Pick; Next = Send Rebate.
+// A. Cash Rebate → exactly one Send Rebate; Future Lease Follow-Up NOT yet (Send
+//    Rebate still outstanding).
 {
   const s = afterCommissionPaid("Cash Rebate")
   const rebs = s.actions.filter((a) => a.action_key === "send_rebate")
   ok(rebs.length === 1, "Cash Rebate → exactly one send_rebate created")
   ok(String(rebs[0].property_id) === String(FOUNDRY), "send_rebate scoped to the Top Pick property")
-  // Retry (dedup): an open send_rebate already exists → no second one.
-  const openReb = s.actions.some((a) => a.action_key === "send_rebate" && !a.completed)
-  ok(openReb, "an open send_rebate already exists → a retry creates no duplicate")
+  ok(!s.actions.some((a) => a.action_key === "lease_follow_up"), "Cash Rebate → NO Future Lease Follow-Up yet (rebate outstanding)")
   const openActions = s.actions.filter((a) => !a.completed)
-  const p = buildActiveClientPayload({ ...s.lead, first_name: "Carlos" }, s.actions, null, null, "America/Chicago", [], [])
+  const p = buildActiveClientPayload({ ...s.lead, first_name: "Carlos" }, s.actions, null, null, TZ, [], [])
   ok((p.nextActions[0]?.title ?? "") === "Send Rebate", "Cash Rebate → Companion Next Action = 'Send Rebate'")
   ok(openActions.length === 1 && openActions[0].action_key === "send_rebate", "Send Rebate is the only open action")
 }
 
-// B. Free Movers → NO send_rebate; and NO fabricated Get Invoice Details fallback.
+// B. Free Movers → Commission Paid is the last obligation → Future Lease Follow-Up.
 {
   const s = afterCommissionPaid("Free Movers")
   ok(!s.actions.some((a) => a.action_key === "send_rebate"), "Free Movers → no send_rebate created")
   ok(!s.actions.some((a) => a.action_key === "setup_movers"), "Free Movers → no setup_movers created at payment time (separate pass)")
-  const p = buildActiveClientPayload({ ...s.lead, first_name: "Carlos" }, s.actions, null, null, "America/Chicago", [], [])
-  ok(!p.nextActions.some((a) => /invoice details/i.test(a.title)), "Free Movers → 'Get Invoice Details' does NOT reappear as Next Action")
-  ok(p.nextActions.length === 0, "Free Movers → no open Next Action (closing branch ended)")
+  const lfs = s.actions.filter((a) => a.action_key === "lease_follow_up")
+  ok(lfs.length === 1, "Free Movers → exactly one Future Lease Follow-Up created")
+  ok(String(lfs[0].property_id) === String(FOUNDRY), "Future Lease Follow-Up scoped to the Top Pick")
+  ok(lfs[0].due_at === EXPECTED_LF_DUE, "Future Lease Follow-Up due = estimated lease end − 90 days")
+  const p = buildActiveClientPayload({ ...s.lead, first_name: "Carlos" }, s.actions, null, null, TZ, [], [])
+  ok(formatWorkflowActionLabel(p.nextActions[0]?.title ?? "") === "Renewal Follow-Up", "Free Movers → Next Action = 'Renewal Follow-Up'")
+  ok(!p.nextActions.some((a) => /invoice details/i.test(a.title)), "Free Movers → no 'Get Invoice Details' fallback")
 }
 
-// C. No Client Incentive → NO send_rebate; NO fabricated Get Invoice Details fallback.
+// C. No Client Incentive → Commission Paid is the last obligation → Future Lease Follow-Up.
 {
   const s = afterCommissionPaid("None")
   ok(!s.actions.some((a) => a.action_key === "send_rebate"), "No Client Incentive → no send_rebate created")
-  const p = buildActiveClientPayload({ ...s.lead, first_name: "Carlos" }, s.actions, null, null, "America/Chicago", [], [])
-  ok(!p.nextActions.some((a) => /invoice details/i.test(a.title)), "No Client Incentive → 'Get Invoice Details' does NOT reappear")
-  ok(p.nextActions.length === 0, "No Client Incentive → no open Next Action (terminal)")
+  const lfs = s.actions.filter((a) => a.action_key === "lease_follow_up")
+  ok(lfs.length === 1, "No Client Incentive → exactly one Future Lease Follow-Up created")
+  ok(lfs[0].due_at === EXPECTED_LF_DUE, "Future Lease Follow-Up due = estimated lease end − 90 days")
+  const p = buildActiveClientPayload({ ...s.lead, first_name: "Carlos" }, s.actions, null, null, TZ, [], [])
+  ok(formatWorkflowActionLabel(p.nextActions[0]?.title ?? "") === "Renewal Follow-Up", "No Client Incentive → Next Action = 'Renewal Follow-Up' (never the empty state)")
+  // Dedup: a re-run must not add a second Future Lease Follow-Up.
+  const rerun = afterCommissionPaid("None")
+  ok(rerun.actions.filter((a) => a.action_key === "lease_follow_up").length === 1, "re-run creates no duplicate Future Lease Follow-Up")
   // Last Action + Closed + Top Pick + durable state all intact regardless of branch.
   ok(formatLastActionLabel(p.lead.lastAction?.title ?? "") === "Commission Paid", "Last Action stays 'Commission Paid'")
   ok(p.lead.lastAction?.propertyName === "The Foundry", "Commission Paid Last Action still carries the Top Pick property")

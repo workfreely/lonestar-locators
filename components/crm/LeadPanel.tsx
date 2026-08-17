@@ -932,6 +932,9 @@ export default function LeadPanel({
                       if (t === "Build List" || t === "Send List") s = "In Progress"
                       else if (t === "Setup Tour") s = "Scheduled"
                       else if (t === "Check App") s = "Waiting on Client"
+                      // Renewal Follow-Up is scheduled months out (canonical lease_follow_up);
+                      // the overdue branch above already flips it once its date arrives.
+                      else if (formatWorkflowActionLabel(t) === "Renewal Follow-Up") s = "Scheduled"
                       else s = "In Progress"
                     }
                     const c = s === "Overdue" ? "text-red-500" : "text-[var(--crm-text-primary)]"
@@ -955,11 +958,6 @@ export default function LeadPanel({
                 </span>
               </div>
             </div>
-          )}
-
-          {/* Genuinely nothing open (no completion + no next task) */}
-          {!lastAction && !nextOpenAction && (
-            <p className="text-[12.5px] text-[var(--crm-text-muted)]">No open action — add the next step below.</p>
           )}
 
           {/* Add a manual action */}

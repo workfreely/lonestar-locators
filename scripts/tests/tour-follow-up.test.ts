@@ -47,7 +47,7 @@ function tfRow(propertyId: number, propertyName: string, dueMs: number, complete
 }
 
 // ── Labels ──
-ok(formatWorkflowActionLabel("start_application") === "Apply", "start_application → 'Apply'")
+ok(formatWorkflowActionLabel("start_application") === "Mark as Applied", "start_application → 'Mark as Applied' (display only)")
 ok(formatLastActionLabel("Apply") === "Applied", "completed Apply → 'Applied'")
 ok(formatLastActionLabel("Tour Follow-Up") === "Toured", "completed Tour Follow-Up → 'Toured'")
 ok(formatWorkflowActionLabel("tour_follow_up") === "Tour Follow-Up", "tour_follow_up → 'Tour Follow-Up'")

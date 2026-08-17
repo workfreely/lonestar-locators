@@ -36,7 +36,8 @@ import CheckApplicationModal from "./CheckApplicationModal"
 import GetInvoiceDetailsModal from "./GetInvoiceDetailsModal"
 import SendInvoiceModal from "./SendInvoiceModal"
 import InvoiceDetailsSection from "./InvoiceDetailsSection"
-import { autoInvoicePropertyName } from "@/lib/leads/invoiceFields"
+import { autoInvoicePropertyName, formatInvoiceCurrency } from "@/lib/leads/invoiceFields"
+import { leaseFollowUpDueAt } from "@/lib/leads/leaseFollowUp"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
 import ConfirmDialog from "./ConfirmDialog"
 import { isGuestCardTitle } from "@/lib/leads/guestCardWorkflow"
@@ -189,6 +190,9 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
   // "Did you receive the commission payment?" confirmation — the terminal closing
   // milestone. Yes sets the durable invoice_commission_paid; Not Yet keeps it open.
   const [confirmPayment, setConfirmPayment] = useState<null | { lead: any; action: any }>(null)
+  // "Send Rebate" confirmation (Cash Rebate only) — completing send_rebate is the
+  // durable Rebate Sent state (no leads.* flag). Not a payment, just a workflow log.
+  const [confirmRebate, setConfirmRebate] = useState<null | { lead: any; action: any }>(null)
   const [showLeadModal, setShowLeadModal] = useState(false)
   const [followUpsOpen, setFollowUpsOpen] = useState(DEFAULT_AGENDA_EXPANDED)
   const [pendingEditActionId, setPendingEditActionId] = useState<number | null>(null)
@@ -813,6 +817,35 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
     if (!lead || !args.action) return
     setConfirmPayment({ lead, action: args.action })
   }
+  // Create the Future Lease Follow-Up — the client-retention Next Action that closes
+  // the loop once ALL closing obligations are done (No Incentive / Free Movers → at
+  // Commission Paid; Cash Rebate → after Rebate Sent). Property-scoped to the leased
+  // Top Pick, deduped on action_key (never two per lead). Due ~90 days before the
+  // estimated lease end (Lease Start + Lease Term − 90d, 9 AM local). If the term is
+  // legacy/unparseable the date can't be derived — we surface it NOW (due = now) so
+  // the agent can set a real date, rather than inventing a lease expiration.
+  async function addLeaseFollowUp(lead: any, action: any, merged: any[], demo: boolean): Promise<any[]> {
+    const already = merged.some(
+      (a: any) => String(a.lead_id) === String(lead.id) && String(a.action_key ?? "") === "lease_follow_up",
+    )
+    if (already) return merged
+    const propertyId = action?.property_id ?? lead.top_pick_favorite_id ?? null
+    const propFav = localFavoritesRef.current.find((f: any) => String(f.id) === String(propertyId))
+    const propertyName = action?.property_name ?? propFav?.property_name ?? null
+    const derived = leaseFollowUpDueAt(lead.invoice_lease_start_date, lead.invoice_lease_term, timeZone)
+    const dueAt = derived ?? new Date().toISOString()
+    let lfAction: any = null
+    if (demo) {
+      lfAction = {
+        id: `demo-act-lease-follow-up-${dueAt}`, lead_id: lead.id, title: "Future Lease Follow-Up", due_at: dueAt, priority: "medium",
+        property_id: propertyId, property_name: propertyName, action_key: "lease_follow_up", action_type: "workflow", origin: "workflow", completed: false, status: "open",
+      }
+    } else {
+      lfAction = await createWorkflowActionIfNeeded(supabase, lead.id, { title: "Future Lease Follow-Up", dueAt, actionKey: "lease_follow_up", propertyId, propertyName })
+    }
+    return lfAction ? [...merged, lfAction] : merged
+  }
+
   // "Yes, Commission Paid" → complete commission_paid, set the durable state
   // (invoice_commission_paid), record the immutable timeline event. Lead stays
   // Closed, Top Pick unchanged. ("Not Yet" simply closes — commission_paid stays open.)
@@ -865,11 +898,63 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
         }
         if (rebateAction) merged = [...merged, rebateAction]
       }
+    } else {
+      // No Client Incentive / Free Movers → Commission Paid is the last closing
+      // obligation, so the Future Lease Follow-Up is created now. (Cash Rebate defers
+      // it to Rebate Sent, since Send Rebate is still outstanding here.)
+      merged = await addLeaseFollowUp(lead, action, merged, demo)
     }
     setLocalNextActions(merged)
     const updatedLead = { ...lead, invoice_commission_paid: true }
     setLocalLeads((prev) => prev.map((l) => (String(l.id) === String(lead.id) ? { ...l, invoice_commission_paid: true } : l)))
     postCompanionActiveClient(updatedLead, merged)
+  }
+
+  // ── Send Rebate (Cash Rebate → confirm the rebate was sent) ─────────────────
+  // Open the "Send Rebate · {Property}" confirmation for the Closed lead's Top Pick.
+  // `action` is the open send_rebate row. Locator Beast sends NO money — this is a
+  // workflow confirmation that the agent sent the rebate via their own method.
+  function handleSendRebate(lead: any, args: { action: any }) {
+    if (!lead || !args.action) return
+    setConfirmRebate({ lead, action: args.action })
+  }
+  // "Mark Rebate Sent" → complete exactly the open send_rebate, record the immutable
+  // rebate_sent timeline event (no leads.* flag — the completed action IS the durable
+  // state), keep the lead Closed, preserve Top Pick + all invoice info + Commission
+  // Paid. Terminal for this pass (no Setup Movers / Archive / new action created).
+  async function confirmRebateSent() {
+    const cr = confirmRebate
+    setConfirmRebate(null)
+    if (!cr) return
+    const { lead, action } = cr
+    const now = new Date().toISOString()
+    const demo = isDemoLeadId(lead.id)
+    if (!demo && action?.id != null) {
+      const { error } = await supabase.from("lead_next_actions").update({ completed: true, completed_at: now, status: "completed" }).eq("id", action.id)
+      if (error) console.error("[send-rebate] complete send_rebate failed:", error)
+    }
+    recordTimelineEvent({
+      leadId: lead.id,
+      type: "rebate_sent",
+      occurredAt: now,
+      metadata: {
+        rebate_action_id: action?.id ?? null,
+        property_id: action?.property_id ?? null,
+        property_name: action?.property_name ?? null,
+        rebate_amount: lead.invoice_rebate_amount ?? null,
+      },
+    })
+    let merged = localNextActionsRef.current.map((a: any) =>
+      action?.id != null && String(a.id) === String(action.id) ? { ...a, completed: true, completed_at: now, status: "completed" } : a,
+    )
+    // Rebate Sent is the LAST closing obligation for a Cash Rebate lead → now create
+    // the Future Lease Follow-Up (deduped, property-scoped, ~90d before lease end).
+    const current = localLeadsRef.current.find((l: any) => String(l.id) === String(lead.id)) ?? lead
+    merged = await addLeaseFollowUp(current, action, merged, demo)
+    setLocalNextActions(merged)
+    // No leads.* write — the completed send_rebate row is the durable Rebate Sent
+    // state. Re-post so Companion/Workspace reflect the new Last Action + Next Action.
+    postCompanionActiveClient(current, merged)
   }
 
   // ── Canonical contact appliers — the ONE implementation used by BOTH the
@@ -1026,7 +1111,8 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
         payload.verb !== "open-confirm-lease" &&
         payload.verb !== "open-invoice-details" &&
         payload.verb !== "open-send-invoice" &&
-        payload.verb !== "open-commission-paid"
+        payload.verb !== "open-commission-paid" &&
+        payload.verb !== "open-send-rebate"
       )
         return
 
@@ -1665,6 +1751,22 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
         return
       }
 
+      // Beast Companion "Send Rebate" → open the "Send Rebate · {Property}" confirm
+      // in the CRM tab for the Top Pick's open send_rebate (Cash Rebate only).
+      if (payload.verb === "open-send-rebate") {
+        const action =
+          localNextActionsRef.current.find((a: any) => payload.actionId != null && String(a.id) === String(payload.actionId)) ??
+          localNextActionsRef.current.find(
+            (a: any) =>
+              String(a.lead_id) === String(lead.id) &&
+              !a.completed &&
+              (String(a.action_key ?? "") === "send_rebate" || String(a.title ?? "").trim().toLowerCase() === "send rebate")
+          )
+        if (!action) return
+        handleSendRebate(lead, { action })
+        return
+      }
+
       const method: "call" | "text" = payload.method === "call" ? "call" : "text"
 
       if (payload.verb === "contact-attempt") {
@@ -1956,6 +2058,7 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
                     onGetInvoiceDetails={handleGetInvoiceDetails}
                     onSendInvoice={handleSendInvoice}
                     onConfirmPayment={handleConfirmPayment}
+                    onSendRebate={handleSendRebate}
                   />
                   {/* Invoice Details — the Closed-lead commission/invoice record
                       (leads.invoice_*). Surfaced in the workspace (the legacy Lead
@@ -2111,6 +2214,47 @@ export default function DashboardClient({ leads, nextActions, favorites, outreac
         cancelLabel="Not Yet"
         onConfirm={confirmPaymentYes}
         onCancel={() => setConfirmPayment(null)}
+      />
+
+      {/* "Send Rebate · {Property}" — Cash Rebate only. Locator Beast sends NO money;
+          this just confirms the agent sent the rebate via their own method and
+          completes the send_rebate action (durable Rebate Sent state). Missing amount
+          is shown honestly, and Cancel changes nothing (agent can fix Invoice Details). */}
+      <ConfirmDialog
+        open={confirmRebate !== null}
+        title={`Send Rebate${confirmRebate?.action?.property_name ? ` · ${confirmRebate.action.property_name}` : ""}`}
+        message={
+          <span className="block space-y-2.5">
+            <span className="block">
+              <span className="block text-[11px] font-semibold uppercase tracking-wide text-[var(--crm-text-muted)]">Client</span>
+              <span className="block text-[var(--crm-text-primary)]">
+                {((confirmRebate?.lead?.preferred_name || confirmRebate?.lead?.first_name || "") + " " + (confirmRebate?.lead?.last_name || "")).trim() || "this client"}
+              </span>
+            </span>
+            <span className="block">
+              <span className="block text-[11px] font-semibold uppercase tracking-wide text-[var(--crm-text-muted)]">Property</span>
+              <span className="block text-[var(--crm-text-primary)]">{confirmRebate?.action?.property_name || "—"}</span>
+            </span>
+            <span className="block">
+              <span className="block text-[11px] font-semibold uppercase tracking-wide text-[var(--crm-text-muted)]">Client Rebate</span>
+              <span className="block text-[var(--crm-text-primary)]">
+                {(() => {
+                  const raw = confirmRebate?.lead?.invoice_rebate_amount
+                  const n = Number(raw)
+                  const has = raw !== null && raw !== undefined && String(raw).trim() !== "" && !Number.isNaN(n)
+                  return has ? formatInvoiceCurrency(n) : "Rebate amount not entered"
+                })()}
+              </span>
+            </span>
+            <span className="block pt-1 text-[var(--crm-text-secondary)]">
+              Locator Beast isn’t sending money — confirm only once you’ve sent the rebate to the client yourself.
+            </span>
+          </span>
+        }
+        confirmLabel="Mark Rebate Sent"
+        cancelLabel="Cancel"
+        onConfirm={confirmRebateSent}
+        onCancel={() => setConfirmRebate(null)}
       />
 
       {/* Confirm Lease → Closed confirmation. 'closed' is reached ONLY here, on the

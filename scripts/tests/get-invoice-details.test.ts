@@ -10,6 +10,7 @@
  * completes get_invoice_details without a duplicate or stage change.
  */
 import { seedInvoiceForm, buildInvoicePatch, computeInvoiceTotals, autoInvoicePropertyName, formatInvoiceCurrency, formatMoneyDisplay, formatPercentDisplay, rawNumericString } from "@/lib/leads/invoiceFields"
+import { isValidLeaseTerm } from "@/lib/leads/leaseFollowUp"
 import { buildActiveClientPayload } from "@/lib/companion/leadToDto"
 import { formatUnitDisplay } from "@bc/companion-shared"
 
@@ -159,6 +160,55 @@ const LEAD = "L-inv"
   // A non-closed lead never carries invoice data even if fields exist.
   const notClosed = buildActiveClientPayload({ ...closedLead, crm_status: "applied" }, [], null, null, "America/Chicago", [], [])
   ok(notClosed.lead.invoice == null, "non-closed lead → invoice is null (Closed-only)")
+}
+
+// ── Required-field gate (mirrors GetInvoiceDetailsModal): the 4 fields needed to
+//    complete Get Invoice Details. Property Name comes from the Top Pick (not here);
+//    Unit / contact / Broker Split / Client Incentive stay OPTIONAL. ──
+{
+  const REQUIRED: (keyof ReturnType<typeof seedInvoiceForm>)[] = [
+    "invoice_lease_start_date",
+    "invoice_lease_term",
+    "invoice_base_rent",
+    "invoice_commission_pct",
+  ]
+  // Mirrors GetInvoiceDetailsModal.isFieldMissing exactly: numeric base rent /
+  // commission, and Lease Term must be a positive WHOLE number of months.
+  const missing = (form: any) =>
+    REQUIRED.filter((f) => {
+      if (f === "invoice_base_rent" || f === "invoice_commission_pct") {
+        const r = rawNumericString(form[f])
+        return r === "" || Number.isNaN(Number(r))
+      }
+      if (f === "invoice_lease_term") return !isValidLeaseTerm(form[f])
+      return String(form[f] ?? "").trim() === ""
+    })
+
+  // All blank (property auto-filled from Top Pick) → Save is blocked, all 4 missing.
+  const blank = seedInvoiceForm({ id: LEAD, top_pick_favorite_id: FOUNDRY }, "The Foundry")
+  ok(missing(blank).length === 4, "all-blank invoice → 4 required fields missing → Save blocked")
+  ok(missing(blank).includes("invoice_lease_start_date"), "Lease Start Date is required")
+  ok(missing(blank).includes("invoice_lease_term"), "Lease Term is required")
+  ok(missing(blank).includes("invoice_base_rent"), "Base Rent is required")
+  ok(missing(blank).includes("invoice_commission_pct"), "Commission % is required")
+
+  // Lease Term must be numeric whole months — reject junk, accept whole numbers.
+  for (const bad of ["0", "-3", "12.5", "12 months", "one year"]) {
+    ok(missing({ ...blank, invoice_lease_start_date: "2026-09-01", invoice_base_rent: "1500", invoice_commission_pct: "150", invoice_lease_term: bad }).includes("invoice_lease_term"), `Lease Term "${bad}" is rejected (blocks Save)`)
+  }
+
+  // The 4 required filled, EVERY optional field blank → Save allowed (0 missing).
+  const valid = { ...blank, invoice_lease_start_date: "2026-09-01", invoice_lease_term: "12", invoice_base_rent: "1500", invoice_commission_pct: "150" }
+  ok(missing(valid).length === 0, "4 required filled + optionals blank → Save allowed")
+  ok(String(valid.invoice_unit_number) === "" && String(valid.invoice_contact_name) === "", "Unit Number + Contact stay blank yet Save is allowed (optional)")
+  ok(String(valid.invoice_broker_split_pct) === "" && valid.invoice_rebate_type === "None", "Broker Split + Client Incentive stay optional")
+
+  // Valid form still builds the same canonical patch + Total/Expected calc works.
+  const patch = buildInvoicePatch(valid as any)
+  ok(patch.invoice_lease_start_date === "2026-09-01" && patch.invoice_lease_term === "12", "patch persists Lease Start Date + Term (canonical text columns)")
+  ok(patch.invoice_base_rent === 1500 && patch.invoice_commission_pct === 150, "patch persists Base Rent + Commission % (canonical number columns)")
+  const totals = computeInvoiceTotals(valid as any)
+  ok(totals.totalInvoice === 2250, "Total Invoice Amount still computes (1500 × 150%)")
 }
 
 console.log(`\n${fail === 0 ? "ALL PASS ✅" : "FAILURES ❌"}  (${pass} passed, ${fail} failed)`)

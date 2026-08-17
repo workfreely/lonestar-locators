@@ -45,6 +45,7 @@ export default function LeadFavorites({
   onGetInvoiceDetails,
   onSendInvoice,
   onConfirmPayment,
+  onSendRebate,
 }: {
   lead: any
   favorites?: any[]
@@ -81,6 +82,9 @@ export default function LeadFavorites({
   // Open the "did you receive payment?" confirm for the Closed Top Pick's open
   // commission_paid. Absent → the control is hidden.
   onConfirmPayment?: (lead: any, args: { action: any }) => void
+  // Open the "Send Rebate" confirmation for the Closed Top Pick's open send_rebate
+  // (Cash Rebate only). Absent → the control is hidden.
+  onSendRebate?: (lead: any, args: { action: any }) => void
 }) {
   const [showFavoriteModal, setShowFavoriteModal] = useState(false)
   const [editingFavorite, setEditingFavorite] = useState<any | null>(null)
@@ -357,9 +361,28 @@ export default function LeadFavorites({
                   (String(a.action_key ?? "") === "commission_paid" || String(a.title ?? "").trim().toLowerCase() === "confirm payment"),
               )
               const commissionPaidOpen = !!commissionPaidAction
-              // Durable Commission Paid state (leads.invoice_commission_paid) — the
-              // FURTHEST closing milestone surfaced on the Top Pick once confirmed.
+              // Durable Commission Paid state (leads.invoice_commission_paid) — a
+              // closing milestone surfaced on the Top Pick once confirmed.
               const commissionPaid = !!lead.invoice_commission_paid
+              // This property's open Send Rebate (created at Commission Paid for a
+              // Cash Rebate lead, property-scoped to the Top Pick). Cash Rebate only.
+              const sendRebateAction = nextActions.find(
+                (a: any) =>
+                  String(a.lead_id) === String(lead.id) &&
+                  String(a.property_id ?? "") === String(fav.id) &&
+                  !a.completed &&
+                  (String(a.action_key ?? "") === "send_rebate" || String(a.title ?? "").trim().toLowerCase() === "send rebate"),
+              )
+              const sendRebateOpen = !!sendRebateAction
+              // Rebate Sent state — no durable leads.* flag exists; the completed
+              // send_rebate action IS the state. The FURTHEST closing milestone.
+              const rebateSent = nextActions.some(
+                (a: any) =>
+                  String(a.lead_id) === String(lead.id) &&
+                  String(a.property_id ?? "") === String(fav.id) &&
+                  (a.completed === true || a.status === "completed") &&
+                  (String(a.action_key ?? "") === "send_rebate" || String(a.title ?? "").trim().toLowerCase() === "send rebate"),
+              )
               // Canonical surfaced state: always the FURTHEST canonical state —
               // "Ready to Apply" pre-submission → "Applied" once 'applied' → the
               // application-phase state (Approved / Application Pending / Application
@@ -375,6 +398,7 @@ export default function LeadFavorites({
                 closedStage,
                 invoiceSent,
                 commissionPaid,
+                rebateSent,
               })
               return (
                 <div
@@ -516,7 +540,7 @@ export default function LeadFavorites({
                           onClick={() => onStartApplication(lead, applyAction)}
                           className="flex-none text-[10.5px] font-semibold text-[var(--crm-accent)] hover:underline"
                         >
-                          Apply
+                          Mark as Applied
                         </button>
                       </div>
                     </div>
@@ -615,7 +639,27 @@ export default function LeadFavorites({
                           onClick={() => onConfirmPayment(lead, { action: commissionPaidAction })}
                           className="flex-none text-[10.5px] font-semibold text-[var(--crm-accent)] hover:underline"
                         >
-                          Confirm Payment
+                          Confirm Invoice Paid
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Commission paid + Cash Rebate → Send Rebate (property-scoped to
+                      the Top Pick). Terminal for this branch; disappears once the
+                      agent marks it sent (favState then reads Rebate Sent). */}
+                  {sendRebateOpen && onSendRebate && (
+                    <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10.5px] font-semibold text-emerald-600">
+                          {isTopPick && "★ Top Pick · "}{favState}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => onSendRebate(lead, { action: sendRebateAction })}
+                          className="flex-none text-[10.5px] font-semibold text-[var(--crm-accent)] hover:underline"
+                        >
+                          Send Rebate
                         </button>
                       </div>
                     </div>
@@ -623,7 +667,7 @@ export default function LeadFavorites({
 
                   {/* Recorded outcome with no pending action — one compact muted line
                       (no badge stack). Top Pick shown inline when this property is it. */}
-                  {!tour && !tfAction && !applyAction && !checkAppOpen && !confirmLeaseOpen && !getInvoiceOpen && !sendInvoiceOpen && !commissionPaidOpen && favState && (
+                  {!tour && !tfAction && !applyAction && !checkAppOpen && !confirmLeaseOpen && !getInvoiceOpen && !sendInvoiceOpen && !commissionPaidOpen && !sendRebateOpen && favState && (
                     <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
                       <p className="text-[11px] font-medium text-[var(--crm-text-muted)]">
                         {isTopPick && <span className="font-semibold text-emerald-600">★ Top Pick · </span>}

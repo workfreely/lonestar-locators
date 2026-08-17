@@ -27,20 +27,26 @@ const FULL: Record<string, string> = {
   check_application: "Check Application",
   setup_tour: "Schedule Tour",
   tour_follow_up: "Tour Follow-Up",
-  // The new canonical application-start action ("Apply"). Completing it advances
-  // the lead to 'applied' (which fires the existing check_application rule).
-  start_application: "Apply",
+  // The canonical application-start action. DISPLAY ONLY reads "Mark as Applied"
+  // (the agent confirms the client submitted, they don't submit it); the key stays
+  // start_application and completing it still advances the lead to 'applied'.
+  start_application: "Mark as Applied",
   // The canonical post-approval action created by Check Application → Approved.
   // Its completion (Confirm Lease → Closed) is designed/wired separately.
   confirm_lease: "Confirm Lease",
   // Post-invoice-collection closing step: email the invoice to the property.
   send_invoice: "Send Invoice",
-  // Terminal closing step: the OPEN action reads "Confirm Payment" (payment not yet
-  // received); completed it reads "Commission Paid" (see LAST_ACTION_BY_DISPLAY).
-  commission_paid: "Confirm Payment",
+  // Terminal closing step: the OPEN action reads "Confirm Invoice Paid" (payment not
+  // yet received); completed it reads "Commission Paid" (see LAST_ACTION_BY_DISPLAY).
+  // DISPLAY ONLY — the key stays commission_paid and its behavior is unchanged.
+  commission_paid: "Confirm Invoice Paid",
   // Post-payment closing action for the Cash Rebate incentive only — the OPEN
   // action reads "Send Rebate"; completed it reads "Sent Rebate" (LAST_ACTION).
   send_rebate: "Send Rebate",
+  // Client-retention action scheduled ~90 days before lease end — the agent reaches
+  // out about renewing. DISPLAY ONLY reads "Renewal Follow-Up"; the key stays
+  // lease_follow_up and all creation/date/sequencing behavior is unchanged.
+  lease_follow_up: "Renewal Follow-Up",
   email_guest_card: "Send Guest Card",
   waiting_for_response: "Waiting for Reply",
 }
@@ -76,15 +82,21 @@ const TO_KEY: Record<string, string> = {
   tour_follow_up: "tour_follow_up",
   apply: "start_application",
   "start application": "start_application",
+  "mark as applied": "start_application",
   start_application: "start_application",
   "confirm lease": "confirm_lease",
   confirm_lease: "confirm_lease",
   "send invoice": "send_invoice",
   send_invoice: "send_invoice",
   "confirm payment": "commission_paid",
+  "confirm invoice paid": "commission_paid",
   commission_paid: "commission_paid",
   "send rebate": "send_rebate",
   send_rebate: "send_rebate",
+  "renewal follow-up": "lease_follow_up",
+  "future lease follow-up": "lease_follow_up",
+  "lease follow-up": "lease_follow_up",
+  lease_follow_up: "lease_follow_up",
   "email guest card": "email_guest_card",
   "send guest card": "email_guest_card",
   email_guest_card: "email_guest_card",
@@ -134,17 +146,20 @@ const LAST_ACTION_BY_DISPLAY: Record<string, string> = {
   // A completed Tour Follow-Up reads as the tour having happened ("Toured ·
   // Property") — the tour occurrence, not a generic "completed" prefix.
   "Tour Follow-Up": "Toured",
-  // Completing "Apply" (client submitted) → "Applied · Property".
-  "Apply": "Applied",
+  // Completing "Mark as Applied" (client submitted) → "Applied · Property".
+  "Mark as Applied": "Applied",
   "Check Application": "Checked Application",
   // Completing Confirm Lease (client signed) → "Lease Signed · Property".
   "Confirm Lease": "Lease Signed",
   // Completing Send Invoice (agent confirmed sent) → "Invoice Sent · Property".
   "Send Invoice": "Invoice Sent",
-  // Completing Confirm Payment (agent confirmed received) → "Commission Paid · Property".
-  "Confirm Payment": "Commission Paid",
+  // Completing Confirm Invoice Paid (agent confirmed received) → "Commission Paid · Property".
+  "Confirm Invoice Paid": "Commission Paid",
   "Setup Movers": "Movers Scheduled",
-  "Send Rebate": "Sent Rebate",
+  // Completing Send Rebate (agent confirmed the Cash Rebate was sent) → "Rebate Sent · Property".
+  "Send Rebate": "Rebate Sent",
+  // Completing Renewal Follow-Up (agent reached out near lease end) → "Lease Followed Up · Property".
+  "Renewal Follow-Up": "Lease Followed Up",
   "Get Invoice Details": "Got Invoice Details",
 }
 

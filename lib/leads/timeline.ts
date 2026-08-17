@@ -27,7 +27,12 @@ import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 // (Confirm Payment → Yes, Commission Paid): the explicit received point (metadata:
 // { commission_action_id, property_id, property_name }). leads.invoice_commission_paid
 // holds the durable current state; this is the immutable "when/which property" record.
-export type LeadTimelineType = "first_contact" | "follow_up" | "contact_attempt" | "text_sent" | "tour_outcome" | "application_outcome" | "lease_signed" | "invoice_sent" | "commission_paid"
+// 'rebate_sent' = the agent confirmed they sent the Cash Rebate to the client
+// (Send Rebate → Mark Rebate Sent): the explicit sent point (metadata:
+// { rebate_action_id, property_id, property_name, rebate_amount }). No durable
+// leads.* flag exists for this — the completed send_rebate action row IS the state;
+// this is the immutable "when/which property/how much" record.
+export type LeadTimelineType = "first_contact" | "follow_up" | "contact_attempt" | "text_sent" | "tour_outcome" | "application_outcome" | "lease_signed" | "invoice_sent" | "commission_paid" | "rebate_sent"
 export type LeadTimelineMethod = "call" | "text" | "email"
 
 export type TimelineEventInput = {

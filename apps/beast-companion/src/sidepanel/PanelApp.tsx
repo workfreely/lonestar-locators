@@ -48,6 +48,7 @@ export function PanelApp({
   onGetInvoiceDetails,
   onSendInvoice,
   onConfirmPayment,
+  onSendRebate,
   onAddTask,
   onBackToCrm,
   timeZone,
@@ -92,6 +93,8 @@ export function PanelApp({
   onSendInvoice?: () => void;
   // "Confirm Payment" opens the CRM "did you receive payment?" confirmation.
   onConfirmPayment?: () => void;
+  // "Send Rebate" opens the CRM "Send Rebate · {Property}" confirmation (Cash Rebate).
+  onSendRebate?: () => void;
   // "+ Add Task" opens the custom-task sheet (title + date/time). Omitted in the
   // dev harness (fixtures), where the button falls back to the inert demo note.
   onAddTask?: () => void;
@@ -210,6 +213,7 @@ export function PanelApp({
               onGetInvoiceDetails={onGetInvoiceDetails}
               onSendInvoice={onSendInvoice}
               onConfirmPayment={onConfirmPayment}
+              onSendRebate={onSendRebate}
               onAddTask={onAddTask}
               onBackToCrm={onBackToCrm}
               timeZone={timeZone}

@@ -17,15 +17,16 @@ const MONTHS = [
 
 const pad = (n: number) => String(n).padStart(2, "0")
 
-// Parse a "YYYY-MM-DDTHH:mm" local value into its parts (null if empty/invalid).
+// Parse a "YYYY-MM-DD" or "YYYY-MM-DDTHH:mm" local value into its parts (null if
+// empty/invalid). The time is optional so date-only callers can pass "YYYY-MM-DD".
 function parseValue(value: string): { date: Date; hour24: number; minute: number } | null {
   if (!value) return null
-  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/)
+  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?$/)
   if (!m) return null
   const [, y, mo, d, h, min] = m
   const date = new Date(Number(y), Number(mo) - 1, Number(d))
   if (isNaN(date.getTime())) return null
-  return { date, hour24: Number(h), minute: Number(min) }
+  return { date, hour24: h ? Number(h) : 9, minute: min ? Number(min) : 0 }
 }
 
 const sameDay = (a: Date, b: Date) =>
@@ -37,6 +38,7 @@ export default function DateTimePicker({
   onCancel,
   onChange,
   compact = false,
+  dateOnly = false,
 }: {
   // Current committed value, "YYYY-MM-DDTHH:mm" or "".
   value: string
@@ -51,6 +53,9 @@ export default function DateTimePicker({
   // modal). Purely CSS class swaps — no behavior, state, or logic changes. Add
   // Task does not pass this, so its picker keeps the default dimensions.
   compact?: boolean
+  // DATE-ONLY (opt-in): hide the time row and emit/apply a bare "YYYY-MM-DD" (for
+  // Lease Start Date). Existing date+time callers omit it and are unchanged.
+  dateOnly?: boolean
 }) {
   const live = !!onChange
   // Compact size tokens (default = current dimensions, unchanged for Add Task).
@@ -94,8 +99,10 @@ export default function DateTimePicker({
     setViewMonth(new Date(year, month + delta, 1))
   }
 
-  const composeValue = (date: Date, h: number, m: number, p: "AM" | "PM") =>
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${to24Hour(h, m, p)}`
+  const composeValue = (date: Date, h: number, m: number, p: "AM" | "PM") => {
+    const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+    return dateOnly ? day : `${day}T${to24Hour(h, m, p)}`
+  }
 
   // Live-commit: emit on every selection (no Apply). Confirm-mode ignores this.
   function emit(date: Date | null, h: number, m: number, p: "AM" | "PM") {
@@ -166,7 +173,8 @@ export default function DateTimePicker({
         })}
       </div>
 
-      {/* Time row */}
+      {/* Time row — hidden in date-only mode (e.g. Lease Start Date). */}
+      {!dateOnly && (
       <div className={`flex items-center gap-1.5 border-t border-[var(--crm-border)] ${timeRowSpacing}`}>
         <span className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mr-1">Time</span>
         <select className={selectCls} value={hour12} onChange={(e) => { const h = Number(e.target.value); setHour12(h); emit(selectedDate, h, minute, period) }} aria-label="Hour">
@@ -185,6 +193,7 @@ export default function DateTimePicker({
           <option value="PM">PM</option>
         </select>
       </div>
+      )}
 
       {/* Confirmation controls — CONFIRM-MODE ONLY. In live-commit mode the caller
           owns the single Save/Cancel, so the picker shows no internal buttons. */}

@@ -92,14 +92,18 @@ export function favoriteTourStateLabel(opts: {
   /** The invoice has been confirmed sent (leads.invoice_submitted). A closing
    *  milestone, surfaced above "Leased" for the application property. */
   invoiceSent?: boolean
-  /** The commission payment was confirmed received (leads.invoice_commission_paid) —
-   *  the FURTHEST closing milestone. */
+  /** The commission payment was confirmed received (leads.invoice_commission_paid). */
   commissionPaid?: boolean
+  /** The Cash Rebate was confirmed sent to the client (a completed send_rebate action;
+   *  there is no durable leads.* flag). The FURTHEST closing milestone when present —
+   *  it only occurs after Commission Paid on a Cash Rebate lead. */
+  rebateSent?: boolean
 }): string | null {
   if (opts.applyActionOpen) return "Toured · Ready to Apply"
   // Closed closing milestones (furthest first) for the application property:
-  //   commission received → "Commission Paid"; invoice sent → "Invoice Sent";
-  //   otherwise (lease signed) → "Leased".
+  //   rebate sent → "Rebate Sent"; commission received → "Commission Paid";
+  //   invoice sent → "Invoice Sent"; otherwise (lease signed) → "Leased".
+  if (opts.closedStage && opts.isApplicationProperty && opts.rebateSent) return "Toured · Rebate Sent"
   if (opts.closedStage && opts.isApplicationProperty && opts.commissionPaid) return "Toured · Commission Paid"
   if (opts.closedStage && opts.isApplicationProperty && opts.invoiceSent) return "Toured · Invoice Sent"
   if (opts.closedStage && opts.isApplicationProperty) return "Toured · Leased"

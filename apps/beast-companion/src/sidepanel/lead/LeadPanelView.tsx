@@ -236,6 +236,7 @@ export function LeadPanelBody({
   onGetInvoiceDetails,
   onSendInvoice,
   onConfirmPayment,
+  onSendRebate,
   onAddTask,
   onBackToCrm,
   timeZone,
@@ -285,6 +286,9 @@ export function LeadPanelBody({
   onSendInvoice?: () => void;
   // "Confirm Payment" — opens the "did you receive payment?" confirm in the CRM tab.
   onConfirmPayment?: () => void;
+  // "Send Rebate" — opens the "Send Rebate · {Property}" confirm in the CRM tab
+  // (Cash Rebate only). The extension has no payment logic of its own.
+  onSendRebate?: () => void;
   // "+ Add Task" — opens the custom-task sheet (title + date/time) for THIS
   // client. Omitted in fixtures, where the button falls back to the demo note.
   onAddTask?: () => void;
@@ -342,6 +346,12 @@ export function LeadPanelBody({
   const isGetInvoice = (openAction?.title ?? "").trim().toLowerCase() === "get invoice details";
   const isSendInvoice = (openAction?.title ?? "").trim().toLowerCase() === "send invoice";
   const isConfirmPayment = (openAction?.title ?? "").trim().toLowerCase() === "confirm payment";
+  const isSendRebate = (openAction?.title ?? "").trim().toLowerCase() === "send rebate";
+  // Renewal Follow-Up (canonical lease_follow_up) is scheduled months out — while it
+  // isn't due yet its Status reads "Scheduled" rather than "In Progress"; once the
+  // due date arrives the existing overdue handling takes over.
+  const isRenewalFollowUp = formatWorkflowActionLabel(openAction?.title ?? "") === "Renewal Follow-Up";
+  const scheduled = !!openAction && !overdue && isRenewalFollowUp;
 
   return (
     <div className="lp-body">
@@ -553,6 +563,16 @@ export function LeadPanelBody({
                 >
                   {formatWorkflowActionLabel(openAction.title)}
                 </Button>
+              ) : isSendRebate && onSendRebate ? (
+                // Opens the "Send Rebate · {Property}" confirm in the CRM tab for the
+                // Top Pick (Cash Rebate only). Mark Rebate Sent completes it.
+                <Button
+                  variant="solid"
+                  onClick={() => onSendRebate()}
+                  title="Confirm the client rebate was sent"
+                >
+                  {formatWorkflowActionLabel(openAction.title)}
+                </Button>
               ) : (
                 <Button
                   variant="solid"
@@ -562,8 +582,8 @@ export function LeadPanelBody({
                   {formatWorkflowActionLabel(openAction.title)}
                 </Button>
               )}
-              <StatusPill tone={overdue ? "danger" : openAction.statusLabel ? "accent" : "muted"}>
-                {overdue ? "Overdue" : openAction.statusLabel ?? "In Progress"}
+              <StatusPill tone={overdue ? "danger" : scheduled ? "muted" : openAction.statusLabel ? "accent" : "muted"}>
+                {overdue ? "Overdue" : scheduled ? "Scheduled" : openAction.statusLabel ?? "In Progress"}
               </StatusPill>
             </div>
             <div className="lp-due">
@@ -591,9 +611,7 @@ export function LeadPanelBody({
               </button>
             )}
           </>
-        ) : (
-          <p className="lp-muted">No open action — add the next step below.</p>
-        )}
+        ) : null}
         {SHOW_ADD_TASK && (
         <div style={{ marginTop: 12 }}>
           <Button variant="dashed" full onClick={() => (onAddTask ? onAddTask() : onDemo("Add Task"))}>

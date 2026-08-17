@@ -28,6 +28,7 @@ export const WORKFLOW_ACTION_KEYS = [
   "commission_paid",
   "setup_movers",
   "send_rebate",
+  "lease_follow_up",
   "follow_up_1",
   "follow_up_2",
   "follow_up_3",

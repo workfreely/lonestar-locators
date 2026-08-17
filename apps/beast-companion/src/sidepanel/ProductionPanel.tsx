@@ -735,6 +735,29 @@ export function ProductionPanel() {
     }
   };
 
+  // "Send Rebate" → open the "Send Rebate · {Property}" confirm in the CRM tab for
+  // the Closed lead's Top Pick (Cash Rebate only). Same canonical confirmation as the
+  // Workspace — the extension has NO payment business logic of its own.
+  const onSendRebate = () => {
+    const lead = active?.lead;
+    if (!lead || lead.id === undefined || lead.id === null) return;
+    const sr = (active?.nextActions ?? []).find(
+      (a) => !a.completed && (a.title ?? "").trim().toLowerCase() === "send rebate"
+    );
+    focusExistingCrmTab();
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+    if (store) {
+      store.set({
+        "lb-workflow-verb": {
+          nonce: `${Date.now()}-${Math.random()}`,
+          leadId: lead.id,
+          verb: "open-send-rebate",
+          actionId: sr?.id ?? null,
+        },
+      });
+    }
+  };
+
   const pendingName = pendingContact?.name ?? "this client";
 
   return (
@@ -761,6 +784,7 @@ export function ProductionPanel() {
         onGetInvoiceDetails={onGetInvoiceDetails}
         onSendInvoice={onSendInvoice}
         onConfirmPayment={onConfirmPayment}
+        onSendRebate={onSendRebate}
         onAddTask={onAddTask}
         onBackToCrm={onBackToCrm}
         timeZone={active?.timeZone ?? null}

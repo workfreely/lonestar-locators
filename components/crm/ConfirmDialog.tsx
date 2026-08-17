@@ -1,5 +1,7 @@
 "use client"
 
+import type { ReactNode } from "react"
+
 // Small reusable confirmation modal — styled to match the app's card
 // language (rounded-2xl, shadow-2xl) rather than a native window.confirm().
 // Used for confirmations like Archive Lead (LeadPanel), Delete Demo Workspace
@@ -17,7 +19,9 @@ export default function ConfirmDialog({
 }: {
   open: boolean
   title: string
-  message: string
+  // Plain string for the common case; a ReactNode when a caller needs a small
+  // structured body (e.g. Send Rebate's Client / Property / Rebate rows).
+  message: ReactNode
   confirmLabel?: string
   cancelLabel?: string
   onConfirm: () => void

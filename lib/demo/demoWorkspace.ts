@@ -164,16 +164,17 @@ export const DEMO_LEADS: any[] = [
     created_at: daysFromNow(-14),
   },
   {
-    // Follow-up sequence COMPLETE — the Final Follow-Up is done (follow_up_count 4),
-    // so there is NO automatic next action and nothing repeats. The client stays in
-    // List Sent for the locator to reconnect, move, or archive manually.
-    id: "demo-25", is_demo: true, crm_status: "list_sent", lead_type: "long",
+    // Follow-up sequence COMPLETE with no reply — completing the Final Follow-Up
+    // archives the lead (Ghosted / No Response), exactly as completeFollowUp does in
+    // the live workflow. An exhausted lead exits the active pipeline; it is NOT left
+    // active with no Next Action. Renders via the dedicated Archive Reason UI.
+    id: "demo-25", is_demo: true, crm_status: "archived", archive_reason: "ghosted", lead_type: "long",
     first_name: "Trevor", last_name: "Nash", phone: "5125550240", email: "trevor.n@example.com",
     city: "Austin", neighborhoods: "East Austin", desired_rent: "$1,400-$1,600",
     property_type: "Apartment", beds: "1", baths: "1", move_date: thisMonth(28),
     credit_score: 719, credit_history: "Clean", eviction_court: "No", criminal_background: "None",
     source: "google", follow_up_count: 4, next_action_date: null,
-    notes: "Completed the full follow-up sequence — no reply after the final nudge. Paused, awaiting the client.",
+    notes: "Completed the full follow-up sequence — no reply after the final nudge. Archived as Ghosted / No Response.",
     created_at: daysFromNow(-16),
   },
 
