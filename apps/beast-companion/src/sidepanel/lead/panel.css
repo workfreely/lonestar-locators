@@ -462,4 +462,91 @@
 /* Comfortable at the 360px minimum — keep the two-up rows two-up. */
 @media (max-width: 360px) {
   .lp-body { padding-left: 12px; padding-right: 12px; }
+  .bc-props { padding-left: 12px; padding-right: 12px; }
+}
+
+/* ── Client / Properties navigation (Phase 1) ──
+   Two equal halves, compact height, thin accent underline on the active tab.
+   No pills, cards, rounded backgrounds, or folder shapes. */
+.bc-cp-nav {
+  display: flex;
+  padding: 0 var(--bc-gutter);
+  background: var(--lb-surface);
+  border-bottom: 1px solid var(--lb-border);
+}
+.bc-cp-tab {
+  flex: 1 1 50%;
+  appearance: none;
+  background: none;
+  border: none;
+  margin: 0;
+  cursor: pointer;
+  position: relative;
+  padding: 9px 0;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--lb-text-muted, #9aa4b2);
+  transition: color 120ms ease;
+}
+.bc-cp-tab:hover { color: var(--lb-text-secondary); }
+.bc-cp-tab.is-active { color: var(--lb-text-primary); }
+.bc-cp-tab.is-active::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -1px;
+  transform: translateX(-50%);
+  width: 34px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--lb-accent);
+}
+.bc-cp-tab:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--lb-accent) 55%, transparent);
+  border-radius: 6px;
+}
+
+/* ── Properties visual shell (Phase 1) ── */
+.bc-props {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px var(--bc-gutter) 24px;
+}
+.bc-props-placeholder {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--lb-text-muted, #9aa4b2);
+}
+.bc-prop-list {
+  display: flex;
+  flex-direction: column;
+}
+.bc-prop-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 0;
+  border-top: 1px solid var(--lb-border);
+}
+.bc-prop-row:first-child { border-top: none; }
+.bc-prop-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lb-text-primary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bc-prop-sub {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--lb-text-secondary);
 }

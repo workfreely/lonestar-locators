@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import type { LeadSummaryDTO, NextActionDTO, ThemeId } from "@bc/companion-shared";
 import { LeadIdentityHeader, LeadPanelBody } from "./lead/LeadPanelView";
 import { PanelStateView, type PanelState } from "./lead/PanelStates";
+import { ClientPropertiesNav, type CompanionView } from "./ClientPropertiesNav";
+import { PropertiesView } from "./properties/PropertiesView";
 import { CompanionMenu } from "./menu/CompanionMenu";
 import { applyTheme } from "./applyTheme";
 import { DISCONNECTED, type CompanionConnection } from "./connection";
@@ -105,6 +107,9 @@ export function PanelApp({
   timeZone?: string | null;
 }) {
   const [menu, setMenu] = useState<MenuMode>("closed");
+  // Top-level Companion view. Client is the default and shows the existing,
+  // unchanged Client experience; Properties shows the Phase-1 visual shell.
+  const [activeView, setActiveView] = useState<CompanionView>("client");
   const [demoNote, setDemoNote] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeId>("midnight");
   const noteTimer = useRef<number | undefined>(undefined);
@@ -183,6 +188,12 @@ export function PanelApp({
         </button>
       </header>
 
+      {/* Client / Properties navigation — directly below the hamburger, directly
+          above the client identity. Shown only when a client is loaded. */}
+      {isLoaded && <ClientPropertiesNav active={activeView} onChange={setActiveView} />}
+
+      {/* Client identity — the SAME header for both views (Client and Properties),
+          so switching tabs changes only the content below, never the client header. */}
       {isLoaded && <LeadIdentityHeader lead={lead!} onDemo={onDemo} onContact={onContact} />}
 
       {/* Body — stays mounted behind the menu, so scroll + section state persist. */}
@@ -195,29 +206,33 @@ export function PanelApp({
               onConnect={handleConnect}
             />
           ) : isLoaded ? (
-            <LeadPanelBody
-              lead={lead!}
-              nextActions={nextActions}
-              onDemo={onDemo}
-              onContactLead={onContactLead}
-              onBuildList={onBuildList}
-              onCompleteBuildList={onCompleteBuildList}
-              onSendList={onSendList}
-              onSendFollowUp={onSendFollowUp}
-              onScheduleTour={onScheduleTour}
-              onSendGuestCard={onSendGuestCard}
-              onTourFollowUp={onTourFollowUp}
-              onStartApplication={onStartApplication}
-              onCheckApplication={onCheckApplication}
-              onConfirmLease={onConfirmLease}
-              onGetInvoiceDetails={onGetInvoiceDetails}
-              onSendInvoice={onSendInvoice}
-              onConfirmPayment={onConfirmPayment}
-              onSendRebate={onSendRebate}
-              onAddTask={onAddTask}
-              onBackToCrm={onBackToCrm}
-              timeZone={timeZone}
-            />
+            activeView === "client" ? (
+              <LeadPanelBody
+                lead={lead!}
+                nextActions={nextActions}
+                onDemo={onDemo}
+                onContactLead={onContactLead}
+                onBuildList={onBuildList}
+                onCompleteBuildList={onCompleteBuildList}
+                onSendList={onSendList}
+                onSendFollowUp={onSendFollowUp}
+                onScheduleTour={onScheduleTour}
+                onSendGuestCard={onSendGuestCard}
+                onTourFollowUp={onTourFollowUp}
+                onStartApplication={onStartApplication}
+                onCheckApplication={onCheckApplication}
+                onConfirmLease={onConfirmLease}
+                onGetInvoiceDetails={onGetInvoiceDetails}
+                onSendInvoice={onSendInvoice}
+                onConfirmPayment={onConfirmPayment}
+                onSendRebate={onSendRebate}
+                onAddTask={onAddTask}
+                onBackToCrm={onBackToCrm}
+                timeZone={timeZone}
+              />
+            ) : (
+              <PropertiesView />
+            )
           ) : (
             <PanelStateView state={state === "loaded" ? "no-client" : state} onConnect={handleConnect} />
           )}
