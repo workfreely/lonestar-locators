@@ -1,5 +1,6 @@
 import { SectionCard } from "../lead/primitives";
 import type { FavoriteDTO, RecommendationDTO } from "@bc/companion-shared";
+import type { CurrentProperty } from "@/types";
 
 // Properties view — Phase 2A + 2 (Recommendations connection).
 //
@@ -26,15 +27,39 @@ function PropertyRow({ name, sub }: { name: string; sub?: string | null }) {
 export function PropertiesView({
   favorites,
   recommendations,
+  currentProperty,
 }: {
   favorites: FavoriteDTO[];
   recommendations: RecommendationDTO[];
+  currentProperty: CurrentProperty | null;
 }) {
   return (
     <div className="bc-props">
-      {/* Current Property — visual placeholder only (no page detection in this pass). */}
-      <SectionCard title="Current Property" defaultOpen={false}>
-        <p className="bc-props-placeholder">The property you&apos;re viewing will appear here.</p>
+      {/* Current Property — the Smart Apartment Data property currently being viewed
+          (page context, read-only). Thumbnail + name + address. Clears to the
+          placeholder off a property page. No action buttons in this pass. */}
+      <SectionCard title="Current Property" defaultOpen>
+        {currentProperty ? (
+          <div className="bc-current-prop">
+            <div
+              className="bc-current-prop-thumb"
+              style={
+                currentProperty.propertyImageUrl
+                  ? { backgroundImage: `url("${currentProperty.propertyImageUrl}")` }
+                  : undefined
+              }
+              aria-hidden="true"
+            />
+            <div className="bc-current-prop-body">
+              <div className="bc-current-prop-name">{currentProperty.propertyName}</div>
+              {currentProperty.propertyAddress && (
+                <div className="bc-current-prop-addr">{currentProperty.propertyAddress}</div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="bc-props-placeholder">The property you&apos;re viewing will appear here.</p>
+        )}
       </SectionCard>
 
       {/* Recommendations — the active client's canonical lead_recommendations (read-only). */}

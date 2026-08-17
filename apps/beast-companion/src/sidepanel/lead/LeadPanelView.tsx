@@ -101,6 +101,7 @@ export function LeadIdentityHeader({
   lead,
   onDemo,
   onContact,
+  compact = false,
 }: {
   lead: LeadSummaryDTO;
   onDemo: OnDemo;
@@ -108,6 +109,10 @@ export function LeadIdentityHeader({
   // run the canonical first-contact cascade via the CRM. When omitted (fixtures),
   // they fall back to the inert demo note — the visual design is unchanged.
   onContact?: (method: "call" | "text") => void;
+  // Compact mode (Properties tab): show ONLY the client name + stage badge — hide
+  // Archive, phone, and Call/Text to reclaim vertical space. The Client tab keeps
+  // the full header (compact stays false there). Same component, no duplication.
+  compact?: boolean;
 }) {
   // Copy-the-phone affordance — mirrors the CRM lead panel exactly: the Copy
   // control is revealed on hover/focus of the phone row (and always shown on
@@ -154,35 +159,39 @@ export function LeadIdentityHeader({
           </h1>
           <StageBadge stage={lead.stage} />
         </div>
-        {/* Inert during the sanitized presentation phase — no state change, no
-            API, no simulated archive. Live integration will wire this to the
+        {/* Archive — hidden on the compact Properties header. Inert during the
+            sanitized presentation phase; live integration will wire this to the
             SAME authorized archive op the CRM lead card uses. */}
-        <button
-          type="button"
-          className="lp-archive"
-          onClick={() => onDemo("Archive Lead")}
-          aria-label="Archive Lead"
-          title="Archive Lead"
-        >
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden
+        {!compact && (
+          <button
+            type="button"
+            className="lp-archive"
+            onClick={() => onDemo("Archive Lead")}
+            aria-label="Archive Lead"
+            title="Archive Lead"
           >
-            <rect x="2.5" y="3.5" width="19" height="5" rx="1.2" />
-            <path d="M4.5 8.5V19a1.5 1.5 0 001.5 1.5h12a1.5 1.5 0 001.5-1.5V8.5" />
-            <path d="M10 12.5h4" />
-          </svg>
-        </button>
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <rect x="2.5" y="3.5" width="19" height="5" rx="1.2" />
+              <path d="M4.5 8.5V19a1.5 1.5 0 001.5 1.5h12a1.5 1.5 0 001.5-1.5V8.5" />
+              <path d="M10 12.5h4" />
+            </svg>
+          </button>
+        )}
       </div>
 
-      {lead.phone && (
+      {/* Phone + Call/Text — hidden on the compact Properties header (reclaims
+          vertical space). The Client tab keeps them (compact === false). */}
+      {!compact && lead.phone && (
         <div className="lp-phone-row">
           <span className="lp-phone">{phoneDisplay}</span>
           <button
@@ -196,24 +205,26 @@ export function LeadIdentityHeader({
         </div>
       )}
 
-      <div className="lp-comm-row">
-        <Button
-          variant="soft"
-          full
-          onClick={() => (onContact ? onContact("call") : onDemo("Call Client"))}
-          ariaLabel="Call Client"
-        >
-          <span aria-hidden>📞</span> Call Client
-        </Button>
-        <Button
-          variant="soft"
-          full
-          onClick={() => (onContact ? onContact("text") : onDemo("Text Client"))}
-          ariaLabel="Text Client"
-        >
-          <span aria-hidden>💬</span> Text Client
-        </Button>
-      </div>
+      {!compact && (
+        <div className="lp-comm-row">
+          <Button
+            variant="soft"
+            full
+            onClick={() => (onContact ? onContact("call") : onDemo("Call Client"))}
+            ariaLabel="Call Client"
+          >
+            <span aria-hidden>📞</span> Call Client
+          </Button>
+          <Button
+            variant="soft"
+            full
+            onClick={() => (onContact ? onContact("text") : onDemo("Text Client"))}
+            ariaLabel="Text Client"
+          >
+            <span aria-hidden>💬</span> Text Client
+          </Button>
+        </div>
+      )}
     </header>
   );
 }

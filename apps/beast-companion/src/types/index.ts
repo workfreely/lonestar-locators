@@ -23,6 +23,27 @@ export type PageContext = {
   url: string;
 };
 
+/**
+ * The property page the locator is CURRENTLY viewing (Smart Apartment Data
+ * detail page). This is page context, NOT a saved Favorite/Recommendation and NOT
+ * tied to the active client — it follows the webpage, not the CRM selection. Never
+ * persisted to Supabase. `propertyId` is SAD's stable `propertyID` (primary
+ * identity); `name`/`address` are read-only from the detail page.
+ */
+export type CurrentProperty = {
+  /** Smart Apartment Data's stable propertyID (external property identity). */
+  propertyId: string;
+  /** Field names deliberately mirror FavoriteDTO/RecommendationDTO so a detected
+   *  Current Property is directly compatible when it later becomes a saved
+   *  Recommendation/Favorite (no remapping). Name/id/url are the primary identity;
+   *  address/image are supplemental and may be null without failing detection. */
+  propertyName: string;
+  propertyAddress?: string | null;
+  /** The actual SAD ViewProperty.aspx?propertyID=... URL. */
+  propertyUrl: string;
+  propertyImageUrl?: string | null;
+};
+
 /** Content → Background: open the global native side panel for the sender's window. */
 export type OpenPanelMessage = { type: "OPEN_PANEL" };
 

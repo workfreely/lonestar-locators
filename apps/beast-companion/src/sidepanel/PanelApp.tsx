@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO, RecommendationDTO, ThemeId } from "@bc/companion-shared";
+import type { CurrentProperty } from "@/types";
 import { LeadIdentityHeader, LeadPanelBody } from "./lead/LeadPanelView";
 import { PanelStateView, type PanelState } from "./lead/PanelStates";
 import { ClientPropertiesNav, type CompanionView } from "./ClientPropertiesNav";
@@ -34,6 +35,7 @@ export function PanelApp({
   nextActions = [],
   favorites = [],
   recommendations = [],
+  currentProperty = null,
   connection = DISCONNECTED,
   onConnect,
   onDisconnect,
@@ -66,6 +68,10 @@ export function PanelApp({
   // THIS active client's canonical Recommended Properties (lead_recommendations),
   // in the active-client payload. Read-only; rendered in the Properties view.
   recommendations?: RecommendationDTO[];
+  // The Smart Apartment Data property currently being viewed (page context, from a
+  // separate storage key). Independent of the active client. Null when not on a
+  // property-detail page. Read-only display in the Properties view.
+  currentProperty?: CurrentProperty | null;
   // Connection is derived from the SW's authenticated state. Production defaults
   // to DISCONNECTED — the panel is authenticated ONLY when this is "connected".
   connection?: CompanionConnection;
@@ -200,9 +206,16 @@ export function PanelApp({
           above the client identity. Shown only when a client is loaded. */}
       {isLoaded && <ClientPropertiesNav active={activeView} onChange={setActiveView} />}
 
-      {/* Client identity — the SAME header for both views (Client and Properties),
-          so switching tabs changes only the content below, never the client header. */}
-      {isLoaded && <LeadIdentityHeader lead={lead!} onDemo={onDemo} onContact={onContact} />}
+      {/* Client identity — the SAME header for both views; on Properties it renders
+          COMPACT (name + stage only) to reclaim vertical space. Client tab is full. */}
+      {isLoaded && (
+        <LeadIdentityHeader
+          lead={lead!}
+          onDemo={onDemo}
+          onContact={onContact}
+          compact={activeView === "properties"}
+        />
+      )}
 
       {/* Body — stays mounted behind the menu, so scroll + section state persist. */}
       <div className="bc-below">
@@ -239,7 +252,7 @@ export function PanelApp({
                 timeZone={timeZone}
               />
             ) : (
-              <PropertiesView favorites={favorites} recommendations={recommendations} />
+              <PropertiesView favorites={favorites} recommendations={recommendations} currentProperty={currentProperty} />
             )
           ) : (
             <PanelStateView state={state === "loaded" ? "no-client" : state} onConnect={handleConnect} />

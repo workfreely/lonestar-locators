@@ -6,6 +6,7 @@ import { startActiveClientBridge } from "./activeClientBridge";
 import { startWorkflowVerbBridge } from "./workflowVerbBridge";
 import { startCommLaunchBridge } from "./commLaunchBridge";
 import { startCardOpenBridge } from "./cardOpenBridge";
+import { startCurrentPropertyBridge, syncCurrentProperty } from "./currentPropertyBridge";
 import { log, logError } from "@/utils/log";
 import type { PanelSide } from "@/types";
 
@@ -68,6 +69,9 @@ function startContextWatcher(): void {
     lastUrl = location.href;
     log("navigation detected →", lastUrl);
     reportContext();
+    // Re-detect the Smart Apartment Data property on every navigation (open A → B,
+    // property → results, etc.) — reuses this one watcher, no extra polling.
+    syncCurrentProperty();
   };
   window.addEventListener("popstate", check);
   window.addEventListener("hashchange", check);
@@ -117,6 +121,11 @@ function init(): void {
     // side panel, still inside the click gesture. Self-gated to CRM pages; distinct
     // from the passive active-client sync above.
     startCardOpenBridge();
+
+    // Current Property bridge — detects the Smart Apartment Data property-detail
+    // page (URL propertyID primary) and relays it into chrome.storage for the
+    // panel. Self-gated: writes null on any non-property page. Never persisted.
+    startCurrentPropertyBridge();
 
     log("ready — launcher docked; click opens the native side panel (native X closes)");
   } catch (err) {

@@ -550,3 +550,42 @@
   font-size: 11.5px;
   color: var(--lb-text-secondary);
 }
+
+/* Current Property card — compact thumbnail + name + address. The thumbnail uses
+   a background-image so a missing/broken URL simply shows the building-placeholder
+   surface, never a broken-image icon. */
+.bc-current-prop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.bc-current-prop-thumb {
+  flex: none;
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
+  border: 1px solid var(--lb-border);
+  background-color: var(--lb-surface-elevated);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.bc-current-prop-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.bc-current-prop-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--lb-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bc-current-prop-addr {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--lb-text-secondary);
+}

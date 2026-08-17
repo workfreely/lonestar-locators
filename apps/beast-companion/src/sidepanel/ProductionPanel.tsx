@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO, RecommendationDTO } from "@bc/companion-shared";
+import type { CurrentProperty } from "@/types";
 import { formatPersonName, buildIntroSmsBody, buildFollowUpSmsBody, isFollowUpAction, formatWorkflowActionLabel, DEFAULT_TIME_VALUE } from "@bc/companion-shared";
 import { PanelApp } from "./PanelApp";
 import { TourTimeField } from "./lead/TourTimeField";
@@ -41,15 +42,26 @@ type ActiveClientPayload = {
 };
 
 const ACTIVE_CLIENT_KEY = "lb-active-client";
+// Separate from the active client on purpose: Current Property follows the webpage
+// the locator is viewing (Smart Apartment Data), NOT the selected CRM client.
+const CURRENT_PROPERTY_KEY = "lb-current-property";
 
 function isActivePayload(v: unknown): v is ActiveClientPayload {
   const p = v as ActiveClientPayload | null | undefined;
   return !!p && !!p.lead && p.lead.id !== undefined && p.lead.id !== null;
 }
 
+function isCurrentProperty(v: unknown): v is CurrentProperty {
+  const p = v as CurrentProperty | null | undefined;
+  return !!p && typeof p.propertyId === "string" && typeof p.propertyName === "string" && p.propertyName.length > 0;
+}
+
 export function ProductionPanel() {
   const [connection, setConnection] = useState<CompanionConnection>(DISCONNECTED);
   const [active, setActive] = useState<ActiveClientPayload | null>(null);
+  // The Smart Apartment Data property currently being viewed (page context, not a
+  // saved collection). Independent of `active` so switching clients never clears it.
+  const [currentProperty, setCurrentProperty] = useState<CurrentProperty | null>(null);
   // Pending contact confirmation ("Were you able to contact …?"). Null = hidden.
   // Immutable pending-contact context — captured when contact is INITIATED and
   // resolved against THIS captured identity, never the live active client (Bug 2).
@@ -137,18 +149,27 @@ export function ProductionPanel() {
     if (!store) return;
 
     try {
-      store.get(ACTIVE_CLIENT_KEY, (res: Record<string, unknown>) => {
+      store.get([ACTIVE_CLIENT_KEY, CURRENT_PROPERTY_KEY], (res: Record<string, unknown>) => {
         const p = res?.[ACTIVE_CLIENT_KEY];
         setActive(isActivePayload(p) ? p : null);
+        const cp = res?.[CURRENT_PROPERTY_KEY];
+        setCurrentProperty(isCurrentProperty(cp) ? cp : null);
       });
     } catch {
       /* storage unavailable — no active client */
     }
 
     const onChanged = (changes: Record<string, { newValue?: unknown }>, area: string) => {
-      if (area !== "local" || !changes[ACTIVE_CLIENT_KEY]) return;
-      const next = changes[ACTIVE_CLIENT_KEY].newValue;
-      setActive(isActivePayload(next) ? next : null);
+      if (area !== "local") return;
+      if (changes[ACTIVE_CLIENT_KEY]) {
+        const next = changes[ACTIVE_CLIENT_KEY].newValue;
+        setActive(isActivePayload(next) ? next : null);
+      }
+      // Current Property updates independently of the active client (page context).
+      if (changes[CURRENT_PROPERTY_KEY]) {
+        const nextCp = changes[CURRENT_PROPERTY_KEY].newValue;
+        setCurrentProperty(isCurrentProperty(nextCp) ? nextCp : null);
+      }
     };
     const sc = (globalThis as unknown as { chrome?: any }).chrome?.storage?.onChanged;
     sc?.addListener(onChanged);
@@ -771,6 +792,7 @@ export function ProductionPanel() {
         nextActions={active?.nextActions ?? []}
         favorites={active?.favorites ?? []}
         recommendations={active?.recommendations ?? []}
+        currentProperty={currentProperty}
         onConnect={onConnect}
         onDisconnect={onDisconnect}
         onContact={onContact}
