@@ -17,7 +17,7 @@ import { useBeastMilestones } from "@/lib/beastMilestones/useBeastMilestones"
 import { emitWorkflowActionCreated, type WorkflowToastAction } from "@/lib/workflowToast"
 import { readAgendaExpanded, writeAgendaExpanded, DEFAULT_AGENDA_EXPANDED, readDemoBannerDismissed, writeDemoBannerDismissed } from "@/lib/preferences"
 import { exitDemoWorkspace } from "@/lib/demo/exitDemo"
-import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
+import { isDemoLeadId, getDemoBrief } from "@/lib/demo/demoWorkspace"
 import FirstRunChecklist from "./FirstRunChecklist"
 import AppHeader from "./AppHeader"
 import { CRM_PRIMARY_BUTTON, CRM_SECONDARY_BUTTON } from "@/lib/crmButtonStyles"
@@ -157,6 +157,12 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // pattern as localFavorites. Written by the Companion "+ Recommendation" verb
   // (Phase 2C); the CRM has no refetch path, so we advance this optimistically.
   const [localRecommendations, setLocalRecommendations] = useState(recommendations)
+  // AI Client Insights for the active lead, cached per lead id — the ≤4 bullets
+  // from ai_client_briefs (real) or getDemoBrief (demo). Read-only; fetched lazily
+  // when a client is selected and passed to buildActiveClientPayload so Companion's
+  // Location Fit can read the client's current (conversation-derived) context. Never
+  // generated here. Keyed by lead id; "" fetch = [] so we don't refetch endlessly.
+  const [insightsByLead, setInsightsByLead] = useState<Record<string, string[]>>({})
   // Canonical lead_tours appointments (read-only in the Workspace). Seeded from
   // the server and appended optimistically on "Yes, Scheduled" so the Favorite's
   // "Tour Scheduled" line appears without a manual refresh (same optimistic-state
@@ -236,6 +242,41 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     (l) => String(l.id) === String(selectedLeadId)
   )
 
+  // ── AI Client Insights fetch for the active lead (read-only, Location Fit) ──
+  // On selection, load the lead's ai_client_briefs.insights ONCE (demo clients use
+  // the in-memory getDemoBrief; real leads query the brief row). Cached by lead id
+  // in insightsByLead; a lead with no brief caches [] so we never refetch it. This
+  // reuses the EXISTING batch-generated insights — it never triggers generation.
+  const insightsByLeadRef = useRef(insightsByLead)
+  useEffect(() => { insightsByLeadRef.current = insightsByLead }, [insightsByLead])
+  const insightsFor = (leadId: string | number): string[] =>
+    insightsByLeadRef.current[String(leadId)] ?? []
+  useEffect(() => {
+    if (!selectedLead) return
+    const id = String(selectedLead.id)
+    if (id in insightsByLeadRef.current) return // already fetched (or known-empty)
+    let cancelled = false
+    const commit = (list: string[]) => {
+      if (cancelled) return
+      setInsightsByLead((prev) => (id in prev ? prev : { ...prev, [id]: list }))
+    }
+    if (isDemoLeadId(selectedLead.id)) {
+      const brief = getDemoBrief(selectedLead.id)
+      commit(Array.isArray(brief?.insights) ? brief!.insights : [])
+      return
+    }
+    supabase
+      .from("ai_client_briefs")
+      .select("insights")
+      .eq("lead_id", selectedLead.id)
+      .maybeSingle()
+      .then(
+        ({ data }) => commit(Array.isArray(data?.insights) ? (data!.insights as string[]) : []),
+        () => commit([]), // brief fetch is best-effort; absence just means no insights
+      )
+    return () => { cancelled = true }
+  }, [selectedLead])
+
   // ── Beast Companion: active-client broadcast (Phase 2, read-only) ──────────
   // When a client is selected (Kanban/Agenda → workspace), push a read-only DTO
   // to the Companion through the local content-script bridge (window.postMessage
@@ -247,7 +288,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     if (!selectedLead) return
     if (typeof window === "undefined") return
     try {
-      const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites, localTours, localRecommendations)
+      const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites, localTours, localRecommendations, insightsFor(selectedLead.id))
       companionLeadIdRef.current = selectedLead.id // this lead is now what Companion shows
       window.postMessage(
         { source: COMPANION_MSG_SOURCE, type: "active-client", payload },
@@ -256,7 +297,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     } catch {
       /* bridge is best-effort; never block the CRM on a Companion push */
     }
-  }, [selectedLead, localNextActions, agent?.name, latestOutreach, localFavorites, localTours, localRecommendations])
+  }, [selectedLead, localNextActions, agent?.name, latestOutreach, localFavorites, localTours, localRecommendations, insightsByLead])
 
   // ── Beast Companion → CRM workflow verbs (Phase 3, Slice A: Contact) ────────
   // Refs so the once-registered verb listener always sees current CRM state
@@ -297,7 +338,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     if (typeof window === "undefined" || !lead) return
     if (String(lead.id) !== String(companionLeadIdRef.current)) return
     try {
-      const payload = buildActiveClientPayload(lead, nextActionsForLead, agent?.name, outreachFor(lead.id), timeZone, localFavoritesRef.current, localToursRef.current, localRecommendationsRef.current)
+      const payload = buildActiveClientPayload(lead, nextActionsForLead, agent?.name, outreachFor(lead.id), timeZone, localFavoritesRef.current, localToursRef.current, localRecommendationsRef.current, insightsFor(lead.id))
       window.postMessage(
         { source: COMPANION_MSG_SOURCE, type: "active-client", payload },
         window.location.origin

@@ -29,6 +29,16 @@
       ],
       "js": ["content.js"],
       "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://app.smartapartmentdata.com/*",
+        "https://smartapartmentdata.com/*",
+        "https://*.smartapartmentdata.com/*"
+      ],
+      "js": ["sadNavMain.js"],
+      "run_at": "document_idle",
+      "world": "MAIN"
     }
   ],
   "permissions": ["sidePanel", "storage"]

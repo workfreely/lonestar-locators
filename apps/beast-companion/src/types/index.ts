@@ -39,6 +39,21 @@ export type CurrentProperty = {
    *  address/image are supplemental and may be null without failing detection. */
   propertyName: string;
   propertyAddress?: string | null;
+  /** SAD submarket (neighborhood/area label) from the property header — the most
+   *  reliable structured location signal on the detail page. Supplemental; null
+   *  when absent. Used by Location Fit alongside the address. */
+  propertySubmarket?: string | null;
+  /** Management company from the SAD detail page — read-only evidence for Approval
+   *  intelligence. Supplemental; null when absent. Never a guarantee of approval. */
+  propertyManagement?: string | null;
+  /** Verified property EMAILS from the SAD detail page — OPERATIONAL data (not
+   *  intelligence): retained at capture so later workflows can prefill the Guest
+   *  Card and Invoice recipients without the agent returning to SAD to copy them.
+   *  SAD may supply MULTIPLE addresses and we retain ALL of them (never rank, select
+   *  a primary, or discard) — one may be stale and we can't know which is current.
+   *  `[]` when none/unavailable; never guessed/fabricated. Supplemental (never blocks
+   *  detection). No invoice/guest-card automation is built on it yet. */
+  propertyEmails?: string[];
   /** The actual SAD ViewProperty.aspx?propertyID=... URL. */
   propertyUrl: string;
   propertyImageUrl?: string | null;

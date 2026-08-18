@@ -1,7 +1,48 @@
+import { useMemo } from "react";
 import { SectionCard } from "../lead/primitives";
 import { PropertyThumb } from "./PropertyThumb";
-import type { FavoriteDTO, RecommendationDTO } from "@bc/companion-shared";
+import { resolveClientContext, evaluateLocationFit, evaluateApproval } from "@bc/companion-shared";
+import type { FavoriteDTO, RecommendationDTO, LeadSummaryDTO } from "@bc/companion-shared";
 import type { CurrentProperty } from "@/types";
+
+// Current Property Intelligence (V1) — the four compact rows shown ONLY under the
+// Current Property (never on Recommendations/Favorites). Each is ONE line:
+//   Category: [lead] · [fact] · [fact]   (≤3 pieces after the label; 3 is a MAX)
+// The lead word carries the colored state; facts are terse fragments. Deterministic
+// — no %, no Maps, no AI call. Location + Approval populate in V1; Amenities and
+// Specials have no reliable evidence yet, so their rows self-hide (no noisy filler).
+type IntelTone = "good" | "bad" | "unknown" | "moderate" | "none";
+
+function IntelRow({
+  category,
+  lead,
+  tone = "none",
+  facts = [],
+}: {
+  category: string;
+  lead?: string | null;
+  tone?: IntelTone;
+  facts?: (string | null | undefined)[];
+}) {
+  const clean = facts.filter((f): f is string => !!f);
+  if (!lead && clean.length === 0) return null; // no reliable data → render nothing
+  return (
+    <div className="bc-intel-row">
+      <span className="bc-intel-cat">{category}:</span>
+      {lead ? <span className={`bc-intel-lead tone-${tone}`}>{lead}</span> : null}
+      {clean.map((f, i) => (
+        <span key={i} className="bc-intel-fact"> · {f}</span>
+      ))}
+    </div>
+  );
+}
+
+// Approval risk → row tone. Low = reassuring (good), Moderate = amber, High =
+// alarming (bad), Unverified = muted. V1 never produces High, but the mapping is
+// complete so the row is correct if/when stricter evidence lands.
+function approvalTone(risk: "Low" | "Moderate" | "High" | "Unverified"): IntelTone {
+  return risk === "Low" ? "good" : risk === "Moderate" ? "moderate" : risk === "High" ? "bad" : "unknown";
+}
 
 // The property name — a link opening the property in a normal browser tab when a
 // canonical propertyUrl exists (SAD ViewProperty URL for detected properties), or
@@ -40,12 +81,16 @@ function PropertyRow({ name, sub, url }: { name: string; sub?: string | null; ur
 }
 
 export function PropertiesView({
+  lead,
   favorites,
   recommendations,
   currentProperty,
   onAddRecommendation,
   onAddFavorite,
 }: {
+  // The active client — its location context (searchCriteria + Locator Notes + AI
+  // Insights) is the ONLY input to Location Fit besides the viewed property.
+  lead: LeadSummaryDTO;
   favorites: FavoriteDTO[];
   recommendations: RecommendationDTO[];
   currentProperty: CurrentProperty | null;
@@ -60,6 +105,28 @@ export function PropertiesView({
   const isRecommended = !!cpUrl && recommendations.some((r) => (r.propertyUrl ?? "") === cpUrl);
   const isFavorited = !!cpUrl && favorites.some((f) => (f.propertyUrl ?? "") === cpUrl);
 
+  // Current Client Context (V1, Option A) — resolved ONCE from the active client
+  // (Smart Form baseline + Locator Notes/AI Insights override layer) and reused by
+  // every property-intelligence evaluator, rather than re-reading the client per row.
+  const ctx = useMemo(
+    () =>
+      resolveClientContext({
+        city: lead.searchCriteria?.city,
+        desiredAreas: lead.searchCriteria?.desiredAreas,
+        interest: lead.searchCriteria?.interest,
+        clientNotes: lead.clientNotes,
+        locatorNotes: lead.locatorNotes,
+        aiInsights: lead.aiInsights,
+      }),
+    [lead.searchCriteria?.city, lead.searchCriteria?.desiredAreas, lead.searchCriteria?.interest, lead.clientNotes, lead.locatorNotes, lead.aiInsights],
+  );
+
+  // Deterministic, read-only intelligence for the property currently on screen.
+  // Location: client context vs submarket/name/address. Approval: SAD management vs
+  // the locator-supplied intelligence table. Both recomputed cheaply per render.
+  const location = currentProperty ? evaluateLocationFit(ctx, currentProperty) : null;
+  const approval = currentProperty ? evaluateApproval(currentProperty) : null;
+
   return (
     <div className="bc-props">
       {/* Current Property — the Smart Apartment Data property currently being viewed
@@ -68,8 +135,11 @@ export function PropertiesView({
       <SectionCard title="Current Property" defaultOpen>
         {currentProperty ? (
           <>
+            {/* Identity block — thumbnail aligned to the property NAME, address
+                immediately below. The intelligence rows sit outside this block so
+                the thumbnail never centers against the whole analysis area. */}
             <div className="bc-current-prop">
-              <PropertyThumb src={currentProperty.propertyImageUrl} alt={currentProperty.propertyName} size={46} />
+              <PropertyThumb src={currentProperty.propertyImageUrl} alt={currentProperty.propertyName} size={40} />
               <div className="bc-current-prop-body">
                 <PropertyName
                   name={currentProperty.propertyName}
@@ -80,6 +150,21 @@ export function PropertiesView({
                   <div className="bc-current-prop-addr">{currentProperty.propertyAddress}</div>
                 )}
               </div>
+            </div>
+
+            {/* Beast intelligence — four compact rows (~7px below the address). Only
+                rows with reliable evidence render; Amenities/Specials are wired but
+                self-hide in V1 until their SAD evidence lands. */}
+            <div className="bc-cp-intel">
+              {location && (
+                <IntelRow category="Location" lead={location.fit} tone={location.verdict} facts={[location.detail]} />
+              )}
+              {approval && (
+                <IntelRow category="Approval" lead={approval.risk} tone={approvalTone(approval.risk)} facts={[approval.mgmt, approval.reason]} />
+              )}
+              {/* Amenities / Specials — no reliable evidence yet → render nothing. */}
+              <IntelRow category="Amenities" facts={[]} />
+              <IntelRow category="Specials" facts={[]} />
             </div>
             <div className="bc-current-prop-actions">
               <button

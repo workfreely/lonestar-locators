@@ -259,6 +259,7 @@ export function PanelApp({
               />
             ) : (
               <PropertiesView
+                lead={lead!}
                 favorites={favorites}
                 recommendations={recommendations}
                 currentProperty={currentProperty}

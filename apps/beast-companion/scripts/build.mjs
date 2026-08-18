@@ -79,6 +79,9 @@ cpSync("public/icons", "dist/icons", { recursive: true });
 
 await buildSidePanel();
 await bundleIife("src/content/index.ts", "content.js");
+// MAIN-world shim (SAD only) — hooks ASP.NET AJAX PageRequestManager endRequest so
+// the isolated content script is notified when a SAD Prev/Next async postback lands.
+await bundleIife("src/content/sadNavMain.ts", "sadNavMain.js");
 await bundleIife("src/background/index.ts", "background.js");
 
 if (!watch) {

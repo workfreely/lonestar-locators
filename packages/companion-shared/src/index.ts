@@ -160,6 +160,19 @@ export {
   formatLastActionLabel,
 } from "./labels/workflowActions";
 
+// Current Client Context — the single resolved client-requirements projection every
+// property-intelligence evaluator consumes (resolved once per client, reused per property)
+export { resolveClientContext } from "./clientContext";
+export type { ClientContext, ClientContextInput } from "./clientContext";
+
+// Location Fit V1 — conservative, deterministic property-vs-client location match
+export { evaluateLocationFit } from "./locationFit";
+export type { LocationFitVerdict, LocationFit, LocationFitResult, PropertyLocation } from "./locationFit";
+
+// Approval V1 — management-intelligence risk (Low/Moderate/High/Unverified), evidence-only
+export { evaluateApproval } from "./approval";
+export type { ApprovalRisk, ApprovalResult } from "./approval";
+
 // Theme registry (all CRM themes, semantic tokens, safe Midnight fallback)
 export {
   THEME_IDS,

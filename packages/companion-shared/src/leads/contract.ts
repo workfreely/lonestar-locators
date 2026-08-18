@@ -159,6 +159,18 @@ export const leadSummarySchema = z.object({
    * NOT a new field, and NOT the editable Locator Notes (`leads.locator_notes`).
    */
   clientNotes: z.string().nullish(),
+  /**
+   * Locator Notes — the AGENT-entered notes (`leads.locator_notes`), read-only.
+   * May contain newer agent-confirmed location requirements. Added so Location Fit
+   * can consider current agent context, not just the original form.
+   */
+  locatorNotes: z.string().nullish(),
+  /**
+   * AI Client Insights — the ≤4 short bullets from `ai_client_briefs.insights`,
+   * read-only. Already derived from synced client conversations, so they may carry
+   * newer location context. Never generated here — only surfaced for Location Fit.
+   */
+  aiInsights: z.array(z.string()).nullish(),
 });
 export type LeadSummaryDTO = z.infer<typeof leadSummarySchema>;
 

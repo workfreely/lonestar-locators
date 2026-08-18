@@ -22,6 +22,17 @@ ok(parseSadPropertyId("https://smartapartmentdata.com/Restricted/Locator/ViewPro
 ok(parseSadPropertyId("https://app.smartapartmentdata.com/restricted/locator/viewproperty.aspx?propertyid=678") === "678", "case-insensitive path + param → '678'")
 ok(parseSadPropertyId("https://app.smartapartmentdata.com/Restricted/Locator/ViewProperty.aspx?foo=bar&propertyID=42&x=y") === "42", "propertyID extracted among other params")
 
+// Slash normalization — SAD's own Previous/Next can navigate to a repeated leading
+// slash (…com//Restricted/…). The valid ViewProperty path must still resolve; the
+// normalization must NOT loosen the parser to any other path.
+ok(parseSadPropertyId("https://app.smartapartmentdata.com/Restricted/Locator/ViewProperty.aspx?propertyID=123") === "123", "single slash → valid ('123')")
+ok(parseSadPropertyId("https://app.smartapartmentdata.com//Restricted/Locator/ViewProperty.aspx?propertyID=81261") === "81261", "double slash (SAD Next/Prev) → valid ('81261')")
+ok(parseSadPropertyId("https://app.smartapartmentdata.com///Restricted/Locator/ViewProperty.aspx?propertyID=7") === "7", "triple leading slash → valid ('7')")
+ok(parseSadPropertyId("https://app.smartapartmentdata.com/Restricted//Locator/ViewProperty.aspx?propertyID=55") === "55", "repeated internal slash → valid ('55')")
+ok(parseSadPropertyId("https://app.smartapartmentdata.com//Restricted/Locator/Results.aspx?propertyID=1") === null, "double slash but WRONG path → still null")
+ok(parseSadPropertyId("https://app.smartapartmentdata.com//Restricted/Locator/ViewProperty.aspx") === null, "double slash, no propertyID → still null")
+ok(parseSadPropertyId("https://app.smartapartmentdata.com//Restricted/Locator/ViewProperty.aspx?propertyID=") === null, "double slash, blank propertyID → still null")
+
 // ── Non-property pages → null (Current Property clears) ──
 ok(parseSadPropertyId("https://app.smartapartmentdata.com/Restricted/Results.aspx") === null, "results page → null (clear)")
 ok(parseSadPropertyId("https://app.smartapartmentdata.com/Restricted/Results.aspx?searchId=7") === null, "results with params → null")

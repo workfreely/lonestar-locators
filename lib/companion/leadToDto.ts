@@ -181,6 +181,10 @@ export function buildActiveClientPayload(
   // THIS lead's canonical Recommended Properties (lead_recommendations rows).
   // Read-only; mapped to RecommendationDTO and filtered to this lead below.
   recommendations: any[] = [],
+  // THIS lead's AI Client Insights — the ≤4 short bullets already derived from
+  // synced conversations (ai_client_briefs.insights). Read-only, passed in by the
+  // caller (never generated here). Surfaced for Location Fit's current-context read.
+  aiInsights: string[] = [],
 ): CompanionActiveClientPayload {
   const crmStatus = str(lead.crm_status) ?? "new"
   const historyLower = String(lead.credit_history || "").toLowerCase()
@@ -270,6 +274,11 @@ export function buildActiveClientPayload(
     // Read-only invoice/commission summary (Closed leads with collected data).
     invoice: buildInvoiceSummary(lead),
     clientNotes: str(lead.notes),
+    // Agent-entered Locator Notes (may hold newer confirmed location needs) and the
+    // pre-derived AI Client Insights — both read-only, both consumed ONLY by
+    // Location Fit. Insights are sanitized to non-empty strings; empty → omitted.
+    locatorNotes: str(lead.locator_notes),
+    aiInsights: (aiInsights || []).map((s) => str(s)).filter((s): s is string => !!s),
   }
 
   // Real open next-action rows for this lead. The canonical Follow Up created by a

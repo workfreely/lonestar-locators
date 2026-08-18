@@ -556,7 +556,7 @@
    surface, never a broken-image icon. */
 .bc-current-prop {
   display: flex;
-  align-items: center;
+  align-items: flex-start; /* thumbnail top-aligns with the property NAME */
   gap: 10px;
 }
 /* Shared property thumbnail (Current Property; reusable for rec/fav rows). Image
@@ -608,6 +608,40 @@
   line-height: 1.35;
   color: var(--lb-text-secondary);
 }
+
+/* Current Property Intelligence (V1) — up to four compact rows under the identity
+   block ("Location: Good · East Austin"). The category label is muted; the lead
+   word carries the colored state; facts are terse. One line per row; only rows with
+   reliable evidence render. ~7px of air separates the block from the address — the
+   sole visual break (no extra card / divider / heading). */
+.bc-cp-intel {
+  margin-top: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.bc-intel-row {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--lb-text-secondary);
+}
+.bc-intel-cat {
+  font-weight: 600;
+  color: var(--lb-text-secondary);
+  margin-right: 4px;
+}
+.bc-intel-lead {
+  font-weight: 700;
+  color: var(--lb-text-primary);
+}
+.bc-intel-fact {
+  color: var(--lb-text-secondary);
+}
+.bc-intel-lead.tone-good { color: var(--lb-success, #10b981); }
+.bc-intel-lead.tone-bad { color: var(--lb-danger, #ef4444); }
+.bc-intel-lead.tone-moderate { color: var(--lb-warning, #f59e0b); }
+.bc-intel-lead.tone-unknown { color: var(--lb-text-secondary); }
+.bc-intel-lead.tone-none { color: var(--lb-text-primary); }
 
 /* Compact add-to-collection actions under the Current Property. */
 .bc-current-prop-actions {
