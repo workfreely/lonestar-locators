@@ -527,11 +527,14 @@
   display: flex;
   flex-direction: column;
 }
+/* Recommendations / Favorite Properties rows — SAME hierarchy as Current Property:
+   full property name on line 1 (primary/clickable), full address muted directly
+   underneath. Stacked (not name-vs-address on one line) so the name is never
+   truncated to "Alta C…"; address uses the same legible sizing as Current Property. */
 .bc-prop-row {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
+  flex-direction: column;
+  gap: 1px;
   padding: 7px 0;
   border-top: 1px solid var(--lb-border);
 }
@@ -541,13 +544,10 @@
   font-weight: 600;
   color: var(--lb-text-primary);
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .bc-prop-sub {
-  flex: none;
   font-size: 11.5px;
+  line-height: 1.35;
   color: var(--lb-text-secondary);
 }
 

@@ -21,7 +21,7 @@ export function parseSadPropertyId(href: string): string | null {
     // (…com//Restricted/Locator/ViewProperty.aspx), so the raw pathname is
     // "//Restricted/…". Collapse any run of slashes to one before the exact match —
     // this accepts the valid ViewProperty path regardless of slash duplication WITHOUT
-    // loosening it to any other path.
+    // loosening it to any other path. (Confirmed live fix.)
     const path = url.pathname.replace(/\/{2,}/g, "/").toLowerCase();
     if (path !== PROPERTY_PATH) return null;
     const id = url.searchParams.get("propertyID") ?? url.searchParams.get("propertyid");
@@ -30,30 +30,6 @@ export function parseSadPropertyId(href: string): string | null {
   } catch {
     return null;
   }
-}
-
-/**
- * Numeric property id from a Telerik RadNumericTextBox ClientState hidden input's
- * `value` (JSON) — specifically the SAD NavigationPlaceHolder propertyIDSearch
- * ClientState, e.g. `{…,"validationText":"849748","valueAsString":"849748",…}`. This
- * is the FRESH current-property id after a SAD internal Previous/Next async postback,
- * when `location.href` (and the form action) are stale. Preferred field is
- * `valueAsString`. Parsed as DATA only (never executed); returns null on absent /
- * malformed / non-numeric — never fabricates an id.
- */
-export function parseClientStatePropertyId(clientStateValue: string | null | undefined): string | null {
-  const raw = (clientStateValue ?? "").trim();
-  if (!raw) return null;
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return null;
-  }
-  if (!parsed || typeof parsed !== "object") return null;
-  const value = (parsed as Record<string, unknown>).valueAsString;
-  const id = typeof value === "string" ? value.trim() : typeof value === "number" ? String(value) : "";
-  return /^\d+$/.test(id) ? id : null;
 }
 
 /** Drop a trailing "· Smart Apartment Data" style site suffix from a page title. */

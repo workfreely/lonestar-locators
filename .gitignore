@@ -49,3 +49,6 @@ pnpm-debug.log*
 # Local Supabase env backups (may contain secrets) — never commit
 .env.local.*
 .env.*.bak
+
+# Local session recovery snapshots (never deploy/commit)
+.snapshots/

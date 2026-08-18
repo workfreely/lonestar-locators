@@ -1,6 +1,6 @@
 import type { CurrentProperty } from "@/types";
 import { log } from "@/utils/log";
-import { isSmartApartmentDataHost, parseSadPropertyId, parseClientStatePropertyId, stripSiteSuffix, looksLikeAddress } from "./sadUrl";
+import { isSmartApartmentDataHost, parseSadPropertyId, stripSiteSuffix, looksLikeAddress } from "./sadUrl";
 import { parseCopyEmails } from "./sadEmail";
 
 /**
@@ -12,6 +12,11 @@ import { parseCopyEmails } from "./sadEmail";
  * never rely on visible text to decide WHICH property is open. Name/address are
  * read read-only from the detail DOM via a resilient cascade (never fabricated).
  *
+ * SAD's own Previous/Next changes the URL (sometimes to a `//Restricted/…` double-
+ * slash form); the existing content-script URL watcher fires on that change and
+ * parseSadPropertyId() slash-normalizes before matching, so navigation is handled by
+ * the simple known-good path — no MutationObserver / MAIN-world hook needed.
+ *
  * It writes chrome.storage.local["lb-current-property"] — a SEPARATE key from
  * "lb-active-client", so Current Property follows the webpage being viewed, not
  * the active CRM client. On any non-property page (results/search/other) it writes
@@ -21,50 +26,10 @@ import { parseCopyEmails } from "./sadEmail";
 
 const STORAGE_KEY = "lb-current-property";
 
-/** SAD property identity from the CURRENT URL, or null when not on a property-detail
- *  page. On a full navigation this is authoritative; after a SAD internal Prev/Next
- *  async postback the URL is STALE (see resolveCurrentPropertyId). */
+/** SAD property identity from the CURRENT URL (primary signal), or null when not
+ *  on a property-detail page. Independent of any visible text. */
 function detectPropertyIdFromUrl(): string | null {
   return parseSadPropertyId(location.href);
-}
-
-// The confirmed live SAD element carrying the CURRENTLY displayed property's numeric
-// id — the Telerik "search by property id" ClientState hidden input under the async-
-// updated NavigationPlaceHolder. It re-renders with the property on Prev/Next, so it
-// is the FRESH id when the URL is stale. Read the JSON `value` (never the visible
-// "Listing #" label).
-const CLIENT_STATE_SELECTOR = "#ctl00_NavigationPlaceHolder_propertyIDSearch_ClientState";
-
-/** Fresh current-property id from the NavigationPlaceHolder ClientState, or null when
- *  absent/malformed/non-numeric (never fabricated). */
-function detectPropertyIdFromClientState(): string | null {
-  const el = document.querySelector<HTMLInputElement>(CLIENT_STATE_SELECTOR);
-  return parseClientStatePropertyId(el?.value ?? el?.getAttribute("value"));
-}
-
-/**
- * Resolve the id of the property CURRENTLY displayed, handling both contexts:
- *   • normal/full navigation — the URL propertyID is valid and authoritative.
- *   • SAD internal Prev/Next — the URL is stale (async postback), so the freshly
- *     re-rendered ClientState id is authoritative; prefer it.
- * The URL still gates "is this a ViewProperty page at all" (its PATH stays a
- * ViewProperty path even when its id is stale), so a results/search page → null →
- * Current Property clears. `fromClientState` is true only when the ClientState id
- * DIFFERS from the URL id (the post-swap case), so the canonical URL is rebuilt only
- * then and normal-load behavior is byte-identical.
- */
-function resolveCurrentPropertyId(): { id: string | null; fromClientState: boolean } {
-  const urlId = detectPropertyIdFromUrl();
-  if (!urlId) return { id: null, fromClientState: false }; // not a ViewProperty page → clear
-  const clientStateId = detectPropertyIdFromClientState();
-  if (clientStateId) return { id: clientStateId, fromClientState: clientStateId !== urlId };
-  return { id: urlId, fromClientState: false };
-}
-
-/** Canonical SAD ViewProperty URL for an id, built from the (stable) current path so
- *  Recommend/Favorite never retain the previous property's URL after Prev/Next. */
-function buildViewPropertyUrl(id: string): string {
-  return `${location.origin}${location.pathname}?propertyID=${encodeURIComponent(id)}`;
 }
 
 function clean(s: string | null | undefined): string {
@@ -78,15 +43,14 @@ const NAME_HEADING_SELECTORS = ".vp-modern h1, .factsBar h1, h1, .vp-modern h2, 
 const NAME_SELECTOR = "#ctl00_ContentPlaceHolder_PropertyHeader1_propertyNameLink";
 const ADDRESS_SELECTOR = "#ctl00_ContentPlaceHolder_PropertyHeader1_address";
 const SUBMARKET_SELECTOR = "#ctl00_ContentPlaceHolder_PropertyHeader1_submarket";
-// Management company — confirmed SAD detail-page element. Supplemental (never blocks
-// detection); consumed read-only by Approval intelligence in the panel.
+// Management company — confirmed SAD detail-page element. Supplemental; read-only
+// evidence consumed by Approval intelligence in the panel.
 const MGMT_SELECTOR = "#ctl00_ContentPlaceHolder_mgmtCo";
-// Property email — OPERATIONAL data (future Guest Card / Invoice recipient prefill),
-// captured with the property so the agent never has to return to SAD to copy it. The
-// value lives in a SAD "copy email" affordance: <… class="email-copy" onclick=
-// "copyTextToClipboard('a@x.com,b@y.com', this)">. We read the addresses from that
-// onclick (see readPropertyEmails); the visible ".email-text" ("2 emails") is a count
-// and is never used.
+// Property email — OPERATIONAL data (background-only; future Guest Card / Invoice
+// recipient prefill). The value lives in a SAD "copy email" affordance:
+// <… class="email-copy" onclick="copyTextToClipboard('a@x.com,b@y.com', this)">.
+// We read the addresses from that onclick (see readPropertyEmails); the visible
+// ".email-text" ("2 emails") is a count and is never used.
 const EMAIL_COPY_SELECTOR = ".email-copy";
 
 /**
@@ -159,7 +123,7 @@ function readPropertyImageUrl(): string | null {
 }
 
 /** SAD submarket (neighborhood/area) from the confirmed header element. Null when
- *  absent. Supplemental — never blocks detection. */
+ *  absent. Supplemental — never blocks detection; consumed by Location Fit. */
 function readPropertySubmarket(): string | null {
   const t = clean(document.querySelector<HTMLElement>(SUBMARKET_SELECTOR)?.textContent);
   return t || null;
@@ -173,17 +137,12 @@ function readPropertyManagement(): string | null {
 }
 
 /**
- * Verified property EMAILS from the SAD detail page (operational — future Guest Card
- * / Invoice recipient prefill). Read from the "copy email" affordance's onclick
- * (copyTextToClipboard('…', this)) — NOT the visible ".email-text", which is a count
- * ("2 emails"). Returns ALL addresses (business rule: retain every one, never rank or
- * discard). Supplemental; never blocks detection.
- *
- * Scoping is conservative: the ".email-copy" class may be reused elsewhere on the
- * page, so we accept it ONLY when exactly ONE such affordance exists (never blindly
- * take the first). If several exist we cannot tell which is the property/leasing
- * email from the confirmed DOM, so we return [] rather than guess (that condition is
- * the signal we need the surrounding container HTML to scope precisely).
+ * Verified property EMAILS from the SAD detail page (operational — background-only,
+ * future Guest Card / Invoice recipient prefill). Read from the "copy email"
+ * affordance's onclick (copyTextToClipboard('…', this)) — NOT the visible
+ * ".email-text" count. Returns ALL addresses (retain every one, deduped). Scoping is
+ * conservative: the ".email-copy" class may be reused, so we accept it ONLY when
+ * exactly ONE such affordance exists (never blindly take the first); several → [].
  */
 function readPropertyEmails(): string[] {
   const nodes = Array.from(document.querySelectorAll<HTMLElement>(EMAIL_COPY_SELECTOR)).filter((el) =>
@@ -194,16 +153,12 @@ function readPropertyEmails(): string[] {
 }
 
 function readCurrentProperty(): CurrentProperty | null {
-  const { id: propertyId, fromClientState } = resolveCurrentPropertyId();
+  const propertyId = detectPropertyIdFromUrl();
   if (!propertyId) return null; // not a property-detail page
   const propertyName = readPropertyName();
   if (!propertyName) return null; // primary identity requires the name (retry for late DOM)
-  // After a SAD Prev/Next async swap the URL is stale — rebuild the canonical URL from
-  // the fresh id so propertyUrl matches the displayed property. On a normal load the
-  // ids agree and propertyUrl stays exactly location.href (unchanged behavior).
-  const propertyUrl = fromClientState ? buildViewPropertyUrl(propertyId) : location.href;
   // Address + submarket + management + emails + image are SUPPLEMENTAL — never block
-  // detection; all read from the (post-swap-refreshed) DOM via the existing readers.
+  // detection when unavailable. propertyUrl is the raw current URL (known-good).
   return {
     propertyId,
     propertyName,
@@ -211,7 +166,7 @@ function readCurrentProperty(): CurrentProperty | null {
     propertySubmarket: readPropertySubmarket(),
     propertyManagement: readPropertyManagement(),
     propertyEmails: readPropertyEmails(),
-    propertyUrl,
+    propertyUrl: location.href,
     propertyImageUrl: readPropertyImageUrl(),
   };
 }
@@ -272,38 +227,7 @@ export function syncCurrentProperty(): void {
 /** Start on SAD/any page: detect now + re-detect once the page finishes loading
  *  (the DOM isn't ready at document_start). Navigation updates are driven by the
  *  content-script URL watcher, which also calls syncCurrentProperty(). */
-// Message contract with the MAIN-world shim (sadNavMain.ts). Kept as literals in both
-// bundles (they compile separately); the payload carries no data — just the ping.
-const SAD_NAV_MSG_SOURCE = "lb-companion-sad-nav";
-const SAD_NAV_MSG_TYPE = "sad-nav-complete";
-
 export function startCurrentPropertyBridge(): void {
   syncCurrentProperty();
   window.addEventListener("load", syncCurrentProperty);
-  // SAD internal Prev/Next completion: the MAIN-world shim hooks ASP.NET AJAX
-  // PageRequestManager endRequest and posts this ping AFTER the async response is
-  // applied (property DOM refreshed). We then re-run the existing detection, which now
-  // resolves the FRESH id from the NavigationPlaceHolder ClientState. Same-origin,
-  // same-window guarded; syncCurrentProperty is itself SAD-gated + de-duped.
-  window.addEventListener("message", (e) => {
-    if (e.source !== window || e.origin !== location.origin) return;
-    const d = e.data as { source?: string; type?: string } | null;
-    if (d && d.source === SAD_NAV_MSG_SOURCE && d.type === SAD_NAV_MSG_TYPE) syncCurrentProperty();
-  });
-  // Chrome Back/Forward restores a SAD property page from the bfcache: the document
-  // is THAWED (not recreated), so this same content-script instance resumes with its
-  // module-scoped `lastWritten` still holding the property IT last wrote — while a
-  // DIFFERENT restored/loaded document has since overwritten the SHARED storage key
-  // with another property. A persisted `pageshow` is the only event bfcache fires on
-  // restore, but syncCurrentProperty()'s compare-before-write would suppress the
-  // re-write (its read equals this instance's stale `lastWritten`), leaving storage
-  // on the wrong property. So invalidate the stale per-instance de-dupe FIRST, then
-  // sync — forcing the restored (correctly detected, URL+DOM already right) property
-  // to be re-written over whatever another document left in shared storage.
-  window.addEventListener("pageshow", (e) => {
-    if ((e as PageTransitionEvent).persisted) {
-      lastWritten = null;
-      syncCurrentProperty();
-    }
-  });
 }
