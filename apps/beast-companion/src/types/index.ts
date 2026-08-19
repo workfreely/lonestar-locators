@@ -54,6 +54,16 @@ export type CurrentProperty = {
    *  `[]` when none/unavailable; never guessed/fabricated. Supplemental (never blocks
    *  detection). No invoice/guest-card automation is built on it yet. */
   propertyEmails?: string[];
+  /** SAD amenity text, captured verbatim and de-duplicated, kept in SAD's own two
+   *  sections: "Property Amenities" → community, "Unit Features" → unit. Missing
+   *  section → []. Supplemental read-only evidence for the Amenities row; nothing is
+   *  inferred and the two lists are never flattened together. */
+  propertyAmenities?: { community: string[]; unit: string[] };
+  /** SAD's specials/concessions block, one VERBATIM line per offer (gift cards, fee
+   *  waivers, rent concessions and footnotes all mixed together — interpretation happens
+   *  in the evaluator, never here). Undefined when SAD renders no specials element at
+   *  all, which means UNKNOWN — distinct from a present block stating no concession. */
+  propertySpecials?: string[];
   /** The actual SAD ViewProperty.aspx?propertyID=... URL. */
   propertyUrl: string;
   propertyImageUrl?: string | null;

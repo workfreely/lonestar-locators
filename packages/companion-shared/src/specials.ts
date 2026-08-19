@@ -1,0 +1,219 @@
+// Specials V1 — the fourth property-intelligence dimension. Compact row contract:
+//
+//   Specials: [special] · Base Rent: [$] · Avg Rent: [$]     (≤3; 3 is a MAX)
+//
+// This module is the INTERPRETATION half only: it normalizes an already-extracted
+// concession string and rent figures into the row's exact display forms. It performs
+// NO extraction and touches no DOM — the SAD reader feeds it (see the note in
+// currentPropertyBridge about the still-missing specials/rent selectors).
+//
+// Display rules (verbatim from the approved contract):
+//   • Natural wording, correctly singular/plural: "2 months free", "1 month free",
+//     "8 weeks free"; qualifiers are PRESERVED ("Up to 8 weeks free")
+//   • Base Rent: $1,725 — commas, no "/mo", no decimals
+//   • No special → "None" (SAD renders "---" on the list and a "No ongoing
+//     concessions…" placeholder on the detail page; both mean the same thing)
+//
+// AVG RENT IS NEVER MANUFACTURED. It is the effective rent after a concession, so it
+// is computed ONLY when the concession can be tied to a specific rent and lease term
+// with certainty. A QUALIFIED concession ("Up to 8 weeks free", "on select units",
+// "call for details") states a ceiling or a condition, NOT a guaranteed term — those
+// yield null and the row simply shows the special and Base Rent.
+
+/** A concession as extracted from SAD, plus what we know about how it applies. */
+export type SpecialInput = {
+  /** SAD's specials block, one verbatim line per concession (the confirmed
+   *  `#ctl00_ContentPlaceHolder_SpecialsBit1_specials` element). Preferred when present:
+   *  the block mixes rent concessions with gift cards, fee waivers and disclaimers, so
+   *  the RENT concession is selected from it (see selectRentConcession). */
+  lines?: string[] | null;
+  /** A single already-isolated concession string. Null/empty/placeholder → "None". */
+  text?: string | null;
+  /** Monthly base/quoted rent, when reliably extracted. */
+  baseRent?: number | null;
+  /** Lease term in months that the concession applies to, when reliably known. */
+  leaseTermMonths?: number | null;
+};
+
+export type SpecialsResult = {
+  /** Normalized rent concession, or "None". Always present. */
+  special: string;
+  /** True when the specials block existed but stated no RENT concession (it may still
+   *  offer gift cards / fee waivers). The caller hides the row rather than claiming
+   *  "None", which would misreport a property that does have non-rent concessions. */
+  hasRentConcession: boolean;
+  /** Lease term the winning concession explicitly names, preserved for LATER rent math
+   *  (e.g. "on a 12 mo lease" → 12). Never used to manufacture Avg Rent on its own —
+   *  that still requires an exact base rent bound to this term. */
+  qualifyingTermMonths: number | null;
+  /** Formatted base rent ("$1,725"), or null when unknown. */
+  baseRent: string | null;
+  /** Formatted effective rent ("$1,495"), or null whenever it cannot be trusted. */
+  avgRent: string | null;
+};
+
+const NO_SPECIAL = /^\s*(-{2,}|—|n\/?a|none|no\s+(ongoing\s+)?(concession|special)s?\b.*)\s*$/i;
+/** Language that makes a concession a CEILING or a CONDITION, not a guarantee. */
+const QUALIFIED =
+  /\b(up\s+to|as\s+much\s+as|select\s+(units|homes|floor\s?plans)|certain\s+units|call\s+for|inquire|varies|depend|restrictions|o\.?a\.?c\.?|on\s+approved)\b/i;
+
+// SAD's specials block mixes several offer TYPES on separate lines, e.g.
+//   Gift Card: $500 Gift Card ends 11/13/2026
+//   App Fee Waived
+//   100% off rent for 2 month(s) on a 12 mo lease
+//   Other Concessions: Up to 8 Weeks Free Base Rent
+//   BONUS: Credited App Back & a $500 Gift Card
+//   *Minimum Term Required. Terms Apply.
+// Only RENT concessions belong in the row — a gift card or a waived app fee is not a
+// rent reduction and must never be shown as one.
+
+/** Lines that are NOT a rent concession (gift cards, fee waivers, bonuses, footnotes). */
+const NON_RENT_LINE =
+  /^\s*\*|gift\s*card|app(lication)?\s*fee|admin(istration|istrative)?\s*fee|deposit|\bbonus\b|referral|terms?\s+apply|minimum\s+term\s+required/i;
+/** A leading SAD label ("Other Concessions:") that is not part of the offer itself. */
+const LINE_LABEL = /^\s*(other\s+concessions?|concessions?|specials?|current\s+specials?)\s*:\s*/i;
+
+export type RentConcession = {
+  /** Compact display form ("2 months free", "Up to 8 weeks free", "$1K off"). */
+  display: string;
+  /** The line it came from, verbatim (never shown; kept for traceability). */
+  source: string;
+  /** True when the offer states a ceiling/condition ("Up to", "select units"). */
+  qualified: boolean;
+  /** Free period in the unit SAD used — never converted between weeks and months. */
+  free: { amount: number; unit: "weeks" | "months" } | null;
+  /** Lease term the line explicitly names ("on a 12 mo lease" → 12), else null. */
+  termMonths: number | null;
+};
+
+/** Free period stated by a line, in SAD's own unit. Handles both "N weeks/months free"
+ *  and "100% off rent for N month(s)" (identical meaning, not an inference). */
+function freePeriod(line: string): { amount: number; unit: "weeks" | "months" } | null {
+  const pct = line.match(/100\s*%\s*off\s*rent\s*for\s*(\d+(?:\.\d+)?)\s*(month|week)/i);
+  if (pct) return { amount: Number(pct[1]), unit: pct[2].toLowerCase().startsWith("month") ? "months" : "weeks" };
+  const weeks = line.match(/\b(\d+(?:\.\d+)?)\s*(?:weeks?|wks?)\b[^.]{0,20}?\bfree\b/i);
+  if (weeks) return { amount: Number(weeks[1]), unit: "weeks" };
+  const months = line.match(/\b(\d+(?:\.\d+)?)\s*(?:months?|mos?)\b[^.]{0,20}?\bfree\b/i);
+  if (months) return { amount: Number(months[1]), unit: "months" };
+  return null;
+}
+
+/** A free period in natural wording, correctly singular/plural: "2 months free",
+ *  "1 month free", "8 weeks free", "1 week free". Never abbreviated. */
+function freeLabel(free: { amount: number; unit: "weeks" | "months" }): string {
+  const noun = free.unit === "weeks" ? "week" : "month";
+  return `${free.amount} ${noun}${free.amount === 1 ? "" : "s"} free`;
+}
+
+/** Lease term a line explicitly names ("on a 12 mo lease"), else null. */
+function statedTermMonths(line: string): number | null {
+  const m = line.match(/\b(\d{1,2})\s*(?:mo|mos|month|months)\b[^.]{0,12}?\blease\b/i);
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * The single best RENT concession in SAD's specials block, or null when the block
+ * states none. Ranking is by RELIABILITY first — an unqualified offer beats an "Up to"
+ * ceiling — then by size. Qualifiers are always preserved in the display text.
+ */
+export function selectRentConcession(lines?: string[] | null): RentConcession | null {
+  const candidates: RentConcession[] = [];
+  for (const raw of lines ?? []) {
+    const line = (raw ?? "").replace(/\s+/g, " ").trim();
+    if (!line || NON_RENT_LINE.test(line) || NO_SPECIAL.test(line)) continue;
+    const offer = line.replace(LINE_LABEL, "").trim();
+    const free = freePeriod(offer);
+    const dollarsOff = /\$\s*[\d,]+\s*off/i.test(offer);
+    if (!free && !dollarsOff && !/free\s+rent/i.test(offer)) continue; // not a rent concession
+    const qualified = isQualifiedSpecial(offer);
+    // Canonical compact form when we parsed a free period — same unit SAD used, with
+    // the qualifier kept. Otherwise the normalized line stands as written.
+    const display = free ? `${qualified ? "Up to " : ""}${freeLabel(free)}` : formatSpecialText(offer);
+    candidates.push({ display, source: line, qualified, free, termMonths: statedTermMonths(offer) });
+  }
+  if (candidates.length === 0) return null;
+  // Unqualified beats qualified; then the larger free period (weeks compared in months
+  // ONLY for ranking — never for display).
+  const inMonths = (c: RentConcession) =>
+    c.free ? (c.free.unit === "weeks" ? c.free.amount / (52 / 12) : c.free.amount) : 0;
+  return candidates.sort((a, b) => Number(a.qualified) - Number(b.qualified) || inMonths(b) - inMonths(a))[0];
+}
+
+/** "$1,725" — commas, no decimals, no "/mo". Null for anything not a finite number. */
+export function formatRent(amount?: number | null): string | null {
+  if (amount == null || !Number.isFinite(amount)) return null;
+  return `$${Math.round(amount).toLocaleString("en-US")}`;
+}
+
+/**
+ * Normalize SAD's concession text for the row: "$1000 off" → "$1K off", whitespace
+ * collapsed. Wording stays NATURAL ("8 weeks free", never "8 WKS free") and qualifiers
+ * and every other word are PRESERVED — we never rewrite the offer or drop a condition.
+ */
+export function formatSpecialText(text?: string | null): string {
+  const raw = (text ?? "").replace(/\s+/g, " ").trim();
+  if (!raw || NO_SPECIAL.test(raw)) return "None";
+  return raw
+    .replace(/\$\s*(\d{1,3}),?000\b/g, (_m, n) => `$${n}K`)
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** True when the concession states a guaranteed amount we could apply to a term. */
+export function isQualifiedSpecial(text?: string | null): boolean {
+  return QUALIFIED.test((text ?? "").trim());
+}
+
+/** Free MONTHS a concession guarantees, or null when it guarantees nothing specific. */
+function guaranteedFreeMonths(text: string): number | null {
+  if (isQualifiedSpecial(text)) return null; // a ceiling/condition, not a guarantee
+  const weeks = text.match(/\b(\d+(?:\.\d+)?)\s*(?:weeks?|wks?)\s+free\b/i);
+  if (weeks) return Number(weeks[1]) / (52 / 12); // 52 weeks ÷ 12 months
+  const months = text.match(/\b(\d+(?:\.\d+)?)\s*(?:months?|mos?)\s+free\b/i);
+  if (months) return Number(months[1]);
+  return null;
+}
+
+/**
+ * Effective monthly rent after the concession, or null. Requires ALL of: a base rent,
+ * a lease term, and a concession that guarantees a specific free period. Anything
+ * missing, qualified ("Up to 8 weeks free"), or out of range → null, and the caller
+ * simply omits Avg Rent rather than showing a number we cannot stand behind.
+ */
+export function computeAvgRent(input: SpecialInput): number | null {
+  const { baseRent, leaseTermMonths } = input;
+  if (baseRent == null || !Number.isFinite(baseRent) || baseRent <= 0) return null;
+  if (leaseTermMonths == null || !Number.isFinite(leaseTermMonths) || leaseTermMonths <= 0) return null;
+  const free = guaranteedFreeMonths((input.text ?? "").trim());
+  if (free == null || free <= 0 || free >= leaseTermMonths) return null;
+  return (baseRent * (leaseTermMonths - free)) / leaseTermMonths;
+}
+
+/**
+ * The ≤3 pieces of the Specials row, already formatted. When `lines` (SAD's specials
+ * block) is supplied it is the source of truth and the best RENT concession is chosen
+ * from it; otherwise a directly-supplied `text` is normalized.
+ *
+ * Base Rent and Avg Rent are null unless real figures are supplied — neither is ever
+ * manufactured. A concession's stated lease term is preserved on
+ * `qualifyingTermMonths` for later use, but on its own it never produces an Avg Rent.
+ */
+export function evaluateSpecials(input?: SpecialInput | null): SpecialsResult {
+  const src = input ?? {};
+  const fromLines = src.lines != null ? selectRentConcession(src.lines) : null;
+  const hasLines = (src.lines ?? []).some((l) => (l ?? "").trim().length > 0);
+
+  const special = fromLines ? fromLines.display : formatSpecialText(src.text);
+  const hasRentConcession = fromLines != null || (!hasLines && special !== "None");
+  const qualifyingTermMonths = fromLines?.termMonths ?? src.leaseTermMonths ?? null;
+
+  return {
+    special,
+    hasRentConcession,
+    qualifyingTermMonths,
+    baseRent: formatRent(src.baseRent),
+    // Avg Rent still requires an exact base rent bound to the qualifying term; a term
+    // alone is not enough, so this stays null until real rent data is extracted.
+    avgRent: formatRent(computeAvgRent({ ...src, text: fromLines?.source ?? src.text })),
+  };
+}

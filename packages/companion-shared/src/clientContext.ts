@@ -28,6 +28,9 @@ export type ClientContext = {
   locatorNotes: string | null;
   /** Existing AI Client Insights bullets (sanitized) — part of the override layer. */
   aiInsights: string[];
+  /** Structured Must-Have Amenities (canonical option values). The PRIMARY source for
+   *  the Amenities evaluator; empty when the client never supplied any. */
+  mustHaveAmenities: string[];
   /** Locator Notes + AI Insights joined — the free-text "current/override" layer the
    *  evaluators scan for a clear later update. Empty string when neither is present. */
   overrideText: string;
@@ -40,6 +43,7 @@ export type ClientContextInput = {
   clientNotes?: string | null;
   locatorNotes?: string | null;
   aiInsights?: string[] | null;
+  mustHaveAmenities?: string[] | null;
 };
 
 function clean(v?: string | null): string | null {
@@ -58,6 +62,7 @@ export function resolveClientContext(input: ClientContextInput): ClientContext {
     clientNotes: clean(input.clientNotes),
     locatorNotes,
     aiInsights,
+    mustHaveAmenities: (input.mustHaveAmenities ?? []).map((s) => (s ?? "").trim()).filter(Boolean),
     overrideText,
   };
 }

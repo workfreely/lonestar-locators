@@ -173,6 +173,24 @@ export type { LocationFitVerdict, LocationFit, LocationFitResult, PropertyLocati
 export { evaluateApproval } from "./approval";
 export type { ApprovalRisk, ApprovalResult } from "./approval";
 
+// Amenities V1 — client amenity requirements vs SAD's own amenity text, evidence-only
+export {
+  evaluateAmenities,
+  MAX_AMENITIES,
+  MUST_HAVE_AMENITIES,
+  MAX_MUST_HAVE_AMENITIES,
+  isMustHaveAmenity,
+  mustHaveAmenityLabel,
+  mustHaveAmenityShortLabel,
+  normalizeMustHaveAmenities,
+} from "./amenities";
+export type { PropertyAmenities, MustHaveAmenityValue } from "./amenities";
+
+// Specials V1 — concession + rent DISPLAY normalization (interpretation only; the SAD
+// specials/base-rent selectors are not confirmed yet, so nothing feeds it in the panel)
+export { evaluateSpecials, selectRentConcession, formatSpecialText, formatRent, computeAvgRent, isQualifiedSpecial } from "./specials";
+export type { SpecialInput, SpecialsResult, RentConcession } from "./specials";
+
 // Theme registry (all CRM themes, semantic tokens, safe Midnight fallback)
 export {
   THEME_IDS,

@@ -244,6 +244,12 @@ export function buildActiveClientPayload(
       budgetText: budgetText(lead.desired_rent),
       income: str(lead.income),
       propertyType: str(lead.property_type),
+      // Stored comma-joined (same precedent as `neighborhoods`); split back to the
+      // canonical option values the Companion's evaluator matches on.
+      mustHaveAmenities: String(lead.must_have_amenities ?? "")
+        .split(",")
+        .map((v: string) => v.trim())
+        .filter(Boolean),
       beds: str(lead.beds),
       baths: str(lead.baths),
       moveDate: str(lead.move_date),

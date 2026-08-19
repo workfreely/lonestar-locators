@@ -610,10 +610,12 @@
 }
 
 /* Current Property Intelligence (V1) — up to four compact rows under the identity
-   block ("Location: Good · East Austin"). The category label is muted; the lead
-   word carries the colored state; facts are terse. One line per row; only rows with
-   reliable evidence render. ~7px of air separates the block from the address — the
-   sole visual break (no extra card / divider / heading). */
+   block ("Location: Unverified", "Approval: Unverified · Mgmt: Avenue5"). The
+   hierarchy is BOLD LABELS + REGULAR VALUES: every label ("Location:", "Approval:",
+   "Mgmt:") is bold primary text, while values stay regular weight and keep their
+   state color. One line per row; only rows with reliable evidence render. ~7px of
+   air separates the block from the address — the sole visual break (no extra card /
+   divider / heading). */
 .bc-cp-intel {
   margin-top: 7px;
   display: flex;
@@ -624,17 +626,30 @@
   font-size: 11px;
   line-height: 1.35;
   color: var(--lb-text-secondary);
+  /* Approval + Mgmt stay on one line when they fit; a long management company WRAPS
+     onto the next line rather than being truncated or clipped. break-word only kicks
+     in for a single token wider than the panel, so normal names wrap at spaces. */
+  overflow-wrap: break-word;
 }
 .bc-intel-cat {
-  font-weight: 600;
-  color: var(--lb-text-secondary);
+  font-weight: 700;
+  color: var(--lb-text-primary);
   margin-right: 4px;
 }
-.bc-intel-lead {
+/* Inline fact label ("Mgmt:", "Base Rent:") — same bold-label treatment as the row
+   category. Never split across lines from its own colon. */
+.bc-intel-fact-label {
   font-weight: 700;
+  color: var(--lb-text-primary);
+  margin-right: 4px;
+  white-space: nowrap;
+}
+.bc-intel-lead {
+  font-weight: 400;
   color: var(--lb-text-primary);
 }
 .bc-intel-fact {
+  font-weight: 400;
   color: var(--lb-text-secondary);
 }
 .bc-intel-lead.tone-good { color: var(--lb-success, #10b981); }

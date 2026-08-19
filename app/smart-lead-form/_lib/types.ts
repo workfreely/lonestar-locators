@@ -100,6 +100,7 @@ export type SmartLeadFormConfig = {
     moveDate: boolean
     location: boolean // city + neighborhoods + submarkets
     propertyDetails: boolean // property type + beds + baths
+    mustHaveAmenities: boolean // up to 3 renter must-have amenities
     desiredRent: boolean
     income: boolean
     creditScore: boolean

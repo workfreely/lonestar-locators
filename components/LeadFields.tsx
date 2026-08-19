@@ -11,6 +11,7 @@ import {
   CRIMINAL_BACKGROUND_OPTIONS,
   RENT_RANGE_OPTIONS,
 } from "@/lib/formOptions"
+import { MUST_HAVE_AMENITIES, MAX_MUST_HAVE_AMENITIES, normalizeMustHaveAmenities } from "@bc/companion-shared"
 
 // ─── Shared style tokens ──────────────────────────────────────────────────────
 
@@ -37,6 +38,47 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
 
 function Full({ children }: { children: React.ReactNode }) {
   return <div className="col-span-2">{children}</div>
+}
+
+/** Max-3 must-have picker over the canonical option list. Reads/writes the stored
+ *  comma-joined string of canonical VALUES. At the cap, selecting more is refused while
+ *  deselecting stays available so a locator can always swap one for another. */
+function MustHaveAmenities({ value, onChange }: { value: string; onChange: (next: string) => void }) {
+  const selected = normalizeMustHaveAmenities(value.split(","))
+  function toggle(v: string) {
+    const has = selected.includes(v as (typeof selected)[number])
+    if (!has && selected.length >= MAX_MUST_HAVE_AMENITIES) return
+    const next = has ? selected.filter(x => x !== v) : [...selected, v]
+    onChange(normalizeMustHaveAmenities(next).join(", "))
+  }
+  return (
+    <div>
+      <p className="text-[11px] text-[var(--crm-text-muted)] mb-1.5">Must-Have Amenities — select up to 3</p>
+      <div className="flex flex-wrap gap-1.5">
+        {MUST_HAVE_AMENITIES.map(a => {
+          const on = selected.includes(a.value)
+          const atCap = !on && selected.length >= MAX_MUST_HAVE_AMENITIES
+          return (
+            <button
+              key={a.value}
+              type="button"
+              onClick={() => toggle(a.value)}
+              disabled={atCap}
+              className={[
+                "rounded-full border px-2.5 py-1 text-[12px] transition-colors",
+                on
+                  ? "border-transparent bg-blue-600 text-white"
+                  : "border-[var(--crm-border)] bg-[var(--crm-inset)] text-[var(--crm-text-primary)]",
+                atCap ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
+              ].join(" ")}
+            >
+              {a.label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -153,6 +195,14 @@ export default function LeadFields({
           <option value="">Property Type</option>
           {PROPERTY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
+
+        {/* Must-Have Amenities — the SAME canonical option list and max-3 rule as the
+            Smart Form. Stored comma-joined (canonical values, not labels), so a lead
+            created manually or with the form field hidden can still be given must-haves
+            here, and existing selections can be added/removed later. */}
+        <Full>
+          <MustHaveAmenities value={form.must_have_amenities || ""} onChange={v => updateField("must_have_amenities", v)} />
+        </Full>
 
         <select
           className={selectCls}

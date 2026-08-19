@@ -34,6 +34,9 @@ export const searchCriteriaSchema = z.object({
   // when the form did not collect it; the row is then omitted (never blank/$0).
   income: z.string().nullish(),
   propertyType: z.string().nullish(),
+  /** Structured Must-Have Amenities (canonical option values, max 3). Empty when the
+   *  client never supplied any — the Companion's Amenities row then stays hidden. */
+  mustHaveAmenities: z.array(z.string()).nullish(),
   beds: z.string().nullish(),
   baths: z.string().nullish(),
   moveDate: z.string().nullish(),

@@ -54,7 +54,7 @@ const supabaseAdmin = createClient(
 // outage this route exists to fix.
 const STRING_FIELDS = [
   "first_name", "last_name", "phone", "email", "move_date",
-  "city", "neighborhoods", "submarkets", "property_type", "desired_rent",
+  "city", "neighborhoods", "submarkets", "property_type", "must_have_amenities", "desired_rent",
   "beds", "baths", "income",
   "credit_history", "credit_score", "broken_lease_age", "broken_lease_amount",
   "eviction_court", "eviction_age", "eviction_balance",

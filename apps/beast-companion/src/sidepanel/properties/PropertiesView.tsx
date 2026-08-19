@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { SectionCard } from "../lead/primitives";
 import { PropertyThumb } from "./PropertyThumb";
-import { resolveClientContext, evaluateLocationFit, evaluateApproval } from "@bc/companion-shared";
+import { resolveClientContext, evaluateLocationFit, evaluateApproval, evaluateAmenities, evaluateSpecials } from "@bc/companion-shared";
 import type { FavoriteDTO, RecommendationDTO, LeadSummaryDTO } from "@bc/companion-shared";
 import type { CurrentProperty } from "@/types";
 
@@ -9,9 +9,14 @@ import type { CurrentProperty } from "@/types";
 // Current Property (never on Recommendations/Favorites). Each is ONE line:
 //   Category: [lead] · [fact] · [fact]   (≤3 pieces after the label; 3 is a MAX)
 // The lead word carries the colored state; facts are terse fragments. Deterministic
-// — no %, no Maps, no AI call. Location + Approval populate in V1; Amenities and
-// Specials have no reliable evidence yet, so their rows self-hide (no noisy filler).
+// — no %, no Maps, no AI call. All four rows populate in V1; each self-hides when it
+// has nothing reliable to say (no noisy filler).
 type IntelTone = "good" | "bad" | "unknown" | "moderate" | "none";
+
+// A fact is either a bare fragment ("Second chance") or a LABELLED pair rendered as
+// "Mgmt: Avenue5" — the label carries the same bold treatment as the row category so
+// the row reads as bold labels + regular values throughout.
+type IntelFact = string | { label: string; value: string };
 
 function IntelRow({
   category,
@@ -22,19 +27,42 @@ function IntelRow({
   category: string;
   lead?: string | null;
   tone?: IntelTone;
-  facts?: (string | null | undefined)[];
+  facts?: (IntelFact | null | undefined)[];
 }) {
-  const clean = facts.filter((f): f is string => !!f);
+  const clean = facts.filter((f): f is IntelFact => !!f);
   if (!lead && clean.length === 0) return null; // no reliable data → render nothing
   return (
     <div className="bc-intel-row">
       <span className="bc-intel-cat">{category}:</span>
       {lead ? <span className={`bc-intel-lead tone-${tone}`}>{lead}</span> : null}
       {clean.map((f, i) => (
-        <span key={i} className="bc-intel-fact"> · {f}</span>
+        <span key={i} className="bc-intel-fact">
+          {lead || i > 0 ? " · " : null}
+          {typeof f === "string" ? (
+            f
+          ) : (
+            <>
+              <span className="bc-intel-fact-label">{f.label}:</span>
+              {f.value}
+            </>
+          )}
+        </span>
       ))}
     </div>
   );
+}
+
+/**
+ * Management company — DISPLAY casing ONLY. SAD renders some management names in all
+ * caps ("AVENUE5", "WILLOW BRIDGE"); the panel shows normal brand capitalization
+ * ("Avenue5", "Willow Bridge"). Applied only when the value has NO lowercase letter,
+ * so a deliberately-cased name (Approval's own "Mgmt Support", or a real "LaSalle")
+ * passes through untouched. The raw extracted value on CurrentProperty and the
+ * Approval evaluator are never modified — this is presentation at the last step.
+ */
+function displayMgmt(name: string): string {
+  if (/[a-z]/.test(name)) return name; // already mixed-case → trust it as authored
+  return name.replace(/[A-Z][A-Z0-9'&.-]*/g, (w) => w.charAt(0) + w.slice(1).toLowerCase());
 }
 
 // Approval risk → row tone. Low = reassuring (good), Moderate = amber, High =
@@ -117,8 +145,9 @@ export function PropertiesView({
         clientNotes: lead.clientNotes,
         locatorNotes: lead.locatorNotes,
         aiInsights: lead.aiInsights,
+        mustHaveAmenities: lead.searchCriteria?.mustHaveAmenities,
       }),
-    [lead.searchCriteria?.city, lead.searchCriteria?.desiredAreas, lead.searchCriteria?.interest, lead.clientNotes, lead.locatorNotes, lead.aiInsights],
+    [lead.searchCriteria?.city, lead.searchCriteria?.desiredAreas, lead.searchCriteria?.interest, lead.clientNotes, lead.locatorNotes, lead.aiInsights, lead.searchCriteria?.mustHaveAmenities],
   );
 
   // Deterministic, read-only intelligence for the property currently on screen.
@@ -126,6 +155,18 @@ export function PropertiesView({
   // the locator-supplied intelligence table. Both recomputed cheaply per render.
   const location = currentProperty ? evaluateLocationFit(ctx, currentProperty) : null;
   const approval = currentProperty ? evaluateApproval(currentProperty) : null;
+  // Amenities: the client's OWN requirements that SAD confirms, at the required
+  // specificity. No verdict word — the matched amenity IS the intelligence. Empty when
+  // nothing client-relevant is confirmed, and the row then hides entirely.
+  const amenities = currentProperty ? evaluateAmenities(ctx, currentProperty.propertyAmenities) : [];
+  // Specials: the best RENT concession in SAD's specials block (gift cards, fee waivers
+  // and footnotes are never shown as rent). Null when SAD rendered no specials element
+  // (unknown) or the block states no rent concession — the row then hides. Base Rent /
+  // Avg Rent stay omitted until an exact rent can be bound to the qualifying term.
+  const specials =
+    currentProperty?.propertySpecials != null
+      ? evaluateSpecials({ lines: currentProperty.propertySpecials })
+      : null;
 
   return (
     <div className="bc-props">
@@ -153,18 +194,34 @@ export function PropertiesView({
             </div>
 
             {/* Beast intelligence — four compact rows (~7px below the address). Only
-                rows with reliable evidence render; Amenities/Specials are wired but
-                self-hide in V1 until their SAD evidence lands. */}
+                rows with reliable evidence render. */}
             <div className="bc-cp-intel">
               {location && (
                 <IntelRow category="Location" lead={location.fit} tone={location.verdict} facts={[location.detail]} />
               )}
               {approval && (
-                <IntelRow category="Approval" lead={approval.risk} tone={approvalTone(approval.risk)} facts={[approval.mgmt, approval.reason]} />
+                <IntelRow
+                  category="Approval"
+                  lead={approval.risk}
+                  tone={approvalTone(approval.risk)}
+                  facts={[approval.mgmt ? { label: "Mgmt", value: displayMgmt(approval.mgmt) } : null, approval.reason]}
+                />
               )}
-              {/* Amenities / Specials — no reliable evidence yet → render nothing. */}
-              <IntelRow category="Amenities" facts={[]} />
-              <IntelRow category="Specials" facts={[]} />
+              <IntelRow category="Amenities" facts={amenities} />
+              {/* Specials: [special] · Base Rent: [$] · Avg Rent: [$]. V1 shows the rent
+                  concession only — SAD's factsBar carries a property-wide rent RANGE and a
+                  minimum lease, which cannot bind an exact base rent to this concession's
+                  qualifying term, so Base Rent / Avg Rent are omitted rather than guessed. */}
+              {specials && (specials.hasRentConcession || specials.baseRent) && (
+                <IntelRow
+                  category="Specials"
+                  facts={[
+                    specials.special,
+                    specials.baseRent ? { label: "Base Rent", value: specials.baseRent } : null,
+                    specials.avgRent ? { label: "Avg Rent", value: specials.avgRent } : null,
+                  ]}
+                />
+              )}
             </div>
             <div className="bc-current-prop-actions">
               <button

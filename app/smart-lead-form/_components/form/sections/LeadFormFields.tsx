@@ -5,6 +5,7 @@ import DatePicker from "react-datepicker"
 import "react-datepicker/dist/react-datepicker.css"
 import type { SmartLeadFormConfig } from "../../../_lib/types"
 import { MARKETS, getMarketByName, marketsForSlugs } from "@/lib/markets/catalog"
+import { MUST_HAVE_AMENITIES, MAX_MUST_HAVE_AMENITIES } from "@bc/companion-shared"
 import {
   PROPERTY_TYPES,
   BED_OPTIONS,
@@ -81,6 +82,7 @@ type FormData = {
   neighborhoods: string[]
   submarkets: string[]
   propertyType: string
+  mustHaveAmenities: string[]
   desiredRent: string
   income: string
   beds: string
@@ -117,6 +119,7 @@ const ALL_FIELDS_VISIBLE = {
   moveDate: true,
   location: true,
   propertyDetails: true,
+  mustHaveAmenities: true,
   desiredRent: true,
   income: true,
   creditScore: true,
@@ -127,7 +130,7 @@ const ALL_FIELDS_VISIBLE = {
 
 const INITIAL: FormData = {
   firstName: "", lastName: "", phone: "", email: "", moveDate: "", city: "",
-  neighborhoods: [], submarkets: [], propertyType: "", desiredRent: "", income: "", beds: "", baths: "",
+  neighborhoods: [], submarkets: [], propertyType: "", mustHaveAmenities: [], desiredRent: "", income: "", beds: "", baths: "",
   creditScore: "", creditHistory: "", brokenLeaseAge: "", brokenLeaseAmount: "",
   evictionCourt: "", evictionAge: "", evictionBalance: "", criminalBackground: "",
   criminalCharge: "", felonyAge: "", misdemeanorAge: "", notes: "", website: "", sms_consent: false,
@@ -242,6 +245,18 @@ export default function LeadFormFields({
     })
   }
 
+  // Must-Have Amenities — same toggle shape as neighborhoods/submarkets, plus the
+  // max-3 cap. At the cap a further SELECT is refused while DESELECT stays available,
+  // so the renter can always swap one choice for another.
+  function toggleMustHaveAmenity(checked: boolean, value: string) {
+    setFormData((prev) => {
+      const current = prev.mustHaveAmenities
+      if (!checked) return { ...prev, mustHaveAmenities: current.filter((v) => v !== value) }
+      if (current.includes(value) || current.length >= MAX_MUST_HAVE_AMENITIES) return prev
+      return { ...prev, mustHaveAmenities: [...current, value] }
+    })
+  }
+
   function toggleSubmarket(checked: boolean, value: string) {
     setFormData((prev) => {
       const updated = checked
@@ -302,6 +317,7 @@ export default function LeadFormFields({
             neighborhoods: formData.neighborhoods.join(", "),
             submarkets: formData.submarkets?.join(", "),
             property_type: formData.propertyType,
+            must_have_amenities: formData.mustHaveAmenities.join(", "),
             desired_rent: formData.desiredRent,
             income: formData.income,
             beds: formData.beds,
@@ -522,6 +538,33 @@ export default function LeadFormFields({
               <option value="2">2 Bathrooms</option>
               <option value="3+" disabled={formData.beds !== "3+"}>3+ Bathrooms</option>
             </select>
+          </div>
+        )}
+
+        {/* Must-Have Amenities — optional, max 3. Placed after Property Type and before
+            the financial questions: an engaging renter-preference question before the
+            form turns to qualification. Reuses the neighborhoods/submarkets selectable
+            markup exactly, so mobile layout, touch targets and states are unchanged. */}
+        {f.mustHaveAmenities && (
+          <div className="flex flex-col gap-2">
+            <label className={`${labelClass} font-semibold`}>Must-Have Amenities</label>
+            <div className={noteClass}>Select up to 3.</div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {MUST_HAVE_AMENITIES.map((a) => {
+                const checked = formData.mustHaveAmenities.includes(a.value)
+                const atCap = !checked && formData.mustHaveAmenities.length >= MAX_MUST_HAVE_AMENITIES
+                return (
+                  <label
+                    key={a.value}
+                    className={`flex min-w-0 items-center gap-2 rounded-xl border border-[#e2e4ea] bg-white px-3 py-2.5 text-[14px] text-[#111318] transition-colors ${atCap ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:border-[#c7ccd6]"}`}
+                  >
+                    <input type="checkbox" name="mustHaveAmenities" value={a.value} checked={checked} disabled={atCap}
+                      onChange={(e) => toggleMustHaveAmenity(e.target.checked, a.value)} className="h-4 w-4 shrink-0" />
+                    <span className="min-w-0 break-words">{a.label}</span>
+                  </label>
+                )
+              })}
+            </div>
           </div>
         )}
 

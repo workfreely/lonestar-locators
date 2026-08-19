@@ -1,6 +1,7 @@
 "use client"
 
 import { supabase } from "@/lib/supabase/client"
+import { normalizeMustHaveAmenities, mustHaveAmenityLabel } from "@bc/companion-shared"
 import { getNextAction } from "@/lib/nextAction"
 import { useState, useEffect, useRef } from "react"
 import { formatPhone } from "@/lib/utils/formatPhone"
@@ -983,10 +984,14 @@ export default function LeadPanel({
           const bedsBaths = lead.beds || lead.baths ? `${lead.beds || "—"} / ${lead.baths || "—"}` : null
           const moveDate = hasValue(lead.move_date) ? formatDate(lead.move_date) : null
           const areas = formatDesiredAreas(lead.neighborhoods, lead.city)
+          // Stored as canonical values — render the full client-facing labels.
+          const mustHaves = normalizeMustHaveAmenities(String(lead.must_have_amenities ?? "").split(","))
+            .map(mustHaveAmenityLabel)
+            .join(", ")
           const anyPresent =
             hasValue(cityValue) || hasValue(lead.desired_rent) || hasValue(lead.income) ||
             hasValue(lead.property_type) || hasValue(bedsBaths) || hasValue(moveDate) ||
-            hasValue(areas) || hasValue(lead.source)
+            hasValue(areas) || hasValue(lead.source) || hasValue(mustHaves)
           if (!anyPresent) return null
           return (
             <SectionCard title="Search Criteria" shaded collapsible defaultOpen={true} storageKey="search-criteria">
@@ -994,6 +999,7 @@ export default function LeadPanel({
               {hasValue(lead.desired_rent) && <Field label="Budget" value={formatRent(lead.desired_rent)} />}
               {hasValue(lead.income) && <Field label="Income" value={lead.income} />}
               {hasValue(lead.property_type) && <Field label="Property Type" value={lead.property_type} />}
+              {hasValue(mustHaves) && <Field label="Must-Haves" value={mustHaves} />}
               {hasValue(bedsBaths) && <Field label="Beds / Baths" value={bedsBaths} />}
               {hasValue(moveDate) && <Field label="Move Date" value={moveDate} />}
               {hasValue(areas) && <Field label="Desired Areas" value={areas} />}

@@ -81,6 +81,7 @@ export const DEFAULT_CONFIG: SmartLeadFormConfig = {
     moveDate: true,
     location: true,
     propertyDetails: true,
+    mustHaveAmenities: true,
     desiredRent: true,
     income: true,
     creditScore: true,

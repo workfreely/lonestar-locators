@@ -2,6 +2,7 @@ import type { CurrentProperty } from "@/types";
 import { log } from "@/utils/log";
 import { isSmartApartmentDataHost, parseSadPropertyId, stripSiteSuffix, looksLikeAddress } from "./sadUrl";
 import { parseCopyEmails } from "./sadEmail";
+import { parseAmenityValues, groupAmenitySections, type AmenityNode } from "./sadAmenities";
 
 /**
  * Current Property bridge (Smart Apartment Data → panel).
@@ -152,13 +153,79 @@ function readPropertyEmails(): string[] {
   return parseCopyEmails(nodes[0].getAttribute("onclick"));
 }
 
+/**
+ * Property AMENITIES from the SAD detail page (supplemental, read-only evidence for the
+ * Amenities intelligence row). Confirmed against the LIVE DOM:
+ *
+ *   #ctl00_ContentPlaceHolder_AmenitiesPage            ← the whole amenities region
+ *     <span id="…_Amenities_Label1" class="subtitleBlue amen-sec amen-title">Property Amenities</span>
+ *     <td class="subtitleBlue2">High Value</td>        ← CATEGORY heading (never a value)
+ *     <span id="…_Amenities_aHighValue">&nbsp; Doorman<br>&nbsp; Locker System<br>…</span>
+ *     <span id="…_Amenities_sports">…</span>           ← more categories follow
+ *     <span class="subtitleBlue amen-sec">Unit Features</span>
+ *     <span id="…_Amenities_kitchen">…</span>          ← …now belonging to the unit section
+ *
+ * Sectioning is by DOCUMENT ORDER inside the container — a value span belongs to the
+ * most recent heading above it. The container bounds the walk so unrelated page spans
+ * and tables can never be captured. Category headings live in `td.subtitleBlue2` cells,
+ * which are neither `.amen-sec` nor `_Amenities_` spans, so they are structurally
+ * incapable of entering the value stream.
+ *
+ * Section titles: `.amen-sec` is the only class BOTH headings share ("Property
+ * Amenities" also carries `amen-title`, "Unit Features" does not and has no id).
+ */
+const AMENITY_PAGE_SELECTOR = "#ctl00_ContentPlaceHolder_AmenitiesPage";
+// Headings and value spans in one query so the result is in DOCUMENT ORDER. The
+// "Property Amenities" heading matches both halves (it has an `_Amenities_` id AND
+// `.amen-sec`), so `.amen-sec` is tested FIRST and it is classified as a heading.
+const AMENITY_NODE_SELECTOR = 'span.amen-sec, span[id*="_Amenities_"]';
+
+function readPropertyAmenities(): { community: string[]; unit: string[] } {
+  // Scope to the confirmed container; fall back to the document only when SAD renders a
+  // page variant without it (the selectors are amenity-specific either way).
+  const scope: ParentNode = document.querySelector(AMENITY_PAGE_SELECTOR) ?? document;
+  const nodes: AmenityNode[] = Array.from(scope.querySelectorAll<HTMLElement>(AMENITY_NODE_SELECTOR)).map((el) =>
+    el.classList.contains("amen-sec")
+      ? { kind: "section", title: clean(el.textContent) }
+      : { kind: "values", html: el.innerHTML },
+  );
+  return groupAmenitySections(nodes);
+}
+
+/**
+ * Property SPECIALS from the SAD detail page (supplemental, read-only). Confirmed live
+ * element — the whole concessions block sits in ONE span, one offer per <br> line:
+ *
+ *   <span id="ctl00_ContentPlaceHolder_SpecialsBit1_specials" class="textSmall">
+ *     Gift Card: $500 Gift Card ends 11/13/2026<br>
+ *     App Fee Waived<br>
+ *     100% off rent for 2 month(s) on a 12 mo lease<br>
+ *     Other Concessions: Up to 8 Weeks Free Base Rent<br>
+ *     *Minimum Term Required. Terms Apply.
+ *   </span>
+ *
+ * We store every line VERBATIM and interpret nothing here — picking the rent concession
+ * out of the gift cards / fee waivers / footnotes is the evaluator's job
+ * (selectRentConcession). Undefined when the element is absent, which the panel treats
+ * as UNKNOWN (row hidden) rather than "no specials".
+ */
+const SPECIALS_SELECTOR = "#ctl00_ContentPlaceHolder_SpecialsBit1_specials";
+
+function readPropertySpecials(): string[] | undefined {
+  const el = document.querySelector<HTMLElement>(SPECIALS_SELECTOR);
+  if (!el) return undefined; // element absent → unknown, NOT "no specials"
+  // Same shape as the amenity spans: <br>-separated lines. Reuse the pure parser so
+  // entity decoding / whitespace handling stays identical in one place.
+  return parseAmenityValues(el.innerHTML);
+}
+
 function readCurrentProperty(): CurrentProperty | null {
   const propertyId = detectPropertyIdFromUrl();
   if (!propertyId) return null; // not a property-detail page
   const propertyName = readPropertyName();
   if (!propertyName) return null; // primary identity requires the name (retry for late DOM)
-  // Address + submarket + management + emails + image are SUPPLEMENTAL — never block
-  // detection when unavailable. propertyUrl is the raw current URL (known-good).
+  // Address + submarket + management + emails + amenities + specials + image are
+  // SUPPLEMENTAL — never block detection when unavailable. propertyUrl is the raw current URL (known-good).
   return {
     propertyId,
     propertyName,
@@ -166,6 +233,8 @@ function readCurrentProperty(): CurrentProperty | null {
     propertySubmarket: readPropertySubmarket(),
     propertyManagement: readPropertyManagement(),
     propertyEmails: readPropertyEmails(),
+    propertyAmenities: readPropertyAmenities(),
+    propertySpecials: readPropertySpecials(),
     propertyUrl: location.href,
     propertyImageUrl: readPropertyImageUrl(),
   };
@@ -182,10 +251,31 @@ function writeCurrentProperty(cp: CurrentProperty | null): void {
   if (serialized === lastWritten) return;
   lastWritten = serialized;
   store.set({ [STORAGE_KEY]: cp ?? null });
-  log("current-property →", cp ? `${cp.propertyName} (#${cp.propertyId})` : "cleared");
+  log(
+    "current-property →",
+    cp
+      ? `${cp.propertyName} (#${cp.propertyId}) — amenities ${cp.propertyAmenities?.community.length ?? 0}c/${cp.propertyAmenities?.unit.length ?? 0}u, specials ${cp.propertySpecials?.length ?? "none"}`
+      : "cleared",
+  );
 }
 
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * True while a detail page still looks INCOMPLETE. The identity (name) can resolve
+ * before SAD has rendered the supplemental blocks, and the old retry stopped the moment
+ * the name appeared — so a late-rendering Amenities/Specials block was read once, came
+ * back empty, and was never re-read for that page view. Treating "identity resolved but
+ * supplemental blocks still absent" as incomplete lets the SAME bounded retry pick them
+ * up. `propertySpecials === undefined` means SAD rendered no specials element at all
+ * (unknown); an empty amenities pair likewise means "nothing found YET".
+ */
+function isIncomplete(cp: CurrentProperty | null): boolean {
+  if (!cp) return true;
+  const a = cp.propertyAmenities;
+  const amenitiesEmpty = !a || (a.community.length === 0 && a.unit.length === 0);
+  return amenitiesEmpty || cp.propertySpecials === undefined;
+}
 
 /**
  * Detect the current property and write it to storage. Called on init and on every
@@ -207,18 +297,18 @@ export function syncCurrentProperty(): void {
   const cp = readCurrentProperty();
   writeCurrentProperty(cp);
 
-  if (onDetailPage && !cp) {
+  if (onDetailPage && isIncomplete(cp)) {
     let tries = 0;
     const attempt = () => {
       tries += 1;
       // Bail if we navigated away from the detail page while retrying.
       if (detectPropertyIdFromUrl() === null) return;
       const again = readCurrentProperty();
-      if (again) {
-        writeCurrentProperty(again);
-        return;
-      }
-      if (tries < 6) retryTimer = setTimeout(attempt, 300);
+      // Write every improvement as it arrives; compare-before-write drops no-op writes.
+      if (again) writeCurrentProperty(again);
+      // Keep going only while something is still missing — a property that genuinely
+      // has no amenities simply costs the same bounded 6 cheap reads, then stops.
+      if (isIncomplete(again) && tries < 6) retryTimer = setTimeout(attempt, 300);
     };
     retryTimer = setTimeout(attempt, 300);
   }
