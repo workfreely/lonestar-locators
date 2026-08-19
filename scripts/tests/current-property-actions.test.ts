@@ -71,14 +71,19 @@ const rowFor = (id: number, leadId: string) => ({
   ok(!isFavorited, "state: Favorited = false — independent of Recommendations")
 }
 
-// ── A property may legitimately exist in BOTH ──
+// ── Recommendation and Favorite are MUTUALLY EXCLUSIVE ──
+// Superseded rule: a property used to be allowed in both collections at once. They are
+// now two states of one progression, so a LEGACY duplicate resolves in favour of
+// Favorites and the stray recommendation is not rendered. Nothing is deleted here —
+// the next deliberate move resolves the underlying row.
 {
   const recs = [rowFor(1, "A")]
   const favs = [rowFor(10, "A")]
   const p = buildActiveClientPayload(lead("A", "Carlos"), [], null, null, TZ, favs, [], recs)
   const inRecs = (p.recommendations ?? []).some((r) => (r.propertyUrl ?? "") === CP.propertyUrl)
   const inFavs = (p.favorites ?? []).some((f) => (f.propertyUrl ?? "") === CP.propertyUrl)
-  ok(inRecs && inFavs, "Alta can be BOTH a Recommendation and a Favorite for Carlos")
+  ok(inFavs, "legacy duplicate: Favorites wins — Alta renders as a Favorite")
+  ok(!inRecs, "legacy duplicate: the duplicate Recommendation does NOT also render")
 }
 
 console.log(`\n${fail === 0 ? "ALL PASS ✅" : "FAILURES ❌"}  (${pass} passed, ${fail} failed)`)

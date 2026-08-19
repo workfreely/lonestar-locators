@@ -71,13 +71,51 @@ function cityFromAddress(addr?: string | null): string | null {
   return m ? m[1].trim() : null;
 }
 /** Multiword area phrases the client typed (desiredAreas/interest), city excluded. */
-function clientAreaPhrases(ctx: ClientContext): string[] {
+/**
+ * Normalized comparison forms for an area label, with the client's city removed so
+ * "Downtown Austin" and "Downtown" compare equal. Textual normalization ONLY — no
+ * proximity, distance or metro-area reasoning.
+ */
+function areaForms(label: string | null | undefined, city: string): Set<string> {
+  const forms = new Set<string>();
+  const p = norm(label);
+  if (!p) return forms;
+  forms.add(p);
+  if (city && p.endsWith(` ${city}`)) {
+    const bare = p.slice(0, -(city.length + 1)).trim();
+    if (bare) forms.add(bare);
+  }
+  return forms;
+}
+
+/** "All of Austin" states a WHOLE-CITY preference, not a specific neighborhood. */
+const WHOLE_CITY_PHRASE = /^all of\b/;
+
+function clientAreaPhrases(ctx: ClientContext, cityConfirmed = false): string[] {
   const raw = [ctx.desiredAreas, ctx.interest].filter(Boolean).join(" , ");
   const city = norm(ctx.city);
-  return raw
-    .split(/[,/;|]| and | or /i)
-    .map((p) => norm(p))
-    .filter((p) => p.length >= 4 && !STOP_AREA.has(p) && p !== city);
+  const out = new Set<string>();
+  for (const part of raw.split(/[,/;|]| and | or /i)) {
+    const p = norm(part);
+    if (p.length < 4 || STOP_AREA.has(p) || p === city) continue;
+    // A whole-city preference is NOT an unmatched area: keeping it here left an
+    // area phrase that could never match, which suppressed the city-level match and
+    // excluded Location entirely ("All of Austin" + an Austin property).
+    if (WHOLE_CITY_PHRASE.test(p)) continue;
+    out.add(p);
+    // A CITY-QUALIFIED area names the same place as the bare submarket: "Downtown
+    // Austin" is the submarket "Downtown". Without the stripped variant the phrase
+    // could never match the property's own submarket text.
+    //
+    // ONLY when the property's city is known AND equals the client's: a bare
+    // "Downtown" says nothing about WHICH city's downtown, so matching it with an
+    // unknown property city would be a guess.
+    if (cityConfirmed && city && p.endsWith(` ${city}`)) {
+      const bare = p.slice(0, -(city.length + 1)).trim();
+      if (bare.length >= 4 && !STOP_AREA.has(bare)) out.add(bare);
+    }
+  }
+  return [...out];
 }
 /** Distinctive property area phrases to search inside the client's override text:
  *  the submarket, plus name bigrams (drops generic apartment words). */
@@ -107,6 +145,35 @@ function extractProximity(rawText: string): { hit: boolean; clause: string | nul
 
 const FIT_WORD: Record<LocationFitVerdict, LocationFit> = { good: "Good", bad: "Bad", unknown: "Unverified" };
 
+/**
+ * The property's own city, read from its address ("700 River St, Austin, TX 78701" →
+ * "Austin"). Null when the address does not carry one.
+ */
+export function propertyCityName(property: PropertyLocation): string | null {
+  return cityFromAddress(property.propertyAddress);
+}
+
+/**
+ * A CONFIRMED wrong-city mismatch: the client's search city and the property's city are
+ * BOTH known and different.
+ *
+ * Deliberately harder than the fit evaluator's own city check, which softens a mismatch
+ * whenever the override text merely mentions the property's city (a client relocating
+ * and naming their new city). That softening is right for a nuanced FIT verdict but
+ * wrong for scoring — a San Antonio client will not lease in Austin because a note
+ * happened to say "Austin", and averaging budget/amenity positives into that property
+ * produces a misleading match.
+ *
+ * Returns false whenever either city is unknown, so missing data is never treated as a
+ * mismatch.
+ */
+export function cityMismatch(ctx: ClientContext, property: PropertyLocation): boolean {
+  const clientCity = norm(ctx.city);
+  const propCity = norm(propertyCityName(property));
+  if (!clientCity || !propCity) return false; // unknown ≠ mismatch
+  return clientCity !== propCity;
+}
+
 export function evaluateLocationFit(ctx: ClientContext, property: PropertyLocation): LocationFitResult {
   const make = (verdict: LocationFitVerdict, detail: string | null): LocationFitResult => ({
     verdict,
@@ -130,12 +197,35 @@ export function evaluateLocationFit(ctx: ClientContext, property: PropertyLocati
     if (!cityChanged) return make("bad", "Wrong city");
   }
 
-  // 2) Area match — the client's stated area, OR an area named in the override text,
+  // 2) SAD's Location/Submarket is the PRIMARY property-side location signal — it is
+  //    structured intelligence, unlike a street address we would have to infer from.
+  //    A MATCH here decides immediately and the row shows SAD's own label.
+  const specificAreas = clientAreaPhrases(ctx, true);
+  const submarketNorm = norm(property.propertySubmarket);
+  const submarketUsable = submarketNorm.length >= 4 && !STOP_AREA.has(submarketNorm);
+  const submarketDecides = specificAreas.length > 0 && submarketUsable;
+  if (submarketDecides) {
+    const subForms = areaForms(property.propertySubmarket, clientCity);
+    const matched = specificAreas.some((a) => {
+      for (const f of areaForms(a, clientCity)) if (subForms.has(f)) return true;
+      return false;
+    });
+    if (matched) return make("good", titleCase(property.propertySubmarket ?? submarketNorm));
+  }
+
+  // 3) Area match — the client's stated area, OR an area named in the override text,
   //    appearing in the property's submarket/name/address → Good (show the area).
-  const areaPhrases = clientAreaPhrases(ctx);
+  const cityConfirmed = !!clientCity && !!propCityNorm && clientCity === propCityNorm;
+  const areaPhrases = clientAreaPhrases(ctx, cityConfirmed);
   const propPhrases = propertyAreaPhrases(property);
   const areaHit = areaPhrases.find((c) => propBlob.includes(c)) ?? propPhrases.find((p) => newerText.includes(p)) ?? null;
   if (areaHit) return make("good", titleCase(areaHit));
+
+  // 3b) The client named SPECIFIC areas and SAD gives a usable location that matched
+  //     none of them (nor the name/override evidence above) → an explicit MISMATCH.
+  //     A more precise desired area outranks the broad city, so an address in the right
+  //     city cannot rescue it. Textual comparison only — never proximity.
+  if (submarketDecides) return make("bad", "Outside desired area");
 
   // 3) A stated proximity/commute need we cannot verify without map data → Unverified,
   //    preserving the client's own short phrase in the detail ("Near Lackland").

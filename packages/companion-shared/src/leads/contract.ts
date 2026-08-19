@@ -193,6 +193,10 @@ export const favoriteSchema = z.object({
   propertyName: z.string(),
   propertyAddress: z.string().nullish(),
   propertyUrl: z.string().nullish(),
+  /** Why this Favorite cannot currently move back to Recommendations (Top Pick,
+   *  scheduled tour, open property-scoped action), or null when the move is allowed.
+   *  Resolved server-side where the tours/actions live; the CRM re-checks on receipt. */
+  moveBlockedReason: z.string().nullish(),
 });
 export type FavoriteDTO = z.infer<typeof favoriteSchema>;
 

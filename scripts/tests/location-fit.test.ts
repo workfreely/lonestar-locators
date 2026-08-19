@@ -12,7 +12,7 @@
  * Austin→San-Antonio wrong-city case, proximity preserved verbatim as an Unverified
  * detail (no landmark lookup), and end-to-end payload → context → fit.
  */
-import { resolveClientContext, evaluateLocationFit } from "@bc/companion-shared"
+import { resolveClientContext, evaluateLocationFit, cityMismatch, propertyCityName } from "@bc/companion-shared"
 import { buildActiveClientPayload } from "@/lib/companion/leadToDto"
 
 let pass = 0,
@@ -150,14 +150,18 @@ const fitFor = (client: any, property: any) => evaluateLocationFit(resolveClient
   eq(r.detail, "Austin", "detail shows the city")
 }
 
-// ── Sub-city-only difference is NEVER Bad (no parseable city on either side) ───
+// ── SUPERSEDED: a sub-city difference IS a mismatch once SAD gives a usable location ─
+// Previously this could never be Bad without a parseable city on either side. SAD's
+// Location/Submarket is now the primary property-side signal, so a client who asked for
+// "The Pearl" looking at a "Northwest" property is explicitly outside their area — no
+// city parsing, and no proximity reasoning, required.
 {
   const r = fitFor(
     { desiredAreas: "The Pearl" },
     { propertyName: "Rosemont at Highland Park", propertySubmarket: "Northwest", propertyAddress: "" },
   )
-  ok(r.verdict !== "bad", "sub-city-only difference is never bad")
-  eq(r.verdict, "unknown", "sub-city-only difference → unknown")
+  ok(r.verdict === "bad", "a usable SAD location that matches no desired area → Outside desired area")
+  eq(r.detail, "Outside desired area", "…and says so plainly")
 }
 
 // ── Containment (not equality) drives the area match ──────────────────────────
@@ -208,6 +212,101 @@ const fitFor = (client: any, property: any) => evaluateLocationFit(resolveClient
   )
   eq(r.verdict, "good", "end-to-end: payload context → good fit")
   eq(r.detail, "East Austin", "end-to-end detail is the area")
+}
+
+
+// ── V1 Location states: Desired area / Outside desired area / excluded ───────
+// Explicit matches are credited, explicit mismatches score zero for THIS dimension
+// only, and anything we cannot determine is excluded rather than guessed. No mileage,
+// drive time, coordinates or "surrounding metro" reasoning is involved.
+{
+  const client = resolveClientContext({ city: "Austin", desiredAreas: "Downtown Austin" })
+  const prop = { propertyAddress: "700 River St, Austin, TX 78701", propertySubmarket: "Downtown" }
+  const r = evaluateLocationFit(client, prop as any)
+  eq(r.verdict, "good", "Downtown Austin client + Downtown Austin property → Desired area")
+  eq(r.detail, "Downtown", "…and the row names the area")
+  eq(cityMismatch(client, prop as any), false, "not a mismatch")
+}
+{
+  // Emily Watson vs Alta Berry Creek — the live regression.
+  const client = resolveClientContext({ city: "Austin", desiredAreas: "Downtown Austin" })
+  const prop = { propertyAddress: "30800 Ronald Reagan Blvd, Georgetown, TX 78633", propertySubmarket: "Georgetown" }
+  eq(cityMismatch(client, prop as any), true, "Downtown Austin client + GEORGETOWN property → outside desired area")
+  eq(propertyCityName(prop as any), "Georgetown", "the row names the property's own city")
+  eq(evaluateLocationFit(client, prop as any).verdict, "bad", "…and it is NOT unknown/excluded")
+}
+{
+  const client = resolveClientContext({ city: "San Antonio", desiredAreas: "Stone Oak" })
+  const prop = { propertyAddress: "700 River St, Austin, TX 78701", propertySubmarket: "Downtown" }
+  eq(cityMismatch(client, prop as any), true, "San Antonio client + Austin property → outside desired area")
+}
+{
+  // A whole-city preference must not behave as an unmatchable neighborhood.
+  const client = resolveClientContext({ city: "Austin", desiredAreas: "All of Austin" })
+  const prop = { propertyAddress: "700 River St, Austin, TX 78701", propertySubmarket: "Downtown" }
+  const r = evaluateLocationFit(client, prop as any)
+  eq(r.verdict, "good", "'All of Austin' + an Austin property → Desired area")
+  eq(r.detail, "Austin", "…credited on the city")
+}
+{
+  // Insufficient evidence → EXCLUDED, never guessed. A bare "Downtown" submarket with
+  // no city could be any city's downtown.
+  const client = resolveClientContext({ city: "Austin", desiredAreas: "Downtown Austin" })
+  // True insufficiency = no SAD location AND no parseable city.
+  const prop = { propertyAddress: "700 River St", propertySubmarket: null }
+  const r = evaluateLocationFit(client, prop as any)
+  eq(r.verdict, "unknown", "no SAD location and no city → Location excluded, not guessed")
+  eq(cityMismatch(client, prop as any), false, "…and never converted into a mismatch")
+}
+{
+  const client = resolveClientContext({})
+  const prop = { propertyAddress: "700 River St, Austin, TX 78701", propertySubmarket: "Downtown" }
+  eq(evaluateLocationFit(client, prop as any).verdict, "unknown", "no client location criteria → excluded")
+}
+
+
+// ── V1: SAD's Location/Submarket is the PRIMARY property-side location signal ─
+// It is structured intelligence, so it decides the area relationship rather than a
+// street address we would have to infer from. Textual normalization only — no
+// proximity, distance, coordinates or metro-area reasoning.
+{
+  const emily = resolveClientContext({ city: "Austin", desiredAreas: "Downtown Austin" })
+  const sad = (submarket: string | null, address: string) => ({ propertySubmarket: submarket, propertyAddress: address, propertyName: null }) as any
+
+  // Desired area → full credit, row names SAD's own label
+  const a = evaluateLocationFit(emily, sad("Downtown Austin", "700 River St, Austin, TX 78701"))
+  eq(a.verdict, "good", "SAD 'Downtown Austin' matches 'Downtown Austin' → Desired area")
+  eq(a.detail, "Downtown Austin", "…row shows SAD's location label")
+
+  // "Downtown" ↔ "Downtown Austin" normalization
+  const b = evaluateLocationFit(emily, sad("Downtown", "700 River St, Austin, TX 78701"))
+  eq(b.verdict, "good", "SAD 'Downtown' normalizes to 'Downtown Austin' → Desired area")
+
+  // Explicit mismatches score zero — NOT unknown
+  eq(evaluateLocationFit(emily, sad("Georgetown", "30800 Ronald Reagan Blvd, Georgetown, TX 78633")).verdict, "bad",
+     "SAD 'Georgetown' vs 'Downtown Austin' → Outside desired area")
+  eq(evaluateLocationFit(emily, sad("Cedar Park", "1200 Cypress Creek Rd, Cedar Park, TX 78613")).verdict, "bad",
+     "SAD 'Cedar Park' vs 'Downtown Austin' → Outside desired area, never a match")
+
+  // The SUBMARKET wins over the address city — the reason this rule exists
+  const c2 = evaluateLocationFit(emily, sad("Cedar Park", "1200 Cypress Creek Rd, Austin, TX 78613"))
+  eq(c2.verdict, "bad", "SAD 'Cedar Park' outranks an Austin address → Outside desired area")
+  eq(c2.detail, "Outside desired area", "…and says so plainly")
+
+  // A specific desired area outranks the broad city: an Austin address alone is NOT
+  // full credit for someone who asked for Downtown Austin.
+  eq(evaluateLocationFit(emily, sad(null, "700 River St, Austin, TX 78701")).verdict, "unknown",
+     "no SAD location + specific desired area → excluded, not full credit")
+  eq(evaluateLocationFit(emily, sad(null, "700 River St")).verdict, "unknown",
+     "no location evidence at all → excluded")
+}
+{
+  // Whole-city and city-only criteria still use the broader city signal.
+  const all = resolveClientContext({ city: "Austin", desiredAreas: "All of Austin" })
+  const cityOnly = resolveClientContext({ city: "Austin" })
+  const prop = { propertySubmarket: "Downtown", propertyAddress: "700 River St, Austin, TX 78701", propertyName: null } as any
+  eq(evaluateLocationFit(all, prop).verdict, "good", "'All of Austin' + Austin property → Desired area")
+  eq(evaluateLocationFit(cityOnly, prop).verdict, "good", "city-only criterion + Austin property → Desired area")
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

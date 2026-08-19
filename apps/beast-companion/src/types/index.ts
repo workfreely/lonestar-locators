@@ -64,6 +64,10 @@ export type CurrentProperty = {
    *  in the evaluator, never here). Undefined when SAD renders no specials element at
    *  all, which means UNKNOWN — distinct from a present block stating no concession. */
   propertySpecials?: string[];
+  /** SAD's property-wide rent RANGE from the facts-bar price chip, parsed at extraction
+   *  ("$925 - $1,199" → { min: 925, max: 1199 }). Not a selected unit's rent. Null when
+   *  the chip is absent or carries no figure — unknown, never $0. */
+  propertyRent?: { min: number; max: number } | null;
   /** The actual SAD ViewProperty.aspx?propertyID=... URL. */
   propertyUrl: string;
   propertyImageUrl?: string | null;

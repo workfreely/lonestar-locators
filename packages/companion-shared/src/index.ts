@@ -167,6 +167,7 @@ export type { ClientContext, ClientContextInput } from "./clientContext";
 
 // Location Fit V1 — conservative, deterministic property-vs-client location match
 export { evaluateLocationFit } from "./locationFit";
+export { cityMismatch, propertyCityName } from "./locationFit";
 export type { LocationFitVerdict, LocationFit, LocationFitResult, PropertyLocation } from "./locationFit";
 
 // Approval V1 — management-intelligence risk (Low/Moderate/High/Unverified), evidence-only
@@ -190,6 +191,16 @@ export type { PropertyAmenities, MustHaveAmenityValue } from "./amenities";
 // specials/base-rent selectors are not confirmed yet, so nothing feeds it in the panel)
 export { evaluateSpecials, selectRentConcession, formatSpecialText, formatRent, computeAvgRent, isQualifiedSpecial } from "./specials";
 export type { SpecialInput, SpecialsResult, RentConcession } from "./specials";
+
+// Budget V1 — client working budget vs the property's SAD rent range, evidence-only
+export { evaluateBudget, resolveClientBudget, parseMoneyRange, budgetTolerance, BUDGET_TOLERANCE } from "./budget";
+export type { MoneyRange } from "./budget";
+
+// Overall Match % — composes the existing Location/Budget/Approval/Amenities signals
+export { evaluateMatchScore, MIN_DIMENSIONS } from "./matchScore";
+export type { MatchScoreInput, AmenityCoverage } from "./matchScore";
+export { matchScoreTone } from "./matchScoreTone";
+export type { MatchScoreTone } from "./matchScoreTone";
 
 // Theme registry (all CRM themes, semantic tokens, safe Midnight fallback)
 export {

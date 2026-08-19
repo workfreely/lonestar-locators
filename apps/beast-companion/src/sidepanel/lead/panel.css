@@ -256,6 +256,9 @@
 }
 .lp-section-title {
   flex: 1;
+  /* Never break onto a second line: `flex: 1` allows shrinking, so any element that
+     reserves header space (e.g. the Match %) could otherwise wrap the title. */
+  white-space: nowrap;
   text-align: left;
   font-size: 11px;
   font-weight: 700;
@@ -550,6 +553,76 @@
   line-height: 1.35;
   color: var(--lb-text-secondary);
 }
+/* Row body: text block + ONE compact move control. The name/address block keeps the
+   full stacked presentation; the control is a small trailing glyph, never a button
+   bar, so rows stay as compact as before. */
+.bc-prop-row-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.bc-prop-row-text {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.bc-prop-move {
+  flex: none;
+  /* `font: inherit` FIRST — a <button> otherwise falls back to the UA's own font, which
+     renders ♥ in a narrow, compressed fallback face. This is the same reset
+     .bc-cp-action uses, which is why the Current Property heart looked correct. */
+  font: inherit;
+  font-size: 12px;
+  /* Centered glyph with room to breathe: a rigid square squeezed the heart, so the
+     control sizes from its content with a minimum, and never stretches it. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  line-height: 1;
+  border-radius: 6px;
+  border: 1px solid var(--lb-border);
+  background: var(--lb-surface-elevated);
+  color: var(--lb-text-secondary);
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.bc-prop-move:hover:not(:disabled) {
+  color: var(--lb-accent);
+  border-color: var(--lb-accent);
+}
+.bc-prop-move:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+/* Recommendation → Favorite. Heavier than the neutral "+" so the primary progression
+   reads at a glance, using the same Favorite language as the Current Property action.
+   Still a 22px glyph control, not a button bar — the row stays compact. */
+.bc-prop-move--heart {
+  /* Full, normal-width heart — same shape the Current Property "♥ Favorited" action
+     rendered. Never condensed or scaled. The glyph is the EMPTY ♡ and the resting
+     colour stays neutral, because red denotes the Favorite state and this property is
+     still a Recommendation. Red appears only on hover, as the destination affordance. */
+  font-size: 15px;
+  font-weight: 600;
+  font-stretch: normal;
+  letter-spacing: normal;
+}
+.bc-prop-move--heart:hover:not(:disabled) {
+  color: var(--lb-danger, #ef4444);
+  border-color: color-mix(in srgb, var(--lb-danger, #ef4444) 60%, var(--lb-border));
+  background: color-mix(in srgb, var(--lb-danger, #ef4444) 10%, var(--lb-surface-elevated));
+}
+/* Why a Favorite can't move back — one terse line, only when blocked. */
+.bc-prop-blocked {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--lb-text-muted, #9aa4b2);
+}
 
 /* Current Property card — compact thumbnail + name + address. The thumbnail uses
    a background-image so a missing/broken URL simply shows the building-placeholder
@@ -609,6 +682,26 @@
   color: var(--lb-text-secondary);
 }
 
+/* Overall Match % beside the CURRENT PROPERTY heading. Sits in SectionCard's existing
+   `right` slot, so the header layout itself is unchanged. */
+.bc-match-score {
+  margin-left: auto;
+  /* Sits well inboard of the collapse chevron. A FIXED gap, not a percentage: at
+     narrow panel widths 25% reserved more space than the header had left and forced the
+     title to wrap. This is independent of the address text and of the panel width, and
+     the chevron does not move — only this element is pulled left. */
+  margin-right: 40px;
+  /* Never let the reserved gap squeeze the value onto two lines. */
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+/* Band colours — the SAME semantic tokens the intelligence rows use. */
+.bc-match-score.tone-good { color: var(--lb-success, #10b981); }
+.bc-match-score.tone-moderate { color: var(--lb-warning, #f59e0b); }
+.bc-match-score.tone-bad { color: var(--lb-danger, #ef4444); }
+
 /* Current Property Intelligence (V1) — up to four compact rows under the identity
    block ("Location: Unverified", "Approval: Unverified · Mgmt: Avenue5"). The
    hierarchy is BOLD LABELS + REGULAR VALUES: every label ("Location:", "Approval:",
@@ -652,6 +745,10 @@
   font-weight: 400;
   color: var(--lb-text-secondary);
 }
+/* Specials concession — the SAME amber token the other warning treatments use.
+   Targets the first fact (child 1 is the "Specials:" label; this row has no lead), so
+   Base Rent / Avg Rent keep the normal fact colour. */
+.bc-intel-specials .bc-intel-fact:nth-child(2) { color: var(--lb-warning, #f59e0b); }
 .bc-intel-lead.tone-good { color: var(--lb-success, #10b981); }
 .bc-intel-lead.tone-bad { color: var(--lb-danger, #ef4444); }
 .bc-intel-lead.tone-moderate { color: var(--lb-warning, #f59e0b); }

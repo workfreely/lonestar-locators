@@ -38,6 +38,8 @@ export function PanelApp({
   currentProperty = null,
   onAddRecommendation,
   onAddFavorite,
+  onMoveToFavorite,
+  onMoveToRecommendation,
   connection = DISCONNECTED,
   onConnect,
   onDisconnect,
@@ -78,6 +80,9 @@ export function PanelApp({
   // (via the Companion → CRM verb bridge). Omitted in fixtures.
   onAddRecommendation?: () => void;
   onAddFavorite?: () => void;
+  // Move a SAVED row between the two collections (compact per-row controls).
+  onMoveToFavorite?: (propertyUrl?: string | null) => void;
+  onMoveToRecommendation?: (propertyUrl?: string | null) => void;
   // Connection is derived from the SW's authenticated state. Production defaults
   // to DISCONNECTED — the panel is authenticated ONLY when this is "connected".
   connection?: CompanionConnection;
@@ -265,6 +270,8 @@ export function PanelApp({
                 currentProperty={currentProperty}
                 onAddRecommendation={onAddRecommendation}
                 onAddFavorite={onAddFavorite}
+                onMoveToFavorite={onMoveToFavorite}
+                onMoveToRecommendation={onMoveToRecommendation}
               />
             )
           ) : (

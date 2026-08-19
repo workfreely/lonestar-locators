@@ -20,6 +20,9 @@
 export type ClientContext = {
   /** Smart Form baseline. */
   city: string | null;
+  /** Smart Form / search-criteria budget, as stored ("$1,600 – $1,800"). The BASELINE
+   *  layer for Budget; `overrideText` may supersede it. */
+  budgetText: string | null;
   desiredAreas: string | null;
   interest: string | null;
   /** Client's original form notes — context only; never auto-overrides baseline. */
@@ -38,6 +41,7 @@ export type ClientContext = {
 
 export type ClientContextInput = {
   city?: string | null;
+  budgetText?: string | null;
   desiredAreas?: string | null;
   interest?: string | null;
   clientNotes?: string | null;
@@ -57,6 +61,7 @@ export function resolveClientContext(input: ClientContextInput): ClientContext {
   const overrideText = [locatorNotes, ...aiInsights].filter(Boolean).join(". ");
   return {
     city: clean(input.city),
+    budgetText: clean(input.budgetText),
     desiredAreas: clean(input.desiredAreas),
     interest: clean(input.interest),
     clientNotes: clean(input.clientNotes),

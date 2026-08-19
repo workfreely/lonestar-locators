@@ -1,5 +1,6 @@
 "use client"
 import { useEffect, useRef, useState } from "react"
+import { favoriteMoveBlock, visibleRecommendations } from "@/lib/leads/propertyCollections"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import FollowUpRow from "./FollowUpRow"
@@ -1161,7 +1162,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         payload.verb !== "open-commission-paid" &&
         payload.verb !== "open-send-rebate" &&
         payload.verb !== "add-recommendation" &&
-        payload.verb !== "add-favorite"
+        payload.verb !== "add-favorite" &&
+        payload.verb !== "move-to-recommendation" &&
+        payload.verb !== "move-to-favorite"
       )
         return
 
@@ -1658,6 +1661,31 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         return
       }
 
+      // Remove the row a moved property came FROM. Only ever called after the
+      // destination row is confirmed (see applyLocal), so a failed insert leaves the
+      // source intact. `isFav` describes the DESTINATION, so the source is the opposite
+      // collection. Demo rows are local-only and skip the server delete.
+      const removeSourceRow = (row: any, destIsFav: boolean, forLead: any) => {
+        if (destIsFav) {
+          const next = localRecommendationsRef.current.filter((r: any) => String(r.id) !== String(row.id))
+          localRecommendationsRef.current = next
+          setLocalRecommendations(next)
+        } else {
+          const next = localFavoritesRef.current.filter((f: any) => String(f.id) !== String(row.id))
+          localFavoritesRef.current = next
+          setLocalFavorites(next)
+        }
+        postCompanionActiveClient({ ...forLead }, localNextActionsRef.current)
+        if (isDemoLeadId(forLead.id)) return
+        supabase
+          .from(destIsFav ? "lead_recommendations" : "lead_favorites")
+          .delete()
+          .eq("id", row.id)
+          .then(({ error }: { error: any }) => {
+            if (error) console.error(`[${destIsFav ? "recommendation" : "favorite"}] source delete failed:`, error.message)
+          })
+      }
+
       // Beast Companion "+ Recommendation" / "♡ Favorite" — add the Companion's
       // detected Current Property to the ACTIVE client's canonical collection
       // (lead_recommendations / lead_favorites). Same write the Workspace uses; the
@@ -1665,18 +1693,50 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       // Deduped on (lead_id, property_url) — the SAD ViewProperty URL embeds the
       // stable propertyID, so a repeat click is a no-op. Re-posts the active client
       // so both the Companion and the Workspace reflect it with no refresh.
-      if (payload.verb === "add-recommendation" || payload.verb === "add-favorite") {
+      if (
+        payload.verb === "add-recommendation" ||
+        payload.verb === "add-favorite" ||
+        payload.verb === "move-to-recommendation" ||
+        payload.verb === "move-to-favorite"
+      ) {
         const p = payload.property as
           | { propertyName?: string; propertyAddress?: string | null; propertyUrl?: string; propertyImageUrl?: string | null }
           | undefined
         const propertyUrl = String(p?.propertyUrl ?? "").trim()
         const propertyName = String(p?.propertyName ?? "").trim()
         if (!propertyUrl || !propertyName) return // primary identity required
-        const isFav = payload.verb === "add-favorite"
+        const isFav = payload.verb === "add-favorite" || payload.verb === "move-to-favorite"
         const currentList = isFav ? localFavoritesRef.current : localRecommendationsRef.current
-        // Duplicate guard: same client + same property URL already present.
+        const sourceList = isFav ? localRecommendationsRef.current : localFavoritesRef.current
+        // The SAME property in the opposite collection — Recommendation and Favorite are
+        // two states of one progression, so this row is MOVED, never duplicated.
+        const sourceRow = sourceList.find(
+          (r: any) => String(r.lead_id) === String(lead.id) && String(r.property_url ?? "") === propertyUrl
+        )
+
+        // Favorite → Recommendation is blocked while the Favorite still carries a
+        // downstream dependency (Top Pick / scheduled tour / open property-scoped
+        // action). Re-checked HERE even though the Companion also disables the control,
+        // so a stale panel can never null out a real relationship.
+        if (!isFav && sourceRow) {
+          const block = favoriteMoveBlock({
+            favorite: sourceRow,
+            lead,
+            tours: localToursRef.current,
+            nextActions: localNextActionsRef.current,
+          })
+          if (block.reason) {
+            postCompanionActiveClient({ ...lead }, localNextActionsRef.current) // re-sync control state
+            return
+          }
+        }
+
+        // Duplicate guard: same client + same property URL already in the destination.
         if (currentList.some((r: any) => String(r.lead_id) === String(lead.id) && String(r.property_url ?? "") === propertyUrl)) {
-          postCompanionActiveClient({ ...lead }, localNextActionsRef.current) // re-sync button state
+          // Already at the destination. If a legacy duplicate still sits in the source
+          // collection, this deliberate action resolves it through the normal path.
+          if (sourceRow) removeSourceRow(sourceRow, isFav, lead)
+          else postCompanionActiveClient({ ...lead }, localNextActionsRef.current) // re-sync control state
           return
         }
         const rowBase = {
@@ -1696,7 +1756,11 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             localRecommendationsRef.current = next
             setLocalRecommendations(next)
           }
-          postCompanionActiveClient({ ...lead }, localNextActionsRef.current)
+          // DESTINATION FIRST: the source is only removed once the destination row
+          // exists. If the insert failed we never get here, so the source is untouched
+          // and the property is never lost between the two collections.
+          if (sourceRow) removeSourceRow(sourceRow, isFav, lead)
+          else postCompanionActiveClient({ ...lead }, localNextActionsRef.current)
         }
         if (isDemoLeadId(lead.id)) {
           applyLocal({ id: `demo-${isFav ? "fav" : "rec"}-${Date.now()}`, ...rowBase })
@@ -2147,7 +2211,13 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                   onMatchesChange={setTopMatches}
                   onCloseWorkspace={SHOW_LEGACY_LEAD_PANEL ? undefined : closeWorkspace}
                 >
-                  <BestMatches lead={selectedLead} recommendations={localRecommendations} />
+                  <BestMatches
+                    lead={selectedLead}
+                    // Favorites wins for a legacy duplicate — the same rule the
+                    // Companion payload applies, so both surfaces agree. Presentation
+                    // only; the stray row is removed by the next deliberate move.
+                    recommendations={visibleRecommendations(localRecommendations, localFavorites, selectedLead?.id)}
+                  />
                   <LeadFavorites
                     lead={selectedLead}
                     favorites={localFavorites}

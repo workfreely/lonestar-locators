@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { SectionCard } from "../lead/primitives";
 import { PropertyThumb } from "./PropertyThumb";
-import { resolveClientContext, evaluateLocationFit, evaluateApproval, evaluateAmenities, evaluateSpecials } from "@bc/companion-shared";
+import { resolveClientContext, evaluateLocationFit, evaluateApproval, evaluateAmenities, evaluateSpecials, evaluateBudget, evaluateMatchScore, matchScoreTone, normalizeMustHaveAmenities, resolveClientBudget, formatRent, cityMismatch, propertyCityName } from "@bc/companion-shared";
 import type { FavoriteDTO, RecommendationDTO, LeadSummaryDTO } from "@bc/companion-shared";
 import type { CurrentProperty } from "@/types";
 
@@ -23,16 +23,19 @@ function IntelRow({
   lead,
   tone = "none",
   facts = [],
+  rowClass,
 }: {
   category: string;
   lead?: string | null;
   tone?: IntelTone;
   facts?: (IntelFact | null | undefined)[];
+  /** Optional modifier on the row itself (Specials uses it to tint its concession). */
+  rowClass?: string;
 }) {
   const clean = facts.filter((f): f is IntelFact => !!f);
   if (!lead && clean.length === 0) return null; // no reliable data → render nothing
   return (
-    <div className="bc-intel-row">
+    <div className={`bc-intel-row${rowClass ? ` ${rowClass}` : ""}`}>
       <span className="bc-intel-cat">{category}:</span>
       {lead ? <span className={`bc-intel-lead tone-${tone}`}>{lead}</span> : null}
       {clean.map((f, i) => (
@@ -65,12 +68,6 @@ function displayMgmt(name: string): string {
   return name.replace(/[A-Z][A-Z0-9'&.-]*/g, (w) => w.charAt(0) + w.slice(1).toLowerCase());
 }
 
-// Approval risk → row tone. Low = reassuring (good), Moderate = amber, High =
-// alarming (bad), Unverified = muted. V1 never produces High, but the mapping is
-// complete so the row is correct if/when stricter evidence lands.
-function approvalTone(risk: "Low" | "Moderate" | "High" | "Unverified"): IntelTone {
-  return risk === "Low" ? "good" : risk === "Moderate" ? "moderate" : risk === "High" ? "bad" : "unknown";
-}
 
 // The property name — a link opening the property in a normal browser tab when a
 // canonical propertyUrl exists (SAD ViewProperty URL for detected properties), or
@@ -99,11 +96,54 @@ function PropertyName({ name, url, className }: { name: string; url?: string | n
 // Rows show ONLY data that reliably exists in the canonical record (property name
 // + address). Nothing (rent / commute / match / specials) is fabricated.
 
-function PropertyRow({ name, sub, url }: { name: string; sub?: string | null; url?: string | null }) {
+/**
+ * A saved property row: full name, full address underneath, and ONE compact control
+ * that moves it to the other collection (Recommendation ↔ Favorite are two states of
+ * one progression, never both). The control is disabled with a reason when the move
+ * would break a downstream dependency — the row layout itself is unchanged.
+ */
+function PropertyRow({
+  name,
+  sub,
+  url,
+  moveLabel,
+  moveTitle,
+  moveVariant,
+  blockedReason,
+  onMove,
+}: {
+  name: string;
+  sub?: string | null;
+  url?: string | null;
+  moveLabel?: string;
+  moveTitle?: string;
+  /** "heart" gets the heavier Favorite treatment; the default stays minimal. */
+  moveVariant?: "heart";
+  blockedReason?: string | null;
+  onMove?: () => void;
+}) {
+  const blocked = !!blockedReason;
   return (
     <div className="bc-prop-row">
-      <PropertyName name={name} url={url} className="bc-prop-name" />
-      {sub ? <span className="bc-prop-sub">{sub}</span> : null}
+      <div className="bc-prop-row-main">
+        <div className="bc-prop-row-text">
+          <PropertyName name={name} url={url} className="bc-prop-name" />
+          {sub ? <span className="bc-prop-sub">{sub}</span> : null}
+        </div>
+        {moveLabel && onMove && (
+          <button
+            type="button"
+            className={`bc-prop-move${moveVariant === "heart" ? " bc-prop-move--heart" : ""}`}
+            onClick={() => !blocked && onMove()}
+            disabled={blocked}
+            title={blocked ? `Can't move back — ${blockedReason}` : moveTitle}
+            aria-label={blocked ? `Can't move back — ${blockedReason}` : moveTitle}
+          >
+            {moveLabel}
+          </button>
+        )}
+      </div>
+      {blocked ? <span className="bc-prop-blocked">{blockedReason}</span> : null}
     </div>
   );
 }
@@ -114,7 +154,8 @@ export function PropertiesView({
   recommendations,
   currentProperty,
   onAddRecommendation,
-  onAddFavorite,
+  onMoveToFavorite,
+  onMoveToRecommendation,
 }: {
   // The active client — its location context (searchCriteria + Locator Notes + AI
   // Insights) is the ONLY input to Location Fit besides the viewed property.
@@ -124,14 +165,17 @@ export function PropertiesView({
   currentProperty: CurrentProperty | null;
   onAddRecommendation?: () => void;
   onAddFavorite?: () => void;
+  onMoveToFavorite?: (propertyUrl?: string | null) => void;
+  onMoveToRecommendation?: (propertyUrl?: string | null) => void;
 }) {
   // Button state comes from the ACTIVE client's real collections (not local button
   // state): the Current Property is "already in" a collection when a row shares its
-  // SAD ViewProperty URL (which embeds the stable propertyID). Favorites and
-  // Recommendations are independent — a property may be in both.
+  // SAD ViewProperty URL (which embeds the stable propertyID). Current Property has a
+  // SINGLE control — a property enters the progression as a Recommendation and is only
+  // promoted to a Favorite from its Recommendations row, so it can never be favorited
+  // directly from here.
   const cpUrl = currentProperty?.propertyUrl ?? "";
   const isRecommended = !!cpUrl && recommendations.some((r) => (r.propertyUrl ?? "") === cpUrl);
-  const isFavorited = !!cpUrl && favorites.some((f) => (f.propertyUrl ?? "") === cpUrl);
 
   // Current Client Context (V1, Option A) — resolved ONCE from the active client
   // (Smart Form baseline + Locator Notes/AI Insights override layer) and reused by
@@ -146,14 +190,24 @@ export function PropertiesView({
         locatorNotes: lead.locatorNotes,
         aiInsights: lead.aiInsights,
         mustHaveAmenities: lead.searchCriteria?.mustHaveAmenities,
+        budgetText: lead.searchCriteria?.budgetText,
       }),
-    [lead.searchCriteria?.city, lead.searchCriteria?.desiredAreas, lead.searchCriteria?.interest, lead.clientNotes, lead.locatorNotes, lead.aiInsights, lead.searchCriteria?.mustHaveAmenities],
+    [lead.searchCriteria?.city, lead.searchCriteria?.desiredAreas, lead.searchCriteria?.interest, lead.clientNotes, lead.locatorNotes, lead.aiInsights, lead.searchCriteria?.mustHaveAmenities, lead.searchCriteria?.budgetText],
   );
 
   // Deterministic, read-only intelligence for the property currently on screen.
   // Location: client context vs submarket/name/address. Approval: SAD management vs
   // the locator-supplied intelligence table. Both recomputed cheaply per render.
   const location = currentProperty ? evaluateLocationFit(ctx, currentProperty) : null;
+  // Budget: the client's working budget vs SAD's property-wide rent range. Null when
+  // either side is unknown — the row then hides rather than implying a comparison.
+  // The property's own Specials lines feed the matching TOLERANCE (a concession widens
+  // how far over budget is still worth surfacing). Same parsed intelligence the Specials
+  // row uses — no second parser, and no net-effective-rent claim.
+  const budget = currentProperty
+    ? evaluateBudget(ctx, currentProperty.propertyRent, currentProperty.propertySpecials)
+    : null;
+
   const approval = currentProperty ? evaluateApproval(currentProperty) : null;
   // Amenities: the client's OWN requirements that SAD confirms, at the required
   // specificity. No verdict word — the matched amenity IS the intelligence. Empty when
@@ -168,12 +222,89 @@ export function PropertiesView({
       ? evaluateSpecials({ lines: currentProperty.propertySpecials })
       : null;
 
+  // The property sits outside the client's stated location criteria. This scores the
+  // LOCATION dimension poorly — it is NOT an overall disqualifier, because apartment
+  // searches routinely cross municipal boundaries. False whenever either city is
+  // unknown, so missing data is never treated as a mismatch.
+  const outsideArea = currentProperty ? cityMismatch(ctx, currentProperty) : false;
+  const propertyCity = currentProperty ? propertyCityName(currentProperty) : null;
+
+  // Overall Match % — composes the SAME four signals rendered below, so the headline can
+  // never disagree with the rows. Null when too little is known to state a number.
+  const matchScore = currentProperty
+    ? evaluateMatchScore({
+        locationOutsideCriteria: outsideArea,
+        location,
+        budget,
+        approval,
+        amenities: { requested: normalizeMustHaveAmenities(ctx.mustHaveAmenities).length, confirmed: amenities.length },
+      })
+    : null;
+
+  // ── Display rules: rows are EVIDENCE, the Match % is the verdict ───────────
+  // The overall percentage above now carries the judgement, so these rows explain it
+  // rather than grading it a second time — no "Good", no "Unverified".
+  //
+  // Location reads as: <where it actually is> · <how that relates to the client>.
+  // The place comes from SAD's own submarket (or the client area the evaluator matched);
+  // the relationship is only ever something the client's criteria genuinely support.
+  // NOTE: there is no commute intelligence — evaluateLocationFit explicitly cannot
+  // verify proximity without map data — so a drive time is NEVER manufactured. When the
+  // client stated a proximity in their own words the evaluator preserves that phrase and
+  // we show it verbatim; otherwise the row is just the neighborhood.
+  const locationPlace = currentProperty?.propertySubmarket ?? (location?.verdict === "good" ? location.detail : null);
+  const locationRelation = (() => {
+    if (!location) return null;
+    if (location.verdict === "good") return "Desired area";
+    if (location.verdict === "bad") return "Outside desired area";
+    if (location.detail === "No location set") return "Area not provided";
+    if (location.detail === "Area not confirmed") return location.detail;
+    return location.detail; // the client's own proximity words, e.g. "Near the Domain"
+  })();
+  /**
+   * Budget DISPLAY copy — presentation only; the evaluator is untouched.
+   *
+   * The "Budget:" label already supplies the context, so the value stays terse and the
+   * client's actual figure carries the detail. "Options within budget" collapses to
+   * "Within budget", and the gap amount drops out of "$125 over budget" so the row is
+   * not two competing money figures.
+   */
+  const budgetCopy = (verdict: string): string => {
+    if (verdict === "Options within budget") return "Within budget";
+    if (/over budget$/.test(verdict)) return "Over budget";
+    return verdict; // "Within budget", "Near budget"
+  };
+
+  // Budget evidence: the verdict is backed by the client's ACTUAL working budget —
+  // the resolved figure (so a confirmed later override is reflected, not just the Smart
+  // Form baseline). A single-value budget prints as one amount, not a range of itself.
+  const clientBudget = resolveClientBudget(ctx);
+  const clientBudgetText = clientBudget
+    ? clientBudget.min === clientBudget.max
+      ? formatRent(clientBudget.max)
+      : `${formatRent(clientBudget.min)} – ${formatRent(clientBudget.max)}`
+    : null;
+
+  // Approval: the KEY REASON is the evidence ("Second chance", "1099 friendly").
+  // The risk grade itself is folded into the Match %, so it is no longer printed.
+  const approvalReason = approval?.reason ?? null;
+
   return (
     <div className="bc-props">
       {/* Current Property — the Smart Apartment Data property currently being viewed
           (page context, read-only). Thumbnail + name + address, with compact
-          state-aware add actions. Clears to the placeholder off a property page. */}
-      <SectionCard title="Current Property" defaultOpen>
+          state-aware add action. Clears to the placeholder off a property page. */}
+      <SectionCard
+        title="Current Property"
+        defaultOpen
+        right={
+          matchScore != null ? (
+            // Colour only — wording, size and position are unchanged, and the tone
+            // classes reuse the existing --lb-success/--lb-warning/--lb-danger tokens.
+            <span className={`bc-match-score tone-${matchScoreTone(matchScore)}`}>{matchScore}% Match</span>
+          ) : undefined
+        }
+      >
         {currentProperty ? (
           <>
             {/* Identity block — thumbnail aligned to the property NAME, address
@@ -196,17 +327,21 @@ export function PropertiesView({
             {/* Beast intelligence — four compact rows (~7px below the address). Only
                 rows with reliable evidence render. */}
             <div className="bc-cp-intel">
-              {location && (
-                <IntelRow category="Location" lead={location.fit} tone={location.verdict} facts={[location.detail]} />
-              )}
-              {approval && (
-                <IntelRow
-                  category="Approval"
-                  lead={approval.risk}
-                  tone={approvalTone(approval.risk)}
-                  facts={[approval.mgmt ? { label: "Mgmt", value: displayMgmt(approval.mgmt) } : null, approval.reason]}
-                />
-              )}
+              {/* Location — the relationship to the client's criteria, then where it
+                  actually is. Outside the stated area we name the property's own city,
+                  since the submarket alone would not convey that. */}
+              <IntelRow
+                category="Location"
+                facts={
+                  outsideArea ? ["Outside desired area", propertyCity] : [locationRelation, locationPlace]
+                }
+              />
+              {budget && <IntelRow category="Budget" facts={[budgetCopy(budget), clientBudgetText]} />}
+              {/* Approval — the key reason, not the grade. */}
+              {approvalReason && <IntelRow category="Approval" facts={[approvalReason]} />}
+              {/* Mgmt — its OWN full-width line, so a long management company is never
+                  squeezed onto the Approval row. */}
+              {approval?.mgmt && <IntelRow category="Mgmt" facts={[displayMgmt(approval.mgmt)]} />}
               <IntelRow category="Amenities" facts={amenities} />
               {/* Specials: [special] · Base Rent: [$] · Avg Rent: [$]. V1 shows the rent
                   concession only — SAD's factsBar carries a property-wide rent RANGE and a
@@ -215,6 +350,9 @@ export function PropertiesView({
               {specials && (specials.hasRentConcession || specials.baseRent) && (
                 <IntelRow
                   category="Specials"
+                  // Amber ONLY when there is an actual concession — a "None" value or a
+                  // bare Base Rent row stays the normal fact colour.
+                  rowClass={specials.hasRentConcession ? "bc-intel-specials" : undefined}
                   facts={[
                     specials.special,
                     specials.baseRent ? { label: "Base Rent", value: specials.baseRent } : null,
@@ -233,15 +371,6 @@ export function PropertiesView({
               >
                 {isRecommended ? "✓ Recommended" : "+ Recommendation"}
               </button>
-              <button
-                type="button"
-                className={`bc-cp-action${isFavorited ? " is-on" : ""}`}
-                onClick={() => !isFavorited && onAddFavorite?.()}
-                disabled={isFavorited || !onAddFavorite}
-                title={isFavorited ? "Already in Favorites" : "Add to this client's Favorites"}
-              >
-                {isFavorited ? "♥ Favorited" : "♡ Favorite"}
-              </button>
             </div>
           </>
         ) : (
@@ -256,7 +385,18 @@ export function PropertiesView({
         ) : (
           <div className="bc-prop-list">
             {recommendations.map((r) => (
-              <PropertyRow key={String(r.id)} name={r.propertyName} sub={r.propertyAddress} url={r.propertyUrl} />
+              <PropertyRow
+                key={String(r.id)}
+                name={r.propertyName}
+                sub={r.propertyAddress}
+                url={r.propertyUrl}
+                // EMPTY heart: this property is still a Recommendation. The filled red
+                // heart denotes the Favorite state, so it must never appear here.
+                moveLabel="♡"
+                moveTitle="Move to Favorites"
+                moveVariant="heart"
+                onMove={onMoveToFavorite ? () => onMoveToFavorite(r.propertyUrl) : undefined}
+              />
             ))}
           </div>
         )}
@@ -269,7 +409,16 @@ export function PropertiesView({
         ) : (
           <div className="bc-prop-list">
             {favorites.map((f) => (
-              <PropertyRow key={String(f.id)} name={f.propertyName} sub={f.propertyAddress} url={f.propertyUrl} />
+              <PropertyRow
+                key={String(f.id)}
+                name={f.propertyName}
+                sub={f.propertyAddress}
+                url={f.propertyUrl}
+                moveLabel="+"
+                moveTitle="Move back to Recommendations"
+                blockedReason={f.moveBlockedReason}
+                onMove={onMoveToRecommendation ? () => onMoveToRecommendation(f.propertyUrl) : undefined}
+              />
             ))}
           </div>
         )}

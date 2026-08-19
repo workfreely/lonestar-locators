@@ -3,6 +3,11 @@ import { log } from "@/utils/log";
 import { isSmartApartmentDataHost, parseSadPropertyId, stripSiteSuffix, looksLikeAddress } from "./sadUrl";
 import { parseCopyEmails } from "./sadEmail";
 import { parseAmenityValues, groupAmenitySections, type AmenityNode } from "./sadAmenities";
+// Imported from the MODULE, not the "@bc/companion-shared" barrel: the barrel
+// re-exports the whole package (zod contract schemas, bridge messages, tokens, themes),
+// and pulling it into a content script ballooned content.js ~12.5 KB → 89 KB on every
+// SAD page. `budget` depends only on `specials`, so this keeps the injected bundle small.
+import { parseMoneyRange, type MoneyRange } from "@bc/budget";
 
 /**
  * Current Property bridge (Smart Apartment Data → panel).
@@ -219,6 +224,27 @@ function readPropertySpecials(): string[] | undefined {
   return parseAmenityValues(el.innerHTML);
 }
 
+/**
+ * Property RENT RANGE from the SAD detail page (supplemental, read-only). Confirmed
+ * live element — the facts bar's price chip:
+ *
+ *   <div class="vp-modern factsBar"> … <span class="vp-chip vp-chip-price">$925 - $1,199</span> … </div>
+ *
+ * Matched by the PRICE-SPECIFIC class, never by position among `.vp-chip` siblings, so
+ * a reordered or added chip can never be read as the rent. Parsed into a structured
+ * range at extraction time so nothing downstream re-parses display text.
+ *
+ * This is the PROPERTY-WIDE range, not a selected unit's rent — the evaluator is
+ * deliberately conservative about what it claims from it. Null when the chip is absent
+ * or carries no figure (e.g. "Call for pricing"), which reads as unknown, never as $0.
+ */
+const RENT_SELECTOR = ".vp-modern.factsBar .vp-chip.vp-chip-price";
+
+function readPropertyRent(): MoneyRange | null {
+  const el = document.querySelector<HTMLElement>(RENT_SELECTOR);
+  return el ? parseMoneyRange(clean(el.textContent)) : null;
+}
+
 function readCurrentProperty(): CurrentProperty | null {
   const propertyId = detectPropertyIdFromUrl();
   if (!propertyId) return null; // not a property-detail page
@@ -235,6 +261,7 @@ function readCurrentProperty(): CurrentProperty | null {
     propertyEmails: readPropertyEmails(),
     propertyAmenities: readPropertyAmenities(),
     propertySpecials: readPropertySpecials(),
+    propertyRent: readPropertyRent(),
     propertyUrl: location.href,
     propertyImageUrl: readPropertyImageUrl(),
   };

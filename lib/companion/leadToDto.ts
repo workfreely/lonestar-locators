@@ -1,4 +1,5 @@
 import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO, RecommendationDTO } from "@bc/companion-shared"
+import { visibleRecommendations, favoriteMoveBlock } from "@/lib/leads/propertyCollections"
 import { isLeadStage, APPLICATION_LAST_ACTION_LABELS, isApplicationStatus } from "@bc/companion-shared"
 import { getNextAction } from "@/lib/nextAction"
 import { rankLeadActions } from "@/lib/nextActions"
@@ -425,11 +426,16 @@ export function buildActiveClientPayload(
       propertyName: str(f.property_name) ?? "Property",
       propertyAddress: str(f.property_address),
       propertyUrl: str(f.property_url),
+      // Resolved HERE because this is where the tours + next actions live. Null when
+      // the Favorite can move back to Recommendations.
+      moveBlockedReason: favoriteMoveBlock({ favorite: f, lead, tours, nextActions }).reason,
     }))
 
   // THIS lead's canonical recommendations — same lead_id filter as favorites, so
   // no cross-client leakage. Empty array when the client has none.
-  const recommendationDtos: RecommendationDTO[] = (recommendations || [])
+  // Legacy duplicates resolve in favour of Favorites so the same property never
+  // renders in both lists. Nothing is deleted — the next deliberate move resolves it.
+  const recommendationDtos: RecommendationDTO[] = visibleRecommendations(recommendations || [], favorites || [], lead.id)
     .filter((r: any) => String(r.lead_id) === String(lead.id))
     .map((r: any) => ({
       id: r.id,

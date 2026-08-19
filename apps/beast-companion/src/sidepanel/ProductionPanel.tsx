@@ -814,6 +814,27 @@ export function ProductionPanel() {
   const onAddRecommendation = () => addCurrentPropertyToCollection("add-recommendation");
   const onAddFavorite = () => addCurrentPropertyToCollection("add-favorite");
 
+  // Move a SAVED row between the two collections without the property being open in
+  // SAD. Reuses the same verb bridge and the same CRM handler as the buttons above —
+  // only the identity source differs (a stored row's URL rather than Current Property).
+  const moveSavedProperty = (verb: "move-to-favorite" | "move-to-recommendation", propertyUrl?: string | null) => {
+    const lead = active?.lead;
+    const url = String(propertyUrl ?? "").trim();
+    if (!lead || lead.id === undefined || lead.id === null || !url) return;
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+    if (!store) return;
+    store.set({
+      "lb-workflow-verb": {
+        nonce: `${Date.now()}-${Math.random()}`,
+        leadId: lead.id,
+        verb,
+        property: { propertyUrl: url },
+      },
+    });
+  };
+  const onMoveToFavorite = (propertyUrl?: string | null) => moveSavedProperty("move-to-favorite", propertyUrl);
+  const onMoveToRecommendation = (propertyUrl?: string | null) => moveSavedProperty("move-to-recommendation", propertyUrl);
+
   const pendingName = pendingContact?.name ?? "this client";
 
   return (
@@ -828,6 +849,8 @@ export function ProductionPanel() {
         currentProperty={currentProperty}
         onAddRecommendation={onAddRecommendation}
         onAddFavorite={onAddFavorite}
+        onMoveToFavorite={onMoveToFavorite}
+        onMoveToRecommendation={onMoveToRecommendation}
         onConnect={onConnect}
         onDisconnect={onDisconnect}
         onContact={onContact}
