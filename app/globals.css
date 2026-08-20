@@ -1959,3 +1959,26 @@ body.jaybot-open {
   flex: none;
   height: 34px;
 }
+
+/* ── Focus control ───────────────────────────────────────────────────────────
+   Sits beside the density group in the Kanban toolbar and borrows its shape so
+   the two read as one control cluster. Only rendered when the Dashboard passes
+   an onToggleFocus handler; delete this rule with the feature. */
+.kb-focus {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--kb-ink-muted);
+  padding: 8px 13px;
+  border-radius: 12px;
+  border: 1px solid var(--kb-border);
+  background: color-mix(in srgb, var(--kb-ink) 5%, transparent);
+  cursor: pointer;
+  transition: color .2s, background .2s;
+}
+.kb-focus:hover { color: var(--kb-ink); background: color-mix(in srgb, var(--kb-ink) 10%, transparent); }
+.kb-focus[aria-pressed="true"] { color: var(--kb-ink); background: color-mix(in srgb, var(--kb-ink) 12%, transparent); }

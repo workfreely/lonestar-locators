@@ -1977,6 +1977,34 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     router.push("/admin/leads")
   }
 
+  // ── Focus ─────────────────────────────────────────────────────────────────
+  // An APP-LEVEL layout mode, not browser fullscreen. It hides the top nav and
+  // lifts this same shell to `fixed inset-0`, escaping the admin layout's
+  // px-4/pb-4 inset so the Kanban fills the Locator Beast tab. The browser's
+  // own chrome — tabs, address bar, the OS window — is never involved, so
+  // there is no native fullscreen state to get stuck in.
+  //
+  // Independent of the board's density view: `view` lives in LeadBoard, this
+  // flag lives here. Switching Detailed/Compact/Overview keeps Focus on, and
+  // leaving Focus keeps whichever view was selected.
+  //
+  // Nothing unmounts when it flips: LeadBoard, the Agenda and the workspace all
+  // keep their existing state (search text, density, scroll, selected lead), so
+  // entering or leaving costs the locator nothing. Removing the feature means
+  // deleting this block, the two props passed to LeadBoard, and `.kb-focus`.
+  const [focusMode, setFocusMode] = useState(false)
+
+  // Esc leaves Focus. Convenience only — deliberately not advertised in the UI,
+  // and unrelated to the browser's own fullscreen Esc behavior.
+  useEffect(() => {
+    if (!focusMode) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setFocusMode(false)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [focusMode])
+
   // ── Agenda orientation (pure mirror) ──────────────────────────────────────
   // Same components, same widths/margins/insets — only the SIDE flips. The BODY
   // flex reverses; the Agenda's OUTER margin moves to the opposite edge; and the
@@ -1992,7 +2020,11 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     : followUpsOpen ? "left-[242px] right-0" : "left-[62px] right-0"
 
   return (
-    <div className="relative h-screen w-full flex flex-col bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]">
+    <div
+      className={`relative w-full flex flex-col bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)] ${
+        focusMode ? "fixed inset-0 z-[60] h-full" : "h-screen"
+      }`}
+    >
 
       {/* ─── TOP NAVIGATION BAR ───
           z-50 (not z-30) so the header's own stacking context sits above
@@ -2007,6 +2039,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           layout's px-4 inset so the bar spans from the far-left of the app area to
           the web-viewport right edge (where the Chrome Companion begins). The
           body/Agenda below stay inset; only the header is full width. */}
+      {!focusMode && (
       <AppHeader variant="dark" zClass="z-50" fullBleed>
         <Link href="/admin/analytics" className={CRM_SECONDARY_BUTTON}>
           <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
@@ -2026,6 +2059,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           Add Lead
         </button>
       </AppHeader>
+      )}
 
       {/* ─── SAMPLE WORKSPACE WELCOME BANNER (demo mode, first entry) ─── */}
       {bannerVisible && (
@@ -2141,6 +2175,8 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
               })
             }}
             timeZone={timeZone}
+            focus={focusMode}
+            onToggleFocus={() => setFocusMode((v) => !v)}
           />
         </div>
 

@@ -74,6 +74,8 @@ export default function LeadBoard({
   onInitiateContact,
   columns = ALL_COLUMNS,
   timeZone,
+  focus = false,
+  onToggleFocus,
 }: {
   leads: any[]
   setLeads: React.Dispatch<React.SetStateAction<any[]>>
@@ -100,6 +102,21 @@ export default function LeadBoard({
   // Saved locator IANA timezone — the drag-set follow-up cache date is computed
   // in it so it matches the server-created action (no zone disagreement).
   timeZone?: string | null
+  // ── Focus (optional) ─────────────────────────────────────────────────────
+  // Focus is an APP-LEVEL layout mode: the Kanban takes over the Locator Beast
+  // tab by hiding the dashboard chrome around it. It is NOT the browser
+  // Fullscreen API — Chrome's tabs and address bar are untouched.
+  //
+  // Focus and the density views are independent axes: density decides how the
+  // cards are drawn, Focus decides how much of the workspace the board fills.
+  // `view` lives here and `focus` lives in the caller, so switching
+  // Detailed/Compact/Overview never leaves Focus, and leaving Focus never
+  // changes the selected view.
+  //
+  // The control only renders when `onToggleFocus` is supplied, so every other
+  // consumer of LeadBoard (the public marketing demo) is untouched.
+  focus?: boolean
+  onToggleFocus?: () => void
 }) {
   const [mounted, setMounted] = useState(false)
   const [activeLead, setActiveLead] = useState<any | null>(null)
@@ -346,6 +363,17 @@ export default function LeadBoard({
                 </button>
               ))}
             </div>
+            {onToggleFocus && (
+              <button
+                type="button"
+                className="kb-focus"
+                onClick={onToggleFocus}
+                aria-pressed={focus}
+              >
+                <span aria-hidden>⛶</span>
+                {focus ? "Exit Focus" : "Focus"}
+              </button>
+            )}
           </div>
         </div>
 
