@@ -27,7 +27,7 @@ const HERO_BOTTOM_PADDING_PX = 32
 // hero's own bottom edge, never a separate white section.
 export default function Hero({ config }: { config: SmartLeadFormConfig }) {
   const { headline, subheadline } = config.copy
-  const { heroTheme, heroImageUrl, heroOverlay, logoUrl, agentPhotoSize, profileImagePosition } = config.branding
+  const { heroTheme, heroImageUrl, heroOverlay, agentPhotoSize, profileImagePosition } = config.branding
   const { headline: showHeadline, highlights: showHighlights, agentProfile: showAgentProfile } = config.sections.visibility
 
   // "custom" uses the locator's own upload; any built-in theme uses its
@@ -85,10 +85,6 @@ export default function Hero({ config }: { config: SmartLeadFormConfig }) {
       )}
 
       <div className="relative mx-auto max-w-lg">
-        {logoUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={logoUrl} alt="" className="mx-auto mb-4 h-8 w-auto object-contain" />
-        )}
 
         {/* Headline is optional — hiding it removes its space entirely so the
             hero collapses upward and the background image becomes the primary

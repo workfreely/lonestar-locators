@@ -35,7 +35,7 @@ const PROFILE_IMAGE_POSITION_OPTIONS: { id: SmartLeadFormConfig["branding"]["pro
 ]
 
 export default function BrandingPanel({ config, onChange }: { config: SmartLeadFormConfig; onChange: Updater }) {
-  const { logoUrl, agentPhotoSize, profileImagePosition, heroTheme, heroImageUrl, heroOverlay, buttonColor } =
+  const { agentPhotoSize, profileImagePosition, heroTheme, heroImageUrl, heroOverlay, buttonColor } =
     config.branding
 
   function updateBranding(patch: Partial<SmartLeadFormConfig["branding"]>) {
@@ -44,15 +44,7 @@ export default function BrandingPanel({ config, onChange }: { config: SmartLeadF
 
   return (
     <div className="flex flex-col gap-1">
-      <div className="grid grid-cols-2 gap-8">
-        <div className="flex flex-col gap-1.5">
-          <p className="text-[12px] font-semibold text-[#6b7280]">Agent Photo</p>
-          <p className="text-[11px] leading-snug text-[#9098a8]">Uses your Profile photo.</p>
-        </div>
-        <UploadTile label="Logo" imageUrl={logoUrl} onChange={(url) => updateBranding({ logoUrl: url })} />
-      </div>
-
-      <div className="py-3">
+      <div className="pb-3">
         <p className="mb-2 text-[12px] font-semibold text-[#6b7280]">Agent Photo Size</p>
         <SegmentedControl
           options={PHOTO_SIZE_OPTIONS}

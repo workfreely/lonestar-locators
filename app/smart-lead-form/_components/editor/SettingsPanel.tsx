@@ -54,11 +54,20 @@ export default function SettingsPanel({
           </button>
         ))}
       </div>
-      {/* Left gutter stays 24px (aligns with the tab bar); the right gutter is a
+      {/* THE scrolling container for every tab — Branding, Content, Fields,
+          Consent and Share all render inside it, so spacing rules belong here
+          and never in an individual tab.
+          Left gutter stays 24px (aligns with the tab bar); the right gutter is a
           touch wider (pr-8 ≈ 32px) so switches and right-aligned controls sit
           comfortably inside the content column instead of hugging the edge.
-          Intentionally asymmetric — visual balance, not mathematical symmetry. */}
-      <div className="flex-1 overflow-y-auto pb-4 pl-6 pr-8 pt-4">
+          Intentionally asymmetric — visual balance, not mathematical symmetry.
+          The bottom padding clears the floating Ask Beast AI button, which is
+          fixed at bottom-5 right-5 (20px inset + ~41px tall ≈ 61px) directly
+          over this panel. pb-24 (96px) lets the last control scroll fully above
+          it and still leaves ~35px of breathing room, instead of stopping flush
+          against the button. It is padding on the scroller itself, so it adds
+          real scrollable distance rather than just making the page taller. */}
+      <div className="flex-1 overflow-y-auto pb-24 pl-6 pr-8 pt-4">
         {tab === "branding" && <BrandingPanel config={config} onChange={onChange} />}
         {tab === "content" && <ContentPanel config={config} onChange={onChange} />}
         {tab === "fields" && <FieldsPanel config={config} onChange={onChange} />}
