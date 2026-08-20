@@ -91,7 +91,7 @@ export default function TrialReminder() {
     <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
       <div
         className={[
-          "pointer-events-auto flex max-w-md items-center gap-3 rounded-full border px-4 py-2.5 shadow-lg backdrop-blur",
+          "pointer-events-auto flex max-w-2xl items-center gap-3 rounded-full border px-5 py-2.5 shadow-lg backdrop-blur",
           urgent
             ? "border-amber-300 bg-amber-50/95 text-amber-900"
             : "border-[#dbe6ff] bg-white/95 text-[#26324a]",
@@ -100,9 +100,13 @@ export default function TrialReminder() {
         <span className="text-[16px]" aria-hidden>
           {urgent ? "⏳" : "🎉"}
         </span>
-        <p className="text-[13px] font-medium leading-snug">
-          {days} {days === 1 ? "day" : "days"} left in your free trial. Reserve your username and unlock
-          Beast Academy.
+        <p className="text-[14px] font-medium leading-snug">
+          {/* The countdown carries the urgency, so it leads in semibold; the
+              benefit line stays at the paragraph's own weight. */}
+          <span className="font-semibold">
+            {days} {days === 1 ? "day" : "days"} left in your free trial.
+          </span>{" "}
+          Keep full access + unlock Beast Academy.
         </p>
         <Link
           href="/admin/billing"

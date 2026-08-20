@@ -745,7 +745,7 @@ export default function LeadPanel({
     <div className="w-full h-full flex flex-col bg-[var(--crm-panel)]">
 
       {/* ── Panel header ── */}
-      <div className="flex-none bg-[var(--crm-panel)] border-b border-[var(--crm-border)] px-5 pt-4 pb-3 shadow-[0_1px_4px_rgba(var(--crm-shadow-color),0.08)]">
+      <div className="flex-none bg-[var(--crm-panel)] border-b border-[var(--crm-border)] px-4 pt-4 pb-3 shadow-[0_1px_4px_rgba(var(--crm-shadow-color),0.08)]">
 
         <div className="flex items-start justify-between gap-3 mb-1">
           <div className="min-w-0 flex-1">

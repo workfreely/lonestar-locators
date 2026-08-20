@@ -845,7 +845,7 @@ function FormPreview({
         {/* Helper hint — reserves its line so it can fade in/out without
             shifting the button. */}
         <p
-          className={`mt-0.5 h-[15px] text-center text-[11px] font-medium text-[#8b91a1] transition-opacity duration-500 ${
+          className={`mt-0.5 mb-3 h-[15px] text-center text-[11px] font-medium text-[#8b91a1] transition-opacity duration-500 lg:mb-0 ${
             showHint && !started ? "opacity-100" : "opacity-0"
           }`}
         >
