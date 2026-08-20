@@ -62,17 +62,34 @@ rmSync("dist", { recursive: true, force: true });
 mkdirSync("dist", { recursive: true });
 
 // Copy the manifest. In --watch (DEV ONLY) also allow the local CRM origin so the
-// theme-sync content script injects on http://localhost:3000/admin/* for testing.
+// theme-sync content script injects on the local CRM for testing.
 // Production builds keep the manifest exactly as committed (no localhost, no extra
 // permissions beyond what ships).
 const manifest = JSON.parse(readFileSync("manifest.json", "utf8"));
 if (watch) {
-  const matches = manifest.content_scripts?.[0]?.matches;
-  if (Array.isArray(matches)) {
-    for (const m of ["http://localhost:3000/admin/*", "http://127.0.0.1:3000/admin/*"]) {
-      if (!matches.includes(m)) matches.push(m);
-    }
-  }
+  // Two DIFFERENT pattern shapes, and they must not be shared:
+  //
+  //   content_scripts.matches         — may carry a path, so injection stays
+  //                                     scoped to the CRM's /admin/* routes.
+  //   web_accessible_resources.matches — validated far more strictly: the path
+  //                                     must be exactly /*, i.e. origin-only.
+  //                                     "/admin/*" here is rejected with
+  //                                     "Invalid match pattern" and the whole
+  //                                     extension fails to load.
+  //
+  // Neither may carry a port — "http://localhost:3000/..." is invalid in both.
+  // Without a port these match localhost on any port, which is what dev needs.
+  const LOCAL_SCRIPTS = ["http://localhost/admin/*", "http://127.0.0.1/admin/*"];
+  const LOCAL_ORIGINS = ["http://localhost/*", "http://127.0.0.1/*"];
+  const allow = (arr, patterns) => {
+    if (!Array.isArray(arr)) return;
+    for (const m of patterns) if (!arr.includes(m)) arr.push(m);
+  };
+  allow(manifest.content_scripts?.[0]?.matches, LOCAL_SCRIPTS);
+  // Without this the launcher's packaged icon is blocked by chrome.runtime.getURL
+  // on localhost and the tab renders empty — the content script injects, but its
+  // image never loads.
+  for (const entry of manifest.web_accessible_resources ?? []) allow(entry.matches, LOCAL_ORIGINS);
 }
 writeFileSync("dist/manifest.json", JSON.stringify(manifest, null, 2));
 cpSync("public/icons", "dist/icons", { recursive: true });

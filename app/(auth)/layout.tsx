@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Image from "next/image";
 import "../locator-beast/beast.css";
-import { LOGO_FOR_LIGHT_BG } from "../locator-beast/_lib/site";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -22,12 +21,17 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       style={{ backgroundColor: "#f7f8fa" }}
     >
       <div className="mx-auto flex w-full max-w-md flex-col items-center">
+        {/* The black lion mark — the login card sits on #f7f8fa, so the
+            black-on-transparent artwork is the readable one here. Referenced
+            directly rather than through LOGO_FOR_LIGHT_BG, which Billing also
+            uses and which is out of scope for this checkpoint. */}
         <Image
-          src={LOGO_FOR_LIGHT_BG}
+          src="/locator-beast/locator-beast-favicon-black.png"
           alt="Locator Beast"
-          width={172}
-          height={40}
-          style={{ height: "28px", width: "auto" }}
+          width={512}
+          height={512}
+          priority
+          style={{ height: "80px", width: "80px" }}
           className="mb-10"
         />
         {children}

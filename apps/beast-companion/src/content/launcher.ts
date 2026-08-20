@@ -26,12 +26,13 @@ import { log } from "@/utils/log";
 
 export const HOST_ID = "beast-companion-launcher-host";
 
-// The Locator Beast mark: blue rounded square + white chevron.
-const LOGO_SVG = `
-<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-  <rect width="24" height="24" rx="6" fill="#2f6bff"/>
-  <path d="M6 15l6-7 6 7" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>`;
+// The Locator Beast mark — the real white lion favicon, loaded from the
+// extension's own packaged icon rather than an inline SVG approximation. The
+// launcher tab sits on a dark surface (--bc-panel-dark / #111827 on hover), so
+// the white-on-transparent artwork reads correctly against it.
+// chrome.runtime.getURL requires the icon to be web-accessible — see
+// web_accessible_resources in manifest.json.
+const LOGO_SVG = `<img src="${chrome.runtime.getURL("icons/icon-128.png")}" alt="" aria-hidden="true" />`;
 
 /** Fixed host geometry that never changes, regardless of side or page CSS. */
 const HOST_FIXED_STYLE: Record<string, string> = {

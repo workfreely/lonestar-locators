@@ -27,9 +27,28 @@
         "https://locatorbeast.com/admin/*",
         "https://www.locatorbeast.com/admin/*"
       ],
-      "js": ["content.js"],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_start"
     }
   ],
-  "permissions": ["sidePanel", "storage"]
+  "permissions": [
+    "sidePanel",
+    "storage"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "icons/icon-128.png"
+      ],
+      "matches": [
+        "https://app.smartapartmentdata.com/*",
+        "https://smartapartmentdata.com/*",
+        "https://*.smartapartmentdata.com/*",
+        "https://locatorbeast.com/*",
+        "https://www.locatorbeast.com/*"
+      ]
+    }
+  ]
 }

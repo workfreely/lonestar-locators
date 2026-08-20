@@ -63,10 +63,14 @@
   outline-offset: 2px;
 }
 
-.bc-tab svg {
+.bc-tab svg,
+.bc-tab img {
   display: block;
-  width: 30px;
-  height: 30px;
+  /* The lion fills most of the 52px tab now — the old 30px left the mark small
+     and lost inside its own tab. 42px keeps ~5px of breathing room per side
+     without changing the tab's own geometry. */
+  width: 42px;
+  height: 42px;
   /* Only the inner icon may animate — a subtle scale/brighten that never shifts
      the outer tab away from the edge. */
   transform-origin: center;
@@ -76,7 +80,9 @@
 }
 
 .bc-tab:hover svg,
-.bc-tab:active svg {
+.bc-tab:hover img,
+.bc-tab:active svg,
+.bc-tab:active img {
   transform: scale(1.08);
   filter: brightness(1.12);
 }
