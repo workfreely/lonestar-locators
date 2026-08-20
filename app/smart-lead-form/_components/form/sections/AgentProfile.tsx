@@ -1,5 +1,5 @@
 import type { SmartLeadFormConfig } from "../../../_lib/types"
-import { agentPhotoOverlapRem } from "../../../_lib/agentPhotoSizes"
+import { AGENT_PHOTO_SIZES } from "../../../_lib/agentPhotoSizes"
 import AgentPhoto from "./AgentPhoto"
 import AgentInfoText from "./AgentInfoText"
 
@@ -12,7 +12,7 @@ export default function AgentProfile({ config }: { config: SmartLeadFormConfig }
   return (
     <section className="px-5 pb-8 pt-0 sm:px-8">
       <div className="mx-auto flex max-w-lg flex-col items-center text-center">
-        <div style={{ marginTop: `-${agentPhotoOverlapRem(agentPhotoSize)}rem` }}>
+        <div className={AGENT_PHOTO_SIZES[agentPhotoSize].pullUpClass}>
           <AgentPhoto config={config} />
         </div>
 

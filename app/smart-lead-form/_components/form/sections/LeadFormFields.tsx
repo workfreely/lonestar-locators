@@ -5,6 +5,7 @@ import DatePicker from "react-datepicker"
 import "react-datepicker/dist/react-datepicker.css"
 import type { SmartLeadFormConfig } from "../../../_lib/types"
 import { MARKETS, getMarketByName, marketsForSlugs } from "@/lib/markets/catalog"
+import SelectableGrid, { bulkButtonClass } from "./SelectableGrid"
 import { MUST_HAVE_AMENITIES, MAX_MUST_HAVE_AMENITIES } from "@bc/companion-shared"
 import {
   PROPERTY_TYPES,
@@ -453,23 +454,20 @@ export default function LeadFormFields({
             <label className={`${labelClass} font-semibold`}>Preferred Neighborhoods</label>
             <div className="flex gap-2">
               <button type="button" onClick={() => set("neighborhoods", [...neighborhoodList])}
-                className="rounded-lg border border-[#e2e4ea] bg-[#f7f8fa] px-3 py-1.5 text-[12.5px] font-medium text-[#4b5162] hover:bg-[#eef0f4]">
+                className={bulkButtonClass}>
                 Select All
               </button>
               <button type="button" onClick={() => set("neighborhoods", [])}
-                className="rounded-lg border border-[#e2e4ea] bg-[#f7f8fa] px-3 py-1.5 text-[12.5px] font-medium text-[#4b5162] hover:bg-[#eef0f4]">
+                className={bulkButtonClass}>
                 Deselect All
               </button>
             </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {neighborhoodList.map((n) => (
-                <label key={n} className="flex min-w-0 cursor-pointer items-center gap-2 rounded-xl border border-[#e2e4ea] bg-white px-3 py-2.5 text-[14px] text-[#111318] transition-colors hover:border-[#c7ccd6]">
-                  <input type="checkbox" name="neighborhoods" value={n} checked={formData.neighborhoods.includes(n)}
-                    onChange={(e) => toggleNeighborhood(e.target.checked, n)} className="h-4 w-4 shrink-0" />
-                  <span className="min-w-0 break-words">{n}</span>
-                </label>
-              ))}
-            </div>
+            <SelectableGrid
+              name="neighborhoods"
+              options={neighborhoodList.map((n) => ({ value: n, label: n }))}
+              selected={formData.neighborhoods}
+              onToggle={toggleNeighborhood}
+            />
 
             {/* Nearby submarkets — any market that defines them (catalog-driven) */}
             {selectedMarket && selectedMarket.submarkets.length > 0 && (
@@ -477,23 +475,20 @@ export default function LeadFormFields({
                 <label className={`${labelClass} font-semibold`}>Nearby Submarkets</label>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => set("submarkets", [...selectedMarket.submarkets])}
-                    className="rounded-lg border border-[#e2e4ea] bg-[#f7f8fa] px-3 py-1.5 text-[12.5px] font-medium text-[#4b5162] hover:bg-[#eef0f4]">
+                    className={bulkButtonClass}>
                     Select All
                   </button>
                   <button type="button" onClick={() => set("submarkets", [])}
-                    className="rounded-lg border border-[#e2e4ea] bg-[#f7f8fa] px-3 py-1.5 text-[12.5px] font-medium text-[#4b5162] hover:bg-[#eef0f4]">
+                    className={bulkButtonClass}>
                     Deselect All
                   </button>
                 </div>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {selectedMarket.submarkets.map((s) => (
-                    <label key={s} className="flex min-w-0 cursor-pointer items-center gap-2 rounded-xl border border-[#e2e4ea] bg-white px-3 py-2.5 text-[14px] text-[#111318] transition-colors hover:border-[#c7ccd6]">
-                      <input type="checkbox" name="submarkets" value={s} checked={formData.submarkets.includes(s)}
-                        onChange={(e) => toggleSubmarket(e.target.checked, s)} className="h-4 w-4 shrink-0" />
-                      <span className="min-w-0 break-words">{s}</span>
-                    </label>
-                  ))}
-                </div>
+                <SelectableGrid
+                  name="submarkets"
+                  options={selectedMarket.submarkets.map((sm) => ({ value: sm, label: sm }))}
+                  selected={formData.submarkets}
+                  onToggle={toggleSubmarket}
+                />
               </div>
             )}
           </div>
@@ -549,22 +544,16 @@ export default function LeadFormFields({
           <div className="flex flex-col gap-2">
             <label className={`${labelClass} font-semibold`}>Must-Have Amenities</label>
             <div className={noteClass}>Select up to 3.</div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {MUST_HAVE_AMENITIES.map((a) => {
-                const checked = formData.mustHaveAmenities.includes(a.value)
-                const atCap = !checked && formData.mustHaveAmenities.length >= MAX_MUST_HAVE_AMENITIES
-                return (
-                  <label
-                    key={a.value}
-                    className={`flex min-w-0 items-center gap-2 rounded-xl border border-[#e2e4ea] bg-white px-3 py-2.5 text-[14px] text-[#111318] transition-colors ${atCap ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:border-[#c7ccd6]"}`}
-                  >
-                    <input type="checkbox" name="mustHaveAmenities" value={a.value} checked={checked} disabled={atCap}
-                      onChange={(e) => toggleMustHaveAmenity(e.target.checked, a.value)} className="h-4 w-4 shrink-0" />
-                    <span className="min-w-0 break-words">{a.label}</span>
-                  </label>
-                )
-              })}
-            </div>
+            <SelectableGrid
+              name="mustHaveAmenities"
+              options={MUST_HAVE_AMENITIES.map((a) => ({ value: a.value, label: a.label }))}
+              selected={formData.mustHaveAmenities}
+              onToggle={toggleMustHaveAmenity}
+              isDisabled={(v) =>
+                !formData.mustHaveAmenities.includes(v) &&
+                formData.mustHaveAmenities.length >= MAX_MUST_HAVE_AMENITIES
+              }
+            />
           </div>
         )}
 

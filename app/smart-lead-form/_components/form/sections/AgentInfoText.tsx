@@ -26,13 +26,13 @@ export default function AgentInfoText({ config, theme }: { config: SmartLeadForm
 
   return (
     <>
-      <p className={`mt-3 flex min-w-0 max-w-full items-center justify-center gap-1.5 text-[17px] font-semibold ${nameColor}`}>
+      <p className={`mt-3 flex min-w-0 max-w-full items-center justify-center gap-1.5 text-[19px] font-semibold sm:text-[20px] ${nameColor}`}>
         <span className="min-w-0 break-words">{agentName}</span>
         <HiOutlineShieldCheck className="h-[18px] w-[18px] shrink-0 text-[#2f6bff]" />
       </p>
-      {titleLine && <p className={`mt-1 max-w-full break-words text-[14px] font-medium ${mutedColor}`}>{titleLine}</p>}
+      {titleLine && <p className={`mt-1 max-w-full break-words text-[15px] font-medium ${mutedColor}`}>{titleLine}</p>}
       {showServiceAreas && serviceAreas && (
-        <p className={`mt-1 max-w-full break-words text-[13px] font-medium ${fainterColor}`}>
+        <p className={`mt-1 max-w-full break-words text-[13.5px] font-medium ${fainterColor}`}>
           {serviceAreas
             .split(/\s*,\s*/)
             .filter(Boolean)

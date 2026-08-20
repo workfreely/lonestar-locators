@@ -1,6 +1,6 @@
 import type { SmartLeadFormConfig } from "../../../_lib/types"
 import { getHeroTheme } from "../../../_lib/heroThemes"
-import { agentPhotoOverlapRem } from "../../../_lib/agentPhotoSizes"
+import { AGENT_PHOTO_SIZES, HERO_PAD_NO_PHOTO_CLASS } from "../../../_lib/agentPhotoSizes"
 import Highlights from "./Highlights"
 import AgentPhoto from "./AgentPhoto"
 import AgentInfoText from "./AgentInfoText"
@@ -10,15 +10,6 @@ const OVERLAY_OPACITY: Record<SmartLeadFormConfig["branding"]["heroOverlay"], st
   medium: "bg-black/55",
   dark: "bg-black/75",
 }
-
-// Breathing room between the bottom of Highlights (or the subheadline, if
-// Highlights are hidden) and the top of the overlapping Agent Photo. Added
-// on top of the photo's own overlap amount below, so this gap stays
-// constant no matter which photo size is selected.
-const HERO_TO_PHOTO_GAP_PX = 28
-// Used instead when Agent Information is hidden entirely — there's no
-// photo to overlap into, so this is just a normal bottom padding.
-const HERO_BOTTOM_PADDING_PX = 32
 
 // Hero, Highlights, and the overlapping Agent Photo (rendered by
 // AgentProfile immediately after this component) are one composed hero
@@ -37,9 +28,11 @@ export default function Hero({ config }: { config: SmartLeadFormConfig }) {
   const showPhotoUnderHeadline = showAgentProfile && profileImagePosition === "underHeadline"
   const showOverlappingPhotoBelow = showAgentProfile && !showPhotoUnderHeadline
 
+  // The overlap-plus-gap padding now varies by breakpoint along with the photo,
+  // so it is a class rather than an inline style (see agentPhotoSizes.ts).
   const heroBottomPadding = showOverlappingPhotoBelow
-    ? `calc(${agentPhotoOverlapRem(agentPhotoSize)}rem + ${HERO_TO_PHOTO_GAP_PX}px)`
-    : `${HERO_BOTTOM_PADDING_PX}px`
+    ? AGENT_PHOTO_SIZES[agentPhotoSize].heroPadClass
+    : HERO_PAD_NO_PHOTO_CLASS
 
   // Subheadline and Highlights keep their own existing margin classes no
   // matter which order they render in — reordering them (Under Headline
@@ -66,10 +59,7 @@ export default function Hero({ config }: { config: SmartLeadFormConfig }) {
   )
 
   return (
-    <section
-      className="relative overflow-hidden bg-[#0b0f1a] px-5 pt-5 text-center text-white sm:px-8 sm:pt-8"
-      style={{ paddingBottom: heroBottomPadding }}
-    >
+    <section className={`relative overflow-hidden bg-[#0b0f1a] px-5 pt-5 text-center text-white sm:px-8 sm:pt-8 ${heroBottomPadding}`}>
       {backgroundUrl && (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
