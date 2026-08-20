@@ -550,6 +550,8 @@ export default function HomepageDemo() {
           .hp-glow-frame { height: 600px !important; }
           .hp-demo-panel { height: 627px !important; }  /* 600 / 0.956 */
           .hp-demo-board { height: 872px !important; }  /* 600 / 0.688 */
+          /* Step 1 only — see the note above the form's min-height. */
+          [data-stage="1"] .hp-glow-frame { height: 640px !important; }
         }
 
         /* Step 3 lead panel (all breakpoints) — drop the window chrome
@@ -827,14 +829,14 @@ function FormPreview({
   };
 
   return (
-    <div className="hp-demo-form bg-white min-h-[669px] lg:min-h-0">
+    <div className="hp-demo-form bg-white min-h-[714px] lg:min-h-0">
       <Hero config={FORM_CONFIG} />
       <form
         onSubmit={(e) => {
           e.preventDefault();
           start();
         }}
-        className="flex flex-col gap-2.5 px-4 pb-6 pt-4 lg:pb-4"
+        className="flex flex-col gap-2.5 px-4 pb-10 pt-4 lg:pb-4"
       >
         <div className="grid grid-cols-2 gap-3">
           <Field label="First Name" value="Maria" />
