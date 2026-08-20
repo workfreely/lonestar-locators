@@ -101,7 +101,8 @@ export default function TrialReminder() {
           {urgent ? "⏳" : "🎉"}
         </span>
         <p className="text-[13px] font-medium leading-snug">
-          {days} {days === 1 ? "day" : "days"} left in your free trial
+          {days} {days === 1 ? "day" : "days"} left in your free trial. Reserve your username and unlock
+          Beast Academy.
         </p>
         <Link
           href="/admin/billing"
