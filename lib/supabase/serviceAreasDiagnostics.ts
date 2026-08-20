@@ -58,6 +58,14 @@ export function isNoWorkspace(f: RpcFailure): boolean {
   return (f.message ?? "").toLowerCase().includes("no active workspace")
 }
 
+// The RPC raises this named error when more than MAX_SERVICE_AREAS markets are
+// submitted. The UI already prevents a sixth from being selected, so reaching
+// here means the cap was bypassed — the save is refused, never truncated.
+export function isTooManyServiceAreas(f: RpcFailure): boolean {
+  const msg = (f.message ?? "").toLowerCase()
+  return msg.includes("too_many_service_areas") || msg.includes("workspaces_service_areas_max")
+}
+
 // ── User-facing messages ────────────────────────────────────────────────────
 // Clean and friendly. NEVER expose project names/refs, RPC names, DB names,
 // Postgres codes, or any implementation detail — those go to the dev console
@@ -66,6 +74,7 @@ const GENERIC_MESSAGE =
   "Unable to save your Service Areas. Please try again. If the problem continues, contact support."
 const WORKSPACE_MESSAGE =
   "Unable to save your Service Areas. Your workspace configuration couldn't be updated. Please try again."
+const TOO_MANY_MESSAGE = "You can serve up to 5 markets. Deselect one to choose another."
 
 /**
  * The message shown in the UI, in every environment. Only distinguishes a
@@ -73,6 +82,7 @@ const WORKSPACE_MESSAGE =
  * generic case; no infrastructure details either way.
  */
 export function userMessageForServiceAreaError(f: RpcFailure): string {
+  if (isTooManyServiceAreas(f)) return TOO_MANY_MESSAGE
   if (isNoWorkspace(f)) return WORKSPACE_MESSAGE
   return GENERIC_MESSAGE
 }
@@ -88,6 +98,7 @@ export function likelyCause(f: RpcFailure): string {
       ? `function-not-found — connected to the frozen ${project.name} project (${project.ref}); it lacks this RPC. Point NEXT_PUBLIC_SUPABASE_URL at Locator Beast.`
       : `function-not-found — the RPC is absent on ${project?.name ?? "the connected project"}${project ? ` (${project.ref})` : ""} (wrong project or unapplied migration).`
   }
+  if (isTooManyServiceAreas(f)) return "more than 5 service areas submitted — refused by the RPC/constraint."
   if (isNoWorkspace(f)) return "no active workspace membership for the current user."
   return "unclassified — inspect the full Postgres error above."
 }

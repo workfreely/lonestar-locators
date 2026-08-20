@@ -225,5 +225,14 @@ export function serviceAreasLabel(slugs: string[] | null | undefined): string {
     .join(", ")
 }
 
+/**
+ * The maximum number of markets one workspace may serve. Enforced in the UI
+ * (Profile + onboarding), in set_workspace_service_areas, and by a check
+ * constraint on workspaces.service_areas — the UI is convenience, the database
+ * is the rule. It lives here because it is a fact about the market catalog,
+ * not about any one screen.
+ */
+export const MAX_SERVICE_AREAS = 5
+
 /** Options for the onboarding / Settings market multi-select. */
 export const MARKET_OPTIONS = MARKETS.map((m) => ({ slug: m.slug, name: m.name, state: m.state }))

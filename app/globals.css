@@ -1927,3 +1927,35 @@ body.jaybot-open {
 }
 .beast-milestone-pop { animation: beast-milestone-pop 0.42s cubic-bezier(0.16, 1, 0.3, 1) both; }
 @media (prefers-reduced-motion: reduce) { .beast-milestone-pop { animation-duration: 0.001ms; } }
+/* ── Ask Beast AI clearance ──────────────────────────────────────────────────
+   The floating Ask Beast AI trigger is fixed at bottom-5 right-5 and measures
+   ~141x43px, so it occupies the bottom ~64px of the viewport over whatever is
+   beneath it. Authenticated pages do NOT share one scrolling container — each
+   page owns its own overflow-y-auto inside a `fixed inset-0` layout — so this
+   is the single definition of the value, applied to each real scroller rather
+   than duplicated as a magic number in every file.
+   96px = the 64px footprint plus ~32px of breathing room, matching the Smart
+   Lead Form editor's pb-24. Padding on the scroller adds real scrollable
+   distance; padding on an outer wrapper would not. */
+.beast-ai-clearance {
+  padding-bottom: 6rem; /* 96px */
+}
+
+/* ── Kanban end-of-scroll clearance ──────────────────────────────────────────
+   `.kb-col-body` is the actual vertical scroller (one per column) — `.kb-board`
+   scrolls horizontally only. The floating Ask Beast AI trigger covers the
+   bottom ~64px of the viewport, and a column body's content bottom sits ~46px
+   above it, so the last card was clipped by ~18px in the right-hand columns.
+
+   This is a spacer, deliberately not `padding-bottom`: the scroller is
+   border-box, so extra bottom padding would shrink the visible card area and
+   show fewer cards during normal use. A pseudo-element adds scrollable distance
+   at the END of the flow instead — the board looks identical until you scroll
+   to the bottom, where the last card can now clear the button.
+   Not a DOM node, so drag-and-drop child handling is unaffected. */
+.kb-col-body::after {
+  content: "";
+  display: block;
+  flex: none;
+  height: 34px;
+}

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { HiOutlineArrowUpTray } from "react-icons/hi2";
 import { supabase } from "@/lib/supabase/client";
-import { MARKET_OPTIONS } from "@/lib/markets/catalog";
+import { MARKET_OPTIONS, MAX_SERVICE_AREAS } from "@/lib/markets/catalog";
 import StepCard from "../StepCard";
 import StepNav from "../StepNav";
 import type { StepProps } from "../../_lib/types";
@@ -61,9 +61,11 @@ export default function StepBusinessProfile({
   const canContinue = firstName.trim().length > 0 && lastName.trim().length > 0;
 
   function toggleMarket(slug: string) {
-    setSelectedMarkets((prev) =>
-      prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]
-    );
+    setSelectedMarkets((prev) => {
+      if (prev.includes(slug)) return prev.filter((s) => s !== slug);
+      if (prev.length >= MAX_SERVICE_AREAS) return prev;
+      return [...prev, slug];
+    });
   }
 
   async function handleFile(file: File) {
@@ -177,25 +179,36 @@ export default function StepBusinessProfile({
 
         <div className="flex flex-col gap-2">
           <label className={labelClass}>Service Areas</label>
+          <p className="text-[12px] font-medium text-[var(--beast-ink-soft)]">
+            {selectedMarkets.length} of {MAX_SERVICE_AREAS} selected
+          </p>
           <div className="grid grid-cols-2 gap-2">
             {MARKET_OPTIONS.map((m) => {
               const active = selectedMarkets.includes(m.slug);
+              const blocked = !active && selectedMarkets.length >= MAX_SERVICE_AREAS;
               return (
                 <button
                   key={m.slug}
                   type="button"
                   onClick={() => toggleMarket(m.slug)}
                   aria-pressed={active}
+                  disabled={blocked}
                   className={`flex items-center justify-between rounded-xl border px-4 py-3 text-[14px] font-medium transition-colors ${
                     active
                       ? "border-[var(--beast-blue)] bg-[var(--beast-blue)]/5 text-[var(--beast-ink)]"
+                      : blocked
+                      ? "cursor-not-allowed border-[#eceef3] bg-white text-[#c7ccd6]"
                       : "border-[var(--beast-border)] bg-white text-[var(--beast-ink)] hover:border-[#c7ccd6]"
                   }`}
                 >
                   <span>{m.name}</span>
                   <span
                     className={`flex h-5 w-5 items-center justify-center rounded-md border ${
-                      active ? "border-[var(--beast-blue)] bg-[var(--beast-blue)] text-white" : "border-[var(--beast-border)] text-transparent"
+                      active
+                        ? "border-[var(--beast-blue)] bg-[var(--beast-blue)] text-white"
+                        : blocked
+                        ? "border-[#f0f1f5] text-transparent"
+                        : "border-[var(--beast-border)] text-transparent"
                     }`}
                   >
                     <svg width="11" height="11" viewBox="0 0 12 12" fill="none">

@@ -89,7 +89,7 @@ export default function SettingsShell({
       <SettingsHeader />
 
       {/* Workspace */}
-      <div className="flex-1 overflow-y-auto px-5 py-8">
+      <div className="beast-ai-clearance flex-1 overflow-y-auto px-5 py-8">
         <div className="mx-auto w-full max-w-3xl space-y-5">
           <div>
             <h1 className="text-[22px] font-bold tracking-tight text-[#111318]">{title}</h1>

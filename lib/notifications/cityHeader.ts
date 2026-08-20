@@ -31,7 +31,8 @@ export function resolveCitySkyline(city: string | null | undefined): CitySkyline
   const norm = raw.toLowerCase()
 
   // 1) Per-agent Smart Form submits the market NAME as `city` (e.g. "Houston",
-  //    "Dallas–Fort Worth", "Miami–Fort Lauderdale"). Match a market by name/slug.
+  //    "Dallas", "Fort Worth" — Dallas/Fort Worth and Miami/Fort Lauderdale are
+  //    separate markets). Match a market by name/slug.
   let themeSlug: string | null = null
   const market =
     MARKETS.find((m) => m.name.toLowerCase() === norm) ??

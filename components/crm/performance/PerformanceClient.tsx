@@ -40,7 +40,7 @@ export default function PerformanceClient({
       </AppHeader>
 
       {/* ─── BODY ─── */}
-      <div className="flex-1 overflow-y-auto p-5 space-y-5">
+      <div className="beast-ai-clearance flex-1 overflow-y-auto p-5 space-y-5">
         {/* Business Overview — relocated here from the CRM Dashboard
             (Analytics Page Refactor). Same cards, same collapse/expand
             behavior and localStorage key as before; only its container

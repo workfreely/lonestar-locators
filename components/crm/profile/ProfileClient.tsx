@@ -10,7 +10,7 @@ import SettingsShell, {
   SettingsField,
   settingsInputCls,
 } from "@/components/crm/settings/SettingsShell"
-import { MARKET_OPTIONS } from "@/lib/markets/catalog"
+import { MARKET_OPTIONS, MAX_SERVICE_AREAS } from "@/lib/markets/catalog"
 import UsernameField from "./UsernameField"
 import TimezoneSetting from "./TimezoneSetting"
 import {
@@ -100,9 +100,13 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
   function toggleMarket(slugKey: string) {
     setSaved(false)
     setSaveError(null)
-    setServiceAreas((prev) =>
-      prev.includes(slugKey) ? prev.filter((s) => s !== slugKey) : [...prev, slugKey]
-    )
+    setServiceAreas((prev) => {
+      if (prev.includes(slugKey)) return prev.filter((s) => s !== slugKey)
+      // At the cap, adding is refused rather than silently dropping something
+      // else. Deselecting is always allowed, so swapping stays one extra click.
+      if (prev.length >= MAX_SERVICE_AREAS) return prev
+      return [...prev, slugKey]
+    })
   }
 
   async function handlePhotoFile(file: File) {
@@ -329,10 +333,7 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
       <div className="space-y-4">
       <PasswordSetting email={email} />
 
-      <SettingsCard
-        title="Business Information"
-        description="Used throughout the CRM for generated documents, email templates, guest cards, and communications."
-      >
+      <SettingsCard title="Business Information">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <SettingsField label="Brokerage">
             <input value={brokerage} onChange={(e) => setBrokerage(e.target.value)} className={settingsInputCls} />
@@ -342,7 +343,7 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
             hint={
               licenseVerified
                 ? undefined
-                : "License numbers are verified within 3 business days. Once verified, your license number will be locked and cannot be changed."
+                : "Licenses are verified within 3 business days. Once verified, your license number cannot be changed and will not be displayed publicly by Locator Beast."
             }
           >
             {licenseVerified ? (
@@ -404,27 +405,41 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
         description="Choose up to 5 markets you serve."
       >
         {areasLoaded ? (
+          <>
+          <p className="mb-2 text-[12px] font-medium text-[#9098a8]">
+            {serviceAreas.length} of {MAX_SERVICE_AREAS} selected
+          </p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {MARKET_OPTIONS.map((m) => {
               const active = serviceAreas.includes(m.slug)
+              // Every market stays visible at the cap; only the unselected ones
+              // stop responding, so a user can always deselect and swap.
+              const blocked = !active && serviceAreas.length >= MAX_SERVICE_AREAS
               return (
                 <button
                   key={m.slug}
                   type="button"
                   onClick={() => toggleMarket(m.slug)}
                   aria-pressed={active}
+                  disabled={blocked}
                   className={`flex items-center justify-between rounded-xl border px-4 py-3 text-[14px] font-medium transition-colors ${
                     active
                       ? "border-[#2f6bff] bg-[#2f6bff]/5 text-[#111318]"
+                      : blocked
+                      ? "cursor-not-allowed border-[#eceef3] bg-white text-[#c7ccd6]"
                       : "border-[#e5e7ee] bg-white text-[#111318] hover:border-[#c7ccd6]"
                   }`}
                 >
                   <span>
-                    {m.name} <span className="text-[#9098a8]">· {m.state}</span>
+                    {m.name} <span className={blocked ? "text-[#d7dbe4]" : "text-[#9098a8]"}>· {m.state}</span>
                   </span>
                   <span
                     className={`flex h-5 w-5 items-center justify-center rounded-md border ${
-                      active ? "border-[#2f6bff] bg-[#2f6bff] text-white" : "border-[#e5e7ee] text-transparent"
+                      active
+                        ? "border-[#2f6bff] bg-[#2f6bff] text-white"
+                        : blocked
+                        ? "border-[#f0f1f5] text-transparent"
+                        : "border-[#e5e7ee] text-transparent"
                     }`}
                   >
                     <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
@@ -435,6 +450,7 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
               )
             })}
           </div>
+          </>
         ) : (
           <p className="text-[13px] text-[#6b7280]">Loading…</p>
         )}

@@ -51,7 +51,7 @@ export default function NetworkClient({
         <BackToDashboard />
       </AppHeader>
 
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="beast-ai-clearance flex-1 overflow-y-auto p-5">
         <div className="mx-auto w-full max-w-2xl space-y-5">
           <div>
             <h1 className="text-[20px] font-bold text-[var(--crm-text-primary)]">Beast Referral Network</h1>

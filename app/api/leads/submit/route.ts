@@ -64,10 +64,13 @@ const STRING_FIELDS = [
   "source", "landing_page", "referrer_url",
   "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "fbclid",
   "device_type", "browser", "operating_system",
-  // Manual "Add Lead" (LeadFormModal) fields — added when that form was
+  // Manual "Add Lead" (LeadFormModal) field — added when that form was
   // routed through this endpoint so it gains the same allowlist/honeypot/
   // duplicate-detection protection the public forms already have.
-  "facebook", "instagram", "tiktok", "locator_notes",
+  // The instagram/tiktok/facebook handles that used to sit here were removed
+  // with the Add Lead inputs: nothing collects them any more, so this route
+  // must not write them. The COLUMNS and their existing values are kept.
+  "locator_notes",
 ] as const
 
 const BOOLEAN_FIELDS = ["sms_opt_in"] as const

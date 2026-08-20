@@ -2198,7 +2198,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
               )}
 
               {/* INSIGHTS PANEL (Phase 1 center working canvas) */}
-              <div className="flex-1 bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)] p-6 overflow-y-auto">
+              <div className="beast-ai-clearance flex-1 bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)] p-6 overflow-y-auto">
                 {/* Hierarchy: AI Assistant → Recommended Properties → Favorite Properties →
                     Locator Notes → Client Tools → AI Insights. The workspace-close
                     X lives inside the AI Assistant header (passed below), NOT at the

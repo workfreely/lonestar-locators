@@ -36,8 +36,8 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
   )
 }
 
-function Full({ children }: { children: React.ReactNode }) {
-  return <div className="col-span-2">{children}</div>
+function Full({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <div className={`col-span-2 ${className}`}>{children}</div>
 }
 
 /** Max-3 must-have picker over the canonical option list. Reads/writes the stored
@@ -93,6 +93,12 @@ export default function LeadFields({
   return (
     <div className="space-y-6">
 
+      {/* Section order mirrors how a locator actually takes a lead: who they
+          are → when/where → what they want → whether they'll qualify → notes →
+          where they came from. Must-Have Amenities deliberately comes AFTER
+          Property Type, Bedrooms and Budget so it never splits the core
+          property criteria. */}
+
       {/* ── Contact ─────────────────────────────────────────────────────── */}
       <Group title="Contact">
         <input
@@ -124,54 +130,10 @@ export default function LeadFields({
           value={form.email || ""}
           onChange={e => updateField("email", e.target.value)}
         />
-        <Full>
-          <select
-            className={selectCls}
-            value={form.source || ""}
-            onChange={e => updateField("source", e.target.value)}
-            required
-          >
-            <option value="">Lead Source *</option>
-            <option value="website">Website</option>
-            <option value="tiktok">TikTok</option>
-            <option value="facebook">Facebook</option>
-            <option value="instagram">Instagram</option>
-            <option value="youtube">YouTube</option>
-            <option value="referral">Referral</option>
-          </select>
-        </Full>
-        <input
-          className={inputCls}
-          placeholder="Instagram handle"
-          value={form.instagram || ""}
-          onChange={e => updateField("instagram", e.target.value)}
-        />
-        <input
-          className={inputCls}
-          placeholder="TikTok handle"
-          value={form.tiktok || ""}
-          onChange={e => updateField("tiktok", e.target.value)}
-        />
-        <input
-          className={inputCls}
-          placeholder="Facebook name"
-          value={form.facebook || ""}
-          onChange={e => updateField("facebook", e.target.value)}
-        />
       </Group>
 
       {/* ── Move Details ─────────────────────────────────────────────────── */}
       <Group title="Move Details">
-        <select
-          className={selectCls}
-          value={form.city || ""}
-          onChange={e => updateField("city", e.target.value)}
-          required
-        >
-          <option value="">City *</option>
-          {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-
         {/* react-datepicker — wrapper gets display:block;width:100% from globals.css */}
         <DatePicker
           selected={form.move_date ? new Date(form.move_date + "T12:00:00") : null}
@@ -183,6 +145,16 @@ export default function LeadFields({
           className={inputCls}
           autoComplete="off"
         />
+
+        <select
+          className={selectCls}
+          value={form.city || ""}
+          onChange={e => updateField("city", e.target.value)}
+          required
+        >
+          <option value="">City *</option>
+          {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
       </Group>
 
       {/* ── Property Preferences ─────────────────────────────────────────── */}
@@ -195,14 +167,6 @@ export default function LeadFields({
           <option value="">Property Type</option>
           {PROPERTY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
-
-        {/* Must-Have Amenities — the SAME canonical option list and max-3 rule as the
-            Smart Form. Stored comma-joined (canonical values, not labels), so a lead
-            created manually or with the form field hidden can still be given must-haves
-            here, and existing selections can be added/removed later. */}
-        <Full>
-          <MustHaveAmenities value={form.must_have_amenities || ""} onChange={v => updateField("must_have_amenities", v)} />
-        </Full>
 
         <select
           className={selectCls}
@@ -219,15 +183,23 @@ export default function LeadFields({
             value={form.desired_rent || ""}
             onChange={e => updateField("desired_rent", e.target.value)}
           >
-            <option value="">Monthly Budget</option>
+            <option value="">Budget</option>
             {RENT_RANGE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
           </select>
+        </Full>
+
+        {/* Must-Have Amenities — the SAME canonical option list and max-3 rule as the
+            Smart Form. Stored comma-joined (canonical values, not labels), so a lead
+            created manually or with the form field hidden can still be given must-haves
+            here, and existing selections can be added/removed later. */}
+        <Full className="mt-2">
+          <MustHaveAmenities value={form.must_have_amenities || ""} onChange={v => updateField("must_have_amenities", v)} />
         </Full>
       </Group>
 
       {/* ── Screening — Credit Score (compact) + Rental & Criminal Background
-             in one row; notes below. Detailed screening sub-fields come from
-             the Smart Lead Form, not this quick manual add. */}
+             in one row. Detailed screening sub-fields come from the Smart Lead
+             Form, not this quick manual add. */}
       <Group title="Screening">
         <Full>
           <div className="grid grid-cols-[120px_1fr_1fr] gap-3">
@@ -266,7 +238,10 @@ export default function LeadFields({
             </select>
           </div>
         </Full>
+      </Group>
 
+      {/* ── Notes ────────────────────────────────────────────────────────── */}
+      <Group title="Notes">
         <Full>
           <p className={sectionLabelCls}>Client Notes</p>
           <textarea
@@ -285,6 +260,26 @@ export default function LeadFields({
             value={form.locator_notes || ""}
             onChange={e => updateField("locator_notes", e.target.value)}
           />
+        </Full>
+      </Group>
+
+      {/* ── Lead Source — last. Same required rule and same options as before. */}
+      <Group title="Lead Source">
+        <Full>
+          <select
+            className={selectCls}
+            value={form.source || ""}
+            onChange={e => updateField("source", e.target.value)}
+            required
+          >
+            <option value="">Lead Source *</option>
+            <option value="website">Website</option>
+            <option value="tiktok">TikTok</option>
+            <option value="facebook">Facebook</option>
+            <option value="instagram">Instagram</option>
+            <option value="youtube">YouTube</option>
+            <option value="referral">Referral</option>
+          </select>
         </Full>
       </Group>
 

@@ -34,9 +34,6 @@ export default function LeadFormModal({
     criminal_background: "",
     notes: "",
     locator_notes: "",
-    instagram: "",
-    tiktok: "",
-    facebook: "",
 
     // defaults
     source: "",
@@ -139,9 +136,6 @@ export default function LeadFormModal({
         criminal_background: "",
         notes: "",
         locator_notes: "",
-        instagram: "",
-        tiktok: "",
-        facebook: "",
 
         source: "",
         crm_status: "new",
@@ -156,7 +150,7 @@ export default function LeadFormModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-sm flex justify-end">
+    <div className="fixed inset-0 z-[10001] bg-black/40 backdrop-blur-sm flex justify-end">
 
       {/* PANEL */}
       <div className="w-full max-w-[700px] h-full bg-[var(--crm-panel)] shadow-2xl overflow-y-auto">
@@ -182,15 +176,23 @@ export default function LeadFormModal({
         </div>
         
 {/* BODY */}
-<div className="p-6 overflow-y-auto">
+<div className="p-6">
   <LeadFields
     form={form}
     updateField={updateField}
   />
 </div>
         
-        {/* FOOTER */}
-        <div className="sticky bottom-0 bg-[var(--crm-panel)] border-t border-[var(--crm-border)] p-5 flex justify-end gap-3">
+        {/* FOOTER — in normal flow, immediately after the last section, so the
+            form reads top-to-bottom and the modal has no dead space at the end.
+            It was previously `sticky bottom-0`, which pinned it to the viewport
+            bottom and forced a large compensating pad above it.
+            The action group sits LEFT, on the same 24px gutter as the form body
+            above it (px-6, matching the body's p-6), so the buttons line up with
+            the fields rather than hugging the modal edge — and the bottom-right
+            corner, where the floating Ask Beast AI trigger lives, stays clear
+            without any change to that component. */}
+        <div className="border-t border-[var(--crm-border)] px-6 pt-5 pb-6 flex gap-3">
 
           <button
             onClick={onClose}
