@@ -38,7 +38,7 @@ export default function AppHeader({
         fullBleed ? "-mx-4" : ""
       } ${surface}`}
     >
-      <Logo tone={variant} />
+      <Logo tone={variant} mark="beast" />
       <div className="ml-auto flex items-center gap-2">
         {children}
         <ProfileAvatarMenu variant={variant} />

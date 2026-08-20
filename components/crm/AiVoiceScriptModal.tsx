@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { createPortal } from "react-dom"
 import { formatPropertyTypeDisplay } from "@/lib/leads/propertyTypeDisplay"
+import BeastMark from "./BeastMark"
 
 type Props = {
   open: boolean
@@ -141,11 +142,9 @@ function ModalContent({ onClose, lead, topMatches = [], locatorName = "Jay" }: P
         <div className="flex-none px-8 pt-5 pb-0 border-b border-[var(--crm-border-soft)]">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
-                <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
-                  <path d="M2 10L7 4L12 10" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
+              {/* Beast head — the modal sits on --crm-panel, a dark surface in
+                  every theme, so it always takes the white mark. */}
+              <BeastMark tone="dark" size={44} />
               <div>
                 <h2 className="text-base font-semibold text-[var(--crm-text-primary)] leading-none">AI Voice Script</h2>
                 <p className="text-[11px] text-[var(--crm-text-muted)] mt-0.5">{clientName}</p>
