@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import BackToDashboard from "@/components/crm/BackToDashboard"
 import { HiOutlineArrowLeft } from "react-icons/hi2"
 import AppHeader from "@/components/crm/AppHeader"
 
@@ -65,13 +65,7 @@ export function SettingsField({
 export function SettingsHeader({ children }: { children?: React.ReactNode }) {
   return (
     <AppHeader variant="light">
-      <Link
-        href="/admin/leads"
-        className="flex items-center gap-1.5 rounded-full border border-[#e5e7ee] px-3.5 py-2 text-[13px] font-semibold text-[#4b5162] transition-colors hover:bg-[#f4f5f8]"
-      >
-        <HiOutlineArrowLeft className="h-4 w-4" />
-        Dashboard
-      </Link>
+      <BackToDashboard variant="light" />
       {children}
     </AppHeader>
   )

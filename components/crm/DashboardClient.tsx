@@ -2007,8 +2007,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           layout's px-4 inset so the bar spans from the far-left of the app area to
           the web-viewport right edge (where the Chrome Companion begins). The
           body/Agenda below stay inset; only the header is full width. */}
-      <div className="-mx-4 flex-none">
-      <AppHeader variant="dark" zClass="z-50">
+      <AppHeader variant="dark" zClass="z-50" fullBleed>
         <Link href="/admin/analytics" className={CRM_SECONDARY_BUTTON}>
           <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
             <rect x="1" y="8" width="3" height="5" rx="0.5" fill="currentColor"/>
@@ -2027,7 +2026,6 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           Add Lead
         </button>
       </AppHeader>
-      </div>
 
       {/* ─── SAMPLE WORKSPACE WELCOME BANNER (demo mode, first entry) ─── */}
       {bannerVisible && (

@@ -77,15 +77,9 @@ export default function ContentPanel({ config, onChange }: { config: SmartLeadFo
 
   return (
     <div className="flex flex-col divide-y divide-[#f0f1f5]">
-      {/* The sections below appear on the public page in this fixed order. */}
-      <div className="pb-4">
-        <Card muted className="text-[12px] leading-relaxed text-[#6b7280]">
-          These are your page sections, shown in the order they appear. Toggle any on or off — the
-          order is fixed.
-        </Card>
-      </div>
-
-      {/* ── Hero (Headline · Highlights · Agent Information) ─────────────────── */}
+      {/* Hero is FIRST here because it is first on the public page — this list's
+          order mirrors SmartLeadForm's render order exactly (Hero → form →
+          Testimonials → FAQs → footer) and is fixed. */}
       <div className="pt-3">
         <p className="pb-1 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">Hero</p>
 
@@ -133,7 +127,7 @@ export default function ContentPanel({ config, onChange }: { config: SmartLeadFo
           <span className="text-[11px] font-medium text-[#9098a8]">Always shown</span>
         </div>
         <p className="pb-1 text-[11.5px] leading-relaxed text-[#9098a8]">
-          The lead form always appears here. Choose which fields it collects in the Fields tab.
+          Fields are set in the Fields tab.
         </p>
       </div>
 
@@ -180,8 +174,8 @@ export default function ContentPanel({ config, onChange }: { config: SmartLeadFo
       <div className="pt-3">
         <p className="pb-1 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">Legal &amp; Disclosures</p>
         <p className="pb-2 text-[12px] leading-relaxed text-[#9098a8]">
-          Add the legal notices and disclosure links required for your business. These links appear in your
-          Smart Form footer. Privacy Policy, Terms of Service, and &ldquo;Powered by Locator Beast&rdquo; always appear.
+          Shown in your form footer. Privacy Policy, Terms of Service, and &ldquo;Powered by Locator
+          Beast&rdquo; always appear.
         </p>
 
         {/* Texas TREC disclosure presets. Enter the document URL to display each in
@@ -201,7 +195,7 @@ export default function ContentPanel({ config, onChange }: { config: SmartLeadFo
         <div className="pt-4">
           <p className="pb-0.5 text-[12.5px] font-semibold text-[#4b5162]">Additional Legal &amp; Disclosure Links</p>
           <p className="pb-2 text-[12px] leading-relaxed text-[#9098a8]">
-            Add any other disclosure your business needs. The title you enter is shown as the footer link text.
+            Link Title becomes the footer link text.
           </p>
           {footer.customDisclosures.map((row, i) => (
             <div key={i} className="mb-2 rounded-lg border border-[#e5e7ee] p-3">

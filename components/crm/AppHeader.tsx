@@ -15,10 +15,16 @@ import ProfileAvatarMenu from "@/components/crm/ProfileAvatarMenu"
 export default function AppHeader({
   variant = "dark",
   zClass = "z-30",
+  fullBleed = false,
   children,
 }: {
   variant?: "dark" | "light"
   zClass?: string
+  /** Break out of the admin layout's `px-4` inset so the bar spans edge to edge.
+   *  Pages inside app/admin/layout.tsx need this; shells that anchor themselves with
+   *  their own `fixed inset-0` (SettingsShell) already span the full width. Owning it
+   *  here keeps the one negative margin in a single place instead of three copies. */
+  fullBleed?: boolean
   children?: React.ReactNode
 }) {
   const surface =
@@ -27,7 +33,11 @@ export default function AppHeader({
       : "bg-[var(--crm-panel)] border-[var(--crm-border)] shadow-[0_1px_3px_rgba(var(--crm-shadow-color),0.06)]"
 
   return (
-    <header className={`crm-header relative ${zClass} flex-none flex h-14 items-center gap-4 border-b px-5 ${surface}`}>
+    <header
+      className={`crm-header relative ${zClass} flex-none flex h-14 items-center gap-4 border-b px-5 ${
+        fullBleed ? "-mx-4" : ""
+      } ${surface}`}
+    >
       <Logo tone={variant} />
       <div className="ml-auto flex items-center gap-2">
         {children}

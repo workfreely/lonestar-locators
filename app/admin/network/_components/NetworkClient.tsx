@@ -1,12 +1,13 @@
 "use client"
 
 import { useState } from "react"
+import BackToDashboard from "@/components/crm/BackToDashboard"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { HiOutlineGlobeAlt } from "react-icons/hi2"
 import { supabase } from "@/lib/supabase/client"
 import AppHeader from "@/components/crm/AppHeader"
-import { CRM_PRIMARY_BUTTON, CRM_SECONDARY_BUTTON } from "@/lib/crmButtonStyles"
+import { CRM_PRIMARY_BUTTON } from "@/lib/crmButtonStyles"
 import MemberCard, { StatusBadge } from "./MemberCard"
 import ApprovalsPanel from "./ApprovalsPanel"
 import type { DownlineMember, AdminMember } from "./types"
@@ -46,16 +47,9 @@ export default function NetworkClient({
 
   return (
     <div className="relative h-screen w-full flex flex-col bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]">
-      {/* Full-bleed to the CRM shell edges — counteracts the admin layout's px-4
-          inset so the bar spans edge-to-edge, matching /admin/analytics and
-          /admin/leads. */}
-      <div className="-mx-4 flex-none">
-      <AppHeader variant="dark">
-        <Link href="/admin/leads" className={CRM_SECONDARY_BUTTON}>
-          ← Back to Dashboard
-        </Link>
+      <AppHeader variant="dark" fullBleed>
+        <BackToDashboard />
       </AppHeader>
-      </div>
 
       <div className="flex-1 overflow-y-auto p-5">
         <div className="mx-auto w-full max-w-2xl space-y-5">

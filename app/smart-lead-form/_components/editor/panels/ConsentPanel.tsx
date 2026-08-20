@@ -15,7 +15,7 @@ export default function ConsentPanel({ config, onChange }: { config: SmartLeadFo
   return (
     <div className="flex flex-col gap-3">
       <Card muted className="text-[12px] leading-relaxed text-[#6b7280]">
-        This checkbox appears just above the submit button. Wording is fully editable.
+        Appears above the submit button.
       </Card>
 
       <div>

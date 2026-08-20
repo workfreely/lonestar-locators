@@ -5,7 +5,7 @@ import QRCode from "qrcode"
 import type { IconType } from "react-icons"
 import { FaInstagram, FaFacebook, FaTiktok, FaYoutube, FaGoogle, FaEnvelope } from "react-icons/fa6"
 import { HiOutlineGlobeAlt } from "react-icons/hi2"
-import CopyButton from "../ui/CopyButton"
+import CopyButton from "@/components/ui/CopyButton"
 import Card from "../ui/Card"
 import {
   FALLBACK_USERNAME,

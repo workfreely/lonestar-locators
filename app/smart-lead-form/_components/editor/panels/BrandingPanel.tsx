@@ -47,9 +47,7 @@ export default function BrandingPanel({ config, onChange }: { config: SmartLeadF
       <div className="grid grid-cols-2 gap-8">
         <div className="flex flex-col gap-1.5">
           <p className="text-[12px] font-semibold text-[#6b7280]">Agent Photo</p>
-          <p className="text-[11px] leading-snug text-[#9098a8]">
-            Uses your Profile photo automatically. Update it under Profile and it appears here and on your live form.
-          </p>
+          <p className="text-[11px] leading-snug text-[#9098a8]">Uses your Profile photo.</p>
         </div>
         <UploadTile label="Logo" imageUrl={logoUrl} onChange={(url) => updateBranding({ logoUrl: url })} />
       </div>
@@ -99,7 +97,7 @@ export default function BrandingPanel({ config, onChange }: { config: SmartLeadF
           // Built-in theme with no photography yet — it stays selectable and the
           // hero falls back to the default background.
           <p className="rounded-lg border border-dashed border-[#e5e7ee] bg-[#f9fafb] px-3 py-2.5 text-[12px] leading-relaxed text-[#9098a8]">
-            No photo for this background yet — your hero will use the default. Choose Custom to upload your own.
+            No photo yet — your hero uses the default. Choose Custom to upload your own.
           </p>
         )}
 

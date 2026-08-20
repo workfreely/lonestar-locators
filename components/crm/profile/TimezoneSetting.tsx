@@ -45,7 +45,7 @@ export default function TimezoneSetting({ initialTimeZone }: { initialTimeZone: 
   return (
     <SettingsCard
       title="Time Zone"
-      description="Used for Next Actions, follow-ups, reminders, and Agenda times."
+      description="Used for scheduling and reminders."
     >
       {!editing ? (
         <div className="flex items-center justify-between gap-3">

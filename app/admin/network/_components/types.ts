@@ -18,4 +18,6 @@ export type AdminMember = {
   applied_at: string | null
   approved_at: string | null
   status: string | null
+  license_number: string | null
+  license_verified_at: string | null
 }

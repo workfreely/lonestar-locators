@@ -1,14 +1,24 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { HiOutlineGlobeAlt, HiOutlineLockClosed } from "react-icons/hi2"
+import CopyButton from "@/components/ui/CopyButton"
 import { supabase } from "@/lib/supabase/client"
 import { SettingsCard } from "@/components/crm/settings/SettingsShell"
 
-// Public Smart Form URL (locatorbeast.com/{username}). Shows the current URL ONCE
-// with a Copy action; "Change" reveals the live username editor (auto-hyphenates,
-// real-time availability, available-alternative suggestions when taken). Saving
-// goes through lb_set_username, which re-validates + enforces reservations
-// server-side (the client transform is UX only, never trusted).
+// Public Smart Form URL (locatorbeast.com/{username}).
+//
+// The username is registered ONCE and is permanent, so this card has two distinct
+// states rather than a view/edit toggle:
+//   • no username yet → the full selection editor (auto-hyphenates, real-time
+//     availability, available-alternative suggestions when taken), plus the only
+//     place the naming rules are explained.
+//   • username set → the final URL only: globe → clickable link → lock → Copy.
+//     No Change control and no naming instructions, because neither applies any more.
+//
+// Saving goes through lb_set_username, which re-validates, enforces reservations,
+// AND enforces the one-time rule server-side (username_already_set) — the client
+// transform and the absent Change button are UX, never the enforcement.
 
 function toSlug(input: string): string {
   return input
@@ -28,7 +38,6 @@ export default function UsernameField({ initialUsername }: { initialUsername: st
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -105,51 +114,42 @@ export default function UsernameField({ initialUsername }: { initialUsername: st
     setEditing(false)
   }
 
-  async function copy() {
-    if (!saved) return
-    try {
-      await navigator.clipboard.writeText(`https://locatorbeast.com/${saved}`)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch {
-      /* clipboard unavailable — no-op */
-    }
-  }
-
   const canSave = status === "available" && !saving
+  // Mirrors the editor's Share panel: full URL for the link/copy value, bare path shown.
+  const pagePath = `locatorbeast.com/${saved}`
+  const pageUrl = `https://${pagePath}`
 
   return (
     <SettingsCard
-      title="Your Smart Form URL"
-      description="Your public Smart Lead Form link. Choose a username — lowercase letters, numbers, and hyphens (spaces become hyphens automatically)."
+      title="Smart Form URL"
+      description={
+        saved
+          ? undefined
+          : "Your public Smart Lead Form link. Choose a username — lowercase letters, numbers, and hyphens (spaces become hyphens automatically). This is registered to you permanently, so choose carefully."
+      }
     >
-      {!editing && saved ? (
-        // The current URL, shown once, with a Copy action and a Change control.
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-[#e5e7ee] bg-[#f4f5f8] px-3 py-2.5">
-          <span className="min-w-0 truncate font-mono text-[14px] font-semibold text-[#111318]">
-            locatorbeast.com/{saved}
-          </span>
-          <div className="flex flex-none items-center gap-2">
-            <button
-              type="button"
-              onClick={copy}
-              className="rounded-lg border border-[#d9deea] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#111318] transition-colors hover:border-[#2f6bff] hover:text-[#2f6bff]"
-            >
-              {copied ? "Copied!" : "Copy"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setValue(saved)
-                setStatus("current")
-                setError(null)
-                setEditing(true)
-              }}
-              className="rounded-lg border border-[#d9deea] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#111318] transition-colors hover:border-[#2f6bff] hover:text-[#2f6bff]"
-            >
-              Change
-            </button>
-          </div>
+      {saved ? (
+        // Mirrors the Smart Lead Form editor's Share panel exactly — same contained
+        // field, globe mark, clickable link and shared Copy action. The only Profile
+        // difference is the lock, which states that the URL is permanently registered.
+        // It is decorative (aria-hidden) and sits outside the anchor, so it never
+        // interferes with clicking or copying.
+        <div className="flex items-center gap-2 rounded-lg border border-[#e5e7ee] bg-white px-3 py-2.5">
+          <a
+            href={pageUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-[13.5px] font-medium text-[#2f6bff] underline-offset-2 transition-colors hover:underline"
+          >
+            <HiOutlineGlobeAlt className="h-4 w-4 shrink-0 text-[#2f6bff]" />
+            <span className="min-w-0 truncate">{pagePath}</span>
+          </a>
+          <HiOutlineLockClosed
+            className="h-3.5 w-3.5 shrink-0 text-[#9098a8]"
+            aria-hidden
+            title="Your Smart Lead Form URL is permanently registered to you."
+          />
+          <CopyButton value={pageUrl} label="Copy" />
         </div>
       ) : (
         <div className="flex flex-col gap-3">

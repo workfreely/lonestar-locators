@@ -3,6 +3,9 @@
 import { useState } from "react"
 import { HiOutlineClipboard, HiOutlineCheck } from "react-icons/hi2"
 
+// Shared clipboard control. Promoted out of the Smart Lead Form editor so the Profile
+// Smart Form URL can reuse the SAME treatment (and the same execCommand fallback for
+// permission-restricted contexts) instead of hand-rolling a tenth implementation.
 export default function CopyButton({
   value,
   label = "Copy",

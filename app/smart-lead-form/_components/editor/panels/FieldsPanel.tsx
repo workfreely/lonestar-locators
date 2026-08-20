@@ -54,7 +54,7 @@ export default function FieldsPanel({
   return (
     <div className="flex flex-col gap-6">
       <Card muted className="text-[12px] leading-relaxed text-[#6b7280]">
-        Choose which fields your form collects. Hide any you don&apos;t need — the essentials stay required.
+        Show or hide fields.
       </Card>
 
       <div>
@@ -66,7 +66,6 @@ export default function FieldsPanel({
             </span>
           ))}
         </div>
-        <p className="mt-2 text-[11.5px] text-[#9098a8]">These four always appear and can&apos;t be turned off.</p>
       </div>
 
       <div>

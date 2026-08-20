@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import BackToDashboard from "@/components/crm/BackToDashboard"
 import DashboardStats from "@/components/crm/DashboardStats"
 import PerformanceStats from "./PerformanceStats"
 import LeadSourcesCard from "./LeadSourcesCard"
@@ -11,7 +11,6 @@ import ClosedDealsByCityCard from "./ClosedDealsByCityCard"
 import MonthlyPerformanceHistory from "./MonthlyPerformanceHistory"
 import CollapsibleSection from "@/components/crm/CollapsibleSection"
 import AppHeader from "@/components/crm/AppHeader"
-import { CRM_SECONDARY_BUTTON } from "@/lib/crmButtonStyles"
 import type { ProjectionMethod } from "@/lib/leads/commissionEstimate"
 
 // Composes the Phase 1 Performance page from the reusable pieces above.
@@ -36,15 +35,9 @@ export default function PerformanceClient({
     <div className="relative h-screen w-full flex flex-col bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]">
 
       {/* ─── TOP NAVIGATION BAR — the shared app header ─── */}
-      {/* Full-bleed to the CRM shell edges — counteracts the admin layout's px-4
-          inset so the bar spans edge-to-edge, matching /admin/leads. */}
-      <div className="-mx-4 flex-none">
-      <AppHeader variant="dark">
-        <Link href="/admin/leads" className={CRM_SECONDARY_BUTTON}>
-          ← Back to Dashboard
-        </Link>
+      <AppHeader variant="dark" fullBleed>
+        <BackToDashboard />
       </AppHeader>
-      </div>
 
       {/* ─── BODY ─── */}
       <div className="flex-1 overflow-y-auto p-5 space-y-5">

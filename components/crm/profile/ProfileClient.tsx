@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { HiOutlineCheckBadge } from "react-icons/hi2"
+import PasswordSetting from "@/components/crm/profile/PasswordSetting"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/client"
 import SettingsShell, {
@@ -24,6 +26,7 @@ type ProfileInitial = {
   preferredName: string
   brokerage: string
   licenseNumber: string
+  licenseVerifiedAt: string | null
   phone: string
   email: string
   photoUrl: string | null
@@ -58,6 +61,9 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
   const [preferredName, setPreferredName] = useState(initial.preferredName)
   const [brokerage, setBrokerage] = useState(initial.brokerage)
   const [licenseNumber, setLicenseNumber] = useState(initial.licenseNumber)
+  // Verified licenses are frozen. The database enforces this (lb_guard_verified_license
+  // rejects the write outright); the UI simply reflects it rather than pretending to.
+  const licenseVerified = !!initial.licenseVerifiedAt
   const [phone, setPhone] = useState(formatPhoneInput(initial.phone))
   const [email, setEmail] = useState(initial.email)
   const [photoUrl, setPhotoUrl] = useState<string | null>(initial.photoUrl)
@@ -152,7 +158,7 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
           full_name: `${first} ${last}`.trim(),
           preferred_name: preferredName.trim(),
           brokerage: brokerage.trim(),
-          license_number: licenseNumber.trim(),
+          ...(licenseVerified ? {} : { license_number: licenseNumber.trim() }),
           phone_number: phone.trim(),
           email: email.trim(),
         })
@@ -248,10 +254,7 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
   }
 
   return (
-    <SettingsShell
-      title="Profile"
-      description="Your identity and business details. These appear on guest cards, email & SMS templates, and throughout the CRM."
-    >
+    <SettingsShell title="Profile">
       {/* Profile Photo */}
       <SettingsCard title="Profile Photo">
         <div className="flex items-center gap-5">
@@ -301,7 +304,7 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
       </SettingsCard>
 
       {/* Legal Information */}
-      <SettingsCard title="Legal Information" description="Used for account verification and identity purposes.">
+      <SettingsCard title="Legal Information" description="Used for account verification.">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <SettingsField label="Legal First Name">
             <input value={firstName} onChange={(e) => setFirstName(e.target.value)} className={settingsInputCls} />
@@ -313,7 +316,7 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
         <div className="mt-4">
           <SettingsField
             label="Preferred Name"
-            hint="This is the name shown throughout Locator Beast — on guest cards, email & SMS templates, AI messages, and your dashboard."
+            hint="Shown throughout Locator Beast."
           >
             <input value={preferredName} onChange={(e) => setPreferredName(e.target.value)} placeholder="e.g. Bob" className={settingsInputCls} />
           </SettingsField>
@@ -324,6 +327,8 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
           group (tighter spacing), saved together by the single Save Changes
           button below. */}
       <div className="space-y-4">
+      <PasswordSetting email={email} />
+
       <SettingsCard
         title="Business Information"
         description="Used throughout the CRM for generated documents, email templates, guest cards, and communications."
@@ -332,8 +337,37 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
           <SettingsField label="Brokerage">
             <input value={brokerage} onChange={(e) => setBrokerage(e.target.value)} className={settingsInputCls} />
           </SettingsField>
-          <SettingsField label="License Number">
-            <input value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)} className={settingsInputCls} />
+          <SettingsField
+            label="License Number"
+            hint={
+              licenseVerified
+                ? undefined
+                : "License numbers are verified within 3 business days. Once verified, your license number will be locked and cannot be changed."
+            }
+          >
+            {licenseVerified ? (
+              <div className="flex items-center gap-2">
+                <input
+                  value={licenseNumber}
+                  readOnly
+                  aria-readonly
+                  className={`${settingsInputCls} cursor-not-allowed bg-[#f4f5f8] text-[#4b5162]`}
+                />
+                <span className="inline-flex flex-none items-center gap-1 rounded-full border border-[#0f9d58]/30 bg-[#0f9d58]/10 px-2.5 py-1 text-[12px] font-semibold text-[#0f9d58]">
+                  <HiOutlineCheckBadge className="h-3.5 w-3.5" />
+                  Verified
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <input value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)} className={settingsInputCls} />
+                {licenseNumber.trim() && (
+                  <span className="inline-flex flex-none items-center rounded-full border border-[#e5e7ee] bg-[#f4f5f8] px-2.5 py-1 text-[12px] font-semibold text-[#9098a8]">
+                    Pending verification
+                  </span>
+                )}
+              </div>
+            )}
           </SettingsField>
           <SettingsField label="Phone Number">
             {/* No `type` attribute at all (like the other Profile fields) so it
@@ -367,7 +401,7 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
           the Save Changes button below alongside the business fields. */}
       <SettingsCard
         title="Service Areas"
-        description="Choose the markets you serve. Your Smart Lead Form shows only these cities and their neighborhoods — changes apply instantly."
+        description="Choose up to 5 markets you serve."
       >
         {areasLoaded ? (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

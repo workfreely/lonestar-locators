@@ -19,6 +19,50 @@ export default function ApprovalsPanel({ members }: { members: AdminMember[] }) 
   const [busyUser, setBusyUser] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // Manual license verification for launch — no queue, no dashboard, no lookup
+  // service. Guarded by lb_verify_license, which raises for anyone who is not the
+  // platform owner, so this button is defence in depth rather than the control itself.
+  async function verifyLicense(userId: string) {
+    if (busyUser) return
+    setBusyUser(userId)
+    setError(null)
+    const { error } = await supabase.rpc("lb_verify_license", { p_user: userId })
+    setBusyUser(null)
+    if (error) {
+      setError(
+        error.message?.includes("license_number_missing")
+          ? "That member hasn't entered a license number yet."
+          : error.message || "Could not verify that license.",
+      )
+      return
+    }
+    router.refresh()
+  }
+
+  // Verified → a plain read-only chip. Unverified with a number → the owner action.
+  // No number yet → nothing to verify, so nothing is shown.
+  function licenseAction(m: AdminMember) {
+    if (m.license_verified_at) {
+      return (
+        <span className="inline-flex flex-none items-center rounded-full border border-[#0f9d58]/40 bg-[#0f9d58]/10 px-2.5 py-1 text-[12px] font-semibold text-[#0f9d58]">
+          License verified
+        </span>
+      )
+    }
+    if (!m.license_number?.trim()) return null
+    return (
+      <button
+        type="button"
+        disabled={busyUser !== null}
+        onClick={() => verifyLicense(m.user_id)}
+        title={`License ${m.license_number}`}
+        className={`${CRM_SECONDARY_BUTTON} !px-3.5 !py-1.5 !text-[12px]`}
+      >
+        Verify License
+      </button>
+    )
+  }
+
   async function setStatus(userId: string, status: "active" | "inactive") {
     if (busyUser) return
     setBusyUser(userId)
@@ -55,6 +99,7 @@ export default function ApprovalsPanel({ members }: { members: AdminMember[] }) 
         title={`Pending approval (${pending.length})`}
         empty="No members awaiting approval."
         members={pending}
+        renderLicense={licenseAction}
         renderAction={(m) => (
           <button
             type="button"
@@ -71,6 +116,7 @@ export default function ApprovalsPanel({ members }: { members: AdminMember[] }) 
         title={`Active (${active.length})`}
         empty="No active members yet."
         members={active}
+        renderLicense={licenseAction}
         renderAction={(m) => (
           <button
             type="button"
@@ -88,7 +134,8 @@ export default function ApprovalsPanel({ members }: { members: AdminMember[] }) 
           title={`Inactive (${inactive.length})`}
           empty=""
           members={inactive}
-          renderAction={(m) => (
+          renderLicense={licenseAction}
+        renderAction={(m) => (
             <button
               type="button"
               disabled={busyUser !== null}
@@ -109,11 +156,13 @@ function AdminGroup({
   empty,
   members,
   renderAction,
+  renderLicense,
 }: {
   title: string
   empty: string
   members: AdminMember[]
   renderAction: (m: AdminMember) => React.ReactNode
+  renderLicense?: (m: AdminMember) => React.ReactNode
 }) {
   return (
     <div className="mt-4 first:mt-0">
@@ -130,7 +179,12 @@ function AdminGroup({
               joinedDate={m.applied_at}
               status={m.status}
               subtitle={m.sponsor_name ? `Referred by ${m.sponsor_name}` : null}
-              action={renderAction(m)}
+              action={
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {renderLicense?.(m)}
+                  {renderAction(m)}
+                </div>
+              }
             />
           ))}
         </div>
