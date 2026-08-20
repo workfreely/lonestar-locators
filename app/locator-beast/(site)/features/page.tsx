@@ -9,7 +9,7 @@ import { FEATURES } from "@/app/locator-beast/_lib/features-data";
 export const metadata: Metadata = {
   title: "Features",
   description:
-    "Everything Locator Beast includes: the Workflow Engine, CRM, AI Client Insights, Smart Lead Forms, Beast Sync, Google Calendar and Contacts, and more — built exclusively for apartment locators.",
+    "Everything Locator Beast includes: the Workflow Engine, AI-powered CRM, AI Client Insights, Smart Lead Forms, Beast Sync, Google Calendar and Contacts, and more — built exclusively for apartment locators.",
   alternates: { canonical: "https://locatorbeast.com/features" },
 };
 
