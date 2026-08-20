@@ -37,17 +37,22 @@ function ChevronIcon({ open, light }: { open: boolean; light: boolean }) {
   )
 }
 
-// Navigation links (everything except Appearance, which stays an inline
-// theme picker for instant visual feedback). Menu order: Profile, Appearance,
-// Smart Lead Form, Sales Goals, Analytics, Integrations, Import Leads, Billing,
-// Sign Out. Service Areas lives inside the Profile page and Connected Devices
-// inside the Integrations page — they are not top-level menu items.
+// Navigation links, split around the two conditional rows in the middle of the
+// menu — Beast Referral Network (members + owner only) and Theme (the inline
+// theme picker, which stays inline for instant visual feedback). Full menu
+// order: Profile, Smart Lead Form, Analytics, Sales Goals, Beast Referral
+// Network, Theme, Integrations, Import Leads, Billing, Sign Out.
+// Service Areas lives inside the Profile page and Connected Devices inside the
+// Integrations page — they are not top-level menu items.
 // Analytics is an account-level page (same /admin/analytics the top-nav
 // Analytics button opens) — this is an additional shortcut, not a replacement.
-const LINKS_AFTER_APPEARANCE: { label: string; href: string }[] = [
+const LINKS_BEFORE_NETWORK: { label: string; href: string }[] = [
   { label: "Smart Lead Form", href: "/smart-lead-form" },
-  { label: "Sales Goals", href: "/admin/settings" },
   { label: "Analytics", href: "/admin/analytics" },
+  { label: "Sales Goals", href: "/admin/settings" },
+]
+
+const LINKS_AFTER_THEME: { label: string; href: string }[] = [
   { label: "Integrations", href: "/admin/integrations" },
   { label: "Import Leads", href: "/admin/import" },
   { label: "Billing", href: "/admin/billing" },
@@ -169,6 +174,12 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
             Profile
           </Link>
 
+          {LINKS_BEFORE_NETWORK.map((item) => (
+            <Link key={item.href} href={item.href} onClick={() => setOpen(false)} className={linkCls}>
+              {item.label}
+            </Link>
+          ))}
+
           {/* Beast Network — members + owner only */}
           {showNetwork && (
             <Link href="/admin/network" onClick={() => setOpen(false)} className={linkCls}>
@@ -176,7 +187,7 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
             </Link>
           )}
 
-          {/* Appearance — inline workspace theme picker (instant feedback).
+          {/* Theme — inline workspace theme picker (instant feedback).
               Only shown where a ThemeProvider exists (i.e. inside the CRM). */}
           {theme && (
             <>
@@ -185,7 +196,7 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
                 onClick={() => setAppearanceOpen((s) => !s)}
                 className={`w-full flex items-center justify-between gap-2 px-3.5 py-2 transition-colors ${rowCls}`}
               >
-                Appearance
+                Theme
                 <ChevronIcon open={appearanceOpen} light={light} />
               </button>
               {appearanceOpen && (
@@ -224,7 +235,7 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
           )}
 
           {/* Remaining navigation */}
-          {LINKS_AFTER_APPEARANCE.map((item) => (
+          {LINKS_AFTER_THEME.map((item) => (
             <Link key={item.href} href={item.href} onClick={() => setOpen(false)} className={linkCls}>
               {item.label}
             </Link>
