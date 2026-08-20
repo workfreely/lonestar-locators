@@ -71,12 +71,12 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
     branding: {
       ...base.branding,
       agentPhotoUrl: sponsor.photo_url,
-      // The recruiting page always uses the Smart Lead Form's Medium photo
-      // (128px mobile / 160px desktop) rather than inheriting whichever size the
+      // The recruiting page always uses the Smart Lead Form's Large photo
+      // (168px mobile / 208px desktop) rather than inheriting whichever size the
       // sponsor happens to have chosen for their own form. Pinning the SIZE NAME
       // here means AgentPhoto keeps reading AGENT_PHOTO_SIZES — there is no
       // second definition of those pixel values, and no size control on this page.
-      agentPhotoSize: "medium",
+      agentPhotoSize: "large",
     },
     copy: {
       ...base.copy,
