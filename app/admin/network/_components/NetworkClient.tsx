@@ -8,6 +8,7 @@ import { HiOutlineGlobeAlt } from "react-icons/hi2"
 import { supabase } from "@/lib/supabase/client"
 import AppHeader from "@/components/crm/AppHeader"
 import { CRM_PRIMARY_BUTTON } from "@/lib/crmButtonStyles"
+import CopyButton from "@/components/ui/CopyButton"
 import MemberCard, { StatusBadge } from "./MemberCard"
 import ApprovalsPanel from "./ApprovalsPanel"
 import type { DownlineMember, AdminMember } from "./types"
@@ -22,6 +23,7 @@ export default function NetworkClient({
   isAdmin,
   myName,
   myPhotoUrl,
+  brokerageName,
   status,
   slug,
   referralUrl,
@@ -31,6 +33,8 @@ export default function NetworkClient({
   isAdmin: boolean
   myName: string
   myPhotoUrl: string | null
+  /** profiles.brokerage — the SAME record this page already loads for name/photo. */
+  brokerageName: string | null
   status: string | null
   slug: string | null
   referralUrl: string | null
@@ -56,11 +60,15 @@ export default function NetworkClient({
           <div>
             <h1 className="text-[20px] font-bold text-[var(--crm-text-primary)]">Beast Referral Network</h1>
             <p className="mt-1 text-[13px] text-[var(--crm-text-muted)]">
-              Your referral network and complimentary Locator Beast access.
+              Your referral network and free Locator Beast access.
             </p>
           </div>
 
-          {/* My Profile */}
+          {/* My Profile + My Referral Link — one card. The identity block never
+              filled the row, and the referral link was a whole card holding a
+              single line, so the two share the width on desktop and stack on
+              mobile. Layout only: same status source, same generated link, same
+              Copy behavior. */}
           {isMember && (
             <section className={cardCls}>
               <div className="flex items-center gap-4">
@@ -82,6 +90,32 @@ export default function NetworkClient({
                   </div>
                 </div>
               </div>
+
+              {/* Referral link — full card width, directly below the identity
+                  block. Same treatment as the Smart Lead Form's Share tab. */}
+              <div className="mt-5">
+                <h2 className="text-[13px] font-semibold text-[var(--crm-text-primary)]">My Referral Link</h2>
+                {isActive && joinLink ? (
+                  <div className="mt-2">
+                    <LinkField>
+                      <a
+                        href={joinLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-[13.5px] font-medium text-[var(--crm-accent)] underline-offset-2 transition-colors hover:underline"
+                      >
+                        <HiOutlineGlobeAlt className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        <span className="min-w-0 truncate">{joinLink}</span>
+                      </a>
+                      <CopyButton value={joinLink} label="Copy" tone="dark" />
+                    </LinkField>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-[13px] text-[var(--crm-text-muted)]">
+                    Available once your membership is approved.
+                  </p>
+                )}
+              </div>
               {status === "pending" && (
                 <p className="mt-4 rounded-lg bg-amber-500/[0.06] px-3.5 py-2.5 text-[13px] text-amber-300/90">
                   Your membership is pending verification. Your join link and recruiting tools unlock
@@ -96,20 +130,6 @@ export default function NetworkClient({
             </section>
           )}
 
-          {/* My Referral Link */}
-          {isMember && (
-            <section className={cardCls}>
-              <h2 className="text-[15px] font-semibold text-[var(--crm-text-primary)]">My Referral Link</h2>
-              {isActive && joinLink ? (
-                <CopyLink link={joinLink} />
-              ) : (
-                <p className="mt-2 text-[13px] text-[var(--crm-text-muted)]">
-                  Available once your membership is approved.
-                </p>
-              )}
-            </section>
-          )}
-
           {/* Brokerage referral URL setting */}
           {isMember && (
             <section className={cardCls}>
@@ -117,8 +137,8 @@ export default function NetworkClient({
                 Brokerage Referral URL
               </h2>
               <p className="mt-1 text-[13px] text-[var(--crm-text-muted)]">
-                Your official referral link from the brokerage. Prospects are sent here when they
-                choose to join.
+                Your official referral link from {(brokerageName ?? "").trim() || "your brokerage"}.
+                Agents are sent here when they choose to join.
               </p>
               {isActive ? (
                 <ReferralUrlForm initial={referralUrl ?? ""} />
@@ -177,36 +197,14 @@ function DownlineSection({ title, members }: { title: string; members: DownlineM
   )
 }
 
-function CopyLink({ link }: { link: string }) {
-  const [copied, setCopied] = useState(false)
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(link)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1800)
-    } catch {
-      /* ignore */
-    }
-  }
+// The ONE URL-field shell for this page — the same contained row the Smart Lead
+// Form's Share tab uses (globe, link/value, compact action on the right), in CRM
+// tokens for the dark shell. Both URL controls render inside it so Smart Form
+// Link, My Referral Link and Brokerage Referral URL read as one family.
+function LinkField({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-      {/* Clickable public referral link — mirrors the Smart Lead Form "Smart Form
-          Link" (SharePanel): opens the member's EXISTING public join page in a new
-          tab so they don't lose their place in the CRM. Same URL the Copy Link
-          button copies; no new referral source or attribution change. */}
-      <a
-        href={link}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] px-3 py-2 text-[13px] font-medium text-[var(--crm-accent)] underline-offset-2 transition-colors hover:underline"
-        title="Preview your public referral page"
-      >
-        <HiOutlineGlobeAlt className="h-4 w-4 shrink-0" aria-hidden="true" />
-        <span className="min-w-0 truncate">{link}</span>
-      </a>
-      <button type="button" onClick={copy} className={`${CRM_PRIMARY_BUTTON} justify-center`}>
-        {copied ? "Copied!" : "Copy Link"}
-      </button>
+    <div className="flex flex-col gap-2 rounded-xl border border-[var(--crm-border)] bg-[var(--crm-inset)] px-3 py-2.5 sm:flex-row sm:items-center">
+      {children}
     </div>
   )
 }
@@ -237,19 +235,34 @@ function ReferralUrlForm({ initial }: { initial: string }) {
 
   return (
     <div className="mt-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <input
-          type="url"
-          inputMode="url"
-          placeholder="https://…"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          className="min-w-0 flex-1 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] px-3 py-2 text-[13px] text-[var(--crm-text-primary)] placeholder:text-[var(--crm-text-muted)]"
-        />
-        <button type="button" onClick={save} disabled={busy} className={`${CRM_PRIMARY_BUTTON} justify-center`}>
-          {busy ? "Saving…" : "Save"}
-        </button>
-      </div>
+      {/* Editable, so the value is an input rather than a link — but it sits in
+          the SAME shell as My Referral Link, with the globe on the left and
+          compact actions on the right. Save still calls lb_set_my_referral_url
+          with the same validation and refresh; Copy is display-only. */}
+      <LinkField>
+        <span className="flex min-w-0 flex-1 items-center gap-2">
+          <HiOutlineGlobeAlt className="h-4 w-4 shrink-0 text-[var(--crm-text-muted)]" aria-hidden="true" />
+          <input
+            type="url"
+            inputMode="url"
+            placeholder="https://…"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            className="min-w-0 flex-1 bg-transparent text-[13.5px] font-medium text-[var(--crm-text-primary)] outline-none placeholder:text-[var(--crm-text-muted)]"
+          />
+        </span>
+        <span className="flex flex-none items-center gap-2">
+          <CopyButton value={value} label="Copy" tone="dark" />
+          <button
+            type="button"
+            onClick={save}
+            disabled={busy}
+            className={`${CRM_PRIMARY_BUTTON} justify-center !px-3.5 !py-1.5 !text-[12.5px]`}
+          >
+            {busy ? "Saving…" : "Save"}
+          </button>
+        </span>
+      </LinkField>
       {msg && (
         <p className={`mt-2 text-[12px] font-medium ${msg.kind === "ok" ? "text-emerald-400" : "text-red-400"}`}>
           {msg.text}

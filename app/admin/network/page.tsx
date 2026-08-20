@@ -23,7 +23,7 @@ export default async function NetworkPage() {
     supabase.rpc("lb_network_downline", { p_max_depth: 3 }),
     supabase
       .from("profiles")
-      .select("preferred_name, first_name, last_name, profile_photo_url")
+      .select("preferred_name, first_name, last_name, profile_photo_url, brokerage")
       .eq("id", user.id)
       .maybeSingle(),
   ])
@@ -56,6 +56,7 @@ export default async function NetworkPage() {
       isAdmin={isAdmin}
       myName={myName}
       myPhotoUrl={profile?.profile_photo_url ?? null}
+      brokerageName={profile?.brokerage ?? null}
       status={status}
       slug={overview?.slug ?? null}
       referralUrl={overview?.brokerage_referral_url ?? null}

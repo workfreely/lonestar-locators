@@ -83,21 +83,21 @@ export default function ApprovalsPanel({ members }: { members: AdminMember[] }) 
   return (
     <section className="rounded-xl border border-amber-500/30 bg-amber-500/[0.04] p-5">
       <div className="mb-1 flex items-center gap-2">
-        <h2 className="text-[15px] font-semibold text-[var(--crm-text-primary)]">Admin · Network Members</h2>
+        <h2 className="text-[15px] font-semibold text-[var(--crm-text-primary)]">Admin</h2>
         <span className="inline-flex items-center rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-400">
           Owner only
         </span>
       </div>
       <p className="mb-4 text-[12px] text-[var(--crm-text-muted)]">
-        Approve members after verifying they joined the organization. Deactivating removes
-        complimentary access but keeps all of their data.
+        Approve members after verifying they joined your network.
       </p>
 
       {error && <p className="mb-3 text-[13px] font-medium text-red-400">{error}</p>}
 
       <AdminGroup
         title={`Pending approval (${pending.length})`}
-        empty="No members awaiting approval."
+        // The count already says there are none; the sentence added nothing.
+        empty=""
         members={pending}
         renderLicense={licenseAction}
         renderAction={(m) => (

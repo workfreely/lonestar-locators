@@ -10,10 +10,16 @@ export default function CopyButton({
   value,
   label = "Copy",
   variant = "compact",
+  tone = "light",
 }: {
   value: string
   label?: string
   variant?: "full" | "compact"
+  /** The compact button's palette. "light" is the white Smart Lead Form editor
+   *  (the default, so every existing caller is unchanged); "dark" uses the CRM
+   *  tokens for the dark shell, where the light hexes would read as low-contrast
+   *  text and flash a white hover. Same markup, same clipboard behavior. */
+  tone?: "light" | "dark"
 }) {
   const [copied, setCopied] = useState(false)
 
@@ -64,14 +70,19 @@ export default function CopyButton({
     )
   }
 
+  const compactCls =
+    tone === "dark"
+      ? "border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] hover:text-[var(--crm-text-primary)]"
+      : "border-[#e5e7ee] text-[#4b5162] hover:bg-[#f4f5f8]"
+
   return (
     <button
       type="button"
       onClick={handleCopy}
-      className="flex shrink-0 items-center gap-1.5 rounded-full border border-[#e5e7ee] px-3 py-1.5 text-[12.5px] font-semibold text-[#4b5162] transition-colors hover:bg-[#f4f5f8]"
+      className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${compactCls}`}
     >
       {copied ? (
-        <HiOutlineCheck className="h-3.5 w-3.5 text-[#0f9d58]" />
+        <HiOutlineCheck className={`h-3.5 w-3.5 ${tone === "dark" ? "text-emerald-400" : "text-[#0f9d58]"}`} />
       ) : (
         <HiOutlineClipboard className="h-3.5 w-3.5" />
       )}
