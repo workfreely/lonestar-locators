@@ -35,7 +35,7 @@ const PROC_STEPS = ["Lead received", "AI analyzing", "Creating workflow"];
 // at this width, then the frame zooms it down to DISPLAY_W).
 const DISPLAY_W = 320;
 const STAGES = [
-  { n: 1, key: "form", title: "Capture Leads", sub: "Smart Lead Form", natW: 384, frameH: null as number | null, activeScale: 1.08 },
+  { n: 1, key: "form", title: "Capture Leads", sub: "Your Smart Lead Form", natW: 384, frameH: null as number | null, activeScale: 1.08 },
   { n: 2, key: "board", title: "Automate Follow-Ups", sub: "Lead Board + AI", natW: 500, frameH: 470, activeScale: 1.2 },
   { n: 3, key: "panel", title: "Close More Leases", sub: "Everything in one place", natW: 360, frameH: 470, activeScale: 1.08 },
 ] as const;

@@ -897,7 +897,7 @@ export default function LeadPanel({
                 </span>
                 <span className="w-24 flex-none text-right text-sm font-semibold text-emerald-600">Completed</span>
               </div>
-              <div className="mt-2.5 truncate text-[12.5px] text-[var(--crm-text-muted)]">
+              <div className="mt-2.5 truncate text-left text-[12.5px] text-[var(--crm-text-muted)]">
                 Completed:{" "}
                 <span className="font-medium text-emerald-600">{formatDueDateTime(lastAction.completedAt, { timeZone: timeZone ?? undefined })}</span>
               </div>
@@ -952,7 +952,7 @@ export default function LeadPanel({
                 </div>
               )}
 
-              <div className="mt-2.5 truncate text-[12.5px] text-[var(--crm-text-muted)]">
+              <div className="mt-2.5 truncate text-left text-[12.5px] text-[var(--crm-text-muted)]">
                 Due:{" "}
                 <span className="font-medium text-[var(--crm-text-secondary)]">
                   {nextOpenAction.dueAt ? formatDueDateTime(nextOpenAction.dueAt, { timeZone: timeZone ?? undefined }) : "—"}
