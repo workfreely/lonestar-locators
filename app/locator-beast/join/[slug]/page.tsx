@@ -68,7 +68,16 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
         phoneNumber: false,
       },
     },
-    branding: { ...base.branding, agentPhotoUrl: sponsor.photo_url },
+    branding: {
+      ...base.branding,
+      agentPhotoUrl: sponsor.photo_url,
+      // The recruiting page always uses the Smart Lead Form's Medium photo
+      // (128px mobile / 160px desktop) rather than inheriting whichever size the
+      // sponsor happens to have chosen for their own form. Pinning the SIZE NAME
+      // here means AgentPhoto keeps reading AGENT_PHOTO_SIZES — there is no
+      // second definition of those pixel values, and no size control on this page.
+      agentPhotoSize: "medium",
+    },
     copy: {
       ...base.copy,
       agentName: sponsor.agent_name,
@@ -86,7 +95,7 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
       {/* ── HERO — exclusive opportunity ─────────────────────────────────── */}
       <section className="bg-[#0b0f1a] px-5 pb-8 pt-8 text-center text-white sm:px-8 sm:pb-12 sm:pt-12">
         <div className="mx-auto max-w-lg">
-          <p className="text-[13px] font-semibold uppercase tracking-[0.16em] text-[#8fb3ff]">
+          <p className="text-[15px] font-semibold uppercase tracking-[0.16em] text-[#8fb3ff]">
             {hasBrokerageName ? `Join my network at ${brokerage}` : "Join my network"}
           </p>
           <h1 className="mt-4 text-balance break-words text-[clamp(22px,6.1vw,26px)] font-bold leading-[1.12] tracking-tight sm:text-[clamp(26px,7vw,36px)]">
