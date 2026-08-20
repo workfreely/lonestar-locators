@@ -491,6 +491,12 @@ export default function HomepageDemo() {
         }
         .hp-demo-form span.rounded-full span { white-space: nowrap !important; }
 
+        /* Step 1 renders at 384px and is zoomed down, which is precisely the
+           narrow-column shape iOS text inflation targets. Left alone, the form
+           grows past its height budget on a real phone and the Submit button
+           clips — invisible in desktop emulation, which never inflates. */
+        .hp-demo-form { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
         /* Mobile: every workflow step is a full-size, equally-emphasized showcase.
            Neutralize the focus-zoom's per-step scale + opacity so no step shrinks
            or dims (this also keeps the board's two columns in view). The only motion
@@ -828,7 +834,7 @@ function FormPreview({
           e.preventDefault();
           start();
         }}
-        className="flex flex-col gap-2.5 px-4 pb-10 pt-4 lg:pb-4"
+        className="flex flex-col gap-2.5 px-4 pb-6 pt-4 lg:pb-4"
       >
         <div className="grid grid-cols-2 gap-3">
           <Field label="First Name" value="Maria" />
