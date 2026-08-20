@@ -12,21 +12,26 @@ import {
   HiOutlineChartPie,
 } from "react-icons/hi2";
 import type { IconType } from "react-icons";
+import { FEATURES } from "@/app/locator-beast/_lib/features-data";
 import Reveal from "./Reveal";
 
-const FEATURES: { icon: IconType; title: string; body: string; comingSoon?: boolean }[] = [
-  { icon: HiOutlineBolt, title: "Workflow Engine", body: "The heart of Locator Beast — the next step, every time." },
-  { icon: HiOutlineUsers, title: "CRM", body: "Every client and every conversation, organized automatically." },
-  { icon: HiOutlinePhone, title: "Phone Sync", body: "Use your existing number. Every call and text stays logged." },
-  { icon: HiOutlineDocumentText, title: "Smart Lead Pages", body: "Capture leads the moment they come in, no manual entry." },
-  { icon: HiOutlineSparkles, title: "AI Client Insights", body: "Know who's ready to close and who needs a nudge." },
-  { icon: HiOutlineIdentification, title: "Google Contacts", body: "New clients are added to your contacts automatically." },
-  { icon: HiOutlineCalendarDays, title: "Google Calendar", body: "Tours and follow-ups sync straight to your calendar." },
-  { icon: HiOutlineChartBar, title: "Performance Dashboard", body: "See exactly where every deal stands, at a glance." },
-  { icon: HiOutlineListBullet, title: "Agenda", body: "Your day, laid out — no more digging through notes." },
-  { icon: HiOutlineDocumentDuplicate, title: "Templates", body: "Reusable messages that keep every follow-up consistent." },
-  { icon: HiOutlineChartPie, title: "Analytics", body: "Understand what's actually driving your closed leases." },
-];
+// Titles + one-liners come from the ONE shared feature list; this file owns only
+// the icon for each, keyed by title. That keeps the icon system exactly as it was
+// while making it impossible for the homepage and /features to say different
+// things about the same feature.
+const ICONS: Record<string, IconType> = {
+  "Workflow Engine": HiOutlineBolt,
+  "AI-powered CRM": HiOutlineUsers,
+  "Beast Sync": HiOutlinePhone,
+  "Smart Lead Forms": HiOutlineDocumentText,
+  "AI Client Insights": HiOutlineSparkles,
+  "Google Contacts": HiOutlineIdentification,
+  "Google Calendar": HiOutlineCalendarDays,
+  "Analytics Dashboard": HiOutlineChartBar,
+  "Agenda": HiOutlineListBullet,
+  "Templates": HiOutlineDocumentDuplicate,
+  "Meta + Instagram Ads": HiOutlineChartPie,
+};
 
 export default function FeatureGrid() {
   return (
@@ -41,26 +46,24 @@ export default function FeatureGrid() {
         </Reveal>
 
         <div className="mt-14 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map((feature, i) => (
+          {FEATURES.map((feature, i) => {
+            const Icon = ICONS[feature.title];
+            return (
             <Reveal key={feature.title} delayMs={(i % 3) * 80}>
               <div className="beast-hover-lift h-full rounded-2xl border border-[var(--beast-border)] bg-white p-6">
                 <div className="flex items-center gap-3">
-                  <feature.icon className="h-8 w-8 shrink-0 text-[var(--beast-blue)]" />
+                  {Icon && <Icon className="h-8 w-8 shrink-0 text-[var(--beast-blue)]" />}
                   <p className="text-[18px] font-semibold text-[var(--beast-ink)]">
                     {feature.title}
                   </p>
-                  {feature.comingSoon && (
-                    <span className="ml-auto rounded-full bg-[var(--beast-blue)]/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--beast-blue)]">
-                      Coming Soon
-                    </span>
-                  )}
                 </div>
                 <p className="mt-2 text-[14px] leading-relaxed text-[var(--beast-ink-soft)]">
                   {feature.body}
                 </p>
               </div>
             </Reveal>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>

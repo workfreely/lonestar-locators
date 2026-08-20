@@ -4,7 +4,7 @@ const STEPS = [
   { title: "Start your free trial", body: "Sign up in minutes — no credit card required." },
   { title: "Connect your phone number", body: "Keep your existing number. Every call and text syncs in." },
   { title: "Sync Google Contacts & Calendar", body: "Your existing tools plug in instead of getting replaced." },
-  { title: "Capture your leads", body: "Smart Lead Pages start collecting leads automatically." },
+  { title: "Capture your leads", body: "Smart Lead Forms start collecting leads automatically." },
   { title: "Follow the guided workflow", body: "The Workflow Engine tells you the next step, every time." },
   { title: "Track every deal", body: "Watch leads move from first contact to signed lease." },
   { title: "Close more, consistently", body: "A repeatable process replaces guesswork with results." },

@@ -1,17 +1,11 @@
 import { HiOutlineCheckCircle } from "react-icons/hi2";
+import { FEATURE_NAMES } from "@/app/locator-beast/_lib/features-data";
 import Reveal from "./Reveal";
 
+// The feature names come from the one shared list, so a rename can never leave
+// a stale name here. The trailing entries are plan perks, not features.
 const INCLUDED = [
-  "Workflow Engine",
-  "CRM",
-  "AI Client Insights",
-  "Smart Form Pages",
-  "Phone Sync",
-  "Google Calendar",
-  "Google Contacts",
-  "Analytics Dashboard",
-  "Templates",
-  "Analytics",
+  ...FEATURE_NAMES,
   "Unlimited Leads",
   "Unlimited Clients",
   "Future Updates",
