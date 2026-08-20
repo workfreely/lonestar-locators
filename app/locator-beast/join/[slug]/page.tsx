@@ -114,8 +114,12 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
           <div className="mt-8 flex justify-center">
             <AgentPhoto config={config} />
           </div>
-          <div className="mt-2">
-            <AgentInfoText config={config} theme="dark" />
+          {/* The 208px photo needs more air beneath it than the identity block
+              needs internally: this wrapper's margin now exceeds AgentInfoText's
+              own mt-3 (which was winning the collapse), and `tight` pulls the
+              title up under the name so name+title read as one unit. */}
+          <div className="mt-[20px]">
+            <AgentInfoText config={config} theme="dark" tight />
           </div>
 
           <a

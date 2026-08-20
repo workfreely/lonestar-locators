@@ -9,7 +9,18 @@ import type { SmartLeadFormConfig } from "../../../_lib/types"
 // still lives in profile data, emails, signatures, guest cards, CRM, and Beast
 // Companion. Used on the white background after Hero (Overlapping) and, apart
 // from color, directly inside Hero's dark background (Under Headline).
-export default function AgentInfoText({ config, theme }: { config: SmartLeadFormConfig; theme: "light" | "dark" }) {
+export default function AgentInfoText({
+  config,
+  theme,
+  tight = false,
+}: {
+  config: SmartLeadFormConfig
+  theme: "light" | "dark"
+  /** Pulls the title up under the name so the identity block reads as one unit.
+   *  Opt-in: the recruiting page sets it to balance its larger photo; the Smart
+   *  Lead Form leaves it off and renders exactly as approved. */
+  tight?: boolean
+}) {
   const { agentName, agentTitle, brokerageName, serviceAreas, phoneNumber } = config.copy
   const { brokerageInfo, serviceAreas: showServiceAreas, phoneNumber: showPhoneNumber } = config.sections.visibility
 
@@ -30,7 +41,11 @@ export default function AgentInfoText({ config, theme }: { config: SmartLeadForm
         <span className="min-w-0 break-words">{agentName}</span>
         <HiOutlineShieldCheck className="h-[18px] w-[18px] shrink-0 text-[#2f6bff]" />
       </p>
-      {titleLine && <p className={`mt-1 max-w-full break-words text-[15px] font-medium ${mutedColor}`}>{titleLine}</p>}
+      {titleLine && (
+        <p className={`${tight ? "mt-px" : "mt-1"} max-w-full break-words text-[15px] font-medium ${mutedColor}`}>
+          {titleLine}
+        </p>
+      )}
       {showServiceAreas && serviceAreas && (
         <p className={`mt-1 max-w-full break-words text-[13.5px] font-medium ${fainterColor}`}>
           {serviceAreas
