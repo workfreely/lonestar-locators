@@ -279,7 +279,13 @@ export default function HomepageDemo() {
         b.setAttribute("title", "Available after signup");
         (b as HTMLElement).style.cursor = "default";
       });
-    const quickHead = Array.from(wrap.querySelectorAll("p")).find((p) => p.textContent?.trim() === "Quick Actions");
+    // The legacy panel renamed this section "Quick Actions" -> "Messaging Tools"
+    // and the old exact-match silently stopped hiding it. Match either name so a
+    // future rename degrades to "still hidden" rather than "suddenly visible".
+    const quickHead = Array.from(wrap.querySelectorAll("p")).find((p) => {
+      const t = p.textContent?.trim();
+      return t === "Messaging Tools" || t === "Quick Actions";
+    });
     const card = quickHead?.parentElement?.parentElement; // header <p> → header row → SectionCard root
     if (card) (card as HTMLElement).style.display = "none";
   }, [selected]);
@@ -536,8 +542,8 @@ export default function HomepageDemo() {
              Action never crops. The board + lead-panel inner heights are bumped
              to fill the same canvas. */
           .hp-glow-frame { height: 600px !important; }
-          .hp-demo-panel { height: 675px !important; }
-          .hp-demo-board { height: 938px !important; }
+          .hp-demo-panel { height: 627px !important; }  /* 600 / 0.956 */
+          .hp-demo-board { height: 872px !important; }  /* 600 / 0.688 */
         }
 
         /* Step 3 lead panel (all breakpoints) — drop the window chrome
@@ -815,14 +821,14 @@ function FormPreview({
   };
 
   return (
-    <div className="hp-demo-form bg-white min-h-[720px] lg:min-h-0">
+    <div className="hp-demo-form bg-white min-h-[669px] lg:min-h-0">
       <Hero config={FORM_CONFIG} />
       <form
         onSubmit={(e) => {
           e.preventDefault();
           start();
         }}
-        className="flex flex-col gap-2.5 px-4 pb-16 pt-4 lg:pb-4"
+        className="flex flex-col gap-2.5 px-4 pb-10 pt-4 lg:pb-4"
       >
         <div className="grid grid-cols-2 gap-3">
           <Field label="First Name" value="Maria" />

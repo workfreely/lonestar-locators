@@ -886,7 +886,7 @@ export default function LeadPanel({
             <div>
               <div className="flex items-center justify-between gap-3">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--crm-text-secondary)]">Last Action</span>
-                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--crm-text-secondary)]">Status</span>
+                <span className="w-24 flex-none text-right text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--crm-text-secondary)]">Status</span>
               </div>
               <div className="mt-2 flex items-center justify-between gap-3">
                 <span
@@ -895,7 +895,7 @@ export default function LeadPanel({
                 >
                   {formatLastActionLabel(lastAction.title)}
                 </span>
-                <span className="flex-none text-right text-sm font-semibold text-emerald-600">Completed</span>
+                <span className="w-24 flex-none text-right text-sm font-semibold text-emerald-600">Completed</span>
               </div>
               <div className="mt-2.5 truncate text-[12.5px] text-[var(--crm-text-muted)]">
                 Completed:{" "}
@@ -913,18 +913,18 @@ export default function LeadPanel({
             <div>
               <div className="flex items-center justify-between gap-3">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--crm-text-secondary)]">Next Action</span>
-                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--crm-text-secondary)]">Status</span>
+                <span className="w-24 flex-none text-right text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--crm-text-secondary)]">Status</span>
               </div>
               <div className="mt-2 flex items-center justify-between gap-3">
                 <button
                   type="button"
                   onClick={openAction}
                   title={`Open this action — ${formatWorkflowActionLabel(nextOpenAction.title)}`}
-                  className="crm-cta max-w-[62%] truncate rounded-lg px-4 py-2 text-sm font-semibold"
+                  className="crm-cta max-w-[62%] truncate rounded-lg px-6 py-2 text-sm font-semibold"
                 >
                   {formatWorkflowActionLabel(nextOpenAction.title)}
                 </button>
-                <span className="flex-none text-right text-sm font-semibold">
+                <span className="w-24 flex-none text-right text-sm font-semibold">
                   {(() => {
                     let s: string
                     if (nextOpenAction.dueAt && getFollowUpStatus(nextOpenAction.dueAt) === "overdue") s = "Overdue"
