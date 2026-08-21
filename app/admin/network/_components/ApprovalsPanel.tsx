@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/client"
 import { CRM_PRIMARY_BUTTON, CRM_SECONDARY_BUTTON } from "@/lib/crmButtonStyles"
-import Card from "./MemberCard"
+import Card, { ReferredByPill } from "./MemberCard"
 import type { AdminMember } from "./types"
 
 // Clearly-separated Admin / Members section — rendered ONLY for the platform
@@ -178,7 +178,9 @@ function AdminGroup({
               photoUrl={m.photo_url}
               joinedDate={m.applied_at}
               status={m.status}
-              subtitle={m.sponsor_name ? `Referred by ${m.sponsor_name}` : null}
+              // Same pill as License Verification — one referral treatment across
+              // both surfaces, replacing the previous plain-text subtitle.
+              meta={<ReferredByPill sponsorName={m.sponsor_name} />}
               action={
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   {renderLicense?.(m)}

@@ -19,6 +19,7 @@ export default async function ProfilePage() {
         email?: string | null
         brokerage?: string | null
         license_number?: string | null
+        license_state?: string | null
         license_verified_at?: string | null
         phone_number?: string | null
         profile_photo_url?: string | null
@@ -31,7 +32,7 @@ export default async function ProfilePage() {
   if (user) {
     const { data } = await supabase
       .from("profiles")
-      .select("first_name, last_name, preferred_name, email, brokerage, license_number, license_verified_at, phone_number, profile_photo_url, timezone")
+      .select("first_name, last_name, preferred_name, email, brokerage, license_number, license_state, license_verified_at, phone_number, profile_photo_url, timezone")
       .eq("id", user.id)
       .single()
     profile = data
@@ -71,6 +72,7 @@ export default async function ProfilePage() {
         preferredName: profile?.preferred_name ?? "",
         brokerage: profile?.brokerage ?? "",
         licenseNumber: profile?.license_number ?? "",
+        licenseState: profile?.license_state ?? "",
         licenseVerifiedAt: profile?.license_verified_at ?? null,
         phone: profile?.phone_number ?? "",
         email: profile?.email ?? user?.email ?? "",

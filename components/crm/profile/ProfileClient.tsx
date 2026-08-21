@@ -20,12 +20,27 @@ import {
   gatherWorkspaceDiagnostics,
 } from "@/lib/supabase/serviceAreasDiagnostics"
 
+// The states Locator Beast supports, matching the DB CHECK constraint on
+// profiles.license_state and lib/markets/catalog.ts. Adding a state means updating
+// both — the constraint is what keeps a stale option from being saved.
+const LICENSE_STATE_NAMES: Record<string, string> = {
+  AZ: "Arizona",
+  CO: "Colorado",
+  FL: "Florida",
+  GA: "Georgia",
+  IL: "Illinois",
+  TN: "Tennessee",
+  TX: "Texas",
+}
+
+
 type ProfileInitial = {
   firstName: string
   lastName: string
   preferredName: string
   brokerage: string
   licenseNumber: string
+  licenseState: string
   licenseVerifiedAt: string | null
   phone: string
   email: string
@@ -61,6 +76,7 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
   const [preferredName, setPreferredName] = useState(initial.preferredName)
   const [brokerage, setBrokerage] = useState(initial.brokerage)
   const [licenseNumber, setLicenseNumber] = useState(initial.licenseNumber)
+  const [licenseState, setLicenseState] = useState(initial.licenseState)
   // Verified licenses are frozen. The database enforces this (lb_guard_verified_license
   // rejects the write outright); the UI simply reflects it rather than pretending to.
   const licenseVerified = !!initial.licenseVerifiedAt
@@ -162,7 +178,9 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
           full_name: `${first} ${last}`.trim(),
           preferred_name: preferredName.trim(),
           brokerage: brokerage.trim(),
-          ...(licenseVerified ? {} : { license_number: licenseNumber.trim() }),
+          ...(licenseVerified
+            ? {}
+            : { license_number: licenseNumber.trim(), license_state: licenseState || null }),
           phone_number: phone.trim(),
           email: email.trim(),
         })
@@ -337,6 +355,29 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <SettingsField label="Brokerage">
             <input value={brokerage} onChange={(e) => setBrokerage(e.target.value)} className={settingsInputCls} />
+          </SettingsField>
+          <SettingsField label="License State">
+            {licenseVerified ? (
+              <input
+                value={licenseState ? `${licenseState} — ${LICENSE_STATE_NAMES[licenseState] ?? ""}`.trim() : "—"}
+                readOnly
+                aria-readonly
+                className={`${settingsInputCls} cursor-not-allowed bg-[#f4f5f8] text-[#4b5162]`}
+              />
+            ) : (
+              <select
+                value={licenseState}
+                onChange={(e) => setLicenseState(e.target.value)}
+                className={settingsInputCls}
+              >
+                <option value="">Select a state</option>
+                {Object.entries(LICENSE_STATE_NAMES).map(([code, name]) => (
+                  <option key={code} value={code}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            )}
           </SettingsField>
           <SettingsField
             label="License Number"

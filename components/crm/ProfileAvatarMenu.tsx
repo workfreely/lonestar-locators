@@ -41,7 +41,8 @@ function ChevronIcon({ open, light }: { open: boolean; light: boolean }) {
 // menu — Beast Referral Network (members + owner only) and Theme (the inline
 // theme picker, which stays inline for instant visual feedback). Full menu
 // order: Profile, Smart Lead Form, Analytics, Sales Goals, Beast Referral
-// Network, Theme, Integrations, Import Leads, Billing, Sign Out.
+// Network, License Verification (owner only), Theme, Integrations, Import Leads,
+// Billing, Sign Out.
 // Service Areas lives inside the Profile page and Connected Devices inside the
 // Integrations page — they are not top-level menu items.
 // Analytics is an account-level page (same /admin/analytics the top-nav
@@ -78,6 +79,7 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
   // the platform owner — never to regular $99 customers. Resolved best-effort;
   // hidden on any error (incl. before the Beast Network migrations are applied).
   const [showNetwork, setShowNetwork] = useState(false)
+  const [isOwner, setIsOwner] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -102,9 +104,18 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
           supabase.rpc("is_platform_admin"),
         ])
         const row = Array.isArray(overview) ? overview[0] : overview
-        if (active) setShowNetwork(Boolean(row?.status) || Boolean(admin))
+        if (active) {
+          // Beast Referral Network is visible to MEMBERS and the owner; License
+          // Verification is owner-only. Two flags, because `admin` cannot be
+          // recovered from showNetwork once they are OR-ed together.
+          setShowNetwork(Boolean(row?.status) || Boolean(admin))
+          setIsOwner(Boolean(admin))
+        }
       } catch {
-        if (active) setShowNetwork(false)
+        if (active) {
+          setShowNetwork(false)
+          setIsOwner(false)
+        }
       }
     })()
     return () => {
@@ -184,6 +195,14 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
           {showNetwork && (
             <Link href="/admin/network" onClick={() => setOpen(false)} className={linkCls}>
               Beast Referral Network
+            </Link>
+          )}
+
+          {/* License Verification — platform owner ONLY (never network members).
+              The page and its RPCs enforce the same rule server-side. */}
+          {isOwner && (
+            <Link href="/admin/license-verification" onClick={() => setOpen(false)} className={linkCls}>
+              License Verification
             </Link>
           )}
 
