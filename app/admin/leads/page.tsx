@@ -196,8 +196,20 @@ async function getProfileContext(): Promise<{ demoMode: boolean; firstName: stri
   }
 }
 
+// Beast Voice alpha gate. Authorization comes from the SAME source the Beast
+// Network admin console uses — the is_platform_admin() SECURITY DEFINER function
+// over the platform_admins table, which has no write policy, so a user cannot
+// self-elevate. Resolved on the server and passed down as a plain boolean; the
+// client never decides who is an admin.
+async function isPlatformAdmin(): Promise<boolean> {
+  const supabase = await createClient()
+  const { data } = await supabase.rpc("is_platform_admin")
+  return Boolean(data)
+}
+
 export default async function Page() {
   const { demoMode, firstName, googleConnected, agent, signature, avgCommission, timeZone } = await getProfileContext()
+  const voiceEnabled = await isPlatformAdmin()
 
   if (demoMode) {
     return (
@@ -215,6 +227,7 @@ export default async function Page() {
         signature={signature}
         avgCommission={DEFAULT_AVG_COMMISSION_PER_LEASE}
         timeZone={timeZone}
+        voiceEnabled={voiceEnabled}
       />
     )
   }
@@ -228,5 +241,5 @@ export default async function Page() {
     getScheduledTours(),
   ])
 
-  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} recommendations={recommendations} outreach={outreach} tours={tours} agent={agent} signature={signature} avgCommission={avgCommission} timeZone={timeZone} />
+  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} recommendations={recommendations} outreach={outreach} tours={tours} agent={agent} signature={signature} avgCommission={avgCommission} timeZone={timeZone} voiceEnabled={voiceEnabled} />
 }

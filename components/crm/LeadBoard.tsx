@@ -15,6 +15,7 @@ import { supabase } from "@/lib/supabase/client"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { autoDueInDays } from "@/lib/workflow/autoDueDate"
 import { readKanbanDensity, writeKanbanDensity, DEFAULT_KANBAN_DENSITY } from "@/lib/preferences"
+import BeastVoiceMic from "./voice/BeastVoiceMic"
 
 const ALL_COLUMNS = [
   { id: "new", title: "🟡 New" },
@@ -44,6 +45,10 @@ const VIEW_LABELS: Record<KanbanView, string> = {
 // hits the database. Digits-only fallback on top of the plain substring
 // check so a phone search still matches regardless of how the query or
 // the stored number happen to be formatted/punctuated.
+//
+// Name and phone only. Email is deliberately NOT searched: locators look people
+// up by who they are or the number they called from. (Unrelated: page.tsx's
+// dedupeLeads still keys on email — that is a de-duplication key, not search.)
 function normalizeDigits(s: string) {
   return s.replace(/\D/g, "")
 }
@@ -53,10 +58,9 @@ function matchesSearch(lead: any, query: string): boolean {
   if (!q) return true
 
   const name = `${lead.first_name ?? ""} ${lead.last_name ?? ""}`.toLowerCase()
-  const email = String(lead.email ?? "").toLowerCase()
   const phone = String(lead.phone ?? "").toLowerCase()
 
-  if (name.includes(q) || email.includes(q) || phone.includes(q)) return true
+  if (name.includes(q) || phone.includes(q)) return true
 
   const qDigits = normalizeDigits(q)
   if (qDigits && normalizeDigits(phone).includes(qDigits)) return true
@@ -76,6 +80,7 @@ export default function LeadBoard({
   timeZone,
   focus = false,
   onToggleFocus,
+  voiceEnabled = false,
 }: {
   leads: any[]
   setLeads: React.Dispatch<React.SetStateAction<any[]>>
@@ -117,11 +122,19 @@ export default function LeadBoard({
   // consumer of LeadBoard (the public marketing demo) is untouched.
   focus?: boolean
   onToggleFocus?: () => void
+  // ── Beast Voice (alpha, platform-admin only) ─────────────────────────────
+  // Off unless the server said the viewer is a platform admin, so the public
+  // marketing demo and every normal account render exactly as before. The mic
+  // triggers the EXISTING contact workflow via onInitiateContact — it adds no
+  // CRM behavior of its own.
+  voiceEnabled?: boolean
 }) {
   const [mounted, setMounted] = useState(false)
   const [activeLead, setActiveLead] = useState<any | null>(null)
   const [view, setView] = useState<KanbanView>(DEFAULT_KANBAN_DENSITY)
   const [searchQuery, setSearchQuery] = useState("")
+  // Beast Voice session state — placeholder text only; search stays typeable.
+  const [voiceState, setVoiceState] = useState<"idle" | "listening" | "working">("idle")
   // Lead awaiting archive-reason confirmation (null = dialog closed).
   const [pendingArchiveId, setPendingArchiveId] = useState<string | number | null>(null)
 
@@ -335,7 +348,7 @@ export default function LeadBoard({
       <div className="kb-workspace">
         {/* Kanban toolbar */}
         <div className="kb-toolbar">
-          <div className="kb-search">
+          <div className={`kb-search${voiceEnabled ? " kb-search-voice" : ""}`}>
             <span className="kb-search-ic">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                 <circle cx="11" cy="11" r="7" />
@@ -346,8 +359,25 @@ export default function LeadBoard({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by name, phone, or email..."
+              placeholder={
+                voiceState === "listening"
+                  ? "Listening..."
+                  : voiceState === "working"
+                    ? "Beast is working..."
+                    : voiceEnabled
+                      ? // Only where the mic exists. A normal account has no Beast
+                        // Voice, so it must not be invited to speak to it.
+                        "Search by name, phone or speak to Beast…"
+                      : "Search by name or phone..."
+              }
             />
+            {voiceEnabled && (
+              <BeastVoiceMic
+                leads={leads}
+                onInitiateContact={onInitiateContact}
+                onListeningChange={setVoiceState}
+              />
+            )}
           </div>
 
           <div className="kb-toolbar-controls">
