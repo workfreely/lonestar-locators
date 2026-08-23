@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { clearSensitive, revokeConsent } from "@/utils/sensitiveStore";
 import type { ThemeId } from "@bc/companion-shared";
 import { ThemeSelect } from "./ThemeSelect";
 import type { CompanionConnection } from "../connection";
@@ -101,6 +102,34 @@ export function CompanionMenu({
 
         <button type="button" className="bc-pop-item is-quiet" role="menuitem" onClick={() => onDemo("Help & Feedback")}>
           <span className="bc-pop-label">Help &amp; Feedback</span>
+        </button>
+
+        {/* Privacy controls. "Clear stored data" erases the locally-held client and
+            property records now; "Withdraw consent" also closes the bridge, so
+            nothing is written again until the disclosure is accepted afresh. Both
+            are required by the Chrome Web Store disclosure commitments. */}
+        <div className="bc-pop-divider" />
+
+        <button
+          type="button"
+          className="bc-pop-item is-quiet"
+          role="menuitem"
+          onClick={() => {
+            void clearSensitive();
+          }}
+        >
+          <span className="bc-pop-label">Clear stored data</span>
+        </button>
+
+        <button
+          type="button"
+          className="bc-pop-item is-quiet"
+          role="menuitem"
+          onClick={() => {
+            void revokeConsent().then(() => location.reload());
+          }}
+        >
+          <span className="bc-pop-label">Withdraw consent</span>
         </button>
 
         {/* Connection status — derived ONLY from the authenticated state, never

@@ -16,13 +16,21 @@ export default function StepTools({ onNext, onBack, saving }: StepProps) {
       icon: HiOutlinePuzzlePiece,
       name: "Beast Companion",
       description:
-        "A browser companion that brings Locator Beast right into your apartment research — surfacing your client's criteria and workflow while you browse listings.",
+        "Keep your client's criteria, properties, and workflow beside you while you research apartments.",
+      // No approved Chrome Web Store listing exists yet, so the card shows a
+      // pending state rather than a dead install action. Flip to an action once
+      // a real listing URL exists — do NOT invent one.
+      action: null as string | null,
     },
     {
       icon: HiOutlineComputerDesktop,
       name: "Beast Sync",
       description:
-        "A desktop companion that connects your phone's messaging activity to Locator Beast, so client conversations stay with the right lead.",
+        "Keep your phone conversations connected to the right clients in Locator Beast.",
+      // The existing source of truth (components/crm/integrations/
+      // BeastCompanionSection.tsx → DOWNLOAD_URLS.macos) is still an empty
+      // string, meaning no signed installer is published. Pending until then.
+      action: null as string | null,
     },
   ];
 
@@ -30,7 +38,7 @@ export default function StepTools({ onNext, onBack, saving }: StepProps) {
     <StepCard
       eyebrow="Step 4"
       title="Meet your Locator Beast tools"
-      subtitle="Two companion apps that extend Locator Beast. There's nothing to set up right now — you can manage them anytime from Settings → Integrations."
+      subtitle="Take Locator Beast with you while you work."
     >
       <div className="flex flex-col gap-3">
         {tools.map((t) => (
@@ -45,13 +53,18 @@ export default function StepTools({ onNext, onBack, saving }: StepProps) {
               <p className="text-[14px] font-semibold text-[var(--beast-ink)]">{t.name}</p>
               <p className="mt-0.5 text-[13px] leading-snug text-[var(--beast-ink-soft)]">{t.description}</p>
             </div>
+            {/* No real install/download URL exists for either tool yet, so both
+                show a pending state. An action appears here only when a genuine
+                published URL exists. */}
+            <span className="shrink-0 rounded-full bg-white px-3 py-1.5 text-[12px] font-semibold text-[var(--beast-ink-soft)]">
+              Coming Soon
+            </span>
           </div>
         ))}
       </div>
 
       <p className="mt-4 text-[12.5px] leading-relaxed text-[var(--beast-ink-soft)]">
-        Both are part of the Locator Beast ecosystem. When you're ready, set them up from{" "}
-        <span className="font-semibold text-[var(--beast-ink)]">Settings → Integrations</span>.
+        You can manage both anytime in Settings → Integrations.
       </p>
 
       <StepNav onBack={onBack} onNext={() => onNext()} nextLabel="Continue" saving={saving} />

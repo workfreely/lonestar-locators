@@ -148,13 +148,13 @@ async function getScheduledTours() {
 // first_name personalizes the demo welcome banner.
 type AgentProfile = { name: string; brokerage: string; phone: string; email: string }
 
-async function getProfileContext(): Promise<{ demoMode: boolean; firstName: string; googleConnected: boolean; agent: AgentProfile; signature: ResolvedAgentIdentity | null; avgCommission: number; timeZone: string }> {
+async function getProfileContext(): Promise<{ demoMode: boolean; firstName: string; googleConnected: boolean; agent: AgentProfile; signature: ResolvedAgentIdentity | null; avgCommission: number; timeZone: string; companionOwner: string; userId: string }> {
   const emptyAgent: AgentProfile = { name: "", brokerage: "", phone: "", email: "" }
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) return { demoMode: false, firstName: "", googleConnected: false, agent: emptyAgent, signature: null, avgCommission: DEFAULT_AVG_COMMISSION, timeZone: DEFAULT_TIMEZONE }
+  if (!user) return { demoMode: false, firstName: "", googleConnected: false, agent: emptyAgent, signature: null, avgCommission: DEFAULT_AVG_COMMISSION, timeZone: DEFAULT_TIMEZONE, companionOwner: "", userId: "" }
   const { data: profile } = await supabase
     .from("profiles")
     .select("demo_mode, first_name, last_name, preferred_name, email, brokerage, phone_number, google_connected, avg_commission_per_lease")
@@ -171,6 +171,10 @@ async function getProfileContext(): Promise<{ demoMode: boolean; firstName: stri
     .eq("status", "active")
     .limit(1)
     .maybeSingle()
+  // Opaque owner key for Beast Companion. Both halves are server-derived from the
+  // authenticated session — never from the browser — so the extension's stored
+  // records are bound to an identity the page cannot forge.
+  const companionOwner = `${user.id}:${membership?.workspace_id ?? ""}`
   const timeZone = await resolveUserTimeZone(supabase, user.id, membership?.workspace_id ?? null)
   // Preferred Name is the display name shown throughout Locator Beast; the
   // legal first/last name is the fallback when it isn't set.
@@ -193,6 +197,8 @@ async function getProfileContext(): Promise<{ demoMode: boolean; firstName: stri
     signature,
     avgCommission: Number(profile?.avg_commission_per_lease) || DEFAULT_AVG_COMMISSION,
     timeZone,
+    companionOwner,
+    userId: user.id,
   }
 }
 
@@ -208,7 +214,7 @@ async function isPlatformAdmin(): Promise<boolean> {
 }
 
 export default async function Page() {
-  const { demoMode, firstName, googleConnected, agent, signature, avgCommission, timeZone } = await getProfileContext()
+  const { demoMode, firstName, googleConnected, agent, signature, avgCommission, timeZone, companionOwner, userId } = await getProfileContext()
   const voiceEnabled = await isPlatformAdmin()
 
   if (demoMode) {
@@ -228,6 +234,8 @@ export default async function Page() {
         avgCommission={DEFAULT_AVG_COMMISSION_PER_LEASE}
         timeZone={timeZone}
         voiceEnabled={voiceEnabled}
+        companionOwner={companionOwner}
+        userId={userId}
       />
     )
   }
@@ -241,5 +249,5 @@ export default async function Page() {
     getScheduledTours(),
   ])
 
-  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} recommendations={recommendations} outreach={outreach} tours={tours} agent={agent} signature={signature} avgCommission={avgCommission} timeZone={timeZone} voiceEnabled={voiceEnabled} />
+  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} recommendations={recommendations} outreach={outreach} tours={tours} agent={agent} signature={signature} avgCommission={avgCommission} timeZone={timeZone} voiceEnabled={voiceEnabled} companionOwner={companionOwner} userId={userId} />
 }

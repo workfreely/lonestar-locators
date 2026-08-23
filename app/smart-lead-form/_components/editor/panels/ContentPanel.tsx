@@ -6,7 +6,19 @@ import UploadTile from "../ui/UploadTile"
 
 type Updater = (updater: (prev: SmartLeadFormConfig) => SmartLeadFormConfig) => void
 
-export default function ContentPanel({ config, onChange }: { config: SmartLeadFormConfig; onChange: Updater }) {
+export default function ContentPanel({
+  config,
+  onChange,
+  licenseState,
+}: {
+  config: SmartLeadFormConfig
+  onChange: Updater
+  /** profiles.license_state. The TREC fields below are Texas law, so they are
+   *  offered ONLY to Texas agents — showing them to a Florida agent implied a
+   *  disclosure obligation that does not apply to them. */
+  licenseState?: string | null
+}) {
+  const isTexas = (licenseState ?? "").toUpperCase() === "TX"
   const copy = config.copy
   const footer = config.footer
   const visibility = config.sections.visibility
@@ -178,18 +190,25 @@ export default function ContentPanel({ config, onChange }: { config: SmartLeadFo
           Beast&rdquo; always appear.
         </p>
 
-        {/* Texas TREC disclosure presets. Enter the document URL to display each in
-            the footer; leaving a field blank shows nothing (no toggle to hide). */}
-        <TextField
-          label="Texas Real Estate Commission Information About Brokerage Services"
-          value={footer.iabsUrl}
-          onChange={(v) => updateFooter({ iabsUrl: v })}
-        />
-        <TextField
-          label="Texas Real Estate Commission Consumer Protection Notice"
-          value={footer.consumerProtectionNoticeUrl}
-          onChange={(v) => updateFooter({ consumerProtectionNoticeUrl: v })}
-        />
+        {/* Texas TREC disclosure presets — TEXAS AGENTS ONLY. Enter the document URL
+            to display each in the footer; leaving a field blank shows nothing.
+            Hidden entirely outside Texas: these are Texas statutory requirements and
+            no other state's equivalents are implemented. URLs a Texas agent already
+            saved stay in the config untouched. */}
+        {isTexas && (
+          <>
+            <TextField
+              label="Texas Real Estate Commission Information About Brokerage Services"
+              value={footer.iabsUrl}
+              onChange={(v) => updateFooter({ iabsUrl: v })}
+            />
+            <TextField
+              label="Texas Real Estate Commission Consumer Protection Notice"
+              value={footer.consumerProtectionNoticeUrl}
+              onChange={(v) => updateFooter({ consumerProtectionNoticeUrl: v })}
+            />
+          </>
+        )}
 
         {/* Additional Legal & Disclosure Links — reusable rows (title + url). */}
         <div className="pt-4">

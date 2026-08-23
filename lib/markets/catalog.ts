@@ -84,7 +84,18 @@ export const MARKETS: Market[] = [
     name: "Fort Worth",
     state: "TX",
     defaultTheme: "fort-worth",
-    neighborhoods: [],
+    neighborhoods: [
+      "Downtown Fort Worth",
+      "West 7th",
+      "Near Southside (Magnolia)",
+      "Cultural District",
+      "TCU / Westcliff",
+      "Fairmount",
+      "Arlington Heights",
+      "Clearfork",
+      "Alliance",
+      "Stockyards / North Side",
+    ],
     submarkets: [],
   },
   {
@@ -112,7 +123,18 @@ export const MARKETS: Market[] = [
     name: "New Braunfels",
     state: "TX",
     defaultTheme: "new-braunfels",
-    neighborhoods: [],
+    neighborhoods: [
+      "Downtown New Braunfels",
+      "Gruene",
+      "Creekside",
+      "Veramendi",
+      "River Chase",
+      "Oak Run",
+      "Westpointe",
+      "Mission Valley",
+      "Havenwood",
+      "Solms",
+    ],
     submarkets: [],
   },
   {
@@ -140,14 +162,79 @@ export const MARKETS: Market[] = [
     name: "San Marcos",
     state: "TX",
     defaultTheme: "san-marcos",
-    neighborhoods: [],
+    neighborhoods: [
+      "Downtown San Marcos",
+      "Texas State Campus Area",
+      "Blanco Gardens",
+      "Willow Creek",
+      "Hunter Road",
+      "Sessom Creek",
+      "Wonder World",
+      "Rio Vista",
+      "La Cima",
+      "Craddock",
+    ],
     submarkets: [],
   },
   // ── Georgia ──
-  { slug: "atlanta", name: "Atlanta", state: "GA", defaultTheme: "atlanta", neighborhoods: [], submarkets: [] },
+  {
+    slug: "atlanta",
+    name: "Atlanta",
+    state: "GA",
+    defaultTheme: "atlanta",
+    neighborhoods: [
+      "Midtown",
+      "Downtown Atlanta",
+      "Buckhead",
+      "Old Fourth Ward",
+      "Inman Park",
+      "West Midtown",
+      "Virginia-Highland",
+      "Decatur",
+      "Brookhaven",
+      "Sandy Springs",
+    ],
+    submarkets: [],
+  },
   // ── Arizona ──
-  { slug: "phoenix", name: "Phoenix", state: "AZ", defaultTheme: "phoenix", neighborhoods: [], submarkets: [] },
-  { slug: "tucson", name: "Tucson", state: "AZ", defaultTheme: "tucson", neighborhoods: [], submarkets: [] },
+  {
+    slug: "phoenix",
+    name: "Phoenix",
+    state: "AZ",
+    defaultTheme: "phoenix",
+    neighborhoods: [
+      "Downtown Phoenix",
+      "Midtown Phoenix",
+      "Roosevelt Row",
+      "Arcadia",
+      "Biltmore",
+      "Camelback East",
+      "Desert Ridge",
+      "Ahwatukee",
+      "Scottsdale",
+      "Tempe",
+    ],
+    submarkets: [],
+  },
+  {
+    slug: "tucson",
+    name: "Tucson",
+    state: "AZ",
+    defaultTheme: "tucson",
+    neighborhoods: [
+      "Downtown Tucson",
+      "University / Sam Hughes",
+      "Armory Park",
+      "Midtown Tucson",
+      "Catalina Foothills",
+      "East Tucson",
+      "Northwest Tucson",
+      "Oro Valley",
+      "Marana",
+      "Rita Ranch",
+    ],
+    submarkets: [],
+  },
   // ── Florida ──
   {
     // Miami and Fort Lauderdale are SEPARATELY selectable. No existing workspace
@@ -157,7 +244,18 @@ export const MARKETS: Market[] = [
     name: "Miami",
     state: "FL",
     defaultTheme: "miami",
-    neighborhoods: [],
+    neighborhoods: [
+      "Brickell",
+      "Downtown Miami",
+      "Wynwood",
+      "Edgewater",
+      "Midtown Miami",
+      "Coconut Grove",
+      "Coral Gables",
+      "South Beach",
+      "Doral",
+      "Aventura",
+    ],
     submarkets: [],
   },
   {
@@ -166,16 +264,99 @@ export const MARKETS: Market[] = [
     name: "Fort Lauderdale",
     state: "FL",
     defaultTheme: "miami",
-    neighborhoods: [],
+    neighborhoods: [
+      "Downtown Fort Lauderdale",
+      "Las Olas",
+      "Flagler Village",
+      "Victoria Park",
+      "Coral Ridge",
+      "Wilton Manors",
+      "Fort Lauderdale Beach",
+      "Sailboat Bend",
+      "Oakland Park",
+      "Plantation",
+    ],
     submarkets: [],
   },
-  { slug: "orlando", name: "Orlando", state: "FL", defaultTheme: "orlando", neighborhoods: [], submarkets: [] },
+  {
+    slug: "orlando",
+    name: "Orlando",
+    state: "FL",
+    defaultTheme: "orlando",
+    neighborhoods: [
+      "Downtown Orlando",
+      "Thornton Park",
+      "Baldwin Park",
+      "Winter Park",
+      "College Park",
+      "Dr. Phillips",
+      "MetroWest",
+      "Lake Nona",
+      "UCF / East Orlando",
+      "Altamonte Springs",
+    ],
+    submarkets: [],
+  },
   // ── Illinois ──
-  { slug: "chicago", name: "Chicago", state: "IL", defaultTheme: "chicago", neighborhoods: [], submarkets: [] },
+  {
+    slug: "chicago",
+    name: "Chicago",
+    state: "IL",
+    defaultTheme: "chicago",
+    neighborhoods: [
+      "The Loop",
+      "River North",
+      "West Loop",
+      "South Loop",
+      "Streeterville",
+      "Gold Coast",
+      "Lincoln Park",
+      "Lakeview",
+      "Wicker Park",
+      "Logan Square",
+    ],
+    submarkets: [],
+  },
   // ── Colorado ──
-  { slug: "denver", name: "Denver", state: "CO", defaultTheme: "denver", neighborhoods: [], submarkets: [] },
+  {
+    slug: "denver",
+    name: "Denver",
+    state: "CO",
+    defaultTheme: "denver",
+    neighborhoods: [
+      "LoDo (Lower Downtown)",
+      "RiNo (River North)",
+      "Capitol Hill",
+      "Five Points",
+      "LoHi (Lower Highlands)",
+      "Cherry Creek",
+      "Washington Park",
+      "Golden Triangle",
+      "Central Park (Stapleton)",
+      "Denver Tech Center",
+    ],
+    submarkets: [],
+  },
   // ── Tennessee ──
-  { slug: "nashville", name: "Nashville", state: "TN", defaultTheme: "nashville", neighborhoods: [], submarkets: [] },
+  {
+    slug: "nashville",
+    name: "Nashville",
+    state: "TN",
+    defaultTheme: "nashville",
+    neighborhoods: [
+      "Downtown Nashville",
+      "The Gulch",
+      "SoBro",
+      "East Nashville",
+      "Germantown",
+      "Midtown",
+      "Music Row",
+      "12 South",
+      "Hillsboro Village",
+      "Green Hills",
+    ],
+    submarkets: [],
+  },
 ]
 
 /** Alias — markets are the supported markets. Kept for intent-revealing imports. */
@@ -197,6 +378,9 @@ export function defaultThemeForMarkets(slugs: string[] | null | undefined): stri
 }
 
 const BY_SLUG: Record<string, Market> = Object.fromEntries(MARKETS.map((m) => [m.slug, m]))
+// Same lookup, referenced by marketsForSlugs above (hoisted const initialisation
+// order is fine because marketsForSlugs is only ever called at render time).
+const BY_SLUG_ORDERED = BY_SLUG
 const BY_NAME: Record<string, Market> = Object.fromEntries(MARKETS.map((m) => [m.name, m]))
 
 export function getMarketBySlug(slug: string): Market | undefined {
@@ -209,13 +393,22 @@ export function getMarketByName(name: string): Market | undefined {
 
 /**
  * Resolves an array of stored market slugs to their catalog entries, preserving
- * the catalog's canonical order and silently dropping any unknown slugs (e.g.
+ * the workspace's SELECTION ORDER and silently dropping any unknown slugs (e.g.
  * a market that was retired). This is what the Smart Lead Form renders from.
+ *
+ * Selection order, not catalog order. workspaces.service_areas is stored in the
+ * order the locator picked (both market pickers append), and the FIRST entry is
+ * the primary market: it already decides the default hero theme via
+ * defaultThemeForMarkets(). Sorting into catalog order here made the city
+ * dropdown disagree with the hero — an agent who picked Orlando then Miami saw an
+ * Orlando skyline above a list starting with Miami. Honouring the saved order
+ * makes "primary market" mean one thing everywhere.
  */
 export function marketsForSlugs(slugs: string[] | null | undefined): Market[] {
   if (!slugs?.length) return []
-  const set = new Set(slugs)
-  return MARKETS.filter((m) => set.has(m.slug))
+  return slugs
+    .map((slug) => BY_SLUG_ORDERED[slug])
+    .filter((m): m is Market => !!m)
 }
 
 /** Comma-separated display string for the selected markets ("San Antonio, Austin"). */
@@ -236,3 +429,83 @@ export const MAX_SERVICE_AREAS = 5
 
 /** Options for the onboarding / Settings market multi-select. */
 export const MARKET_OPTIONS = MARKETS.map((m) => ({ slug: m.slug, name: m.name, state: m.state }))
+
+// ── States ──────────────────────────────────────────────────────────────────
+//
+// Derived from MARKETS, never hand-maintained: `state` already lives on every
+// market, so a second list could only drift. A Locator Beast agent works in ONE
+// state, picks it first, and then chooses markets from within it — which is why
+// onboarding needs states and a state→markets filter, not a flat market list.
+//
+// Order follows the catalog (states appear in the order their first market does),
+// so Texas leads, matching the rest of the product.
+
+export type SupportedState = { code: string; name: string }
+
+const STATE_NAMES: Record<string, string> = {
+  TX: "Texas",
+  GA: "Georgia",
+  AZ: "Arizona",
+  FL: "Florida",
+  IL: "Illinois",
+  CO: "Colorado",
+  TN: "Tennessee",
+}
+
+export const SUPPORTED_STATES: SupportedState[] = MARKETS.reduce<SupportedState[]>((acc, m) => {
+  if (!acc.some((s) => s.code === m.state)) {
+    acc.push({ code: m.state, name: STATE_NAMES[m.state] ?? m.state })
+  }
+  return acc
+}, [])
+
+/** Markets belonging to one state, in catalog order. */
+export function marketsForState(stateCode: string | null | undefined): Market[] {
+  if (!stateCode) return []
+  return MARKETS.filter((m) => m.state === stateCode)
+}
+
+/**
+ * The single state a set of selected markets belongs to, or null when they span
+ * several states or none are recognised.
+ *
+ * Used to backfill a state for an existing account that has markets but no saved
+ * license_state. Deliberately refuses to guess: mixed-state or unknown selections
+ * return null rather than silently picking the first one.
+ */
+export function stateForMarkets(slugs: string[] | null | undefined): string | null {
+  const states = new Set(marketsForSlugs(slugs).map((m) => m.state))
+  return states.size === 1 ? [...states][0] : null
+}
+
+/**
+ * Helper copy for the Service Areas picker, shared by onboarding and Profile so
+ * the two never drift.
+ *
+ * Derived from how many markets the chosen state actually has — NOT hard-coded to
+ * Texas. "Choose up to 5" only makes sense when the state offers more than five;
+ * telling an Illinois agent (one market) they may pick up to five reads as a
+ * missing-content bug. The underlying cap is unchanged either way.
+ */
+export function serviceAreasHelperText(stateCode: string | null | undefined): string {
+  return marketsForState(stateCode).length > MAX_SERVICE_AREAS
+    ? `Choose up to ${MAX_SERVICE_AREAS} markets you serve.`
+    : "Choose the markets you serve."
+}
+
+/**
+ * Selection counter for the Service Areas picker, shared by onboarding and Profile.
+ *
+ * "0 of 5 selected" only means something when the state actually offers more than
+ * five markets. Arizona has two, so "0 of 5" advertised three markets that do not
+ * exist and read as missing data. Derived from the canonical catalog count — never
+ * hard-coded to a particular state. The cap itself is unchanged.
+ */
+export function serviceAreasCountLabel(
+  stateCode: string | null | undefined,
+  selectedCount: number,
+): string {
+  return marketsForState(stateCode).length > MAX_SERVICE_AREAS
+    ? `${selectedCount} of ${MAX_SERVICE_AREAS} selected`
+    : `${selectedCount} selected`
+}

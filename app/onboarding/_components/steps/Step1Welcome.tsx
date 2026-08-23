@@ -13,8 +13,8 @@ export default function Step1Welcome({ onNext }: StepProps) {
         <h1 className="mt-6 text-[28px] font-semibold tracking-tight text-[var(--beast-ink)]">
           Welcome to Locator Beast
         </h1>
-        <p className="mt-3 max-w-sm text-[15px] leading-relaxed text-[var(--beast-ink-soft)]">
-          Let&apos;s get your apartment locating business up and running.
+        <p className="mt-3 text-[15px] leading-relaxed text-[var(--beast-ink-soft)]">
+          Let&apos;s get your business up and running.
         </p>
 
         <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-[var(--beast-border)] bg-[#f7f8fa] px-4 py-2">

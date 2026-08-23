@@ -53,6 +53,13 @@ async function buildSidePanel() {
       sourcemap: false,
       minify: true,
       watch: watch ? {} : null,
+      // Drop Vite's module-preload polyfill. It only ever prefetches this
+      // package's own bundle files, but it is the sole source of a `fetch(` call
+      // in the output — and Beast Companion's Chrome Web Store position is that
+      // the extension performs NO network operations of any kind. Removing it
+      // makes that claim verifiable by grepping the build rather than by
+      // explanation. Safe: the panel ships as one bundle with no dynamic chunks.
+      modulePreload: { polyfill: false },
       rollupOptions: { input: { sidepanel: "sidepanel.html" } },
     },
   });

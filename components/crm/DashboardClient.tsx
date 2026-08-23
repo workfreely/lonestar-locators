@@ -68,7 +68,14 @@ function titleCaseName(name: string): string {
 // flag is the single on/off switch — set it back to `true` to show it again.
 const SHOW_LEGACY_LEAD_PANEL = false
 
-export default function DashboardClient({ leads, nextActions, favorites, recommendations = [], outreach = [], tours = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, timeZone = DEFAULT_TIMEZONE, voiceEnabled = false }: { leads: any[]; nextActions: any[]; favorites: any[]; recommendations?: any[]; outreach?: any[]; tours?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; timeZone?: string; /** Beast Voice alpha — true only for a platform admin, resolved server-side. */ voiceEnabled?: boolean }) {
+export default function DashboardClient({ leads, nextActions, favorites, recommendations = [], outreach = [], tours = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, timeZone = DEFAULT_TIMEZONE, voiceEnabled = false, companionOwner = "", userId = "" }: { leads: any[]; nextActions: any[]; favorites: any[]; recommendations?: any[]; outreach?: any[]; tours?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; timeZone?: string; /** Beast Voice alpha — true only for a platform admin, resolved server-side. */ voiceEnabled?: boolean;
+  /** Opaque "<userId>:<workspaceId>" for the signed-in locator. Beast Companion
+   *  binds every stored client record to it so a different account on the same
+   *  browser can never see this locator's client. Server-derived. */
+  companionOwner?: string;
+  /** Signed-in user id — namespaces the one-time demo welcome and first-run
+   *  checklist so another account on the same browser never suppresses them. */
+  userId?: string }) {
   const router = useRouter()
   const [selectedLeadId, setSelectedLeadId] = useState<string | number | null>(null)
   // Centered CRM contact modal for a New→Contacted DRAG (the Kanban presentation
@@ -86,11 +93,11 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
 
   // Show the sample-workspace banner once per user (until Explore/Start Fresh).
   useEffect(() => {
-    if (demoMode) setBannerVisible(!readDemoBannerDismissed())
-  }, [demoMode])
+    if (demoMode) setBannerVisible(!readDemoBannerDismissed(userId))
+  }, [demoMode, userId])
 
   function exploreDemo() {
-    writeDemoBannerDismissed(true)
+    writeDemoBannerDismissed(true, userId)
     setBannerVisible(false)
   }
 
@@ -289,7 +296,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     if (!selectedLead) return
     if (typeof window === "undefined") return
     try {
-      const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites, localTours, localRecommendations, insightsFor(selectedLead.id))
+      const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites, localTours, localRecommendations, insightsFor(selectedLead.id), companionOwner)
       companionLeadIdRef.current = selectedLead.id // this lead is now what Companion shows
       window.postMessage(
         { source: COMPANION_MSG_SOURCE, type: "active-client", payload },
@@ -339,7 +346,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     if (typeof window === "undefined" || !lead) return
     if (String(lead.id) !== String(companionLeadIdRef.current)) return
     try {
-      const payload = buildActiveClientPayload(lead, nextActionsForLead, agent?.name, outreachFor(lead.id), timeZone, localFavoritesRef.current, localToursRef.current, localRecommendationsRef.current, insightsFor(lead.id))
+      const payload = buildActiveClientPayload(lead, nextActionsForLead, agent?.name, outreachFor(lead.id), timeZone, localFavoritesRef.current, localToursRef.current, localRecommendationsRef.current, insightsFor(lead.id), companionOwner)
       window.postMessage(
         { source: COMPANION_MSG_SOURCE, type: "active-client", payload },
         window.location.origin
@@ -2068,10 +2075,12 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             <div className="text-2xl leading-none">🎉</div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-[var(--crm-text-primary)]">
-                {firstName.trim() ? `Welcome, ${titleCaseName(firstName)}!` : "Welcome!"}
+                {firstName.trim()
+                  ? `Welcome to Locator Beast, ${titleCaseName(firstName)}!`
+                  : "Welcome to Locator Beast!"}
               </p>
               <p className="text-[12.5px] text-[var(--crm-text-secondary)]">
-                We&apos;ve created a Sample Workspace so you can explore every feature before adding your own leads.
+                We added sample leads so you can explore the CRM.
               </p>
             </div>
             <div className="flex flex-none items-center gap-2">
@@ -2313,6 +2322,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         onLeadCreated={(newLead) => {
           setLocalLeads((prev) => [{ ...newLead, _isNew: true }, ...prev])
         }}
+        timeZone={timeZone}
       />
 
       <WorkflowActionToast
@@ -2483,7 +2493,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         onCancel={() => setConfirmLease(null)}
       />
 
-      {demoMode && <FirstRunChecklist googleConnected={googleConnected} />}
+      {demoMode && <FirstRunChecklist googleConnected={googleConnected} userId={userId} />}
 
       {/* Agenda-side switch — available in every environment. Lets the agent flip
           the Agenda between left and right to complement whichever side their

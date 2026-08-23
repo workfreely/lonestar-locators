@@ -99,14 +99,25 @@ export function writeSectionExpanded(section: string, expanded: boolean) {
 // ─── Demo workspace welcome banner ────────────────────────────────────
 // One-time "sample workspace" banner shown on first entry into the demo CRM.
 // Dismissed once the user clicks Explore or Start Fresh.
+//
+// SCOPED PER USER. localStorage is per BROWSER, so a single global key meant one
+// account's dismissal silenced the banner for every other account signing in on
+// the same machine — a brand-new agent could reach the dashboard and never be
+// told the leads are samples, purely because someone else had dismissed it there
+// earlier. Every read and write is now namespaced by the signed-in user id.
 export const DEMO_BANNER_DISMISSED_KEY = "demo-welcome-banner-dismissed"
 
-export function readDemoBannerDismissed(): boolean {
-  return readBool(DEMO_BANNER_DISMISSED_KEY, false)
+/** Per-user key. Falls back to the legacy global key when no user is known. */
+function demoBannerKey(userId?: string | null): string {
+  return userId ? `${DEMO_BANNER_DISMISSED_KEY}:${userId}` : DEMO_BANNER_DISMISSED_KEY
 }
 
-export function writeDemoBannerDismissed(dismissed: boolean) {
-  writeRaw(DEMO_BANNER_DISMISSED_KEY, String(dismissed))
+export function readDemoBannerDismissed(userId?: string | null): boolean {
+  return readBool(demoBannerKey(userId), false)
+}
+
+export function writeDemoBannerDismissed(dismissed: boolean, userId?: string | null) {
+  writeRaw(demoBannerKey(userId), String(dismissed))
 }
 
 // ─── Interactive first-run checklist ──────────────────────────────────
@@ -115,19 +126,24 @@ export function writeDemoBannerDismissed(dismissed: boolean) {
 export const FIRST_RUN_CHECKLIST_DISMISSED_KEY = "first-run-checklist-dismissed"
 export const FIRST_RUN_CHECKLIST_DONE_KEY = "first-run-checklist-done"
 
-export function readChecklistDismissed(): boolean {
-  return readBool(FIRST_RUN_CHECKLIST_DISMISSED_KEY, false)
+// Same per-user scoping as the banner above, for the same reason.
+function checklistKey(base: string, userId?: string | null): string {
+  return userId ? `${base}:${userId}` : base
 }
 
-export function writeChecklistDismissed(dismissed: boolean) {
-  writeRaw(FIRST_RUN_CHECKLIST_DISMISSED_KEY, String(dismissed))
+export function readChecklistDismissed(userId?: string | null): boolean {
+  return readBool(checklistKey(FIRST_RUN_CHECKLIST_DISMISSED_KEY, userId), false)
 }
 
-export function readChecklistDone(): string[] {
-  const raw = readRaw(FIRST_RUN_CHECKLIST_DONE_KEY)
+export function writeChecklistDismissed(dismissed: boolean, userId?: string | null) {
+  writeRaw(checklistKey(FIRST_RUN_CHECKLIST_DISMISSED_KEY, userId), String(dismissed))
+}
+
+export function readChecklistDone(userId?: string | null): string[] {
+  const raw = readRaw(checklistKey(FIRST_RUN_CHECKLIST_DONE_KEY, userId))
   return raw ? raw.split(",").filter(Boolean) : []
 }
 
-export function writeChecklistDone(ids: string[]) {
-  writeRaw(FIRST_RUN_CHECKLIST_DONE_KEY, ids.join(","))
+export function writeChecklistDone(ids: string[], userId?: string | null) {
+  writeRaw(checklistKey(FIRST_RUN_CHECKLIST_DONE_KEY, userId), ids.join(","))
 }

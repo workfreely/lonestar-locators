@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation"
+import { buildInitialSmartFormConfig } from "@/app/smart-lead-form/_lib/initialConfig"
 import { createClient } from "@/lib/supabase/server"
 import SmartLeadForm from "@/app/smart-lead-form/_components/form/SmartLeadForm"
 import { mergeSmartFormConfig } from "@/app/smart-lead-form/_lib/mergeConfig"
@@ -48,7 +49,19 @@ export default async function PublicSmartLeadFormPage({
   // Render the agent's OWN published config, with the field toggles they chose,
   // over sane defaults. Agent identity (name/brokerage/photo) always comes from
   // the live profile so it reflects account edits rather than stale editor copy.
-  const saved = mergeSmartFormConfig(form.form_config)
+  // A workspace with NO saved config must not fall through to DEFAULT_CONFIG on a
+  // PUBLIC page: those defaults carry the three sample testimonials attributed to
+  // named people in Austin, Dallas and Houston, plus the sample headline and
+  // phone. On a real agent's live form they read as genuine reviews. Build the
+  // same starting config the creation path produces instead — headline and
+  // testimonials off, identity from this agent's own record.
+  const saved = form.form_config
+    ? mergeSmartFormConfig(form.form_config)
+    : buildInitialSmartFormConfig({
+        agentName: form.agent_name,
+        brokerageName: form.brokerage_name,
+        serviceAreas: form.service_areas,
+      })
   const config: SmartLeadFormConfig = {
     ...saved,
     branding: {

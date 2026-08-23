@@ -3,8 +3,6 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/client"
-import { exitDemoWorkspace } from "@/lib/demo/exitDemo"
-import ConfirmDialog from "@/components/crm/ConfirmDialog"
 import SettingsShell, { SettingsCard, settingsLabelCls } from "@/components/crm/settings/SettingsShell"
 import { DEFAULT_PROJECTION_METHOD, type ProjectionMethod } from "@/lib/leads/commissionEstimate"
 
@@ -21,12 +19,10 @@ const currencyInputCls =
   "w-full rounded-xl border border-[#e5e7ee] bg-white py-2.5 pl-7 pr-3 text-[14px] font-semibold text-[#111318] outline-none transition-colors focus:border-[#2f6bff]"
 
 export default function SettingsClient({
-  demoMode,
   monthlyGoal,
   avgCommission,
   projectionMethod = DEFAULT_PROJECTION_METHOD,
 }: {
-  demoMode: boolean
   monthlyGoal: number
   avgCommission: number
   projectionMethod?: ProjectionMethod
@@ -37,8 +33,6 @@ export default function SettingsClient({
   const [method, setMethod] = useState<ProjectionMethod>(projectionMethod)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const [deleting, setDeleting] = useState(false)
 
   async function saveGoals() {
     setSaving(true)
@@ -62,13 +56,6 @@ export default function SettingsClient({
     router.refresh()
   }
 
-  async function deleteDemo() {
-    setConfirmDelete(false)
-    setDeleting(true)
-    await exitDemoWorkspace()
-    router.push("/admin/leads")
-    router.refresh()
-  }
 
   return (
     <SettingsShell title="Sales Goals" description="These drive your dashboard's monthly progress and projected pipeline.">
@@ -154,32 +141,7 @@ export default function SettingsClient({
         </div>
       </SettingsCard>
 
-      {demoMode && (
-        <SettingsCard
-          title="Demo Workspace"
-          description="You're exploring a sample workspace. Delete it to start with a clean, empty CRM for your real business."
-        >
-          <button
-            type="button"
-            onClick={() => setConfirmDelete(true)}
-            disabled={deleting}
-            className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-[13px] font-semibold text-red-600 transition-colors hover:bg-red-100 disabled:opacity-60"
-          >
-            {deleting ? "Clearing…" : "Delete Demo Workspace"}
-          </button>
-        </SettingsCard>
-      )}
 
-      <ConfirmDialog
-        open={confirmDelete}
-        title="Delete Demo Workspace?"
-        message="This removes all demo leads, analytics, agenda items, AI insights, and tasks. You'll start with a clean workspace — this can't be undone."
-        confirmLabel="Delete Demo Workspace"
-        cancelLabel="Cancel"
-        danger
-        onConfirm={deleteDemo}
-        onCancel={() => setConfirmDelete(false)}
-      />
     </SettingsShell>
   )
 }

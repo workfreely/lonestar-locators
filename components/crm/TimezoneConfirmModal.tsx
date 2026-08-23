@@ -81,7 +81,7 @@ export default function TimezoneConfirmModal({ onSaved }: { onSaved: (tz: string
               We detected <strong>{formatTimeZoneLabel(detected)}</strong>.
             </p>
             <p style={{ margin: "0 0 20px", fontSize: 13.5, color: "#4b5563", lineHeight: 1.5 }}>
-              Locator Beast will use this time zone for Next Actions, follow-ups, reminders, and Agenda times.
+              Locator Beast will use this time zone for follow-ups, reminders, and Agenda times.
             </p>
             {error && <p style={{ color: "#dc2626", fontSize: 13, margin: "0 0 12px" }}>{error}</p>}
             <div style={{ display: "flex", gap: 10 }}>
@@ -101,7 +101,7 @@ export default function TimezoneConfirmModal({ onSaved }: { onSaved: (tz: string
         ) : (
           <>
             <p style={{ margin: "0 0 12px", fontSize: 13.5, color: "#4b5563", lineHeight: 1.5 }}>
-              Choose the time zone Locator Beast should use for Next Actions, follow-ups, reminders, and Agenda times.
+              Choose the time zone Locator Beast should use for follow-ups, reminders, and Agenda times.
             </p>
             <select
               value={selected}

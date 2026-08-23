@@ -41,10 +41,16 @@ type ActiveClientPayload = {
   timeZone?: string | null;
 };
 
-const ACTIVE_CLIENT_KEY = "lb-active-client";
+import {
+  ACTIVE_CLIENT_KEY,
+  CURRENT_PROPERTY_KEY,
+  SENSITIVE_AREA_NAME,
+  envelopeOwner,
+  readSensitive,
+  unwrapEnvelope,
+} from "@/utils/sensitiveStore";
 // Separate from the active client on purpose: Current Property follows the webpage
 // the locator is viewing (Smart Apartment Data), NOT the selected CRM client.
-const CURRENT_PROPERTY_KEY = "lb-current-property";
 
 function isActivePayload(v: unknown): v is ActiveClientPayload {
   const p = v as ActiveClientPayload | null | undefined;
@@ -145,29 +151,37 @@ export function ProductionPanel() {
 
   // ── Active client from the CRM bridge (Phase 2, read-only) ────────────────
   useEffect(() => {
-    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
-    if (!store) return;
+    // Sensitive records now live in chrome.storage.SESSION behind an owner +
+    // expiry envelope (see utils/sensitiveStore). Reads pass through
+    // readSensitive/unwrapEnvelope so a record belonging to a different account,
+    // or one past its TTL, is neither rendered nor left in storage.
+    //
+    // The panel adopts whichever owner the CRM most recently established rather
+    // than tracking identity itself: passing null adopts, and every subsequent
+    // read is pinned to that owner. An account switch writes a new owner, the
+    // pinned comparison fails, and the stale record is erased on read.
+    let owner: string | null = null;
 
-    try {
-      store.get([ACTIVE_CLIENT_KEY, CURRENT_PROPERTY_KEY], (res: Record<string, unknown>) => {
-        const p = res?.[ACTIVE_CLIENT_KEY];
-        setActive(isActivePayload(p) ? p : null);
-        const cp = res?.[CURRENT_PROPERTY_KEY];
-        setCurrentProperty(isCurrentProperty(cp) ? cp : null);
-      });
-    } catch {
-      /* storage unavailable — no active client */
-    }
+    void (async () => {
+      const p = await readSensitive<unknown>(ACTIVE_CLIENT_KEY, null);
+      setActive(isActivePayload(p) ? p : null);
+      const cp = await readSensitive<unknown>(CURRENT_PROPERTY_KEY, null);
+      setCurrentProperty(isCurrentProperty(cp) ? cp : null);
+    })();
 
     const onChanged = (changes: Record<string, { newValue?: unknown }>, area: string) => {
-      if (area !== "local") return;
+      if (area !== SENSITIVE_AREA_NAME) return;
       if (changes[ACTIVE_CLIENT_KEY]) {
-        const next = changes[ACTIVE_CLIENT_KEY].newValue;
+        const raw = changes[ACTIVE_CLIENT_KEY].newValue;
+        // Adopt the owner from the newest CRM write, then pin to it.
+        const incoming = envelopeOwner(raw);
+        if (incoming) owner = incoming;
+        const next = unwrapEnvelope<unknown>(raw, owner);
         setActive(isActivePayload(next) ? next : null);
       }
       // Current Property updates independently of the active client (page context).
       if (changes[CURRENT_PROPERTY_KEY]) {
-        const nextCp = changes[CURRENT_PROPERTY_KEY].newValue;
+        const nextCp = unwrapEnvelope<unknown>(changes[CURRENT_PROPERTY_KEY].newValue, owner);
         setCurrentProperty(isCurrentProperty(nextCp) ? nextCp : null);
       }
     };
@@ -1199,11 +1213,17 @@ function dialUrl(method: "call" | "text", rawPhone: string | null | undefined, b
   return base;
 }
 
+// PRODUCTION ORIGINS ONLY. The dev origins that used to sit here were removed
+// for beta distribution so no development-only pattern ships to agents. Local
+// development is unaffected: the PRIMARY path below returns to the exact tab id
+// the background recorded, which is origin-agnostic and still works on
+// localhost. Only this URL-pattern FALLBACK is production-scoped — and on a
+// production build the manifest never grants localhost access anyway, so the
+// dev entries could never have matched (see scripts/build.mjs, which injects
+// the local origins into the manifest for --watch builds only).
 const CRM_TAB_URL_PATTERNS = [
   "*://locatorbeast.com/admin/*",
   "*://www.locatorbeast.com/admin/*",
-  "http://localhost:3000/admin/*",
-  "http://127.0.0.1:3000/admin/*",
 ];
 
 // chrome.storage key set by the background: { tabId, windowId } of the CRM tab
@@ -1216,7 +1236,8 @@ const CRM_TAB_KEY = "lb-crm-tab";
 // tabs.query filter by URL without a new permission.
 //
 // PRIMARY: return to the EXACT originating tab the background remembered (the one
-// that supplied the active client), including localhost dev. FALLBACK (that tab is
+// that supplied the active client) — origin-agnostic, so this still works in
+// local development. FALLBACK (that tab is
 // gone, or none was recorded): the URL-pattern query, first match. Works in both
 // dev and prod because the recorded windowId/tabId are origin-agnostic.
 function focusExistingCrmTab(): void {

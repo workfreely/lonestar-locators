@@ -94,3 +94,80 @@ body {
 
 /* The compact anchored menu (popover) + Message Templates subview live in
    menu/menu.css. */
+
+/* ── First-run disclosure (ConsentGate) ──────────────────────────────────────
+   Sized to fit a normal Chrome side panel without scrolling. The panel is
+   narrow and its height varies, so the layout is a centred column that stays
+   compact rather than filling the space: no lists, no cards, short measure.
+   overflow-y:auto is a safety net for very short windows or large system font
+   sizes — at normal sizing nothing scrolls. */
+.bc-consent {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  background: var(--bc-bg, #12151b);
+  color: var(--bc-text, #e7eaf0);
+}
+.bc-consent__inner {
+  padding: 24px 20px;
+  max-width: 340px;
+  width: 100%;
+  text-align: center;
+}
+.bc-consent__title {
+  margin: 0 0 14px;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.bc-consent__body {
+  margin: 0 0 12px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--bc-text-soft, #a8b0be);
+}
+.bc-consent__accept {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  width: 100%;
+  /* 20px above: the deliberate separation between the consent sentence and the
+     action it governs. Bottom margin unchanged. */
+  margin: 20px 0 12px;
+  padding: 12px 18px;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+  color: #fff;
+  background: var(--bc-accent, #2f6bff);
+}
+.bc-consent__accept:hover { filter: brightness(1.08); }
+.bc-consent__accept:focus-visible {
+  outline: 2px solid var(--bc-accent, #2f6bff);
+  outline-offset: 2px;
+}
+.bc-consent__agree {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--bc-text-soft, #a8b0be);
+}
+/* Inline within the agreement sentence — no block spacing, and underlined by
+   default so it reads as a link inside running text rather than styled prose. */
+.bc-consent__link {
+  color: var(--bc-accent, #2f6bff);
+  font-weight: 600;
+  text-decoration: underline;
+}
+.bc-consent__link:hover { text-decoration: underline; }
+.bc-consent__note {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--bc-text-soft, #a8b0be);
+  opacity: 0.85;
+}

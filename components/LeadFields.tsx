@@ -2,7 +2,7 @@
 
 import DatePicker from "react-datepicker"
 import "react-datepicker/dist/react-datepicker.css"
-import { formatPhone } from "@/lib/utils/formatPhone"
+import { formatPhoneInput } from "@/lib/utils/formatPhone"
 import {
   CITIES,
   PROPERTY_TYPES,
@@ -118,10 +118,9 @@ export default function LeadFields({
           type="tel"
           placeholder="Phone *"
           value={form.phone || ""}
-          onChange={e => {
-            const digits = e.target.value.replace(/\D/g, "").slice(0, 10)
-            updateField("phone", formatPhone(digits))
-          }}
+          maxLength={14}
+          autoComplete="tel"
+          onChange={e => updateField("phone", formatPhoneInput(e.target.value))}
         />
         <input
           className={inputCls}
@@ -240,8 +239,11 @@ export default function LeadFields({
         </Full>
       </Group>
 
-      {/* ── Notes ────────────────────────────────────────────────────────── */}
-      <Group title="Notes">
+      {/* ── Notes — no group heading: "Client Notes" and "Locator Notes" already
+             label themselves, so the extra "Notes" title was a redundant level.
+             Same wrapper Group renders, minus its title paragraph. ── */}
+      <div>
+        <div className="grid grid-cols-2 gap-3">
         <Full>
           <p className={sectionLabelCls}>Client Notes</p>
           <textarea
@@ -261,7 +263,8 @@ export default function LeadFields({
             onChange={e => updateField("locator_notes", e.target.value)}
           />
         </Full>
-      </Group>
+        </div>
+      </div>
 
       {/* ── Lead Source — last. Same required rule and same options as before. */}
       <Group title="Lead Source">

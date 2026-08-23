@@ -66,6 +66,15 @@ export function isTooManyServiceAreas(f: RpcFailure): boolean {
   return msg.includes("too_many_service_areas") || msg.includes("workspaces_service_areas_max")
 }
 
+// The RPC raises this named error when zero markets are submitted. Both UIs
+// prevent it, so reaching here means a guard was bypassed — the save is refused
+// rather than leaving the workspace serving nothing (which would make the Smart
+// Form fall back to advertising every market).
+export function isNoServiceAreas(f: RpcFailure): boolean {
+  const msg = (f.message ?? "").toLowerCase()
+  return msg.includes("no_service_areas") || msg.includes("workspaces_service_areas_range")
+}
+
 // ── User-facing messages ────────────────────────────────────────────────────
 // Clean and friendly. NEVER expose project names/refs, RPC names, DB names,
 // Postgres codes, or any implementation detail — those go to the dev console
@@ -75,6 +84,7 @@ const GENERIC_MESSAGE =
 const WORKSPACE_MESSAGE =
   "Unable to save your Service Areas. Your workspace configuration couldn't be updated. Please try again."
 const TOO_MANY_MESSAGE = "You can serve up to 5 markets. Deselect one to choose another."
+const NONE_MESSAGE = "Select at least one market."
 
 /**
  * The message shown in the UI, in every environment. Only distinguishes a
@@ -82,6 +92,7 @@ const TOO_MANY_MESSAGE = "You can serve up to 5 markets. Deselect one to choose 
  * generic case; no infrastructure details either way.
  */
 export function userMessageForServiceAreaError(f: RpcFailure): string {
+  if (isNoServiceAreas(f)) return NONE_MESSAGE
   if (isTooManyServiceAreas(f)) return TOO_MANY_MESSAGE
   if (isNoWorkspace(f)) return WORKSPACE_MESSAGE
   return GENERIC_MESSAGE

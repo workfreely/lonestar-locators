@@ -9,8 +9,12 @@ const NAV_ITEMS: FooterLinkItem[] = [
   { label: "FAQ", href: FAQ_URL },
   { label: "Support", href: "/support" },
   { label: "Contact", href: "/contact" },
-  { label: "Privacy Policy", href: "/locator-beast/privacy" },
-  { label: "Terms of Service", href: "/locator-beast/terms" },
+  // Canonical public legal URLs. On the locatorbeast.com host the middleware
+  // rewrites these to the /locator-beast tree internally, so the visitor's URL
+  // bar stays on the short form — which is what the metadata canonical, the
+  // sitemap, and the Beast Companion consent screen all point at.
+  { label: "Privacy Policy", href: "/privacy" },
+  { label: "Terms of Service", href: "/terms" },
 ];
 
 const EQUAL_HOUSING_LOGO =

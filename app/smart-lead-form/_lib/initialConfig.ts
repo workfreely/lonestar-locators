@@ -40,20 +40,44 @@ export function buildInitialSmartFormConfig(input: InitialFormInput): SmartLeadF
   const copy: Record<string, unknown> = {}
   const branding: Record<string, unknown> = {}
   const visibility: Record<string, boolean> = {}
-  if (agentName) copy.agentName = agentName
-  if (brokerageName) copy.brokerageName = brokerageName
-  if (areasLabel) copy.serviceAreas = areasLabel
-  if (phone) {
-    copy.phoneNumber = phone
-    // Lead-gen tool: show the locator's phone by default (they can hide it later).
-    visibility.phoneNumber = true
-  }
+
+  // IDENTITY IS ALWAYS WRITTEN — never left to fall through to DEFAULT_CONFIG.
+  //
+  // The old build only assigned a field when its source value existed, so a new
+  // account with a missing value silently inherited the design placeholder:
+  // "Jordan Blake", "Placeholder Realty Group", "(210) 555-1234", and the sample
+  // "Austin, Dallas, Houston" service areas — which is how a Florida agent ended
+  // up with a form advertising three Texas cities under someone else's name.
+  // Writing "" instead means a missing value renders as absent, never as fiction.
+  copy.agentName = agentName ?? ""
+  copy.brokerageName = brokerageName ?? ""
+  copy.serviceAreas = areasLabel ?? ""
+  copy.phoneNumber = phone ?? ""
+  // The initials shown when there is no photo are derived from copy.agentName by
+  // AgentPhoto, so clearing the placeholder name is also what stops "JB" from
+  // appearing for an agent whose initials are not J.B.
+
+  // Lead-gen tool: show the locator's phone only when we actually have one.
+  visibility.phoneNumber = !!phone
+
+  // NEW FORMS START CLEAN.
+  // Headline: the feature stays fully available in the editor — this only sets
+  // its INITIAL state, so "Stop Wasting Time Searching for Apartments" is never
+  // published on a brand-new form before the agent has written their own.
+  visibility.headline = false
+  // Testimonials: the three samples are attributed to named people in Austin,
+  // Dallas and Houston. On a new form they would read as genuine reviews of an
+  // agent who has never had a client, in cities they may not even serve.
+  visibility.testimonials = false
+
+  // Hero background from the FIRST-selected market (defaultThemeForMarkets picks
+  // slugs[0]). A market with no bundled skyline resolves to the neutral branded
+  // fallback via themeImageUrl() — never another city's image.
   if (heroTheme) branding.heroTheme = heroTheme
 
-  const partial: Record<string, unknown> = {}
-  if (Object.keys(copy).length) partial.copy = copy
+  // copy and sections are ALWAYS present now, so identity can never be inherited.
+  const partial: Record<string, unknown> = { copy, sections: { visibility } }
   if (Object.keys(branding).length) partial.branding = branding
-  if (Object.keys(visibility).length) partial.sections = { visibility }
 
   // Full config = personalized overrides merged over DEFAULT_CONFIG.
   return mergeSmartFormConfig(partial)

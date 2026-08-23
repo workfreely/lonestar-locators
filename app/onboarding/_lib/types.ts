@@ -8,6 +8,10 @@ export type OnboardingData = {
   brokerage: string;
   phone_number: string;
   service_areas: string[];
+  /** profiles.license_state — the ONE state this agent operates in. Chosen first
+   *  in onboarding, then it filters which markets can be selected. Same canonical
+   *  column Profile's License State reads, so no second state preference exists. */
+  license_state: string;
   profile_photo_url: string | null;
   business_logo_url: string | null;
   brand_color: string | null;

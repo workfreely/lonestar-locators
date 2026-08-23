@@ -1,5 +1,7 @@
 import type { PageContext, PanelSide, RuntimeMessage } from "@/types";
 import { log, logError } from "@/utils/log";
+import { isSameExtensionSender } from "@/utils/validate";
+import { clearSensitive } from "@/utils/sensitiveStore";
 
 /**
  * Background service worker — OPEN-ONLY lifecycle.
@@ -43,6 +45,17 @@ function enablePanel(): void {
 }
 chrome.runtime.onInstalled.addListener(enablePanel);
 enablePanel(); // also on worker startup
+
+// Sensitive records live in chrome.storage.SESSION (in-memory, wiped when Chrome
+// closes) instead of local, so client screening data never touches disk. Session
+// storage is trusted-contexts-only by default, so the content-script bridges
+// cannot reach it until we widen the access level here — this call is what makes
+// the session area usable as the sensitive store.
+(chrome.storage.session as unknown as {
+  setAccessLevel?: (o: { accessLevel: string }) => Promise<void>;
+})
+  .setAccessLevel?.({ accessLevel: "TRUSTED_AND_UNTRUSTED_CONTEXTS" })
+  ?.catch((err: unknown) => logError("storage.session.setAccessLevel failed:", err));
 log("background ready — OPEN-ONLY; native X closes; toolbar icon is the fallback opener");
 
 // chrome.storage key holding { tabId, windowId } of the CRM tab that most
@@ -87,6 +100,15 @@ function openPanel(windowId: number): void {
 }
 
 chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendResponse) => {
+  // Same-extension senders only. The manifest declares no externally_connectable,
+  // so a web page cannot reach this listener today; asserting sender.id keeps that
+  // guarantee if the manifest ever changes. Our content scripts carry the id and a
+  // tab; the side panel carries the id with no tab — both are legitimate.
+  if (!isSameExtensionSender(sender)) {
+    logError("runtime message from an unrecognised sender — ignoring");
+    return;
+  }
+
   if (message.type === "GET_PANEL_SIDE") {
     getPanelSide().then((side) => sendResponse({ side }));
     return true; // async sendResponse — keep the channel open
@@ -110,6 +132,14 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
       log(`crm-tab — remembered tab=${tabId} window=${windowId} for ← Back to CRM`);
     }
     return;
+  }
+
+  if (message.type === "CLEAR_SENSITIVE") {
+    void clearSensitive().then(() => {
+      log("sensitive storage cleared on request");
+      sendResponse?.({ ok: true });
+    });
+    return true; // async sendResponse — keep the channel open
   }
 
   if (message.type === "OPEN_PANEL") {

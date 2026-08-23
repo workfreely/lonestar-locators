@@ -30,8 +30,7 @@ function isCrmPage(): boolean {
   const h = location.hostname;
   const onAdmin = location.pathname.startsWith("/admin");
   const isLb = h === "locatorbeast.com" || h === "www.locatorbeast.com";
-  const isLocal = h === "localhost" || h === "127.0.0.1"; // dev only (see build.mjs)
-  return onAdmin && (isLb || isLocal);
+  return onAdmin && isLb;
 }
 
 function launchOnPage(url: string): void {

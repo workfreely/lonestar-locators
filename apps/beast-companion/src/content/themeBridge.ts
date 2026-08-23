@@ -1,4 +1,5 @@
 import { log, warn } from "@/utils/log";
+import { isTrustedMessageEvent } from "@/utils/validate";
 
 /**
  * Stage T1 — local, bidirectional CRM ↔ Companion theme sync.
@@ -31,8 +32,7 @@ function isCrmPage(): boolean {
   const h = location.hostname;
   const onAdmin = location.pathname.startsWith("/admin");
   const isLb = h === "locatorbeast.com" || h === "www.locatorbeast.com";
-  const isLocal = h === "localhost" || h === "127.0.0.1"; // dev only (see build.mjs)
-  return onAdmin && (isLb || isLocal);
+  return onAdmin && isLb;
 }
 
 // ── Canonical store — the ONLY Stage-T2 swap point ──────────────────────────
@@ -83,7 +83,10 @@ export function startThemeBridge(): void {
 
   // 2) CRM user picked a theme (page → bridge) → write the shared canonical.
   window.addEventListener("message", (e: MessageEvent) => {
-    if (e.source !== window) return;
+    // Exact origin match + same-window source, before any payload inspection.
+    // isTheme() below is the schema check: only a known theme id is accepted,
+    // so an oversized or unexpected value can never reach storage.
+    if (!isTrustedMessageEvent(e)) return;
     const d = e.data;
     if (!d || d.source !== MSG_SOURCE || d.type !== "changed" || !isTheme(d.theme)) return;
     setCanonical(d.theme);

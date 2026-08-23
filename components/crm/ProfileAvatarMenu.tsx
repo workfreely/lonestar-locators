@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { COMPANION_MSG_SOURCE } from "@/lib/companion/leadToDto"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { supabase } from "@/lib/supabase/client"
@@ -135,6 +136,19 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
   }, [open])
 
   async function handleSignOut() {
+    // Tell Beast Companion to erase its locally-held client and property records
+    // BEFORE the session goes away. The extension also self-heals via owner
+    // binding and expiry, but signing out is the moment a locator expects their
+    // client's screening data to be gone, so we say so explicitly.
+    //
+    // Same-origin post: the content-script bridge is the only listener, and it
+    // ignores the message on any page that is not the authenticated CRM. Harmless
+    // (and silently dropped) when the extension is not installed.
+    try {
+      window.postMessage({ source: COMPANION_MSG_SOURCE, type: "signed-out" }, window.location.origin)
+    } catch {
+      /* best-effort — never block sign-out on the Companion bridge */
+    }
     await supabase.auth.signOut()
     router.push("/login")
   }

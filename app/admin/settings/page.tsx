@@ -26,7 +26,6 @@ export default async function SettingsPage() {
 
   return (
     <SettingsClient
-      demoMode={!!profile?.demo_mode}
       monthlyGoal={profile?.monthly_commission_goal ?? DEFAULT_MONTHLY_COMMISSION_GOAL}
       avgCommission={profile?.avg_commission_per_lease ?? DEFAULT_AVG_COMMISSION_PER_LEASE}
       projectionMethod={(profile?.projection_method as ProjectionMethod) ?? DEFAULT_PROJECTION_METHOD}

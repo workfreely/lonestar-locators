@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { HiOutlineCheckBadge } from "react-icons/hi2"
 import PasswordSetting from "@/components/crm/profile/PasswordSetting"
+import { enterDemoWorkspace, resetDemoWorkspace, exitDemoWorkspace } from "@/lib/demo/exitDemo"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/client"
 import SettingsShell, {
@@ -10,8 +11,17 @@ import SettingsShell, {
   SettingsField,
   settingsInputCls,
 } from "@/components/crm/settings/SettingsShell"
-import { MARKET_OPTIONS, MAX_SERVICE_AREAS } from "@/lib/markets/catalog"
-import UsernameField from "./UsernameField"
+import {
+  MAX_SERVICE_AREAS,
+  marketsForState,
+  serviceAreasHelperText,
+  serviceAreasCountLabel,
+  defaultThemeForMarkets,
+} from "@/lib/markets/catalog"
+
+// Shown wherever a workspace would be left serving no markets — the Service Areas
+// card and the Save handler. Kept as one constant so both read identically.
+const MIN_MARKETS_MESSAGE = "Select at least one market."
 import TimezoneSetting from "./TimezoneSetting"
 import {
   toRpcFailure,
@@ -41,6 +51,7 @@ type ProfileInitial = {
   brokerage: string
   licenseNumber: string
   licenseState: string
+  demoMode: boolean
   licenseVerifiedAt: string | null
   phone: string
   email: string
@@ -77,9 +88,19 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
   const [brokerage, setBrokerage] = useState(initial.brokerage)
   const [licenseNumber, setLicenseNumber] = useState(initial.licenseNumber)
   const [licenseState, setLicenseState] = useState(initial.licenseState)
+  // Demo workspace state. The roster is client-side fixtures, so these controls
+  // only flip profiles.demo_mode — real leads are never created or removed.
+  const [demoMode, setDemoMode] = useState(initial.demoMode)
+  const [demoBusy, setDemoBusy] = useState(false)
+  // A state change is destructive after onboarding — it clears markets and resets
+  // the Smart Form's market context — so it is confirmed before being applied.
+  const [pendingState, setPendingState] = useState<string | null>(null)
+  const [themeStale, setThemeStale] = useState(false)
   // Verified licenses are frozen. The database enforces this (lb_guard_verified_license
   // rejects the write outright); the UI simply reflects it rather than pretending to.
-  const licenseVerified = !!initial.licenseVerifiedAt
+  // Mutable: confirming a state change clears verification, and the UI must
+  // immediately reflect that the new state needs verifying.
+  const [licenseVerified, setLicenseVerified] = useState(!!initial.licenseVerifiedAt)
   const [phone, setPhone] = useState(formatPhoneInput(initial.phone))
   const [email, setEmail] = useState(initial.email)
   const [photoUrl, setPhotoUrl] = useState<string | null>(initial.photoUrl)
@@ -112,6 +133,48 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
       active = false
     }
   }, [])
+
+  // Markets are scoped to the licensed state, so switching state must drop any
+  // markets belonging to the old one — otherwise a Texas selection would persist
+  // under a Florida license and the picker could never surface it to remove.
+  // Ask first. During onboarding the state is simply chosen; afterwards, changing
+  // it invalidates existing markets and the Smart Form's market context, so it is
+  // never applied straight from the dropdown.
+  function requestLicenseStateChange(next: string) {
+    if (!next || next === licenseState || !licenseState) {
+      void applyLicenseStateChange(next)
+      return
+    }
+    setPendingState(next)
+  }
+
+  async function applyLicenseStateChange(next: string) {
+    // A VERIFIED user cannot clear their own licence/verification through the
+    // normal profile UPDATE — lb_guard_verified_license freezes both. The
+    // caller-scoped RPC performs the whole transition in one statement. Unverified
+    // users keep the existing save path untouched.
+    if (licenseVerified) {
+      const { error } = await supabase.rpc("lb_change_license_state", { p_state: next })
+      if (error) {
+        setSaveError("We couldn't change your license state. Please try again.")
+        return
+      }
+      setLicenseVerified(false)
+      setLicenseNumber("")
+    }
+
+    setServiceAreas((prev) => {
+      const allowed = new Set(marketsForState(next).map((m) => m.slug))
+      return prev.filter((slug) => allowed.has(slug))
+    })
+    setSaved(false)
+    setSaveError(null)
+    // The Smart Form's hero context is derived from the FIRST selected market. The
+    // markets just cleared, so the saved theme now belongs to a state the agent no
+    // longer works in — mark it stale so save() re-derives it (neutral until a new
+    // market is chosen). Uses the existing theme logic; no second theme system.
+    setThemeStale(true)
+  }
 
   function toggleMarket(slugKey: string) {
     setSaved(false)
@@ -160,6 +223,17 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
 
   async function handleSave() {
     if (!userId) return
+
+    // Every workspace must serve between 1 and MAX_SERVICE_AREAS markets. Checked
+    // BEFORE any write: handleSave persists Business Information and Service Areas
+    // together, so failing late would leave the profile updated while the markets
+    // were rejected. The cap is enforced by toggleServiceArea; this is the floor.
+    if (serviceAreas.length === 0) {
+      setSaved(false)
+      setSaveError(MIN_MARKETS_MESSAGE)
+      return
+    }
+
     setSaving(true)
     setSaved(false)
     setSaveError(null)
@@ -192,6 +266,31 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
         status: areasStatus,
         statusText: areasStatusText,
       } = await supabase.rpc("set_workspace_service_areas", { p_areas: serviceAreas })
+
+      // A state change invalidated the Smart Form's market context. Re-derive the
+      // hero theme from the NEW primary market with the same defaultThemeForMarkets
+      // logic the form already uses; with no market yet it resolves to the neutral
+      // branded fallback rather than keeping the previous state's imagery. Only the
+      // heroTheme is touched — all custom Smart Form content is preserved.
+      if (themeStale && !areasError) {
+        try {
+          const { data: form } = await supabase.rpc("get_smart_form")
+          const row = Array.isArray(form) ? form[0] : form
+          if (row?.config) {
+            const nextTheme = defaultThemeForMarkets(serviceAreas) ?? "custom"
+            await supabase.rpc("save_smart_form", {
+              p_config: {
+                ...row.config,
+                branding: { ...(row.config.branding ?? {}), heroTheme: nextTheme },
+              },
+            })
+          }
+          setThemeStale(false)
+        } catch {
+          // Non-fatal: the profile save already succeeded. The theme stays stale
+          // until the next save rather than blocking the user here.
+        }
+      }
 
       setSaving(false)
 
@@ -349,8 +448,6 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
           group (tighter spacing), saved together by the single Save Changes
           button below. */}
       <div className="space-y-4">
-      <PasswordSetting email={email} />
-
       <SettingsCard title="Business Information">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <SettingsField label="Brokerage">
@@ -367,7 +464,7 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
             ) : (
               <select
                 value={licenseState}
-                onChange={(e) => setLicenseState(e.target.value)}
+                onChange={(e) => requestLicenseStateChange(e.target.value)}
                 className={settingsInputCls}
               >
                 <option value="">Select a state</option>
@@ -384,7 +481,7 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
             hint={
               licenseVerified
                 ? undefined
-                : "Licenses are verified within 3 business days. Once verified, your license number cannot be changed and will not be displayed publicly by Locator Beast."
+                : "Licenses are verified within 3 business days and will not be displayed publicly by Locator Beast. Once verified, your license number cannot be changed."
             }
           >
             {licenseVerified ? (
@@ -443,15 +540,25 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
           the Save Changes button below alongside the business fields. */}
       <SettingsCard
         title="Service Areas"
-        description="Choose up to 5 markets you serve."
+        description={serviceAreasHelperText(licenseState)}
       >
         {areasLoaded ? (
           <>
           <p className="mb-2 text-[12px] font-medium text-[#9098a8]">
-            {serviceAreas.length} of {MAX_SERVICE_AREAS} selected
+            {serviceAreasCountLabel(licenseState, serviceAreas.length)}
           </p>
+          {serviceAreas.length === 0 && (
+            <p role="alert" className="mb-2 text-[12px] font-semibold text-red-600">
+              {MIN_MARKETS_MESSAGE}
+            </p>
+          )}
+          {!licenseState && (
+            <p className="mb-2 text-[12px] font-medium text-[#9098a8]">
+              Select your License State above to see its markets.
+            </p>
+          )}
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {MARKET_OPTIONS.map((m) => {
+            {marketsForState(licenseState).map((m) => {
               const active = serviceAreas.includes(m.slug)
               // Every market stays visible at the cap; only the unselected ones
               // stop responding, so a user can always deselect and swap.
@@ -503,7 +610,72 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
           Changes button below (it saves through its own timezone route). */}
       <TimezoneSetting initialTimeZone={initial.timeZone} />
 
-      {areasLoaded && <UsernameField initialUsername={publicSlug} />}
+      {/* Account security — its own section directly after Time Zone rather than
+          buried under Legal Information. Functionality unchanged. */}
+      <PasswordSetting email={email} />
+
+      {/* Demo Workspace — moved out of the Getting Started checklist, where it read
+          as a required onboarding task. Reuses the existing demo module; the demo
+          roster is client-side fixtures, so none of these actions can create,
+          overwrite or delete a real lead. */}
+      <SettingsCard
+        title="Demo Workspace"
+        description="Add, reset, or remove sample data without affecting your real leads."
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          {demoMode ? (
+            <>
+              <button
+                type="button"
+                disabled={demoBusy}
+                onClick={async () => {
+                  setDemoBusy(true)
+                  await resetDemoWorkspace()
+                  setDemoBusy(false)
+                  router.refresh()
+                }}
+                className="rounded-lg border border-[#e5e7ee] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#111318] transition-colors hover:bg-[#f7f8fa] disabled:opacity-60"
+              >
+                {demoBusy ? "Working…" : "Reset Demo Workspace"}
+              </button>
+              <button
+                type="button"
+                disabled={demoBusy}
+                onClick={async () => {
+                  setDemoBusy(true)
+                  await exitDemoWorkspace()
+                  setDemoMode(false)
+                  setDemoBusy(false)
+                  router.refresh()
+                }}
+                className="rounded-lg border border-red-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60"
+              >
+                {demoBusy ? "Working…" : "Remove Demo Workspace"}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              disabled={demoBusy}
+              onClick={async () => {
+                setDemoBusy(true)
+                await enterDemoWorkspace()
+                setDemoMode(true)
+                setDemoBusy(false)
+                router.refresh()
+              }}
+              className="rounded-lg border border-[#e5e7ee] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#111318] transition-colors hover:bg-[#f7f8fa] disabled:opacity-60"
+            >
+              {demoBusy ? "Working…" : "Add Demo Workspace"}
+            </button>
+          )}
+        </div>
+      </SettingsCard>
+
+      {/* The public Smart Form URL used to be repeated here. It is edited and
+          copied in the Smart Lead Form editor's Share tab, which is its home —
+          duplicating it in Profile meant two places to change one thing. The
+          slug, public URL and copy-link all remain there, untouched. */}
 
       {/* Single Save — persists Business Information + Service Areas together,
           bottom-right of the page. */}
@@ -519,6 +691,47 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
           {saving ? "Saving…" : "Save Changes"}
         </button>
       </div>
+
+      {/* Confirm before applying a post-onboarding state change: it clears the
+          markets from the old state and resets the Smart Form's market context. */}
+      {pendingState && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="lb-state-change-title"
+          className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/40 p-4"
+        >
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h2 id="lb-state-change-title" className="text-[17px] font-semibold text-[#111318]">
+              Change license state?
+            </h2>
+            <p className="mt-2 text-[13.5px] leading-relaxed text-[#4b5162]">
+              Changing your license state will update your available markets and Smart Lead Form.
+              You&rsquo;ll need to select new service areas and verify your license for the new
+              state.
+            </p>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingState(null)}
+                className="rounded-lg border border-[#e5e7ee] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#111318] transition-colors hover:bg-[#f7f8fa]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void applyLicenseStateChange(pendingState)
+                  setPendingState(null)
+                }}
+                className="rounded-lg bg-[#2f6bff] px-4 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-[#265fe0]"
+              >
+                Change State
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </SettingsShell>
   )
 }

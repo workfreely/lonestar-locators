@@ -16,6 +16,12 @@ import { getArchiveReasonLabel } from "@/lib/leads/archiveReasons"
 export const COMPANION_MSG_SOURCE = "lb-companion"
 
 export type CompanionActiveClientPayload = {
+  /** Opaque owner key, "<userId>:<workspaceId>", identifying the signed-in
+   *  locator whose session produced this payload. Beast Companion stamps every
+   *  stored record with it and refuses to render a record whose owner differs
+   *  from the current session — so one account can never see another account's
+   *  client on a shared browser. Server-derived; never user input. */
+  owner: string
   lead: LeadSummaryDTO
   nextActions: NextActionDTO[]
   /** THIS client's saved Favorite Properties — the ONLY properties a tour can be
@@ -186,6 +192,9 @@ export function buildActiveClientPayload(
   // synced conversations (ai_client_briefs.insights). Read-only, passed in by the
   // caller (never generated here). Surfaced for Location Fit's current-context read.
   aiInsights: string[] = [],
+  // Opaque owner key for the signed-in locator, "<userId>:<workspaceId>". Resolved
+  // server-side and passed down; the Companion binds every stored record to it.
+  owner = "",
 ): CompanionActiveClientPayload {
   const crmStatus = str(lead.crm_status) ?? "new"
   const historyLower = String(lead.credit_history || "").toLowerCase()
@@ -444,5 +453,5 @@ export function buildActiveClientPayload(
       propertyUrl: str(r.property_url),
     }))
 
-  return { lead: dto, nextActions: actions, favorites: favoriteDtos, recommendations: recommendationDtos, agentName: str(agentName), timeZone: str(timeZone) }
+  return { owner, lead: dto, nextActions: actions, favorites: favoriteDtos, recommendations: recommendationDtos, agentName: str(agentName), timeZone: str(timeZone) }
 }

@@ -1,4 +1,9 @@
 import type { CurrentProperty } from "@/types";
+import {
+  CURRENT_PROPERTY_KEY,
+  getSessionOwner,
+  writeSensitive,
+} from "@/utils/sensitiveStore";
 import { log } from "@/utils/log";
 import { isSmartApartmentDataHost, parseSadPropertyId, stripSiteSuffix, looksLikeAddress } from "./sadUrl";
 import { parseCopyEmails } from "./sadEmail";
@@ -30,7 +35,7 @@ import { parseMoneyRange, type MoneyRange } from "@bc/budget";
  * Supabase. Mirrors the activeClientBridge write pattern (compare-before-write).
  */
 
-const STORAGE_KEY = "lb-current-property";
+
 
 /** SAD property identity from the CURRENT URL (primary signal), or null when not
  *  on a property-detail page. Independent of any visible text. */
@@ -272,12 +277,20 @@ function readCurrentProperty(): CurrentProperty | null {
 let lastWritten: string | null = null;
 
 function writeCurrentProperty(cp: CurrentProperty | null): void {
-  const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
-  if (!store) return;
   const serialized = cp ? JSON.stringify(cp) : "null";
   if (serialized === lastWritten) return;
-  lastWritten = serialized;
-  store.set({ [STORAGE_KEY]: cp ?? null });
+
+  // Consent-gated and owner-bound, exactly like the active client. The owner is
+  // borrowed from the CRM-established session (this page never sees the signed-in
+  // identity); with no owner we do not write, so a captured property can never
+  // surface under a different account.
+  void (async () => {
+    const owner = await getSessionOwner();
+    if (!owner) return;
+    const ok = await writeSensitive(CURRENT_PROPERTY_KEY, owner, cp ?? null);
+    if (!ok) return;
+    lastWritten = serialized;
+  })();
   log(
     "current-property →",
     cp

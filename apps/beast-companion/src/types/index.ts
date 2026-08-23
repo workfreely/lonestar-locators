@@ -89,8 +89,13 @@ export type ReportContextMessage = { type: "REPORT_CONTEXT"; context: PageContex
  */
 export type ReportCrmTabMessage = { type: "REPORT_CRM_TAB" };
 
+/** Erase every sensitive record. Sent by the panel's Clear stored data control
+ *  and by consent revocation. Carries no data. */
+export type ClearSensitiveMessage = { type: "CLEAR_SENSITIVE" };
+
 export type RuntimeMessage =
   | OpenPanelMessage
   | GetPanelSideMessage
   | ReportContextMessage
-  | ReportCrmTabMessage;
+  | ReportCrmTabMessage
+  | ClearSensitiveMessage;

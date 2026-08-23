@@ -103,7 +103,7 @@ export function PanelStateView({
         <Centered
           icon="🔌"
           title="Not connected"
-          body="Connect the Companion to your Locator Beast account to view your clients here."
+          body="Connect your Locator Beast account to view your clients here."
           action={{ label: "Connect to Locator Beast", onClick: onConnect }}
         />
       );

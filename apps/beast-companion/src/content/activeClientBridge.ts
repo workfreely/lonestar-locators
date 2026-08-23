@@ -1,4 +1,15 @@
 import { log, warn } from "@/utils/log";
+import {
+  ACTIVE_CLIENT_KEY,
+  clearSensitive,
+  gateAllowsWrite,
+  writeSensitive,
+} from "@/utils/sensitiveStore";
+import {
+  isKnownEnvelope,
+  isTrustedMessageEvent,
+  isValidActiveClientPayload,
+} from "@/utils/validate";
 
 /**
  * Phase 2 — active-client bridge (read-only). The CRM-PAGE end.
@@ -21,15 +32,12 @@ import { log, warn } from "@/utils/log";
  * authorized detail server-side; the storage key + panel consumer stay the same.
  */
 
-const STORAGE_KEY = "lb-active-client"; // chrome.storage.local — panel canonical
-const MSG_SOURCE = "lb-companion"; // window.postMessage envelope tag
 
 function isCrmPage(): boolean {
   const h = location.hostname;
   const onAdmin = location.pathname.startsWith("/admin");
   const isLb = h === "locatorbeast.com" || h === "www.locatorbeast.com";
-  const isLocal = h === "localhost" || h === "127.0.0.1"; // dev only (see build.mjs)
-  return onAdmin && (isLb || isLocal);
+  return onAdmin && isLb;
 }
 
 export function startActiveClientBridge(): void {
@@ -49,24 +57,45 @@ export function startActiveClientBridge(): void {
   let lastWritten: string | null = null;
 
   window.addEventListener("message", (e: MessageEvent) => {
-    if (e.source !== window) return;
+    // 1. TRUST — exact origin match plus same-window source. Both must pass
+    //    before the payload is even inspected.
+    if (!isTrustedMessageEvent(e)) return;
+
+    // 2. ENVELOPE — a known source and a known type. Unknown types are dropped.
     const d = e.data;
-    if (!d || d.source !== MSG_SOURCE || d.type !== "active-client") return;
+    if (!isKnownEnvelope(d)) return;
+
+    // A sign-out broadcast erases everything sensitive immediately, rather than
+    // waiting for the owner mismatch or the TTL to catch it later.
+    if (d.type === "signed-out") {
+      lastWritten = null;
+      void clearSensitive();
+      log("active-client bridge: signed-out — sensitive storage cleared");
+      return;
+    }
+    if (d.type !== "active-client") return;
+
+    // 3. SCHEMA — identifiable, attributable, size-bounded.
     const payload = d.payload;
-    if (!payload || !payload.lead || payload.lead.id === undefined || payload.lead.id === null) return;
+    if (!isValidActiveClientPayload(payload)) return;
 
     const serialized = JSON.stringify(payload);
     if (serialized === lastWritten) return; // genuinely unchanged — skip
-    lastWritten = serialized;
-    chrome.storage.local.set({ [STORAGE_KEY]: payload });
 
-    // This tab just supplied the Companion active client — tell the background to
-    // remember it (via sender.tab) as the "← Back to CRM" target. Best-effort; the
-    // panel falls back to a URL-pattern query if this never lands. Deduped by the
-    // lastWritten guard above, so no churn during rapid re-render bursts.
-    chrome.runtime?.sendMessage?.({ type: "REPORT_CRM_TAB" }).catch(() => {
-      /* background asleep / no receiver — non-fatal, query fallback remains */
-    });
+    // 4. CONSENT — the gate is on the BRIDGE. Before acceptance nothing is
+    //    written at all, so there is no stored-but-hidden client data.
+    void (async () => {
+      if (!(await gateAllowsWrite())) return;
+      const ok = await writeSensitive(ACTIVE_CLIENT_KEY, payload.owner, payload);
+      if (!ok) return;
+      lastWritten = serialized;
+
+      // This tab supplied the active client — remember it as the "← Back to CRM"
+      // target. Best-effort; the panel falls back to a URL-pattern query.
+      chrome.runtime?.sendMessage?.({ type: "REPORT_CRM_TAB" }).catch(() => {
+        /* background asleep / no receiver — non-fatal */
+      });
+    })();
   });
 
   log("active-client bridge active on", location.host + location.pathname);

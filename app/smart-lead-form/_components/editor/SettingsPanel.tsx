@@ -26,10 +26,13 @@ export default function SettingsPanel({
   config,
   onChange,
   slug,
+  licenseState,
 }: {
   config: SmartLeadFormConfig
   onChange: Updater
-  slug: string | null
+  slug: string | null;
+  /** profiles.license_state — gates the Texas-only disclosure fields. */
+  licenseState?: string | null
 }) {
   const [tab, setTab] = useState<Tab>("branding")
 
@@ -69,7 +72,7 @@ export default function SettingsPanel({
           real scrollable distance rather than just making the page taller. */}
       <div className="flex-1 overflow-y-auto pb-24 pl-6 pr-8 pt-4">
         {tab === "branding" && <BrandingPanel config={config} onChange={onChange} />}
-        {tab === "content" && <ContentPanel config={config} onChange={onChange} />}
+        {tab === "content" && <ContentPanel config={config} onChange={onChange} licenseState={licenseState} />}
         {tab === "fields" && <FieldsPanel config={config} onChange={onChange} />}
         {tab === "consent" && <ConsentPanel config={config} onChange={onChange} />}
         {tab === "share" && <SharePanel slug={slug} />}

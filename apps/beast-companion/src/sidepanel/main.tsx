@@ -1,6 +1,7 @@
 import { StrictMode, Suspense, lazy } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { ProductionPanel } from "./ProductionPanel";
+import { ConsentGate } from "./ConsentGate";
 import "./sidepanel.css";
 import { applyTheme } from "./applyTheme";
 import { log } from "@/utils/log";
@@ -46,7 +47,9 @@ if (container) {
   } else {
     root.render(
       <StrictMode>
-        <ProductionPanel />
+        <ConsentGate>
+          <ProductionPanel />
+        </ConsentGate>
       </StrictMode>,
     );
   }

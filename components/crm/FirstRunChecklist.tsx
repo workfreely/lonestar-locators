@@ -16,6 +16,9 @@ type ChecklistItem = {
   href?: string
   cta?: string
   danger?: boolean
+  /** No destination exists yet — render an inert "Coming Soon" chip instead of a
+   *  clickable action that would do nothing when pressed. */
+  pending?: boolean
 }
 
 // Guided first-run checklist shown in the demo workspace. Items are checked
@@ -23,7 +26,7 @@ type ChecklistItem = {
 // localStorage so it never nags. Hidden permanently once dismissed or when
 // every item is complete. "Connect Google" only appears if it was skipped
 // during onboarding.
-export default function FirstRunChecklist({ googleConnected }: { googleConnected: boolean }) {
+export default function FirstRunChecklist({ googleConnected, userId = "" }: { googleConnected: boolean; userId?: string }) {
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const [dismissed, setDismissed] = useState(true)
@@ -33,23 +36,37 @@ export default function FirstRunChecklist({ googleConnected }: { googleConnected
 
   useEffect(() => {
     setMounted(true)
-    setDismissed(readChecklistDismissed())
-    setDone(readChecklistDone())
+    setDismissed(readChecklistDismissed(userId))
+    setDone(readChecklistDone(userId))
   }, [])
 
+  // FOUR items, ordered so the lead-generating action sits near the top.
+  //
+  // "Explore the Kanban Board" and "Open a Demo Client" were removed — the Quick
+  // Tour is meant to cover both, and listing them separately made first-run feel
+  // like homework. "Delete Demo Workspace" was removed as a getting-started TASK;
+  // the capability itself still lives in Settings and is untouched.
   const items: ChecklistItem[] = [
-    { id: "kanban", label: "Explore the Kanban Board", desc: "Learn how leads move through each stage." },
-    { id: "lead", label: "Open a Demo Client", desc: "See the AI Assistant, Search Criteria, Credit Screening, and Next Action." },
-    { id: "analytics", label: "Explore Analytics", desc: "Projected pipeline, monthly goals, and commission forecasting.", href: "/admin/analytics", cta: "Open" },
+    // No training/Academy destination exists yet, so this item carries no href —
+    // it stays checkable rather than linking somewhere invented. Add the real
+    // destination here once it exists.
+    {
+      id: "tour",
+      label: "Take the Quick Tour",
+      desc: "Learn the CRM, the Kanban board, and how to work a client.",
+      // No training/Academy destination exists yet. Marked pending so it shows a
+      // non-clickable "Coming Soon" chip rather than a button that does nothing.
+      // Replace `pending` with a real href + cta once the training exists.
+      pending: true,
+    },
     { id: "form", label: "Share Your Smart Lead Form", desc: "Share it to Instagram, TikTok, Facebook, or your website.", cta: "Copy" },
-    ...(googleConnected ? [] : [{ id: "google", label: "Connect Google", desc: "Sync tours, reminders, and contacts.", href: "/onboarding", cta: "Connect" }]),
-    { id: "import", label: "Import Your Leads", desc: "Bring in your existing clients via CSV.", href: "/admin/import", cta: "Import" },
-    { id: "delete", label: "Delete Demo Workspace", desc: "When you're ready, remove all demo data in Settings.", href: "/admin/settings", cta: "Open", danger: true },
+    { id: "analytics", label: "Explore Analytics", desc: "Projected pipeline, monthly goals, and commission forecasting.", href: "/admin/analytics", cta: "Open" },
+    { id: "import", label: "Bring in Your Leads", desc: "Bring in your existing clients via CSV.", href: "/admin/import", cta: "Import" },
   ]
 
   function persistDone(next: string[]) {
     setDone(next)
-    writeChecklistDone(next)
+    writeChecklistDone(next, userId)
   }
 
   function toggle(id: string) {
@@ -61,7 +78,7 @@ export default function FirstRunChecklist({ googleConnected }: { googleConnected
   }
 
   function dismiss() {
-    writeChecklistDismissed(true)
+    writeChecklistDismissed(true, userId)
     setDismissed(true)
   }
 
@@ -106,7 +123,7 @@ export default function FirstRunChecklist({ googleConnected }: { googleConnected
       {/* Header */}
       <div className="flex items-start gap-2 px-4 py-3 border-b border-[var(--crm-border-soft)] bg-[var(--crm-card)]">
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold text-[var(--crm-text-primary)]">Let&apos;s get you familiar with Locator Beast.</p>
+          <p className="text-[13px] font-semibold text-[var(--crm-text-primary)]">Get Started with Locator Beast</p>
           <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--crm-inset)]">
             <div className="h-full rounded-full bg-[var(--crm-accent)] transition-all duration-500" style={{ width: `${(completed / total) * 100}%` }} />
           </div>
@@ -148,7 +165,12 @@ export default function FirstRunChecklist({ googleConnected }: { googleConnected
                   <p className={`text-[12.5px] font-semibold ${isDone ? "text-[var(--crm-text-muted)] line-through" : "text-[var(--crm-text-primary)]"}`}>{item.label}</p>
                   <p className="text-[11.5px] leading-snug text-[var(--crm-text-secondary)]">{item.desc}</p>
                 </div>
-                {item.cta && (
+                {item.pending && (
+                  <span className="flex-none rounded-full border border-[var(--crm-border)] px-2.5 py-1 text-[11px] font-semibold text-[var(--crm-text-muted)]">
+                    Coming Soon
+                  </span>
+                )}
+                {item.cta && !item.pending && (
                   <button
                     type="button"
                     onClick={() => runAction(item)}

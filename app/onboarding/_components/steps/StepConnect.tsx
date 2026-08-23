@@ -51,7 +51,7 @@ export default function StepConnect({ data, onNext, onBack, saving }: StepProps)
     <StepCard
       eyebrow="Step 2"
       title="Let's connect your business"
-      subtitle="These power the automation behind the scenes — connect now or skip and do it later."
+      subtitle="These power the automation behind the scenes."
     >
       <div className="flex flex-col gap-3">
         {connections.map((c, i) => (
@@ -73,23 +73,30 @@ export default function StepConnect({ data, onNext, onBack, saving }: StepProps)
               </div>
               <p className="text-[13px] leading-snug text-[var(--beast-ink-soft)]">{c.benefit}</p>
             </div>
-            {c.connected ? (
+            {/* Status only. A single Google consent grants Contacts AND Calendar
+                together, so a per-card Connect button implied two separate
+                grants that do not exist — the one shared action sits below. */}
+            {c.connected && (
               <span className="beast-pop flex shrink-0 items-center gap-1.5 rounded-full bg-[#16a34a]/10 px-3 py-1.5 text-[12.5px] font-semibold text-[#16a34a]">
                 <HiOutlineCheck className="h-4 w-4" strokeWidth={3} /> Connected
               </span>
-            ) : (
-              <button
-                type="button"
-                onClick={() => connect(c.key)}
-                disabled={connecting !== null}
-                className="shrink-0 rounded-full border border-[var(--beast-border)] bg-white px-4 py-2 text-[12.5px] font-semibold text-[var(--beast-ink)] transition-colors hover:bg-[#f7f8fa] disabled:opacity-60"
-              >
-                {connecting === c.key ? "Connecting…" : "Connect"}
-              </button>
             )}
           </div>
         ))}
       </div>
+
+      {/* ONE shared action for both cards. Same handler, same endpoint, same
+          scopes — nothing about the OAuth flow changes. */}
+      {!allConnected && (
+        <button
+          type="button"
+          onClick={() => connect("google")}
+          disabled={connecting !== null}
+          className="mt-4 w-full rounded-full bg-[var(--beast-ink)] px-7 py-3.5 text-[15px] font-semibold text-white transition-transform duration-300 hover:scale-[1.02] hover:bg-[var(--beast-blue)] disabled:opacity-60 disabled:hover:scale-100"
+        >
+          {connecting === "google" ? "Connecting…" : "Connect Google"}
+        </button>
+      )}
 
       <StepNav
         onBack={onBack}

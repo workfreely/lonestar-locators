@@ -72,7 +72,7 @@ export default function StepBusinessGoals({ data, onNext, onBack, saving }: Step
     <StepCard
       eyebrow="Step 3"
       title="Sales Goals"
-      subtitle="Two quick numbers so your dashboard tracks what matters to you."
+      subtitle="How much do you want to earn? Set your goals. Track your progress."
     >
       <div className="flex flex-col gap-5">
         <CurrencyField

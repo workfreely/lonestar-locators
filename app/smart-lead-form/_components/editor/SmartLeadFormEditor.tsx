@@ -1,11 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { buildInitialSmartFormConfig } from "../../_lib/initialConfig"
 import { DEFAULT_CONFIG } from "../../_lib/defaultConfig"
 import { mergeSmartFormConfig } from "../../_lib/mergeConfig"
 import type { SmartLeadFormConfig } from "../../_lib/types"
 import { supabase } from "@/lib/supabase/client"
-import { defaultThemeForMarkets } from "@/lib/markets/catalog"
 import EditorToolbar from "./EditorToolbar"
 import SettingsPanel from "./SettingsPanel"
 import PreviewFrame from "../preview/PreviewFrame"
@@ -31,6 +31,9 @@ export default function SmartLeadFormEditor() {
   // never written into the saved form config, so a Profile update shows here on
   // reload without re-uploading anything.
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null)
+  // Canonical profiles.license_state — decides whether the Texas-only TREC
+  // disclosure fields are offered at all.
+  const [licenseState, setLicenseState] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -45,9 +48,26 @@ export default function SmartLeadFormEditor() {
       if (wsRow?.service_areas) setServiceAreaSlugs(wsRow.service_areas)
 
       const uid = userData?.user?.id
+      let prof: {
+        profile_photo_url?: string | null
+        first_name?: string | null
+        last_name?: string | null
+        preferred_name?: string | null
+        brokerage?: string | null
+        phone_number?: string | null
+        license_state?: string | null
+      } | null = null
       if (uid) {
-        const { data: prof } = await supabase.from("profiles").select("profile_photo_url").eq("id", uid).maybeSingle()
-        if (active) setProfilePhotoUrl(prof?.profile_photo_url ?? null)
+        const { data } = await supabase
+          .from("profiles")
+          .select("profile_photo_url, first_name, last_name, preferred_name, brokerage, phone_number, license_state")
+          .eq("id", uid)
+          .maybeSingle()
+        prof = data
+        if (active) {
+          setProfilePhotoUrl(prof?.profile_photo_url ?? null)
+          setLicenseState(prof?.license_state ?? null)
+        }
       }
 
       const formRow = Array.isArray(form) ? form[0] : form
@@ -57,13 +77,25 @@ export default function SmartLeadFormEditor() {
       if (formRow?.config) {
         setConfig(mergeSmartFormConfig(formRow.config))
       } else {
-        // New form: seed the Hero Background from the workspace's primary market
-        // (market → default theme). Applied ONCE, only when no config is saved —
-        // after this the user can pick any theme and the market is left alone.
-        const themeSlug = defaultThemeForMarkets(wsRow?.service_areas)
-        if (themeSlug) {
-          setConfig((prev) => ({ ...prev, branding: { ...prev.branding, heroTheme: themeSlug } }))
-        }
+        // NO SAVED CONFIG — this is a creation path, so build the SAME starting
+        // form onboarding would have built rather than showing DEFAULT_CONFIG.
+        // Seeding from the raw defaults here is what previously surfaced
+        // "Jordan Blake" / "Placeholder Realty Group" / the Austin-Dallas-Houston
+        // sample areas to a real agent, and a Save then persisted that fiction.
+        // buildInitialSmartFormConfig is the ONE creation path, so both entry
+        // points produce identical results — hero theme from the FIRST selected
+        // market, headline and testimonials off.
+        const name =
+          (prof?.preferred_name ?? "").trim() ||
+          `${prof?.first_name ?? ""} ${prof?.last_name ?? ""}`.trim()
+        setConfig(
+          buildInitialSmartFormConfig({
+            agentName: name,
+            brokerageName: prof?.brokerage ?? null,
+            phoneNumber: prof?.phone_number ?? null,
+            serviceAreas: wsRow?.service_areas ?? [],
+          }),
+        )
       }
     })()
     return () => {
@@ -126,7 +158,7 @@ export default function SmartLeadFormEditor() {
         </div>
 
         <div className="w-[560px] shrink-0 overflow-hidden border-l border-[#e5e7ee] bg-white">
-          <SettingsPanel config={config} onChange={updateConfig} slug={slug} />
+          <SettingsPanel config={config} onChange={updateConfig} slug={slug} licenseState={licenseState} />
         </div>
       </div>
     </div>

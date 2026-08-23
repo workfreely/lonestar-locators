@@ -132,6 +132,33 @@ export async function middleware(request: NextRequest) {
 
   // 2) Marketing host-rewrite (route mapping only — unchanged).
   const isLocatorBeastHost = LOCATOR_BEAST_HOST_PATTERN.test(hostname);
+
+  // 2a) LEGAL-URL CANONICALISATION.
+  //
+  // /privacy and /terms are the canonical public legal URLs (they match the
+  // metadata canonical, the sitemap, and the Beast Companion consent screen).
+  // The /locator-beast/* forms render identical pages, so search engines and
+  // shared links saw the same document at two addresses. Redirect the long form
+  // to the short one, permanently.
+  //
+  // HOST-SCOPED ON PURPOSE. Only locatorbeast.com maps /privacy to the Locator
+  // Beast policy; on the Lone Star host and in local development /privacy is
+  // Lone Star's own separate policy. Redirecting there would serve the WRONG
+  // company's legal text, so off that host the long path is left alone and the
+  // Lone Star pages are untouched.
+  //
+  // NO LOOP: this fires only on an INCOMING request whose path already starts
+  // with /locator-beast. The rewrite below sends /privacy to that path
+  // internally, and an internal rewrite is terminal — it does not re-enter
+  // middleware — so the redirect cannot see it.
+  if (isLocatorBeastHost) {
+    const legal = pathname.match(/^\/locator-beast\/(privacy|terms)\/?$/);
+    if (legal) {
+      const canonical = request.nextUrl.clone();
+      canonical.pathname = `/${legal[1]}`;
+      return NextResponse.redirect(canonical, 308);
+    }
+  }
   const isLocatorBeastPath =
     pathname === LOCATOR_BEAST_PREFIX || pathname.startsWith(`${LOCATOR_BEAST_PREFIX}/`);
   const isAppPath = isLocatorBeastPath || APP_PATH_PATTERN.test(pathname);
