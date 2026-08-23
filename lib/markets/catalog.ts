@@ -592,3 +592,312 @@ export function marketForClientCriteria(
   }
   return city ? getMarketByName(city.trim()) ?? null : null
 }
+
+// ── Primary Market ───────────────────────────────────────────────────────────
+//
+// The agent's default market: the one Beast Property Explorer opens in when no
+// client is selected. It is an EXPLICIT choice, never inferred from selection
+// order — "the market you work in most often" is not "the one you happened to
+// tick first". Stored on workspaces.primary_market using the SAME catalog slug
+// as service_areas, so there is one market vocabulary, not two.
+
+/** True when `slug` is a usable primary for this exact service-area selection. */
+export function isValidPrimaryMarket(
+  slug: string | null | undefined,
+  serviceAreas: string[] | null | undefined,
+): boolean {
+  const s = (slug ?? "").trim()
+  if (!s) return false
+  return (serviceAreas ?? []).includes(s)
+}
+
+/**
+ * The primary a selection IMPLIES, without guessing.
+ *
+ * Exactly one service area → that market is the primary by definition; the agent
+ * is never asked to pick from a list of one. Two or more → returns null, because
+ * there is no non-arbitrary answer. Deliberately never falls back to the first or
+ * the alphabetically-first market: silently picking one is how the map ends up
+ * opening in a city the agent rarely works.
+ */
+export function impliedPrimaryMarket(serviceAreas: string[] | null | undefined): string | null {
+  const areas = (serviceAreas ?? []).filter(Boolean)
+  return areas.length === 1 ? areas[0] : null
+}
+
+/**
+ * Reconcile a saved primary against a (possibly changed) service-area selection.
+ * Returns the primary that should now be stored:
+ *   • still selected            → unchanged
+ *   • incompatible, 1 area left → that area (auto-primary)
+ *   • incompatible, 2+ left     → null, so the UI must ask
+ * Used when markets are added/removed and when the licensed state changes, which
+ * replaces the whole market list.
+ */
+export function reconcilePrimaryMarket(
+  current: string | null | undefined,
+  serviceAreas: string[] | null | undefined,
+): string | null {
+  if (isValidPrimaryMarket(current, serviceAreas)) return (current ?? "").trim()
+  return impliedPrimaryMarket(serviceAreas)
+}
+
+/** True when the agent must be shown the Primary Market selector. */
+export function needsPrimaryMarketChoice(
+  current: string | null | undefined,
+  serviceAreas: string[] | null | undefined,
+): boolean {
+  const areas = (serviceAreas ?? []).filter(Boolean)
+  if (areas.length < 2) return false
+  return !isValidPrimaryMarket(current, areas)
+}
+
+/** The markets offered as Primary — only the agent's own selected service areas. */
+export function primaryMarketOptions(serviceAreas: string[] | null | undefined): Market[] {
+  return marketsForSlugs(serviceAreas)
+}
+
+// ── Beast Property Explorer: which market does the map open in? ──────────────
+
+export type MapMarketSource = "override" | "client" | "primary" | "service-area" | "state" | "fallback"
+
+export type ResolvedMapMarket = {
+  slug: string | null
+  center: MarketCenter
+  source: MapMarketSource
+  /** The viewport the map is fenced to — the ACTIVE MARKET's box. */
+  bounds: LatLngBounds | null
+}
+
+/**
+ * Which supported market does the map show? In order:
+ *   1. a temporary map-session override the agent picked from the switcher
+ *   2. the market derived from the active client's desired areas, else their city
+ *   3. the agent's saved Primary Market
+ *   4. their first selected Service Area — still an explicit supported market
+ *   5. the licensed state's centre, and only then the national centre
+ *
+ * Steps 1–4 always yield a SUPPORTED market, so 5 is unreachable for any
+ * configured account: the map never opens on a whole state or the country while
+ * a market can be determined. Every candidate is validated against the catalog,
+ * so an arbitrary Google city can never become the active market.
+ *
+ * The licensed state remains a VALIDATION layer — a candidate outside it is
+ * skipped — but it no longer defines the browsing viewport. That is now the
+ * active market's own box (see boundsForMarket).
+ *
+ * The override is session-only: it moves the map and nothing else. It never
+ * writes Primary Market and never touches the client's saved criteria.
+ */
+export function resolveMapMarket(input: {
+  override?: string | null
+  desiredAreas?: string | null
+  city?: string | null
+  primaryMarket?: string | null
+  /** The agent's selected markets — the last explicit supported-market fallback. */
+  serviceAreas?: string[] | null
+  /** The agent's canonical profiles.license_state. Validation only. */
+  licenseState?: string | null
+}): ResolvedMapMarket {
+  const state = (input.licenseState ?? "").trim().toUpperCase()
+
+  const take = (slug: string | null | undefined, source: MapMarketSource): ResolvedMapMarket | null => {
+    const s = (slug ?? "").trim()
+    if (!s) return null
+    // Must be a catalog market — never an arbitrary city Google could display.
+    if (!getMarketBySlug(s)) return null
+    if (state && !isMarketInState(s, state)) return null
+    const c = centerForMarket(s)
+    if (!c) return null
+    return { slug: s, center: c, source, bounds: boundsForMarket(s) }
+  }
+
+  const fromOverride = take(input.override, "override")
+  if (fromOverride) return fromOverride
+
+  const fromClient = marketForClientCriteria(input.desiredAreas, input.city)
+  const client = take(fromClient?.slug, "client")
+  if (client) return client
+
+  const primary = take(input.primaryMarket, "primary")
+  if (primary) return primary
+
+  for (const slug of input.serviceAreas ?? []) {
+    const area = take(slug, "service-area")
+    if (area) return area
+  }
+
+  // Only reached when the account has no usable market at all.
+  const stateCenter = centerForState(state)
+  if (stateCenter) return { slug: null, center: stateCenter, source: "state", bounds: boundsForState(state) }
+
+  return { slug: null, center: DEFAULT_MAP_CENTER, source: "fallback", bounds: null }
+}
+
+// ── State boundaries ────────────────────────────────────────────────────────
+//
+// Beast Property Explorer stays inside the state the agent is licensed in. An
+// agent panning to another state loses context and, worse, can run Places
+// searches over areas they cannot legally work — every result there is noise.
+//
+// Static reference data, kept HERE beside MARKET_CENTERS so there is one market/
+// geography catalog rather than two. Values are the standard bounding boxes of
+// each supported state; only the seven states Locator Beast supports are listed,
+// because those are the only ones an agent can select.
+//
+// A bounding box is deliberately coarser than the true border — Texas's box
+// includes a sliver of Mexico and the Gulf. That is the right trade: the purpose
+// is to stop someone drifting to another MARKET (Chicago while licensed in
+// Texas), not to police the coastline. Polygon-accurate borders would need a new
+// dataset and a point-in-polygon library for no practical gain.
+
+export type LatLngBounds = { south: number; west: number; north: number; east: number }
+
+export const STATE_BOUNDS: Record<string, LatLngBounds> = {
+  TX: { south: 25.837, west: -106.646, north: 36.501, east: -93.508 },
+  GA: { south: 30.356, west: -85.605, north: 35.001, east: -80.751 },
+  AZ: { south: 31.332, west: -114.816, north: 37.004, east: -109.045 },
+  FL: { south: 24.396, west: -87.635, north: 31.001, east: -79.974 },
+  IL: { south: 36.970, west: -91.513, north: 42.508, east: -87.020 },
+  CO: { south: 36.993, west: -109.060, north: 41.003, east: -102.042 },
+  TN: { south: 34.983, west: -90.310, north: 36.678, east: -81.647 },
+}
+
+/** The allowed viewport for a state, or null when the state is unknown/unset. */
+export function boundsForState(stateCode: string | null | undefined): LatLngBounds | null {
+  const code = (stateCode ?? "").trim().toUpperCase()
+  return STATE_BOUNDS[code] ?? null
+}
+
+/**
+ * The centre of a state's box — the fallback when NO market can be resolved.
+ * This is what replaces the national centre: an agent with no client and no
+ * Primary Market lands in their own state, not in Kansas.
+ */
+export function centerForState(stateCode: string | null | undefined): MarketCenter | null {
+  const b = boundsForState(stateCode)
+  if (!b) return null
+  return { lat: (b.south + b.north) / 2, lng: (b.west + b.east) / 2 }
+}
+
+/** True when a point lies inside the state's allowed box. */
+export function isInsideState(
+  point: MarketCenter | null | undefined,
+  stateCode: string | null | undefined,
+): boolean {
+  const b = boundsForState(stateCode)
+  // No known state means no constraint — an unconfigured account is not trapped.
+  if (!b) return true
+  if (!point) return false
+  return (
+    point.lat >= b.south && point.lat <= b.north && point.lng >= b.west && point.lng <= b.east
+  )
+}
+
+/** Nudge a point back inside the state box, axis by axis. */
+export function clampToState(
+  point: MarketCenter,
+  stateCode: string | null | undefined,
+): MarketCenter {
+  const b = boundsForState(stateCode)
+  if (!b) return point
+  return {
+    lat: Math.min(Math.max(point.lat, b.south), b.north),
+    lng: Math.min(Math.max(point.lng, b.west), b.east),
+  }
+}
+
+/** True when a market's centre falls inside the state — used to gate an override. */
+export function isMarketInState(
+  slug: string | null | undefined,
+  stateCode: string | null | undefined,
+): boolean {
+  const m = getMarketBySlug((slug ?? "").trim())
+  if (!m) return false
+  const code = (stateCode ?? "").trim().toUpperCase()
+  // The catalog already records each market's state; trust it over geometry.
+  if (code) return m.state.toUpperCase() === code
+  return true
+}
+
+// ── Per-market browsing bounds ──────────────────────────────────────────────
+//
+// Property Explorer shows ONE supported market at a time. State-wide browsing
+// was too loose: a San Antonio session could be dragged into Austin, and results
+// from the wrong metro are noise. The map is now fenced to the active market and
+// the switcher is the only intentional way to move between them.
+//
+// Stored as a radius per market beside MARKET_CENTERS rather than as a second
+// catalog: centre + radius IS the box, so there is one source for where a market
+// is and how far it extends. Approximate metro-scale boxes, not city limits —
+// the goal is a focused viewport, not municipal accuracy.
+//
+// Each radius is checked against the distance to that market's NEAREST
+// neighbour, so adjacent markets can never overlap:
+//   new-braunfels ↔ san-marcos  26.7km apart → 12km each
+//   miami         ↔ fort-lauderdale 40.5km  → 18km each
+//   austin        ↔ san-marcos  46.8km      → 21km
+//   san-antonio   ↔ new-braunfels 47.3km    → 21km
+//   dallas        ↔ fort-worth   50.0km     → 22km each  (kept distinct markets)
+// Sprawling metros with distant neighbours get more room (Houston 45km).
+
+export const DEFAULT_MARKET_RADIUS_KM = 25
+
+export const MARKET_RADIUS_KM: Record<string, number> = {
+  // Central Texas — tight, because these markets sit close together.
+  "new-braunfels": 12,
+  "san-marcos": 12,
+  austin: 21,
+  "san-antonio": 21,
+  // Metroplex — Dallas and Fort Worth stay separate markets.
+  dallas: 22,
+  "fort-worth": 22,
+  houston: 45,
+  // South Florida — Miami and Fort Lauderdale stay separate markets.
+  miami: 18,
+  "fort-lauderdale": 18,
+  orlando: 35,
+  phoenix: 40,
+  tucson: 30,
+  atlanta: 40,
+  nashville: 35,
+  chicago: 40,
+  denver: 35,
+}
+
+const KM_PER_DEG_LAT = 110.574
+
+/** The browsing box for a supported market, or null when the slug is unknown. */
+export function boundsForMarket(slug: string | null | undefined): LatLngBounds | null {
+  const s = (slug ?? "").trim()
+  const c = centerForMarket(s)
+  if (!c) return null
+  const km = MARKET_RADIUS_KM[s] ?? DEFAULT_MARKET_RADIUS_KM
+  const dLat = km / KM_PER_DEG_LAT
+  // Longitude degrees shrink toward the poles, so the east/west span is widened
+  // by 1/cos(lat) to keep the box roughly square on the ground.
+  const dLng = km / (KM_PER_DEG_LAT * Math.cos((c.lat * Math.PI) / 180))
+  return { south: c.lat - dLat, west: c.lng - dLng, north: c.lat + dLat, east: c.lng + dLng }
+}
+
+/** True when a point lies inside the active market's browsing box. */
+export function isInsideMarket(
+  point: MarketCenter | null | undefined,
+  slug: string | null | undefined,
+): boolean {
+  const b = boundsForMarket(slug)
+  // No resolved market means no constraint — never trap an unconfigured account.
+  if (!b) return true
+  if (!point) return false
+  return point.lat >= b.south && point.lat <= b.north && point.lng >= b.west && point.lng <= b.east
+}
+
+/** Nudge a point back inside the active market's box, axis by axis. */
+export function clampToMarket(point: MarketCenter, slug: string | null | undefined): MarketCenter {
+  const b = boundsForMarket(slug)
+  if (!b) return point
+  return {
+    lat: Math.min(Math.max(point.lat, b.south), b.north),
+    lng: Math.min(Math.max(point.lng, b.west), b.east),
+  }
+}

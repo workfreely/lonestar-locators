@@ -6,6 +6,9 @@ import { HiOutlineArrowUpTray } from "react-icons/hi2";
 import { supabase } from "@/lib/supabase/client";
 import {
   MAX_SERVICE_AREAS,
+  marketsForSlugs,
+  reconcilePrimaryMarket,
+  needsPrimaryMarketChoice,
   SUPPORTED_STATES,
   marketsForState,
   stateForMarkets,
@@ -63,6 +66,11 @@ export default function StepBusinessProfile({
   // canonical store is workspaces.service_areas (read/written via the RPCs), so
   // seed from there rather than keeping a second copy on the profile.
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>(data.service_areas ?? []);
+  // Beast Property Explorer opens here when no client is selected. Explicit —
+  // never the first market ticked.
+  const [primaryMarket, setPrimaryMarket] = useState<string | null>(
+    reconcilePrimaryMarket(data.primary_market ?? null, data.service_areas ?? []),
+  );
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -95,14 +103,23 @@ export default function StepBusinessProfile({
     // rather than leaving a cross-state selection behind.
     setSelectedMarkets([]);
   }
+  // With 2+ markets a primary must be chosen before Continue; with exactly one
+  // it is implied, so nothing extra is asked.
+  const needsPrimary = needsPrimaryMarketChoice(primaryMarket, selectedMarkets);
   const canContinue =
-    firstName.trim().length > 0 && lastName.trim().length > 0 && !!licenseState && hasMarket;
+    firstName.trim().length > 0 && lastName.trim().length > 0 && !!licenseState && hasMarket && !needsPrimary;
 
   function toggleMarket(slug: string) {
     setSelectedMarkets((prev) => {
-      if (prev.includes(slug)) return prev.filter((s) => s !== slug);
-      if (prev.length >= MAX_SERVICE_AREAS) return prev;
-      return [...prev, slug];
+      let next: string[];
+      if (prev.includes(slug)) next = prev.filter((s) => s !== slug);
+      else if (prev.length >= MAX_SERVICE_AREAS) next = prev;
+      else next = [...prev, slug];
+      // Down to one market it becomes the primary automatically — no second
+      // question. Dropping the current primary clears it so the selector asks
+      // again rather than quietly moving to another city.
+      setPrimaryMarket((cur) => reconcilePrimaryMarket(cur, next));
+      return next;
     });
   }
 
@@ -146,7 +163,10 @@ export default function StepBusinessProfile({
     // Auto-generated and never edited during onboarding. Wrapped so onboarding
     // never blocks if the migration/RPCs aren't deployed yet.
     try {
-      await supabase.rpc("set_workspace_service_areas", { p_areas: selectedMarkets });
+      await supabase.rpc("set_workspace_service_areas", {
+        p_areas: selectedMarkets,
+        p_primary: reconcilePrimaryMarket(primaryMarket, selectedMarkets),
+      });
       // Reserve + finalize the permanent slug HERE — on Continue, before Step 3's
       // Google redirect can ever run. Business Name no longer participates: the
       // slug is derived from the agent's name alone. ensure_workspace_slug is
@@ -336,6 +356,58 @@ export default function StepBusinessProfile({
               );
             })}
           </div>
+          {/* ── Primary Market ──────────────────────────────────────────────
+              Same checkbox-card design as the markets above, on purpose: it is
+              the same kind of choice about the same objects, and a different
+              control (radio, dropdown) would read as a different concept. Only
+              the behaviour differs — single-select.
+
+              Shown ONLY at 2+ markets. With exactly one the answer is already
+              known and the save path sets it, so the agent is never asked to
+              choose from a list of one. Options are the agent's own selection,
+              never the full catalog. */}
+          {selectedMarkets.length > 1 && (
+            <div className="mt-4 border-t border-[var(--beast-border)] pt-4">
+              <label className={labelClass}>Primary Market</label>
+              <p className="mb-2 mt-1 text-[12px] font-medium text-[var(--beast-ink-soft)]">
+                Which market do you work in most often?
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {marketsForSlugs(selectedMarkets).map((m) => {
+                  const active = primaryMarket === m.slug;
+                  return (
+                    <button
+                      key={m.slug}
+                      type="button"
+                      // Checking one unchecks the previous. Re-clicking the checked
+                      // market is a no-op, not a clear: with 2+ markets a primary is
+                      // required, so emptying it could only block Continue.
+                      onClick={() => setPrimaryMarket(m.slug)}
+                      aria-pressed={active}
+                      className={`flex items-center justify-between rounded-xl border px-4 py-3 text-[14px] font-medium transition-colors ${
+                        active
+                          ? "border-[var(--beast-blue)] bg-[var(--beast-blue)]/5 text-[var(--beast-ink)]"
+                          : "border-[var(--beast-border)] bg-white text-[var(--beast-ink)] hover:border-[#c7ccd6]"
+                      }`}
+                    >
+                      <span>{m.name}</span>
+                      <span
+                        className={`flex h-5 w-5 items-center justify-center rounded-md border ${
+                          active
+                            ? "border-[var(--beast-blue)] bg-[var(--beast-blue)] text-white"
+                            : "border-[var(--beast-border)] text-transparent"
+                        }`}
+                      >
+                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                          <path d="M2.5 6.5l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <p className="text-[12px] text-[var(--beast-ink-soft)]">
             These set which cities your Smart Lead Form shows. You can change them anytime in Settings.
           </p>

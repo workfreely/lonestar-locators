@@ -65,7 +65,7 @@ import type { ResolvedAgentIdentity } from "@/lib/notifications/agentSignature"
 // flag is the single on/off switch — set it back to `true` to show it again.
 const SHOW_LEGACY_LEAD_PANEL = false
 
-export default function DashboardClient({ leads, nextActions, favorites, recommendations = [], outreach = [], tours = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, timeZone = DEFAULT_TIMEZONE, voiceEnabled = false, companionOwner = "", userId = "", serviceAreaSlugs = [] }: { leads: any[]; nextActions: any[]; favorites: any[]; recommendations?: any[]; outreach?: any[]; tours?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; timeZone?: string; /** Beast Voice alpha — true only for a platform admin, resolved server-side. */ voiceEnabled?: boolean;
+export default function DashboardClient({ leads, nextActions, favorites, recommendations = [], outreach = [], tours = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, timeZone = DEFAULT_TIMEZONE, voiceEnabled = false, companionOwner = "", userId = "", serviceAreaSlugs = [], primaryMarket = null, licenseState = null }: { leads: any[]; nextActions: any[]; favorites: any[]; recommendations?: any[]; outreach?: any[]; tours?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; timeZone?: string; /** Beast Voice alpha — true only for a platform admin, resolved server-side. */ voiceEnabled?: boolean;
   /** Opaque "<userId>:<workspaceId>" for the signed-in locator. Beast Companion
    *  binds every stored client record to it so a different account on the same
    *  browser can never see this locator's client. Server-derived. */
@@ -75,7 +75,11 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   userId?: string;
   /** Workspace markets in SELECTION order — the first is the primary market and
    *  decides Beast Property Explorer's initial viewport. */
-  serviceAreaSlugs?: string[] }) {
+  serviceAreaSlugs?: string[];
+  /** Saved default market — where the map opens with no client selected. */
+  primaryMarket?: string | null;
+  /** Canonical licensed state — Property Explorer may not leave it. */
+  licenseState?: string | null }) {
   const router = useRouter()
   const [selectedLeadId, setSelectedLeadId] = useState<string | number | null>(null)
   // Centered CRM contact modal for a New→Contacted DRAG (the Kanban presentation
@@ -223,6 +227,28 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // Board vs Beast Property Explorer. Purely which workspace fills the centre —
   // Agenda, Companion and Focus are untouched by it.
   const [workspace, setWorkspace] = useState<"board" | "map">("board")
+
+  // Board → Map tells an OPEN Beast Companion to default to its Properties tab —
+  // Map mode is a property-research context, and Current Property /
+  // Recommendations / Beast Suggestions all live there.
+  //
+  // Fires ONLY on the board→map transition. A ref (not the effect's dependency
+  // list alone) holds the previous workspace, so the frequent re-renders this
+  // component does — search keystrokes, marker updates, pin hover, pin click,
+  // lead mutations — cannot re-post while the workspace itself is unchanged.
+  // Nothing is posted for map→board: returning to Board must never drag the agent
+  // off the Client tab. The panel treats this as a default it can be overridden.
+  const prevWorkspaceRef = useRef(workspace)
+  useEffect(() => {
+    const prev = prevWorkspaceRef.current
+    prevWorkspaceRef.current = workspace
+    if (prev === "board" && workspace === "map") {
+      window.postMessage(
+        { source: COMPANION_MSG_SOURCE, type: "workspace-mode", mode: "map" },
+        window.location.origin,
+      )
+    }
+  }, [workspace])
 
   // Beast Milestones — watches the live board for newly-earned achievements
   // (First Lease, monthly commission thresholds) and fires a celebration.
@@ -2162,9 +2188,13 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           <LeadBoard
             workspace={workspace}
             onWorkspaceChange={setWorkspace}
-            mapSlot={(query) => (
+            mapSlot={(query, hosts) => (
               <BeastPropertyExplorer
                 query={query}
+                actionsHost={hosts.actions}
+                marketHost={hosts.market}
+                primaryMarket={primaryMarket}
+                licenseState={licenseState}
                 recommendedUrls={
                   selectedLead
                     ? localRecommendations

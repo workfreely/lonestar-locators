@@ -135,6 +135,43 @@ export function PanelApp({
   // Top-level Companion view. Client is the default and shows the existing,
   // unchanged Client experience; Properties shows the Phase-1 visual shell.
   const [activeView, setActiveView] = useState<CompanionView>("client");
+
+  // ── Board → Map: default this panel to Properties ─────────────────────────
+  // Map mode is a property-research context, so Current Property, Recommendations
+  // and (later) Beast Suggestions are what the agent wants in front of them. This
+  // reuses `activeView` above — the SAME tab state the nav drives — so there is no
+  // separate Property Explorer tab state to keep in sync.
+  //
+  // Contextual default, not a lock:
+  //   • only a NEW counter value acts, so map rerenders, "Search this area",
+  //     pin hover and pin clicks (none of which post a message) change nothing;
+  //   • switching back to Client afterwards sticks — the counter does not move
+  //     again until the agent leaves Map and returns;
+  //   • Map → Board posts nothing, so Client is never forced back;
+  //   • the value seen at MOUNT is recorded without acting, so opening the panel
+  //     while already in Map does not yank it off the tab the agent chose.
+  useEffect(() => {
+    const store = chrome?.storage?.local;
+    if (!store) return; // dev harness (no extension APIs)
+    const KEY = "lb-map-entered";
+    let lastSeen: number | null = null;
+    store.get(KEY, (res) => {
+      lastSeen = typeof res[KEY] === "number" ? (res[KEY] as number) : 0;
+    });
+    function onChanged(changes: { [key: string]: chrome.storage.StorageChange }, area: string) {
+      if (area !== "local" || !changes[KEY]) return;
+      const next = changes[KEY].newValue;
+      if (typeof next !== "number") return;
+      // Until the mount read lands, adopt the value rather than acting on it —
+      // otherwise a change arriving in that window would look like a transition.
+      if (lastSeen === null) { lastSeen = next; return; }
+      if (next === lastSeen) return;
+      lastSeen = next;
+      setActiveView("properties");
+    }
+    chrome.storage.onChanged.addListener(onChanged);
+    return () => chrome.storage.onChanged.removeListener(onChanged);
+  }, []);
   const [demoNote, setDemoNote] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeId>("midnight");
   const noteTimer = useRef<number | undefined>(undefined);

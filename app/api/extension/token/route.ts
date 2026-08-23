@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { exchangeAuthCode, rotateRefresh, type IssuedTokens } from "@/lib/companion/extensionAuth";
 import { enforceRateLimit, clientIpFromHeaders } from "@/lib/companion/extensionRateLimit";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { displayFullName } from "@bc/companion-shared";
 
 // POST /api/extension/token
 //
@@ -65,10 +66,18 @@ export async function POST(req: Request) {
 // distinct from onMessageExternal (which only ever carries code + state).
 async function tokenResponse(t: IssuedTokens) {
   const [{ data: profile }, { data: ws }] = await Promise.all([
-    supabaseAdmin.from("profiles").select("preferred_name, full_name").eq("id", t.userId).maybeSingle(),
+    supabaseAdmin.from("profiles").select("preferred_name, preferred_first_name, preferred_last_name, first_name, last_name, full_name").eq("id", t.userId).maybeSingle(),
     supabaseAdmin.from("workspaces").select("name").eq("id", t.workspaceId).maybeSingle(),
   ]);
-  const name = (profile?.preferred_name || profile?.full_name || "").trim() || null;
+  const name =
+    displayFullName({
+      preferredFirst: profile?.preferred_first_name,
+      preferredLast: profile?.preferred_last_name,
+      legalFirst: profile?.first_name,
+      legalLast: profile?.last_name,
+    }) ||
+    (profile?.preferred_name || profile?.full_name || "").trim() ||
+    null;
   return NextResponse.json({
     token_type: "Bearer",
     access_token: t.access,

@@ -45,20 +45,71 @@ export function formatPersonName(name: string | null | undefined): string {
 }
 
 /**
- * The name to GREET someone by — "Welcome to Locator Beast, Jay!".
+ * ── Locator Beast's ONE display-name rule ──────────────────────────────────
  *
- * Locator Beast's display rule is "preferred name wins, else legal first name",
- * and callers pass the already-resolved display name here. That resolved value
- * is not always a given name: Preferred Name is a free-text field, so an agent
- * who types their full name into it ("Jay Morris") would otherwise be greeted by
- * their full legal name. A greeting takes the FIRST token of whatever display
- * name it is given, then formats it with the one shared formatter above.
+ * A profile carries a LEGAL name (first_name / last_name — reserved for account
+ * verification and identity) and an optional PREFERRED name, which is structured
+ * into its own first/last parts. The rule is applied PER PART, so a preferred
+ * given name composes with a legal surname:
  *
- * Deliberately not a second parser: no particle/prefix inference, no surname
- * detection, no reordering. First whitespace-delimited token, title-cased.
- *   "Jay Morris" → "Jay"   "jay" → "Jay"   "Mary Jane Smith" → "Mary"   "" → ""
+ *     display first = preferred first  ELSE legal first
+ *     display last  = preferred last   ELSE legal last
+ *
+ * Legal: Jay Morris · Preferred: Jay / Morris   → "Jay Morris",  greeting "Jay"
+ * Legal: Jay Morris · Preferred: Jay / —        → "Jay Morris",  greeting "Jay"
+ * Legal: Jay Morris · Preferred: — / —          → "Jay Morris",  greeting "Jay"
+ * Legal: Robert Vale · Preferred: Bob / —       → "Bob Vale",    greeting "Bob"
+ *
+ * Every surface (welcome banner, Smart Form, guest cards, notifications, Beast
+ * Network, Companion) resolves names through these functions, so a name can
+ * never be shown two different ways. Stored values are NEVER modified.
  */
-export function greetingName(displayName: string | null | undefined): string {
-  const first = String(displayName ?? "").trim().split(/\s+/).filter(Boolean)[0] ?? "";
+export type PreferredNameParts = {
+  preferredFirst?: string | null;
+  preferredLast?: string | null;
+  legalFirst?: string | null;
+  legalLast?: string | null;
+};
+
+const pick = (...vals: Array<string | null | undefined>): string => {
+  for (const v of vals) {
+    const t = String(v ?? "").trim();
+    if (t) return t;
+  }
+  return "";
+};
+
+/** Preferred given name, else legal given name. Title-cased. */
+export function displayFirstName(p: PreferredNameParts): string {
+  return formatPersonName(pick(p.preferredFirst, p.legalFirst));
+}
+
+/** Preferred surname, else legal surname. Title-cased. */
+export function displayLastName(p: PreferredNameParts): string {
+  return formatPersonName(pick(p.preferredLast, p.legalLast));
+}
+
+/**
+ * The full name shown publicly — display first + display last, each resolved
+ * independently. Returns "" when nothing is available, so callers can decide
+ * their own fallback rather than being handed a placeholder.
+ */
+export function displayFullName(p: PreferredNameParts): string {
+  return [displayFirstName(p), displayLastName(p)].filter(Boolean).join(" ");
+}
+
+/**
+ * The name to GREET someone by — "Welcome to Locator Beast, Jay!". Always the
+ * display FIRST name, never the surname and never the full legal name.
+ *
+ * Also accepts a plain string for callers that only hold an already-resolved
+ * display name (a legacy free-text `preferred_name`, which may contain a full
+ * name). In that case it takes the first whitespace-delimited token. Deliberately
+ * not a second parser: no particle inference, no surname detection, no
+ * reordering — and it composes formatPersonName() above, never its own casing.
+ */
+export function greetingName(input: string | null | undefined | PreferredNameParts): string {
+  if (input && typeof input === "object") return displayFirstName(input);
+  const first = String(input ?? "").trim().split(/\s+/).filter(Boolean)[0] ?? "";
   return formatPersonName(first);
 }

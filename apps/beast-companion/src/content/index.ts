@@ -2,6 +2,7 @@ import { HOST_ID, createLauncher, type Launcher } from "./launcher";
 import { startPersistenceGuard } from "./persistence";
 import { detectSite, readPageContext } from "./context";
 import { startThemeBridge } from "./themeBridge";
+import { startWorkspaceModeBridge } from "./workspaceModeBridge";
 import { startActiveClientBridge } from "./activeClientBridge";
 import { startWorkflowVerbBridge } from "./workflowVerbBridge";
 import { startCommLaunchBridge } from "./commLaunchBridge";
@@ -104,6 +105,9 @@ function init(): void {
 
     // Local theme sync (Stage T1) — no-op on non-CRM pages; self-gated inside.
     startThemeBridge();
+
+    // Board→Map contextual default for the Companion tab (no client data).
+    startWorkspaceModeBridge();
 
     // Active-client bridge (Phase 2, read-only) — relays the CRM's selected
     // client into chrome.storage for the panel. Self-gated to CRM pages.

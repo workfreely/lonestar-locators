@@ -131,7 +131,13 @@ export default function LeadBoard({
   onWorkspaceChange?: (next: "board" | "map") => void
   /** Rendered INSTEAD of the board grid when workspace === "map". Passed as a slot
    *  so the toolbar — and therefore the Board | Map toggle and Focus — stays put. */
-  mapSlot?: (query: string) => React.ReactNode
+  /** Receives the live search text and the toolbar node that Map-mode controls
+   *  ("Search this area") portal into, so they sit inline after the search field
+   *  instead of floating in the middle of the map. */
+  mapSlot?: (
+    query: string,
+    hosts: { actions: HTMLElement | null; market: HTMLElement | null },
+  ) => React.ReactNode
   // ── Beast Voice (alpha, platform-admin only) ─────────────────────────────
   // Off unless the server said the viewer is a platform admin, so the public
   // marketing demo and every normal account render exactly as before. The mic
@@ -143,6 +149,10 @@ export default function LeadBoard({
   const [activeLead, setActiveLead] = useState<any | null>(null)
   const [view, setView] = useState<KanbanView>(DEFAULT_KANBAN_DENSITY)
   const [searchQuery, setSearchQuery] = useState("")
+  // Toolbar node that Map-mode controls portal into. State, not a ref, so the
+  // explorer re-renders once the node exists after the first paint.
+  const [mapActionsHost, setMapActionsHost] = useState<HTMLDivElement | null>(null)
+  const [mapMarketHost, setMapMarketHost] = useState<HTMLDivElement | null>(null)
   // Beast Voice session state — placeholder text only; search stays typeable.
   const [voiceState, setVoiceState] = useState<"idle" | "listening" | "working">("idle")
   // Lead awaiting archive-reason confirmation (null = dialog closed).
@@ -372,6 +382,12 @@ export default function LeadBoard({
                   </button>
                 </div>
               )}
+            {/* Market switcher slot — between Board | Map and the search field,
+                so the toolbar reads Board|Map → market → search → Search this
+                area. Board mode never renders it. */}
+            {workspace === "map" && (
+              <div ref={setMapMarketHost} className="kb-map-market" />
+            )}
             <div className={`kb-search${voiceEnabled ? " kb-search-voice" : ""}`}>
             <span className="kb-search-ic">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -407,6 +423,13 @@ export default function LeadBoard({
               />
             )}
             </div>
+            {/* Map-mode action slot — filled by Beast Property Explorer via a
+                portal so "Search this area" reads as the third toolbar control
+                (Board | Map → search → Search this area) rather than floating
+                over the middle of the map. Board mode never renders it. */}
+            {workspace === "map" && (
+              <div ref={setMapActionsHost} className="kb-map-actions" />
+            )}
           </div>
 
           <div className="kb-toolbar-controls">
@@ -442,7 +465,7 @@ export default function LeadBoard({
           /* Beast Property Explorer fills the same flex slot the board occupies, so
              it grows and shrinks with whatever Agenda and Companion leave behind. */
           <div className="kb-board" style={{ display: "block", padding: 0, overflow: "hidden" }}>
-            {mapSlot?.(searchQuery)}
+            {mapSlot?.(searchQuery, { actions: mapActionsHost, market: mapMarketHost })}
           </div>
         ) : (
         <div className="kb-board" data-density={view}>

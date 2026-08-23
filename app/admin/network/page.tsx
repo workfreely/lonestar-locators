@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import NetworkClient from "./_components/NetworkClient"
 import type { DownlineMember, AdminMember } from "./_components/types"
+import { displayFullName } from "@bc/companion-shared"
 
 // Beast Network — authenticated member page (inside the CRM shell). Members see
 // their profile/status, Copy My Join Link, their brokerage referral URL setting,
@@ -23,7 +24,7 @@ export default async function NetworkPage() {
     supabase.rpc("lb_network_downline", { p_max_depth: 3 }),
     supabase
       .from("profiles")
-      .select("preferred_name, first_name, last_name, profile_photo_url, brokerage")
+      .select("preferred_name, preferred_first_name, preferred_last_name, first_name, last_name, profile_photo_url, brokerage")
       .eq("id", user.id)
       .maybeSingle(),
   ])
@@ -46,9 +47,16 @@ export default async function NetworkPage() {
   }
 
   const profile = profileRes.data
+  // Shared display rule (preferred first/last over legal first/last), with the
+  // legacy free-text value as the fallback for un-split rows.
   const myName =
+    displayFullName({
+      preferredFirst: profile?.preferred_first_name,
+      preferredLast: profile?.preferred_last_name,
+      legalFirst: profile?.first_name,
+      legalLast: profile?.last_name,
+    }) ||
     profile?.preferred_name?.trim() ||
-    [profile?.first_name, profile?.last_name].filter(Boolean).join(" ").trim() ||
     "You"
 
   return (

@@ -6,7 +6,8 @@ import { createClient } from "@/lib/supabase/server"
 import { resolveAgentIdentityForOwner, type ResolvedAgentIdentity } from "@/lib/notifications/agentSignature"
 import { resolveUserTimeZone } from "@/lib/timezone/server"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
-import { greetingName } from "@bc/companion-shared"
+import { greetingName, displayFullName } from "@bc/companion-shared"
+import { reconcilePrimaryMarket } from "@/lib/markets/catalog"
 import { DEMO_ALL_LEADS, DEMO_NEXT_ACTIONS, DEMO_FAVORITES, DEMO_RECOMMENDATIONS, DEFAULT_AVG_COMMISSION_PER_LEASE } from "@/lib/demo/demoWorkspace"
 
 // Fallback per-close commission when a profile hasn't set its own — matches
@@ -149,16 +150,16 @@ async function getScheduledTours() {
 // first_name personalizes the demo welcome banner.
 type AgentProfile = { name: string; brokerage: string; phone: string; email: string }
 
-async function getProfileContext(): Promise<{ demoMode: boolean; firstName: string; googleConnected: boolean; agent: AgentProfile; signature: ResolvedAgentIdentity | null; avgCommission: number; timeZone: string; companionOwner: string; userId: string; serviceAreaSlugs: string[] }> {
+async function getProfileContext(): Promise<{ demoMode: boolean; firstName: string; googleConnected: boolean; agent: AgentProfile; signature: ResolvedAgentIdentity | null; avgCommission: number; timeZone: string; companionOwner: string; userId: string; serviceAreaSlugs: string[]; primaryMarket: string | null; licenseState: string | null }> {
   const emptyAgent: AgentProfile = { name: "", brokerage: "", phone: "", email: "" }
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) return { demoMode: false, firstName: "", googleConnected: false, agent: emptyAgent, signature: null, avgCommission: DEFAULT_AVG_COMMISSION, timeZone: DEFAULT_TIMEZONE, companionOwner: "", userId: "", serviceAreaSlugs: [] }
+  if (!user) return { demoMode: false, firstName: "", googleConnected: false, agent: emptyAgent, signature: null, avgCommission: DEFAULT_AVG_COMMISSION, timeZone: DEFAULT_TIMEZONE, companionOwner: "", userId: "", serviceAreaSlugs: [], primaryMarket: null, licenseState: null }
   const { data: profile } = await supabase
     .from("profiles")
-    .select("demo_mode, first_name, last_name, preferred_name, email, brokerage, phone_number, google_connected, avg_commission_per_lease")
+    .select("demo_mode, first_name, last_name, preferred_name, preferred_first_name, preferred_last_name, email, brokerage, phone_number, google_connected, avg_commission_per_lease, license_state")
     .eq("id", user.id)
     .single()
 
@@ -181,17 +182,27 @@ async function getProfileContext(): Promise<{ demoMode: boolean; firstName: stri
   const { data: ws } = membership?.workspace_id
     ? await supabase
         .from("workspaces")
-        .select("service_areas")
+        .select("service_areas, primary_market")
         .eq("id", membership.workspace_id)
         .maybeSingle()
-    : { data: null as { service_areas?: string[] | null } | null }
+    : { data: null as { service_areas?: string[] | null; primary_market?: string | null } | null }
   const timeZone = await resolveUserTimeZone(supabase, user.id, membership?.workspace_id ?? null)
   // Preferred Name is the display name shown throughout Locator Beast; the
   // legal first/last name is the fallback when it isn't set.
-  const preferred = (profile?.preferred_name ?? "").trim()
-  const legalFull = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ")
+  // ONE display rule, applied per part by the shared formatter: preferred first
+  // else legal first, preferred last else legal last. Legal first/last remain
+  // account-identity fields and are never shown in place of a preferred name.
+  const nameParts = {
+    preferredFirst: profile?.preferred_first_name,
+    preferredLast: profile?.preferred_last_name,
+    legalFirst: profile?.first_name,
+    legalLast: profile?.last_name,
+  }
+  // Legacy free-text preferred_name still wins for a row whose value could not
+  // be split safely (the migration left its structured fields NULL on purpose).
+  const legacyPreferred = (profile?.preferred_name ?? "").trim()
   const agent: AgentProfile = {
-    name: preferred || legalFull,
+    name: displayFullName(nameParts) || legacyPreferred,
     brokerage: profile?.brokerage ?? "",
     phone: profile?.phone_number ?? "",
     email: profile?.email ?? user.email ?? "",
@@ -201,12 +212,10 @@ async function getProfileContext(): Promise<{ demoMode: boolean; firstName: stri
   const signature = await resolveAgentIdentityForOwner(supabase, user.id)
   return {
     demoMode: !!profile?.demo_mode,
-    // Preferred Name is free text, so it may hold a FULL name ("Jay Morris").
-    // greetingName() reduces whatever the display rule resolves to down to a
-    // given name, so the welcome banner greets "Jay" and never the full legal
-    // name. Order is unchanged: preferred wins, legal first name is the
-    // fallback, and an account with neither yields "" (banner drops the name).
-    firstName: greetingName(preferred || (profile?.first_name ?? "")),
+    // The welcome banner greets by the display FIRST name only — "Jay", never
+    // "Jay Morris". greetingName() falls back to the legacy free-text value for
+    // rows that predate the structured columns.
+    firstName: greetingName(nameParts) || greetingName(legacyPreferred),
     googleConnected: !!profile?.google_connected,
     agent,
     signature,
@@ -215,6 +224,14 @@ async function getProfileContext(): Promise<{ demoMode: boolean; firstName: stri
     companionOwner,
     userId: user.id,
     serviceAreaSlugs: ws?.service_areas ?? [],
+    // Explicit default market for Beast Property Explorer. reconcile guards the
+    // window before the agent has chosen one (and any stale value left by a
+    // market change): a single market implies itself, otherwise null and the map
+    // falls back rather than opening somewhere arbitrary.
+    primaryMarket: reconcilePrimaryMarket(ws?.primary_market ?? null, ws?.service_areas ?? []),
+    // The map is constrained to this state. Canonical source is the profile —
+    // the same field License Verification and the Smart Form already read.
+    licenseState: profile?.license_state ?? null,
   }
 }
 
@@ -230,7 +247,7 @@ async function isPlatformAdmin(): Promise<boolean> {
 }
 
 export default async function Page() {
-  const { demoMode, firstName, googleConnected, agent, signature, avgCommission, timeZone, companionOwner, userId, serviceAreaSlugs } = await getProfileContext()
+  const { demoMode, firstName, googleConnected, agent, signature, avgCommission, timeZone, companionOwner, userId, serviceAreaSlugs, primaryMarket, licenseState } = await getProfileContext()
   const voiceEnabled = await isPlatformAdmin()
 
   if (demoMode) {
@@ -244,6 +261,8 @@ export default async function Page() {
         tours={[]}
         demoMode
         firstName={firstName}
+        primaryMarket={primaryMarket}
+        licenseState={licenseState}
         googleConnected={googleConnected}
         agent={agent}
         signature={signature}
@@ -266,5 +285,5 @@ export default async function Page() {
     getScheduledTours(),
   ])
 
-  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} recommendations={recommendations} outreach={outreach} tours={tours} agent={agent} signature={signature} avgCommission={avgCommission} timeZone={timeZone} voiceEnabled={voiceEnabled} companionOwner={companionOwner} userId={userId} serviceAreaSlugs={serviceAreaSlugs} />
+  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} recommendations={recommendations} outreach={outreach} tours={tours} agent={agent} signature={signature} avgCommission={avgCommission} timeZone={timeZone} voiceEnabled={voiceEnabled} companionOwner={companionOwner} userId={userId} serviceAreaSlugs={serviceAreaSlugs} primaryMarket={primaryMarket} licenseState={licenseState} />
 }

@@ -5,7 +5,8 @@ import { loadGoogleMaps, MapsConfigError } from "@/lib/propertyExplorer/loadMaps
 import { placeUrl, type ExplorerProperty } from "@/lib/propertyExplorer/types"
 import { assessLocationFit, type ClientLocationContext } from "@/lib/propertyExplorer/locationFit"
 import { computeSuggestions } from "@/lib/propertyExplorer/suggestions"
-import { centerForMarket, DEFAULT_MAP_CENTER, marketForClientCriteria } from "@/lib/markets/catalog"
+import { boundsForMarket, getMarketBySlug, isInsideMarket, isMarketInState, marketsForSlugs, resolveMapMarket } from "@/lib/markets/catalog"
+import { createPortal } from "react-dom"
 
 /**
  * Beast Property Explorer — the Map workspace.
@@ -26,6 +27,10 @@ import { centerForMarket, DEFAULT_MAP_CENTER, marketForClientCriteria } from "@/
 type Props = {
   /** Catalog slugs for the workspace, in selection order (first = primary). */
   serviceAreaSlugs: string[]
+  /** The agent's saved default market. Used when no client is selected. */
+  primaryMarket?: string | null
+  /** Canonical profiles.license_state — the map may not leave this state. */
+  licenseState?: string | null
   /** The CRM's currently selected lead, when there is one. Reused, never duplicated. */
   activeClient: ClientLocationContext | null
   /** Called when a property is selected — the normalized, workflow-ready object. */
@@ -38,12 +43,18 @@ type Props = {
   onRecommend?: (property: ExplorerProperty) => void
   /** The toolbar search text. In Map mode it filters the properties ALREADY loaded
    *  — it never calls Places, so typing costs nothing. */
-  query?: string
+  query?: string  /** Toolbar node supplied by LeadBoard in Map mode. When present, "Search this
+   *  area" is portalled there so it reads as the third toolbar control instead of
+   *  floating over the middle of the map. Absent → the original centered
+   *  placement, so any other consumer is unchanged. */
+  actionsHost?: HTMLElement | null
+  /** Toolbar node for the compact market switcher, left of the search field. */
+  marketHost?: HTMLElement | null
 }
 
 type Status = "loading" | "ready" | "searching" | "error" | "unconfigured"
 
-export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, onSelectProperty, query = "", recommendedUrls = [], onRecommend }: Props) {
+export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, primaryMarket = null, licenseState = null, onSelectProperty, query = "", recommendedUrls = [], onRecommend, actionsHost = null, marketHost = null }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<google.maps.Marker[]>([])
@@ -52,6 +63,11 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   const markerLibRef = useRef<google.maps.MarkerLibrary | null>(null)
   const lastSearchRef = useRef<string | null>(null)
 
+  // Temporary map-session override chosen from the toolbar switcher. It moves the
+  // map and nothing else: it is never written to Profile and never rewrites the
+  // client's saved city or desired areas. Cleared when the client changes so the
+  // next client starts from their own criteria, not the previous browse.
+  const [marketOverride, setMarketOverride] = useState<string | null>(null)
   const [status, setStatus] = useState<Status>("loading")
   const [error, setError] = useState<string | null>(null)
   const [results, setResults] = useState<ExplorerProperty[]>([])
@@ -70,19 +86,45 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   //      not geocode. This is the honest limit of what a saved area can do here:
   //      it decides WHICH market we open on, not a finer position within it.
   //   2. the client's saved city/market
-  //   3. the agent's primary (first-selected) service market
+  //   3. the agent's saved Primary Market
   //   4. the neutral fallback
-  const { center, marketSlug } = useMemo(() => {
-    const fromClient = marketForClientCriteria(activeClient?.desiredAreas, activeClient?.city)
-    if (fromClient) {
-      const c = centerForMarket(fromClient.slug)
-      if (c) return { center: c, marketSlug: fromClient.slug }
+  // Selection order is NEVER consulted — service_areas[1] used to decide this,
+  // which opened the map in whichever market happened to be ticked first.
+  const { center, slug: marketSlug, bounds: marketBounds } = useMemo(
+    () =>
+      resolveMapMarket({
+        override: marketOverride,
+        desiredAreas: activeClient?.desiredAreas,
+        city: activeClient?.city,
+        primaryMarket,
+        serviceAreas: serviceAreaSlugs,
+        licenseState,
+      }),
+    [marketOverride, activeClient, primaryMarket, serviceAreaSlugs, licenseState],
+  )
+
+  // A new client (or clearing the selection) invalidates a browse override: the
+  // next client must start from their own criteria, and with no client the map
+  // returns to the agent's Primary Market.
+  const clientKey = activeClient ? `${activeClient.city ?? ""}|${activeClient.desiredAreas ?? ""}` : null
+  useEffect(() => {
+    setMarketOverride(null)
+  }, [clientKey])
+
+  // The licensed state can change while the map is alive (Profile edit in another
+  // tab, a late-arriving profile read). Re-apply the restriction rather than
+  // rebuilding the map, so the constraint can never be older than the profile.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    // Order matters: drop the OLD restriction first, otherwise panTo into the new
+    // market is clamped by the market we are leaving and the map never arrives.
+    map.setOptions({ restriction: null })
+    map.setCenter(center)
+    if (marketBounds) {
+      map.setOptions({ restriction: { latLngBounds: marketBounds, strictBounds: false } })
     }
-    const primary = serviceAreaSlugs[0] ?? null
-    const fromPrimary = centerForMarket(primary)
-    if (fromPrimary) return { center: fromPrimary, marketSlug: primary }
-    return { center: DEFAULT_MAP_CENTER, marketSlug: null }
-  }, [activeClient, serviceAreaSlugs])
+  }, [marketBounds, center, status])
 
   const clearMarkers = useCallback(() => {
     // Listeners go with the marker; nothing accumulates across searches.
@@ -114,6 +156,17 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
           streetViewControl: false, // Street View is explicitly out of V1
           fullscreenControl: false,
           clickableIcons: false,
+          // ACTIVE MARKET boundary — one supported market at a time. `restriction`
+          // is a standard MapOptions field, so this needs no new Google API and no
+          // extra request: Maps JS clamps panning natively, and a drag toward the
+          // next metro slides back instead of being fought with our own
+          // bounds_changed handler.
+          //
+          // strictBounds:false restricts the CENTER, so neighbouring geography
+          // stays visible at the edge of the frame (useful context) while the map
+          // itself cannot travel into another market. Moving markets is the
+          // switcher's job, not the drag gesture's.
+          ...(marketBounds ? { restriction: { latLngBounds: marketBounds, strictBounds: false } } : {}),
         })
         // Moving the map NEVER searches. It only offers the deliberate control.
         mapRef.current.addListener("idle", () => setDirty(true))
@@ -151,6 +204,20 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     if (!map) return
     const c = map.getCenter()
     if (!c) return
+
+    // Never search outside the licensed state. `restriction` above already keeps
+    // the centre in-state, so this is the backstop for the cases it cannot cover
+    // — a programmatic move, or a state whose bounds arrive after the map was
+    // built. Results from another state are areas the agent cannot work.
+    // Search only within the ACTIVE market. `restriction` already keeps the centre
+    // inside it, so this is the backstop for a programmatic move or a late-arriving
+    // market — results from the next metro are not what the agent asked for.
+    if (!isInsideMarket({ lat: c.lat(), lng: c.lng() }, marketSlug)) {
+      const back = boundsForMarket(marketSlug)
+      if (back) map.setCenter(center)
+      setDirty(false)
+      return
+    }
 
     // Skip an identical repeat of the same area.
     const key = `${c.lat().toFixed(4)},${c.lng().toFixed(4)},${map.getZoom()}`
@@ -202,6 +269,15 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
       setError("We couldn't search this area. Please try again.")
       setStatus("ready")
     }
+  }, [marketSlug, center])
+
+  // Switching markets discards the previous market's apartments immediately, so
+  // San Antonio results are never briefly shown on the Austin map while the new
+  // search runs. The auto-search effect below then loads the new market.
+  useEffect(() => {
+    setResults([])
+    setError(null)
+    lastSearchRef.current = null
   }, [marketSlug])
 
   // ── First result set loads itself ─────────────────────────────────────────
@@ -281,33 +357,82 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     )
   }
 
+  // Compact current-market control. Name + caret only ("San Antonio ▾") — no
+  // "Market:" label and no second toolbar row. A native <select> keeps keyboard
+  // and screen-reader behaviour for free; it is styled to match the dark floating
+  // controls, with the visible name rendered beneath a transparent select so the
+  // width tracks the text instead of the longest option.
+  // Service areas are already state-scoped by Profile/onboarding, so this filter
+  // is a belt-and-braces guard for a stale selection saved before a state change.
+  // It also means a session override can never be chosen out of state, because
+  // the only way to set one is picking from this list.
+  const switcherMarkets = marketsForSlugs(serviceAreaSlugs).filter((m) =>
+    isMarketInState(m.slug, licenseState),
+  )
+  const currentMarketName = marketSlug ? getMarketBySlug(marketSlug)?.name ?? null : null
+  const marketSwitcher =
+    switcherMarkets.length > 0 && currentMarketName ? (
+      <div className="pointer-events-auto relative inline-flex items-center rounded-full border border-[rgba(255,255,255,0.16)] bg-[#10131d] pl-3 pr-2 py-2 text-[13px] font-semibold text-[#f4f6fb] shadow-[0_4px_16px_rgba(0,0,0,0.5)] transition-colors hover:bg-[#181d2b]">
+        <span className="whitespace-nowrap">{currentMarketName}</span>
+        <span aria-hidden className="ml-1.5 text-[10px] leading-none opacity-80">▾</span>
+        <select
+          aria-label="Map market"
+          value={marketSlug ?? ""}
+          // Session-only. Moves the map; the existing per-market search effect
+          // then loads that market exactly as it does on first open. Profile and
+          // client criteria are untouched.
+          onChange={(e) => setMarketOverride(e.target.value || null)}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        >
+          {switcherMarkets.map((m) => (
+            <option key={m.slug} value={m.slug}>
+              {m.name}
+            </option>
+          ))}
+        </select>
+      </div>
+    ) : null
+
+  // ONE definition of the control, mounted in one of two places. Styling, the
+  // location glyph, the disabled rule and the searchThisArea() handler are all
+  // exactly as before — only the mount point is new.
+  const searchAreaButton = (
+    <button
+      type="button"
+      onClick={() => void searchThisArea()}
+      disabled={status === "searching"}
+      className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-[rgba(255,255,255,0.16)] bg-[#10131d] px-4 py-2 text-[13px] font-semibold text-[#f4f6fb] shadow-[0_4px_16px_rgba(0,0,0,0.5)] transition-colors hover:bg-[#181d2b] disabled:opacity-60"
+    >
+      {/* Same location glyph the CRM uses, so the control reads as ours
+          rather than as a Google map control. */}
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0 1 18 0Z" />
+        <circle cx="12" cy="10" r="3" />
+      </svg>
+      {status === "searching" ? "Searching…" : "Search this area"}
+    </button>
+  )
+
   return (
     <div className="relative h-full w-full">
       <div ref={hostRef} className="h-full w-full" />
 
       {status === "loading" && <Overlay text="Loading map…" />}
 
-      {/* Deliberate search control — the ONLY thing that calls Places. */}
-      {status !== "loading" && (
-        // Sits BELOW the floating toolbar row (search left / Board|Map + Focus
-        // right) so the three never collide.
+      {/* Compact market switcher — sits between Board | Map and the search field. */}
+      {marketHost && marketSwitcher ? createPortal(marketSwitcher, marketHost) : null}
+
+      {/* Deliberate search control — the ONLY thing that calls Places. Rendered
+          into the toolbar when a host is supplied (Map mode), otherwise in its
+          original centered position. Same element, same handler, same styling —
+          only where it is mounted changes. */}
+      {status !== "loading" && (actionsHost
+        ? createPortal(searchAreaButton, actionsHost)
+        : (
         <div className="pointer-events-none absolute inset-x-0 top-16 flex justify-center">
-          <button
-            type="button"
-            onClick={() => void searchThisArea()}
-            disabled={status === "searching"}
-            className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-[rgba(255,255,255,0.16)] bg-[#10131d] px-4 py-2 text-[13px] font-semibold text-[#f4f6fb] shadow-[0_4px_16px_rgba(0,0,0,0.5)] transition-colors hover:bg-[#181d2b] disabled:opacity-60"
-          >
-            {/* Same location glyph the CRM uses, so the control reads as ours
-                rather than as a Google map control. */}
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0 1 18 0Z" />
-              <circle cx="12" cy="10" r="3" />
-            </svg>
-            {status === "searching" ? "Searching…" : "Search this area"}
-          </button>
+          {searchAreaButton}
         </div>
-      )}
+      ))}
 
       {error && (
         <div className="pointer-events-none absolute inset-x-0 bottom-12 flex justify-center">

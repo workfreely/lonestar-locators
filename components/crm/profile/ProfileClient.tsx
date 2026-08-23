@@ -14,6 +14,9 @@ import SettingsShell, {
 import {
   MAX_SERVICE_AREAS,
   marketsForState,
+  marketsForSlugs,
+  reconcilePrimaryMarket,
+  needsPrimaryMarketChoice,
   serviceAreasHelperText,
   serviceAreasCountLabel,
   defaultThemeForMarkets,
@@ -47,7 +50,8 @@ const LICENSE_STATE_NAMES: Record<string, string> = {
 type ProfileInitial = {
   firstName: string
   lastName: string
-  preferredName: string
+  preferredFirstName: string
+  preferredLastName: string
   brokerage: string
   licenseNumber: string
   licenseState: string
@@ -84,7 +88,8 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
 
   const [firstName, setFirstName] = useState(initial.firstName)
   const [lastName, setLastName] = useState(initial.lastName)
-  const [preferredName, setPreferredName] = useState(initial.preferredName)
+  const [preferredFirstName, setPreferredFirstName] = useState(initial.preferredFirstName)
+  const [preferredLastName, setPreferredLastName] = useState(initial.preferredLastName)
   const [brokerage, setBrokerage] = useState(initial.brokerage)
   const [licenseNumber, setLicenseNumber] = useState(initial.licenseNumber)
   const [licenseState, setLicenseState] = useState(initial.licenseState)
@@ -116,6 +121,9 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
   // Lead Form). Loaded here so the one Save Changes button below persists the
   // profile fields AND the service areas together, in one action.
   const [serviceAreas, setServiceAreas] = useState<string[]>([])
+  // The market Beast Property Explorer opens in when no client is selected.
+  // Always one of serviceAreas; never inferred from selection order.
+  const [primaryMarket, setPrimaryMarket] = useState<string | null>(null)
   const [publicSlug, setPublicSlug] = useState<string | null>(null)
   const [areasLoaded, setAreasLoaded] = useState(false)
 
@@ -125,7 +133,12 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
       const { data } = await supabase.rpc("get_current_workspace")
       if (!active) return
       const row = Array.isArray(data) ? data[0] : data
-      setServiceAreas(row?.service_areas ?? [])
+      const loadedAreas: string[] = row?.service_areas ?? []
+      setServiceAreas(loadedAreas)
+      // A workspace saved before Primary Market existed has none. reconcile
+      // auto-selects when there is only one market and otherwise leaves it unset,
+      // so the selector appears and the agent chooses instead of inheriting a guess.
+      setPrimaryMarket(reconcilePrimaryMarket(row?.primary_market ?? null, loadedAreas))
       setPublicSlug(row?.slug ?? null)
       setAreasLoaded(true)
     })()
@@ -165,7 +178,13 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
 
     setServiceAreas((prev) => {
       const allowed = new Set(marketsForState(next).map((m) => m.slug))
-      return prev.filter((slug) => allowed.has(slug))
+      const kept = prev.filter((slug) => allowed.has(slug))
+      // Changing state replaces the whole market list, so a primary from the old
+      // state is now incompatible. reconcile keeps it when it survived, auto-picks
+      // when a single market remains, and otherwise clears it so the selector
+      // reappears — it never silently substitutes another city.
+      setPrimaryMarket((cur) => reconcilePrimaryMarket(cur, kept))
+      return kept
     })
     setSaved(false)
     setSaveError(null)
@@ -180,11 +199,17 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
     setSaved(false)
     setSaveError(null)
     setServiceAreas((prev) => {
-      if (prev.includes(slugKey)) return prev.filter((s) => s !== slugKey)
+      let next: string[]
+      if (prev.includes(slugKey)) next = prev.filter((s) => s !== slugKey)
       // At the cap, adding is refused rather than silently dropping something
       // else. Deselecting is always allowed, so swapping stays one extra click.
-      if (prev.length >= MAX_SERVICE_AREAS) return prev
-      return [...prev, slugKey]
+      else if (prev.length >= MAX_SERVICE_AREAS) next = prev
+      else next = [...prev, slugKey]
+      // Dropping the current primary leaves it unset, which blocks Save until a
+      // replacement is chosen. Down to a single market it becomes the primary
+      // automatically, so the agent is never asked to pick from a list of one.
+      setPrimaryMarket((cur) => reconcilePrimaryMarket(cur, next))
+      return next
     })
   }
 
@@ -228,6 +253,14 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
     // BEFORE any write: handleSave persists Business Information and Service Areas
     // together, so failing late would leave the profile updated while the markets
     // were rejected. The cap is enforced by toggleServiceArea; this is the floor.
+    // A primary is mandatory whenever there is a real choice to make. Blocking the
+    // save is the point: the alternative is writing an arbitrary market that then
+    // decides where the map opens every day.
+    if (needsPrimaryMarketChoice(primaryMarket, serviceAreas)) {
+      setSaved(false)
+      setSaveError("Choose your Primary Market before saving.")
+      return
+    }
     if (serviceAreas.length === 0) {
       setSaved(false)
       setSaveError(MIN_MARKETS_MESSAGE)
@@ -250,7 +283,11 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
           first_name: first,
           last_name: last,
           full_name: `${first} ${last}`.trim(),
-          preferred_name: preferredName.trim(),
+          // Structured preferred name is the source of truth. profiles.preferred_name
+          // is a derived cache maintained by the lb_sync_preferred_name() trigger, so
+          // it is deliberately NOT written here.
+          preferred_first_name: preferredFirstName.trim() || null,
+          preferred_last_name: preferredLastName.trim() || null,
           brokerage: brokerage.trim(),
           ...(licenseVerified
             ? {}
@@ -265,7 +302,12 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
         error: areasError,
         status: areasStatus,
         statusText: areasStatusText,
-      } = await supabase.rpc("set_workspace_service_areas", { p_areas: serviceAreas })
+      } = await supabase.rpc("set_workspace_service_areas", {
+        p_areas: serviceAreas,
+        // Markets and the primary move together in one statement, so a rejected
+        // primary can never leave the markets saved and the primary stale.
+        p_primary: reconcilePrimaryMarket(primaryMarket, serviceAreas),
+      })
 
       // A state change invalidated the Smart Form's market context. Re-derive the
       // hero theme from the NEW primary market with the same defaultThemeForMarkets
@@ -434,12 +476,20 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
             <input value={lastName} onChange={(e) => setLastName(e.target.value)} className={settingsInputCls} />
           </SettingsField>
         </div>
-        <div className="mt-4">
+        {/* Preferred name is STRUCTURED so each part resolves independently:
+            preferred first else legal first, preferred last else legal last.
+            A single free-text field could not tell the welcome banner which
+            token was the given name, so an agent who typed their full name got
+            greeted by it. Legal first/last above stay account-identity only. */}
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <SettingsField
-            label="Preferred Name"
-            hint="Shown throughout Locator Beast."
+            label="Preferred First Name"
+            hint="Shown throughout Locator Beast instead of your legal name."
           >
-            <input value={preferredName} onChange={(e) => setPreferredName(e.target.value)} placeholder="e.g. Bob" className={settingsInputCls} />
+            <input value={preferredFirstName} onChange={(e) => setPreferredFirstName(e.target.value)} placeholder="e.g. Bob" className={settingsInputCls} />
+          </SettingsField>
+          <SettingsField label="Preferred Last Name (optional)">
+            <input value={preferredLastName} onChange={(e) => setPreferredLastName(e.target.value)} placeholder="e.g. Vale" className={settingsInputCls} />
           </SettingsField>
         </div>
       </SettingsCard>
@@ -598,6 +648,70 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
               )
             })}
           </div>
+
+          {/* ── Primary Market ──────────────────────────────────────────────
+              Same checkbox-card design as Service Areas above, deliberately —
+              it is the same kind of choice about the same objects, so it should
+              not read as a different control. The only difference is that it is
+              single-select. It lives INSIDE the Service Areas card because a
+              primary is meaningless apart from the selection it belongs to.
+
+              Hidden entirely at one market: that market IS the primary (the save
+              path auto-selects it), and offering a list of one is noise. */}
+          {serviceAreas.length > 1 && (
+            <div className="mt-5 border-t border-[#eceef3] pt-4">
+              <p className="text-[13px] font-semibold text-[#111318]">Primary Market</p>
+              <p className="mb-2 mt-0.5 text-[12px] font-medium text-[#9098a8]">
+                Used as your default market when no client is selected.
+              </p>
+              {!primaryMarket && (
+                <p role="alert" className="mb-2 text-[12px] font-semibold text-red-600">
+                  Choose your Primary Market.
+                </p>
+              )}
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {marketsForSlugs(serviceAreas).map((m) => {
+                  const active = primaryMarket === m.slug
+                  return (
+                    <button
+                      key={m.slug}
+                      type="button"
+                      // Single-select: checking one unchecks the previous. Clicking
+                      // the checked market again is a no-op rather than a clear —
+                      // with 2+ markets there must always be a primary, so allowing
+                      // it to be emptied would only ever block the save.
+                      onClick={() => {
+                        setPrimaryMarket(m.slug)
+                        setSaved(false)
+                        setSaveError(null)
+                      }}
+                      aria-pressed={active}
+                      className={`flex items-center justify-between rounded-xl border px-4 py-3 text-[14px] font-medium transition-colors ${
+                        active
+                          ? "border-[#2f6bff] bg-[#2f6bff]/5 text-[#111318]"
+                          : "border-[#e5e7ee] bg-white text-[#111318] hover:border-[#c7ccd6]"
+                      }`}
+                    >
+                      <span>
+                        {m.name} <span className="text-[#9098a8]">· {m.state}</span>
+                      </span>
+                      <span
+                        className={`flex h-5 w-5 items-center justify-center rounded-md border ${
+                          active
+                            ? "border-[#2f6bff] bg-[#2f6bff] text-white"
+                            : "border-[#e5e7ee] text-transparent"
+                        }`}
+                      >
+                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                          <path d="M2.5 6.5l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
           </>
         ) : (
           <p className="text-[13px] text-[#6b7280]">Loading…</p>

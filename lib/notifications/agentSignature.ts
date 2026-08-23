@@ -18,6 +18,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { marketsForSlugs, serviceAreasLabel, getMarketByName } from "@/lib/markets/catalog"
 import { BRAND } from "./branding"
 import { esc } from "./layout"
+import { displayFullName } from "@bc/companion-shared"
 
 // The exact TREC-required disclosure sentence. The form name is a link when an
 // IABS URL is configured; otherwise it stays plain text (never a substituted URL).
@@ -50,6 +51,8 @@ export type ResolvedAgentIdentity = {
 export type RawIdentityInput = {
   profile?: {
     preferred_name?: string | null
+    preferred_first_name?: string | null
+    preferred_last_name?: string | null
     first_name?: string | null
     last_name?: string | null
     full_name?: string | null
@@ -97,9 +100,19 @@ export function buildAgentIdentity(input: RawIdentityInput): ResolvedAgentIdenti
   const cfg: SmartFormConfigSlice =
     input.config ?? ((w.smart_form_config as SmartFormConfigSlice | undefined) ?? {})
 
-  const preferred = clean(p.preferred_name)
+  // Shared display rule — preferred first/last resolved independently over the
+  // legal name. `preferred_name` remains the fallback for legacy rows whose
+  // free-text value could not be split safely.
+  const structured = clean(
+    displayFullName({
+      preferredFirst: p.preferred_first_name,
+      preferredLast: p.preferred_last_name,
+      legalFirst: p.first_name,
+      legalLast: p.last_name,
+    }),
+  )
   const legalFull = clean([p.first_name, p.last_name].filter(Boolean).join(" ")) ?? clean(p.full_name)
-  const name = preferred ?? legalFull
+  const name = structured ?? clean(p.preferred_name) ?? legalFull
 
   const slugs = w.service_areas ?? null
   const areaLabelFromSlugs = clean(serviceAreasLabel(slugs))
@@ -135,7 +148,7 @@ export async function resolveAgentIdentityForOwner(
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "preferred_name, first_name, last_name, full_name, brokerage, business_name, phone_number, email, profile_photo_url, business_logo_url",
+      "preferred_name, preferred_first_name, preferred_last_name, first_name, last_name, full_name, brokerage, business_name, phone_number, email, profile_photo_url, business_logo_url",
     )
     .eq("id", ownerId)
     .maybeSingle()

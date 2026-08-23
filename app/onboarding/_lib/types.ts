@@ -8,6 +8,8 @@ export type OnboardingData = {
   brokerage: string;
   phone_number: string;
   service_areas: string[];
+  /** Catalog slug of the market the map opens in when no client is selected. */
+  primary_market?: string | null;
   /** profiles.license_state — the ONE state this agent operates in. Chosen first
    *  in onboarding, then it filters which markets can be selected. Same canonical
    *  column Profile's License State reads, so no second state preference exists. */

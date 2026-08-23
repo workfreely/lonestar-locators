@@ -2,18 +2,26 @@
 
 import { useEffect, useState } from "react"
 import { buildInitialSmartFormConfig } from "../../_lib/initialConfig"
-import { DEFAULT_CONFIG } from "../../_lib/defaultConfig"
 import { mergeSmartFormConfig } from "../../_lib/mergeConfig"
 import type { SmartLeadFormConfig } from "../../_lib/types"
 import { supabase } from "@/lib/supabase/client"
 import EditorToolbar from "./EditorToolbar"
 import SettingsPanel from "./SettingsPanel"
 import PreviewFrame from "../preview/PreviewFrame"
+import PreviewSkeleton from "../preview/PreviewSkeleton"
 import SmartLeadForm from "../form/SmartLeadForm"
+import { displayFullName } from "@bc/companion-shared"
 
 export default function SmartLeadFormEditor() {
-  const [config, setConfig] = useState<SmartLeadFormConfig>(DEFAULT_CONFIG)
-  const [device, setDevice] = useState<"mobile" | "desktop">("mobile")
+  // null = the real config has not arrived yet. Seeding this with DEFAULT_CONFIG
+  // is what made the preview flash "Jordan Blake / Placeholder Realty Group /
+  // (210) 555-1234 / Austin, Dallas, Houston" for the duration of the three
+  // Supabase round-trips below: those are the DESIGN TEMPLATE's values, and with
+  // no way to say "not loaded" they were the only thing the first paint could
+  // render. DEFAULT_CONFIG itself is unchanged and still does its real jobs — the
+  // merge base and the intentional template — it just no longer doubles as a
+  // loading state for a real agent.
+  const [config, setConfig] = useState<SmartLeadFormConfig | null>(null)
   // The workspace's selected markets — the preview shows exactly the cities the
   // public form will, and reflects Service Areas changes on reload.
   const [serviceAreaSlugs, setServiceAreaSlugs] = useState<string[]>([])
@@ -53,6 +61,8 @@ export default function SmartLeadFormEditor() {
         first_name?: string | null
         last_name?: string | null
         preferred_name?: string | null
+        preferred_first_name?: string | null
+        preferred_last_name?: string | null
         brokerage?: string | null
         phone_number?: string | null
         license_state?: string | null
@@ -60,7 +70,7 @@ export default function SmartLeadFormEditor() {
       if (uid) {
         const { data } = await supabase
           .from("profiles")
-          .select("profile_photo_url, first_name, last_name, preferred_name, brokerage, phone_number, license_state")
+          .select("profile_photo_url, first_name, last_name, preferred_name, preferred_first_name, preferred_last_name, brokerage, phone_number, license_state")
           .eq("id", uid)
           .maybeSingle()
         prof = data
@@ -86,8 +96,12 @@ export default function SmartLeadFormEditor() {
         // points produce identical results — hero theme from the FIRST selected
         // market, headline and testimonials off.
         const name =
-          (prof?.preferred_name ?? "").trim() ||
-          `${prof?.first_name ?? ""} ${prof?.last_name ?? ""}`.trim()
+          displayFullName({
+            preferredFirst: prof?.preferred_first_name,
+            preferredLast: prof?.preferred_last_name,
+            legalFirst: prof?.first_name,
+            legalLast: prof?.last_name,
+          }) || (prof?.preferred_name ?? "").trim()
         setConfig(
           buildInitialSmartFormConfig({
             agentName: name,
@@ -104,7 +118,10 @@ export default function SmartLeadFormEditor() {
   }, [])
 
   function updateConfig(updater: (prev: SmartLeadFormConfig) => SmartLeadFormConfig) {
-    setConfig(updater)
+    // Live edits behave exactly as before once loaded. Before that there is
+    // nothing to edit — the settings panel is not rendered — so the guard only
+    // protects the type, it never swallows a real keystroke.
+    setConfig((prev) => (prev ? updater(prev) : prev))
     // Any edit clears the "Saved" confirmation so the button invites another save.
     setSaved(false)
   }
@@ -112,12 +129,14 @@ export default function SmartLeadFormEditor() {
   // Preview config = the edited config with the LIVE profile photo overlaid for
   // the agent photo. The overlay is preview-only: `config` (what save persists)
   // never carries the photo, so profiles.profile_photo_url stays the one source.
-  const previewConfig: SmartLeadFormConfig = {
-    ...config,
-    branding: { ...config.branding, agentPhotoUrl: profilePhotoUrl },
-  }
+  const previewConfig: SmartLeadFormConfig | null = config
+    ? { ...config, branding: { ...config.branding, agentPhotoUrl: profilePhotoUrl } }
+    : null
 
   async function save() {
+    // Cannot persist a config that was never loaded — this would otherwise be the
+    // one path that could overwrite a real saved form with template values.
+    if (!config) return
     setSaving(true)
     setSaveError(null)
     const { error } = await supabase.rpc("save_smart_form", { p_config: config })
@@ -142,8 +161,6 @@ export default function SmartLeadFormEditor() {
     // branch and never re-runs on client nav (which caused the clipping).
     <div className="fixed inset-0 z-30 flex flex-col overflow-hidden bg-[#f4f5f8]">
       <EditorToolbar
-        device={device}
-        onDeviceChange={setDevice}
         onSave={save}
         saving={saving}
         saved={saved}
@@ -151,14 +168,26 @@ export default function SmartLeadFormEditor() {
       />
 
       <div className="flex flex-1 overflow-hidden">
-        <div className="flex flex-1 items-start justify-center overflow-y-auto p-8">
-          <PreviewFrame device={device}>
-            <SmartLeadForm config={previewConfig} serviceAreaSlugs={serviceAreaSlugs} />
+        {/* justify-center now centres the preview truly (see PreviewFrame's
+              transform-origin note). overflow-auto rather than overflow-y-auto so a
+              narrow window scrolls to the preview's left edge instead of clipping
+              it unreachably — the frame is shrink-0 to keep the scale accurate. */}
+          <div className="flex flex-1 items-start justify-center overflow-auto p-8">
+          <PreviewFrame>
+            {previewConfig ? (
+              <SmartLeadForm config={previewConfig} serviceAreaSlugs={serviceAreaSlugs} />
+            ) : (
+              <PreviewSkeleton />
+            )}
           </PreviewFrame>
         </div>
 
         <div className="w-[560px] shrink-0 overflow-hidden border-l border-[#e5e7ee] bg-white">
-          <SettingsPanel config={config} onChange={updateConfig} slug={slug} licenseState={licenseState} />
+          {/* The panel edits the real config, so it waits for one. The column
+              keeps its width and border, so nothing shifts when it appears. */}
+          {config && (
+            <SettingsPanel config={config} onChange={updateConfig} slug={slug} licenseState={licenseState} />
+          )}
         </div>
       </div>
     </div>

@@ -16,6 +16,8 @@ export default async function ProfilePage() {
         first_name?: string | null
         last_name?: string | null
         preferred_name?: string | null
+        preferred_first_name?: string | null
+        preferred_last_name?: string | null
         email?: string | null
         brokerage?: string | null
         license_number?: string | null
@@ -33,7 +35,7 @@ export default async function ProfilePage() {
   if (user) {
     const { data } = await supabase
       .from("profiles")
-      .select("first_name, last_name, preferred_name, email, brokerage, license_number, license_state, license_verified_at, phone_number, profile_photo_url, timezone, demo_mode")
+      .select("first_name, last_name, preferred_name, preferred_first_name, preferred_last_name, email, brokerage, license_number, license_state, license_verified_at, phone_number, profile_photo_url, timezone, demo_mode")
       .eq("id", user.id)
       .single()
     profile = data
@@ -70,7 +72,8 @@ export default async function ProfilePage() {
       initial={{
         firstName: profile?.first_name ?? "",
         lastName: profile?.last_name ?? "",
-        preferredName: profile?.preferred_name ?? "",
+        preferredFirstName: profile?.preferred_first_name ?? "",
+        preferredLastName: profile?.preferred_last_name ?? "",
         brokerage: profile?.brokerage ?? "",
         licenseNumber: profile?.license_number ?? "",
         licenseState: profile?.license_state ?? "",

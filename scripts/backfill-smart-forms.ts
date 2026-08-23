@@ -16,6 +16,7 @@
 import { createClient } from "@supabase/supabase-js"
 import { buildInitialSmartFormConfig } from "@/app/smart-lead-form/_lib/initialConfig"
 import { defaultThemeForMarkets } from "@/lib/markets/catalog"
+import { displayFullName } from "@bc/companion-shared"
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -29,6 +30,8 @@ const db = createClient(URL, SERVICE_ROLE, { auth: { persistSession: false } })
 
 type Profile = {
   preferred_name: string | null
+  preferred_first_name: string | null
+  preferred_last_name: string | null
   first_name: string | null
   last_name: string | null
   brokerage: string | null
@@ -54,14 +57,21 @@ async function main() {
   for (const ws of workspaces ?? []) {
     const { data: p } = await db
       .from("profiles")
-      .select("preferred_name, first_name, last_name, brokerage, business_name, phone_number, profile_photo_url")
+      .select("preferred_name, preferred_first_name, preferred_last_name, first_name, last_name, brokerage, business_name, phone_number, profile_photo_url")
       .eq("id", ws.created_by)
       .maybeSingle<Profile>()
 
     const serviceAreas: string[] = Array.isArray(ws.service_areas) ? ws.service_areas : []
 
     const agentName =
-      trimmed(p?.preferred_name) ?? trimmed([p?.first_name, p?.last_name].filter(Boolean).join(" "))
+      trimmed(
+        displayFullName({
+          preferredFirst: p?.preferred_first_name,
+          preferredLast: p?.preferred_last_name,
+          legalFirst: p?.first_name,
+          legalLast: p?.last_name,
+        }),
+      ) ?? trimmed(p?.preferred_name)
     const brokerageName = trimmed(p?.brokerage) ?? trimmed(p?.business_name)
     const phone = trimmed(p?.phone_number)
 

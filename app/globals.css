@@ -1723,6 +1723,11 @@ body.jaybot-open {
    space-between lets the empty centre absorb the difference instead. */
 .kb-toolbar-left .kb-search { flex:none; width:320px; }
 .kb-toolbar-left .kb-search-voice { width:368px; }
+/* Map-mode toolbar slots. Both are content-sized and flex:none so the approved
+   320px search width is never traded away to make room — the toolbar's
+   space-between lets the empty centre absorb the market control instead. */
+.kb-toolbar-left .kb-map-market,
+.kb-toolbar-left .kb-map-actions { flex:none; display:flex; align-items:center; }
 .kb-board { flex:1; display:flex; gap:16px; padding:18px; overflow-x:auto; overflow-y:hidden; min-width:0; }
 .kb-board[data-density="compact"] { gap:14px; }
 
@@ -1829,6 +1834,18 @@ body.jaybot-open {
 .kb-voice-pop-msg { margin:2px 4px; font-size:12.5px; line-height:1.45; color:var(--kb-ink); }
 .kb-voice-pop-msg[data-tone="error"] { color:var(--kb-ink); }
 
+:root {
+  /* Beast Voice glow tints, derived from the active theme accent.
+     --bv-glow-tint  the lit edge: accent lightened toward white
+     --bv-glow-core  the accent itself, the body of the light
+     --bv-glow-deep  accent shaded toward black, for the outer falloff
+     Declared once: the theme blocks override --kb-accent, and because custom
+     properties resolve at use time these follow automatically. */
+  --bv-glow-tint: color-mix(in srgb, var(--kb-accent) 38%, white);
+  --bv-glow-core: var(--kb-accent);
+  --bv-glow-deep: color-mix(in srgb, var(--kb-accent) 82%, black);
+}
+
 /* Beast Voice — the "listening" aura.
    Viewport-fixed and portalled to <body>, so it frames the workspace identically
    over the dashboard, Focus mode, and the existing contact modal without any
@@ -1865,10 +1882,18 @@ body.jaybot-open {
 /* The illuminated edge — a crisp ~1.5px line of light-blue right at the
    perimeter. Minimal blur on purpose: this is a lit edge, not a halo, so it
    never washes colour across the dashboard behind it. */
+/* Colour comes from the ACTIVE THEME's accent, not a Voice-specific palette.
+   The three tints below are derived from --kb-accent with fixed percentages, so
+   every theme gets the same lightness relationship and the same alphas — only
+   the hue changes. Midnight/Obsidian read blue, Rose reads rose, Purple reads
+   purple, Evergreen reads green, and no theme glows brighter than another.
+
+   Geometry, blur, spread, alpha, timing and the animations are byte-for-byte
+   what they were; only the colour arguments were swapped. */
 .bv-glow-line {
   box-shadow:
-    inset 0 0 0 1px rgba(186, 230, 253, 0.72),
-    inset 0 0 0 2px rgba(56, 189, 248, 0.34);
+    inset 0 0 0 1px color-mix(in srgb, var(--bv-glow-tint) 72%, transparent),
+    inset 0 0 0 2px color-mix(in srgb, var(--bv-glow-core) 34%, transparent);
   animation: bv-edge-line 3.2s ease-in-out infinite;
 }
 
@@ -1877,8 +1902,8 @@ body.jaybot-open {
    its own contrast. */
 .bv-glow-bloom {
   box-shadow:
-    inset 0 0 10px 0 rgba(56, 189, 248, 0.40),
-    inset 0 0 18px 2px rgba(37, 99, 235, 0.20);
+    inset 0 0 10px 0 color-mix(in srgb, var(--bv-glow-core) 40%, transparent),
+    inset 0 0 18px 2px color-mix(in srgb, var(--bv-glow-deep) 20%, transparent);
   animation: bv-edge-bloom 4.7s ease-in-out infinite;
   animation-delay: -0.9s; /* offset so line and bloom never peak together */
 }
