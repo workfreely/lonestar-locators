@@ -2322,7 +2322,6 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         onLeadCreated={(newLead) => {
           setLocalLeads((prev) => [{ ...newLead, _isNew: true }, ...prev])
         }}
-        timeZone={timeZone}
       />
 
       <WorkflowActionToast
