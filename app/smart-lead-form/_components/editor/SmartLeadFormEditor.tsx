@@ -139,7 +139,12 @@ export default function SmartLeadFormEditor() {
     if (!config) return
     setSaving(true)
     setSaveError(null)
-    const { error } = await supabase.rpc("save_smart_form", { p_config: config })
+    // Normalized on the way OUT as well as on the way in. The agent can clear
+    // the Consent Text box while editing — they have to, to retype it — and
+    // that empty string would otherwise be what we persist. Running the same
+    // merge used on load means the stored config is always a valid one, rather
+    // than relying on every future reader to repair it.
+    const { error } = await supabase.rpc("save_smart_form", { p_config: mergeSmartFormConfig(config) })
     setSaving(false)
     if (error) {
       setSaveError(

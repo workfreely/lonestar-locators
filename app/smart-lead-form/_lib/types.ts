@@ -89,7 +89,15 @@ export type SmartLeadFormConfig = {
     customDisclosures: { title: string; url: string }[]
   }
   consent: {
+    /**
+     * LEGACY. Consent is required on every public form, so this is normalized to
+     * `true` by mergeSmartFormConfig regardless of what a config has stored. It
+     * remains in the shape only so configs saved while consent was an agent
+     * toggle still parse — nothing should branch on it, and the editor no longer
+     * exposes it.
+     */
     enabled: boolean
+    /** Agent-editable wording. Never blank — falls back to the default text. */
     text: string
   }
   // Per-field visibility for the lead form itself. First Name, Last Name, Email,

@@ -3,6 +3,7 @@ import { TextField } from "../ui/TextField"
 import ToggleRow from "../ui/ToggleRow"
 import Card from "../ui/Card"
 import UploadTile from "../ui/UploadTile"
+import ConsentPanel from "./ConsentPanel"
 
 type Updater = (updater: (prev: SmartLeadFormConfig) => SmartLeadFormConfig) => void
 
@@ -180,6 +181,15 @@ export default function ContentPanel({
             </Card>
           ))}
         </div>
+      </div>
+
+      {/* ── Consent ─────────────────────────────────────────────────────────
+          Sits with the legal copy at the bottom rather than in public-render
+          order (the checkbox itself renders inside the form, above the submit
+          button). Grouping it next to Legal & Disclosures keeps every piece of
+          compliance wording an agent can edit in one place. */}
+      <div className="pt-3">
+        <ConsentPanel config={config} onChange={onChange} />
       </div>
 
       {/* ── Legal & Disclosures ─────────────────────────────────────────────── */}
