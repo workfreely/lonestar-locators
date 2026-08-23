@@ -19,12 +19,15 @@ export default function ConsentPanel({ config, onChange }: { config: SmartLeadFo
 
   return (
     <>
-      <p className="pb-1 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">Consent</p>
+      <p className="pb-1 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">Consent Text</p>
       <p className="pb-2 text-[12px] leading-relaxed text-[#9098a8]">
         Always shown above your submit button, and required before a lead can submit. You can reword
         it, but it cannot be turned off or left blank.
       </p>
-      <TextField label="Consent Text" value={config.consent.text} onChange={(v) => updateConsent({ text: v })} multiline />
+      {/* No field label: the section heading above already reads CONSENT TEXT,
+          and a label repeating it under the helper copy said the same thing
+          twice. */}
+      <TextField value={config.consent.text} onChange={(v) => updateConsent({ text: v })} multiline />
     </>
   )
 }
