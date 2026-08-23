@@ -24,6 +24,10 @@ const watch = process.argv.includes("--watch");
 /** Single-file IIFE bundle (content / background). */
 async function bundleIife(input, outName) {
   await build({
+    // Build-time flag mirroring the manifest injection below: --watch builds accept
+    // the local CRM origin, production builds fold the branch away entirely so no
+    // localhost string reaches the shipped bundle.
+    define: { __LB_DEV__: JSON.stringify(watch) },
     build: {
       outDir: "dist",
       emptyOutDir: false,
@@ -45,6 +49,7 @@ async function bundleIife(input, outName) {
 /** The native side panel — a normal HTML page (ESM + emitted CSS). */
 async function buildSidePanel() {
   await build({
+    define: { __LB_DEV__: JSON.stringify(watch) },
     // Relative asset paths so sidepanel.html works from the extension root.
     base: "./",
     build: {

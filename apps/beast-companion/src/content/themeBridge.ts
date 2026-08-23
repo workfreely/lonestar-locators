@@ -32,7 +32,12 @@ function isCrmPage(): boolean {
   const h = location.hostname;
   const onAdmin = location.pathname.startsWith("/admin");
   const isLb = h === "locatorbeast.com" || h === "www.locatorbeast.com";
-  return onAdmin && isLb;
+  // Local development only. __LB_DEV__ is inlined as `false` by production builds,
+  // so this branch — and the localhost strings in it — are removed from the shipped
+  // extension, while a --watch build (whose manifest DOES inject on localhost) can
+  // still drive the local CRM.
+  const isLocal = __LB_DEV__ && (h === "localhost" || h === "127.0.0.1");
+  return onAdmin && (isLb || isLocal);
 }
 
 // ── Canonical store — the ONLY Stage-T2 swap point ──────────────────────────

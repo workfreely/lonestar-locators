@@ -1711,8 +1711,83 @@ body.jaybot-open {
 /* Workspace + board layout */
 .kb-workspace { display:flex; flex-direction:column; height:100%; min-width:0; background:var(--kb-bg); }
 .kb-toolbar { flex:none; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 18px 6px; }
+/* Board | Map + search share the left end of the toolbar. Sized to content so the
+   space-between still pushes density/Focus to the right, and so the toolbar does
+   not claim width it isn't using (which matters in map mode, where the empty
+   region must stay draggable). */
+.kb-toolbar-left { display:flex; align-items:center; gap:10px; flex:none; }
+/* The search keeps the exact width it had as a direct toolbar child. As a flex
+   item its `width:100%` would otherwise resolve against this group and shrink to
+   fit alongside Board | Map — which truncated the placeholder. flex:none pins it
+   to its own max-width, and because the GROUP is also flex:none the toolbar's
+   space-between lets the empty centre absorb the difference instead. */
+.kb-toolbar-left .kb-search { flex:none; width:320px; }
+.kb-toolbar-left .kb-search-voice { width:368px; }
 .kb-board { flex:1; display:flex; gap:16px; padding:18px; overflow-x:auto; overflow-y:hidden; min-width:0; }
 .kb-board[data-density="compact"] { gap:14px; }
+
+/* ── Map workspace (Beast Property Explorer) ────────────────────────────────
+   In MAP mode the map extends to the top of the workspace and the toolbar floats
+   above it, instead of the toolbar reserving its own dark row. Board mode is
+   untouched — every rule here is scoped to [data-workspace="map"].
+
+   The toolbar keeps its normal flex layout (search left, controls right); it is
+   only lifted out of the column flow so the map can start at y=0 behind it. The
+   map then gets generous bottom padding on its controls via the SDK defaults, and
+   the floating "Search this area" button sits below the toolbar row, so nothing
+   covers Google's attribution in the bottom-left or the zoom controls. */
+.kb-workspace[data-workspace="map"] { position:relative; }
+.kb-workspace[data-workspace="map"] .kb-toolbar {
+  position:absolute; inset:0 0 auto 0; z-index:5;
+  padding:12px 18px;
+  pointer-events:none;                 /* the map stays draggable between controls */
+}
+/* Re-enable interaction on the controls themselves. */
+.kb-workspace[data-workspace="map"] .kb-toolbar > * { pointer-events:auto; }
+/* The left GROUP is a layout box, not a control — let drags pass through the gap
+   between the toggle and the search field. */
+.kb-workspace[data-workspace="map"] .kb-toolbar-left { pointer-events:none; }
+.kb-workspace[data-workspace="map"] .kb-toolbar-left > * { pointer-events:auto; }
+.kb-workspace[data-workspace="map"] .kb-board { padding:0; }
+
+/* Floating controls need to read against arbitrary map imagery, so in MAP MODE
+   they take the same solid dark surface the CRM's panels and cards use, instead
+   of the translucent color-mix() fills that work over the board's own dark
+   background but disappear over pale map tiles.
+
+   Opaque --kb-col + the strong border + a lift shadow. Sizing, padding, radius and
+   placement are inherited untouched — this changes surface and contrast only, and
+   every rule stays scoped to [data-workspace="map"] so the board is unaffected. */
+.kb-workspace[data-workspace="map"] .kb-search input[type="text"] {
+  background: var(--kb-col) !important;
+  border: 1px solid var(--kb-border-strong) !important;
+  color: var(--kb-ink) !important;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.45) !important;
+}
+.kb-workspace[data-workspace="map"] .kb-search input[type="text"]::placeholder {
+  color: var(--kb-ink-soft);
+}
+.kb-workspace[data-workspace="map"] .kb-search input[type="text"]:focus {
+  background: var(--kb-col) !important;
+  border-color: color-mix(in srgb, var(--kb-accent) 70%, transparent) !important;
+}
+.kb-workspace[data-workspace="map"] .kb-search-ic { color: var(--kb-ink-soft); }
+
+.kb-workspace[data-workspace="map"] .kb-density,
+.kb-workspace[data-workspace="map"] .kb-focus {
+  background: var(--kb-col);
+  border: 1px solid var(--kb-border-strong);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.45);
+}
+/* Inactive segments stay legible rather than fading into the surface. */
+.kb-workspace[data-workspace="map"] .kb-density button { color: var(--kb-ink-soft); }
+.kb-workspace[data-workspace="map"] .kb-density button[aria-pressed="true"] {
+  color: var(--kb-ink);
+  background: color-mix(in srgb, var(--kb-ink) 16%, transparent);
+}
+.kb-workspace[data-workspace="map"] .kb-focus { color: var(--kb-ink-soft); }
+.kb-workspace[data-workspace="map"] .kb-focus:hover,
+.kb-workspace[data-workspace="map"] .kb-focus[aria-pressed="true"] { color: var(--kb-ink); }
 
 /* Toolbar controls */
 .kb-search { position:relative; width:100%; max-width:320px; }

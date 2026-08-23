@@ -80,6 +80,9 @@ export default function LeadBoard({
   timeZone,
   focus = false,
   onToggleFocus,
+  workspace = "board",
+  onWorkspaceChange,
+  mapSlot,
   voiceEnabled = false,
 }: {
   leads: any[]
@@ -122,6 +125,13 @@ export default function LeadBoard({
   // consumer of LeadBoard (the public marketing demo) is untouched.
   focus?: boolean
   onToggleFocus?: () => void
+  /** "board" | "map" — Beast Property Explorer replaces the board when "map".
+   *  Owned by the parent so the Explorer renders in the same workspace slot. */
+  workspace?: "board" | "map"
+  onWorkspaceChange?: (next: "board" | "map") => void
+  /** Rendered INSTEAD of the board grid when workspace === "map". Passed as a slot
+   *  so the toolbar — and therefore the Board | Map toggle and Focus — stays put. */
+  mapSlot?: (query: string) => React.ReactNode
   // ── Beast Voice (alpha, platform-admin only) ─────────────────────────────
   // Off unless the server said the viewer is a platform admin, so the public
   // marketing demo and every normal account render exactly as before. The mic
@@ -345,10 +355,24 @@ export default function LeadBoard({
         setActiveLead(null)
       }}
     >
-      <div className="kb-workspace">
+      <div className="kb-workspace" data-workspace={workspace}>
         {/* Kanban toolbar */}
         <div className="kb-toolbar">
-          <div className={`kb-search${voiceEnabled ? " kb-search-voice" : ""}`}>
+          {/* Board | Map leads the toolbar: it chooses WHICH workspace you are in,
+              so it reads before the search that operates within it. Density and
+              Focus stay on the right. */}
+          <div className="kb-toolbar-left">
+  {onWorkspaceChange && (
+                <div className="kb-density" role="group" aria-label="Workspace">
+                  <button type="button" aria-pressed={workspace === "board"} onClick={() => onWorkspaceChange("board")}>
+                    Board
+                  </button>
+                  <button type="button" aria-pressed={workspace === "map"} onClick={() => onWorkspaceChange("map")}>
+                    Map
+                  </button>
+                </div>
+              )}
+            <div className={`kb-search${voiceEnabled ? " kb-search-voice" : ""}`}>
             <span className="kb-search-ic">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                 <circle cx="11" cy="11" r="7" />
@@ -360,7 +384,11 @@ export default function LeadBoard({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={
-                voiceState === "listening"
+                workspace === "map"
+                  ? // Map mode filters the properties ALREADY loaded on the map — it
+                    // never runs a lead search and never calls Places per keystroke.
+                    "Search property name..."
+                  : voiceState === "listening"
                   ? "Listening..."
                   : voiceState === "working"
                     ? "Beast is working..."
@@ -378,9 +406,11 @@ export default function LeadBoard({
                 onListeningChange={setVoiceState}
               />
             )}
+            </div>
           </div>
 
           <div className="kb-toolbar-controls">
+            {workspace !== "map" && (
             <div className="kb-density">
               {VIEW_MODES.map((mode) => (
                 <button
@@ -393,6 +423,7 @@ export default function LeadBoard({
                 </button>
               ))}
             </div>
+            )}
             {onToggleFocus && (
               <button
                 type="button"
@@ -407,6 +438,13 @@ export default function LeadBoard({
           </div>
         </div>
 
+        {workspace === "map" ? (
+          /* Beast Property Explorer fills the same flex slot the board occupies, so
+             it grows and shrinks with whatever Agenda and Companion leave behind. */
+          <div className="kb-board" style={{ display: "block", padding: 0, overflow: "hidden" }}>
+            {mapSlot?.(searchQuery)}
+          </div>
+        ) : (
         <div className="kb-board" data-density={view}>
           {columns.map((col) => (
             <LeadColumn
@@ -454,6 +492,7 @@ export default function LeadBoard({
             />
           ))}
         </div>
+        )}
       </div>
 
       {/* Drag ghost — PORTALED to <body>. DragOverlay renders inline by default,

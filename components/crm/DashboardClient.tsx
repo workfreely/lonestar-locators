@@ -1,5 +1,6 @@
 "use client"
 import { useEffect, useRef, useState } from "react"
+import BeastPropertyExplorer from "@/components/crm/explorer/BeastPropertyExplorer"
 import { favoriteMoveBlock, visibleRecommendations } from "@/lib/leads/propertyCollections"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -68,14 +69,17 @@ function titleCaseName(name: string): string {
 // flag is the single on/off switch — set it back to `true` to show it again.
 const SHOW_LEGACY_LEAD_PANEL = false
 
-export default function DashboardClient({ leads, nextActions, favorites, recommendations = [], outreach = [], tours = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, timeZone = DEFAULT_TIMEZONE, voiceEnabled = false, companionOwner = "", userId = "" }: { leads: any[]; nextActions: any[]; favorites: any[]; recommendations?: any[]; outreach?: any[]; tours?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; timeZone?: string; /** Beast Voice alpha — true only for a platform admin, resolved server-side. */ voiceEnabled?: boolean;
+export default function DashboardClient({ leads, nextActions, favorites, recommendations = [], outreach = [], tours = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, timeZone = DEFAULT_TIMEZONE, voiceEnabled = false, companionOwner = "", userId = "", serviceAreaSlugs = [] }: { leads: any[]; nextActions: any[]; favorites: any[]; recommendations?: any[]; outreach?: any[]; tours?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; timeZone?: string; /** Beast Voice alpha — true only for a platform admin, resolved server-side. */ voiceEnabled?: boolean;
   /** Opaque "<userId>:<workspaceId>" for the signed-in locator. Beast Companion
    *  binds every stored client record to it so a different account on the same
    *  browser can never see this locator's client. Server-derived. */
   companionOwner?: string;
   /** Signed-in user id — namespaces the one-time demo welcome and first-run
    *  checklist so another account on the same browser never suppresses them. */
-  userId?: string }) {
+  userId?: string;
+  /** Workspace markets in SELECTION order — the first is the primary market and
+   *  decides Beast Property Explorer's initial viewport. */
+  serviceAreaSlugs?: string[] }) {
   const router = useRouter()
   const [selectedLeadId, setSelectedLeadId] = useState<string | number | null>(null)
   // Centered CRM contact modal for a New→Contacted DRAG (the Kanban presentation
@@ -220,6 +224,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // Testing-only for now: local state + localStorage (key below), NO DB/schema.
   // Defaults to "left", so production/first-load is unchanged.
   const [agendaSide, setAgendaSide] = useState<"left" | "right">("left")
+  // Board vs Beast Property Explorer. Purely which workspace fills the centre —
+  // Agenda, Companion and Focus are untouched by it.
+  const [workspace, setWorkspace] = useState<"board" | "map">("board")
 
   // Beast Milestones — watches the live board for newly-earned achievements
   // (First Lease, monthly commission thresholds) and fires a celebration.
@@ -2157,6 +2164,54 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           } ${demoMode ? "crm-fade-in" : ""}`}
         >
           <LeadBoard
+            workspace={workspace}
+            onWorkspaceChange={setWorkspace}
+            mapSlot={(query) => (
+              <BeastPropertyExplorer
+                query={query}
+                recommendedUrls={
+                  selectedLead
+                    ? localRecommendations
+                        .filter((r: any) => String(r.lead_id) === String(selectedLead.id))
+                        .map((r: any) => String(r.property_url ?? ""))
+                        .filter(Boolean)
+                    : []
+                }
+                onRecommend={(property) => {
+                  if (!selectedLead) return
+                  // Dispatch the EXISTING add-recommendation verb — the same entry
+                  // point Beast Companion uses. No Google-specific storage and no
+                  // second recommendation path: dedupe, demo handling, the insert
+                  // and the active-client re-broadcast all run unchanged.
+                  window.postMessage(
+                    {
+                      source: COMPANION_MSG_SOURCE,
+                      type: "workflow-verb",
+                      payload: {
+                        verb: "add-recommendation",
+                        leadId: selectedLead.id,
+                        property: {
+                          propertyName: property.propertyName,
+                          propertyUrl: property.propertyUrl,
+                          propertyAddress: property.propertyAddress,
+                          propertyImageUrl: null,
+                        },
+                      },
+                    },
+                    window.location.origin,
+                  )
+                }}
+                serviceAreaSlugs={serviceAreaSlugs}
+                activeClient={
+                  selectedLead
+                    ? {
+                        city: selectedLead.city ?? null,
+                        desiredAreas: selectedLead.neighborhoods ?? selectedLead.submarkets ?? null,
+                      }
+                    : null
+                }
+              />
+            )}
             leads={localLeads}
             setLeads={setLocalLeads}
             nextActions={localNextActions}

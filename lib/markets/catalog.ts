@@ -509,3 +509,86 @@ export function serviceAreasCountLabel(
     ? `${selectedCount} of ${MAX_SERVICE_AREAS} selected`
     : `${selectedCount} selected`
 }
+
+// ── Market map centers ──────────────────────────────────────────────────────
+//
+// Approximate downtown coordinates per market, used ONLY to choose an initial map
+// viewport for Beast Property Explorer. Static reference data that lives with the
+// rest of the market catalog so there is one place to add a market — the same
+// reason neighborhoods and defaultTheme live here.
+//
+// Deliberately coarse: this positions a camera, it is never used for distance,
+// radius, scoring or proximity of any kind. Adding a market without a center is
+// safe — callers fall back to the neutral default below.
+export type MarketCenter = { lat: number; lng: number }
+
+export const MARKET_CENTERS: Record<string, MarketCenter> = {
+  austin: { lat: 30.2672, lng: -97.7431 },
+  dallas: { lat: 32.7767, lng: -96.797 },
+  "fort-worth": { lat: 32.7555, lng: -97.3308 },
+  houston: { lat: 29.7604, lng: -95.3698 },
+  "new-braunfels": { lat: 29.703, lng: -98.1245 },
+  "san-antonio": { lat: 29.4241, lng: -98.4936 },
+  "san-marcos": { lat: 29.8833, lng: -97.9414 },
+  atlanta: { lat: 33.749, lng: -84.388 },
+  phoenix: { lat: 33.4484, lng: -112.074 },
+  tucson: { lat: 32.2226, lng: -110.9747 },
+  miami: { lat: 25.7617, lng: -80.1918 },
+  "fort-lauderdale": { lat: 26.1224, lng: -80.1373 },
+  orlando: { lat: 28.5383, lng: -81.3792 },
+  chicago: { lat: 41.8781, lng: -87.6298 },
+  denver: { lat: 39.7392, lng: -104.9903 },
+  nashville: { lat: 36.1627, lng: -86.7816 },
+}
+
+/** Neutral fallback when no market can be resolved (geographic center of the US). */
+export const DEFAULT_MAP_CENTER: MarketCenter = { lat: 39.8283, lng: -98.5795 }
+
+/** Camera position for a market slug, or null when unknown. */
+export function centerForMarket(slug: string | null | undefined): MarketCenter | null {
+  if (!slug) return null
+  return MARKET_CENTERS[slug] ?? null
+}
+
+/** Camera position for a market's DISPLAY NAME (leads store `city` as the name). */
+export function centerForMarketName(name: string | null | undefined): MarketCenter | null {
+  const m = name ? getMarketByName(name) : undefined
+  return m ? centerForMarket(m.slug) : null
+}
+
+/**
+ * The market that owns a neighborhood/area NAME, or null when unrecognised.
+ *
+ * A lead's saved `neighborhoods` are free text, but in practice they are chosen
+ * from this catalog — so a saved area can be resolved back to its market WITHOUT
+ * geocoding anything. That is the only honest way a desired area can influence the
+ * map: it selects which market's center to open on. Neighborhoods have no
+ * coordinates of their own here, and V1 does not invent any.
+ */
+export function marketForNeighborhood(area: string | null | undefined): Market | null {
+  const needle = (area ?? "").trim().toLowerCase()
+  if (!needle) return null
+  return (
+    MARKETS.find((m) => m.neighborhoods.some((n) => n.toLowerCase() === needle)) ??
+    MARKETS.find((m) => m.submarkets.some((n) => n.toLowerCase() === needle)) ??
+    null
+  )
+}
+
+/**
+ * The market implied by a client's saved location criteria, in priority order:
+ *   1. their saved desired areas (resolved through the catalog)
+ *   2. their saved city/market
+ * Returns null when neither is usable, so the caller can fall back to the agent's
+ * primary service market.
+ */
+export function marketForClientCriteria(
+  desiredAreas: string | null | undefined,
+  city: string | null | undefined,
+): Market | null {
+  for (const raw of (desiredAreas ?? "").split(",")) {
+    const m = marketForNeighborhood(raw)
+    if (m) return m
+  }
+  return city ? getMarketByName(city.trim()) ?? null : null
+}

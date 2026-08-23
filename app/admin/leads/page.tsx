@@ -148,13 +148,13 @@ async function getScheduledTours() {
 // first_name personalizes the demo welcome banner.
 type AgentProfile = { name: string; brokerage: string; phone: string; email: string }
 
-async function getProfileContext(): Promise<{ demoMode: boolean; firstName: string; googleConnected: boolean; agent: AgentProfile; signature: ResolvedAgentIdentity | null; avgCommission: number; timeZone: string; companionOwner: string; userId: string }> {
+async function getProfileContext(): Promise<{ demoMode: boolean; firstName: string; googleConnected: boolean; agent: AgentProfile; signature: ResolvedAgentIdentity | null; avgCommission: number; timeZone: string; companionOwner: string; userId: string; serviceAreaSlugs: string[] }> {
   const emptyAgent: AgentProfile = { name: "", brokerage: "", phone: "", email: "" }
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) return { demoMode: false, firstName: "", googleConnected: false, agent: emptyAgent, signature: null, avgCommission: DEFAULT_AVG_COMMISSION, timeZone: DEFAULT_TIMEZONE, companionOwner: "", userId: "" }
+  if (!user) return { demoMode: false, firstName: "", googleConnected: false, agent: emptyAgent, signature: null, avgCommission: DEFAULT_AVG_COMMISSION, timeZone: DEFAULT_TIMEZONE, companionOwner: "", userId: "", serviceAreaSlugs: [] }
   const { data: profile } = await supabase
     .from("profiles")
     .select("demo_mode, first_name, last_name, preferred_name, email, brokerage, phone_number, google_connected, avg_commission_per_lease")
@@ -175,6 +175,15 @@ async function getProfileContext(): Promise<{ demoMode: boolean; firstName: stri
   // authenticated session — never from the browser — so the extension's stored
   // records are bound to an identity the page cannot forge.
   const companionOwner = `${user.id}:${membership?.workspace_id ?? ""}`
+  // The workspace's selected markets, in selection order — the first is the
+  // primary market and decides Beast Property Explorer's initial viewport.
+  const { data: ws } = membership?.workspace_id
+    ? await supabase
+        .from("workspaces")
+        .select("service_areas")
+        .eq("id", membership.workspace_id)
+        .maybeSingle()
+    : { data: null as { service_areas?: string[] | null } | null }
   const timeZone = await resolveUserTimeZone(supabase, user.id, membership?.workspace_id ?? null)
   // Preferred Name is the display name shown throughout Locator Beast; the
   // legal first/last name is the fallback when it isn't set.
@@ -199,6 +208,7 @@ async function getProfileContext(): Promise<{ demoMode: boolean; firstName: stri
     timeZone,
     companionOwner,
     userId: user.id,
+    serviceAreaSlugs: ws?.service_areas ?? [],
   }
 }
 
@@ -214,7 +224,7 @@ async function isPlatformAdmin(): Promise<boolean> {
 }
 
 export default async function Page() {
-  const { demoMode, firstName, googleConnected, agent, signature, avgCommission, timeZone, companionOwner, userId } = await getProfileContext()
+  const { demoMode, firstName, googleConnected, agent, signature, avgCommission, timeZone, companionOwner, userId, serviceAreaSlugs } = await getProfileContext()
   const voiceEnabled = await isPlatformAdmin()
 
   if (demoMode) {
@@ -236,6 +246,7 @@ export default async function Page() {
         voiceEnabled={voiceEnabled}
         companionOwner={companionOwner}
         userId={userId}
+        serviceAreaSlugs={serviceAreaSlugs}
       />
     )
   }
@@ -249,5 +260,5 @@ export default async function Page() {
     getScheduledTours(),
   ])
 
-  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} recommendations={recommendations} outreach={outreach} tours={tours} agent={agent} signature={signature} avgCommission={avgCommission} timeZone={timeZone} voiceEnabled={voiceEnabled} companionOwner={companionOwner} userId={userId} />
+  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} recommendations={recommendations} outreach={outreach} tours={tours} agent={agent} signature={signature} avgCommission={avgCommission} timeZone={timeZone} voiceEnabled={voiceEnabled} companionOwner={companionOwner} userId={userId} serviceAreaSlugs={serviceAreaSlugs} />
 }
