@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server"
 import { resolveAgentIdentityForOwner, type ResolvedAgentIdentity } from "@/lib/notifications/agentSignature"
 import { resolveUserTimeZone } from "@/lib/timezone/server"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
+import { greetingName } from "@bc/companion-shared"
 import { DEMO_ALL_LEADS, DEMO_NEXT_ACTIONS, DEMO_FAVORITES, DEMO_RECOMMENDATIONS, DEFAULT_AVG_COMMISSION_PER_LEASE } from "@/lib/demo/demoWorkspace"
 
 // Fallback per-close commission when a profile hasn't set its own — matches
@@ -200,7 +201,12 @@ async function getProfileContext(): Promise<{ demoMode: boolean; firstName: stri
   const signature = await resolveAgentIdentityForOwner(supabase, user.id)
   return {
     demoMode: !!profile?.demo_mode,
-    firstName: preferred || (profile?.first_name ?? ""),
+    // Preferred Name is free text, so it may hold a FULL name ("Jay Morris").
+    // greetingName() reduces whatever the display rule resolves to down to a
+    // given name, so the welcome banner greets "Jay" and never the full legal
+    // name. Order is unchanged: preferred wins, legal first name is the
+    // fallback, and an account with neither yields "" (banner drops the name).
+    firstName: greetingName(preferred || (profile?.first_name ?? "")),
     googleConnected: !!profile?.google_connected,
     agent,
     signature,

@@ -54,12 +54,8 @@ import { followUpSuccessorDueAt } from "@/lib/workflow/moveDateCadence"
 import { autoDueInDays } from "@/lib/workflow/autoDueDate"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { dialUrl, launchExternalProtocol } from "@/lib/leads/launchCommunication"
-import { formatPersonName, buildIntroSmsBody } from "@bc/companion-shared"
+import { formatPersonName, greetingName, buildIntroSmsBody } from "@bc/companion-shared"
 import type { ResolvedAgentIdentity } from "@/lib/notifications/agentSignature"
-
-function titleCaseName(name: string): string {
-  return name.trim().replace(/\b\w/g, (c) => c.toUpperCase())
-}
 
 // The legacy Lead Panel is HIDDEN in every environment (localhost AND production)
 // so the current Workspace is the one visible CRM layout while we finish Beast
@@ -2083,7 +2079,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-[var(--crm-text-primary)]">
                 {firstName.trim()
-                  ? `Welcome to Locator Beast, ${titleCaseName(firstName)}!`
+                  ? `Welcome to Locator Beast, ${greetingName(firstName)}!`
                   : "Welcome to Locator Beast!"}
               </p>
               <p className="text-[12.5px] text-[var(--crm-text-secondary)]">

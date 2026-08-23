@@ -57,10 +57,17 @@ export function buildInitialSmartFormConfig(input: InitialFormInput): SmartLeadF
   // AgentPhoto, so clearing the placeholder name is also what stops "JB" from
   // appearing for an agent whose initials are not J.B.
 
-  // Lead-gen tool: show the locator's phone only when we actually have one.
-  visibility.phoneNumber = !!phone
-
   // NEW FORMS START CLEAN.
+  // Phone: intentional funnel behavior. A visible click-to-call button lets a
+  // renter bypass the form entirely — they call, and the lead is never captured.
+  // Starting OFF means the form is the path of least resistance. The number is
+  // still written to copy.phoneNumber above (and lives in profile data, emails,
+  // signatures, guest cards, CRM and Beast Companion), so flipping "Show phone
+  // number" back on in the editor reveals it immediately with the value intact.
+  // This only sets the INITIAL state for a brand-new form: every creation path
+  // is gated on there being no saved config, so an agent who already chose to
+  // show their phone keeps that choice.
+  visibility.phoneNumber = false
   // Headline: the feature stays fully available in the editor — this only sets
   // its INITIAL state, so "Stop Wasting Time Searching for Apartments" is never
   // published on a brand-new form before the agent has written their own.

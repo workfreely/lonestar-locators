@@ -127,7 +127,7 @@ export type { Period, TimeParts } from "./format/time";
 
 // Person-name + phone display formatting (mirrors the CRM helpers; raw values
 // are never modified — display/copy only)
-export { formatPersonName } from "./format/name";
+export { formatPersonName, greetingName } from "./format/name";
 export { formatPhone } from "./format/phone";
 
 // Read-only unit-number display ("3456" → "#3456"); raw value is never modified.

@@ -43,3 +43,22 @@ export function formatPersonName(name: string | null | undefined): string {
     .map((word) => (isUniformCase(word) ? titleCaseWord(word) : word))
     .join(" ");
 }
+
+/**
+ * The name to GREET someone by — "Welcome to Locator Beast, Jay!".
+ *
+ * Locator Beast's display rule is "preferred name wins, else legal first name",
+ * and callers pass the already-resolved display name here. That resolved value
+ * is not always a given name: Preferred Name is a free-text field, so an agent
+ * who types their full name into it ("Jay Morris") would otherwise be greeted by
+ * their full legal name. A greeting takes the FIRST token of whatever display
+ * name it is given, then formats it with the one shared formatter above.
+ *
+ * Deliberately not a second parser: no particle/prefix inference, no surname
+ * detection, no reordering. First whitespace-delimited token, title-cased.
+ *   "Jay Morris" → "Jay"   "jay" → "Jay"   "Mary Jane Smith" → "Mary"   "" → ""
+ */
+export function greetingName(displayName: string | null | undefined): string {
+  const first = String(displayName ?? "").trim().split(/\s+/).filter(Boolean)[0] ?? "";
+  return formatPersonName(first);
+}
