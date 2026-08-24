@@ -2241,9 +2241,13 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                 primaryMarket={primaryMarket}
                 licenseState={licenseState}
                 recommendedUrls={
-                  selectedLead
+                  // Same session client the map resolves its market from, NOT the
+                  // CRM selection: the board (and therefore the map) is hidden
+                  // whenever a lead is selected, so reading selectedLead here
+                  // always produced [] and the pin could never show ✓ Recommended.
+                  sessionClientLead
                     ? localRecommendations
-                        .filter((r: any) => String(r.lead_id) === String(selectedLead.id))
+                        .filter((r: any) => String(r.lead_id) === String(sessionClientLead.id))
                         .map((r: any) => String(r.property_url ?? ""))
                         .filter(Boolean)
                     : []
@@ -2268,7 +2272,14 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                   )
                 }}
                 onRecommend={(property) => {
-                  if (!selectedLead) return
+                  // Resolve against the SESSION client, not the CRM selection.
+                  // The board wrapper is `hidden` while a lead is selected, so the
+                  // map is only ever visible when selectedLead is null — meaning
+                  // this guard rejected every click the agent could actually make
+                  // and the verb was never dispatched. Same root cause as the SAD
+                  // recommendation bug: the map asked "who is selected?" when the
+                  // question is "who is this session on?".
+                  if (!sessionClientLead) return
                   // Dispatch the EXISTING add-recommendation verb — the same entry
                   // point Beast Companion uses. No Google-specific storage and no
                   // second recommendation path: dedupe, demo handling, the insert
@@ -2279,7 +2290,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                       type: "workflow-verb",
                       payload: {
                         verb: "add-recommendation",
-                        leadId: selectedLead.id,
+                        leadId: sessionClientLead.id,
                         property: {
                           propertyName: property.propertyName,
                           propertyUrl: property.propertyUrl,
