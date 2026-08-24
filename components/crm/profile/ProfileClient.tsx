@@ -124,6 +124,12 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
   // The market Beast Property Explorer opens in when no client is selected.
   // Always one of serviceAreas; never inferred from selection order.
   const [primaryMarket, setPrimaryMarket] = useState<string | null>(null)
+  // Validation is shown only AFTER a save attempt. On first load an unset
+  // primary is simply a field not filled in yet, not a mistake — colouring it
+  // red before the agent has done anything scolds them for the page's own
+  // initial state. The requirement itself is unchanged: handleSave still
+  // refuses, so the field is exactly as mandatory as it was.
+  const [attemptedSave, setAttemptedSave] = useState(false)
   const [publicSlug, setPublicSlug] = useState<string | null>(null)
   const [areasLoaded, setAreasLoaded] = useState(false)
 
@@ -248,6 +254,8 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
 
   async function handleSave() {
     if (!userId) return
+    // From here on, an unset primary IS a mistake worth flagging.
+    setAttemptedSave(true)
 
     // Every workspace must serve between 1 and MAX_SERVICE_AREAS markets. Checked
     // BEFORE any write: handleSave persists Business Information and Service Areas
@@ -499,10 +507,23 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
           button below. */}
       <div className="space-y-4">
       <SettingsCard title="Business Information">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {/* Two rows on desktop, driven by a 12-column track so the widths can be
+            proportional rather than equal:
+              row 1  Brokerage 5 · License State 3 · License Number 4
+              row 2  Phone 6 · Email 6
+            License State only holds a two-letter code or a short select, so it
+            takes the narrowest column; Brokerage holds the longest free text and
+            takes the widest. Below `sm` the track collapses to one column and
+            every field stacks exactly as before — the spans simply stop applying.
+            SettingsField takes no className and is shared, so the spans live on
+            local wrappers instead of changing that component for every page. */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
+          <div className="sm:col-span-5">
           <SettingsField label="Brokerage">
             <input value={brokerage} onChange={(e) => setBrokerage(e.target.value)} className={settingsInputCls} />
           </SettingsField>
+          </div>
+          <div className="sm:col-span-3">
           <SettingsField label="License State">
             {licenseVerified ? (
               <input
@@ -526,6 +547,8 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
               </select>
             )}
           </SettingsField>
+          </div>
+          <div className="sm:col-span-4">
           <SettingsField
             label="License Number"
             hint={
@@ -558,6 +581,8 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
               </div>
             )}
           </SettingsField>
+          </div>
+          <div className="sm:col-span-6">
           <SettingsField label="Phone Number">
             {/* No `type` attribute at all (like the other Profile fields) so it
                 doesn't match the global input[type="text"|"tel"|…] rule that
@@ -572,6 +597,8 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
               className={settingsInputCls}
             />
           </SettingsField>
+          </div>
+          <div className="sm:col-span-6">
           <SettingsField label="Email Address">
             {/* Type-less for the same reason — inputMode keeps the email
                 keyboard on mobile. */}
@@ -582,6 +609,7 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
               className={settingsInputCls}
             />
           </SettingsField>
+          </div>
         </div>
       </SettingsCard>
 
@@ -660,11 +688,11 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
               path auto-selects it), and offering a list of one is noise. */}
           {serviceAreas.length > 1 && (
             <div className="mt-5 border-t border-[#eceef3] pt-4">
-              <p className="text-[13px] font-semibold text-[#111318]">Primary Market</p>
+              <p className="text-[13px] font-semibold text-[#111318]">Choose your Primary Market</p>
               <p className="mb-2 mt-0.5 text-[12px] font-medium text-[#9098a8]">
                 Used as your default market when no client is selected.
               </p>
-              {!primaryMarket && (
+              {attemptedSave && !primaryMarket && (
                 <p role="alert" className="mb-2 text-[12px] font-semibold text-red-600">
                   Choose your Primary Market.
                 </p>
