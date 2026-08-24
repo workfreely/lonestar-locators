@@ -21,6 +21,11 @@ export type LocationFit = {
 }
 
 export type ClientLocationContext = {
+  /** Lead identity. Used ONLY to tell one client from another when deciding
+   *  whether a map-session market override still belongs to them — never for
+   *  location logic, which reads city/desiredAreas below. Optional so existing
+   *  callers that pass only location remain valid. */
+  id?: string | number | null
   /** The lead's market — stored as the catalog DISPLAY NAME (e.g. "Miami"). */
   city: string | null
   /** Comma-joined free text the client chose (neighborhoods, or submarkets). */

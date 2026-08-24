@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { loadGoogleMaps, MapsConfigError } from "@/lib/propertyExplorer/loadMaps"
-import { placeUrl, type ExplorerProperty } from "@/lib/propertyExplorer/types"
+import { hasCoordinates, placeUrl, type ExplorerProperty } from "@/lib/propertyExplorer/types"
 import { assessLocationFit, type ClientLocationContext } from "@/lib/propertyExplorer/locationFit"
 import { computeSuggestions } from "@/lib/propertyExplorer/suggestions"
 import { boundsForMarket, getMarketBySlug, isInsideMarket, isMarketInState, marketsForSlugs, resolveMapMarket } from "@/lib/markets/catalog"
@@ -106,7 +106,14 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   // A new client (or clearing the selection) invalidates a browse override: the
   // next client must start from their own criteria, and with no client the map
   // returns to the agent's Primary Market.
-  const clientKey = activeClient ? `${activeClient.city ?? ""}|${activeClient.desiredAreas ?? ""}` : null
+  // Keyed on the lead's IDENTITY when we have one. Keying on city|desiredAreas
+  // alone meant two different clients with the same criteria — two Austin clients
+  // wanting "All of Austin" — produced the same key, so switching between them
+  // left the previous browse override in place. Falls back to the criteria for
+  // any caller that supplies no id.
+  const clientKey = activeClient
+    ? `${activeClient.id ?? ""}|${activeClient.city ?? ""}|${activeClient.desiredAreas ?? ""}`
+    : null
   useEffect(() => {
     setMarketOverride(null)
   }, [clientKey])
@@ -311,7 +318,13 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     const map = mapRef.current
     if (!map) return
     clearMarkers()
-    for (const p of visible) {
+    // A marker REQUIRES a real point. Google's own filter above already drops a
+    // place with no location, so this changes nothing for Places today — it is
+    // the guarantee that holds when a provider with partial coordinates
+    // normalizes into the same shape. Such a property still lists and still
+    // reaches the workflow; it simply cannot be plotted, which is the honest
+    // outcome when nobody knows where it is.
+    for (const p of visible.filter(hasCoordinates)) {
       const MarkerCtor = markerLibRef.current?.Marker ?? google.maps.Marker
       const isSuggested = suggestions.has(p.placeId)
       const marker = new MarkerCtor({

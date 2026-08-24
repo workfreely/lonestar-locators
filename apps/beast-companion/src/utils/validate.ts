@@ -20,7 +20,7 @@
 export const MSG_SOURCE = "lb-companion";
 
 /** Every message type the content scripts will accept. Anything else is dropped. */
-export const INBOUND_TYPES = ["active-client", "changed", "signed-out"] as const;
+export const INBOUND_TYPES = ["active-client", "current-property", "changed", "signed-out"] as const;
 export type InboundType = (typeof INBOUND_TYPES)[number];
 
 /**
@@ -98,6 +98,56 @@ export function isValidActiveClientPayload(
   if (!textOk(lead.clientNotes) || !textOk(lead.locatorNotes)) return false;
   if (!arrayOk(p.nextActions) || !arrayOk(p.favorites) || !arrayOk(p.recommendations)) return false;
   if (!arrayOk(lead.aiInsights)) return false;
+
+  return isWithinSizeLimit(payload);
+}
+
+/** Identity/short-token fields: present, non-empty, and bounded. */
+function idOk(v: unknown, max = 512): v is string {
+  return typeof v === "string" && v.length > 0 && v.length <= max;
+}
+
+/**
+ * A coordinate is either genuinely absent (null/undefined) or a real, in-range
+ * number. An out-of-range or non-finite value is treated as a FORGERY rather
+ * than quietly nulled: our sender never produces one, so its presence means the
+ * message did not come from us, and the whole message is rejected.
+ */
+function coordOk(v: unknown, limit: number): boolean {
+  if (v === null || v === undefined) return true;
+  return typeof v === "number" && Number.isFinite(v) && Math.abs(v) <= limit;
+}
+
+/**
+ * Current-property payload schema — the Property Explorer → Companion handoff.
+ *
+ * Identity is mandatory (id, name, url) because this record can become a
+ * Recommendation, and an unidentifiable property would be unusable there. The
+ * geographic fields are optional throughout: a provider that exposes no
+ * coordinates is a legitimate case, and the correct representation is absence,
+ * never a substituted value.
+ */
+export function isValidCurrentPropertyPayload(
+  payload: unknown,
+): payload is {
+  propertyId: string
+  propertyName: string
+  propertyUrl: string
+} & Record<string, unknown> {
+  if (!payload || typeof payload !== "object") return false;
+  const p = payload as Record<string, unknown>;
+
+  if (!idOk(p.propertyId) || !idOk(p.propertyName, MAX_TEXT) || !idOk(p.propertyUrl)) return false;
+  if (!textOk(p.propertyAddress)) return false;
+  if (!coordOk(p.lat, 90) || !coordOk(p.lng, 180)) return false;
+  if (p.placeId !== null && p.placeId !== undefined && !idOk(p.placeId)) return false;
+  if (p.marketSlug !== null && p.marketSlug !== undefined && !idOk(p.marketSlug, 128)) return false;
+  if (
+    p.source !== undefined &&
+    p.source !== "google_places" &&
+    p.source !== "smart_apartment_data"
+  )
+    return false;
 
   return isWithinSizeLimit(payload);
 }

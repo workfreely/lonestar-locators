@@ -8,6 +8,7 @@ import { startWorkflowVerbBridge } from "./workflowVerbBridge";
 import { startCommLaunchBridge } from "./commLaunchBridge";
 import { startCardOpenBridge } from "./cardOpenBridge";
 import { startCurrentPropertyBridge, syncCurrentProperty } from "./currentPropertyBridge";
+import { startMapPropertyBridge } from "./mapPropertyBridge";
 import { log, logError } from "@/utils/log";
 import type { PanelSide } from "@/types";
 
@@ -130,6 +131,12 @@ function init(): void {
     // page (URL propertyID primary) and relays it into chrome.storage for the
     // panel. Self-gated: writes null on any non-property page. Never persisted.
     startCurrentPropertyBridge();
+
+    // Map-property bridge — a Beast Property Explorer marker click becomes the
+    // Current Property, writing the SAME storage key the SAD detector above uses.
+    // Self-gated to CRM pages, and never writes null: unlike detection, it acts
+    // only on an explicit click, so it cannot clear a property found in a SAD tab.
+    startMapPropertyBridge();
 
     log("ready — launcher docked; click opens the native side panel (native X closes)");
   } catch (err) {

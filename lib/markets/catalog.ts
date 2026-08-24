@@ -576,21 +576,47 @@ export function marketForNeighborhood(area: string | null | undefined): Market |
 }
 
 /**
- * The market implied by a client's saved location criteria, in priority order:
- *   1. their saved desired areas (resolved through the catalog)
- *   2. their saved city/market
- * Returns null when neither is usable, so the caller can fall back to the agent's
- * primary service market.
+ * The market implied by a client's saved location criteria.
+ *
+ * The saved CITY is the anchor whenever it names a supported market. Desired
+ * areas refine or confirm it; they never relocate the client to another metro.
+ *
+ * This ordering was the other way round, and it moved clients between markets.
+ * Neighborhood names are not unique across metros — "Midtown" is a submarket of
+ * more than one — so a client saved as Houston wanting "Midtown, Montrose" was
+ * resolved into Dallas by the first token, against the explicit city sitting
+ * right next to it. Free text guessed at is weaker evidence than a supported
+ * market the agent actually chose, so the city wins any disagreement.
+ *
+ * Desired areas still decide when there is no usable city, but only when they
+ * point at exactly ONE market: two areas naming two different metros is a
+ * genuine ambiguity, and inventing a winner there would repeat the same bug in
+ * a quieter form. Returning null lets the caller fall back to the agent's
+ * primary market, which is the honest answer when the client's own criteria do
+ * not identify one.
  */
 export function marketForClientCriteria(
   desiredAreas: string | null | undefined,
   city: string | null | undefined,
 ): Market | null {
+  const anchor = city ? getMarketByName(city.trim()) ?? null : null
+
+  // Every DISTINCT market the desired areas point at. Deduped by slug so
+  // "South Austin, Zilker" counts once — that is agreement, not ambiguity.
+  const derived: Market[] = []
   for (const raw of (desiredAreas ?? "").split(",")) {
     const m = marketForNeighborhood(raw)
-    if (m) return m
+    if (m && !derived.some((d) => d.slug === m.slug)) derived.push(m)
   }
-  return city ? getMarketByName(city.trim()) ?? null : null
+
+  // An explicit supported city settles it. Desired areas that agree add nothing
+  // to the market choice (they are finer-grained than a market); ones that
+  // disagree are exactly the case this anchor exists to refuse.
+  if (anchor) return anchor
+
+  // No usable city — a desired area may decide, but only unambiguously.
+  if (derived.length === 1) return derived[0]
+  return null
 }
 
 // ── Primary Market ───────────────────────────────────────────────────────────

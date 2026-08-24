@@ -72,9 +72,14 @@ function LoadingSkeleton() {
 
 export function PanelStateView({
   state,
-  onConnect,
 }: {
   state: Exclude<PanelState, "loaded">;
+  /**
+   * Still accepted so every caller stays as it was, but no longer used: the one
+   * state that offered a connect action no longer does. Kept rather than ripped
+   * out because the handler behind it (ProductionPanel → "companion:start-connect")
+   * is untouched and would be the hook if a real connect flow ever lands.
+   */
   onConnect?: () => void;
 }) {
   switch (state) {
@@ -98,13 +103,18 @@ export function PanelStateView({
         />
       );
     case "not-connected":
-      // Pre-authenticated state — the user must connect first.
+      // Companion has nothing to show until a client is picked in the CRM, and
+      // selecting one connects it automatically. The old copy ("Not connected" +
+      // a "Connect to Locator Beast" button) described a manual connection step
+      // that does not exist: the message it sent, "companion:start-connect", has
+      // no listener anywhere, so the button did nothing when clicked. Naming the
+      // action the agent actually needs to take is the whole fix — the icon and
+      // the empty-state styling are unchanged.
       return (
         <Centered
           icon="🔌"
-          title="Not connected"
-          body="Connect your Locator Beast account to view your clients here."
-          action={{ label: "Connect to Locator Beast", onClick: onConnect }}
+          title="Select a client to start a session"
+          body="Click a client card in Locator Beast to connect Companion and load their details here."
         />
       );
     case "unauthorized":

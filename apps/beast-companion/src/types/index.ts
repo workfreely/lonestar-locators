@@ -68,9 +68,31 @@ export type CurrentProperty = {
    *  ("$925 - $1,199" → { min: 925, max: 1199 }). Not a selected unit's rent. Null when
    *  the chip is absent or carries no figure — unknown, never $0. */
   propertyRent?: { min: number; max: number } | null;
-  /** The actual SAD ViewProperty.aspx?propertyID=... URL. */
+  /** The canonical property URL. SAD's ViewProperty.aspx?propertyID=... for a
+   *  detected property; the Google Maps place URL for one picked on the map. */
   propertyUrl: string;
   propertyImageUrl?: string | null;
+
+  // ── Geographic / provenance metadata ──────────────────────────────────────
+  // Added for Beast Property Explorer, which knows a property's real coordinates
+  // at selection time. Every field is OPTIONAL so a SAD-detected property — which
+  // exposes none of them — remains valid and unchanged; absent means unknown.
+  //
+  // These live on the SHARED type rather than in a map-specific property model:
+  // a property picked on the map must be the same kind of thing as one detected
+  // on SAD, or the Recommendation/Favorite workflow would need a second path.
+
+  /** Real latitude, or null/absent when unknown. NEVER estimated or derived. */
+  lat?: number | null;
+  /** Real longitude, or null/absent when unknown. NEVER estimated or derived. */
+  lng?: number | null;
+  /** Provider's stable place identity (Google Place ID) when the source has one. */
+  placeId?: string | null;
+  /** Which provider this came from. Absent on SAD-detected properties, which
+   *  predate the field and are implicitly Smart Apartment Data. */
+  source?: "google_places" | "smart_apartment_data";
+  /** Catalog slug for the market the property was found in, when known. */
+  marketSlug?: string | null;
 };
 
 /** Content → Background: open the global native side panel for the sender's window. */

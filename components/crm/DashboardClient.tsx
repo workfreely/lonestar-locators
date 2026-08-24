@@ -25,6 +25,7 @@ import AppHeader from "./AppHeader"
 import { CRM_PRIMARY_BUTTON, CRM_SECONDARY_BUTTON } from "@/lib/crmButtonStyles"
 import type { GuestCardAgent } from "@/lib/leads/guestCard"
 import { buildActiveClientPayload, COMPANION_MSG_SOURCE, type LatestOutreach } from "@/lib/companion/leadToDto"
+import { toCompanionProperty } from "@/lib/propertyExplorer/types"
 import { recordFirstContact } from "@/lib/leads/contactWorkflow"
 import { recordPendingOutreach } from "@/lib/leads/pendingOutreach"
 import { completeBuildList, startBuildList } from "@/lib/leads/buildListWorkflow"
@@ -82,6 +83,11 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   licenseState?: string | null }) {
   const router = useRouter()
   const [selectedLeadId, setSelectedLeadId] = useState<string | number | null>(null)
+  // The client the SESSION is on — the one Beast Companion is showing. It is a
+  // REACTIVE twin of companionLeadIdRef (that ref serves the non-reactive guard in
+  // postCompanionActiveClient; the Map has to RENDER from this, and a ref change
+  // alone would leave Property Explorer on the previous client's market).
+  const [companionLeadId, setCompanionLeadId] = useState<string | number | null>(null)
   // Centered CRM contact modal for a New→Contacted DRAG (the Kanban presentation
   // of the canonical contact flow). Identity captured at drag time is immutable —
   // the modal + write stay bound to this leadId regardless of the active client.
@@ -279,6 +285,24 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     (l) => String(l.id) === String(selectedLeadId)
   )
 
+  // The client the MAP resolves its market from.
+  //
+  // Not `selectedLead`. closeWorkspace() sets selectedLeadId to null to return to
+  // the board, but the CRM deliberately never posts a "clear" — so Companion goes
+  // on showing that client. Reading the CRM selection here meant the Map asked a
+  // different question than the panel next to it: select an Austin client, close
+  // the workspace, switch to Map, and the selection was already gone, so the map
+  // fell through to the agent's Primary Market and opened the wrong city while
+  // Companion still displayed the Austin client.
+  //
+  // companionLeadId is the same value the active-client broadcast last sent, so
+  // the two surfaces now agree by construction. Demo and real leads both live in
+  // localLeads and are looked up identically — there is no demo-specific path.
+  const sessionClientLead =
+    selectedLead ??
+    localLeads.find((l: any) => String(l.id) === String(companionLeadId)) ??
+    null
+
   // ── AI Client Insights fetch for the active lead (read-only, Location Fit) ──
   // On selection, load the lead's ai_client_briefs.insights ONCE (demo clients use
   // the in-memory getDemoBrief; real leads query the brief row). Cached by lead id
@@ -327,6 +351,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     try {
       const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites, localTours, localRecommendations, insightsFor(selectedLead.id), companionOwner)
       companionLeadIdRef.current = selectedLead.id // this lead is now what Companion shows
+      setCompanionLeadId(selectedLead.id) // …and the Map resolves its market from it
       window.postMessage(
         { source: COMPANION_MSG_SOURCE, type: "active-client", payload },
         window.location.origin
@@ -1085,6 +1110,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     // workspace has been closed (selectedLeadId === null) and the panel is
     // running purely on its last-broadcast client.
     companionLeadIdRef.current = lead.id
+    setCompanionLeadId(lead.id)
 
     // Optimistic outreach → Companion shows the Last Action ("Called — No Answer"
     // / "Sent Text") and Status ("No Answer" / "Waiting for Reply") immediately,
@@ -1206,6 +1232,25 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
 
       const lead = localLeadsRef.current.find((l: any) => String(l.id) === String(payload.leadId))
       if (!lead) return
+
+      // A verb ARRIVING for this lead proves Companion is showing it — the panel
+      // only ever sends verbs for its own displayed client. Adopt that as the
+      // shown-lead identity before any handler runs.
+      //
+      // Without this, the post-write re-broadcast below could not fire from the
+      // Smart Apartment Data path. companionLeadIdRef is otherwise set only when
+      // the CRM ITSELF selects a lead, but Companion restores its last client
+      // from chrome.storage and survives a CRM reload — so an agent working on a
+      // SAD tab could hold a client the CRM page had never selected. The ref was
+      // then null, postCompanionActiveClient's identity guard rejected the
+      // refresh, and "+ Recommendation" wrote the row yet never became
+      // "✓ Recommended" because Companion was never told.
+      //
+      // The Google/Property Explorer path is unaffected by construction: there
+      // the agent is in the CRM with the lead selected, so the ref already equals
+      // payload.leadId and this assignment writes the value it already holds.
+      companionLeadIdRef.current = lead.id
+      setCompanionLeadId(lead.id)
 
       // "Build List" START — open SAD happens in the panel; here we advance the
       // workflow Contacted → Searching WITHOUT creating Send List and WITHOUT
@@ -2203,6 +2248,25 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                         .filter(Boolean)
                     : []
                 }
+                onSelectProperty={(property) => {
+                  // Clicking a marker publishes the property as CURRENT PROPERTY
+                  // context, on the same channel Companion already receives
+                  // active-client on. It is page/selection context, not a saved
+                  // record: nothing is written, and it is not tied to the lead.
+                  //
+                  // The full normalized property goes across — lat, lng, placeId,
+                  // source and marketSlug included — so a consumer never has to
+                  // ask Places for coordinates the map already loaded. Values are
+                  // forwarded exactly as held: a null coordinate stays null.
+                  window.postMessage(
+                    {
+                      source: COMPANION_MSG_SOURCE,
+                      type: "current-property",
+                      payload: toCompanionProperty(property),
+                    },
+                    window.location.origin,
+                  )
+                }}
                 onRecommend={(property) => {
                   if (!selectedLead) return
                   // Dispatch the EXISTING add-recommendation verb — the same entry
@@ -2229,10 +2293,12 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                 }}
                 serviceAreaSlugs={serviceAreaSlugs}
                 activeClient={
-                  selectedLead
+                  sessionClientLead
                     ? {
-                        city: selectedLead.city ?? null,
-                        desiredAreas: selectedLead.neighborhoods ?? selectedLead.submarkets ?? null,
+                        id: sessionClientLead.id ?? null,
+                        city: sessionClientLead.city ?? null,
+                        desiredAreas:
+                          sessionClientLead.neighborhoods ?? sessionClientLead.submarkets ?? null,
                       }
                     : null
                 }
