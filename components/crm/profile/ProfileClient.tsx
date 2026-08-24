@@ -474,8 +474,11 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
         </div>
       </SettingsCard>
 
-      {/* Legal Information */}
-      <SettingsCard title="Legal Information" description="Used for account verification.">
+      {/* Account Information — the agent's own identity and how we reach them.
+          Phone and Email moved here from Business Information: they identify the
+          PERSON, not the brokerage, so they belong beside the names rather than
+          beside a licence. */}
+      <SettingsCard title="Account Information" description="Used for account verification.">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <SettingsField label="Legal First Name">
             <input value={firstName} onChange={(e) => setFirstName(e.target.value)} className={settingsInputCls} />
@@ -500,6 +503,34 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
             <input value={preferredLastName} onChange={(e) => setPreferredLastName(e.target.value)} placeholder="e.g. Vale" className={settingsInputCls} />
           </SettingsField>
         </div>
+        {/* Row 3 — contact details. Same two-column rhythm as the name rows, so
+            the card reads as one block rather than a list with an appendix. */}
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <SettingsField label="Phone Number">
+            {/* No `type` attribute at all (like the other Profile fields) so it
+                doesn't match the global input[type="text"|"tel"|…] rule that
+                overrides font/padding — that rule targets typed inputs only,
+                and the other fields are type-less. inputMode keeps the phone
+                keypad on mobile. */}
+            <input
+              inputMode="tel"
+              value={phone}
+              onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
+              placeholder="(210) 555-1234"
+              className={settingsInputCls}
+            />
+          </SettingsField>
+          <SettingsField label="Email Address">
+            {/* Type-less for the same reason — inputMode keeps the email
+                keyboard on mobile. */}
+            <input
+              inputMode="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={settingsInputCls}
+            />
+          </SettingsField>
+        </div>
       </SettingsCard>
 
       {/* Business Information + Service Areas — one cohesive business-profile
@@ -509,21 +540,24 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
       <SettingsCard title="Business Information">
         {/* Two rows on desktop, driven by a 12-column track so the widths can be
             proportional rather than equal:
-              row 1  Brokerage 5 · License State 3 · License Number 4
-              row 2  Phone 6 · Email 6
-            License State only holds a two-letter code or a short select, so it
-            takes the narrowest column; Brokerage holds the longest free text and
-            takes the widest. Below `sm` the track collapses to one column and
-            every field stacks exactly as before — the spans simply stop applying.
-            SettingsField takes no className and is shared, so the spans live on
-            local wrappers instead of changing that component for every page. */}
+              row 1  Brokerage 8 · License State 4
+              row 2  License Number 12
+            License State holds only a two-letter code or a short select, so it
+            takes the narrower column; Brokerage holds the longest free text.
+            License Number keeps a row to itself because its verification notice
+            sits directly underneath — sharing the row put explanatory text below
+            a neighbouring field it did not belong to.
+            Below `sm` the track collapses to one column and every field stacks
+            exactly as before — the spans simply stop applying. SettingsField
+            takes no className and is shared, so the spans live on local wrappers
+            instead of changing that component for every page. */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
-          <div className="sm:col-span-5">
+          <div className="sm:col-span-8">
           <SettingsField label="Brokerage">
             <input value={brokerage} onChange={(e) => setBrokerage(e.target.value)} className={settingsInputCls} />
           </SettingsField>
           </div>
-          <div className="sm:col-span-3">
+          <div className="sm:col-span-4">
           <SettingsField label="License State">
             {licenseVerified ? (
               <input
@@ -548,7 +582,7 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
             )}
           </SettingsField>
           </div>
-          <div className="sm:col-span-4">
+          <div className="sm:col-span-12">
           <SettingsField
             label="License Number"
             hint={
@@ -580,34 +614,6 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
                 )}
               </div>
             )}
-          </SettingsField>
-          </div>
-          <div className="sm:col-span-6">
-          <SettingsField label="Phone Number">
-            {/* No `type` attribute at all (like the other Profile fields) so it
-                doesn't match the global input[type="text"|"tel"|…] rule that
-                overrides font/padding — that rule targets typed inputs only,
-                and the other fields are type-less. inputMode keeps the phone
-                keypad on mobile. */}
-            <input
-              inputMode="tel"
-              value={phone}
-              onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
-              placeholder="(210) 555-1234"
-              className={settingsInputCls}
-            />
-          </SettingsField>
-          </div>
-          <div className="sm:col-span-6">
-          <SettingsField label="Email Address">
-            {/* Type-less for the same reason — inputMode keeps the email
-                keyboard on mobile. */}
-            <input
-              inputMode="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={settingsInputCls}
-            />
           </SettingsField>
           </div>
         </div>
@@ -753,7 +759,7 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
       <TimezoneSetting initialTimeZone={initial.timeZone} />
 
       {/* Account security — its own section directly after Time Zone rather than
-          buried under Legal Information. Functionality unchanged. */}
+          buried under the identity card above. Functionality unchanged. */}
       <PasswordSetting email={email} />
 
       {/* Demo Workspace — moved out of the Getting Started checklist, where it read
