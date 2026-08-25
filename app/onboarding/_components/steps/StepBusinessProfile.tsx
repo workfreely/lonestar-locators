@@ -212,12 +212,17 @@ export default function StepBusinessProfile({
 
   return (
     <StepCard eyebrow="Step 1" title="Business Profile" tightTop>
-      {/* Two columns on desktop: identity on the left, the choices and the
-          resulting link on the right. Stacked single-column below lg, where the
-          vertical divider disappears and the groups simply follow each other.
-          Nothing about which fields exist, what they write, or the state-first
-          ordering changes — only where they sit. */}
-      <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)]">
+      {/* Two columns on desktop, one concern each: the AGENT on the left
+          (photo, name, contact, and the Smart Form link derived from that name)
+          and the BUSINESS on the right (brokerage, state, and the markets that
+          state scopes). Equal columns, because Brokerage/State moved right —
+          the old 1.12/0.88 split favoured the identity column back when it also
+          carried them. Stacked single-column below lg, where the vertical
+          divider disappears and the groups simply follow each other.
+
+          Nothing about which fields exist, what they write, the state-first
+          ordering, or any validation changes — only where they sit. */}
+      <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-2">
 {/* ── Profile ─────────────────────────────────────────────────────── */}
         {/* Photo ABOVE the fields rather than beside them. Sharing the row made
             the identity column two columns wide for one 80px control, which
@@ -287,43 +292,68 @@ export default function StepBusinessProfile({
               </div>
             </div>
 
-            {/* Brokerage and State share a row. STATE FIRST still holds — it is
-                chosen before any market and scopes which markets exist below; pairing
-                it with Brokerage only removes a full-width row from a long form. */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-2">
-                <label className={labelClass}>Brokerage</label>
-                <input value={brokerage} autoComplete="organization" onChange={(e) => setBrokerage(e.target.value)} className={inputClass} />
-              </div>
+            {/* Your Smart Form link closes the AGENT column: it is derived from
+                the First/Last name directly above it, so it now sits with the
+                identity it comes from rather than under the market grid.
 
-              <div className="flex flex-col gap-2">
-                <label className={labelClass}>State</label>
-                {/* NO autoComplete="address-level1" here, deliberately. Three reasons:
-                    this select writes profiles.license_state, which is LICENSE data
-                    and out of scope for autofill; the browser would source
-                    address-level1 from the user's postal address, which need not be
-                    the state they are licensed in; and changeState() clears every
-                    selected market, so a late autofill would silently wipe the market
-                    selection made below. Autofilling the four plain identity fields
-                    above carries none of those risks. */}
-                <select
-                  value={licenseState}
-                  onChange={(e) => changeState(e.target.value)}
-                  className={`${inputClass} cursor-pointer`}
-                >
-                  <option value="">Select your state</option>
-                  {SUPPORTED_STATES.map((st) => (
-                    <option key={st.code} value={st.code}>
-                      {st.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                PREVIEW ONLY while typing: slugPreview() mirrors the database
+                slugify() but writes nothing, so no keystroke reserves a slug.
+                The authoritative slug is reserved once, on Continue, by
+                ensure_workspace_slug() — whatever it returns (including a
+                collision suffix) replaces this preview via finalSlug. */}
+            <div className="flex flex-col gap-2 border-t border-[var(--beast-border)] pt-5">
+              <label className={labelClass}>Your Smart Form link</label>
+              <p className="rounded-xl border border-[var(--beast-border)] bg-[#f7f8fa] px-4 py-3 text-[14px] text-[var(--beast-ink)]">
+                locatorbeast.com/
+                <span className="font-semibold">
+                  {finalSlug ?? slugPreview(firstName, lastName) ?? "your-name"}
+                </span>
+              </p>
+              <p className="text-[12px] text-[var(--beast-ink-soft)]">
+                {finalSlug ? "This is your permanent link." : "Created from your name when you continue."}
+              </p>
             </div>
+
           </div>
         </div>
 
             <div className="flex flex-col gap-6 lg:border-l lg:border-[var(--beast-border)] lg:pl-8">
+
+          {/* Brokerage and State open the BUSINESS column. State still comes
+              before any market and scopes which markets exist below it — that
+              ordering is now literal: the select sits directly above the market
+              grid it governs, instead of in the other column. */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <label className={labelClass}>Brokerage</label>
+              <input value={brokerage} autoComplete="organization" onChange={(e) => setBrokerage(e.target.value)} className={inputClass} />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className={labelClass}>State</label>
+              {/* NO autoComplete="address-level1" here, deliberately. Three reasons:
+                  this select writes profiles.license_state, which is LICENSE data
+                  and out of scope for autofill; the browser would source
+                  address-level1 from the user's postal address, which need not be
+                  the state they are licensed in; and changeState() clears every
+                  selected market, so a late autofill would silently wipe the market
+                  selection made below. Autofilling the four plain identity fields
+                  above carries none of those risks. */}
+              <select
+                value={licenseState}
+                onChange={(e) => changeState(e.target.value)}
+                className={`${inputClass} cursor-pointer`}
+              >
+                <option value="">Select your state</option>
+                {SUPPORTED_STATES.map((st) => (
+                  <option key={st.code} value={st.code}>
+                    {st.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            </div>
+
 
 {/* ── Markets ─────────────────────────────────────────────────────────
             The "Service Areas" heading, the running "n of 5 selected" counter and
@@ -432,29 +462,6 @@ export default function StepBusinessProfile({
           )}
         </div>
 
-{/* ── Your link ───────────────────────────────────────────────────────
-            Last, because it is an OUTPUT of this step rather than an input: it is
-            derived from the name above and finalized on Continue. Sitting between
-            Phone and Brokerage, it interrupted a run of fields the agent was
-            filling in.
-
-            PREVIEW ONLY while typing: slugPreview() mirrors the database
-            slugify() but writes nothing, so no keystroke reserves a slug. The
-            authoritative slug is reserved once, on Continue, by
-            ensure_workspace_slug() — whatever it returns (including a collision
-            suffix) replaces this preview via finalSlug. */}
-        <div className="flex flex-col gap-2 border-t border-[var(--beast-border)] pt-5">
-          <label className={labelClass}>Your Smart Form link</label>
-          <p className="rounded-xl border border-[var(--beast-border)] bg-[#f7f8fa] px-4 py-3 text-[14px] text-[var(--beast-ink)]">
-            locatorbeast.com/
-            <span className="font-semibold">
-              {finalSlug ?? slugPreview(firstName, lastName) ?? "your-name"}
-            </span>
-          </p>
-          <p className="text-[12px] text-[var(--beast-ink-soft)]">
-            {finalSlug ? "This is your permanent link." : "Created from your name when you continue."}
-          </p>
-        </div>
         </div>
       </div>
 
