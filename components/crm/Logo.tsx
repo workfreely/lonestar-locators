@@ -1,6 +1,6 @@
 import Image from "next/image"
 import Link from "next/link"
-import BeastMark from "./BeastMark"
+import LocatorBeastWordmark from "@/components/brand/LocatorBeastWordmark"
 
 // Shared CRM brand mark — was previously duplicated byte-for-byte in
 // DashboardClient's and PerformanceClient's headers (one said "Locator
@@ -33,15 +33,18 @@ export default function Logo({
   const isDarkCrmHeader = tone === "dark" && mark === "beast"
 
   return (
-    /* ml-2 nudges the lockup 8px off the header's px-5 edge, and is applied
-       HERE rather than in any page so every dark-header surface picks it up
-       from one place: /admin/leads, /admin/analytics, /admin/network, and
-       /admin/license-verification all reach this component through AppHeader.
-       It is gated on isDarkCrmHeader so the light Business Settings header
-       (SettingsShell, which /admin/profile uses) and the marketing nav keep
-       their existing alignment untouched. Margin, not padding — the clickable
-       area stays exactly the visible logo. */
-    <div className={`flex items-center gap-2.5 mr-4 ${isDarkCrmHeader ? "ml-2" : ""}`}>
+    /* ml-2 nudges the lockup 8px off the header's px-5 edge, applied HERE
+       rather than per page so every AppHeader surface inherits it from one
+       place — dark (/admin/leads, /admin/analytics, /admin/network,
+       /admin/license-verification) and light (SettingsShell: /admin/profile,
+       Sales Goals, Integrations, Import Leads, Billing settings) alike, since
+       both use the same px-5 shell.
+
+       Gated on mark="beast", which distinguishes the AppHeader family from the
+       marketing nav. The nav sits inside beast-container and keeps its own
+       alignment, so it must NOT take this nudge. Margin, not padding — any
+       clickable area stays exactly the visible logo. */
+    <div className={`flex items-center gap-2.5 mr-4 ${mark === "beast" ? "ml-2" : ""}`}>
       {isDarkCrmHeader ? (
         /* The real white wordmark — ONE surface only: the dark CRM header.
            It is a full lockup (beast head + "Locator Beast"), so it replaces
@@ -87,24 +90,19 @@ export default function Logo({
           />
         </Link>
       ) : (
-        <>
-          {mark === "beast" ? (
-            <BeastMark tone={tone} size={48} />
-          ) : (
-            <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center flex-none">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M2 10L7 4L12 10" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
-          )}
-          <span
-            className={`font-bold text-[18px] tracking-tight whitespace-nowrap ${
-              tone === "light" ? "text-[#111318]" : "text-[var(--crm-text-primary)]"
-            }`}
-          >
-            Locator Beast
-          </span>
-        </>
+        /* LIGHT SURFACES — the full black wordmark, one mark everywhere.
+           This replaced two different lockups that used to live here: the blue
+           square + chevron (marketing nav) and the bare Beast head + text
+           (light Business Settings header). Both are gone, so the app no longer
+           shows three different brand marks depending on which header you are
+           looking at.
+
+           Deliberately NOT wrapped in a Link. The marketing nav already wraps
+           <Logo> in its own <Link href="/">, and nesting anchors is invalid
+           HTML. The light AppHeader was not clickable before this change and
+           still is not — it has its own "Back to Dashboard" control. Only the
+           dark CRM header carries a link, exactly as it did before. */
+        <LocatorBeastWordmark height={mark === "beast" ? 28 : 32} />
       )}
     </div>
   )
