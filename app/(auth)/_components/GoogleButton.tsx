@@ -157,11 +157,24 @@ export default function GoogleButton({
       });
 
       gis.accounts.id.renderButton(parent, {
+        // All of these are Google's own supported options — nothing here styles
+        // the rendered iframe. `shape: "rectangular"` (GIS supports rectangular
+        // | pill | circle | square) is the closest supported match to the form's
+        // rounded inputs; the pill read as a different control sitting above a
+        // stack of rectangles.
+        //
+        // `size: "large"` is Google's maximum, which is a 40px-tall button. It
+        // cannot be pushed to the 52px of the Log In button without transforming
+        // Google's own artwork, so the height difference stays.
+        //
+        // `type: "standard"` is what enables the personalized "Continue as
+        // <name>" state — Google decides when to show it, from the visitor's own
+        // Google session. Switching to "icon" would lose it.
         type: "standard",
         theme: "outline",
         size: "large",
         text: "continue_with",
-        shape: "pill",
+        shape: "rectangular",
         logo_alignment: "center",
         width: Math.round(parent.getBoundingClientRect().width) || 360,
       });
