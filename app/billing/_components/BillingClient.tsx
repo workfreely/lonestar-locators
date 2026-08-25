@@ -1,15 +1,25 @@
 "use client"
 
 import { useState } from "react"
-import Image from "next/image"
 import Link from "next/link"
 import { HiOutlineCheckCircle } from "react-icons/hi2"
 import type { AccessState } from "@/lib/billing/access"
 import { MONTHLY_PRICE_USD } from "@/lib/billing/trial"
-import { LOGO_FOR_LIGHT_BG, SITE_URL } from "@/app/locator-beast/_lib/site"
+import { SITE_URL } from "@/app/locator-beast/_lib/site"
+// LOGO_FOR_LIGHT_BG pointed at /locator-beast/locator-beast-on-light.png, which has
+// never existed in this repo — untracked in git, absent from public/ — so both
+// logos on this page rendered as broken images. BeastMark is the black lion
+// artwork already used on light surfaces (components/crm/BeastMark.tsx; the auth
+// layout references the same file); no new asset is introduced. That artwork
+// carries a wide transparent margin, so a 48px box renders a ~34x28px lion,
+// matching the 28px height this header had before.
+import BeastMark from "@/components/crm/BeastMark"
 
 type Invoice = { id: string; amount: number; date: string; url: string | null; status: string }
 
+// Shown to fresh accounts, expired trials, and past-due accounts. Deliberately
+// left as-is: only the canceled state's copy was in scope for this change, so
+// those three keep the wording they already had.
 const INCLUDED = [
   "Workflow Engine",
   "CRM",
@@ -18,6 +28,20 @@ const INCLUDED = [
   "Phone Sync",
   "Google Calendar & Contacts",
   "Performance Dashboard",
+  "Every future feature included",
+]
+
+// The canceled state ONLY — current product names, for a former subscriber who
+// already knows the product and is deciding whether to come back.
+const INCLUDED_CANCELED = [
+  "Automated Workflow Engine",
+  "AI-Powered CRM",
+  "AI Client Insights",
+  "Smart Lead Form",
+  "Beast Sync",
+  "Beast Companion",
+  "Google Calendar & Contacts",
+  "Analytics Dashboard",
   "Every future feature included",
 ]
 
@@ -30,7 +54,7 @@ function BillingCard({
 }: {
   eyebrow?: string
   title: string
-  subtitle?: string
+  subtitle?: React.ReactNode
   children?: React.ReactNode
   center?: boolean
 }) {
@@ -146,13 +170,7 @@ export default function BillingClient({
       <div className="flex min-h-screen items-center justify-center px-4 py-16">
         <div className="w-full max-w-lg">
           <div className="mb-8 flex justify-center">
-            <Image
-              src={LOGO_FOR_LIGHT_BG}
-              alt="Locator Beast"
-              width={172}
-              height={40}
-              style={{ height: "28px", width: "auto" }}
-            />
+            <BeastMark tone="light" size={48} />
           </div>
 
           <BillingCard
@@ -175,7 +193,21 @@ export default function BillingClient({
                   ? "We hope you've enjoyed using Locator Beast. Continue growing your apartment locating business with unlimited access."
                   : access.reason === "past_due"
                     ? "We couldn't process your last payment. Update your payment method to keep your access."
-                    : "Continue growing your apartment locating business with unlimited access."
+                    : access.reason === "canceled"
+                      ? (
+                          <>
+                            <span className="block">Keep growing with unlimited access to Locator Beast.</span>
+                            <span className="block">Your workspace is saved for 90 days.</span>
+                            {/* The retention window and what lapsing costs them — the
+                                one thing a former subscriber needs before deciding
+                                whether to come back. */}
+                            <span className="mt-3 block">
+                              Resubscribe anytime to restore your leads, Smart Lead Form, and settings. After 90 days,
+                              your data may be deleted and your Smart Lead Form URL released.
+                            </span>
+                          </>
+                        )
+                      : "Continue growing your apartment locating business with unlimited access."
             }
           >
             <p className="text-[44px] font-semibold leading-none tracking-tight text-[var(--beast-ink)]">
@@ -184,7 +216,7 @@ export default function BillingClient({
             </p>
 
             <ul className="mt-6 mx-auto flex w-fit flex-col gap-2.5 text-left">
-              {INCLUDED.map((item) => (
+              {(access.reason === "canceled" ? INCLUDED_CANCELED : INCLUDED).map((item) => (
                 <li key={item} className="flex items-center gap-3 text-[14px] font-medium text-[var(--beast-ink)]">
                   <HiOutlineCheckCircle className="h-5 w-5 shrink-0 text-[var(--beast-blue)]" />
                   {item}
@@ -224,13 +256,7 @@ export default function BillingClient({
     <div className="flex min-h-screen justify-center px-4 py-16">
       <div className="w-full max-w-2xl">
         <div className="mb-8 flex justify-center">
-          <Image
-            src={LOGO_FOR_LIGHT_BG}
-            alt="Locator Beast"
-            width={172}
-            height={40}
-            style={{ height: "28px", width: "auto" }}
-          />
+          <BeastMark tone="light" size={48} />
         </div>
 
         <BillingCard eyebrow="Billing" title="Your subscription">

@@ -86,6 +86,30 @@ async function billingGate(request: NextRequest): Promise<NextResponse | null> {
   // (and the trial only starts once onboarding completes).
   if (!profile.onboarding_completed) return null;
 
+  // Platform admin — an EXPLICIT bypass, checked BEFORE every billing-derived
+  // source. Until now the platform owner reached /admin only incidentally,
+  // because their Beast Network membership happened to be 'active'; revoking
+  // that membership, or letting the trial lapse with no subscription, would
+  // have locked the owner out of their own product.
+  //
+  // Reuses the canonical is_platform_admin() SECURITY DEFINER function over
+  // platform_admins rather than introducing a second admin flag. That table has
+  // RLS enabled with a SELECT-only policy and NO write policy, so a row is
+  // grantable only via the service role or a migration — a user cannot
+  // self-elevate (which is exactly why it is a separate table and not a boolean
+  // on profiles, whose UPDATE policy is an unrestricted `auth.uid() = id`).
+  //
+  // Fails in the SAFE direction, opposite to the fail-open guards above: any
+  // error leaves this false and the normal entitlement check still runs, so a
+  // failed lookup can never grant access. The `=== true` is deliberate — only a
+  // real boolean true bypasses, never a merely truthy value.
+  try {
+    const { data: isPlatformAdmin } = await supabase.rpc("is_platform_admin");
+    if (isPlatformAdmin === true) return null;
+  } catch {
+    // Not an admin as far as this gate is concerned — fall through.
+  }
+
   // Organization-Included (Beast Network): the third access source. Fail-safe —
   // resolves to null (not a member) on any error, so a network lookup can never
   // lock out a paying/trialing user. CRITICAL: without this, an active
