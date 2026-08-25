@@ -4,7 +4,7 @@
  * native Chrome Side Panel; it is the ONLY thing this extension injects.
  *
  * The OUTER HOST is positioned by inline !important styles in launcher.ts
- * (position:fixed; right/left:0; 52×52). Nothing here positions the host — the
+ * (position:fixed; right/left:0; 48×48). Nothing here positions the host — the
  * button just FILLS it — so the handle stays flush with the panel divider during
  * a live resize with zero JavaScript.
  */
@@ -22,7 +22,7 @@
   box-sizing: border-box;
 }
 
-/* The handle: fills the fixed 52×52 host. It does NOT position itself — no
+/* The handle: fills the fixed 48×48 host. It does NOT position itself — no
    position:fixed, no top/left/right here — so it can never lag the host, which
    is the element Chrome re-anchors to the viewport edge. */
 .bc-tab {
@@ -66,11 +66,12 @@
 .bc-tab svg,
 .bc-tab img {
   display: block;
-  /* The lion fills most of the 52px tab now — the old 30px left the mark small
-     and lost inside its own tab. 42px keeps ~5px of breathing room per side
-     without changing the tab's own geometry. */
-  width: 42px;
-  height: 42px;
+  /* The mark fills most of the 48px tab. Scaled with the tab when it went
+     52 -> 48 (42 * 48/52 = 38.8), so the ~4.5px of breathing room per side —
+     and the mark-to-tab ratio the design was tuned at — are preserved rather
+     than the mark being left oversized inside a smaller handle. */
+  width: 39px;
+  height: 39px;
   /* Only the inner icon may animate — a subtle scale/brighten that never shifts
      the outer tab away from the edge. */
   transform-origin: center;

@@ -142,9 +142,15 @@ function ModalContent({ onClose, lead, topMatches = [], locatorName = "Jay" }: P
         <div className="flex-none px-8 pt-5 pb-0 border-b border-[var(--crm-border-soft)]">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              {/* Beast head — the modal sits on --crm-panel, a dark surface in
-                  every theme, so it always takes the white mark. */}
-              <BeastMark tone="dark" size={44} />
+              {/* Beast-in-pin — the modal sits on --crm-panel, a dark surface in
+                  every theme, so it always takes the white mark.
+
+                  size={26}, not 44, purely to hold the mark's VISIBLE height
+                  steady across the artwork change. The old bare head filled
+                  58.2% of its canvas, the pin fills 98%, so reusing 44 would
+                  have rendered it 1.68x taller overnight. 26 x 98% reproduces
+                  the same ~25.6px of visible mark. Nothing else here moves. */}
+              <BeastMark tone="dark" size={26} />
               <div>
                 <h2 className="text-base font-semibold text-[var(--crm-text-primary)] leading-none">AI Voice Script</h2>
                 <p className="text-[11px] text-[var(--crm-text-muted)] mt-0.5">{clientName}</p>

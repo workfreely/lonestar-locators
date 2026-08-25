@@ -6,11 +6,19 @@ import Image from "next/image"
 // CRM theme is dark, so `dark` covers all five, and `light` is only the white
 // Business Settings / Smart Lead Form shell.
 //
-// Both files are the favicon artwork reused as-is. That artwork carries a wide
-// transparent margin — the lion is roughly 70% x 58% of its own canvas — so the
-// rendered box is deliberately much larger than the 28px square it replaces:
-// at 48px the visible lion is only ~34x28px. Sizing up the box is the only way
-// to make the mark read without re-cropping the approved artwork.
+// Both files are the favicon artwork reused as-is, and the two no longer share
+// proportions, so `size` does NOT mean the same thing for both tones:
+//
+//   dark  — the official Beast-in-pin mark, trimmed and centred, ink filling
+//           ~80% x 98% of its canvas. `size` is very close to the visible
+//           height.
+//   light — still the older bare-head artwork, ink ~70% x 58% of its canvas,
+//           so its box has to be much larger than the mark it draws: at 48px
+//           the visible lion is only ~34x28px.
+//
+// That asymmetry is deliberate and temporary: the black mark is out of scope
+// for the icon checkpoint that introduced the pin. Callers pick `size` for the
+// tone they actually render — see AiVoiceScriptModal, the one dark caller.
 const SRC = {
   dark: "/locator-beast/locator-beast-favicon-white.png",
   light: "/locator-beast/locator-beast-favicon-black.png",

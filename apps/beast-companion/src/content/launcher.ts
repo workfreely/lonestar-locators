@@ -5,7 +5,7 @@ import { log } from "@/utils/log";
  * The injected launcher tab.
  *
  * Anchoring model (this is the important part): the OUTER HOST element itself is
- * the fixed, viewport-anchored 52×52 handle — `position: fixed; right: 0`. It is
+ * the fixed, viewport-anchored 48×48 handle — `position: fixed; right: 0`. It is
  * NOT a full-viewport overlay with the tab fixed inside the Shadow DOM. That old
  * indirection (a 100%-wide host + a separately-fixed child) is what made the tab
  * lag behind Chrome's native side-panel divider during a live resize.
@@ -42,8 +42,11 @@ const HOST_FIXED_STYLE: Record<string, string> = {
   // any viewport height, while staying well below the Companion panel's own
   // header/pin/close row. position:fixed keeps it put as the dashboard scrolls.
   top: "104px",
-  width: "52px",
-  height: "52px",
+  // 48x48, down from 52. Only the handle's own box shrinks — `top` above is
+  // untouched, so the launcher stays anchored exactly where it was, and
+  // launcher.css keeps the inner icon proportional to this box.
+  width: "48px",
+  height: "48px",
   margin: "0",
   padding: "0",
   border: "0",
