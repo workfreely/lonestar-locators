@@ -97,12 +97,19 @@ export default function Logo({
            shows three different brand marks depending on which header you are
            looking at.
 
+           Heights are the ALREADY-APPROVED values, not new ones:
+             28px in the AppHeader family — the same 56px px-5 shell as the
+                  dark CRM header, whose approved treatment is 28px.
+             40px in the marketing nav — the approved black-wordmark height
+                  from /login, /signup, and billing. The nav shell is taller
+                  (h-16/h-20), so the 28px CRM figure read far too small there.
+
            Deliberately NOT wrapped in a Link. The marketing nav already wraps
            <Logo> in its own <Link href="/">, and nesting anchors is invalid
            HTML. The light AppHeader was not clickable before this change and
            still is not — it has its own "Back to Dashboard" control. Only the
            dark CRM header carries a link, exactly as it did before. */
-        <LocatorBeastWordmark height={mark === "beast" ? 28 : 32} />
+        <LocatorBeastWordmark height={mark === "beast" ? 28 : 40} />
       )}
     </div>
   )
