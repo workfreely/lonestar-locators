@@ -1,4 +1,5 @@
 import Reveal from "./Reveal";
+import LocatorBeastWordmark from "@/components/brand/LocatorBeastWordmark";
 
 const TRADITIONAL_CRM = [
   "Built for general real estate",
@@ -92,9 +93,23 @@ export default function WhySection() {
           {/* Locator Beast — the highlighted "winner" column */}
           <Reveal delayMs={100}>
             <div className="h-full rounded-2xl border-2 border-[var(--beast-blue)] bg-white p-8 shadow-[0_0_60px_-15px_rgba(47,107,255,0.4),0_24px_50px_-24px_rgba(47,107,255,0.35)] md:p-10">
-              <p className="text-center text-[30px] font-semibold tracking-tight text-[var(--beast-ink)]">
-                Locator Beast
-              </p>
+              {/* The full black wordmark stands in for the text heading here —
+                  ONLY on this card; "Generic CRM" opposite stays text.
+
+                  44px is not arbitrary: the wordmark's letterforms are 52.2% of
+                  the artwork's ink height, so 44px puts them at ~23px cap
+                  height — the same cap height as the 30px semibold heading
+                  opposite. The letters match; the pin simply adds presence to
+                  the highlighted column.
+
+                  The row is pinned to h-[45px], the heading's own line box, so
+                  both cards' lists still start on the same line. At every
+                  two-column width "Generic CRM" is a single 45px line, and
+                  below md the cards stack, where cross-card alignment no longer
+                  applies. */}
+              <div className="flex h-[45px] items-center justify-center">
+                <LocatorBeastWordmark height={44} />
+              </div>
               <ul className="mt-8 space-y-6">
                 {LOCATOR_BEAST.map((item) => (
                   <li key={item} className="flex items-center gap-4">

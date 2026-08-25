@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import Image from "next/image";
+import LocatorBeastWordmark from "@/components/brand/LocatorBeastWordmark";
 import "../locator-beast/beast.css";
 
 const inter = Inter({
@@ -21,19 +21,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       style={{ backgroundColor: "#f7f8fa" }}
     >
       <div className="mx-auto flex w-full max-w-md flex-col items-center">
-        {/* The black lion mark — the login card sits on #f7f8fa, so the
-            black-on-transparent artwork is the readable one here. Referenced
-            directly rather than through LOGO_FOR_LIGHT_BG, which Billing also
-            uses and which is out of scope for this checkpoint. */}
-        <Image
-          src="/locator-beast/locator-beast-favicon-black.png"
-          alt="Locator Beast"
-          width={512}
-          height={512}
-          priority
-          style={{ height: "80px", width: "80px" }}
-          className="mb-10"
-        />
+        {/* The full black wordmark — this layout is shared by /login and
+            /signup, so both surfaces change from here rather than page by page.
+            The card sits on #f7f8fa, so the black-on-transparent artwork is the
+            readable one. 40px is restrained enough not to compete with the
+            form's 26px heading while staying clearly legible. Centering is
+            unchanged: the parent is already flex + items-center. */}
+        <LocatorBeastWordmark height={40} priority className="mb-10" />
         {children}
       </div>
     </div>

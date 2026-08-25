@@ -6,14 +6,12 @@ import { HiOutlineCheckCircle } from "react-icons/hi2"
 import type { AccessState } from "@/lib/billing/access"
 import { MONTHLY_PRICE_USD } from "@/lib/billing/trial"
 import { SITE_URL } from "@/app/locator-beast/_lib/site"
-// LOGO_FOR_LIGHT_BG pointed at /locator-beast/locator-beast-on-light.png, which has
-// never existed in this repo — untracked in git, absent from public/ — so both
-// logos on this page rendered as broken images. BeastMark is the black lion
-// artwork already used on light surfaces (components/crm/BeastMark.tsx; the auth
-// layout references the same file); no new asset is introduced. That artwork
-// carries a wide transparent margin, so a 48px box renders a ~34x28px lion,
-// matching the 28px height this header had before.
-import BeastMark from "@/components/crm/BeastMark"
+// Billing now shows the full black wordmark, the same treatment and the same
+// 40px height as the auth surfaces — both are "centred brand above a centred
+// card", so they should not drift apart. This replaces the standalone black
+// lion (BeastMark tone="light"), which itself replaced a LOGO_FOR_LIGHT_BG path
+// that never existed in this repo and rendered as a broken image.
+import LocatorBeastWordmark from "@/components/brand/LocatorBeastWordmark"
 
 type Invoice = { id: string; amount: number; date: string; url: string | null; status: string }
 
@@ -140,7 +138,7 @@ export default function BillingClient({
       <div className="flex min-h-screen items-center justify-center px-4 py-16">
         <div className="w-full max-w-lg">
           <div className="mb-8 flex justify-center">
-            <BeastMark tone="light" size={48} />
+            <LocatorBeastWordmark height={40} />
           </div>
 
           <BillingCard
@@ -223,7 +221,7 @@ export default function BillingClient({
     <div className="flex min-h-screen justify-center px-4 py-16">
       <div className="w-full max-w-2xl">
         <div className="mb-8 flex justify-center">
-          <BeastMark tone="light" size={48} />
+          <LocatorBeastWordmark height={40} />
         </div>
 
         <BillingCard eyebrow="Billing" title="Your subscription">
