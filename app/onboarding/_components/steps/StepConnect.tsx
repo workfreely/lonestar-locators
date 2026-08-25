@@ -53,7 +53,7 @@ export default function StepConnect({ data, onNext, onBack, saving }: StepProps)
       title="Let's connect your business"
       subtitle="These power the automation behind the scenes."
     >
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2.5">
         {connections.map((c, i) => (
           <div
             key={c.title}
@@ -76,9 +76,17 @@ export default function StepConnect({ data, onNext, onBack, saving }: StepProps)
             {/* Status only. A single Google consent grants Contacts AND Calendar
                 together, so a per-card Connect button implied two separate
                 grants that do not exist — the one shared action sits below. */}
-            {c.connected && (
+            {c.connected ? (
               <span className="beast-pop flex shrink-0 items-center gap-1.5 rounded-full bg-[#16a34a]/10 px-3 py-1.5 text-[12.5px] font-semibold text-[#16a34a]">
                 <HiOutlineCheck className="h-4 w-4" strokeWidth={3} /> Connected
+              </span>
+            ) : (
+              // Deliberately a STATUS chip, not a button: the single Connect
+              // action below grants both cards at once, so anything clickable
+              // here would again imply two separate grants. It exists to keep
+              // the row's right edge occupied in both states.
+              <span className="flex shrink-0 items-center rounded-full border border-[var(--beast-border)] bg-white px-3 py-1 text-[12px] font-medium text-[var(--beast-ink-soft)]">
+                Not connected
               </span>
             )}
           </div>
@@ -92,16 +100,21 @@ export default function StepConnect({ data, onNext, onBack, saving }: StepProps)
           type="button"
           onClick={() => connect("google")}
           disabled={connecting !== null}
-          className="mt-4 w-full rounded-full bg-[var(--beast-ink)] px-7 py-3.5 text-[15px] font-semibold text-white transition-transform duration-300 hover:scale-[1.02] hover:bg-[var(--beast-blue)] disabled:opacity-60 disabled:hover:scale-100"
+          className="mt-4 w-full rounded-full bg-[var(--beast-ink)] px-7 py-3 text-[14px] font-semibold text-white transition-colors duration-200 hover:bg-[var(--beast-blue)] disabled:opacity-60"
         >
           {connecting === "google" ? "Connecting…" : "Connect Google"}
         </button>
       )}
 
+      {/* When Google is already connected, Continue IS the main action and keeps
+          the primary treatment. When it is not, Connect Google above owns that
+          weight and this drops to a ghost so the screen has exactly one primary. */}
       <StepNav
         onBack={onBack}
         onNext={() => onNext()}
         nextLabel={allConnected ? "Continue" : "Skip for now"}
+        nextVariant={allConnected ? "primary" : "ghost"}
+        spacing={allConnected ? "default" : "tight"}
         saving={saving}
       />
     </StepCard>

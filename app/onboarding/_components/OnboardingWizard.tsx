@@ -152,8 +152,19 @@ export default function OnboardingWizard({
         </header>
       )}
 
-      <main className="beast-container flex flex-1 items-center justify-center py-12">
-        <div className="w-full max-w-xl">
+      {/* items-START, not items-center. Centring split ALL the leftover height
+          evenly above and below the card, so on a tall viewport the gap under
+          the progress bar grew with the window — that was the dead space. The
+          card now hangs from a fixed pt-8 and the slack collects at the bottom.
+          pb-12 stays so the card never sits flush against the viewport edge on a
+          short screen. Card size and responsive behaviour are untouched. */}
+      <main className="beast-container flex flex-1 items-start justify-center pt-8 pb-12">
+        {/* Business Profile is the one step with enough fields to need the extra
+            column — at max-w-xl its six inputs, seven market tiles and link
+            preview stack ~1000px tall and cannot fit a laptop viewport. Every
+            other step keeps max-w-xl, so the wizard's proportions are unchanged
+            everywhere else. */}
+        <div className={`w-full ${step === 2 ? "max-w-5xl" : "max-w-xl"}`}>
           {step === 1 && <Step1Welcome {...stepProps} />}
           {step === 2 && <StepBusinessProfile {...stepProps} userId={userId} />}
           {step === 3 && <StepConnect {...stepProps} />}

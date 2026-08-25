@@ -13,7 +13,6 @@ import {
   marketsForState,
   stateForMarkets,
   serviceAreasHelperText,
-  serviceAreasCountLabel,
 } from "@/lib/markets/catalog";
 import { formatPhoneInput } from "@/lib/utils/formatPhone";
 import { slugPreview } from "@/lib/slug/preview";
@@ -96,6 +95,10 @@ export default function StepBusinessProfile({
   // not possible because the other states' markets are never rendered.
   const stateMarkets = marketsForState(licenseState);
   const hasMarket = selectedMarkets.length > 0;
+  // Set the first time Continue is pressed. The market requirement itself is
+  // unchanged — this only decides WHEN the agent is told about it, so an
+  // untouched form does not open with a red error already on screen.
+  const [attemptedNext, setAttemptedNext] = useState(false);
 
   function changeState(next: string) {
     setLicenseState(next);
@@ -106,8 +109,13 @@ export default function StepBusinessProfile({
   // With 2+ markets a primary must be chosen before Continue; with exactly one
   // it is implied, so nothing extra is asked.
   const needsPrimary = needsPrimaryMarketChoice(primaryMarket, selectedMarkets);
-  const canContinue =
-    firstName.trim().length > 0 && lastName.trim().length > 0 && !!licenseState && hasMarket && !needsPrimary;
+  // Continue stays pressable when the ONLY thing missing is a market, so
+  // handleNext can surface "Select at least 1 market". A disabled button cannot
+  // emit a click, so including hasMarket here would make the message
+  // unreachable. The market rule is enforced in handleNext, which refuses to
+  // advance without one — so the requirement is unchanged, only its reporting.
+  const canAttempt =
+    firstName.trim().length > 0 && lastName.trim().length > 0 && !!licenseState && !needsPrimary;
 
   function toggleMarket(slug: string) {
     setSelectedMarkets((prev) => {
@@ -154,6 +162,12 @@ export default function StepBusinessProfile({
   }
 
   async function handleNext() {
+    setAttemptedNext(true);
+    // Same requirement as before; it is now reported instead of silently
+    // blocking. Nothing below runs, so no workspace write or slug reservation
+    // happens on an incomplete step.
+    if (!hasMarket) return;
+
     const first = firstName.trim();
     const last = lastName.trim();
 
@@ -197,128 +211,131 @@ export default function StepBusinessProfile({
   }
 
   return (
-    <StepCard eyebrow="Step 1" title="Business Profile" subtitle="Just the essentials — this takes under a minute.">
-      <div className="flex flex-col gap-5">
-        {/* Profile photo */}
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-[var(--beast-border)] bg-[#f7f8fa] transition-colors hover:border-[var(--beast-blue)]"
-          >
-            {data.profile_photo_url ? (
-              <Image src={data.profile_photo_url} alt="Profile photo" width={80} height={80} className="h-full w-full object-cover" />
-            ) : (
-              <HiOutlineArrowUpTray className="h-5 w-5 text-[var(--beast-ink-soft)]" />
-            )}
-            {uploading && <div className="absolute inset-0 animate-pulse bg-black/10" />}
-          </button>
-          <div>
-            <p className="text-[14px] font-semibold text-[var(--beast-ink)]">Profile Photo</p>
+    <StepCard eyebrow="Step 1" title="Business Profile" tightTop>
+      {/* Two columns on desktop: identity on the left, the choices and the
+          resulting link on the right. Stacked single-column below lg, where the
+          vertical divider disappears and the groups simply follow each other.
+          Nothing about which fields exist, what they write, or the state-first
+          ordering changes — only where they sit. */}
+      <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)]">
+{/* ── Profile ─────────────────────────────────────────────────────── */}
+        {/* Photo ABOVE the fields rather than beside them. Sharing the row made
+            the identity column two columns wide for one 80px control, which
+            fought the paired rows below it for alignment. Stacked, the column
+            has a single left edge and the rows read as one ladder. The circle
+            is 64px (was 80px) so moving it above costs almost no height. */}
+        <div className="flex flex-col gap-4">
+          {/* The circle, its caption and the hidden input are ONE centred unit:
+              w-fit shrinks the block to the circle, and items-center centres the
+              caption directly beneath it. Left-aligned on desktop, centred on
+              mobile — the block itself stays internally aligned either way. */}
+          <div className="flex w-fit flex-col items-center gap-1.5 self-center sm:self-start">
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-[var(--beast-border)] bg-[#f7f8fa] transition-colors hover:border-[var(--beast-blue)]"
+            >
+              {data.profile_photo_url ? (
+                <Image src={data.profile_photo_url} alt="Profile photo" width={64} height={64} className="h-full w-full object-cover" />
+              ) : (
+                <HiOutlineArrowUpTray className="h-5 w-5 text-[var(--beast-ink-soft)]" />
+              )}
+              {uploading && <div className="absolute inset-0 animate-pulse bg-black/10" />}
+            </button>
+            {/* Caption centred under the circle. The error can be longer than the
+                circle, so it gets its own width and stays centred on that. */}
             {photoError ? (
-              <p role="alert" className="text-[12px] font-medium text-[#c0392b]">
+              <p role="alert" className="w-[120px] text-center text-[11px] font-medium leading-tight text-[#c0392b]">
                 {photoError}
               </p>
             ) : (
-              <p className="text-[12px] text-[var(--beast-ink-soft)]">Add a photo so clients recognize you.</p>
+              <p className="text-center text-[11px] text-[var(--beast-ink-soft)]">Photo</p>
             )}
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleFile(file);
+              }}
+            />
           </div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleFile(file);
-            }}
-          />
-        </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-2">
-            <label className={labelClass}>First Name</label>
-            <input value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputClass} />
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-2">
+                <label className={labelClass}>First Name</label>
+                <input value={firstName} autoComplete="given-name" onChange={(e) => setFirstName(e.target.value)} className={inputClass} />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className={labelClass}>Last Name</label>
+                <input value={lastName} autoComplete="family-name" onChange={(e) => setLastName(e.target.value)} className={inputClass} />
+              </div>
+            </div>
+
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-2">
+                <label className={labelClass}>Email</label>
+                <input type="email" value={email} autoComplete="email" onChange={(e) => setEmail(e.target.value)} className={inputClass} />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className={labelClass}>Phone</label>
+                <input type="tel" value={phoneNumber} maxLength={14} autoComplete="tel" onChange={(e) => setPhoneNumber(formatPhoneInput(e.target.value))} className={inputClass} />
+              </div>
+            </div>
+
+            {/* Brokerage and State share a row. STATE FIRST still holds — it is
+                chosen before any market and scopes which markets exist below; pairing
+                it with Brokerage only removes a full-width row from a long form. */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-2">
+                <label className={labelClass}>Brokerage</label>
+                <input value={brokerage} autoComplete="organization" onChange={(e) => setBrokerage(e.target.value)} className={inputClass} />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className={labelClass}>State</label>
+                {/* NO autoComplete="address-level1" here, deliberately. Three reasons:
+                    this select writes profiles.license_state, which is LICENSE data
+                    and out of scope for autofill; the browser would source
+                    address-level1 from the user's postal address, which need not be
+                    the state they are licensed in; and changeState() clears every
+                    selected market, so a late autofill would silently wipe the market
+                    selection made below. Autofilling the four plain identity fields
+                    above carries none of those risks. */}
+                <select
+                  value={licenseState}
+                  onChange={(e) => changeState(e.target.value)}
+                  className={`${inputClass} cursor-pointer`}
+                >
+                  <option value="">Select your state</option>
+                  {SUPPORTED_STATES.map((st) => (
+                    <option key={st.code} value={st.code}>
+                      {st.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
-          <div className="flex flex-col gap-2">
-            <label className={labelClass}>Last Name</label>
-            <input value={lastName} onChange={(e) => setLastName(e.target.value)} className={inputClass} />
-          </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-2">
-            <label className={labelClass}>Email</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
-          </div>
-          <div className="flex flex-col gap-2">
-            <label className={labelClass}>Phone</label>
-            <input type="tel" value={phoneNumber} maxLength={14} autoComplete="tel" onChange={(e) => setPhoneNumber(formatPhoneInput(e.target.value))} className={inputClass} />
-          </div>
-        </div>
+            <div className="flex flex-col gap-6 lg:border-l lg:border-[var(--beast-border)] lg:pl-8">
 
-        {/* D — Smart Form link. PREVIEW ONLY while typing: slugPreview() mirrors the
-            database slugify() but writes nothing, so no keystroke reserves a slug.
-            The authoritative slug is reserved once, on Continue, by
-            ensure_workspace_slug() — and whatever it returns (including a collision
-            suffix) replaces this preview via finalSlug. */}
-        <div className="flex flex-col gap-2">
-          <label className={labelClass}>Your Smart Form link</label>
-          <p className="rounded-xl border border-[var(--beast-border)] bg-[#f7f8fa] px-4 py-3 text-[14px] text-[var(--beast-ink)]">
-            locatorbeast.com/
-            <span className="font-semibold">
-              {finalSlug ?? slugPreview(firstName, lastName) ?? "your-name"}
-            </span>
-          </p>
-          <p className="text-[12px] text-[var(--beast-ink-soft)]">
-            {finalSlug ? "This is your permanent link." : "Created from your name when you continue."}
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <label className={labelClass}>Brokerage</label>
-          <input value={brokerage} onChange={(e) => setBrokerage(e.target.value)} className={inputClass} />
-        </div>
-
-        {/* STATE FIRST. A Locator Beast agent works in one state, so the state is
-            chosen before any market and then scopes which markets exist below. */}
-        <div className="flex flex-col gap-2">
-          <label className={labelClass}>State</label>
-          <select
-            value={licenseState}
-            onChange={(e) => changeState(e.target.value)}
-            className={`${inputClass} cursor-pointer`}
-          >
-            <option value="">Select your state</option>
-            {SUPPORTED_STATES.map((st) => (
-              <option key={st.code} value={st.code}>
-                {st.name}
-              </option>
-            ))}
-          </select>
-          <p className="text-[12px] text-[var(--beast-ink-soft)]">
-            Your markets and license details follow the state you work in.
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <label className={labelClass}>Service Areas</label>
+{/* ── Markets ─────────────────────────────────────────────────────────
+            The "Service Areas" heading, the running "n of 5 selected" counter and
+            the always-on "select at least one" warning were three lines of chrome
+            stacked above a grid that already shows its own state. One line of
+            guidance remains, and the error appears only once the agent has
+            actually tried to continue without a market (see `attemptedNext`).
+            The rule border is what separates this from the Profile group. */}
+        <div className="flex flex-col gap-2.5">
           <p className="text-[12px] font-medium text-[var(--beast-ink-soft)]">
-            {serviceAreasHelperText(licenseState)}
+            {licenseState ? serviceAreasHelperText(licenseState) : "Select your state first to see its markets."}
           </p>
-          <p className="text-[12px] font-medium text-[var(--beast-ink-soft)]">
-            {serviceAreasCountLabel(licenseState, selectedMarkets.length)}
-          </p>
-          {!hasMarket && (
-            <p role="alert" className="text-[12px] font-medium text-[#c0392b]">
-              Select at least one market.
-            </p>
-          )}
-          {!licenseState && (
-            <p className="text-[12px] font-medium text-[var(--beast-ink-soft)]">
-              Select your state first to see its markets.
-            </p>
-          )}
           <div className="grid grid-cols-2 gap-2">
             {stateMarkets.map((m) => {
               const active = selectedMarkets.includes(m.slug);
@@ -330,7 +347,7 @@ export default function StepBusinessProfile({
                   onClick={() => toggleMarket(m.slug)}
                   aria-pressed={active}
                   disabled={blocked}
-                  className={`flex items-center justify-between rounded-xl border px-4 py-3 text-[14px] font-medium transition-colors ${
+                  className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-[13.5px] font-medium leading-tight transition-colors ${
                     active
                       ? "border-[var(--beast-blue)] bg-[var(--beast-blue)]/5 text-[var(--beast-ink)]"
                       : blocked
@@ -384,7 +401,7 @@ export default function StepBusinessProfile({
                       // required, so emptying it could only block Continue.
                       onClick={() => setPrimaryMarket(m.slug)}
                       aria-pressed={active}
-                      className={`flex items-center justify-between rounded-xl border px-4 py-3 text-[14px] font-medium transition-colors ${
+                      className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-[13.5px] font-medium leading-tight transition-colors ${
                         active
                           ? "border-[var(--beast-blue)] bg-[var(--beast-blue)]/5 text-[var(--beast-ink)]"
                           : "border-[var(--beast-border)] bg-white text-[var(--beast-ink)] hover:border-[#c7ccd6]"
@@ -408,13 +425,40 @@ export default function StepBusinessProfile({
               </div>
             </div>
           )}
-          <p className="text-[12px] text-[var(--beast-ink-soft)]">
-            These set which cities your Smart Lead Form shows. You can change them anytime in Settings.
+          {attemptedNext && !hasMarket && (
+            <p role="alert" className="text-[12px] font-medium text-[#c0392b]">
+              Select at least 1 market.
+            </p>
+          )}
+        </div>
+
+{/* ── Your link ───────────────────────────────────────────────────────
+            Last, because it is an OUTPUT of this step rather than an input: it is
+            derived from the name above and finalized on Continue. Sitting between
+            Phone and Brokerage, it interrupted a run of fields the agent was
+            filling in.
+
+            PREVIEW ONLY while typing: slugPreview() mirrors the database
+            slugify() but writes nothing, so no keystroke reserves a slug. The
+            authoritative slug is reserved once, on Continue, by
+            ensure_workspace_slug() — whatever it returns (including a collision
+            suffix) replaces this preview via finalSlug. */}
+        <div className="flex flex-col gap-2 border-t border-[var(--beast-border)] pt-5">
+          <label className={labelClass}>Your Smart Form link</label>
+          <p className="rounded-xl border border-[var(--beast-border)] bg-[#f7f8fa] px-4 py-3 text-[14px] text-[var(--beast-ink)]">
+            locatorbeast.com/
+            <span className="font-semibold">
+              {finalSlug ?? slugPreview(firstName, lastName) ?? "your-name"}
+            </span>
           </p>
+          <p className="text-[12px] text-[var(--beast-ink-soft)]">
+            {finalSlug ? "This is your permanent link." : "Created from your name when you continue."}
+          </p>
+        </div>
         </div>
       </div>
 
-      <StepNav onBack={onBack} onNext={handleNext} nextDisabled={!canContinue} saving={saving} />
+      <StepNav onBack={onBack} onNext={handleNext} nextDisabled={!canAttempt} saving={saving} />
     </StepCard>
   );
 }
