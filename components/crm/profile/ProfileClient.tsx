@@ -6,6 +6,7 @@ import PasswordSetting from "@/components/crm/profile/PasswordSetting"
 import { enterDemoWorkspace, resetDemoWorkspace, exitDemoWorkspace } from "@/lib/demo/exitDemo"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/client"
+import DeleteAccountSection from "@/components/crm/account/DeleteAccountSection"
 import SettingsShell, {
   SettingsCard,
   SettingsField,
@@ -880,6 +881,11 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
           </div>
         </div>
       )}
+      {/* Danger Zone — deliberately last, and visually separated. Kept apart
+          from Manage Billing / Cancel Subscription, which live in
+          BillingSettingsClient: the two actions are easy to confuse and have
+          opposite consequences. */}
+      <DeleteAccountSection />
     </SettingsShell>
   )
 }
