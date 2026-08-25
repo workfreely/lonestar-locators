@@ -82,9 +82,19 @@ async function billingGate(request: NextRequest): Promise<NextResponse | null> {
   }
 
   if (!profile) return null;
-  // Onboarding not finished → the client shell handles the /onboarding redirect
-  // (and the trial only starts once onboarding completes).
-  if (!profile.onboarding_completed) return null;
+
+  // NO onboarding bypass. There used to be an `if (!profile.onboarding_completed)
+  // return null` here, because the trial was granted at the END of onboarding —
+  // without it every brand-new user would have been bounced to /billing during
+  // setup. Since trg_grant_trial_on_signup grants the trial at profile creation,
+  // an eligible user is entitled from their first authenticated request and no
+  // longer needs the exemption.
+  //
+  // Removing it also closes the hole it opened: an account with NO entitlement
+  // (a repeat email, or a trial revoked for a duplicate phone) could previously
+  // reach the entire CRM indefinitely just by never finishing onboarding.
+  //
+  // /onboarding itself is unaffected — this gate only runs for /admin routes.
 
   // Platform admin — an EXPLICIT bypass, checked BEFORE every billing-derived
   // source. Until now the platform owner reached /admin only incidentally,

@@ -17,27 +17,15 @@ import BeastMark from "@/components/crm/BeastMark"
 
 type Invoice = { id: string; amount: number; date: string; url: string | null; status: string }
 
-// Shown to fresh accounts, expired trials, and past-due accounts. Deliberately
-// left as-is: only the canceled state's copy was in scope for this change, so
-// those three keep the wording they already had.
+// The billing feature list. ONE array, used by every billing state — there was
+// previously a second, divergent list for the canceled page, which is exactly
+// how the two drifted apart (one still read "Landing Pages" / "Phone Sync" /
+// "Performance Dashboard" long after those names were retired).
 const INCLUDED = [
-  "Workflow Engine",
-  "CRM",
-  "AI Client Insights",
-  "Landing Pages",
-  "Phone Sync",
-  "Google Calendar & Contacts",
-  "Performance Dashboard",
-  "Every future feature included",
-]
-
-// The canceled state ONLY — current product names, for a former subscriber who
-// already knows the product and is deciding whether to come back.
-const INCLUDED_CANCELED = [
   "Automated Workflow Engine",
-  "AI-Powered CRM",
+  "AI-powered CRM",
   "AI Client Insights",
-  "Smart Lead Form",
+  "Smart Form Pages",
   "Beast Sync",
   "Beast Companion",
   "Google Calendar & Contacts",
@@ -97,27 +85,9 @@ export default function BillingClient({
   subscriptionDetails: { currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean } | null
   invoices: Invoice[]
 }) {
-  const [loadingAction, setLoadingAction] = useState<"trial" | "checkout" | "portal" | null>(null)
+  const [loadingAction, setLoadingAction] = useState<"checkout" | "portal" | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
-  async function startTrial() {
-    setLoadingAction("trial")
-    setActionError(null)
-    const res = await fetch("/api/billing/start-trial", { method: "POST" })
-    const json = await res.json()
-    if (json.granted) {
-      window.location.reload()
-      return
-    }
-    if (json.reason === "trial_already_used") {
-      setActionError(
-        "It looks like you've already used your free trial. Subscribe below to continue, or contact us if you need help."
-      )
-    } else {
-      setActionError("Something went wrong starting your trial. Please try again.")
-    }
-    setLoadingAction(null)
-  }
 
   async function subscribe() {
     setLoadingAction("checkout")
@@ -216,7 +186,7 @@ export default function BillingClient({
             </p>
 
             <ul className="mt-6 mx-auto flex w-fit flex-col gap-2.5 text-left">
-              {(access.reason === "canceled" ? INCLUDED_CANCELED : INCLUDED).map((item) => (
+              {INCLUDED.map((item) => (
                 <li key={item} className="flex items-center gap-3 text-[14px] font-medium text-[var(--beast-ink)]">
                   <HiOutlineCheckCircle className="h-5 w-5 shrink-0 text-[var(--beast-blue)]" />
                   {item}
@@ -227,16 +197,13 @@ export default function BillingClient({
             {actionError && <p className="mt-5 text-[13px] text-red-500">{actionError}</p>}
 
             <div className="mt-8 flex flex-col gap-3">
-              {isFresh && (
-                <button
-                  type="button"
-                  onClick={startTrial}
-                  disabled={loadingAction !== null}
-                  className="w-full rounded-full bg-[var(--beast-blue)] px-7 py-3.5 text-[15px] font-semibold text-white transition-transform duration-300 hover:scale-[1.02] hover:bg-[var(--beast-blue-bright)] disabled:opacity-60"
-                >
-                  {loadingAction === "trial" ? "Starting…" : "Start Your 30-Day Free Trial"}
-                </button>
-              )}
+              {/* No "Start Your 30-Day Free Trial" button. The trial is granted
+                  automatically at signup (trg_grant_trial_on_signup), so an
+                  ELIGIBLE user is already trialing and never reaches this page.
+                  Anyone who does reach it is BLOCKED — expired, canceled, past
+                  due, or a repeat email/phone that already consumed its trial —
+                  and for every one of those a trial button would either fail or
+                  hand out a second trial. Subscribing is the only real action. */}
               {PrimarySubscribeButton}
               <a
                 href={`${SITE_URL}/contact`}
