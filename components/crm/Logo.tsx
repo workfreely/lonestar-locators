@@ -33,14 +33,22 @@ export default function Logo({
   const isDarkCrmHeader = tone === "dark" && mark === "beast"
 
   return (
-    <div className="flex items-center gap-2.5 mr-4">
+    /* ml-2 nudges the lockup 8px off the header's px-5 edge, and is applied
+       HERE rather than in any page so every dark-header surface picks it up
+       from one place: /admin/leads, /admin/analytics, /admin/network, and
+       /admin/license-verification all reach this component through AppHeader.
+       It is gated on isDarkCrmHeader so the light Business Settings header
+       (SettingsShell, which /admin/profile uses) and the marketing nav keep
+       their existing alignment untouched. Margin, not padding — the clickable
+       area stays exactly the visible logo. */
+    <div className={`flex items-center gap-2.5 mr-4 ${isDarkCrmHeader ? "ml-2" : ""}`}>
       {isDarkCrmHeader ? (
         /* The real white wordmark — ONE surface only: the dark CRM header.
            It is a full lockup (beast head + "Locator Beast"), so it replaces
            BOTH the BeastMark and the text span rather than sitting beside them.
            The intrinsic 2141x734 is handed to next/image so it emits a srcset
-           and stays crisp at 2x/3x; `h-8 w-auto` pins the height and lets width
-           follow the 2.92 ratio, so it can never stretch.
+           and stays crisp at 2x/3x; `h-7 w-auto` pins the height and lets width
+           follow the 5.45 ratio, so it can never stretch.
 
            Every other caller is untouched: the light Business Settings header
            and the marketing nav keep the existing composition below. */
@@ -52,17 +60,30 @@ export default function Logo({
           <Image
             src="/locator-beast/locator-beast-white-logo-transparent.png"
             alt="Locator Beast"
-            width={2141}
-            height={734}
-            /* Intrinsic dimensions stay exact so the 2.92 aspect ratio — and the
-               reserved layout box — are correct. `sizes` tells next/image the
-               real DISPLAY width; without it Next assumed the declared 2141px
-               and emitted a single 3840w candidate, shipping the full-resolution
-               source for a ~124px logo. 128px yields small 1x/2x candidates that
-               are still comfortably sharp on Retina. */
-            sizes="128px"
+            width={1794}
+            height={329}
+            /* Intrinsic dimensions match the TRIMMED asset (1794x329, ratio 5.45).
+               The source shipped on a 2141x734 canvas whose solid ink occupied
+               only 329px of height — the rest was transparent margin plus a
+               near-invisible halo (469 stray pixels, max alpha 8/255). At a
+               40px-tall box that rendered just 17.9px of actual logo. Cropping
+               to the ink makes the same box show the full artwork, 2.23x
+               larger, with no CSS change. These values must track the file: a
+               stale pair reserves a wrong-ratio box and causes layout shift.
+
+               `sizes` tells next/image the real DISPLAY width; without it Next
+               assumed the declared intrinsic width and emitted a single 3840w
+               candidate, shipping the full-resolution source for a ~200px
+               logo. This must track the
+               rendered width: at ratio 5.45 a 28px-tall logo is ~153px wide,
+               so Retina needs 305px of source. 176px selects the 256w
+               candidate at 1x and 384w at 2x — both above the element's real
+               pixel width, so Retina stays sharp. It is deliberately a little
+               wider than the 153px element: the next step down, 128px, would
+               serve 256w at 2x, under the 305px needed, and render soft. */
+            sizes="176px"
             priority
-            className="h-10 w-auto"
+            className="h-7 w-auto"
           />
         </Link>
       ) : (
