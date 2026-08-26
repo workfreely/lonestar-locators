@@ -41,6 +41,7 @@ export {
   subscriptionReactivatedEmail,
   passwordResetEmail,
   emailVerificationEmail,
+  deletionCodeEmail,
 } from "./templates"
 export type { BuiltEmail, NewLeadEmailParams, LeadConfirmationEmailParams, LeadAssignedEmailParams } from "./templates"
 

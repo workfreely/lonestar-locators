@@ -564,6 +564,37 @@ export function passwordResetEmail(params: { actionUrl: string; name?: string | 
   }
 }
 
+// ─── Account: deletion verification code ─────────────────────────────────────
+
+/**
+ * The 6-digit code that authorises permanent account deletion.
+ *
+ * Deliberately has NO call-to-action link. Every other account email here ends
+ * in a button, but a one-click path to irreversible deletion is exactly what
+ * this flow must not offer — the code has to be carried back to the session
+ * that asked for it, which is what makes it a second factor rather than a
+ * second click. It also means a forwarded or intercepted email cannot delete
+ * anything on its own.
+ */
+export function deletionCodeEmail(params: { code: string; minutes: number; name?: string | null }): BuiltEmail {
+  const contentHtml = `
+    ${paragraph(`${greeting(params.name)} here is the confirmation code to permanently delete your Locator Beast account.`)}
+    <p style="margin:24px 0;text-align:center;font-size:32px;font-weight:700;letter-spacing:8px;color:#111318;">${params.code}</p>
+    ${paragraph(`This code expires in ${params.minutes} minutes and can be used once.`)}
+    ${paragraph("Deleting your account is immediate and permanent. It is not the same as cancelling your subscription, and it is not covered by the 90-day recovery period.")}
+    ${paragraph("If you didn't request this, ignore this email — nothing will be deleted — and change your password, since someone may have access to your session.")}
+  `
+  return {
+    category: "transactional",
+    subject: "Your Locator Beast account deletion code",
+    html: renderEmail({
+      preheader: "Your account deletion confirmation code.",
+      heading: "Confirm account deletion",
+      contentHtml,
+    }),
+  }
+}
+
 // ─── Account: email verification (branded template) ──────────────────────────
 
 export function emailVerificationEmail(params: { actionUrl: string; name?: string | null }): BuiltEmail {

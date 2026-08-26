@@ -31,7 +31,7 @@ export default function DeleteAccountSection() {
   const [busy, setBusy] = useState<null | "preflight" | "code" | "delete">(null)
   const [codeSent, setCodeSent] = useState(false)
   const [typedEmail, setTypedEmail] = useState("")
-  const [nonce, setNonce] = useState("")
+  const [code, setCode] = useState("")
   const [error, setError] = useState<string | null>(null)
 
   async function begin() {
@@ -68,7 +68,7 @@ export default function DeleteAccountSection() {
       const res = await fetch("/api/account/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: typedEmail, nonce }),
+        body: JSON.stringify({ email: typedEmail, code }),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json.error ?? "Deletion failed.")
@@ -82,7 +82,7 @@ export default function DeleteAccountSection() {
   }
 
   const emailMatches = pre != null && typedEmail.trim().toLowerCase() === pre.email
-  const canDelete = emailMatches && nonce.trim().length > 0 && !pre?.blocked && busy === null
+  const canDelete = emailMatches && code.trim().length > 0 && !pre?.blocked && busy === null
 
   return (
     <div className="mt-8 rounded-2xl border border-red-200 bg-red-50/40 p-5">
@@ -157,8 +157,8 @@ export default function DeleteAccountSection() {
                 <label className="text-[12px] font-semibold text-[#6b7280]">Confirmation code</label>
                 <div className="mt-1 flex gap-2">
                   <input
-                    value={nonce}
-                    onChange={(e) => setNonce(e.target.value)}
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
                     inputMode="numeric"
                     autoComplete="one-time-code"
                     placeholder="6-digit code"
@@ -187,7 +187,7 @@ export default function DeleteAccountSection() {
           <div className="mt-4 flex items-center gap-3">
             <button
               type="button"
-              onClick={() => { setOpen(false); setTypedEmail(""); setNonce(""); setCodeSent(false); setError(null) }}
+              onClick={() => { setOpen(false); setTypedEmail(""); setCode(""); setCodeSent(false); setError(null) }}
               className="rounded-lg border border-[#e5e7ee] px-4 py-2.5 text-[13px] font-semibold text-[#4b5162] transition-colors hover:bg-[#f7f8fa]"
             >
               Cancel

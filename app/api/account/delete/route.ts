@@ -20,12 +20,6 @@ import { rateLimit } from "@/lib/rateLimit"
 // uses to decide a customer already has a live subscription.
 const LIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing", "past_due", "unpaid", "incomplete"])
 
-// Typed as boolean rather than the literal `true` on purpose: a literal would
-// make everything below the guard unreachable, and TypeScript drops narrowing
-// (and therefore type-checking) in unreachable code. Keeping the existing
-// deletion path type-checked means it cannot rot while it is switched off.
-const DELETION_DISABLED: boolean = true
-
 export async function POST(request: Request) {
   const supabase = await createClient()
   const {
@@ -33,33 +27,6 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
 
-  // ── HOTFIX: FAIL CLOSED ───────────────────────────────────────────────────
-  // Returns before ANY destructive step: no Stripe cancellation, no Google
-  // revocation, no lb_delete_account_data, no Storage removal.
-  //
-  // Why: the reauthentication gate below does not work. It verifies the emailed
-  // code with `updateUser({ email: user.email, nonce })`, on the assumption that
-  // re-setting the user's own email forces GoTrue to check the nonce. It does
-  // not — setting the email to its current value is a genuine no-op, so GoTrue
-  // starts no email change and demands no reauthentication. Proven directly:
-  // updateUser({ email: <same>, nonce: "000000" }) returns no error, and so does
-  // the same call with no nonce at all. A throwaway account was destroyed by a
-  // request carrying the literal code "000000".
-  //
-  // That left one real gate — typing your own email — which anyone holding the
-  // session already knows. A stolen session or an unlocked laptop was enough to
-  // irreversibly delete the account.
-  //
-  // Deliberately placed here rather than removing the route or the UI: the
-  // endpoint keeps existing and stays authenticated, so nothing else changes
-  // shape while the permanent server-owned code flow is built. Remove this block
-  // ONLY together with that flow.
-  if (DELETION_DISABLED) {
-    return NextResponse.json(
-      { error: "Account deletion is temporarily unavailable. Please contact support." },
-      { status: 503 },
-    )
-  }
 
   const limit = rateLimit(`account-delete:${user.id}`, 5, 15 * 60_000)
   if (!limit.allowed) {
@@ -67,7 +34,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => null)
-  const nonce = typeof body?.nonce === "string" ? body.nonce.trim() : ""
+  const code = typeof body?.code === "string" ? body.code.trim() : ""
   const typedEmail = typeof body?.email === "string" ? body.email.trim().toLowerCase() : ""
 
   // ── 1. Typed email must match the account ────────────────────────────────
@@ -76,15 +43,43 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "The email you typed does not match this account." }, { status: 400 })
   }
 
-  // ── 2. Reauthentication nonce ────────────────────────────────────────────
-  // updateUser with a nonce is how Supabase verifies a reauthenticate() code.
-  // Re-setting the user's own email is a no-op that forces that verification.
-  if (!nonce) {
+  // ── 2. Deletion code — verified against OUR challenge, not GoTrue ────────
+  // The previous version called updateUser({ email: user.email, nonce }) and
+  // treated "no error" as proof. Re-setting the user's own email is a no-op, so
+  // GoTrue never verified anything and accepted any code, or none — a throwaway
+  // account was destroyed by a request carrying the literal "000000".
+  //
+  // lb_verify_deletion_code is scoped to p_user_id, which comes from the
+  // verified session, so a code issued for another account cannot match. It also
+  // enforces expiry, single use, and the wrong-attempt cap in one place, inside
+  // the same transaction that increments the attempt counter.
+  if (!code) {
     return NextResponse.json({ error: "Confirmation code required." }, { status: 400 })
   }
-  const { error: nonceError } = await supabase.auth.updateUser({ email: user.email!, nonce })
-  if (nonceError) {
-    return NextResponse.json({ error: "That confirmation code is not valid." }, { status: 401 })
+  const { data: verdict, error: verifyError } = await supabaseAdmin.rpc("lb_verify_deletion_code", {
+    p_user_id: user.id,
+    p_code: code,
+  })
+  if (verifyError) {
+    console.error("[account/delete] code verification failed:", verifyError.message)
+    return NextResponse.json({ error: "Could not verify the confirmation code." }, { status: 500 })
+  }
+  const v = verdict as { ok?: boolean; reason?: string } | null
+  if (!v?.ok) {
+    // Deliberately generic to the client: distinguishing "expired" from "wrong"
+    // from "no code" would tell an attacker which part to vary. The reason is
+    // logged server-side instead.
+    const status = v?.reason === "too_many_attempts" ? 429 : 400
+    console.warn("[account/delete] code rejected:", v?.reason ?? "unknown")
+    return NextResponse.json(
+      {
+        error:
+          status === 429
+            ? "Too many incorrect codes. Request a new one."
+            : "That confirmation code is not valid. Request a new one if it has expired.",
+      },
+      { status },
+    )
   }
 
   // ── 3. Preflight, re-run immediately before mutating ─────────────────────
