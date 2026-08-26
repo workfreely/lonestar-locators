@@ -19,7 +19,11 @@ export default function EditorToolbar({
   // means one preview, and nothing takes the toggle's place. The public link
   // lives in the Share tab (not the header), keeping this bar minimal.
   return (
-    <SettingsHeader>
+    /* forceDarkSurface: this editor renders outside ThemeProvider, so the
+       header's --crm-* tokens would otherwise resolve to the LIGHT defaults and
+       the bar would come out white. On /admin pages the theme is already on
+       <html>, so they must NOT pass this. */
+    <SettingsHeader forceDarkSurface>
       <div className="flex items-center gap-3">
         {saveError && <span className="text-[12.5px] font-medium text-red-600">{saveError}</span>}
         <button

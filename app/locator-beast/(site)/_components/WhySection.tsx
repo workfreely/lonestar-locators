@@ -90,9 +90,16 @@ export default function WhySection() {
             </div>
           </Reveal>
 
-          {/* Locator Beast — the highlighted "winner" column */}
+          {/* Locator Beast — the highlighted "winner" column, now on the dark
+              brand surface so the wordmark reads as the same white lockup used
+              in every navigation bar. Deep navy (#0D1B3A) rather than the near-black
+              used by the nav — the card should read as BLUE next to the light
+              Generic CRM column, not as another black panel. Only the fill and the
+              text colour change:
+              the blue border, the two-layer blue glow, padding, dimensions,
+              bullet rows, icons and CTA behaviour are all untouched. */}
           <Reveal delayMs={100}>
-            <div className="h-full rounded-2xl border-2 border-[var(--beast-blue)] bg-white p-8 shadow-[0_0_60px_-15px_rgba(47,107,255,0.4),0_24px_50px_-24px_rgba(47,107,255,0.35)] md:p-10">
+            <div className="h-full rounded-2xl border-2 border-[var(--beast-blue)] bg-[#0D1B3A] p-8 shadow-[0_0_60px_-15px_rgba(47,107,255,0.4),0_24px_50px_-24px_rgba(47,107,255,0.35)] md:p-10">
               {/* The full black wordmark stands in for the text heading here —
                   ONLY on this card; "Generic CRM" opposite stays text.
 
@@ -102,19 +109,23 @@ export default function WhySection() {
                   opposite. The letters match; the pin simply adds presence to
                   the highlighted column.
 
+                  White variant, because the card is now the dark brand surface —
+                  the black wordmark would be invisible on it, and the black full
+                  logo is reserved for /login and /signup.
+
                   The row is pinned to h-[45px], the heading's own line box, so
                   both cards' lists still start on the same line. At every
                   two-column width "Generic CRM" is a single 45px line, and
                   below md the cards stack, where cross-card alignment no longer
                   applies. */}
               <div className="flex h-[45px] items-center justify-center">
-                <LocatorBeastWordmark height={44} />
+                <LocatorBeastWordmark variant="white" height={44} />
               </div>
               <ul className="mt-8 space-y-6">
                 {LOCATOR_BEAST.map((item) => (
                   <li key={item} className="flex items-center gap-4">
                     <CheckIcon />
-                    <span className="text-[17px] font-medium leading-snug text-[var(--beast-ink)] md:text-[18px]">
+                    <span className="text-[17px] font-medium leading-snug text-white md:text-[18px]">
                       {item}
                     </span>
                   </li>

@@ -17,6 +17,7 @@ export default function AppHeader({
   zClass = "z-30",
   fullBleed = false,
   children,
+  forceDarkSurface = false,
 }: {
   variant?: "dark" | "light"
   zClass?: string
@@ -26,6 +27,12 @@ export default function AppHeader({
    *  here keeps the one negative margin in a single place instead of three copies. */
   fullBleed?: boolean
   children?: React.ReactNode
+  /** Adds the `dark` class to the header ELEMENT so its own --crm-* tokens
+   *  resolve dark, for surfaces that sit outside ThemeProvider (the Smart Lead
+   *  Form editor). Never set this on an /admin page: those already carry the
+   *  user's chosen theme on <html>, and forcing `dark` here would override that
+   *  theme for the header — a theme change, which this checkpoint must not make. */
+  forceDarkSurface?: boolean
 }) {
   const surface =
     variant === "light"
@@ -36,7 +43,7 @@ export default function AppHeader({
     <header
       className={`crm-header relative ${zClass} flex-none flex h-14 items-center gap-4 border-b px-5 ${
         fullBleed ? "-mx-4" : ""
-      } ${surface}`}
+      } ${forceDarkSurface ? "dark" : ""} ${surface}`}
     >
       <Logo tone={variant} mark="beast" />
       <div className="ml-auto flex items-center gap-2">

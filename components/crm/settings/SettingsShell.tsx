@@ -56,16 +56,27 @@ export function SettingsField({
   )
 }
 
-// The Business Settings / Smart Lead Form header is just the shared `AppHeader`
-// (variant="light"), so it's byte-for-byte identical to the CRM header (same
+// The Business Settings / Smart Lead Form header is the shared `AppHeader` on
+// the DARK treatment — one white wordmark everywhere a navigation bar appears.
+// ONLY the bar changes: the shell below keeps its white body, cards and content
+// exactly as before, and no theme preference is touched.
+//
+// It is byte-for-byte identical to the CRM header (same
 // height, logo, padding, alignment, border/shadow) — AppHeader supplies the
 // Locator Beast logo and the profile avatar. This wrapper only injects the
 // page-specific middle controls: the `Dashboard` link, then any `children`
 // (the Smart Lead Form's device toggle / Publish).
-export function SettingsHeader({ children }: { children?: React.ReactNode }) {
+export function SettingsHeader({
+  children,
+  forceDarkSurface = false,
+}: {
+  children?: React.ReactNode
+  /** For shells rendered outside ThemeProvider — see AppHeader. */
+  forceDarkSurface?: boolean
+}) {
   return (
-    <AppHeader variant="light">
-      <BackToDashboard variant="light" />
+    <AppHeader variant="dark" forceDarkSurface={forceDarkSurface}>
+      <BackToDashboard variant="dark" />
       {children}
     </AppHeader>
   )
