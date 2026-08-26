@@ -20,12 +20,46 @@ import { rateLimit } from "@/lib/rateLimit"
 // uses to decide a customer already has a live subscription.
 const LIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing", "past_due", "unpaid", "incomplete"])
 
+// Typed as boolean rather than the literal `true` on purpose: a literal would
+// make everything below the guard unreachable, and TypeScript drops narrowing
+// (and therefore type-checking) in unreachable code. Keeping the existing
+// deletion path type-checked means it cannot rot while it is switched off.
+const DELETION_DISABLED: boolean = true
+
 export async function POST(request: Request) {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
+
+  // ── HOTFIX: FAIL CLOSED ───────────────────────────────────────────────────
+  // Returns before ANY destructive step: no Stripe cancellation, no Google
+  // revocation, no lb_delete_account_data, no Storage removal.
+  //
+  // Why: the reauthentication gate below does not work. It verifies the emailed
+  // code with `updateUser({ email: user.email, nonce })`, on the assumption that
+  // re-setting the user's own email forces GoTrue to check the nonce. It does
+  // not — setting the email to its current value is a genuine no-op, so GoTrue
+  // starts no email change and demands no reauthentication. Proven directly:
+  // updateUser({ email: <same>, nonce: "000000" }) returns no error, and so does
+  // the same call with no nonce at all. A throwaway account was destroyed by a
+  // request carrying the literal code "000000".
+  //
+  // That left one real gate — typing your own email — which anyone holding the
+  // session already knows. A stolen session or an unlocked laptop was enough to
+  // irreversibly delete the account.
+  //
+  // Deliberately placed here rather than removing the route or the UI: the
+  // endpoint keeps existing and stays authenticated, so nothing else changes
+  // shape while the permanent server-owned code flow is built. Remove this block
+  // ONLY together with that flow.
+  if (DELETION_DISABLED) {
+    return NextResponse.json(
+      { error: "Account deletion is temporarily unavailable. Please contact support." },
+      { status: 503 },
+    )
+  }
 
   const limit = rateLimit(`account-delete:${user.id}`, 5, 15 * 60_000)
   if (!limit.allowed) {
