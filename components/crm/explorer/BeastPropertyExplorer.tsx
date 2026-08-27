@@ -58,6 +58,20 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   const hostRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<google.maps.Marker[]>([])
+
+  // ── "Unleash the Beast" VISUAL PROTOTYPE ──────────────────────────────────
+  // Front-end only: no query, no AI, no Supabase, no Recommendations write. It
+  // re-styles markers that are ALREADY on the map and draws a CSS sonar sweep.
+  // Everything it touches is snapshotted and restored, and the whole prototype
+  // is this block plus the <style> and overlay below — delete those three and
+  // the map is exactly as it was.
+  const beastPhaseRef = useRef<"idle" | "scanning" | "matched">("idle")
+  const beastTimersRef = useRef<number[]>([])
+  // Halos are SEPARATE markers drawn beneath the real ones, so the actual
+  // property markers — and their click/hover handlers — are never replaced.
+  const beastHalosRef = useRef<google.maps.Marker[]>([])
+  // Original opacity/zIndex per marker, captured at scan start.
+  const beastRestoreRef = useRef<{ m: google.maps.Marker; o: number | null | undefined; z: number | null | undefined }[]>([])
   // The imported marker library. Under the async loader google.maps.Marker lives
   // here rather than on the global, so markers must be built from it.
   const markerLibRef = useRef<google.maps.MarkerLibrary | null>(null)
@@ -69,6 +83,8 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   // next client starts from their own criteria, not the previous browse.
   const [marketOverride, setMarketOverride] = useState<string | null>(null)
   const [status, setStatus] = useState<Status>("loading")
+  const [beastPhase, setBeastPhase] = useState<"idle" | "scanning" | "matched">("idle")
+  const [beastMatchCount, setBeastMatchCount] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [results, setResults] = useState<ExplorerProperty[]>([])
   const [hovered, setHovered] = useState<ExplorerProperty | null>(null)
@@ -304,6 +320,77 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   // Toolbar query filters what is ALREADY loaded. No Places request, no debounce
   // needed, because nothing network-bound happens per keystroke.
   const q = query.trim().toLowerCase()
+  // Restores every marker this prototype touched and clears the halos/timers.
+  // Called before each run (so it is restartable), and on unmount.
+  const beastReset = useCallback(() => {
+    for (const t of beastTimersRef.current) window.clearTimeout(t)
+    beastTimersRef.current = []
+    for (const h of beastHalosRef.current) h.setMap(null)
+    beastHalosRef.current = []
+    for (const { m, o, z } of beastRestoreRef.current) {
+      m.setOpacity(o ?? 1)
+      m.setZIndex(z ?? undefined)
+    }
+    beastRestoreRef.current = []
+    beastPhaseRef.current = "idle"
+  }, [])
+
+  const unleashTheBeast = useCallback(() => {
+    const map = mapRef.current
+    const markers = markersRef.current
+    if (!map || markers.length === 0) return
+
+    // Restartable: a click mid-run rewinds and starts over.
+    beastReset()
+    beastPhaseRef.current = "scanning"
+    setBeastPhase("scanning")
+
+    beastRestoreRef.current = markers.map((m) => ({ m, o: m.getOpacity(), z: m.getZIndex() }))
+    const later = (fn: () => void, ms: number) => {
+      beastTimersRef.current.push(window.setTimeout(fn, ms))
+    }
+
+    // 1. every visible marker brightens as the sweep passes.
+    for (const m of markers) m.setOpacity(1)
+
+    // 2. matches = the first 10 in existing render order. Deterministic on
+    //    purpose — this is a look-and-feel prototype, NOT ranking.
+    const matches = markers.slice(0, 10)
+    const matchSet = new Set(matches)
+
+    later(() => {
+      // 3. dim everything else, lift and halo the matches.
+      for (const m of markers) if (!matchSet.has(m)) m.setOpacity(0.22)
+      for (const m of matches) {
+        m.setOpacity(1)
+        m.setZIndex(50)
+        const pos = m.getPosition()
+        if (!pos) continue
+        const halo = new google.maps.Marker({
+          map,
+          position: pos,
+          clickable: false,
+          zIndex: 10,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 15,
+            fillColor: "#2f6bff",
+            fillOpacity: 0.18,
+            strokeColor: "#2f6bff",
+            strokeOpacity: 0.55,
+            strokeWeight: 1.5,
+          },
+        })
+        beastHalosRef.current.push(halo)
+      }
+      beastPhaseRef.current = "matched"
+      setBeastMatchCount(matches.length)
+      setBeastPhase("matched")
+    }, 2200)
+  }, [beastReset])
+
+  useEffect(() => () => beastReset(), [beastReset])
+
   const visible = useMemo(
     () => (q ? results.filter((p) => p.propertyName.toLowerCase().includes(q)) : results),
     [results, q],
@@ -406,14 +493,20 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
       </div>
     ) : null
 
-  // ONE definition of the control, mounted in one of two places. Styling, the
-  // location glyph, the disabled rule and the searchThisArea() handler are all
-  // exactly as before — only the mount point is new.
+  // ONE definition of the control, mounted in one of two places. Placement,
+  // styling and the location glyph are unchanged — this is the same pill in the
+  // same spot.
+  //
+  // PROTOTYPE: it now runs the local "Unleash the Beast" visual sequence instead
+  // of searchThisArea(). Markers still populate the map on their own — the
+  // effect below still calls searchThisArea() when the market or centre changes
+  // — but the manual "search this area again" trigger is not reachable from
+  // this control while the prototype is in place.
   const searchAreaButton = (
     <button
       type="button"
-      onClick={() => void searchThisArea()}
-      disabled={status === "searching"}
+      onClick={unleashTheBeast}
+      disabled={status === "searching" || beastPhase === "scanning"}
       className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-[rgba(255,255,255,0.16)] bg-[#10131d] px-4 py-2 text-[13px] font-semibold text-[#f4f6fb] shadow-[0_4px_16px_rgba(0,0,0,0.5)] transition-colors hover:bg-[#181d2b] disabled:opacity-60"
     >
       {/* Same location glyph the CRM uses, so the control reads as ours
@@ -422,13 +515,57 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
         <path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0 1 18 0Z" />
         <circle cx="12" cy="10" r="3" />
       </svg>
-      {status === "searching" ? "Searching…" : "Search this area"}
+      {beastPhase === "scanning"
+        ? "Beast is searching…"
+        : beastPhase === "matched"
+          ? `${beastMatchCount} Beast Matches`
+          : "Unleash Beast"}
     </button>
   )
 
   return (
     <div className="relative h-full w-full">
       <div ref={hostRef} className="h-full w-full" />
+
+      {/* ── Sonar sweep (VISUAL PROTOTYPE) ───────────────────────────────────
+          pointer-events-none so panning, zooming and every marker click behave
+          exactly as before — this only paints. Three rings on one keyframe,
+          staggered by delay, so it is a handful of composited transforms rather
+          than anything per-frame in JS. Delete this block, the <style> below and
+          the beast* refs to remove the prototype entirely. */}
+      {beastPhase === "scanning" && (
+        <div className="pointer-events-none absolute inset-0 z-[5] overflow-hidden" aria-hidden>
+          <span className="lb-sonar" />
+          <span className="lb-sonar lb-sonar-2" />
+          <span className="lb-sonar lb-sonar-3" />
+          <style>{`
+            .lb-sonar {
+              position: absolute;
+              left: 50%;
+              top: 50%;
+              width: 22vmin;
+              height: 22vmin;
+              margin-left: -11vmin;
+              margin-top: -11vmin;
+              border-radius: 9999px;
+              border: 1px solid rgba(47, 107, 255, 0.55);
+              background: radial-gradient(circle, rgba(47,107,255,0.12) 0%, rgba(47,107,255,0) 70%);
+              opacity: 0;
+              animation: lb-sonar-expand 2200ms cubic-bezier(0.22, 0.61, 0.36, 1) 1 both;
+            }
+            .lb-sonar-2 { animation-delay: 420ms; }
+            .lb-sonar-3 { animation-delay: 840ms; }
+            @keyframes lb-sonar-expand {
+              0%   { transform: scale(0.35); opacity: 0; }
+              12%  { opacity: 0.55; }
+              100% { transform: scale(4.2); opacity: 0; }
+            }
+            @media (prefers-reduced-motion: reduce) {
+              .lb-sonar { animation-duration: 1ms; opacity: 0; }
+            }
+          `}</style>
+        </div>
+      )}
 
       {status === "loading" && <Overlay text="Loading map…" />}
 
