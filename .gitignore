@@ -18,6 +18,11 @@ dist/
 .env
 .env.local
 .env.*.local
+# `.env` matches ONLY that exact filename and `.env.*.local` does not match
+# `.env.production`, so the framework's own production env file was stageable.
+# Named explicitly rather than globbing `.env*`, which would also swallow the
+# intentionally tracked `.env.example`.
+.env.production
 
 # ===============================
 # Logs
