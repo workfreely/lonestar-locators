@@ -6,12 +6,16 @@ import { HiOutlineCheckCircle } from "react-icons/hi2"
 import type { AccessState } from "@/lib/billing/access"
 import { MONTHLY_PRICE_USD } from "@/lib/billing/trial"
 import { SITE_URL } from "@/app/locator-beast/_lib/site"
-// Billing now shows the full black wordmark, the same treatment and the same
-// 40px height as the auth surfaces — both are "centred brand above a centred
-// card", so they should not drift apart. This replaces the standalone black
-// lion (BeastMark tone="light"), which itself replaced a LOGO_FOR_LIGHT_BG path
-// that never existed in this repo and rendered as a broken image.
-import LocatorBeastWordmark from "@/components/brand/LocatorBeastWordmark"
+// Billing wears the same dark product header as every other authenticated
+// surface, so the white wordmark is the one full logo across the app. It
+// replaces a centred BLACK wordmark that sat above the card: the black full
+// logo is now reserved for /login and /signup, and a product page should not be
+// the odd one out.
+//
+// forceDarkSurface because /billing renders outside ThemeProvider — without it
+// the header's --crm-* tokens resolve to the LIGHT defaults and the bar comes
+// out white. The card, its copy, and every Stripe call below are untouched.
+import AppHeader from "@/components/crm/AppHeader"
 
 type Invoice = { id: string; amount: number; date: string; url: string | null; status: string }
 
@@ -135,11 +139,10 @@ export default function BillingClient({
     const isFresh = !trialStarted && access.reason === "no_subscription"
 
     return (
-      <div className="flex min-h-screen items-center justify-center px-4 py-16">
-        <div className="w-full max-w-lg">
-          <div className="mb-8 flex justify-center">
-            <LocatorBeastWordmark height={40} />
-          </div>
+      <div className="flex min-h-screen flex-col">
+        <AppHeader variant="dark" forceDarkSurface />
+        <div className="flex flex-1 items-center justify-center px-4 py-16">
+          <div className="w-full max-w-lg">
 
           <BillingCard
             center
@@ -210,7 +213,8 @@ export default function BillingClient({
                 Contact Support
               </a>
             </div>
-          </BillingCard>
+            </BillingCard>
+          </div>
         </div>
       </div>
     )
@@ -218,11 +222,10 @@ export default function BillingClient({
 
   // Access granted — trialing or subscribed.
   return (
-    <div className="flex min-h-screen justify-center px-4 py-16">
-      <div className="w-full max-w-2xl">
-        <div className="mb-8 flex justify-center">
-          <LocatorBeastWordmark height={40} />
-        </div>
+    <div className="flex min-h-screen flex-col">
+      <AppHeader variant="dark" forceDarkSurface />
+      <div className="flex flex-1 justify-center px-4 py-16">
+        <div className="w-full max-w-2xl">
 
         <BillingCard eyebrow="Billing" title="Your subscription">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -317,6 +320,7 @@ export default function BillingClient({
             </ul>
           </div>
         )}
+        </div>
       </div>
     </div>
   )

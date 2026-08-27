@@ -74,7 +74,7 @@ export default function Nav() {
       </div>
 
       {open && (
-        <div className="border-t border-white/10 bg-[#0b0f1a] px-6 py-6 md:hidden">
+        <div className="border-t border-white/10 bg-black px-6 py-6 md:hidden">
           <nav className="flex flex-col gap-4">
             {NAV_LINKS.map((link) => (
               <Link
