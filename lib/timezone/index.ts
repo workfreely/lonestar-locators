@@ -21,9 +21,42 @@ export function detectBrowserTimeZone(): string {
   }
 }
 
-/** Whether a string is an IANA zone the runtime can actually resolve. */
+// Canonical IANA zone identifiers, e.g. "America/Chicago". Intl.supportedValuesOf
+// returns exactly the canonical set — 418 zones — and deliberately excludes both
+// abbreviations ("CST", "EST", "PST") and backward-compatibility links
+// ("US/Central", "EST5EDT"). That exclusion is the whole point of using it.
+//
+// Built once: the list is static for the life of the process.
+const CANONICAL_TIME_ZONES: ReadonlySet<string> = new Set(
+  typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : []
+)
+
+// "UTC" is allowed explicitly. It is a genuine tz-database identifier that every
+// runtime resolves, and it is unambiguous — unlike "CST", it names no region and
+// carries no DST rules. It is missing from supportedValuesOf only because that
+// list reports zones in Region/City form. "Etc/UTC" and the rest of "Etc/*" stay
+// rejected: the Etc/GMT±N zones invert the sign of the offset and are a
+// well-known foot-gun, and nothing in this app emits them.
+const EXTRA_ALLOWED_ZONES: ReadonlySet<string> = new Set(["UTC"])
+
+/**
+ * Whether a string is a CANONICAL IANA zone identifier.
+ *
+ * Previously this only asked whether Intl could construct a formatter for the
+ * value, which V8 answers "yes" to for legacy aliases — so "CST" passed and was
+ * stored, despite the API documenting IANA ids only. An abbreviation is
+ * genuinely ambiguous (CST is both US Central and China Standard Time), so
+ * accepting one meant storing a timezone we could not reliably schedule against.
+ */
 export function isValidTimeZone(tz: string | null | undefined): tz is string {
   if (!tz || typeof tz !== "string") return false
+  if (EXTRA_ALLOWED_ZONES.has(tz)) return true
+  if (CANONICAL_TIME_ZONES.size > 0) return CANONICAL_TIME_ZONES.has(tz)
+
+  // Fallback for a runtime without supportedValuesOf (pre-2022 browsers). Require
+  // the Region/City shape, which alone rejects every bare abbreviation, and still
+  // require that the runtime can resolve it.
+  if (!/^[A-Za-z][A-Za-z0-9_+-]*\/[A-Za-z0-9_+\/-]+$/.test(tz)) return false
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: tz })
     return true
