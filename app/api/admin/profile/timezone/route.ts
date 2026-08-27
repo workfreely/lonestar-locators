@@ -24,7 +24,11 @@ export async function POST(request: Request) {
 
   const { error } = await supabase.from("profiles").update({ timezone }).eq("id", userId)
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    // Server-side only. A PostgrestError message names tables, columns and
+    // constraints ("violates check constraint \"profiles_timezone_check\"") —
+    // schema detail the client has no use for and an attacker does.
+    console.error("[admin/profile/timezone]", error.message)
+    return NextResponse.json({ error: "Could not save your timezone." }, { status: 500 })
   }
 
   return NextResponse.json({ ok: true, timezone })

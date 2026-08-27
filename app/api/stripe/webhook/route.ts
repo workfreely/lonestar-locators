@@ -25,7 +25,12 @@ export async function POST(request: Request) {
   try {
     event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret)
   } catch (err) {
-    return NextResponse.json({ error: `Invalid signature: ${(err as Error).message}` }, { status: 400 })
+    // This endpoint is PUBLIC — the signature IS the gate, so this branch is
+    // reachable by anyone. Stripe's verification error is a paragraph of library
+    // guidance; echoing it told an anonymous caller how the check works and
+    // confirmed the secret is configured. Stripe itself only needs the 400.
+    console.error("[stripe/webhook] signature verification failed:", (err as Error).message)
+    return NextResponse.json({ error: "Invalid signature" }, { status: 400 })
   }
 
   // Idempotency — Stripe retries deliveries, so skip anything already fully
@@ -71,11 +76,11 @@ export async function POST(request: Request) {
         break
     }
   } catch (err) {
-    // Let Stripe retry — do NOT mark the event processed.
-    return NextResponse.json(
-      { error: `Handler failed: ${(err as Error).message}` },
-      { status: 500 }
-    )
+    // Let Stripe retry — do NOT mark the event processed. The 500 IS the retry
+    // signal; Stripe does not read the body, and the message can carry Supabase
+    // or Stripe-API internals, so it stays in the server log.
+    console.error(`[stripe/webhook] handler failed for ${event.type}:`, (err as Error).message)
+    return NextResponse.json({ error: "Handler failed" }, { status: 500 })
   }
 
   // Success — record the event so retries are deduped. A unique-violation race

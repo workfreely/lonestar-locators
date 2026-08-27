@@ -79,7 +79,10 @@ export async function POST() {
     .eq("id", user.id)
 
   if (updateError) {
-    return NextResponse.json({ error: updateError.message }, { status: 500 })
+    // Server-side only — see the timezone route. The client-safe outcomes above
+    // (trial_already_used) still say exactly what happened.
+    console.error("[billing/start-trial]", updateError.message)
+    return NextResponse.json({ error: "Could not start your trial." }, { status: 500 })
   }
 
   return NextResponse.json({ granted: true, trialEndsAt: trialEndsAt.toISOString() })
