@@ -16,6 +16,7 @@ import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { autoDueInDays } from "@/lib/workflow/autoDueDate"
 import { readKanbanDensity, writeKanbanDensity, DEFAULT_KANBAN_DENSITY } from "@/lib/preferences"
 import BeastVoiceMic from "./voice/BeastVoiceMic"
+import AddPropertyModal from "./AddPropertyModal"
 
 const ALL_COLUMNS = [
   { id: "new", title: "🟡 New" },
@@ -137,6 +138,7 @@ export default function LeadBoard({
   mapSlot?: (
     query: string,
     hosts: { actions: HTMLElement | null; market: HTMLElement | null },
+      onMatchCount: (count: number | null) => void,
   ) => React.ReactNode
   // ── Beast Voice (alpha, platform-admin only) ─────────────────────────────
   // Off unless the server said the viewer is a platform admin, so the public
@@ -153,6 +155,21 @@ export default function LeadBoard({
   // explorer re-renders once the node exists after the first paint.
   const [mapActionsHost, setMapActionsHost] = useState<HTMLDivElement | null>(null)
   const [mapMarketHost, setMapMarketHost] = useState<HTMLDivElement | null>(null)
+  // The query AS IT WAS when Enter was pressed — the explicit "I meant that"
+  // signal. Typing alone never counts, and any keystroke or a click back into the
+  // field clears it, so the no-results state cannot linger.
+  const [submittedQuery, setSubmittedQuery] = useState("")
+  // Reported by Beast Property Explorer. null = not settled.
+  const [matchCount, setMatchCount] = useState<number | null>(null)
+  // The Add New Property form shell. Opened from the failed-search state; it
+  // persists nothing yet, so this is the only state it needs.
+  const [addPropertyFor, setAddPropertyFor] = useState<string | null>(null)
+  // Swap the CONTENTS of the existing control — never its box.
+  const showNoResults =
+    workspace === "map" &&
+    submittedQuery.trim().length > 0 &&
+    submittedQuery === searchQuery &&
+    matchCount === 0
   // Beast Voice session state — placeholder text only; search stays typeable.
   const [voiceState, setVoiceState] = useState<"idle" | "listening" | "working">("idle")
   // Lead awaiting archive-reason confirmation (null = dialog closed).
@@ -398,7 +415,13 @@ export default function LeadBoard({
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+                setSubmittedQuery("")
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") setSubmittedQuery(searchQuery)
+              }}
               placeholder={
                 workspace === "map"
                   ? // Map mode filters the properties ALREADY loaded on the map — it
@@ -421,6 +444,29 @@ export default function LeadBoard({
                 onInitiateContact={onInitiateContact}
                 onListeningChange={setVoiceState}
               />
+            )}
+            {/* Failed-search state. An overlay pinned to inset:0 of .kb-search
+                rather than a replacement element: the real input stays mounted and
+                keeps defining the box, so the control's outer width, height, shape
+                and position cannot change. No dropdown, no second row, no portal.
+                Clicking it restores the input immediately. */}
+            {showNoResults && (
+              <div
+                className="kb-search-noresults"
+                onMouseDown={() => setSubmittedQuery("")}
+              >
+                <span className="kb-search-noresults-label">No results found</span>
+                <button
+                  type="button"
+                  className="kb-search-noresults-add"
+                  // stopPropagation so opening the form does not also trigger the
+                  // overlay's "restore the input" handler underneath it.
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={() => setAddPropertyFor(searchQuery.trim())}
+                >
+                  + Add New Property
+                </button>
+              </div>
             )}
             </div>
             {/* Map-mode action slot — filled by Beast Property Explorer via a
@@ -461,11 +507,22 @@ export default function LeadBoard({
           </div>
         </div>
 
+        {addPropertyFor !== null && (
+          <AddPropertyModal
+            initialName={addPropertyFor}
+            onClose={() => {
+              setAddPropertyFor(null)
+              // Back to a normal search field once the form closes.
+              setSubmittedQuery("")
+            }}
+          />
+        )}
+
         {workspace === "map" ? (
           /* Beast Property Explorer fills the same flex slot the board occupies, so
              it grows and shrinks with whatever Agenda and Companion leave behind. */
           <div className="kb-board" style={{ display: "block", padding: 0, overflow: "hidden" }}>
-            {mapSlot?.(searchQuery, { actions: mapActionsHost, market: mapMarketHost })}
+            {mapSlot?.(searchQuery, { actions: mapActionsHost, market: mapMarketHost }, setMatchCount)}
           </div>
         ) : (
         <div className="kb-board" data-density={view}>

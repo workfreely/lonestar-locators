@@ -43,7 +43,13 @@ type Props = {
   onRecommend?: (property: ExplorerProperty) => void
   /** The toolbar search text. In Map mode it filters the properties ALREADY loaded
    *  — it never calls Places, so typing costs nothing. */
-  query?: string  /** Toolbar node supplied by LeadBoard in Map mode. When present, "Search this
+  query?: string
+  /** Reports the CURRENT number of matching properties, or null while the map is
+   *  not settled. Read-only reporting — the explorer's own filtering, pins and
+   *  search behaviour are untouched; LeadBoard uses it to decide whether an
+   *  Enter press found nothing. */
+  onMatchCount?: (count: number | null) => void
+  /** Toolbar node supplied by LeadBoard in Map mode. When present, "Search this
    *  area" is portalled there so it reads as the third toolbar control instead of
    *  floating over the middle of the map. Absent → the original centered
    *  placement, so any other consumer is unchanged. */
@@ -54,7 +60,7 @@ type Props = {
 
 type Status = "loading" | "ready" | "searching" | "error" | "unconfigured"
 
-export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, primaryMarket = null, licenseState = null, onSelectProperty, query = "", recommendedUrls = [], onRecommend, actionsHost = null, marketHost = null }: Props) {
+export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, primaryMarket = null, licenseState = null, onSelectProperty, query = "", recommendedUrls = [], onRecommend, actionsHost = null, marketHost = null, onMatchCount }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<google.maps.Marker[]>([])
@@ -396,6 +402,13 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     [results, q],
   )
 
+  // Report upward AFTER render, never during — this only observes `visible`.
+  // null while loading/searching so the toolbar can tell "no matches" apart from
+  // "not settled yet" and never reacts mid-resolve.
+  useEffect(() => {
+    onMatchCount?.(status === "ready" ? visible.length : null)
+  }, [status, visible.length, onMatchCount])
+
   const recommended = useMemo(() => new Set(recommendedUrls), [recommendedUrls])
   // Map-local only. Recomputed from the loaded results; nothing is persisted, and
   // no recommendation is written without the agent clicking.
@@ -592,13 +605,10 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
         </div>
       )}
 
-      {status === "ready" && !error && q && results.length > 0 && visible.length === 0 && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-12 flex justify-center">
-          <p className="pointer-events-auto rounded-full bg-white px-4 py-2 text-[12.5px] font-medium text-[#4b5162] shadow-lg ring-1 ring-black/10">
-            No loaded property matches &ldquo;{query.trim()}&rdquo;.
-          </p>
-        </div>
-      )}
+      {/* The "No loaded property matches …" toast is intentionally gone: the search
+          control itself now shows that state after Enter, and both at once said the
+          same thing twice. ONLY this toast is suppressed — the error pill above and
+          the empty-area-search pill below are unchanged. */}
 
       {status === "ready" && !error && results.length === 0 && !dirty && lastSearchRef.current && (
         <div className="pointer-events-none absolute inset-x-0 bottom-12 flex justify-center">

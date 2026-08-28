@@ -1812,6 +1812,29 @@ body.jaybot-open {
    board without the mic keeps its original 320px metrics exactly. */
 .kb-search-voice { max-width:368px; }
 .kb-search-voice input[type="text"] { padding-right:34px !important; }
+
+/* Failed-search state INSIDE the existing control.
+   Pinned to the search box itself, so the control's outer width, height, shape and
+   position are unchanged — only what is drawn inside it differs. Radius and
+   surface are inherited from the input's own tokens so it reads as the same
+   control, not a new one. Every rule above (the approved search bar) is untouched;
+   these are additions that apply only while the state is showing. */
+.kb-search-noresults {
+  position:absolute; inset:0; z-index:2;
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding:0 12px 0 14px;
+  border-radius:999px;
+  background: var(--kb-col);
+  border:1px solid var(--kb-border-strong);
+  cursor:text;
+}
+.kb-search-noresults-label { font-size:13px; color:var(--kb-ink-soft); white-space:nowrap; }
+.kb-search-noresults-add {
+  flex:none; font-size:12.5px; font-weight:600; color:var(--kb-ink);
+  background:none; border:0; padding:2px 4px; border-radius:6px; cursor:pointer;
+  transition:background-color 120ms ease;
+}
+.kb-search-noresults-add:hover { background:color-mix(in srgb, var(--kb-ink) 10%, transparent); }
 .kb-voice-mic { position:absolute; right:5px; top:50%; transform:translateY(-50%); display:flex; align-items:center; justify-content:center; width:26px; height:26px; padding:0; border:0; border-radius:999px; background:transparent; color:var(--kb-ink-muted); cursor:pointer; transition:color .15s, background .15s; }
 .kb-voice-mic:hover:not(:disabled) { color:var(--kb-ink); background:color-mix(in srgb, var(--kb-ink) 10%, transparent); }
 .kb-voice-mic:focus-visible { outline:2px solid var(--kb-accent); outline-offset:1px; }
