@@ -65,6 +65,36 @@ export function writeKanbanDensity(density: KanbanDensity) {
   writeRaw(KANBAN_DENSITY_KEY, density)
 }
 
+// ─── Primary CRM workspace (Board | Map) ──────────────────────────────
+// Which primary view the CRM opens in. Without this the view lived only in
+// DashboardClient's useState, hard-defaulted to "board", so a refresh on Map
+// always dropped the locator back on the Kanban.
+//
+// ONLY the view name is stored. Nothing transient — no zoom, bounds, selected
+// property or client, search text, open cards, hover or modal state — so a
+// restored view starts as clean as a fresh one.
+//
+// NOTE: keep the union in sync with DashboardClient's workspace state.
+
+export type CrmWorkspace = "board" | "map"
+export const CRM_WORKSPACE_KEY = "crm-workspace"
+export const DEFAULT_CRM_WORKSPACE: CrmWorkspace = "board"
+
+export function isCrmWorkspace(value: unknown): value is CrmWorkspace {
+  return value === "board" || value === "map"
+}
+
+export function readCrmWorkspace(): CrmWorkspace {
+  const stored = readRaw(CRM_WORKSPACE_KEY)
+  // The guard matters: a stale or hand-edited value falls back to Board rather
+  // than rendering an unknown view.
+  return isCrmWorkspace(stored) ? stored : DEFAULT_CRM_WORKSPACE
+}
+
+export function writeCrmWorkspace(workspace: CrmWorkspace) {
+  writeRaw(CRM_WORKSPACE_KEY, workspace)
+}
+
 // ─── Agenda (Follow-Ups) panel expanded/collapsed ─────────────────────
 
 export const AGENDA_EXPANDED_KEY = "follow-ups-expanded"

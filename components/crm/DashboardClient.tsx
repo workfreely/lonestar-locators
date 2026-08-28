@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import BeastPropertyExplorer from "@/components/crm/explorer/BeastPropertyExplorer"
 import { favoriteMoveBlock, visibleRecommendations } from "@/lib/leads/propertyCollections"
 import { useRouter } from "next/navigation"
@@ -17,7 +17,7 @@ import WorkflowActionToast from "./WorkflowActionToast"
 import BeastMilestoneToast from "./BeastMilestoneToast"
 import { useBeastMilestones } from "@/lib/beastMilestones/useBeastMilestones"
 import { emitWorkflowActionCreated, type WorkflowToastAction } from "@/lib/workflowToast"
-import { readAgendaExpanded, writeAgendaExpanded, DEFAULT_AGENDA_EXPANDED, readDemoBannerDismissed, writeDemoBannerDismissed } from "@/lib/preferences"
+import { readAgendaExpanded, writeAgendaExpanded, DEFAULT_AGENDA_EXPANDED, readDemoBannerDismissed, writeDemoBannerDismissed, readCrmWorkspace, writeCrmWorkspace, DEFAULT_CRM_WORKSPACE, type CrmWorkspace } from "@/lib/preferences"
 import { exitDemoWorkspace } from "@/lib/demo/exitDemo"
 import { isDemoLeadId, getDemoBrief } from "@/lib/demo/demoWorkspace"
 import FirstRunChecklist from "./FirstRunChecklist"
@@ -232,7 +232,21 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   const [agendaSide, setAgendaSide] = useState<"left" | "right">("left")
   // Board vs Beast Property Explorer. Purely which workspace fills the centre —
   // Agenda, Companion and Focus are untouched by it.
-  const [workspace, setWorkspace] = useState<"board" | "map">("board")
+  const [workspace, setWorkspace] = useState<CrmWorkspace>(DEFAULT_CRM_WORKSPACE)
+
+  // Restore the last primary view AFTER mount, never in the useState
+  // initializer: localStorage does not exist during SSR, so reading it there
+  // would render Board on the server and Map on the client and trip a hydration
+  // mismatch. Same approach LeadBoard already uses for Kanban density.
+  useEffect(() => {
+    setWorkspace(readCrmWorkspace())
+  }, [])
+
+  // Persist on change. Only the view NAME — nothing transient rides along.
+  const selectWorkspace = useCallback((next: CrmWorkspace) => {
+    setWorkspace(next)
+    writeCrmWorkspace(next)
+  }, [])
 
   // Board → Map tells an OPEN Beast Companion to default to its Properties tab —
   // Map mode is a property-research context, and Current Property /
@@ -2232,7 +2246,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         >
           <LeadBoard
             workspace={workspace}
-            onWorkspaceChange={setWorkspace}
+            onWorkspaceChange={selectWorkspace}
             mapSlot={(query, hosts, onMatchCount) => (
               <BeastPropertyExplorer
                 query={query}
