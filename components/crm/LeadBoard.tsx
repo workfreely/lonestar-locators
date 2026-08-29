@@ -399,12 +399,6 @@ export default function LeadBoard({
                   </button>
                 </div>
               )}
-            {/* Market switcher slot — between Board | Map and the search field,
-                so the toolbar reads Board|Map → market → search → Search this
-                area. Board mode never renders it. */}
-            {workspace === "map" && (
-              <div ref={setMapMarketHost} className="kb-map-market" />
-            )}
             <div className={`kb-search${voiceEnabled ? " kb-search-voice" : ""}`}>
             <span className="kb-search-ic">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -469,10 +463,19 @@ export default function LeadBoard({
               </div>
             )}
             </div>
-            {/* Map-mode action slot — filled by Beast Property Explorer via a
-                portal so "Search this area" reads as the third toolbar control
-                (Board | Map → search → Search this area) rather than floating
-                over the middle of the map. Board mode never renders it. */}
+            {/* Map-only slots sit AFTER the search field, not before it.
+                Board | Map and search are the two controls both workspaces
+                share, so they hold the same horizontal positions in each; a
+                market switcher placed ahead of search would push search
+                sideways on every switch between Board and Map. The Map toolbar
+                therefore reads Board|Map → search → market → Unleash Beast.
+                Board mode renders neither. */}
+            {workspace === "map" && (
+              <div ref={setMapMarketHost} className="kb-map-market" />
+            )}
+            {/* Filled by Beast Property Explorer via a portal, so "Unleash
+                Beast" reads as a toolbar control rather than floating over the
+                middle of the map. */}
             {workspace === "map" && (
               <div ref={setMapActionsHost} className="kb-map-actions" />
             )}
