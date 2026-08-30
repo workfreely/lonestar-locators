@@ -408,7 +408,7 @@ function AiInsightsCard({ leadId, onCloseWorkspace, beastInsight }: { leadId: st
         </div>
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
           <span className="text-[11px] text-[var(--crm-text-muted)]">
-            {lastSynced ? `Phone Sync: ${lastSynced}` : "Phone Sync: Never synced"}
+            {lastSynced ? `Beast Sync: ${lastSynced}` : "Beast Sync: Never synced"}
           </span>
           <button
             onClick={handleSync}
