@@ -7,6 +7,7 @@ import { assessLocationFit, type ClientLocationContext } from "@/lib/propertyExp
 import { computeSuggestions } from "@/lib/propertyExplorer/suggestions"
 import { enrichProperties, fetchCatalog } from "@/lib/propertyExplorer/catalog"
 import { supabase } from "@/lib/supabase/client"
+import { readMapMarket, writeMapMarket } from "@/lib/preferences"
 import { boundsForMarket, getMarketBySlug, isInsideMarket, isMarketInState, marketsForSlugs, resolveMapMarket } from "@/lib/markets/catalog"
 import { createPortal } from "react-dom"
 
@@ -146,6 +147,35 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   useEffect(() => {
     setMarketOverride(null)
   }, [clientKey])
+
+  // ── Remember the current Map market across a refresh ────────────────────────
+  // The chosen market lives only in `marketOverride`, so a reload used to snap
+  // back to the agent's Primary Market. Persist the RESOLVED market and reopen it
+  // on load, exactly the way DashboardClient remembers Board-vs-Map — restore
+  // AFTER mount (never in the useState initializer) so SSR and client agree.
+  //
+  // Restore is skipped when a client is already selected: that client's market
+  // must win (client switching is untouched), and the clientKey effect above
+  // owns clearing the override for the client path. With no client, the saved
+  // market seeds the override and resolveMapMarket prefers it over the primary.
+  const persistReadyRef = useRef(false)
+  useEffect(() => {
+    if (!activeClient) {
+      const saved = readMapMarket()
+      if (saved) setMarketOverride(saved)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  // Persist whenever the shown market changes — from the switcher OR a client —
+  // so a reload reopens the last market. Skip the very first run so the initial
+  // Primary-market resolve never clobbers a saved market before restore reads it.
+  useEffect(() => {
+    if (!persistReadyRef.current) {
+      persistReadyRef.current = true
+      return
+    }
+    if (marketSlug) writeMapMarket(marketSlug)
+  }, [marketSlug])
 
   // The licensed state can change while the map is alive (Profile edit in another
   // tab, a late-arriving profile read). Re-apply the restriction rather than

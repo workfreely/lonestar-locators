@@ -95,6 +95,25 @@ export function writeCrmWorkspace(workspace: CrmWorkspace) {
   writeRaw(CRM_WORKSPACE_KEY, workspace)
 }
 
+// ─── Map market (Beast Property Explorer) ─────────────────────────────
+// The market the Map is currently showing, so a refresh reopens where the
+// agent left off instead of snapping back to their Primary Market. Stores the
+// catalog slug (e.g. "austin"); an absent/empty value means "no saved market",
+// and the caller falls back to the Primary Market. No slug validation here —
+// resolveMapMarket already drops an unknown or out-of-state slug, so a stale
+// value degrades safely to the primary market rather than mis-opening.
+
+export const MAP_MARKET_KEY = "map-market"
+
+export function readMapMarket(): string | null {
+  const stored = readRaw(MAP_MARKET_KEY)
+  return stored && stored.trim() ? stored : null
+}
+
+export function writeMapMarket(slug: string | null) {
+  writeRaw(MAP_MARKET_KEY, slug ?? "")
+}
+
 // ─── Agenda (Follow-Ups) panel expanded/collapsed ─────────────────────
 
 export const AGENDA_EXPANDED_KEY = "follow-ups-expanded"
