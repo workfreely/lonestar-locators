@@ -1013,6 +1013,14 @@ const MARKET_BOUNDS_OVERRIDE: Record<string, LatLngBounds> = {
   // (Southside/Brooks, Converse/Schertz, Alamo Ranch/Potranco). Comfortably
   // contains the default downtown center (29.4241, -98.4936).
   "san-antonio": { south: 29.15, west: -98.85, north: 29.83, east: -98.15 },
+  // Modest expansion of the default ~21 km Austin box so the user can manually
+  // pan/zoom across the practical metro: north to Round Rock/Cedar Park/Leander
+  // (~30.5), south to Buda/Kyle (~30.0, deliberately short of the San Marcos
+  // market at ~29.88), west to Bee Cave/Lakeway (~-97.98), east to Manor
+  // (~-97.55). Still a bounded restriction — not the whole state. Comfortably
+  // contains the default center (30.2672, -97.7431) and every Austin centroid
+  // (incl. Domain 30.401), so the initial camera (center + zoom 11) is unchanged.
+  "austin": { south: 30.0, west: -98.05, north: 30.6, east: -97.45 },
 }
 
 /** The browsing box for a supported market, or null when the slug is unknown. */
