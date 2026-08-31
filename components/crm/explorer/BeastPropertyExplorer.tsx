@@ -66,6 +66,11 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   const hostRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<google.maps.Marker[]>([])
+  // placeId -> its map marker, so the Unleash Beast animation can highlight the
+  // REAL ranked matches (Beast Suggestions) rather than arbitrary render order.
+  const markerByIdRef = useRef<Map<string, google.maps.Marker>>(new Map())
+  // The current ranked suggestion order, mirrored into a ref for the handler.
+  const suggestedIdsRef = useRef<string[]>([])
 
   // ── "Unleash the Beast" VISUAL PROTOTYPE ──────────────────────────────────
   // Front-end only: no query, no AI, no Supabase, no Recommendations write. It
@@ -164,6 +169,7 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
       m.setMap(null)
     }
     markersRef.current = []
+    markerByIdRef.current.clear()
   }, [])
 
   // ── Map bootstrap (once) ──────────────────────────────────────────────────
@@ -354,6 +360,13 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     const markers = markersRef.current
     if (!map || markers.length === 0) return
 
+    // Execute the REAL search/ranking path. searchThisArea() runs Google Places
+    // -> catalog enrichment -> assessLocationFit -> computeSuggestions; it skips
+    // an identical repeat, so this is a no-op refresh when the area is unchanged
+    // and a genuine re-search when it moved. Either way the animation below then
+    // presents the ACTUAL ranked results, not a decorative pick.
+    void searchThisArea()
+
     // Restartable: a click mid-run rewinds and starts over.
     beastReset()
     beastPhaseRef.current = "scanning"
@@ -367,9 +380,14 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     // 1. every visible marker brightens as the sweep passes.
     for (const m of markers) m.setOpacity(1)
 
-    // 2. matches = the first 10 in existing render order. Deterministic on
-    //    purpose — this is a look-and-feel prototype, NOT ranking.
-    const matches = markers.slice(0, 10)
+    // 2. matches = the REAL ranked Beast Suggestions (structured Neighborhood /
+    //    Location Keyword / Location fit, strongest tier first). When there is
+    //    no ranked evidence — no client, or no matching areas — fall back to the
+    //    first 10 so the sweep still reads as a gesture rather than doing nothing.
+    const rankedMatches = suggestedIdsRef.current
+      .map((id) => markerByIdRef.current.get(id))
+      .filter((m): m is google.maps.Marker => Boolean(m))
+    const matches = rankedMatches.length > 0 ? rankedMatches : markers.slice(0, 10)
     const matchSet = new Set(matches)
 
     later(() => {
@@ -401,7 +419,7 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
       setBeastMatchCount(matches.length)
       setBeastPhase("matched")
     }, 2200)
-  }, [beastReset])
+  }, [beastReset, searchThisArea])
 
   useEffect(() => () => beastReset(), [beastReset])
 
@@ -463,8 +481,14 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
         onSelectProperty?.(p)
       })
       markersRef.current.push(marker)
+      markerByIdRef.current.set(p.placeId, marker)
     }
   }, [visible, suggestions, clearMarkers, onSelectProperty])
+
+  // Keep the handler's view of the ranked matches current.
+  useEffect(() => {
+    suggestedIdsRef.current = Array.from(suggestions.keys())
+  }, [suggestions])
 
   const card = selected ?? hovered
   const fit = card ? assessLocationFit(card, activeClient) : null
