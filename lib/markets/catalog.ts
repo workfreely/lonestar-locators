@@ -556,10 +556,26 @@ export function centerForMarket(slug: string | null | undefined): MarketCenter |
 // deliberately NOT the full neighborhood centroid system. Keyed by the same
 // normalized text shape used elsewhere.
 const DESIRED_AREA_CENTERS: Record<string, MarketCenter> = {
-  // San Antonio · Stone Oak (Loop 1604 & US-281 area).
+  // ── San Antonio ──────────────────────────────────────────────────────────
+  // Keyed by the SAME normalization centerForDesiredArea() applies to the form
+  // label (lowercase; "/" and punctuation → spaces). Covers every currently
+  // selectable San Antonio Preferred Neighborhood + Nearby Area so none falls
+  // back to the downtown market center. All sit inside the SA navigation bounds.
+  // Preferred Neighborhoods
+  "downtown san antonio": { lat: 29.4246, lng: -98.4926 },
+  "la cantera the rim": { lat: 29.6053, lng: -98.581 },
+  "the dominion": { lat: 29.6288, lng: -98.6255 },
   "stone oak": { lat: 29.6247, lng: -98.4842 },
-  // San Antonio · Alamo Heights (Broadway & Austin Hwy core, near City Hall).
+  "alamo ranch": { lat: 29.4776, lng: -98.744 },
+  "southtown": { lat: 29.411, lng: -98.493 },
+  "utsa": { lat: 29.583, lng: -98.619 },
+  "medical center": { lat: 29.5093, lng: -98.577 },
+  "universal city converse": { lat: 29.533, lng: -98.3035 },
+  "westover hills": { lat: 29.4585, lng: -98.665 },
   "alamo heights": { lat: 29.4847, lng: -98.4661 },
+  // Nearby Areas (submarkets)
+  "boerne": { lat: 29.7947, lng: -98.732 },
+  "schertz": { lat: 29.5522, lng: -98.27 },
 }
 
 /** Deterministic center for a single desired area, or null when unrecognised.
