@@ -558,6 +558,8 @@ export function centerForMarket(slug: string | null | undefined): MarketCenter |
 const DESIRED_AREA_CENTERS: Record<string, MarketCenter> = {
   // San Antonio · Stone Oak (Loop 1604 & US-281 area).
   "stone oak": { lat: 29.6247, lng: -98.4842 },
+  // San Antonio · Alamo Heights (Broadway & Austin Hwy core, near City Hall).
+  "alamo heights": { lat: 29.4847, lng: -98.4661 },
 }
 
 /** Deterministic center for a single desired area, or null when unrecognised.
