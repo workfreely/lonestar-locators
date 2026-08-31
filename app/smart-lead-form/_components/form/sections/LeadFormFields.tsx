@@ -27,8 +27,9 @@ function neighborhoodOptions(cityName: string): string[] {
   return [...m.neighborhoods]
 }
 
-// The renter may pick at most this many neighborhoods. 0 is allowed.
-const MAX_NEIGHBORHOODS = 3
+// Combined cap across BOTH location sections (Preferred Neighborhoods + Nearby
+// Areas). At most this many total selections; a minimum of 1 is enforced at submit.
+const MAX_LOCATIONS = 3
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fields, conditional logic, and validation are ported 1:1 from LandingForm.tsx
@@ -230,14 +231,15 @@ export default function LeadFormFields({
     setFormData((prev) => ({ ...prev, beds: value, baths: newBaths }))
   }
 
-  // Pick up to MAX_NEIGHBORHOODS. At the cap a further SELECT is refused while
+  // Pick up to MAX_LOCATIONS TOTAL across Preferred Neighborhoods + Nearby Areas.
+  // At the combined cap a further SELECT is refused (in EITHER section) while
   // DESELECT stays available, so the renter can always swap one area for another.
-  // 0 selections is allowed. (Same shape as the Must-Have Amenities cap below.)
   function toggleNeighborhood(checked: boolean, value: string) {
     setFormData((prev) => {
       const current = prev.neighborhoods
       if (!checked) return { ...prev, neighborhoods: current.filter((n) => n !== value) }
-      if (current.includes(value) || current.length >= MAX_NEIGHBORHOODS) return prev
+      if (current.includes(value) || prev.neighborhoods.length + prev.submarkets.length >= MAX_LOCATIONS)
+        return prev
       return { ...prev, neighborhoods: [...current, value] }
     })
   }
@@ -254,12 +256,14 @@ export default function LeadFormFields({
     })
   }
 
+  // Nearby Areas share the SAME combined cap as Preferred Neighborhoods.
   function toggleSubmarket(checked: boolean, value: string) {
     setFormData((prev) => {
-      const updated = checked
-        ? [...prev.submarkets, value]
-        : prev.submarkets.filter((s) => s !== value)
-      return { ...prev, submarkets: updated }
+      const current = prev.submarkets
+      if (!checked) return { ...prev, submarkets: current.filter((s) => s !== value) }
+      if (current.includes(value) || prev.neighborhoods.length + prev.submarkets.length >= MAX_LOCATIONS)
+        return prev
+      return { ...prev, submarkets: [...current, value] }
     })
   }
 
@@ -270,8 +274,8 @@ export default function LeadFormFields({
     // ─── Validation — ported from LandingForm, gated by field visibility so a
     // hidden field can never block submission ───
     if (f.moveDate && !formData.moveDate) return alert("Please select your move date.")
-    if (f.location && formData.neighborhoods.length === 0)
-      return alert("Please select at least one preferred neighborhood.")
+    if (f.location && formData.neighborhoods.length + formData.submarkets.length === 0)
+      return alert("Please select at least one preferred area.")
     if (
       f.rentalBackground &&
       formData.creditHistory === "Broken Lease" &&
@@ -464,19 +468,17 @@ export default function LeadFormFields({
               onToggle={toggleNeighborhood}
               isDisabled={(v) =>
                 !formData.neighborhoods.includes(v) &&
-                formData.neighborhoods.length >= MAX_NEIGHBORHOODS
+                formData.neighborhoods.length + formData.submarkets.length >= MAX_LOCATIONS
               }
             />
 
-            {/* Nearby submarkets — any market that defines them (catalog-driven) */}
+            {/* Nearby Areas — the market's submarkets (catalog-driven). Shares the
+                COMBINED cap with Preferred Neighborhoods above. Select All removed so
+                a bulk pick can never bypass the 3-total cap. */}
             {selectedMarket && selectedMarket.submarkets.length > 0 && (
               <div className="mt-3 flex flex-col gap-2">
-                <label className={`${labelClass} font-semibold`}>Nearby Submarkets</label>
+                <label className={`${labelClass} font-semibold`}>Nearby Areas</label>
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => set("submarkets", [...selectedMarket.submarkets])}
-                    className={bulkButtonClass}>
-                    Select All
-                  </button>
                   <button type="button" onClick={() => set("submarkets", [])}
                     className={bulkButtonClass}>
                     Deselect All
@@ -487,6 +489,10 @@ export default function LeadFormFields({
                   options={selectedMarket.submarkets.map((sm) => ({ value: sm, label: sm }))}
                   selected={formData.submarkets}
                   onToggle={toggleSubmarket}
+                  isDisabled={(v) =>
+                    !formData.submarkets.includes(v) &&
+                    formData.neighborhoods.length + formData.submarkets.length >= MAX_LOCATIONS
+                  }
                 />
               </div>
             )}
