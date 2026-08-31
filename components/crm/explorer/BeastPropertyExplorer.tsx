@@ -794,6 +794,23 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
               <p className="mt-1 text-[11.5px] text-[#6b7280]">{fit.reason}</p>
             </div>
           )}
+          {/* Discreet lower-right link to the property's OWN website. Shown only
+              when a real websiteUrl exists (hidden otherwise). Opens in a new tab
+              and stops propagation so it never triggers the pin-card select/close.
+              No request — the URL is read from the already-loaded property. */}
+          {card.websiteUrl && (
+            <div className="mt-3 text-right">
+              <a
+                href={card.websiteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="text-[11.5px] font-medium text-[#2f6bff] hover:underline"
+              >
+                Visit Website
+              </a>
+            </div>
+          )}
         </div>
       )}
     </div>

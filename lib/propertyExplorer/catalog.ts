@@ -14,6 +14,8 @@ export type CatalogRecord = {
   location: string | null
   locationKeywords: string[]
   zip: string | null
+  /** The property's own website (property_catalog.website_url), when catalogued. */
+  websiteUrl: string | null
 }
 
 export async function fetchCatalog(
@@ -25,7 +27,7 @@ export async function fetchCatalog(
   if (ids.length === 0) return out
   const { data, error } = await supabase
     .from("property_catalog")
-    .select("place_id, neighborhood, location, location_keywords, zip")
+    .select("place_id, neighborhood, location, location_keywords, zip, website_url")
     .in("place_id", ids)
   // A lookup failure must never break the search — fall back to unenriched.
   if (error || !data) return out
@@ -35,6 +37,7 @@ export async function fetchCatalog(
       location: (r.location as string) ?? null,
       locationKeywords: Array.isArray(r.location_keywords) ? (r.location_keywords as string[]) : [],
       zip: (r.zip as string) ?? null,
+      websiteUrl: (r.website_url as string) ?? null,
     })
   }
   return out
@@ -49,7 +52,7 @@ export function enrichProperties(
   return properties.map((p) => {
     const c = catalog.get(p.placeId)
     return c
-      ? { ...p, neighborhood: c.neighborhood, location: c.location, locationKeywords: c.locationKeywords, zip: c.zip }
+      ? { ...p, neighborhood: c.neighborhood, location: c.location, locationKeywords: c.locationKeywords, zip: c.zip, websiteUrl: c.websiteUrl }
       : p
   })
 }

@@ -39,6 +39,12 @@ export type ExplorerProperty = {
   propertyAddress: string | null
   /** Canonical Google Maps place URL, derived from the Place ID. */
   propertyUrl: string
+  /** The property's OWN website (not the Google Maps link above). Optional and
+   *  nullable: absent on Google Places results today — no source populates it yet
+   *  and this checkpoint adds no request to fetch it — so the card's "Visit
+   *  Website" link stays hidden until a real value arrives from an existing
+   *  source (e.g. a future property_catalog column). Never invented. */
+  websiteUrl?: string | null
   /** Real latitude, or null when the provider exposes none. NEVER estimated. */
   lat: number | null
   /** Real longitude, or null when the provider exposes none. NEVER estimated. */
