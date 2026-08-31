@@ -5,6 +5,8 @@ import { loadGoogleMaps, MapsConfigError } from "@/lib/propertyExplorer/loadMaps
 import { hasCoordinates, placeUrl, type ExplorerProperty } from "@/lib/propertyExplorer/types"
 import { assessLocationFit, type ClientLocationContext } from "@/lib/propertyExplorer/locationFit"
 import { computeSuggestions } from "@/lib/propertyExplorer/suggestions"
+import { enrichProperties, fetchCatalog } from "@/lib/propertyExplorer/catalog"
+import { supabase } from "@/lib/supabase/client"
 import { boundsForMarket, getMarketBySlug, isInsideMarket, isMarketInState, marketsForSlugs, resolveMapMarket } from "@/lib/markets/catalog"
 import { createPortal } from "react-dom"
 
@@ -287,8 +289,14 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
           searchCenter: { lat: c.lat(), lng: c.lng() },
         }))
 
+      // Enrich with structured Property Intelligence geography by Place ID.
+      // Unmatched results pass through unchanged; a lookup failure is swallowed
+      // inside fetchCatalog, so the search never breaks on enrichment.
+      const catalog = await fetchCatalog(mapped.map((m) => m.placeId), supabase)
+      const enriched = enrichProperties(mapped, catalog)
+
       lastSearchRef.current = key
-      setResults(mapped)
+      setResults(enriched)
       setDirty(false)
       setStatus("ready")
     } catch (e) {

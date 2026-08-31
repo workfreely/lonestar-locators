@@ -40,13 +40,19 @@ export function computeSuggestions(
   // No client, or no saved areas to match against → no evidence → no suggestions.
   if (!client || !client.desiredAreas?.trim()) return out
 
-  for (const p of properties) {
+  // Any MATCH-tone fit is evidence: the structured tiers (Neighborhood, Keyword,
+  // broad Location from the Property Intelligence catalog) plus the existing
+  // address-text "Preferred Area Match". "Within Preferred Market" (neutral) is
+  // still not evidence. Strongest tier first (rank asc) so, when the cap bites,
+  // neighborhood matches are starred ahead of weaker location matches.
+  const candidates = properties
+    .map((p) => ({ p, fit: assessLocationFit(p, client) }))
+    .filter((x) => x.fit?.tone === "match")
+    .sort((a, b) => (a.fit!.rank ?? 99) - (b.fit!.rank ?? 99))
+
+  for (const { p, fit } of candidates) {
     if (out.size >= MAX_SUGGESTIONS) break
-    const fit = assessLocationFit(p, client)
-    // ONLY an explicit area match. "Within Preferred Market" is not evidence here.
-    if (fit?.label === "Preferred Area Match") {
-      out.set(p.placeId, { placeId: p.placeId, reason: fit.reason })
-    }
+    out.set(p.placeId, { placeId: p.placeId, reason: fit!.reason })
   }
   return out
 }

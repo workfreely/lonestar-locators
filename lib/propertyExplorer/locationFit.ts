@@ -14,10 +14,19 @@ import type { ExplorerProperty } from "./types"
  * showing nothing is better than implying certainty we do not have.
  */
 export type LocationFit = {
-  label: "Preferred Area Match" | "Within Preferred Market" | "Outside Preferred Market"
+  label:
+    | "Preferred Neighborhood Match"
+    | "Location Keyword Match"
+    | "Preferred Location Match"
+    | "Preferred Area Match"
+    | "Within Preferred Market"
+    | "Outside Preferred Market"
   /** Short factual reason, never a score. */
   reason: string
   tone: "match" | "neutral" | "outside"
+  /** Lower is stronger, for ordering when several match: neighborhood 1,
+   *  keyword 2, location 3, address-text 4. Absent for non-match results. */
+  rank?: number
 }
 
 export type ClientLocationContext = {
@@ -46,11 +55,46 @@ function areaList(desiredAreas: string | null, city: string | null): string[] {
 }
 
 export function assessLocationFit(
-  property: Pick<ExplorerProperty, "propertyAddress">,
+  property: Pick<
+    ExplorerProperty,
+    "propertyAddress" | "neighborhood" | "location" | "locationKeywords"
+  >,
   client: ClientLocationContext | null,
 ): LocationFit | null {
   // No client, or nothing to compare against — show no label at all.
   if (!client) return null
+
+  // ── Structured intelligence path (Property Intelligence catalog) ───────────
+  // When a property carries catalogued geography, match the client's chosen
+  // areas against it, strongest tier first: exact Neighborhood, then a Location
+  // Keyword, then the broad Location. A mismatch here NEVER disqualifies — it
+  // simply falls through to the address-text logic below (Unknown stays
+  // neutral). A property with no catalogued fields skips this block entirely.
+  const clientAreas = areaList(client.desiredAreas, client.city).map(norm).filter((a) => a.length >= 3)
+  const hasStructured =
+    !!property.neighborhood || !!property.location ||
+    (property.locationKeywords?.length ?? 0) > 0
+  if (hasStructured && clientAreas.length > 0) {
+    // Exact Neighborhood — combined values like "The Rim / La Cantera" match on
+    // either individual part.
+    const nbhdParts = (property.neighborhood ?? "").split("/").map(norm).filter(Boolean)
+    const nbhdHit = nbhdParts.find((part) => clientAreas.includes(part))
+    if (nbhdHit) {
+      return { label: "Preferred Neighborhood Match", reason: `Neighborhood: ${nbhdHit}`, tone: "match", rank: 1 }
+    }
+    // Location Keyword (OR).
+    const kwHit = (property.locationKeywords ?? []).map(norm).find((k) => clientAreas.includes(k))
+    if (kwHit) {
+      return { label: "Location Keyword Match", reason: `Keyword: ${kwHit}`, tone: "match", rank: 2 }
+    }
+    // Broad Location.
+    const loc = norm(property.location ?? "")
+    if (loc && clientAreas.includes(loc)) {
+      return { label: "Preferred Location Match", reason: `Location: ${loc}`, tone: "match", rank: 3 }
+    }
+    // No structured match — fall through to the address-text fallback below.
+  }
+
   const address = norm(property.propertyAddress ?? "")
   if (!address) return null
 
@@ -63,7 +107,7 @@ export function assessLocationFit(
     return n.length >= 4 && address.includes(n)
   })
   if (hit) {
-    return { label: "Preferred Area Match", reason: `Address matches ${hit}`, tone: "match" }
+    return { label: "Preferred Area Match", reason: `Address matches ${hit}`, tone: "match", rank: 4 }
   }
 
   // Without a market we cannot say anything further.

@@ -49,6 +49,19 @@ export type ExplorerProperty = {
   marketSlug: string | null
   /** The map center the search was issued from — audit trail for the result set. */
   searchCenter: { lat: number; lng: number } | null
+
+  // ── Structured geography from Property Intelligence (property_catalog) ──────
+  // Attached by placeId when a catalog record exists; ABSENT for plain Google
+  // Places results, which keep working exactly as before. ZIP is carried through
+  // the data contract but is NOT used for matching in this checkpoint.
+  /** Specific locator search area, when catalogued. */
+  neighborhood?: string | null
+  /** Broad side of town, when catalogued. */
+  location?: string | null
+  /** Up to 3 locator search keywords, when catalogued. */
+  locationKeywords?: string[]
+  /** ZIP from the catalog. Carried, not yet matched. */
+  zip?: string | null
 }
 
 /** A property whose coordinates are known to be real numbers. */
