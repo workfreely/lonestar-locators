@@ -18,14 +18,17 @@ import {
   RENT_RANGE_OPTIONS,
 } from "@/lib/formOptions"
 
-// The full neighborhood option list for a city = the catalog's neighborhoods
-// with a generated "All of {city}" at the top (matches the historical shape;
-// the "All of" pseudo-option is never stored in the catalog).
+// The neighborhood option list for a city = the catalog's neighborhoods. The
+// former "All of {city}" pseudo-option is intentionally gone now that the field
+// is a "pick up to 3" selection.
 function neighborhoodOptions(cityName: string): string[] {
   const m = getMarketByName(cityName)
   if (!m) return []
-  return [`All of ${cityName}`, ...m.neighborhoods]
+  return [...m.neighborhoods]
 }
+
+// The renter may pick at most this many neighborhoods. 0 is allowed.
+const MAX_NEIGHBORHOODS = 3
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fields, conditional logic, and validation are ported 1:1 from LandingForm.tsx
@@ -227,22 +230,15 @@ export default function LeadFormFields({
     setFormData((prev) => ({ ...prev, beds: value, baths: newBaths }))
   }
 
-  // Neighborhood toggle with the "All of {city}" logic from LandingForm.
+  // Pick up to MAX_NEIGHBORHOODS. At the cap a further SELECT is refused while
+  // DESELECT stays available, so the renter can always swap one area for another.
+  // 0 selections is allowed. (Same shape as the Must-Have Amenities cap below.)
   function toggleNeighborhood(checked: boolean, value: string) {
     setFormData((prev) => {
-      const all = neighborhoodOptions(prev.city)
-      let updated = [...prev.neighborhoods]
-      if (value.startsWith("All of")) {
-        updated = checked ? [...all] : []
-      } else {
-        updated = checked ? [...updated, value] : updated.filter((n) => n !== value)
-        if (updated.length === all.length - 1 && !updated.includes(`All of ${prev.city}`)) {
-          updated = [...all]
-        } else if (updated.includes(`All of ${prev.city}`) && updated.length !== all.length) {
-          updated = updated.filter((n) => n !== `All of ${prev.city}`)
-        }
-      }
-      return { ...prev, neighborhoods: updated }
+      const current = prev.neighborhoods
+      if (!checked) return { ...prev, neighborhoods: current.filter((n) => n !== value) }
+      if (current.includes(value) || current.length >= MAX_NEIGHBORHOODS) return prev
+      return { ...prev, neighborhoods: [...current, value] }
     })
   }
 
@@ -347,9 +343,11 @@ export default function LeadFormFields({
         }),
       })
       if (!res.ok) throw new Error("submit_failed")
-      // Reuse the existing Lone Star thank-you page flow.
+      // The agent's OWN Locator Beast confirmation. /thank-you is a Lone Star
+      // Locators page (its logo, nav and video) — sending a Locator Beast
+      // customer's renter there handed them to a different company.
       const params = new URLSearchParams({ firstName: formData.firstName, city: formData.city })
-      window.location.href = `/thank-you?${params.toString()}`
+      window.location.href = `/${submitUsername}/thank-you?${params.toString()}`
       return
     } catch {
       alert("Something went wrong submitting your request. Please try again.")
@@ -448,15 +446,12 @@ export default function LeadFormFields({
           </div>
         )}
 
-        {/* Neighborhoods */}
+        {/* Neighborhoods — pick up to 3. */}
         {f.location && neighborhoodList && (
           <div className="flex flex-col gap-2">
             <label className={`${labelClass} font-semibold`}>Preferred Neighborhoods</label>
+            <div className={noteClass}>Select up to 3 areas you&rsquo;d like to live in.</div>
             <div className="flex gap-2">
-              <button type="button" onClick={() => set("neighborhoods", [...neighborhoodList])}
-                className={bulkButtonClass}>
-                Select All
-              </button>
               <button type="button" onClick={() => set("neighborhoods", [])}
                 className={bulkButtonClass}>
                 Deselect All
@@ -467,6 +462,10 @@ export default function LeadFormFields({
               options={neighborhoodList.map((n) => ({ value: n, label: n }))}
               selected={formData.neighborhoods}
               onToggle={toggleNeighborhood}
+              isDisabled={(v) =>
+                !formData.neighborhoods.includes(v) &&
+                formData.neighborhoods.length >= MAX_NEIGHBORHOODS
+              }
             />
 
             {/* Nearby submarkets — any market that defines them (catalog-driven) */}
