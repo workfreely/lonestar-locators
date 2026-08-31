@@ -62,6 +62,60 @@ export type ExplorerProperty = {
   locationKeywords?: string[]
   /** ZIP from the catalog. Carried, not yet matched. */
   zip?: string | null
+
+  // ── Future-ready display fields ─────────────────────────────────────────────
+  // ADDITIVE and OPTIONAL: absent on every Google Places result today, so nothing
+  // that already builds an ExplorerProperty changes. Nothing populates these in
+  // this checkpoint — no new data source, no fetch. The card renders each ONLY
+  // when a real value is present, and omits it entirely otherwise.
+  /** A real client-fit percentage (0–100) from the future client-fit engine.
+   *  NEVER inferred from the location-fit tier or Beast Suggestion state. */
+  matchScore?: number | null
+  /** Locator commission, when known. Structured so it can later carry a percent
+   *  and/or flat/bonus dollars without committing to one display format now. */
+  commission?: PropertyCommission | null
+  /** A current concession/special (e.g. "1 month free"), when known. */
+  currentSpecial?: string | null
+}
+
+/**
+ * Locator commission for a property. Every field is optional so a source can
+ * express commission however it actually has it — a percentage, a flat payout, a
+ * bonus, or a ready-made label — without forcing a single shape prematurely.
+ */
+export type PropertyCommission = {
+  /** Commission as a percentage (e.g. 100 = one month's rent). */
+  percent?: number | null
+  /** Flat dollar payout. */
+  flat?: number | null
+  /** Additional bonus dollars on top of percent/flat. */
+  bonus?: number | null
+  /** A pre-formatted locator-facing label, used verbatim when the source has one. */
+  label?: string | null
+}
+
+/**
+ * Display-only: drop a trailing country from a formatted address (Google appends
+ * ", USA"). Returns a NEW string — the stored address, Places result and any DB
+ * value are never mutated. Only the exact trailing country token is removed.
+ */
+export function displayAddress(address: string | null | undefined): string {
+  return (address ?? "").replace(/,\s*USA\s*$/i, "")
+}
+
+/**
+ * Display-only: a concise locator-facing commission string, or null when there is
+ * nothing real to show. A ready `label` wins; otherwise percent/flat/bonus are
+ * joined compactly. Never fabricates a value.
+ */
+export function formatCommission(c: PropertyCommission | null | undefined): string | null {
+  if (!c) return null
+  if (c.label && c.label.trim()) return c.label.trim()
+  const parts: string[] = []
+  if (c.percent != null) parts.push(`${c.percent}%`)
+  if (c.flat != null) parts.push(`$${c.flat.toLocaleString()}`)
+  if (c.bonus != null) parts.push(`+$${c.bonus.toLocaleString()} bonus`)
+  return parts.length ? parts.join(" ") : null
 }
 
 /** A property whose coordinates are known to be real numbers. */

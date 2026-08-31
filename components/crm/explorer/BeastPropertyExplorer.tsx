@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { loadGoogleMaps, MapsConfigError } from "@/lib/propertyExplorer/loadMaps"
-import { hasCoordinates, placeUrl, type ExplorerProperty } from "@/lib/propertyExplorer/types"
+import { hasCoordinates, placeUrl, displayAddress, formatCommission, type ExplorerProperty } from "@/lib/propertyExplorer/types"
 import { assessLocationFit, type ClientLocationContext } from "@/lib/propertyExplorer/locationFit"
 import { computeSuggestions } from "@/lib/propertyExplorer/suggestions"
 import { enrichProperties, fetchCatalog } from "@/lib/propertyExplorer/catalog"
@@ -63,13 +63,34 @@ type Props = {
 
 type Status = "loading" | "ready" | "searching" | "error" | "unconfigured"
 
+// AdvancedMarkerElement requires a Map ID. A real one belongs in the environment
+// for production styling; DEMO_MAP_ID keeps local development working without any
+// cloud setup. This is the ONLY thing the Map ID changes here.
+const MAP_ID = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID"
+
+// The property pins are AdvancedMarkerElements (so hover can use real DOM events).
+type PropertyMarker = google.maps.marker.AdvancedMarkerElement
+
+// AdvancedMarkerElement has no setOpacity/getOpacity; its "opacity" is just CSS on
+// its content element. These keep the Unleash Beast dim/brighten behavior byte-for-
+// byte the same, only expressed through the new marker's DOM content.
+function setPinOpacity(m: PropertyMarker, o: number) {
+  const el = m.content as HTMLElement | null
+  if (el) el.style.opacity = String(o)
+}
+function getPinOpacity(m: PropertyMarker): number {
+  const el = m.content as HTMLElement | null
+  const v = el?.style.opacity
+  return v ? parseFloat(v) : 1
+}
+
 export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, primaryMarket = null, licenseState = null, onSelectProperty, query = "", recommendedUrls = [], onRecommend, actionsHost = null, marketHost = null, onMatchCount }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
-  const markersRef = useRef<google.maps.Marker[]>([])
+  const markersRef = useRef<PropertyMarker[]>([])
   // placeId -> its map marker, so the Unleash Beast animation can highlight the
   // REAL ranked matches (Beast Suggestions) rather than arbitrary render order.
-  const markerByIdRef = useRef<Map<string, google.maps.Marker>>(new Map())
+  const markerByIdRef = useRef<Map<string, PropertyMarker>>(new Map())
   // The current ranked suggestion order, mirrored into a ref for the handler.
   const suggestedIdsRef = useRef<string[]>([])
 
@@ -85,7 +106,7 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   // property markers — and their click/hover handlers — are never replaced.
   const beastHalosRef = useRef<google.maps.Marker[]>([])
   // Original opacity/zIndex per marker, captured at scan start.
-  const beastRestoreRef = useRef<{ m: google.maps.Marker; o: number | null | undefined; z: number | null | undefined }[]>([])
+  const beastRestoreRef = useRef<{ m: PropertyMarker; o: number; z: number | null | undefined }[]>([])
   // The imported marker library. Under the async loader google.maps.Marker lives
   // here rather than on the global, so markers must be built from it.
   const markerLibRef = useRef<google.maps.MarkerLibrary | null>(null)
@@ -196,7 +217,7 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     // Listeners go with the marker; nothing accumulates across searches.
     for (const m of markersRef.current) {
       google.maps.event.clearInstanceListeners(m)
-      m.setMap(null)
+      m.map = null
     }
     markersRef.current = []
     markerByIdRef.current.clear()
@@ -214,6 +235,9 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
         // at bootstrap time.
         mapRef.current = new maps.Map(hostRef.current, {
           center,
+          // Required for AdvancedMarkerElement (the property pins). Only the pin
+          // rendering path depends on this; camera, zoom and controls are unchanged.
+          mapId: MAP_ID,
           // Between the two extremes we tried: 12 framed the downtown too tightly,
           // 11 left most of the metro empty around a small cluster of pins. Maps JS
           // supports fractional zoom, so the half step sits where the first loaded
@@ -378,8 +402,8 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     for (const h of beastHalosRef.current) h.setMap(null)
     beastHalosRef.current = []
     for (const { m, o, z } of beastRestoreRef.current) {
-      m.setOpacity(o ?? 1)
-      m.setZIndex(z ?? undefined)
+      setPinOpacity(m, o ?? 1)
+      m.zIndex = z ?? null
     }
     beastRestoreRef.current = []
     beastPhaseRef.current = "idle"
@@ -402,13 +426,13 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     beastPhaseRef.current = "scanning"
     setBeastPhase("scanning")
 
-    beastRestoreRef.current = markers.map((m) => ({ m, o: m.getOpacity(), z: m.getZIndex() }))
+    beastRestoreRef.current = markers.map((m) => ({ m, o: getPinOpacity(m), z: m.zIndex }))
     const later = (fn: () => void, ms: number) => {
       beastTimersRef.current.push(window.setTimeout(fn, ms))
     }
 
     // 1. every visible marker brightens as the sweep passes.
-    for (const m of markers) m.setOpacity(1)
+    for (const m of markers) setPinOpacity(m, 1)
 
     // 2. matches = the REAL ranked Beast Suggestions (structured Neighborhood /
     //    Location Keyword / Location fit, strongest tier first). When there is
@@ -416,17 +440,17 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     //    first 10 so the sweep still reads as a gesture rather than doing nothing.
     const rankedMatches = suggestedIdsRef.current
       .map((id) => markerByIdRef.current.get(id))
-      .filter((m): m is google.maps.Marker => Boolean(m))
+      .filter((m): m is PropertyMarker => Boolean(m))
     const matches = rankedMatches.length > 0 ? rankedMatches : markers.slice(0, 10)
     const matchSet = new Set(matches)
 
     later(() => {
       // 3. dim everything else, lift and halo the matches.
-      for (const m of markers) if (!matchSet.has(m)) m.setOpacity(0.22)
+      for (const m of markers) if (!matchSet.has(m)) setPinOpacity(m, 0.22)
       for (const m of matches) {
-        m.setOpacity(1)
-        m.setZIndex(50)
-        const pos = m.getPosition()
+        setPinOpacity(m, 1)
+        m.zIndex = 50
+        const pos = m.position
         if (!pos) continue
         const halo = new google.maps.Marker({
           map,
@@ -480,32 +504,29 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     // normalizes into the same shape. Such a property still lists and still
     // reaches the workflow; it simply cannot be plotted, which is the honest
     // outcome when nobody knows where it is.
+    const lib = markerLibRef.current
+    const PinCtor = lib?.PinElement ?? google.maps.marker.PinElement
+    const MarkerCtor = lib?.AdvancedMarkerElement ?? google.maps.marker.AdvancedMarkerElement
     for (const p of visible.filter(hasCoordinates)) {
-      const MarkerCtor = markerLibRef.current?.Marker ?? google.maps.Marker
       const isSuggested = suggestions.has(p.placeId)
+      // The standard red Google pin — same look as before (no star, no halo, no
+      // recolor, no resize). AdvancedMarkerElement's default is this pin; we build
+      // the PinElement explicitly only to get a DOM node for the hover listeners.
+      const pin = new PinCtor()
+      const el = pin.element
+      el.style.cursor = "pointer"
       const marker = new MarkerCtor({
         map,
         position: { lat: p.lat, lng: p.lng },
-        // Suggested properties are visually distinguished with a star; ordinary
-        // results keep the default pin so both remain readable side by side.
         title: isSuggested ? `${p.propertyName} — Beast Suggestion` : p.propertyName,
         zIndex: isSuggested ? 2 : 1,
-        icon: isSuggested
-          ? {
-              path: "M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.3 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8z",
-              fillColor: "#f5a524",
-              fillOpacity: 1,
-              strokeColor: "#7a4a00",
-              strokeWeight: 1.25,
-              scale: 1.5,
-              anchor: new google.maps.Point(12, 20),
-            }
-          : undefined,
+        content: el,
       })
-      // Hover previews, click PERSISTS — hover is never the only way in, so
-      // trackpad and touch users get the same card.
-      marker.addListener("mouseover", () => setHovered(p))
-      marker.addListener("mouseout", () => setHovered(null))
+      // Hover uses NATIVE DOM events on the marker's own element — reliable, unlike
+      // the legacy Marker's mouseover. Same in-memory property object, no request.
+      el.addEventListener("mouseenter", () => setHovered(p))
+      el.addEventListener("mouseleave", () => setHovered(null))
+      // Click PERSISTS — unchanged: selects the card and fires onSelectProperty.
       marker.addListener("click", () => {
         setSelected(p)
         onSelectProperty?.(p)
@@ -698,7 +719,25 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
             )}
           </div>
           {card.propertyAddress && (
-            <p className="mt-1 text-[12.5px] leading-snug text-[#4b5162]">{card.propertyAddress}</p>
+            <p className="mt-1 text-[12.5px] leading-snug text-[#4b5162]">{displayAddress(card.propertyAddress)}</p>
+          )}
+          {/* Future-ready fields — each renders ONLY when a real value is present
+              on the in-memory property, and is omitted entirely otherwise. No
+              fetch, no fabrication. Order: Match %, Commission, Current Special. */}
+          {typeof card.matchScore === "number" && (
+            <p className="mt-2 text-[12.5px] font-semibold text-[#111318]">
+              Match: {Math.round(card.matchScore)}%
+            </p>
+          )}
+          {formatCommission(card.commission) && (
+            <p className="mt-1 text-[12.5px] text-[#4b5162]">
+              <span className="font-semibold text-[#111318]">Commission:</span> {formatCommission(card.commission)}
+            </p>
+          )}
+          {card.currentSpecial && card.currentSpecial.trim() && (
+            <p className="mt-1 text-[12.5px] text-emerald-700">
+              <span className="font-semibold">Special:</span> {card.currentSpecial.trim()}
+            </p>
           )}
           {/* Beast Suggestion — computed, never stored. Shown whether the card is
               hovered or pinned, because it is information rather than an action. */}
