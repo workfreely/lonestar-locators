@@ -555,34 +555,108 @@ export function centerForMarket(slug: string | null | undefined): MarketCenter |
 // the Unleash Beast search center. Stone Oak ONLY for this checkpoint — this is
 // deliberately NOT the full neighborhood centroid system. Keyed by the same
 // normalized text shape used elsewhere.
-const DESIRED_AREA_CENTERS: Record<string, MarketCenter> = {
+// Nested by market SLUG, then by normalized form label. The market scope is
+// load-bearing, not organisational: the same label exists in more than one
+// metro — "Medical Center" in San Antonio AND Houston, "Midtown" in Dallas AND
+// Houston — so a flat label→center map would resolve one city's neighborhood to
+// the other city's centroid (hundreds of miles away). Scoping by the resolved
+// market slug keeps each metro's areas pinned to their own city. Inner keys use
+// the SAME normalization centerForDesiredArea() applies to the form label
+// (lowercase; "/" and punctuation → spaces).
+const DESIRED_AREA_CENTERS: Record<string, Record<string, MarketCenter>> = {
   // ── San Antonio ──────────────────────────────────────────────────────────
-  // Keyed by the SAME normalization centerForDesiredArea() applies to the form
-  // label (lowercase; "/" and punctuation → spaces). Covers every currently
-  // selectable San Antonio Preferred Neighborhood + Nearby Area so none falls
-  // back to the downtown market center. All sit inside the SA navigation bounds.
-  // Preferred Neighborhoods
-  "downtown san antonio": { lat: 29.4246, lng: -98.4926 },
-  "la cantera the rim": { lat: 29.6053, lng: -98.581 },
-  "the dominion": { lat: 29.6288, lng: -98.6255 },
-  "stone oak": { lat: 29.6247, lng: -98.4842 },
-  "alamo ranch": { lat: 29.4776, lng: -98.744 },
-  "southtown": { lat: 29.411, lng: -98.493 },
-  "utsa": { lat: 29.583, lng: -98.619 },
-  "medical center": { lat: 29.5093, lng: -98.577 },
-  "universal city converse": { lat: 29.533, lng: -98.3035 },
-  "westover hills": { lat: 29.4585, lng: -98.665 },
-  "alamo heights": { lat: 29.4847, lng: -98.4661 },
-  // Nearby Areas (submarkets)
-  "boerne": { lat: 29.7947, lng: -98.732 },
-  "schertz": { lat: 29.5522, lng: -98.27 },
+  // Covers every currently selectable SA Preferred Neighborhood + Nearby Area so
+  // none falls back to the downtown market center. All sit inside the SA
+  // navigation bounds. UNCHANGED — values identical to the shipped SA catalog.
+  "san-antonio": {
+    // Preferred Neighborhoods
+    "downtown san antonio": { lat: 29.4246, lng: -98.4926 },
+    "la cantera the rim": { lat: 29.6053, lng: -98.581 },
+    "the dominion": { lat: 29.6288, lng: -98.6255 },
+    "stone oak": { lat: 29.6247, lng: -98.4842 },
+    "alamo ranch": { lat: 29.4776, lng: -98.744 },
+    "southtown": { lat: 29.411, lng: -98.493 },
+    "utsa": { lat: 29.583, lng: -98.619 },
+    "medical center": { lat: 29.5093, lng: -98.577 },
+    "universal city converse": { lat: 29.533, lng: -98.3035 },
+    "westover hills": { lat: 29.4585, lng: -98.665 },
+    "alamo heights": { lat: 29.4847, lng: -98.4661 },
+    // Nearby Areas (submarkets)
+    "boerne": { lat: 29.7947, lng: -98.732 },
+    "schertz": { lat: 29.5522, lng: -98.27 },
+  },
+  // ── Austin ───────────────────────────────────────────────────────────────
+  "austin": {
+    "downtown austin": { lat: 30.2672, lng: -97.7431 },
+    "south congress soco": { lat: 30.2489, lng: -97.75 },
+    "east austin": { lat: 30.262, lng: -97.722 },
+    "zilker": { lat: 30.2669, lng: -97.7729 },
+    "mueller": { lat: 30.299, lng: -97.705 },
+    "domain": { lat: 30.401, lng: -97.723 },
+    "barton creek": { lat: 30.26, lng: -97.825 },
+    "westlake": { lat: 30.293, lng: -97.815 },
+    "riverside": { lat: 30.234, lng: -97.725 },
+    "north loop": { lat: 30.319, lng: -97.723 },
+    "south lamar": { lat: 30.247, lng: -97.783 },
+  },
+  // ── Dallas ───────────────────────────────────────────────────────────────
+  "dallas": {
+    "downtown dallas": { lat: 32.781, lng: -96.797 },
+    "uptown": { lat: 32.797, lng: -96.802 },
+    "midtown": { lat: 32.925, lng: -96.824 },
+    "deep ellum": { lat: 32.784, lng: -96.784 },
+    "medical district": { lat: 32.81, lng: -96.84 },
+    "bishop arts district": { lat: 32.751, lng: -96.829 },
+    "knox henderson": { lat: 32.813, lng: -96.787 },
+    "oak lawn": { lat: 32.811, lng: -96.811 },
+    "design district": { lat: 32.792, lng: -96.823 },
+    "victory park": { lat: 32.785, lng: -96.81 },
+    "lower greenville": { lat: 32.813, lng: -96.77 },
+    "trinity groves": { lat: 32.778, lng: -96.836 },
+    "south dallas": { lat: 32.75, lng: -96.77 },
+  },
+  // ── Fort Worth ───────────────────────────────────────────────────────────
+  "fort-worth": {
+    "downtown fort worth": { lat: 32.7555, lng: -97.3308 },
+    "west 7th": { lat: 32.755, lng: -97.358 },
+    "near southside magnolia": { lat: 32.733, lng: -97.329 },
+    "cultural district": { lat: 32.749, lng: -97.365 },
+    "tcu westcliff": { lat: 32.709, lng: -97.362 },
+    "fairmount": { lat: 32.728, lng: -97.335 },
+    "arlington heights": { lat: 32.747, lng: -97.39 },
+    "clearfork": { lat: 32.69, lng: -97.41 },
+    "alliance": { lat: 32.98, lng: -97.32 },
+    "stockyards north side": { lat: 32.789, lng: -97.347 },
+  },
+  // ── Houston ──────────────────────────────────────────────────────────────
+  "houston": {
+    "downtown houston": { lat: 29.7589, lng: -95.3677 },
+    "midtown": { lat: 29.742, lng: -95.376 },
+    "montrose": { lat: 29.744, lng: -95.39 },
+    "the heights": { lat: 29.799, lng: -95.398 },
+    "medical center": { lat: 29.71, lng: -95.398 },
+    "museum district": { lat: 29.725, lng: -95.39 },
+    "river oaks": { lat: 29.756, lng: -95.416 },
+    "galleria": { lat: 29.74, lng: -95.461 },
+    "washington ave": { lat: 29.771, lng: -95.401 },
+    "east downtown eado": { lat: 29.75, lng: -95.35 },
+    "greenway upper kirby": { lat: 29.733, lng: -95.431 },
+  },
 }
 
-/** Deterministic center for a single desired area, or null when unrecognised.
- *  Null MUST be treated as "no finer center than the market", never an error. */
-export function centerForDesiredArea(name: string | null | undefined): MarketCenter | null {
+/** Deterministic center for a single desired area within a market, or null when
+ *  unrecognised. `marketSlug` is REQUIRED to disambiguate labels that repeat
+ *  across metros (e.g. "Medical Center", "Midtown"); pass the resolved map
+ *  market slug. Null MUST be treated as "no finer center than the market",
+ *  never an error. */
+export function centerForDesiredArea(
+  name: string | null | undefined,
+  marketSlug: string | null | undefined,
+): MarketCenter | null {
+  const slug = (marketSlug ?? "").trim()
+  if (!slug) return null
   const key = (name ?? "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim()
-  return DESIRED_AREA_CENTERS[key] ?? null
+  return DESIRED_AREA_CENTERS[slug]?.[key] ?? null
 }
 
 /** Camera position for a market's DISPLAY NAME (leads store `city` as the name). */

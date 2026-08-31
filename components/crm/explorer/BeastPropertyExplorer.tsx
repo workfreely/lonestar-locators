@@ -174,8 +174,10 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   // Multiple desired areas are deliberately out of scope: only the first is read.
   const desiredAreaCenter = useMemo(() => {
     const first = (activeClient?.desiredAreas ?? "").split(",")[0]?.trim()
-    return first ? centerForDesiredArea(first) : null
-  }, [activeClient])
+    // marketSlug scopes the lookup so a label shared across metros (e.g.
+    // "Medical Center", "Midtown") resolves to THIS market's centroid.
+    return first ? centerForDesiredArea(first, marketSlug) : null
+  }, [activeClient, marketSlug])
 
   // A new client (or clearing the selection) invalidates a browse override: the
   // next client must start from their own criteria, and with no client the map
