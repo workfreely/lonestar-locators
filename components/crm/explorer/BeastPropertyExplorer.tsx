@@ -188,7 +188,7 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
           // 11 left most of the metro empty around a small cluster of pins. Maps JS
           // supports fractional zoom, so the half step sits where the first loaded
           // results fill the usable map. Center logic is untouched.
-          zoom: 11.5,
+          zoom: 11.0,
           mapTypeControl: false,
           streetViewControl: false, // Street View is explicitly out of V1
           fullscreenControl: false,
