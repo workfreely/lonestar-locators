@@ -910,11 +910,26 @@ export const MARKET_RADIUS_KM: Record<string, number> = {
 
 const KM_PER_DEG_LAT = 110.574
 
+// Per-market EXPLICIT navigation bounds, overriding the symmetric radius box for
+// markets whose practical locator footprint the radius box clips. This only widens
+// how far a user may pan/zoom — the default center and default zoom are unchanged.
+// San Antonio's real metro runs far NORTH (The Dominion, La Cantera/The Rim, up to
+// Boerne), which the tight ~21 km box cut off. Other markets fall through to the
+// radius box until they each get their own bound.
+const MARKET_BOUNDS_OVERRIDE: Record<string, LatLngBounds> = {
+  // North reaches past Boerne (~29.79); south/east/west keep the practical metro
+  // (Southside/Brooks, Converse/Schertz, Alamo Ranch/Potranco). Comfortably
+  // contains the default downtown center (29.4241, -98.4936).
+  "san-antonio": { south: 29.15, west: -98.85, north: 29.83, east: -98.15 },
+}
+
 /** The browsing box for a supported market, or null when the slug is unknown. */
 export function boundsForMarket(slug: string | null | undefined): LatLngBounds | null {
   const s = (slug ?? "").trim()
   const c = centerForMarket(s)
   if (!c) return null
+  const override = MARKET_BOUNDS_OVERRIDE[s]
+  if (override) return override
   const km = MARKET_RADIUS_KM[s] ?? DEFAULT_MARKET_RADIUS_KM
   const dLat = km / KM_PER_DEG_LAT
   // Longitude degrees shrink toward the poles, so the east/west span is widened
