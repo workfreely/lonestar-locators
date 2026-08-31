@@ -550,6 +550,23 @@ export function centerForMarket(slug: string | null | undefined): MarketCenter |
   return MARKET_CENTERS[slug] ?? null
 }
 
+// ── Desired-area centroids (deterministic) ────────────────────────────────────
+// Smallest possible proof-of-concept resolver so a single desired area can steer
+// the Unleash Beast search center. Stone Oak ONLY for this checkpoint — this is
+// deliberately NOT the full neighborhood centroid system. Keyed by the same
+// normalized text shape used elsewhere.
+const DESIRED_AREA_CENTERS: Record<string, MarketCenter> = {
+  // San Antonio · Stone Oak (Loop 1604 & US-281 area).
+  "stone oak": { lat: 29.6247, lng: -98.4842 },
+}
+
+/** Deterministic center for a single desired area, or null when unrecognised.
+ *  Null MUST be treated as "no finer center than the market", never an error. */
+export function centerForDesiredArea(name: string | null | undefined): MarketCenter | null {
+  const key = (name ?? "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim()
+  return DESIRED_AREA_CENTERS[key] ?? null
+}
+
 /** Camera position for a market's DISPLAY NAME (leads store `city` as the name). */
 export function centerForMarketName(name: string | null | undefined): MarketCenter | null {
   const m = name ? getMarketByName(name) : undefined

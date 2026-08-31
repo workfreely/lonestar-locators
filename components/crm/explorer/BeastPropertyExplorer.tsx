@@ -8,7 +8,7 @@ import { computeSuggestions } from "@/lib/propertyExplorer/suggestions"
 import { enrichProperties, fetchCatalog } from "@/lib/propertyExplorer/catalog"
 import { supabase } from "@/lib/supabase/client"
 import { readMapMarket, writeMapMarket } from "@/lib/preferences"
-import { boundsForMarket, getMarketBySlug, isInsideMarket, isMarketInState, marketsForSlugs, resolveMapMarket } from "@/lib/markets/catalog"
+import { boundsForMarket, centerForDesiredArea, getMarketBySlug, isInsideMarket, isInsideState, isMarketInState, marketsForSlugs, resolveMapMarket } from "@/lib/markets/catalog"
 import { createPortal } from "react-dom"
 
 /**
@@ -111,6 +111,16 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   // here rather than on the global, so markers must be built from it.
   const markerLibRef = useRef<google.maps.MarkerLibrary | null>(null)
   const lastSearchRef = useRef<string | null>(null)
+  // A no-op OverlayView kept on the map purely for its projection: it converts the
+  // resolved desired-area center into a container pixel so the radar can sit over
+  // that area rather than a fixed screen center.
+  const projectionHelperRef = useRef<google.maps.OverlayView | null>(null)
+  // One Unleash run: scan start (to hold the sonar for its full sweep before the
+  // halo) and a guard so the halo fires once per scan. Needed because — with the
+  // auto-preload removed — the first Unleash has no markers yet; the highlight
+  // runs from an effect once the search results have rendered.
+  const beastScanStartRef = useRef(0)
+  const beastHighlightedRef = useRef(false)
 
   // Temporary map-session override chosen from the toolbar switcher. It moves the
   // map and nothing else: it is never written to Profile and never rewrites the
@@ -120,6 +130,9 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   const [status, setStatus] = useState<Status>("loading")
   const [beastPhase, setBeastPhase] = useState<"idle" | "scanning" | "matched">("idle")
   const [beastMatchCount, setBeastMatchCount] = useState(0)
+  // Screen-pixel origin for the single sonar sweep — the projected desired-area
+  // center. null → the original fixed viewport-center sweep (no-client / no area).
+  const [radarOrigin, setRadarOrigin] = useState<{ x: number; y: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [results, setResults] = useState<ExplorerProperty[]>([])
   const [hovered, setHovered] = useState<ExplorerProperty | null>(null)
@@ -153,6 +166,16 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
       }),
     [marketOverride, activeClient, primaryMarket, serviceAreaSlugs, licenseState],
   )
+
+  // ── Single desired-area search center ──────────────────────────────────────
+  // The client's FIRST desired area resolved to a deterministic center (Stone Oak
+  // only, this checkpoint). When present, Unleash searches here instead of the map
+  // center — the camera is never touched. null → fall back to the map center.
+  // Multiple desired areas are deliberately out of scope: only the first is read.
+  const desiredAreaCenter = useMemo(() => {
+    const first = (activeClient?.desiredAreas ?? "").split(",")[0]?.trim()
+    return first ? centerForDesiredArea(first) : null
+  }, [activeClient])
 
   // A new client (or clearing the selection) invalidates a browse override: the
   // next client must start from their own criteria, and with no client the map
@@ -261,6 +284,14 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
         })
         // Moving the map NEVER searches. It only offers the deliberate control.
         mapRef.current.addListener("idle", () => setDirty(true))
+        // A no-op overlay kept on the map so its projection is available: the
+        // radar reads the desired-area center's screen pixel from it.
+        const helper = new maps.OverlayView()
+        helper.onAdd = () => {}
+        helper.draw = () => {}
+        helper.onRemove = () => {}
+        helper.setMap(mapRef.current)
+        projectionHelperRef.current = helper
         setStatus("ready")
       })
       .catch((e: unknown) => {
@@ -290,20 +321,31 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   useEffect(() => () => clearMarkers(), [clearMarkers])
 
   // ── Deliberate area search ────────────────────────────────────────────────
-  const searchThisArea = useCallback(async () => {
+  const searchThisArea = useCallback(async (override?: { lat: number; lng: number }) => {
     const map = mapRef.current
     if (!map) return
-    const c = map.getCenter()
-    if (!c) return
+    // The search center: an explicit desired-area center when Unleash resolved one
+    // (e.g. Stone Oak), otherwise the current map center. The CAMERA IS NEVER MOVED
+    // either way — only where Places searches changes.
+    let c: { lat: number; lng: number }
+    if (override) {
+      c = override
+    } else {
+      const g = map.getCenter()
+      if (!g) return
+      c = { lat: g.lat(), lng: g.lng() }
+    }
 
-    // Never search outside the licensed state. `restriction` above already keeps
-    // the centre in-state, so this is the backstop for the cases it cannot cover
-    // — a programmatic move, or a state whose bounds arrive after the map was
-    // built. Results from another state are areas the agent cannot work.
-    // Search only within the ACTIVE market. `restriction` already keeps the centre
-    // inside it, so this is the backstop for a programmatic move or a late-arriving
-    // market — results from the next metro are not what the agent asked for.
-    if (!isInsideMarket({ lat: c.lat(), lng: c.lng() }, marketSlug)) {
+    // Boundary guard. A desired-area center is validated against the licensed
+    // STATE — a legitimate area like Stone Oak can sit just outside the market's
+    // conservative pan box, so gating on the market would wrongly reject it. The
+    // map-center path keeps the tighter market guard (its old behavior).
+    if (override) {
+      if (!isInsideState(c, licenseState)) {
+        setDirty(false)
+        return
+      }
+    } else if (!isInsideMarket(c, marketSlug)) {
       const back = boundsForMarket(marketSlug)
       if (back) map.setCenter(center)
       setDirty(false)
@@ -311,7 +353,9 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     }
 
     // Skip an identical repeat of the same area.
-    const key = `${c.lat().toFixed(4)},${c.lng().toFixed(4)},${map.getZoom()}`
+    const key = override
+      ? `area:${c.lat.toFixed(4)},${c.lng.toFixed(4)}`
+      : `${c.lat.toFixed(4)},${c.lng.toFixed(4)},${map.getZoom()}`
     if (key === lastSearchRef.current) {
       setDirty(false)
       return
@@ -346,7 +390,7 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
           lng: p.location!.lng(),
           source: "google_places",
           marketSlug,
-          searchCenter: { lat: c.lat(), lng: c.lng() },
+          searchCenter: { lat: c.lat, lng: c.lng },
         }))
 
       // Enrich with structured Property Intelligence geography by Place ID.
@@ -366,7 +410,7 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
       setError("We couldn't search this area. Please try again.")
       setStatus("ready")
     }
-  }, [marketSlug, center])
+  }, [marketSlug, center, licenseState])
 
   // Switching markets discards the previous market's apartments immediately, so
   // San Antonio results are never briefly shown on the Austin map while the new
@@ -377,19 +421,12 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     lastSearchRef.current = null
   }, [marketSlug])
 
-  // ── First result set loads itself ─────────────────────────────────────────
-  // Opening the Map should show apartments, not an empty map with a button. This
-  // runs ONCE per resolved market: lastSearchRef makes a repeat of the same
-  // viewport a no-op, so toggling Board ↔ Map does not re-search, and pan/zoom
-  // still never searches on its own.
-  const autoSearchedFor = useRef<string | null>(null)
-  useEffect(() => {
-    if (status !== "ready") return
-    const key = marketSlug ?? `${center.lat},${center.lng}`
-    if (autoSearchedFor.current === key) return
-    autoSearchedFor.current = key
-    void searchThisArea()
-  }, [status, marketSlug, center, searchThisArea])
+  // ── No automatic search on open ─────────────────────────────────────────────
+  // The map deliberately opens with NO pins. It used to auto-run a 3 km search on
+  // the market center, dropping a downtown cluster on every client before they
+  // did anything. Pins now appear ONLY when the agent clicks Unleash Beast, which
+  // searches the client's resolved desired-area center (or the map center when
+  // there is no client / no resolved area).
 
   // Toolbar query filters what is ALREADY loaded. No Places request, no debounce
   // needed, because nothing network-bound happens per keystroke.
@@ -407,73 +444,93 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     }
     beastRestoreRef.current = []
     beastPhaseRef.current = "idle"
+    beastHighlightedRef.current = false
+    setRadarOrigin(null)
+  }, [])
+
+  // The dim/lift/halo pass over the CURRENT markers, using the REAL ranked Beast
+  // Suggestions. Split out of the click handler because — with the preload removed
+  // — the markers do not exist on the first Unleash; they arrive after the search,
+  // so this runs from an effect once results have rendered.
+  const runHighlight = useCallback(() => {
+    const map = mapRef.current
+    const markers = markersRef.current
+    if (!map) return
+
+    beastRestoreRef.current = markers.map((m) => ({ m, o: getPinOpacity(m), z: m.zIndex }))
+    for (const m of markers) setPinOpacity(m, 1)
+
+    // matches = the REAL ranked Beast Suggestions (structured Neighborhood /
+    // Location Keyword / Location fit, strongest tier first). Fallback to the first
+    // 10 when there is no ranked evidence, so the sweep still reads as a gesture.
+    const ranked = suggestedIdsRef.current
+      .map((id) => markerByIdRef.current.get(id))
+      .filter((m): m is PropertyMarker => Boolean(m))
+    const matches = ranked.length > 0 ? ranked : markers.slice(0, 10)
+    const matchSet = new Set(matches)
+
+    for (const m of markers) if (!matchSet.has(m)) setPinOpacity(m, 0.22)
+    for (const m of matches) {
+      setPinOpacity(m, 1)
+      m.zIndex = 50
+      const pos = m.position
+      if (!pos) continue
+      const halo = new google.maps.Marker({
+        map,
+        position: pos,
+        clickable: false,
+        zIndex: 10,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 15,
+          fillColor: "#2f6bff",
+          fillOpacity: 0.18,
+          strokeColor: "#2f6bff",
+          strokeOpacity: 0.55,
+          strokeWeight: 1.5,
+        },
+      })
+      beastHalosRef.current.push(halo)
+    }
+    beastPhaseRef.current = "matched"
+    setBeastMatchCount(matches.length)
+    setBeastPhase("matched")
   }, [])
 
   const unleashTheBeast = useCallback(() => {
     const map = mapRef.current
-    const markers = markersRef.current
-    if (!map || markers.length === 0) return
+    if (!map) return
 
-    // Execute the REAL search/ranking path. searchThisArea() runs Google Places
-    // -> catalog enrichment -> assessLocationFit -> computeSuggestions; it skips
-    // an identical repeat, so this is a no-op refresh when the area is unchanged
-    // and a genuine re-search when it moved. Either way the animation below then
-    // presents the ACTUAL ranked results, not a decorative pick.
-    void searchThisArea()
+    // The SEARCH center: the client's resolved desired area (Stone Oak) when we
+    // have one, otherwise the current map center. The CAMERA IS NEVER MOVED.
+    const g = map.getCenter()
+    const searchCenter = desiredAreaCenter ?? (g ? { lat: g.lat(), lng: g.lng() } : null)
+    if (!searchCenter) return
 
     // Restartable: a click mid-run rewinds and starts over.
     beastReset()
+    beastScanStartRef.current = typeof performance !== "undefined" ? performance.now() : 0
     beastPhaseRef.current = "scanning"
     setBeastPhase("scanning")
 
-    beastRestoreRef.current = markers.map((m) => ({ m, o: getPinOpacity(m), z: m.zIndex }))
-    const later = (fn: () => void, ms: number) => {
-      beastTimersRef.current.push(window.setTimeout(fn, ms))
+    // Radar origin = the desired-area center projected to a screen pixel, so the
+    // sweep sits OVER that area (even if it is near/off the viewport edge — the
+    // camera stays put). No resolved area → null → the centered fallback sweep.
+    const projection = projectionHelperRef.current?.getProjection()
+    if (desiredAreaCenter && projection) {
+      const pt = projection.fromLatLngToContainerPixel(
+        new google.maps.LatLng(desiredAreaCenter.lat, desiredAreaCenter.lng),
+      )
+      setRadarOrigin(pt ? { x: pt.x, y: pt.y } : null)
+    } else {
+      setRadarOrigin(null)
     }
 
-    // 1. every visible marker brightens as the sweep passes.
-    for (const m of markers) setPinOpacity(m, 1)
-
-    // 2. matches = the REAL ranked Beast Suggestions (structured Neighborhood /
-    //    Location Keyword / Location fit, strongest tier first). When there is
-    //    no ranked evidence — no client, or no matching areas — fall back to the
-    //    first 10 so the sweep still reads as a gesture rather than doing nothing.
-    const rankedMatches = suggestedIdsRef.current
-      .map((id) => markerByIdRef.current.get(id))
-      .filter((m): m is PropertyMarker => Boolean(m))
-    const matches = rankedMatches.length > 0 ? rankedMatches : markers.slice(0, 10)
-    const matchSet = new Set(matches)
-
-    later(() => {
-      // 3. dim everything else, lift and halo the matches.
-      for (const m of markers) if (!matchSet.has(m)) setPinOpacity(m, 0.22)
-      for (const m of matches) {
-        setPinOpacity(m, 1)
-        m.zIndex = 50
-        const pos = m.position
-        if (!pos) continue
-        const halo = new google.maps.Marker({
-          map,
-          position: pos,
-          clickable: false,
-          zIndex: 10,
-          icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            scale: 15,
-            fillColor: "#2f6bff",
-            fillOpacity: 0.18,
-            strokeColor: "#2f6bff",
-            strokeOpacity: 0.55,
-            strokeWeight: 1.5,
-          },
-        })
-        beastHalosRef.current.push(halo)
-      }
-      beastPhaseRef.current = "matched"
-      setBeastMatchCount(matches.length)
-      setBeastPhase("matched")
-    }, 2200)
-  }, [beastReset, searchThisArea])
+    // The REAL search/ranking path: Places around the search center -> catalog
+    // enrichment -> assessLocationFit -> computeSuggestions. The halo pass runs
+    // from the effect below once these results have rendered.
+    void searchThisArea(desiredAreaCenter ?? undefined)
+  }, [beastReset, desiredAreaCenter, searchThisArea])
 
   useEffect(() => () => beastReset(), [beastReset])
 
@@ -540,6 +597,24 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   useEffect(() => {
     suggestedIdsRef.current = Array.from(suggestions.keys())
   }, [suggestions])
+
+  // Runs the halo pass once the Unleash search has settled AND its markers are on
+  // the map. Placed AFTER the marker/suggestion effects so, in the commit where
+  // results arrive, markersRef and suggestedIdsRef are already current. The sonar
+  // is held for its full sweep before the halo; a slow search highlights on land.
+  useEffect(() => {
+    if (beastPhase !== "scanning") return
+    if (status !== "ready") return
+    if (beastHighlightedRef.current) return
+    beastHighlightedRef.current = true
+    const elapsed =
+      (typeof performance !== "undefined" ? performance.now() : 0) - beastScanStartRef.current
+    const remaining = Math.max(0, 2200 - elapsed)
+    beastTimersRef.current.push(window.setTimeout(runHighlight, remaining))
+    // visible / suggestions are read through refs inside runHighlight; they are
+    // dependencies here only to signal the render carrying them has committed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [beastPhase, status, visible, suggestions, runHighlight])
 
   const card = selected ?? hovered
   const fit = card ? assessLocationFit(card, activeClient) : null
@@ -631,14 +706,30 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
           the beast* refs to remove the prototype entirely. */}
       {beastPhase === "scanning" && (
         <div className="pointer-events-none absolute inset-0 z-[5] overflow-hidden" aria-hidden>
-          <span className="lb-sonar" />
-          <span className="lb-sonar lb-sonar-2" />
-          <span className="lb-sonar lb-sonar-3" />
+          {/* Single sweep at the resolved desired-area pixel; centered fallback
+              (no client / no resolved area) when radarOrigin is null. */}
+          <span
+            className={radarOrigin ? "lb-sonar-origin" : "lb-sonar-origin lb-sonar-origin-center"}
+            style={radarOrigin ? { left: radarOrigin.x, top: radarOrigin.y } : undefined}
+          >
+            <span className="lb-sonar" />
+            <span className="lb-sonar lb-sonar-2" />
+            <span className="lb-sonar lb-sonar-3" />
+          </span>
           <style>{`
-            .lb-sonar {
+            .lb-sonar-origin {
               position: absolute;
+              width: 0;
+              height: 0;
+            }
+            .lb-sonar-origin-center {
               left: 50%;
               top: 50%;
+            }
+            .lb-sonar {
+              position: absolute;
+              left: 0;
+              top: 0;
               width: 22vmin;
               height: 22vmin;
               margin-left: -11vmin;
