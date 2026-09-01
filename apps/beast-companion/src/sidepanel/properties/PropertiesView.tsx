@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { SectionCard } from "../lead/primitives";
 import { PropertyThumb } from "./PropertyThumb";
-import { resolveClientContext, evaluateLocationFit, evaluateApproval, evaluateAmenities, evaluateSpecials, evaluateBudget, evaluateMatchScore, matchScoreTone, normalizeMustHaveAmenities, resolveClientBudget, formatRent, cityMismatch, propertyCityName } from "@bc/companion-shared";
+import { resolveClientContext, evaluateLocationFit, evaluateApproval, evaluateAmenities, evaluateSpecials, evaluateBudget, evaluateMatchScore, matchScoreTone, normalizeMustHaveAmenities, resolveClientBudget, formatRent, cityMismatch, propertyCityName, starFillPercent, formatRating } from "@bc/companion-shared";
 import type { FavoriteDTO, RecommendationDTO, LeadSummaryDTO } from "@bc/companion-shared";
 import type { CurrentProperty } from "@/types";
 
@@ -320,6 +320,30 @@ export function PropertiesView({
                 />
                 {currentProperty.propertyAddress && (
                   <div className="bc-current-prop-addr">{currentProperty.propertyAddress}</div>
+                )}
+                {/* Google rating — same treatment as the CRM property card: numeric
+                    value first (one decimal), then a compact five-star visual whose
+                    gold fill reflects the decimal via the shared starFillPercent
+                    math. Shown ONLY when a real rating is present; omitted entirely
+                    otherwise. No review count, never fabricated. */}
+                {typeof currentProperty.googleRating === "number" && (
+                  <div className="bc-cp-rating">
+                    <span className="bc-cp-rating-num">{formatRating(currentProperty.googleRating)}</span>
+                    <span
+                      className="bc-cp-stars"
+                      title={`${formatRating(currentProperty.googleRating)} out of 5`}
+                      aria-label={`Google rating ${formatRating(currentProperty.googleRating)} out of 5`}
+                    >
+                      <span className="bc-cp-stars-base">★★★★★</span>
+                      <span
+                        className="bc-cp-stars-fill"
+                        style={{ width: `${starFillPercent(currentProperty.googleRating)}%` }}
+                        aria-hidden
+                      >
+                        ★★★★★
+                      </span>
+                    </span>
+                  </div>
                 )}
               </div>
             </div>

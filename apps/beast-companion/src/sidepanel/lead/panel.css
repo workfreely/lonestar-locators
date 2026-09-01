@@ -682,6 +682,45 @@
   color: var(--lb-text-secondary);
 }
 
+/* Google rating on the Current Property card — numeric first, then a compact
+   five-star visual whose gold fill reflects the decimal (shared starFillPercent
+   math with the CRM property card). Shown only when a real rating is present. */
+.bc-cp-rating {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+}
+.bc-cp-rating-num {
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-text-primary);
+}
+.bc-cp-stars {
+  position: relative;
+  display: inline-block;
+  line-height: 1;
+}
+.bc-cp-stars-base {
+  display: block;
+  white-space: nowrap;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--lb-text-muted, #9aa4b2);
+}
+.bc-cp-stars-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: #f5a623;
+}
+
 /* Overall Match % beside the CURRENT PROPERTY heading. Sits in SectionCard's existing
    `right` slot, so the header layout itself is unchanged. */
 .bc-match-score {

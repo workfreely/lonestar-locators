@@ -112,6 +112,9 @@ export {
 } from "./tokens/tokens";
 export type { CrmPalette, BadgeToneStyle } from "./tokens/tokens";
 
+// Google rating display math (shared by the CRM card + Companion Current Property)
+export { starFillPercent, formatRating } from "./format/rating";
+
 // Date display formatting (timezone-safe, MM/DD/YYYY)
 export { formatDateDisplay } from "./format/date";
 

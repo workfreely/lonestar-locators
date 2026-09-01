@@ -39,6 +39,11 @@ export type CurrentProperty = {
    *  address/image are supplemental and may be null without failing detection. */
   propertyName: string;
   propertyAddress?: string | null;
+  /** Google Places star rating (0.0–5.0), carried from the CRM Map via the
+   *  map→Companion bridge (Google Places data). Supplemental; ABSENT for
+   *  SAD-detected properties and never fabricated. The card shows it only when
+   *  present and omits it entirely when null. Display-only. */
+  googleRating?: number | null;
   /** SAD submarket (neighborhood/area label) from the property header — the most
    *  reliable structured location signal on the detail page. Supplemental; null
    *  when absent. Used by Location Fit alongside the address. */

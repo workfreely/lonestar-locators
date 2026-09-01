@@ -148,6 +148,18 @@ export function isValidCurrentPropertyPayload(
     p.source !== "smart_apartment_data"
   )
     return false;
+  // Google rating is optional; when present it must be a finite number on the
+  // 0–5 scale. A malformed or out-of-range value is rejected at the door rather
+  // than stored and shown.
+  if (
+    p.googleRating !== null &&
+    p.googleRating !== undefined &&
+    (typeof p.googleRating !== "number" ||
+      !Number.isFinite(p.googleRating) ||
+      p.googleRating < 0 ||
+      p.googleRating > 5)
+  )
+    return false;
 
   return isWithinSizeLimit(payload);
 }

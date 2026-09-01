@@ -163,6 +163,10 @@ export function toCompanionProperty(p: ExplorerProperty) {
     placeId: p.placeId,
     source: p.source,
     marketSlug: p.marketSlug,
+    // Real Google rating (0.0–5.0) when catalogued, else null — carried so the
+    // Companion Current Property card can show the same rating as the CRM card.
+    // Never fabricated; the receiver omits the rating when null.
+    googleRating: p.googleRating ?? null,
   }
 }
 

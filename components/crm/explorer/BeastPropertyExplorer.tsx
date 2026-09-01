@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabase/client"
 import { readMapMarket, writeMapMarket } from "@/lib/preferences"
 import { boundsForMarket, getMarketBySlug, isInsideMarket, isInsideState, isMarketInState, marketsForSlugs, resolveMapMarket } from "@/lib/markets/catalog"
 import { resolveDesiredAreaCenters, searchAreas, type AreaCenter } from "@/lib/propertyExplorer/multiArea"
+import { starFillPercent } from "@bc/companion-shared"
 import { createPortal } from "react-dom"
 
 /**
@@ -950,7 +951,7 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
  * size / letter-spacing so the clip lines up.
  */
 function StarRating({ value }: { value: number }) {
-  const pct = Math.max(0, Math.min(100, (value / 5) * 100))
+  const pct = starFillPercent(value)
   return (
     <span
       className="relative inline-block align-middle leading-none"
