@@ -1021,6 +1021,18 @@ const MARKET_BOUNDS_OVERRIDE: Record<string, LatLngBounds> = {
   // contains the default center (30.2672, -97.7431) and every Austin centroid
   // (incl. Domain 30.401), so the initial camera (center + zoom 11) is unchanged.
   "austin": { south: 30.0, west: -98.05, north: 30.6, east: -97.45 },
+  // Dallas and Fort Worth are one practical locator metro (~50 km apart), so they
+  // SHARE a single DFW navigation envelope: from either downtown the user can
+  // manually pan/zoom across to the other city and the mid-cities in between.
+  // West reaches past Fort Worth + Alliance (~-97.5); east past Dallas and the
+  // north/east suburbs (Plano/Richardson/Garland, ~-96.5); north to
+  // Frisco/McKinney/Denton and Alliance (~33.25); south to Arlington/Mansfield/
+  // Cedar Hill (~32.5). Still a bounded restriction — the metroplex, not the
+  // whole state. Contains both default centers (Dallas 32.7767,-96.797; Fort
+  // Worth 32.7555,-97.3308) and every DFW centroid, so neither market's initial
+  // camera (center + zoom 11) changes.
+  "dallas": { south: 32.5, west: -97.6, north: 33.25, east: -96.5 },
+  "fort-worth": { south: 32.5, west: -97.6, north: 33.25, east: -96.5 },
 }
 
 /** The browsing box for a supported market, or null when the slug is unknown. */
