@@ -26,6 +26,7 @@ import { CRM_PRIMARY_BUTTON, CRM_SECONDARY_BUTTON } from "@/lib/crmButtonStyles"
 import type { GuestCardAgent } from "@/lib/leads/guestCard"
 import { buildActiveClientPayload, COMPANION_MSG_SOURCE, type LatestOutreach } from "@/lib/companion/leadToDto"
 import { toCompanionProperty } from "@/lib/propertyExplorer/types"
+import { attachCatalogRatings } from "@/lib/propertyExplorer/catalog"
 import { recordFirstContact } from "@/lib/leads/contactWorkflow"
 import { recordPendingOutreach } from "@/lib/leads/pendingOutreach"
 import { completeBuildList, startBuildList } from "@/lib/leads/buildListWorkflow"
@@ -1798,8 +1799,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           | { propertyName?: string; propertyAddress?: string | null; propertyUrl?: string; propertyImageUrl?: string | null }
           | undefined
         const propertyUrl = String(p?.propertyUrl ?? "").trim()
-        const propertyName = String(p?.propertyName ?? "").trim()
-        if (!propertyUrl || !propertyName) return // primary identity required
+        if (!propertyUrl) return // primary identity required
         const isFav = payload.verb === "add-favorite" || payload.verb === "move-to-favorite"
         const currentList = isFav ? localFavoritesRef.current : localRecommendationsRef.current
         const sourceList = isFav ? localRecommendationsRef.current : localFavoritesRef.current
@@ -1808,6 +1808,13 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         const sourceRow = sourceList.find(
           (r: any) => String(r.lead_id) === String(lead.id) && String(r.property_url ?? "") === propertyUrl
         )
+        // A MOVE from a saved row (the ♡/＋ on a Recommendation/Favorite) posts only the
+        // property URL — its name/address live on the SOURCE row. An ADD from Current
+        // Property carries them in the payload. Take the name from whichever exists; a
+        // move with no resolvable name (should not happen) is ignored rather than saved
+        // nameless.
+        const propertyName = String(p?.propertyName ?? sourceRow?.property_name ?? "").trim()
+        if (!propertyName) return
 
         // Favorite → Recommendation is blocked while the Favorite still carries a
         // downstream dependency (Top Pick / scheduled tour / open property-scoped
@@ -1838,8 +1845,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           lead_id: lead.id,
           property_name: propertyName || null,
           property_url: propertyUrl || null,
-          property_address: (p?.propertyAddress ?? null) || null,
-          property_image_url: p?.propertyImageUrl ?? null,
+          // Address/image also fall back to the source row on a move.
+          property_address: (p?.propertyAddress ?? sourceRow?.property_address ?? null) || null,
+          property_image_url: (p?.propertyImageUrl ?? sourceRow?.property_image_url) ?? null,
         }
         const applyLocal = (row: any) => {
           if (isFav) {
@@ -1866,12 +1874,18 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           .insert([rowBase])
           .select("*")
           .single()
-          .then(({ data, error }: { data: any; error: any }) => {
+          .then(async ({ data, error }: { data: any; error: any }) => {
             if (error) {
               console.error(`[${isFav ? "favorite" : "recommendation"}] add failed:`, error.message)
               return
             }
-            if (data) applyLocal(data)
+            if (!data) return
+            // Resolve the catalog google_rating for the just-added row (one batched
+            // query, same read-side path as the server load) so its rating/stars render
+            // immediately without a page reload. property_catalog stays the single
+            // source of truth — nothing rating-related is stored on the row.
+            const [enriched] = await attachCatalogRatings([data], supabase)
+            applyLocal(enriched)
           })
         return
       }
