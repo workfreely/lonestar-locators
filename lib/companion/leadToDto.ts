@@ -435,6 +435,9 @@ export function buildActiveClientPayload(
       propertyName: str(f.property_name) ?? "Property",
       propertyAddress: str(f.property_address),
       propertyUrl: str(f.property_url),
+      // Google rating resolved read-side from property_catalog (attachCatalogRatings
+      // at the fetch). Null when uncatalogued/unrated — never fabricated.
+      googleRating: typeof f.google_rating === "number" ? f.google_rating : null,
       // Resolved HERE because this is where the tours + next actions live. Null when
       // the Favorite can move back to Recommendations.
       moveBlockedReason: favoriteMoveBlock({ favorite: f, lead, tours, nextActions }).reason,
@@ -451,6 +454,9 @@ export function buildActiveClientPayload(
       propertyName: str(r.property_name) ?? "Property",
       propertyAddress: str(r.property_address),
       propertyUrl: str(r.property_url),
+      // Google rating resolved read-side from property_catalog. Null when
+      // uncatalogued/unrated.
+      googleRating: typeof r.google_rating === "number" ? r.google_rating : null,
     }))
 
   return { owner, lead: dto, nextActions: actions, favorites: favoriteDtos, recommendations: recommendationDtos, agentName: str(agentName), timeZone: str(timeZone) }

@@ -9,6 +9,9 @@ import PropertyThumb from "./PropertyThumb"
 import { SectionCard } from "./LeadPanelSections"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { upcomingTourForFavorite } from "@/lib/leads/upcomingTour"
+import { displayAddress, formatRating } from "@bc/companion-shared"
+import { StarRating } from "./StarRating"
+import { attachCatalogRatings } from "@/lib/propertyExplorer/catalog"
 import { utcToLocalTourValue, favoriteTourStateLabel } from "@/lib/leads/tourFollowUp"
 import { formatDueDateTime } from "@/lib/actionDisplay"
 
@@ -166,7 +169,11 @@ export default function LeadFavorites({
         return false
       }
 
-      setFavorites?.((prev) => prev.map((f) => (f.id === data.id ? data : f)))
+      // Re-attach the catalog google_rating (single batched lookup) so an
+      // in-place edit doesn't drop the star until a full reload. property_catalog
+      // stays the source of truth — nothing is persisted on lead_favorites.
+      const [enriched] = await attachCatalogRatings([data], supabase)
+      setFavorites?.((prev) => prev.map((f) => (f.id === enriched.id ? enriched : f)))
       setShowFavoriteModal(false)
       setEditingFavorite(null)
       return true
@@ -188,7 +195,10 @@ export default function LeadFavorites({
       return false
     }
 
-    setFavorites?.((prev) => [...prev, ...(data ?? [])])
+    // Same read-side rating resolution for newly created favorites (one batched
+    // catalog lookup for the whole insert), so their stars show immediately.
+    const enriched = await attachCatalogRatings(data ?? [], supabase)
+    setFavorites?.((prev) => [...prev, ...enriched])
     setShowFavoriteModal(false)
 
     // Re-anchored workflow: a Favorite alone NO LONGER creates a Guest Card
@@ -417,14 +427,26 @@ export default function LeadFavorites({
                           {fav.property_name || fav.property_url}
                         </p>
                         {fav.property_address && (
-                          <p className="text-[11px] text-[var(--crm-text-muted)] truncate">{fav.property_address}</p>
+                          <p className="text-[11px] text-[var(--crm-text-muted)] truncate">{displayAddress(fav.property_address)}</p>
+                        )}
+                        {typeof fav.google_rating === "number" && (
+                          <div className="mt-0.5 flex items-center gap-1.5">
+                            <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(fav.google_rating)}</span>
+                            <StarRating value={fav.google_rating} />
+                          </div>
                         )}
                       </a>
                     ) : (
                       <div className="min-w-0 flex-1">
                         <p className="text-[12.5px] font-semibold text-[var(--crm-text-primary)] truncate">{fav.property_name}</p>
                         {fav.property_address && (
-                          <p className="text-[11px] text-[var(--crm-text-muted)] truncate">{fav.property_address}</p>
+                          <p className="text-[11px] text-[var(--crm-text-muted)] truncate">{displayAddress(fav.property_address)}</p>
+                        )}
+                        {typeof fav.google_rating === "number" && (
+                          <div className="mt-0.5 flex items-center gap-1.5">
+                            <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(fav.google_rating)}</span>
+                            <StarRating value={fav.google_rating} />
+                          </div>
                         )}
                       </div>
                     )}

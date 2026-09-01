@@ -100,8 +100,11 @@ const rec = (websiteUrl: string | null, googleRating: number | null = null): Cat
   ok(/typeof card\.googleRating === "number" &&/.test(src), "rating shown only when googleRating is a real number")
   ok(/card\.googleRating\.toFixed\(1\)/.test(src), "rating printed with one decimal, numeric first")
   ok(/<StarRating value=\{card\.googleRating\}/.test(src), "stars follow the number")
-  ok(/width: `\$\{pct\}%`/.test(src), "star fill reflects the decimal (partial width)")
   ok(!/userRatingCount|reviewCount|reviews/i.test(src), "no review count anywhere on the card")
+  // The partial-fill star math now lives in the shared CRM StarRating component.
+  const starSrc = readFileSync(resolve(here, "../../components/crm/StarRating.tsx"), "utf8")
+  ok(/starFillPercent\(value\)/.test(starSrc), "shared StarRating uses shared starFillPercent math")
+  ok(/width: `\$\{pct\}%`/.test(starSrc), "star fill reflects the decimal (partial width)")
   // The hover/click handlers set local state only — no fetch, no Places call.
   ok(/mouseenter", \(\) => setHovered\(p\)\)/.test(src), "hover only sets local state (no request)")
   ok(!/onMouseEnter[\s\S]*fetch\(/.test(src), "no fetch introduced on hover")

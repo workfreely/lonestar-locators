@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase/client"
 import type { AiClientBrief } from "@/lib/types/aiClientBrief"
 import { getDemoBrief, isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { getLeadResponsiveness, computeCloseRatioPercent } from "@/lib/ai/leadResponsiveness"
+import { displayAddress } from "@bc/companion-shared"
 
 // V1 launch flag — Property Matches / AI property suggestions are hidden from
 // the Lead Panel UI while the matching engine stays FULLY intact behind the
@@ -854,7 +855,7 @@ if (Number(lead.credit_score) <= 580) {
                   </div>
 
                   <p className="text-xs text-[var(--crm-text-secondary)] truncate">
-                    {property.full_address}
+                    {displayAddress(property.full_address)}
                   </p>
 
                   <p className="text-xs text-[var(--crm-text-muted)] truncate">

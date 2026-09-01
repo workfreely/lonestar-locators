@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { ExplorerProperty } from "./types"
+import { placeIdFromPropertyUrl } from "./types"
 
 /**
  * Property Catalog enrichment — attaches structured Property Intelligence
@@ -45,6 +46,30 @@ export async function fetchCatalog(
     })
   }
   return out
+}
+
+/**
+ * Attach `google_rating` (from property_catalog) to rows that carry a
+ * `property_url`, resolving each row's Place ID from that URL. Option A: the
+ * rating is NEVER stored on lead_recommendations/lead_favorites — property_catalog
+ * stays the single source of truth, resolved read-side here. ONE batched catalog
+ * query for the whole set (no N+1). A row whose URL yields no Place ID, or whose
+ * Place ID has no catalog row, gets google_rating = null. Returns new row objects;
+ * the source rows are untouched.
+ */
+export async function attachCatalogRatings<T extends { property_url?: string | null }>(
+  rows: T[],
+  supabase: SupabaseClient,
+): Promise<(T & { google_rating: number | null })[]> {
+  const placeIds = rows.map((r) => placeIdFromPropertyUrl(r.property_url))
+  const catalog = await fetchCatalog(
+    placeIds.filter((v): v is string => !!v),
+    supabase,
+  )
+  return rows.map((r, i) => {
+    const pid = placeIds[i]
+    return { ...r, google_rating: pid ? (catalog.get(pid)?.googleRating ?? null) : null }
+  })
 }
 
 /** Returns copies enriched where a catalog record exists; others unchanged. */

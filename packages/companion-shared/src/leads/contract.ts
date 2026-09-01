@@ -193,6 +193,10 @@ export const favoriteSchema = z.object({
   propertyName: z.string(),
   propertyAddress: z.string().nullish(),
   propertyUrl: z.string().nullish(),
+  /** Google Places star rating (0.0–5.0), resolved read-side from
+   *  property_catalog by the property's Place ID (never stored on lead_favorites).
+   *  Null when the property is uncatalogued or unrated; the card omits it then. */
+  googleRating: z.number().nullish(),
   /** Why this Favorite cannot currently move back to Recommendations (Top Pick,
    *  scheduled tour, open property-scoped action), or null when the move is allowed.
    *  Resolved server-side where the tours/actions live; the CRM re-checks on receipt. */
@@ -209,6 +213,10 @@ export const recommendationSchema = z.object({
   propertyName: z.string(),
   propertyAddress: z.string().nullish(),
   propertyUrl: z.string().nullish(),
+  /** Google Places star rating (0.0–5.0), resolved read-side from
+   *  property_catalog by the property's Place ID (never stored on
+   *  lead_recommendations). Null when uncatalogued/unrated; the card omits it. */
+  googleRating: z.number().nullish(),
 });
 export type RecommendationDTO = z.infer<typeof recommendationSchema>;
 

@@ -10,7 +10,7 @@ import { supabase } from "@/lib/supabase/client"
 import { readMapMarket, writeMapMarket } from "@/lib/preferences"
 import { boundsForMarket, getMarketBySlug, isInsideMarket, isInsideState, isMarketInState, marketsForSlugs, resolveMapMarket } from "@/lib/markets/catalog"
 import { resolveDesiredAreaCenters, searchAreas, type AreaCenter } from "@/lib/propertyExplorer/multiArea"
-import { starFillPercent } from "@bc/companion-shared"
+import { StarRating } from "@/components/crm/StarRating"
 import { createPortal } from "react-dom"
 
 /**
@@ -940,33 +940,6 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
         </div>
       )}
     </div>
-  )
-}
-
-/**
- * Compact five-star rating whose gold fill reflects the decimal value: a grey
- * full set with a gold copy clipped to (value / 5) of the width, so 4.3 shows
- * four solid stars and a ~30%-filled fifth. Purely decorative — the numeric
- * value beside it is the source of truth. Both layers share the exact font
- * size / letter-spacing so the clip lines up.
- */
-function StarRating({ value }: { value: number }) {
-  const pct = starFillPercent(value)
-  return (
-    <span
-      className="relative inline-block align-middle leading-none"
-      title={`${value.toFixed(1)} out of 5`}
-      aria-label={`Google rating ${value.toFixed(1)} out of 5`}
-    >
-      <span className="block whitespace-nowrap text-[13px] tracking-[1px] text-[#d7dbe4]">★★★★★</span>
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-y-0 left-0 overflow-hidden whitespace-nowrap text-[13px] tracking-[1px] text-[#f5a623]"
-        style={{ width: `${pct}%` }}
-      >
-        ★★★★★
-      </span>
-    </span>
   )
 }
 

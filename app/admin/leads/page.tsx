@@ -8,6 +8,7 @@ import { resolveUserTimeZone } from "@/lib/timezone/server"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { greetingName, displayFullName } from "@bc/companion-shared"
 import { reconcilePrimaryMarket } from "@/lib/markets/catalog"
+import { attachCatalogRatings } from "@/lib/propertyExplorer/catalog"
 import { DEMO_ALL_LEADS, DEMO_NEXT_ACTIONS, DEMO_FAVORITES, DEMO_RECOMMENDATIONS, DEFAULT_AVG_COMMISSION_PER_LEASE } from "@/lib/demo/demoWorkspace"
 
 // Fallback per-close commission when a profile hasn't set its own — matches
@@ -103,7 +104,9 @@ async function getFavorites() {
     return []
   }
 
-  return data || []
+  // Resolve the Google rating read-side from property_catalog (Option A — never
+  // stored on lead_favorites). One batched catalog query for the whole set.
+  return attachCatalogRatings(data || [], supabase)
 }
 
 // Recommendations — canonical per-client lead_recommendations, same read pattern
@@ -121,7 +124,9 @@ async function getRecommendations() {
     return []
   }
 
-  return data || []
+  // Same read-side rating resolution as favorites (property_catalog is the single
+  // source of truth). One batched catalog query.
+  return attachCatalogRatings(data || [], supabase)
 }
 
 // Scheduled tours — the canonical lead_tours appointments (source of truth) used

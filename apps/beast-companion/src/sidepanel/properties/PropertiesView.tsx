@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { SectionCard } from "../lead/primitives";
 import { PropertyThumb } from "./PropertyThumb";
-import { resolveClientContext, evaluateLocationFit, evaluateApproval, evaluateAmenities, evaluateSpecials, evaluateBudget, evaluateMatchScore, matchScoreTone, normalizeMustHaveAmenities, resolveClientBudget, formatRent, cityMismatch, propertyCityName, starFillPercent, formatRating } from "@bc/companion-shared";
+import { resolveClientContext, evaluateLocationFit, evaluateApproval, evaluateAmenities, evaluateSpecials, evaluateBudget, evaluateMatchScore, matchScoreTone, normalizeMustHaveAmenities, resolveClientBudget, formatRent, cityMismatch, propertyCityName, starFillPercent, formatRating, displayAddress } from "@bc/companion-shared";
 import type { FavoriteDTO, RecommendationDTO, LeadSummaryDTO } from "@bc/companion-shared";
 import type { CurrentProperty } from "@/types";
 
@@ -106,6 +106,7 @@ function PropertyRow({
   name,
   sub,
   url,
+  rating,
   moveLabel,
   moveTitle,
   moveVariant,
@@ -115,6 +116,8 @@ function PropertyRow({
   name: string;
   sub?: string | null;
   url?: string | null;
+  /** Google rating (0.0–5.0) or null — same treatment as Current Property. */
+  rating?: number | null;
   moveLabel?: string;
   moveTitle?: string;
   /** "heart" gets the heavier Favorite treatment; the default stays minimal. */
@@ -129,6 +132,25 @@ function PropertyRow({
         <div className="bc-prop-row-text">
           <PropertyName name={name} url={url} className="bc-prop-name" />
           {sub ? <span className="bc-prop-sub">{sub}</span> : null}
+          {typeof rating === "number" && (
+            <div className="bc-cp-rating">
+              <span className="bc-cp-rating-num">{formatRating(rating)}</span>
+              <span
+                className="bc-cp-stars"
+                title={`${formatRating(rating)} out of 5`}
+                aria-label={`Google rating ${formatRating(rating)} out of 5`}
+              >
+                <span className="bc-cp-stars-base">★★★★★</span>
+                <span
+                  className="bc-cp-stars-fill"
+                  style={{ width: `${starFillPercent(rating)}%` }}
+                  aria-hidden
+                >
+                  ★★★★★
+                </span>
+              </span>
+            </div>
+          )}
         </div>
         {moveLabel && onMove && (
           <button
@@ -319,7 +341,7 @@ export function PropertiesView({
                   className="bc-current-prop-name"
                 />
                 {currentProperty.propertyAddress && (
-                  <div className="bc-current-prop-addr">{currentProperty.propertyAddress}</div>
+                  <div className="bc-current-prop-addr">{displayAddress(currentProperty.propertyAddress)}</div>
                 )}
                 {/* Google rating — same treatment as the CRM property card: numeric
                     value first (one decimal), then a compact five-star visual whose
@@ -412,8 +434,9 @@ export function PropertiesView({
               <PropertyRow
                 key={String(r.id)}
                 name={r.propertyName}
-                sub={r.propertyAddress}
+                sub={r.propertyAddress ? displayAddress(r.propertyAddress) : r.propertyAddress}
                 url={r.propertyUrl}
+                rating={r.googleRating}
                 // EMPTY heart: this property is still a Recommendation. The filled red
                 // heart denotes the Favorite state, so it must never appear here.
                 moveLabel="♡"
@@ -436,8 +459,9 @@ export function PropertiesView({
               <PropertyRow
                 key={String(f.id)}
                 name={f.propertyName}
-                sub={f.propertyAddress}
+                sub={f.propertyAddress ? displayAddress(f.propertyAddress) : f.propertyAddress}
                 url={f.propertyUrl}
+                rating={f.googleRating}
                 moveLabel="+"
                 moveTitle="Move back to Recommendations"
                 blockedReason={f.moveBlockedReason}

@@ -115,6 +115,10 @@ export type { CrmPalette, BadgeToneStyle } from "./tokens/tokens";
 // Google rating display math (shared by the CRM card + Companion Current Property)
 export { starFillPercent, formatRating } from "./format/rating";
 
+// Display-only address formatting — drop trailing ", USA"/", United States"
+// (shared by the CRM property card + Companion Current Property)
+export { displayAddress } from "./format/address";
+
 // Date display formatting (timezone-safe, MM/DD/YYYY)
 export { formatDateDisplay } from "./format/date";
 

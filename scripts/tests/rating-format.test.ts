@@ -4,7 +4,8 @@
  * partial-fill behavior is identical. No DB, no UI:
  *   npx tsx scripts/tests/rating-format.test.ts
  */
-import { starFillPercent, formatRating } from "@bc/companion-shared"
+import { starFillPercent, formatRating, displayAddress } from "@bc/companion-shared"
+import { placeUrl, placeIdFromPropertyUrl } from "@/lib/propertyExplorer/types"
 
 let pass = 0, fail = 0
 const eq = (a: unknown, b: unknown, name: string) => {
@@ -25,6 +26,40 @@ eq(starFillPercent(-1), 0, "negative clamps to 0%")
 eq(formatRating(4.3), "4.3", "4.3 → '4.3'")
 eq(formatRating(5), "5.0", "5 → '5.0'")
 eq(formatRating(4), "4.0", "4 → '4.0'")
+
+// displayAddress: drop ONLY a trailing country token; keep street/city/state/ZIP.
+eq(
+  displayAddress("21739 Hardy Oak Blvd, San Antonio, TX 78258, USA"),
+  "21739 Hardy Oak Blvd, San Antonio, TX 78258",
+  "strips trailing ', USA'",
+)
+eq(
+  displayAddress("100 Main St, Austin, TX 78701, United States"),
+  "100 Main St, Austin, TX 78701",
+  "strips trailing ', United States'",
+)
+eq(
+  displayAddress("100 Main St, Austin, TX 78701"),
+  "100 Main St, Austin, TX 78701",
+  "no country token → unchanged",
+)
+eq(displayAddress(null), "", "null → empty string")
+eq(
+  displayAddress("1 USA Pkwy, Reno, NV 89434, USA"),
+  "1 USA Pkwy, Reno, NV 89434",
+  "only the TRAILING country is removed, not 'USA' inside the street",
+)
+
+// placeIdFromPropertyUrl: the identifier used to join recs/favorites to the
+// catalog. Round-trips the canonical map URL; null for non-Google URLs.
+eq(placeIdFromPropertyUrl(placeUrl("ChIJ1S-W1ERjXIYRf8B7XujAZcA")), "ChIJ1S-W1ERjXIYRf8B7XujAZcA", "round-trips place_id from canonical placeUrl")
+eq(
+  placeIdFromPropertyUrl("https://www.google.com/maps/place/?q=place_id:ChIJxyz&hl=en"),
+  "ChIJxyz",
+  "extracts place_id even with extra query params",
+)
+eq(placeIdFromPropertyUrl("https://smartapartmentdata.com/vp/123"), null, "non-Google (SAD) URL → null")
+eq(placeIdFromPropertyUrl(null), null, "null URL → null")
 
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail > 0) process.exit(1)

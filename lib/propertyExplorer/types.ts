@@ -106,12 +106,11 @@ export type PropertyCommission = {
 
 /**
  * Display-only: drop a trailing country from a formatted address (Google appends
- * ", USA"). Returns a NEW string — the stored address, Places result and any DB
- * value are never mutated. Only the exact trailing country token is removed.
+ * ", USA"). Re-exported from @bc/companion-shared so the CRM card and the Beast
+ * Companion Current Property card share ONE implementation. Returns a NEW string
+ * — the stored address is never mutated.
  */
-export function displayAddress(address: string | null | undefined): string {
-  return (address ?? "").replace(/,\s*USA\s*$/i, "")
-}
+export { displayAddress } from "@bc/companion-shared"
 
 /**
  * Display-only: a concise locator-facing commission string, or null when there is
@@ -173,4 +172,22 @@ export function toCompanionProperty(p: ExplorerProperty) {
 /** Canonical Google Maps URL for a place. Documented, stable, not fabricated. */
 export function placeUrl(placeId: string): string {
   return `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(placeId)}`
+}
+
+/**
+ * Inverse of placeUrl: recover the Google Place ID from a stored property_url.
+ * property_url is the established primary identity for a recommendation/favorite
+ * (lead_recommendations/lead_favorites store no place_id column), and a
+ * map-sourced property's URL is exactly `…?q=place_id:<id>`. Returns null for a
+ * non-Google URL (e.g. a pasted SAD/RentCafe link) — those simply have no
+ * catalog rating to resolve. Never fabricates an ID.
+ */
+export function placeIdFromPropertyUrl(url: string | null | undefined): string | null {
+  const m = /[?&]q=place_id:([^&]+)/.exec(url ?? "")
+  if (!m) return null
+  try {
+    return decodeURIComponent(m[1]!)
+  } catch {
+    return m[1]!
+  }
 }
