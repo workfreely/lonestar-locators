@@ -8,7 +8,8 @@ import { computeSuggestions } from "@/lib/propertyExplorer/suggestions"
 import { enrichProperties, fetchCatalog } from "@/lib/propertyExplorer/catalog"
 import { supabase } from "@/lib/supabase/client"
 import { readMapMarket, writeMapMarket } from "@/lib/preferences"
-import { boundsForMarket, centerForDesiredArea, getMarketBySlug, isInsideMarket, isInsideState, isMarketInState, marketsForSlugs, resolveMapMarket } from "@/lib/markets/catalog"
+import { boundsForMarket, getMarketBySlug, isInsideMarket, isInsideState, isMarketInState, marketsForSlugs, resolveMapMarket } from "@/lib/markets/catalog"
+import { resolveDesiredAreaCenters, searchAreas, type AreaCenter } from "@/lib/propertyExplorer/multiArea"
 import { createPortal } from "react-dom"
 
 /**
@@ -130,9 +131,10 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   const [status, setStatus] = useState<Status>("loading")
   const [beastPhase, setBeastPhase] = useState<"idle" | "scanning" | "matched">("idle")
   const [beastMatchCount, setBeastMatchCount] = useState(0)
-  // Screen-pixel origin for the single sonar sweep — the projected desired-area
-  // center. null → the original fixed viewport-center sweep (no-client / no area).
-  const [radarOrigin, setRadarOrigin] = useState<{ x: number; y: number } | null>(null)
+  // Screen-pixel origins for the sonar sweeps — one per resolved desired-area
+  // center, so 2 areas draw 2 simultaneous sweeps and 3 draw 3. Empty → the
+  // original fixed viewport-center sweep (no-client / no resolved area).
+  const [radarOrigins, setRadarOrigins] = useState<{ x: number; y: number }[]>([])
   const [error, setError] = useState<string | null>(null)
   const [results, setResults] = useState<ExplorerProperty[]>([])
   const [hovered, setHovered] = useState<ExplorerProperty | null>(null)
@@ -167,17 +169,17 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     [marketOverride, activeClient, primaryMarket, serviceAreaSlugs, licenseState],
   )
 
-  // ── Single desired-area search center ──────────────────────────────────────
-  // The client's FIRST desired area resolved to a deterministic center (Stone Oak
-  // only, this checkpoint). When present, Unleash searches here instead of the map
-  // center — the camera is never touched. null → fall back to the map center.
-  // Multiple desired areas are deliberately out of scope: only the first is read.
-  const desiredAreaCenter = useMemo(() => {
-    const first = (activeClient?.desiredAreas ?? "").split(",")[0]?.trim()
-    // marketSlug scopes the lookup so a label shared across metros (e.g.
-    // "Medical Center", "Midtown") resolves to THIS market's centroid.
-    return first ? centerForDesiredArea(first, marketSlug) : null
-  }, [activeClient, marketSlug])
+  // ── Desired-area search centers (1–3) ──────────────────────────────────────
+  // Every desired area the client selected (max 3, the form's combined cap),
+  // each resolved to a deterministic market-aware centroid. Unleash searches one
+  // 3 km radius around EACH — the camera is never touched. Empty → fall back to
+  // the map center. marketSlug scopes the lookup so a label shared across metros
+  // ("Medical Center", "Midtown") resolves to THIS market's centroid; an
+  // unresolved area is dropped, never replaced with the downtown center.
+  const desiredAreaCenters = useMemo(
+    () => resolveDesiredAreaCenters(activeClient?.desiredAreas, marketSlug),
+    [activeClient, marketSlug],
+  )
 
   // A new client (or clearing the selection) invalidates a browse override: the
   // next client must start from their own criteria, and with no client the map
@@ -323,41 +325,46 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   useEffect(() => () => clearMarkers(), [clearMarkers])
 
   // ── Deliberate area search ────────────────────────────────────────────────
-  const searchThisArea = useCallback(async (override?: { lat: number; lng: number }) => {
+  // One Places search per center. With resolved desired areas (1–3) it fans out
+  // over each, merges the pools and dedupes by Place ID; with none it falls back
+  // to a single search on the current map center. The CAMERA IS NEVER MOVED —
+  // only where Places searches changes.
+  const searchThisArea = useCallback(async (overrideCenters?: AreaCenter[]) => {
     const map = mapRef.current
     if (!map) return
-    // The search center: an explicit desired-area center when Unleash resolved one
-    // (e.g. Stone Oak), otherwise the current map center. The CAMERA IS NEVER MOVED
-    // either way — only where Places searches changes.
-    let c: { lat: number; lng: number }
-    if (override) {
-      c = override
-    } else {
-      const g = map.getCenter()
-      if (!g) return
-      c = { lat: g.lat(), lng: g.lng() }
-    }
 
-    // Boundary guard. A desired-area center is validated against the licensed
-    // STATE — a legitimate area like Stone Oak can sit just outside the market's
-    // conservative pan box, so gating on the market would wrongly reject it. The
-    // map-center path keeps the tighter market guard (its old behavior).
-    if (override) {
-      if (!isInsideState(c, licenseState)) {
+    // Decide the search centers and the boundary guard for this run.
+    let centers: AreaCenter[]
+    const viaAreas = Boolean(overrideCenters && overrideCenters.length > 0)
+    if (viaAreas) {
+      // Desired-area centers are validated against the licensed STATE — a
+      // legitimate area (e.g. Stone Oak) can sit just outside the market's
+      // conservative pan box, so gating on the market would wrongly reject it.
+      // Any area failing the state guard is dropped; if none survive we simply
+      // don't search (no downtown fallback for a rejected area).
+      centers = overrideCenters!.filter((c) => isInsideState(c, licenseState))
+      if (centers.length === 0) {
         setDirty(false)
         return
       }
-    } else if (!isInsideMarket(c, marketSlug)) {
-      const back = boundsForMarket(marketSlug)
-      if (back) map.setCenter(center)
-      setDirty(false)
-      return
+    } else {
+      // Map-center path keeps the tighter market guard (its old behavior).
+      const g = map.getCenter()
+      if (!g) return
+      const c = { lat: g.lat(), lng: g.lng() }
+      if (!isInsideMarket(c, marketSlug)) {
+        const back = boundsForMarket(marketSlug)
+        if (back) map.setCenter(center)
+        setDirty(false)
+        return
+      }
+      centers = [c]
     }
 
-    // Skip an identical repeat of the same area.
-    const key = override
-      ? `area:${c.lat.toFixed(4)},${c.lng.toFixed(4)}`
-      : `${c.lat.toFixed(4)},${c.lng.toFixed(4)},${map.getZoom()}`
+    // Skip an identical repeat of the same area set (order-independent).
+    const key = viaAreas
+      ? "areas:" + centers.map((c) => `${c.lat.toFixed(4)},${c.lng.toFixed(4)}`).sort().join("|")
+      : `${centers[0].lat.toFixed(4)},${centers[0].lng.toFixed(4)},${map.getZoom()}`
     if (key === lastSearchRef.current) {
       setDirty(false)
       return
@@ -371,35 +378,42 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
       const { places: placesLib } = await loadGoogleMaps()
       const { Place, SearchNearbyRankPreference } = placesLib
 
-      const { places } = await Place.searchNearby({
-        // Minimum fields only — no rich Place Details.
-        fields: ["id", "displayName", "formattedAddress", "location"],
-        locationRestriction: { center: c, radius: 3000 },
-        includedPrimaryTypes: ["apartment_complex", "apartment_building"],
-        maxResultCount: 20,
-        rankPreference: SearchNearbyRankPreference.POPULARITY,
-      })
+      // One Places search around a single center → normalized ExplorerProperty[].
+      const searchOne = async (c: AreaCenter): Promise<ExplorerProperty[]> => {
+        const { places } = await Place.searchNearby({
+          // Minimum fields only — no rich Place Details.
+          fields: ["id", "displayName", "formattedAddress", "location"],
+          locationRestriction: { center: c, radius: 3000 },
+          includedPrimaryTypes: ["apartment_complex", "apartment_building"],
+          maxResultCount: 20,
+          rankPreference: SearchNearbyRankPreference.POPULARITY,
+        })
+        return (places ?? [])
+          .filter((p) => p.id && p.location)
+          .map((p) => ({
+            placeId: p.id!,
+            propertyId: p.id!,
+            propertyName: p.displayName ?? "Unnamed property",
+            propertyAddress: p.formattedAddress ?? null,
+            propertyUrl: placeUrl(p.id!),
+            lat: p.location!.lat(),
+            lng: p.location!.lng(),
+            source: "google_places",
+            marketSlug,
+            searchCenter: { lat: c.lat, lng: c.lng },
+          }))
+      }
 
-      const mapped: ExplorerProperty[] = (places ?? [])
-        .filter((p) => p.id && p.location)
-        .map((p) => ({
-          placeId: p.id!,
-          propertyId: p.id!,
-          propertyName: p.displayName ?? "Unnamed property",
-          propertyAddress: p.formattedAddress ?? null,
-          propertyUrl: placeUrl(p.id!),
-          lat: p.location!.lat(),
-          lng: p.location!.lng(),
-          source: "google_places",
-          marketSlug,
-          searchCenter: { lat: c.lat, lng: c.lng },
-        }))
+      // Fan out over every center, then merge + dedupe by Place ID so an overlap
+      // between two areas yields a single property.
+      const merged = await searchAreas(centers, searchOne)
 
-      // Enrich with structured Property Intelligence geography by Place ID.
-      // Unmatched results pass through unchanged; a lookup failure is swallowed
-      // inside fetchCatalog, so the search never breaks on enrichment.
-      const catalog = await fetchCatalog(mapped.map((m) => m.placeId), supabase)
-      const enriched = enrichProperties(mapped, catalog)
+      // Enrich the MERGED pool once with structured Property Intelligence by Place
+      // ID. Unmatched results pass through unchanged; a lookup failure is swallowed
+      // inside fetchCatalog, so the search never breaks on enrichment. Ranking then
+      // runs over this one combined set — no area is ranked ahead of another.
+      const catalog = await fetchCatalog(merged.map((m) => m.placeId), supabase)
+      const enriched = enrichProperties(merged, catalog)
 
       lastSearchRef.current = key
       setResults(enriched)
@@ -447,7 +461,7 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     beastRestoreRef.current = []
     beastPhaseRef.current = "idle"
     beastHighlightedRef.current = false
-    setRadarOrigin(null)
+    setRadarOrigins([])
   }, [])
 
   // The dim/lift/halo pass over the CURRENT markers, using the REAL ranked Beast
@@ -503,11 +517,11 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     const map = mapRef.current
     if (!map) return
 
-    // The SEARCH center: the client's resolved desired area (Stone Oak) when we
-    // have one, otherwise the current map center. The CAMERA IS NEVER MOVED.
+    // The SEARCH centers: the client's resolved desired areas (1–3) when we have
+    // them, otherwise the current map center. The CAMERA IS NEVER MOVED.
+    const hasAreas = desiredAreaCenters.length > 0
     const g = map.getCenter()
-    const searchCenter = desiredAreaCenter ?? (g ? { lat: g.lat(), lng: g.lng() } : null)
-    if (!searchCenter) return
+    if (!hasAreas && !g) return
 
     // Restartable: a click mid-run rewinds and starts over.
     beastReset()
@@ -515,24 +529,26 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     beastPhaseRef.current = "scanning"
     setBeastPhase("scanning")
 
-    // Radar origin = the desired-area center projected to a screen pixel, so the
-    // sweep sits OVER that area (even if it is near/off the viewport edge — the
-    // camera stays put). No resolved area → null → the centered fallback sweep.
+    // Radar origins = each desired-area center projected to a screen pixel, so a
+    // sweep sits OVER each area (even one near/off the viewport edge — the camera
+    // stays put). 2 areas → 2 sweeps, 3 areas → 3. No resolved area → [] → the
+    // centered fallback sweep.
     const projection = projectionHelperRef.current?.getProjection()
-    if (desiredAreaCenter && projection) {
-      const pt = projection.fromLatLngToContainerPixel(
-        new google.maps.LatLng(desiredAreaCenter.lat, desiredAreaCenter.lng),
-      )
-      setRadarOrigin(pt ? { x: pt.x, y: pt.y } : null)
+    if (hasAreas && projection) {
+      const origins = desiredAreaCenters
+        .map((c) => projection.fromLatLngToContainerPixel(new google.maps.LatLng(c.lat, c.lng)))
+        .filter((pt): pt is google.maps.Point => Boolean(pt))
+        .map((pt) => ({ x: pt.x, y: pt.y }))
+      setRadarOrigins(origins)
     } else {
-      setRadarOrigin(null)
+      setRadarOrigins([])
     }
 
-    // The REAL search/ranking path: Places around the search center -> catalog
-    // enrichment -> assessLocationFit -> computeSuggestions. The halo pass runs
-    // from the effect below once these results have rendered.
-    void searchThisArea(desiredAreaCenter ?? undefined)
-  }, [beastReset, desiredAreaCenter, searchThisArea])
+    // The REAL search/ranking path: Places around EACH center -> merge/dedupe ->
+    // catalog enrichment -> assessLocationFit -> computeSuggestions. The halo pass
+    // runs from the effect below once these results have rendered.
+    void searchThisArea(hasAreas ? desiredAreaCenters : undefined)
+  }, [beastReset, desiredAreaCenters, searchThisArea])
 
   useEffect(() => () => beastReset(), [beastReset])
 
@@ -708,16 +724,20 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
           the beast* refs to remove the prototype entirely. */}
       {beastPhase === "scanning" && (
         <div className="pointer-events-none absolute inset-0 z-[5] overflow-hidden" aria-hidden>
-          {/* Single sweep at the resolved desired-area pixel; centered fallback
-              (no client / no resolved area) when radarOrigin is null. */}
-          <span
-            className={radarOrigin ? "lb-sonar-origin" : "lb-sonar-origin lb-sonar-origin-center"}
-            style={radarOrigin ? { left: radarOrigin.x, top: radarOrigin.y } : undefined}
-          >
-            <span className="lb-sonar" />
-            <span className="lb-sonar lb-sonar-2" />
-            <span className="lb-sonar lb-sonar-3" />
-          </span>
+          {/* One sweep per resolved desired-area pixel (2 areas → 2 sweeps, 3 → 3);
+              a single centered fallback sweep (no client / no resolved area) when
+              there are no origins. */}
+          {(radarOrigins.length > 0 ? radarOrigins : [null]).map((origin, i) => (
+            <span
+              key={i}
+              className={origin ? "lb-sonar-origin" : "lb-sonar-origin lb-sonar-origin-center"}
+              style={origin ? { left: origin.x, top: origin.y } : undefined}
+            >
+              <span className="lb-sonar" />
+              <span className="lb-sonar lb-sonar-2" />
+              <span className="lb-sonar lb-sonar-3" />
+            </span>
+          ))}
           <style>{`
             .lb-sonar-origin {
               position: absolute;
