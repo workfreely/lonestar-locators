@@ -849,9 +849,11 @@ export function ProductionPanel() {
   const onMoveToFavorite = (propertyUrl?: string | null) => moveSavedProperty("move-to-favorite", propertyUrl);
   const onMoveToRecommendation = (propertyUrl?: string | null) => moveSavedProperty("move-to-recommendation", propertyUrl);
 
-  // Compact ✕ — remove a saved association entirely. Same verb bridge as the moves;
-  // the CRM handler deletes only that collection's row and re-broadcasts (synced).
-  const removeSavedProperty = (verb: "remove-recommendation" | "remove-favorite", propertyUrl?: string | null) => {
+  // Compact ✕ on a Recommendation — remove the property entirely. Same verb bridge
+  // as the moves; the CRM handler deletes the lead_recommendations row and
+  // re-broadcasts (synced). A Favorite's ✕ is NOT a delete — it reuses
+  // onMoveToRecommendation (move back), so there is no remove-favorite path.
+  const removeSavedProperty = (verb: "remove-recommendation", propertyUrl?: string | null) => {
     const lead = active?.lead;
     const url = String(propertyUrl ?? "").trim();
     if (!lead || lead.id === undefined || lead.id === null || !url) return;
@@ -867,7 +869,6 @@ export function ProductionPanel() {
     });
   };
   const onRemoveRecommendation = (propertyUrl?: string | null) => removeSavedProperty("remove-recommendation", propertyUrl);
-  const onRemoveFavorite = (propertyUrl?: string | null) => removeSavedProperty("remove-favorite", propertyUrl);
 
   const pendingName = pendingContact?.name ?? "this client";
 
@@ -886,7 +887,6 @@ export function ProductionPanel() {
         onMoveToFavorite={onMoveToFavorite}
         onMoveToRecommendation={onMoveToRecommendation}
         onRemoveRecommendation={onRemoveRecommendation}
-        onRemoveFavorite={onRemoveFavorite}
         onConnect={onConnect}
         onDisconnect={onDisconnect}
         onContact={onContact}

@@ -41,7 +41,6 @@ export function PanelApp({
   onMoveToFavorite,
   onMoveToRecommendation,
   onRemoveRecommendation,
-  onRemoveFavorite,
   connection = DISCONNECTED,
   onConnect,
   onDisconnect,
@@ -86,7 +85,6 @@ export function PanelApp({
   onMoveToFavorite?: (propertyUrl?: string | null) => void;
   onMoveToRecommendation?: (propertyUrl?: string | null) => void;
   onRemoveRecommendation?: (propertyUrl?: string | null) => void;
-  onRemoveFavorite?: (propertyUrl?: string | null) => void;
   // Connection is derived from the SW's authenticated state. Production defaults
   // to DISCONNECTED — the panel is authenticated ONLY when this is "connected".
   connection?: CompanionConnection;
@@ -314,7 +312,6 @@ export function PanelApp({
                 onMoveToFavorite={onMoveToFavorite}
                 onMoveToRecommendation={onMoveToRecommendation}
                 onRemoveRecommendation={onRemoveRecommendation}
-                onRemoveFavorite={onRemoveFavorite}
               />
             )
           ) : (

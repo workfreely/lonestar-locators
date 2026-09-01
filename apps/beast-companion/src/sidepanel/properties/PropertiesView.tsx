@@ -114,6 +114,7 @@ function PropertyRow({
   onMove,
   onRemove,
   removeTitle,
+  removeBlockedReason,
 }: {
   name: string;
   sub?: string | null;
@@ -126,9 +127,13 @@ function PropertyRow({
   moveVariant?: "heart";
   blockedReason?: string | null;
   onMove?: () => void;
-  /** Compact ✕ — remove this association entirely. Sits LEFT of the move control. */
+  /** Compact ✕ control. On a Recommendation it removes the property; on a Favorite
+   *  it moves back to Recommendations. Sits LEFT of any move control. */
   onRemove?: () => void;
   removeTitle?: string;
+  /** When set, the ✕ is disabled with this reason (Favorite move-back blocked by
+   *  a scheduled tour / Top Pick / open property action). */
+  removeBlockedReason?: string | null;
 }) {
   const blocked = !!blockedReason;
   return (
@@ -164,9 +169,10 @@ function PropertyRow({
               <button
                 type="button"
                 className="bc-prop-remove"
-                onClick={onRemove}
-                title={removeTitle}
-                aria-label={removeTitle}
+                onClick={() => !removeBlockedReason && onRemove()}
+                disabled={!!removeBlockedReason}
+                title={removeBlockedReason ? `Can't move back — ${removeBlockedReason}` : removeTitle}
+                aria-label={removeBlockedReason ? `Can't move back — ${removeBlockedReason}` : removeTitle}
               >
                 ✕
               </button>
@@ -200,7 +206,6 @@ export function PropertiesView({
   onMoveToFavorite,
   onMoveToRecommendation,
   onRemoveRecommendation,
-  onRemoveFavorite,
 }: {
   // The active client — its location context (searchCriteria + Locator Notes + AI
   // Insights) is the ONLY input to Location Fit besides the viewed property.
@@ -212,9 +217,8 @@ export function PropertiesView({
   onAddFavorite?: () => void;
   onMoveToFavorite?: (propertyUrl?: string | null) => void;
   onMoveToRecommendation?: (propertyUrl?: string | null) => void;
-  /** Compact ✕ — remove the recommendation/favorite association entirely. */
+  /** Compact ✕ on a Recommendation — remove the property entirely. */
   onRemoveRecommendation?: (propertyUrl?: string | null) => void;
-  onRemoveFavorite?: (propertyUrl?: string | null) => void;
 }) {
   // Button state comes from the ACTIVE client's real collections (not local button
   // state): the Current Property is "already in" a collection when a row shares its
@@ -490,14 +494,12 @@ export function PropertiesView({
                 sub={f.propertyAddress ? displayAddress(f.propertyAddress) : f.propertyAddress}
                 url={f.propertyUrl}
                 rating={f.googleRating}
-                // ✕ removes the favorite entirely; ＋ moves it back to Recommendations
-                // (existing behavior, preserved). ✕ sits to the LEFT of ＋.
-                onRemove={onRemoveFavorite ? () => onRemoveFavorite(f.propertyUrl) : undefined}
-                removeTitle="Remove favorite"
-                moveLabel="+"
-                moveTitle="Move back to Recommendations"
-                blockedReason={f.moveBlockedReason}
-                onMove={onMoveToRecommendation ? () => onMoveToRecommendation(f.propertyUrl) : undefined}
+                // ✕ moves the Favorite BACK to Recommendations (never a full delete),
+                // reusing the move-back verb. Disabled while a scheduled tour / Top
+                // Pick / open property action still depends on it.
+                onRemove={onMoveToRecommendation ? () => onMoveToRecommendation(f.propertyUrl) : undefined}
+                removeTitle="Move to recommendations"
+                removeBlockedReason={f.moveBlockedReason}
               />
             ))}
           </div>

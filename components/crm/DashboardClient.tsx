@@ -1242,8 +1242,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         payload.verb !== "add-favorite" &&
         payload.verb !== "move-to-recommendation" &&
         payload.verb !== "move-to-favorite" &&
-        payload.verb !== "remove-recommendation" &&
-        payload.verb !== "remove-favorite"
+        payload.verb !== "remove-recommendation"
       )
         return
 
@@ -1892,22 +1891,21 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         return
       }
 
-      // Remove a saved-property association entirely (the compact ✕ on a
-      // Recommendation or Favorite row, from either surface). Deletes only THAT
-      // collection's row — never recreates it in the other list — then re-broadcasts
-      // the active client so the Companion and the Workspace update with no refresh.
-      if (payload.verb === "remove-recommendation" || payload.verb === "remove-favorite") {
-        const isFav = payload.verb === "remove-favorite"
+      // Remove a Recommendation entirely (the compact ✕ on a Recommendation row,
+      // from either surface). This is the ONLY full-removal path: a Favorite is
+      // never deleted outright — its ✕ moves it BACK to Recommendations (see
+      // move-to-recommendation), so the workflow is Recommendation → Favorite →
+      // Recommendation, and only a Recommendation ✕ drops the property. Deletes the
+      // lead_recommendations row, then re-broadcasts so both surfaces update.
+      if (payload.verb === "remove-recommendation") {
         const propertyUrl = String((payload.property as { propertyUrl?: string } | undefined)?.propertyUrl ?? "").trim()
         if (!propertyUrl) return
-        const list = isFav ? localFavoritesRef.current : localRecommendationsRef.current
-        const row = list.find(
+        const row = localRecommendationsRef.current.find(
           (r: any) => String(r.lead_id) === String(lead.id) && String(r.property_url ?? "") === propertyUrl
         )
-        // removeSourceRow(row, destIsFav): destIsFav=true removes from
-        // recommendations, false removes from favorites. So !isFav gives the
-        // collection this verb targets. Already gone → just re-sync control state.
-        if (row) removeSourceRow(row, !isFav, lead)
+        // removeSourceRow(row, destIsFav=true) removes from recommendations. Already
+        // gone → just re-sync control state.
+        if (row) removeSourceRow(row, true, lead)
         else postCompanionActiveClient({ ...lead }, localNextActionsRef.current)
         return
       }
@@ -2506,12 +2504,14 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                     onSendInvoice={handleSendInvoice}
                     onConfirmPayment={handleConfirmPayment}
                     onSendRebate={handleSendRebate}
-                    // Compact ✕ — remove the Favorite association (synced verb, no
-                    // confirm). Distinct from the existing confirmed "Delete".
-                    onRemoveFavorite={(propertyUrl?: string | null) => {
+                    // Compact ✕ — move the Favorite BACK to Recommendations (never a
+                    // full delete), via the synced move-to-recommendation verb. The
+                    // handler re-checks favoriteMoveBlock and refuses if a tour/Top
+                    // Pick still depends on it.
+                    onMoveToRecommendation={(propertyUrl?: string | null) => {
                       if (!selectedLead) return
                       window.postMessage(
-                        { source: COMPANION_MSG_SOURCE, type: "workflow-verb", payload: { leadId: selectedLead.id, verb: "remove-favorite", property: { propertyUrl } } },
+                        { source: COMPANION_MSG_SOURCE, type: "workflow-verb", payload: { leadId: selectedLead.id, verb: "move-to-recommendation", property: { propertyUrl } } },
                         window.location.origin,
                       )
                     }}

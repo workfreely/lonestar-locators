@@ -595,10 +595,14 @@
   cursor: pointer;
   transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease;
 }
-.bc-prop-remove:hover {
+.bc-prop-remove:hover:not(:disabled) {
   color: #dc2626;
   background: var(--lb-surface-elevated);
   border-color: var(--lb-border);
+}
+.bc-prop-remove:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 .bc-prop-move {
   flex: none;

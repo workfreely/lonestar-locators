@@ -9,6 +9,7 @@ import PropertyThumb from "./PropertyThumb"
 import { SectionCard } from "./LeadPanelSections"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { upcomingTourForFavorite } from "@/lib/leads/upcomingTour"
+import { favoriteMoveBlock } from "@/lib/leads/propertyCollections"
 import { displayAddress, formatRating } from "@bc/companion-shared"
 import { StarRating } from "./StarRating"
 import { attachCatalogRatings } from "@/lib/propertyExplorer/catalog"
@@ -49,7 +50,7 @@ export default function LeadFavorites({
   onSendInvoice,
   onConfirmPayment,
   onSendRebate,
-  onRemoveFavorite,
+  onMoveToRecommendation,
 }: {
   lead: any
   favorites?: any[]
@@ -89,9 +90,9 @@ export default function LeadFavorites({
   // Open the "Send Rebate" confirmation for the Closed Top Pick's open send_rebate
   // (Cash Rebate only). Absent → the control is hidden.
   onSendRebate?: (lead: any, args: { action: any }) => void
-  // Compact ✕ — remove the Favorite association entirely (synced via the shared
-  // workflow-verb bridge, no confirmation). Absent → the control is hidden.
-  onRemoveFavorite?: (propertyUrl?: string | null) => void
+  // Compact ✕ — move the Favorite BACK to Recommendations (never a full delete),
+  // via the synced move-to-recommendation verb. Absent → the control is hidden.
+  onMoveToRecommendation?: (propertyUrl?: string | null) => void
 }) {
   const [showFavoriteModal, setShowFavoriteModal] = useState(false)
   const [editingFavorite, setEditingFavorite] = useState<any | null>(null)
@@ -440,17 +441,25 @@ export default function LeadFavorites({
                       </div>
                     )}
                     <div className="flex-none flex items-center gap-2.5">
-                      {onRemoveFavorite && (
-                        <button
-                          type="button"
-                          aria-label="Remove favorite"
-                          title="Remove favorite"
-                          onClick={() => onRemoveFavorite(fav.property_url)}
-                          className="flex h-6 w-6 items-center justify-center rounded-full text-[13px] leading-none text-[var(--crm-text-muted)] transition-colors hover:bg-[var(--crm-card)] hover:text-red-500"
-                        >
-                          ✕
-                        </button>
-                      )}
+                      {onMoveToRecommendation && (() => {
+                        // ✕ moves the Favorite BACK to Recommendations (never a
+                        // delete). Blocked while a scheduled tour / Top Pick / open
+                        // property-scoped action still depends on it — disabled with
+                        // the reason, matching the Companion.
+                        const block = favoriteMoveBlock({ favorite: fav, lead, tours: leadTours, nextActions }).reason
+                        return (
+                          <button
+                            type="button"
+                            aria-label={block ? `Can't move back — ${block}` : "Move to recommendations"}
+                            title={block ? `Can't move back — ${block}` : "Move to recommendations"}
+                            disabled={!!block}
+                            onClick={() => !block && onMoveToRecommendation(fav.property_url)}
+                            className="flex h-6 w-6 items-center justify-center rounded-full text-[13px] leading-none text-[var(--crm-text-muted)] transition-colors hover:bg-[var(--crm-card)] hover:text-[var(--crm-text-primary)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                          >
+                            ✕
+                          </button>
+                        )
+                      })()}
                       <button
                         type="button"
                         onClick={() => openEditFavorite(fav)}

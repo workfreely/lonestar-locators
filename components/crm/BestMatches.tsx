@@ -58,16 +58,21 @@ export default function BestMatches({
                 )}
               </div>
               {/* Action area — ✕ (remove) on the LEFT, ♡ (move to Favorites) on the
-                  RIGHT. Both dispatch the shared synced verbs. */}
+                  RIGHT. Both dispatch the shared synced verbs. The heart is styled to
+                  MATCH the Beast Companion Recommendation heart (bc-prop-move--heart):
+                  22px control, 6px radius, 1px border + elevated bg, empty ♡ at
+                  15px/600, neutral at rest, soft red glow (glyph + border + tint) on
+                  hover, 120ms transition. The ✕ is deliberately quieter (borderless,
+                  muted, smaller) so the heart stays the primary action. */}
               {(onRemoveRecommendation || onMoveToFavorite) && (
-                <div className="flex flex-none items-center gap-1">
+                <div className="flex flex-none items-center gap-1.5">
                   {onRemoveRecommendation && (
                     <button
                       type="button"
                       aria-label="Remove recommendation"
                       title="Remove recommendation"
                       onClick={() => onRemoveRecommendation(r.property_url)}
-                      className="flex h-6 w-6 items-center justify-center rounded-full text-[13px] leading-none text-[var(--crm-text-muted)] transition-colors hover:bg-[var(--crm-card)] hover:text-[var(--crm-text-primary)]"
+                      className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-md text-[12px] leading-none text-[var(--crm-text-muted)] transition-colors duration-[120ms] hover:text-red-500"
                     >
                       ✕
                     </button>
@@ -78,7 +83,7 @@ export default function BestMatches({
                       aria-label="Move to favorites"
                       title="Move to favorites"
                       onClick={() => onMoveToFavorite(r.property_url)}
-                      className="flex h-6 w-6 items-center justify-center rounded-full text-[13px] leading-none text-[var(--crm-text-muted)] transition-colors hover:bg-[var(--crm-card)] hover:text-red-500"
+                      className="inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-md border border-[var(--crm-border)] bg-[var(--crm-card)] px-[5px] text-[15px] font-semibold leading-none text-[var(--crm-text-secondary)] transition-colors duration-[120ms] hover:border-red-500/60 hover:bg-red-500/10 hover:text-red-500"
                     >
                       ♡
                     </button>
