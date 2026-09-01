@@ -849,6 +849,26 @@ export function ProductionPanel() {
   const onMoveToFavorite = (propertyUrl?: string | null) => moveSavedProperty("move-to-favorite", propertyUrl);
   const onMoveToRecommendation = (propertyUrl?: string | null) => moveSavedProperty("move-to-recommendation", propertyUrl);
 
+  // Compact ✕ — remove a saved association entirely. Same verb bridge as the moves;
+  // the CRM handler deletes only that collection's row and re-broadcasts (synced).
+  const removeSavedProperty = (verb: "remove-recommendation" | "remove-favorite", propertyUrl?: string | null) => {
+    const lead = active?.lead;
+    const url = String(propertyUrl ?? "").trim();
+    if (!lead || lead.id === undefined || lead.id === null || !url) return;
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+    if (!store) return;
+    store.set({
+      "lb-workflow-verb": {
+        nonce: `${Date.now()}-${Math.random()}`,
+        leadId: lead.id,
+        verb,
+        property: { propertyUrl: url },
+      },
+    });
+  };
+  const onRemoveRecommendation = (propertyUrl?: string | null) => removeSavedProperty("remove-recommendation", propertyUrl);
+  const onRemoveFavorite = (propertyUrl?: string | null) => removeSavedProperty("remove-favorite", propertyUrl);
+
   const pendingName = pendingContact?.name ?? "this client";
 
   return (
@@ -865,6 +885,8 @@ export function ProductionPanel() {
         onAddFavorite={onAddFavorite}
         onMoveToFavorite={onMoveToFavorite}
         onMoveToRecommendation={onMoveToRecommendation}
+        onRemoveRecommendation={onRemoveRecommendation}
+        onRemoveFavorite={onRemoveFavorite}
         onConnect={onConnect}
         onDisconnect={onDisconnect}
         onContact={onContact}

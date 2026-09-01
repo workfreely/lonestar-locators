@@ -17,7 +17,19 @@ import { StarRating } from "./StarRating"
 // section is unchanged; only its data source moved from a static sample to the
 // canonical model. The `property_image_url` (nullable) drives the shared thumbnail.
 
-export default function BestMatches({ lead, recommendations = [] }: { lead: any; recommendations?: any[] }) {
+export default function BestMatches({
+  lead,
+  recommendations = [],
+  onRemoveRecommendation,
+  onMoveToFavorite,
+}: {
+  lead: any
+  recommendations?: any[]
+  /** Compact ✕ — remove the recommendation association entirely. */
+  onRemoveRecommendation?: (propertyUrl?: string | null) => void
+  /** Heart — move the property from Recommendations → Favorites. */
+  onMoveToFavorite?: (propertyUrl?: string | null) => void
+}) {
   const leadRecommendations = (recommendations || []).filter(
     (r) => String(r.lead_id) === String(lead?.id),
   )
@@ -45,6 +57,34 @@ export default function BestMatches({ lead, recommendations = [] }: { lead: any;
                   </div>
                 )}
               </div>
+              {/* Action area — ✕ (remove) on the LEFT, ♡ (move to Favorites) on the
+                  RIGHT. Both dispatch the shared synced verbs. */}
+              {(onRemoveRecommendation || onMoveToFavorite) && (
+                <div className="flex flex-none items-center gap-1">
+                  {onRemoveRecommendation && (
+                    <button
+                      type="button"
+                      aria-label="Remove recommendation"
+                      title="Remove recommendation"
+                      onClick={() => onRemoveRecommendation(r.property_url)}
+                      className="flex h-6 w-6 items-center justify-center rounded-full text-[13px] leading-none text-[var(--crm-text-muted)] transition-colors hover:bg-[var(--crm-card)] hover:text-[var(--crm-text-primary)]"
+                    >
+                      ✕
+                    </button>
+                  )}
+                  {onMoveToFavorite && (
+                    <button
+                      type="button"
+                      aria-label="Move to favorites"
+                      title="Move to favorites"
+                      onClick={() => onMoveToFavorite(r.property_url)}
+                      className="flex h-6 w-6 items-center justify-center rounded-full text-[13px] leading-none text-[var(--crm-text-muted)] transition-colors hover:bg-[var(--crm-card)] hover:text-red-500"
+                    >
+                      ♡
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>

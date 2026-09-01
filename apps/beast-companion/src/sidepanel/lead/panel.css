@@ -568,6 +568,38 @@
   flex-direction: column;
   gap: 1px;
 }
+/* Action cluster — the ✕ (remove) sits to the LEFT of the move (♡/＋) control. */
+.bc-prop-row-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* Compact ✕ removal control. Matches bc-prop-move sizing/reset; muted until hover,
+   then a soft danger tint — no confirmation, lightweight association removal. */
+.bc-prop-remove {
+  flex: none;
+  font: inherit;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  line-height: 1;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--lb-text-muted, #9aa4b2);
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease;
+}
+.bc-prop-remove:hover {
+  color: #dc2626;
+  background: var(--lb-surface-elevated);
+  border-color: var(--lb-border);
+}
 .bc-prop-move {
   flex: none;
   /* `font: inherit` FIRST — a <button> otherwise falls back to the UA's own font, which

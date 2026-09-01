@@ -49,6 +49,7 @@ export default function LeadFavorites({
   onSendInvoice,
   onConfirmPayment,
   onSendRebate,
+  onRemoveFavorite,
 }: {
   lead: any
   favorites?: any[]
@@ -88,10 +89,12 @@ export default function LeadFavorites({
   // Open the "Send Rebate" confirmation for the Closed Top Pick's open send_rebate
   // (Cash Rebate only). Absent → the control is hidden.
   onSendRebate?: (lead: any, args: { action: any }) => void
+  // Compact ✕ — remove the Favorite association entirely (synced via the shared
+  // workflow-verb bridge, no confirmation). Absent → the control is hidden.
+  onRemoveFavorite?: (propertyUrl?: string | null) => void
 }) {
   const [showFavoriteModal, setShowFavoriteModal] = useState(false)
   const [editingFavorite, setEditingFavorite] = useState<any | null>(null)
-  const [deletingFavoriteId, setDeletingFavoriteId] = useState<number | null>(null)
 
   // Tour edit/cancel draft state (per-Favorite). editDateTime holds the draft
   // "YYYY-MM-DDTHH:mm"; the Add Task Tour Date & Time control (field → DateTimePicker,
@@ -217,20 +220,6 @@ export default function LeadFavorites({
   function closeFavoriteModal() {
     setShowFavoriteModal(false)
     setEditingFavorite(null)
-  }
-
-  async function handleDeleteFavorite() {
-    const id = deletingFavoriteId
-    setDeletingFavoriteId(null)
-    if (id == null) return
-
-    setFavorites?.((prev) => prev.filter((f) => f.id !== id))
-
-    // Demo favorites are local-only rows — nothing to delete server-side.
-    if (isDemoLeadId(lead.id)) return
-
-    const { error } = await supabase.from("lead_favorites").delete().eq("id", id)
-    if (error) console.error("[favorite] delete failed:", error)
   }
 
   // Edit/Reschedule: open the inline editor prefilled with the tour's CURRENT
@@ -451,19 +440,23 @@ export default function LeadFavorites({
                       </div>
                     )}
                     <div className="flex-none flex items-center gap-2.5">
+                      {onRemoveFavorite && (
+                        <button
+                          type="button"
+                          aria-label="Remove favorite"
+                          title="Remove favorite"
+                          onClick={() => onRemoveFavorite(fav.property_url)}
+                          className="flex h-6 w-6 items-center justify-center rounded-full text-[13px] leading-none text-[var(--crm-text-muted)] transition-colors hover:bg-[var(--crm-card)] hover:text-red-500"
+                        >
+                          ✕
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => openEditFavorite(fav)}
                         className="text-[10.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]"
                       >
                         Edit Property
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeletingFavoriteId(fav.id)}
-                        className="text-[10.5px] font-semibold text-red-500 hover:text-red-700"
-                      >
-                        Delete
                       </button>
                     </div>
                   </div>
@@ -713,17 +706,6 @@ export default function LeadFavorites({
       </SectionCard>
 
       <FavoriteModal open={showFavoriteModal} editing={editingFavorite} onClose={closeFavoriteModal} onSave={handleSaveFavorite} />
-
-      <ConfirmDialog
-        open={deletingFavoriteId !== null}
-        title="Delete this favorite?"
-        message="This will remove the saved property from this lead's favorites. This can't be undone."
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
-        danger
-        onConfirm={handleDeleteFavorite}
-        onCancel={() => setDeletingFavoriteId(null)}
-      />
 
       {/* Cancel Tour — confirm before changing anything. Marks the tour canceled
           (history preserved), removes the Tour Follow-Up, and restores Schedule

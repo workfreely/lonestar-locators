@@ -112,6 +112,8 @@ function PropertyRow({
   moveVariant,
   blockedReason,
   onMove,
+  onRemove,
+  removeTitle,
 }: {
   name: string;
   sub?: string | null;
@@ -124,6 +126,9 @@ function PropertyRow({
   moveVariant?: "heart";
   blockedReason?: string | null;
   onMove?: () => void;
+  /** Compact ✕ — remove this association entirely. Sits LEFT of the move control. */
+  onRemove?: () => void;
+  removeTitle?: string;
 }) {
   const blocked = !!blockedReason;
   return (
@@ -152,17 +157,33 @@ function PropertyRow({
             </div>
           )}
         </div>
-        {moveLabel && onMove && (
-          <button
-            type="button"
-            className={`bc-prop-move${moveVariant === "heart" ? " bc-prop-move--heart" : ""}`}
-            onClick={() => !blocked && onMove()}
-            disabled={blocked}
-            title={blocked ? `Can't move back — ${blockedReason}` : moveTitle}
-            aria-label={blocked ? `Can't move back — ${blockedReason}` : moveTitle}
-          >
-            {moveLabel}
-          </button>
+        {(onRemove || (moveLabel && onMove)) && (
+          <div className="bc-prop-row-actions">
+            {/* ✕ removes the association; sits to the LEFT of the move control. */}
+            {onRemove && (
+              <button
+                type="button"
+                className="bc-prop-remove"
+                onClick={onRemove}
+                title={removeTitle}
+                aria-label={removeTitle}
+              >
+                ✕
+              </button>
+            )}
+            {moveLabel && onMove && (
+              <button
+                type="button"
+                className={`bc-prop-move${moveVariant === "heart" ? " bc-prop-move--heart" : ""}`}
+                onClick={() => !blocked && onMove()}
+                disabled={blocked}
+                title={blocked ? `Can't move back — ${blockedReason}` : moveTitle}
+                aria-label={blocked ? `Can't move back — ${blockedReason}` : moveTitle}
+              >
+                {moveLabel}
+              </button>
+            )}
+          </div>
         )}
       </div>
       {blocked ? <span className="bc-prop-blocked">{blockedReason}</span> : null}
@@ -178,6 +199,8 @@ export function PropertiesView({
   onAddRecommendation,
   onMoveToFavorite,
   onMoveToRecommendation,
+  onRemoveRecommendation,
+  onRemoveFavorite,
 }: {
   // The active client — its location context (searchCriteria + Locator Notes + AI
   // Insights) is the ONLY input to Location Fit besides the viewed property.
@@ -189,6 +212,9 @@ export function PropertiesView({
   onAddFavorite?: () => void;
   onMoveToFavorite?: (propertyUrl?: string | null) => void;
   onMoveToRecommendation?: (propertyUrl?: string | null) => void;
+  /** Compact ✕ — remove the recommendation/favorite association entirely. */
+  onRemoveRecommendation?: (propertyUrl?: string | null) => void;
+  onRemoveFavorite?: (propertyUrl?: string | null) => void;
 }) {
   // Button state comes from the ACTIVE client's real collections (not local button
   // state): the Current Property is "already in" a collection when a row shares its
@@ -437,8 +463,10 @@ export function PropertiesView({
                 sub={r.propertyAddress ? displayAddress(r.propertyAddress) : r.propertyAddress}
                 url={r.propertyUrl}
                 rating={r.googleRating}
-                // EMPTY heart: this property is still a Recommendation. The filled red
-                // heart denotes the Favorite state, so it must never appear here.
+                // ✕ removes the recommendation; ♡ (EMPTY heart — still a Recommendation)
+                // moves it to Favorites. ✕ sits to the LEFT of the heart.
+                onRemove={onRemoveRecommendation ? () => onRemoveRecommendation(r.propertyUrl) : undefined}
+                removeTitle="Remove recommendation"
                 moveLabel="♡"
                 moveTitle="Move to Favorites"
                 moveVariant="heart"
@@ -462,6 +490,10 @@ export function PropertiesView({
                 sub={f.propertyAddress ? displayAddress(f.propertyAddress) : f.propertyAddress}
                 url={f.propertyUrl}
                 rating={f.googleRating}
+                // ✕ removes the favorite entirely; ＋ moves it back to Recommendations
+                // (existing behavior, preserved). ✕ sits to the LEFT of ＋.
+                onRemove={onRemoveFavorite ? () => onRemoveFavorite(f.propertyUrl) : undefined}
+                removeTitle="Remove favorite"
                 moveLabel="+"
                 moveTitle="Move back to Recommendations"
                 blockedReason={f.moveBlockedReason}

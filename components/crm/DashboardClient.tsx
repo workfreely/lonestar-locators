@@ -1241,7 +1241,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         payload.verb !== "add-recommendation" &&
         payload.verb !== "add-favorite" &&
         payload.verb !== "move-to-recommendation" &&
-        payload.verb !== "move-to-favorite"
+        payload.verb !== "move-to-favorite" &&
+        payload.verb !== "remove-recommendation" &&
+        payload.verb !== "remove-favorite"
       )
         return
 
@@ -1890,6 +1892,26 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         return
       }
 
+      // Remove a saved-property association entirely (the compact ✕ on a
+      // Recommendation or Favorite row, from either surface). Deletes only THAT
+      // collection's row — never recreates it in the other list — then re-broadcasts
+      // the active client so the Companion and the Workspace update with no refresh.
+      if (payload.verb === "remove-recommendation" || payload.verb === "remove-favorite") {
+        const isFav = payload.verb === "remove-favorite"
+        const propertyUrl = String((payload.property as { propertyUrl?: string } | undefined)?.propertyUrl ?? "").trim()
+        if (!propertyUrl) return
+        const list = isFav ? localFavoritesRef.current : localRecommendationsRef.current
+        const row = list.find(
+          (r: any) => String(r.lead_id) === String(lead.id) && String(r.property_url ?? "") === propertyUrl
+        )
+        // removeSourceRow(row, destIsFav): destIsFav=true removes from
+        // recommendations, false removes from favorites. So !isFav gives the
+        // collection this verb targets. Already gone → just re-sync control state.
+        if (row) removeSourceRow(row, !isFav, lead)
+        else postCompanionActiveClient({ ...lead }, localNextActionsRef.current)
+        return
+      }
+
       // Beast Companion "Send Guest Card" → open the reused composer in the CRM
       // tab for the property's open guest card (the Companion has focused this tab).
       if (payload.verb === "open-guest-card") {
@@ -2448,6 +2470,22 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                     // Companion payload applies, so both surfaces agree. Presentation
                     // only; the stray row is removed by the next deliberate move.
                     recommendations={visibleRecommendations(localRecommendations, localFavorites, selectedLead?.id)}
+                    // ✕ / ♡ dispatch the SAME workflow-verbs the Companion uses, so the
+                    // shared handler updates state and re-broadcasts — both surfaces sync.
+                    onRemoveRecommendation={(propertyUrl?: string | null) => {
+                      if (!selectedLead) return
+                      window.postMessage(
+                        { source: COMPANION_MSG_SOURCE, type: "workflow-verb", payload: { leadId: selectedLead.id, verb: "remove-recommendation", property: { propertyUrl } } },
+                        window.location.origin,
+                      )
+                    }}
+                    onMoveToFavorite={(propertyUrl?: string | null) => {
+                      if (!selectedLead) return
+                      window.postMessage(
+                        { source: COMPANION_MSG_SOURCE, type: "workflow-verb", payload: { leadId: selectedLead.id, verb: "move-to-favorite", property: { propertyUrl } } },
+                        window.location.origin,
+                      )
+                    }}
                   />
                   <LeadFavorites
                     lead={selectedLead}
@@ -2468,6 +2506,15 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                     onSendInvoice={handleSendInvoice}
                     onConfirmPayment={handleConfirmPayment}
                     onSendRebate={handleSendRebate}
+                    // Compact ✕ — remove the Favorite association (synced verb, no
+                    // confirm). Distinct from the existing confirmed "Delete".
+                    onRemoveFavorite={(propertyUrl?: string | null) => {
+                      if (!selectedLead) return
+                      window.postMessage(
+                        { source: COMPANION_MSG_SOURCE, type: "workflow-verb", payload: { leadId: selectedLead.id, verb: "remove-favorite", property: { propertyUrl } } },
+                        window.location.origin,
+                      )
+                    }}
                   />
                   {/* Invoice Details — the Closed-lead commission/invoice record
                       (leads.invoice_*). Surfaced in the workspace (the legacy Lead
