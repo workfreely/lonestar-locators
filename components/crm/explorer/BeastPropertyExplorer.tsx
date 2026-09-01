@@ -834,6 +834,18 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
           {card.propertyAddress && (
             <p className="mt-1 text-[12.5px] leading-snug text-[#4b5162]">{displayAddress(card.propertyAddress)}</p>
           )}
+          {/* Google rating — numeric first (one decimal), then a compact 5-star
+              visual whose gold fill reflects the decimal. Shown ONLY when a real
+              catalogued rating exists; omitted entirely otherwise. No review
+              count, no fabricated value, and it never touches ranking or search. */}
+          {typeof card.googleRating === "number" && (
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <span className="text-[12.5px] font-semibold tabular-nums text-[#111318]">
+                {card.googleRating.toFixed(1)}
+              </span>
+              <StarRating value={card.googleRating} />
+            </div>
+          )}
           {/* Future-ready fields — each renders ONLY when a real value is present
               on the in-memory property, and is omitted entirely otherwise. No
               fetch, no fabrication. Order: Match %, Commission, Current Special. */}
@@ -927,6 +939,33 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * Compact five-star rating whose gold fill reflects the decimal value: a grey
+ * full set with a gold copy clipped to (value / 5) of the width, so 4.3 shows
+ * four solid stars and a ~30%-filled fifth. Purely decorative — the numeric
+ * value beside it is the source of truth. Both layers share the exact font
+ * size / letter-spacing so the clip lines up.
+ */
+function StarRating({ value }: { value: number }) {
+  const pct = Math.max(0, Math.min(100, (value / 5) * 100))
+  return (
+    <span
+      className="relative inline-block align-middle leading-none"
+      title={`${value.toFixed(1)} out of 5`}
+      aria-label={`Google rating ${value.toFixed(1)} out of 5`}
+    >
+      <span className="block whitespace-nowrap text-[13px] tracking-[1px] text-[#d7dbe4]">★★★★★</span>
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-y-0 left-0 overflow-hidden whitespace-nowrap text-[13px] tracking-[1px] text-[#f5a623]"
+        style={{ width: `${pct}%` }}
+      >
+        ★★★★★
+      </span>
+    </span>
   )
 }
 

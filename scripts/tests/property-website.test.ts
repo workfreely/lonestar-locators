@@ -37,12 +37,13 @@ const prop = (placeId: string): ExplorerProperty => ({
   marketSlug: null,
   searchCenter: null,
 })
-const rec = (websiteUrl: string | null): CatalogRecord => ({
+const rec = (websiteUrl: string | null, googleRating: number | null = null): CatalogRecord => ({
   neighborhood: null,
   location: null,
   locationKeywords: [],
   zip: null,
   websiteUrl,
+  googleRating,
 })
 
 // ── enrichProperties wires the verified website URL onto the property ─────────
@@ -66,6 +67,23 @@ const rec = (websiteUrl: string | null): CatalogRecord => ({
   eq(p.websiteUrl, undefined, "no catalog row → websiteUrl absent, never invented")
 }
 
+// ── Google rating flows through enrichment, absent stays absent ───────────────
+{
+  const catalog = new Map([["A", rec("https://us1604.com/", 4.3)]])
+  const [p] = enrichProperties([prop("A")], catalog)
+  eq(p.googleRating, 4.3, "google_rating flows onto the property")
+}
+{
+  const catalog = new Map([["A", rec("https://us1604.com/", null)]])
+  const [p] = enrichProperties([prop("A")], catalog)
+  eq(p.googleRating, null, "null rating → googleRating null (card omits it)")
+}
+{
+  const catalog = new Map([["OTHER", rec("https://x.com/", 5)]])
+  const [p] = enrichProperties([prop("A")], catalog)
+  eq(p.googleRating, undefined, "no catalog row → no rating, never fabricated")
+}
+
 // ── Card renders the link correctly and fires no request on hover/click ───────
 {
   const here = dirname(fileURLToPath(import.meta.url))
@@ -77,6 +95,13 @@ const rec = (websiteUrl: string | null): CatalogRecord => ({
   ok(/href=\{card\.websiteUrl\}/.test(src), "link href is the property's own websiteUrl")
   ok(/target="_blank"/.test(src), "link opens in a new tab (target=_blank)")
   ok(/rel="noopener noreferrer"/.test(src), "link carries rel=noopener noreferrer")
+  // Rating: shown only when a real number is present (omitted when null); numeric
+  // value with one decimal, then the star visual — and it is never fabricated.
+  ok(/typeof card\.googleRating === "number" &&/.test(src), "rating shown only when googleRating is a real number")
+  ok(/card\.googleRating\.toFixed\(1\)/.test(src), "rating printed with one decimal, numeric first")
+  ok(/<StarRating value=\{card\.googleRating\}/.test(src), "stars follow the number")
+  ok(/width: `\$\{pct\}%`/.test(src), "star fill reflects the decimal (partial width)")
+  ok(!/userRatingCount|reviewCount|reviews/i.test(src), "no review count anywhere on the card")
   // The hover/click handlers set local state only — no fetch, no Places call.
   ok(/mouseenter", \(\) => setHovered\(p\)\)/.test(src), "hover only sets local state (no request)")
   ok(!/onMouseEnter[\s\S]*fetch\(/.test(src), "no fetch introduced on hover")

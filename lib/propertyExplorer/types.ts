@@ -68,6 +68,10 @@ export type ExplorerProperty = {
   locationKeywords?: string[]
   /** ZIP from the catalog. Carried, not yet matched. */
   zip?: string | null
+  /** Google Places star rating (0.0–5.0), from property_catalog.google_rating by
+   *  Place ID. Real and verified, never fabricated; ABSENT when the catalog has
+   *  none, so the card omits it. Display-only — never affects ranking or search. */
+  googleRating?: number | null
 
   // ── Future-ready display fields ─────────────────────────────────────────────
   // ADDITIVE and OPTIONAL: absent on every Google Places result today, so nothing
