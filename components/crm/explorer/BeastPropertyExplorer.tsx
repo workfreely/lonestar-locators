@@ -594,7 +594,7 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
       const marker = new MarkerCtor({
         map,
         position: { lat: p.lat, lng: p.lng },
-        title: isSuggested ? `${p.propertyName} — Beast Suggestion` : p.propertyName,
+        title: p.propertyName,
         zIndex: isSuggested ? 2 : 1,
         content: el,
       })
@@ -865,19 +865,6 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
               <span className="font-semibold">Special:</span> {card.currentSpecial.trim()}
             </p>
           )}
-          {/* Beast Suggestion — computed, never stored. Shown whether the card is
-              hovered or pinned, because it is information rather than an action. */}
-          {suggestions.has(card.placeId) && !recommended.has(card.propertyUrl) && (
-            <div className="mt-3">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11.5px] font-semibold text-amber-700">
-                ⭐ Beast Suggestion
-              </span>
-              <p className="mt-1 text-[11.5px] text-[#6b7280]">
-                {suggestions.get(card.placeId)!.reason}
-              </p>
-            </div>
-          )}
-
           {/* RECOMMENDATION ONLY. Favorite state and promotion stay in the
               Companion's Recommendations workflow — Property Explorer never shows
               or writes a Favorite. The action needs the card pinned, so it appears
@@ -915,7 +902,11 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
                     : "bg-[#f1f3f8] text-[#4b5162]"
                 }`}
               >
-                {fit.label}
+                {/* A match reads as "100% Match" — the same treatment as Beast
+                    Companion — replacing the old tier label (e.g. "Preferred Area
+                    Match"). Non-match tones keep their descriptive label. The
+                    underlying assessLocationFit tiers/logic are unchanged. */}
+                {fit.tone === "match" ? "100% Match" : fit.label}
               </span>
               <p className="mt-1 text-[11.5px] text-[#6b7280]">{fit.reason}</p>
             </div>
