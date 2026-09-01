@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { SectionCard } from "../lead/primitives";
 import { PropertyThumb } from "./PropertyThumb";
 import { resolveClientContext, evaluateLocationFit, evaluateApproval, evaluateAmenities, evaluateSpecials, evaluateBudget, evaluateMatchScore, matchScoreTone, normalizeMustHaveAmenities, resolveClientBudget, formatRent, cityMismatch, propertyCityName, starFillPercent, formatRating, displayAddress } from "@bc/companion-shared";
@@ -228,6 +228,31 @@ export function PropertiesView({
   // directly from here.
   const cpUrl = currentProperty?.propertyUrl ?? "";
   const isRecommended = !!cpUrl && recommendations.some((r) => (r.propertyUrl ?? "") === cpUrl);
+
+  // Auto-expand Favorite Properties when a favorite is actually ADDED for the active
+  // client (a successful heart/move that changed the canonical state — not the click),
+  // so a hearted property never appears to vanish while Favorites is collapsed. We
+  // watch the set of favorite record ids: an id present now that wasn't a moment ago is
+  // a freshly-favorited property. Deliberately silent on the initial render and on a
+  // client switch (both establish a baseline rather than signal an add), and removals
+  // never trigger it. The bump only NUDGES the section open once; the user stays free to
+  // collapse it again, and the next add re-opens it.
+  const [favOpenSignal, setFavOpenSignal] = useState(0);
+  const favBaselineRef = useRef<{ leadId: string; ids: Set<string> } | null>(null);
+  useEffect(() => {
+    const leadId = String(lead.id);
+    const ids = new Set(favorites.map((f) => String(f.id)));
+    const prev = favBaselineRef.current;
+    favBaselineRef.current = { leadId, ids };
+    // First mount, or a switch to a different client → just record the baseline.
+    if (!prev || prev.leadId !== leadId) return;
+    for (const id of ids) {
+      if (!prev.ids.has(id)) {
+        setFavOpenSignal((n) => n + 1);
+        break;
+      }
+    }
+  }, [favorites, lead.id]);
 
   // Current Client Context (V1, Option A) — resolved ONCE from the active client
   // (Smart Form baseline + Locator Notes/AI Insights override layer) and reused by
@@ -481,8 +506,11 @@ export function PropertiesView({
         )}
       </SectionCard>
 
-      {/* Favorite Properties — the active client's real lead_favorites (read-only). */}
-      <SectionCard title="Favorite Properties" defaultOpen={false}>
+      {/* Favorite Properties — the active client's real lead_favorites (read-only).
+          Starts collapsed, but auto-expands the moment a favorite is added (see
+          favOpenSignal) so a hearted property is shown immediately instead of
+          seeming to disappear. Stays user-collapsible afterward. */}
+      <SectionCard title="Favorite Properties" defaultOpen={false} openSignal={favOpenSignal}>
         {favorites.length === 0 ? (
           <p className="bc-props-placeholder">No favorite properties yet.</p>
         ) : (

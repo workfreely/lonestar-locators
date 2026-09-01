@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { LEAD_STAGE_LABELS, LEAD_STAGE_TONE, type LeadStage } from "@bc/companion-shared";
 
 /**
@@ -15,6 +15,7 @@ export function SectionCard({
   shaded = false,
   collapsible = true,
   right,
+  openSignal,
 }: {
   title: string;
   children: ReactNode;
@@ -22,8 +23,24 @@ export function SectionCard({
   shaded?: boolean;
   collapsible?: boolean;
   right?: ReactNode;
+  /**
+   * Edge-triggered force-open. Whenever this number CHANGES (after the first
+   * render), the section expands so freshly-arrived content is revealed even if
+   * the user had it collapsed. It does NOT hold the section open — the user can
+   * collapse again immediately, and the next change re-opens it. Leave undefined
+   * for a plain uncontrolled accordion.
+   */
+  openSignal?: number;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  // Compare against the value seen on mount so the initial render never counts as
+  // a "change" — this is what keeps the section from auto-opening on load.
+  const lastSignal = useRef(openSignal);
+  useEffect(() => {
+    if (openSignal === undefined || openSignal === lastSignal.current) return;
+    lastSignal.current = openSignal;
+    setOpen(true);
+  }, [openSignal]);
   return (
     <section className={`lp-section${shaded ? " is-shaded" : ""}`}>
       <button
