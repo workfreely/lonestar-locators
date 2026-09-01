@@ -2,6 +2,8 @@
 
 import { SectionCard } from "./LeadPanelSections"
 import PropertyThumb from "./PropertyThumb"
+import { displayAddress, formatRating } from "@bc/companion-shared"
+import { StarRating } from "./StarRating"
 
 // Recommended Properties — the canonical per-client Recommendations collection
 // (lead_recommendations). Conceptually distinct from Favorite Properties:
@@ -34,7 +36,13 @@ export default function BestMatches({ lead, recommendations = [] }: { lead: any;
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{r.property_name}</p>
                 {r.property_address && (
-                  <p className="truncate text-[11px] text-[var(--crm-text-muted)]">{r.property_address}</p>
+                  <p className="truncate text-[11px] text-[var(--crm-text-muted)]">{displayAddress(r.property_address)}</p>
+                )}
+                {typeof r.google_rating === "number" && (
+                  <div className="mt-0.5 flex items-center gap-1.5">
+                    <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(r.google_rating)}</span>
+                    <StarRating value={r.google_rating} />
+                  </div>
                 )}
               </div>
             </div>
