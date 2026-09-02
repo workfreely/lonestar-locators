@@ -16,6 +16,12 @@ import {
 // loaded on every LB surface, e.g. the CRM), so it looks identical everywhere.
 export default function AskBeastAI() {
   const [open, setOpen] = useState(false);
+  // Suppressed while a CRM modal (Add Lead / Edit Client — the shared LeadFormModal)
+  // is open, so the floating launcher and panel never overlap it. The modal
+  // broadcasts its open state via a window "lb:lead-modal" event; opening the modal
+  // also closes the panel if it was open. Restored (launcher returns, conversation
+  // state preserved — never unmounted) when the modal closes.
+  const [suppressed, setSuppressed] = useState(false);
   const [messages, setMessages] = useState<BeastAiMessage[]>([
     { role: "assistant", content: BEAST_AI_WELCOME },
   ]);
@@ -43,6 +49,17 @@ export default function AskBeastAI() {
       window.removeEventListener("keydown", onKey);
     };
   }, [open]);
+
+  // Hide the launcher + close the panel while the CRM's LeadFormModal is open.
+  useEffect(() => {
+    function onModal(e: Event) {
+      const isOpen = !!(e as CustomEvent<{ open?: boolean }>).detail?.open;
+      setSuppressed(isOpen);
+      if (isOpen) setOpen(false); // close the panel if it was open when the modal appeared
+    }
+    window.addEventListener("lb:lead-modal", onModal);
+    return () => window.removeEventListener("lb:lead-modal", onModal);
+  }, []);
 
   async function handleSend(e?: React.FormEvent) {
     e?.preventDefault();
@@ -75,7 +92,7 @@ export default function AskBeastAI() {
         aria-label="Ask Beast AI"
         aria-expanded={open}
         className={`fixed bottom-5 right-5 z-[10000] flex items-center gap-2 rounded-full border border-white/10 bg-[#0b0f1a] px-4 py-2.5 text-[13px] font-semibold text-white shadow-[0_10px_30px_-8px_rgba(0,0,0,0.5)] transition-[opacity,transform,background-color] duration-200 hover:bg-[#141a2b] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5b8bff] ${
-          open ? "pointer-events-none scale-95 opacity-0" : "opacity-100"
+          open || suppressed ? "pointer-events-none scale-95 opacity-0" : "opacity-100"
         }`}
       >
         <SparkIcon className="h-4 w-4 text-[#5b8bff]" />

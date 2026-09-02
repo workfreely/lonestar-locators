@@ -1,18 +1,29 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import LeadFields from "./LeadFields"
+import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 
 export default function LeadFormModal({
   open,
   onClose,
   onLeadCreated,
+  timeZone = DEFAULT_TIMEZONE,
 }: {
   open: boolean
   onClose: () => void
   onLeadCreated: (lead: any) => void
+  /** The locator's saved IANA timezone, so the manual-entry date reads as the
+   *  day THEY added the lead — not the browser's zone and not UTC. */
+  timeZone?: string
 }) {
   const [loading, setLoading] = useState(false)
+  // Set when the server reports an exact match and is waiting to be told whether
+  // to update. Holds the payload so confirming re-sends exactly what was typed.
+  const [pendingDuplicate, setPendingDuplicate] = useState<null | {
+    leadPayload: Record<string, any>
+    typedNotes: string
+  }>(null)
 
   const [form, setForm] = useState({
     first_name: "",
@@ -42,6 +53,18 @@ export default function LeadFormModal({
     lead_type: "full",
   })
 
+  // Broadcast open state so global surfaces (Ask Beast AI) can step aside while the
+  // modal is up. A window event keeps them decoupled — Ask Beast AI is mounted in the
+  // layout, not this subtree. Fires for both Add Lead and the future Edit Client mode
+  // (same component). Restores on close.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    window.dispatchEvent(new CustomEvent("lb:lead-modal", { detail: { open } }))
+    return () => {
+      window.dispatchEvent(new CustomEvent("lb:lead-modal", { detail: { open: false } }))
+    }
+  }, [open])
+
   if (!open) return null
 
   function updateField(
@@ -68,11 +91,29 @@ export default function LeadFormModal({
     try {
       setLoading(true)
 
-      const sourceLabel = form.source.charAt(0).toUpperCase() + form.source.slice(1)
-      const timestamp   = new Date().toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true })
-      const crmNote     = `Lead manually added through CRM on ${timestamp}. Source selected: ${sourceLabel}.`
+      // Manual-entry marker. Added ONLY here, the manual "Add Lead" surface, so
+      // Smart Lead Form, CSV import, API and integration leads never carry it.
+      //
+      // Date only, in the locator's saved timezone — a lead added late evening in
+      // Austin previously showed the next day's UTC date in their own CRM.
+      //
+      // The chosen Lead Source is no longer restated here: it is already stored
+      // verbatim in `source` (and rendered from there), so repeating it in the
+      // note only created a second copy that could drift.
+      //
+      // A duplicate marker is impossible on the exact-match update path: that
+      // branch discards the incoming locator_notes entirely and prepends its own
+      // history block to the EXISTING notes (see buildExactMatchUpdate), so this
+      // string is only ever written on a genuine insert.
+      const addedOn = new Date().toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        timeZone,
+      })
+      const crmNote = `Lead added manually on ${addedOn}.`
       const locatorNotes = form.locator_notes
-        ? `${crmNote}\n\n${form.locator_notes}`
+        ? `${crmNote}\n${form.locator_notes}`
         : crmNote
 
       // Routed through /api/leads/submit (not a direct client-side insert)
@@ -83,13 +124,12 @@ export default function LeadFormModal({
       // trigger needed here (avoids double-firing one for exact-match
       // resubmissions and skips it entirely for those, same as the public
       // forms).
+      const leadPayload = { ...form, locator_notes: locatorNotes }
+
       const submitRes = await fetch("/api/leads/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          formType: "full",
-          lead: { ...form, locator_notes: locatorNotes },
-        }),
+        body: JSON.stringify({ formType: "full", manualEntry: true, lead: leadPayload }),
       })
 
       const submitJson = await submitRes.json().catch(() => null)
@@ -100,13 +140,17 @@ export default function LeadFormModal({
         return
       }
 
+      // Exact match — nothing has been written yet. Ask first; the form stays
+      // open and populated behind the confirmation, so Cancel loses nothing.
+      if (submitJson.action === "confirm_update_required") {
+        setPendingDuplicate({ leadPayload, typedNotes: form.locator_notes ?? "" })
+        setLoading(false)
+        return
+      }
+
       const data = submitJson.lead
 
-      if (submitJson.action === "updated_existing") {
-        alert(
-          `This looks like an existing lead (${data.first_name} ${data.last_name}) — updated their record instead of creating a new one.`
-        )
-      } else if (submitJson.action === "possible_duplicate") {
+      if (submitJson.action === "possible_duplicate") {
         alert(
           "Created — but this may be a duplicate of an existing lead. It's flagged for review on the board."
         )
@@ -116,32 +160,7 @@ export default function LeadFormModal({
 
       onClose()
 
-      setForm({
-        first_name: "",
-        last_name: "",
-        phone: "",
-        email: "",
-        move_date: "",
-        city: "",
-        neighborhoods: "",
-        submarkets: "",
-        property_type: "",
-        must_have_amenities: "",
-        desired_rent: "",
-        beds: "",
-        baths: "",
-        income: "",
-        credit_history: "",
-        credit_score: "",
-        criminal_background: "",
-        notes: "",
-        locator_notes: "",
-
-        source: "",
-        crm_status: "new",
-        priority: "warm",
-        lead_type: "full",
-      })
+      resetForm()
     } catch (err) {
       console.error(err)
     } finally {
@@ -149,7 +168,109 @@ export default function LeadFormModal({
     }
   }
 
+
+  // Extracted so the create path and the confirmed-update path clear the form
+  // identically — they previously would have drifted.
+  function resetForm() {
+    setForm({
+      first_name: "",
+      last_name: "",
+      phone: "",
+      email: "",
+      move_date: "",
+      city: "",
+      neighborhoods: "",
+      submarkets: "",
+      property_type: "",
+      must_have_amenities: "",
+      desired_rent: "",
+      beds: "",
+      baths: "",
+      income: "",
+      credit_history: "",
+      credit_score: "",
+      criminal_background: "",
+      notes: "",
+      locator_notes: "",
+
+      source: "",
+      crm_status: "new",
+      priority: "warm",
+      lead_type: "full",
+    })
+  }
+
+  // "Update Lead" — re-sends the same payload with confirmUpdate, which is the
+  // only thing that lets the route mutate the matched record. `manualNote`
+  // carries ONLY what the locator typed: the "Lead added manually on …" marker
+  // belongs to lead creation, and re-sending it would stamp a second one onto a
+  // record that already has its own.
+  async function confirmUpdateExisting() {
+    const pending = pendingDuplicate
+    if (!pending || loading) return
+    setLoading(true)
+    try {
+      const res = await fetch("/api/leads/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          formType: "full",
+          manualEntry: true,
+          confirmUpdate: true,
+          manualNote: pending.typedNotes,
+          lead: pending.leadPayload,
+        }),
+      })
+      const json = await res.json().catch(() => null)
+      if (!res.ok || !json?.success) {
+        console.error(json?.error)
+        alert("Could not update lead")
+        return
+      }
+      setPendingDuplicate(null)
+      onLeadCreated(json.lead)
+      onClose()
+      resetForm()
+    } finally {
+      setLoading(false)
+    }
+  }
+
+
   return (
+    <>
+      {/* Duplicate confirmation. Sits ABOVE the Add Lead sheet (z-[10002]) and
+          leaves the form mounted underneath, so Cancel returns the locator to
+          exactly what they typed. Nothing has been written at this point. */}
+      {pendingDuplicate && (
+        <div className="fixed inset-0 z-[10002] flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-[var(--crm-panel)] p-6 shadow-2xl">
+            <h3 className="text-[16px] font-bold text-[var(--crm-text-primary)]">Lead already exists</h3>
+            <p className="mt-2 text-[14px] leading-relaxed text-[var(--crm-text-secondary)]">
+              Update this lead with the new information?
+            </p>
+            <div className="mt-5 flex flex-col gap-2">
+              <button
+                type="button"
+                disabled={loading}
+                onClick={confirmUpdateExisting}
+                className="crm-cta w-full rounded-2xl px-5 py-2.5 text-sm font-semibold disabled:opacity-60"
+              >
+                {loading ? "…" : "Update Lead"}
+              </button>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => setPendingDuplicate(null)}
+                className="w-full rounded-2xl border border-[var(--crm-border)] px-5 py-2.5 text-sm font-medium text-[var(--crm-text-secondary)] transition-colors hover:bg-[var(--crm-card)]"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     <div className="fixed inset-0 z-[10001] bg-black/40 backdrop-blur-sm flex justify-end">
 
       {/* PANEL */}
@@ -192,7 +313,7 @@ export default function LeadFormModal({
             the fields rather than hugging the modal edge — and the bottom-right
             corner, where the floating Ask Beast AI trigger lives, stays clear
             without any change to that component. */}
-        <div className="border-t border-[var(--crm-border)] px-6 pt-5 pb-6 flex gap-3">
+        <div className="border-t border-[var(--crm-border)] px-6 pt-5 pb-6 flex justify-end gap-3">
 
           <button
             onClick={onClose}
@@ -212,5 +333,6 @@ export default function LeadFormModal({
         </div>
       </div>
     </div>
+    </>
   )
 }
