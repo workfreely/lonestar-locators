@@ -20,7 +20,7 @@ import {
 } from "@/lib/propertyExplorer/multiArea"
 import { computeSuggestions } from "@/lib/propertyExplorer/suggestions"
 import { centerForMarket, centerForDesiredArea } from "@/lib/markets/catalog"
-import { selectInMarketMatch, normalizeName, decideNameSearch, normalizePlace } from "@/lib/propertyExplorer/nameSearch"
+import { selectInMarketMatch, normalizeName, decideNameSearch, normalizePlace, shouldFetchSuggestions, computeVisible } from "@/lib/propertyExplorer/nameSearch"
 import type { ExplorerProperty } from "@/lib/propertyExplorer/types"
 
 let pass = 0,
@@ -562,6 +562,64 @@ const prop = (placeId: string, name: string, address: string | null = null): Exp
   eq((runFn.match(/includedType\b/g) ?? []).length, 0, "no includedType in the name-search request")
   eq((runFn.match(/includedPrimaryTypes\b/g) ?? []).length, 0, "no includedPrimaryTypes in the name-search request")
   ok(/selectInMarketMatch\s*\(/.test(runFn), "name search restricts to in-market via selectInMarketMatch")
+}
+
+// ── Autocomplete refinements: trigger, picker-click identity, marker visibility ─
+{
+  const mk = (id: string, name: string, lat = 32.78, lng = -96.8): ExplorerProperty => ({
+    ...prop(id, name),
+    lat,
+    lng,
+    googleTypes: ["apartment_complex"],
+  })
+
+  // (Bug 3) 2-char query triggers suggestion-search eligibility.
+  eq(shouldFetchSuggestions("a", ""), false, "1 char → no suggestion fetch")
+  eq(shouldFetchSuggestions("am", ""), true, "2 chars → eligible for suggestion fetch")
+  eq(shouldFetchSuggestions("amli", ""), true, "4 chars → eligible")
+  eq(shouldFetchSuggestions("  a ", ""), false, "trimmed 1 char → not eligible")
+  // Suppressed when the input equals a just-resolved canonical name (post-click).
+  eq(shouldFetchSuggestions("AMLI Fountain Place", "AMLI Fountain Place"), false, "canonical name just filled in → suppressed")
+  eq(shouldFetchSuggestions("AMLI Fountain", "AMLI Fountain Place"), true, "editing after a resolve → eligible again")
+
+  // (Bug 2) Picker click adds/selects EXACTLY the clicked Place ID — one pin.
+  const clicked = mk("amli-fountain", "AMLI Fountain Place")
+  const other = mk("amli-ballpark", "AMLI at the Ballpark")
+  const decision = decideNameSearch(
+    { selected: clicked },
+    { selectedPlaceId: null, nameMatchIds: new Set() },
+  )
+  eq(decision.addResults.length, 1, "picker click adds exactly one property")
+  eq(decision.addResults[0]?.placeId, "amli-fountain", "the added property is the clicked Place ID")
+  eq(decision.focus?.placeId, "amli-fountain", "focus (card + panTo) is the clicked Place ID")
+  eq(decision.nameMatchIds.has("amli-fountain"), true, "nameMatchIds holds the clicked Place ID")
+  eq(decision.nameMatchIds.size, 1, "only the clicked Place ID is a name match (not every picker row)")
+  eq(decision.addResults.some((p) => p.placeId === "amli-ballpark"), false, "an un-clicked picker row is NOT added")
+
+  // (Bug 2) The clicked property is marker-VISIBLE even when the live filter text
+  // (the canonical name just filled in) isn't a substring match issue — and even if
+  // the substring filter would otherwise exclude it.
+  const results = [clicked, other] // both loaded
+  // Simulate post-click state: query = canonical name, nameMatchIds = {clicked}.
+  const vis = computeVisible(results, "AMLI Fountain Place", decision.nameMatchIds, clicked.placeId)
+  eq(vis.some((p) => p.placeId === "amli-fountain"), true, "clicked property is marker-visible after selection")
+  // A filter fragment that does NOT substring-match the clicked name still keeps it
+  // visible via the forced (nameMatchIds + selected) union.
+  const vis2 = computeVisible(results, "zzz-no-match", decision.nameMatchIds, clicked.placeId)
+  eq(vis2.some((p) => p.placeId === "amli-fountain"), true, "selected/name-match property stays visible under a non-matching filter")
+  eq(vis2.some((p) => p.placeId === "amli-ballpark"), false, "an unrelated loaded property is filtered out")
+
+  // (Bug 1) The market-switch effect resets the Beast/Unleash match state so the old
+  // count can't show in the new market. Source-level check on the explorer.
+  const here = dirname(fileURLToPath(import.meta.url))
+  const src = readFileSync(resolve(here, "../../components/crm/explorer/BeastPropertyExplorer.tsx"), "utf8")
+  const mkStart = src.indexOf("Switching markets discards")
+  const mkEnd = src.indexOf("}, [marketSlug, onResolveName])", mkStart)
+  ok(mkStart >= 0 && mkEnd > mkStart, "located the market-switch effect")
+  const mkFn = src.slice(mkStart, mkEnd)
+  ok(/setBeastPhase\(\s*["']idle["']\s*\)/.test(mkFn), "market switch resets beastPhase to idle")
+  ok(/setBeastMatchCount\(\s*0\s*\)/.test(mkFn), "market switch resets beastMatchCount to 0")
+  ok(/beastHalosRef\.current\s*=\s*\[\]/.test(mkFn), "market switch clears Beast halos")
 }
 
   console.log(`\n${pass} passed, ${fail} failed`)

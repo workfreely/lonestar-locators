@@ -145,6 +145,43 @@ export function selectInMarketMatch<T extends ExplorerProperty>(
 }
 
 /**
+ * Autocomplete trigger eligibility: fetch suggestions once the query is at least 2
+ * characters, EXCEPT when it equals a canonical name we just resolved (a picker
+ * click / market reset filled the input) — so the picker doesn't refetch/reopen for
+ * text the user didn't type. Pure, so the exact threshold is testable.
+ */
+export function shouldFetchSuggestions(query: string, lastResolvedName: string): boolean {
+  const name = query.trim()
+  if (name.length < 2) return false
+  if (lastResolvedName && normalizeName(name) === normalizeName(lastResolvedName)) return false
+  return true
+}
+
+/**
+ * The set of properties that must render as map markers: the live substring filter
+ * over loaded results, UNIONED with the name-search matches AND the current
+ * selection. A name-search hit (or the selected property) must show even when the
+ * substring filter would hide it — the filter fragment the agent typed is often not
+ * a contiguous substring of the real name ("standard legacy" vs "The Standard at
+ * Legacy"), and a picker click fills the input with the canonical name. Guarantees
+ * the clicked/selected property is always marker-visible while it is in `results`.
+ */
+export function computeVisible<T extends ExplorerProperty>(
+  results: T[],
+  query: string,
+  nameMatchIds: Set<string>,
+  selectedPlaceId?: string | null,
+): T[] {
+  const q = query.trim().toLowerCase()
+  const base = q ? results.filter((p) => p.propertyName.toLowerCase().includes(q)) : results
+  const forced = selectedPlaceId ? new Set(nameMatchIds).add(selectedPlaceId) : nameMatchIds
+  if (forced.size === 0) return base
+  const inBase = new Set(base.map((p) => p.placeId))
+  const extra = results.filter((p) => forced.has(p.placeId) && !inBase.has(p.placeId))
+  return extra.length ? [...base, ...extra] : base
+}
+
+/**
  * What the map should DO with a completed name search — the pure decision, split
  * out so both the success and the empty (no in-market) outcomes are testable
  * without React or Google Maps.

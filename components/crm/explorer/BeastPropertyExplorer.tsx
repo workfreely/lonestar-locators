@@ -10,7 +10,7 @@ import { supabase } from "@/lib/supabase/client"
 import { readMapMarket, writeMapMarket } from "@/lib/preferences"
 import { boundsForMarket, getMarketBySlug, isInsideMarket, isInsideState, isMarketInState, marketsForSlugs, resolveMapMarket } from "@/lib/markets/catalog"
 import { resolveDesiredAreaCenters, searchAreas, mergeDedupeByPlaceId, type AreaCenter } from "@/lib/propertyExplorer/multiArea"
-import { selectInMarketMatch, decideNameSearch, normalizePlace, normalizeName, type NameSearchDecision } from "@/lib/propertyExplorer/nameSearch"
+import { selectInMarketMatch, decideNameSearch, normalizePlace, shouldFetchSuggestions, computeVisible, type NameSearchDecision } from "@/lib/propertyExplorer/nameSearch"
 import { StarRating } from "@/components/crm/StarRating"
 import { createPortal } from "react-dom"
 
@@ -599,6 +599,8 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
           selectedPlaceId: selectedRef.current?.placeId ?? null,
           nameMatchIds: nameMatchIdsRef.current,
         })
+        // Invalidate any in-flight suggestions fetch so it can't reopen the picker.
+        suggestSeqRef.current++
         setSuggestOpen(false)
         setPickerRows([])
         applyNameDecision(decision)
@@ -619,6 +621,9 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   // selection/focus behavior. No re-search.
   const pickSuggestion = useCallback(
     (candidate: ExplorerProperty) => {
+      // Invalidate any in-flight suggestions fetch so a late response can't reopen
+      // the picker or clobber the selection we're about to apply.
+      suggestSeqRef.current++
       setSuggestOpen(false)
       setPickerRows([])
       const decision = decideNameSearch(
@@ -655,7 +660,10 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   // didn't type.
   useEffect(() => {
     const name = query.trim()
-    if (name.length < 2 || (lastResolvedNameRef.current && normalizeName(name) === normalizeName(lastResolvedNameRef.current))) {
+    // Eligible once the query is ≥2 chars (and isn't a canonical name we just filled
+    // in). The picker still only OPENS when qualified results come back, so short
+    // brand fragments that Google returns no apartments for simply show nothing.
+    if (!shouldFetchSuggestions(query, lastResolvedNameRef.current)) {
       window.clearTimeout(suggestTimerRef.current)
       setSuggestOpen(false)
       setPickerRows([])
@@ -706,10 +714,24 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     window.clearTimeout(suggestTimerRef.current)
     setPickerRows([])
     setSuggestOpen(false)
+    // Reset the previous market's Unleash/Beast RESULT state so the control returns
+    // to "Unleash Beast" and the old "N Beast Matches" count never shows in the new
+    // market. Only the DISPLAYED result state (phase, count, halos, radar) resets —
+    // the Unleash search/ranking behavior itself is unchanged.
+    setBeastPhase("idle")
+    setBeastMatchCount(0)
+    setRadarOrigins([])
+    for (const t of beastTimersRef.current) window.clearTimeout(t)
+    beastTimersRef.current = []
+    for (const h of beastHalosRef.current) h.setMap(null)
+    beastHalosRef.current = []
+    beastRestoreRef.current = []
+    beastPhaseRef.current = "idle"
+    beastHighlightedRef.current = false
     // On a real market SWITCH (not the initial resolve or a workspace re-mount),
     // clear the ACTIVE name-search UI so a prior market's property never lingers:
-    // close its card/pin and reset the search input. Unrelated client state and
-    // Unleash are untouched.
+    // close its card/pin and reset the search input. Unrelated client state is
+    // untouched.
     if (prev !== null && prev !== marketSlug) {
       setSelected(null)
       setHovered(null)
@@ -725,9 +747,6 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   // searches the client's resolved desired-area center (or the map center when
   // there is no client / no resolved area).
 
-  // Toolbar query filters what is ALREADY loaded. No Places request, no debounce
-  // needed, because nothing network-bound happens per keystroke.
-  const q = query.trim().toLowerCase()
   // Restores every marker this prototype touched and clears the halos/timers.
   // Called before each run (so it is restartable), and on unmount.
   const beastReset = useCallback(() => {
@@ -833,16 +852,13 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
 
   useEffect(() => () => beastReset(), [beastReset])
 
-  const visible = useMemo(() => {
-    const base = q ? results.filter((p) => p.propertyName.toLowerCase().includes(q)) : results
-    if (nameMatchIds.size === 0) return base
-    // A name-search hit must render even when the live substring filter would hide
-    // it (e.g. filter "standard legacy" vs the real name "The Standard at Legacy").
-    // Append any loaded name-search match missing from the base filter.
-    const inBase = new Set(base.map((p) => p.placeId))
-    const extra = results.filter((p) => nameMatchIds.has(p.placeId) && !inBase.has(p.placeId))
-    return extra.length ? [...base, ...extra] : base
-  }, [results, q, nameMatchIds])
+  // Markers = the substring filter UNIONED with the name-search matches AND the
+  // current selection, so a name-searched / picker-clicked / selected property is
+  // ALWAYS marker-visible while it is in `results` — never hidden by the live filter.
+  const visible = useMemo(
+    () => computeVisible(results, query, nameMatchIds, selected?.placeId ?? null),
+    [results, query, nameMatchIds, selected],
+  )
 
   // Report upward AFTER render, never during — this only observes `visible`.
   // null while loading/searching so the toolbar can tell "no matches" apart from
