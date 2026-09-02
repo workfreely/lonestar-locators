@@ -150,6 +150,27 @@ export function ProductionPanel() {
     return () => rt.onMessage?.removeListener(onMsg);
   }, []);
 
+  // ── Replay handshake: request a fresh state republish on mount ───────────────
+  // This panel renders only behind ConsentGate, so on mount consent is already
+  // granted and any replayed write will pass the bridge's consent gate. We ask the
+  // background to route a REQUEST_CURRENT_STATE to the active CRM tab; DashboardClient
+  // re-publishes active-client + Current Property through the EXISTING bridge, which
+  // updates chrome.storage and — via the onChanged listener below — this panel. This
+  // fixes "Locator Beast opened first, Companion opened later" without a page refresh.
+  // Storage hydration (below) still covers the case where a valid record already
+  // exists; the request is an additive nudge, never a substitute.
+  useEffect(() => {
+    const rt = (globalThis as unknown as { chrome?: any }).chrome?.runtime;
+    if (!rt?.sendMessage) return;
+    try {
+      rt.sendMessage({ type: "REQUEST_CURRENT_STATE" }, () => {
+        void rt.lastError; // no receiver (no CRM tab yet) is fine — page-load publish covers it
+      });
+    } catch {
+      /* messaging unavailable — hydration from storage still applies */
+    }
+  }, []);
+
   // ── Active client from the CRM bridge (Phase 2, read-only) ────────────────
   useEffect(() => {
     // Sensitive records now live in chrome.storage.SESSION behind an owner +

@@ -120,9 +120,19 @@ export type ReportCrmTabMessage = { type: "REPORT_CRM_TAB" };
  *  and by consent revocation. Carries no data. */
 export type ClearSensitiveMessage = { type: "CLEAR_SENSITIVE" };
 
+/**
+ * REPLAY HANDSHAKE. Panel → Background: the side panel just mounted (consent is
+ * granted, since it renders behind ConsentGate) and asks the CRM to republish its
+ * current synchronized state. Background → Content (the CRM tab): relay the request
+ * into the page, where DashboardClient re-publishes active-client + Current Property
+ * through the existing bridge. Carries no data.
+ */
+export type RequestCurrentStateMessage = { type: "REQUEST_CURRENT_STATE" };
+
 export type RuntimeMessage =
   | OpenPanelMessage
   | GetPanelSideMessage
   | ReportContextMessage
   | ReportCrmTabMessage
-  | ClearSensitiveMessage;
+  | ClearSensitiveMessage
+  | RequestCurrentStateMessage;

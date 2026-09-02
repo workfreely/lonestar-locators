@@ -9,6 +9,7 @@ import {
   isKnownEnvelope,
   isTrustedMessageEvent,
   isValidActiveClientPayload,
+  MSG_SOURCE,
 } from "@/utils/validate";
 
 /**
@@ -51,6 +52,25 @@ export function startActiveClientBridge(): void {
     warn("active-client bridge: chrome.storage unavailable — sync disabled");
     return;
   }
+
+  // Register this tab as the CRM tab on MOUNT — before any (consent-gated) publish —
+  // so the replay handshake can route REQUEST_CURRENT_STATE here even when the first
+  // active-client write was dropped by the consent gate. Best-effort; also re-sent
+  // after a successful write below.
+  chrome.runtime?.sendMessage?.({ type: "REPORT_CRM_TAB" }).catch(() => {
+    /* background asleep / no receiver — non-fatal */
+  });
+
+  // Replay handshake (Background → this content script → the page). The background
+  // relays the panel's REQUEST_CURRENT_STATE here; we ask the page to re-publish its
+  // current synchronized state. DashboardClient listens for this and re-posts
+  // active-client + Current Property through the EXISTING bridge (window → this
+  // content script → chrome.storage → panel onChanged). We only forward the request;
+  // no page data is read or written here.
+  chrome.runtime?.onMessage?.addListener((message: { type?: string }) => {
+    if (message?.type !== "REQUEST_CURRENT_STATE") return;
+    window.postMessage({ source: MSG_SOURCE, type: "request-current-state" }, location.origin);
+  });
 
   // Last value THIS bridge wrote — a synchronous compare source. Using an async
   // chrome.storage.local.get to read `prev` created a race: during the rapid

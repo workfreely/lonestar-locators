@@ -142,6 +142,25 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
     return true; // async sendResponse — keep the channel open
   }
 
+  // REPLAY HANDSHAKE. Panel → Background → the CRM tab's content script. Route the
+  // request to the tab the content script registered (CRM_TAB_KEY, now recorded on
+  // content mount — not only after a successful write). The content script relays it
+  // into the page; DashboardClient re-publishes through the existing bridge. No tab
+  // recorded yet (Companion opened before any CRM loaded) → nothing to do; the CRM's
+  // own page-load publish will sync it.
+  if (message.type === "REQUEST_CURRENT_STATE") {
+    chrome.storage.local.get(CRM_TAB_KEY, (res) => {
+      const tabId = res?.[CRM_TAB_KEY]?.tabId;
+      if (typeof tabId !== "number") return;
+      chrome.tabs
+        .sendMessage(tabId, { type: "REQUEST_CURRENT_STATE" })
+        .catch(() => {
+          /* content script gone (tab closed/navigated) — non-fatal */
+        });
+    });
+    return;
+  }
+
   if (message.type === "OPEN_PANEL") {
     const windowId = sender.tab?.windowId;
     if (typeof windowId !== "number") {

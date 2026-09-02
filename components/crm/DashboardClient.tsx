@@ -425,6 +425,51 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     }
   }
 
+  // ── Beast Companion: replay handshake (answer REQUEST_CURRENT_STATE) ─────────
+  // On open, the panel asks the CRM (via background → content script → this page) to
+  // re-publish its current synchronized state — the fix for "Locator Beast opened
+  // first, Companion opened later" needing a refresh. We re-post the SAME payloads
+  // through the SAME bridge, reusing the existing publish path + DTO builder:
+  //   • the active client, IF one is selected (recommendations/favorites are nested
+  //     in the DTO, so they replay with it);
+  //   • the Current Property, IF one exists — the exact payload we last sent (tracked
+  //     in lastCurrentPropertyRef via onSelectProperty), never fabricated.
+  // Absence of either replays nothing for it — it never clears state.
+  const lastCurrentPropertyRef = useRef<ReturnType<typeof toCompanionProperty> | null>(null)
+  const publishCurrentStateRef = useRef<() => void>(() => {})
+  publishCurrentStateRef.current = () => {
+    if (typeof window === "undefined") return
+    if (selectedLead) {
+      try {
+        const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites, localTours, localRecommendations, insightsFor(selectedLead.id), companionOwner)
+        companionLeadIdRef.current = selectedLead.id
+        window.postMessage({ source: COMPANION_MSG_SOURCE, type: "active-client", payload }, window.location.origin)
+      } catch {
+        /* best-effort */
+      }
+    }
+    if (lastCurrentPropertyRef.current) {
+      try {
+        window.postMessage(
+          { source: COMPANION_MSG_SOURCE, type: "current-property", payload: lastCurrentPropertyRef.current },
+          window.location.origin,
+        )
+      } catch {
+        /* best-effort */
+      }
+    }
+  }
+  useEffect(() => {
+    function onReplayRequest(e: MessageEvent) {
+      if (e.source !== window || e.origin !== window.location.origin) return
+      const d: any = e.data
+      if (!d || d.source !== COMPANION_MSG_SOURCE || d.type !== "request-current-state") return
+      publishCurrentStateRef.current()
+    }
+    window.addEventListener("message", onReplayRequest)
+    return () => window.removeEventListener("message", onReplayRequest)
+  }, [])
+
   // ── Canonical tour edit/cancel (Workspace Favorite → Edit / Cancel Tour) ────
   // Both route through the SAME rescheduleTour / cancelTour helpers as any future
   // Companion edit would, and reconcile the SAME optimistic state (localTours +
@@ -2317,11 +2362,15 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                   //
                   // `null` is an explicit CLEAR (e.g. the map switched markets): it
                   // posts a null payload so the Companion drops its Current Property.
+                  const cpPayload = property ? toCompanionProperty(property) : null
+                  // Remember the last payload so the replay handshake can re-post the
+                  // SAME Current Property (or nothing, after a clear) — never fabricated.
+                  lastCurrentPropertyRef.current = cpPayload
                   window.postMessage(
                     {
                       source: COMPANION_MSG_SOURCE,
                       type: "current-property",
-                      payload: property ? toCompanionProperty(property) : null,
+                      payload: cpPayload,
                     },
                     window.location.origin,
                   )
