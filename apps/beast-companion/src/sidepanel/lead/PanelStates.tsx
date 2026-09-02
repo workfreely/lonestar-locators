@@ -114,7 +114,7 @@ export function PanelStateView({
         <Centered
           icon="🔌"
           title="Select a client to start a session"
-          body="Click a client card in Locator Beast to connect Companion and load their details here."
+          body="Select a client in Locator Beast to connect Companion and load their details."
         />
       );
     case "unauthorized":
