@@ -197,6 +197,82 @@ function PropertyRow({
   );
 }
 
+const nonEmpty = (v?: string | null): v is string => typeof v === "string" && v.trim() !== "";
+
+// The "+N" remaining-areas affordance — an independently hoverable/focusable
+// inline span with a tiny CSS-only tooltip (reveals on hover AND keyboard focus;
+// tap focuses it too). Lists ONLY the additional areas, never the first visible
+// one. No popover, no click behavior, no workflow — display only.
+function MoreAreas({ count, areas, idBase }: { count: number; areas: string[]; idBase: string | number }) {
+  const tipId = `bc-crit-more-${idBase}`;
+  return (
+    <span
+      className="bc-crit-more"
+      tabIndex={0}
+      role="button"
+      aria-describedby={tipId}
+      aria-label={`${count} more area${count > 1 ? "s" : ""}: ${areas.join(", ")}`}
+    >
+      {`+${count}`}
+      <span className="bc-crit-tip" role="tooltip" id={tipId}>
+        {areas.map((a, i) => (
+          <span key={i} className="bc-crit-tip-line">{a}</span>
+        ))}
+      </span>
+    </span>
+  );
+}
+
+// Compact, muted one-line client-criteria summary shown at the TOP of the
+// Properties tab (under the client name, above Current Property). Reads ONLY the
+// active client's existing lead.searchCriteria — no new payload, no workflow, no
+// property-matching logic. Budget · Beds/Baths · Type · Area, each hidden when
+// empty; the whole line hides when nothing is available.
+function ClientCriteriaLine({ lead }: { lead: LeadSummaryDTO }) {
+  const sc = lead.searchCriteria;
+  const items: React.ReactNode[] = [];
+
+  if (nonEmpty(sc?.budgetText)) items.push(<>{sc!.budgetText}</>);
+
+  const beds = nonEmpty(sc?.beds) ? sc!.beds! : "";
+  const baths = nonEmpty(sc?.baths) ? sc!.baths! : "";
+  if (beds || baths) items.push(<>{`${beds || "—"}/${baths || "—"}`}</>);
+
+  // Property Type — omit entirely when it's "Open to All" (no real preference).
+  if (nonEmpty(sc?.propertyType) && sc!.propertyType !== "Open to All") items.push(<>{sc!.propertyType}</>);
+
+  // Area — first desired area only, with "+N" for the rest; fall back to the
+  // existing interest || city behavior when no desired areas are set.
+  const areas = (sc?.desiredAreas ?? "").split(",").map((a) => a.trim()).filter(Boolean);
+  if (areas.length > 0) {
+    const rest = areas.slice(1);
+    items.push(
+      <>
+        {areas[0]}
+        {rest.length > 0 && <> <MoreAreas count={rest.length} areas={rest} idBase={lead.id} /></>}
+      </>,
+    );
+  } else {
+    const fb = nonEmpty(sc?.interest) ? sc!.interest! : nonEmpty(sc?.city) ? sc!.city! : "";
+    if (fb) items.push(<>{fb}</>);
+  }
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="bc-crit" aria-label="Client criteria">
+      {items.map((it, i) => (
+        // Each cell carries its own LEADING separator so a "·" never orphans at
+        // the start of a wrapped line; cells stay intact and wrap between them.
+        <span key={i} className="bc-crit-cell">
+          {i > 0 && <span className="bc-crit-sep" aria-hidden>· </span>}
+          {it}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export function PropertiesView({
   lead,
   favorites,
@@ -372,6 +448,10 @@ export function PropertiesView({
 
   return (
     <div className="bc-props">
+      {/* Compact client-criteria line — under the client name, above Current
+          Property. Muted, one line (wraps to at most two on narrow widths). */}
+      <ClientCriteriaLine lead={lead} />
+
       {/* Current Property — the Smart Apartment Data property currently being viewed
           (page context, read-only). Thumbnail + name + address, with compact
           state-aware add action. Clears to the placeholder off a property page. */}
