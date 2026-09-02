@@ -81,3 +81,26 @@ export const CRIMINAL_CHARGE_OPTIONS = [
   "Sex Offense",
   "Other",
 ] as const
+
+/** Monthly household income brackets — moved here from the public Smart Lead Form
+ *  so the CRM Add Lead form and the public form share ONE list (values verbatim). */
+export const INCOME_OPTIONS = [
+  "Under $2,500 / month",
+  "$2,500 – $4,000 / month",
+  "$4,000 – $6,000 / month",
+  "$6,000 – $8,000 / month",
+  "$8,000 – $10,000 / month",
+  "$10,000+ / month",
+] as const
+
+/** Bathroom options — same values the public form's inline baths select uses. */
+export const BATH_OPTIONS = [
+  { value: "1",  label: "1 Bathroom"  },
+  { value: "2",  label: "2 Bathrooms" },
+  { value: "3+", label: "3+ Bathrooms" },
+] as const
+
+/** The COMBINED cap across Preferred Neighborhoods + Nearby Areas — max this many
+ *  TOTAL selections (not per section). Shared with the public Smart Lead Form so the
+ *  rule has ONE definition. */
+export const MAX_LOCATIONS = 3

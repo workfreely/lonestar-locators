@@ -16,6 +16,8 @@ import {
   CRIMINAL_BACKGROUND_OPTIONS,
   CRIMINAL_CHARGE_OPTIONS,
   RENT_RANGE_OPTIONS,
+  INCOME_OPTIONS,
+  MAX_LOCATIONS,
 } from "@/lib/formOptions"
 
 // The neighborhood option list for a city = the catalog's neighborhoods. The
@@ -28,8 +30,9 @@ function neighborhoodOptions(cityName: string): string[] {
 }
 
 // Combined cap across BOTH location sections (Preferred Neighborhoods + Nearby
-// Areas). At most this many total selections; a minimum of 1 is enforced at submit.
-const MAX_LOCATIONS = 3
+// Areas), imported from the shared form options (single source, also used by the
+// CRM Add Lead form). At most this many total selections; a minimum of 1 is
+// enforced at submit.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fields, conditional logic, and validation are ported 1:1 from LandingForm.tsx
@@ -109,14 +112,6 @@ type FormData = {
 }
 
 // Monthly household income brackets — helps qualify against the ~3x-rent rule.
-const INCOME_OPTIONS = [
-  "Under $2,500 / month",
-  "$2,500 – $4,000 / month",
-  "$4,000 – $6,000 / month",
-  "$6,000 – $8,000 / month",
-  "$8,000 – $10,000 / month",
-  "$10,000+ / month",
-]
 
 // Every field group is shown by default (used when a saved config predates the
 // per-field toggles, so older published forms keep showing everything).

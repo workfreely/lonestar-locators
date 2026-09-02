@@ -7,10 +7,17 @@ import {
   CITIES,
   PROPERTY_TYPES,
   BED_OPTIONS,
+  BATH_OPTIONS,
   CREDIT_HISTORY_OPTIONS,
   CRIMINAL_BACKGROUND_OPTIONS,
+  CRIMINAL_CHARGE_OPTIONS,
+  HISTORY_AGE_OPTIONS,
+  BALANCE_OPTIONS,
+  INCOME_OPTIONS,
   RENT_RANGE_OPTIONS,
+  MAX_LOCATIONS,
 } from "@/lib/formOptions"
+import { getMarketByName } from "@/lib/markets/catalog"
 import { MUST_HAVE_AMENITIES, MAX_MUST_HAVE_AMENITIES, normalizeMustHaveAmenities } from "@bc/companion-shared"
 
 // ─── Shared style tokens ──────────────────────────────────────────────────────
@@ -77,6 +84,90 @@ function MustHaveAmenities({ value, onChange }: { value: string; onChange: (next
           )
         })}
       </div>
+    </div>
+  )
+}
+
+// The stored neighborhoods/submarkets columns are comma-joined strings; the picker
+// works in arrays and joins back with the SAME ", " the public form + submit use.
+const csvToArr = (s: string): string[] => (s || "").split(",").map((x) => x.trim()).filter(Boolean)
+const arrToCsv = (a: string[]): string => a.join(", ")
+
+/**
+ * Preferred Neighborhoods + Nearby Areas — the SAME catalog-driven options and the
+ * SAME COMBINED max-3 rule as the public Smart Lead Form (MAX_LOCATIONS is shared).
+ * Options come from the selected city's market (getMarketByName), split into the
+ * market's `neighborhoods` (Preferred) and `submarkets` (Nearby). The Preferred vs
+ * Nearby SPLIT is preserved: each writes back to its own CSV column. At the combined
+ * cap, adding is refused while removing stays available (swap one for another). Chip
+ * styling mirrors Must-Have Amenities so the modal's look is unchanged.
+ */
+function LocationPicker({
+  city,
+  neighborhoods,
+  submarkets,
+  updateField,
+}: {
+  city: string
+  neighborhoods: string
+  submarkets: string
+  updateField: (key: string, value: string) => void
+}) {
+  const market = getMarketByName(city)
+  const nbhdOpts = market?.neighborhoods ?? []
+  const subOpts = market?.submarkets ?? []
+  const nbhds = csvToArr(neighborhoods)
+  const subs = csvToArr(submarkets)
+  const atCap = nbhds.length + subs.length >= MAX_LOCATIONS
+
+  // No city (or a market with no neighborhood list) → no picker, exactly like the
+  // public form, which renders the areas only once a city is chosen.
+  if (!city || nbhdOpts.length === 0) return null
+
+  function toggle(list: string[], key: "neighborhoods" | "submarkets", v: string) {
+    const has = list.includes(v)
+    if (!has && atCap) return
+    updateField(key, arrToCsv(has ? list.filter((x) => x !== v) : [...list, v]))
+  }
+
+  const Chips = ({ options, list, keyName }: { options: readonly string[]; list: string[]; keyName: "neighborhoods" | "submarkets" }) => (
+    <div className="flex flex-wrap gap-1.5">
+      {options.map((v) => {
+        const on = list.includes(v)
+        const disabled = !on && atCap
+        return (
+          <button
+            key={v}
+            type="button"
+            onClick={() => toggle(list, keyName, v)}
+            disabled={disabled}
+            className={[
+              "rounded-full border px-2.5 py-1 text-[12px] transition-colors",
+              on
+                ? "border-transparent bg-blue-600 text-white"
+                : "border-[var(--crm-border)] bg-[var(--crm-inset)] text-[var(--crm-text-primary)]",
+              disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
+            ].join(" ")}
+          >
+            {v}
+          </button>
+        )
+      })}
+    </div>
+  )
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-[11px] text-[var(--crm-text-muted)] mb-1.5">Preferred Neighborhoods — up to 3 total (with Nearby Areas)</p>
+        <Chips options={nbhdOpts} list={nbhds} keyName="neighborhoods" />
+      </div>
+      {subOpts.length > 0 && (
+        <div>
+          <p className="text-[11px] text-[var(--crm-text-muted)] mb-1.5">Nearby Areas</p>
+          <Chips options={subOpts} list={subs} keyName="submarkets" />
+        </div>
+      )}
     </div>
   )
 }
@@ -156,45 +247,91 @@ export default function LeadFields({
         </select>
       </Group>
 
-      {/* ── Property Preferences ─────────────────────────────────────────── */}
-      <Group title="Property Preferences">
-        <select
-          className={selectCls}
-          value={form.property_type || ""}
-          onChange={e => updateField("property_type", e.target.value)}
-        >
-          <option value="">Property Type</option>
-          {PROPERTY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
+      {/* ── Preferred Locations ──────────────────────────────────────────────
+             Preferred Neighborhoods + Nearby Areas, catalog-driven per the chosen
+             city, sharing ONE combined max-3 rule. Renders only once a city with a
+             neighborhood list is selected (mirrors the public form). */}
+      {(() => {
+        const market = getMarketByName(form.city || "")
+        if (!form.city || !market || market.neighborhoods.length === 0) return null
+        return (
+          <div>
+            <p className={sectionLabelCls}>Preferred Locations</p>
+            <LocationPicker
+              city={form.city}
+              neighborhoods={form.neighborhoods || ""}
+              submarkets={form.submarkets || ""}
+              updateField={updateField}
+            />
+          </div>
+        )
+      })()}
 
-        <select
-          className={selectCls}
-          value={form.beds || ""}
-          onChange={e => updateField("beds", e.target.value)}
-        >
-          <option value="">Bedrooms</option>
-          {BED_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
+      {/* ── Property Preferences ──────────────────────────────────────────────
+             Row 1 (3 cols): Property Type · Bedrooms · Bathrooms
+             Row 2 (2 cols): Monthly Income · Budget
+             Must-Have Amenities spans full width below. Custom grid (not the shared
+             2-col Group) so the row shapes match the approved layout; same label
+             style and controls as before. */}
+      <div>
+        <p className={sectionLabelCls}>Property Preferences</p>
+        <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-3">
+            <select
+              className={selectCls}
+              value={form.property_type || ""}
+              onChange={e => updateField("property_type", e.target.value)}
+            >
+              <option value="">Property Type</option>
+              {PROPERTY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
 
-        <Full>
-          <select
-            className={selectCls}
-            value={form.desired_rent || ""}
-            onChange={e => updateField("desired_rent", e.target.value)}
-          >
-            <option value="">Budget</option>
-            {RENT_RANGE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-          </select>
-        </Full>
+            <select
+              className={selectCls}
+              value={form.beds || ""}
+              onChange={e => updateField("beds", e.target.value)}
+            >
+              <option value="">Bedrooms</option>
+              {BED_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
 
-        {/* Must-Have Amenities — the SAME canonical option list and max-3 rule as the
-            Smart Form. Stored comma-joined (canonical values, not labels), so a lead
-            created manually or with the form field hidden can still be given must-haves
-            here, and existing selections can be added/removed later. */}
-        <Full className="mt-2">
-          <MustHaveAmenities value={form.must_have_amenities || ""} onChange={v => updateField("must_have_amenities", v)} />
-        </Full>
-      </Group>
+            <select
+              className={selectCls}
+              value={form.baths || ""}
+              onChange={e => updateField("baths", e.target.value)}
+            >
+              <option value="">Bathrooms</option>
+              {BATH_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <select
+              className={selectCls}
+              value={form.income || ""}
+              onChange={e => updateField("income", e.target.value)}
+            >
+              <option value="">Monthly Income</option>
+              {INCOME_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+
+            <select
+              className={selectCls}
+              value={form.desired_rent || ""}
+              onChange={e => updateField("desired_rent", e.target.value)}
+            >
+              <option value="">Budget</option>
+              {RENT_RANGE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+
+          {/* Must-Have Amenities — the SAME canonical option list and max-3 rule as
+              the Smart Form. Stored comma-joined (canonical values, not labels). */}
+          <div className="mt-1">
+            <MustHaveAmenities value={form.must_have_amenities || ""} onChange={v => updateField("must_have_amenities", v)} />
+          </div>
+        </div>
+      </div>
 
       {/* ── Screening — Credit Score (compact) + Rental & Criminal Background
              in one row. Detailed screening sub-fields come from the Smart Lead
@@ -237,6 +374,68 @@ export default function LeadFields({
             </select>
           </div>
         </Full>
+
+        {/* Broken-lease follow-ups — same trigger + options as the Smart Lead Form. */}
+        {form.credit_history === "Broken Lease" && (
+          <Full>
+            <div className="grid grid-cols-2 gap-3">
+              <select className={selectCls} value={form.broken_lease_age || ""} onChange={e => updateField("broken_lease_age", e.target.value)}>
+                <option value="">How old is the broken lease?</option>
+                {HISTORY_AGE_OPTIONS.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+              <select className={selectCls} value={form.broken_lease_amount || ""} onChange={e => updateField("broken_lease_amount", e.target.value)}>
+                <option value="">Approximate balance owed</option>
+                {BALANCE_OPTIONS.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+          </Full>
+        )}
+
+        {/* Eviction follow-ups. */}
+        {form.credit_history === "Eviction" && (
+          <Full>
+            <div className="grid grid-cols-3 gap-3">
+              <select className={selectCls} value={form.eviction_court || ""} onChange={e => updateField("eviction_court", e.target.value)}>
+                <option value="">Went to court?</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+              <select className={selectCls} value={form.eviction_age || ""} onChange={e => updateField("eviction_age", e.target.value)}>
+                <option value="">How old is the eviction?</option>
+                {HISTORY_AGE_OPTIONS.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+              <select className={selectCls} value={form.eviction_balance || ""} onChange={e => updateField("eviction_balance", e.target.value)}>
+                <option value="">Approximate balance owed</option>
+                {BALANCE_OPTIONS.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+          </Full>
+        )}
+
+        {/* Criminal follow-ups — charge type for any non-None record, plus the age
+            for the matching classification. Same triggers/options as the Smart Form. */}
+        {form.criminal_background && form.criminal_background !== "None" && (
+          <Full>
+            <div className="grid grid-cols-2 gap-3">
+              <select className={selectCls} value={form.criminal_charge || ""} onChange={e => updateField("criminal_charge", e.target.value)}>
+                <option value="">Charge type</option>
+                {CRIMINAL_CHARGE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              {form.criminal_background === "Felony" && (
+                <select className={selectCls} value={form.felony_age || ""} onChange={e => updateField("felony_age", e.target.value)}>
+                  <option value="">How old is the felony?</option>
+                  {HISTORY_AGE_OPTIONS.map(a => <option key={a} value={a}>{a}</option>)}
+                </select>
+              )}
+              {form.criminal_background === "Misdemeanor" && (
+                <select className={selectCls} value={form.misdemeanor_age || ""} onChange={e => updateField("misdemeanor_age", e.target.value)}>
+                  <option value="">How old is the misdemeanor?</option>
+                  {HISTORY_AGE_OPTIONS.map(a => <option key={a} value={a}>{a}</option>)}
+                </select>
+              )}
+            </div>
+          </Full>
+        )}
       </Group>
 
       {/* ── Notes — no group heading: "Client Notes" and "Locator Notes" already
