@@ -145,6 +145,37 @@ export function selectInMarketMatch<T extends ExplorerProperty>(
 }
 
 /**
+ * The text SENT to Places for a name search — not what the agent sees. A bare brand
+ * word (e.g. "Allora") often loses to a more "prominent" unrelated place (Google
+ * returns an "Allora" restaurant) and yields no apartment communities. Appending an
+ * apartment context term biases Text Search toward communities WITHOUT a hard
+ * includedType and without touching the user's input. Market geography is already
+ * handled by the locationBias + the market-envelope filter, so no market name is
+ * injected. Trimmed, so a trailing space never changes the query.
+ */
+export function nameSearchTextQuery(rawName: string): string {
+  const name = rawName.trim()
+  return name ? `${name} apartments` : ""
+}
+
+/**
+ * A candidate is relevant to a NAME search when its name contains the meaningful
+ * tokens the agent typed. This drops the noise the broadened "…apartments" query
+ * can pull in — a generic nearby apartment when the brand has no local match, or a
+ * differently-spelled community — while keeping every real match. Tokens shorter
+ * than 4 chars (articles/particles like "the"/"at") are ignored; if nothing
+ * meaningful remains (a very short query), fall back to a whole-query substring test.
+ */
+export function nameMatchesQuery(candidateName: string, query: string): boolean {
+  const nn = normalizeName(candidateName)
+  const toks = normalizeName(query)
+    .split(" ")
+    .filter((t) => t.length >= 4)
+  if (toks.length === 0) return nn.includes(normalizeName(query))
+  return toks.every((t) => nn.includes(t))
+}
+
+/**
  * Autocomplete trigger eligibility: fetch suggestions once the query is at least 2
  * characters, EXCEPT when it equals a canonical name we just resolved (a picker
  * click / market reset filled the input) — so the picker doesn't refetch/reopen for

@@ -10,7 +10,7 @@ import { supabase } from "@/lib/supabase/client"
 import { readMapMarket, writeMapMarket } from "@/lib/preferences"
 import { boundsForMarket, getMarketBySlug, isInsideMarket, isInsideState, isMarketInState, marketsForSlugs, resolveMapMarket } from "@/lib/markets/catalog"
 import { resolveDesiredAreaCenters, searchAreas, mergeDedupeByPlaceId, type AreaCenter } from "@/lib/propertyExplorer/multiArea"
-import { selectInMarketMatch, decideNameSearch, normalizePlace, shouldFetchSuggestions, computeVisible, type NameSearchDecision } from "@/lib/propertyExplorer/nameSearch"
+import { selectInMarketMatch, decideNameSearch, normalizePlace, shouldFetchSuggestions, computeVisible, nameSearchTextQuery, nameMatchesQuery, type NameSearchDecision } from "@/lib/propertyExplorer/nameSearch"
 import { StarRating } from "@/components/crm/StarRating"
 import { createPortal } from "react-dom"
 
@@ -567,14 +567,21 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
         // brokerage, a vacation rental, a restaurant) can be qualified out. NO hard
         // includedType — a community Google mistypes must still be findable by name.
         fields: ["id", "displayName", "formattedAddress", "location", "types"],
-        textQuery: name,
+        // Apartment-context query so a bare brand ("Allora") returns communities
+        // instead of a same-named restaurant. The user's input is untouched.
+        textQuery: nameSearchTextQuery(name),
         ...(bias ? { locationBias: bias } : {}),
-        maxResultCount: 8,
+        // Fetch a few extra since the relevance filter below trims noise.
+        maxResultCount: 10,
       })
 
       const found: ExplorerProperty[] = (places ?? [])
         .map((p) => normalizePlace(p, marketSlug))
         .filter((p): p is ExplorerProperty => p !== null)
+        // Drop what the broadened "…apartments" query drags in: a generic nearby
+        // apartment when the brand has no local match, or a differently-spelled
+        // place — keep only candidates whose NAME matches what was typed.
+        .filter((p) => nameMatchesQuery(p.propertyName, name))
       const catalog = await fetchCatalog(
         found.map((f) => f.placeId),
         supabase,

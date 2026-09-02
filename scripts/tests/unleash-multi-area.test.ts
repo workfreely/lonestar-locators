@@ -20,7 +20,7 @@ import {
 } from "@/lib/propertyExplorer/multiArea"
 import { computeSuggestions } from "@/lib/propertyExplorer/suggestions"
 import { centerForMarket, centerForDesiredArea } from "@/lib/markets/catalog"
-import { selectInMarketMatch, normalizeName, decideNameSearch, normalizePlace, shouldFetchSuggestions, computeVisible } from "@/lib/propertyExplorer/nameSearch"
+import { selectInMarketMatch, normalizeName, decideNameSearch, normalizePlace, shouldFetchSuggestions, computeVisible, nameSearchTextQuery, nameMatchesQuery } from "@/lib/propertyExplorer/nameSearch"
 import type { ExplorerProperty } from "@/lib/propertyExplorer/types"
 
 let pass = 0,
@@ -578,6 +578,23 @@ const prop = (placeId: string, name: string, address: string | null = null): Exp
   eq(shouldFetchSuggestions("am", ""), true, "2 chars → eligible for suggestion fetch")
   eq(shouldFetchSuggestions("amli", ""), true, "4 chars → eligible")
   eq(shouldFetchSuggestions("  a ", ""), false, "trimmed 1 char → not eligible")
+
+  // Bare-brand context + trailing-space normalization. "Allora" and "Allora " must
+  // produce the SAME Places query and the SAME eligibility.
+  eq(nameSearchTextQuery("Allora"), "Allora apartments", "bare brand gets an apartment-context Places query")
+  eq(nameSearchTextQuery("Allora "), nameSearchTextQuery("Allora"), "trailing space → identical suggestion query (trimmed)")
+  eq(shouldFetchSuggestions("Allora ", ""), shouldFetchSuggestions("Allora", ""), "trailing space → identical eligibility")
+  eq(nameSearchTextQuery("  "), "", "blank → empty query (no fetch)")
+
+  // nameMatchesQuery keeps real brand matches, drops the broadened-query noise.
+  eq(nameMatchesQuery("Allora Kinder Ranch", "Allora"), true, "Allora community matches 'Allora'")
+  eq(nameMatchesQuery("Allora Alamo Heights", "Allora"), true, "second Allora community matches 'Allora'")
+  eq(nameMatchesQuery("Allure at Shavano", "Allora"), false, "differently-spelled 'Allure' is NOT an 'Allora' match")
+  eq(nameMatchesQuery("The Mila Apartments", "AMLI"), false, "a generic SA apartment is not an 'AMLI' match (non-local brand → no noise)")
+  eq(nameMatchesQuery("AMLI Fountain Place", "AMLI"), true, "AMLI community matches 'AMLI'")
+  // Articles/particles (<4 chars) are ignored; meaningful tokens must all be present.
+  eq(nameMatchesQuery("The Standard at Legacy", "Standard Legacy"), true, "'Standard Legacy' matches 'The Standard at Legacy' (tokens present)")
+  eq(nameMatchesQuery("The Mila", "The Legacy"), false, "'The Legacy' does not match 'The Mila' ('the' ignored, 'legacy' absent)")
   // Suppressed when the input equals a just-resolved canonical name (post-click).
   eq(shouldFetchSuggestions("AMLI Fountain Place", "AMLI Fountain Place"), false, "canonical name just filled in → suppressed")
   eq(shouldFetchSuggestions("AMLI Fountain", "AMLI Fountain Place"), true, "editing after a resolve → eligible again")
