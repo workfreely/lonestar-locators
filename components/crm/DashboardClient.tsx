@@ -2314,11 +2314,14 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                   // source and marketSlug included — so a consumer never has to
                   // ask Places for coordinates the map already loaded. Values are
                   // forwarded exactly as held: a null coordinate stays null.
+                  //
+                  // `null` is an explicit CLEAR (e.g. the map switched markets): it
+                  // posts a null payload so the Companion drops its Current Property.
                   window.postMessage(
                     {
                       source: COMPANION_MSG_SOURCE,
                       type: "current-property",
-                      payload: toCompanionProperty(property),
+                      payload: property ? toCompanionProperty(property) : null,
                     },
                     window.location.origin,
                   )

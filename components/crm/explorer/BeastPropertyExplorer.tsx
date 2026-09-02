@@ -39,8 +39,10 @@ type Props = {
   licenseState?: string | null
   /** The CRM's currently selected lead, when there is one. Reused, never duplicated. */
   activeClient: ClientLocationContext | null
-  /** Called when a property is selected — the normalized, workflow-ready object. */
-  onSelectProperty?: (property: ExplorerProperty) => void
+  /** Called when the current property changes — the normalized, workflow-ready
+   *  object, or `null` to CLEAR the transient current-property selection (e.g. on a
+   *  market switch), which the consumer forwards to the Companion bridge. */
+  onSelectProperty?: (property: ExplorerProperty | null) => void
   /** property_url values already recommended for the active client — decides
    *  whether the card offers "+ Recommendation" or shows "✓ Recommended". */
   recommendedUrls?: string[]
@@ -180,6 +182,13 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   useEffect(() => {
     nameMatchIdsRef.current = nameMatchIds
   }, [nameMatchIds])
+  // Mirror onSelectProperty so the market-switch effect can signal a current-property
+  // CLEAR with the latest handler without depending on it (it is an inline prop and
+  // would otherwise re-run the whole reset effect every render).
+  const onSelectPropertyRef = useRef(onSelectProperty)
+  useEffect(() => {
+    onSelectPropertyRef.current = onSelectProperty
+  }, [onSelectProperty])
 
   // ── Property autocomplete (results picker) ──────────────────────────────────
   // Live QUALIFIED in-market matches as the agent types, shown as a compact picker
@@ -744,6 +753,10 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
       setHovered(null)
       lastResolvedNameRef.current = ""
       onResolveName?.("")
+      // Clear the transient Current Property in the Workspace AND Beast Companion —
+      // an explicit null over the existing current-property bridge. Recommendations,
+      // Favorites, the active client/session and history are untouched.
+      onSelectPropertyRef.current?.(null)
     }
   }, [marketSlug, onResolveName])
 

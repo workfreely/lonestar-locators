@@ -4,6 +4,7 @@ import {
   CURRENT_PROPERTY_KEY,
   gateAllowsWrite,
   getSessionOwner,
+  removeSensitive,
   writeSensitive,
 } from "@/utils/sensitiveStore";
 import {
@@ -83,6 +84,20 @@ export function startMapPropertyBridge(): void {
 
     // 3. SCHEMA — identifiable, bounded, and coordinates that are real or absent.
     const payload = d.payload;
+
+    // Explicit CLEAR — a null payload means "no current property" (e.g. the CRM
+    // switched markets and cleared its transient selection). Remove ONLY the stored
+    // Current Property so the panel returns to its empty state; the active client,
+    // Recommendations and Favorites are untouched.
+    if (payload === null) {
+      void (async () => {
+        await removeSensitive(CURRENT_PROPERTY_KEY);
+        lastWritten = "";
+        log("map-property bridge: current-property cleared");
+      })();
+      return;
+    }
+
     if (!isValidCurrentPropertyPayload(payload)) return;
 
     const serialized = JSON.stringify(payload);

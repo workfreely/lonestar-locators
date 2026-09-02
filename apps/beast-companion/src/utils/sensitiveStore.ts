@@ -212,3 +212,17 @@ export async function clearSensitive(): Promise<void> {
     /* best effort */
   }
 }
+
+/**
+ * Erase ONE sensitive record. Used for an explicit clear (e.g. the CRM signalled
+ * that the transient Current Property is now empty) without touching the others.
+ */
+export async function removeSensitive(key: string): Promise<void> {
+  const area = sensitiveArea();
+  if (!area) return;
+  try {
+    await area.remove(key);
+  } catch {
+    /* best effort */
+  }
+}
