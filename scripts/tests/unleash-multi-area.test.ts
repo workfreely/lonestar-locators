@@ -237,13 +237,17 @@ const prop = (placeId: string, name: string, address: string | null = null): Exp
   // setCenter exists only for: market re-apply effect, market-change re-center,
   // and the out-of-market map-center guard snap-back — three known, camera-safe
   // sites. None sits in the area-search fan-out toward results.
-  eq(count(/\.setCenter\s*\(/g), 3, "setCenter only at the 3 known market-resolve/guard sites")
+  // Two setCenter sites remain: the guarded market-restriction re-center, and the
+  // out-of-market map-center guard snap-back inside searchThisArea. The old UNGUARDED
+  // effect keyed on `center` by reference was removed — a fresh {lat,lng} object on
+  // re-render must never re-center and clobber a name-search panTo (the ALARO bug).
+  eq(count(/\.setCenter\s*\(/g), 2, "setCenter only at the guarded re-center + the out-of-market guard")
   // Regression: the market-restriction effect keeps `status` in its deps (to
   // re-apply the restriction once the map is ready), so its setCenter(center) MUST
-  // be guarded by a center-changed check — otherwise a name-search status flip
-  // (searching→ready) would setCenter(market center) and snap the camera back to
-  // downtown, undoing the name-search panTo.
-  ok(/appliedCenterRef/.test(src), "market re-center is guarded (appliedCenterRef) so a status flip can't clobber the name-search panTo")
+  // be guarded by a center-CHANGED check (value, not reference) — otherwise a
+  // name-search status flip, or a fresh center object on re-render, would
+  // setCenter(market center) and snap the camera off the found property.
+  ok(/appliedCenterRef/.test(src), "market re-center is guarded (appliedCenterRef, by value) so a status flip / new center object can't clobber the name-search panTo")
   ok(/await searchAreas\(/.test(src), "search fans out through searchAreas()")
   ok(/setRadarOrigins\(/.test(src), "radar uses per-area origins")
 }
@@ -255,11 +259,20 @@ const prop = (placeId: string, name: string, address: string | null = null): Exp
 // the real market boxes from lib/markets/catalog (SA/Austin own boxes; Dallas &
 // Fort Worth share the DFW box).
 {
-  // A candidate with real coordinates (name search always has a location).
-  const at = (placeId: string, name: string, lat: number, lng: number): ExplorerProperty => ({
+  // A candidate with real coordinates (name search always has a location). Defaults
+  // to an apartment_complex type so it QUALIFIES as an apartment/community; the
+  // qualification tests pass explicit non-apartment types (brokerage, lodging, …).
+  const at = (
+    placeId: string,
+    name: string,
+    lat: number,
+    lng: number,
+    types: string[] = ["apartment_complex"],
+  ): ExplorerProperty => ({
     ...prop(placeId, name),
     lat,
     lng,
+    googleTypes: types,
   })
   // Real reference points inside each market box.
   const SA = { lat: 29.4241, lng: -98.4936 } // San Antonio downtown
@@ -354,7 +367,7 @@ const prop = (placeId: string, name: string, address: string | null = null): Exp
 
     // Successful search selects Property A: focus A, adds it, no prior to clear.
     const ok1 = decideNameSearch(
-      { inMarket: [A], selected: A },
+      { selected: A },
       { selectedPlaceId: null, nameMatchIds: new Set() },
     )
     eq(ok1.focus?.placeId, "A", "successful name search focuses Property A")
@@ -365,7 +378,7 @@ const prop = (placeId: string, name: string, address: string | null = null): Exp
     // Next submitted search has NO in-market result, while A (a prior name-search
     // result) is still selected → A must be cleared, pins untouched, no camera move.
     const fail = decideNameSearch(
-      { inMarket: [], selected: null },
+      { selected: null },
       { selectedPlaceId: "A", nameMatchIds: new Set(["A"]) },
     )
     eq(fail.focus, null, "failed search moves NO camera (focus null)")
@@ -376,14 +389,14 @@ const prop = (placeId: string, name: string, address: string | null = null): Exp
     // A card opened by clicking a NORMAL/area pin (not a name-search result) is left
     // alone on a failed search.
     const failArea = decideNameSearch(
-      { inMarket: [], selected: null },
+      { selected: null },
       { selectedPlaceId: "areaPin", nameMatchIds: new Set(["A"]) },
     )
     eq(failArea.clearPriorSelection, false, "failed search does NOT close a non-name-search (area) card")
 
     // No prior selection at all → nothing to clear.
     const failNone = decideNameSearch(
-      { inMarket: [], selected: null },
+      { selected: null },
       { selectedPlaceId: null, nameMatchIds: new Set() },
     )
     eq(failNone.clearPriorSelection, false, "failed search with no prior selection clears nothing")
@@ -400,6 +413,7 @@ const prop = (placeId: string, name: string, address: string | null = null): Exp
       displayName: name,
       formattedAddress: `${name}, San Antonio, TX`,
       location: { lat: () => lat, lng: () => lng },
+      types: ["apartment_complex"],
     })
     const VECINA = { lat: 29.6366373, lng: -98.5133438 }
     const ALARO = { lat: 29.5039261, lng: -98.6963962 }
@@ -432,6 +446,91 @@ const prop = (placeId: string, name: string, address: string | null = null): Exp
     eq(normalizePlace({ id: "x", displayName: "No Loc", location: null }, "san-antonio"), null, "place with no location → null (unmappable, dropped)")
     eq(normalizePlace(mockPlace("n", "NaN Place", NaN, NaN), "san-antonio"), null, "place with non-finite coords → null (unmappable, dropped)")
     eq(normalizePlace({ displayName: "No Id", location: { lat: () => 29.4, lng: () => -98.5 } }, "san-antonio"), null, "place with no id → null")
+  }
+
+  // ── Bug 1: candidate qualification — one valid apartment result, no noise ─────
+  // Real production noise: a bare name search returns brokerages, furnished/vacation
+  // overlays, restaurants and home builders alongside the real community. Only the
+  // single strongest valid apartment/community candidate may win and be rendered.
+  {
+    // "vecina" — the real community (catalogued + apartment type) among the exact
+    // noise seen in production. Only "vecina" is catalogued.
+    const vecinaCands = [
+      at("vecina", "Vecina Apartment Villas", SA.lat, SA.lng, ["apartment_complex", "real_estate_agency"]),
+      at("kw", "Vecina Real Estate Group - Keller Williams Legacy", SA.lat, SA.lng, ["real_estate_agency", "point_of_interest"]),
+      at("landing", "Landing Furnished Apartments at Vecina", SA.lat, SA.lng, ["apartment_complex"]),
+      at("beauty", "La Vecina Beauty Bead", SA.lat, SA.lng, ["point_of_interest"]),
+      at("food", "Vecina Arcadia", SA.lat, SA.lng, ["latin_american_restaurant", "restaurant"]),
+    ]
+    const catV = new Set(["vecina"])
+    const rV = selectInMarketMatch(vecinaCands, "san-antonio", "vecina", catV)
+    eq(rV.selected?.placeId, "vecina", "'vecina' selects the catalogued community, not the brokerage/furnished/restaurant")
+    eq(rV.qualified.some((p) => p.placeId === "kw"), false, "real-estate brokerage cannot qualify")
+    eq(rV.qualified.some((p) => p.placeId === "beauty"), false, "beauty business cannot qualify")
+    eq(rV.qualified.some((p) => p.placeId === "food"), false, "restaurant cannot qualify")
+
+    // Only the SELECTED property is added as the name-search result — never every survivor.
+    const dV = decideNameSearch(rV, { selectedPlaceId: null, nameMatchIds: new Set() })
+    eq(dV.addResults.length, 1, "several Text Search candidates → only ONE (the selected) is added as the name-search result")
+    eq(dV.addResults[0]?.placeId, "vecina", "the single added result is the selected community")
+    eq(dV.nameMatchIds.size, 1, "nameMatchIds holds exactly the selected Place ID")
+    // Place-ID consistency: card (selected) === marker/added === focus/panTo.
+    eq(rV.selected?.placeId, dV.focus?.placeId, "selected (card) Place ID === focus (marker/panTo) Place ID")
+    eq(dV.focus?.placeId, dV.addResults[0]?.placeId, "focus Place ID === added result Place ID")
+
+    // Exact catalogued apartment beats a similarly-named real-estate/business candidate.
+    const rExact = selectInMarketMatch(vecinaCands, "san-antonio", "vecina apartment villas", catV)
+    eq(rExact.selected?.placeId, "vecina", "exact catalogued apartment (Vecina Apartment Villas) beats the Keller Williams brokerage")
+
+    // Oasis Stone Oak — catalogued, NO apartment type (real_estate_agency) — beats
+    // lodging/vacation-rental namesakes.
+    const oasisCands = [
+      at("oasis", "Oasis Stone Oak", SA.lat, SA.lng, ["real_estate_agency", "point_of_interest"]),
+      at("vac1", "Stone Oak Oasis with Private Pool and Grill!", SA.lat, SA.lng, ["lodging"]),
+      at("vac2", "Stone Oak Oasis with Pool, Patio and Grill!", SA.lat, SA.lng, ["lodging"]),
+    ]
+    const rO = selectInMarketMatch(oasisCands, "san-antonio", "oasis stone oak", new Set(["oasis"]))
+    eq(rO.selected?.placeId, "oasis", "catalogued Oasis (no apartment type) beats vacation-rental namesakes")
+    eq(rO.qualified.some((p) => p.placeId === "vac1" || p.placeId === "vac2"), false, "lodging/vacation rentals cannot qualify")
+
+    // Uncatalogued legitimate apartment (apartment-typed, NOT catalogued) can still win.
+    const rU = selectInMarketMatch(
+      [at("newapt", "Brand New Lofts", SA.lat, SA.lng, ["apartment_complex"])],
+      "san-antonio",
+      "brand new lofts",
+      new Set(),
+    )
+    eq(rU.selected?.placeId, "newapt", "uncatalogued apartment-typed community still qualifies and wins (catalog not required)")
+
+    // All-noise candidate set → no property surfaced (never a noise fallback).
+    const rN = selectInMarketMatch(
+      [
+        at("b1", "Something Realty", SA.lat, SA.lng, ["real_estate_agency"]),
+        at("b2", "Cabin Getaway", SA.lat, SA.lng, ["lodging"]),
+      ],
+      "san-antonio",
+      "something",
+      new Set(),
+    )
+    eq(rN.selected, null, "all-noise candidate set → no property surfaced")
+
+    // ALARO-style: exact lat/lng preserved through selection AND focus/panTo, and the
+    // card/marker/focus/added-result all share ONE Place ID (Bug 2 identity check).
+    const ALARO = { lat: 29.5039261, lng: -98.6963962 }
+    const rA = selectInMarketMatch(
+      [at("alaro", "ALARO", ALARO.lat, ALARO.lng, ["apartment_complex"])],
+      "san-antonio",
+      "alaro",
+      new Set(["alaro"]),
+    )
+    eq(rA.selected?.placeId, "alaro", "ALARO selected")
+    eq(rA.selected?.lat, ALARO.lat, "ALARO exact latitude preserved through selection (far-west, not central-north)")
+    eq(rA.selected?.lng, ALARO.lng, "ALARO exact longitude preserved through selection")
+    const dA = decideNameSearch(rA, { selectedPlaceId: null, nameMatchIds: new Set() })
+    eq(dA.focus?.lat, ALARO.lat, "ALARO exact latitude drives focus/panTo")
+    eq(dA.focus?.lng, ALARO.lng, "ALARO exact longitude drives focus/panTo")
+    eq(dA.addResults.length, 1, "ALARO adds exactly one result")
+    eq(dA.focus?.placeId, dA.addResults[0]?.placeId, "ALARO focus Place ID === added result Place ID === card")
   }
 }
 

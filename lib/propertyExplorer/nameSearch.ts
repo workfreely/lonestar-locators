@@ -12,6 +12,20 @@ export type PlaceLike = {
   displayName?: string | null
   formattedAddress?: string | null
   location?: { lat(): number; lng(): number } | null
+  /** Google place type tags (e.g. "apartment_complex", "lodging",
+   *  "real_estate_agency"). Used to qualify apartment/community candidates and
+   *  reject obvious non-apartment businesses in name search. */
+  types?: string[] | null
+}
+
+/** Google place types that mark a real apartment community. Google frequently sets
+ *  a community's PRIMARY type to real_estate_agency (its leasing office) while still
+ *  listing apartment_complex in `types`, so we look at the whole `types` array. */
+const APARTMENT_TYPES = new Set(["apartment_complex", "apartment_building"])
+
+/** True when a candidate carries a Google apartment/community type. */
+export function hasApartmentType(p: ExplorerProperty): boolean {
+  return (p.googleTypes ?? []).some((t) => APARTMENT_TYPES.has(t))
 }
 
 /**
@@ -40,6 +54,7 @@ export function normalizePlace(
     source: "google_places",
     marketSlug: marketSlug ?? null,
     searchCenter: null,
+    googleTypes: Array.isArray(p.types) ? p.types : [],
   }
 }
 
@@ -70,14 +85,32 @@ export function normalizeName(s: string): string {
 
 /**
  * From raw (already normalized-to-ExplorerProperty) Places Text Search candidates,
- * in Google's relevance order, keep only those whose real coordinates lie inside
- * the selected market's envelope, then pick the strongest:
- *   1. an exact normalized name match (preferred over relevance rank), else
- *   2. the top relevance-ranked in-market candidate.
- * Returns the surviving in-market list plus the chosen property, or `selected:
- * null` when NOTHING is in-market — the caller then surfaces no property and never
- * falls back to an out-of-market result. A candidate with no real coordinates
- * cannot be geographically verified, so it is dropped.
+ * in Google's relevance order, choose the SINGLE strongest valid apartment-community
+ * candidate for an individual property search:
+ *
+ *   1. keep only candidates whose real coordinates lie inside the selected market's
+ *      envelope (Dallas/Fort Worth share the DFW box; others own theirs);
+ *   2. QUALIFY the apartment/community candidates — catalogued OR carrying a Google
+ *      apartment type. This rejects the obvious non-apartment noise a bare name
+ *      search drags in (brokerages, vacation/short-term rentals, restaurants, home
+ *      builders — none catalogued, none apartment-typed) WITHOUT a hard includedType
+ *      that would drop catalogued apartments Google mistypes (e.g. Oasis Stone Oak =
+ *      real_estate_agency, no apartment type);
+ *   3. rank the qualified survivors:
+ *        a. exact normalized name match that is CATALOGUED,
+ *        b. exact normalized name match with an apartment/community type,
+ *        c. strongest in-market apartment/community candidate — catalogued first,
+ *           else Google's top-relevance qualified candidate.
+ *
+ * Returns the in-market list, the qualified subset, and the single chosen property
+ * (or `selected: null` when nothing in-market qualifies — the caller then surfaces
+ * NO property and never falls back to noise or an out-of-market result). A candidate
+ * without real coordinates cannot be verified and is dropped.
+ *
+ * `cataloguedIds` is the set of Place IDs present in property_catalog (resolved by
+ * the caller's existing enrichment lookup — no extra request). Catalog membership is
+ * a PREFERENCE, never a requirement: a legitimate uncatalogued apartment with an
+ * apartment type still qualifies and can win.
  *
  * When `marketSlug` resolves to no bounds (unknown/unconfigured), `isInsideMarket`
  * returns true for every point, so the search is unrestricted rather than trapped —
@@ -87,14 +120,28 @@ export function selectInMarketMatch<T extends ExplorerProperty>(
   candidates: T[],
   marketSlug: string | null | undefined,
   query: string,
-): { inMarket: T[]; selected: T | null } {
+  cataloguedIds?: Set<string>,
+): { inMarket: T[]; qualified: T[]; selected: T | null } {
   const inMarket = candidates.filter(
     (p) => hasCoordinates(p) && isInsideMarket({ lat: p.lat, lng: p.lng }, marketSlug),
   )
-  if (inMarket.length === 0) return { inMarket, selected: null }
+  const cat = cataloguedIds ?? new Set<string>()
+  const isCat = (p: T) => cat.has(p.placeId)
+  const isApt = (p: T) => hasApartmentType(p)
+  // A real apartment/community: catalogued OR apartment-typed. Everything else
+  // (brokerage, lodging/vacation rental, restaurant, general contractor, …) is
+  // rejected here.
+  const qualified = inMarket.filter((p) => isCat(p) || isApt(p))
+  if (qualified.length === 0) return { inMarket, qualified, selected: null }
   const q = normalizeName(query)
-  const exact = q ? inMarket.find((p) => normalizeName(p.propertyName) === q) : undefined
-  return { inMarket, selected: exact ?? inMarket[0] }
+  const isExact = (p: T) => q.length > 0 && normalizeName(p.propertyName) === q
+  const selected =
+    qualified.find((p) => isExact(p) && isCat(p)) ?? // 3a exact + catalogued
+    qualified.find((p) => isExact(p) && isApt(p)) ?? // 3b exact + apartment type
+    qualified.find((p) => isCat(p)) ?? //              3c strongest catalogued
+    qualified[0] ?? //                                 3c strongest apartment (relevance)
+    null
+  return { inMarket, qualified, selected }
 }
 
 /**
@@ -103,7 +150,9 @@ export function selectInMarketMatch<T extends ExplorerProperty>(
  * without React or Google Maps.
  */
 export type NameSearchDecision<T extends ExplorerProperty> = {
-  /** In-market properties to MERGE into the existing pins (existing win on overlap).
+  /** The property/ies to MERGE into the existing pins (existing win on overlap). For
+   *  an individual property search this is EXACTLY the one selected property — never
+   *  every in-market survivor — so unrelated Text Search results never become pins.
    *  Empty on a failed search, so normal/area pins are never disturbed. */
   addResults: T[]
   /** The next `nameMatchIds` set — the in-market hits, or empty on a failed search
@@ -127,13 +176,16 @@ export type NameSearchDecision<T extends ExplorerProperty> = {
  *     search. Never falls back to an out-of-market property.
  */
 export function decideNameSearch<T extends ExplorerProperty>(
-  result: { inMarket: T[]; selected: T | null },
+  result: { selected: T | null },
   prior: { selectedPlaceId: string | null; nameMatchIds: Set<string> },
 ): NameSearchDecision<T> {
   if (result.selected) {
+    // ONLY the selected property contributes — not every in-market survivor — so a
+    // name search adds exactly one pin (its card, marker and focus all share this
+    // one Place ID). Existing area/Unleash pins are untouched.
     return {
-      addResults: result.inMarket,
-      nameMatchIds: new Set(result.inMarket.map((p) => p.placeId)),
+      addResults: [result.selected],
+      nameMatchIds: new Set([result.selected.placeId]),
       focus: result.selected,
       clearPriorSelection: false,
     }

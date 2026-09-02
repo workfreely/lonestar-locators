@@ -53,6 +53,11 @@ export type ExplorerProperty = {
   source: PropertySource
   /** The market context the search ran in, when known (catalog slug). */
   marketSlug: string | null
+  /** Google place type tags for the result (e.g. "apartment_complex", "lodging").
+   *  Populated on the NAME-search path (used to qualify apartment/community
+   *  candidates and reject non-apartment businesses); ABSENT on area results, which
+   *  don't request it. Never displayed. */
+  googleTypes?: string[] | null
   /** The map center the search was issued from — audit trail for the result set. */
   searchCenter: { lat: number; lng: number } | null
 

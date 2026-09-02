@@ -367,10 +367,12 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     }
   }, [center])
 
-  // Re-center when the resolved market changes, without rebuilding the map.
-  useEffect(() => {
-    if (mapRef.current) mapRef.current.setCenter(center)
-  }, [center])
+  // Re-centering on a market change is handled by the restriction effect above,
+  // which is VALUE-guarded (appliedCenterRef). A second effect keyed on `center` by
+  // reference used to live here — but `center` is a fresh {lat,lng} object on many
+  // renders even when the market is unchanged, so it re-centered spuriously and
+  // could snap a name-search panTo back to the market center (the ALARO focus bug).
+  // Removed: one guarded re-center path only.
 
   useEffect(() => () => clearMarkers(), [clearMarkers])
 
@@ -514,8 +516,9 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
         }
 
         const { places } = await Place.searchByText({
-          // Minimum fields only — no rich Place Details, same as the area search.
-          fields: ["id", "displayName", "formattedAddress", "location"],
+          // Minimum fields, plus `types` so obvious non-apartment businesses (a
+          // brokerage, a vacation rental, a restaurant) can be qualified out below.
+          fields: ["id", "displayName", "formattedAddress", "location", "types"],
           textQuery: name,
           ...(bias ? { locationBias: bias } : {}),
           // No apartment-type gate on purpose: a community whose Google primary type
@@ -538,16 +541,20 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
           supabase,
         )
         const enriched = enrichProperties(found, catalog)
+        // Place IDs present in property_catalog — a preference signal for selection,
+        // never a requirement (uncatalogued apartments still qualify).
+        const cataloguedIds = new Set(catalog.keys())
 
-        // MARKET RESTRICTION: the returned coordinates are authoritative. Discard
-        // any candidate outside the selected market's envelope (Dallas/Fort Worth
-        // share the DFW box), then choose the strongest — exact normalized name
-        // match, else the top relevance hit — from the IN-MARKET survivors only. No
-        // in-market candidate ⇒ no property surfaced (never an out-of-market
-        // fallback). locationBias above only steers result quality; this is the
-        // final geographic gate.
+        // MARKET RESTRICTION + CANDIDATE QUALIFICATION: coordinates are authoritative
+        // (drop anything outside the selected market's envelope; Dallas/Fort Worth
+        // share the DFW box), then choose the SINGLE strongest valid apartment/
+        // community candidate — catalogued or apartment-typed, exact name preferred —
+        // rejecting brokerages / vacation rentals / other businesses a bare name
+        // search drags in. No in-market qualified candidate ⇒ no property surfaced
+        // (never an out-of-market or noise fallback). locationBias only steers result
+        // quality; this is the final gate.
         const decision = decideNameSearch(
-          selectInMarketMatch(enriched, marketSlug, name),
+          selectInMarketMatch(enriched, marketSlug, name, cataloguedIds),
           {
             selectedPlaceId: selectedRef.current?.placeId ?? null,
             nameMatchIds: nameMatchIdsRef.current,
