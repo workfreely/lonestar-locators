@@ -153,13 +153,12 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
     router.push("/login")
   }
 
-  // Smart Lead Form-style avatar ring (AgentPhoto: crisp white border + soft
-  // shadow), scaled from the form's border-4 to 2px for this 44px nav avatar.
-  // Replaces the muted 1px border that read as a light/fuzzy edge. Circular crop
-  // (overflow-hidden + the img's object-cover) and size are unchanged.
+  // Borderless circular avatar — cleanly cropped (overflow-hidden + the img's
+  // object-cover), no visible ring. A very light shadow gives subtle separation
+  // from the header. Size (44px) and behavior unchanged.
   const buttonCls = light
-    ? "w-[44px] h-[44px] rounded-full bg-white border-2 border-white shadow-[0_1px_4px_rgba(15,23,42,0.18)] flex items-center justify-center text-[#9098a8] overflow-hidden flex-none transition-shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2f6bff] focus-visible:ring-offset-1"
-    : "w-[44px] h-[44px] rounded-full bg-[var(--crm-inset)] border-2 border-white shadow-[0_1px_4px_rgba(15,23,42,0.18)] flex items-center justify-center text-[var(--crm-text-muted)] overflow-hidden flex-none transition-shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--crm-accent)] focus-visible:ring-offset-1"
+    ? "w-[44px] h-[44px] rounded-full bg-white shadow-[0_1px_3px_rgba(15,23,42,0.12)] flex items-center justify-center text-[#9098a8] overflow-hidden flex-none transition-shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2f6bff] focus-visible:ring-offset-1"
+    : "w-[44px] h-[44px] rounded-full bg-[var(--crm-inset)] shadow-[0_1px_3px_rgba(15,23,42,0.12)] flex items-center justify-center text-[var(--crm-text-muted)] overflow-hidden flex-none transition-shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--crm-accent)] focus-visible:ring-offset-1"
 
   const panelCls = light
     ? "absolute right-0 top-full mt-2 w-60 bg-white border border-[#e5e7ee] rounded-xl shadow-[0_12px_32px_rgba(15,23,42,0.14)] py-1.5 z-50"

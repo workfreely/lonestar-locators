@@ -183,23 +183,19 @@
   gap: 10px;
   padding: 8px 12px 6px;
 }
-/* Smart Lead Form-style avatar treatment (AgentPhoto): a crisp white ring around
-   a cleanly cropped circle, scaled down for this 32px menu context (the form uses
-   border-4 white; 2px reads the same at this size). Replaces the muted 1px
-   --lb-border that anti-aliased into a fuzzy halo. box-sizing keeps the ring
-   inside the 32px box; the subtle shadow keeps the white ring legible on dark
-   themes; the neutral fill is the placeholder ground before an image paints. */
+/* Borderless circular avatar — cleanly cropped (overflow hidden + object-fit
+   cover), no visible ring. A very light shadow gives just enough separation from
+   the popover ground; the neutral fill is the placeholder before an image
+   paints. Size unchanged (32px). */
 .bc-pop-avatar {
   width: 32px;
   height: 32px;
   flex: none;
-  box-sizing: border-box;
   border-radius: 50%;
   overflow: hidden;
   object-fit: cover;
-  border: 2px solid #fff;
   background: #f0f1f5;
-  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.18);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
 }
 .bc-pop-avatar-fallback {
   display: flex;
