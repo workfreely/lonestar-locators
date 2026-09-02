@@ -10,7 +10,7 @@ import { supabase } from "@/lib/supabase/client"
 import { readMapMarket, writeMapMarket } from "@/lib/preferences"
 import { boundsForMarket, getMarketBySlug, isInsideMarket, isInsideState, isMarketInState, marketsForSlugs, resolveMapMarket } from "@/lib/markets/catalog"
 import { resolveDesiredAreaCenters, searchAreas, mergeDedupeByPlaceId, type AreaCenter } from "@/lib/propertyExplorer/multiArea"
-import { selectInMarketMatch, decideNameSearch, normalizePlace } from "@/lib/propertyExplorer/nameSearch"
+import { selectInMarketMatch, decideNameSearch, normalizePlace, normalizeName, type NameSearchDecision } from "@/lib/propertyExplorer/nameSearch"
 import { StarRating } from "@/components/crm/StarRating"
 import { createPortal } from "react-dom"
 
@@ -75,6 +75,10 @@ type Props = {
   actionsHost?: HTMLElement | null
   /** Toolbar node for the compact market switcher, left of the search field. */
   marketHost?: HTMLElement | null
+  /** The search-box element (`.kb-search`, position:relative). The property
+   *  autocomplete / results picker is portalled into it, anchored beneath the input.
+   *  Absent → no picker (e.g. a consumer without the toolbar search). */
+  dropdownHost?: HTMLElement | null
 }
 
 type Status = "loading" | "ready" | "searching" | "error" | "unconfigured"
@@ -100,7 +104,7 @@ function getPinOpacity(m: PropertyMarker): number {
   return v ? parseFloat(v) : 1
 }
 
-export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, primaryMarket = null, licenseState = null, onSelectProperty, query = "", searchName = "", onResolveName, recommendedUrls = [], onRecommend, actionsHost = null, marketHost = null, onMatchCount }: Props) {
+export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, primaryMarket = null, licenseState = null, onSelectProperty, query = "", searchName = "", onResolveName, recommendedUrls = [], onRecommend, actionsHost = null, marketHost = null, dropdownHost = null, onMatchCount }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<PropertyMarker[]>([])
@@ -176,6 +180,22 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   useEffect(() => {
     nameMatchIdsRef.current = nameMatchIds
   }, [nameMatchIds])
+
+  // ── Property autocomplete (results picker) ──────────────────────────────────
+  // Live QUALIFIED in-market matches as the agent types, shown as a compact picker
+  // beneath the search input. Clicking a row selects that exact property.
+  const [pickerRows, setPickerRows] = useState<ExplorerProperty[]>([])
+  const [suggestOpen, setSuggestOpen] = useState(false)
+  // Latest-wins guard for the debounced async fetch, and the debounce timer.
+  const suggestSeqRef = useRef(0)
+  const suggestTimerRef = useRef<number | undefined>(undefined)
+  // The canonical name we just wrote into the input (on select) or "" (on market
+  // reset) — so the debounced fetch does NOT reopen the picker for text the user
+  // didn't type.
+  const lastResolvedNameRef = useRef("")
+  // Previous resolved market, to clear name-search UI only on a real SWITCH (not the
+  // initial resolve or a workspace re-mount).
+  const prevMarketRef = useRef<string | null>(null)
 
   // ── Initial viewport ──────────────────────────────────────────────────────
   // 1) the active client's market, when we reliably have one
@@ -480,113 +500,108 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     }
   }, [marketSlug, center, licenseState])
 
-  // ── Name search (find one specific community) ───────────────────────────────
-  // The toolbar text FILTERS loaded pins (cheap, no request); pressing Enter
-  // escalates to a real Places TEXT SEARCH for that community. This is the path
-  // that lets an agent who already knows the property type its name and find it
-  // immediately — it does NOT require Unleash to have run, and does NOT require the
-  // property to be inside the current viewport. Found places run through the SAME
-  // normalize → catalog-enrich pipeline as the area search: catalogued rows gain
-  // website + Google rating, uncatalogued rows pass through unchanged (never
-  // fabricated). Results are merged into the pool deduped by Place ID (existing
-  // pins win, so Unleash's own set/ranking is untouched), and the strongest name
-  // match is selected and centered. Ranking/match-scoring/PI are all unchanged.
+  // ── Name search (find a specific community) ─────────────────────────────────
+  // The toolbar text opens a PICKER of qualified in-market matches (see the
+  // debounced effect below); clicking a row — or pressing Enter — selects ONE. All
+  // paths share the same pipeline: a Places TEXT SEARCH → normalize (exact coords)
+  // → catalog-enrich (website + rating for catalogued, untouched otherwise) →
+  // market-restrict + qualify (catalogued OR apartment-typed; brokerage/lodging/
+  // etc. rejected). It does NOT require Unleash, nor the property to be in view.
+
+  // Apply a completed name-search DECISION to map state: merge ONLY the selected
+  // property (existing pins/Unleash untouched), set the name-match focus, and — on a
+  // match — select + center it using the EXISTING camera tuning (panTo, zoom-to-14
+  // only when zoomed out past 13). On a failed search, clear a prior name-search
+  // selection so a stale property can't masquerade as this result.
+  const applyNameDecision = useCallback(
+    (decision: NameSearchDecision<ExplorerProperty>) => {
+      const map = mapRef.current
+      if (decision.addResults.length > 0) {
+        setResults((prev) => mergeDedupeByPlaceId([prev, decision.addResults]))
+      }
+      setNameMatchIds(decision.nameMatchIds)
+      if (decision.focus && hasCoordinates(decision.focus)) {
+        setSelected(decision.focus)
+        onSelectProperty?.(decision.focus)
+        // Fill the input with the exact canonical name (reuses the returned name, no
+        // extra request); remember it so the picker doesn't reopen for it.
+        onResolveName?.(decision.focus.propertyName)
+        lastResolvedNameRef.current = decision.focus.propertyName
+        map?.panTo({ lat: decision.focus.lat, lng: decision.focus.lng })
+        if (map && (map.getZoom() ?? 0) < 13) map.setZoom(14)
+      } else if (decision.clearPriorSelection) {
+        setSelected(null)
+      }
+    },
+    [onSelectProperty, onResolveName],
+  )
+
+  // One Places Text Search for a name → normalized + catalog-enriched candidates,
+  // market-restricted and qualified. Returns the selectInMarketMatch result (the
+  // picker uses `qualified`; the Enter path uses `selected`). No map/state side
+  // effects — callers decide what to do. Errors propagate to the caller.
+  const runNameSearch = useCallback(
+    async (
+      rawName: string,
+    ): Promise<{ inMarket: ExplorerProperty[]; qualified: ExplorerProperty[]; selected: ExplorerProperty | null } | null> => {
+      const name = rawName.trim()
+      const map = mapRef.current
+      if (!name || !map) return null
+
+      // SOFT bias to the current market so a bare name resolves in this metro — a
+      // bias, never a restriction, so a strong match just past the edge still
+      // returns. Falls back to a wide circle on the map center when the market has
+      // no bounds.
+      let bias: google.maps.places.SearchByTextRequest["locationBias"]
+      if (marketBounds) {
+        bias = marketBounds
+      } else {
+        const g = map.getCenter()
+        bias = g ? { center: { lat: g.lat(), lng: g.lng() }, radius: 50000 } : undefined
+      }
+
+      const { places: placesLib } = await loadGoogleMaps()
+      const { Place } = placesLib
+      const { places } = await Place.searchByText({
+        // Minimum fields, plus `types` so obvious non-apartment businesses (a
+        // brokerage, a vacation rental, a restaurant) can be qualified out. NO hard
+        // includedType — a community Google mistypes must still be findable by name.
+        fields: ["id", "displayName", "formattedAddress", "location", "types"],
+        textQuery: name,
+        ...(bias ? { locationBias: bias } : {}),
+        maxResultCount: 8,
+      })
+
+      const found: ExplorerProperty[] = (places ?? [])
+        .map((p) => normalizePlace(p, marketSlug))
+        .filter((p): p is ExplorerProperty => p !== null)
+      const catalog = await fetchCatalog(
+        found.map((f) => f.placeId),
+        supabase,
+      )
+      const enriched = enrichProperties(found, catalog)
+      const cataloguedIds = new Set(catalog.keys())
+      return selectInMarketMatch(enriched, marketSlug, name, cataloguedIds)
+    },
+    [marketBounds, marketSlug],
+  )
+
+  // Enter (keyboard, secondary): fetch, pick the single strongest, and apply it.
   const searchByName = useCallback(
     async (rawName: string) => {
       const name = rawName.trim()
-      const map = mapRef.current
-      if (!name || !map) return
-
+      if (!name) return
       setStatus("searching")
       setError(null)
       try {
-        const { places: placesLib } = await loadGoogleMaps()
-        const { Place } = placesLib
-
-        // SOFT bias to the current market so a bare "The Standard" resolves in this
-        // metro — but a bias, never a restriction, so a strong name match just past
-        // the market edge still returns. Falls back to a wide circle on the map
-        // center when the market has no bounds.
-        let bias: google.maps.places.SearchByTextRequest["locationBias"]
-        if (marketBounds) {
-          bias = marketBounds
-        } else {
-          const g = map.getCenter()
-          bias = g ? { center: { lat: g.lat(), lng: g.lng() }, radius: 50000 } : undefined
-        }
-
-        const { places } = await Place.searchByText({
-          // Minimum fields, plus `types` so obvious non-apartment businesses (a
-          // brokerage, a vacation rental, a restaurant) can be qualified out below.
-          fields: ["id", "displayName", "formattedAddress", "location", "types"],
-          textQuery: name,
-          ...(bias ? { locationBias: bias } : {}),
-          // No apartment-type gate on purpose: a community whose Google primary type
-          // differs must still be findable BY NAME. Relevance ranking plus the
-          // exact-name preference below keeps the right property on top.
-          maxResultCount: 8,
+        const result = await runNameSearch(name)
+        const decision = decideNameSearch(result ?? { selected: null }, {
+          selectedPlaceId: selectedRef.current?.placeId ?? null,
+          nameMatchIds: nameMatchIdsRef.current,
         })
-
-        // Normalize each Place, reading its real coordinates EXACTLY. A place with
-        // no id/location or non-finite coordinates returns null and is dropped — it
-        // is a result that cannot be mapped, never a fake/center pin.
-        const found: ExplorerProperty[] = (places ?? [])
-          .map((p) => normalizePlace(p, marketSlug))
-          .filter((p): p is ExplorerProperty => p !== null)
-
-        // Enrich exactly like the area path — website + rating for catalogued
-        // Place IDs, untouched pass-through otherwise (no fabricated enrichment).
-        const catalog = await fetchCatalog(
-          found.map((f) => f.placeId),
-          supabase,
-        )
-        const enriched = enrichProperties(found, catalog)
-        // Place IDs present in property_catalog — a preference signal for selection,
-        // never a requirement (uncatalogued apartments still qualify).
-        const cataloguedIds = new Set(catalog.keys())
-
-        // MARKET RESTRICTION + CANDIDATE QUALIFICATION: coordinates are authoritative
-        // (drop anything outside the selected market's envelope; Dallas/Fort Worth
-        // share the DFW box), then choose the SINGLE strongest valid apartment/
-        // community candidate — catalogued or apartment-typed, exact name preferred —
-        // rejecting brokerages / vacation rentals / other businesses a bare name
-        // search drags in. No in-market qualified candidate ⇒ no property surfaced
-        // (never an out-of-market or noise fallback). locationBias only steers result
-        // quality; this is the final gate.
-        const decision = decideNameSearch(
-          selectInMarketMatch(enriched, marketSlug, name, cataloguedIds),
-          {
-            selectedPlaceId: selectedRef.current?.placeId ?? null,
-            nameMatchIds: nameMatchIdsRef.current,
-          },
-        )
-
-        // Merge ONLY in-market results — and only when there are some — so existing
-        // pins (area/Unleash) are never disturbed on a failed search. Then set the
-        // name-search focus (empty on a failed search, clearing the prior focus).
-        if (decision.addResults.length > 0) {
-          setResults((prev) => mergeDedupeByPlaceId([prev, decision.addResults]))
-        }
-        setNameMatchIds(decision.nameMatchIds)
-
-        if (decision.focus && hasCoordinates(decision.focus)) {
-          // In-market match: open its normal card (existing match/fit, rating,
-          // website, recommend controls render as usual — no fabricated match %) and
-          // center on it. Pan/zoom happens ONLY here, on a successful match.
-          setSelected(decision.focus)
-          onSelectProperty?.(decision.focus)
-          // Reflect the exact match in the toolbar input (reuses the returned name,
-          // no extra request). Only here — the successful-match branch.
-          onResolveName?.(decision.focus.propertyName)
-          map.panTo({ lat: decision.focus.lat, lng: decision.focus.lng })
-          if ((map.getZoom() ?? 0) < 13) map.setZoom(14)
-        } else if (decision.clearPriorSelection) {
-          // Nothing in-market: if the current card was a PRIOR name-search result,
-          // close it so it can't look like this search's result. Normal/area pins,
-          // the camera, and Unleash are all untouched; the search text stays.
-          setSelected(null)
-        }
-
+        setSuggestOpen(false)
+        setPickerRows([])
+        applyNameDecision(decision)
         setStatus("ready")
       } catch (e) {
         if (process.env.NODE_ENV !== "production") {
@@ -596,7 +611,26 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
         setStatus("ready")
       }
     },
-    [marketBounds, marketSlug, onSelectProperty, onResolveName],
+    [runNameSearch, applyNameDecision],
+  )
+
+  // Click a picker row → select THAT exact property (its Place ID + enrichment
+  // already in hand), close the picker, fill the input, and run the existing
+  // selection/focus behavior. No re-search.
+  const pickSuggestion = useCallback(
+    (candidate: ExplorerProperty) => {
+      setSuggestOpen(false)
+      setPickerRows([])
+      const decision = decideNameSearch(
+        { selected: candidate },
+        {
+          selectedPlaceId: selectedRef.current?.placeId ?? null,
+          nameMatchIds: nameMatchIdsRef.current,
+        },
+      )
+      applyNameDecision(decision)
+    },
+    [applyNameDecision],
   )
 
   // Enter in the toolbar (a submitted name) runs the name search. Once per distinct
@@ -613,17 +647,76 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     void searchByName(name)
   }, [searchName, searchByName])
 
+  // ── Autocomplete: live suggestions as the agent types (debounced) ───────────
+  // The picker shows the QUALIFIED in-market matches (the same pipeline the Enter
+  // path uses, but the LIST rather than one auto-pick). Debounced ~250ms, min 2
+  // chars, latest-wins. Suppressed when the input holds a canonical name we just
+  // resolved (a click / market reset), so it doesn't reopen for text the user
+  // didn't type.
+  useEffect(() => {
+    const name = query.trim()
+    if (name.length < 2 || (lastResolvedNameRef.current && normalizeName(name) === normalizeName(lastResolvedNameRef.current))) {
+      window.clearTimeout(suggestTimerRef.current)
+      setSuggestOpen(false)
+      setPickerRows([])
+      return
+    }
+    const seq = ++suggestSeqRef.current
+    window.clearTimeout(suggestTimerRef.current)
+    suggestTimerRef.current = window.setTimeout(() => {
+      runNameSearch(name)
+        .then((res) => {
+          if (seq !== suggestSeqRef.current) return // a newer keystroke won
+          const list = res?.qualified ?? []
+          setPickerRows(list)
+          setSuggestOpen(list.length > 0)
+        })
+        .catch(() => {
+          if (seq !== suggestSeqRef.current) return
+          setPickerRows([])
+          setSuggestOpen(false)
+        })
+    }, 250)
+    return () => window.clearTimeout(suggestTimerRef.current)
+  }, [query, runNameSearch])
+
+  // Close the picker on an outside mousedown. A click on the input or a picker row
+  // (both inside dropdownHost = .kb-search) keeps it open.
+  useEffect(() => {
+    if (!suggestOpen || !dropdownHost) return
+    const onDocMouseDown = (e: MouseEvent) => {
+      if (!dropdownHost.contains(e.target as Node)) setSuggestOpen(false)
+    }
+    document.addEventListener("mousedown", onDocMouseDown)
+    return () => document.removeEventListener("mousedown", onDocMouseDown)
+  }, [suggestOpen, dropdownHost])
+
   // Switching markets discards the previous market's apartments immediately, so
   // San Antonio results are never briefly shown on the Austin map while the new
   // search runs. The auto-search effect below then loads the new market.
   useEffect(() => {
+    const prev = prevMarketRef.current
+    prevMarketRef.current = marketSlug
     setResults([])
     setError(null)
     lastSearchRef.current = null
     // A different market is a different search context — drop any name-search focus
-    // so its pins don't linger over the new metro.
+    // so its pins don't linger over the new metro, and close the picker.
     setNameMatchIds(new Set())
-  }, [marketSlug])
+    window.clearTimeout(suggestTimerRef.current)
+    setPickerRows([])
+    setSuggestOpen(false)
+    // On a real market SWITCH (not the initial resolve or a workspace re-mount),
+    // clear the ACTIVE name-search UI so a prior market's property never lingers:
+    // close its card/pin and reset the search input. Unrelated client state and
+    // Unleash are untouched.
+    if (prev !== null && prev !== marketSlug) {
+      setSelected(null)
+      setHovered(null)
+      lastResolvedNameRef.current = ""
+      onResolveName?.("")
+    }
+  }, [marketSlug, onResolveName])
 
   // ── No automatic search on open ─────────────────────────────────────────────
   // The map deliberately opens with NO pins. It used to auto-run a 3 km search on
@@ -980,6 +1073,41 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
 
       {/* Compact market switcher — sits between Board | Map and the search field. */}
       {marketHost && marketSwitcher ? createPortal(marketSwitcher, marketHost) : null}
+
+      {/* Property autocomplete / results picker — portalled beneath the toolbar
+          search input. Mouse-first: scroll, hover-highlight, full-row click. Rows
+          are the QUALIFIED in-market matches; clicking one selects that exact
+          property (Place ID + enrichment) and closes the picker. */}
+      {dropdownHost && suggestOpen && pickerRows.length > 0
+        ? createPortal(
+            <div className="kb-suggest" role="listbox" aria-label="Property results">
+              <div className="kb-suggest-head">Properties</div>
+              <div className="kb-suggest-list">
+                {pickerRows.map((s) => (
+                  <button
+                    key={s.placeId}
+                    type="button"
+                    role="option"
+                    aria-selected={false}
+                    className="kb-suggest-row"
+                    // mousedown (not click) + preventDefault: pick before the input
+                    // blur can close the picker, and keep the input focused.
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      pickSuggestion(s)
+                    }}
+                  >
+                    <span className="kb-suggest-name">{s.propertyName}</span>
+                    {s.propertyAddress ? (
+                      <span className="kb-suggest-sub">{displayAddress(s.propertyAddress)}</span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            </div>,
+            dropdownHost,
+          )
+        : null}
 
       {/* Deliberate search control — the ONLY thing that calls Places. Rendered
           into the toolbar when a host is supplied (Map mode), otherwise in its

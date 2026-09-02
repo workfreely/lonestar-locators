@@ -1844,6 +1844,34 @@ body.jaybot-open {
 @keyframes kb-voice-pulse { 0%,100% { opacity:1; } 50% { opacity:.55; } }
 @media (prefers-reduced-motion: reduce) { .kb-voice-mic[data-state="listening"] { animation:none; } }
 
+/* Property autocomplete / results picker — portalled into .kb-search (position:
+   relative), anchored beneath the input. Themed with the toolbar's own --kb-*
+   tokens so it reads as the same control surface. Compact rows, scrollable when
+   there are more matches than fit (~6 rows visible). */
+.kb-suggest {
+  position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:50;
+  background:var(--kb-col);
+  border:1px solid var(--kb-border-strong);
+  border-radius:12px;
+  box-shadow:0 1px 2px rgba(0,0,0,0.4), 0 18px 40px -16px rgba(0,0,0,0.75);
+  overflow:hidden;
+}
+.kb-suggest-head {
+  padding:8px 12px 6px;
+  font-size:10.5px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase;
+  color:var(--kb-ink-muted);
+}
+.kb-suggest-list { max-height:264px; overflow-y:auto; padding-bottom:4px; }
+.kb-suggest-row {
+  display:flex; flex-direction:column; gap:1px; align-items:flex-start;
+  width:100%; text-align:left; padding:7px 12px;
+  background:transparent; border:0; cursor:pointer;
+  transition:background-color 120ms ease;
+}
+.kb-suggest-row:hover { background:color-mix(in srgb, var(--kb-ink) 10%, transparent); }
+.kb-suggest-name { font-size:13px; font-weight:600; color:var(--kb-ink); line-height:1.25; }
+.kb-suggest-sub { font-size:11.5px; color:var(--kb-ink-soft); line-height:1.2; }
+
 /* Disambiguation / status popover — anchored under the search pill, sized to the
    pill so it never spills over the board. */
 .kb-voice-pop { position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:60; padding:8px; border-radius:12px; border:1px solid var(--kb-border); background:var(--kb-col); box-shadow:0 10px 30px rgba(0,0,0,.35); }

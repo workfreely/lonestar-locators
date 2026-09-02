@@ -216,23 +216,24 @@ const prop = (placeId: string, name: string, address: string | null = null): Exp
   const count = (re: RegExp) => (src.match(re) ?? []).length
   eq(count(/\.fitBounds\s*\(/g), 0, "no fitBounds anywhere in the explorer")
 
-  // The area-search fan-out span (searchThisArea up to, but excluding, searchByName)
-  // must contain no camera move toward results.
+  // The area-search fan-out span (searchThisArea up to the first name-search helper,
+  // applyNameDecision) must contain no camera move toward results.
   const areaStart = src.indexOf("const searchThisArea =")
-  const nameStart = src.indexOf("const searchByName =")
-  ok(areaStart >= 0 && nameStart > areaStart, "located searchThisArea before searchByName")
-  const areaFn = src.slice(areaStart, nameStart)
+  const applyStart = src.indexOf("const applyNameDecision =")
+  ok(areaStart >= 0 && applyStart > areaStart, "located searchThisArea before applyNameDecision")
+  const areaFn = src.slice(areaStart, applyStart)
   eq((areaFn.match(/\.panTo\s*\(/g) ?? []).length, 0, "no panTo in the area-search path")
   eq((areaFn.match(/\.setZoom\s*\(/g) ?? []).length, 0, "no setZoom in the area-search path")
   eq((areaFn.match(/\.fitBounds\s*\(/g) ?? []).length, 0, "no fitBounds in the area-search path")
 
   // Name search intentionally frames the found property: exactly one panTo + one
-  // setZoom in the whole file, both inside searchByName.
+  // setZoom in the whole file, both inside the name-search apply path
+  // (applyNameDecision) — reused by the Enter path AND a picker-row click.
   eq(count(/\.panTo\s*\(/g), 1, "exactly one panTo (name-search focus)")
   eq(count(/\.setZoom\s*\(/g), 1, "exactly one setZoom (name-search focus)")
-  const nameFn = src.slice(nameStart)
-  ok(/\.panTo\s*\(/.test(nameFn), "the panTo lives in searchByName")
-  ok(/\.setZoom\s*\(/.test(nameFn), "the setZoom lives in searchByName")
+  const nameRegion = src.slice(applyStart)
+  ok(/\.panTo\s*\(/.test(nameRegion), "the panTo lives in the name-search apply path")
+  ok(/\.setZoom\s*\(/.test(nameRegion), "the setZoom lives in the name-search apply path")
 
   // setCenter exists only for: market re-apply effect, market-change re-center,
   // and the out-of-market map-center guard snap-back — three known, camera-safe
@@ -545,20 +546,22 @@ const prop = (placeId: string, name: string, address: string | null = null): Exp
     resolve(here, "../../components/crm/explorer/BeastPropertyExplorer.tsx"),
     "utf8",
   )
-  const nameStart = src.indexOf("const searchByName =")
-  const nameEnd = src.indexOf("// Enter in the toolbar", nameStart)
-  ok(nameStart >= 0 && nameEnd > nameStart, "located the searchByName body")
+  // The Places call + market-restriction now live in the shared fetch helper
+  // runNameSearch (used by both the picker and the Enter path).
+  const runStart = src.indexOf("const runNameSearch =")
+  const runEnd = src.indexOf("const searchByName =", runStart)
+  ok(runStart >= 0 && runEnd > runStart, "located the runNameSearch body")
   // Check CODE only — strip line comments so a comment that merely names the field
   // (e.g. "no apartment-type gate") never trips the assertion.
-  const nameFn = src
-    .slice(nameStart, nameEnd)
+  const runFn = src
+    .slice(runStart, runEnd)
     .split("\n")
     .map((l) => l.replace(/\/\/.*$/, ""))
     .join("\n")
-  ok(/Place\.searchByText\s*\(/.test(nameFn), "name search calls Place.searchByText")
-  eq((nameFn.match(/includedType\b/g) ?? []).length, 0, "no includedType in the name-search request")
-  eq((nameFn.match(/includedPrimaryTypes\b/g) ?? []).length, 0, "no includedPrimaryTypes in the name-search request")
-  ok(/selectInMarketMatch\s*\(/.test(nameFn), "name search restricts to in-market via selectInMarketMatch")
+  ok(/Place\.searchByText\s*\(/.test(runFn), "name search calls Place.searchByText")
+  eq((runFn.match(/includedType\b/g) ?? []).length, 0, "no includedType in the name-search request")
+  eq((runFn.match(/includedPrimaryTypes\b/g) ?? []).length, 0, "no includedPrimaryTypes in the name-search request")
+  ok(/selectInMarketMatch\s*\(/.test(runFn), "name search restricts to in-market via selectInMarketMatch")
 }
 
   console.log(`\n${pass} passed, ${fail} failed`)

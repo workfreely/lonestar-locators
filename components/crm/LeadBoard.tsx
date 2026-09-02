@@ -137,7 +137,7 @@ export default function LeadBoard({
    *  instead of floating in the middle of the map. */
   mapSlot?: (
     query: string,
-    hosts: { actions: HTMLElement | null; market: HTMLElement | null },
+    hosts: { actions: HTMLElement | null; market: HTMLElement | null; search: HTMLElement | null },
       onMatchCount: (count: number | null) => void,
     /** The query as it was when Enter was pressed — the "find this exact property"
      *  signal. Cleared on any keystroke, so it fires once per submission. */
@@ -161,6 +161,9 @@ export default function LeadBoard({
   // explorer re-renders once the node exists after the first paint.
   const [mapActionsHost, setMapActionsHost] = useState<HTMLDivElement | null>(null)
   const [mapMarketHost, setMapMarketHost] = useState<HTMLDivElement | null>(null)
+  // The search box element — the property autocomplete picker portals into it
+  // (it is position:relative), anchored beneath the input.
+  const [searchBoxHost, setSearchBoxHost] = useState<HTMLDivElement | null>(null)
   // The query AS IT WAS when Enter was pressed — the explicit "I meant that"
   // signal. Typing alone never counts, and any keystroke or a click back into the
   // field clears it, so the no-results state cannot linger.
@@ -405,7 +408,7 @@ export default function LeadBoard({
                   </button>
                 </div>
               )}
-            <div className={`kb-search${voiceEnabled ? " kb-search-voice" : ""}`}>
+            <div className={`kb-search${voiceEnabled ? " kb-search-voice" : ""}`} ref={setSearchBoxHost}>
             <span className="kb-search-ic">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                 <circle cx="11" cy="11" r="7" />
@@ -531,7 +534,7 @@ export default function LeadBoard({
           /* Beast Property Explorer fills the same flex slot the board occupies, so
              it grows and shrinks with whatever Agenda and Companion leave behind. */
           <div className="kb-board" style={{ display: "block", padding: 0, overflow: "hidden" }}>
-            {mapSlot?.(searchQuery, { actions: mapActionsHost, market: mapMarketHost }, setMatchCount, submittedQuery, setSearchQuery)}
+            {mapSlot?.(searchQuery, { actions: mapActionsHost, market: mapMarketHost, search: searchBoxHost }, setMatchCount, submittedQuery, setSearchQuery)}
           </div>
         ) : (
         <div className="kb-board" data-density={view}>

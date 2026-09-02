@@ -2288,6 +2288,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                 onResolveName={onResolveName}
                 actionsHost={hosts.actions}
                 marketHost={hosts.market}
+                dropdownHost={hosts.search}
                 onMatchCount={onMatchCount}
                 primaryMarket={primaryMarket}
                 licenseState={licenseState}
