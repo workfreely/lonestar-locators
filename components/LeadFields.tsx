@@ -19,6 +19,7 @@ import {
 } from "@/lib/formOptions"
 import { getMarketByName } from "@/lib/markets/catalog"
 import { MUST_HAVE_AMENITIES, MAX_MUST_HAVE_AMENITIES, normalizeMustHaveAmenities } from "@bc/companion-shared"
+import { parseMoveDate, csvToArr, arrToCsv } from "@/lib/leads/leadFormValues"
 
 // ─── Shared style tokens ──────────────────────────────────────────────────────
 
@@ -51,7 +52,8 @@ function Full({ children, className = "" }: { children: React.ReactNode; classNa
  *  comma-joined string of canonical VALUES. At the cap, selecting more is refused while
  *  deselecting stays available so a locator can always swap one for another. */
 function MustHaveAmenities({ value, onChange }: { value: string; onChange: (next: string) => void }) {
-  const selected = normalizeMustHaveAmenities(value.split(","))
+  // Tolerant of a null / numeric / legacy-array stored value (csvToArr coerces).
+  const selected = normalizeMustHaveAmenities(csvToArr(value))
   function toggle(v: string) {
     const has = selected.includes(v as (typeof selected)[number])
     if (!has && selected.length >= MAX_MUST_HAVE_AMENITIES) return
@@ -90,8 +92,7 @@ function MustHaveAmenities({ value, onChange }: { value: string; onChange: (next
 
 // The stored neighborhoods/submarkets columns are comma-joined strings; the picker
 // works in arrays and joins back with the SAME ", " the public form + submit use.
-const csvToArr = (s: string): string[] => (s || "").split(",").map((x) => x.trim()).filter(Boolean)
-const arrToCsv = (a: string[]): string => a.join(", ")
+// csvToArr / arrToCsv are the shared tolerant helpers (lib/leads/leadFormValues).
 
 /**
  * Preferred Neighborhoods + Nearby Areas — the SAME catalog-driven options and the
@@ -230,7 +231,7 @@ export default function LeadFields({
       <Group title="Move Details">
         {/* react-datepicker — wrapper gets display:block;width:100% from globals.css */}
         <DatePicker
-          selected={form.move_date ? new Date(form.move_date + "T12:00:00") : null}
+          selected={parseMoveDate(form.move_date)}
           onChange={(date: Date | null) =>
             updateField("move_date", date ? date.toISOString().split("T")[0] : "")
           }
