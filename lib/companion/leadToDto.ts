@@ -1,4 +1,4 @@
-import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO, RecommendationDTO } from "@bc/companion-shared"
+import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO, RecommendationDTO, FollowUpOverrides } from "@bc/companion-shared"
 import { visibleRecommendations, favoriteMoveBlock } from "@/lib/leads/propertyCollections"
 import { isLeadStage, APPLICATION_LAST_ACTION_LABELS, isApplicationStatus } from "@bc/companion-shared"
 import { getNextAction } from "@/lib/nextAction"
@@ -36,6 +36,10 @@ export type CompanionActiveClientPayload = {
    *  Display-only, shown in the Companion menu's connection block; null → initials
    *  fallback. Reuses the CRM's already-resolved agent identity (no extra fetch). */
   agentAvatarUrl?: string | null
+  /** Workspace-level follow-up message TEXT overrides (content only). Passed
+   *  straight through so the Companion renders the same custom wording the CRM
+   *  does. Absent/empty → every message uses its in-code default. Never workflow. */
+  followUpTemplates?: FollowUpOverrides
   /** The locator's saved IANA timezone — the Companion formats Due / Completed /
    *  workflow times in THIS zone (via formatDueDateTime's timeZone), so display
    *  matches the CRM regardless of the device's zone. */
@@ -204,6 +208,9 @@ export function buildActiveClientPayload(
   // name, falling back to initials when null. No separate fetch: reuses the same
   // identity the CRM already resolves for guest cards.
   agentAvatarUrl?: string | null,
+  // Workspace-level follow-up message TEXT overrides (content only). Passed
+  // straight through to the payload so the Companion renders the same wording.
+  followUpTemplates: FollowUpOverrides = {},
 ): CompanionActiveClientPayload {
   const crmStatus = str(lead.crm_status) ?? "new"
   const historyLower = String(lead.credit_history || "").toLowerCase()
@@ -468,5 +475,5 @@ export function buildActiveClientPayload(
       googleRating: typeof r.google_rating === "number" ? r.google_rating : null,
     }))
 
-  return { owner, lead: dto, nextActions: actions, favorites: favoriteDtos, recommendations: recommendationDtos, agentName: str(agentName), agentAvatarUrl: str(agentAvatarUrl), timeZone: str(timeZone) }
+  return { owner, lead: dto, nextActions: actions, favorites: favoriteDtos, recommendations: recommendationDtos, agentName: str(agentName), agentAvatarUrl: str(agentAvatarUrl), followUpTemplates, timeZone: str(timeZone) }
 }

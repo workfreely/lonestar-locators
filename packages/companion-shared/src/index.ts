@@ -145,6 +145,37 @@ export { formatUnitDisplay } from "./format/unit";
 export { buildIntroSmsBody } from "./format/introSms";
 export { buildFollowUpSmsBody } from "./format/followUpSms";
 
+// Editable follow-up MESSAGE TEXT layer (content-only; no workflow coupling).
+export {
+  type FollowUpTemplateKey,
+  DEFAULT_FOLLOW_UP_TEMPLATES,
+  TEMPLATE_TOKENS,
+  FOLLOW_UP_TOKEN_LABELS,
+  TEMPLATE_CHAR_LIMITS,
+  AGENT_TEMPLATE_VARIABLES,
+  SYSTEM_TEMPLATE_TOKENS,
+  renderTemplate,
+  buildTextTop3Body,
+} from "./format/followUpTemplates";
+
+// Approved agent-variable value derivation + clean missing-value tidy (CP2.5).
+export {
+  type FollowUpVarInput,
+  buildFollowUpTemplateVars,
+  tidyRenderedMessage,
+} from "./format/followUpVars";
+
+// Workspace-level override shape + validation/merge (persistence layer, CP2).
+export {
+  type FollowUpOverrides,
+  type SanitizeResult,
+  type OverrideRejectReason,
+  FOLLOW_UP_TEMPLATE_KEYS,
+  isFollowUpTemplateKey,
+  sanitizeFollowUpOverrides,
+  mergeFollowUpTemplates,
+} from "./format/followUpOverrides";
+
 // Canonical workflow action identity (stable action_key set, shared CRM↔Companion)
 export {
   WORKFLOW_ACTION_KEYS,

@@ -14,23 +14,37 @@
  * Values are the client's existing dynamic fields (name, locator first name,
  * bedroom/property type, move-in month) — nothing hard-coded.
  */
-export function buildIntroSmsBody(opts: {
-  firstName: string;
-  locatorFirstName: string;
-  propertyType?: string | null;
-  beds?: string | null;
-  moveDate?: string | null;
-}): string {
-  const bedsText =
-    opts.propertyType === "Studio"
-      ? "studio"
-      : opts.propertyType === "High-Rise"
-        ? "high-rise"
-        : opts.beds
-          ? `${String(opts.beds).replace("-", "").trim()} bed`
-          : "";
-  const monthText = opts.moveDate
-    ? ` in ${new Date(opts.moveDate).toLocaleString("en-US", { month: "long" })}`
-    : "";
-  return `Hey ${opts.firstName} it's ${opts.locatorFirstName}! I got your form for a ${bedsText} move${monthText}. Are you trying to stay near a specific address or side of town?`;
+import { DEFAULT_FOLLOW_UP_TEMPLATES, renderTemplate, type FollowUpTemplateKey } from "./followUpTemplates";
+import { buildFollowUpTemplateVars, tidyRenderedMessage } from "./followUpVars";
+
+export function buildIntroSmsBody(
+  opts: {
+    firstName: string;
+    locatorFirstName: string;
+    propertyType?: string | null;
+    beds?: string | null;
+    // Bathrooms — available on the lead everywhere; threaded from the send sites
+    // in CP3. Absent → the {baths} token renders "". The default intro does not
+    // use {baths}, so parity is unaffected either way.
+    baths?: string | null;
+    moveDate?: string | null;
+  },
+  // Optional workspace overrides map. `intro` absent → the code default, so
+  // output is byte-identical to the previous hardcoded string.
+  overrides?: Partial<Record<FollowUpTemplateKey, string>> | null,
+): string {
+  // One derivation for both the system tokens the default uses (beds_phrase,
+  // move_suffix — byte-identical to the previous inline formula) and the clean
+  // agent-facing tokens available to an override.
+  const vars = buildFollowUpTemplateVars({
+    firstName: opts.firstName,
+    agentFirstName: opts.locatorFirstName,
+    beds: opts.beds,
+    baths: opts.baths,
+    propertyType: opts.propertyType,
+    moveDate: opts.moveDate,
+  });
+  const tpl = overrides?.intro;
+  const rendered = renderTemplate(tpl ?? DEFAULT_FOLLOW_UP_TEMPLATES.intro, vars);
+  return tpl ? tidyRenderedMessage(rendered) : rendered;
 }

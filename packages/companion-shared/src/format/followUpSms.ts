@@ -5,17 +5,39 @@
  * ("FU1"/"FU2"/"FU3"/"Final") or the action_key (follow_up_1/2/3/final_follow_up).
  * Only the Final Follow-Up is name-personalized (matches the current CRM copy).
  */
-export function buildFollowUpSmsBody(titleOrKey: string, name: string): string {
+import {
+  DEFAULT_FOLLOW_UP_TEMPLATES,
+  renderTemplate,
+  type FollowUpTemplateKey,
+} from "./followUpTemplates";
+import { buildFollowUpTemplateVars, tidyRenderedMessage } from "./followUpVars";
+
+// Map the workflow identity (action_key OR legacy title) to a CONTENT key. This
+// is the ONLY bridge between the workflow and the message-text layer; it reads
+// the identity and changes nothing about it. Unrecognized → final_follow_up, the
+// same fallthrough the previous implementation used.
+function contentKeyFor(titleOrKey: string): FollowUpTemplateKey {
   const k = (titleOrKey || "").trim().toLowerCase();
-  if (k === "fu1" || k === "follow_up_1") {
-    return "Hey! Did you see any properties on the list that you'd like to tour?";
-  }
-  if (k === "fu2" || k === "follow_up_2") {
-    return "Is there one that stands out or would you like me to narrow the list down a bit more?";
-  }
-  if (k === "fu3" || k === "follow_up_3") {
-    return "I'm calling communities you were interested in to get updated pricing and specials. Are you still looking to move?";
-  }
-  // Final Follow-Up (final_follow_up / "Final").
-  return `Hey ${name}, I haven't heard back so I'll pause your search for now. No rush, just let me know when you'd like me to pick it back up!`;
+  if (k === "fu1" || k === "follow_up_1") return "follow_up_1";
+  if (k === "fu2" || k === "follow_up_2") return "follow_up_2";
+  if (k === "fu3" || k === "follow_up_3") return "follow_up_3";
+  return "final_follow_up";
+}
+
+export function buildFollowUpSmsBody(
+  titleOrKey: string,
+  name: string,
+  // Optional workspace overrides map. The follow-up's key absent → the code
+  // default, so output is byte-identical to the previous hardcoded strings.
+  overrides?: Partial<Record<FollowUpTemplateKey, string>> | null,
+  // Optional approved-variable values so an OVERRIDE may use {agent_first_name},
+  // {beds}, {baths}, {property_type}, {move_month}. Omitted → those render "".
+  // The DEFAULTS use only {first_name} (Final), so this never affects parity.
+  extraVars?: { agentFirstName?: string | null; beds?: string | null; baths?: string | null; propertyType?: string | null; moveDate?: string | null } | null,
+): string {
+  const key = contentKeyFor(titleOrKey);
+  const vars = buildFollowUpTemplateVars({ firstName: name, ...extraVars });
+  const tpl = overrides?.[key];
+  const rendered = renderTemplate(tpl ?? DEFAULT_FOLLOW_UP_TEMPLATES[key], vars);
+  return tpl ? tidyRenderedMessage(rendered) : rendered;
 }

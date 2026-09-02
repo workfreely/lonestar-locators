@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server"
 import { resolveAgentIdentityForOwner, type ResolvedAgentIdentity } from "@/lib/notifications/agentSignature"
 import { resolveUserTimeZone } from "@/lib/timezone/server"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
-import { greetingName, displayFullName } from "@bc/companion-shared"
+import { greetingName, displayFullName, sanitizeFollowUpOverrides, type FollowUpOverrides } from "@bc/companion-shared"
 import { reconcilePrimaryMarket } from "@/lib/markets/catalog"
 import { attachCatalogRatings } from "@/lib/propertyExplorer/catalog"
 import { DEMO_ALL_LEADS, DEMO_NEXT_ACTIONS, DEMO_FAVORITES, DEMO_RECOMMENDATIONS, DEFAULT_AVG_COMMISSION_PER_LEASE } from "@/lib/demo/demoWorkspace"
@@ -155,13 +155,13 @@ async function getScheduledTours() {
 // first_name personalizes the demo welcome banner.
 type AgentProfile = { name: string; brokerage: string; phone: string; email: string }
 
-async function getProfileContext(): Promise<{ demoMode: boolean; firstName: string; googleConnected: boolean; agent: AgentProfile; signature: ResolvedAgentIdentity | null; avgCommission: number; timeZone: string; companionOwner: string; userId: string; serviceAreaSlugs: string[]; primaryMarket: string | null; licenseState: string | null }> {
+async function getProfileContext(): Promise<{ demoMode: boolean; firstName: string; googleConnected: boolean; agent: AgentProfile; signature: ResolvedAgentIdentity | null; avgCommission: number; timeZone: string; companionOwner: string; userId: string; serviceAreaSlugs: string[]; primaryMarket: string | null; licenseState: string | null; followUpTemplates: FollowUpOverrides }> {
   const emptyAgent: AgentProfile = { name: "", brokerage: "", phone: "", email: "" }
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) return { demoMode: false, firstName: "", googleConnected: false, agent: emptyAgent, signature: null, avgCommission: DEFAULT_AVG_COMMISSION, timeZone: DEFAULT_TIMEZONE, companionOwner: "", userId: "", serviceAreaSlugs: [], primaryMarket: null, licenseState: null }
+  if (!user) return { demoMode: false, firstName: "", googleConnected: false, agent: emptyAgent, signature: null, avgCommission: DEFAULT_AVG_COMMISSION, timeZone: DEFAULT_TIMEZONE, companionOwner: "", userId: "", serviceAreaSlugs: [], primaryMarket: null, licenseState: null, followUpTemplates: {} }
   const { data: profile } = await supabase
     .from("profiles")
     .select("demo_mode, first_name, last_name, preferred_name, preferred_first_name, preferred_last_name, email, brokerage, phone_number, google_connected, avg_commission_per_lease, license_state")
@@ -187,10 +187,10 @@ async function getProfileContext(): Promise<{ demoMode: boolean; firstName: stri
   const { data: ws } = membership?.workspace_id
     ? await supabase
         .from("workspaces")
-        .select("service_areas, primary_market")
+        .select("service_areas, primary_market, follow_up_templates")
         .eq("id", membership.workspace_id)
         .maybeSingle()
-    : { data: null as { service_areas?: string[] | null; primary_market?: string | null } | null }
+    : { data: null as { service_areas?: string[] | null; primary_market?: string | null; follow_up_templates?: unknown } | null }
   const timeZone = await resolveUserTimeZone(supabase, user.id, membership?.workspace_id ?? null)
   // Preferred Name is the display name shown throughout Locator Beast; the
   // legal first/last name is the fallback when it isn't set.
@@ -237,6 +237,10 @@ async function getProfileContext(): Promise<{ demoMode: boolean; firstName: stri
     // The map is constrained to this state. Canonical source is the profile —
     // the same field License Verification and the Smart Form already read.
     licenseState: profile?.license_state ?? null,
+    // Workspace-level follow-up message TEXT overrides (content only). Sanitized
+    // here with the shared validator so only valid, customized keys flow down;
+    // absent/invalid → {} and every message uses its in-code default.
+    followUpTemplates: sanitizeFollowUpOverrides(ws?.follow_up_templates).overrides,
   }
 }
 
@@ -252,7 +256,7 @@ async function isPlatformAdmin(): Promise<boolean> {
 }
 
 export default async function Page() {
-  const { demoMode, firstName, googleConnected, agent, signature, avgCommission, timeZone, companionOwner, userId, serviceAreaSlugs, primaryMarket, licenseState } = await getProfileContext()
+  const { demoMode, firstName, googleConnected, agent, signature, avgCommission, timeZone, companionOwner, userId, serviceAreaSlugs, primaryMarket, licenseState, followUpTemplates } = await getProfileContext()
   const voiceEnabled = await isPlatformAdmin()
 
   if (demoMode) {
@@ -277,6 +281,7 @@ export default async function Page() {
         companionOwner={companionOwner}
         userId={userId}
         serviceAreaSlugs={serviceAreaSlugs}
+        followUpTemplates={followUpTemplates}
       />
     )
   }
@@ -290,5 +295,5 @@ export default async function Page() {
     getScheduledTours(),
   ])
 
-  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} recommendations={recommendations} outreach={outreach} tours={tours} agent={agent} signature={signature} avgCommission={avgCommission} timeZone={timeZone} voiceEnabled={voiceEnabled} companionOwner={companionOwner} userId={userId} serviceAreaSlugs={serviceAreaSlugs} primaryMarket={primaryMarket} licenseState={licenseState} />
+  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} recommendations={recommendations} outreach={outreach} tours={tours} agent={agent} signature={signature} avgCommission={avgCommission} timeZone={timeZone} voiceEnabled={voiceEnabled} companionOwner={companionOwner} userId={userId} serviceAreaSlugs={serviceAreaSlugs} primaryMarket={primaryMarket} licenseState={licenseState} followUpTemplates={followUpTemplates} />
 }

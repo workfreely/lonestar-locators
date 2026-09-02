@@ -13,6 +13,7 @@ import LeadNotes from "./LeadNotes"
 import ClientWorkspaceTools from "./ClientWorkspaceTools"
 import BestMatches from "./BestMatches"
 import LeadFormModal from "../LeadFormModal"
+import FollowUpTemplatesModal from "./FollowUpTemplatesModal"
 import WorkflowActionToast from "./WorkflowActionToast"
 import BeastMilestoneToast from "./BeastMilestoneToast"
 import { useBeastMilestones } from "@/lib/beastMilestones/useBeastMilestones"
@@ -56,7 +57,7 @@ import { followUpSuccessorDueAt } from "@/lib/workflow/moveDateCadence"
 import { autoDueInDays } from "@/lib/workflow/autoDueDate"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { dialUrl, launchExternalProtocol } from "@/lib/leads/launchCommunication"
-import { formatPersonName, greetingName, buildIntroSmsBody } from "@bc/companion-shared"
+import { formatPersonName, greetingName, buildIntroSmsBody, type FollowUpOverrides } from "@bc/companion-shared"
 import type { ResolvedAgentIdentity } from "@/lib/notifications/agentSignature"
 
 // The legacy Lead Panel is HIDDEN in every environment (localhost AND production)
@@ -67,7 +68,7 @@ import type { ResolvedAgentIdentity } from "@/lib/notifications/agentSignature"
 // flag is the single on/off switch — set it back to `true` to show it again.
 const SHOW_LEGACY_LEAD_PANEL = false
 
-export default function DashboardClient({ leads, nextActions, favorites, recommendations = [], outreach = [], tours = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, timeZone = DEFAULT_TIMEZONE, voiceEnabled = false, companionOwner = "", userId = "", serviceAreaSlugs = [], primaryMarket = null, licenseState = null }: { leads: any[]; nextActions: any[]; favorites: any[]; recommendations?: any[]; outreach?: any[]; tours?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; timeZone?: string; /** Beast Voice alpha — true only for a platform admin, resolved server-side. */ voiceEnabled?: boolean;
+export default function DashboardClient({ leads, nextActions, favorites, recommendations = [], outreach = [], tours = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, timeZone = DEFAULT_TIMEZONE, voiceEnabled = false, companionOwner = "", userId = "", serviceAreaSlugs = [], primaryMarket = null, licenseState = null, followUpTemplates = {} }: { leads: any[]; nextActions: any[]; favorites: any[]; recommendations?: any[]; outreach?: any[]; tours?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; timeZone?: string; /** Beast Voice alpha — true only for a platform admin, resolved server-side. */ voiceEnabled?: boolean;
   /** Opaque "<userId>:<workspaceId>" for the signed-in locator. Beast Companion
    *  binds every stored client record to it so a different account on the same
    *  browser can never see this locator's client. Server-derived. */
@@ -81,7 +82,11 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   /** Saved default market — where the map opens with no client selected. */
   primaryMarket?: string | null;
   /** Canonical licensed state — Property Explorer may not leave it. */
-  licenseState?: string | null }) {
+  licenseState?: string | null;
+  /** Workspace-level follow-up message TEXT overrides (content only), already
+   *  sanitized server-side. Threaded to the CRM intro / Text Top 3 and into the
+   *  Companion active-client payload. Never per-lead; never workflow. */
+  followUpTemplates?: FollowUpOverrides }) {
   const router = useRouter()
   const [selectedLeadId, setSelectedLeadId] = useState<string | number | null>(null)
   // The client the SESSION is on — the one Beast Companion is showing. It is a
@@ -227,6 +232,10 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // verb). Non-null opens the shared LeadFormModal in edit mode, pre-populated. The
   // save UPDATEs by lead.id (never a new row), so the lead ID is preserved.
   const [editLead, setEditLead] = useState<any>(null)
+  // Follow-up template editor (Companion hamburger → "edit-templates" verb). Live
+  // copy of the workspace overrides so a save applies to sends immediately.
+  const [editTemplatesOpen, setEditTemplatesOpen] = useState(false)
+  const [localFollowUpTemplates, setLocalFollowUpTemplates] = useState<FollowUpOverrides>(followUpTemplates)
   const [followUpsOpen, setFollowUpsOpen] = useState(DEFAULT_AGENDA_EXPANDED)
   const [pendingEditActionId, setPendingEditActionId] = useState<number | null>(null)
 
@@ -368,7 +377,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     if (!selectedLead) return
     if (typeof window === "undefined") return
     try {
-      const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites, localTours, localRecommendations, insightsFor(selectedLead.id), companionOwner, signature?.photoUrl ?? null)
+      const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites, localTours, localRecommendations, insightsFor(selectedLead.id), companionOwner, signature?.photoUrl ?? null, localFollowUpTemplates)
       companionLeadIdRef.current = selectedLead.id // this lead is now what Companion shows
       setCompanionLeadId(selectedLead.id) // …and the Map resolves its market from it
       window.postMessage(
@@ -378,7 +387,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     } catch {
       /* bridge is best-effort; never block the CRM on a Companion push */
     }
-  }, [selectedLead, localNextActions, agent?.name, latestOutreach, localFavorites, localTours, localRecommendations, insightsByLead])
+  }, [selectedLead, localNextActions, agent?.name, latestOutreach, localFavorites, localTours, localRecommendations, insightsByLead, localFollowUpTemplates])
 
   // ── Beast Companion → CRM workflow verbs (Phase 3, Slice A: Contact) ────────
   // Refs so the once-registered verb listener always sees current CRM state
@@ -419,7 +428,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     if (typeof window === "undefined" || !lead) return
     if (String(lead.id) !== String(companionLeadIdRef.current)) return
     try {
-      const payload = buildActiveClientPayload(lead, nextActionsForLead, agent?.name, outreachFor(lead.id), timeZone, localFavoritesRef.current, localToursRef.current, localRecommendationsRef.current, insightsFor(lead.id), companionOwner, signature?.photoUrl ?? null)
+      const payload = buildActiveClientPayload(lead, nextActionsForLead, agent?.name, outreachFor(lead.id), timeZone, localFavoritesRef.current, localToursRef.current, localRecommendationsRef.current, insightsFor(lead.id), companionOwner, signature?.photoUrl ?? null, localFollowUpTemplates)
       window.postMessage(
         { source: COMPANION_MSG_SOURCE, type: "active-client", payload },
         window.location.origin
@@ -445,7 +454,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     if (typeof window === "undefined") return
     if (selectedLead) {
       try {
-        const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites, localTours, localRecommendations, insightsFor(selectedLead.id), companionOwner, signature?.photoUrl ?? null)
+        const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites, localTours, localRecommendations, insightsFor(selectedLead.id), companionOwner, signature?.photoUrl ?? null, localFollowUpTemplates)
         companionLeadIdRef.current = selectedLead.id
         window.postMessage({ source: COMPANION_MSG_SOURCE, type: "active-client", payload }, window.location.origin)
       } catch {
@@ -1227,8 +1236,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             locatorFirstName: (agent?.name ?? "").trim().split(/\s+/)[0] ?? "",
             propertyType: lead.property_type,
             beds: lead.beds,
+            baths: lead.baths,
             moveDate: lead.move_date,
-          })
+          }, localFollowUpTemplates)
         : undefined
     launchExternalProtocol(dialUrl(method, dc.phone, body)) // tel:/sms: from the CRM page
     setDragContact({ ...dc, method, phase: "confirm-result" })
@@ -1292,9 +1302,18 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         payload.verb !== "move-to-recommendation" &&
         payload.verb !== "move-to-favorite" &&
         payload.verb !== "remove-recommendation" &&
-        payload.verb !== "edit-client"
+        payload.verb !== "edit-client" &&
+        payload.verb !== "edit-templates"
       )
         return
+
+      // Edit Follow-up Templates (Companion launcher) — workspace-level, no lead.
+      // Handle BEFORE the lead lookup and return; opens the CRM template editor.
+      // Purely content: touches no workflow, Next Action, stage, or timing.
+      if (payload.verb === "edit-templates") {
+        setEditTemplatesOpen(true)
+        return
+      }
 
       const lead = localLeadsRef.current.find((l: any) => String(l.id) === String(payload.leadId))
       if (!lead) return
@@ -2611,6 +2630,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                     lead={selectedLead}
                     topMatches={topMatches}
                     locatorName={((agent?.name || "").trim().split(/\s+/)[0]) || ""}
+                    followUpTemplates={localFollowUpTemplates}
                   />
                 </LeadInsights>
               </div>
@@ -2652,6 +2672,18 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           // Unleash list recomputes from the same updated localLeads row.
           postCompanionActiveClient({ ...editLead, ...updated }, localNextActionsRef.current)
         }}
+      />
+
+      {/* Edit Follow-up Templates — opened by the Companion "edit-templates"
+          launcher. Same slideover shell as Add Lead / Edit Client. Content only:
+          on save, the workspace overrides update locally so sends use the new
+          wording at once, and the active-client re-broadcast (deps) pushes them
+          to Companion. No workflow/Next Action/timing/stage is touched. */}
+      <FollowUpTemplatesModal
+        open={editTemplatesOpen}
+        onClose={() => setEditTemplatesOpen(false)}
+        initialOverrides={localFollowUpTemplates}
+        onSaved={(overrides) => setLocalFollowUpTemplates(overrides)}
       />
 
       <WorkflowActionToast

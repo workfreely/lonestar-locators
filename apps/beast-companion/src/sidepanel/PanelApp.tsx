@@ -16,7 +16,7 @@ import "./lead/panel.css";
 // layer the account preference (profiles.theme) on top of this local canonical.
 const THEME_STORE_KEY = "lb-theme";
 
-type MenuMode = "closed" | "popover" | "templates";
+type MenuMode = "closed" | "popover";
 
 /**
  * The Companion's single interface, rendered in the native side panel.
@@ -44,6 +44,7 @@ export function PanelApp({
   onClearCurrentProperty,
   onEditClient,
   canEditClient = false,
+  onEditTemplates,
   connection = DISCONNECTED,
   onConnect,
   onContact,
@@ -93,6 +94,9 @@ export function PanelApp({
    *  Lead modal in edit mode for the active client. Hidden when no active client. */
   onEditClient?: () => void;
   canEditClient?: boolean;
+  /** Edit Follow-up Templates (menu) — LAUNCHER; posts the "edit-templates" verb
+   *  so the CRM opens its template editor. Always available (workspace-level). */
+  onEditTemplates?: () => void;
   // Connection is derived from the SW's authenticated state. Production defaults
   // to DISCONNECTED — the panel is authenticated ONLY when this is "connected".
   connection?: CompanionConnection;
@@ -329,15 +333,13 @@ export function PanelApp({
 
       {menu !== "closed" && (
         <CompanionMenu
-          mode={menu}
           onClose={() => setMenu("closed")}
-          onOpenTemplates={() => setMenu("templates")}
-          onBack={() => setMenu("closed")}
           theme={theme}
           onPickTheme={pickTheme}
           connection={connection}
           onEditClient={onEditClient}
           canEditClient={canEditClient}
+          onEditTemplates={onEditTemplates}
         />
       )}
 

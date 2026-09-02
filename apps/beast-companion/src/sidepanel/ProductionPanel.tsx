@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO, RecommendationDTO } from "@bc/companion-shared";
+import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO, RecommendationDTO, FollowUpOverrides } from "@bc/companion-shared";
+import { sanitizeFollowUpOverrides } from "@bc/companion-shared";
 import type { CurrentProperty } from "@/types";
 import { formatPersonName, buildIntroSmsBody, buildFollowUpSmsBody, isFollowUpAction, formatWorkflowActionLabel, DEFAULT_TIME_VALUE } from "@bc/companion-shared";
 import { PanelApp } from "./PanelApp";
@@ -39,6 +40,9 @@ type ActiveClientPayload = {
   // The locator's uploaded profile photo — shown (display-only) in the menu's
   // connection block next to the agent name; null → initials fallback.
   agentAvatarUrl?: string | null;
+  // Workspace follow-up message TEXT overrides (content only) — the Companion
+  // renders the same custom wording the CRM does. Absent → in-code defaults.
+  followUpTemplates?: FollowUpOverrides;
   // Saved locator IANA timezone — Companion formats Due/Completed times in this
   // zone so it matches the CRM regardless of the device's zone.
   timeZone?: string | null;
@@ -267,6 +271,21 @@ export function ProductionPanel() {
     }
   };
 
+  // Edit Follow-up Templates (menu → CRM). LAUNCHER only: posts the workspace-level
+  // "edit-templates" verb (no lead) so the CRM opens its template editor. Companion
+  // stays read-only; all editing/saving happens in the CRM.
+  const onEditTemplates = () => {
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+    if (store) {
+      store.set({
+        "lb-workflow-verb": {
+          nonce: `${Date.now()}-${Math.random()}`,
+          verb: "edit-templates",
+        },
+      });
+    }
+  };
+
   // An active client means the live CRM is connected and pushing read-only data.
   // Prefer that over the (not-yet-built) SW connection so the client renders.
   const effectiveConnection: CompanionConnection = active
@@ -296,6 +315,11 @@ export function ProductionPanel() {
   // Returns undefined for non-New leads (or when there's no lead) so the text
   // opens blank there, exactly as before. Prefilling is NOT contact — the Text →
   // Yes, Sent workflow is unchanged.
+  // Workspace follow-up TEXT overrides, sanitized on receipt (the payload comes
+  // over the same-origin bridge, but re-validate anyway). Absent → in-code
+  // defaults, so every message is byte-identical to before.
+  const followUpOverrides: FollowUpOverrides = sanitizeFollowUpOverrides(active?.followUpTemplates).overrides;
+
   const introSmsBodyFor = (lead: LeadSummaryDTO | null | undefined): string | undefined => {
     if (!lead || String(lead.stage) !== "new") return undefined;
     const locatorFirstName = (active?.agentName ?? "").trim().split(/\s+/)[0] ?? "";
@@ -304,8 +328,9 @@ export function ProductionPanel() {
       locatorFirstName,
       propertyType: lead.searchCriteria?.propertyType,
       beds: lead.searchCriteria?.beds,
+      baths: lead.searchCriteria?.baths,
       moveDate: lead.searchCriteria?.moveDate,
-    });
+    }, followUpOverrides);
   };
 
   // Header Call Client / Text Client: method is already known, so skip the
@@ -495,7 +520,17 @@ export function ProductionPanel() {
     const open = (active?.nextActions ?? []).find((a) => !a.completed && isFollowUpAction(a.title));
     if (!open) return;
     const name = formatPersonName(lead.firstName) || "this client";
-    launchCommunication("text", lead.phone, buildFollowUpSmsBody(open.title, name));
+    // Same open follow-up identity as before (isFollowUpAction / open.title) — the
+    // workflow is untouched. Only the message TEXT resolves override ?? default,
+    // with the approved variables available if the override uses them.
+    const body = buildFollowUpSmsBody(open.title, name, followUpOverrides, {
+      agentFirstName: (active?.agentName ?? "").trim().split(/\s+/)[0] ?? "",
+      beds: lead.searchCriteria?.beds,
+      baths: lead.searchCriteria?.baths,
+      propertyType: lead.searchCriteria?.propertyType,
+      moveDate: lead.searchCriteria?.moveDate,
+    });
+    launchCommunication("text", lead.phone, body);
     setFollowUpConfirm({ leadId: lead.id, actionId: open.id, title: open.title, name });
   };
 
@@ -939,6 +974,7 @@ export function ProductionPanel() {
         onClearCurrentProperty={onClearCurrentProperty}
         onEditClient={onEditClient}
         canEditClient={!!active?.lead}
+        onEditTemplates={onEditTemplates}
         onConnect={onConnect}
         onContact={onContact}
         onContactLead={onContactLead}

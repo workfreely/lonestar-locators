@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { SectionCard } from "./LeadPanelSections"
 import AiVoiceScriptModal from "./AiVoiceScriptModal"
-import { formatPersonName } from "@bc/companion-shared"
+import { formatPersonName, buildTextTop3Body, type FollowUpOverrides } from "@bc/companion-shared"
 
 // Canonical, shared person-name display formatter — same one the Lead Panel /
 // Agenda / Companion use, so the composed message reads identically everywhere.
@@ -24,22 +24,25 @@ export default function ClientWorkspaceTools({
   lead,
   topMatches = [],
   locatorName = "",
+  followUpTemplates = {},
 }: {
   lead: any
   topMatches?: any[]
   locatorName?: string
+  /** Workspace follow-up TEXT overrides (content only). Only the editable
+   *  surrounding wording of Text Top 3 changes; the property list is untouched. */
+  followUpTemplates?: FollowUpOverrides
 }) {
   const [showVoiceScript, setShowVoiceScript] = useState(false)
 
   function textTop3() {
-    const name = normalizeName(lead.first_name || "")
-    const message = `Hey ${name}, I found 3 excellent options for you!\n\n${topMatches
-      .slice(0, 3)
-      .map((p, i) => {
-        const url = p.website?.startsWith("http") ? p.website : `https://${p.website || ""}`
-        return `${i + 1}. ${p.name}\n${url}`
-      })
-      .join("\n\n")}\n\nWhich one do you like most?`
+    // The property list construction, order, and URL handling are UNCHANGED —
+    // they live inside buildTextTop3Body's {property_list}. The override only
+    // swaps the surrounding editable wording (default when none). No workflow.
+    const message = buildTextTop3Body(
+      { firstName: normalizeName(lead.first_name || ""), topMatches },
+      followUpTemplates,
+    )
     if (lead.phone) window.open(`sms:${lead.phone}?&body=${encodeURIComponent(message)}`, "_self")
   }
 
