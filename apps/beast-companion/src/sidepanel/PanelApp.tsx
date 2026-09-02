@@ -339,6 +339,7 @@ export function PanelApp({
           connection={connection}
           onEditClient={onEditClient}
           canEditClient={canEditClient}
+          editClientFirstName={lead?.firstName ?? null}
           onEditTemplates={onEditTemplates}
         />
       )}

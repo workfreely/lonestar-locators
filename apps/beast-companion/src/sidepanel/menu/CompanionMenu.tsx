@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { ThemeId } from "@bc/companion-shared";
+import { formatPersonName, type ThemeId } from "@bc/companion-shared";
 import { ThemeSelect } from "./ThemeSelect";
 import type { CompanionConnection } from "../connection";
 import "./menu.css";
@@ -31,6 +31,7 @@ export function CompanionMenu({
   connection,
   onEditClient,
   canEditClient = false,
+  editClientFirstName,
   onEditTemplates,
 }: {
   onClose: () => void;
@@ -41,11 +42,20 @@ export function CompanionMenu({
   // in edit mode for the active client. Hidden entirely when no client is active.
   onEditClient?: () => void;
   canEditClient?: boolean;
+  // Active client's first name — DISPLAY ONLY, for the dynamic label. The verb,
+  // workflow, CRM modal, and client-id resolution are unchanged.
+  editClientFirstName?: string | null;
   // Edit Follow-up Templates — LAUNCHER only. Posts the "edit-templates" verb so
   // the CRM opens its template editor. Always available (workspace-level).
   onEditTemplates?: () => void;
 }) {
   const firstItemRef = useRef<HTMLButtonElement>(null);
+
+  // Dynamic Edit Client label — "Edit {First}’s Profile" using the active client's
+  // first name only; falls back to "Edit Client Profile" when no name is available.
+  // Display copy only — nothing here changes the edit-client verb or behavior.
+  const editFirst = formatPersonName(editClientFirstName ?? "").trim();
+  const editClientLabel = editFirst ? `Edit ${editFirst}’s Profile` : "Edit Client Profile";
 
   // Move focus into the popover on open (keyboard nav).
   useEffect(() => {
@@ -68,7 +78,7 @@ export function CompanionMenu({
               onClose();
             }}
           >
-            <span className="bc-pop-label">Edit Client</span>
+            <span className="bc-pop-label">{editClientLabel}</span>
           </button>
         )}
 
