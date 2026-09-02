@@ -177,9 +177,13 @@ function LocationPicker({
 export default function LeadFields({
   form,
   updateField,
+  hideSource = false,
 }: {
   form: any
   updateField: (key: string, value: string) => void
+  /** Edit Client hides the Lead Source control — source is intake attribution, not a
+   *  client-criteria field, and isn't part of the edit save. */
+  hideSource?: boolean
 }) {
   return (
     <div className="space-y-6">
@@ -465,7 +469,9 @@ export default function LeadFields({
         </div>
       </div>
 
-      {/* ── Lead Source — last. Same required rule and same options as before. */}
+      {/* ── Lead Source — last. Same required rule and same options as before.
+             Hidden in Edit Client (source is intake attribution, not edited here). */}
+      {!hideSource && (
       <Group title="Lead Source">
         <Full>
           <select
@@ -484,6 +490,7 @@ export default function LeadFields({
           </select>
         </Full>
       </Group>
+      )}
 
     </div>
   )

@@ -27,28 +27,38 @@ function Chevron() {
   );
 }
 
+// Initials fallback for the connection-block avatar (first letter of the first
+// one or two name words, uppercased). Empty name → "LB".
+function initials(name?: string | null): string {
+  const parts = String(name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "LB";
+  const first = parts[0]![0] ?? "";
+  const second = parts.length > 1 ? parts[parts.length - 1]![0] ?? "" : "";
+  return (first + second).toUpperCase() || "LB";
+}
+
 export function CompanionMenu({
   mode,
   onClose,
   onOpenTemplates,
   onBack,
-  onDemo,
   theme,
   onPickTheme,
   connection,
-  onConnect,
-  onDisconnect,
+  onEditClient,
+  canEditClient = false,
 }: {
   mode: "popover" | "templates";
   onClose: () => void;
   onOpenTemplates: () => void;
   onBack: () => void;
-  onDemo: (label: string) => void;
   theme: ThemeId;
   onPickTheme: (id: ThemeId) => void;
   connection: CompanionConnection;
-  onConnect: () => void;
-  onDisconnect: () => void;
+  // Edit Client — posts the "edit-client" verb so the CRM opens its Add Lead modal
+  // in edit mode for the active client. Hidden entirely when no client is active.
+  onEditClient?: () => void;
+  canEditClient?: boolean;
 }) {
   const firstItemRef = useRef<HTMLButtonElement>(null);
 
@@ -88,8 +98,30 @@ export function CompanionMenu({
     <>
       <div className="bc-pop-backdrop" onClick={onClose} aria-hidden />
       <div className="bc-popover" role="menu" aria-label="Companion menu">
-        <button ref={firstItemRef} type="button" className="bc-pop-item" role="menuitem" onClick={onOpenTemplates}>
-          <span className="bc-pop-label">Message Templates</span>
+        {/* Top actions — the everyday things a locator reaches the menu for. */}
+        {canEditClient && (
+          <button
+            ref={firstItemRef}
+            type="button"
+            className="bc-pop-item"
+            role="menuitem"
+            onClick={() => {
+              onEditClient?.();
+              onClose();
+            }}
+          >
+            <span className="bc-pop-label">Edit Client</span>
+          </button>
+        )}
+
+        <button
+          ref={canEditClient ? undefined : firstItemRef}
+          type="button"
+          className="bc-pop-item"
+          role="menuitem"
+          onClick={onOpenTemplates}
+        >
+          <span className="bc-pop-label">Edit Message Templates</span>
           <Chevron />
         </button>
 
@@ -98,73 +130,63 @@ export function CompanionMenu({
           <ThemeSelect value={theme} onChange={onPickTheme} />
         </div>
 
-        <div className="bc-pop-divider" />
-
-        <button type="button" className="bc-pop-item is-quiet" role="menuitem" onClick={() => onDemo("Help & Feedback")}>
-          <span className="bc-pop-label">Help &amp; Feedback</span>
-        </button>
-
-        {/* Privacy controls. "Clear stored data" erases the locally-held client and
-            property records now; "Withdraw consent" also closes the bridge, so
-            nothing is written again until the disclosure is accepted afresh. Both
-            are required by the Chrome Web Store disclosure commitments. */}
-        <div className="bc-pop-divider" />
-
-        <button
-          type="button"
-          className="bc-pop-item is-quiet"
-          role="menuitem"
-          onClick={() => {
-            void clearSensitive();
-          }}
-        >
-          <span className="bc-pop-label">Clear stored data</span>
-        </button>
-
-        <button
-          type="button"
-          className="bc-pop-item is-quiet"
-          role="menuitem"
-          onClick={() => {
-            void revokeConsent().then(() => location.reload());
-          }}
-        >
-          <span className="bc-pop-label">Withdraw consent</span>
-        </button>
-
-        {/* Connection status — derived ONLY from the authenticated state, never
-            hard-coded. Disconnected is the correct default until the service
-            worker reports a verified, authenticated connection. */}
+        {/* Connection info — who you're signed in as. Read-only; no account actions
+            (connection is derived from the authenticated CRM bridge). */}
         <div className="bc-pop-conn">
           {connection.status === "connected" ? (
-            <>
-              <div className="bc-pop-status">
-                <span className="bc-dot" aria-hidden /> Connected as {connection.name || "your account"}
+            <div className="bc-pop-identity">
+              {connection.avatarUrl ? (
+                <img className="bc-pop-avatar" src={connection.avatarUrl} alt="" />
+              ) : (
+                <span className="bc-pop-avatar bc-pop-avatar-fallback" aria-hidden>
+                  {initials(connection.name)}
+                </span>
+              )}
+              <div className="bc-pop-identity-text">
+                <div className="bc-pop-status">Connected as {connection.name || "your account"}</div>
+                {connection.workspace && <div className="bc-pop-workspace">{connection.workspace}</div>}
               </div>
-              {connection.workspace && <div className="bc-pop-workspace">{connection.workspace}</div>}
-              <div className="bc-pop-conn-actions">
-                <button type="button" className="bc-pop-linkbtn" onClick={onConnect}>
-                  Switch account/workspace
-                </button>
-                <button type="button" className="bc-pop-linkbtn is-danger" onClick={onDisconnect}>
-                  Disconnect
-                </button>
-              </div>
-            </>
+            </div>
           ) : connection.status === "connecting" ? (
             <div className="bc-pop-status is-off">
               <span className="bc-dot is-off" aria-hidden /> Connecting…
             </div>
           ) : (
-            <>
-              <div className="bc-pop-status is-off">
-                <span className="bc-dot is-off" aria-hidden /> Not connected
-              </div>
-              <button type="button" className="bc-pop-connectbtn" onClick={onConnect}>
-                Connect to Locator Beast
-              </button>
-            </>
+            <div className="bc-pop-status is-off">
+              <span className="bc-dot is-off" aria-hidden /> Not connected
+            </div>
           )}
+        </div>
+
+        {/* Compliance controls — kept deliberately quiet and separated. "Clear
+            stored data" erases the locally-held client and property records now;
+            "Withdraw consent" also closes the bridge, so nothing is written again
+            until the disclosure is accepted afresh. Both are required by the
+            published privacy policy and must remain reachable in-extension. */}
+        <div className="bc-pop-divider" />
+
+        <div className="bc-pop-compliance">
+          <button
+            type="button"
+            className="bc-pop-item is-quiet"
+            role="menuitem"
+            onClick={() => {
+              void clearSensitive();
+            }}
+          >
+            <span className="bc-pop-label">Clear stored data</span>
+          </button>
+
+          <button
+            type="button"
+            className="bc-pop-item is-quiet"
+            role="menuitem"
+            onClick={() => {
+              void revokeConsent().then(() => location.reload());
+            }}
+          >
+            <span className="bc-pop-label">Withdraw consent</span>
+          </button>
         </div>
       </div>
     </>

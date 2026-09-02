@@ -3,12 +3,30 @@
 import { useEffect, useState } from "react"
 import LeadFields from "./LeadFields"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
+import { supabase } from "@/lib/supabase/client"
+
+// The lead columns Edit Client may change — client CRITERIA + contact + screening
+// only. Deliberately EXCLUDES pipeline/attribution fields (crm_status, priority,
+// lead_type, source) so an edit never disturbs stage/workflow or overwrites the
+// original source. The edit save updates exactly these by lead.id.
+const EDITABLE_COLUMNS = [
+  "first_name", "last_name", "phone", "email",
+  "move_date", "city", "neighborhoods", "submarkets",
+  "property_type", "must_have_amenities", "desired_rent", "beds", "baths", "income",
+  "credit_history", "credit_score", "broken_lease_age", "broken_lease_amount",
+  "eviction_court", "eviction_age", "eviction_balance",
+  "criminal_background", "criminal_charge", "felony_age", "misdemeanor_age",
+  "notes", "locator_notes",
+] as const
 
 export default function LeadFormModal({
   open,
   onClose,
   onLeadCreated,
   timeZone = DEFAULT_TIMEZONE,
+  mode = "create",
+  lead = null,
+  onLeadSaved,
 }: {
   open: boolean
   onClose: () => void
@@ -16,6 +34,13 @@ export default function LeadFormModal({
   /** The locator's saved IANA timezone, so the manual-entry date reads as the
    *  day THEY added the lead — not the browser's zone and not UTC. */
   timeZone?: string
+  /** "create" (default) is the Add Lead flow; "edit" pre-populates from `lead` and
+   *  saves via a direct UPDATE by lead.id (no insert, no duplicate). */
+  mode?: "create" | "edit"
+  /** The existing lead row to edit (edit mode only). */
+  lead?: any
+  /** Called with the updated lead row after a successful edit save. */
+  onLeadSaved?: (lead: any) => void
 }) {
   const [loading, setLoading] = useState(false)
   // Set when the server reports an exact match and is waiting to be told whether
@@ -65,6 +90,21 @@ export default function LeadFormModal({
     }
   }, [open])
 
+  const isEdit = mode === "edit"
+
+  // Edit mode: seed the form from the existing lead when the modal opens (keyed on
+  // the lead id so switching clients re-seeds). Reads the same snake_case columns
+  // LeadFields edits; CSV columns (neighborhoods/submarkets/must_have_amenities)
+  // round-trip verbatim. Never runs for create.
+  useEffect(() => {
+    if (!open || !isEdit || !lead) return
+    setForm((prev) => ({
+      ...prev,
+      ...Object.fromEntries(EDITABLE_COLUMNS.map((k) => [k, lead[k] ?? ""])),
+    }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, isEdit, lead?.id])
+
   if (!open) return null
 
   function updateField(
@@ -77,7 +117,47 @@ export default function LeadFormModal({
     }))
   }
 
+  // Edit mode: UPDATE the existing lead by id — never an insert, never the
+  // duplicate-detection route, so the lead ID is preserved and no second copy is
+  // created. Writes ONLY the editable client-criteria columns; pipeline/attribution
+  // (crm_status, priority, lead_type, source), stages, Next Actions and history are
+  // left untouched. Same authenticated RLS path the CRM already uses for
+  // locator_notes / invoice edits.
+  async function handleSave() {
+    if (!lead?.id) return
+    if (!form.city) {
+      alert("Please select a city.")
+      return
+    }
+    try {
+      setLoading(true)
+      const patch = Object.fromEntries(EDITABLE_COLUMNS.map((k) => [k, (form as any)[k] ?? ""]))
+      const { data, error } = await supabase
+        .from("leads")
+        .update(patch)
+        .eq("id", lead.id)
+        .select("*")
+        .single()
+      if (error) {
+        console.error(error)
+        alert("Could not save changes")
+        return
+      }
+      onLeadSaved?.(data ?? { ...lead, ...patch })
+      onClose()
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function handleSubmit() {
+    if (isEdit) {
+      await handleSave()
+      return
+    }
+
     if (!form.source) {
       alert("Please select a lead source.")
       return
@@ -280,11 +360,11 @@ export default function LeadFormModal({
         <div className="sticky top-0 bg-[var(--crm-panel)] border-b border-[var(--crm-border)] px-6 py-5 z-20 flex items-center justify-between">
           <div>
             <div className="text-2xl font-black tracking-tight text-[var(--crm-text-primary)]">
-              Add Lead
+              {isEdit ? `Edit ${[lead?.first_name, lead?.last_name].filter(Boolean).join(" ") || "Client"}` : "Add Lead"}
             </div>
 
             <div className="text-sm text-[var(--crm-text-secondary)] mt-1">
-              Create a new lead manually
+              {isEdit ? "Update this client's information." : "Create a new lead manually"}
             </div>
           </div>
 
@@ -301,6 +381,7 @@ export default function LeadFormModal({
   <LeadFields
     form={form}
     updateField={updateField}
+    hideSource={isEdit}
   />
 </div>
         
@@ -327,7 +408,7 @@ export default function LeadFormModal({
             disabled={loading}
             className="crm-cta px-5 py-3 rounded-2xl text-sm font-semibold"
           >
-            {loading ? "Creating..." : "Create Lead"}
+            {isEdit ? (loading ? "Saving..." : "Save Changes") : (loading ? "Creating..." : "Create Lead")}
           </button>
 
         </div>

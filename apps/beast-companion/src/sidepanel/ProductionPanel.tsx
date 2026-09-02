@@ -36,6 +36,9 @@ type ActiveClientPayload = {
   // THIS client's canonical Recommended Properties (lead_recommendations).
   recommendations?: RecommendationDTO[];
   agentName?: string | null;
+  // The locator's uploaded profile photo — shown (display-only) in the menu's
+  // connection block next to the agent name; null → initials fallback.
+  agentAvatarUrl?: string | null;
   // Saved locator IANA timezone — Companion formats Due/Completed times in this
   // zone so it matches the CRM regardless of the device's zone.
   timeZone?: string | null;
@@ -244,15 +247,30 @@ export function ProductionPanel() {
 
   const rt = () => (globalThis as unknown as { chrome?: any }).chrome?.runtime;
   const onConnect = () => rt()?.sendMessage?.({ type: "companion:start-connect" });
-  const onDisconnect = () => {
-    rt()?.sendMessage?.({ type: "companion:disconnect" });
-    setConnection(DISCONNECTED);
+
+  // Edit Client (menu → CRM). Posts the "edit-client" verb for the ACTIVE lead
+  // (panel → chrome.storage → content script → CRM), which opens the CRM's Add
+  // Lead modal in edit mode pre-populated with this client. Companion stays
+  // read-only — the CRM performs the update. No-op when no client is active.
+  const onEditClient = () => {
+    const lead = active?.lead;
+    if (!lead) return;
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+    if (store) {
+      store.set({
+        "lb-workflow-verb": {
+          nonce: `${Date.now()}-${Math.random()}`,
+          leadId: lead.id,
+          verb: "edit-client",
+        },
+      });
+    }
   };
 
   // An active client means the live CRM is connected and pushing read-only data.
   // Prefer that over the (not-yet-built) SW connection so the client renders.
   const effectiveConnection: CompanionConnection = active
-    ? { status: "connected", name: active.agentName ?? "Locator Beast", workspace: "Locator Beast CRM" }
+    ? { status: "connected", name: active.agentName ?? "Locator Beast", workspace: "Locator Beast CRM", avatarUrl: active.agentAvatarUrl ?? null }
     : connection;
 
   // ── Phase 3 (Slice A): Contact ────────────────────────────────────────────
@@ -919,8 +937,9 @@ export function ProductionPanel() {
         onMoveToRecommendation={onMoveToRecommendation}
         onRemoveRecommendation={onRemoveRecommendation}
         onClearCurrentProperty={onClearCurrentProperty}
+        onEditClient={onEditClient}
+        canEditClient={!!active?.lead}
         onConnect={onConnect}
-        onDisconnect={onDisconnect}
         onContact={onContact}
         onContactLead={onContactLead}
         onBuildList={onBuildList}

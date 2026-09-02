@@ -223,6 +223,10 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // durable Rebate Sent state (no leads.* flag). Not a payment, just a workflow log.
   const [confirmRebate, setConfirmRebate] = useState<null | { lead: any; action: any }>(null)
   const [showLeadModal, setShowLeadModal] = useState(false)
+  // The lead currently open in Edit Client mode (Companion hamburger → "edit-client"
+  // verb). Non-null opens the shared LeadFormModal in edit mode, pre-populated. The
+  // save UPDATEs by lead.id (never a new row), so the lead ID is preserved.
+  const [editLead, setEditLead] = useState<any>(null)
   const [followUpsOpen, setFollowUpsOpen] = useState(DEFAULT_AGENDA_EXPANDED)
   const [pendingEditActionId, setPendingEditActionId] = useState<number | null>(null)
 
@@ -364,7 +368,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     if (!selectedLead) return
     if (typeof window === "undefined") return
     try {
-      const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites, localTours, localRecommendations, insightsFor(selectedLead.id), companionOwner)
+      const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites, localTours, localRecommendations, insightsFor(selectedLead.id), companionOwner, signature?.photoUrl ?? null)
       companionLeadIdRef.current = selectedLead.id // this lead is now what Companion shows
       setCompanionLeadId(selectedLead.id) // …and the Map resolves its market from it
       window.postMessage(
@@ -415,7 +419,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     if (typeof window === "undefined" || !lead) return
     if (String(lead.id) !== String(companionLeadIdRef.current)) return
     try {
-      const payload = buildActiveClientPayload(lead, nextActionsForLead, agent?.name, outreachFor(lead.id), timeZone, localFavoritesRef.current, localToursRef.current, localRecommendationsRef.current, insightsFor(lead.id), companionOwner)
+      const payload = buildActiveClientPayload(lead, nextActionsForLead, agent?.name, outreachFor(lead.id), timeZone, localFavoritesRef.current, localToursRef.current, localRecommendationsRef.current, insightsFor(lead.id), companionOwner, signature?.photoUrl ?? null)
       window.postMessage(
         { source: COMPANION_MSG_SOURCE, type: "active-client", payload },
         window.location.origin
@@ -441,7 +445,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     if (typeof window === "undefined") return
     if (selectedLead) {
       try {
-        const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites, localTours, localRecommendations, insightsFor(selectedLead.id), companionOwner)
+        const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites, localTours, localRecommendations, insightsFor(selectedLead.id), companionOwner, signature?.photoUrl ?? null)
         companionLeadIdRef.current = selectedLead.id
         window.postMessage({ source: COMPANION_MSG_SOURCE, type: "active-client", payload }, window.location.origin)
       } catch {
@@ -1287,7 +1291,8 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         payload.verb !== "add-favorite" &&
         payload.verb !== "move-to-recommendation" &&
         payload.verb !== "move-to-favorite" &&
-        payload.verb !== "remove-recommendation"
+        payload.verb !== "remove-recommendation" &&
+        payload.verb !== "edit-client"
       )
         return
 
@@ -1312,6 +1317,17 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       // payload.leadId and this assignment writes the value it already holds.
       companionLeadIdRef.current = lead.id
       setCompanionLeadId(lead.id)
+
+      // Edit Client (Companion hamburger). Open the shared LeadFormModal in edit
+      // mode, pre-populated from THIS lead. The modal saves via a direct UPDATE by
+      // lead.id — no insert, no duplicate — and its onLeadSaved (below) writes the
+      // updated row back into localLeads and re-broadcasts the active-client DTO so
+      // Companion and the next Unleash list pick up the new criteria. Companion
+      // itself stays read-only; the CRM performs the write.
+      if (payload.verb === "edit-client") {
+        setEditLead(lead)
+        return
+      }
 
       // "Build List" START — open SAD happens in the panel; here we advance the
       // workflow Contacted → Searching WITHOUT creating Send List and WITHOUT
@@ -2608,8 +2624,33 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       <LeadFormModal
         open={showLeadModal}
         onClose={() => setShowLeadModal(false)}
+        timeZone={timeZone}
         onLeadCreated={(newLead) => {
           setLocalLeads((prev) => [{ ...newLead, _isNew: true }, ...prev])
+        }}
+      />
+
+      {/* Edit Client — the SAME LeadFormModal in edit mode, opened by the Companion
+          "edit-client" verb. Pre-populated from `editLead`; saves via UPDATE by
+          lead.id. onLeadSaved merges the returned row into localLeads BY ID (the ID
+          is never changed) and re-broadcasts the active-client DTO for that lead, so
+          Beast Companion and the next Unleash list reflect the new criteria at once. */}
+      <LeadFormModal
+        open={editLead !== null}
+        mode="edit"
+        lead={editLead}
+        onClose={() => setEditLead(null)}
+        timeZone={timeZone}
+        onLeadCreated={() => {}}
+        onLeadSaved={(updated) => {
+          if (!updated?.id) return
+          setLocalLeads((prev) =>
+            prev.map((l) => (String(l.id) === String(updated.id) ? { ...l, ...updated } : l))
+          )
+          // Re-publish the active-client DTO for this lead so Companion updates in
+          // place (guarded internally to the lead the panel is showing). The next
+          // Unleash list recomputes from the same updated localLeads row.
+          postCompanionActiveClient({ ...editLead, ...updated }, localNextActionsRef.current)
         }}
       />
 

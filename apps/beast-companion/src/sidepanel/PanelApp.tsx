@@ -42,9 +42,10 @@ export function PanelApp({
   onMoveToRecommendation,
   onRemoveRecommendation,
   onClearCurrentProperty,
+  onEditClient,
+  canEditClient = false,
   connection = DISCONNECTED,
   onConnect,
-  onDisconnect,
   onContact,
   onContactLead,
   onBuildList,
@@ -88,11 +89,14 @@ export function PanelApp({
   onRemoveRecommendation?: (propertyUrl?: string | null) => void;
   /** Manual dismiss of the transient Current Property (clears lb-current-property). */
   onClearCurrentProperty?: () => void;
+  /** Edit Client (menu) — posts the "edit-client" verb so the CRM opens its Add
+   *  Lead modal in edit mode for the active client. Hidden when no active client. */
+  onEditClient?: () => void;
+  canEditClient?: boolean;
   // Connection is derived from the SW's authenticated state. Production defaults
   // to DISCONNECTED — the panel is authenticated ONLY when this is "connected".
   connection?: CompanionConnection;
   onConnect?: () => void;
-  onDisconnect?: () => void;
   // Phase 3 (Slice A) — real Call/Text. Opens sms:/tel: and requests the
   // canonical first-contact cascade via the CRM. Omitted in the dev harness
   // (fixtures), where Call/Text fall back to the inert demo note.
@@ -234,7 +238,6 @@ export function PanelApp({
   // The lead panel is authenticated data — only shown when truly connected.
   const isLoaded = connected && state === "loaded" && !!lead;
   const handleConnect = () => onConnect?.();
-  const handleDisconnect = () => onDisconnect?.();
 
   return (
     <div className="bc-panel">
@@ -330,12 +333,11 @@ export function PanelApp({
           onClose={() => setMenu("closed")}
           onOpenTemplates={() => setMenu("templates")}
           onBack={() => setMenu("closed")}
-          onDemo={onDemo}
           theme={theme}
           onPickTheme={pickTheme}
           connection={connection}
-          onConnect={handleConnect}
-          onDisconnect={handleDisconnect}
+          onEditClient={onEditClient}
+          canEditClient={canEditClient}
         />
       )}
 

@@ -168,49 +168,65 @@
 
 /* ── Connection block (status-driven; never hard-coded) ── */
 .bc-pop-conn {
-  padding-bottom: 6px;
+  padding-bottom: 4px;
 }
 .bc-pop-workspace {
   padding: 0 10px 2px 24px;
   font-size: 11px;
   color: var(--lb-text-secondary);
 }
-.bc-pop-connectbtn {
-  display: block;
-  width: calc(100% - 16px);
-  margin: 6px 8px 2px;
-  padding: 8px 12px;
-  border: 0;
-  border-radius: 9px;
-  background: var(--lb-accent);
-  color: #fff;
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 140ms ease;
-}
-.bc-pop-connectbtn:hover {
-  background: color-mix(in srgb, var(--lb-accent) 88%, #fff);
-}
-.bc-pop-conn-actions {
+
+/* Connected identity — the locator's avatar (or initials) beside "Connected as". */
+.bc-pop-identity {
   display: flex;
-  gap: 12px;
-  padding: 4px 10px 2px 24px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px 6px;
 }
-.bc-pop-linkbtn {
-  background: none;
-  border: 0;
-  padding: 0;
-  font-size: 11px;
-  font-weight: 600;
+.bc-pop-avatar {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--lb-border);
+}
+.bc-pop-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--lb-accent) 16%, transparent);
   color: var(--lb-accent);
-  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
-.bc-pop-linkbtn:hover {
-  text-decoration: underline;
+.bc-pop-identity-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
-.bc-pop-linkbtn.is-danger {
-  color: var(--lb-danger);
+.bc-pop-identity-text .bc-pop-status {
+  display: block;
+  padding: 0;
+  color: var(--lb-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bc-pop-identity-text .bc-pop-workspace {
+  padding: 0;
+}
+
+/* Compliance controls — kept quiet and set apart below a divider. */
+.bc-pop-compliance {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 2px;
+}
+.bc-pop-compliance .bc-pop-item {
+  font-size: 12px;
 }
 
 /* ── Message Templates subview (the only view with a back arrow) ── */

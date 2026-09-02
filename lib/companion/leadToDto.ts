@@ -32,6 +32,10 @@ export type CompanionActiveClientPayload = {
    *  records the Workspace shows; never a separate copy. Empty when none. */
   recommendations?: RecommendationDTO[]
   agentName?: string | null
+  /** The locator's uploaded profile photo URL (ResolvedAgentIdentity.photoUrl).
+   *  Display-only, shown in the Companion menu's connection block; null → initials
+   *  fallback. Reuses the CRM's already-resolved agent identity (no extra fetch). */
+  agentAvatarUrl?: string | null
   /** The locator's saved IANA timezone — the Companion formats Due / Completed /
    *  workflow times in THIS zone (via formatDueDateTime's timeZone), so display
    *  matches the CRM regardless of the device's zone. */
@@ -195,6 +199,11 @@ export function buildActiveClientPayload(
   // Opaque owner key for the signed-in locator, "<userId>:<workspaceId>". Resolved
   // server-side and passed down; the Companion binds every stored record to it.
   owner = "",
+  // The signed-in locator's uploaded profile photo (ResolvedAgentIdentity.photoUrl).
+  // Display-only — the Companion menu's connection block shows it next to the agent
+  // name, falling back to initials when null. No separate fetch: reuses the same
+  // identity the CRM already resolves for guest cards.
+  agentAvatarUrl?: string | null,
 ): CompanionActiveClientPayload {
   const crmStatus = str(lead.crm_status) ?? "new"
   const historyLower = String(lead.credit_history || "").toLowerCase()
@@ -459,5 +468,5 @@ export function buildActiveClientPayload(
       googleRating: typeof r.google_rating === "number" ? r.google_rating : null,
     }))
 
-  return { owner, lead: dto, nextActions: actions, favorites: favoriteDtos, recommendations: recommendationDtos, agentName: str(agentName), timeZone: str(timeZone) }
+  return { owner, lead: dto, nextActions: actions, favorites: favoriteDtos, recommendations: recommendationDtos, agentName: str(agentName), agentAvatarUrl: str(agentAvatarUrl), timeZone: str(timeZone) }
 }

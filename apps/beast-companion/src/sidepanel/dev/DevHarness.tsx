@@ -110,7 +110,8 @@ export function DevHarness() {
             nextActions={state === "loaded" ? fixture.nextActions : []}
             connection={connectionFor(state)}
             onConnect={() => setState("loaded")}
-            onDisconnect={() => setState("not-connected")}
+            onEditClient={() => {}}
+            canEditClient={state === "loaded"}
           />
         </div>
       </div>

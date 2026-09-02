@@ -15,6 +15,7 @@ export interface CompanionConnection {
   status: ConnectionStatus;
   name?: string | null; // shown only when status === "connected"
   workspace?: string | null; // shown only when status === "connected"
+  avatarUrl?: string | null; // locator's profile photo; null → initials fallback
 }
 
 export const DISCONNECTED: CompanionConnection = { status: "disconnected" };
