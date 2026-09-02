@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react";
-import { clearSensitive, revokeConsent } from "@/utils/sensitiveStore";
 import type { ThemeId } from "@bc/companion-shared";
 import { ThemeSelect } from "./ThemeSelect";
 import type { CompanionConnection } from "../connection";
@@ -156,37 +155,6 @@ export function CompanionMenu({
               <span className="bc-dot is-off" aria-hidden /> Not connected
             </div>
           )}
-        </div>
-
-        {/* Compliance controls — kept deliberately quiet and separated. "Clear
-            stored data" erases the locally-held client and property records now;
-            "Withdraw consent" also closes the bridge, so nothing is written again
-            until the disclosure is accepted afresh. Both are required by the
-            published privacy policy and must remain reachable in-extension. */}
-        <div className="bc-pop-divider" />
-
-        <div className="bc-pop-compliance">
-          <button
-            type="button"
-            className="bc-pop-item is-quiet"
-            role="menuitem"
-            onClick={() => {
-              void clearSensitive();
-            }}
-          >
-            <span className="bc-pop-label">Clear stored data</span>
-          </button>
-
-          <button
-            type="button"
-            className="bc-pop-item is-quiet"
-            role="menuitem"
-            onClick={() => {
-              void revokeConsent().then(() => location.reload());
-            }}
-          >
-            <span className="bc-pop-label">Withdraw consent</span>
-          </button>
         </div>
       </div>
     </>

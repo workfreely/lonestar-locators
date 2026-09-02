@@ -219,16 +219,6 @@
   padding: 0;
 }
 
-/* Compliance controls — kept quiet and set apart below a divider. */
-.bc-pop-compliance {
-  display: flex;
-  flex-direction: column;
-  padding-bottom: 2px;
-}
-.bc-pop-compliance .bc-pop-item {
-  font-size: 12px;
-}
-
 /* ── Message Templates subview (the only view with a back arrow) ── */
 .bc-subview {
   position: absolute;
