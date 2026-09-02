@@ -604,6 +604,39 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* Manual dismiss for the transient Current Property — quiet at rest, clear on
+   hover, in the card's upper-right. Clicking it clears ONLY lb-current-property. */
+.bc-cp-wrap { position: relative; }
+/* Keep the property name/address clear of the X. */
+.bc-cp-wrap .bc-current-prop { padding-right: 22px; }
+.bc-cp-clear {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  z-index: 1;
+  flex: none;
+  font: inherit;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  line-height: 1;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--lb-text-muted, #9aa4b2);
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease;
+}
+.bc-cp-clear:hover {
+  color: var(--lb-text-primary, #e8ecf3);
+  background: var(--lb-surface-elevated);
+  border-color: var(--lb-border);
+}
 .bc-prop-move {
   flex: none;
   /* `font: inherit` FIRST — a <button> otherwise falls back to the UA's own font, which

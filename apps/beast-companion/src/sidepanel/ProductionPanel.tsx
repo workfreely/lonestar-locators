@@ -47,6 +47,7 @@ import {
   SENSITIVE_AREA_NAME,
   envelopeOwner,
   readSensitive,
+  removeSensitive,
   unwrapEnvelope,
 } from "@/utils/sensitiveStore";
 // Separate from the active client on purpose: Current Property follows the webpage
@@ -870,6 +871,15 @@ export function ProductionPanel() {
   };
   const onRemoveRecommendation = (propertyUrl?: string | null) => removeSavedProperty("remove-recommendation", propertyUrl);
 
+  // Manual dismiss of the transient Current Property — removes ONLY the
+  // lb-current-property record. The storage.onChanged listener above then sets
+  // currentProperty → null, so the section returns to its empty state immediately.
+  // Same clear path as a market switch; the active client, Recommendations and
+  // Favorites live on other keys and are untouched.
+  const onClearCurrentProperty = () => {
+    void removeSensitive(CURRENT_PROPERTY_KEY);
+  };
+
   const pendingName = pendingContact?.name ?? "this client";
 
   return (
@@ -887,6 +897,7 @@ export function ProductionPanel() {
         onMoveToFavorite={onMoveToFavorite}
         onMoveToRecommendation={onMoveToRecommendation}
         onRemoveRecommendation={onRemoveRecommendation}
+        onClearCurrentProperty={onClearCurrentProperty}
         onConnect={onConnect}
         onDisconnect={onDisconnect}
         onContact={onContact}

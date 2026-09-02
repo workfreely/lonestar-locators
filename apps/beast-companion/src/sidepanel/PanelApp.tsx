@@ -41,6 +41,7 @@ export function PanelApp({
   onMoveToFavorite,
   onMoveToRecommendation,
   onRemoveRecommendation,
+  onClearCurrentProperty,
   connection = DISCONNECTED,
   onConnect,
   onDisconnect,
@@ -85,6 +86,8 @@ export function PanelApp({
   onMoveToFavorite?: (propertyUrl?: string | null) => void;
   onMoveToRecommendation?: (propertyUrl?: string | null) => void;
   onRemoveRecommendation?: (propertyUrl?: string | null) => void;
+  /** Manual dismiss of the transient Current Property (clears lb-current-property). */
+  onClearCurrentProperty?: () => void;
   // Connection is derived from the SW's authenticated state. Production defaults
   // to DISCONNECTED — the panel is authenticated ONLY when this is "connected".
   connection?: CompanionConnection;
@@ -312,6 +315,7 @@ export function PanelApp({
                 onMoveToFavorite={onMoveToFavorite}
                 onMoveToRecommendation={onMoveToRecommendation}
                 onRemoveRecommendation={onRemoveRecommendation}
+                onClearCurrentProperty={onClearCurrentProperty}
               />
             )
           ) : (

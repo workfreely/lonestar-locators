@@ -206,6 +206,7 @@ export function PropertiesView({
   onMoveToFavorite,
   onMoveToRecommendation,
   onRemoveRecommendation,
+  onClearCurrentProperty,
 }: {
   // The active client — its location context (searchCriteria + Locator Notes + AI
   // Insights) is the ONLY input to Location Fit besides the viewed property.
@@ -219,6 +220,9 @@ export function PropertiesView({
   onMoveToRecommendation?: (propertyUrl?: string | null) => void;
   /** Compact ✕ on a Recommendation — remove the property entirely. */
   onRemoveRecommendation?: (propertyUrl?: string | null) => void;
+  /** Manual dismiss of the transient Current Property — clears ONLY
+   *  lb-current-property (the same clear path used on a market switch). */
+  onClearCurrentProperty?: () => void;
 }) {
   // Button state comes from the ACTIVE client's real collections (not local button
   // state): the Current Property is "already in" a collection when a row shares its
@@ -383,7 +387,21 @@ export function PropertiesView({
         }
       >
         {currentProperty ? (
-          <>
+          <div className="bc-cp-wrap">
+            {/* Manual dismiss — clears ONLY the transient Current Property (same
+                storage clear path as a market switch). Quiet at rest, clear on
+                hover; upper-right of the card. */}
+            {onClearCurrentProperty && (
+              <button
+                type="button"
+                className="bc-cp-clear"
+                aria-label="Clear current property"
+                title="Clear current property"
+                onClick={onClearCurrentProperty}
+              >
+                ✕
+              </button>
+            )}
             {/* Identity block — thumbnail aligned to the property NAME, address
                 immediately below. The intelligence rows sit outside this block so
                 the thumbnail never centers against the whole analysis area. */}
@@ -473,7 +491,7 @@ export function PropertiesView({
                 {isRecommended ? "✓ Recommended" : "+ Recommendation"}
               </button>
             </div>
-          </>
+          </div>
         ) : (
           <p className="bc-props-placeholder">The property you&apos;re viewing will appear here.</p>
         )}
