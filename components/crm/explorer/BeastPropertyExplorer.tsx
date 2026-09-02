@@ -1071,16 +1071,12 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
           {selected && (
             <div className="mt-3">
               {!activeClient ? (
-                // Same pill/spot as "+ Recommendation", in a disabled/muted state —
-                // the property is valid; the agent just needs to pick a client first.
-                // Muted, not an error/warning tone.
-                <button
-                  type="button"
-                  disabled
-                  className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-full border border-[#e5e7ee] bg-[#f7f8fa] px-3 py-1.5 text-[11.5px] font-medium text-[#9098a8]"
-                >
+                // Plain muted helper text in the recommendation/action area — clean
+                // guidance, not an unavailable control: no bubble, border, or
+                // disabled-button styling.
+                <p className="text-[11.5px] leading-snug text-[#6b7280]">
                   Select a client to recommend this property
-                </button>
+                </p>
               ) : recommended.has(card.propertyUrl) ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11.5px] font-semibold text-emerald-700">
                   ✓ Recommended
