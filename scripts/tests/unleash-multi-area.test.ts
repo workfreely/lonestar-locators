@@ -20,6 +20,7 @@ import {
 } from "@/lib/propertyExplorer/multiArea"
 import { computeSuggestions } from "@/lib/propertyExplorer/suggestions"
 import { centerForMarket, centerForDesiredArea } from "@/lib/markets/catalog"
+import { selectInMarketMatch, normalizeName, decideNameSearch, normalizePlace } from "@/lib/propertyExplorer/nameSearch"
 import type { ExplorerProperty } from "@/lib/propertyExplorer/types"
 
 let pass = 0,
@@ -200,10 +201,12 @@ const prop = (placeId: string, name: string, address: string | null = null): Exp
 }
 
 // ── Camera-unchanged: source-level guarantee on BeastPropertyExplorer ─────────
-// The Unleash/search path must never programmatically pan or zoom. We assert the
-// component contains no fitBounds/panTo/setZoom at all, and that the ONLY
-// setCenter calls are the market re-center/guard paths (never the area-search
-// fan-out). This catches a regression that would move the camera on Unleash.
+// The AREA / Unleash fan-out must never programmatically pan or zoom to results —
+// that regression is what this guards. NAME search is a separate, deliberate path
+// that DOES center on the specific property the agent asked for ("surface that
+// exact property on the map"), so the camera-move calls are asserted to live ONLY
+// in searchByName — never in searchThisArea. We still assert no fitBounds anywhere,
+// and that setCenter stays at the three known market-resolve/guard sites.
 {
   const here = dirname(fileURLToPath(import.meta.url))
   const src = readFileSync(
@@ -212,14 +215,251 @@ const prop = (placeId: string, name: string, address: string | null = null): Exp
   )
   const count = (re: RegExp) => (src.match(re) ?? []).length
   eq(count(/\.fitBounds\s*\(/g), 0, "no fitBounds anywhere in the explorer")
-  eq(count(/\.panTo\s*\(/g), 0, "no panTo anywhere in the explorer")
-  eq(count(/\.setZoom\s*\(/g), 0, "no setZoom anywhere in the explorer")
+
+  // The area-search fan-out span (searchThisArea up to, but excluding, searchByName)
+  // must contain no camera move toward results.
+  const areaStart = src.indexOf("const searchThisArea =")
+  const nameStart = src.indexOf("const searchByName =")
+  ok(areaStart >= 0 && nameStart > areaStart, "located searchThisArea before searchByName")
+  const areaFn = src.slice(areaStart, nameStart)
+  eq((areaFn.match(/\.panTo\s*\(/g) ?? []).length, 0, "no panTo in the area-search path")
+  eq((areaFn.match(/\.setZoom\s*\(/g) ?? []).length, 0, "no setZoom in the area-search path")
+  eq((areaFn.match(/\.fitBounds\s*\(/g) ?? []).length, 0, "no fitBounds in the area-search path")
+
+  // Name search intentionally frames the found property: exactly one panTo + one
+  // setZoom in the whole file, both inside searchByName.
+  eq(count(/\.panTo\s*\(/g), 1, "exactly one panTo (name-search focus)")
+  eq(count(/\.setZoom\s*\(/g), 1, "exactly one setZoom (name-search focus)")
+  const nameFn = src.slice(nameStart)
+  ok(/\.panTo\s*\(/.test(nameFn), "the panTo lives in searchByName")
+  ok(/\.setZoom\s*\(/.test(nameFn), "the setZoom lives in searchByName")
+
   // setCenter exists only for: market re-apply effect, market-change re-center,
   // and the out-of-market map-center guard snap-back — three known, camera-safe
-  // sites. None sits in the area-search fan-out.
+  // sites. None sits in the area-search fan-out toward results.
   eq(count(/\.setCenter\s*\(/g), 3, "setCenter only at the 3 known market-resolve/guard sites")
+  // Regression: the market-restriction effect keeps `status` in its deps (to
+  // re-apply the restriction once the map is ready), so its setCenter(center) MUST
+  // be guarded by a center-changed check — otherwise a name-search status flip
+  // (searching→ready) would setCenter(market center) and snap the camera back to
+  // downtown, undoing the name-search panTo.
+  ok(/appliedCenterRef/.test(src), "market re-center is guarded (appliedCenterRef) so a status flip can't clobber the name-search panTo")
   ok(/await searchAreas\(/.test(src), "search fans out through searchAreas()")
   ok(/setRadarOrigins\(/.test(src), "radar uses per-area origins")
+}
+
+// ── Individual property (name) search: market restriction + selection ─────────
+// selectInMarketMatch treats the returned coordinates as authoritative: only
+// candidates inside the selected market's envelope survive, and the strongest is
+// chosen from those (exact normalized name, else top relevance). Coordinates use
+// the real market boxes from lib/markets/catalog (SA/Austin own boxes; Dallas &
+// Fort Worth share the DFW box).
+{
+  // A candidate with real coordinates (name search always has a location).
+  const at = (placeId: string, name: string, lat: number, lng: number): ExplorerProperty => ({
+    ...prop(placeId, name),
+    lat,
+    lng,
+  })
+  // Real reference points inside each market box.
+  const SA = { lat: 29.4241, lng: -98.4936 } // San Antonio downtown
+  const AUSTIN = { lat: 30.2672, lng: -97.7431 } // Austin downtown (OUTSIDE the SA box)
+  const DALLAS = { lat: 32.7767, lng: -96.797 }
+  const FORT_WORTH = { lat: 32.7555, lng: -97.3308 } // shares the DFW box with Dallas
+
+  // normalizeName: case + whitespace only, no fuzzy stripping.
+  eq(normalizeName("  The   Standard  "), "the standard", "normalizeName collapses case/space")
+  eq(normalizeName("Résidences 6G") === "the standard", false, "normalizeName is not fuzzy")
+
+  // 1) Exact normalized in-market name → that exact result (over relevance order).
+  {
+    const cands = [
+      at("a", "Sonterra Blue", SA.lat, SA.lng),
+      at("b", "The Standard at Legacy", SA.lat, SA.lng),
+    ]
+    const { selected } = selectInMarketMatch(cands, "san-antonio", "the standard at legacy")
+    eq(selected?.placeId, "b", "exact normalized in-market name selects the exact result")
+  }
+
+  // 2) No exact match → the top relevance-ranked in-market candidate (index 0).
+  {
+    const cands = [
+      at("a", "Villages of Briggs Ranch Apartments", SA.lat, SA.lng),
+      at("b", "Park at Briggs Ranch Apartments", SA.lat, SA.lng),
+    ]
+    const { selected } = selectInMarketMatch(cands, "san-antonio", "briggs ranch luxury")
+    eq(selected?.placeId, "a", "no exact match → top relevance in-market result")
+  }
+
+  // 3) Partial-name in-market property → still selectable (top in-market hit).
+  {
+    const cands = [at("a", "Villages of Briggs Ranch Apartments", SA.lat, SA.lng)]
+    const { selected } = selectInMarketMatch(cands, "san-antonio", "Briggs Ranch")
+    eq(selected?.placeId, "a", "partial in-market name can be selected")
+  }
+
+  // 4) Exact-name property OUTSIDE the market → rejected (no fallback).
+  {
+    const cands = [at("x", "Residences at 6G", AUSTIN.lat, AUSTIN.lng)]
+    const { inMarket, selected } = selectInMarketMatch(cands, "san-antonio", "residences at 6g")
+    eq(inMarket.length, 0, "out-of-market exact-name candidate is discarded")
+    eq(selected, null, "no in-market candidate → no property selected (no fallback)")
+  }
+
+  // 5) Mixed in + out of market → the strongest IN-MARKET candidate only, even when
+  //    the out-of-market one is the exact name match.
+  {
+    const cands = [
+      at("out", "Residences at 6G", AUSTIN.lat, AUSTIN.lng), // exact match, but Austin
+      at("in", "Sonterra Blue", SA.lat, SA.lng), // in SA, not an exact match
+    ]
+    const { selected } = selectInMarketMatch(cands, "san-antonio", "residences at 6g")
+    eq(selected?.placeId, "in", "mixed results → strongest in-market candidate, not the out-of-market exact")
+  }
+
+  // 6) DFW SHARED envelope: Dallas and Fort Worth search the SAME box.
+  //    • Dallas-selected finds an in-bounds Fort Worth property
+  //    • Fort-Worth-selected finds an in-bounds Dallas property
+  //    • neither returns an out-of-DFW (Austin/Houston) property
+  {
+    const HOUSTON = { lat: 29.7604, lng: -95.3698 } // outside the DFW box
+
+    const fw = [at("fw", "Left Bank Apartments", FORT_WORTH.lat, FORT_WORTH.lng)]
+    eq(selectInMarketMatch(fw, "dallas", "left bank").selected?.placeId, "fw", "Dallas-selected finds an in-bounds Fort Worth property (shared DFW box)")
+    const dal = [at("dal", "Gables McKinney Ave", DALLAS.lat, DALLAS.lng)]
+    eq(selectInMarketMatch(dal, "fort-worth", "gables mckinney ave").selected?.placeId, "dal", "Fort-Worth-selected finds an in-bounds Dallas property (shared DFW box)")
+
+    // Out-of-DFW rejection under BOTH DFW markets — Austin, Houston, San Antonio,
+    // i.e. anywhere outside the shared DFW envelope.
+    const austin = [at("au", "Residences at 6G", AUSTIN.lat, AUSTIN.lng)]
+    const houston = [at("ho", "The Southmore", HOUSTON.lat, HOUSTON.lng)]
+    const sanant = [at("sa", "Sonterra Blue", SA.lat, SA.lng)]
+    for (const dfw of ["dallas", "fort-worth"] as const) {
+      eq(selectInMarketMatch(austin, dfw, "residences at 6g").selected, null, `${dfw} rejects an Austin property (out of DFW)`)
+      eq(selectInMarketMatch(houston, dfw, "the southmore").selected, null, `${dfw} rejects a Houston property (out of DFW)`)
+      eq(selectInMarketMatch(sanant, dfw, "sonterra blue").selected, null, `${dfw} rejects a San Antonio property (out of DFW)`)
+    }
+  }
+
+  // Austin property is NOT in the SA box (guards the cross-metro rejection above).
+  {
+    const a = [at("au", "The Domain Apartments", AUSTIN.lat, AUSTIN.lng)]
+    eq(selectInMarketMatch(a, "austin", "the domain apartments").selected?.placeId, "au", "Austin property selectable under Austin")
+    eq(selectInMarketMatch(a, "san-antonio", "the domain apartments").selected, null, "Austin property rejected under San Antonio")
+  }
+
+  // ── decideNameSearch: failed search must not leave a stale selection ─────────
+  {
+    const A = at("A", "Sonterra Blue", SA.lat, SA.lng)
+
+    // Successful search selects Property A: focus A, adds it, no prior to clear.
+    const ok1 = decideNameSearch(
+      { inMarket: [A], selected: A },
+      { selectedPlaceId: null, nameMatchIds: new Set() },
+    )
+    eq(ok1.focus?.placeId, "A", "successful name search focuses Property A")
+    eq(ok1.addResults.length, 1, "successful search adds the in-market property")
+    eq(ok1.nameMatchIds.has("A"), true, "successful search records A as a name match")
+    eq(ok1.clearPriorSelection, false, "successful search clears no prior selection")
+
+    // Next submitted search has NO in-market result, while A (a prior name-search
+    // result) is still selected → A must be cleared, pins untouched, no camera move.
+    const fail = decideNameSearch(
+      { inMarket: [], selected: null },
+      { selectedPlaceId: "A", nameMatchIds: new Set(["A"]) },
+    )
+    eq(fail.focus, null, "failed search moves NO camera (focus null)")
+    eq(fail.addResults.length, 0, "failed search adds nothing — existing/area pins remain intact")
+    eq(fail.nameMatchIds.size, 0, "failed search clears prior nameMatchIds")
+    eq(fail.clearPriorSelection, true, "failed search clears the stale name-search selection (Property A)")
+
+    // A card opened by clicking a NORMAL/area pin (not a name-search result) is left
+    // alone on a failed search.
+    const failArea = decideNameSearch(
+      { inMarket: [], selected: null },
+      { selectedPlaceId: "areaPin", nameMatchIds: new Set(["A"]) },
+    )
+    eq(failArea.clearPriorSelection, false, "failed search does NOT close a non-name-search (area) card")
+
+    // No prior selection at all → nothing to clear.
+    const failNone = decideNameSearch(
+      { inMarket: [], selected: null },
+      { selectedPlaceId: null, nameMatchIds: new Set() },
+    )
+    eq(failNone.clearPriorSelection, false, "failed search with no prior selection clears nothing")
+  }
+
+  // ── normalizePlace: exact coordinate preservation through selection ──────────
+  // A Places (New) result exposes `location.lat()/lng()` as METHODS (verified live).
+  // These use the REAL San Antonio coordinates Google returned for Vecina/ALARO/
+  // Caliza, and lock that they survive normalization → selection byte-for-byte —
+  // never rounded, defaulted, or replaced with a market-center point.
+  {
+    const mockPlace = (id: string, name: string, lat: number, lng: number) => ({
+      id,
+      displayName: name,
+      formattedAddress: `${name}, San Antonio, TX`,
+      location: { lat: () => lat, lng: () => lng },
+    })
+    const VECINA = { lat: 29.6366373, lng: -98.5133438 }
+    const ALARO = { lat: 29.5039261, lng: -98.6963962 }
+    const CALIZA = { lat: 29.6002945, lng: -98.4021287 }
+
+    // Exact preservation through normalization.
+    const nv = normalizePlace(mockPlace("v", "Vecina Apartment Villas", VECINA.lat, VECINA.lng), "san-antonio")!
+    eq(nv.lat, VECINA.lat, "normalizePlace preserves latitude exactly")
+    eq(nv.lng, VECINA.lng, "normalizePlace preserves longitude exactly")
+    eq(nv.placeId, "v", "normalizePlace carries the Place ID")
+    eq(nv.propertyName, "Vecina Apartment Villas", "normalizePlace carries the display name")
+
+    // Exact preservation through selection (the coordinates used for pin + panTo).
+    const candidates = [
+      normalizePlace(mockPlace("v", "Vecina Apartment Villas", VECINA.lat, VECINA.lng), "san-antonio")!,
+      normalizePlace(mockPlace("a", "ALARO", ALARO.lat, ALARO.lng), "san-antonio")!,
+      normalizePlace(mockPlace("c", "Caliza at The Loop", CALIZA.lat, CALIZA.lng), "san-antonio")!,
+    ]
+    const picked = selectInMarketMatch(candidates, "san-antonio", "caliza at the loop")
+    eq(picked.selected?.placeId, "c", "exact name picks Caliza")
+    eq(picked.selected?.lat, CALIZA.lat, "selected latitude is Caliza's exact coordinate (not downtown)")
+    eq(picked.selected?.lng, CALIZA.lng, "selected longitude is Caliza's exact coordinate (not downtown)")
+
+    const decision = decideNameSearch(picked, { selectedPlaceId: null, nameMatchIds: new Set() })
+    eq(decision.focus?.lat, CALIZA.lat, "decision.focus latitude is exact (drives panTo + marker)")
+    eq(decision.focus?.lng, CALIZA.lng, "decision.focus longitude is exact (drives panTo + marker)")
+    eq(decision.addResults.find((p) => p.placeId === "c")?.lat, CALIZA.lat, "merged result keeps Caliza's exact latitude")
+
+    // A place that cannot be mapped is dropped — never a fake/center pin.
+    eq(normalizePlace({ id: "x", displayName: "No Loc", location: null }, "san-antonio"), null, "place with no location → null (unmappable, dropped)")
+    eq(normalizePlace(mockPlace("n", "NaN Place", NaN, NaN), "san-antonio"), null, "place with non-finite coords → null (unmappable, dropped)")
+    eq(normalizePlace({ displayName: "No Id", location: { lat: () => 29.4, lng: () => -98.5 } }, "san-antonio"), null, "place with no id → null")
+  }
+}
+
+// ── Name-search path has NO apartment-type hard gate ──────────────────────────
+// The area search intentionally uses includedPrimaryTypes; the NAME search must
+// not — a community whose Google primary type isn't apartment_* must still be
+// findable by name. Assert includedType / includedPrimaryTypes appear only in the
+// area path (searchThisArea), never in searchByName.
+{
+  const here = dirname(fileURLToPath(import.meta.url))
+  const src = readFileSync(
+    resolve(here, "../../components/crm/explorer/BeastPropertyExplorer.tsx"),
+    "utf8",
+  )
+  const nameStart = src.indexOf("const searchByName =")
+  const nameEnd = src.indexOf("// Enter in the toolbar", nameStart)
+  ok(nameStart >= 0 && nameEnd > nameStart, "located the searchByName body")
+  // Check CODE only — strip line comments so a comment that merely names the field
+  // (e.g. "no apartment-type gate") never trips the assertion.
+  const nameFn = src
+    .slice(nameStart, nameEnd)
+    .split("\n")
+    .map((l) => l.replace(/\/\/.*$/, ""))
+    .join("\n")
+  ok(/Place\.searchByText\s*\(/.test(nameFn), "name search calls Place.searchByText")
+  eq((nameFn.match(/includedType\b/g) ?? []).length, 0, "no includedType in the name-search request")
+  eq((nameFn.match(/includedPrimaryTypes\b/g) ?? []).length, 0, "no includedPrimaryTypes in the name-search request")
+  ok(/selectInMarketMatch\s*\(/.test(nameFn), "name search restricts to in-market via selectInMarketMatch")
 }
 
   console.log(`\n${pass} passed, ${fail} failed`)

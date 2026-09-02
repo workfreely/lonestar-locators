@@ -139,6 +139,12 @@ export default function LeadBoard({
     query: string,
     hosts: { actions: HTMLElement | null; market: HTMLElement | null },
       onMatchCount: (count: number | null) => void,
+    /** The query as it was when Enter was pressed — the "find this exact property"
+     *  signal. Cleared on any keystroke, so it fires once per submission. */
+    submittedName: string,
+    /** Sets the toolbar input to the resolved property name after a successful
+     *  name search (e.g. "vecina" → "Vecina Apartment Villas"). */
+    onResolveName: (name: string) => void,
   ) => React.ReactNode
   // ── Beast Voice (alpha, platform-admin only) ─────────────────────────────
   // Off unless the server said the viewer is a platform admin, so the public
@@ -525,7 +531,7 @@ export default function LeadBoard({
           /* Beast Property Explorer fills the same flex slot the board occupies, so
              it grows and shrinks with whatever Agenda and Companion leave behind. */
           <div className="kb-board" style={{ display: "block", padding: 0, overflow: "hidden" }}>
-            {mapSlot?.(searchQuery, { actions: mapActionsHost, market: mapMarketHost }, setMatchCount)}
+            {mapSlot?.(searchQuery, { actions: mapActionsHost, market: mapMarketHost }, setMatchCount, submittedQuery, setSearchQuery)}
           </div>
         ) : (
         <div className="kb-board" data-density={view}>

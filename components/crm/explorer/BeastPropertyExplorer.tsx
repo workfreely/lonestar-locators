@@ -9,7 +9,8 @@ import { enrichProperties, fetchCatalog } from "@/lib/propertyExplorer/catalog"
 import { supabase } from "@/lib/supabase/client"
 import { readMapMarket, writeMapMarket } from "@/lib/preferences"
 import { boundsForMarket, getMarketBySlug, isInsideMarket, isInsideState, isMarketInState, marketsForSlugs, resolveMapMarket } from "@/lib/markets/catalog"
-import { resolveDesiredAreaCenters, searchAreas, type AreaCenter } from "@/lib/propertyExplorer/multiArea"
+import { resolveDesiredAreaCenters, searchAreas, mergeDedupeByPlaceId, type AreaCenter } from "@/lib/propertyExplorer/multiArea"
+import { selectInMarketMatch, decideNameSearch, normalizePlace } from "@/lib/propertyExplorer/nameSearch"
 import { StarRating } from "@/components/crm/StarRating"
 import { createPortal } from "react-dom"
 
@@ -49,6 +50,19 @@ type Props = {
   /** The toolbar search text. In Map mode it filters the properties ALREADY loaded
    *  — it never calls Places, so typing costs nothing. */
   query?: string
+  /** The toolbar text AT THE MOMENT ENTER WAS PRESSED — the explicit "find this
+   *  exact property" signal. Unlike `query` (a live local filter), a non-empty
+   *  submitted name escalates to a real Places Text Search so a specific community
+   *  is found even when it isn't already loaded and isn't in the current viewport,
+   *  WITHOUT running Unleash first. Cleared to "" by the toolbar on any keystroke,
+   *  so it fires once per submission. */
+  searchName?: string
+  /** Called with the SELECTED property's canonical name after a SUCCESSFUL name
+   *  search, so the toolbar input can reflect the exact match found (e.g. typing
+   *  "vecina" → "Vecina Apartment Villas"). Reuses the already-returned name — no
+   *  extra Places request. Never called on a failed/out-of-market search, and never
+   *  from live substring filtering. */
+  onResolveName?: (name: string) => void
   /** Reports the CURRENT number of matching properties, or null while the map is
    *  not settled. Read-only reporting — the explorer's own filtering, pins and
    *  search behaviour are untouched; LeadBoard uses it to decide whether an
@@ -86,7 +100,7 @@ function getPinOpacity(m: PropertyMarker): number {
   return v ? parseFloat(v) : 1
 }
 
-export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, primaryMarket = null, licenseState = null, onSelectProperty, query = "", recommendedUrls = [], onRecommend, actionsHost = null, marketHost = null, onMatchCount }: Props) {
+export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, primaryMarket = null, licenseState = null, onSelectProperty, query = "", searchName = "", onResolveName, recommendedUrls = [], onRecommend, actionsHost = null, marketHost = null, onMatchCount }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<PropertyMarker[]>([])
@@ -141,6 +155,27 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   const [hovered, setHovered] = useState<ExplorerProperty | null>(null)
   const [selected, setSelected] = useState<ExplorerProperty | null>(null)
   const [dirty, setDirty] = useState(false)
+  // Place IDs returned by the most recent NAME search. They must render even when
+  // the live substring filter (`q`) would hide them — the filter fragment the
+  // agent typed is often not a contiguous substring of the real community name
+  // ("standard legacy" vs "The Standard at Legacy") — so `visible` unions them in.
+  // Reset when the market changes; a fresh name search replaces the set.
+  const [nameMatchIds, setNameMatchIds] = useState<Set<string>>(() => new Set())
+  // The last submitted name actually searched, so a re-render (e.g. a market
+  // change rebuilding the callback) never re-fires the same search.
+  const lastNameRef = useRef("")
+  // Mirror `selected` and `nameMatchIds` into refs so the async name-search
+  // callback can tell whether the CURRENT selection came from a prior name search
+  // (and must be cleared when a new search surfaces nothing in-market) without
+  // depending on them and re-running.
+  const selectedRef = useRef<ExplorerProperty | null>(null)
+  const nameMatchIdsRef = useRef<Set<string>>(nameMatchIds)
+  useEffect(() => {
+    selectedRef.current = selected
+  }, [selected])
+  useEffect(() => {
+    nameMatchIdsRef.current = nameMatchIds
+  }, [nameMatchIds])
 
   // ── Initial viewport ──────────────────────────────────────────────────────
   // 1) the active client's market, when we reliably have one
@@ -229,13 +264,27 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   // The licensed state can change while the map is alive (Profile edit in another
   // tab, a late-arriving profile read). Re-apply the restriction rather than
   // rebuilding the map, so the constraint can never be older than the profile.
+  //
+  // `status` is a dependency so the restriction re-applies once the map exists
+  // (mapRef is null on this effect's first run — the map is built in the async
+  // bootstrap below). But the camera must be re-centered ONLY when the market
+  // center actually changes — NEVER on a bare status flip. `searchByName` toggles
+  // status (searching → ready) right after its own panTo/zoom; an unconditional
+  // setCenter(center) here would snap the map back to the market center (downtown)
+  // and undo the name-search focus. We track the last applied center and move the
+  // camera only when it genuinely changed.
+  const appliedCenterRef = useRef<{ lat: number; lng: number } | null>(null)
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
     // Order matters: drop the OLD restriction first, otherwise panTo into the new
     // market is clamped by the market we are leaving and the map never arrives.
     map.setOptions({ restriction: null })
-    map.setCenter(center)
+    const prev = appliedCenterRef.current
+    if (!prev || prev.lat !== center.lat || prev.lng !== center.lng) {
+      map.setCenter(center)
+      appliedCenterRef.current = { lat: center.lat, lng: center.lng }
+    }
     if (marketBounds) {
       map.setOptions({ restriction: { latLngBounds: marketBounds, strictBounds: false } })
     }
@@ -429,6 +478,134 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     }
   }, [marketSlug, center, licenseState])
 
+  // ── Name search (find one specific community) ───────────────────────────────
+  // The toolbar text FILTERS loaded pins (cheap, no request); pressing Enter
+  // escalates to a real Places TEXT SEARCH for that community. This is the path
+  // that lets an agent who already knows the property type its name and find it
+  // immediately — it does NOT require Unleash to have run, and does NOT require the
+  // property to be inside the current viewport. Found places run through the SAME
+  // normalize → catalog-enrich pipeline as the area search: catalogued rows gain
+  // website + Google rating, uncatalogued rows pass through unchanged (never
+  // fabricated). Results are merged into the pool deduped by Place ID (existing
+  // pins win, so Unleash's own set/ranking is untouched), and the strongest name
+  // match is selected and centered. Ranking/match-scoring/PI are all unchanged.
+  const searchByName = useCallback(
+    async (rawName: string) => {
+      const name = rawName.trim()
+      const map = mapRef.current
+      if (!name || !map) return
+
+      setStatus("searching")
+      setError(null)
+      try {
+        const { places: placesLib } = await loadGoogleMaps()
+        const { Place } = placesLib
+
+        // SOFT bias to the current market so a bare "The Standard" resolves in this
+        // metro — but a bias, never a restriction, so a strong name match just past
+        // the market edge still returns. Falls back to a wide circle on the map
+        // center when the market has no bounds.
+        let bias: google.maps.places.SearchByTextRequest["locationBias"]
+        if (marketBounds) {
+          bias = marketBounds
+        } else {
+          const g = map.getCenter()
+          bias = g ? { center: { lat: g.lat(), lng: g.lng() }, radius: 50000 } : undefined
+        }
+
+        const { places } = await Place.searchByText({
+          // Minimum fields only — no rich Place Details, same as the area search.
+          fields: ["id", "displayName", "formattedAddress", "location"],
+          textQuery: name,
+          ...(bias ? { locationBias: bias } : {}),
+          // No apartment-type gate on purpose: a community whose Google primary type
+          // differs must still be findable BY NAME. Relevance ranking plus the
+          // exact-name preference below keeps the right property on top.
+          maxResultCount: 8,
+        })
+
+        // Normalize each Place, reading its real coordinates EXACTLY. A place with
+        // no id/location or non-finite coordinates returns null and is dropped — it
+        // is a result that cannot be mapped, never a fake/center pin.
+        const found: ExplorerProperty[] = (places ?? [])
+          .map((p) => normalizePlace(p, marketSlug))
+          .filter((p): p is ExplorerProperty => p !== null)
+
+        // Enrich exactly like the area path — website + rating for catalogued
+        // Place IDs, untouched pass-through otherwise (no fabricated enrichment).
+        const catalog = await fetchCatalog(
+          found.map((f) => f.placeId),
+          supabase,
+        )
+        const enriched = enrichProperties(found, catalog)
+
+        // MARKET RESTRICTION: the returned coordinates are authoritative. Discard
+        // any candidate outside the selected market's envelope (Dallas/Fort Worth
+        // share the DFW box), then choose the strongest — exact normalized name
+        // match, else the top relevance hit — from the IN-MARKET survivors only. No
+        // in-market candidate ⇒ no property surfaced (never an out-of-market
+        // fallback). locationBias above only steers result quality; this is the
+        // final geographic gate.
+        const decision = decideNameSearch(
+          selectInMarketMatch(enriched, marketSlug, name),
+          {
+            selectedPlaceId: selectedRef.current?.placeId ?? null,
+            nameMatchIds: nameMatchIdsRef.current,
+          },
+        )
+
+        // Merge ONLY in-market results — and only when there are some — so existing
+        // pins (area/Unleash) are never disturbed on a failed search. Then set the
+        // name-search focus (empty on a failed search, clearing the prior focus).
+        if (decision.addResults.length > 0) {
+          setResults((prev) => mergeDedupeByPlaceId([prev, decision.addResults]))
+        }
+        setNameMatchIds(decision.nameMatchIds)
+
+        if (decision.focus && hasCoordinates(decision.focus)) {
+          // In-market match: open its normal card (existing match/fit, rating,
+          // website, recommend controls render as usual — no fabricated match %) and
+          // center on it. Pan/zoom happens ONLY here, on a successful match.
+          setSelected(decision.focus)
+          onSelectProperty?.(decision.focus)
+          // Reflect the exact match in the toolbar input (reuses the returned name,
+          // no extra request). Only here — the successful-match branch.
+          onResolveName?.(decision.focus.propertyName)
+          map.panTo({ lat: decision.focus.lat, lng: decision.focus.lng })
+          if ((map.getZoom() ?? 0) < 13) map.setZoom(14)
+        } else if (decision.clearPriorSelection) {
+          // Nothing in-market: if the current card was a PRIOR name-search result,
+          // close it so it can't look like this search's result. Normal/area pins,
+          // the camera, and Unleash are all untouched; the search text stays.
+          setSelected(null)
+        }
+
+        setStatus("ready")
+      } catch (e) {
+        if (process.env.NODE_ENV !== "production") {
+          console.error("[Beast Property Explorer] name search failed:", e)
+        }
+        setError("We couldn't search for that property. Please try again.")
+        setStatus("ready")
+      }
+    },
+    [marketBounds, marketSlug, onSelectProperty, onResolveName],
+  )
+
+  // Enter in the toolbar (a submitted name) runs the name search. Once per distinct
+  // submitted name; clearing the field (searchName → "") resets the guard so the
+  // same name can be searched again later.
+  useEffect(() => {
+    const name = (searchName ?? "").trim()
+    if (!name) {
+      lastNameRef.current = ""
+      return
+    }
+    if (name === lastNameRef.current) return
+    lastNameRef.current = name
+    void searchByName(name)
+  }, [searchName, searchByName])
+
   // Switching markets discards the previous market's apartments immediately, so
   // San Antonio results are never briefly shown on the Austin map while the new
   // search runs. The auto-search effect below then loads the new market.
@@ -436,6 +613,9 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     setResults([])
     setError(null)
     lastSearchRef.current = null
+    // A different market is a different search context — drop any name-search focus
+    // so its pins don't linger over the new metro.
+    setNameMatchIds(new Set())
   }, [marketSlug])
 
   // ── No automatic search on open ─────────────────────────────────────────────
@@ -553,10 +733,16 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
 
   useEffect(() => () => beastReset(), [beastReset])
 
-  const visible = useMemo(
-    () => (q ? results.filter((p) => p.propertyName.toLowerCase().includes(q)) : results),
-    [results, q],
-  )
+  const visible = useMemo(() => {
+    const base = q ? results.filter((p) => p.propertyName.toLowerCase().includes(q)) : results
+    if (nameMatchIds.size === 0) return base
+    // A name-search hit must render even when the live substring filter would hide
+    // it (e.g. filter "standard legacy" vs the real name "The Standard at Legacy").
+    // Append any loaded name-search match missing from the base filter.
+    const inBase = new Set(base.map((p) => p.placeId))
+    const extra = results.filter((p) => nameMatchIds.has(p.placeId) && !inBase.has(p.placeId))
+    return extra.length ? [...base, ...extra] : base
+  }, [results, q, nameMatchIds])
 
   // Report upward AFTER render, never during — this only observes `visible`.
   // null while loading/searching so the toolbar can tell "no matches" apart from
@@ -656,9 +842,15 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   // is a belt-and-braces guard for a stale selection saved before a state change.
   // It also means a session override can never be chosen out of state, because
   // the only way to set one is picking from this list.
-  const switcherMarkets = marketsForSlugs(serviceAreaSlugs).filter((m) =>
-    isMarketInState(m.slug, licenseState),
-  )
+  const switcherMarkets = marketsForSlugs(serviceAreaSlugs)
+    .filter((m) => isMarketInState(m.slug, licenseState))
+    // DROPDOWN DISPLAY ORDER ONLY — alphabetical by market name (Austin, Dallas,
+    // Fort Worth, Houston, San Antonio). marketsForSlugs deliberately preserves the
+    // agent's SELECTION order (primary market first) for the hero-theme semantics it
+    // drives elsewhere, so we sort a COPY here rather than change that shared list.
+    // `.filter` already returns a fresh array, so this sort mutates nothing shared;
+    // slugs, selection, and search behavior are all unchanged.
+    .sort((a, b) => a.name.localeCompare(b.name))
   const currentMarketName = marketSlug ? getMarketBySlug(marketSlug)?.name ?? null : null
   const marketSwitcher =
     switcherMarkets.length > 0 && currentMarketName ? (
@@ -708,7 +900,7 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
       {beastPhase === "scanning"
         ? "Beast is searching…"
         : beastPhase === "matched"
-          ? `${beastMatchCount} Beast Matches`
+          ? `${beastMatchCount} Beast ${beastMatchCount === 1 ? "Match" : "Matches"}`
           : "Unleash Beast"}
     </button>
   )

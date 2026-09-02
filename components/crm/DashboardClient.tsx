@@ -2281,9 +2281,11 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           <LeadBoard
             workspace={workspace}
             onWorkspaceChange={selectWorkspace}
-            mapSlot={(query, hosts, onMatchCount) => (
+            mapSlot={(query, hosts, onMatchCount, submittedName, onResolveName) => (
               <BeastPropertyExplorer
                 query={query}
+                searchName={submittedName}
+                onResolveName={onResolveName}
                 actionsHost={hosts.actions}
                 marketHost={hosts.market}
                 onMatchCount={onMatchCount}
