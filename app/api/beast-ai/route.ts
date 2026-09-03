@@ -123,8 +123,8 @@ export async function POST(req: Request) {
     }
 
     const msg = await client.messages.create({
-      model: "claude-opus-4-8",
-      max_tokens: 700,
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 500,
       system: SYSTEM_PROMPT,
       messages: grounded.length ? grounded : [{ role: "user", content: userTurn }],
     })
