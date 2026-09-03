@@ -401,7 +401,7 @@ export default function LeadBoard({
   {onWorkspaceChange && (
                 <div className="kb-density" role="group" aria-label="Workspace">
                   <button type="button" aria-pressed={workspace === "board"} onClick={() => onWorkspaceChange("board")}>
-                    Board
+                    Dashboard
                   </button>
                   <button type="button" aria-pressed={workspace === "map"} onClick={() => onWorkspaceChange("map")}>
                     Map
