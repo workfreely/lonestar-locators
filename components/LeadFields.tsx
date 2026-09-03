@@ -131,31 +131,51 @@ function LocationPicker({
     updateField(key, arrToCsv(has ? list.filter((x) => x !== v) : [...list, v]))
   }
 
-  const Chips = ({ options, list, keyName }: { options: readonly string[]; list: string[]; keyName: "neighborhoods" | "submarkets" }) => (
-    <div className="flex flex-wrap gap-1.5">
-      {options.map((v) => {
-        const on = list.includes(v)
-        const disabled = !on && atCap
-        return (
+  const Chips = ({ options, list, keyName }: { options: readonly string[]; list: string[]; keyName: "neighborhoods" | "submarkets" }) => {
+    // Stored values NOT in this market's current catalog. They already count
+    // toward the max-3 total (via csvToArr length), so render them as selected,
+    // removable chips instead of leaving them invisible-but-counted. Clicking one
+    // removes it — freeing a slot for a catalog area. We never map or rename them.
+    const legacy = list.filter((v) => !options.includes(v))
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((v) => {
+          const on = list.includes(v)
+          const disabled = !on && atCap
+          return (
+            <button
+              key={v}
+              type="button"
+              onClick={() => toggle(list, keyName, v)}
+              disabled={disabled}
+              className={[
+                "rounded-full border px-2.5 py-1 text-[12px] transition-colors",
+                on
+                  ? "border-transparent bg-blue-600 text-white"
+                  : "border-[var(--crm-border)] bg-[var(--crm-inset)] text-[var(--crm-text-primary)]",
+                disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
+              ].join(" ")}
+            >
+              {v}
+            </button>
+          )
+        })}
+        {legacy.map((v) => (
+          // Selected (counts toward the cap) but off-catalog — a dashed ring hints
+          // it isn't in the current list. Click to remove and free its slot.
           <button
-            key={v}
+            key={`legacy-${v}`}
             type="button"
             onClick={() => toggle(list, keyName, v)}
-            disabled={disabled}
-            className={[
-              "rounded-full border px-2.5 py-1 text-[12px] transition-colors",
-              on
-                ? "border-transparent bg-blue-600 text-white"
-                : "border-[var(--crm-border)] bg-[var(--crm-inset)] text-[var(--crm-text-primary)]",
-              disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
-            ].join(" ")}
+            title="Not in this market's current area list — click to remove and free a slot"
+            className="rounded-full border border-dashed border-blue-300 bg-blue-600 px-2.5 py-1 text-[12px] text-white transition-colors cursor-pointer"
           >
             {v}
           </button>
-        )
-      })}
-    </div>
-  )
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-3">
@@ -163,7 +183,7 @@ function LocationPicker({
         <p className="text-[11px] text-[var(--crm-text-muted)] mb-1.5">Preferred Neighborhoods — up to 3 total (with Nearby Areas)</p>
         <Chips options={nbhdOpts} list={nbhds} keyName="neighborhoods" />
       </div>
-      {subOpts.length > 0 && (
+      {(subOpts.length > 0 || subs.length > 0) && (
         <div>
           <p className="text-[11px] text-[var(--crm-text-muted)] mb-1.5">Nearby Areas</p>
           <Chips options={subOpts} list={subs} keyName="submarkets" />
