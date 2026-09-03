@@ -50,6 +50,13 @@ export default function AskBeastAI() {
     };
   }, [open]);
 
+  // The Help Center can open this panel (e.g. its "Ask Beast AI" buttons).
+  useEffect(() => {
+    function onOpen() { setOpen(true); }
+    window.addEventListener("lb:open-beast-ai", onOpen);
+    return () => window.removeEventListener("lb:open-beast-ai", onOpen);
+  }, []);
+
   // Hide the launcher + close the panel while the CRM's LeadFormModal is open.
   useEffect(() => {
     function onModal(e: Event) {
@@ -71,8 +78,8 @@ export default function AskBeastAI() {
     setInput("");
     setSending(true);
     try {
-      const reply = await getBeastAiReply(history);
-      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+      const res = await getBeastAiReply(history);
+      setMessages((prev) => [...prev, { role: "assistant", content: res.reply, links: res.links, video: res.video }]);
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -137,7 +144,7 @@ export default function AskBeastAI() {
         {/* Transcript */}
         <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
           {messages.map((m, i) => (
-            <MessageBubble key={i} role={m.role} content={m.content} />
+            <MessageBubble key={i} message={m} />
           ))}
           {sending && <TypingIndicator />}
         </div>
@@ -170,10 +177,10 @@ export default function AskBeastAI() {
   );
 }
 
-function MessageBubble({ role, content }: { role: BeastAiMessage["role"]; content: string }) {
-  const isUser = role === "user";
+function MessageBubble({ message }: { message: BeastAiMessage }) {
+  const isUser = message.role === "user";
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+    <div className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
       <div
         className={`max-w-[85%] whitespace-pre-line rounded-2xl px-3.5 py-2.5 text-[13.5px] leading-relaxed ${
           isUser
@@ -181,8 +188,29 @@ function MessageBubble({ role, content }: { role: BeastAiMessage["role"]; conten
             : "bg-white/[0.06] text-white/90"
         }`}
       >
-        {content}
+        {message.content}
       </div>
+      {!isUser && ((message.links && message.links.length > 0) || message.video) && (
+        <div className="mt-2 max-w-[85%] space-y-1.5">
+          {message.links?.map((l, i) => (
+            <a
+              key={i}
+              href={l.url}
+              className="block rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-[12.5px] font-medium text-[#8fb3ff] transition-colors hover:bg-white/[0.09]"
+            >
+              📖 {l.title}
+            </a>
+          ))}
+          {message.video && (
+            <a
+              href={message.video}
+              className="block rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-[12.5px] font-medium text-[#8fb3ff] transition-colors hover:bg-white/[0.09]"
+            >
+              ▶ Watch a related Beast Academy lesson
+            </a>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,0 +1,127 @@
+import type { KnowledgeArticle } from "../schema"
+
+export const AGENDA_ARTICLES: KnowledgeArticle[] = [
+  {
+    id: "agenda-use-the-daily-agenda",
+    title: "How to use the Daily Agenda",
+    categorySlug: "agenda",
+    slug: "use-the-daily-agenda",
+    type: "product-guide",
+    shortAnswer:
+      "Your Agenda shows which clients need your attention today. Start with overdue clients, then work through the rest, completing each client's Next Action.",
+    whyItMatters:
+      "Your Agenda shows which clients need your attention so you don't have to remember every follow-up yourself. Completing each Next Action keeps your workflow current and helps prevent leads from being forgotten.",
+    whatItHelpsYouDo: "Know exactly who to contact today and finish your follow-ups without missing anyone.",
+    steps: [
+      "Open your Agenda.",
+      "Start with any Overdue clients.",
+      "Then work through the clients that Need Attention.",
+      "Complete each client's Next Action as you go.",
+    ],
+    whatHappensNext: "As you complete each Next Action, the client updates and your Agenda stays current for the day.",
+    keywords: ["agenda", "daily agenda", "who to contact", "today", "follow ups", "to do"],
+    altPhrasings: ["Who should I contact today?", "What's on my agenda?", "How do I use the agenda?", "What do I need to do today?"],
+    relatedArticles: ["what-needs-attention-means", "what-overdue-means", "complete-a-next-action"],
+    videoPlaceholder: "Planned tutorial: Using Your Daily Agenda",
+    lastReviewed: "2026-09-02",
+    status: "published",
+    verification: "verified",
+  },
+  {
+    id: "agenda-what-needs-attention-means",
+    title: "What Needs Attention means",
+    categorySlug: "agenda",
+    slug: "what-needs-attention-means",
+    type: "product-guide",
+    shortAnswer:
+      "A client Needs Attention when they have a Next Action that's ready for you to do — it's your reminder to take the next step with them.",
+    whyItMatters:
+      "It tells you which clients are waiting on you right now, so you can keep every search moving.",
+    whatItHelpsYouDo: "Focus your day on the clients who actually need something from you.",
+    steps: [
+      "Open your Agenda.",
+      "Look at the clients grouped under Needs Attention.",
+      "Complete each client's Next Action to clear them.",
+    ],
+    whatHappensNext: "Completing the Next Action clears the client from Needs Attention until their following step is due.",
+    keywords: ["needs attention", "attention", "agenda groups", "what does needs attention mean"],
+    altPhrasings: ["What does Needs Attention mean?", "Why is a client in Needs Attention?", "What's the difference between Needs Attention and Overdue?"],
+    relatedArticles: ["what-overdue-means", "use-the-daily-agenda"],
+    lastReviewed: "2026-09-02",
+    status: "published",
+    verification: "verified",
+  },
+  {
+    id: "agenda-what-overdue-means",
+    title: "What Overdue means",
+    categorySlug: "agenda",
+    slug: "what-overdue-means",
+    type: "product-guide",
+    shortAnswer:
+      "A client is Overdue when their Next Action's due time has already passed — these are the clients to take care of first.",
+    whyItMatters:
+      "Overdue clients have been waiting the longest, so handling them first keeps leads from going cold.",
+    whatItHelpsYouDo: "Catch up on anyone you may have missed and keep your pipeline healthy.",
+    steps: [
+      "Open your Agenda.",
+      "Start with the clients marked Overdue.",
+      "Complete each client's Next Action, or reschedule it if the timing has changed.",
+    ],
+    whatHappensNext: "Once you complete or reschedule the Next Action, the client is no longer Overdue.",
+    commonMistakes: ["Skipping past Overdue clients — they're the ones most at risk of going cold."],
+    keywords: ["overdue", "late", "past due", "what does overdue mean", "agenda overdue"],
+    altPhrasings: ["What does Overdue mean?", "Why is this client overdue?", "Why is my lead marked overdue?"],
+    relatedArticles: ["what-needs-attention-means", "reschedule-a-follow-up"],
+    lastReviewed: "2026-09-02",
+    status: "published",
+    verification: "verified",
+  },
+  {
+    id: "agenda-complete-a-next-action",
+    title: "How to complete a Next Action",
+    categorySlug: "agenda",
+    slug: "complete-a-next-action",
+    type: "product-guide",
+    shortAnswer:
+      "Open the client from your Agenda or their profile, do the step shown as the Next Action, and mark it complete.",
+    whyItMatters:
+      "Completing a Next Action keeps the client moving forward and keeps your Agenda accurate for the rest of the day.",
+    whatItHelpsYouDo: "Move each client one clear step forward and keep your workflow current.",
+    steps: [
+      "Open the client from your Agenda or from Leads.",
+      "Do the step shown as the client's Next Action.",
+      "Mark the Next Action complete.",
+    ],
+    whatHappensNext: "Locator Beast records the step and keeps the client's following step ready for you.",
+    keywords: ["complete next action", "mark done", "finish task", "complete follow up", "check off"],
+    altPhrasings: ["How do I complete an Agenda item?", "How do I mark a Next Action done?", "What happens after I complete a follow-up?"],
+    relatedArticles: ["how-next-actions-work", "reschedule-a-follow-up"],
+    lastReviewed: "2026-09-02",
+    status: "published",
+    verification: "verified",
+  },
+  {
+    id: "agenda-reschedule-a-follow-up",
+    title: "How to reschedule a follow-up",
+    categorySlug: "agenda",
+    slug: "reschedule-a-follow-up",
+    type: "product-guide",
+    shortAnswer:
+      "Open the client and change the follow-up's date to a new day that fits your plan for them.",
+    whyItMatters:
+      "When the timing changes, rescheduling keeps the client on your Agenda for the right day instead of showing up too early or falling off.",
+    whatItHelpsYouDo: "Line up each follow-up with when you actually plan to reach out.",
+    steps: [
+      "Open the client from your Agenda or from Leads.",
+      "Change the follow-up's date to the new day you want.",
+      "Save the change.",
+    ],
+    whatHappensNext: "The client moves to that day on your Agenda and returns to your attention when the new date arrives.",
+    keywords: ["reschedule", "change follow up date", "move follow up", "push follow up", "change due date"],
+    altPhrasings: ["How do I change a follow-up date?", "How do I push a follow-up to later?", "Can I move a follow-up to another day?"],
+    relatedArticles: ["complete-a-next-action", "what-overdue-means"],
+    lastReviewed: "2026-09-02",
+    status: "published",
+    verification: "verified",
+  },
+]

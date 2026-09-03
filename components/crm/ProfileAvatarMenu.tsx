@@ -58,6 +58,7 @@ const LINKS_AFTER_THEME: { label: string; href: string }[] = [
   { label: "Integrations", href: "/admin/integrations" },
   { label: "Import Leads", href: "/admin/import" },
   { label: "Billing", href: "/admin/billing" },
+  { label: "Help Center", href: "/help" },
 ]
 
 // Persistent profile/avatar control mounted in the Dashboard & Performance

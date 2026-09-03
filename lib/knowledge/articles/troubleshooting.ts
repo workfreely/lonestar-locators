@@ -1,0 +1,107 @@
+import type { KnowledgeArticle } from "../schema"
+
+// Verified troubleshooting only. Each gives the most likely fix first, clear
+// steps, and recommends contacting support only when the documented steps don't
+// resolve it. No invented fixes.
+
+export const TROUBLESHOOTING_ARTICLES: KnowledgeArticle[] = [
+  {
+    id: "ts-lead-not-showing",
+    title: "I added a lead, but it's not showing",
+    categorySlug: "troubleshooting",
+    slug: "lead-not-showing",
+    type: "troubleshooting",
+    shortAnswer:
+      "This is almost always a view or filter issue. Clear any active filters or search, and make sure you're looking at the stage your new lead is in.",
+    whyItMatters: "A new lead is rarely lost — it's usually just hidden by a filter or a search you have applied.",
+    whatItHelpsYouDo: "Find your lead in seconds instead of re-entering it.",
+    steps: [
+      "Open Leads.",
+      "Clear any search text and any filters you have applied.",
+      "New leads start as New — check that stage.",
+      "Refresh the page and look again.",
+    ],
+    whatHappensNext: "With filters cleared, your new lead appears with the rest of your clients.",
+    rulesOrLimitations: ["If you saw a duplicate message when adding, the client may have updated an existing lead instead of creating a new one — see \"I am seeing duplicate leads.\""],
+    troubleshooting: "Still missing after clearing filters and refreshing? Contact support and note the client's name and phone.",
+    keywords: ["lead not showing", "missing lead", "can't find lead", "lead disappeared", "added lead missing"],
+    altPhrasings: ["Where did my new lead go?", "Why can't I see the lead I added?", "My new client isn't showing up."],
+    relatedArticles: ["duplicate-leads", "how-to-add-a-lead"],
+    lastReviewed: "2026-09-02",
+    status: "published",
+    verification: "verified",
+  },
+  {
+    id: "ts-smart-form-submission-missing",
+    title: "My Smart Lead Form submission did not appear",
+    categorySlug: "troubleshooting",
+    slug: "smart-form-submission-missing",
+    type: "troubleshooting",
+    shortAnswer:
+      "Check your Leads with all filters cleared, and confirm the client submitted the form you actually shared (your current form link).",
+    whyItMatters: "Most missing submissions are either filtered out of view or were sent through an old link.",
+    whatItHelpsYouDo: "Confirm whether the submission arrived and where it is.",
+    steps: [
+      "Open Leads and clear any search and filters.",
+      "New submissions start as New — check that stage.",
+      "Confirm the client used your current form link (open Smart Lead Form and check your link).",
+      "Ask the client whether they saw a confirmation after submitting.",
+    ],
+    whatHappensNext: "If the submission arrived, the client appears in Leads with the details they entered.",
+    troubleshooting: "If the client confirms they submitted your current link and the lead still isn't there, contact support with the client's name, phone, and the approximate time they submitted.",
+    keywords: ["form submission missing", "submission didn't appear", "no submission", "form lead missing"],
+    altPhrasings: ["Why didn't a form submission show up?", "A client filled out my form but I don't see them.", "Where is my form submission?"],
+    relatedArticles: ["find-a-submitted-lead", "smart-form-link-not-working"],
+    lastReviewed: "2026-09-02",
+    status: "published",
+    verification: "verified",
+  },
+  {
+    id: "ts-smart-form-link-not-working",
+    title: "My Smart Lead Form link is not working",
+    categorySlug: "troubleshooting",
+    slug: "smart-form-link-not-working",
+    type: "troubleshooting",
+    shortAnswer:
+      "Open Smart Lead Form, copy your link again fresh, and test it yourself in a new browser tab.",
+    whyItMatters: "A broken-looking link is usually a copy/paste issue or an outdated link that was shared earlier.",
+    whatItHelpsYouDo: "Confirm your live link works before you keep sharing it.",
+    steps: [
+      "Open Smart Lead Form from your avatar menu.",
+      "Copy your form link again, fresh.",
+      "Paste it into a new browser tab and open it to confirm the form loads.",
+      "Re-share the freshly copied link.",
+    ],
+    whatHappensNext: "Your form opens for anyone who uses the current link.",
+    troubleshooting: "If your freshly copied link still won't open, contact support and include the exact link you're testing.",
+    keywords: ["form link not working", "broken link", "link won't open", "form url broken"],
+    altPhrasings: ["Why isn't my form link working?", "My form link is broken.", "Clients can't open my form."],
+    relatedArticles: ["share-your-form-link", "smart-form-submission-missing"],
+    lastReviewed: "2026-09-02",
+    status: "published",
+    verification: "verified",
+  },
+  {
+    id: "ts-duplicate-leads",
+    title: "I am seeing duplicate leads",
+    categorySlug: "troubleshooting",
+    slug: "duplicate-leads",
+    type: "troubleshooting",
+    shortAnswer:
+      "When you add a client who matches one you already have, Locator Beast flags it so you can update the existing client instead of creating a second copy.",
+    whyItMatters: "This keeps one clean profile per client, so your history and next steps stay in one place.",
+    whatItHelpsYouDo: "Avoid working the same client in two places.",
+    steps: [
+      "When you add a lead and see a duplicate message, choose to update the existing client instead of creating a new one.",
+      "If you already have two entries for the same person, open each and keep the one with the most complete, current information.",
+    ],
+    whatHappensNext: "You're left with a single, up-to-date profile for that client.",
+    troubleshooting: "If duplicates keep appearing for the same client and you can't tell why, contact support with the client's name and phone.",
+    keywords: ["duplicate leads", "duplicate client", "two of the same lead", "same lead twice"],
+    altPhrasings: ["Why do I have duplicate leads?", "How do I fix a duplicate client?", "I have the same client twice."],
+    relatedArticles: ["how-to-add-a-lead", "lead-not-showing"],
+    lastReviewed: "2026-09-02",
+    status: "published",
+    verification: "verified",
+  },
+]
