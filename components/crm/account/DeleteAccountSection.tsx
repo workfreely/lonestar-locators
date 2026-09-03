@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 
-// Danger Zone → Delete Account.
+// Account Deletion → Delete Account.
 //
 // Deliberately separate from Cancel Subscription (BillingSettingsClient). The
 // two are easy to confuse and have opposite consequences, so the copy below
@@ -86,10 +86,10 @@ export default function DeleteAccountSection() {
 
   return (
     <div className="mt-8 rounded-2xl border border-red-200 bg-red-50/40 p-5">
-      <h3 className="text-[14px] font-semibold text-[#b42318]">Danger Zone</h3>
+      <h3 className="text-[14px] font-semibold text-[#b42318]">Account Deletion</h3>
       <p className="mt-1 text-[12.5px] leading-relaxed text-[#6b7280]">
-        Permanently delete your account and all of its data. This is not the same as
-        cancelling your subscription.
+        Permanently delete your account and all associated data. This does not cancel
+        your subscription.
       </p>
 
       {/* Rendered OUTSIDE the panel as well: begin() can fail before there is a

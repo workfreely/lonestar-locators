@@ -18,16 +18,18 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   return (
     <div
       className={`beast-root ${inter.variable} items-center justify-center px-4 py-12`}
-      style={{ backgroundColor: "#f7f8fa" }}
+      style={{ backgroundColor: "var(--beast-bg-dark)" }}
     >
       <div className="mx-auto flex w-full max-w-md flex-col items-center">
-        {/* The full black wordmark — this layout is shared by /login and
+        {/* The full white wordmark — this layout is shared by /login and
             /signup, so both surfaces change from here rather than page by page.
-            The card sits on #f7f8fa, so the black-on-transparent artwork is the
-            readable one. 40px is restrained enough not to compete with the
-            form's 26px heading while staying clearly legible. Centering is
-            unchanged: the parent is already flex + items-center. */}
-        <LocatorBeastWordmark height={40} priority className="mb-10" />
+            The dark ground (--beast-bg-dark, the product's near-black) matches
+            the CRM branding, so the white-on-transparent artwork is the readable
+            one; the white card + light fields sit on top. 40px is restrained
+            enough not to compete with the form's 26px heading while staying
+            clearly legible. Centering is unchanged: the parent is already flex +
+            items-center. */}
+        <LocatorBeastWordmark variant="white" height={40} priority className="mb-10" />
         {children}
       </div>
     </div>

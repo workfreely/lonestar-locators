@@ -184,9 +184,9 @@
   padding: 8px 12px 6px;
 }
 /* Borderless circular avatar — cleanly cropped (overflow hidden + object-fit
-   cover), no visible ring. A very light shadow gives just enough separation from
-   the popover ground; the neutral fill is the placeholder before an image
-   paints. Size unchanged (32px). */
+   cover), no ring, no shadow, no halo. Transparent fill so the dark popover
+   ground shows at the anti-aliased edge instead of a light rim; the initials
+   fallback sets its own fill below. Size unchanged (32px). */
 .bc-pop-avatar {
   width: 32px;
   height: 32px;
@@ -194,8 +194,7 @@
   border-radius: 50%;
   overflow: hidden;
   object-fit: cover;
-  background: #f0f1f5;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+  background: transparent;
 }
 .bc-pop-avatar-fallback {
   display: flex;

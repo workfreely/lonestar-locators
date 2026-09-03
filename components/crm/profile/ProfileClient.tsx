@@ -479,7 +479,7 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
           Phone and Email moved here from Business Information: they identify the
           PERSON, not the brokerage, so they belong beside the names rather than
           beside a licence. */}
-      <SettingsCard title="Account Information" description="Used for account verification.">
+      <SettingsCard title="Account Information">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <SettingsField label="Legal First Name">
             <input value={firstName} onChange={(e) => setFirstName(e.target.value)} className={settingsInputCls} />

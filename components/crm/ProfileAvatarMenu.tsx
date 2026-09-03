@@ -155,11 +155,12 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
   }
 
   // Borderless circular avatar — cleanly cropped (overflow-hidden + the img's
-  // object-cover), no visible ring. A very light shadow gives subtle separation
-  // from the header. Size (44px) and behavior unchanged.
+  // object-cover), no ring, no shadow, no halo. The bg fill only shows behind
+  // the initials fallback; a photo covers the full circle. Size (44px) and
+  // behavior unchanged. (The focus-visible ring is keyboard focus, not decoration.)
   const buttonCls = light
-    ? "w-[44px] h-[44px] rounded-full bg-white shadow-[0_1px_3px_rgba(15,23,42,0.12)] flex items-center justify-center text-[#9098a8] overflow-hidden flex-none transition-shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2f6bff] focus-visible:ring-offset-1"
-    : "w-[44px] h-[44px] rounded-full bg-[var(--crm-inset)] shadow-[0_1px_3px_rgba(15,23,42,0.12)] flex items-center justify-center text-[var(--crm-text-muted)] overflow-hidden flex-none transition-shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--crm-accent)] focus-visible:ring-offset-1"
+    ? "w-[44px] h-[44px] rounded-full bg-white flex items-center justify-center text-[#9098a8] overflow-hidden flex-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2f6bff] focus-visible:ring-offset-1"
+    : "w-[44px] h-[44px] rounded-full bg-[var(--crm-inset)] flex items-center justify-center text-[var(--crm-text-muted)] overflow-hidden flex-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--crm-accent)] focus-visible:ring-offset-1"
 
   const panelCls = light
     ? "absolute right-0 top-full mt-2 w-60 bg-white border border-[#e5e7ee] rounded-xl shadow-[0_12px_32px_rgba(15,23,42,0.14)] py-1.5 z-50"
