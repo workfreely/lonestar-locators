@@ -18,8 +18,19 @@ export default function Nav() {
   // it has today.
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-black">
-      <div className="beast-container flex h-16 items-center justify-between md:h-20">
-        <Link href="/" aria-label="Locator Beast home" className="flex items-center" onClick={() => setOpen(false)}>
+      <div className="beast-container relative flex h-16 items-center justify-between md:h-20">
+        {/* Mobile only: the logo is absolutely centered in the container's
+            content box — which is itself viewport-centered on mobile (equal
+            side padding) — so it reads as truly centered, not nudged with
+            spacing. The hamburger keeps the right via ml-auto below. At md+ the
+            logo returns to normal left-aligned flow and the desktop/tablet
+            header is unchanged. */}
+        <Link
+          href="/"
+          aria-label="Locator Beast home"
+          className="absolute inset-y-0 left-1/2 flex -translate-x-1/2 items-center pl-4 md:static md:inset-auto md:translate-x-0 md:pl-0"
+          onClick={() => setOpen(false)}
+        >
           {/* Canonical brand mark — the shared Logo component on the dark
               treatment, so the public nav and every product header show the same
               white wordmark from one source. Sizing stays the marketing family's
@@ -60,7 +71,7 @@ export default function Nav() {
           aria-label="Toggle menu"
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 md:hidden"
+          className="ml-auto flex h-10 w-10 items-center justify-center rounded-full border border-white/20 md:hidden"
         >
           <span className="relative block h-3.5 w-4">
             <span
