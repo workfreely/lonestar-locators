@@ -34,6 +34,7 @@ import { NextResponse, after } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { createNewLeadCalendarEvent } from "@/lib/google/createCalendarEvent"
 import { createGoogleContactForOwner, type GoogleContactLeadFields } from "@/lib/google/createGoogleContact"
+import { getOAuthClientForUser } from "@/lib/google/getOAuthClientForUser"
 import { findDuplicateMatch, type LeadIdentity } from "@/lib/leads/duplicateDetection"
 import { getStageWorkflowAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
 import { resolveUserTimeZone } from "@/lib/timezone/server"
@@ -457,7 +458,7 @@ export async function POST(request: Request) {
       try {
         after(async () => {
           try {
-            await createNewLeadCalendarEvent({
+            const leadInput = {
               first_name: result.payload.first_name as string | undefined,
               last_name: result.payload.last_name as string | undefined,
               phone: result.payload.phone as string | undefined,
@@ -467,7 +468,18 @@ export async function POST(request: Request) {
               beds: result.payload.beds as string | undefined,
               move_date: result.payload.move_date as string | undefined,
               credit_score: result.payload.credit_score as string | undefined,
-            })
+            }
+            if (attributedOwnerId) {
+              // Smart Lead Form (B2): create the New Lead event in the OWNING
+              // agent's own connected Google Calendar. Not connected / revoked →
+              // skip (no global fallback for an attributed LB agent). Event
+              // content/timing unchanged — only the account/calendar differs.
+              const client = await getOAuthClientForUser(attributedOwnerId, { verify: false })
+              if (client) await createNewLeadCalendarEvent(leadInput, client)
+            } else {
+              // Non-attributed lead (legacy/global path) — unchanged.
+              await createNewLeadCalendarEvent(leadInput)
+            }
           } catch (err) {
             console.error("[api/leads/submit] New-lead calendar event failed:", err)
           }

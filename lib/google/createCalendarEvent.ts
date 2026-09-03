@@ -98,19 +98,31 @@ function buildDescription(lead: NewLeadEventInput): string {
 
 // ─── Shared low-level insert ──────────────────────────────────────────────────
 
-async function insertCalendarEvent(eventBody: object, label: string): Promise<string> {
-  const calendarId = process.env.GOOGLE_CALENDAR_ID
+// Per-agent (B2): callers pass the agent's own OAuth client + `calendarIdOverride`
+// of "primary" so the event lands in that agent's connected Google Calendar.
+// The legacy/global path (no client, no override) is UNCHANGED — it still uses
+// getOAuthClient() (GOOGLE_REFRESH_TOKEN) + GOOGLE_CALENDAR_ID, which is what the
+// Follow-Up events and any non-attributed lead keep using.
+type GoogleOAuthClient = InstanceType<typeof google.auth.OAuth2>
+
+async function insertCalendarEvent(
+  eventBody: object,
+  label: string,
+  oauth2Client?: GoogleOAuthClient,
+  calendarIdOverride?: string,
+): Promise<string> {
+  const calendarId = calendarIdOverride ?? process.env.GOOGLE_CALENDAR_ID
   if (!calendarId) {
     throw new Error("GOOGLE_CALENDAR_ID is not set in environment variables")
   }
 
   console.log(`📅 [calendar] Inserting event: ${label}`)
-  console.log(`📅 [calendar] GOOGLE_CALENDAR_ID: ${calendarId}`)
+  console.log(`📅 [calendar] calendarId: ${calendarId}`)
   console.log(`📅 [calendar] Event body:`, JSON.stringify(eventBody, null, 2))
 
   try {
-    const oauth2Client = getOAuthClient()
-    const calendar = google.calendar({ version: "v3", auth: oauth2Client })
+    const client = oauth2Client ?? getOAuthClient()
+    const calendar = google.calendar({ version: "v3", auth: client })
 
     const response = await calendar.events.insert({
       calendarId,
@@ -333,7 +345,10 @@ export async function createFollowUpCalendarEvent(
  * @returns     - The created Google Calendar event ID
  * @throws      - If GOOGLE_CALENDAR_ID is missing or the Calendar API call fails
  */
-export async function createNewLeadCalendarEvent(lead: NewLeadEventInput): Promise<string> {
+export async function createNewLeadCalendarEvent(
+  lead: NewLeadEventInput,
+  oauth2Client?: GoogleOAuthClient,
+): Promise<string> {
   const fullName = [lead.first_name, lead.last_name].filter(Boolean).join(" ") || "Unknown Lead"
 
   // Start: now + 5 minutes. End: start + 15 minutes.
@@ -362,5 +377,12 @@ export async function createNewLeadCalendarEvent(lead: NewLeadEventInput): Promi
 
   console.log(`📅 [new-lead-event] Lead: ${fullName} | Title: ${title} | Start: ${toISO(startMs)}`)
 
-  return insertCalendarEvent(eventBody, `NEW LEAD — ${fullName}`)
+  // Per-agent (B2): when the caller supplies the agent's client, write to the
+  // agent's own primary calendar; otherwise keep the legacy global path exactly.
+  return insertCalendarEvent(
+    eventBody,
+    `NEW LEAD — ${fullName}`,
+    oauth2Client,
+    oauth2Client ? "primary" : undefined,
+  )
 }
