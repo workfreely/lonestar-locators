@@ -9,13 +9,13 @@ import ConnectedDevicesSection from "@/components/crm/devices/ConnectedDevicesSe
 // Companion), so it's no longer a generic "Soon" row here.
 const INTEGRATIONS: { name: string; description: string }[] = [
   { name: "Google Calendar", description: "Automatically create tours and reminders on your calendar." },
-  { name: "Google Contacts", description: "Keep your client contact information in sync." },
+  { name: "Google Contacts", description: "Automatically add your clients' contact information to your phone." },
   { name: "Meta Ads", description: "Bring in leads from your Facebook and Instagram ad campaigns." },
 ]
 
 export default function IntegrationsClient() {
   return (
-    <SettingsShell title="Integrations" description="Connect the tools you already use. More integrations are on the way.">
+    <SettingsShell title="Integrations">
       {/* Locator Beast's own tools appear first (Beast Companion, then Beast Sync),
           followed by third-party integrations. Presentation order only — the
           sections themselves are unchanged. */}
