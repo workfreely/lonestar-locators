@@ -39,7 +39,7 @@ export default function HelpChrome({ children }: { children: React.ReactNode }) 
           shared <BackToDashboard> pill. `dark` makes BackToDashboard's --crm-*
           tokens resolve to their dark values here (the same mechanism AppHeader's
           forceDarkSurface uses on surfaces outside the CRM ThemeProvider). */}
-      <header className="dark flex h-14 flex-none items-center gap-4 border-b border-[var(--beast-border-dark)] bg-[var(--beast-panel-dark)] px-5">
+      <header className="dark relative z-10 flex h-14 flex-none items-center gap-4 border-b border-[var(--beast-border-dark)] bg-[var(--beast-panel-dark)] px-5">
         <Logo tone="dark" mark="beast" />
         <div className="ml-auto flex items-center">
           <BackToDashboard variant="dark" />

@@ -16,6 +16,12 @@ export default function HelpHome() {
 
   return (
     <>
+      {/* Pull the whole hero/content stack up toward the header so there's less
+          empty space above the title. Help-Center-only: PageHero's own padding
+          is unchanged (it's shared with other pages); the header sits above via
+          its z-index, so this trims the hero's top space rather than overlapping
+          the logo/pill. */}
+      <div className="-mt-8 md:-mt-14">
       <PageHero
         title="Locator Beast Help Center"
         subtitle="Search for answers, browse how-to guides, or ask Beast AI."
@@ -27,6 +33,7 @@ export default function HelpHome() {
           <SearchBar autoFocus />
         </div>
       </PageHero>
+      </div>
 
       {/* Pull the content up into the hero's bottom padding, matching the Academy
           modules page rhythm. */}
