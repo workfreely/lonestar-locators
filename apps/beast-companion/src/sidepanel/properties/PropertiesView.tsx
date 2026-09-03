@@ -259,16 +259,21 @@ function ClientCriteriaLine({ lead }: { lead: LeadSummaryDTO }) {
 
   if (items.length === 0) return null;
 
+  // Caption + line form one tight block that reads as part of the client header
+  // (not a section). The caption renders only when there's a line to label.
   return (
-    <div className="bc-crit" aria-label="Client criteria">
-      {items.map((it, i) => (
+    <div className="bc-crit-block">
+      <div className="bc-crit-cap">Search Criteria</div>
+      <div className="bc-crit" aria-label="Client criteria">
+        {items.map((it, i) => (
         // Each cell carries its own LEADING separator so a "·" never orphans at
         // the start of a wrapped line; cells stay intact and wrap between them.
-        <span key={i} className="bc-crit-cell">
-          {i > 0 && <span className="bc-crit-sep" aria-hidden>· </span>}
-          {it}
-        </span>
-      ))}
+          <span key={i} className="bc-crit-cell">
+            {i > 0 && <span className="bc-crit-sep" aria-hidden>· </span>}
+            {it}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

@@ -904,13 +904,32 @@
    Muted one-line summary (Budget · Beds/Baths · Type · Area) under the client
    name, above Current Property. Prefers one line; wraps to at most two on narrow
    widths (cells stay intact, wrapping happens between them). Display only. */
+/* Caption + line form ONE tight block that reads as part of the client header
+   (no card/border/background). Hugs the name above; minimal gap before Current
+   Property below. */
+.bc-crit-block {
+  margin: 2px 0 6px;
+  padding: 0 2px;
+}
+.bc-crit-cap {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  line-height: 1.15;
+  margin-bottom: 2px;
+  /* --lb-text-muted isn't a defined theme token; --lb-text-secondary is the
+     canonical muted secondary. Dimmed a touch so the caption recedes below the
+     criteria line while staying legible. */
+  color: var(--lb-text-secondary);
+  opacity: 0.72;
+}
 .bc-crit {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0 4px;
-  margin: 2px 0 8px;
-  padding: 0 2px;
+  margin: 0;
   font-size: 11px;
   line-height: 1.45;
   color: var(--lb-text-secondary);
