@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className={`beast-root ${inter.variable} items-center justify-center px-4 py-12`}
+      className={`beast-root beast-glow ${inter.variable} items-center justify-center px-4 py-12`}
       style={{ backgroundColor: "var(--beast-bg-dark)" }}
     >
       <div className="mx-auto flex w-full max-w-md flex-col items-center">

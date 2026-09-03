@@ -99,7 +99,7 @@ export default function WhySection() {
               the blue border, the two-layer blue glow, padding, dimensions,
               bullet rows, icons and CTA behaviour are all untouched. */}
           <Reveal delayMs={100}>
-            <div className="h-full rounded-2xl border-2 border-[var(--beast-blue)] bg-[#0D1B3A] p-8 shadow-[0_0_60px_-15px_rgba(47,107,255,0.4),0_24px_50px_-24px_rgba(47,107,255,0.35)] md:p-10">
+            <div className="beast-glow h-full rounded-2xl border-2 border-[var(--beast-blue)] bg-[#0D1B3A] p-8 shadow-[0_0_60px_-15px_rgba(47,107,255,0.4),0_24px_50px_-24px_rgba(47,107,255,0.35)] md:p-10">
               {/* The full black wordmark stands in for the text heading here —
                   ONLY on this card; "Generic CRM" opposite stays text.
 
