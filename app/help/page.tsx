@@ -17,11 +17,13 @@ export default function HelpHome() {
   return (
     <>
       <PageHero
-        eyebrow="Help Center"
         title="Locator Beast Help Center"
-        subtitle="Search for answers, browse how-to guides, or ask Beast AI — in your own words."
+        subtitle="Search for answers, browse how-to guides, or ask Beast AI."
       >
-        <div id="hero-search" className="w-full max-w-xl">
+        {/* Explicit width: the hero centers its children (shrink-to-fit), so a
+            plain w-full/max-w-* collapses to the content width. A definite width
+            gives the search row real presence, proportionate to the 1180px page. */}
+        <div id="hero-search" className="w-[640px] max-w-full">
           <SearchBar autoFocus />
         </div>
       </PageHero>
@@ -84,7 +86,7 @@ export default function HelpHome() {
                   <div
                     key={c.slug}
                     aria-disabled
-                    className="flex h-full flex-col rounded-2xl border border-dashed border-white/12 bg-white/[0.02] p-5 md:p-6"
+                    className="flex h-full flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-5 md:p-6"
                   >
                     <div className="flex items-center gap-2">
                       <p className="text-[16px] font-semibold text-white/70 md:text-[17px]">{c.title}</p>

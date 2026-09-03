@@ -1,11 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/client"
 import AskBeastAI from "@/components/beast-ai/AskBeastAI"
-import LocatorBeastWordmark from "@/components/brand/LocatorBeastWordmark"
+import Logo from "@/components/crm/Logo"
+import BackToDashboard from "@/components/crm/BackToDashboard"
 
 // Dark Locator Beast chrome for the Help Center — the same header language as
 // the CRM AppHeader (h-14, px-5, border-b, white wordmark) so the Help Center
@@ -34,18 +34,16 @@ export default function HelpChrome({ children }: { children: React.ReactNode }) 
 
   return (
     <>
-      {/* Matches components/crm/AppHeader: h-14, px-5, border-b — same height,
-          padding, and vertical alignment as every other Locator Beast page. */}
-      <header className="flex h-14 flex-none items-center gap-4 border-b border-[var(--beast-border-dark)] bg-[var(--beast-panel-dark)] px-5">
-        <Link href="/help" aria-label="Locator Beast Help Center" className="flex items-center">
-          <LocatorBeastWordmark variant="white" height={28} priority />
-        </Link>
-        <Link
-          href="/admin/leads"
-          className="ml-auto text-[13px] font-medium text-white/70 transition-colors hover:text-white"
-        >
-          Back to Dashboard
-        </Link>
+      {/* Matches components/crm/AppHeader exactly: h-14, gap-4, px-5, border-b,
+          the shared <Logo> (same wordmark + HEADER_LOGO_OFFSET alignment), and the
+          shared <BackToDashboard> pill. `dark` makes BackToDashboard's --crm-*
+          tokens resolve to their dark values here (the same mechanism AppHeader's
+          forceDarkSurface uses on surfaces outside the CRM ThemeProvider). */}
+      <header className="dark flex h-14 flex-none items-center gap-4 border-b border-[var(--beast-border-dark)] bg-[var(--beast-panel-dark)] px-5">
+        <Logo tone="dark" mark="beast" />
+        <div className="ml-auto flex items-center">
+          <BackToDashboard variant="dark" />
+        </div>
       </header>
 
       {ready ? (
