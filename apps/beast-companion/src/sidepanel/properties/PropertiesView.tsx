@@ -259,22 +259,23 @@ function ClientCriteriaLine({ lead }: { lead: LeadSummaryDTO }) {
 
   if (items.length === 0) return null;
 
-  // Caption + line form one tight block that reads as part of the client header
-  // (not a section). The caption renders only when there's a line to label.
+  // Collapsible card using the SAME SectionCard pattern as Current Property /
+  // Recommendations / Favorites (defaultOpen; keyed by lead id so it resets open
+  // on a client switch). Body is ONLY the existing compact one-line summary — no
+  // labeled rows. Criteria derivation above is unchanged.
   return (
-    <div className="bc-crit-block">
-      <div className="bc-crit-cap">Search Criteria</div>
+    <SectionCard key={`search-criteria-${lead.id}`} title="Search Criteria" defaultOpen>
       <div className="bc-crit" aria-label="Client criteria">
         {items.map((it, i) => (
-        // Each cell carries its own LEADING separator so a "·" never orphans at
-        // the start of a wrapped line; cells stay intact and wrap between them.
+          // Each cell carries its own LEADING separator so a "·" never orphans at
+          // the start of a wrapped line; cells stay intact and wrap between them.
           <span key={i} className="bc-crit-cell">
             {i > 0 && <span className="bc-crit-sep" aria-hidden>· </span>}
             {it}
           </span>
         ))}
       </div>
-    </div>
+    </SectionCard>
   );
 }
 
@@ -453,8 +454,8 @@ export function PropertiesView({
 
   return (
     <div className="bc-props">
-      {/* Compact client-criteria line — under the client name, above Current
-          Property. Muted, one line (wraps to at most two on narrow widths). */}
+      {/* Search Criteria — a collapsible card (same pattern as the cards below),
+          defaultOpen, body = the compact one-line summary. Above Current Property. */}
       <ClientCriteriaLine lead={lead} />
 
       {/* Current Property — the Smart Apartment Data property currently being viewed
