@@ -33,6 +33,7 @@
 import { NextResponse, after } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { createNewLeadCalendarEvent } from "@/lib/google/createCalendarEvent"
+import { createGoogleContactForOwner, type GoogleContactLeadFields } from "@/lib/google/createGoogleContact"
 import { findDuplicateMatch, type LeadIdentity } from "@/lib/leads/duplicateDetection"
 import { getStageWorkflowAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
 import { resolveUserTimeZone } from "@/lib/timezone/server"
@@ -473,6 +474,27 @@ export async function POST(request: Request) {
         })
       } catch (err) {
         console.error("[api/leads/submit] Failed to schedule new-lead calendar event:", err)
+      }
+    }
+
+    // ─── Google Contact (server-side, per-agent, best-effort) ─────────────
+    // Locator Beast's own integration: creates the contact in the OWNING
+    // agent's connected Google account, resolved server-side from the Smart
+    // Lead Form slug (attributedOwnerId — un-forgeable, never from the body).
+    // No legacy/global credential and no Lone Star coupling. Deferred via
+    // `after()` and self-contained best-effort (createGoogleContactForOwner
+    // never throws), so no connected account, a revoked token, or any Google
+    // error can delay the response or roll back the insert. Only for a genuinely
+    // new lead with a resolved agent owner — an exact-match resubmission
+    // shouldn't create a duplicate contact, and an authenticated CRM add
+    // (manualEntry) resolves no attributedOwnerId, so it creates no contact.
+    if (isNewLead && attributedOwnerId) {
+      try {
+        after(async () => {
+          await createGoogleContactForOwner(attributedOwnerId, data.id, result.payload as unknown as GoogleContactLeadFields)
+        })
+      } catch (err) {
+        console.error("[api/leads/submit] Failed to schedule Google contact creation:", err)
       }
     }
 
