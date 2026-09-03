@@ -7,13 +7,20 @@ import ConnectedDevicesSection from "@/components/crm/devices/ConnectedDevicesSe
 
 // Phone Sync lives in its own Beast Companion section below (it's the desktop
 // Companion), so it's no longer a generic "Soon" row here.
-const INTEGRATIONS: { name: string; description: string }[] = [
-  { name: "Google Calendar", description: "Automatically create tours and reminders on your calendar." },
-  { name: "Google Contacts", description: "Automatically add your clients' contact information to your phone." },
+// `google` marks the rows served by the one Google OAuth grant (Calendar +
+// Contacts scopes); those get a working Connect/Reconnect action.
+const INTEGRATIONS: { name: string; description: string; google?: boolean }[] = [
+  { name: "Google Calendar", description: "Automatically create tours and reminders on your calendar.", google: true },
+  { name: "Google Contacts", description: "Automatically add your clients' contact information to your phone.", google: true },
   { name: "Meta Ads", description: "Bring in leads from your Facebook and Instagram ad campaigns." },
 ]
 
-export default function IntegrationsClient() {
+// The one working Google connect entry point — the SAME OAuth flow onboarding
+// uses. Returning to /admin/integrations so an already-onboarded agent can
+// (re)connect without being bounced through onboarding. No OAuth logic here.
+const GOOGLE_CONNECT_URL = "/api/google/auth?next=/admin/integrations"
+
+export default function IntegrationsClient({ googleConnected }: { googleConnected: boolean }) {
   return (
     <SettingsShell title="Integrations">
       {/* Locator Beast's own tools appear first (Beast Companion, then Beast Sync),
@@ -35,13 +42,36 @@ export default function IntegrationsClient() {
                 <p className="text-[14px] font-semibold text-[#111318]">{item.name}</p>
                 <p className="text-[12.5px] text-[#6b7280]">{item.description}</p>
               </div>
-              <button
-                type="button"
-                disabled
-                className="flex-none cursor-not-allowed rounded-lg border border-[#e5e7ee] bg-[#f4f5f8] px-4 py-2 text-[13px] font-semibold text-[#9098a8]"
-              >
-                Soon
-              </button>
+              {item.google ? (
+                <div className="flex flex-none items-center gap-3">
+                  {googleConnected && (
+                    <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-[#15803d]">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#16a34a]" />
+                      Connected
+                    </span>
+                  )}
+                  {/* Full navigation to the existing OAuth initiation route — same
+                      flow onboarding uses; no OAuth logic duplicated here. */}
+                  <a
+                    href={GOOGLE_CONNECT_URL}
+                    className={
+                      googleConnected
+                        ? "rounded-lg border border-[#e5e7ee] bg-white px-4 py-2 text-[13px] font-semibold text-[#111318] transition-colors hover:bg-[#f4f5f8]"
+                        : "rounded-lg bg-[#2f6bff] px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#255ae0]"
+                    }
+                  >
+                    {googleConnected ? "Reconnect" : "Connect"}
+                  </a>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="flex-none cursor-not-allowed rounded-lg border border-[#e5e7ee] bg-[#f4f5f8] px-4 py-2 text-[13px] font-semibold text-[#9098a8]"
+                >
+                  Soon
+                </button>
+              )}
             </div>
           ))}
         </div>

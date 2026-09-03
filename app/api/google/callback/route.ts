@@ -43,6 +43,10 @@ export async function GET(request: Request) {
 
   // CSRF: the nonce echoed by Google must match the one we set on initiation.
   if (!code || !nonce || !cookieNonce || nonce !== cookieNonce) {
+    // Non-PII diagnostic: which precondition failed (no token/code/email logged).
+    console.warn(
+      `[google/callback] state/nonce check failed (hasCode=${!!code} hasStateNonce=${!!nonce} hasCookieNonce=${!!cookieNonce} match=${nonce === cookieNonce}) — CSRF or expired nonce`,
+    )
     return NextResponse.redirect(`${origin}${next}?google=error`)
   }
 
@@ -67,6 +71,9 @@ export async function GET(request: Request) {
     // Without a refresh token we can't act on the user's behalf later. Force a
     // reconsent by sending them back unconnected.
     if (!tokens.refresh_token) {
+      // Non-PII diagnostic: Google returned no refresh_token (needs a
+      // prompt=consent reconsent). No token/code/email logged.
+      console.warn("[google/callback] no refresh_token returned by Google — reconsent required")
       return NextResponse.redirect(`${origin}${next}?google=error`)
     }
 
