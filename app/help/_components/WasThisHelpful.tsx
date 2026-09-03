@@ -9,7 +9,7 @@ export default function WasThisHelpful() {
 
   if (choice) {
     return (
-      <p className="text-[13px] text-[#6b7280]">
+      <p className="text-[13px] text-white/55">
         Thanks for your feedback.
         {choice === "no" && " Still stuck? Open Ask Beast AI in the corner to ask your question."}
       </p>
@@ -18,18 +18,18 @@ export default function WasThisHelpful() {
 
   return (
     <div className="flex items-center gap-3">
-      <span className="text-[13px] font-medium text-[#4b5162]">Was this helpful?</span>
+      <span className="text-[13px] font-medium text-white/70">Was this helpful?</span>
       <button
         type="button"
         onClick={() => setChoice("yes")}
-        className="rounded-lg border border-[#e5e7ee] bg-white px-3 py-1.5 text-[13px] font-medium text-[#111318] hover:bg-[#f4f5f8]"
+        className="rounded-lg border border-white/12 bg-white/[0.04] px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-white/[0.08]"
       >
         Yes
       </button>
       <button
         type="button"
         onClick={() => setChoice("no")}
-        className="rounded-lg border border-[#e5e7ee] bg-white px-3 py-1.5 text-[13px] font-medium text-[#111318] hover:bg-[#f4f5f8]"
+        className="rounded-lg border border-white/12 bg-white/[0.04] px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-white/[0.08]"
       >
         No
       </button>

@@ -1,69 +1,105 @@
 import Link from "next/link"
+import PageHero from "@/app/locator-beast/(site)/_components/PageHero"
 import { categoriesWithStatus } from "@/lib/knowledge"
 import SearchBar from "./_components/SearchBar"
 import OpenAskBeast from "./_components/OpenAskBeast"
 
 export const metadata = { title: "Locator Beast Help Center" }
 
+// Home — Beast Academy's layout system: a wide dark PageHero, then
+// .beast-container (1180px) sections with generously sized cards. Same widths,
+// spacing, heading scale, grid proportions, and card treatment as the Academy
+// modules page; the content (categories, counts, Coming Soon, search, Browse
+// Guides, Ask Beast) is unchanged.
 export default function HelpHome() {
   const categories = categoriesWithStatus()
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <section id="search" className="space-y-3">
-        <h1 className="text-[26px] font-black tracking-tight text-[#111318]">Locator Beast Help Center</h1>
-        <p className="text-[14px] text-[#4b5162]">Search for answers, browse how-to guides, or ask Beast AI.</p>
-        <SearchBar autoFocus />
-      </section>
-
-      {/* Primary options */}
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <a href="#search" className="rounded-xl border border-[#e5e7ee] bg-white px-4 py-4 transition-colors hover:bg-[#f4f5f8]">
-          <p className="text-[14px] font-semibold text-[#111318]">Search Help</p>
-          <p className="mt-1 text-[12.5px] text-[#6b7280]">Type a question and get a direct answer.</p>
-        </a>
-        <a href="#categories" className="rounded-xl border border-[#e5e7ee] bg-white px-4 py-4 transition-colors hover:bg-[#f4f5f8]">
-          <p className="text-[14px] font-semibold text-[#111318]">Browse Guides</p>
-          <p className="mt-1 text-[12.5px] text-[#6b7280]">Explore how-to guides by topic.</p>
-        </a>
-        <OpenAskBeast className="rounded-xl border border-[#e5e7ee] bg-white px-4 py-4 text-left transition-colors hover:bg-[#f4f5f8]">
-          <p className="text-[14px] font-semibold text-[#111318]">Ask Beast AI</p>
-          <p className="mt-1 text-[12.5px] text-[#6b7280]">Ask a question in your own words.</p>
-        </OpenAskBeast>
-      </section>
-
-      {/* Categories */}
-      <section id="categories" className="space-y-3">
-        <h2 className="text-[13px] font-semibold uppercase tracking-widest text-[#9098a8]">Browse by topic</h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {categories.map((c) =>
-            c.live ? (
-              <Link
-                key={c.slug}
-                href={`/help/${c.slug}`}
-                className="rounded-xl border border-[#e5e7ee] bg-white px-4 py-4 transition-colors hover:border-[#c7ccd8] hover:bg-[#f4f5f8]"
-              >
-                <p className="text-[14.5px] font-semibold text-[#111318]">{c.title}</p>
-                <p className="mt-1 text-[12.5px] text-[#6b7280]">{c.description}</p>
-                <p className="mt-2 text-[11.5px] font-medium text-[#2f6bff]">{c.count} article{c.count === 1 ? "" : "s"}</p>
-              </Link>
-            ) : (
-              <div
-                key={c.slug}
-                aria-disabled
-                className="rounded-xl border border-dashed border-[#e5e7ee] bg-[#fafbfc] px-4 py-4"
-              >
-                <div className="flex items-center gap-2">
-                  <p className="text-[14.5px] font-semibold text-[#6b7280]">{c.title}</p>
-                  <span className="rounded-full bg-[#eef0f4] px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-[#8a93a3]">Coming soon</span>
-                </div>
-                <p className="mt-1 text-[12.5px] text-[#9098a8]">{c.description}</p>
-              </div>
-            ),
-          )}
+    <>
+      <PageHero
+        eyebrow="Help Center"
+        title="Locator Beast Help Center"
+        subtitle="Search for answers, browse how-to guides, or ask Beast AI — in your own words."
+      >
+        <div id="hero-search" className="w-full max-w-xl">
+          <SearchBar autoFocus />
         </div>
-      </section>
-    </div>
+      </PageHero>
+
+      {/* Pull the content up into the hero's bottom padding, matching the Academy
+          modules page rhythm. */}
+      <div className="-mt-10 bg-[var(--beast-bg-dark)] md:-mt-14">
+        <div className="beast-container space-y-14 pb-16 pt-8 md:space-y-20 md:pb-24 md:pt-10">
+          {/* Quick entry points */}
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <a
+              href="#hero-search"
+              className="group flex h-full flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-5 transition-colors hover:border-[var(--beast-blue)]/50 hover:bg-white/[0.06] md:p-6"
+            >
+              <p className="text-[16px] font-semibold text-white md:text-[17px]">Search Help</p>
+              <p className="mt-1.5 text-[13.5px] leading-relaxed text-white/60">
+                Type a question and get a direct answer.
+              </p>
+            </a>
+            <a
+              href="#topics"
+              className="group flex h-full flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-5 transition-colors hover:border-[var(--beast-blue)]/50 hover:bg-white/[0.06] md:p-6"
+            >
+              <p className="text-[16px] font-semibold text-white md:text-[17px]">Browse Guides</p>
+              <p className="mt-1.5 text-[13.5px] leading-relaxed text-white/60">Explore how-to guides by topic.</p>
+            </a>
+            <OpenAskBeast className="group flex h-full flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-left transition-colors hover:border-[var(--beast-blue)]/50 hover:bg-white/[0.06] md:p-6">
+              <p className="text-[16px] font-semibold text-white md:text-[17px]">Ask Beast AI</p>
+              <p className="mt-1.5 text-[13.5px] leading-relaxed text-white/60">Ask a question in your own words.</p>
+            </OpenAskBeast>
+          </section>
+
+          {/* Browse by topic — the Academy lesson-card grid, scaled for topics. */}
+          <section id="topics">
+            <div className="flex items-start gap-4">
+              <span className="mt-1 text-[15px] font-bold tabular-nums text-[var(--beast-blue-bright)]">01</span>
+              <div>
+                <h2 className="text-[22px] font-semibold text-white md:text-[26px]">Browse by topic</h2>
+                <p className="mt-1.5 max-w-2xl text-[14.5px] leading-relaxed text-white/60">
+                  Pick a topic to see step-by-step guides written for how you actually work in Locator Beast.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {categories.map((c) =>
+                c.live ? (
+                  <Link
+                    key={c.slug}
+                    href={`/help/${c.slug}`}
+                    className="group flex h-full flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-5 transition-colors hover:border-[var(--beast-blue)]/50 hover:bg-white/[0.06] md:p-6"
+                  >
+                    <p className="text-[16px] font-semibold text-white md:text-[17px]">{c.title}</p>
+                    <p className="mt-1.5 flex-1 text-[13.5px] leading-relaxed text-white/60">{c.description}</p>
+                    <p className="mt-4 text-[12.5px] font-semibold text-[var(--beast-blue-bright)]">
+                      {c.count} article{c.count === 1 ? "" : "s"}
+                    </p>
+                  </Link>
+                ) : (
+                  <div
+                    key={c.slug}
+                    aria-disabled
+                    className="flex h-full flex-col rounded-2xl border border-dashed border-white/12 bg-white/[0.02] p-5 md:p-6"
+                  >
+                    <div className="flex items-center gap-2">
+                      <p className="text-[16px] font-semibold text-white/70 md:text-[17px]">{c.title}</p>
+                      <span className="flex-none rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-white/50">
+                        Coming soon
+                      </span>
+                    </div>
+                    <p className="mt-1.5 text-[13.5px] leading-relaxed text-white/45">{c.description}</p>
+                  </div>
+                ),
+              )}
+            </div>
+          </section>
+        </div>
+      </div>
+    </>
   )
 }
