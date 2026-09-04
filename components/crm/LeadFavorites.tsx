@@ -10,6 +10,7 @@ import { SectionCard } from "./LeadPanelSections"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { upcomingTourForFavorite } from "@/lib/leads/upcomingTour"
 import { favoriteMoveBlock } from "@/lib/leads/propertyCollections"
+import { propertyWebsiteHref } from "@/lib/propertyExplorer/types"
 import { displayAddress, formatRating } from "@bc/companion-shared"
 import { StarRating } from "./StarRating"
 import { attachCatalogRatings } from "@/lib/propertyExplorer/catalog"
@@ -411,10 +412,15 @@ export default function LeadFavorites({
                         once persisted; until then PropertyThumb shows the clean
                         placeholder — never a broken image. */}
                     <PropertyThumb src={fav.property_image_url} alt={fav.property_name || ""} />
-                    {fav.property_url ? (
-                      <a href={fav.property_url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1">
+                    {(() => {
+                    // The name links ONLY to the real property website (resolved
+                    // read-side from property_catalog.website_url), never the placeUrl
+                    // (Google Maps). No valid website → a plain, non-clickable name.
+                    const favHref = propertyWebsiteHref((fav as { website_url?: string | null }).website_url)
+                    return favHref ? (
+                      <a href={favHref} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1">
                         <p className="text-[12.5px] font-semibold text-[var(--crm-accent)] hover:underline truncate">
-                          {fav.property_name || fav.property_url}
+                          {fav.property_name || "Property"}
                         </p>
                         {fav.property_address && (
                           <p className="text-[11px] text-[var(--crm-text-muted)] truncate">{displayAddress(fav.property_address)}</p>
@@ -439,7 +445,8 @@ export default function LeadFavorites({
                           </div>
                         )}
                       </div>
-                    )}
+                    )
+                    })()}
                     <div className="flex-none flex items-center gap-2.5">
                       {onMoveToRecommendation && (() => {
                         // ✕ moves the Favorite BACK to Recommendations (never a

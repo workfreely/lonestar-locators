@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SectionCard } from "../lead/primitives";
 import { PropertyThumb } from "./PropertyThumb";
-import { resolveClientContext, evaluateLocationFit, evaluateApproval, evaluateAmenities, evaluateSpecials, evaluateBudget, evaluateMatchScore, matchScoreTone, normalizeMustHaveAmenities, resolveClientBudget, formatRent, cityMismatch, propertyCityName, starFillPercent, formatRating, displayAddress } from "@bc/companion-shared";
+import { resolveClientContext, evaluateLocationFit, evaluateApproval, evaluateAmenities, evaluateSpecials, evaluateBudget, evaluateMatchScore, matchScoreTone, normalizeMustHaveAmenities, resolveClientBudget, formatRent, cityMismatch, propertyCityName, starFillPercent, formatRating, displayAddress, propertyWebsiteHref } from "@bc/companion-shared";
 import type { FavoriteDTO, RecommendationDTO, LeadSummaryDTO } from "@bc/companion-shared";
 import type { CurrentProperty } from "@/types";
 
@@ -410,7 +410,7 @@ export function PropertiesView({
               <div className="bc-current-prop-body">
                 <PropertyName
                   name={currentProperty.propertyName}
-                  url={currentProperty.propertyUrl}
+                  url={propertyWebsiteHref(currentProperty.websiteUrl)}
                   className="bc-current-prop-name"
                 />
                 {currentProperty.propertyAddress && (
@@ -508,7 +508,7 @@ export function PropertiesView({
                 key={String(r.id)}
                 name={r.propertyName}
                 sub={r.propertyAddress ? displayAddress(r.propertyAddress) : r.propertyAddress}
-                url={r.propertyUrl}
+                url={propertyWebsiteHref(r.websiteUrl)}
                 rating={r.googleRating}
                 // ✕ removes the recommendation; ♡ (EMPTY heart — still a Recommendation)
                 // moves it to Favorites. ✕ sits to the LEFT of the heart.
@@ -538,7 +538,7 @@ export function PropertiesView({
                 key={String(f.id)}
                 name={f.propertyName}
                 sub={f.propertyAddress ? displayAddress(f.propertyAddress) : f.propertyAddress}
-                url={f.propertyUrl}
+                url={propertyWebsiteHref(f.websiteUrl)}
                 rating={f.googleRating}
                 // ✕ moves the Favorite BACK to Recommendations (never a full delete),
                 // reusing the move-back verb. Disabled while a scheduled tour / Top

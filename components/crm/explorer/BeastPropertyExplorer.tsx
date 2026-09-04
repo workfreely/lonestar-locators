@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { loadGoogleMaps, MapsConfigError } from "@/lib/propertyExplorer/loadMaps"
-import { hasCoordinates, placeUrl, displayAddress, formatCommission, type ExplorerProperty } from "@/lib/propertyExplorer/types"
+import { hasCoordinates, placeUrl, displayAddress, formatCommission, propertyWebsiteHref, type ExplorerProperty } from "@/lib/propertyExplorer/types"
 import PropertyThumb from "@/components/crm/PropertyThumb"
 import { assessLocationFit, type ClientLocationContext } from "@/lib/propertyExplorer/locationFit"
 import { computeSuggestions } from "@/lib/propertyExplorer/suggestions"
@@ -960,6 +960,10 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
 
   const card = selected ?? hovered
   const fit = card ? assessLocationFit(card, activeClient) : null
+  // The ONLY link target for the card's thumbnail / name / Visit Website: the real
+  // property website. Never the Google Maps place URL (card.propertyUrl). Null when
+  // there is no valid website → those elements are non-clickable, no substitution.
+  const siteHref = card ? propertyWebsiteHref(card.websiteUrl) : null
 
   if (status === "unconfigured") {
     return (
@@ -1189,10 +1193,41 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
               the building icon in the same spot. The gray match section, the full-width
               Recommend button and the lower-right Visit Website link follow below. */}
           <div className="flex items-start gap-2.5">
-            <PropertyThumb src={card.imageUrl} alt={card.propertyName} size={48} />
+            {/* Thumbnail links to the property's OWN website (same URL as Visit
+                Website), new tab; stopPropagation so it never selects/closes the
+                pinned card. Plain thumbnail when no website is known. */}
+            {siteHref ? (
+              <a
+                href={siteHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="flex-none"
+                aria-label={`Visit ${card.propertyName} website`}
+              >
+                <PropertyThumb src={card.imageUrl} alt={card.propertyName} size={48} />
+              </a>
+            ) : (
+              <PropertyThumb src={card.imageUrl} alt={card.propertyName} size={48} />
+            )}
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-2">
-                <p className="text-[14px] font-semibold leading-snug text-[#111318]">{card.propertyName}</p>
+                {/* Name links to the same property website (new tab). Condensed
+                    leading + no address gap so the top block reads tight, matching
+                    Current Property. */}
+                {siteHref ? (
+                  <a
+                    href={siteHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-[14px] font-semibold leading-tight text-[#111318] hover:underline"
+                  >
+                    {card.propertyName}
+                  </a>
+                ) : (
+                  <p className="text-[14px] font-semibold leading-tight text-[#111318]">{card.propertyName}</p>
+                )}
                 {selected && (
                   <button
                     type="button"
@@ -1205,7 +1240,7 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
                 )}
               </div>
               {card.propertyAddress && (
-                <p className="mt-0.5 text-[12.5px] leading-snug text-[#4b5162]">{displayAddress(card.propertyAddress)}</p>
+                <p className="text-[12.5px] leading-snug text-[#4b5162]">{displayAddress(card.propertyAddress)}</p>
               )}
               {/* Rating directly under the address — same stack as Current Property.
                   Real catalogued value only; never fabricated, never affects ranking. */}
@@ -1291,10 +1326,10 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
               when a real websiteUrl exists (hidden otherwise). Opens in a new tab
               and stops propagation so it never triggers the pin-card select/close.
               No request — the URL is read from the already-loaded property. */}
-          {card.websiteUrl && (
+          {siteHref && (
             <div className="mt-3 text-right">
               <a
-                href={card.websiteUrl}
+                href={siteHref}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}

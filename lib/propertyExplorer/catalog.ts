@@ -65,7 +65,7 @@ export async function fetchCatalog(
 export async function attachCatalogRatings<T extends { property_url?: string | null; property_image_url?: string | null }>(
   rows: T[],
   supabase: SupabaseClient,
-): Promise<(T & { google_rating: number | null; property_image_url: string | null })[]> {
+): Promise<(T & { google_rating: number | null; property_image_url: string | null; website_url: string | null })[]> {
   const placeIds = rows.map((r) => placeIdFromPropertyUrl(r.property_url))
   const catalog = await fetchCatalog(
     placeIds.filter((v): v is string => !!v),
@@ -82,6 +82,9 @@ export async function attachCatalogRatings<T extends { property_url?: string | n
       ...r,
       google_rating: rec?.googleRating ?? null,
       property_image_url: ownImage ?? rec?.imageUrl ?? null,
+      // The real property website (property_catalog.website_url), read-side. The ONLY
+      // URL a property-name/thumbnail link may open — never the placeUrl (Google Maps).
+      website_url: rec?.websiteUrl ?? null,
     }
   })
 }

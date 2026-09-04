@@ -179,12 +179,42 @@ export function toCompanionProperty(p: ExplorerProperty) {
     // Current Property's existing PropertyThumb shows the same photo as the map card;
     // null/broken → the building icon (receiver already falls back).
     propertyImageUrl: p.imageUrl ?? null,
+    // The real property website (property_catalog.website_url). The ONLY URL Current
+    // Property's name/thumbnail may open — never propertyUrl (the Google Maps place
+    // link). Null → non-clickable name (no substitution).
+    websiteUrl: p.websiteUrl ?? null,
   }
 }
 
 /** Canonical Google Maps URL for a place. Documented, stable, not fabricated. */
 export function placeUrl(placeId: string): string {
   return `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(placeId)}`
+}
+
+/**
+ * The ONLY URL a property card link (thumbnail / name / Visit Website) may open:
+ * the property's real external website. Returns the URL when it is a plausible
+ * property site, or null to leave the element non-clickable. NEVER returns a Google
+ * Maps place/search/directions URL or the `?q=place_id:` map link — a card click must
+ * go to the actual property site (property_catalog.website_url) or nowhere. No
+ * substitution: a missing/invalid website simply yields no link.
+ */
+export function propertyWebsiteHref(url: string | null | undefined): string | null {
+  const u = (url ?? "").trim()
+  if (!/^https?:\/\//i.test(u)) return null // must be an absolute http(s) site
+  if (
+    /google\.[a-z.]+\/(?:maps|search|url)\b/i.test(u) || // google maps / search / redirect
+      /\/maps\//i.test(u) ||
+      /maps\.google\./i.test(u) ||
+      /maps\.app\.goo\.gl/i.test(u) ||
+      /goo\.gl\/maps/i.test(u) ||
+      /\bg\.page\b/i.test(u) || // google business short link
+      /[?&]q=place_id:/i.test(u) || // the placeUrl() map link
+      /[?&#]daddr=|\/dir\//i.test(u) // directions
+  ) {
+    return null
+  }
+  return u
 }
 
 /**

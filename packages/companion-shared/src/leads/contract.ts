@@ -193,6 +193,9 @@ export const favoriteSchema = z.object({
   propertyName: z.string(),
   propertyAddress: z.string().nullish(),
   propertyUrl: z.string().nullish(),
+  /** The property's REAL website (property_catalog.website_url), resolved read-side.
+   *  The only URL a name/thumbnail link may open — never propertyUrl (Google Maps). */
+  websiteUrl: z.string().nullish(),
   /** Google Places star rating (0.0–5.0), resolved read-side from
    *  property_catalog by the property's Place ID (never stored on lead_favorites).
    *  Null when the property is uncatalogued or unrated; the card omits it then. */
@@ -213,6 +216,9 @@ export const recommendationSchema = z.object({
   propertyName: z.string(),
   propertyAddress: z.string().nullish(),
   propertyUrl: z.string().nullish(),
+  /** The property's REAL website (property_catalog.website_url), resolved read-side.
+   *  The only URL a name/thumbnail link may open — never propertyUrl (Google Maps). */
+  websiteUrl: z.string().nullish(),
   /** Google Places star rating (0.0–5.0), resolved read-side from
    *  property_catalog by the property's Place ID (never stored on
    *  lead_recommendations). Null when uncatalogued/unrated; the card omits it. */

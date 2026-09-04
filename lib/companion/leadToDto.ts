@@ -451,6 +451,9 @@ export function buildActiveClientPayload(
       propertyName: str(f.property_name) ?? "Property",
       propertyAddress: str(f.property_address),
       propertyUrl: str(f.property_url),
+      // Real property website (property_catalog.website_url), resolved read-side by
+      // attachCatalogRatings. The only URL the name may link to — never propertyUrl.
+      websiteUrl: str(f.website_url),
       // Google rating resolved read-side from property_catalog (attachCatalogRatings
       // at the fetch). Null when uncatalogued/unrated — never fabricated.
       googleRating: typeof f.google_rating === "number" ? f.google_rating : null,
@@ -470,6 +473,9 @@ export function buildActiveClientPayload(
       propertyName: str(r.property_name) ?? "Property",
       propertyAddress: str(r.property_address),
       propertyUrl: str(r.property_url),
+      // Real property website (property_catalog.website_url), resolved read-side.
+      // The only URL the name may link to — never propertyUrl (Google Maps).
+      websiteUrl: str(r.website_url),
       // Google rating resolved read-side from property_catalog. Null when
       // uncatalogued/unrated.
       googleRating: typeof r.google_rating === "number" ? r.google_rating : null,

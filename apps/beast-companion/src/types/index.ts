@@ -77,6 +77,10 @@ export type CurrentProperty = {
    *  detected property; the Google Maps place URL for one picked on the map. */
   propertyUrl: string;
   propertyImageUrl?: string | null;
+  /** The property's REAL website (property_catalog.website_url), when known. The ONLY
+   *  URL Current Property's name/thumbnail may open — never propertyUrl (which is the
+   *  Google Maps place link for a map-picked property). Absent → non-clickable name. */
+  websiteUrl?: string | null;
 
   // ── Geographic / provenance metadata ──────────────────────────────────────
   // Added for Beast Property Explorer, which knows a property's real coordinates
