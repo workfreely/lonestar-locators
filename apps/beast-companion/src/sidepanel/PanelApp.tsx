@@ -29,6 +29,41 @@ type MenuMode = "closed" | "popover";
  *
  * Chrome's native side-panel X remains the sole close for the whole Companion.
  */
+
+// One direction of the main-view ⇄ tab sync: a monotonically increasing counter
+// in chrome.storage.local (written by the workspace-mode content bridge) flips
+// the panel to `target` exactly once per NEW value. The value present at mount is
+// adopted WITHOUT acting, and an unchanged value can never re-fire — so panel
+// reopen, map rerenders, "Search this area", pin hover and pin clicks all do
+// nothing, and a manual tab change after a transition is never overridden.
+function useMainViewTab(
+  key: string,
+  target: CompanionView,
+  setActiveView: (v: CompanionView) => void,
+): void {
+  useEffect(() => {
+    const store = chrome?.storage?.local;
+    if (!store) return; // dev harness (no extension APIs)
+    let lastSeen: number | null = null;
+    store.get(key, (res) => {
+      lastSeen = typeof res[key] === "number" ? (res[key] as number) : 0;
+    });
+    function onChanged(changes: { [k: string]: chrome.storage.StorageChange }, area: string) {
+      if (area !== "local" || !changes[key]) return;
+      const next = changes[key].newValue;
+      if (typeof next !== "number") return;
+      // Until the mount read lands, adopt the value rather than acting on it —
+      // otherwise a change arriving in that window would look like a transition.
+      if (lastSeen === null) { lastSeen = next; return; }
+      if (next === lastSeen) return;
+      lastSeen = next;
+      setActiveView(target);
+    }
+    chrome.storage.onChanged.addListener(onChanged);
+    return () => chrome.storage.onChanged.removeListener(onChanged);
+  }, [key, target, setActiveView]);
+}
+
 export function PanelApp({
   state = "no-client",
   lead,
@@ -149,42 +184,16 @@ export function PanelApp({
   // unchanged Client experience; Properties shows the Phase-1 visual shell.
   const [activeView, setActiveView] = useState<CompanionView>("client");
 
-  // ── Board → Map: default this panel to Properties ─────────────────────────
-  // Map mode is a property-research context, so Current Property, Recommendations
-  // and (later) Beast Suggestions are what the agent wants in front of them. This
-  // reuses `activeView` above — the SAME tab state the nav drives — so there is no
-  // separate Property Explorer tab state to keep in sync.
-  //
-  // Contextual default, not a lock:
-  //   • only a NEW counter value acts, so map rerenders, "Search this area",
-  //     pin hover and pin clicks (none of which post a message) change nothing;
-  //   • switching back to Client afterwards sticks — the counter does not move
-  //     again until the agent leaves Map and returns;
-  //   • Map → Board posts nothing, so Client is never forced back;
-  //   • the value seen at MOUNT is recorded without acting, so opening the panel
-  //     while already in Map does not yank it off the tab the agent chose.
-  useEffect(() => {
-    const store = chrome?.storage?.local;
-    if (!store) return; // dev harness (no extension APIs)
-    const KEY = "lb-map-entered";
-    let lastSeen: number | null = null;
-    store.get(KEY, (res) => {
-      lastSeen = typeof res[KEY] === "number" ? (res[KEY] as number) : 0;
-    });
-    function onChanged(changes: { [key: string]: chrome.storage.StorageChange }, area: string) {
-      if (area !== "local" || !changes[KEY]) return;
-      const next = changes[KEY].newValue;
-      if (typeof next !== "number") return;
-      // Until the mount read lands, adopt the value rather than acting on it —
-      // otherwise a change arriving in that window would look like a transition.
-      if (lastSeen === null) { lastSeen = next; return; }
-      if (next === lastSeen) return;
-      lastSeen = next;
-      setActiveView("properties");
-    }
-    chrome.storage.onChanged.addListener(onChanged);
-    return () => chrome.storage.onChanged.removeListener(onChanged);
-  }, []);
+  // ── Main CRM view ⇄ this panel's tab (both directions) ────────────────────
+  // Map is a property-research context (→ Properties); Board/Workspace already
+  // shows Recommended/Favorite Properties itself (→ Client). Each direction has
+  // its own transition counter (see workspaceModeBridge), and each flips the tab
+  // exactly ONCE per new value — reusing `activeView`, the SAME state the nav
+  // drives — so a manual tab change made afterward sticks until the next
+  // main-view change. The value seen at MOUNT is adopted without acting, so
+  // opening the panel while already in a mode never yanks the agent off their tab.
+  useMainViewTab("lb-map-entered", "properties", setActiveView);
+  useMainViewTab("lb-workspace-entered", "client", setActiveView);
   const [demoNote, setDemoNote] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeId>("midnight");
   const noteTimer = useRef<number | undefined>(undefined);

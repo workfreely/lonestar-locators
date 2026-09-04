@@ -263,26 +263,34 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     writeCrmWorkspace(next)
   }, [])
 
-  // Board → Map tells an OPEN Beast Companion to default to its Properties tab —
-  // Map mode is a property-research context, and Current Property /
-  // Recommendations / Beast Suggestions all live there.
+  // Main-view ↔ Companion tab sync. The main CRM view and the Companion's
+  // top-level tab track each other so the agent never sees duplicate property
+  // info: Map is a property-research context (Current Property / Recommendations
+  // / Beast Suggestions live in the Companion's Properties tab), while the
+  // Board/Workspace already shows Recommended/Favorite Properties itself, so the
+  // Companion is most useful on Client there.
+  //   • board → map   → post "map"       → Companion defaults to Properties
+  //   • map   → board → post "workspace" → Companion defaults to Client
   //
-  // Fires ONLY on the board→map transition. A ref (not the effect's dependency
-  // list alone) holds the previous workspace, so the frequent re-renders this
-  // component does — search keystrokes, marker updates, pin hover, pin click,
-  // lead mutations — cannot re-post while the workspace itself is unchanged.
-  // Nothing is posted for map→board: returning to Board must never drag the agent
-  // off the Client tab. The panel treats this as a default it can be overridden.
+  // Fires ONLY on an actual transition. A ref (not the effect's dependency list
+  // alone) holds the previous workspace, so the frequent re-renders this component
+  // does — search keystrokes, marker updates, pin hover, pin click, lead
+  // mutations — cannot re-post while the workspace itself is unchanged. Each post
+  // is a CONTEXTUAL DEFAULT the agent can override: the panel switches once per
+  // transition and never fights a manual tab change made afterward.
   const prevWorkspaceRef = useRef(workspace)
   useEffect(() => {
     const prev = prevWorkspaceRef.current
     prevWorkspaceRef.current = workspace
-    if (prev === "board" && workspace === "map") {
-      window.postMessage(
-        { source: COMPANION_MSG_SOURCE, type: "workspace-mode", mode: "map" },
-        window.location.origin,
-      )
-    }
+    if (prev === workspace) return
+    const mode = prev === "board" && workspace === "map" ? "map"
+      : prev === "map" && workspace === "board" ? "workspace"
+      : null
+    if (!mode) return
+    window.postMessage(
+      { source: COMPANION_MSG_SOURCE, type: "workspace-mode", mode },
+      window.location.origin,
+    )
   }, [workspace])
 
   // Beast Milestones — watches the live board for newly-earned achievements
