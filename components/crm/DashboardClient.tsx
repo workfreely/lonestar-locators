@@ -554,21 +554,44 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     if (!tourDate || !tourTime || args.favoriteId == null) return
     const favId = Number(args.favoriteId)
     const scheduledAt = localTourToUtc(tourDate, tourTime, timeZone ?? undefined)
-    await completeSetupTour({
-      lead,
-      actionRow: null, // no open setup_tour action — this is a fresh Workspace schedule
-      scheduledAt,
-      propertyId: favId,
-      propertyName: args.propertyName ?? null,
-      now,
-      onTourScheduled: (t) => setLocalTours((prev) => [...prev, t]),
-      onWorkflowAction: (a) => setLocalNextActions((prev) => [...prev, a]),
-      onGuestCardCreated: (a) => setLocalNextActions((prev) => [...prev, a]),
-      onOptimistic: (updated) => {
-        setLocalLeads((prev) => prev.map((l) => (String(l.id) === String(updated.id) ? { ...l, ...updated } : l)))
-        postCompanionActiveClient({ ...lead, ...updated }, localNextActionsRef.current)
-      },
-    })
+    // Optimistic-FIRST: surface the scheduled tour instantly with a STABLE local id,
+    // BEFORE the DB round-trip — so the Favorite flips to "Tour Scheduled" the moment
+    // the locator confirms, never waiting on (or silently swallowed by) the insert.
+    // The canonical completeSetupTour then persists and RECONCILES the real
+    // lead_tours id into THIS same row (Reschedule/Cancel key on the tour id, so a
+    // stable id is what makes those edits target the real appointment — a null id
+    // would strand them). This is the fix for "Yes + date → nothing happens": the
+    // append no longer depends on the async insert resolving without error.
+    const localTourId = `local-tour-${lead.id}-${favId}-${Date.now()}`
+    setLocalTours((prev) => [
+      ...prev,
+      { id: localTourId, lead_id: lead.id, property_id: favId, scheduled_at: scheduledAt, status: "scheduled" },
+    ])
+    try {
+      await completeSetupTour({
+        lead,
+        actionRow: null, // no open setup_tour action — this is a fresh Workspace schedule
+        scheduledAt,
+        propertyId: favId,
+        propertyName: args.propertyName ?? null,
+        now,
+        // Reconcile the real DB id into the optimistic row (never append a duplicate).
+        onTourScheduled: (t) =>
+          setLocalTours((prev) =>
+            prev.map((row) => (String(row.id) === localTourId ? { ...row, id: t.id ?? row.id } : row)),
+          ),
+        onWorkflowAction: (a) => setLocalNextActions((prev) => [...prev, a]),
+        onGuestCardCreated: (a) => setLocalNextActions((prev) => [...prev, a]),
+        onOptimistic: (updated) => {
+          setLocalLeads((prev) => prev.map((l) => (String(l.id) === String(updated.id) ? { ...l, ...updated } : l)))
+          postCompanionActiveClient({ ...lead, ...updated }, localNextActionsRef.current)
+        },
+      })
+    } catch (err) {
+      // The optimistic row stays so the locator still sees the tour; surface the
+      // persistence failure instead of silently reverting.
+      console.error("[schedule-tour] failed to persist tour:", err)
+    }
   }
 
   async function handleCancelTour(lead: any, args: { tourId: number | string; propertyId?: number | string | null }) {

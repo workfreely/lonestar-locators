@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ReactElement } from "react"
 import { supabase } from "@/lib/supabase/client"
 import FavoriteModal, { type FavoriteInput } from "./FavoriteModal"
 import ConfirmDialog from "./ConfirmDialog"
@@ -551,56 +551,49 @@ export default function LeadFavorites({
                   )}
                   {tour && (
                     <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--crm-text-secondary)]">
-                            Tour Scheduled
-                          </p>
-                          <p className="mt-0.5 text-[12.5px] font-medium text-[var(--crm-text-secondary)]">
-                            {formatDueDateTime(tour.scheduled_at, { verbose: true, timeZone: timeZone ?? undefined })}
-                          </p>
-                        </div>
-                        {(onRescheduleTour || onCancelTour || onSendGuestCard) && editingTourFavId !== fav.id && (
-                          <div className="flex-none flex items-center gap-2.5">
-                            {/* Send Guest Card is the PRIMARY action for a scheduled
-                                property until its card is sent, then a compact
-                                "Guest Card Sent ✓". */}
-                            {onSendGuestCard && gcOpen && (
-                              <button
-                                type="button"
-                                onClick={() => onSendGuestCard(lead, { favorite: fav, tour, actionId: gcAction!.id })}
-                                className="text-[10.5px] font-semibold text-[var(--crm-accent)] hover:underline"
-                              >
-                                Send Guest Card
-                              </button>
-                            )}
-                            {gcSent && (
-                              // Existing CRM success green (same as "Completed:" in the
-                              // Lead Panel) so a sent card reads as a completed action.
-                              <span className="text-[10.5px] font-semibold text-emerald-600">Guest Card Sent</span>
-                            )}
-                            {onRescheduleTour && (
-                              <button
-                                type="button"
-                                onClick={() => startEditTour(fav, tour)}
-                                className="text-[10.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]"
-                              >
-                                Reschedule
-                              </button>
-                            )}
-                            {onCancelTour && (
-                              <button
-                                type="button"
-                                onClick={() => setCancelingTour({ tourId: tour.id, propertyName: fav.property_name || fav.property_url || "this property", propertyId: tour.property_id ?? fav.id })}
-                                className="text-[10.5px] font-semibold text-red-500 hover:text-red-700"
-                              >
-                                Cancel Tour
-                              </button>
+                      {/* Compact scheduled-tour state: ONE date line then ONE action
+                          row (Send Guest Card · Reschedule · Cancel Tour), joined by
+                          a subtle middle dot. Styling stays consistent with the
+                          Favorite row; the action links wrap only when width forces. */}
+                      <p className="text-[12px] leading-tight text-[var(--crm-text-secondary)]">
+                        <span className="font-semibold text-[var(--crm-text-primary)]">Tour Scheduled</span>
+                        <span className="mx-1.5 text-[var(--crm-text-muted)]">·</span>
+                        <span className="font-medium">
+                          {formatDueDateTime(tour.scheduled_at, { timeZone: timeZone ?? undefined })}
+                        </span>
+                      </p>
+                      {(onRescheduleTour || onCancelTour || onSendGuestCard) && editingTourFavId !== fav.id && (() => {
+                        // Build the present actions, then interleave a subtle "·" so
+                        // they read as one compact line: [Send Guest Card ·] Reschedule · Cancel Tour.
+                        const actions: ReactElement[] = []
+                        if (onSendGuestCard && gcOpen) {
+                          actions.push(
+                            <button key="gc" type="button" onClick={() => onSendGuestCard(lead, { favorite: fav, tour, actionId: gcAction!.id })} className="text-[var(--crm-accent)] hover:underline">Send Guest Card</button>
+                          )
+                        } else if (gcSent) {
+                          actions.push(<span key="gc" className="text-emerald-600">Guest Card Sent</span>)
+                        }
+                        if (onRescheduleTour) {
+                          actions.push(
+                            <button key="re" type="button" onClick={() => startEditTour(fav, tour)} className="text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]">Reschedule</button>
+                          )
+                        }
+                        if (onCancelTour) {
+                          actions.push(
+                            <button key="cx" type="button" onClick={() => setCancelingTour({ tourId: tour.id, propertyName: fav.property_name || fav.property_url || "this property", propertyId: tour.property_id ?? fav.id })} className="text-red-500 hover:text-red-700">Cancel Tour</button>
+                          )
+                        }
+                        if (!actions.length) return null
+                        return (
+                          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] font-semibold">
+                            {actions.flatMap((node, i) =>
+                              i === 0
+                                ? [node]
+                                : [<span key={`sep-${i}`} className="text-[var(--crm-text-muted)]">·</span>, node]
                             )}
                           </div>
-                        )}
-                      </div>
-
+                        )
+                      })()}
                     </div>
                   )}
 
