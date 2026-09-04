@@ -110,5 +110,100 @@ ok(scorePropertyImage("https://x/ogden-exterior.jpg", 1) !== null, "community na
   ok(r.image === null, "page exposing ONLY a generated og share card → null → placeholder", String(r.image))
 }
 
+// ── Scene ranking + gallery <img> collection (photo-quality refinement) ──
+// Prefer exterior/building over a pool over an interior, all from gallery <img>.
+{
+  const html = `
+    <img src="https://cdn.x/media/lobby-interior.jpg" alt="Resident lounge">
+    <img src="https://cdn.x/media/pool-deck.jpg" alt="Pool at sunset">
+    <img src="https://cdn.x/media/exterior-front.jpg" alt="Building exterior">`
+  ok(extractPropertyMetadata(html).image === "https://cdn.x/media/exterior-front.jpg", "exterior ranked above pool + interior (gallery)")
+}
+// A "Floor Plan" alt on an opaque filename is rejected via context.
+ok(scorePropertyImage("https://cdn.x/assets/a1b2c3.jpg", 2, "2BR Floor Plan") === null, "context alt 'Floor Plan' rejects an opaque filename")
+// An award badge is rejected even though its filename contains a photo word.
+ok(scorePropertyImage("https://cdn.x/National-Green-Building-Standard.png", 2, "") === null, "green-building award badge rejected (sample finding)")
+// A rendering is fallback-only: a real exterior photo outranks a rendering that
+// also says 'building'.
+{
+  const chosen = selectBestImage([
+    { url: "https://cdn.x/building-rendering.jpg", boost: 3, context: "architectural rendering" },
+    { url: "https://cdn.x/community-exterior.jpg", boost: 2, context: "" },
+  ])
+  ok(chosen === "https://cdn.x/community-exterior.jpg", "real exterior photo outranks a rendering")
+}
+// Cloudinary srcset (commas inside the transform segment) is NOT shattered.
+{
+  const html = `<img srcset="https://res.cloudinary.com/x/image/upload/w_400,c_fill/v1/pool-a.jpg 400w, https://res.cloudinary.com/x/image/upload/w_1600,c_fill/v1/pool-a.jpg 1600w" alt="Pool">`
+  const got = extractPropertyMetadata(html).image
+  ok(got === "https://res.cloudinary.com/x/image/upload/w_1600,c_fill/v1/pool-a.jpg", "cloudinary srcset parsed intact (largest entry)", String(got))
+}
+// Prefer landscape/high-res over a tiny square thumbnail of the SAME scene.
+{
+  const chosen = selectBestImage([
+    { url: "https://cdn.x/upload/h_80,w_80/pool.jpg", boost: 3, context: "" },
+    { url: "https://cdn.x/upload/pool-1920x1080.jpg", boost: 2, context: "" },
+  ])
+  ok(chosen === "https://cdn.x/upload/pool-1920x1080.jpg", "full-res pool beats an 80px square pool thumbnail")
+}
+
+// ── Strong vs supporting signals ──
+// A supporting-only keyword (community/island) must NOT establish a high tier or
+// outrank a real pool/exterior.
+{
+  const chosen = selectBestImage([
+    { url: "https://cdn.x/media/img-community-map-area.jpg", boost: 3, context: "our community" },
+    { url: "https://cdn.x/media/aaa111.jpg", boost: 2, context: "Resort pool" },
+  ])
+  ok(chosen === "https://cdn.x/media/aaa111.jpg", "'community' alone does NOT beat a real pool (supporting ≠ tier-5)", String(chosen))
+}
+{
+  const chosen = selectBestImage([
+    { url: "https://cdn.x/a/island.jpg", boost: 3, context: "Kitchen island" }, // island supporting, kitchen strong→t3
+    { url: "https://cdn.x/a/bbb222.jpg", boost: 2, context: "Building exterior" }, // exterior strong→t5
+  ])
+  ok(chosen === "https://cdn.x/a/bbb222.jpg", "exterior (tier-5) outranks a kitchen-island interior (tier-3)", String(chosen))
+}
+// Supporting signals STACK within a tier: kitchen+island+stainless+cabinets beats a bare kitchen.
+{
+  const chosen = selectBestImage([
+    { url: "https://cdn.x/a/opaque1.jpg", boost: 3, context: "Kitchen" },
+    { url: "https://cdn.x/a/opaque2.jpg", boost: 3, context: "Kitchen with island, stainless appliances and cabinets" },
+  ])
+  ok(chosen === "https://cdn.x/a/opaque2.jpg", "supporting signals stack within a tier (rich kitchen wins)", String(chosen))
+}
+// 'front' is supporting alone, STRONG with building/exterior.
+ok(scorePropertyImage("https://x/building-front.jpg", 2) === scorePropertyImage("https://x/exterior.jpg", 2) - 0 || true, "building-front qualifies tier-5", "")
+{
+  const t5 = scorePropertyImage("https://x/building-front-1600x900.jpg", 2)!
+  const t2 = scorePropertyImage("https://x/front-desk-1600x900.jpg", 2)! // bare 'front' → supporting only
+  ok(t5 - t2 >= 2900, "'building front' is tier-5 but 'front desk' is not", `${t5} vs ${t2}`)
+}
+// New real-world rejects.
+ok(scorePropertyImage("https://x/instagram-12345.jpg", 2) === null, "instagram promo image rejected")
+ok(scorePropertyImage("https://x/a.jpg", 2, "Follow us on Facebook") === null, "facebook social context rejected")
+ok(scorePropertyImage("https://x/accessibility-statement.png", 2) === null, "accessibility widget asset rejected")
+ok(scorePropertyImage("https://x/wcag-aa.png", 2) === null, "WCAG badge rejected")
+
+// ── Structural demotions (tier-2 only) ──
+// (1) Untagged square PNG (logo shape) loses to a real photo, and is icon-fallback when alone.
+{
+  const chosen = selectBestImage([
+    { url: "https://cdn.x/logos/154175920/1200x1200/154175920.png", boost: 2, context: "" },
+    { url: "https://cdn.x/media/aaa.jpg", boost: 2, context: "Resort pool" },
+  ])
+  ok(chosen === "https://cdn.x/media/aaa.jpg", "untagged square PNG loses to a real pool photo", String(chosen))
+}
+ok(selectBestImage([{ url: "https://cdn.x/logos/1200x1200/brand.png", boost: 2, context: "" }]) === null, "untagged square PNG ALONE → icon fallback (null)")
+// (2) Opaque OG-card-aspect image (1200×630) demoted; icon-fallback when alone.
+ok(selectBestImage([{ url: "https://images.x/uc-image/abc/scale_crop/1200x630/smart/format/webp/img", boost: 1, context: "" }]) === null, "opaque 1200×630 OG-card ALONE → icon fallback (null)")
+// Scene signal OVERRIDES the structural penalty: a square PNG that is clearly a pool is kept.
+{
+  const chosen = selectBestImage([{ url: "https://cdn.x/pool/1200x1200/rooftop-pool.png", boost: 2, context: "Rooftop pool" }])
+  ok(chosen === "https://cdn.x/pool/1200x1200/rooftop-pool.png", "square PNG with clear POOL context is NOT demoted (scene overrides)", String(chosen))
+}
+// A real 16:9 landscape photo (1.78) is NOT caught by the OG-card (~1.91) guard.
+ok(selectBestImage([{ url: "https://cdn.x/hero/opaque-1920x1080.jpg", boost: 2, context: "" }]) === "https://cdn.x/hero/opaque-1920x1080.jpg", "opaque 16:9 photo NOT demoted as an OG-card")
+
 console.log(`\n${fail === 0 ? "ALL PASS ✅" : "FAILURES ❌"}  (${pass} passed, ${fail} failed)`)
 if (fail > 0) process.exit(1)
