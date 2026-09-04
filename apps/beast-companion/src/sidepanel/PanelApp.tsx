@@ -313,18 +313,21 @@ export function PanelApp({
           third tab). The TOUR MODE label stays deliberately subtle. */}
       {isLoaded &&
         (tourMode ? (
-          <nav className="bc-cp-nav" aria-label="Tour Mode" style={{ alignItems: "center" }}>
+          <nav className="bc-cp-nav" aria-label="Tour Mode" style={{ display: "flex", alignItems: "center" }}>
+            {/* TOUR MODE is the primary label (same weight/size as the CLIENT /
+                PROPERTIES tabs) so the mode reads instantly; Back to Client is the
+                small, subordinate control. Still temporary — not a third tab. */}
+            <span style={{ padding: "9px 12px", fontSize: 13, fontWeight: 700, letterSpacing: "0.04em", color: "var(--lb-text-primary, #e9ebef)", display: "flex", alignItems: "center", gap: 7 }}>
+              <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--lb-accent, #5b8dff)" }} />
+              TOUR MODE
+            </span>
             <button
               type="button"
               onClick={onTourBack}
-              style={{ padding: "9px 12px", fontSize: 12, fontWeight: 600, color: "var(--lb-accent, #5b8dff)", background: "transparent", border: "none", cursor: "pointer" }}
+              style={{ marginLeft: "auto", padding: "9px 12px", fontSize: 11, fontWeight: 600, color: "var(--lb-text-muted, #8b93a3)", background: "transparent", border: "none", cursor: "pointer" }}
             >
               ← Back to Client
             </button>
-            <span style={{ marginLeft: "auto", padding: "9px 12px", fontSize: 10.5, fontWeight: 700, letterSpacing: "0.1em", color: "var(--lb-text-muted, #8b93a3)", display: "flex", alignItems: "center", gap: 6 }}>
-              <span aria-hidden="true" style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--lb-accent, #5b8dff)" }} />
-              TOUR MODE
-            </span>
           </nav>
         ) : (
           <ClientPropertiesNav active={activeView} onChange={setActiveView} />
@@ -353,6 +356,10 @@ export function PanelApp({
           ) : isLoaded ? (
             tourMode ? (
               <TourModeView
+                // Key by favorite: switching to a different property gives a fresh
+                // Tour Mode (resets any date/time entry), while a re-click of the
+                // SAME property preserves an in-progress confirmation.
+                key={String(tourMode.favoriteId)}
                 favorite={tourFavorite}
                 propertyNameFallback={tourMode.propertyName}
                 client={tourClient}

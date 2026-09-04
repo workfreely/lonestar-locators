@@ -133,8 +133,12 @@ export function TourModeView({
           <div style={{ fontSize: 14, fontWeight: 700, color: "var(--lb-text-primary, #e9ebef)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
           {address && <div style={{ fontSize: 11.5, color: "var(--lb-text-muted, #8b93a3)", marginTop: 1 }}>{displayAddress(address)}</div>}
           {rating != null && (
-            <div style={{ marginTop: 3, fontSize: 11, color: "#f5b301" }}>
-              {formatRating(rating)} <span aria-hidden="true">★★★★★</span>
+            <div style={{ marginTop: 3, fontSize: 11 }}>
+              {/* Source label so it reads as the Google rating, not an internal score. */}
+              <span style={{ color: "var(--lb-text-muted, #8b93a3)" }}>Google Rating: </span>
+              <span style={{ color: "#f5b301" }}>
+                {formatRating(rating)} <span aria-hidden="true">★★★★★</span>
+              </span>
             </div>
           )}
         </div>
@@ -164,9 +168,8 @@ export function TourModeView({
         <div style={{ padding: "8px 11px", borderTop: "1px solid var(--lb-border-soft, #242a37)" }}>
           <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--lb-text-muted, #8b93a3)", margin: "2px 0 5px", fontWeight: 700 }}>Locator → message/comments only</div>
           {kv("Name", [locator?.firstName, locator?.lastName].filter(Boolean).join(" ") || null)}
-          {kv("Phone", locator?.phone)}
           {kv("Email", locator?.email)}
-          {kv("Title / Broker", [locator?.title, locator?.brokerage].filter(Boolean).join(" · ") || null)}
+          {kv("Phone", locator?.phone)}
         </div>
         <div style={{ fontSize: 10.5, color: "var(--lb-text-muted, #8b93a3)", padding: "6px 11px 9px", borderTop: "1px solid var(--lb-border-soft, #242a37)", fontStyle: "italic" }}>
           Locator info never goes into prospect/client fields.

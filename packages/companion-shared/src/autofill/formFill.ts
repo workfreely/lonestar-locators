@@ -151,12 +151,14 @@ export function autofillTourForm(payload: AutofillPayload): AutofillResult {
   const loc = payload.locator || {};
   let msg = payload.message || "";
   if (!msg) {
+    // Locator identity in a simple labeled format — enough to identify who booked
+    // the tour. NO dash/bullets, and NO title/brokerage (the guest-card workflow
+    // handles those elsewhere). Real signed-in locator values, dynamically.
     const lines = ["My client is interested in touring this community. Please contact me with availability or recommendations.", ""];
     const nm = [loc.firstName, loc.lastName].filter(Boolean).join(" ");
-    if (nm) lines.push("— " + nm);
-    const tb = [loc.title, loc.brokerage].filter(Boolean).join(", "); if (tb) lines.push(tb);
-    if (loc.phone) lines.push(loc.phone);
-    if (loc.email) lines.push(loc.email);
+    if (nm) lines.push("Locator Name: " + nm);
+    if (loc.email) lines.push("Locator Email: " + loc.email);
+    if (loc.phone) lines.push("Locator Phone: " + loc.phone);
     msg = lines.join("\n");
   }
 
