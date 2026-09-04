@@ -1211,41 +1211,29 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
               <PropertyThumb src={card.imageUrl} alt={card.propertyName} size={48} />
             )}
             <div className="min-w-0 flex-1">
-              <div className="flex items-start justify-between gap-2">
-                {/* Name links to the same property website (new tab). Condensed
-                    leading + no address gap so the top block reads tight, matching
-                    Current Property. */}
-                {siteHref ? (
-                  <a
-                    href={siteHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-[14px] font-semibold leading-tight text-[#111318] hover:underline"
-                  >
-                    {card.propertyName}
-                  </a>
-                ) : (
-                  <p className="text-[14px] font-semibold leading-tight text-[#111318]">{card.propertyName}</p>
-                )}
-                {selected && (
-                  <button
-                    type="button"
-                    onClick={() => setSelected(null)}
-                    aria-label="Close property card"
-                    className="-mr-1 -mt-1 flex-none rounded p-1 text-[#9098a8] hover:text-[#111318]"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-              {card.propertyAddress && (
-                <p className="text-[12.5px] leading-snug text-[#4b5162]">{displayAddress(card.propertyAddress)}</p>
+              {/* Name links to the property website (new tab). pr-6 leaves room for the
+                  absolute ✕ (moved out of flow below) so the tight name → address →
+                  rating stack matches Current Property with no gap from the close button. */}
+              {siteHref ? (
+                <a
+                  href={siteHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="block pr-6 text-[14px] font-semibold leading-tight text-[#111318] hover:underline"
+                >
+                  {card.propertyName}
+                </a>
+              ) : (
+                <p className="pr-6 text-[14px] font-semibold leading-tight text-[#111318]">{card.propertyName}</p>
               )}
-              {/* Rating directly under the address — same stack as Current Property.
-                  Real catalogued value only; never fabricated, never affects ranking. */}
+              {card.propertyAddress && (
+                <p className="mt-0.5 text-[12.5px] leading-tight text-[#4b5162]">{displayAddress(card.propertyAddress)}</p>
+              )}
+              {/* Rating directly under the address — compact stack. Real catalogued
+                  value only; never fabricated, never affects ranking. */}
               {typeof card.googleRating === "number" && (
-                <div className="mt-1 flex items-center gap-1.5">
+                <div className="mt-0.5 flex items-center gap-1.5">
                   <span className="text-[12.5px] font-semibold tabular-nums text-[#111318]">
                     {card.googleRating.toFixed(1)}
                   </span>
@@ -1254,6 +1242,18 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
               )}
             </div>
           </div>
+          {/* Close ✕ — absolute top-right, OUT of the name row so it never inflates the
+              name → address spacing. Only when the card is pinned (selected). */}
+          {selected && (
+            <button
+              type="button"
+              onClick={() => setSelected(null)}
+              aria-label="Close property card"
+              className="absolute right-2.5 top-2.5 rounded p-1 text-[#9098a8] hover:text-[#111318]"
+            >
+              ✕
+            </button>
+          )}
           {/* Future-ready fields — each renders ONLY when a real value is present
               on the in-memory property, and is omitted entirely otherwise. No
               fetch, no fabrication. Order: Match %, Commission, Current Special. */}

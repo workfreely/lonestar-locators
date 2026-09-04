@@ -81,6 +81,12 @@ export type ExplorerProperty = {
    *  by Place ID. Drives the shared PropertyThumb on the map card + Current Property;
    *  ABSENT/broken → building icon. Display-only — never affects ranking or search. */
   imageUrl?: string | null
+  // Tour Assist URLs (property_catalog), by Place ID — carried for the FUTURE Beast
+  // Companion Schedule Tour autofill. OPTIONAL/ADDITIVE; no UI reads them yet, and
+  // they never affect ranking, search, or the Recommendation/Favorite workflow.
+  tourUrl?: string | null
+  applyUrl?: string | null
+  availabilityUrl?: string | null
 
   // ── Future-ready display fields ─────────────────────────────────────────────
   // ADDITIVE and OPTIONAL: absent on every Google Places result today, so nothing

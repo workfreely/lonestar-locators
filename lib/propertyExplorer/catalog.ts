@@ -24,6 +24,12 @@ export type CatalogRecord = {
    *  when enriched. Display-only; drives the shared PropertyThumb, falls back to the
    *  building icon when null or broken. NEVER stored on lead rows — resolved here. */
   imageUrl: string | null
+  // Tour Assist URLs (property_catalog) for the FUTURE Schedule Tour autofill —
+  // carried through the read path so the workflow can use them later. Market-agnostic
+  // (per place_id); no UI reads them yet. Null until populated.
+  tourUrl: string | null
+  applyUrl: string | null
+  availabilityUrl: string | null
 }
 
 export async function fetchCatalog(
@@ -35,10 +41,11 @@ export async function fetchCatalog(
   if (ids.length === 0) return out
   const { data, error } = await supabase
     .from("property_catalog")
-    .select("place_id, neighborhood, location, location_keywords, zip, website_url, google_rating, property_image_url")
+    .select("place_id, neighborhood, location, location_keywords, zip, website_url, google_rating, property_image_url, tour_url, apply_url, availability_url")
     .in("place_id", ids)
   // A lookup failure must never break the search — fall back to unenriched.
   if (error || !data) return out
+  const s = (v: unknown): string | null => (typeof v === "string" && v ? v : null)
   for (const r of data as Array<Record<string, unknown>>) {
     out.set(String(r.place_id), {
       neighborhood: (r.neighborhood as string) ?? null,
@@ -47,7 +54,10 @@ export async function fetchCatalog(
       zip: (r.zip as string) ?? null,
       websiteUrl: (r.website_url as string) ?? null,
       googleRating: r.google_rating == null ? null : Number(r.google_rating),
-      imageUrl: typeof r.property_image_url === "string" && r.property_image_url ? (r.property_image_url as string) : null,
+      imageUrl: s(r.property_image_url),
+      tourUrl: s(r.tour_url),
+      applyUrl: s(r.apply_url),
+      availabilityUrl: s(r.availability_url),
     })
   }
   return out
@@ -65,7 +75,7 @@ export async function fetchCatalog(
 export async function attachCatalogRatings<T extends { property_url?: string | null; property_image_url?: string | null }>(
   rows: T[],
   supabase: SupabaseClient,
-): Promise<(T & { google_rating: number | null; property_image_url: string | null; website_url: string | null })[]> {
+): Promise<(T & { google_rating: number | null; property_image_url: string | null; website_url: string | null; tour_url: string | null; apply_url: string | null; availability_url: string | null })[]> {
   const placeIds = rows.map((r) => placeIdFromPropertyUrl(r.property_url))
   const catalog = await fetchCatalog(
     placeIds.filter((v): v is string => !!v),
@@ -85,6 +95,11 @@ export async function attachCatalogRatings<T extends { property_url?: string | n
       // The real property website (property_catalog.website_url), read-side. The ONLY
       // URL a property-name/thumbnail link may open — never the placeUrl (Google Maps).
       website_url: rec?.websiteUrl ?? null,
+      // Tour Assist URLs (property_catalog), read-side — carried for the FUTURE
+      // Schedule Tour workflow. Not used by any UI yet; null until populated.
+      tour_url: rec?.tourUrl ?? null,
+      apply_url: rec?.applyUrl ?? null,
+      availability_url: rec?.availabilityUrl ?? null,
     }
   })
 }
@@ -98,7 +113,7 @@ export function enrichProperties(
   return properties.map((p) => {
     const c = catalog.get(p.placeId)
     return c
-      ? { ...p, neighborhood: c.neighborhood, location: c.location, locationKeywords: c.locationKeywords, zip: c.zip, websiteUrl: c.websiteUrl, googleRating: c.googleRating, imageUrl: c.imageUrl }
+      ? { ...p, neighborhood: c.neighborhood, location: c.location, locationKeywords: c.locationKeywords, zip: c.zip, websiteUrl: c.websiteUrl, googleRating: c.googleRating, imageUrl: c.imageUrl, tourUrl: c.tourUrl, applyUrl: c.applyUrl, availabilityUrl: c.availabilityUrl }
       : p
   })
 }
