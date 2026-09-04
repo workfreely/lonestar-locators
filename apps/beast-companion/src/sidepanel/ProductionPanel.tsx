@@ -130,6 +130,16 @@ export function ProductionPanel() {
     name: string;
   }>(null);
 
+  // Build List tool chooser ("How do you want to build {name}'s list?"). Null =
+  // hidden. Captures the lead identity at click time (same immutability rule as
+  // the confirmations above) so the tool choice resolves against THIS lead. This
+  // is only a routing layer in front of the existing Build List action: it opens
+  // BEFORE any tool launches, and each choice runs the exact existing flow.
+  const [buildListChoice, setBuildListChoice] = useState<null | {
+    leadId: string | number;
+    name: string;
+  }>(null);
+
   // Follow-up confirmation ("Did you send the follow-up?"). Null = hidden.
   // Captures the lead id AND the exact follow-up action identity at SMS-launch
   // time so changing active clients can never complete the wrong client's action.
@@ -448,14 +458,26 @@ export function ProductionPanel() {
     }
   };
 
-  // Build List START (the "Build List" click). Two things happen: (1) open/focus
-  // Smart Apartment Data, and (2) advance the workflow Contacted → Searching on
-  // the authenticated CRM. build_list is NOT completed and Send List is NOT
-  // created yet — build_list stays the open Next Action and the control flips to
-  // "Mark List Built". Prefer an existing SAD tab (host access via the manifest
-  // content-script match lets tabs.query filter by URL — no new permission);
-  // otherwise open a new one.
+  // Build List (the "Build List" click) now opens a small chooser FIRST — "How do
+  // you want to build {name}'s list?" — with two options: Smart Apartment Data and
+  // Locator Beast. This is only a routing layer in front of the existing Build
+  // List action; nothing launches until the agent picks a tool. Captures the lead
+  // identity now so the choice resolves against THIS lead.
   const onBuildList = () => {
+    const lead = active?.lead;
+    if (!lead || lead.id === undefined || lead.id === null) return;
+    setBuildListChoice({ leadId: lead.id, name: formatPersonName(lead.firstName) || "this client" });
+  };
+
+  // Smart Apartment Data choice — the EXACT existing Build List behavior,
+  // unchanged. (1) open/focus SAD, and (2) advance the workflow Contacted →
+  // Searching on the authenticated CRM. build_list is NOT completed and Send List
+  // is NOT created yet — build_list stays the open Next Action and the control
+  // flips to "Mark List Built" (driven by the Searching stage). Prefer an existing
+  // SAD tab (host access via the manifest content-script match lets tabs.query
+  // filter by URL — no new permission); otherwise open a new one.
+  const chooseSad = () => {
+    setBuildListChoice(null);
     // (2) Advance Contacted → Searching (build_list stays open, no Send List yet).
     const startLead = active?.lead;
     const startStore = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
@@ -491,11 +513,15 @@ export function ProductionPanel() {
     );
   };
 
-  // Explicit Build List completion → the canonical Contacted → Searching
-  // transition runs on the authenticated CRM (completes the build_list row,
-  // creates Send List, pins the card to the top of Searching). Opening SAD was
-  // only the START; this is the completion.
-  const onCompleteBuildList = () => {
+  // Locator Beast choice — build the list with the CRM's own property workflow
+  // (property-name search / Map / Unleash Beast / recommendations). ONE verb does
+  // it all on the authenticated CRM: "open-locator-beast" runs the SAME Contacted
+  // → Searching advance as the SAD path AND switches the CRM into the Map
+  // workspace, which (via the existing workspace-mode bridge) moves this Companion
+  // to Properties. We also bring the CRM tab forward so the agent lands on the
+  // Map. No SAD/matching/map/Unleash Beast/recommendation logic is touched.
+  const chooseLocatorBeast = () => {
+    setBuildListChoice(null);
     const lead = active?.lead;
     const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
     if (store && lead && lead.id !== undefined && lead.id !== null) {
@@ -503,7 +529,31 @@ export function ProductionPanel() {
         "lb-workflow-verb": {
           nonce: `${Date.now()}-${Math.random()}`,
           leadId: lead.id,
-          verb: "complete-build-list",
+          verb: "open-locator-beast",
+        },
+      });
+    }
+    // Bring the Locator Beast CRM tab forward so the agent sees the Map/property
+    // workflow (mirrors how the SAD choice focuses its tab). The Companion's own
+    // switch to Properties is handled by the CRM's workspace-mode broadcast.
+    focusExistingCrmTab();
+  };
+
+  // "Yes, List Sent" (the contextual "Was {name}'s list sent?" confirmation shown
+  // while the list is being built) → the canonical Searching → List Sent
+  // completion runs on the authenticated CRM (completes send_list, advances the
+  // stage, resets follow-ups and creates FU1) AND completes any still-open
+  // build_list row so nothing lingers. Reuses the EXACT existing complete-send-list
+  // logic — no new transition, no separate "Mark List Built" step.
+  const onListSent = () => {
+    const lead = active?.lead;
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+    if (store && lead && lead.id !== undefined && lead.id !== null) {
+      store.set({
+        "lb-workflow-verb": {
+          nonce: `${Date.now()}-${Math.random()}`,
+          leadId: lead.id,
+          verb: "complete-send-list",
         },
       });
     }
@@ -1035,7 +1085,7 @@ export function ProductionPanel() {
         onContact={onContact}
         onContactLead={onContactLead}
         onBuildList={onBuildList}
-        onCompleteBuildList={onCompleteBuildList}
+        onListSent={onListSent}
         onSendList={onSendList}
         onSendFollowUp={onSendFollowUp}
         onScheduleTour={onScheduleTour}
@@ -1118,6 +1168,58 @@ export function ProductionPanel() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {buildListChoice && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Choose how to build the list"
+          onClick={() => setBuildListChoice(null)}
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 60,
+            display: "flex",
+            alignItems: "flex-end",
+            background: "rgba(0,0,0,0.45)",
+          }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={SHEET_STYLE}>
+            {/* Header — question + close X. */}
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+              <p style={{ ...SHEET_QUESTION_STYLE, margin: 0, flex: 1 }}>
+                How do you want to build {buildListChoice.name}'s list?
+              </p>
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={() => setBuildListChoice(null)}
+                style={{
+                  flex: "none", width: 26, height: 26, borderRadius: 8, border: "none",
+                  background: "transparent", color: "var(--lb-text-muted, #9aa4b2)",
+                  fontSize: 18, lineHeight: 1, cursor: "pointer",
+                }}
+              >
+                ×
+              </button>
+            </div>
+            {/* Two large selectable options. */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <button type="button" onClick={chooseSad} style={SHEET_OPTION_BTN}>
+                <span style={SHEET_OPTION_TITLE}>Smart Apartment Data</span>
+                <span style={SHEET_OPTION_SUB}>Build the list using Smart Apartment Data.</span>
+              </button>
+              <button type="button" onClick={chooseLocatorBeast} style={SHEET_OPTION_BTN}>
+                <span style={SHEET_OPTION_TITLE}>Locator Beast</span>
+                <span style={SHEET_OPTION_SUB}>Build the list using Map or Unleash Beast.</span>
+              </button>
+              <button type="button" onClick={() => setBuildListChoice(null)} style={SHEET_CANCEL_BTN}>
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1365,6 +1467,18 @@ const SHEET_INPUT_STYLE: CSSProperties = {
   color: "var(--lb-text, #e6ebf5)", fontSize: 14,
 };
 const SHEET_BTN_DISABLED: CSSProperties = { opacity: 0.5, cursor: "not-allowed" };
+// Large selectable option (Build List tool chooser): a full-width card with a
+// bold title over muted supporting copy, left-aligned. Same sheet visual
+// language (border + inset surface) as the inputs above.
+const SHEET_OPTION_BTN: CSSProperties = {
+  width: "100%", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 3,
+  textAlign: "left", padding: "12px 13px", borderRadius: 11,
+  border: "1px solid var(--lb-border, rgba(255,255,255,0.14))",
+  background: "var(--lb-inset, rgba(255,255,255,0.04))",
+  color: "inherit", cursor: "pointer",
+};
+const SHEET_OPTION_TITLE: CSSProperties = { fontSize: 14, fontWeight: 600, lineHeight: 1.3 };
+const SHEET_OPTION_SUB: CSSProperties = { fontSize: 12, fontWeight: 400, color: "var(--lb-text-muted, #9aa4b2)", lineHeight: 1.35 };
 
 // Normalize a raw phone to an E.164 tel:/sms: URL. 10 digits → +1XXXXXXXXXX;
 // 11 digits starting with 1 → +…; otherwise best-effort +digits. Empty if none.

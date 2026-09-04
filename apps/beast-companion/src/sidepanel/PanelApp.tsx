@@ -98,7 +98,7 @@ export function PanelApp({
   onContact,
   onContactLead,
   onBuildList,
-  onCompleteBuildList,
+  onListSent,
   onSendList,
   onSendFollowUp,
   onScheduleTour,
@@ -166,10 +166,11 @@ export function PanelApp({
   // Phase 3 — the Contact Lead Next Action opens the call/text method chooser
   // (same bottom sheet, "choose-method" phase).
   onContactLead?: () => void;
-  // Phase 3 — clicking the "Build List" Next Action opens Smart Apartment Data.
+  // Clicking the "Build List" Next Action opens the SAD/Locator Beast tool chooser.
   onBuildList?: () => void;
-  // Phase 3 — explicit Build List completion (the "Mark List Built ✓" state).
-  onCompleteBuildList?: () => void;
+  // "Yes, List Sent" on the contextual list-sent confirmation — runs the existing
+  // Searching → List Sent completion.
+  onListSent?: () => void;
   // Phase 3 — clicking the "Send List" Next Action opens the confirmation sheet.
   onSendList?: () => void;
   // Phase 3 — clicking a Follow-Up launches SMS then opens the confirmation sheet.
@@ -374,7 +375,7 @@ export function PanelApp({
                 onDemo={onDemo}
                 onContactLead={onContactLead}
                 onBuildList={onBuildList}
-                onCompleteBuildList={onCompleteBuildList}
+                onListSent={onListSent}
                 onSendList={onSendList}
                 onSendFollowUp={onSendFollowUp}
                 onScheduleTour={onScheduleTour}

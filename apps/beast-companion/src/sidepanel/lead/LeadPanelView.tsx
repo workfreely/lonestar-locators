@@ -9,7 +9,7 @@ import { SectionCard, Field, StageBadge, StatusPill, Button } from "./primitives
  *
  * - LeadIdentityHeader — client name, stage, phone, Call/Text. Always visible.
  * - LeadPanelBody — Next Action, Search Criteria, Credit Screening, Invoice
- *   (Closed), Messaging Tools. This is what the drawer covers.
+ *   (Closed). This is what the drawer covers.
  *
  * DEMO SAFETY: every control is inert; it only calls onDemo() (a transient note).
  * The expanded-workspace features (AI Assistant, Last Conversation, Favorites,
@@ -235,7 +235,7 @@ export function LeadPanelBody({
   onDemo,
   onContactLead,
   onBuildList,
-  onCompleteBuildList,
+  onListSent,
   onSendList,
   onSendFollowUp,
   onScheduleTour,
@@ -260,13 +260,16 @@ export function LeadPanelBody({
   // Phase 3: the Contact Lead Next Action opens the call/text method chooser
   // (the shared contact bottom sheet). It performs no contact itself.
   onContactLead?: () => void;
-  // Phase 3: clicking the "Build List" Next Action opens Smart Apartment Data
-  // AND advances the lead Contacted → Searching. build_list stays open and Send
-  // List is NOT created yet — completion is the separate "Mark List Built" click.
+  // Clicking the "Build List" Next Action opens the tool chooser (Smart Apartment
+  // Data or Locator Beast) and, once a tool is chosen, advances the lead Contacted
+  // → Searching. The button always REOPENS the chooser — it never becomes a "Mark
+  // List Built" completion. Completion is the separate confirmation below.
   onBuildList?: () => void;
-  // Explicit Build List completion (the "Mark List Built ✓" state) — runs the
-  // canonical Contacted → Searching transition (Send List successor).
-  onCompleteBuildList?: () => void;
+  // "Yes, List Sent" (the contextual "Was {name}'s list sent?" confirmation shown
+  // while the list is being built). Runs the canonical Searching → List Sent
+  // completion (completes send_list, advances the stage, creates FU1). Reuses the
+  // exact existing send-list completion logic — no new transition.
+  onListSent?: () => void;
   // Clicking the "Send List" Next Action opens the confirmation sheet ("Did you
   // send the client's list?"). Confirming runs the canonical Searching → List Sent
   // transition (completes send_list, creates FU1). Opens no SMS/site.
@@ -329,19 +332,21 @@ export function LeadPanelBody({
       ? lastAction.propertyName
       : null;
 
-  // Two-state Build List: clicking "Build List" opens SAD AND advances the lead
+  // Two-state Build List: clicking "Build List" opens the tool chooser (Smart
+  // Apartment Data or Locator Beast); whichever tool is chosen advances the lead
   // Contacted → Searching (build_list stays open), so the button flips to
   // "✓ Mark List Built" (the explicit completion that creates Send List). The
   // flipped state is derived from the lead already being in Searching with
-  // build_list still open — robust across a panel remount — plus a local flag
-  // keyed by lead id that flips instantly (before the stage move round-trips back)
-  // and auto-resets when the active client changes.
-  const [launchedBuildFor, setLaunchedBuildFor] = useState<string | number | null>(null);
+  // build_list still open — robust across a panel remount, and it resets on its
+  // own when the active client changes.
   const isBuildList = (openAction?.title ?? "").trim().toLowerCase() === "build list";
-  const buildLaunched =
-    isBuildList &&
-    (String(lead.stage) === "searching" ||
-      (launchedBuildFor != null && String(launchedBuildFor) === String(lead.id)));
+  const buildLaunched = isBuildList && String(lead.stage) === "searching";
+  // "Not Yet" on the "Was {name}'s list sent?" confirmation collapses it for THIS
+  // lead only (no workflow change) — it reappears for other clients and after a
+  // remount. Keyed by lead id so switching clients never carries a dismissal over.
+  const [listSentDismissedFor, setListSentDismissedFor] = useState<string | number | null>(null);
+  const showListSentConfirm =
+    isBuildList && buildLaunched && !!onListSent && String(listSentDismissedFor) !== String(lead.id);
   // Contact Lead is a prominent Next Action INDICATOR — the real execution
   // controls are Call/Text Client in the header, so its button performs no
   // ambiguous contact action (no auto call/text choice).
@@ -431,26 +436,18 @@ export function LeadPanelBody({
           <>
             <div className="lp-action-row">
               {isBuildList && onBuildList ? (
-                buildLaunched ? (
-                  <Button
-                    variant="solid"
-                    onClick={() => onCompleteBuildList?.()}
-                    title="Mark the list built — completes Build List and advances to Send List"
-                  >
-                    Mark List Built ✓
-                  </Button>
-                ) : (
-                  <Button
-                    variant="solid"
-                    onClick={() => {
-                      onBuildList();
-                      setLaunchedBuildFor(lead.id);
-                    }}
-                    title="Open Smart Apartment Data to build the list"
-                  >
-                    {formatWorkflowActionLabel(openAction.title)}
-                  </Button>
-                )
+                // The Build List button always REOPENS the tool chooser (Smart
+                // Apartment Data or Locator Beast) — it never becomes a "Mark List
+                // Built" completion. Completion is a separate contextual
+                // confirmation ("Was {name}'s list sent?") rendered below, so the
+                // locator can reopen/continue building at any time.
+                <Button
+                  variant="solid"
+                  onClick={() => onBuildList()}
+                  title="Choose how to build the list — Smart Apartment Data or Locator Beast"
+                >
+                  {formatWorkflowActionLabel(openAction.title)}
+                </Button>
               ) : isContactLead ? (
                 // Entry into the shared contact flow: opens the "call or text?"
                 // chooser. Performs no contact itself — no auto Call/Text, no
@@ -621,6 +618,51 @@ export function LeadPanelBody({
                 ← Back to CRM
               </button>
             )}
+            {/* Contextual list-sent confirmation — replaces the old persistent
+                "Mark List Built ✓" button. Same confirmation style used elsewhere
+                (question + two actions). "Yes, List Sent" runs the existing
+                Searching → List Sent completion; "Not Yet" just collapses this
+                prompt and changes nothing. The Build List button above stays
+                available so the locator can reopen/continue building the list. */}
+            {showListSentConfirm && (
+              <div
+                style={{
+                  marginTop: 14,
+                  padding: "12px 13px",
+                  borderRadius: 12,
+                  border: "1px solid var(--lb-border, rgba(255,255,255,0.14))",
+                  background: "var(--lb-inset, rgba(255,255,255,0.04))",
+                }}
+              >
+                <p style={{ margin: "0 0 10px", fontSize: 13.5, fontWeight: 600, lineHeight: 1.35, color: "var(--lb-text, #e6ebf5)" }}>
+                  Was {formatPersonName(lead.firstName) || "this client"}'s list sent?
+                </p>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => onListSent?.()}
+                    style={{
+                      flex: 1, padding: "9px 12px", borderRadius: 9,
+                      border: "1px solid var(--lb-accent, #3b82f6)", background: "var(--lb-accent, #3b82f6)",
+                      color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer",
+                    }}
+                  >
+                    Yes, List Sent
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setListSentDismissedFor(lead.id)}
+                    style={{
+                      flex: 1, padding: "9px 12px", borderRadius: 9,
+                      border: "1px solid var(--lb-border, rgba(255,255,255,0.14))", background: "transparent",
+                      color: "inherit", fontWeight: 600, fontSize: 13, cursor: "pointer",
+                    }}
+                  >
+                    Not Yet
+                  </button>
+                </div>
+              </div>
+            )}
           </>
         ) : null}
         {SHOW_ADD_TASK && (
@@ -711,31 +753,6 @@ export function LeadPanelBody({
         />
       )}
 
-      {/* ── Messaging Tools ── (collapsed per client, like the other secondary
-          sections; keyed by lead id so it resets closed whenever a new client
-          is opened while manual expand/collapse persists for the active client) */}
-      <SectionCard key={`messaging-tools-${lead.id}`} title="Messaging Tools" defaultOpen={false}>
-        <div className="lp-grid-2">
-          <Button variant="ghost" onClick={() => onDemo("Text Top 3")}>
-            Text Top 3
-          </Button>
-          <Button variant="ghost" onClick={() => onDemo("AI Voice Script")}>
-            AI Voice Script
-          </Button>
-        </div>
-        {openAction && isFollowUpAction(openAction.title) && (
-          <div style={{ marginTop: "10px" }}>
-            <Button
-              variant="ghost"
-              full
-              onClick={() => onDemo(`Send ${formatWorkflowActionLabel(openAction.title)}`)}
-              title={`Send ${formatWorkflowActionLabel(openAction.title)} (template coming soon)`}
-            >
-              Send {formatWorkflowActionLabel(openAction.title)}
-            </Button>
-          </div>
-        )}
-      </SectionCard>
     </div>
   );
 }

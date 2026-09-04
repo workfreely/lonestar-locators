@@ -1361,6 +1361,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         payload.verb !== "contact-attempt" &&
         payload.verb !== "text-sent" &&
         payload.verb !== "start-build-list" &&
+        payload.verb !== "open-locator-beast" &&
         payload.verb !== "complete-build-list" &&
         payload.verb !== "complete-send-list" &&
         payload.verb !== "complete-follow-up" &&
@@ -1426,11 +1427,21 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         return
       }
 
-      // "Build List" START — open SAD happens in the panel; here we advance the
-      // workflow Contacted → Searching WITHOUT creating Send List and WITHOUT
-      // completing build_list (it stays the open action). Pin the card to the top
-      // of Searching and re-post so Companion/Kanban/Agenda/Lead Panel refresh.
-      if (payload.verb === "start-build-list") {
+      // "Build List" START — the agent chose a tool in the panel's Build List
+      // chooser; here we advance the workflow Contacted → Searching WITHOUT
+      // creating Send List and WITHOUT completing build_list (it stays the open
+      // action). Pin the card to the top of Searching and re-post so
+      // Companion/Kanban/Agenda/Lead Panel refresh.
+      //
+      // Both tools share this exact stage advancement: "start-build-list" is the
+      // Smart Apartment Data choice, and "open-locator-beast" is the Locator Beast
+      // choice — identical Build List action, only the surface differs. For the
+      // Locator Beast choice we ALSO switch this CRM into the Map/property
+      // workspace (property-name search / Map / Unleash Beast / recommendations)
+      // and tell the Companion to move to Properties, reusing the existing
+      // workspace-mode → lb-map-entered bridge. Nothing about SAD, matching, map,
+      // Unleash Beast or recommendation/favorite logic changes.
+      if (payload.verb === "start-build-list" || payload.verb === "open-locator-beast") {
         // Demo/virtual leads have no persisted build_list row, so once the stage
         // moves to Searching the Companion's Next Action would synthesize to
         // "Send List" and hide Mark List Built / Back to CRM. Synthesize a local
@@ -1477,6 +1488,22 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             postCompanionActiveClient({ ...lead, ...updated }, merged)
           },
         })
+
+        // Locator Beast choice: open the CRM's Map/property workspace so the agent
+        // lands on property-name search / Map / Unleash Beast / recommendations,
+        // and move the Companion to Properties. selectWorkspace("map") drives the
+        // board→map transition (which the prevWorkspaceRef effect already
+        // broadcasts as workspace-mode:map). We ALSO post it here unconditionally
+        // so the Companion still reaches Properties when the CRM was ALREADY on
+        // Map (no transition → the effect would not fire). Both resolve to
+        // Properties, so the possible double-signal is harmless.
+        if (payload.verb === "open-locator-beast") {
+          selectWorkspace("map")
+          window.postMessage(
+            { source: COMPANION_MSG_SOURCE, type: "workspace-mode", mode: "map" },
+            window.location.origin,
+          )
+        }
         return
       }
 
@@ -1615,6 +1642,33 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             }
           : null
 
+        // Merged Build List → List Sent: the intermediate "Mark List Built" step
+        // no longer runs, so a lead reaching this from the Build List confirmation
+        // may still have its build_list row OPEN. Complete it here so it does not
+        // linger as an open Next Action once the lead is in List Sent. This is a
+        // NO-OP for the legacy Send List path (there build_list was already
+        // completed before Send List existed), so existing behavior is unchanged.
+        const openBuildRow = localNextActionsRef.current.find(
+          (a: any) =>
+            String(a.lead_id) === String(lead.id) &&
+            !a.completed &&
+            (String(a.action_key ?? "") === "build_list" ||
+              String(a.title ?? "").trim().toLowerCase() === "build list")
+        )
+        if (
+          openBuildRow &&
+          !isDemoLeadId(lead.id) &&
+          !String(openBuildRow.id).startsWith("local-")
+        ) {
+          supabase
+            .from("lead_next_actions")
+            .update({ completed: true, completed_at: now, status: "completed" })
+            .eq("id", openBuildRow.id)
+            .then(({ error }: any) => {
+              if (error) console.error("[list-sent] close build_list row failed:", error)
+            })
+        }
+
         completeSendList({
           lead,
           sendRow: sendRow ? { id: sendRow.id } : null,
@@ -1628,7 +1682,8 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
               )
             )
             const marked = localNextActionsRef.current.map((a: any) =>
-              sendRow && String(a.id) === String(sendRow.id)
+              (sendRow && String(a.id) === String(sendRow.id)) ||
+              (openBuildRow && String(a.id) === String(openBuildRow.id))
                 ? { ...a, completed: true, completed_at: now }
                 : a
             )
