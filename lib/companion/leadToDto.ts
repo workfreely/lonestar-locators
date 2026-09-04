@@ -15,6 +15,20 @@ import { getArchiveReasonLabel } from "@/lib/leads/archiveReasons"
 // to refetching by leadId and this payload shape stays the same on the panel side.
 export const COMPANION_MSG_SOURCE = "lb-companion"
 
+/** The signed-in locator's own contact identity, for Schedule Tour autofill.
+ *  Client fields fill the prospect/contact inputs; THESE fill the message/comments
+ *  field only (never the client's name/email/phone). Resolved CRM-side from the
+ *  same ResolvedAgentIdentity used for guest cards — no extra fetch. All nullable;
+ *  the autofill simply omits any missing line. */
+export type CompanionLocator = {
+  firstName: string | null
+  lastName: string | null
+  phone: string | null
+  email: string | null
+  title: string | null
+  brokerage: string | null
+}
+
 export type CompanionActiveClientPayload = {
   /** Opaque owner key, "<userId>:<workspaceId>", identifying the signed-in
    *  locator whose session produced this payload. Beast Companion stamps every
@@ -32,6 +46,9 @@ export type CompanionActiveClientPayload = {
    *  records the Workspace shows; never a separate copy. Empty when none. */
   recommendations?: RecommendationDTO[]
   agentName?: string | null
+  /** The signed-in locator's contact identity for Schedule Tour autofill (message
+   *  field only — never the client contact fields). Null when unresolved. */
+  locator?: CompanionLocator | null
   /** The locator's uploaded profile photo URL (ResolvedAgentIdentity.photoUrl).
    *  Display-only, shown in the Companion menu's connection block; null → initials
    *  fallback. Reuses the CRM's already-resolved agent identity (no extra fetch). */
@@ -211,6 +228,9 @@ export function buildActiveClientPayload(
   // Workspace-level follow-up message TEXT overrides (content only). Passed
   // straight through to the payload so the Companion renders the same wording.
   followUpTemplates: FollowUpOverrides = {},
+  // The signed-in locator's contact identity (Schedule Tour autofill → message
+  // field only). Resolved CRM-side from ResolvedAgentIdentity; null when unknown.
+  locator: CompanionLocator | null = null,
 ): CompanionActiveClientPayload {
   const crmStatus = str(lead.crm_status) ?? "new"
   const historyLower = String(lead.credit_history || "").toLowerCase()
@@ -258,6 +278,7 @@ export function buildActiveClientPayload(
     firstName: str(lead.first_name),
     lastName: str(lead.last_name),
     phone: str(lead.phone),
+    email: str(lead.email),
     stage: (isLeadStage(crmStatus) ? crmStatus : "new") as LeadSummaryDTO["stage"],
     isArchived: crmStatus === "archived" || !!lead.deleted_at,
     archiveReason: str(lead.archive_reason),
@@ -481,5 +502,5 @@ export function buildActiveClientPayload(
       googleRating: typeof r.google_rating === "number" ? r.google_rating : null,
     }))
 
-  return { owner, lead: dto, nextActions: actions, favorites: favoriteDtos, recommendations: recommendationDtos, agentName: str(agentName), agentAvatarUrl: str(agentAvatarUrl), followUpTemplates, timeZone: str(timeZone) }
+  return { owner, lead: dto, nextActions: actions, favorites: favoriteDtos, recommendations: recommendationDtos, agentName: str(agentName), locator, agentAvatarUrl: str(agentAvatarUrl), followUpTemplates, timeZone: str(timeZone) }
 }

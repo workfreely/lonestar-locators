@@ -26,7 +26,7 @@ import FirstRunChecklist from "./FirstRunChecklist"
 import AppHeader from "./AppHeader"
 import { CRM_PRIMARY_BUTTON, CRM_SECONDARY_BUTTON } from "@/lib/crmButtonStyles"
 import type { GuestCardAgent } from "@/lib/leads/guestCard"
-import { buildActiveClientPayload, COMPANION_MSG_SOURCE, type LatestOutreach } from "@/lib/companion/leadToDto"
+import { buildActiveClientPayload, COMPANION_MSG_SOURCE, type LatestOutreach, type CompanionLocator } from "@/lib/companion/leadToDto"
 import { toCompanionProperty } from "@/lib/propertyExplorer/types"
 import { attachCatalogRatings } from "@/lib/propertyExplorer/catalog"
 import { recordFirstContact } from "@/lib/leads/contactWorkflow"
@@ -68,6 +68,24 @@ import type { ResolvedAgentIdentity } from "@/lib/notifications/agentSignature"
 // fully intact so we can later retire it or offer it as an optional view. This
 // flag is the single on/off switch — set it back to `true` to show it again.
 const SHOW_LEGACY_LEAD_PANEL = false
+
+// The signed-in locator's contact identity for Schedule Tour autofill (message
+// field only — never the client contact fields). Reuses the CRM's already-resolved
+// agent identity (ResolvedAgentIdentity), so no extra fetch. Name is split into
+// first/last from the resolved display name. Returns null when nothing is known.
+function toCompanionLocator(signature: ResolvedAgentIdentity | null, agentName?: string | null): CompanionLocator | null {
+  const full = ((signature?.name ?? agentName) ?? "").trim()
+  if (!full && !signature) return null
+  const parts = full ? full.split(/\s+/) : []
+  return {
+    firstName: parts.length ? parts[0] : null,
+    lastName: parts.length > 1 ? parts.slice(1).join(" ") : null,
+    phone: signature?.phone ?? null,
+    email: signature?.email ?? null,
+    title: signature?.title ?? null,
+    brokerage: signature?.brokerage ?? null,
+  }
+}
 
 export default function DashboardClient({ leads, nextActions, favorites, recommendations = [], outreach = [], tours = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, timeZone = DEFAULT_TIMEZONE, voiceEnabled = false, companionOwner = "", userId = "", serviceAreaSlugs = [], primaryMarket = null, licenseState = null, followUpTemplates = {} }: { leads: any[]; nextActions: any[]; favorites: any[]; recommendations?: any[]; outreach?: any[]; tours?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; timeZone?: string; /** Beast Voice alpha — true only for a platform admin, resolved server-side. */ voiceEnabled?: boolean;
   /** Opaque "<userId>:<workspaceId>" for the signed-in locator. Beast Companion
@@ -386,7 +404,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     if (!selectedLead) return
     if (typeof window === "undefined") return
     try {
-      const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites, localTours, localRecommendations, insightsFor(selectedLead.id), companionOwner, signature?.photoUrl ?? null, localFollowUpTemplates)
+      const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites, localTours, localRecommendations, insightsFor(selectedLead.id), companionOwner, signature?.photoUrl ?? null, localFollowUpTemplates, toCompanionLocator(signature, agent?.name))
       companionLeadIdRef.current = selectedLead.id // this lead is now what Companion shows
       setCompanionLeadId(selectedLead.id) // …and the Map resolves its market from it
       window.postMessage(
@@ -437,7 +455,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     if (typeof window === "undefined" || !lead) return
     if (String(lead.id) !== String(companionLeadIdRef.current)) return
     try {
-      const payload = buildActiveClientPayload(lead, nextActionsForLead, agent?.name, outreachFor(lead.id), timeZone, localFavoritesRef.current, localToursRef.current, localRecommendationsRef.current, insightsFor(lead.id), companionOwner, signature?.photoUrl ?? null, localFollowUpTemplates)
+      const payload = buildActiveClientPayload(lead, nextActionsForLead, agent?.name, outreachFor(lead.id), timeZone, localFavoritesRef.current, localToursRef.current, localRecommendationsRef.current, insightsFor(lead.id), companionOwner, signature?.photoUrl ?? null, localFollowUpTemplates, toCompanionLocator(signature, agent?.name))
       window.postMessage(
         { source: COMPANION_MSG_SOURCE, type: "active-client", payload },
         window.location.origin
@@ -463,7 +481,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     if (typeof window === "undefined") return
     if (selectedLead) {
       try {
-        const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites, localTours, localRecommendations, insightsFor(selectedLead.id), companionOwner, signature?.photoUrl ?? null, localFollowUpTemplates)
+        const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites, localTours, localRecommendations, insightsFor(selectedLead.id), companionOwner, signature?.photoUrl ?? null, localFollowUpTemplates, toCompanionLocator(signature, agent?.name))
         companionLeadIdRef.current = selectedLead.id
         window.postMessage({ source: COMPANION_MSG_SOURCE, type: "active-client", payload }, window.location.origin)
       } catch {

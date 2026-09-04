@@ -1,9 +1,11 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO, RecommendationDTO, FollowUpOverrides } from "@bc/companion-shared";
+import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO, RecommendationDTO, FollowUpOverrides, AutofillLocator } from "@bc/companion-shared";
 import { sanitizeFollowUpOverrides } from "@bc/companion-shared";
 import type { CurrentProperty } from "@/types";
 import { formatPersonName, buildIntroSmsBody, buildFollowUpSmsBody, isFollowUpAction, formatWorkflowActionLabel, DEFAULT_TIME_VALUE } from "@bc/companion-shared";
 import { PanelApp } from "./PanelApp";
+import { runAutofillOnActiveTab } from "./autofill/runAutofill";
+import type { AutofillPayload } from "@bc/companion-shared";
 import { TourTimeField } from "./lead/TourTimeField";
 import { DISCONNECTED, type CompanionConnection } from "./connection";
 
@@ -37,6 +39,10 @@ type ActiveClientPayload = {
   // THIS client's canonical Recommended Properties (lead_recommendations).
   recommendations?: RecommendationDTO[];
   agentName?: string | null;
+  // The signed-in locator's contact identity for Schedule Tour autofill (fills the
+  // message/comments field only — never the client contact fields). Null when
+  // unresolved. Sent by the CRM's buildActiveClientPayload.
+  locator?: AutofillLocator | null;
   // The locator's uploaded profile photo — shown (display-only) in the menu's
   // connection block next to the agent name; null → initials fallback.
   agentAvatarUrl?: string | null;
@@ -63,6 +69,26 @@ import {
 function isActivePayload(v: unknown): v is ActiveClientPayload {
   const p = v as ActiveClientPayload | null | undefined;
   return !!p && !!p.lead && p.lead.id !== undefined && p.lead.id !== null;
+}
+
+// Map the active client (+ locator) to the Schedule Tour autofill payload. Client
+// fields fill the prospect inputs; the locator goes ONLY to the message/comments
+// field (composed inside the page filler). Move date + bedrooms come from the
+// lead's search criteria. All best-effort — missing fields are simply skipped.
+function buildAutofillPayload(active: ActiveClientPayload): AutofillPayload {
+  const lead = active.lead;
+  const sc = lead.searchCriteria ?? ({} as LeadSummaryDTO["searchCriteria"]);
+  return {
+    client: {
+      firstName: lead.firstName ?? null,
+      lastName: lead.lastName ?? null,
+      email: lead.email ?? null,
+      phone: lead.phone ?? null,
+      moveDate: sc.moveDate ?? null,
+      bedrooms: sc.beds ?? null,
+    },
+    locator: active.locator ?? null,
+  };
 }
 
 function isCurrentProperty(v: unknown): v is CurrentProperty {
@@ -972,6 +998,7 @@ export function ProductionPanel() {
         onMoveToRecommendation={onMoveToRecommendation}
         onRemoveRecommendation={onRemoveRecommendation}
         onClearCurrentProperty={onClearCurrentProperty}
+        onAutofillTour={active ? () => runAutofillOnActiveTab(buildAutofillPayload(active)) : undefined}
         onEditClient={onEditClient}
         canEditClient={!!active?.lead}
         onEditTemplates={onEditTemplates}

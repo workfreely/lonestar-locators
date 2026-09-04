@@ -127,6 +127,14 @@ export { formatDateDisplay } from "./format/date";
 export { formatDueDateTime, isPastDue } from "./format/dueDate";
 export type { DueDateFormatOptions } from "./format/dueDate";
 
+// Schedule Tour autofill — the self-contained page filler + its typed contract
+// (the CRM/Companion assemble the values; chrome.scripting injects the filler).
+export { autofillTourForm } from "./autofill/formFill";
+export type {
+  AutofillPayload, AutofillClient, AutofillLocator, AutofillResult,
+  AutofillFieldReport, AutofillFieldKey, AutofillFieldAction,
+} from "./autofill/types";
+
 // 12h↔24h time-selection helpers (shared by the CRM DateTimePicker + the Beast
 // Companion Tour Time picker so a chosen hour/minute/AM-PM maps to "HH:mm" the
 // same way on both surfaces)

@@ -4,6 +4,7 @@ import { PropertyThumb } from "./PropertyThumb";
 import { resolveClientContext, evaluateLocationFit, evaluateApproval, evaluateAmenities, evaluateSpecials, evaluateBudget, evaluateMatchScore, matchScoreTone, normalizeMustHaveAmenities, resolveClientBudget, formatRent, cityMismatch, propertyCityName, starFillPercent, formatRating, displayAddress, propertyWebsiteHref } from "@bc/companion-shared";
 import type { FavoriteDTO, RecommendationDTO, LeadSummaryDTO } from "@bc/companion-shared";
 import type { CurrentProperty } from "@/types";
+import type { AutofillOutcome } from "../autofill/runAutofill";
 
 // Current Property Intelligence (V1) — the four compact rows shown ONLY under the
 // Current Property (never on Recommendations/Favorites). Each is ONE line:
@@ -207,6 +208,7 @@ export function PropertiesView({
   onMoveToRecommendation,
   onRemoveRecommendation,
   onClearCurrentProperty,
+  onAutofillTour,
 }: {
   // The active client — its location context (searchCriteria + Locator Notes + AI
   // Insights) is the ONLY input to Location Fit besides the viewed property.
@@ -223,6 +225,10 @@ export function PropertiesView({
   /** Manual dismiss of the transient Current Property — clears ONLY
    *  lb-current-property (the same clear path used on a market switch). */
   onClearCurrentProperty?: () => void;
+  /** Schedule Tour autofill: fills the active tab's tour/contact form with THIS
+   *  client's data (+ locator into the message). Requests a per-site permission on
+   *  click. Absent → the Autofill control is hidden. Never submits. */
+  onAutofillTour?: () => Promise<AutofillOutcome>;
 }) {
   // Button state comes from the ACTIVE client's real collections (not local button
   // state): the Current Property is "already in" a collection when a row shares its
@@ -242,6 +248,39 @@ export function PropertiesView({
   // never trigger it. The bump only NUDGES the section open once; the user stays free to
   // collapse it again, and the next add re-opens it.
   const [favOpenSignal, setFavOpenSignal] = useState(0);
+
+  // Schedule Tour autofill status (best-effort; never blocks manual use).
+  const [autofilling, setAutofilling] = useState(false);
+  const [autofillMsg, setAutofillMsg] = useState<string | null>(null);
+  async function handleAutofill() {
+    if (!onAutofillTour || autofilling) return;
+    setAutofilling(true);
+    setAutofillMsg(null);
+    try {
+      const out = await onAutofillTour();
+      switch (out.status) {
+        case "filled":
+          setAutofillMsg(`Filled ${out.result.filled} field${out.result.filled === 1 ? "" : "s"} — review and submit on the page.`);
+          break;
+        case "no-fields":
+          setAutofillMsg("No fillable fields on this page yet — for a calendar/multi-step form, pick a time slot to reveal the form, then Autofill again. Otherwise fill it manually.");
+          break;
+        case "denied":
+          setAutofillMsg("Permission not granted — the tour page is still open to fill manually.");
+          break;
+        case "no-tab":
+          setAutofillMsg("Open the tour page first (Schedule Tour), switch to it, then click Autofill.");
+          break;
+        case "unsupported":
+          setAutofillMsg("This page can't be autofilled — fill it manually.");
+          break;
+        default:
+          setAutofillMsg("Couldn't autofill this form — fill it manually.");
+      }
+    } finally {
+      setAutofilling(false);
+    }
+  }
   const favBaselineRef = useRef<{ leadId: string; ids: Set<string> } | null>(null);
   useEffect(() => {
     const leadId = String(lead.id);
@@ -372,6 +411,37 @@ export function PropertiesView({
 
   return (
     <div className="bc-props">
+      {/* Schedule Tour autofill — best-effort fill of the tour/contact form open in
+          the active tab with THIS client's data (locator context → message field).
+          Requests a per-site permission on click; declining/failing leaves the page
+          fully usable manually. Never submits. */}
+      {onAutofillTour && (
+        <div style={{ margin: "0 0 10px", display: "flex", flexDirection: "column", gap: 6 }}>
+          <button
+            type="button"
+            onClick={handleAutofill}
+            disabled={autofilling}
+            style={{
+              alignSelf: "flex-start",
+              font: "inherit",
+              fontSize: 12,
+              fontWeight: 600,
+              color: "var(--lb-accent, #5b8dff)",
+              background: "transparent",
+              border: "1px solid var(--lb-border, #2b3140)",
+              borderRadius: 8,
+              padding: "6px 10px",
+              cursor: autofilling ? "default" : "pointer",
+              opacity: autofilling ? 0.6 : 1,
+            }}
+          >
+            {autofilling ? "Autofilling…" : "Autofill tour form"}
+          </button>
+          {autofillMsg && (
+            <p style={{ margin: 0, fontSize: 11.5, lineHeight: 1.35, color: "var(--lb-text-muted, #8b93a3)" }}>{autofillMsg}</p>
+          )}
+        </div>
+      )}
       {/* Current Property — the Smart Apartment Data property currently being viewed
           (page context, read-only). Thumbnail + name + address, with compact
           state-aware add action. Clears to the placeholder off a property page. */}

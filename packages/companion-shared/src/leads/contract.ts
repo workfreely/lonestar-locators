@@ -130,6 +130,9 @@ export const leadSummarySchema = z.object({
   firstName: z.string().nullish(),
   lastName: z.string().nullish(),
   phone: z.string().nullish(),
+  /** Client email (leads.email). Display/autofill only — used to prefill a
+   *  tour/contact form's email field. Nullish when the lead has no email. */
+  email: z.string().nullish(),
   stage: leadStageSchema,
   isArchived: z.boolean().default(false),
   archiveReason: z.string().nullish(),

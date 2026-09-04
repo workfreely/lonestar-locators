@@ -5,6 +5,7 @@ import { LeadIdentityHeader, LeadPanelBody } from "./lead/LeadPanelView";
 import { PanelStateView, type PanelState } from "./lead/PanelStates";
 import { ClientPropertiesNav, type CompanionView } from "./ClientPropertiesNav";
 import { PropertiesView } from "./properties/PropertiesView";
+import type { AutofillOutcome } from "./autofill/runAutofill";
 import { CompanionMenu } from "./menu/CompanionMenu";
 import { applyTheme } from "./applyTheme";
 import { DISCONNECTED, type CompanionConnection } from "./connection";
@@ -77,6 +78,7 @@ export function PanelApp({
   onMoveToRecommendation,
   onRemoveRecommendation,
   onClearCurrentProperty,
+  onAutofillTour,
   onEditClient,
   canEditClient = false,
   onEditTemplates,
@@ -125,6 +127,8 @@ export function PanelApp({
   onRemoveRecommendation?: (propertyUrl?: string | null) => void;
   /** Manual dismiss of the transient Current Property (clears lb-current-property). */
   onClearCurrentProperty?: () => void;
+  /** Schedule Tour autofill trigger, forwarded to the Properties view. */
+  onAutofillTour?: () => Promise<AutofillOutcome>;
   /** Edit Client (menu) — posts the "edit-client" verb so the CRM opens its Add
    *  Lead modal in edit mode for the active client. Hidden when no active client. */
   onEditClient?: () => void;
@@ -332,6 +336,7 @@ export function PanelApp({
                 onMoveToRecommendation={onMoveToRecommendation}
                 onRemoveRecommendation={onRemoveRecommendation}
                 onClearCurrentProperty={onClearCurrentProperty}
+                onAutofillTour={onAutofillTour}
               />
             )
           ) : (

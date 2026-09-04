@@ -10,7 +10,7 @@
     "128": "icons/icon-128.png"
   },
   "action": {
-    "default_title": "Locator Beast Companion"
+    "default_title": "Beast Companion"
   },
   "side_panel": {
     "default_path": "sidepanel.html"
@@ -35,7 +35,13 @@
   ],
   "permissions": [
     "sidePanel",
-    "storage"
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://*/*"
   ],
   "web_accessible_resources": [
     {
