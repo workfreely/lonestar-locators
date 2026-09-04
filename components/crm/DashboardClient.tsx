@@ -1948,7 +1948,14 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           else postCompanionActiveClient({ ...lead }, localNextActionsRef.current)
         }
         if (isDemoLeadId(lead.id)) {
-          applyLocal({ id: `demo-${isFav ? "fav" : "rec"}-${Date.now()}`, ...rowBase })
+          // Demo rows are local-only (never persisted), but the catalog rating is
+          // still resolved the SAME read-side way as a real add — property_catalog is
+          // reference data the signed-in agent reads even in the Demo Workspace (the
+          // map/Current Property already show it there). The demo row carries the real
+          // map placeUrl, so its rating/stars match Current Property on all four
+          // surfaces. A demo property with no catalogued place_id stays unrated, as before.
+          const demoRow = { id: `demo-${isFav ? "fav" : "rec"}-${Date.now()}`, ...rowBase }
+          void attachCatalogRatings([demoRow], supabase).then(([enriched]) => applyLocal(enriched))
           return
         }
         supabase
