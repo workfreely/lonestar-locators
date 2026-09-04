@@ -74,6 +74,7 @@ export default function LeadBoard({
   setLeads,
   nextActions,
   selectedLeadId,
+  activeCompanionLeadId,
   onSelectLead,
   onWorkflowAction,
   onInitiateContact,
@@ -95,6 +96,11 @@ export default function LeadBoard({
   // stage action when omitted (unchanged behavior).
   nextActions?: any[]
   selectedLeadId?: string | number | null
+  /** The lead the Beast Companion is currently showing. When set and the board
+   *  is visible, that lead's card gets a subtle active-client highlight so the
+   *  agent can immediately connect the Companion client to its Kanban card.
+   *  Purely a context indicator — it changes no stage, order or selection. */
+  activeCompanionLeadId?: string | number | null
   onSelectLead?: (id: string | number) => void
   // Called with whatever the Workflow Engine created (if anything) for a
   // drag-triggered stage change — lets the caller mirror it into local
@@ -579,6 +585,7 @@ export default function LeadBoard({
                   return aD - bD
                 })}
               selectedLeadId={selectedLeadId}
+              activeCompanionLeadId={activeCompanionLeadId}
               onSelectLead={onSelectLead}
               onArchiveLead={handleArchive}
             />

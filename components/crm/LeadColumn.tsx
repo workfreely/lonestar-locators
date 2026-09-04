@@ -16,6 +16,9 @@ type Props = {
   // derives from the canonical ranked state. Optional (falls back to stage action).
   nextActions?: any[]
   selectedLeadId?: string | number | null
+  /** The lead the Beast Companion is currently showing — highlighted on the
+   *  board so the agent can see which card is the active client context. */
+  activeCompanionLeadId?: string | number | null
   onSelectLead?: (leadId: string | number) => void
   onArchiveLead?: (leadId: string | number) => void
   view?: KanbanView
@@ -47,6 +50,7 @@ export default function LeadColumn({
   leads,
   nextActions,
   selectedLeadId,
+  activeCompanionLeadId,
   onSelectLead,
   onArchiveLead,
   view = "detailed",
@@ -72,6 +76,10 @@ export default function LeadColumn({
             lead={lead}
             nextActions={nextActions}
             isSelected={String(selectedLeadId) === String(lead.id)}
+            isActiveClient={
+              activeCompanionLeadId != null &&
+              String(activeCompanionLeadId) === String(lead.id)
+            }
             onSelect={onSelectLead}
             onArchive={onArchiveLead}
             view={view}

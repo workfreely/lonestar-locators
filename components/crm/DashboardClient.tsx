@@ -2543,6 +2543,12 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             setLeads={setLocalLeads}
             nextActions={localNextActions}
             selectedLeadId={selectedLeadId}
+            // The lead the Beast Companion is currently showing — the board
+            // highlights its card as the active client context. companionLeadId
+            // tracks the Companion's active client independently of CRM
+            // selection (the board is hidden whenever a lead is selected), so
+            // this is the signal that stays valid on the visible Kanban.
+            activeCompanionLeadId={companionLeadId}
             onSelectLead={(id) => {
               setSelectedLeadId(id)
               router.push(`/admin/leads?id=${id}`)

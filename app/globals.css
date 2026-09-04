@@ -2000,6 +2000,24 @@ body.jaybot-open {
 .kb-card:hover { transform:translateY(-4px); box-shadow:var(--kb-card-shadow-hover); }
 .kb-card.kb-card--selected { transform:translateY(-2px); box-shadow:var(--kb-card-shadow-selected); }
 .kb-card.kb-card--selected:hover { transform:translateY(-4px); }
+/* Active-client context — the lead the Beast Companion is currently showing.
+   A subtle accent ring + soft outer glow so the agent can spot the active card
+   on a crowded board. Composed from the per-theme --kb-accent (follows every
+   workspace theme) and layered OVER the base card shadow so depth is preserved.
+   Deliberately NOT a lift: it is a resting context indicator, not a selection or
+   hover state. No animation, no content/stage-color change. */
+.kb-card.kb-card--active-client {
+  box-shadow:
+    0 0 0 1.5px var(--kb-accent),
+    0 0 0 5px color-mix(in srgb, var(--kb-accent) 15%, transparent),
+    var(--kb-card-shadow);
+}
+.kb-card.kb-card--active-client:hover {
+  box-shadow:
+    0 0 0 1.5px var(--kb-accent),
+    0 0 0 5px color-mix(in srgb, var(--kb-accent) 18%, transparent),
+    var(--kb-card-shadow-hover);
+}
 /* Drag ghost — the DragOverlay copy of the card. It carries data-density so it
    inherits the exact per-view card sizing, and reuses the real .kb-card at its
    measured width. Neutralize the hover/selected transforms + transitions so it

@@ -63,6 +63,7 @@ export default function LeadCard({
   lead,
   nextActions,
   isSelected,
+  isActiveClient,
   onSelect,
   onArchive,
   view = "detailed",
@@ -350,7 +351,12 @@ export default function LeadCard({
   }
 
   // ─── Density modes: Detailed / Compact / Overview (one full card) ─────────
-  const cardClass = ["kb-card", isSelected ? "kb-card--selected" : "", isFresh ? "kb-fresh" : ""]
+  const cardClass = [
+    "kb-card",
+    isSelected ? "kb-card--selected" : "",
+    isActiveClient ? "kb-card--active-client" : "",
+    isFresh ? "kb-fresh" : "",
+  ]
     .filter(Boolean)
     .join(" ")
 
