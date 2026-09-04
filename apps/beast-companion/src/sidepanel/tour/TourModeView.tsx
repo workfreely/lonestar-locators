@@ -1,7 +1,22 @@
 import { useState } from "react";
 import { PropertyThumb } from "../properties/PropertyThumb";
 import { TourTimeField } from "../lead/TourTimeField";
-import { displayAddress, formatRating, DEFAULT_TIME_VALUE, type FavoriteDTO, type AutofillLocator } from "@bc/companion-shared";
+import { displayAddress, formatRating, formatPhone, DEFAULT_TIME_VALUE, type FavoriteDTO, type AutofillLocator } from "@bc/companion-shared";
+
+// Display-only move-date formatter for the preview → "Sep 15, 2026". Parses the
+// YYYY-MM-DD parts manually (no Date() → no timezone off-by-one) and falls back to
+// the raw value if it isn't ISO. NEVER used for autofill — the payload keeps the
+// underlying value so native date inputs still receive the machine-readable date.
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function displayMoveDate(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(String(value).trim());
+  if (!m) return value;
+  const [, y, mo, d] = m;
+  const mi = parseInt(mo, 10) - 1;
+  if (mi < 0 || mi > 11) return value;
+  return `${MONTHS[mi]} ${parseInt(d, 10)}, ${y}`;
+}
 import type { AutofillOutcome } from "../autofill/runAutofill";
 
 // The data Beast will use for autofill (compact preview). Client → prospect fields;
@@ -152,8 +167,9 @@ export function TourModeView({
         {msg ?? "Fills the scheduler open in your active tab. Never submits; won't overwrite anything you've changed."}
       </p>
 
-      {/* Data preview — collapsed by default */}
-      <details style={{ marginTop: 12, border: "1px solid var(--lb-border-soft, #242a37)", borderRadius: 10, overflow: "hidden" }}>
+      {/* Data preview — OPEN by default in Tour Mode (transparency: the agent sees
+          exactly what Beast is about to autofill), still collapsible. */}
+      <details open style={{ marginTop: 12, border: "1px solid var(--lb-border-soft, #242a37)", borderRadius: 10, overflow: "hidden" }}>
         <summary style={{ listStyle: "none", cursor: "pointer", padding: "8px 11px", fontSize: 11.5, fontWeight: 600, color: "var(--lb-text-secondary, #c2c7d0)", background: "var(--lb-inset, #12151c)" }}>
           Data Beast will use
         </summary>
@@ -161,8 +177,9 @@ export function TourModeView({
           <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--lb-text-muted, #8b93a3)", margin: "2px 0 5px", fontWeight: 700 }}>Client → prospect fields</div>
           {kv("Name", [client.firstName, client.lastName].filter(Boolean).join(" ") || null)}
           {kv("Email", client.email)}
-          {kv("Phone", client.phone)}
-          {kv("Move date", client.moveDate)}
+          {/* Display-only formatting — the autofill payload keeps the raw values. */}
+          {kv("Phone", formatPhone(client.phone) || null)}
+          {kv("Move date", displayMoveDate(client.moveDate))}
           {kv("Bedrooms", client.bedrooms)}
         </div>
         <div style={{ padding: "8px 11px", borderTop: "1px solid var(--lb-border-soft, #242a37)" }}>
