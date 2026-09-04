@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SectionCard } from "../lead/primitives";
 import { PropertyThumb } from "./PropertyThumb";
 import { resolveClientContext, evaluateLocationFit, evaluateApproval, evaluateAmenities, evaluateSpecials, evaluateBudget, evaluateMatchScore, matchScoreTone, normalizeMustHaveAmenities, resolveClientBudget, formatRent, cityMismatch, propertyCityName, starFillPercent, formatRating, displayAddress, propertyWebsiteHref } from "@bc/companion-shared";
@@ -197,6 +197,11 @@ function PropertyRow({
   );
 }
 
+// Per-lead set of favorite ids seen this session. MODULE-LEVEL so it survives a
+// PropertiesView remount — a component ref would reset and mis-read the post-remount
+// state as a fresh mount, swallowing the auto-expand (the reported regression).
+const seenFavoriteIdsByLead = new Map<string, Set<string>>();
+
 export function PropertiesView({
   lead,
   favorites,
@@ -233,29 +238,36 @@ export function PropertiesView({
   const cpUrl = currentProperty?.propertyUrl ?? "";
   const isRecommended = !!cpUrl && recommendations.some((r) => (r.propertyUrl ?? "") === cpUrl);
 
-  // Auto-expand Favorite Properties when a favorite is actually ADDED for the active
-  // client (a successful heart/move that changed the canonical state — not the click),
-  // so a hearted property never appears to vanish while Favorites is collapsed. We
-  // watch the set of favorite record ids: an id present now that wasn't a moment ago is
-  // a freshly-favorited property. Deliberately silent on the initial render and on a
-  // client switch (both establish a baseline rather than signal an add), and removals
-  // never trigger it. The bump only NUDGES the section open once; the user stays free to
-  // collapse it again, and the next add re-opens it.
+  // Auto-expand Favorite Properties the first time a genuinely NEW favorite appears
+  // for the active client, so a hearted/moved property is immediately visible even
+  // when the section was collapsed. Then the user stays free to collapse it again.
+  //
+  // The "seen ids per lead" baseline is MODULE-LEVEL (seenFavoriteIdsByLead), not a
+  // component ref, on purpose: a PropertiesView remount would reset a ref to null,
+  // the effect would read the post-add favorites as a fresh "first mount", and the
+  // expand would be swallowed — which is the reported regression (adding a favorite
+  // while collapsed did not expand). Module scope survives remounts. We also ignore
+  // transient empty/refill payloads (rehydration) and already-existing favorites:
+  // ONLY a first-ever-seen id for this lead expands, exactly once.
   const [favOpenSignal, setFavOpenSignal] = useState(0);
-  const favBaselineRef = useRef<{ leadId: string; ids: Set<string> } | null>(null);
   useEffect(() => {
     const leadId = String(lead.id);
-    const ids = new Set(favorites.map((f) => String(f.id)));
-    const prev = favBaselineRef.current;
-    favBaselineRef.current = { leadId, ids };
-    // First mount, or a switch to a different client → just record the baseline.
-    if (!prev || prev.leadId !== leadId) return;
-    for (const id of ids) {
-      if (!prev.ids.has(id)) {
-        setFavOpenSignal((n) => n + 1);
-        break;
+    const current = favorites.map((f) => String(f.id));
+    const seen = seenFavoriteIdsByLead.get(leadId);
+    if (!seen) {
+      // First time this session we see this client → establish baseline, never expand.
+      seenFavoriteIdsByLead.set(leadId, new Set(current));
+      return;
+    }
+    if (current.length === 0) return; // transient empty payload → never expand
+    let added = false;
+    for (const id of current) {
+      if (!seen.has(id)) {
+        seen.add(id);
+        added = true;
       }
     }
+    if (added) setFavOpenSignal((n) => n + 1);
   }, [favorites, lead.id]);
 
   // Current Client Context (V1, Option A) — resolved ONCE from the active client
