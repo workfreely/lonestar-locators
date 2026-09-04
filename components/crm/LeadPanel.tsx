@@ -501,6 +501,22 @@ export default function LeadPanel({
     }
 
     setNextActions?.((prev) => prev.map((a) => (a.id === actionId ? data : a)))
+
+    // B3 Phase 2 — reschedule trigger. A canonical follow-up action's due date
+    // (or title) just changed, so patch its EXISTING Google Calendar event via
+    // the same sync route (same google_event_id, no duplicate). Fire-and-forget
+    // and best-effort — a sync failure must never affect the edit.
+    if (["follow_up_1", "follow_up_2", "follow_up_3", "final_follow_up"].includes(data?.action_key)) {
+      void fetch("/api/admin/leads/followup-calendar/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actionId }),
+        keepalive: true,
+      }).catch(() => {
+        /* best-effort */
+      })
+    }
+
     setShowAddAction(false)
     setEditingAction(null)
     return true
