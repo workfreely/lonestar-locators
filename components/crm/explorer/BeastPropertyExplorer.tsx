@@ -1275,7 +1275,7 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
           )}
           {/* Gray match-intelligence section — the property's fit at a glance, drawn
               from the EXISTING assessLocationFit result (fit.label / fit.tone). A match
-              reads "100% Match"; an in-market property reads "Within Preferred Market".
+              reads "100% Match"; an in-market property reads "Within Preferred Area".
               The redundant one-line reason sentence is intentionally omitted, and there
               is NO separate Location: row — this section IS the location-fit read. Tone
               colours the label; the box stays light gray. assessLocationFit unchanged. */}

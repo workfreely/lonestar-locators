@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { SectionCard } from "../lead/primitives";
 import { PropertyThumb } from "./PropertyThumb";
-import { resolveClientContext, evaluateLocationFit, evaluateApproval, evaluateAmenities, evaluateSpecials, evaluateBudget, evaluateMatchScore, matchScoreTone, normalizeMustHaveAmenities, resolveClientBudget, formatRent, cityMismatch, propertyCityName, starFillPercent, formatRating, displayAddress, propertyWebsiteHref } from "@bc/companion-shared";
+import { resolveClientContext, evaluateLocationFit, evaluateApproval, evaluateAmenities, evaluateSpecials, evaluateBudget, evaluateMatchScore, matchScoreTone, normalizeMustHaveAmenities, resolveClientBudget, formatRent, cityMismatch, starFillPercent, formatRating, displayAddress, propertyWebsiteHref } from "@bc/companion-shared";
 import type { FavoriteDTO, RecommendationDTO, LeadSummaryDTO } from "@bc/companion-shared";
 import type { CurrentProperty } from "@/types";
 
@@ -321,7 +321,6 @@ export function PropertiesView({
   // searches routinely cross municipal boundaries. False whenever either city is
   // unknown, so missing data is never treated as a mismatch.
   const outsideArea = currentProperty ? cityMismatch(ctx, currentProperty) : false;
-  const propertyCity = currentProperty ? propertyCityName(currentProperty) : null;
 
   // Overall Match % — composes the SAME four signals rendered below, so the headline can
   // never disagree with the rows. Null when too little is known to state a number.
@@ -339,18 +338,16 @@ export function PropertiesView({
   // The overall percentage above now carries the judgement, so these rows explain it
   // rather than grading it a second time — no "Good", no "Unverified".
   //
-  // Location reads as: <where it actually is> · <how that relates to the client>.
-  // The place comes from SAD's own submarket (or the client area the evaluator matched);
-  // the relationship is only ever something the client's criteria genuinely support.
-  // NOTE: there is no commute intelligence — evaluateLocationFit explicitly cannot
-  // verify proximity without map data — so a drive time is NEVER manufactured. When the
-  // client stated a proximity in their own words the evaluator preserves that phrase and
-  // we show it verbatim; otherwise the row is just the neighborhood.
-  const locationPlace = currentProperty?.propertySubmarket ?? (location?.verdict === "good" ? location.detail : null);
+  // Location shows ONLY the match verdict (Within/Outside Preferred Area) — the
+  // property's city/neighborhood is already visible elsewhere on the card, so the
+  // verdict stays simple and unambiguous. NOTE: there is no commute intelligence —
+  // evaluateLocationFit explicitly cannot verify proximity without map data — so a
+  // drive time is NEVER manufactured. A client's own stated proximity phrase is
+  // preserved verbatim.
   const locationRelation = (() => {
     if (!location) return null;
-    if (location.verdict === "good") return "Within preferred area";
-    if (location.verdict === "bad") return "Outside preferred area";
+    if (location.verdict === "good") return "Within Preferred Area";
+    if (location.verdict === "bad") return "Outside Preferred Area";
     if (location.detail === "No location set") return "Area not provided";
     if (location.detail === "Area not confirmed") return location.detail;
     return location.detail; // the client's own proximity words, e.g. "Near the Domain"
@@ -460,14 +457,11 @@ export function PropertiesView({
             {/* Beast intelligence — four compact rows (~7px below the address). Only
                 rows with reliable evidence render. */}
             <div className="bc-cp-intel">
-              {/* Location — the relationship to the client's criteria, then where it
-                  actually is. Outside the stated area we name the property's own city,
-                  since the submarket alone would not convey that. */}
+              {/* Location — the match verdict only (Within/Outside Preferred Area);
+                  no city/neighborhood suffix (that is shown elsewhere on the card). */}
               <IntelRow
                 category="Location"
-                facts={
-                  outsideArea ? ["Outside preferred area", propertyCity] : [locationRelation, locationPlace]
-                }
+                facts={[outsideArea ? "Outside Preferred Area" : locationRelation]}
               />
               {budget && <IntelRow category="Budget" facts={[budgetCopy(budget), clientBudgetText]} />}
               {/* Approval — the key reason, not the grade. */}

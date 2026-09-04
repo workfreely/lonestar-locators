@@ -42,7 +42,7 @@ export function computeSuggestions(
 
   // Any MATCH-tone fit is evidence: the structured tiers (Neighborhood, Keyword,
   // broad Location from the Property Intelligence catalog) plus the existing
-  // address-text "Preferred Area Match". "Within Preferred Market" (neutral) is
+  // address-text "Preferred Area Match". "Within Preferred Area" (neutral) is
   // still not evidence. Strongest tier first (rank asc) so, when the cap bites,
   // neighborhood matches are starred ahead of weaker location matches.
   const candidates = properties

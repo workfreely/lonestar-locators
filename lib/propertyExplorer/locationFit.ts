@@ -19,8 +19,8 @@ export type LocationFit = {
     | "Location Keyword Match"
     | "Preferred Location Match"
     | "Preferred Area Match"
-    | "Within Preferred Market"
-    | "Outside Preferred Market"
+    | "Within Preferred Area"
+    | "Outside Preferred Area"
   /** Short factual reason, never a score. */
   reason: string
   tone: "match" | "neutral" | "outside"
@@ -115,7 +115,7 @@ export function assessLocationFit(
 
   if (address.includes(norm(city))) {
     return {
-      label: "Within Preferred Market",
+      label: "Within Preferred Area",
       reason: `Inside ${city}, the client's market`,
       tone: "neutral",
     }
@@ -128,7 +128,7 @@ export function assessLocationFit(
   const locality = (property.propertyAddress ?? "").split(",")[1]?.trim()
   if (locality && norm(locality).length >= 3 && !norm(locality).includes(norm(city))) {
     return {
-      label: "Outside Preferred Market",
+      label: "Outside Preferred Area",
       reason: `Outside ${city}, the client's market`,
       tone: "outside",
     }
