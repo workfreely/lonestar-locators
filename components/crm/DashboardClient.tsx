@@ -2672,6 +2672,23 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                     timeZone={timeZone}
                     onRescheduleTour={handleRescheduleTour}
                     onScheduleTour={handleScheduleTour}
+                    onEnterTourMode={(args) => {
+                      // Tell an open Beast Companion to enter Tour Mode for this
+                      // favorite. Mirrors the workspace-mode signal; the nonce
+                      // guarantees re-fire even for the same favorite twice.
+                      if (!selectedLead) return
+                      window.postMessage(
+                        {
+                          source: COMPANION_MSG_SOURCE,
+                          type: "tour-mode",
+                          leadId: selectedLead.id,
+                          favoriteId: args.favoriteId,
+                          propertyName: args.propertyName,
+                          nonce: `${Date.now()}-${Math.random()}`,
+                        },
+                        window.location.origin,
+                      )
+                    }}
                     onCancelTour={handleCancelTour}
                     onSendGuestCard={handleSendGuestCard}
                     onTourFollowUp={handleTourFollowUp}

@@ -5,6 +5,7 @@ import type { CurrentProperty } from "@/types";
 import { formatPersonName, buildIntroSmsBody, buildFollowUpSmsBody, isFollowUpAction, formatWorkflowActionLabel, DEFAULT_TIME_VALUE } from "@bc/companion-shared";
 import { PanelApp } from "./PanelApp";
 import { runAutofillOnActiveTab } from "./autofill/runAutofill";
+import { useTourMode } from "./tour/useTourMode";
 import type { AutofillPayload } from "@bc/companion-shared";
 import { TourTimeField } from "./lead/TourTimeField";
 import { DISCONNECTED, type CompanionConnection } from "./connection";
@@ -641,6 +642,30 @@ export function ProductionPanel() {
     setTourTime("");
   };
 
+  // ── Tour Mode ─────────────────────────────────────────────────────────────
+  // Entered from a Workspace Favorite's Schedule Tour (via the tour-mode bridge).
+  // Confirm reuses the SAME canonical complete-setup-tour verb the sheet above
+  // writes — with the Tour Mode favorite as the tour's property — so there is no
+  // parallel tour system. Exiting always returns to the normal (Client) panel.
+  const { tour: tourMode, exit: exitTourMode } = useTourMode(active?.lead?.id ?? null);
+  const confirmTourMode = (args: { tourDate: string; tourTime: string }) => {
+    const lead = active?.lead;
+    if (lead && lead.id != null && tourMode && args.tourDate && args.tourTime) {
+      const store = (globalThis as unknown as { chrome?: { storage?: { local?: { set?: (o: unknown) => void } } } }).chrome?.storage?.local;
+      store?.set?.({
+        "lb-workflow-verb": {
+          nonce: `${Date.now()}-${Math.random()}`,
+          leadId: lead.id,
+          verb: "complete-setup-tour",
+          propertyId: tourMode.favoriteId,
+          tourDate: args.tourDate,
+          tourTime: args.tourTime,
+        },
+      });
+    }
+    exitTourMode();
+  };
+
   // "+ Add Task" → open the task sheet for THIS client. Captures the lead id NOW
   // (client-switch guard closes it if the active client changes). Task Time
   // defaults to 9:00 AM (same as Schedule Tour); title + date open blank.
@@ -999,6 +1024,10 @@ export function ProductionPanel() {
         onRemoveRecommendation={onRemoveRecommendation}
         onClearCurrentProperty={onClearCurrentProperty}
         onAutofillTour={active ? () => runAutofillOnActiveTab(buildAutofillPayload(active)) : undefined}
+        tourMode={tourMode}
+        onTourBack={exitTourMode}
+        onTourConfirm={confirmTourMode}
+        locator={active?.locator ?? null}
         onEditClient={onEditClient}
         canEditClient={!!active?.lead}
         onEditTemplates={onEditTemplates}

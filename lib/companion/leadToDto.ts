@@ -471,6 +471,9 @@ export function buildActiveClientPayload(
       id: f.id,
       propertyName: str(f.property_name) ?? "Property",
       propertyAddress: str(f.property_address),
+      // Property photo, resolved read-side by attachCatalogRatings (same source as
+      // the CRM's PropertyThumb). Null → the Companion shows the clean placeholder.
+      propertyImageUrl: str(f.property_image_url),
       propertyUrl: str(f.property_url),
       // Real property website (property_catalog.website_url), resolved read-side by
       // attachCatalogRatings. The only URL the name may link to — never propertyUrl.

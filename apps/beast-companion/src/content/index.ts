@@ -3,6 +3,7 @@ import { startPersistenceGuard } from "./persistence";
 import { detectSite, readPageContext } from "./context";
 import { startThemeBridge } from "./themeBridge";
 import { startWorkspaceModeBridge } from "./workspaceModeBridge";
+import { startTourModeBridge } from "./tourModeBridge";
 import { startActiveClientBridge } from "./activeClientBridge";
 import { startWorkflowVerbBridge } from "./workflowVerbBridge";
 import { startCommLaunchBridge } from "./commLaunchBridge";
@@ -109,6 +110,9 @@ function init(): void {
 
     // Board→Map contextual default for the Companion tab (no client data).
     startWorkspaceModeBridge();
+
+    // Schedule Tour from a Workspace Favorite → Companion enters Tour Mode.
+    startTourModeBridge();
 
     // Active-client bridge (Phase 2, read-only) — relays the CRM's selected
     // client into chrome.storage for the panel. Self-gated to CRM pages.

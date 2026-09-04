@@ -53,6 +53,7 @@ export default function LeadFavorites({
   onConfirmPayment,
   onSendRebate,
   onMoveToRecommendation,
+  onEnterTourMode,
 }: {
   lead: any
   favorites?: any[]
@@ -70,6 +71,9 @@ export default function LeadFavorites({
   // came back and confirmed a date/time. Creates the tour via the existing workflow.
   // Absent → the Schedule Tour control is hidden.
   onScheduleTour?: (lead: any, args: { favoriteId: number | string; propertyName?: string | null; tourDate: string; tourTime: string }) => void
+  // Fired the moment Schedule Tour opens the external scheduler — tells an open
+  // Beast Companion to enter Tour Mode for this favorite. Absent → no signal.
+  onEnterTourMode?: (args: { favoriteId: number | string; propertyName: string | null }) => void
   onCancelTour?: (lead: any, args: { tourId: number | string; propertyId?: number | string | null }) => void
   // Open the reused Guest Card composer for a scheduled property (Schedule Tour →
   // Send Guest Card → Tour Follow-Up). Absent → the control is hidden.
@@ -513,6 +517,9 @@ export default function LeadFavorites({
                           type="button"
                           onClick={() => {
                             window.open(schedTarget, "_blank", "noopener,noreferrer")
+                            // Tell an open Beast Companion to enter Tour Mode for THIS
+                            // favorite (leadId + favoriteId + name). Contextual + temporary.
+                            onEnterTourMode?.({ favoriteId: fav.id, propertyName: fav.property_name ?? null })
                             setSchedFavId(fav.id); setSchedStep("confirm"); setSchedDateTime("")
                           }}
                           className="text-[11px] font-semibold text-[var(--crm-accent)] hover:underline"

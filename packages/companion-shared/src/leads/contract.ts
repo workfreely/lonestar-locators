@@ -195,6 +195,9 @@ export const favoriteSchema = z.object({
   id: z.union([z.number(), z.string()]),
   propertyName: z.string(),
   propertyAddress: z.string().nullish(),
+  /** Property photo (property_catalog.property_image_url), resolved read-side.
+   *  Shown as the Favorite/Tour-card thumbnail; null → the clean placeholder. */
+  propertyImageUrl: z.string().nullish(),
   propertyUrl: z.string().nullish(),
   /** The property's REAL website (property_catalog.website_url), resolved read-side.
    *  The only URL a name/thumbnail link may open — never propertyUrl (Google Maps). */

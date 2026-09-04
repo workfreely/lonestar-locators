@@ -6,8 +6,9 @@ import { PanelStateView, type PanelState } from "./lead/PanelStates";
 import { ClientPropertiesNav, type CompanionView } from "./ClientPropertiesNav";
 import { PropertiesView } from "./properties/PropertiesView";
 import type { AutofillOutcome } from "./autofill/runAutofill";
-import { AutofillAction } from "./autofill/AutofillAction";
-import { useActiveTourTab } from "./autofill/useActiveTourTab";
+import { TourModeView } from "./tour/TourModeView";
+import type { TourModeRequest } from "./tour/useTourMode";
+import type { AutofillLocator } from "@bc/companion-shared";
 import { CompanionMenu } from "./menu/CompanionMenu";
 import { applyTheme } from "./applyTheme";
 import { DISCONNECTED, type CompanionConnection } from "./connection";
@@ -67,6 +68,10 @@ function useMainViewTab(
   }, [key, target, setActiveView]);
 }
 
+// Used only if Tour Mode renders without an autofill trigger wired (shouldn't
+// happen in production; keeps the type total and degrades to a manual message).
+const autofillUnavailable = async (): Promise<AutofillOutcome> => ({ status: "unsupported" });
+
 export function PanelApp({
   state = "no-client",
   lead,
@@ -81,6 +86,10 @@ export function PanelApp({
   onRemoveRecommendation,
   onClearCurrentProperty,
   onAutofillTour,
+  tourMode = null,
+  onTourBack,
+  onTourConfirm,
+  locator = null,
   onEditClient,
   canEditClient = false,
   onEditTemplates,
@@ -129,8 +138,16 @@ export function PanelApp({
   onRemoveRecommendation?: (propertyUrl?: string | null) => void;
   /** Manual dismiss of the transient Current Property (clears lb-current-property). */
   onClearCurrentProperty?: () => void;
-  /** Schedule Tour autofill trigger, forwarded to the Properties view. */
+  /** Schedule Tour autofill trigger (acts on the active tab). Used by Tour Mode. */
   onAutofillTour?: () => Promise<AutofillOutcome>;
+  /** Active Tour Mode request (favorite to schedule), or null for the normal panel. */
+  tourMode?: TourModeRequest | null;
+  /** Exit Tour Mode → return to Client. */
+  onTourBack?: () => void;
+  /** Confirm the tour → parent runs the existing complete-setup-tour flow, then exits. */
+  onTourConfirm?: (args: { tourDate: string; tourTime: string }) => void;
+  /** The locator's contact identity (Tour Mode data preview → message field only). */
+  locator?: AutofillLocator | null;
   /** Edit Client (menu) — posts the "edit-client" verb so the CRM opens its Add
    *  Lead modal in edit mode for the active client. Hidden when no active client. */
   onEditClient?: () => void;
@@ -201,10 +218,19 @@ export function PanelApp({
   useMainViewTab("lb-map-entered", "properties", setActiveView);
   useMainViewTab("lb-workspace-entered", "client", setActiveView);
 
-  // The active tab, when it is an external tour/scheduler page — drives whether the
-  // Autofill action is shown (in BOTH views), so it appears exactly when the locator
-  // is on the page they want filled and never on the CRM.
-  const tourTab = useActiveTourTab();
+  // Tour Mode (temporary): resolve the launching favorite (for the card) and the
+  // client fields autofill will use, from data the panel already holds.
+  const tourFavorite = tourMode
+    ? favorites.find((f) => String(f.id) === String(tourMode.favoriteId)) ?? null
+    : null;
+  const tourClient = {
+    firstName: lead?.firstName ?? null,
+    lastName: lead?.lastName ?? null,
+    email: lead?.email ?? null,
+    phone: lead?.phone ?? null,
+    moveDate: lead?.searchCriteria?.moveDate ?? null,
+    bedrooms: lead?.searchCriteria?.beds ?? null,
+  };
   const [demoNote, setDemoNote] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeId>("midnight");
   const noteTimer = useRef<number | undefined>(undefined);
@@ -282,13 +308,31 @@ export function PanelApp({
         </button>
       </header>
 
-      {/* Client / Properties navigation — directly below the hamburger, directly
-          above the client identity. Shown only when a client is loaded. */}
-      {isLoaded && <ClientPropertiesNav active={activeView} onChange={setActiveView} />}
+      {/* Navigation — Client/Properties normally; while Tour Mode is active it is
+          replaced by a temporary "← Back to Client · TOUR MODE" bar (no permanent
+          third tab). The TOUR MODE label stays deliberately subtle. */}
+      {isLoaded &&
+        (tourMode ? (
+          <nav className="bc-cp-nav" aria-label="Tour Mode" style={{ alignItems: "center" }}>
+            <button
+              type="button"
+              onClick={onTourBack}
+              style={{ padding: "9px 12px", fontSize: 12, fontWeight: 600, color: "var(--lb-accent, #5b8dff)", background: "transparent", border: "none", cursor: "pointer" }}
+            >
+              ← Back to Client
+            </button>
+            <span style={{ marginLeft: "auto", padding: "9px 12px", fontSize: 10.5, fontWeight: 700, letterSpacing: "0.1em", color: "var(--lb-text-muted, #8b93a3)", display: "flex", alignItems: "center", gap: 6 }}>
+              <span aria-hidden="true" style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--lb-accent, #5b8dff)" }} />
+              TOUR MODE
+            </span>
+          </nav>
+        ) : (
+          <ClientPropertiesNav active={activeView} onChange={setActiveView} />
+        ))}
 
-      {/* Client identity — the SAME header for both views; on Properties it renders
-          COMPACT (name + stage only) to reclaim vertical space. Client tab is full. */}
-      {isLoaded && (
+      {/* Client identity — shown in the normal views only; Tour Mode is focused on
+          the property, so the client-identity header is hidden there. */}
+      {isLoaded && !tourMode && (
         <LeadIdentityHeader
           lead={lead!}
           onDemo={onDemo}
@@ -307,13 +351,16 @@ export function PanelApp({
               onConnect={handleConnect}
             />
           ) : isLoaded ? (
-            <>
-              {/* Autofill tour form — shown only when the active tab is an external
-                  tour/scheduler page, above BOTH the Client and Properties views. */}
-              {tourTab && onAutofillTour && (
-                <AutofillAction onAutofillTour={onAutofillTour} host={tourTab.host} />
-              )}
-              {activeView === "client" ? (
+            tourMode ? (
+              <TourModeView
+                favorite={tourFavorite}
+                propertyNameFallback={tourMode.propertyName}
+                client={tourClient}
+                locator={locator}
+                onAutofillTour={onAutofillTour ?? autofillUnavailable}
+                onConfirmTour={(args) => onTourConfirm?.(args)}
+              />
+            ) : activeView === "client" ? (
               <LeadPanelBody
                 lead={lead!}
                 nextActions={nextActions}
@@ -350,8 +397,7 @@ export function PanelApp({
                 onRemoveRecommendation={onRemoveRecommendation}
                 onClearCurrentProperty={onClearCurrentProperty}
               />
-              )}
-            </>
+            )
           ) : (
             <PanelStateView state={state === "loaded" ? "no-client" : state} onConnect={handleConnect} />
           )}
