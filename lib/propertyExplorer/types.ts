@@ -77,6 +77,10 @@ export type ExplorerProperty = {
    *  Place ID. Real and verified, never fabricated; ABSENT when the catalog has
    *  none, so the card omits it. Display-only — never affects ranking or search. */
   googleRating?: number | null
+  /** Selected representative property image URL, from property_catalog.property_image_url
+   *  by Place ID. Drives the shared PropertyThumb on the map card + Current Property;
+   *  ABSENT/broken → building icon. Display-only — never affects ranking or search. */
+  imageUrl?: string | null
 
   // ── Future-ready display fields ─────────────────────────────────────────────
   // ADDITIVE and OPTIONAL: absent on every Google Places result today, so nothing
@@ -171,6 +175,10 @@ export function toCompanionProperty(p: ExplorerProperty) {
     // Companion Current Property card can show the same rating as the CRM card.
     // Never fabricated; the receiver omits the rating when null.
     googleRating: p.googleRating ?? null,
+    // Selected representative image from property_catalog (by Place ID). Carried so
+    // Current Property's existing PropertyThumb shows the same photo as the map card;
+    // null/broken → the building icon (receiver already falls back).
+    propertyImageUrl: p.imageUrl ?? null,
   }
 }
 

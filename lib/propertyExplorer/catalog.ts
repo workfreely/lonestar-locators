@@ -20,6 +20,10 @@ export type CatalogRecord = {
   /** Google Places star rating 0.0–5.0 (property_catalog.google_rating), when
    *  catalogued. Display-only; never affects ranking or search. */
   googleRating: number | null
+  /** Selected representative property image URL (property_catalog.property_image_url),
+   *  when enriched. Display-only; drives the shared PropertyThumb, falls back to the
+   *  building icon when null or broken. NEVER stored on lead rows — resolved here. */
+  imageUrl: string | null
 }
 
 export async function fetchCatalog(
@@ -31,7 +35,7 @@ export async function fetchCatalog(
   if (ids.length === 0) return out
   const { data, error } = await supabase
     .from("property_catalog")
-    .select("place_id, neighborhood, location, location_keywords, zip, website_url, google_rating")
+    .select("place_id, neighborhood, location, location_keywords, zip, website_url, google_rating, property_image_url")
     .in("place_id", ids)
   // A lookup failure must never break the search — fall back to unenriched.
   if (error || !data) return out
@@ -43,6 +47,7 @@ export async function fetchCatalog(
       zip: (r.zip as string) ?? null,
       websiteUrl: (r.website_url as string) ?? null,
       googleRating: r.google_rating == null ? null : Number(r.google_rating),
+      imageUrl: typeof r.property_image_url === "string" && r.property_image_url ? (r.property_image_url as string) : null,
     })
   }
   return out
@@ -57,10 +62,10 @@ export async function fetchCatalog(
  * Place ID has no catalog row, gets google_rating = null. Returns new row objects;
  * the source rows are untouched.
  */
-export async function attachCatalogRatings<T extends { property_url?: string | null }>(
+export async function attachCatalogRatings<T extends { property_url?: string | null; property_image_url?: string | null }>(
   rows: T[],
   supabase: SupabaseClient,
-): Promise<(T & { google_rating: number | null })[]> {
+): Promise<(T & { google_rating: number | null; property_image_url: string | null })[]> {
   const placeIds = rows.map((r) => placeIdFromPropertyUrl(r.property_url))
   const catalog = await fetchCatalog(
     placeIds.filter((v): v is string => !!v),
@@ -68,7 +73,16 @@ export async function attachCatalogRatings<T extends { property_url?: string | n
   )
   return rows.map((r, i) => {
     const pid = placeIds[i]
-    return { ...r, google_rating: pid ? (catalog.get(pid)?.googleRating ?? null) : null }
+    const rec = pid ? catalog.get(pid) : undefined
+    // Image resolution mirrors the rating: read-side from property_catalog. A row's
+    // OWN image (a pasted Favorite / SAD-detected one) takes precedence; otherwise
+    // the catalog's selected image fills in. Null → PropertyThumb's building icon.
+    const ownImage = typeof r.property_image_url === "string" && r.property_image_url ? r.property_image_url : null
+    return {
+      ...r,
+      google_rating: rec?.googleRating ?? null,
+      property_image_url: ownImage ?? rec?.imageUrl ?? null,
+    }
   })
 }
 
@@ -81,7 +95,7 @@ export function enrichProperties(
   return properties.map((p) => {
     const c = catalog.get(p.placeId)
     return c
-      ? { ...p, neighborhood: c.neighborhood, location: c.location, locationKeywords: c.locationKeywords, zip: c.zip, websiteUrl: c.websiteUrl, googleRating: c.googleRating }
+      ? { ...p, neighborhood: c.neighborhood, location: c.location, locationKeywords: c.locationKeywords, zip: c.zip, websiteUrl: c.websiteUrl, googleRating: c.googleRating, imageUrl: c.imageUrl }
       : p
   })
 }

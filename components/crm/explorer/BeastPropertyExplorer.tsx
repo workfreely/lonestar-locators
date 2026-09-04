@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { loadGoogleMaps, MapsConfigError } from "@/lib/propertyExplorer/loadMaps"
 import { hasCoordinates, placeUrl, displayAddress, formatCommission, type ExplorerProperty } from "@/lib/propertyExplorer/types"
+import PropertyThumb from "@/components/crm/PropertyThumb"
 import { assessLocationFit, type ClientLocationContext } from "@/lib/propertyExplorer/locationFit"
 import { computeSuggestions } from "@/lib/propertyExplorer/suggestions"
 import { enrichProperties, fetchCatalog } from "@/lib/propertyExplorer/catalog"
@@ -1182,22 +1183,32 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
           existing CRM client context — showing it costs no Google request. */}
       {card && (
         <div className="pointer-events-auto absolute bottom-12 left-4 w-[280px] rounded-xl bg-white p-4 shadow-xl ring-1 ring-black/10">
-          <div className="flex items-start justify-between gap-2">
-            <p className="text-[14px] font-semibold leading-snug text-[#111318]">{card.propertyName}</p>
-            {selected && (
-              <button
-                type="button"
-                onClick={() => setSelected(null)}
-                aria-label="Close property card"
-                className="-mr-1 -mt-1 flex-none rounded p-1 text-[#9098a8] hover:text-[#111318]"
-              >
-                ✕
-              </button>
-            )}
+          {/* Header mirrors the Companion Current Property layout: a small property
+              thumbnail (same 40px footprint as Current Property) to the LEFT of the
+              name/address block. Compact — NOT a hero photo. Missing/broken image →
+              PropertyThumb's building icon in the same spot. Rating / rent / distance
+              / commission / Visit Website continue underneath, unchanged. */}
+          <div className="flex items-start gap-2.5">
+            <PropertyThumb src={card.imageUrl} alt={card.propertyName} size={40} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-[14px] font-semibold leading-snug text-[#111318]">{card.propertyName}</p>
+                {selected && (
+                  <button
+                    type="button"
+                    onClick={() => setSelected(null)}
+                    aria-label="Close property card"
+                    className="-mr-1 -mt-1 flex-none rounded p-1 text-[#9098a8] hover:text-[#111318]"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              {card.propertyAddress && (
+                <p className="mt-1 text-[12.5px] leading-snug text-[#4b5162]">{displayAddress(card.propertyAddress)}</p>
+              )}
+            </div>
           </div>
-          {card.propertyAddress && (
-            <p className="mt-1 text-[12.5px] leading-snug text-[#4b5162]">{displayAddress(card.propertyAddress)}</p>
-          )}
           {/* Google rating — numeric first (one decimal), then a compact 5-star
               visual whose gold fill reflects the decimal. Shown ONLY when a real
               catalogued rating exists; omitted entirely otherwise. No review
