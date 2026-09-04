@@ -123,6 +123,11 @@ const REJECT_PATTERNS: RegExp[] = [
   // Accessibility-widget assets (accessiBe / UserWay / AudioEye) + WCAG/WAI badges —
   // never a property photo (discovery: accessibility/wcag/wai/conformance on ~12% of sites).
   /accessibility/i, /\bwcag\b/i, /\bwai\b/i, /conformance/i, /accessibe|userway|audioeye/i,
+  // Stock / lifestyle library images (dry-run finding: a farmers-market stock hero).
+  // CONSERVATIVE — distinctive stock-source names + explicit "stock photo"/"lifestyle"
+  // tags only. NOT people/person/resident: a real community photo with people is kept.
+  /shutterstock/i, /\bistock(?:photo)?/i, /gettyimages|getty[-_ ]?images/i, /unsplash/i, /\bpexels/i,
+  /\bstock[-_ ]?photos?\b/i, /\bstockphoto/i, /\bstock[-_ ]?images?\b/i, /\bstock\b/i, /lifestyle/i,
 ]
 
 // Signals that an image IS a real property photo (boosts confidence).

@@ -205,5 +205,19 @@ ok(selectBestImage([{ url: "https://images.x/uc-image/abc/scale_crop/1200x630/sm
 // A real 16:9 landscape photo (1.78) is NOT caught by the OG-card (~1.91) guard.
 ok(selectBestImage([{ url: "https://cdn.x/hero/opaque-1920x1080.jpg", boost: 2, context: "" }]) === "https://cdn.x/hero/opaque-1920x1080.jpg", "opaque 16:9 photo NOT demoted as an OG-card")
 
+// ── Stock / lifestyle rejection (conservative) ──
+ok(scorePropertyImage("https://cdn.shutterstock.com/photo-123.jpg", 2) === null, "shutterstock host rejected")
+ok(scorePropertyImage("https://media.gettyimages.com/id/123/photo.jpg", 2) === null, "getty images host rejected")
+ok(scorePropertyImage("https://images.unsplash.com/photo-abc.jpg", 2) === null, "unsplash host rejected")
+ok(scorePropertyImage("https://images.pexels.com/photos/123/x.jpg", 2) === null, "pexels host rejected")
+ok(scorePropertyImage("https://x/istockphoto-9911.jpg", 2) === null, "istockphoto rejected")
+ok(scorePropertyImage("https://x/media/stock-photo-woman-shopping.jpg", 2) === null, "'stock-photo' filename rejected")
+ok(scorePropertyImage("https://x/media/lifestyle-couple.jpg", 2) === null, "'lifestyle' filename rejected")
+// Conservative: a REAL property photo with people is NOT rejected.
+ok(scorePropertyImage("https://x/pool/residents-enjoying-pool.jpg", 2) !== null, "real pool photo with residents/people NOT rejected")
+ok(scorePropertyImage("https://x/gallery/clubhouse-people.jpg", 2) !== null, "clubhouse photo with people NOT rejected")
+// Conservative: a property name containing 'stock' as part of a word is NOT rejected.
+ok(scorePropertyImage("https://x/gallery/stockyards-lofts-exterior.jpg", 2) !== null, "'Stockyards' property name NOT rejected (word-bounded stock)")
+
 console.log(`\n${fail === 0 ? "ALL PASS ✅" : "FAILURES ❌"}  (${pass} passed, ${fail} failed)`)
 if (fail > 0) process.exit(1)
