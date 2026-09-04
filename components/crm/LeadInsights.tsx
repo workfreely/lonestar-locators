@@ -494,15 +494,18 @@ export default function LeadInsights({
   lead,
   onMatchesChange,
   onCloseWorkspace,
-  children,
+  leftColumn,
+  rightColumn,
 }: {
   lead: any
   onMatchesChange?: (matches: any[]) => void
   // Optional: renders the workspace-close X inside the AI Assistant header.
   onCloseWorkspace?: () => void
-  // Rendered directly under the AI Assistant card — the right-panel property
-  // workspace (Favorite Properties) and notes for V1.
-  children?: React.ReactNode
+  // Desktop 50/50 workspace columns (layout only). Left = Recommended Properties,
+  // Favorite Properties, Client Tools. Right = AI Insights (this component's own
+  // card, which includes Last Conversation) + Locator Notes. Stacks on narrow.
+  leftColumn?: React.ReactNode
+  rightColumn?: React.ReactNode
 }) {
   const [properties, setProperties] = useState<any[]>([])
   const [propertiesOpen, setPropertiesOpen] = useState(true)
@@ -751,7 +754,18 @@ if (Number(lead.credit_score) <= 580) {
   }, [lead])
 
   return (
-    <div className="space-y-2 pt-0 -mt-6">
+    // Desktop 50/50 two-column workspace (layout only). Left column and right
+    // column each keep their own vertical `space-y-2` rhythm; a 24px gutter
+    // (gap-6) separates them, no divider. Stacks to one column below `lg`.
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start pt-0 -mt-6">
+
+      {/* LEFT COLUMN — Recommended Properties, Favorite Properties, Client Tools */}
+      <div className="space-y-2 min-w-0">
+        {leftColumn}
+      </div>
+
+      {/* RIGHT COLUMN — AI Insights (incl. Last Conversation) + Locator Notes */}
+      <div className="space-y-2 min-w-0">
 
       {/* AI INSIGHTS */}
       <AiInsightsCard
@@ -760,8 +774,8 @@ if (Number(lead.credit_score) <= 580) {
         beastInsight={`${approval.label} approval likelihood with ${responsiveness.toLowerCase()} responsiveness and a ${close.label} close probability.`}
       />
 
-      {/* Right-panel workspace — Favorite Properties + Notes (see DashboardClient) */}
-      {children}
+      {/* Right-panel workspace — Locator Notes (see DashboardClient) */}
+      {rightColumn}
 
       {/* PROPERTY MATCHES — hidden from the V1 UI (see SHOW_PROPERTY_MATCHES).
           The matching engine above still runs; only this section is not shown. */}
@@ -900,6 +914,7 @@ if (Number(lead.credit_score) <= 580) {
           underlying calculations (getApprovalProbability / getLeadResponsiveness /
           getCloseRatio) are unchanged and still computed above — only this UI
           block is gone. */}
+      </div>
     </div>
   )
 }

@@ -2578,16 +2578,18 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
 
               {/* INSIGHTS PANEL (Phase 1 center working canvas) */}
               <div className="beast-ai-clearance flex-1 bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)] p-6 overflow-y-auto">
-                {/* Hierarchy: AI Assistant → Recommended Properties → Favorite Properties →
-                    Locator Notes → Client Tools → AI Insights. The workspace-close
-                    X lives inside the AI Assistant header (passed below), NOT at the
-                    scrollbar edge; shown only when the legacy Lead Panel isn't
-                    rendered so production UI is unchanged. */}
+                {/* Desktop 50/50 workspace. LEFT column = Recommended Properties,
+                    Favorite Properties, Client Tools (+ Invoice Details on Closed).
+                    RIGHT column = AI Insights (rendered by LeadInsights, includes
+                    Last Conversation) + Locator Notes. Layout only — every section
+                    card, header, and collapsible behavior is unchanged. The
+                    workspace-close X still lives inside the AI Insights header;
+                    shown only when the legacy Lead Panel isn't rendered. */}
                 <LeadInsights
                   lead={selectedLead}
                   onMatchesChange={setTopMatches}
                   onCloseWorkspace={SHOW_LEGACY_LEAD_PANEL ? undefined : closeWorkspace}
-                >
+                  leftColumn={<>
                   <BestMatches
                     lead={selectedLead}
                     // Favorites wins for a legacy duplicate — the same rule the
@@ -2643,6 +2645,12 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                       )
                     }}
                   />
+                  <ClientWorkspaceTools
+                    lead={selectedLead}
+                    topMatches={topMatches}
+                    locatorName={((agent?.name || "").trim().split(/\s+/)[0]) || ""}
+                    followUpTemplates={localFollowUpTemplates}
+                  />
                   {/* Invoice Details — the Closed-lead commission/invoice record
                       (leads.invoice_*). Surfaced in the workspace (the legacy Lead
                       Panel that used to host it is off) so the Closed workflow can
@@ -2656,6 +2664,8 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                       }
                     />
                   )}
+                  </>}
+                  rightColumn={<>
                   <LeadNotes
                     lead={selectedLead}
                     showClientNotes={false}
@@ -2663,13 +2673,8 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                       setLocalLeads((prev) => prev.map((l) => (l.id === updatedLead.id ? updatedLead : l)))
                     }
                   />
-                  <ClientWorkspaceTools
-                    lead={selectedLead}
-                    topMatches={topMatches}
-                    locatorName={((agent?.name || "").trim().split(/\s+/)[0]) || ""}
-                    followUpTemplates={localFollowUpTemplates}
-                  />
-                </LeadInsights>
+                  </>}
+                />
               </div>
 
             </div>
