@@ -225,7 +225,7 @@ export function evaluateLocationFit(ctx: ClientContext, property: PropertyLocati
   //     none of them (nor the name/override evidence above) → an explicit MISMATCH.
   //     A more precise desired area outranks the broad city, so an address in the right
   //     city cannot rescue it. Textual comparison only — never proximity.
-  if (submarketDecides) return make("bad", "Outside desired area");
+  if (submarketDecides) return make("bad", "Outside preferred area");
 
   // 3) A stated proximity/commute need we cannot verify without map data → Unverified,
   //    preserving the client's own short phrase in the detail ("Near Lackland").

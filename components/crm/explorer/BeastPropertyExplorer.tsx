@@ -1234,6 +1234,7 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
                   value only; never fabricated, never affects ranking. */}
               {typeof card.googleRating === "number" && (
                 <div className="mt-0.5 flex items-center gap-1.5">
+                  <span className="text-[12.5px] text-[#6b7280]">Google Rating:</span>
                   <span className="text-[12.5px] font-semibold tabular-nums text-[#111318]">
                     {card.googleRating.toFixed(1)}
                   </span>

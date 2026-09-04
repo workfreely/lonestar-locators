@@ -144,6 +144,7 @@ function PropertyRow({
           {sub ? <span className="bc-prop-sub">{sub}</span> : null}
           {typeof rating === "number" && (
             <div className="bc-cp-rating">
+              <span className="bc-cp-rating-label">Google Rating:</span>
               <span className="bc-cp-rating-num">{formatRating(rating)}</span>
               <span
                 className="bc-cp-stars"
@@ -348,8 +349,8 @@ export function PropertiesView({
   const locationPlace = currentProperty?.propertySubmarket ?? (location?.verdict === "good" ? location.detail : null);
   const locationRelation = (() => {
     if (!location) return null;
-    if (location.verdict === "good") return "Desired area";
-    if (location.verdict === "bad") return "Outside desired area";
+    if (location.verdict === "good") return "Within preferred area";
+    if (location.verdict === "bad") return "Outside preferred area";
     if (location.detail === "No location set") return "Area not provided";
     if (location.detail === "Area not confirmed") return location.detail;
     return location.detail; // the client's own proximity words, e.g. "Near the Domain"
@@ -435,6 +436,7 @@ export function PropertiesView({
                     otherwise. No review count, never fabricated. */}
                 {typeof currentProperty.googleRating === "number" && (
                   <div className="bc-cp-rating">
+                    <span className="bc-cp-rating-label">Google Rating:</span>
                     <span className="bc-cp-rating-num">{formatRating(currentProperty.googleRating)}</span>
                     <span
                       className="bc-cp-stars"
@@ -464,7 +466,7 @@ export function PropertiesView({
               <IntelRow
                 category="Location"
                 facts={
-                  outsideArea ? ["Outside desired area", propertyCity] : [locationRelation, locationPlace]
+                  outsideArea ? ["Outside preferred area", propertyCity] : [locationRelation, locationPlace]
                 }
               />
               {budget && <IntelRow category="Budget" facts={[budgetCopy(budget), clientBudgetText]} />}
