@@ -41,6 +41,9 @@
     "tabs"
   ],
   "optional_host_permissions": [
+    "https://*.securecafe.com/*",
+    "https://*.securecafenet.com/*",
+    "https://app.tour24.io/*",
     "https://*/*",
     "http://*/*"
   ],

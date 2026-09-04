@@ -69,4 +69,10 @@ export type AutofillResult = {
    *  Tour") — used to guide the locator when nothing was fillable yet: open the
    *  scheduler / pick a slot, then Autofill again. */
   tourTriggers?: string[];
+  /** Hosts of CROSS-ORIGIN iframes on the page (read from each iframe's src — the
+   *  content is inaccessible without host permission for that origin). Lets the
+   *  caller offer a provider-level grant when a KNOWN scheduler (e.g. SecureCafe)
+   *  is embedded, then re-inject into that frame under the same optional permission
+   *  — never broad access. */
+  crossOriginFrameHosts?: string[];
 };

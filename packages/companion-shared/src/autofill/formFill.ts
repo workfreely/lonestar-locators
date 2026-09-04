@@ -104,7 +104,11 @@ export function autofillTourForm(payload: AutofillPayload): AutofillResult {
     if (!hitTok) for (let j = 0; j < spec.tok.length; j++) { const tk = norm(spec.tok[j]); if ((nm && nm.indexOf(tk) >= 0) || (id && id.indexOf(tk) >= 0)) { s += 55; strat.push("name~"); hitTok = true; break; } }
     if (!hitTok) for (let j = 0; j < spec.softtok.length; j++) { const tk = norm(spec.softtok[j]); if ((nm && nm.indexOf(tk) >= 0) || (id && id.indexOf(tk) >= 0)) { s += 25; strat.push("name-soft"); break; } }
     for (let k = 0; k < spec.text.length; k++) { if (near && near.indexOf(spec.text[k]) >= 0) { s += 35; strat.push("label"); break; } }
-    for (let m = 0; m < spec.text.length; m++) { if (ph && ph.indexOf(spec.text[m]) >= 0) { s += 22; strat.push("placeholder"); break; } }
+    // A clear field-name PLACEHOLDER ("First Name", "Email", …) is sufficient on
+    // its own (meets CONF_MIN) — many modern/minimalist forms, incl. RentCafe's
+    // scheduler (placeholder "First Name on ID"), label their inputs only by
+    // placeholder. The `text` phrases are specific enough that this stays safe.
+    for (let m = 0; m < spec.text.length; m++) { if (ph && ph.indexOf(spec.text[m]) >= 0) { s += 30; strat.push("placeholder"); break; } }
     return { score: s, strategy: strat.join("+") };
   }
 
@@ -165,11 +169,20 @@ export function autofillTourForm(payload: AutofillPayload): AutofillResult {
   const report: AutofillResult["report"] = [];
   const docs: any[] = [document];
   let frameCount = 0; let frameBlocked = 0;
+  const crossOriginFrameHosts: string[] = [];
   const iframes = document.querySelectorAll("iframe");
   for (let f = 0; f < iframes.length; f++) {
     frameCount++;
-    try { const d = (iframes[f] as HTMLIFrameElement).contentDocument; if (d && d.body) docs.push(d); else if ((iframes[f] as HTMLIFrameElement).src) frameBlocked++; }
-    catch (e) { frameBlocked++; }
+    const fr = iframes[f] as HTMLIFrameElement;
+    let accessible = false;
+    try { const d = fr.contentDocument; if (d && d.body) { docs.push(d); accessible = true; } } catch (e) { /* cross-origin */ }
+    if (!accessible && fr.src) {
+      frameBlocked++;
+      // Reading an iframe element's own src attribute is allowed cross-origin; only
+      // its contentDocument is blocked. Record the host so the caller can offer a
+      // provider grant for a known embedded scheduler.
+      try { const h = new URL(fr.src).host; if (h && crossOriginFrameHosts.indexOf(h) < 0) crossOriginFrameHosts.push(h); } catch (e) { /* noop */ }
+    }
   }
 
   const used: any[] = [];
@@ -225,5 +238,5 @@ export function autofillTourForm(payload: AutofillPayload): AutofillResult {
 
   const filled = report.filter((r) => r.action === "filled").length;
   const attempted = report.filter((r) => r.action !== "no-value").length;
-  return { origin: location.origin, url: location.href, filled, attempted, frames: { total: frameCount, crossOriginBlocked: frameBlocked }, report, tourTriggers };
+  return { origin: location.origin, url: location.href, filled, attempted, frames: { total: frameCount, crossOriginBlocked: frameBlocked }, report, tourTriggers, crossOriginFrameHosts };
 }

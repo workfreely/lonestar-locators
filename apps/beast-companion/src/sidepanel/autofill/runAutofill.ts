@@ -67,6 +67,67 @@ export async function getActiveTourTab(): Promise<{ host: string; url: string } 
   }
 }
 
+// Known scheduler providers whose tour form runs on a SHARED origin across many
+// properties. Requesting the provider's wildcard ONCE covers every property using
+// it (SecureCafe/Yardi, Tour24 — per the live audit) instead of a per-property
+// prompt. Everything else stays per-origin. Never <all_urls>, never always-on.
+const PROVIDER_PATTERNS: { test: (host: string) => boolean; pattern: string }[] = [
+  { test: (h) => h === "securecafe.com" || h.endsWith(".securecafe.com"), pattern: "https://*.securecafe.com/*" },
+  { test: (h) => h === "securecafenet.com" || h.endsWith(".securecafenet.com"), pattern: "https://*.securecafenet.com/*" },
+  { test: (h) => h === "app.tour24.io", pattern: "https://app.tour24.io/*" },
+];
+function providerPatternForHost(host: string): string | null {
+  const h = host.toLowerCase();
+  for (const p of PROVIDER_PATTERNS) if (p.test(h)) return p.pattern;
+  return null;
+}
+
+async function requestOriginPattern(pattern: string): Promise<boolean> {
+  try {
+    return await chrome.permissions.request({ origins: [pattern] });
+  } catch {
+    return false;
+  }
+}
+
+// Inject the filler into the top frame AND every cross-origin frame the extension
+// has host access to (allFrames only reaches PERMITTED frames — a provider grant
+// unlocks that provider's embedded iframe, nothing broader). Aggregate the per-
+// frame results into one.
+async function injectAndAggregate(tabId: number, payload: AutofillPayload): Promise<AutofillResult | null> {
+  let injections: chrome.scripting.InjectionResult<AutofillResult>[] | undefined;
+  try {
+    injections = await chrome.scripting.executeScript({
+      target: { tabId, allFrames: true },
+      func: autofillTourForm,
+      args: [payload],
+    });
+  } catch {
+    try {
+      injections = await chrome.scripting.executeScript({ target: { tabId }, func: autofillTourForm, args: [payload] });
+    } catch {
+      return null;
+    }
+  }
+  const results = (injections ?? [])
+    .map((i) => i.result as AutofillResult | undefined)
+    .filter((r): r is AutofillResult => !!r);
+  if (!results.length) return null;
+  const uniq = (arr: string[]) => Array.from(new Set(arr));
+  const primary = results.slice().sort((a, b) => (b.filled || 0) - (a.filled || 0))[0];
+  return {
+    ...primary,
+    filled: results.reduce((s, r) => s + (r.filled || 0), 0),
+    attempted: results.reduce((s, r) => s + (r.attempted || 0), 0),
+    frames: {
+      total: results.reduce((s, r) => s + (r.frames?.total || 0), 0),
+      crossOriginBlocked: results.reduce((s, r) => s + (r.frames?.crossOriginBlocked || 0), 0),
+    },
+    tourTriggers: uniq(results.flatMap((r) => r.tourTriggers ?? [])).slice(0, 6),
+    crossOriginFrameHosts: uniq(results.flatMap((r) => r.crossOriginFrameHosts ?? [])),
+  };
+}
+
 export async function runAutofillOnActiveTab(payload: AutofillPayload): Promise<AutofillOutcome> {
   if (!chromeApis()) return { status: "unsupported" };
 
@@ -90,25 +151,31 @@ export async function runAutofillOnActiveTab(payload: AutofillPayload): Promise<
   try { host = new URL(tab.url).host; } catch { return { status: "no-tab" }; }
   if (isCrmHost(host)) return { status: "on-crm" };
 
-  // Per-site grant, requested on THIS gesture only. Scoped to the one origin.
-  let granted = false;
-  try {
-    granted = await chrome.permissions.request({ origins: [origin + "/*"] });
-  } catch {
-    granted = false;
-  }
-  if (!granted) return { status: "denied" };
+  // Scope the grant: a known provider's shared wildcard (covers ALL its properties)
+  // when the tour form's origin is that provider, else the exact property origin.
+  // Requested on THIS gesture only; a granted provider wildcard persists, so the
+  // next property on the same provider never re-prompts.
+  const primaryPattern = providerPatternForHost(host) ?? origin + "/*";
+  if (!(await requestOriginPattern(primaryPattern))) return { status: "denied" };
 
   try {
-    const injection = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      // Injected verbatim; autofillTourForm is fully self-contained (see its doc).
-      func: autofillTourForm,
-      args: [payload],
-    });
-    const result = injection?.[0]?.result as AutofillResult | undefined;
-    if (!result) return { status: "error", message: "no result from page" };
-    return result.filled > 0 ? { status: "filled", result } : { status: "no-fields", result };
+    const first = await injectAndAggregate(tab.id, payload);
+    if (!first) return { status: "error", message: "no result from page" };
+    if (first.filled > 0) return { status: "filled", result: first };
+
+    // Nothing filled in the top frame(s). If a KNOWN provider is embedded as a
+    // cross-origin iframe (e.g. a SecureCafe scheduler on the property site), offer
+    // the provider grant and re-inject — allFrames then reaches that frame under the
+    // SAME optional permission model (never broad access). Unknown cross-origin
+    // iframes are left alone (manual fallback).
+    const providerFrame = (first.crossOriginFrameHosts ?? [])
+      .map((h) => providerPatternForHost(h))
+      .find((p): p is string => !!p && p !== primaryPattern);
+    if (providerFrame && (await requestOriginPattern(providerFrame))) {
+      const second = await injectAndAggregate(tab.id, payload);
+      if (second) return second.filled > 0 ? { status: "filled", result: second } : { status: "no-fields", result: second };
+    }
+    return { status: "no-fields", result: first };
   } catch (e) {
     return { status: "error", message: e instanceof Error ? e.message : String(e) };
   }
