@@ -15,6 +15,7 @@ import BestMatches from "./BestMatches"
 import LeadFormModal from "../LeadFormModal"
 import FollowUpTemplatesModal from "./FollowUpTemplatesModal"
 import WorkflowActionToast from "./WorkflowActionToast"
+import FollowUpCalendarSync from "./FollowUpCalendarSync"
 import BeastMilestoneToast from "./BeastMilestoneToast"
 import { useBeastMilestones } from "@/lib/beastMilestones/useBeastMilestones"
 import { emitWorkflowActionCreated, type WorkflowToastAction } from "@/lib/workflowToast"
@@ -2685,6 +2686,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         initialOverrides={localFollowUpTemplates}
         onSaved={(overrides) => setLocalFollowUpTemplates(overrides)}
       />
+
+      {/* B3: per-agent Follow-Up Calendar sync on FU create/advance (best-effort). */}
+      <FollowUpCalendarSync />
 
       <WorkflowActionToast
         onUndo={(actionId) => {

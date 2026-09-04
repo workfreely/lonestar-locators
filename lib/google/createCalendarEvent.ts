@@ -386,3 +386,85 @@ export async function createNewLeadCalendarEvent(
     oauth2Client ? "primary" : undefined,
   )
 }
+
+// ─── Follow-Up sync (B3 Phase 1 — per-agent, create-or-update) ────────────────
+
+// Canonical follow-up action_key → its calendar presentation. `step` selects the
+// FU-chain copy (FU_NEXT_EVENT[step]); null means FU1, which uses the list-sent
+// description. This reproduces the existing follow-up event copy exactly.
+const FOLLOW_UP_EVENT_BY_KEY: Record<string, { emoji: string; step: number | null }> = {
+  follow_up_1: { emoji: "📋", step: null },
+  follow_up_2: { emoji: "📋", step: 1 },
+  follow_up_3: { emoji: "📋", step: 2 },
+  final_follow_up: { emoji: "🛑", step: 3 },
+}
+
+/** Whether a lead_next_actions.action_key is a canonical follow-up that gets a calendar event. */
+export function isFollowUpActionKey(actionKey: string | null | undefined): boolean {
+  return !!actionKey && actionKey in FOLLOW_UP_EVENT_BY_KEY
+}
+
+/**
+ * Create or update (by existingEventId) the Google Calendar event for a canonical
+ * follow-up action in the given agent's OWN "primary" calendar.
+ *
+ * Best-effort at the CALLER: this throws on a Google error so the caller can log
+ * and continue. Timing = the action's due_at, so a reschedule of the action
+ * updates this same event rather than creating a duplicate. Copy (title +
+ * description) is preserved from the existing follow-up helpers.
+ */
+export async function upsertFollowUpCalendarEvent(opts: {
+  client: GoogleOAuthClient
+  existingEventId?: string | null
+  actionKey: string
+  actionTitle: string
+  dueAt: string
+  lead: ListSentEventInput
+}): Promise<string> {
+  const { client, existingEventId, actionKey, actionTitle, dueAt, lead } = opts
+  const cfg = FOLLOW_UP_EVENT_BY_KEY[actionKey] ?? { emoji: "📋", step: null }
+
+  const summary = formatEventTitle(cfg.emoji, lead.first_name, lead.last_name, actionTitle)
+
+  // Description — identical copy to the existing helpers: FU1 uses the list-sent
+  // block; FU2/FU3/Final use the FU-chain step's action lines.
+  let description: string
+  if (cfg.step == null) {
+    description = buildListSentDescription(lead)
+  } else {
+    const stepCfg = FU_NEXT_EVENT[cfg.step]
+    const lines: string[] = []
+    const fullName = [lead.first_name, lead.last_name].filter(Boolean).join(" ")
+    if (fullName) lines.push(`Client: ${fullName}`)
+    if (lead.phone) lines.push(`Phone: ${formatPhone(lead.phone)}`)
+    if (lead.city) lines.push(`City: ${lead.city}`)
+    if (lead.source) lines.push(`Source: ${formatSource(lead.source)}`)
+    if (lead.desired_rent) lines.push(`Budget: ${lead.desired_rent}`)
+    if (lead.beds) lines.push(`Beds: ${lead.beds}`)
+    if (lead.move_date) lines.push(`Move Date: ${formatMoveDate(lead.move_date)}`)
+    lines.push("")
+    lines.push("ACTION:")
+    stepCfg.actions.forEach((a) => lines.push(a))
+    description = lines.join("\n")
+  }
+
+  const startMs = Date.parse(dueAt)
+  const eventBody = {
+    summary,
+    description,
+    start: { dateTime: new Date(startMs).toISOString() },
+    end: { dateTime: new Date(startMs + 15 * 60 * 1000).toISOString() },
+    reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 0 }] },
+  }
+
+  const calendar = google.calendar({ version: "v3", auth: client })
+  if (existingEventId) {
+    // Reschedule / re-sync — update the SAME event (no duplicate).
+    const res = await calendar.events.patch({ calendarId: "primary", eventId: existingEventId, requestBody: eventBody })
+    return res.data.id ?? existingEventId
+  }
+  const res = await calendar.events.insert({ calendarId: "primary", requestBody: eventBody })
+  const id = res.data.id
+  if (!id) throw new Error("Google Calendar returned no follow-up event id")
+  return id
+}
