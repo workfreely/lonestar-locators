@@ -6,6 +6,8 @@ import { PanelStateView, type PanelState } from "./lead/PanelStates";
 import { ClientPropertiesNav, type CompanionView } from "./ClientPropertiesNav";
 import { PropertiesView } from "./properties/PropertiesView";
 import type { AutofillOutcome } from "./autofill/runAutofill";
+import { AutofillAction } from "./autofill/AutofillAction";
+import { useActiveTourTab } from "./autofill/useActiveTourTab";
 import { CompanionMenu } from "./menu/CompanionMenu";
 import { applyTheme } from "./applyTheme";
 import { DISCONNECTED, type CompanionConnection } from "./connection";
@@ -198,6 +200,11 @@ export function PanelApp({
   // opening the panel while already in a mode never yanks the agent off their tab.
   useMainViewTab("lb-map-entered", "properties", setActiveView);
   useMainViewTab("lb-workspace-entered", "client", setActiveView);
+
+  // The active tab, when it is an external tour/scheduler page — drives whether the
+  // Autofill action is shown (in BOTH views), so it appears exactly when the locator
+  // is on the page they want filled and never on the CRM.
+  const tourTab = useActiveTourTab();
   const [demoNote, setDemoNote] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeId>("midnight");
   const noteTimer = useRef<number | undefined>(undefined);
@@ -300,7 +307,13 @@ export function PanelApp({
               onConnect={handleConnect}
             />
           ) : isLoaded ? (
-            activeView === "client" ? (
+            <>
+              {/* Autofill tour form — shown only when the active tab is an external
+                  tour/scheduler page, above BOTH the Client and Properties views. */}
+              {tourTab && onAutofillTour && (
+                <AutofillAction onAutofillTour={onAutofillTour} host={tourTab.host} />
+              )}
+              {activeView === "client" ? (
               <LeadPanelBody
                 lead={lead!}
                 nextActions={nextActions}
@@ -336,9 +349,9 @@ export function PanelApp({
                 onMoveToRecommendation={onMoveToRecommendation}
                 onRemoveRecommendation={onRemoveRecommendation}
                 onClearCurrentProperty={onClearCurrentProperty}
-                onAutofillTour={onAutofillTour}
               />
-            )
+              )}
+            </>
           ) : (
             <PanelStateView state={state === "loaded" ? "no-client" : state} onConnect={handleConnect} />
           )}

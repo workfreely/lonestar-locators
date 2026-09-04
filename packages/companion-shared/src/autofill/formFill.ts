@@ -200,7 +200,30 @@ export function autofillTourForm(payload: AutofillPayload): AutofillResult {
     report.push({ field: spec.key as any, action: ok ? "filled" : "select-no-match", el: descr, score: bestScore, strategy: bestStrategy });
   });
 
+  // Tour-open actions present on the page — the wording that reveals/opens the
+  // scheduler or contact form (anchor, JS button, or modal trigger). Collected so
+  // the panel can guide the locator when nothing was fillable yet ("open the
+  // scheduler / pick a slot, then Autofill again"). Detection only — never clicked
+  // here; activation stays a deliberate locator action (manual fallback intact).
+  const TOUR_TRIGGERS = [
+    "open scheduler", "book a tour", "book tour", "schedule a tour", "schedule tour",
+    "tour now", "plan a visit", "visit us", "request a tour", "self-guided tour",
+    "schedule a self-guided tour", "start your tour", "take a tour",
+  ];
+  const tourTriggers: string[] = [];
+  try {
+    const clickables = document.querySelectorAll("a, button, [role=button]");
+    for (let i = 0; i < clickables.length && tourTriggers.length < 6; i++) {
+      const el = clickables[i] as HTMLElement;
+      const label = (el.textContent || "").replace(/\s+/g, " ").trim();
+      if (!label || label.length > 40) continue;
+      if (!isVisible(el)) continue;
+      const low = label.toLowerCase();
+      if (TOUR_TRIGGERS.some((t) => low.indexOf(t) >= 0) && tourTriggers.indexOf(label) < 0) tourTriggers.push(label);
+    }
+  } catch (e) { /* noop */ }
+
   const filled = report.filter((r) => r.action === "filled").length;
   const attempted = report.filter((r) => r.action !== "no-value").length;
-  return { origin: location.origin, url: location.href, filled, attempted, frames: { total: frameCount, crossOriginBlocked: frameBlocked }, report };
+  return { origin: location.origin, url: location.href, filled, attempted, frames: { total: frameCount, crossOriginBlocked: frameBlocked }, report, tourTriggers };
 }

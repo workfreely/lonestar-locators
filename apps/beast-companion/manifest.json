@@ -37,7 +37,8 @@
     "sidePanel",
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "tabs"
   ],
   "optional_host_permissions": [
     "https://*/*",

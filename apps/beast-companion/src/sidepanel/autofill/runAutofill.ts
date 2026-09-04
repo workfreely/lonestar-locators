@@ -25,8 +25,19 @@ export type AutofillOutcome =
   | { status: "no-fields"; result: AutofillResult }
   | { status: "denied" }
   | { status: "no-tab" }
+  | { status: "on-crm" }
   | { status: "unsupported" }
   | { status: "error"; message: string };
+
+// The locator's own surfaces (CRM + Smart Apartment Data) — NEVER an autofill
+// target; the tour/contact form always lives on an external property/scheduler
+// site. Reading the active tab's host requires the "tabs" permission (metadata
+// only — no host script access), which is what lets us learn the origin so we can
+// request a per-site grant for it.
+const CRM_HOSTS = /(^|\.)smartapartmentdata\.com$|(^|\.)locatorbeast\.com$|^localhost$|^127\.0\.0\.1$/i;
+function isCrmHost(host: string): boolean {
+  return CRM_HOSTS.test(host);
+}
 
 function chromeApis(): boolean {
   return (
@@ -35,6 +46,25 @@ function chromeApis(): boolean {
     typeof chrome.scripting?.executeScript === "function" &&
     typeof chrome.permissions?.request === "function"
   );
+}
+
+// The current active tab IF it is an external page the Autofill action applies to
+// (an http(s) page that is not the CRM/SAD). Null otherwise. The panel uses this to
+// SHOW the Autofill action only when the locator is on a tour/scheduler tab —
+// matching the expected "open tour page → Companion shows Autofill" behavior.
+export async function getActiveTourTab(): Promise<{ host: string; url: string } | null> {
+  if (typeof chrome === "undefined" || typeof chrome.tabs?.query !== "function") return null;
+  try {
+    const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    const tab = tabs[0];
+    if (!tab || !tab.url) return null;
+    const u = new URL(tab.url);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    if (isCrmHost(u.host)) return null;
+    return { host: u.host, url: tab.url };
+  } catch {
+    return null;
+  }
 }
 
 export async function runAutofillOnActiveTab(payload: AutofillPayload): Promise<AutofillOutcome> {
@@ -55,6 +85,10 @@ export async function runAutofillOnActiveTab(payload: AutofillPayload): Promise<
   }
   // Only real web pages can be scripted (never chrome://, extension pages, etc.).
   if (protocol !== "https:" && protocol !== "http:") return { status: "unsupported" };
+  // Never autofill the locator's own CRM/SAD tab — the tour form is external.
+  let host: string;
+  try { host = new URL(tab.url).host; } catch { return { status: "no-tab" }; }
+  if (isCrmHost(host)) return { status: "on-crm" };
 
   // Per-site grant, requested on THIS gesture only. Scoped to the one origin.
   let granted = false;

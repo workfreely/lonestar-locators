@@ -65,4 +65,8 @@ export type AutofillResult = {
   attempted: number;
   frames: { total: number; crossOriginBlocked: number };
   report: AutofillFieldReport[];
+  /** Visible tour-open actions found on the page (e.g. "Open Scheduler", "Book a
+   *  Tour") — used to guide the locator when nothing was fillable yet: open the
+   *  scheduler / pick a slot, then Autofill again. */
+  tourTriggers?: string[];
 };
