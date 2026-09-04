@@ -41,6 +41,7 @@ export default function LeadFavorites({
   tours = [],
   timeZone,
   onRescheduleTour,
+  onScheduleTour,
   onCancelTour,
   onSendGuestCard,
   onTourFollowUp,
@@ -65,6 +66,10 @@ export default function LeadFavorites({
   // Canonical tour edit/cancel — routed to DashboardClient's rescheduleTour /
   // cancelTour handlers (the ONE workflow path). Absent → controls are hidden.
   onRescheduleTour?: (lead: any, args: { tourId: number | string; propertyId: string; tourDate: string; tourTime: string }) => void
+  // Schedule Tour (Slice A): the agent opened the property's real tour/contact page,
+  // came back and confirmed a date/time. Creates the tour via the existing workflow.
+  // Absent → the Schedule Tour control is hidden.
+  onScheduleTour?: (lead: any, args: { favoriteId: number | string; propertyName?: string | null; tourDate: string; tourTime: string }) => void
   onCancelTour?: (lead: any, args: { tourId: number | string; propertyId?: number | string | null }) => void
   // Open the reused Guest Card composer for a scheduled property (Schedule Tour →
   // Send Guest Card → Tour Follow-Up). Absent → the control is hidden.
@@ -108,6 +113,13 @@ export default function LeadFavorites({
   const [editPickerOpen, setEditPickerOpen] = useState(false)
   const [cancelingTour, setCancelingTour] = useState<null | { tourId: number | string; propertyName: string; propertyId: number | string | null }>(null)
 
+  // Schedule Tour (Slice A) draft state (per-Favorite). step 'confirm' = the
+  // "Did you schedule the tour? Yes / Not yet" prompt after the tour page opened;
+  // 'datetime' = the date/time entry shown after Yes. schedDateTime = "YYYY-MM-DDTHH:mm".
+  const [schedFavId, setSchedFavId] = useState<number | string | null>(null)
+  const [schedStep, setSchedStep] = useState<"confirm" | "datetime">("confirm")
+  const [schedDateTime, setSchedDateTime] = useState<string>("")
+
   // Switching the active client must never leak a tour draft (or a pending cancel)
   // from the previous lead — reset every tour-edit control when the lead changes.
   useEffect(() => {
@@ -117,6 +129,9 @@ export default function LeadFavorites({
     setEditDateTime("")
     setEditPickerOpen(false)
     setCancelingTour(null)
+    setSchedFavId(null)
+    setSchedStep("confirm")
+    setSchedDateTime("")
   }, [lead.id])
 
   const leadFavorites = favorites.filter((f) => f.lead_id === lead.id)
@@ -265,6 +280,10 @@ export default function LeadFavorites({
               // The upcoming scheduled tour for THIS property (source of truth =
               // lead_tours, linked by property_id). Null → render nothing extra.
               const tour = upcomingTourForFavorite(leadTours, fav.id)
+              // Schedule Tour target: the real scheduling page (property_catalog.tour_url,
+              // resolved read-side) or, as a fallback, the leasing/contact site — never a
+              // Google Maps URL (propertyWebsiteHref guards that). Null → no button.
+              const schedTarget = propertyWebsiteHref((fav as { tour_url?: string | null }).tour_url) || propertyWebsiteHref((fav as { website_url?: string | null }).website_url)
               // This property's Guest Card state (created when its tour is
               // scheduled): open → "Send Guest Card"; completed → "Guest Card
               // Sent ✓". Null when no guest card for this property.
@@ -482,6 +501,54 @@ export default function LeadFavorites({
                       same canonical formatDueDateTime). Edit / Cancel Tour sit to
                       the right on desktop. Only shown when a linked upcoming tour
                       exists; nothing rendered otherwise. */}
+                  {/* Schedule Tour (Slice A) — shown only when this Favorite has NO
+                      scheduled tour yet and a tour/contact page is known. Opens the real
+                      page in a new tab, then confirms "Did you schedule the tour?" — a
+                      tour record is created ONLY on Yes + a locator-entered date/time
+                      (a contact-form submission alone never counts as scheduled). */}
+                  {!scheduledTour && onScheduleTour && schedTarget && (
+                    <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
+                      {schedFavId !== fav.id ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            window.open(schedTarget, "_blank", "noopener,noreferrer")
+                            setSchedFavId(fav.id); setSchedStep("confirm"); setSchedDateTime("")
+                          }}
+                          className="text-[11px] font-semibold text-[var(--crm-accent)] hover:underline"
+                        >
+                          Schedule Tour
+                        </button>
+                      ) : schedStep === "confirm" ? (
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <span className="text-[12px] text-[var(--crm-text-secondary)]">Did you schedule the tour?</span>
+                          <button type="button" onClick={() => setSchedStep("datetime")} className="text-[11px] font-semibold text-[var(--crm-accent)] hover:underline">Yes</button>
+                          <button type="button" onClick={() => { setSchedFavId(null); setSchedStep("confirm") }} className="text-[11px] font-semibold text-[var(--crm-text-muted)] hover:text-[var(--crm-text-secondary)]">Not yet</button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <p className="text-[11px] font-semibold text-[var(--crm-text-secondary)]">When is the tour?</p>
+                          <DateTimePicker value={schedDateTime} onChange={(v) => setSchedDateTime(v)} compact />
+                          <div className="flex items-center gap-2.5">
+                            <button
+                              type="button"
+                              disabled={!schedDateTime.split("T")[0] || !schedDateTime.split("T")[1]}
+                              onClick={() => {
+                                const [d, t] = schedDateTime.split("T")
+                                if (!d || !t) return
+                                onScheduleTour(lead, { favoriteId: fav.id, propertyName: fav.property_name, tourDate: d, tourTime: t })
+                                setSchedFavId(null); setSchedStep("confirm"); setSchedDateTime("")
+                              }}
+                              className="text-[11px] font-semibold text-[var(--crm-accent)] hover:underline disabled:opacity-40"
+                            >
+                              Save tour
+                            </button>
+                            <button type="button" onClick={() => { setSchedFavId(null); setSchedStep("confirm"); setSchedDateTime("") }} className="text-[11px] font-semibold text-[var(--crm-text-muted)] hover:text-[var(--crm-text-secondary)]">Cancel</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {tour && (
                     <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
                       <div className="flex items-start justify-between gap-2">

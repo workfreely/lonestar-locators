@@ -543,6 +543,34 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     })
   }
 
+  // Schedule Tour (Slice A) — the agent opened the property's real tour/contact page,
+  // came back and confirmed "Yes" + a date/time. Creates the tour through the EXISTING
+  // completeSetupTour workflow (lead_tours status='scheduled', property_id = Favorite id;
+  // + tour follow-up + prepared, unsent Send Guest Card). No stage change, no auto-send.
+  async function handleScheduleTour(lead: any, args: { favoriteId: number | string; propertyName?: string | null; tourDate: string; tourTime: string }) {
+    const now = new Date().toISOString()
+    const tourDate = String(args.tourDate ?? "").trim()
+    const tourTime = String(args.tourTime ?? "").trim()
+    if (!tourDate || !tourTime || args.favoriteId == null) return
+    const favId = Number(args.favoriteId)
+    const scheduledAt = localTourToUtc(tourDate, tourTime, timeZone ?? undefined)
+    await completeSetupTour({
+      lead,
+      actionRow: null, // no open setup_tour action — this is a fresh Workspace schedule
+      scheduledAt,
+      propertyId: favId,
+      propertyName: args.propertyName ?? null,
+      now,
+      onTourScheduled: (t) => setLocalTours((prev) => [...prev, t]),
+      onWorkflowAction: (a) => setLocalNextActions((prev) => [...prev, a]),
+      onGuestCardCreated: (a) => setLocalNextActions((prev) => [...prev, a]),
+      onOptimistic: (updated) => {
+        setLocalLeads((prev) => prev.map((l) => (String(l.id) === String(updated.id) ? { ...l, ...updated } : l)))
+        postCompanionActiveClient({ ...lead, ...updated }, localNextActionsRef.current)
+      },
+    })
+  }
+
   async function handleCancelTour(lead: any, args: { tourId: number | string; propertyId?: number | string | null }) {
     const now = new Date().toISOString()
     // Only the canceled property's follow-up reconciles (property-scoped).
@@ -2592,6 +2620,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                     tours={localTours}
                     timeZone={timeZone}
                     onRescheduleTour={handleRescheduleTour}
+                    onScheduleTour={handleScheduleTour}
                     onCancelTour={handleCancelTour}
                     onSendGuestCard={handleSendGuestCard}
                     onTourFollowUp={handleTourFollowUp}
