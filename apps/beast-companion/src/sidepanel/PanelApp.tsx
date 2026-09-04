@@ -98,7 +98,7 @@ export function PanelApp({
   onContact,
   onContactLead,
   onBuildList,
-  onListSent,
+  onActiveViewChange,
   onSendList,
   onSendFollowUp,
   onScheduleTour,
@@ -168,9 +168,9 @@ export function PanelApp({
   onContactLead?: () => void;
   // Clicking the "Build List" Next Action opens the SAD/Locator Beast tool chooser.
   onBuildList?: () => void;
-  // "Yes, List Sent" on the contextual list-sent confirmation — runs the existing
-  // Searching → List Sent completion.
-  onListSent?: () => void;
+  // Reports the active tab ("client" | "properties") up to the container so it can
+  // gate its bottom-sheet confirmations to the Client view.
+  onActiveViewChange?: (v: CompanionView) => void;
   // Phase 3 — clicking the "Send List" Next Action opens the confirmation sheet.
   onSendList?: () => void;
   // Phase 3 — clicking a Follow-Up launches SMS then opens the confirmation sheet.
@@ -218,6 +218,14 @@ export function PanelApp({
   // opening the panel while already in a mode never yanks the agent off their tab.
   useMainViewTab("lb-map-entered", "properties", setActiveView);
   useMainViewTab("lb-workspace-entered", "client", setActiveView);
+
+  // Mirror the active tab up so the container (ProductionPanel) can gate its
+  // contextual bottom-sheet confirmations to the Client view — e.g. the "Was
+  // {name}'s list sent?" prompt must not overlay the Properties tab the agent was
+  // just sent to. Read-only signal; the nav here stays the source of truth.
+  useEffect(() => {
+    onActiveViewChange?.(activeView);
+  }, [activeView, onActiveViewChange]);
 
   // Tour Mode (temporary): resolve the launching favorite (for the card) and the
   // client fields autofill will use, from data the panel already holds.
@@ -375,7 +383,6 @@ export function PanelApp({
                 onDemo={onDemo}
                 onContactLead={onContactLead}
                 onBuildList={onBuildList}
-                onListSent={onListSent}
                 onSendList={onSendList}
                 onSendFollowUp={onSendFollowUp}
                 onScheduleTour={onScheduleTour}

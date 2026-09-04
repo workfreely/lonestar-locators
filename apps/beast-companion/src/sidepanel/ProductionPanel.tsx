@@ -140,6 +140,14 @@ export function ProductionPanel() {
     name: string;
   }>(null);
 
+  // The active Companion tab, mirrored up from PanelApp so the "Was {name}'s list
+  // sent?" bottom sheet only shows on the Client view — never overlaying the
+  // Properties tab the agent was just sent to after choosing a build tool.
+  const [companionView, setCompanionView] = useState<"client" | "properties">("client");
+  // "Not Yet" on the list-sent confirmation collapses it for THIS lead only (no
+  // workflow change). Keyed by lead id so switching clients never carries it over.
+  const [listSentDismissedFor, setListSentDismissedFor] = useState<string | number | null>(null);
+
   // Follow-up confirmation ("Did you send the follow-up?"). Null = hidden.
   // Captures the lead id AND the exact follow-up action identity at SMS-launch
   // time so changing active clients can never complete the wrong client's action.
@@ -285,6 +293,28 @@ export function ProductionPanel() {
       setTaskTime("");
     }
   }, [activeLeadId, addTaskConfirm]);
+
+  // Clear a stale "Not Yet" dismissal when the active client changes, so the
+  // list-sent prompt shows for the newly-selected client if THEY are mid-build.
+  useEffect(() => {
+    if (listSentDismissedFor !== null && String(activeLeadId) !== String(listSentDismissedFor)) {
+      setListSentDismissedFor(null);
+    }
+  }, [activeLeadId, listSentDismissedFor]);
+
+  // The "Was {name}'s list sent?" bottom sheet shows only when: the active client
+  // is mid-build (Searching with Build List still the open action), the agent is on
+  // the Client tab (never over Properties), and it has not been dismissed for this
+  // client. Reuses the same launched-build derivation the Lead Panel button uses.
+  const listSentOpenAction = (active?.nextActions ?? []).find((a) => !a.completed) ?? null;
+  const listBuildLaunched =
+    !!active?.lead &&
+    (listSentOpenAction?.title ?? "").trim().toLowerCase() === "build list" &&
+    String((active.lead as { stage?: unknown }).stage) === "searching";
+  const showListSentPrompt =
+    listBuildLaunched &&
+    companionView === "client" &&
+    String(listSentDismissedFor) !== String(activeLeadId);
 
   const rt = () => (globalThis as unknown as { chrome?: any }).chrome?.runtime;
   const onConnect = () => rt()?.sendMessage?.({ type: "companion:start-connect" });
@@ -469,15 +499,37 @@ export function ProductionPanel() {
     setBuildListChoice({ leadId: lead.id, name: formatPersonName(lead.firstName) || "this client" });
   };
 
+  // Move this Companion to its Properties tab — the agent is now building the
+  // client's list and working with properties. Reuses the EXACT proven
+  // Properties-switch signal the CRM Board→Map bridge uses (the monotonic
+  // "lb-map-entered" counter in chrome.storage.local, consumed once per new value
+  // by PanelApp's useMainViewTab → "properties"). Bumping it here from the panel
+  // is the same effect the content-script bridge produces, so both Build List
+  // choices land on Properties consistently. The Locator Beast choice ALSO drives
+  // this via the CRM workspace-mode broadcast; a possible extra bump is harmless
+  // (both resolve to Properties).
+  const switchCompanionToProperties = () => {
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+    if (!store?.get) return;
+    const KEY = "lb-map-entered";
+    store.get(KEY, (res: any) => {
+      const prev = typeof res?.[KEY] === "number" ? res[KEY] : 0;
+      store.set({ [KEY]: prev + 1 });
+    });
+  };
+
   // Smart Apartment Data choice — the EXACT existing Build List behavior,
   // unchanged. (1) open/focus SAD, and (2) advance the workflow Contacted →
-  // Searching on the authenticated CRM. build_list is NOT completed and Send List
-  // is NOT created yet — build_list stays the open Next Action and the control
-  // flips to "Mark List Built" (driven by the Searching stage). Prefer an existing
-  // SAD tab (host access via the manifest content-script match lets tabs.query
-  // filter by URL — no new permission); otherwise open a new one.
+  // Searching on the authenticated CRM (start-build-list; build_list stays the
+  // open Next Action). Prefer an existing SAD tab (host access via the manifest
+  // content-script match lets tabs.query filter by URL — no new permission);
+  // otherwise open a new one. Like the Locator Beast choice, this also moves the
+  // Companion to Properties, since the agent is now building the client's list.
   const chooseSad = () => {
     setBuildListChoice(null);
+    // The agent is now building the list → show Properties (consistent with the
+    // Locator Beast choice). SAD/matching/stage logic below is untouched.
+    switchCompanionToProperties();
     // (2) Advance Contacted → Searching (build_list stays open, no Send List yet).
     const startLead = active?.lead;
     const startStore = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
@@ -539,16 +591,20 @@ export function ProductionPanel() {
     focusExistingCrmTab();
   };
 
-  // "Yes, List Sent" (the contextual "Was {name}'s list sent?" confirmation shown
+  // "Yes, List Sent" (the "Was {name}'s list sent?" bottom-sheet confirmation shown
   // while the list is being built) → the canonical Searching → List Sent
   // completion runs on the authenticated CRM (completes send_list, advances the
   // stage, resets follow-ups and creates FU1) AND completes any still-open
   // build_list row so nothing lingers. Reuses the EXACT existing complete-send-list
   // logic — no new transition, no separate "Mark List Built" step.
-  const onListSent = () => {
+  const confirmListSent = () => {
     const lead = active?.lead;
+    if (!lead || lead.id === undefined || lead.id === null) return;
+    // Hide the prompt immediately for this lead; the stage-advance re-broadcast
+    // will also drop it (List Sent is no longer the launched-build state).
+    setListSentDismissedFor(lead.id);
     const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
-    if (store && lead && lead.id !== undefined && lead.id !== null) {
+    if (store) {
       store.set({
         "lb-workflow-verb": {
           nonce: `${Date.now()}-${Math.random()}`,
@@ -1085,7 +1141,7 @@ export function ProductionPanel() {
         onContact={onContact}
         onContactLead={onContactLead}
         onBuildList={onBuildList}
-        onListSent={onListSent}
+        onActiveViewChange={setCompanionView}
         onSendList={onSendList}
         onSendFollowUp={onSendFollowUp}
         onScheduleTour={onScheduleTour}
@@ -1188,36 +1244,59 @@ export function ProductionPanel() {
           }}
         >
           <div onClick={(e) => e.stopPropagation()} style={SHEET_STYLE}>
-            {/* Header — question + close X. */}
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
-              <p style={{ ...SHEET_QUESTION_STYLE, margin: 0, flex: 1 }}>
-                How do you want to build {buildListChoice.name}'s list?
-              </p>
-              <button
-                type="button"
-                aria-label="Close"
-                onClick={() => setBuildListChoice(null)}
-                style={{
-                  flex: "none", width: 26, height: 26, borderRadius: 8, border: "none",
-                  background: "transparent", color: "var(--lb-text-muted, #9aa4b2)",
-                  fontSize: 18, lineHeight: 1, cursor: "pointer",
-                }}
-              >
-                ×
+            {/* Same sheet language as the other Companion confirmations (e.g. "Did
+                you send {name}'s list?"): a question, then equal primary action
+                buttons, with Cancel underneath. The two tools read as ACTIONS —
+                both use the blue primary button, not outlined content cards. */}
+            <p style={SHEET_QUESTION_STYLE}>
+              How do you want to build {buildListChoice.name}'s list?
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button type="button" onClick={chooseSad} style={SHEET_PRIMARY_BTN}>
+                Smart Apartment Data
               </button>
-            </div>
-            {/* Two large selectable options. */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <button type="button" onClick={chooseSad} style={SHEET_OPTION_BTN}>
-                <span style={SHEET_OPTION_TITLE}>Smart Apartment Data</span>
-                <span style={SHEET_OPTION_SUB}>Build the list using Smart Apartment Data.</span>
-              </button>
-              <button type="button" onClick={chooseLocatorBeast} style={SHEET_OPTION_BTN}>
-                <span style={SHEET_OPTION_TITLE}>Locator Beast</span>
-                <span style={SHEET_OPTION_SUB}>Build the list using Map or Unleash Beast.</span>
+              <button type="button" onClick={chooseLocatorBeast} style={SHEET_PRIMARY_BTN}>
+                Locator Beast
               </button>
               <button type="button" onClick={() => setBuildListChoice(null)} style={SHEET_CANCEL_BTN}>
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* "Was {name}'s list sent?" — the Build List completion confirmation, using
+          the SAME bottom-sheet pattern as the Send List / tour confirmations
+          (backdrop, docked sheet, question + actions). Shown contextually while the
+          client is mid-build (Client tab only), not inside the workflow card.
+          "Yes, List Sent" runs the existing complete-send-list flow; "Not Yet"
+          collapses it and changes nothing. */}
+      {showListSentPrompt && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm list sent"
+          onClick={() => setListSentDismissedFor(activeLeadId)}
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 60,
+            display: "flex",
+            alignItems: "flex-end",
+            background: "rgba(0,0,0,0.45)",
+          }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={SHEET_STYLE}>
+            <p style={SHEET_QUESTION_STYLE}>
+              Was {formatPersonName(active?.lead?.firstName) || "this client"}'s list sent?
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button type="button" onClick={confirmListSent} style={SHEET_PRIMARY_BTN}>
+                Yes, List Sent
+              </button>
+              <button type="button" onClick={() => setListSentDismissedFor(activeLeadId)} style={SHEET_SECONDARY_BTN}>
+                Not Yet
               </button>
             </div>
           </div>
@@ -1467,18 +1546,6 @@ const SHEET_INPUT_STYLE: CSSProperties = {
   color: "var(--lb-text, #e6ebf5)", fontSize: 14,
 };
 const SHEET_BTN_DISABLED: CSSProperties = { opacity: 0.5, cursor: "not-allowed" };
-// Large selectable option (Build List tool chooser): a full-width card with a
-// bold title over muted supporting copy, left-aligned. Same sheet visual
-// language (border + inset surface) as the inputs above.
-const SHEET_OPTION_BTN: CSSProperties = {
-  width: "100%", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 3,
-  textAlign: "left", padding: "12px 13px", borderRadius: 11,
-  border: "1px solid var(--lb-border, rgba(255,255,255,0.14))",
-  background: "var(--lb-inset, rgba(255,255,255,0.04))",
-  color: "inherit", cursor: "pointer",
-};
-const SHEET_OPTION_TITLE: CSSProperties = { fontSize: 14, fontWeight: 600, lineHeight: 1.3 };
-const SHEET_OPTION_SUB: CSSProperties = { fontSize: 12, fontWeight: 400, color: "var(--lb-text-muted, #9aa4b2)", lineHeight: 1.35 };
 
 // Normalize a raw phone to an E.164 tel:/sms: URL. 10 digits → +1XXXXXXXXXX;
 // 11 digits starting with 1 → +…; otherwise best-effort +digits. Empty if none.

@@ -235,7 +235,6 @@ export function LeadPanelBody({
   onDemo,
   onContactLead,
   onBuildList,
-  onListSent,
   onSendList,
   onSendFollowUp,
   onScheduleTour,
@@ -265,11 +264,6 @@ export function LeadPanelBody({
   // → Searching. The button always REOPENS the chooser — it never becomes a "Mark
   // List Built" completion. Completion is the separate confirmation below.
   onBuildList?: () => void;
-  // "Yes, List Sent" (the contextual "Was {name}'s list sent?" confirmation shown
-  // while the list is being built). Runs the canonical Searching → List Sent
-  // completion (completes send_list, advances the stage, creates FU1). Reuses the
-  // exact existing send-list completion logic — no new transition.
-  onListSent?: () => void;
   // Clicking the "Send List" Next Action opens the confirmation sheet ("Did you
   // send the client's list?"). Confirming runs the canonical Searching → List Sent
   // transition (completes send_list, creates FU1). Opens no SMS/site.
@@ -341,12 +335,6 @@ export function LeadPanelBody({
   // own when the active client changes.
   const isBuildList = (openAction?.title ?? "").trim().toLowerCase() === "build list";
   const buildLaunched = isBuildList && String(lead.stage) === "searching";
-  // "Not Yet" on the "Was {name}'s list sent?" confirmation collapses it for THIS
-  // lead only (no workflow change) — it reappears for other clients and after a
-  // remount. Keyed by lead id so switching clients never carries a dismissal over.
-  const [listSentDismissedFor, setListSentDismissedFor] = useState<string | number | null>(null);
-  const showListSentConfirm =
-    isBuildList && buildLaunched && !!onListSent && String(listSentDismissedFor) !== String(lead.id);
   // Contact Lead is a prominent Next Action INDICATOR — the real execution
   // controls are Call/Text Client in the header, so its button performs no
   // ambiguous contact action (no auto call/text choice).
@@ -617,51 +605,6 @@ export function LeadPanelBody({
               >
                 ← Back to CRM
               </button>
-            )}
-            {/* Contextual list-sent confirmation — replaces the old persistent
-                "Mark List Built ✓" button. Same confirmation style used elsewhere
-                (question + two actions). "Yes, List Sent" runs the existing
-                Searching → List Sent completion; "Not Yet" just collapses this
-                prompt and changes nothing. The Build List button above stays
-                available so the locator can reopen/continue building the list. */}
-            {showListSentConfirm && (
-              <div
-                style={{
-                  marginTop: 14,
-                  padding: "12px 13px",
-                  borderRadius: 12,
-                  border: "1px solid var(--lb-border, rgba(255,255,255,0.14))",
-                  background: "var(--lb-inset, rgba(255,255,255,0.04))",
-                }}
-              >
-                <p style={{ margin: "0 0 10px", fontSize: 13.5, fontWeight: 600, lineHeight: 1.35, color: "var(--lb-text, #e6ebf5)" }}>
-                  Was {formatPersonName(lead.firstName) || "this client"}'s list sent?
-                </p>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    type="button"
-                    onClick={() => onListSent?.()}
-                    style={{
-                      flex: 1, padding: "9px 12px", borderRadius: 9,
-                      border: "1px solid var(--lb-accent, #3b82f6)", background: "var(--lb-accent, #3b82f6)",
-                      color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer",
-                    }}
-                  >
-                    Yes, List Sent
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setListSentDismissedFor(lead.id)}
-                    style={{
-                      flex: 1, padding: "9px 12px", borderRadius: 9,
-                      border: "1px solid var(--lb-border, rgba(255,255,255,0.14))", background: "transparent",
-                      color: "inherit", fontWeight: 600, fontSize: 13, cursor: "pointer",
-                    }}
-                  >
-                    Not Yet
-                  </button>
-                </div>
-              </div>
             )}
           </>
         ) : null}
