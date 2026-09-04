@@ -1182,14 +1182,14 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
       {/* Lightweight property card. Built entirely from data already returned plus
           existing CRM client context — showing it costs no Google request. */}
       {card && (
-        <div className="pointer-events-auto absolute bottom-12 left-4 w-[280px] rounded-xl bg-white p-4 shadow-xl ring-1 ring-black/10">
-          {/* Header mirrors the Companion Current Property layout: a small property
-              thumbnail (same 40px footprint as Current Property) to the LEFT of the
-              name/address block. Compact — NOT a hero photo. Missing/broken image →
-              PropertyThumb's building icon in the same spot. Rating / rent / distance
-              / commission / Visit Website continue underneath, unchanged. */}
+        <div className="pointer-events-auto absolute bottom-12 left-4 w-[330px] rounded-xl bg-white p-4 shadow-xl ring-1 ring-black/10">
+          {/* Shared card-family header (mirrors the Companion Current Property card):
+              a 48px property thumbnail to the LEFT of the stacked name → address →
+              rating. Compact, NOT a hero photo; a missing/broken image falls back to
+              the building icon in the same spot. The gray match section, the full-width
+              Recommend button and the lower-right Visit Website link follow below. */}
           <div className="flex items-start gap-2.5">
-            <PropertyThumb src={card.imageUrl} alt={card.propertyName} size={40} />
+            <PropertyThumb src={card.imageUrl} alt={card.propertyName} size={48} />
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-2">
                 <p className="text-[14px] font-semibold leading-snug text-[#111318]">{card.propertyName}</p>
@@ -1205,22 +1205,20 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
                 )}
               </div>
               {card.propertyAddress && (
-                <p className="mt-1 text-[12.5px] leading-snug text-[#4b5162]">{displayAddress(card.propertyAddress)}</p>
+                <p className="mt-0.5 text-[12.5px] leading-snug text-[#4b5162]">{displayAddress(card.propertyAddress)}</p>
+              )}
+              {/* Rating directly under the address — same stack as Current Property.
+                  Real catalogued value only; never fabricated, never affects ranking. */}
+              {typeof card.googleRating === "number" && (
+                <div className="mt-1 flex items-center gap-1.5">
+                  <span className="text-[12.5px] font-semibold tabular-nums text-[#111318]">
+                    {card.googleRating.toFixed(1)}
+                  </span>
+                  <StarRating value={card.googleRating} />
+                </div>
               )}
             </div>
           </div>
-          {/* Google rating — numeric first (one decimal), then a compact 5-star
-              visual whose gold fill reflects the decimal. Shown ONLY when a real
-              catalogued rating exists; omitted entirely otherwise. No review
-              count, no fabricated value, and it never touches ranking or search. */}
-          {typeof card.googleRating === "number" && (
-            <div className="mt-1.5 flex items-center gap-1.5">
-              <span className="text-[12.5px] font-semibold tabular-nums text-[#111318]">
-                {card.googleRating.toFixed(1)}
-              </span>
-              <StarRating value={card.googleRating} />
-            </div>
-          )}
           {/* Future-ready fields — each renders ONLY when a real value is present
               on the in-memory property, and is omitted entirely otherwise. No
               fetch, no fabrication. Order: Match %, Commission, Current Special. */}
@@ -1239,10 +1237,32 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
               <span className="font-semibold">Special:</span> {card.currentSpecial.trim()}
             </p>
           )}
-          {/* RECOMMENDATION ONLY. Favorite state and promotion stay in the
-              Companion's Recommendations workflow — Property Explorer never shows
-              or writes a Favorite. The action needs the card pinned, so it appears
-              once a marker has been clicked rather than merely hovered. */}
+          {/* Gray match-intelligence section — the property's fit at a glance, drawn
+              from the EXISTING assessLocationFit result (fit.label / fit.tone). A match
+              reads "100% Match"; an in-market property reads "Within Preferred Market".
+              The redundant one-line reason sentence is intentionally omitted, and there
+              is NO separate Location: row — this section IS the location-fit read. Tone
+              colours the label; the box stays light gray. assessLocationFit unchanged. */}
+          {fit && (
+            <div className="mt-3 rounded-lg bg-[#f1f3f8] px-3 py-2.5">
+              <p
+                className={`text-[12.5px] font-semibold ${
+                  fit.tone === "match"
+                    ? "text-emerald-700"
+                    : fit.tone === "outside"
+                    ? "text-amber-700"
+                    : "text-[#111318]"
+                }`}
+              >
+                {fit.tone === "match" ? "100% Match" : fit.label}
+              </p>
+            </div>
+          )}
+
+          {/* Recommendation ONLY — full-width button, consistent with Current Property.
+              Favorite state/promotion stay in the Companion's Recommendations workflow;
+              Property Explorer never shows or writes a Favorite. Appears once a marker
+              is clicked (card pinned), not merely hovered. */}
           {selected && (
             <div className="mt-3">
               {!activeClient ? (
@@ -1253,39 +1273,18 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
                   Select a client to recommend this property
                 </p>
               ) : recommended.has(card.propertyUrl) ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11.5px] font-semibold text-emerald-700">
+                <span className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-2 text-[12.5px] font-semibold text-emerald-700">
                   ✓ Recommended
                 </span>
               ) : (
                 <button
                   type="button"
                   onClick={() => onRecommend?.(card)}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-[#e5e7ee] bg-white px-3 py-1.5 text-[11.5px] font-semibold text-[#111318] transition-colors hover:bg-[#f7f8fa]"
+                  className="flex w-full items-center justify-center rounded-lg bg-[#111318] px-3 py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-[#232838]"
                 >
-                  + Recommendation
+                  + Recommend
                 </button>
               )}
-            </div>
-          )}
-
-          {fit && (
-            <div className="mt-3">
-              <span
-                className={`inline-block rounded-full px-2.5 py-1 text-[11.5px] font-semibold ${
-                  fit.tone === "match"
-                    ? "bg-emerald-50 text-emerald-700"
-                    : fit.tone === "outside"
-                    ? "bg-amber-50 text-amber-700"
-                    : "bg-[#f1f3f8] text-[#4b5162]"
-                }`}
-              >
-                {/* A match reads as "100% Match" — the same treatment as Beast
-                    Companion — replacing the old tier label (e.g. "Preferred Area
-                    Match"). Non-match tones keep their descriptive label. The
-                    underlying assessLocationFit tiers/logic are unchanged. */}
-                {fit.tone === "match" ? "100% Match" : fit.label}
-              </span>
-              <p className="mt-1 text-[11.5px] text-[#6b7280]">{fit.reason}</p>
             </div>
           )}
           {/* Discreet lower-right link to the property's OWN website. Shown only

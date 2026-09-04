@@ -406,7 +406,7 @@ export function PropertiesView({
                 immediately below. The intelligence rows sit outside this block so
                 the thumbnail never centers against the whole analysis area. */}
             <div className="bc-current-prop">
-              <PropertyThumb src={currentProperty.propertyImageUrl} alt={currentProperty.propertyName} size={40} />
+              <PropertyThumb src={currentProperty.propertyImageUrl} alt={currentProperty.propertyName} size={48} />
               <div className="bc-current-prop-body">
                 <PropertyName
                   name={currentProperty.propertyName}
@@ -488,7 +488,7 @@ export function PropertiesView({
                 disabled={isRecommended || !onAddRecommendation}
                 title={isRecommended ? "Already in Recommendations" : "Add to this client's Recommendations"}
               >
-                {isRecommended ? "✓ Recommended" : "+ Recommendation"}
+                {isRecommended ? "✓ Recommended" : "+ Recommend"}
               </button>
             </div>
           </div>
