@@ -4,6 +4,8 @@ import type { CurrentProperty } from "@/types";
 import { LeadIdentityHeader, LeadPanelBody } from "./lead/LeadPanelView";
 import { PanelStateView, type PanelState } from "./lead/PanelStates";
 import { ClientPropertiesNav, type CompanionView } from "./ClientPropertiesNav";
+import { ModeHeader } from "./ModeHeader";
+import { useActiveSadTab } from "./useActiveSadTab";
 import { PropertiesView } from "./properties/PropertiesView";
 import type { AutofillOutcome } from "./autofill/runAutofill";
 import { TourModeView } from "./tour/TourModeView";
@@ -208,6 +210,12 @@ export function PanelApp({
   // unchanged Client experience; Properties shows the Phase-1 visual shell.
   const [activeView, setActiveView] = useState<CompanionView>("client");
 
+  // Search Mode is driven by whether the ACTIVE browser tab is a Smart Apartment
+  // Data page (search / results / property detail) — never by the lead's stage or
+  // "Build List launched". The banner below appears/disappears as the agent moves
+  // to and from SAD tabs.
+  const isSadActive = useActiveSadTab();
+
   // ── Main CRM view ⇄ this panel's tab (both directions) ────────────────────
   // Map is a property-research context (→ Properties); Board/Workspace already
   // shows Recommended/Favorite Properties itself (→ Client). Each direction has
@@ -317,31 +325,22 @@ export function PanelApp({
         </button>
       </header>
 
-      {/* Navigation — Client/Properties normally; while Tour Mode is active it is
-          replaced by a temporary "← Back to Client · TOUR MODE" bar (no permanent
-          third tab). The TOUR MODE label stays deliberately subtle. */}
+      {/* Search Mode banner — shown ABOVE the normal tabs while the active tab is a
+          Smart Apartment Data page. Unlike Tour Mode it does NOT replace the tabs:
+          Client / Properties stay directly underneath and fully usable, so the agent
+          keeps access to Search Criteria, Credit Screening, Notes and Properties
+          while searching. "← Back to CRM" focuses the existing CRM tab. Hidden in
+          Tour Mode (that focused flow takes precedence). */}
+      {isLoaded && !tourMode && isSadActive && onBackToCrm && (
+        <ModeHeader label="SEARCH MODE" backLabel="← Back to CRM" onBack={onBackToCrm} ariaLabel="Search Mode" />
+      )}
+
+      {/* Navigation — Client/Properties normally; while Tour Mode is active the nav
+          is REPLACED by the temporary "TOUR MODE · ← Back to Client" header (no
+          permanent third tab). Both modes share ModeHeader styling/sizing. */}
       {isLoaded &&
         (tourMode ? (
-          <nav className="bc-cp-nav" aria-label="Tour Mode" style={{ display: "flex", alignItems: "center" }}>
-            {/* TOUR MODE is the primary label (same weight/size as the CLIENT /
-                PROPERTIES tabs) so the mode reads instantly; Back to Client is the
-                small, subordinate control. Still temporary — not a third tab. */}
-            <span style={{ padding: "9px 12px", fontSize: 13, fontWeight: 700, letterSpacing: "0.04em", color: "var(--lb-text-primary, #e9ebef)", display: "flex", alignItems: "center", gap: 7 }}>
-              <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--lb-accent, #5b8dff)" }} />
-              TOUR MODE
-            </span>
-            {/* Back-link sizing rule for ALL mode headers (Tour Mode; future Search
-                Mode): ~12.5px so it reads at roughly the CLIENT/PROPERTIES tab-label
-                size, secondary (not muted) for legibility — but still a lightweight
-                text link, kept subordinate to the bolder/primary mode label. */}
-            <button
-              type="button"
-              onClick={onTourBack}
-              style={{ marginLeft: "auto", padding: "9px 12px", fontSize: 12.5, fontWeight: 600, color: "var(--lb-text-secondary, #c2c7d0)", background: "transparent", border: "none", cursor: "pointer" }}
-            >
-              ← Back to Client
-            </button>
-          </nav>
+          <ModeHeader label="TOUR MODE" backLabel="← Back to Client" onBack={onTourBack} ariaLabel="Tour Mode" />
         ) : (
           <ClientPropertiesNav active={activeView} onChange={setActiveView} />
         ))}
@@ -400,7 +399,6 @@ export function PanelApp({
                 onConfirmPayment={onConfirmPayment}
                 onSendRebate={onSendRebate}
                 onAddTask={onAddTask}
-                onBackToCrm={onBackToCrm}
                 timeZone={timeZone}
               />
             ) : (

@@ -248,7 +248,6 @@ export function LeadPanelBody({
   onConfirmPayment,
   onSendRebate,
   onAddTask,
-  onBackToCrm,
   timeZone,
 }: {
   lead: LeadSummaryDTO;
@@ -300,9 +299,6 @@ export function LeadPanelBody({
   // "+ Add Task" — opens the custom-task sheet (title + date/time) for THIS
   // client. Omitted in fixtures, where the button falls back to the demo note.
   onAddTask?: () => void;
-  // Focus the existing Locator Beast CRM tab (shown while building the list in the
-  // external platform). Navigation only — never completes/advances anything.
-  onBackToCrm?: () => void;
 }) {
   const tz = timeZone ?? PREVIEW_TIME_ZONE;
   const openAction = nextActions.find((a) => !a.completed) ?? null;
@@ -327,14 +323,11 @@ export function LeadPanelBody({
       : null;
 
   // Two-state Build List: clicking "Build List" opens the tool chooser (Smart
-  // Apartment Data or Locator Beast); whichever tool is chosen advances the lead
-  // Contacted → Searching (build_list stays open), so the button flips to
-  // "✓ Mark List Built" (the explicit completion that creates Send List). The
-  // flipped state is derived from the lead already being in Searching with
-  // build_list still open — robust across a panel remount, and it resets on its
-  // own when the active client changes.
+  // The Build List button always opens the tool chooser (Smart Apartment Data or
+  // Locator Beast). Completion is the separate "Was the list sent?" confirmation,
+  // and Back-to-CRM lives in the Search Mode header now — so this card no longer
+  // tracks a launched/flipped state itself.
   const isBuildList = (openAction?.title ?? "").trim().toLowerCase() === "build list";
-  const buildLaunched = isBuildList && String(lead.stage) === "searching";
   // Contact Lead is a prominent Next Action INDICATOR — the real execution
   // controls are Call/Text Client in the header, so its button performs no
   // ambiguous contact action (no auto call/text choice).
@@ -585,27 +578,9 @@ export function LeadPanelBody({
             <div className="lp-due">
               Due: <span className="lp-due-val">{fmtDue(openAction.dueAt, tz)}</span>
             </div>
-            {/* Contextual "← Back to CRM" — only while building the list in the
-                external platform. Focuses the existing CRM tab; changes nothing. */}
-            {isBuildList && buildLaunched && onBackToCrm && (
-              <button
-                type="button"
-                onClick={onBackToCrm}
-                title="Focus the Locator Beast CRM tab"
-                style={{
-                  marginTop: 8,
-                  background: "none",
-                  border: "none",
-                  padding: 0,
-                  cursor: "pointer",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: "var(--lb-text-muted, #9aa4b2)",
-                }}
-              >
-                ← Back to CRM
-              </button>
-            )}
+            {/* The old in-card "← Back to CRM" link was removed — Back to CRM now
+                lives in the Search Mode header (shown while the active tab is a Smart
+                Apartment Data page), so it no longer clutters the Next Action card. */}
           </>
         ) : null}
         {SHOW_ADD_TASK && (
