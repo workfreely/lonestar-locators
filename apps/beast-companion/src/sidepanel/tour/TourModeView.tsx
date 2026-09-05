@@ -159,13 +159,25 @@ export function TourModeView({
         </div>
       </div>
 
-      {/* Primary action */}
+      {/* Plain-language reason shown IMMEDIATELY BEFORE the permission request.
+          Chrome controls its own native prompt wording (which host it names, etc.)
+          and we never customize or spoof it — this is our own explanatory copy so
+          the agent understands why Chrome is about to ask before they click. */}
+      <p style={{ margin: "0 2px 8px", fontSize: 11.5, lineHeight: 1.4, color: "var(--lb-text-secondary, #c2c7d0)" }}>
+        Beast Companion needs permission to autofill your client&#39;s information on this property&#39;s tour form.
+      </p>
+      {/* Primary action — clicking runs the per-site permission request, then the
+          autofill. Never submits; never overwrites a field the agent already changed. */}
       <button type="button" onClick={autofill} disabled={busy} style={{ ...CTA, opacity: busy ? 0.6 : 1, cursor: busy ? "default" : "pointer" }}>
         {busy ? "Autofilling…" : "Autofill Tour Form"}
       </button>
-      <p style={{ margin: "8px 2px 0", fontSize: 11.5, lineHeight: 1.4, color: "var(--lb-text-muted, #8b93a3)" }}>
-        {msg ?? "Fills the scheduler open in your active tab. Never submits; won't overwrite anything you've changed."}
-      </p>
+      {/* Post-click OUTCOME only (e.g. "No fillable fields yet…" / "Couldn't autofill…").
+          No status → nothing here, so the permission copy above stays the only helper. */}
+      {msg && (
+        <p style={{ margin: "8px 2px 0", fontSize: 11.5, lineHeight: 1.4, color: "var(--lb-text-muted, #8b93a3)" }}>
+          {msg}
+        </p>
+      )}
 
       {/* Data preview — OPEN by default in Tour Mode (transparency: the agent sees
           exactly what Beast is about to autofill), still collapsible. */}

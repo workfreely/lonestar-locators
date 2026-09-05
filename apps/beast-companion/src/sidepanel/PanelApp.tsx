@@ -330,10 +330,14 @@ export function PanelApp({
               <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--lb-accent, #5b8dff)" }} />
               TOUR MODE
             </span>
+            {/* Back-link sizing rule for ALL mode headers (Tour Mode; future Search
+                Mode): ~12.5px so it reads at roughly the CLIENT/PROPERTIES tab-label
+                size, secondary (not muted) for legibility — but still a lightweight
+                text link, kept subordinate to the bolder/primary mode label. */}
             <button
               type="button"
               onClick={onTourBack}
-              style={{ marginLeft: "auto", padding: "9px 12px", fontSize: 11, fontWeight: 600, color: "var(--lb-text-muted, #8b93a3)", background: "transparent", border: "none", cursor: "pointer" }}
+              style={{ marginLeft: "auto", padding: "9px 12px", fontSize: 12.5, fontWeight: 600, color: "var(--lb-text-secondary, #c2c7d0)", background: "transparent", border: "none", cursor: "pointer" }}
             >
               ← Back to Client
             </button>
