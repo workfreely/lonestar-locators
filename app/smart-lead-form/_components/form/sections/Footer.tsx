@@ -59,7 +59,19 @@ function EhoIcon() {
 const TX_IABS_LABEL = "Information About Brokerage Services"
 const TX_CPN_LABEL = "Consumer Protection Notice"
 
-export default function Footer({ config }: { config: SmartLeadFormConfig }) {
+export default function Footer({
+  config,
+  compact = false,
+}: {
+  config: SmartLeadFormConfig
+  /**
+   * Opt-in denser rendering for the client Recommendation page, where the legal
+   * block must remain complete but must not compete with the recommendations.
+   * Additive and defaulted off, so the public Smart Lead Form is byte-identical.
+   * The LINKS and their behaviour are unchanged — only type scale and padding.
+   */
+  compact?: boolean
+}) {
   const { footerBrokerageWebsite, footerOfficePhone } = config.sections.visibility
   const { brokerageWebsiteUrl, officePhone, iabsUrl, consumerProtectionNoticeUrl } = config.footer
 
@@ -125,11 +137,16 @@ export default function Footer({ config }: { config: SmartLeadFormConfig }) {
   ]
 
   return (
-    <footer className="border-t border-[#eef0f4] px-5 py-8 sm:px-8">
+    <footer className={compact ? "px-4 py-4" : "border-t border-[#eef0f4] px-5 py-8 sm:px-8"}>
       {/* Scoped override: render the Equal Housing icon black on this light footer.
           `.slf-eho-icon` (class) out-specifies the global `footer img { filter:
           none !important }` without touching that shared rule or other surfaces. */}
       <style>{`.slf-eho-icon{filter:brightness(0)!important}`}</style>
+      {/* Compact mode shrinks the type in place rather than duplicating every
+          class, so the markup, links and disclosure logic stay identical. */}
+      {compact && (
+        <style>{`.slf-compact a,.slf-compact span{font-size:11px!important;line-height:1.45!important}.slf-compact .slf-eho-icon{height:14px!important}`}</style>
+      )}
 
       {/* Centered, compact footer. DESKTOP: two rows — (1) Privacy · Terms ·
           [configured disclosures] all on one line, (2) Equal Housing · brokerage ·
@@ -137,7 +154,7 @@ export default function Footer({ config }: { config: SmartLeadFormConfig }) {
           full-width flex break that only exists below `md`, giving three rows. Dots
           are glued trailing separators (never leading), and the Terms→disclosure dot
           is desktop-only so the mobile break never leaves an orphaned separator. */}
-      <div className="mx-auto flex max-w-4xl flex-col items-center gap-2.5">
+      <div className={`mx-auto flex max-w-4xl flex-col items-center ${compact ? "slf-compact gap-1" : "gap-2.5"}`}>
         {/* Legal links row */}
         <div className="flex flex-wrap items-center justify-center gap-y-1">
           <span className="inline-flex items-center">
