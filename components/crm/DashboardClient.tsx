@@ -27,8 +27,9 @@ import AppHeader from "./AppHeader"
 import { CRM_PRIMARY_BUTTON, CRM_SECONDARY_BUTTON } from "@/lib/crmButtonStyles"
 import type { GuestCardAgent } from "@/lib/leads/guestCard"
 import { buildActiveClientPayload, COMPANION_MSG_SOURCE, type LatestOutreach, type CompanionLocator } from "@/lib/companion/leadToDto"
-import { toCompanionProperty } from "@/lib/propertyExplorer/types"
+import { toCompanionProperty, placeUrl, placeIdFromPropertyUrl } from "@/lib/propertyExplorer/types"
 import { attachCatalogRatings } from "@/lib/propertyExplorer/catalog"
+import { resolveSadCatalog } from "@/lib/propertyExplorer/resolveSadCatalog"
 import { recordFirstContact } from "@/lib/leads/contactWorkflow"
 import { recordPendingOutreach } from "@/lib/leads/pendingOutreach"
 import { completeBuildList, startBuildList } from "@/lib/leads/buildListWorkflow"
@@ -508,6 +509,55 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     }
     window.addEventListener("message", onReplayRequest)
     return () => window.removeEventListener("message", onReplayRequest)
+  }, [])
+
+  // ── SAD Current Property enrichment (Companion → CRM → Companion) ────────────
+  // A SAD-detected Current Property has a name + address but no Google Place ID, so
+  // the Companion can't enrich it. It relays {nonce, name, address} here; we resolve
+  // the place_id with the ALREADY-loaded browser Google Places library and look up
+  // OUR property_catalog, returning ONLY catalog-derived fields (never the live
+  // Google result). No confident name match, or no catalog row → nulls (unknown
+  // stays unknown). Google is used solely to resolve identity.
+  useEffect(() => {
+    async function onEnrichRequest(e: MessageEvent) {
+      if (e.source !== window || e.origin !== window.location.origin) return
+      const d: any = e.data
+      if (!d || d.source !== COMPANION_MSG_SOURCE || d.type !== "enrich-property-request") return
+      const payload = d.payload || {}
+      const nonce = typeof payload.nonce === "string" ? payload.nonce : ""
+      const name = typeof payload.name === "string" ? payload.name : ""
+      const address = typeof payload.address === "string" ? payload.address : null
+      if (!nonce || !name) return
+      // Default: nothing resolved. Explicit nulls (never undefined) so the panel-side
+      // schema check accepts the envelope.
+      let result: {
+        nonce: string
+        placeId: string | null
+        googleRating: number | null
+        propertyImageUrl: string | null
+        websiteUrl: string | null
+      } = { nonce, placeId: null, googleRating: null, propertyImageUrl: null, websiteUrl: null }
+      try {
+        const enrichment = await resolveSadCatalog(name, address, supabase)
+        if (enrichment) {
+          result = {
+            nonce,
+            placeId: enrichment.placeId,
+            googleRating: enrichment.googleRating,
+            propertyImageUrl: enrichment.propertyImageUrl,
+            websiteUrl: enrichment.websiteUrl,
+          }
+        }
+      } catch (err) {
+        if (process.env.NODE_ENV !== "production") console.error("[sad-enrich] resolve failed:", err)
+      }
+      window.postMessage(
+        { source: COMPANION_MSG_SOURCE, type: "enrich-property-result", payload: result },
+        window.location.origin,
+      )
+    }
+    window.addEventListener("message", onEnrichRequest)
+    return () => window.removeEventListener("message", onEnrichRequest)
   }, [])
 
   // ── Canonical tour edit/cancel (Workspace Favorite → Edit / Cancel Tour) ────
@@ -2010,9 +2060,15 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         payload.verb === "move-to-favorite"
       ) {
         const p = payload.property as
-          | { propertyName?: string; propertyAddress?: string | null; propertyUrl?: string; propertyImageUrl?: string | null }
+          | { propertyName?: string; propertyAddress?: string | null; propertyUrl?: string; propertyImageUrl?: string | null; placeId?: string | null }
           | undefined
-        const propertyUrl = String(p?.propertyUrl ?? "").trim()
+        // A resolved SAD property (or any Map property) carries a Google placeId → use
+        // the canonical ?q=place_id:<id> identity carrier so read-side enrichment works
+        // immediately and no background resolve is needed. Otherwise keep the raw URL
+        // (SAD ViewProperty link); backfillSadIdentity upgrades it later if it resolves.
+        const propertyUrl = p?.placeId
+          ? placeUrl(String(p.placeId))
+          : String(p?.propertyUrl ?? "").trim()
         if (!propertyUrl) return // primary identity required
         const isFav = payload.verb === "add-favorite" || payload.verb === "move-to-favorite"
         const currentList = isFav ? localFavoritesRef.current : localRecommendationsRef.current
@@ -2079,6 +2135,46 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           if (sourceRow) removeSourceRow(sourceRow, isFav, lead)
           else postCompanionActiveClient({ ...lead }, localNextActionsRef.current)
         }
+        // SAD (or any non-place_id) row → resolve its Google place_id in the
+        // BACKGROUND (the optimistic add already applied). If a confident match
+        // resolves, rewrite the stored identity to the canonical ?q=place_id:<id>
+        // carrier — exactly what Map recs use — so the EXISTING read-side
+        // attachCatalogRatings populates rating / website / image everywhere with no
+        // schema change. No place_id → the original SAD URL stays, unenriched. Never
+        // invents data. A row already carrying a place_id (a Map property) is skipped.
+        const backfillSadIdentity = (savedRow: any) => {
+          const url = String(savedRow?.property_url ?? "")
+          const name = String(savedRow?.property_name ?? "")
+          if (!name || placeIdFromPropertyUrl(url)) return
+          void (async () => {
+            let placeId: string | null = null
+            try {
+              const r = await resolveSadCatalog(name, savedRow.property_address ?? null, supabase)
+              placeId = r?.placeId ?? null
+            } catch {
+              /* resolution failed — keep the SAD URL, unenriched */
+            }
+            if (!placeId) return
+            const newUrl = placeUrl(placeId)
+            if (!isDemoLeadId(lead.id)) {
+              const { error } = await supabase
+                .from(isFav ? "lead_favorites" : "lead_recommendations")
+                .update({ property_url: newUrl })
+                .eq("id", savedRow.id)
+              if (error) {
+                console.error(`[sad-enrich] ${isFav ? "favorite" : "recommendation"} identity rewrite failed:`, error.message)
+                return
+              }
+            }
+            const [reEnriched] = await attachCatalogRatings([{ ...savedRow, property_url: newUrl }], supabase)
+            const listRef = isFav ? localFavoritesRef : localRecommendationsRef
+            const setList = isFav ? setLocalFavorites : setLocalRecommendations
+            const next = listRef.current.map((row: any) => (String(row.id) === String(savedRow.id) ? reEnriched : row))
+            listRef.current = next
+            setList(next)
+            postCompanionActiveClient({ ...lead }, localNextActionsRef.current)
+          })()
+        }
         if (isDemoLeadId(lead.id)) {
           // Demo rows are local-only (never persisted), but the catalog rating is
           // still resolved the SAME read-side way as a real add — property_catalog is
@@ -2087,7 +2183,10 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           // map placeUrl, so its rating/stars match Current Property on all four
           // surfaces. A demo property with no catalogued place_id stays unrated, as before.
           const demoRow = { id: `demo-${isFav ? "fav" : "rec"}-${Date.now()}`, ...rowBase }
-          void attachCatalogRatings([demoRow], supabase).then(([enriched]) => applyLocal(enriched))
+          void attachCatalogRatings([demoRow], supabase).then(([enriched]) => {
+            applyLocal(enriched)
+            backfillSadIdentity(enriched)
+          })
           return
         }
         supabase
@@ -2107,6 +2206,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             // source of truth — nothing rating-related is stored on the row.
             const [enriched] = await attachCatalogRatings([data], supabase)
             applyLocal(enriched)
+            backfillSadIdentity(enriched)
           })
         return
       }

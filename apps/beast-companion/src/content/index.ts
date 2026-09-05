@@ -10,6 +10,7 @@ import { startCommLaunchBridge } from "./commLaunchBridge";
 import { startCardOpenBridge } from "./cardOpenBridge";
 import { startCurrentPropertyBridge, syncCurrentProperty } from "./currentPropertyBridge";
 import { startMapPropertyBridge } from "./mapPropertyBridge";
+import { startEnrichmentBridge } from "./enrichmentBridge";
 import { log, logError } from "@/utils/log";
 import type { PanelSide } from "@/types";
 
@@ -141,6 +142,11 @@ function init(): void {
     // Self-gated to CRM pages, and never writes null: unlike detection, it acts
     // only on an explicit click, so it cannot clear a property found in a SAD tab.
     startMapPropertyBridge();
+
+    // Enrichment bridge — relays a SAD Current Property's {name,address} to the CRM
+    // for place_id resolution + property_catalog lookup, and writes the catalog-only
+    // answer back for the panel to merge. Self-gated to CRM pages.
+    startEnrichmentBridge();
 
     log("ready — launcher docked; click opens the native side panel (native X closes)");
   } catch (err) {

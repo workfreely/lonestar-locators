@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO, RecommendationDTO, FollowUpOverrides, AutofillLocator } from "@bc/companion-shared";
 import { sanitizeFollowUpOverrides } from "@bc/companion-shared";
 import type { CurrentProperty } from "@/types";
@@ -97,12 +97,39 @@ function isCurrentProperty(v: unknown): v is CurrentProperty {
   return !!p && typeof p.propertyId === "string" && typeof p.propertyName === "string" && p.propertyName.length > 0;
 }
 
+// A Current Property needs catalog enrichment when it has no Google Place ID and no
+// rating yet — i.e. a SAD-detected property (a Map property already carries both).
+// A name is required to resolve. Pure; module-scope so effects need no extra deps.
+function needsSadEnrich(cp: CurrentProperty | null): cp is CurrentProperty {
+  return !!cp && !cp.placeId && cp.googleRating == null && !!(cp.propertyName ?? "").trim();
+}
+
+// Stable per-property cache key: SAD's own id when present, else name|address.
+function sadEnrichKey(cp: CurrentProperty): string {
+  return cp.propertyId
+    ? `id:${cp.propertyId}`
+    : `na:${(cp.propertyName ?? "").trim()}|${(cp.propertyAddress ?? "").trim()}`;
+}
+
 export function ProductionPanel() {
   const [connection, setConnection] = useState<CompanionConnection>(DISCONNECTED);
   const [active, setActive] = useState<ActiveClientPayload | null>(null);
   // The Smart Apartment Data property currently being viewed (page context, not a
   // saved collection). Independent of `active` so switching clients never clears it.
   const [currentProperty, setCurrentProperty] = useState<CurrentProperty | null>(null);
+
+  // ── SAD Current Property catalog enrichment (parity with Map properties) ─────
+  // A SAD property arrives with name + address but no Google Place ID / rating. We
+  // ask the open CRM tab to resolve its place_id (browser Google Places) and look
+  // up property_catalog, then merge the catalog-only answer (rating / website /
+  // image) into what we display. Cached per property so the same SAD property never
+  // re-triggers a Places resolution (debounce); in-flight guard prevents duplicates.
+  type SadEnrich = { placeId: string | null; googleRating: number | null; propertyImageUrl: string | null; websiteUrl: string | null };
+  const enrichCacheRef = useRef<Map<string, SadEnrich>>(new Map());
+  const enrichInflightRef = useRef<Set<string>>(new Set());
+  const enrichPendingRef = useRef<Map<string, string>>(new Map()); // nonce → cache key
+  const [enrichTick, setEnrichTick] = useState(0);
+
   // Pending contact confirmation ("Were you able to contact …?"). Null = hidden.
   // Immutable pending-contact context — captured when contact is INITIATED and
   // resolved against THIS captured identity, never the live active client (Bug 2).
@@ -263,6 +290,72 @@ export function ProductionPanel() {
     sc?.addListener(onChanged);
     return () => sc?.removeListener(onChanged);
   }, []);
+
+  // Receive SAD enrichment results (the enrichment bridge writes them to LOCAL
+  // storage, separate from the sensitive session store above). Match the nonce we
+  // sent, cache by property key, and re-render.
+  useEffect(() => {
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage;
+    if (!store?.onChanged) return;
+    const onLocal = (changes: Record<string, { newValue?: unknown }>, area: string) => {
+      if (area !== "local" || !changes["lb-enrich-result"]) return;
+      const res = changes["lb-enrich-result"].newValue as any;
+      if (!res || typeof res !== "object" || typeof res.nonce !== "string") return;
+      const key = enrichPendingRef.current.get(res.nonce);
+      if (!key) return; // stale or not ours
+      enrichPendingRef.current.delete(res.nonce);
+      enrichInflightRef.current.delete(key);
+      enrichCacheRef.current.set(key, {
+        placeId: typeof res.placeId === "string" ? res.placeId : null,
+        googleRating: typeof res.googleRating === "number" ? res.googleRating : null,
+        propertyImageUrl: typeof res.propertyImageUrl === "string" ? res.propertyImageUrl : null,
+        websiteUrl: typeof res.websiteUrl === "string" ? res.websiteUrl : null,
+      });
+      setEnrichTick((t) => t + 1);
+    };
+    store.onChanged.addListener(onLocal);
+    return () => store.onChanged.removeListener(onLocal);
+  }, []);
+
+  // Request enrichment for a SAD Current Property — ONCE per property (cache +
+  // in-flight guard debounce a repeatedly-detected property so Places isn't spammed).
+  useEffect(() => {
+    if (!needsSadEnrich(currentProperty)) return;
+    const key = sadEnrichKey(currentProperty);
+    if (enrichCacheRef.current.has(key) || enrichInflightRef.current.has(key)) return;
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+    if (!store?.set) return;
+    const nonce = `${Date.now()}-${Math.random()}`;
+    enrichInflightRef.current.add(key);
+    enrichPendingRef.current.set(nonce, key);
+    store.set({
+      "lb-enrich-request": {
+        nonce,
+        name: (currentProperty.propertyName ?? "").trim(),
+        address: currentProperty.propertyAddress ?? null,
+        sadId: currentProperty.propertyId ?? null,
+      },
+    });
+  }, [currentProperty]);
+
+  // The Current Property AS DISPLAYED: a SAD property merged with its cached catalog
+  // enrichment (rating / website / catalog image). Map or already-enriched
+  // properties pass through unchanged. Catalog image wins, else the SAD og:image,
+  // else the building icon (PropertyThumb). The SAD intelligence rows are untouched.
+  const displayCurrentProperty = useMemo<CurrentProperty | null>(() => {
+    if (!currentProperty) return null;
+    if (!needsSadEnrich(currentProperty)) return currentProperty;
+    const e = enrichCacheRef.current.get(sadEnrichKey(currentProperty));
+    if (!e) return currentProperty;
+    return {
+      ...currentProperty,
+      placeId: e.placeId ?? currentProperty.placeId ?? null,
+      googleRating: e.googleRating ?? currentProperty.googleRating ?? null,
+      websiteUrl: e.websiteUrl ?? currentProperty.websiteUrl ?? null,
+      propertyImageUrl: e.propertyImageUrl ?? currentProperty.propertyImageUrl ?? null,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- enrichTick forces recompute after an async result fills the ref cache
+  }, [currentProperty, enrichTick]);
 
   // ── Client-context guard for Schedule Tour ────────────────────────────────
   // The contact / send-list / follow-up sheets intentionally CAPTURE their lead
@@ -1052,7 +1145,11 @@ export function ProductionPanel() {
           nonce: `${Date.now()}-${Math.random()}`,
           leadId: lead.id,
           verb,
-          property: currentProperty,
+          // Send the ENRICHED property: a resolved SAD property carries its catalog
+          // placeId (so the CRM adopts the ?q=place_id:<id> identity carrier at once)
+          // and catalog image. If enrichment hasn't landed yet, this is the raw SAD
+          // property and the CRM resolves the place_id in the background instead.
+          property: displayCurrentProperty ?? currentProperty,
         },
       });
     }
@@ -1122,7 +1219,7 @@ export function ProductionPanel() {
         nextActions={active?.nextActions ?? []}
         favorites={active?.favorites ?? []}
         recommendations={active?.recommendations ?? []}
-        currentProperty={currentProperty}
+        currentProperty={displayCurrentProperty}
         onAddRecommendation={onAddRecommendation}
         onAddFavorite={onAddFavorite}
         onMoveToFavorite={onMoveToFavorite}

@@ -20,7 +20,7 @@
 export const MSG_SOURCE = "lb-companion";
 
 /** Every message type the content scripts will accept. Anything else is dropped. */
-export const INBOUND_TYPES = ["active-client", "current-property", "changed", "signed-out"] as const;
+export const INBOUND_TYPES = ["active-client", "current-property", "changed", "signed-out", "enrich-property-result"] as const;
 export type InboundType = (typeof INBOUND_TYPES)[number];
 
 /**
@@ -161,6 +161,39 @@ export function isValidCurrentPropertyPayload(
   )
     return false;
 
+  return isWithinSizeLimit(payload);
+}
+
+/**
+ * Enrichment-result payload — the CRM's catalog lookup answer for a SAD Current
+ * Property (place_id resolution → property_catalog). Carries NO client data: a
+ * request nonce plus catalog-derived, display-only fields. `placeId` and the three
+ * enrichment fields are each present-and-bounded or explicitly null (unknown stays
+ * unknown); `googleRating`, when present, is a finite 0–5 number.
+ */
+export function isValidEnrichResultPayload(
+  payload: unknown,
+): payload is {
+  nonce: string
+  placeId: string | null
+  googleRating: number | null
+  propertyImageUrl: string | null
+  websiteUrl: string | null
+} {
+  if (!payload || typeof payload !== "object") return false;
+  const p = payload as Record<string, unknown>;
+  if (!idOk(p.nonce, 128)) return false;
+  if (p.placeId !== null && !idOk(p.placeId)) return false;
+  if (p.propertyImageUrl !== null && !idOk(p.propertyImageUrl, MAX_TEXT)) return false;
+  if (p.websiteUrl !== null && !idOk(p.websiteUrl, MAX_TEXT)) return false;
+  if (
+    p.googleRating !== null &&
+    (typeof p.googleRating !== "number" ||
+      !Number.isFinite(p.googleRating) ||
+      p.googleRating < 0 ||
+      p.googleRating > 5)
+  )
+    return false;
   return isWithinSizeLimit(payload);
 }
 
