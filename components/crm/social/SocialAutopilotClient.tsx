@@ -308,7 +308,7 @@ export default function SocialAutopilotClient() {
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search name, property, filename…"
+          placeholder="Search property name…"
           className={`${control} w-[220px] max-w-full`}
         />
         <div className="flex items-center gap-1.5 flex-wrap">
