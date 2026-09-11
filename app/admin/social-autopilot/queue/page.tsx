@@ -20,12 +20,6 @@ export default async function SocialAutopilotQueuePage() {
 
   return (
     <div>
-      <div className="mb-3 flex justify-end">
-        <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border border-dashed border-[var(--crm-border)] text-[var(--crm-text-muted)]" title="Sample content for layout preview — not real posts">
-          Sample data
-        </span>
-      </div>
-
       <div className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] overflow-hidden divide-y divide-[var(--crm-border)]">
         {DEMO_QUEUE.map((q) => (
           <div key={q.id} className="flex items-center gap-3 px-3 py-2.5">

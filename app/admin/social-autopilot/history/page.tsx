@@ -11,12 +11,6 @@ export default async function SocialAutopilotHistoryPage() {
 
   return (
     <div>
-      <div className="mb-3 flex justify-end">
-        <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border border-dashed border-[var(--crm-border)] text-[var(--crm-text-muted)]" title="Sample content for layout preview — not real posts">
-          Sample data
-        </span>
-      </div>
-
       <div className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] overflow-x-auto">
         <table className="w-full border-collapse text-[13px]">
           <thead>
