@@ -53,11 +53,7 @@ export default function CalendarShell() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h2 className="text-[16px] font-bold text-[var(--crm-text-primary)]">Calendar</h2>
-          <p className="text-[13px] text-[var(--crm-text-secondary)] mt-0.5">Your posting schedule.</p>
-        </div>
+      <div className="mb-3 flex justify-end">
         <div className="flex items-center gap-1 rounded-lg border border-[var(--crm-border)] p-0.5 bg-[var(--crm-panel)]">
           {(["Month", "Week", "List"] as View[]).map((v) => (
             <button key={v} type="button" className={tab(view === v)} onClick={() => setView(v)}>{v}</button>

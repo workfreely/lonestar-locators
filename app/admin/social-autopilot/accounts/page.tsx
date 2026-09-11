@@ -10,11 +10,6 @@ export default async function SocialAutopilotAccountsPage() {
 
   return (
     <div>
-      <div className="mb-4">
-        <h2 className="text-[16px] font-bold text-[var(--crm-text-primary)]">Accounts</h2>
-        <p className="text-[13px] text-[var(--crm-text-secondary)] mt-0.5">Connected social accounts.</p>
-      </div>
-
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Instagram — first platform */}
         <div className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4 flex flex-col">

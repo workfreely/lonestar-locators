@@ -20,13 +20,10 @@ export default async function SocialAutopilotQueuePage() {
 
   return (
     <div>
-      <div className="mb-4">
-        <h2 className="text-[16px] font-bold text-[var(--crm-text-primary)]">Queue</h2>
-        <p className="text-[13px] text-[var(--crm-text-secondary)] mt-0.5">Upcoming posts.</p>
-      </div>
-
-      <div className="mb-4 rounded-lg border border-dashed border-[var(--crm-border)] bg-[var(--crm-panel)] px-4 py-2.5 text-[12.5px] text-[var(--crm-text-secondary)]">
-        <span className="font-semibold text-[var(--crm-text-primary)]">Sample content</span> — layout preview only. Real posts appear here once scheduling is built.
+      <div className="mb-3 flex justify-end">
+        <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border border-dashed border-[var(--crm-border)] text-[var(--crm-text-muted)]" title="Sample content for layout preview — not real posts">
+          Sample data
+        </span>
       </div>
 
       <div className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] overflow-hidden divide-y divide-[var(--crm-border)]">

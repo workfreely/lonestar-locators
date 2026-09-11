@@ -302,14 +302,38 @@ export default function SocialAutopilotClient() {
 
   return (
     <div>
-      <div className="mb-4 flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h2 className="text-[16px] font-bold text-[var(--crm-text-primary)]">Library</h2>
-          <p className="text-[13px] text-[var(--crm-text-secondary)] mt-0.5">Your source videos.</p>
+      {/* One compact controls row: Search · Market filters · Sort · [Sample] · Upload */}
+      <div className="mb-3 flex items-center gap-2.5 flex-wrap">
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search name, property, filename…"
+          className={`${control} w-[220px] max-w-full`}
+        />
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {markets.map((m) => (
+            <button key={m} type="button" className={chip(market === m)} onClick={() => setMarket(m)}>
+              {m}
+            </button>
+          ))}
         </div>
+        <label className="flex items-center gap-1.5 text-[12px] text-[var(--crm-text-secondary)]">
+          Sort
+          <select className={control} value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
+            {SORTS.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </label>
+        {usingDemo && (
+          <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border border-dashed border-[var(--crm-border)] text-[var(--crm-text-muted)]" title="Sample content for layout preview — not saved">
+            Sample data
+          </span>
+        )}
         <button
           type="button"
-          className="text-[13px] font-semibold px-3.5 py-2 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"
+          className="ml-auto text-[13px] font-semibold px-3.5 py-2 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"
           disabled={uploading}
           onClick={() => fileRef.current?.click()}
           title="Multi-file upload with batch property details arrives in SA1.1"
@@ -328,41 +352,9 @@ export default function SocialAutopilotClient() {
         />
       </div>
 
-      {/* Organization controls: Search · Market filter · Sort */}
-      <div className="mb-4 flex items-center gap-3 flex-wrap">
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search name, property, filename…"
-          className={`${control} w-[240px] max-w-full`}
-        />
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {markets.map((m) => (
-            <button key={m} type="button" className={chip(market === m)} onClick={() => setMarket(m)}>
-              {m}
-            </button>
-          ))}
-        </div>
-        <label className="ml-auto flex items-center gap-1.5 text-[12px] text-[var(--crm-text-secondary)]">
-          Sort
-          <select className={control} value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
-            {SORTS.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-        </label>
-      </div>
-
       {error && (
-        <div className="mb-4 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-panel)] px-4 py-2.5 text-[13px] text-[var(--crm-text-secondary)]">
+        <div className="mb-3 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-panel)] px-4 py-2.5 text-[13px] text-[var(--crm-text-secondary)]">
           {error}
-        </div>
-      )}
-
-      {usingDemo && (
-        <div className="mb-4 rounded-lg border border-dashed border-[var(--crm-border)] bg-[var(--crm-panel)] px-4 py-2.5 text-[12.5px] text-[var(--crm-text-secondary)]">
-          <span className="font-semibold text-[var(--crm-text-primary)]">Sample content</span> — layout preview only, not saved. Upload a video to replace it with your real Library.
         </div>
       )}
 
