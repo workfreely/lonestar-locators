@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
 
@@ -384,6 +384,57 @@ function ListView({ cursor, today, byDay, onOpenPost }: GridProps) {
   )
 }
 
+// Right-pane ~9:16 preview with a CLEAR centered play affordance (click to play, then
+// native controls). Uses the real signed/private source media — the bucket stays private.
+function DayPreview({ post }: { post: CalPost | null }) {
+  const ref = useRef<HTMLVideoElement>(null)
+  const [playing, setPlaying] = useState(false)
+  useEffect(() => setPlaying(false), [post?.id]) // reset when switching posts
+
+  return (
+    <div className="relative w-full aspect-[9/16] rounded-xl overflow-hidden border border-[var(--crm-border)] bg-black">
+      {!post?.previewUrl ? (
+        <div className="w-full h-full flex items-center justify-center text-[11.5px] text-[var(--crm-text-muted)]">No preview</div>
+      ) : post.source?.kind === "image" ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={post.previewUrl} alt="" className="w-full h-full object-cover" />
+      ) : (
+        <>
+          <video
+            ref={ref}
+            src={post.previewUrl}
+            playsInline
+            preload="metadata"
+            controls={playing}
+            onLoadedMetadata={(e) => {
+              const v = e.currentTarget
+              try {
+                v.currentTime = Math.min(0.6, (isFinite(v.duration) ? v.duration : 2) / 2)
+              } catch {
+                /* seeking unsupported — first frame stands */
+              }
+            }}
+            className="w-full h-full object-cover"
+          />
+          {!playing && (
+            <button
+              type="button"
+              aria-label="Play preview"
+              onClick={() => {
+                setPlaying(true)
+                ref.current?.play().catch(() => {})
+              }}
+              className="absolute inset-0 flex items-center justify-center bg-black/25 hover:bg-black/10 transition-colors"
+            >
+              <span className="h-12 w-12 rounded-full bg-white/90 text-black text-[18px] flex items-center justify-center pl-1 shadow">▶</span>
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Day Detail modal — two panes: post list (left) + medium/large preview (right) ──
 function DayDetail({
   date,
@@ -472,18 +523,7 @@ function DayDetail({
 
             {/* Right: medium/large ~9:16 preview of the active post (real signed media). */}
             <div className="p-3 flex flex-col gap-2">
-              <div className="relative w-full aspect-[9/16] rounded-xl overflow-hidden border border-[var(--crm-border)] bg-black">
-                {active?.previewUrl ? (
-                  active.source?.kind === "image" ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={active.previewUrl} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <video src={active.previewUrl} controls playsInline preload="metadata" className="w-full h-full object-cover" />
-                  )
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-[11.5px] text-[var(--crm-text-muted)]">No preview</div>
-                )}
-              </div>
+              <DayPreview post={active} />
               {active && (
                 <>
                   <div className="text-[12px] font-semibold text-[var(--crm-text-primary)] truncate">{label(active)}</div>
