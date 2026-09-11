@@ -1692,33 +1692,11 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             }
           : null
 
-        // Merged Build List → List Sent: the intermediate "Mark List Built" step
-        // no longer runs, so a lead reaching this from the Build List confirmation
-        // may still have its build_list row OPEN. Complete it here so it does not
-        // linger as an open Next Action once the lead is in List Sent. This is a
-        // NO-OP for the legacy Send List path (there build_list was already
-        // completed before Send List existed), so existing behavior is unchanged.
-        const openBuildRow = localNextActionsRef.current.find(
-          (a: any) =>
-            String(a.lead_id) === String(lead.id) &&
-            !a.completed &&
-            (String(a.action_key ?? "") === "build_list" ||
-              String(a.title ?? "").trim().toLowerCase() === "build list")
-        )
-        if (
-          openBuildRow &&
-          !isDemoLeadId(lead.id) &&
-          !String(openBuildRow.id).startsWith("local-")
-        ) {
-          supabase
-            .from("lead_next_actions")
-            .update({ completed: true, completed_at: now, status: "completed" })
-            .eq("id", openBuildRow.id)
-            .then(({ error }: any) => {
-              if (error) console.error("[list-sent] close build_list row failed:", error)
-            })
-        }
-
+        // CP3: build_list is completed by its own milestone (complete-build-list,
+        // which also creates this send_list), so by the time we're here build_list
+        // is already done — no cleanup needed. (The merged-workflow hack that
+        // completed a lingering build_list here was removed with the two-milestone
+        // restore.)
         completeSendList({
           lead,
           sendRow: sendRow ? { id: sendRow.id } : null,
@@ -1732,8 +1710,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
               )
             )
             const marked = localNextActionsRef.current.map((a: any) =>
-              (sendRow && String(a.id) === String(sendRow.id)) ||
-              (openBuildRow && String(a.id) === String(openBuildRow.id))
+              sendRow && String(a.id) === String(sendRow.id)
                 ? { ...a, completed: true, completed_at: now }
                 : a
             )

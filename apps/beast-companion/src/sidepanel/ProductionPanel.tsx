@@ -171,9 +171,17 @@ export function ProductionPanel() {
   // sent?" bottom sheet only shows on the Client view — never overlaying the
   // Properties tab the agent was just sent to after choosing a build tool.
   const [companionView, setCompanionView] = useState<"client" | "properties">("client");
-  // "Not Yet" on the list-sent confirmation collapses it for THIS lead only (no
-  // workflow change). Keyed by lead id so switching clients never carries it over.
-  const [listSentDismissedFor, setListSentDismissedFor] = useState<string | number | null>(null);
+
+  // ── Deadline-aware snooze for the "Ready to send {name}'s list?" prompt ──────
+  // "Not Yet" must not dismiss forever, and must not let the agent snooze past the
+  // Build List deadline. State persists in chrome.storage.local (survives reloads +
+  // client switches), keyed by `${leadId}:${buildListActionId}` so a rebuilt list
+  // (new build_list row) starts a fresh cadence. Cadence: first Not Yet → ~2h,
+  // second Not Yet → wait until ~1h before due, then stop (Agenda overdue takes
+  // over). Each record: { notYetCount, snoozeUntil(epochMs), stopped }.
+  const listBuiltSnoozeRef = useRef<Record<string, { notYetCount: number; snoozeUntil: number; stopped: boolean }>>({});
+  const [, bumpSnoozeVersion] = useState(0); // re-render when a record loads/changes
+  const [, bumpNowTick] = useState(0);        // re-render each minute so a snooze can expire
 
   // Follow-up confirmation ("Did you send the follow-up?"). Null = hidden.
   // Captures the lead id AND the exact follow-up action identity at SMS-launch
@@ -387,27 +395,51 @@ export function ProductionPanel() {
     }
   }, [activeLeadId, addTaskConfirm]);
 
-  // Clear a stale "Not Yet" dismissal when the active client changes, so the
-  // list-sent prompt shows for the newly-selected client if THEY are mid-build.
+  // Load persisted snooze records once, and re-render every minute so a snooze can
+  // expire and the prompt reappear on its own.
   useEffect(() => {
-    if (listSentDismissedFor !== null && String(activeLeadId) !== String(listSentDismissedFor)) {
-      setListSentDismissedFor(null);
-    }
-  }, [activeLeadId, listSentDismissedFor]);
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+    store?.get?.("lb-listbuilt-snooze", (res: any) => {
+      const v = res?.["lb-listbuilt-snooze"];
+      if (v && typeof v === "object") listBuiltSnoozeRef.current = v;
+      bumpSnoozeVersion((n) => n + 1);
+    });
+    const id = setInterval(() => bumpNowTick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
-  // The "Was {name}'s list sent?" bottom sheet shows only when: the active client
-  // is mid-build (Searching with Build List still the open action), the agent is on
-  // the Client tab (never over Properties), and it has not been dismissed for this
-  // client. Reuses the same launched-build derivation the Lead Panel button uses.
-  const listSentOpenAction = (active?.nextActions ?? []).find((a) => !a.completed) ?? null;
-  const listBuildLaunched =
+  // The open Build List Next Action for the active lead (the milestone this prompt
+  // completes), plus its deadline and a per-build snooze key.
+  const buildListAction =
+    (active?.nextActions ?? []).find(
+      (a) => !a.completed && (a.title ?? "").trim().toLowerCase() === "build list",
+    ) ?? null;
+  const buildListDueMs = buildListAction?.dueAt ? new Date(buildListAction.dueAt).getTime() : null;
+  const buildListSnoozeKey =
+    active?.lead?.id != null && buildListAction?.id != null
+      ? `${active.lead.id}:${buildListAction.id}`
+      : null;
+  const buildListSnooze = buildListSnoozeKey
+    ? listBuiltSnoozeRef.current[buildListSnoozeKey] ?? { notYetCount: 0, snoozeUntil: 0, stopped: false }
+    : null;
+
+  // "Ready to send {name}'s list?" shows only when: the client is mid-build
+  // (Searching with an open build_list), they have AT LEAST ONE Recommendation
+  // (the canonical list to send), the agent is on the Client tab, the Build List
+  // deadline hasn't passed, and it isn't currently snoozed/stopped. Never auto-
+  // completes — the agent must confirm.
+  const nowMs = Date.now();
+  const showReadyToSend =
     !!active?.lead &&
-    (listSentOpenAction?.title ?? "").trim().toLowerCase() === "build list" &&
-    String((active.lead as { stage?: unknown }).stage) === "searching";
-  const showListSentPrompt =
-    listBuildLaunched &&
+    !!buildListAction &&
+    String((active.lead as { stage?: unknown }).stage) === "searching" &&
+    (active?.recommendations?.length ?? 0) >= 1 &&
     companionView === "client" &&
-    String(listSentDismissedFor) !== String(activeLeadId);
+    buildListDueMs != null &&
+    nowMs < buildListDueMs &&
+    buildListSnooze != null &&
+    !buildListSnooze.stopped &&
+    nowMs >= (buildListSnooze.snoozeUntil ?? 0);
 
   const rt = () => (globalThis as unknown as { chrome?: any }).chrome?.runtime;
   const onConnect = () => rt()?.sendMessage?.({ type: "companion:start-connect" });
@@ -684,28 +716,62 @@ export function ProductionPanel() {
     focusExistingCrmTab();
   };
 
-  // "Yes, List Sent" (the "Was {name}'s list sent?" bottom-sheet confirmation shown
-  // while the list is being built) → the canonical Searching → List Sent
-  // completion runs on the authenticated CRM (completes send_list, advances the
-  // stage, resets follow-ups and creates FU1) AND completes any still-open
-  // build_list row so nothing lingers. Reuses the EXACT existing complete-send-list
-  // logic — no new transition, no separate "Mark List Built" step.
-  const confirmListSent = () => {
+  // Persist the snooze map (after a Not Yet / a confirm) and re-render.
+  const persistListBuiltSnooze = () => {
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+    store?.set?.({ "lb-listbuilt-snooze": listBuiltSnoozeRef.current });
+    bumpSnoozeVersion((n) => n + 1);
+  };
+
+  // "Yes, List Built" (the "Ready to send {name}'s list?" bottom sheet) → the
+  // ORIGINAL Build List completion runs on the authenticated CRM: completes the
+  // REAL build_list row (real timestamp → Last Action "List Built"), creates ONE
+  // real send_list Next Action, and STAYS in Searching. This is the first of two
+  // real milestones — sending happens separately at the Send List step.
+  const confirmListBuilt = () => {
     const lead = active?.lead;
     if (!lead || lead.id === undefined || lead.id === null) return;
-    // Hide the prompt immediately for this lead; the stage-advance re-broadcast
-    // will also drop it (List Sent is no longer the launched-build state).
-    setListSentDismissedFor(lead.id);
+    // Stop this build's prompt from re-showing; the stage/next-action re-broadcast
+    // (build_list completed → send_list open) also drops it by construction.
+    if (buildListSnoozeKey) {
+      listBuiltSnoozeRef.current[buildListSnoozeKey] = { notYetCount: 99, snoozeUntil: 0, stopped: true };
+      persistListBuiltSnooze();
+    }
     const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
     if (store) {
       store.set({
         "lb-workflow-verb": {
           nonce: `${Date.now()}-${Math.random()}`,
           leadId: lead.id,
-          verb: "complete-send-list",
+          verb: "complete-build-list",
         },
       });
     }
+  };
+
+  // "Not Yet" — snooze the prompt without dismissing it forever, and never past the
+  // Build List deadline. Cadence: 1st → ~2h (capped at ~1h before due); 2nd → wait
+  // until ~1h before due (deadline reminder), no more 2h prompts; within the last
+  // hour, or a 3rd Not Yet → stop (the Agenda/Next Action overdue behavior is then
+  // authoritative). No stage/Last Action/Next Action change.
+  const notYetListBuilt = () => {
+    if (!buildListSnoozeKey || buildListDueMs == null) return;
+    const now = Date.now();
+    const deadlineWindow = buildListDueMs - 60 * 60 * 1000; // ~1h before due
+    const rec = listBuiltSnoozeRef.current[buildListSnoozeKey] ?? { notYetCount: 0, snoozeUntil: 0, stopped: false };
+    if (now >= deadlineWindow) {
+      rec.stopped = true;
+    } else if (rec.notYetCount === 0) {
+      rec.notYetCount = 1;
+      rec.snoozeUntil = Math.min(now + 2 * 60 * 60 * 1000, deadlineWindow);
+    } else if (rec.notYetCount === 1) {
+      rec.notYetCount = 2;
+      rec.snoozeUntil = deadlineWindow;
+    } else {
+      rec.stopped = true;
+    }
+    listBuiltSnoozeRef.current[buildListSnoozeKey] = rec;
+    persistListBuiltSnooze();
   };
 
   // Send List → open the confirmation sheet. Opens NO SMS/site and changes
@@ -1363,18 +1429,18 @@ export function ProductionPanel() {
         </div>
       )}
 
-      {/* "Was {name}'s list sent?" — the Build List completion confirmation, using
-          the SAME bottom-sheet pattern as the Send List / tour confirmations
-          (backdrop, docked sheet, question + actions). Shown contextually while the
-          client is mid-build (Client tab only), not inside the workflow card.
-          "Yes, List Sent" runs the existing complete-send-list flow; "Not Yet"
-          collapses it and changes nothing. */}
-      {showListSentPrompt && (
+      {/* "Ready to send {name}'s list?" — the first real milestone (List Built),
+          using the SAME bottom-sheet pattern as the Send List / tour confirmations.
+          Shown while the client is mid-build with ≥1 Recommendation (Client tab
+          only). "Yes, List Built" completes the real build_list and creates the
+          Send List step; "Not Yet" snoozes (deadline-aware — never dismisses
+          forever, never past the Build List due time). */}
+      {showReadyToSend && (
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Confirm list sent"
-          onClick={() => setListSentDismissedFor(activeLeadId)}
+          aria-label="Ready to send list"
+          onClick={notYetListBuilt}
           style={{
             position: "absolute",
             inset: 0,
@@ -1386,13 +1452,13 @@ export function ProductionPanel() {
         >
           <div onClick={(e) => e.stopPropagation()} style={SHEET_STYLE}>
             <p style={SHEET_QUESTION_STYLE}>
-              Was {formatPersonName(active?.lead?.firstName) || "this client"}'s list sent?
+              Ready to send {formatPersonName(active?.lead?.firstName) || "this client"}'s list?
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <button type="button" onClick={confirmListSent} style={SHEET_PRIMARY_BTN}>
-                Yes, List Sent
+              <button type="button" onClick={confirmListBuilt} style={SHEET_PRIMARY_BTN}>
+                Yes, List Built
               </button>
-              <button type="button" onClick={() => setListSentDismissedFor(activeLeadId)} style={SHEET_SECONDARY_BTN}>
+              <button type="button" onClick={notYetListBuilt} style={SHEET_SECONDARY_BTN}>
                 Not Yet
               </button>
             </div>
