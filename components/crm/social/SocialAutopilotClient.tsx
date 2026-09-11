@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/client"
 import { DEMO_LIBRARY } from "./demoFixtures"
 import { SOCIAL_MARKETS, normalizeSocialMarket } from "@/lib/social/markets"
@@ -161,6 +162,7 @@ function Thumb({ card }: { card: Card }) {
 }
 
 export default function SocialAutopilotClient() {
+  const router = useRouter()
   const [items, setItems] = useState<Item[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -487,6 +489,34 @@ export default function SocialAutopilotClient() {
     [load],
   )
 
+  // Create a NEW draft post referencing this source video (one source → many posts), then
+  // open the editor. Never modifies/duplicates the source; a fresh social_posts row is made.
+  const [creatingId, setCreatingId] = useState<string | null>(null)
+  const createPost = useCallback(
+    async (sourceContentId: string) => {
+      setCreatingId(sourceContentId)
+      setError(null)
+      try {
+        const res = await fetch("/api/admin/social-autopilot/posts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sourceContentId }),
+        })
+        if (!res.ok) {
+          setError("Couldn't create the post.")
+          return
+        }
+        const json = (await res.json()) as { id?: string }
+        if (json.id) router.push(`/admin/social-autopilot/posts/${encodeURIComponent(json.id)}`)
+      } catch {
+        setError("Couldn't create the post.")
+      } finally {
+        setCreatingId(null)
+      }
+    },
+    [router],
+  )
+
   // ---- styles ----------------------------------------------------------------
   const chip = (active: boolean) =>
     "text-[12px] font-semibold px-3 py-1.5 rounded-full border transition-colors " +
@@ -602,9 +632,19 @@ export default function SocialAutopilotClient() {
                   </div>
                   <div className="text-[11px] text-[var(--crm-text-muted)] mt-0.5">{c.dateLabel}</div>
                   {!c.demo && c.raw && (
-                    <div className="flex gap-1.5 mt-2 pt-2 border-t border-[var(--crm-border)]">
-                      <button type="button" className={btn} onClick={() => openEdit(c.raw!)}>Edit</button>
-                      <button type="button" className={btn} onClick={() => remove(c.raw!.id)}>Delete</button>
+                    <div className="mt-2 pt-2 border-t border-[var(--crm-border)] flex flex-col gap-1.5">
+                      <button
+                        type="button"
+                        className="text-[12px] font-semibold px-2.5 py-1.5 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"
+                        disabled={creatingId === c.raw.id}
+                        onClick={() => void createPost(c.raw!.id)}
+                      >
+                        {creatingId === c.raw.id ? "Creating…" : "+ Create Post"}
+                      </button>
+                      <div className="flex gap-1.5">
+                        <button type="button" className={btn} onClick={() => openEdit(c.raw!)}>Edit</button>
+                        <button type="button" className={btn} onClick={() => remove(c.raw!.id)}>Delete</button>
+                      </div>
                     </div>
                   )}
                 </div>
