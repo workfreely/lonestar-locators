@@ -87,7 +87,15 @@ export async function POST(req: NextRequest) {
 }
 
 // GET /api/admin/client-shares?leadId=NN  → this client's share/list records.
-// The raw token is never returned (never stored); only the display prefix is.
+// GET /api/admin/client-shares  (no leadId)  → the WHOLE workspace's SENT lists, each
+//   with its client name, for the Sent Lists management surface (CP5).
+//
+// Both are RLS-scoped by the table's SELECT policy (is_active_workspace_member), so a
+// caller only ever sees shares in a workspace they're an active member of — Workspace
+// A can never list Workspace B's shares. The raw token is NEVER returned (never
+// stored); no Vault pointer (token_secret_id) or hash is exposed — only the display
+// prefix. Copy Link / Preview resolve the exact URL separately via the SECURITY
+// DEFINER lb_get_client_share_url (GET /api/admin/client-shares/:id).
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const {
@@ -96,6 +104,48 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
 
   const rawLeadId = req.nextUrl.searchParams.get("leadId")
+
+  // ── Workspace-wide SENT lists (CP5 Sent Lists surface) ──────────────────────
+  // Inclusion rule: a list appears here ONLY once it has actually been sent
+  // (sent_at is not null) — unsent drafts from an in-progress Send List are not
+  // "sent lists" and never surface here. Newest sent first. Client name via the
+  // lead_id → leads FK embed (no client data duplicated into a new table).
+  if (rawLeadId === null) {
+    const { data, error } = await supabase
+      .from("client_recommendation_shares")
+      .select(
+        "id, lead_id, list_number, token_prefix, sent_at, disabled_at, last_viewed_at, view_session_count, item_count, leads(first_name, last_name)",
+      )
+      .not("sent_at", "is", null)
+      .order("sent_at", { ascending: false })
+    if (error) return NextResponse.json({ error: "list_failed" }, { status: 500 })
+
+    const shares = (data ?? []).map((s: Record<string, unknown>) => {
+      // The FK embed is to-one, but be robust if PostgREST hands back an array.
+      const rawLead = s.leads as
+        | { first_name?: string | null; last_name?: string | null }
+        | { first_name?: string | null; last_name?: string | null }[]
+        | null
+        | undefined
+      const lead = Array.isArray(rawLead) ? rawLead[0] ?? null : rawLead ?? null
+      const clientName = [lead?.first_name, lead?.last_name].map((p) => (p ?? "").trim()).filter(Boolean).join(" ")
+      return {
+        id: s.id,
+        leadId: s.lead_id,
+        clientName: clientName || "Unknown client",
+        listNumber: s.list_number,
+        prefix: s.token_prefix,
+        sentAt: s.sent_at,
+        status: s.disabled_at ? "disabled" : "active",
+        itemCount: s.item_count,
+        lastViewedAt: s.last_viewed_at,
+        viewSessionCount: s.view_session_count,
+      }
+    })
+    return NextResponse.json({ shares })
+  }
+
+  // ── Per-lead list (CP2, unchanged) ──────────────────────────────────────────
   const leadId = Number(rawLeadId)
   if (!Number.isInteger(leadId) || leadId <= 0) {
     return NextResponse.json({ error: "valid leadId required" }, { status: 400 })
