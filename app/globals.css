@@ -2000,6 +2000,18 @@ body.jaybot-open {
 .kb-card:hover { transform:translateY(-4px); box-shadow:var(--kb-card-shadow-hover); }
 .kb-card.kb-card--selected { transform:translateY(-2px); box-shadow:var(--kb-card-shadow-selected); }
 .kb-card.kb-card--selected:hover { transform:translateY(-4px); }
+
+/* Social Autopilot Calendar — selected day cell. Reuses the SAME theme accent token
+   (--kb-accent) that the selected-lead card glow (--kb-card-shadow-selected above) is built
+   from, so it follows every workspace theme with NO hardcoded colour. Kept subtle and
+   INSET (contained to the cell, no neighbour bleed inside the grid's overflow) — the 1.5px
+   accent ring + soft color-mix glow mirror the CRM selected/active-client treatment rather
+   than a large neon glow. Separate from the Today indicator (the white date circle). */
+.sa-cal-day--selected {
+  box-shadow: inset 0 0 0 1.5px var(--kb-accent, var(--crm-accent)),
+              inset 0 0 0 5px color-mix(in srgb, var(--kb-accent, var(--crm-accent)) 14%, transparent);
+  background: color-mix(in srgb, var(--kb-accent, var(--crm-accent)) 6%, transparent);
+}
 /* Active-client context — the lead the Beast Companion is currently showing.
    A subtle accent ring + soft outer glow so the agent can spot the active card
    on a crowded board. Composed from the per-theme --kb-accent (follows every

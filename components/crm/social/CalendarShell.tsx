@@ -56,6 +56,8 @@ export default function CalendarShell() {
   const [view, setView] = useState<View>("Month")
   const [cursor, setCursor] = useState(() => new Date())
   const [posts, setPosts] = useState<CalPost[]>([])
+  // Selected day (Month view) — one at a time; separate state from Today.
+  const [selected, setSelected] = useState<Date | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -134,7 +136,7 @@ export default function CalendarShell() {
           <div className="w-[92px]" />
         </div>
 
-        {view === "Month" && <MonthGrid cursor={cursor} today={today} byDay={byDay} dayKey={dayKey} onOpen={open} />}
+        {view === "Month" && <MonthGrid cursor={cursor} today={today} byDay={byDay} dayKey={dayKey} onOpen={open} selected={selected} onSelectDate={setSelected} />}
         {view === "Week" && <WeekGrid cursor={cursor} today={today} byDay={byDay} dayKey={dayKey} onOpen={open} />}
         {view === "List" && <ListView cursor={cursor} today={today} byDay={byDay} dayKey={dayKey} onOpen={open} />}
       </div>
@@ -148,13 +150,18 @@ type GridProps = {
   byDay: Map<string, CalPost[]>
   dayKey: (d: Date) => string
   onOpen: (id: string) => void
+  selected?: Date | null
+  onSelectDate?: (d: Date) => void
 }
 
 function Pill({ p, onOpen }: { p: CalPost; onOpen: (id: string) => void }) {
   return (
     <button
       type="button"
-      onClick={() => onOpen(p.id)}
+      onClick={(e) => {
+        e.stopPropagation() // open the post; do NOT also select the day cell
+        onOpen(p.id)
+      }}
       title={`${label(p)} · Instagram · ${timeLabel(p.scheduledAt)}`}
       className="w-full flex items-center gap-1 rounded px-1 py-0.5 text-left text-[10.5px] bg-[var(--crm-card)] hover:bg-[var(--crm-border)] transition-colors"
     >
@@ -164,7 +171,7 @@ function Pill({ p, onOpen }: { p: CalPost; onOpen: (id: string) => void }) {
   )
 }
 
-function MonthGrid({ cursor, today, byDay, dayKey, onOpen }: GridProps) {
+function MonthGrid({ cursor, today, byDay, dayKey, onOpen, selected, onSelectDate }: GridProps) {
   const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1)
   const days = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate()
   const cells: (number | null)[] = [...Array.from({ length: first.getDay() }, () => null), ...Array.from({ length: days }, (_, i) => i + 1)]
@@ -181,8 +188,19 @@ function MonthGrid({ cursor, today, byDay, dayKey, onOpen }: GridProps) {
         {cells.map((d, i) => {
           const cellDate = d != null ? new Date(cursor.getFullYear(), cursor.getMonth(), d) : null
           const dayPosts = cellDate ? byDay.get(dayKey(cellDate)) ?? [] : []
+          const isSelected = !!(cellDate && selected && sameDay(cellDate, selected))
           return (
-            <div key={i} className={"min-h-[84px] border-b border-r border-[var(--crm-border)] p-1.5 align-top " + ((i + 1) % 7 === 0 ? "border-r-0 " : "") + (d == null ? "bg-[var(--crm-card)]/30" : "")}>
+            <div
+              key={i}
+              onClick={cellDate ? () => onSelectDate?.(cellDate) : undefined}
+              aria-pressed={cellDate ? isSelected : undefined}
+              className={
+                "relative min-h-[84px] border-b border-r border-[var(--crm-border)] p-1.5 align-top " +
+                ((i + 1) % 7 === 0 ? "border-r-0 " : "") +
+                (d == null ? "bg-[var(--crm-card)]/30 " : "cursor-pointer ") +
+                (isSelected ? "sa-cal-day--selected" : "")
+              }
+            >
               {d != null && (
                 <>
                   <div className={"text-[12px] font-semibold w-6 h-6 flex items-center justify-center rounded-full " + (isToday(d) ? "bg-[var(--crm-text-primary)] text-[var(--crm-panel)]" : "text-[var(--crm-text-secondary)]")}>{d}</div>
