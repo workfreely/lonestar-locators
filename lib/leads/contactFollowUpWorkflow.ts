@@ -17,11 +17,14 @@ import { emitWorkflowActionCreated } from "@/lib/workflowToast"
  *   2. completes the persisted contact-FU row (real leads) with the real timestamp;
  *   3. keeps the lead in its current stage (NO stage change); and
  *   4. creates AT MOST one successor (Contact FU2/FU3) via getNextContactFollowUp-
- *      Action — but ONLY while the lead is still in the pre-list chase (crm_status
- *      === "new"). If the lead has already progressed (Contacted/Searching/List
- *      Built/Send List/List Sent/etc.), the chase is superseded and NO successor is
- *      created. Completing Contact FU3 creates nothing (no FU4) and does NOT archive
- *      — the 7-day ghost/archive behavior is intentionally left unchanged here.
+ *      Action — but ONLY while the lead is still in the pre-list chase. That chase
+ *      now lives in the Contacted stage (an unanswered attempt advances New →
+ *      Contacted), so the guard allows crm_status ∈ {new, contacted} AND requires
+ *      that NO build_list action exists (a build_list means the lead was reached and
+ *      is on the Build List → List Sent track — the chase is superseded). If the
+ *      lead has progressed to Searching/List Sent/etc., or a build_list exists, NO
+ *      successor is created. Completing Contact FU3 creates nothing (no FU4) and does
+ *      NOT archive — the 7-day ghost/archive behavior is intentionally unchanged here.
  *
  * Demo leads never reach this (recordPendingOutreach no-ops on demo ids, so no
  * contact-FU rows exist for them); the guards below are still demo-safe.
@@ -57,11 +60,25 @@ export async function completeContactFollowUp(opts: {
 
   if (isDemoLeadId(lead.id)) return
 
-  // 4) SUPERSESSION GUARD: only continue the chase while the lead is still New.
-  //    Once contact succeeds / the lead is dragged forward (Contacted, Searching,
-  //    List Sent, …), the pre-list chase is over — create no successor. Mirrors
-  //    recordPendingOutreach's "New-lead concept" guard.
-  if (lead.crm_status !== "new") return
+  // 4) SUPERSESSION GUARD. The pre-list chase lives in New (legacy) or Contacted
+  //    (an unanswered attempt now advances New → Contacted). Beyond that — Searching,
+  //    List Sent, etc. — the lead has progressed and the chase is over.
+  if (lead.crm_status !== "new" && lead.crm_status !== "contacted") return
+
+  //    A build_list action (open OR completed) means the lead was REACHED and is on
+  //    the Build List → List Sent track — the pre-list chase is superseded even while
+  //    the stage still reads Contacted. Do not create a Contact FU successor then.
+  const { data: buildRows, error: buildErr } = await supabase
+    .from("lead_next_actions")
+    .select("id")
+    .eq("lead_id", lead.id)
+    .eq("action_key", "build_list")
+    .limit(1)
+  if (buildErr) {
+    console.error("[contact-follow-up] build_list supersession check failed:", buildErr)
+    return
+  }
+  if (buildRows && buildRows.length > 0) return
 
   const succ = getNextContactFollowUpAction(completedTitle, timeZone)
   if (!succ) return // Contact FU3 (terminal) — no FU4, no archive.

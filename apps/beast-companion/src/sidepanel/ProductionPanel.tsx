@@ -606,11 +606,11 @@ export function ProductionPanel() {
 
   const dismissContact = () => setPendingContact(null);
 
-  // "Yes, Contacted" records first contact (canonical cascade — advances New →
-  // Contacted, creates Build List). "No Answer" logs a contact_attempt to the
-  // timeline WITHOUT advancing the stage (the lead stays New, Contact Lead
-  // retained). "Cancel" does nothing. Both non-cancel outcomes route through the
-  // authenticated CRM bridge (the panel has no session of its own).
+  // "Yes, Contacted" records a reached first contact (canonical cascade — advances
+  // New → Contacted, creates Build List). "No Answer" is a completed call attempt:
+  // it too advances New → Contacted (Contacted = "≥1 attempt") but its successor is
+  // Contact FU1, not Build List. Both outcomes route through the authenticated CRM
+  // bridge (the panel has no session of its own); the CRM appliers own the workflow.
   const resolveContact = (outcome: "yes" | "no-answer") => {
     const pc = pendingContact; // captured context — NOT the live active client
     setPendingContact(null);
@@ -630,10 +630,10 @@ export function ProductionPanel() {
 
   // Text path — "Did you send the text?" → "Yes, Sent". Posts the canonical
   // "text-sent" verb to the CRM (panel → chrome.storage → content script → CRM),
-  // which runs the SAME pending-outreach cascade the Kanban-drag modal uses:
-  // a "Follow Up" next action + a text_sent timeline event → Status "Waiting for
-  // Reply". A sent text is NOT "Yes, Contacted" — the CRM handler never runs
-  // recordFirstContact, so the lead stays New (no New → Contacted, no Build List).
+  // which runs the pending-outreach cascade: a text_sent timeline event + Contact
+  // FU1 (Status "Waiting for Reply") and advances New → Contacted (a sent text is a
+  // completed attempt). It is NOT a reached contact — the CRM never runs
+  // recordFirstContact, so there is NO Build List and NO first_text_sent_at stamp.
   const resolveTextSent = () => {
     const pc = pendingContact; // captured context — NOT the live active client
     setPendingContact(null);

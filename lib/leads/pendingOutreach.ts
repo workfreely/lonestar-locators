@@ -12,10 +12,18 @@ import { emitWorkflowActionCreated } from "@/lib/workflowToast"
  * Companion) so the outcome is identical no matter which surface initiated it —
  * the same "two presentations → one canonical workflow" rule as recordFirstContact.
  *
- * A pending outreach is NOT successful contact: the lead STAYS New. This function
- * deliberately does NOT run recordFirstContact, does NOT advance New → Contacted,
- * does NOT create Build List, and does NOT write first_text_sent_at (that field
- * stays reserved for genuine first contact + the 7-day auto-archive).
+ * A pending outreach IS a legitimate completed outbound attempt, so it advances the
+ * canonical stage New → Contacted (Contacted = "≥1 attempt completed", NOT "client
+ * answered"). It is NOT successful contact, so its successor is the pre-list Contact
+ * FU chase — NOT Build List. It deliberately does NOT run recordFirstContact, does
+ * NOT create Build List, and does NOT write first_text_sent_at (that field stays a
+ * genuine-first-contact / reached anchor for the 7-day auto-archive — a call or an
+ * unanswered text must never populate a field named "first text sent").
+ *
+ * The New → Contacted advance reuses the update-stage route with skipWorkflowAction
+ * so the stage engine's automatic "Build List" successor is NOT created — the
+ * outcome, not the stage, selects the successor (Contact FU1 here; Build List only
+ * on a genuinely reached contact via recordFirstContact).
  *
  * It persists exactly two things (so the state survives refresh / reopen / client
  * switch), then hands the created Follow Up back to the caller for optimistic UI:
@@ -48,8 +56,12 @@ export async function recordPendingOutreach(opts: {
   // caller can merge it into local state and re-broadcast. Not called when an
   // open Follow Up already exists (dedup) or for demo/non-New leads.
   onFollowUpAction?: (row: any) => void
+  // Called with the optimistic lead update for the New → Contacted advance (so the
+  // caller merges crm_status = "contacted" into its own state before the async DB
+  // write lands). Mirrors recordFirstContact's onOptimistic.
+  onOptimistic?: (updatedLead: any) => void
 }): Promise<void> {
-  const { lead, method, outcome, timeZone, onFollowUpAction } = opts
+  const { lead, method, outcome, timeZone, onFollowUpAction, onOptimistic } = opts
   const occurredAt = new Date().toISOString()
 
   // 1) Immutable history event. Fire-and-forget (never blocks the workflow), and
@@ -63,14 +75,42 @@ export async function recordPendingOutreach(opts: {
     occurredAt,
   })
 
+  // The New → Contacted advance is a ONE-TIME milestone — only when the lead is
+  // still New. A repeat outreach on an already-Contacted lead records the timeline
+  // activity above but must not re-advance the stage, reset first-contact history,
+  // or create a duplicate Contact FU1 (guarded below).
+  const advancing = lead.crm_status === "new"
+
+  // Optimistic New → Contacted so the caller's UI reflects the stage immediately
+  // (before the async DB write). Runs for demo leads too (client-side only).
+  if (advancing) onOptimistic?.({ ...lead, crm_status: "contacted" })
+
   // Demo leads live entirely client-side (string ids can't key the bigint tables).
   if (isDemoLeadId(lead.id)) return
 
+  // Only the New → Contacted transition creates Contact FU1 + advances the stage.
+  // Already-Contacted leads keep their own workflow (no duplicate FU1, no regress).
+  if (!advancing) return
+
+  // 1b) Advance New → Contacted, but SUPPRESS the stage engine's automatic Build
+  //     List successor (skipWorkflowAction). Contacted = "≥1 attempt"; the successor
+  //     for an UNANSWERED attempt is Contact FU1 (created below). Fire-and-forget
+  //     (mirrors recordFirstContact) — the Contact FU1 write below is independent of
+  //     the stage row, so it never waits on the route's Google-sync side effect.
+  void fetch("/api/admin/leads/update-stage", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      leadId: lead.id,
+      crm_status: "contacted",
+      follow_up_count: lead.follow_up_count ?? 0,
+      next_action_date: lead.next_action_date ?? null,
+      skipWorkflowAction: true,
+    }),
+  }).catch((err) => console.error("[pending-outreach] stage advance failed:", err))
+
   // 2) Contact FU1 — the FIRST step of the pre-list contact chase (Contact FU1 →
-  //    FU2 → FU3). ONLY for a still-New lead: a lead already advanced past New
-  //    keeps its own workflow; this chase is a New-lead concept and never advances
-  //    the stage. (Replaces the retired single-step contacted_follow_up "Follow Up".)
-  if (lead.crm_status !== "new") return
+  //    FU2 → FU3). (Replaces the retired single-step contacted_follow_up "Follow Up".)
 
   // One open contact follow-up per lead ACROSS all three levels. createWorkflow-
   // ActionIfNeeded only dedups within a single action_key, so a repeat outreach

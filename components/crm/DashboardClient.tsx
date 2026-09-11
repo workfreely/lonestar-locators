@@ -1362,9 +1362,11 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // Pending outreach — a New lead was called (no answer) or texted (sent) but NOT
   // reached. The ONE implementation behind BOTH the No Answer and Text Sent
   // outcomes, for BOTH presentations (Companion verb + Kanban-drag modal). Routes
-  // through the canonical recordPendingOutreach (timeline event + the +2-day
-  // contacted_follow_up "Follow Up" row) — NEVER advances the stage, never runs
-  // recordFirstContact, never writes first_text_sent_at. The lead stays New.
+  // through the canonical recordPendingOutreach (timeline event + New → Contacted
+  // advance with skipWorkflowAction + the +2-day Contact FU1 row). A completed
+  // attempt now advances New → Contacted (Contacted = "≥1 attempt"), but its
+  // successor is Contact FU1 — NEVER Build List (that stays the reached path) —
+  // and it never writes first_text_sent_at (kept truthful for the reached anchor).
   function applyPendingOutreach(lead: any, method: "call" | "text", outcome: "no-answer" | "text-sent") {
     // This outreach is happening on the lead the user is looking at in the
     // Companion / drag modal right now — so it IS the lead the Companion is
@@ -1389,10 +1391,26 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       method,
       outcome,
       timeZone,
+      onOptimistic: (updated) => {
+        // New → Contacted advance (only fires when the lead was New). Merge the
+        // stage so the Kanban card moves to Contacted immediately, mirroring
+        // applyFirstContact's optimistic update.
+        setLocalLeads((prev) =>
+          prev.map((l) =>
+            String(l.id) === String(updated.id)
+              ? { ...l, ...updated, _justDropped: true }
+              : { ...l, _justDropped: false }
+          )
+        )
+        postCompanionActiveClient({ ...lead, ...updated }, localNextActionsRef.current)
+      },
       onFollowUpAction: (row) => {
         setLocalNextActions((prev) => [...prev, row])
         const merged = [...localNextActionsRef.current, row]
-        postCompanionActiveClient(lead, merged)
+        // Re-post with the (now Contacted) lead from local state so the Companion
+        // reflects both the advanced stage and the new Contact FU1 row.
+        const updatedLead = localLeadsRef.current.find((l: any) => String(l.id) === String(lead.id)) ?? lead
+        postCompanionActiveClient(updatedLead, merged)
       },
     })
   }
@@ -2492,14 +2510,16 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       const method: "call" | "text" = payload.method === "call" ? "call" : "text"
 
       if (payload.verb === "contact-attempt") {
-        // "No Answer" — pending call outreach (Follow Up + Status "No Answer").
+        // "No Answer" — completed call attempt: advances New → Contacted + creates
+        // Contact FU1 (Status "No Answer"). NOT a reached contact → no Build List.
         applyContactAttempt(lead, method)
         return
       }
 
       if (payload.verb === "text-sent") {
-        // "Yes, Sent" — pending text outreach (Follow Up + Status "Waiting for
-        // Reply"). NOT successful contact — the lead stays New.
+        // "Yes, Sent" — completed text attempt: advances New → Contacted + creates
+        // Contact FU1 (Status "Waiting for Reply"). NOT reached → no Build List,
+        // and no first_text_sent_at (that stays the reached-contact anchor).
         applyTextSent(lead, method)
         return
       }

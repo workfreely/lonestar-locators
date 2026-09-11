@@ -215,7 +215,20 @@ export function rankLeadActions(
   // later. Same shape as sequenceComplete; the predicate is the shared source.
   const tourScheduledComplete = isTourScheduled(lead, manualActions)
 
-  const automatic: RankedAction | null = hasEquivalentManual || hasGuestCardProgression || sequenceComplete || tourScheduledComplete ? null : {
+  // Pre-list contact chase: a Contacted lead reached via an UNANSWERED attempt sits
+  // in Contacted with an open Contact FU (contact_follow_up_1/2/3) — it is being
+  // chased for a reply, NOT yet ready to build. Suppress the Contacted stage's
+  // automatic "Build List" so the open Contact FU is the Next Action. (A REACHED
+  // lead has an open build_list row instead, so hasEquivalentManual already
+  // suppresses the automatic there — this branch never affects the reached path.)
+  const isContactFollowUpRow = (a: ManualNextAction) => {
+    const k = String((a as any).action_key ?? "").toLowerCase()
+    if (k === "contact_follow_up_1" || k === "contact_follow_up_2" || k === "contact_follow_up_3") return true
+    return ["contact fu1", "contact fu2", "contact fu3"].includes(a.title.trim().toLowerCase())
+  }
+  const hasContactChase = lead.crm_status === "contacted" && openManual.some(isContactFollowUpRow)
+
+  const automatic: RankedAction | null = hasEquivalentManual || hasGuestCardProgression || sequenceComplete || tourScheduledComplete || hasContactChase ? null : {
     kind: "automatic",
     title: automaticLabel,
     dueAt: lead.next_action_date ?? null,
