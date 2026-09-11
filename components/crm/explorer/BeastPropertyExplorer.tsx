@@ -1282,13 +1282,18 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
           {fit && (
             <div className="mt-3 rounded-lg bg-[#f1f3f8] px-3 py-2.5">
               <p
-                className={`text-[12.5px] font-semibold ${
+                className={
                   fit.tone === "match"
-                    ? "text-emerald-700"
+                    ? // "100% Match" mirrors the Beast Companion Current Property score
+                      // (.bc-match-score.tone-good in apps/beast-companion/src/sidepanel/
+                      // lead/panel.css): 11px / 700 / --lb-success. green-500 IS that exact
+                      // token value (#22c55e) in this app's default Tailwind palette, so the
+                      // green is reused, not eyeballed. Non-match labels keep 12.5px/600.
+                      "text-[11px] font-bold text-green-500"
                     : fit.tone === "outside"
-                    ? "text-amber-700"
-                    : "text-[#111318]"
-                }`}
+                    ? "text-[12.5px] font-semibold text-amber-700"
+                    : "text-[12.5px] font-semibold text-[#111318]"
+                }
               >
                 {fit.tone === "match" ? "100% Match" : fit.label}
               </p>
