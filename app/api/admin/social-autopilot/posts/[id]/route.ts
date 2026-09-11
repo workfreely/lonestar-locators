@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin"
+import { isValidPostType } from "@/lib/social/postTypes"
 
 // One post: GET (editor load), PATCH (save draft / schedule / unschedule), DELETE.
 // Platform-admin ONLY + RLS owner-scoping. PROTECTED fields (owner_user_id,
@@ -7,7 +8,7 @@ import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin"
 // NEVER mutable via client payloads here — only the whitelist below. Scheduling is
 // INTERNAL persistence only; nothing is ever published externally.
 const SELECT =
-  "id, platform, post_name, caption, on_video_text, on_video_config, status, scheduled_at, published_at, external_post_url, created_at, updated_at, source_content_id, " +
+  "id, platform, post_type, post_name, caption, on_video_text, on_video_config, status, scheduled_at, published_at, external_post_url, created_at, updated_at, source_content_id, " +
   "source:source_content_id(display_name, property_name, market, storage_path, original_filename, kind)"
 const SIGNED_URL_TTL = 60 * 30
 
@@ -32,6 +33,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   return NextResponse.json({
     id: r.id,
     platform: r.platform,
+    postType: r.post_type,
     postName: r.post_name,
     caption: r.caption,
     onVideoText: r.on_video_text,
@@ -69,6 +71,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const str = (v: unknown, max = 2200) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null)
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
   if ("postName" in body) patch.post_name = str(body.postName, 300)
+  // post_type is validated for the post's platform (Instagram); invalid values are ignored.
+  if (typeof body.postType === "string" && isValidPostType("instagram", body.postType)) patch.post_type = body.postType
   if ("caption" in body) patch.caption = str(body.caption)
   if ("onVideoText" in body) patch.on_video_text = str(body.onVideoText, 500)
   if ("onVideoConfig" in body && body.onVideoConfig && typeof body.onVideoConfig === "object") patch.on_video_config = body.onVideoConfig

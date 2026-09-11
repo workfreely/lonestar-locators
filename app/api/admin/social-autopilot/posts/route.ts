@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { requirePlatformAdmin, type PlatformAdminGuardOk } from "@/lib/auth/requirePlatformAdmin"
 import { QUEUE_STATUSES, isPostStatus } from "@/lib/social/postStatus"
+import { defaultPostType, isValidPostType } from "@/lib/social/postTypes"
 
 // Social Autopilot post variations API — platform-admin ONLY (requirePlatformAdmin gates
 // every method); RLS on social_posts is the second layer. A post references an immutable
@@ -10,7 +11,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 // Embed the source's non-secret identity fields via the FK (source_content_id).
 const SELECT =
-  "id, platform, post_name, caption, on_video_text, on_video_config, status, scheduled_at, published_at, external_post_url, created_at, updated_at, source_content_id, " +
+  "id, platform, post_type, post_name, caption, on_video_text, on_video_config, status, scheduled_at, published_at, external_post_url, created_at, updated_at, source_content_id, " +
   "source:source_content_id(display_name, property_name, market, storage_path, original_filename, kind)"
 
 type SourceEmbed = {
@@ -35,6 +36,7 @@ async function shape(supabase: PlatformAdminGuardOk["supabase"], rows: Record<st
       return {
         id: r.id,
         platform: r.platform,
+        postType: r.post_type,
         postName: r.post_name,
         caption: r.caption,
         onVideoText: r.on_video_text,
@@ -116,12 +118,17 @@ export async function POST(req: NextRequest) {
   // convenience — NOT the public caption, which stays empty until the admin writes one).
   const postName = str(body.postName, 300) ?? (typeof (src as { display_name?: string }).display_name === "string" ? (src as { display_name: string }).display_name : null)
 
+  const platform = "instagram"
+  const requestedType = typeof body.postType === "string" ? body.postType : ""
+  const postType = isValidPostType(platform, requestedType) ? requestedType : defaultPostType(platform)
+
   const { data, error } = await supabase
     .from("social_posts")
     .insert({
       owner_user_id: userId,
       source_content_id: sourceContentId,
-      platform: "instagram",
+      platform,
+      post_type: postType,
       post_name: postName,
       caption: str(body.caption),
       on_video_text: str(body.onVideoText, 500),

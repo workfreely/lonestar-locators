@@ -163,6 +163,14 @@ function Thumb({ card }: { card: Card }) {
 
 export default function SocialAutopilotClient() {
   const router = useRouter()
+  // A YYYY-MM-DD carried from the Calendar's "Create Post" on a specific date; passed on to
+  // the editor so the scheduled date prefills after a source video is chosen.
+  const [scheduleDate, setScheduleDate] = useState("")
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const v = new URLSearchParams(window.location.search).get("scheduleDate") ?? ""
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) setScheduleDate(v)
+  }, [])
   const [items, setItems] = useState<Item[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -507,14 +515,17 @@ export default function SocialAutopilotClient() {
           return
         }
         const json = (await res.json()) as { id?: string }
-        if (json.id) router.push(`/admin/social-autopilot/posts/${encodeURIComponent(json.id)}`)
+        if (json.id) {
+          const q = scheduleDate ? `?date=${encodeURIComponent(scheduleDate)}` : ""
+          router.push(`/admin/social-autopilot/posts/${encodeURIComponent(json.id)}${q}`)
+        }
       } catch {
         setError("Couldn't create the post.")
       } finally {
         setCreatingId(null)
       }
     },
-    [router],
+    [router, scheduleDate],
   )
 
   // ---- styles ----------------------------------------------------------------
@@ -531,6 +542,12 @@ export default function SocialAutopilotClient() {
 
   return (
     <div>
+      {scheduleDate && (
+        <div className="mb-3 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] px-4 py-2.5 text-[13px] text-[var(--crm-text-primary)]">
+          Scheduling for <span className="font-semibold">{new Date(`${scheduleDate}T00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</span> — choose a video and press <span className="font-semibold">Create Post</span> to start a draft with that date prefilled.
+        </div>
+      )}
+
       {/* One compact controls row: Search · Market filters · Sort · Upload Videos.
           Upload sits on THIS row (ml-auto → right-aligned) and shrink-0 keeps it from
           being squeezed; the row wraps gracefully at narrow widths. The standalone
