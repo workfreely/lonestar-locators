@@ -30,18 +30,16 @@ export default function SocialAutopilotNav() {
     // two-row treatment (title row, then a full-width tab row with its own divider) — no
     // shrunken labels, no overlap, no horizontal overflow at MacBook Air widths.
     <div className="lg:grid lg:grid-cols-[1fr_auto_1fr] lg:items-end lg:border-b lg:border-[var(--crm-border)]">
-      {/* Title + badge on ONE vertically-centered row. `m-0` NEUTRALIZES the global
+      {/* Title row. `m-0` + `leading-none` NEUTRALIZE the global
           `h1 { margin-bottom: 1rem; line-height: 1.15; text-align: center }` in
-          globals.css (a marketing rule that leaks onto admin surfaces) — that inherited
-          bottom margin was enlarging the title's flex box and dropping the badge below
-          the baseline. Left-aligned to match the other native pages (License
-          Verification / Network), which also override the global h1. No manual
-          translate/margin hacks — just resetting the inherited margin + line-height. */}
+          globals.css (a marketing rule that leaks onto admin surfaces). Left-aligned to
+          match the other native pages (License Verification / Network), which also
+          override the global h1. `whitespace-nowrap` keeps "Social Autopilot" on ONE
+          line even in the reduced main-app width when Beast Companion is open — the
+          adjacent "Admin Beta" pill (which had consumed that space and forced a wrap)
+          has been removed. No title/label shrinking, no compressed spacing. */}
       <div className="flex items-center gap-2.5 lg:self-center lg:pb-2">
-        <h1 className="m-0 text-left text-[20px] font-bold leading-none text-[var(--crm-text-primary)]">Social Autopilot</h1>
-        <span className="inline-flex items-center leading-none text-[10.5px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full border border-[var(--crm-border)] text-[var(--crm-text-muted)] bg-[var(--crm-panel)]">
-          Admin Beta
-        </span>
+        <h1 className="m-0 whitespace-nowrap text-left text-[20px] font-bold leading-none text-[var(--crm-text-primary)]">Social Autopilot</h1>
       </div>
 
       <nav className="mt-4 flex items-center gap-1 border-b border-[var(--crm-border)] lg:mt-0 lg:border-b-0 lg:justify-self-center">
