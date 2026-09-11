@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO, RecommendationDTO, FollowUpOverrides, AutofillLocator } from "@bc/companion-shared";
 import { sanitizeFollowUpOverrides } from "@bc/companion-shared";
 import type { CurrentProperty } from "@/types";
-import { formatPersonName, buildIntroSmsBody, buildFollowUpSmsBody, buildContactFollowUpSmsBody, isFollowUpAction, isContactFollowUpAction, formatWorkflowActionLabel, DEFAULT_TIME_VALUE } from "@bc/companion-shared";
+import { formatPersonName, buildIntroSmsBody, buildFollowUpSmsBody, buildContactFollowUpSmsBody, isFollowUpAction, isContactFollowUpAction, formatWorkflowActionLabel, companionMayConfirm, DEFAULT_TIME_VALUE } from "@bc/companion-shared";
 import { PanelApp } from "./PanelApp";
 import { runAutofillOnActiveTab } from "./autofill/runAutofill";
 import { useTourMode } from "./tour/useTourMode";
@@ -1420,7 +1420,7 @@ export function ProductionPanel() {
         timeZone={active?.timeZone ?? null}
       />
 
-      {pendingContact && (
+      {companionMayConfirm("contact_outcome") && pendingContact && (
         <div
           role="dialog"
           aria-modal="true"
@@ -1489,7 +1489,7 @@ export function ProductionPanel() {
         </div>
       )}
 
-      {buildListChoice && (
+      {companionMayConfirm("build_list_choice") && buildListChoice && (
         <div
           role="dialog"
           aria-modal="true"
@@ -1533,7 +1533,7 @@ export function ProductionPanel() {
           only). "Yes, List Built" completes the real build_list and creates the
           Send List step; "Not Yet" snoozes (deadline-aware — never dismisses
           forever, never past the Build List due time). */}
-      {showReadyToSend && (
+      {companionMayConfirm("list_built") && showReadyToSend && (
         <div
           role="dialog"
           aria-modal="true"
@@ -1569,7 +1569,7 @@ export function ProductionPanel() {
           other Companion confirmations. Preparing/copying never marks the list sent;
           only "Yes, List Sent" completes send_list (and stamps sent_at). "Not Yet"
           closes but leaves send_list open and the snapshot available to reopen. */}
-      {sendListShare && (
+      {companionMayConfirm("send_list") && sendListShare && (
         <div
           role="dialog"
           aria-modal="true"
@@ -1640,7 +1640,7 @@ export function ProductionPanel() {
         </div>
       )}
 
-      {followUpConfirm && (
+      {companionMayConfirm("post_list_follow_up") && followUpConfirm && (
         <div
           role="dialog"
           aria-modal="true"
@@ -1671,7 +1671,7 @@ export function ProductionPanel() {
         </div>
       )}
 
-      {scheduleTourConfirm && (
+      {companionMayConfirm("schedule_tour") && scheduleTourConfirm && (
         <div
           role="dialog"
           aria-modal="true"

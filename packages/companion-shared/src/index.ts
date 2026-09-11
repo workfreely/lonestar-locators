@@ -209,6 +209,20 @@ export {
   formatLastActionLabel,
 } from "./labels/workflowActions";
 
+// Interactive-prompt ownership (Companion ↔ CRM). One workflow event → one
+// interactive owner; the non-owning surface shows passive state only.
+export {
+  type PromptSurface,
+  type WorkflowPromptId,
+  WORKFLOW_PROMPT_OWNER,
+  workflowPromptOwner,
+  isCompanionOwned,
+  isCrmOwned,
+  CRM_INITIATED_CONFIRMATIONS,
+  crmMayConfirm,
+  companionMayConfirm,
+} from "./workflow/promptOwnership";
+
 // Current Client Context — the single resolved client-requirements projection every
 // property-intelligence evaluator consumes (resolved once per client, reused per property)
 export { resolveClientContext } from "./clientContext";

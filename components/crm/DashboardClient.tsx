@@ -37,6 +37,7 @@ import { completeSendList } from "@/lib/leads/sendListWorkflow"
 import { completeFollowUp } from "@/lib/leads/followUpWorkflow"
 import { completeContactFollowUp } from "@/lib/leads/contactFollowUpWorkflow"
 import { isContactFollowUpAction } from "@/lib/leads/workflowActionLabels"
+import { crmMayConfirm } from "@/lib/workflow/promptOwnership"
 import { completeSetupTour, rescheduleTour, cancelTour, localTourToUtc } from "@/lib/leads/setupTourWorkflow"
 import { createManualTask } from "@/lib/leads/createManualTask"
 import GuestCardModal from "./GuestCardModal"
@@ -2860,6 +2861,14 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
               // the drag originated. No Companion chooser handoff. No stage change —
               // applyFirstContact only runs on "Yes, Contacted". One pending at a
               // time: ignore a new drag while a contact modal is unresolved.
+              //
+              // OWNERSHIP: contact_outcome is a Companion-owned traveling confirmation.
+              // The CRM may only confirm it as the sanctioned CRM-INITIATED exception —
+              // this manual drag. crmMayConfirm enforces that (and would block any
+              // future attempt to open this prompt spontaneously, non-drag). See
+              // lib/workflow/promptOwnership. Companion-initiated contact never reaches
+              // here (its verbs run the appliers directly, opening no CRM prompt).
+              if (!crmMayConfirm("contact_outcome", /* initiatedInCrm */ true)) return
               if (dragContact) return
               setSelectedLeadId(lead.id)
               router.push(`/admin/leads?id=${lead.id}`)
