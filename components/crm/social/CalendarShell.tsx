@@ -81,7 +81,10 @@ export default function CalendarShell() {
   const [view, setView] = useState<View>("Month")
   const [cursor, setCursor] = useState(() => new Date())
   const [posts, setPosts] = useState<CalPost[]>([])
-  const [selected, setSelected] = useState<Date | null>(null) // one selected day at a time
+  // Default the selected day to TODAY on first open (both the white Today circle and the
+  // theme glow show on the current date without clicking Today first). Selecting another day
+  // moves the glow; the Today circle stays on the real current date.
+  const [selected, setSelected] = useState<Date | null>(() => new Date())
   const [dayDetail, setDayDetail] = useState<Date | null>(null) // open Day Detail modal
 
   const load = useCallback(async () => {
@@ -381,7 +384,7 @@ function ListView({ cursor, today, byDay, onOpenPost }: GridProps) {
   )
 }
 
-// ── Day Detail modal — medium preview list for one date ──────────────────────
+// ── Day Detail modal — two panes: post list (left) + medium/large preview (right) ──
 function DayDetail({
   date,
   posts,
@@ -395,6 +398,12 @@ function DayDetail({
   onOpenPost: (id: string) => void
   onCreate: () => void
 }) {
+  // Auto-select the first chronological post; clicking another updates the right preview
+  // (posts arrive pre-sorted by time from the parent).
+  const [activeId, setActiveId] = useState<string | null>(posts[0]?.id ?? null)
+  useEffect(() => {
+    setActiveId((cur) => (cur && posts.some((p) => p.id === cur) ? cur : posts[0]?.id ?? null))
+  }, [posts])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose()
@@ -403,10 +412,12 @@ function DayDetail({
     return () => window.removeEventListener("keydown", onKey)
   }, [onClose])
 
+  const active = posts.find((p) => p.id === activeId) ?? null
+
   return (
     <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3">
+      <div className="w-full max-w-2xl max-h-[88vh] overflow-hidden rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--crm-border)]">
           <div className="text-[15px] font-bold text-[var(--crm-text-primary)]">
             {date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
           </div>
@@ -414,38 +425,78 @@ function DayDetail({
         </div>
 
         {posts.length === 0 ? (
-          <div className="rounded-xl border border-[var(--crm-border)] px-4 py-8 text-center">
-            <div className="text-[13px] text-[var(--crm-text-secondary)]">No posts scheduled</div>
-            <button type="button" onClick={onCreate} className="mt-3 text-[12.5px] font-semibold px-3.5 py-2 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)]">+ Create Post</button>
+          // Empty: two-pane still, with an empty preview state on the right.
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_240px]">
+            <div className="p-4 flex items-center justify-center text-[13px] text-[var(--crm-text-secondary)] sm:border-r border-[var(--crm-border)] min-h-[200px]">
+              No posts scheduled
+            </div>
+            <div className="p-4 flex flex-col items-center justify-center gap-3">
+              <div className="w-full aspect-[9/16] rounded-xl border border-dashed border-[var(--crm-border)] bg-[var(--crm-card)] flex items-center justify-center text-[11.5px] text-[var(--crm-text-muted)]">No media</div>
+              <button type="button" onClick={onCreate} className="w-full text-[12.5px] font-semibold px-3.5 py-2 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)]">+ Create Post</button>
+            </div>
           </div>
         ) : (
-          <>
-            <div className="flex flex-col gap-2">
-              {posts.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => onOpenPost(p.id)}
-                  className="flex items-stretch gap-3 text-left rounded-xl border border-[var(--crm-border)] p-2 hover:bg-[var(--crm-card)] transition-colors"
-                >
-                  <Thumb p={p} className="w-10 h-[57px] flex-none rounded-md" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <InstagramIcon className="h-3 w-3 flex-none text-[var(--crm-text-muted)]" />
-                      <span className="text-[12px] font-semibold text-[var(--crm-text-primary)] tabular-nums">{timeLabel(p.scheduledAt)}</span>
-                      <span className={"ml-auto flex items-center gap-1 text-[10.5px] font-semibold text-[var(--crm-text-secondary)]"}>
-                        <span className={"h-1.5 w-1.5 rounded-full " + (STATUS_DOT[p.status] ?? "bg-[var(--crm-text-muted)]")} />
-                        {POST_STATUS_LABEL[p.status] ?? p.status}
-                      </span>
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_260px] min-h-0 flex-1">
+            {/* Left: chronological post list (selectable — updates the right preview). */}
+            <div className="overflow-y-auto p-3 sm:border-r border-[var(--crm-border)] flex flex-col gap-2">
+              {posts.map((p) => {
+                const isActive = p.id === activeId
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setActiveId(p.id)}
+                    className={
+                      "flex items-stretch gap-3 text-left rounded-xl border p-2 transition-colors " +
+                      (isActive ? "border-[var(--kb-accent,var(--crm-accent))] bg-[var(--crm-card)]" : "border-[var(--crm-border)] hover:bg-[var(--crm-card)]")
+                    }
+                  >
+                    <Thumb p={p} className="w-10 h-[57px] flex-none rounded-md" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <InstagramIcon className="h-3 w-3 flex-none text-[var(--crm-text-muted)]" />
+                        <span className="text-[12px] font-semibold text-[var(--crm-text-primary)] tabular-nums">{timeLabel(p.scheduledAt)}</span>
+                        <span className="ml-auto flex items-center gap-1 text-[10.5px] font-semibold text-[var(--crm-text-secondary)]">
+                          <span className={"h-1.5 w-1.5 rounded-full " + (STATUS_DOT[p.status] ?? "bg-[var(--crm-text-muted)]")} />
+                          {POST_STATUS_LABEL[p.status] ?? p.status}
+                        </span>
+                      </div>
+                      <div className="text-[12.5px] font-semibold text-[var(--crm-text-primary)] truncate mt-0.5">{label(p)}</div>
+                      {p.caption && <div className="text-[11.5px] text-[var(--crm-text-muted)] line-clamp-2">{p.caption}</div>}
                     </div>
-                    <div className="text-[12.5px] font-semibold text-[var(--crm-text-primary)] truncate mt-0.5">{label(p)}</div>
-                    {p.caption && <div className="text-[11.5px] text-[var(--crm-text-muted)] line-clamp-2">{p.caption}</div>}
-                  </div>
-                </button>
-              ))}
+                  </button>
+                )
+              })}
+              <button type="button" onClick={onCreate} className="mt-1 w-full text-[12.5px] font-semibold px-3 py-2 rounded-lg border border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] transition-colors">+ Create Post</button>
             </div>
-            <button type="button" onClick={onCreate} className="mt-3 w-full text-[12.5px] font-semibold px-3 py-2 rounded-lg border border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] transition-colors">+ Create Post</button>
-          </>
+
+            {/* Right: medium/large ~9:16 preview of the active post (real signed media). */}
+            <div className="p-3 flex flex-col gap-2">
+              <div className="relative w-full aspect-[9/16] rounded-xl overflow-hidden border border-[var(--crm-border)] bg-black">
+                {active?.previewUrl ? (
+                  active.source?.kind === "image" ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={active.previewUrl} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <video src={active.previewUrl} controls playsInline preload="metadata" className="w-full h-full object-cover" />
+                  )
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-[11.5px] text-[var(--crm-text-muted)]">No preview</div>
+                )}
+              </div>
+              {active && (
+                <>
+                  <div className="text-[12px] font-semibold text-[var(--crm-text-primary)] truncate">{label(active)}</div>
+                  <div className="flex items-center gap-1.5 text-[11.5px] text-[var(--crm-text-secondary)]">
+                    <InstagramIcon className="h-3 w-3 flex-none text-[var(--crm-text-muted)]" />
+                    <span className="tabular-nums">{timeLabel(active.scheduledAt)}</span>
+                    <span className="ml-1">· {POST_STATUS_LABEL[active.status] ?? active.status}</span>
+                  </div>
+                  <button type="button" onClick={() => onOpenPost(active.id)} className="mt-1 w-full text-[12.5px] font-semibold px-3.5 py-2 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)]">Edit Post</button>
+                </>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>
