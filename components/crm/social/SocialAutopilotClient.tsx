@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { supabase } from "@/lib/supabase/client"
 
-// Social Autopilot — SA1 Content Library (platform-admin only; server-enforced).
-// Upload a source video to the PRIVATE social-media bucket (direct browser→storage,
-// RLS-gated to admins in their own folder), then record it with internal property
-// metadata. Previews use short-lived signed URLs from the admin-gated API. No
-// scheduling / rendering / publishing yet — those are later checkpoints.
+// Social Autopilot → Library (platform-admin only; server-enforced). Visual card grid
+// of source videos, designed to browse many. Thumbnails are generated IN THE BROWSER
+// from the private signed video (a seeked early frame) — no backend rendering. Media
+// stays private (signed URLs only). SA1 behavior preserved: upload, edit internal
+// metadata, delete. Multi-upload + the editable naming convention arrive in SA1.1.
 
 type Item = {
   id: string
@@ -36,11 +36,65 @@ const META_FIELDS: { key: keyof Item; label: string; textarea?: boolean }[] = [
   { key: "notes", label: "Notes", textarea: true },
 ]
 
+function filenameBase(name: string | null): string {
+  if (!name) return ""
+  return name.replace(/\.[^.]+$/, "")
+}
+
+// Browser-generated poster: show a seeked early frame; click to play with controls.
+function VideoThumb({ src, title, isImage }: { src: string | null; title?: string; isImage?: boolean }) {
+  const ref = useRef<HTMLVideoElement>(null)
+  const [playing, setPlaying] = useState(false)
+
+  if (!src) {
+    return <div className="w-full h-full flex items-center justify-center text-[11px] text-[var(--crm-text-muted)]">No preview</div>
+  }
+  if (isImage) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={src} alt="" title={title} className="w-full h-full object-cover" />
+  }
+  return (
+    <div className="relative w-full h-full" title={title}>
+      <video
+        ref={ref}
+        src={src}
+        muted
+        playsInline
+        preload="metadata"
+        controls={playing}
+        onLoadedMetadata={(e) => {
+          const v = e.currentTarget
+          try {
+            // Prefer an early useful frame over a possibly-black frame 0.
+            v.currentTime = Math.min(0.6, (isFinite(v.duration) ? v.duration : 2) / 2)
+          } catch {
+            /* seeking unsupported for this source — the first frame stands */
+          }
+        }}
+        className="w-full h-full object-cover bg-black"
+      />
+      {!playing && (
+        <button
+          type="button"
+          aria-label="Play preview"
+          onClick={() => {
+            setPlaying(true)
+            ref.current?.play().catch(() => {})
+          }}
+          className="absolute inset-0 flex items-center justify-center bg-black/25 hover:bg-black/10 transition-colors"
+        >
+          <span className="h-9 w-9 rounded-full bg-white/90 text-black text-[13px] flex items-center justify-center pl-0.5">▶</span>
+        </button>
+      )}
+    </div>
+  )
+}
+
 export default function SocialAutopilotClient() {
   const [items, setItems] = useState<Item[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editing, setEditing] = useState<Item | null>(null)
   const [draft, setDraft] = useState<Partial<Item>>({})
   const [saving, setSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -78,11 +132,9 @@ export default function SocialAutopilotClient() {
           setError("Please sign in again.")
           return
         }
-        const ext = (file.name.split(".").pop() || "mp4").toLowerCase().replace(/[^a-z0-9]/g, "")
-        const uuid =
-          globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const ext = (file.name.split(".").pop() || "mp4").toLowerCase().replace(/[^a-z0-9]/g, "") || "mp4"
+        const uuid = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
         const path = `${user.id}/${uuid}.${ext}`
-        // Direct browser → private bucket; storage RLS restricts this to admins/own folder.
         const up = await supabase.storage.from("social-media").upload(path, file, {
           contentType: file.type || "video/mp4",
           upsert: false,
@@ -117,8 +169,8 @@ export default function SocialAutopilotClient() {
     [load],
   )
 
-  const startEdit = (it: Item) => {
-    setEditingId(it.id)
+  const openEdit = (it: Item) => {
+    setEditing(it)
     setDraft({
       propertyName: it.propertyName ?? "",
       market: it.market ?? "",
@@ -130,28 +182,26 @@ export default function SocialAutopilotClient() {
     })
   }
 
-  const saveEdit = useCallback(
-    async (id: string) => {
-      setSaving(true)
-      try {
-        const res = await fetch(`/api/admin/social-autopilot/content/${encodeURIComponent(id)}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(draft),
-        })
-        if (!res.ok) {
-          setError("Couldn't save metadata.")
-          return
-        }
-        setEditingId(null)
-        setDraft({})
-        await load()
-      } finally {
-        setSaving(false)
+  const saveEdit = useCallback(async () => {
+    if (!editing) return
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/admin/social-autopilot/content/${encodeURIComponent(editing.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(draft),
+      })
+      if (!res.ok) {
+        setError("Couldn't save metadata.")
+        return
       }
-    },
-    [draft, load],
-  )
+      setEditing(null)
+      setDraft({})
+      await load()
+    } finally {
+      setSaving(false)
+    }
+  }, [editing, draft, load])
 
   const remove = useCallback(
     async (id: string) => {
@@ -166,25 +216,25 @@ export default function SocialAutopilotClient() {
     [load],
   )
 
-  const card = "rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)]"
   const btn =
     "text-[12px] font-semibold px-2.5 py-1.5 rounded-lg border border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] transition-colors disabled:opacity-50"
   const input =
     "w-full text-[13px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] px-2.5 py-1.5"
-
   const fmtDate = (iso: string) => {
     const d = new Date(iso)
     return isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
   }
+  const contentName = (it: Item) => it.propertyName || filenameBase(it.originalFilename) || "Untitled"
 
   return (
-    <div className="max-w-[1100px] mx-auto">
+    <div>
+      {/* Library header + upload. Search / filters / sort will live in this row later. */}
       <div className="mb-5 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-[20px] font-bold text-[var(--crm-text-primary)]">Social Autopilot — Content Library</h1>
-          <p className="text-[13px] text-[var(--crm-text-secondary)] mt-1">
-            Private, admin-only. Upload a source property video and record its internal details. This metadata is
-            operational only — it never becomes part of a public post.
+          <h2 className="text-[16px] font-bold text-[var(--crm-text-primary)]">Library</h2>
+          <p className="text-[13px] text-[var(--crm-text-secondary)] mt-1 max-w-xl">
+            Your private source videos. Internal property details are operational only — they never become part of a
+            public post.
           </p>
         </div>
         <div>
@@ -204,7 +254,7 @@ export default function SocialAutopilotClient() {
             disabled={uploading}
             onClick={() => fileRef.current?.click()}
           >
-            {uploading ? "Uploading…" : "Upload video"}
+            {uploading ? "Uploading…" : "Upload Videos"}
           </button>
         </div>
       </div>
@@ -218,89 +268,83 @@ export default function SocialAutopilotClient() {
       {items === null ? (
         <div className="text-[13px] text-[var(--crm-text-secondary)] py-10 text-center">Loading…</div>
       ) : items.length === 0 ? (
-        <div className={`${card} px-6 py-12 text-center`}>
+        <div className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] px-6 py-12 text-center">
           <p className="text-[15px] font-semibold text-[var(--crm-text-primary)]">No source videos yet</p>
-          <p className="text-[13px] text-[var(--crm-text-secondary)] mt-1.5">Upload a property video to start your library.</p>
+          <p className="text-[13px] text-[var(--crm-text-secondary)] mt-1.5">Upload property videos to start your library.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {items.map((it) => (
-            <div key={it.id} className={`${card} p-4`}>
-              <div className="flex gap-3">
-                <div className="w-28 flex-none rounded-lg overflow-hidden bg-[var(--crm-card)] aspect-[9/16] flex items-center justify-center">
-                  {it.previewUrl && it.kind !== "image" ? (
-                    <video src={it.previewUrl} preload="metadata" muted className="w-full h-full object-cover" />
-                  ) : it.previewUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={it.previewUrl} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-[11px] text-[var(--crm-text-muted)]">No preview</span>
-                  )}
+            <div key={it.id} className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] overflow-hidden flex flex-col">
+              <div className="aspect-[9/16] bg-[var(--crm-card)]">
+                <VideoThumb src={it.previewUrl} title={it.originalFilename ?? undefined} isImage={it.kind === "image"} />
+              </div>
+              <div className="p-2.5 flex-1 flex flex-col">
+                {/* Content Name — prominent; hover shows the original filename */}
+                <div className="text-[13px] font-bold text-[var(--crm-text-primary)] leading-snug line-clamp-2" title={it.originalFilename ?? undefined}>
+                  {contentName(it)}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[14px] font-bold text-[var(--crm-text-primary)] truncate">
-                    {it.propertyName || <span className="text-[var(--crm-text-muted)] font-semibold">Unlabeled property</span>}
-                  </div>
-                  <div className="text-[12px] text-[var(--crm-text-secondary)] mt-0.5">{it.market || "—"}</div>
-                  <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-1 truncate">{it.originalFilename}</div>
-                  <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">Uploaded {fmtDate(it.createdAt)}</div>
-                  <div className="flex gap-1.5 mt-2">
-                    <button type="button" className={btn} onClick={() => (editingId === it.id ? setEditingId(null) : startEdit(it))}>
-                      {editingId === it.id ? "Close" : "Edit details"}
-                    </button>
-                    <button type="button" className={btn} onClick={() => remove(it.id)}>
-                      Delete
-                    </button>
-                  </div>
+                <div className="text-[11.5px] text-[var(--crm-text-secondary)] mt-1 truncate">
+                  {it.propertyName ? it.propertyName : <span className="text-[var(--crm-text-muted)]">No property</span>}
+                  {it.market ? ` · ${it.market}` : ""}
+                </div>
+                <div className="text-[11px] text-[var(--crm-text-muted)] mt-0.5">{fmtDate(it.createdAt)}</div>
+                <div className="flex gap-1.5 mt-2 pt-2 border-t border-[var(--crm-border)]">
+                  <button type="button" className={btn} onClick={() => openEdit(it)}>Edit</button>
+                  <button type="button" className={btn} onClick={() => remove(it.id)}>Delete</button>
                 </div>
               </div>
-
-              {editingId === it.id && (
-                <div className="mt-3 pt-3 border-t border-[var(--crm-border)] flex flex-col gap-2">
-                  {META_FIELDS.map((f) => (
-                    <label key={String(f.key)} className="block">
-                      <span className="text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]">{f.label}</span>
-                      {f.textarea ? (
-                        <textarea
-                          className={`${input} mt-1 min-h-[56px]`}
-                          value={(draft[f.key] as string) ?? ""}
-                          onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
-                        />
-                      ) : (
-                        <input
-                          className={`${input} mt-1`}
-                          value={(draft[f.key] as string) ?? ""}
-                          onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
-                        />
-                      )}
-                    </label>
-                  ))}
-                  <div className="flex gap-2 mt-1">
-                    <button
-                      type="button"
-                      className="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"
-                      disabled={saving}
-                      onClick={() => saveEdit(it.id)}
-                    >
-                      {saving ? "Saving…" : "Save"}
-                    </button>
-                    <button type="button" className={btn} onClick={() => setEditingId(null)}>
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {editingId !== it.id && (it.special || it.budgetRange || it.amenities || it.notes) && (
-                <div className="mt-3 pt-3 border-t border-[var(--crm-border)] text-[12px] text-[var(--crm-text-secondary)] space-y-0.5">
-                  {it.special && <div><span className="text-[var(--crm-text-muted)]">Special:</span> {it.special}</div>}
-                  {it.budgetRange && <div><span className="text-[var(--crm-text-muted)]">Budget:</span> {it.budgetRange}</div>}
-                  {it.amenities && <div><span className="text-[var(--crm-text-muted)]">Amenities:</span> {it.amenities}</div>}
-                  {it.notes && <div><span className="text-[var(--crm-text-muted)]">Notes:</span> {it.notes}</div>}
-                </div>
-              )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Edit metadata modal */}
+      {editing && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4"
+          onClick={() => setEditing(null)}
+        >
+          <div
+            className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-[15px] font-bold text-[var(--crm-text-primary)]">Edit details</div>
+            <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5 mb-3 truncate" title={editing.originalFilename ?? undefined}>
+              {editing.originalFilename}
+            </div>
+            <div className="flex flex-col gap-2">
+              {META_FIELDS.map((f) => (
+                <label key={String(f.key)} className="block">
+                  <span className="text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]">{f.label}</span>
+                  {f.textarea ? (
+                    <textarea
+                      className={`${input} mt-1 min-h-[56px]`}
+                      value={(draft[f.key] as string) ?? ""}
+                      onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
+                    />
+                  ) : (
+                    <input
+                      className={`${input} mt-1`}
+                      value={(draft[f.key] as string) ?? ""}
+                      onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
+                    />
+                  )}
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                type="button"
+                className="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"
+                disabled={saving}
+                onClick={() => void saveEdit()}
+              >
+                {saving ? "Saving…" : "Save"}
+              </button>
+              <button type="button" className={btn} onClick={() => setEditing(null)}>Cancel</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

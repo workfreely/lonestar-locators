@@ -48,10 +48,13 @@ function ChevronIcon({ open, light }: { open: boolean; light: boolean }) {
 // Integrations page — they are not top-level menu items.
 // Analytics is an account-level page (same /admin/analytics the top-nav
 // Analytics button opens) — this is an additional shortcut, not a replacement.
+// Order: Profile, Smart Lead Form, Analytics, [Social Autopilot — owner only],
+// Sales Goals, Beast Referral Network, License Verification, Theme, …
+// Social Autopilot + Sales Goals are rendered explicitly after this array so the
+// owner-only Social Autopilot sits between Analytics and Sales Goals.
 const LINKS_BEFORE_NETWORK: { label: string; href: string }[] = [
   { label: "Smart Lead Form", href: "/smart-lead-form" },
   { label: "Analytics", href: "/admin/analytics" },
-  { label: "Sales Goals", href: "/admin/settings" },
 ]
 
 const LINKS_AFTER_THEME: { label: string; href: string }[] = [
@@ -210,6 +213,21 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
             </Link>
           ))}
 
+          {/* Social Autopilot — platform-admin-only internal beta, positioned as an
+              active tool between Analytics and Sales Goals. This menu row is UX
+              convenience; the /admin/social-autopilot layout, pages, APIs, RLS, and the
+              social-media bucket all enforce is_platform_admin() server-side. */}
+          {isOwner && (
+            <Link href="/admin/social-autopilot" onClick={() => setOpen(false)} className={linkCls}>
+              Social Autopilot
+            </Link>
+          )}
+
+          {/* Sales Goals */}
+          <Link href="/admin/settings" onClick={() => setOpen(false)} className={linkCls}>
+            Sales Goals
+          </Link>
+
           {/* Beast Network — members + owner only */}
           {showNetwork && (
             <Link href="/admin/network" onClick={() => setOpen(false)} className={linkCls}>
@@ -222,15 +240,6 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
           {isOwner && (
             <Link href="/admin/license-verification" onClick={() => setOpen(false)} className={linkCls}>
               License Verification
-            </Link>
-          )}
-
-          {/* Social Autopilot — platform-admin-only internal beta. This menu row is
-              UX convenience; the /admin/social-autopilot page, its APIs, RLS, and the
-              social-media bucket all enforce is_platform_admin() server-side. */}
-          {isOwner && (
-            <Link href="/admin/social-autopilot" onClick={() => setOpen(false)} className={linkCls}>
-              Social Autopilot
             </Link>
           )}
 
