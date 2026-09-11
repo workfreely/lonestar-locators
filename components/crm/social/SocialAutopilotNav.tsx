@@ -21,11 +21,15 @@ export default function SocialAutopilotNav() {
 
   return (
     <div>
-      {/* Title + badge on ONE vertically-centered row (flex items-center). The
-          leading-none tightens the h1 line-box so the pill centers exactly against
-          the title — no manual offsets/margins/transforms. */}
+      {/* Title + badge on ONE vertically-centered row. `m-0` NEUTRALIZES the global
+          `h1 { margin-bottom: 1rem; line-height: 1.15; text-align: center }` in
+          globals.css (a marketing rule that leaks onto admin surfaces) — that inherited
+          bottom margin was enlarging the title's flex box and dropping the badge below
+          the baseline. Left-aligned to match the other native pages (License
+          Verification / Network), which also override the global h1. No manual
+          translate/margin hacks — just resetting the inherited margin + line-height. */}
       <div className="flex items-center gap-2.5">
-        <h1 className="text-[20px] font-bold leading-none text-[var(--crm-text-primary)]">Social Autopilot</h1>
+        <h1 className="m-0 text-left text-[20px] font-bold leading-none text-[var(--crm-text-primary)]">Social Autopilot</h1>
         <span className="inline-flex items-center leading-none text-[10.5px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full border border-[var(--crm-border)] text-[var(--crm-text-muted)] bg-[var(--crm-panel)]">
           Admin Beta
         </span>
