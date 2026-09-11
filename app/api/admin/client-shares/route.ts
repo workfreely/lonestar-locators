@@ -15,7 +15,12 @@ import { generateShareToken } from "@/lib/clientShare/token"
 // So a cross-workspace lead can neither be minted for nor listed. Service role is
 // deliberately NOT used — nothing here needs to bypass the caller's own identity.
 
-// POST /api/admin/client-shares  { leadId }  → mint a NEW immutable snapshot + link.
+// POST /api/admin/client-shares  { leadId }  → prepare the share for this Send List
+// cycle: reuse the current UNSENT snapshot if the working Recommendations are
+// unchanged, otherwise mint a NEW immutable snapshot. Returns the stable client URL.
+//
+// Preparing (or copying) does NOT mark the list sent — sent_at is stamped only on the
+// explicit "Yes, List Sent" confirmation (PATCH :id { sent: true }).
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const {
@@ -35,13 +40,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "valid leadId required" }, { status: 400 })
   }
 
-  // The raw token is generated HERE. Its sha256 hash powers public resolution; the
-  // raw itself is passed (as an RPC bind parameter, not inlined SQL) so the function
-  // can stash it ENCRYPTED in Supabase Vault — enabling Copy Link to return the
-  // exact same URL later without ever storing the raw in plaintext.
+  // A fresh raw token is generated HERE; it is used ONLY if prepare decides to mint a
+  // new snapshot (reuse discards it — no orphan Vault secret). When minted, its sha256
+  // hash powers public resolution and the raw is stashed ENCRYPTED in Supabase Vault.
   const { raw, hash, prefix } = generateShareToken()
 
-  const { data, error } = await supabase.rpc("lb_create_client_share", {
+  const { data, error } = await supabase.rpc("lb_prepare_client_share", {
     p_lead_id: leadId,
     p_token_hash: hash,
     p_token_prefix: prefix,
@@ -56,16 +60,27 @@ export async function POST(req: NextRequest) {
     )
   }
   const row = (Array.isArray(data) ? data[0] : data) as
-    | { share_id?: string; list_number?: number; item_count?: number }
+    | { share_id?: string; list_number?: number; item_count?: number; reused?: boolean }
     | undefined
+  const shareId = row?.share_id ?? null
+  if (!shareId) return NextResponse.json({ error: "create_failed" }, { status: 500 })
 
-  // Client-facing URL on the current origin (production: https://locatorbeast.com/r/<raw>).
-  const url = new URL(`/r/${raw}`, req.nextUrl.origin).toString()
+  // Always resolve the URL through the SAME encrypted-token retrieval path Copy Link
+  // uses (Vault decrypt, workspace-gated) — so a reused snapshot returns its exact
+  // original URL and a freshly minted one returns the identical value, one code path.
+  const { data: urlRaw, error: urlErr } = await supabase.rpc("lb_get_client_share_url", {
+    p_share_id: shareId,
+  })
+  if (urlErr) return NextResponse.json({ error: "link_failed" }, { status: 500 })
+  const token = typeof urlRaw === "string" ? urlRaw : null
+  if (!token) return NextResponse.json({ error: "link_failed" }, { status: 500 })
+  const url = new URL(`/r/${token}`, req.nextUrl.origin).toString()
 
   return NextResponse.json({
-    shareId: row?.share_id ?? null,
+    shareId,
     listNumber: row?.list_number ?? null,
     itemCount: row?.item_count ?? 0,
+    reused: row?.reused ?? false,
     prefix,
     url,
   })

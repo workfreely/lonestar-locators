@@ -20,7 +20,7 @@
 export const MSG_SOURCE = "lb-companion";
 
 /** Every message type the content scripts will accept. Anything else is dropped. */
-export const INBOUND_TYPES = ["active-client", "current-property", "changed", "signed-out", "enrich-property-result"] as const;
+export const INBOUND_TYPES = ["active-client", "current-property", "changed", "signed-out", "enrich-property-result", "share-link-result"] as const;
 export type InboundType = (typeof INBOUND_TYPES)[number];
 
 /**
@@ -194,6 +194,42 @@ export function isValidEnrichResultPayload(
       p.googleRating > 5)
   )
     return false;
+  return isWithinSizeLimit(payload);
+}
+
+/**
+ * Share-link-result payload — the CRM's answer to a Send List share request. Carries
+ * NO client PII: a request nonce, the resolved lead id, and the snapshot's stable
+ * client URL (or an error string). `shareId`/`url` are present-and-bounded or null;
+ * `reused` is a boolean; `error` is null on success or a short bounded string. The
+ * URL must be an https/http locatorbeast /r/<token> link — never a data:/javascript:
+ * scheme — so a forged result can't turn Preview/Copy into an arbitrary-URL launcher.
+ */
+export function isValidShareLinkResultPayload(
+  payload: unknown,
+): payload is {
+  nonce: string
+  leadId: string | number
+  shareId: string | null
+  url: string | null
+  listNumber: number | null
+  reused: boolean
+  error: string | null
+} {
+  if (!payload || typeof payload !== "object") return false;
+  const p = payload as Record<string, unknown>;
+  if (!idOk(p.nonce, 128)) return false;
+  if (p.leadId === undefined || p.leadId === null) return false;
+  if (typeof p.leadId !== "string" && typeof p.leadId !== "number") return false;
+  if (p.shareId !== null && !idOk(p.shareId)) return false;
+  if (p.url !== null) {
+    if (!idOk(p.url, MAX_TEXT)) return false;
+    // Only http(s) URLs are acceptable targets for window.open / clipboard.
+    if (!/^https?:\/\//i.test(p.url)) return false;
+  }
+  if (p.listNumber !== null && typeof p.listNumber !== "number") return false;
+  if (typeof p.reused !== "boolean") return false;
+  if (p.error !== null && !idOk(p.error, 512)) return false;
   return isWithinSizeLimit(payload);
 }
 

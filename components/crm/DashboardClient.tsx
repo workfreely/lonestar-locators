@@ -560,6 +560,65 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     return () => window.removeEventListener("message", onEnrichRequest)
   }, [])
 
+  // ── Send List share link (Companion → CRM → Companion) ───────────────────────
+  // The Companion side panel cannot call the authenticated /api/admin/client-shares
+  // (it has no locatorbeast.com session), so it relays {nonce, leadId} here; this
+  // page — which DOES carry the agent's session cookie — reuse-or-mints the immutable
+  // snapshot for this Send List cycle and resolves its stable /r/<token> URL through
+  // the encrypted-token retrieval path, then posts the answer back. This performs
+  // ONLY what the authenticated agent can already do; it never marks the list sent
+  // (that is the explicit "Yes, List Sent" step, which stamps sent_at separately).
+  useEffect(() => {
+    async function onShareRequest(e: MessageEvent) {
+      if (e.source !== window || e.origin !== window.location.origin) return
+      const d: any = e.data
+      if (!d || d.source !== COMPANION_MSG_SOURCE || d.type !== "share-link-request") return
+      const payload = d.payload || {}
+      const nonce = typeof payload.nonce === "string" ? payload.nonce : ""
+      const leadId = payload.leadId
+      if (!nonce || (typeof leadId !== "string" && typeof leadId !== "number")) return
+
+      let result: {
+        nonce: string
+        leadId: string | number
+        shareId: string | null
+        url: string | null
+        listNumber: number | null
+        reused: boolean
+        error: string | null
+      } = { nonce, leadId, shareId: null, url: null, listNumber: null, reused: false, error: "share_failed" }
+      try {
+        const res = await fetch("/api/admin/client-shares", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ leadId: Number(leadId) }),
+        })
+        const json: any = await res.json().catch(() => ({}))
+        if (res.ok && typeof json?.url === "string") {
+          result = {
+            nonce,
+            leadId,
+            shareId: typeof json.shareId === "string" ? json.shareId : null,
+            url: json.url,
+            listNumber: typeof json.listNumber === "number" ? json.listNumber : null,
+            reused: json.reused === true,
+            error: null,
+          }
+        } else {
+          result.error = typeof json?.error === "string" ? json.error : `http_${res.status}`
+        }
+      } catch (err) {
+        if (process.env.NODE_ENV !== "production") console.error("[share-link] request failed:", err)
+      }
+      window.postMessage(
+        { source: COMPANION_MSG_SOURCE, type: "share-link-result", payload: result },
+        window.location.origin,
+      )
+    }
+    window.addEventListener("message", onShareRequest)
+    return () => window.removeEventListener("message", onShareRequest)
+  }, [])
+
   // ── Canonical tour edit/cancel (Workspace Favorite → Edit / Cancel Tour) ────
   // Both route through the SAME rescheduleTour / cancelTour helpers as any future
   // Companion edit would, and reconcile the SAME optimistic state (localTours +
@@ -1650,6 +1709,22 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       // the Mark List Built path; re-posts so Companion updates without a re-click.
       if (payload.verb === "complete-send-list") {
         const now = new Date().toISOString()
+
+        // Stamp the snapshot's sent_at for THIS send cycle, tying the immutable share
+        // to the moment the agent confirmed the list was actually sent. Idempotent
+        // server-side (only stamps while sent_at is null) and never alters a
+        // previously sent snapshot. Fire-and-forget: the workflow completion below is
+        // authoritative for the stage/Next Action and must not block on this.
+        if (typeof payload.shareId === "string" && payload.shareId) {
+          void fetch(`/api/admin/client-shares/${encodeURIComponent(payload.shareId)}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sent: true }),
+          }).catch((err) => {
+            if (process.env.NODE_ENV !== "production") console.error("[share-link] mark-sent failed:", err)
+          })
+        }
+
         const sendRow = localNextActionsRef.current.find(
           (a: any) =>
             String(a.lead_id) === String(lead.id) &&

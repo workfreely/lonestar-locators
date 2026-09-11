@@ -149,12 +149,22 @@ export function ProductionPanel() {
     introBody?: string | undefined;
   }>(null);
 
-  // Send List confirmation ("Did you send the client's list?"). Null = hidden.
-  // Captures the lead identity at click time so confirming resolves against THIS
-  // lead, never a later active client (same immutability rule as pendingContact).
-  const [sendListConfirm, setSendListConfirm] = useState<null | {
+  // Send List share sheet. Null = hidden. Clicking the real Send List action opens
+  // this (it never bypasses the milestone — Send List only appears once build_list
+  // was completed via "Yes, List Built" and a real send_list action exists). The
+  // sheet reuse-or-mints the immutable snapshot for this send cycle and shows Preview
+  // List + Copy Link, then the "Did you send…?" confirmation. Preparing or copying
+  // NEVER marks the list sent — only "Yes, List Sent" does. Captures the lead identity
+  // + request nonce at click time so a later active-client switch cannot mis-resolve.
+  const [sendListShare, setSendListShare] = useState<null | {
     leadId: string | number;
     name: string;
+    nonce: string;
+    phase: "loading" | "ready" | "error";
+    shareId: string | null;
+    url: string | null;
+    reused: boolean;
+    copied: boolean;
   }>(null);
 
   // Build List tool chooser ("How do you want to build {name}'s list?"). Null =
@@ -320,6 +330,34 @@ export function ProductionPanel() {
         websiteUrl: typeof res.websiteUrl === "string" ? res.websiteUrl : null,
       });
       setEnrichTick((t) => t + 1);
+    };
+    store.onChanged.addListener(onLocal);
+    return () => store.onChanged.removeListener(onLocal);
+  }, []);
+
+  // Receive Send List share-link results (the share-link bridge writes them to LOCAL
+  // storage). Match the nonce we sent so a stale/other result can't fill this sheet;
+  // move the sheet to "ready" with the stable URL, or "error" on failure.
+  useEffect(() => {
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage;
+    if (!store?.onChanged) return;
+    const onLocal = (changes: Record<string, { newValue?: unknown }>, area: string) => {
+      if (area !== "local" || !changes["lb-share-result"]) return;
+      const res = changes["lb-share-result"].newValue as any;
+      if (!res || typeof res !== "object" || typeof res.nonce !== "string") return;
+      setSendListShare((prev) => {
+        if (!prev || prev.nonce !== res.nonce) return prev; // stale or not ours
+        if (res.error || typeof res.url !== "string") {
+          return { ...prev, phase: "error" };
+        }
+        return {
+          ...prev,
+          phase: "ready",
+          shareId: typeof res.shareId === "string" ? res.shareId : null,
+          url: res.url,
+          reused: res.reused === true,
+        };
+      });
     };
     store.onChanged.addListener(onLocal);
     return () => store.onChanged.removeListener(onLocal);
@@ -774,21 +812,73 @@ export function ProductionPanel() {
     persistListBuiltSnooze();
   };
 
-  // Send List → open the confirmation sheet. Opens NO SMS/site and changes
-  // nothing until the locator confirms "Yes, Sent" (captures the lead identity now
-  // so the confirm resolves against THIS lead, not a later active client).
+  // Send List → open the share sheet and request the snapshot's stable link. This
+  // ONLY proceeds when a real open send_list action exists (build_list already
+  // completed through "Yes, List Built"): the milestone is never bypassed here. It
+  // opens NO SMS/site and does NOT mark the list sent — it asks the CRM to reuse-or-
+  // mint the immutable snapshot and return the /r/<token> URL for Preview / Copy Link.
   const onSendList = () => {
     const lead = active?.lead;
     if (!lead || lead.id === undefined || lead.id === null) return;
-    setSendListConfirm({ leadId: lead.id, name: formatPersonName(lead.firstName) || "this client" });
+    const openSend = (active?.nextActions ?? []).find(
+      (a) =>
+        !a.completed &&
+        ((a as { action_key?: string }).action_key === "send_list" ||
+          (a.title ?? "").trim().toLowerCase() === "send list"),
+    );
+    if (!openSend) return; // no real Send List milestone → do nothing
+    const nonce = `${Date.now()}-${Math.random()}`;
+    setSendListShare({
+      leadId: lead.id,
+      name: formatPersonName(lead.firstName) || "this client",
+      nonce,
+      phase: "loading",
+      shareId: null,
+      url: null,
+      reused: false,
+      copied: false,
+    });
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+    store?.set?.({ "lb-share-request": { nonce, leadId: lead.id } });
   };
 
-  // "Yes, Sent" → the canonical Searching → List Sent transition runs on the
+  // Retry a failed prepare with a FRESH nonce (same captured lead).
+  const retrySendListShare = () => {
+    setSendListShare((prev) => {
+      if (!prev) return prev;
+      const nonce = `${Date.now()}-${Math.random()}`;
+      const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+      store?.set?.({ "lb-share-request": { nonce, leadId: prev.leadId } });
+      return { ...prev, nonce, phase: "loading" };
+    });
+  };
+
+  // Preview List → open the REAL public client page for this snapshot in a new tab.
+  const previewSendListShare = () => {
+    const url = sendListShare?.url;
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  // Copy Link → copy the EXACT stable URL (from the encrypted-token retrieval path).
+  const copySendListShare = () => {
+    const url = sendListShare?.url;
+    if (!url) return;
+    const done = () => setSendListShare((prev) => (prev ? { ...prev, copied: true } : prev));
+    try {
+      navigator.clipboard?.writeText(url).then(done).catch(done);
+    } catch {
+      done();
+    }
+  };
+
+  // "Yes, List Sent" → the canonical Searching → List Sent transition runs on the
   // authenticated CRM (completes send_list, resets follow-ups, creates the single
-  // FU1). Cancel just closes the sheet (handled inline). Uses the captured id.
+  // FU1) AND stamps the snapshot's sent_at (via the shareId passed here). "Not Yet"
+  // just closes the sheet — the send_list stays open and the snapshot stays available
+  // for another Preview / Copy Link (handled inline). Uses the captured identity.
   const confirmSendList = () => {
-    const c = sendListConfirm;
-    setSendListConfirm(null);
+    const c = sendListShare;
+    setSendListShare(null);
     if (!c) return;
     const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
     if (store) {
@@ -797,6 +887,7 @@ export function ProductionPanel() {
           nonce: `${Date.now()}-${Math.random()}`,
           leadId: c.leadId,
           verb: "complete-send-list",
+          shareId: c.shareId,
         },
       });
     }
@@ -1466,12 +1557,17 @@ export function ProductionPanel() {
         </div>
       )}
 
-      {sendListConfirm && (
+      {/* Send List share sheet — Preview List + Copy Link for the immutable snapshot,
+          then the "Did you send…?" confirmation. Same bottom-sheet pattern as the
+          other Companion confirmations. Preparing/copying never marks the list sent;
+          only "Yes, List Sent" completes send_list (and stamps sent_at). "Not Yet"
+          closes but leaves send_list open and the snapshot available to reopen. */}
+      {sendListShare && (
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Confirm list sent"
-          onClick={() => setSendListConfirm(null)}
+          aria-label="Send list"
+          onClick={() => setSendListShare(null)}
           style={{
             position: "absolute",
             inset: 0,
@@ -1482,17 +1578,57 @@ export function ProductionPanel() {
           }}
         >
           <div onClick={(e) => e.stopPropagation()} style={SHEET_STYLE}>
-            <p style={SHEET_QUESTION_STYLE}>
-              Did you send {sendListConfirm.name}'s list?
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <button type="button" onClick={confirmSendList} style={SHEET_PRIMARY_BTN}>
-                Yes, Sent
-              </button>
-              <button type="button" onClick={() => setSendListConfirm(null)} style={SHEET_CANCEL_BTN}>
-                Cancel
-              </button>
-            </div>
+            {sendListShare.phase === "loading" ? (
+              <p style={{ ...SHEET_QUESTION_STYLE, marginBottom: 0 }}>
+                Preparing {sendListShare.name}'s list link…
+              </p>
+            ) : sendListShare.phase === "error" ? (
+              <>
+                <p style={SHEET_QUESTION_STYLE}>
+                  Couldn't prepare {sendListShare.name}'s list link.
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <button type="button" onClick={retrySendListShare} style={SHEET_PRIMARY_BTN}>
+                    Try Again
+                  </button>
+                  <button type="button" onClick={() => setSendListShare(null)} style={SHEET_CANCEL_BTN}>
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p style={SHEET_QUESTION_STYLE}>
+                  Send {sendListShare.name}'s list
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <button type="button" onClick={previewSendListShare} style={SHEET_SECONDARY_BTN}>
+                    Preview List
+                  </button>
+                  <button type="button" onClick={copySendListShare} style={SHEET_SECONDARY_BTN}>
+                    {sendListShare.copied ? "Link Copied ✓" : "Copy Link"}
+                  </button>
+                </div>
+                <p
+                  style={{
+                    ...SHEET_QUESTION_STYLE,
+                    margin: "14px 0 12px",
+                    paddingTop: 14,
+                    borderTop: "1px solid var(--lb-border, rgba(255,255,255,0.10))",
+                  }}
+                >
+                  Did you send {sendListShare.name}'s list?
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <button type="button" onClick={confirmSendList} style={SHEET_PRIMARY_BTN}>
+                    Yes, List Sent
+                  </button>
+                  <button type="button" onClick={() => setSendListShare(null)} style={SHEET_CANCEL_BTN}>
+                    Not Yet
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
