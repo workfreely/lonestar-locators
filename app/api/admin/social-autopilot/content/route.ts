@@ -1,13 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin"
+import { buildSocialDisplayName } from "@/lib/social/displayName"
 
-// Social Autopilot Content Library — platform-admin ONLY (requirePlatformAdmin gates
-// every method). RLS on social_content + the social-media bucket is the second layer.
-// Internal property metadata lives here and is NEVER auto-exposed publicly.
+// Social Autopilot Content Library API — platform-admin ONLY (requirePlatformAdmin
+// gates every method). RLS on social_content + the social-media bucket is the second
+// layer. Internal property metadata lives here and is NEVER auto-exposed publicly.
+const SIGNED_URL_TTL = 60 * 30 // 30-min preview links
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-const SIGNED_URL_TTL = 60 * 30 // 30 min preview links
-
-// GET /api/admin/social-autopilot/content → this admin's source videos + signed previews.
+// GET → this admin's source videos + short-lived signed previews (newest first).
 export async function GET() {
   const guard = await requirePlatformAdmin()
   if (!guard.ok) return guard.response
@@ -16,13 +17,11 @@ export async function GET() {
   const { data, error } = await supabase
     .from("social_content")
     .select(
-      "id, storage_path, kind, original_filename, content_type, size_bytes, duration_s, property_name, market, special, budget_range, amenities, notes, place_id, details, created_at, updated_at",
+      "id, storage_path, kind, original_filename, content_type, size_bytes, duration_s, display_name, name_customized, upload_batch_id, batch_seq, property_name, market, special, budget_range, amenities, notes, place_id, details, created_at, updated_at",
     )
     .order("created_at", { ascending: false })
   if (error) return NextResponse.json({ error: "list_failed" }, { status: 500 })
 
-  // Short-lived signed preview URL per item (private bucket — never a public URL).
-  // Generated with the RLS-scoped admin client, so a non-admin session can't mint them.
   const items = await Promise.all(
     (data ?? []).map(async (r: Record<string, unknown>) => {
       let previewUrl: string | null = null
@@ -34,10 +33,13 @@ export async function GET() {
       return {
         id: r.id,
         kind: r.kind,
+        displayName: r.display_name,
+        nameCustomized: r.name_customized === true,
+        uploadBatchId: r.upload_batch_id,
+        batchSeq: r.batch_seq,
         originalFilename: r.original_filename,
         contentType: r.content_type,
         sizeBytes: r.size_bytes,
-        durationS: r.duration_s,
         propertyName: r.property_name,
         market: r.market,
         special: r.special,
@@ -45,9 +47,7 @@ export async function GET() {
         amenities: r.amenities,
         notes: r.notes,
         placeId: r.place_id,
-        details: r.details ?? {},
         createdAt: r.created_at,
-        updatedAt: r.updated_at,
         previewUrl,
       }
     }),
@@ -55,8 +55,12 @@ export async function GET() {
   return NextResponse.json({ items })
 }
 
-// POST /api/admin/social-autopilot/content → record a source video AFTER a direct
-// browser→storage upload. owner_user_id comes from the SESSION, never the body.
+// POST → record ONE source video AFTER a direct browser→storage upload. The row id is
+// the client-supplied contentId, so the IMMUTABLE storage path {owner}/{contentId}/
+// source.<ext> is stable — renaming/metadata never moves the object, and identical
+// original filenames never collide (path keys on the id, not the name). owner_user_id
+// comes from the SESSION, never the body. Batch metadata (market/property/…) is applied
+// per-file by the caller so every file in a batch inherits it while staying its own row.
 export async function POST(req: NextRequest) {
   const guard = await requirePlatformAdmin()
   if (!guard.ok) return guard.response
@@ -69,28 +73,48 @@ export async function POST(req: NextRequest) {
     body = {}
   }
 
+  const contentId = typeof body.contentId === "string" ? body.contentId.trim() : ""
+  if (!UUID_RE.test(contentId)) return NextResponse.json({ error: "valid contentId required" }, { status: 400 })
+
   const storagePath = typeof body.storagePath === "string" ? body.storagePath.trim() : ""
-  if (!storagePath) return NextResponse.json({ error: "storagePath required" }, { status: 400 })
-  // The uploaded object must live under the caller's own folder (defense in depth;
-  // the storage RLS policy already enforces this, but reject early + clearly).
-  if (!storagePath.startsWith(`${userId}/`)) {
+  if (!storagePath || !storagePath.startsWith(`${userId}/${contentId}/`)) {
     return NextResponse.json({ error: "invalid storage path" }, { status: 400 })
   }
 
-  const str = (v: unknown, max = 2000) =>
-    typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null
+  const str = (v: unknown, max = 2000) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null)
+
+  const propertyName = str(body.propertyName)
+  const market = str(body.market)
+  const originalFilename = str(body.originalFilename, 500)
+  const uploadBatchId = typeof body.uploadBatchId === "string" && UUID_RE.test(body.uploadBatchId) ? body.uploadBatchId : null
+  const batchSeq = Number.isInteger(body.batchSeq) && (body.batchSeq as number) > 0 ? (body.batchSeq as number) : 1
+
+  // Initial display name (system-generated; name_customized=false so later Market/
+  // Property edits can refine it until the user renames manually).
+  const displayName = buildSocialDisplayName({
+    propertyName,
+    market,
+    dateISO: new Date().toISOString(),
+    seq: batchSeq,
+    fallbackFilename: originalFilename,
+  })
 
   const { data, error } = await supabase
     .from("social_content")
     .insert({
+      id: contentId,
       owner_user_id: userId,
       storage_path: storagePath,
       kind: body.kind === "image" ? "image" : "clip",
-      original_filename: str(body.originalFilename, 500),
+      original_filename: originalFilename,
       content_type: str(body.contentType, 200),
       size_bytes: typeof body.sizeBytes === "number" ? body.sizeBytes : null,
-      property_name: str(body.propertyName),
-      market: str(body.market),
+      upload_batch_id: uploadBatchId,
+      batch_seq: batchSeq,
+      display_name: displayName,
+      name_customized: false,
+      property_name: propertyName,
+      market: market,
       special: str(body.special),
       budget_range: str(body.budgetRange),
       amenities: str(body.amenities),
