@@ -1,36 +1,61 @@
 export const dynamic = "force-dynamic"
 
 import { ensurePlatformAdminPage } from "@/lib/auth/ensurePlatformAdminPage"
+import { DEMO_HISTORY } from "@/components/crm/social/demoFixtures"
 
-// Social Autopilot → History (visual shell only — no history engine yet).
+// Social Autopilot → History (visual shell). A published-post history table via
+// isolated UI-only demo rows (never DB). Shows the reuse model: one source video →
+// many published variations. No history persistence yet.
 export default async function SocialAutopilotHistoryPage() {
   await ensurePlatformAdminPage()
-
-  const COLUMNS = ["Platform", "Source video", "Property", "Published", "Caption variation", "On-video text", "Status", "Post link", "Reuse"]
 
   return (
     <div>
       <div className="mb-4">
         <h2 className="text-[16px] font-bold text-[var(--crm-text-primary)]">History</h2>
-        <p className="text-[13px] text-[var(--crm-text-secondary)] mt-1">
-          Everything you&apos;ve published, and how each source video has been reused. Populates once publishing is live.
-        </p>
+        <p className="text-[13px] text-[var(--crm-text-secondary)] mt-0.5">Published posts and content history.</p>
       </div>
 
-      <div className="flex flex-wrap gap-1.5 mb-5">
-        {COLUMNS.map((c) => (
-          <span key={c} className="text-[11.5px] font-semibold px-2.5 py-1 rounded-full border border-[var(--crm-border)] text-[var(--crm-text-muted)] bg-[var(--crm-panel)]">
-            {c}
-          </span>
-        ))}
+      <div className="mb-4 rounded-lg border border-dashed border-[var(--crm-border)] bg-[var(--crm-panel)] px-4 py-2.5 text-[12.5px] text-[var(--crm-text-secondary)]">
+        <span className="font-semibold text-[var(--crm-text-primary)]">Sample content</span> — layout preview only. Your published posts will be logged here.
       </div>
 
-      <div className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] px-6 py-12 text-center">
-        <p className="text-[15px] font-semibold text-[var(--crm-text-primary)]">No published posts yet</p>
-        <p className="text-[13px] text-[var(--crm-text-secondary)] mt-1.5 max-w-md mx-auto">
-          Published content will be logged here with its platform, source video, property, caption/on-video-text variation,
-          and a link to the live post — so you can see what&apos;s been used and what to rotate next.
-        </p>
+      <div className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] overflow-x-auto">
+        <table className="w-full border-collapse text-[13px]">
+          <thead>
+            <tr className="text-left text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]">
+              <th className="px-3 py-3 font-semibold">Source</th>
+              <th className="px-3 py-3 font-semibold">Platform</th>
+              <th className="px-3 py-3 font-semibold">Property</th>
+              <th className="px-3 py-3 font-semibold">Published</th>
+              <th className="px-3 py-3 font-semibold">Caption</th>
+              <th className="px-3 py-3 font-semibold">On-video text</th>
+              <th className="px-3 py-3 font-semibold text-right">Reuse</th>
+              <th className="px-3 py-3 font-semibold">Post</th>
+            </tr>
+          </thead>
+          <tbody>
+            {DEMO_HISTORY.map((h) => (
+              <tr key={h.id} className="border-t border-[var(--crm-border)]">
+                <td className="px-3 py-2.5">
+                  <div className="w-8 h-[57px] rounded" style={{ background: `linear-gradient(160deg, hsl(${h.hue} 55% 42%), hsl(${h.hue + 30} 55% 28%))` }} aria-hidden />
+                </td>
+                <td className="px-3 py-2.5 text-[var(--crm-text-secondary)] whitespace-nowrap">{h.platform}</td>
+                <td className="px-3 py-2.5 font-semibold text-[var(--crm-text-primary)] whitespace-nowrap">
+                  {h.propertyName}
+                  <div className="text-[11px] font-normal text-[var(--crm-text-muted)]">{h.market}</div>
+                </td>
+                <td className="px-3 py-2.5 text-[var(--crm-text-secondary)] whitespace-nowrap">{h.publishedLabel}</td>
+                <td className="px-3 py-2.5 text-[var(--crm-text-secondary)] whitespace-nowrap">{h.captionVariation}</td>
+                <td className="px-3 py-2.5 text-[var(--crm-text-secondary)] whitespace-nowrap">{h.onVideoText}</td>
+                <td className="px-3 py-2.5 text-[var(--crm-text-secondary)] text-right tabular-nums">×{h.reuseCount}</td>
+                <td className="px-3 py-2.5 whitespace-nowrap">
+                  <span className="text-[12px] font-semibold text-[var(--crm-text-muted)]">View post ↗</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   )

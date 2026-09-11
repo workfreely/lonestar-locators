@@ -1,20 +1,19 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { supabase } from "@/lib/supabase/client"
+import { DEMO_LIBRARY } from "./demoFixtures"
 
 // Social Autopilot → Library (platform-admin only; server-enforced). Visual card grid
-// of source videos, designed to browse many. Thumbnails are generated IN THE BROWSER
-// from the private signed video (a seeked early frame) — no backend rendering. Media
-// stays private (signed URLs only). SA1 behavior preserved: upload, edit internal
-// metadata, delete. Multi-upload + the editable naming convention arrive in SA1.1.
+// of source videos with market filtering, search + sort homes, and browser-generated
+// 9:16 thumbnails from the private signed video (no backend rendering). When empty it
+// shows isolated UI-only SAMPLE cards (never DB rows) so the design is reviewable.
+// One social_content row = one source video (later: many social_posts variations).
 
 type Item = {
   id: string
   kind: string
   originalFilename: string | null
-  contentType: string | null
-  sizeBytes: number | null
   propertyName: string | null
   market: string | null
   special: string | null
@@ -26,6 +25,20 @@ type Item = {
   previewUrl: string | null
 }
 
+type Card = {
+  key: string
+  displayName: string
+  propertyName: string | null
+  market: string | null
+  dateLabel: string
+  sortDate: number
+  originalFilename: string | null
+  previewUrl: string | null
+  hue: number | null
+  demo: boolean
+  raw?: Item
+}
+
 const META_FIELDS: { key: keyof Item; label: string; textarea?: boolean }[] = [
   { key: "propertyName", label: "Property / building name" },
   { key: "market", label: "City / market" },
@@ -35,44 +48,54 @@ const META_FIELDS: { key: keyof Item; label: string; textarea?: boolean }[] = [
   { key: "placeId", label: "Google Place ID (optional)" },
   { key: "notes", label: "Notes", textarea: true },
 ]
+const SORTS = ["Newest", "Oldest", "Property", "Market"] as const
+type Sort = (typeof SORTS)[number]
 
-function filenameBase(name: string | null): string {
-  if (!name) return ""
-  return name.replace(/\.[^.]+$/, "")
+const base = (name: string | null) => (name ? name.replace(/\.[^.]+$/, "") : "")
+const fmt = (iso: string) => {
+  const d = new Date(iso)
+  return isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
 }
 
-// Browser-generated poster: show a seeked early frame; click to play with controls.
-function VideoThumb({ src, title, isImage }: { src: string | null; title?: string; isImage?: boolean }) {
+// 9:16 thumbnail. Real item → seeked poster frame (click to play). Demo → color block.
+function Thumb({ card, onOpen }: { card: Card; onOpen?: () => void }) {
   const ref = useRef<HTMLVideoElement>(null)
   const [playing, setPlaying] = useState(false)
 
-  if (!src) {
-    return <div className="w-full h-full flex items-center justify-center text-[11px] text-[var(--crm-text-muted)]">No preview</div>
-  }
-  if (isImage) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={src} alt="" title={title} className="w-full h-full object-cover" />
+  if (card.demo || !card.previewUrl) {
+    return (
+      <div
+        className="w-full h-full flex items-center justify-center"
+        style={{ background: `linear-gradient(160deg, hsl(${card.hue ?? 220} 55% 42%), hsl(${(card.hue ?? 220) + 30} 55% 28%))` }}
+      >
+        <span className="h-8 w-8 rounded-full bg-white/85 text-black text-[12px] flex items-center justify-center pl-0.5">▶</span>
+      </div>
+    )
   }
   return (
-    <div className="relative w-full h-full" title={title}>
-      <video
-        ref={ref}
-        src={src}
-        muted
-        playsInline
-        preload="metadata"
-        controls={playing}
-        onLoadedMetadata={(e) => {
-          const v = e.currentTarget
-          try {
-            // Prefer an early useful frame over a possibly-black frame 0.
-            v.currentTime = Math.min(0.6, (isFinite(v.duration) ? v.duration : 2) / 2)
-          } catch {
-            /* seeking unsupported for this source — the first frame stands */
-          }
-        }}
-        className="w-full h-full object-cover bg-black"
-      />
+    <div className="relative w-full h-full" title={card.originalFilename ?? undefined}>
+      {card.raw?.kind === "image" ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={card.previewUrl} alt="" className="w-full h-full object-cover" />
+      ) : (
+        <video
+          ref={ref}
+          src={card.previewUrl}
+          muted
+          playsInline
+          preload="metadata"
+          controls={playing}
+          onLoadedMetadata={(e) => {
+            const v = e.currentTarget
+            try {
+              v.currentTime = Math.min(0.6, (isFinite(v.duration) ? v.duration : 2) / 2)
+            } catch {
+              /* seeking unsupported — first frame stands */
+            }
+          }}
+          className="w-full h-full object-cover bg-black"
+        />
+      )}
       {!playing && (
         <button
           type="button"
@@ -80,10 +103,11 @@ function VideoThumb({ src, title, isImage }: { src: string | null; title?: strin
           onClick={() => {
             setPlaying(true)
             ref.current?.play().catch(() => {})
+            onOpen?.()
           }}
           className="absolute inset-0 flex items-center justify-center bg-black/25 hover:bg-black/10 transition-colors"
         >
-          <span className="h-9 w-9 rounded-full bg-white/90 text-black text-[13px] flex items-center justify-center pl-0.5">▶</span>
+          <span className="h-8 w-8 rounded-full bg-white/90 text-black text-[12px] flex items-center justify-center pl-0.5">▶</span>
         </button>
       )}
     </div>
@@ -94,6 +118,9 @@ export default function SocialAutopilotClient() {
   const [items, setItems] = useState<Item[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [market, setMarket] = useState("All")
+  const [search, setSearch] = useState("")
+  const [sort, setSort] = useState<Sort>("Newest")
   const [editing, setEditing] = useState<Item | null>(null)
   const [draft, setDraft] = useState<Partial<Item>>({})
   const [saving, setSaving] = useState(false)
@@ -115,10 +142,60 @@ export default function SocialAutopilotClient() {
       setItems([])
     }
   }, [])
-
   useEffect(() => {
     void load()
   }, [load])
+
+  const usingDemo = items !== null && items.length === 0
+
+  // Unify real + demo into a common card shape.
+  const allCards: Card[] = useMemo(() => {
+    if (items && items.length > 0) {
+      return items.map((it) => ({
+        key: it.id,
+        displayName: it.propertyName || base(it.originalFilename) || "Untitled",
+        propertyName: it.propertyName,
+        market: it.market,
+        dateLabel: fmt(it.createdAt),
+        sortDate: new Date(it.createdAt).getTime() || 0,
+        originalFilename: it.originalFilename,
+        previewUrl: it.previewUrl,
+        hue: null,
+        demo: false,
+        raw: it,
+      }))
+    }
+    if (usingDemo) {
+      return DEMO_LIBRARY.map((d, i) => ({
+        key: d.id,
+        displayName: d.displayName,
+        propertyName: d.propertyName,
+        market: d.market,
+        dateLabel: d.dateLabel,
+        sortDate: DEMO_LIBRARY.length - i,
+        originalFilename: d.originalFilename,
+        previewUrl: null,
+        hue: d.hue,
+        demo: true,
+      }))
+    }
+    return []
+  }, [items, usingDemo])
+
+  const markets = useMemo(() => ["All", ...Array.from(new Set(allCards.map((c) => c.market).filter(Boolean) as string[])).sort()], [allCards])
+
+  const cards = useMemo(() => {
+    let list = allCards
+    if (market !== "All") list = list.filter((c) => c.market === market)
+    const q = search.trim().toLowerCase()
+    if (q) list = list.filter((c) => [c.displayName, c.propertyName, c.originalFilename].some((v) => (v ?? "").toLowerCase().includes(q)))
+    const sorted = [...list]
+    if (sort === "Newest") sorted.sort((a, b) => b.sortDate - a.sortDate)
+    else if (sort === "Oldest") sorted.sort((a, b) => a.sortDate - b.sortDate)
+    else if (sort === "Property") sorted.sort((a, b) => (a.propertyName ?? "").localeCompare(b.propertyName ?? ""))
+    else if (sort === "Market") sorted.sort((a, b) => (a.market ?? "").localeCompare(b.market ?? ""))
+    return sorted
+  }, [allCards, market, search, sort])
 
   const onUpload = useCallback(
     async (file: File) => {
@@ -135,10 +212,7 @@ export default function SocialAutopilotClient() {
         const ext = (file.name.split(".").pop() || "mp4").toLowerCase().replace(/[^a-z0-9]/g, "") || "mp4"
         const uuid = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
         const path = `${user.id}/${uuid}.${ext}`
-        const up = await supabase.storage.from("social-media").upload(path, file, {
-          contentType: file.type || "video/mp4",
-          upsert: false,
-        })
+        const up = await supabase.storage.from("social-media").upload(path, file, { contentType: file.type || "video/mp4", upsert: false })
         if (up.error) {
           setError("Upload failed (storage): " + up.error.message)
           return
@@ -181,7 +255,6 @@ export default function SocialAutopilotClient() {
       notes: it.notes ?? "",
     })
   }
-
   const saveEdit = useCallback(async () => {
     if (!editing) return
     setSaving(true)
@@ -192,7 +265,7 @@ export default function SocialAutopilotClient() {
         body: JSON.stringify(draft),
       })
       if (!res.ok) {
-        setError("Couldn't save metadata.")
+        setError("Couldn't save.")
         return
       }
       setEditing(null)
@@ -202,7 +275,6 @@ export default function SocialAutopilotClient() {
       setSaving(false)
     }
   }, [editing, draft, load])
-
   const remove = useCallback(
     async (id: string) => {
       if (!confirm("Delete this source video and its file? This cannot be undone.")) return
@@ -216,47 +288,70 @@ export default function SocialAutopilotClient() {
     [load],
   )
 
+  const chip = (active: boolean) =>
+    "text-[12px] font-semibold px-3 py-1.5 rounded-full border transition-colors " +
+    (active
+      ? "border-[var(--crm-text-primary)] text-[var(--crm-text-primary)] bg-[var(--crm-card)]"
+      : "border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]")
+  const control =
+    "text-[13px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-panel)] text-[var(--crm-text-primary)] px-2.5 py-1.5"
   const btn =
     "text-[12px] font-semibold px-2.5 py-1.5 rounded-lg border border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] transition-colors disabled:opacity-50"
-  const input =
+  const inputCls =
     "w-full text-[13px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] px-2.5 py-1.5"
-  const fmtDate = (iso: string) => {
-    const d = new Date(iso)
-    return isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-  }
-  const contentName = (it: Item) => it.propertyName || filenameBase(it.originalFilename) || "Untitled"
 
   return (
     <div>
-      {/* Library header + upload. Search / filters / sort will live in this row later. */}
-      <div className="mb-5 flex items-start justify-between gap-4 flex-wrap">
+      <div className="mb-4 flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-[16px] font-bold text-[var(--crm-text-primary)]">Library</h2>
-          <p className="text-[13px] text-[var(--crm-text-secondary)] mt-1 max-w-xl">
-            Your private source videos. Internal property details are operational only — they never become part of a
-            public post.
-          </p>
+          <p className="text-[13px] text-[var(--crm-text-secondary)] mt-0.5">Your source videos.</p>
         </div>
-        <div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="video/*,image/*"
-            hidden
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (f) void onUpload(f)
-            }}
-          />
-          <button
-            type="button"
-            className="text-[13px] font-semibold px-3.5 py-2 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"
-            disabled={uploading}
-            onClick={() => fileRef.current?.click()}
-          >
-            {uploading ? "Uploading…" : "Upload Videos"}
-          </button>
+        <button
+          type="button"
+          className="text-[13px] font-semibold px-3.5 py-2 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"
+          disabled={uploading}
+          onClick={() => fileRef.current?.click()}
+          title="Multi-file upload with batch property details arrives in SA1.1"
+        >
+          {uploading ? "Uploading…" : "Upload Videos"}
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="video/*,image/*"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) void onUpload(f)
+          }}
+        />
+      </div>
+
+      {/* Organization controls: Search · Market filter · Sort */}
+      <div className="mb-4 flex items-center gap-3 flex-wrap">
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search name, property, filename…"
+          className={`${control} w-[240px] max-w-full`}
+        />
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {markets.map((m) => (
+            <button key={m} type="button" className={chip(market === m)} onClick={() => setMarket(m)}>
+              {m}
+            </button>
+          ))}
         </div>
+        <label className="ml-auto flex items-center gap-1.5 text-[12px] text-[var(--crm-text-secondary)]">
+          Sort
+          <select className={control} value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
+            {SORTS.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </label>
       </div>
 
       {error && (
@@ -265,81 +360,70 @@ export default function SocialAutopilotClient() {
         </div>
       )}
 
+      {usingDemo && (
+        <div className="mb-4 rounded-lg border border-dashed border-[var(--crm-border)] bg-[var(--crm-panel)] px-4 py-2.5 text-[12.5px] text-[var(--crm-text-secondary)]">
+          <span className="font-semibold text-[var(--crm-text-primary)]">Sample content</span> — layout preview only, not saved. Upload a video to replace it with your real Library.
+        </div>
+      )}
+
       {items === null ? (
         <div className="text-[13px] text-[var(--crm-text-secondary)] py-10 text-center">Loading…</div>
-      ) : items.length === 0 ? (
-        <div className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] px-6 py-12 text-center">
-          <p className="text-[15px] font-semibold text-[var(--crm-text-primary)]">No source videos yet</p>
-          <p className="text-[13px] text-[var(--crm-text-secondary)] mt-1.5">Upload property videos to start your library.</p>
+      ) : cards.length === 0 ? (
+        <div className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] px-6 py-12 text-center text-[13px] text-[var(--crm-text-secondary)]">
+          No videos match.
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {items.map((it) => (
-            <div key={it.id} className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] overflow-hidden flex flex-col">
-              <div className="aspect-[9/16] bg-[var(--crm-card)]">
-                <VideoThumb src={it.previewUrl} title={it.originalFilename ?? undefined} isImage={it.kind === "image"} />
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          {cards.map((c) => (
+            <div key={c.key} className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] overflow-hidden flex flex-col">
+              <div className="relative aspect-[9/16] bg-[var(--crm-card)]">
+                <Thumb card={c} />
+                {c.demo && (
+                  <span className="absolute top-1.5 left-1.5 text-[9.5px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-black/55 text-white">
+                    Sample
+                  </span>
+                )}
               </div>
               <div className="p-2.5 flex-1 flex flex-col">
-                {/* Content Name — prominent; hover shows the original filename */}
-                <div className="text-[13px] font-bold text-[var(--crm-text-primary)] leading-snug line-clamp-2" title={it.originalFilename ?? undefined}>
-                  {contentName(it)}
+                <div className="text-[12.5px] font-bold text-[var(--crm-text-primary)] leading-snug line-clamp-2" title={c.originalFilename ?? undefined}>
+                  {c.displayName}
                 </div>
                 <div className="text-[11.5px] text-[var(--crm-text-secondary)] mt-1 truncate">
-                  {it.propertyName ? it.propertyName : <span className="text-[var(--crm-text-muted)]">No property</span>}
-                  {it.market ? ` · ${it.market}` : ""}
+                  {c.propertyName || <span className="text-[var(--crm-text-muted)]">No property</span>}
+                  {c.market ? ` · ${c.market}` : ""}
                 </div>
-                <div className="text-[11px] text-[var(--crm-text-muted)] mt-0.5">{fmtDate(it.createdAt)}</div>
-                <div className="flex gap-1.5 mt-2 pt-2 border-t border-[var(--crm-border)]">
-                  <button type="button" className={btn} onClick={() => openEdit(it)}>Edit</button>
-                  <button type="button" className={btn} onClick={() => remove(it.id)}>Delete</button>
-                </div>
+                <div className="text-[11px] text-[var(--crm-text-muted)] mt-0.5">{c.dateLabel}</div>
+                {!c.demo && c.raw && (
+                  <div className="flex gap-1.5 mt-2 pt-2 border-t border-[var(--crm-border)]">
+                    <button type="button" className={btn} onClick={() => openEdit(c.raw!)}>Edit</button>
+                    <button type="button" className={btn} onClick={() => remove(c.raw!.id)}>Delete</button>
+                  </div>
+                )}
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Edit metadata modal */}
       {editing && (
-        <div
-          className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4"
-          onClick={() => setEditing(null)}
-        >
-          <div
-            className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={() => setEditing(null)}>
+          <div className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4" onClick={(e) => e.stopPropagation()}>
             <div className="text-[15px] font-bold text-[var(--crm-text-primary)]">Edit details</div>
-            <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5 mb-3 truncate" title={editing.originalFilename ?? undefined}>
-              {editing.originalFilename}
-            </div>
+            <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5 mb-3 truncate" title={editing.originalFilename ?? undefined}>{editing.originalFilename}</div>
             <div className="flex flex-col gap-2">
               {META_FIELDS.map((f) => (
                 <label key={String(f.key)} className="block">
                   <span className="text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]">{f.label}</span>
                   {f.textarea ? (
-                    <textarea
-                      className={`${input} mt-1 min-h-[56px]`}
-                      value={(draft[f.key] as string) ?? ""}
-                      onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
-                    />
+                    <textarea className={`${inputCls} mt-1 min-h-[56px]`} value={(draft[f.key] as string) ?? ""} onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))} />
                   ) : (
-                    <input
-                      className={`${input} mt-1`}
-                      value={(draft[f.key] as string) ?? ""}
-                      onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
-                    />
+                    <input className={`${inputCls} mt-1`} value={(draft[f.key] as string) ?? ""} onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))} />
                   )}
                 </label>
               ))}
             </div>
             <div className="flex gap-2 mt-4">
-              <button
-                type="button"
-                className="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"
-                disabled={saving}
-                onClick={() => void saveEdit()}
-              >
+              <button type="button" className="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50" disabled={saving} onClick={() => void saveEdit()}>
                 {saving ? "Saving…" : "Save"}
               </button>
               <button type="button" className={btn} onClick={() => setEditing(null)}>Cancel</button>

@@ -21,9 +21,12 @@ export default function SocialAutopilotNav() {
 
   return (
     <div>
+      {/* Title + badge on ONE vertically-centered row (flex items-center). The
+          leading-none tightens the h1 line-box so the pill centers exactly against
+          the title — no manual offsets/margins/transforms. */}
       <div className="flex items-center gap-2.5">
-        <h1 className="text-[20px] font-bold text-[var(--crm-text-primary)]">Social Autopilot</h1>
-        <span className="text-[10.5px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border border-[var(--crm-border)] text-[var(--crm-text-muted)] bg-[var(--crm-panel)]">
+        <h1 className="text-[20px] font-bold leading-none text-[var(--crm-text-primary)]">Social Autopilot</h1>
+        <span className="inline-flex items-center leading-none text-[10.5px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full border border-[var(--crm-border)] text-[var(--crm-text-muted)] bg-[var(--crm-panel)]">
           Admin Beta
         </span>
       </div>
