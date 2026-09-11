@@ -140,8 +140,11 @@ export function workflowActionCompactLabel(titleOrKey: string): string {
 // completed-state term is provided.
 const LAST_ACTION_BY_DISPLAY: Record<string, string> = {
   "Contact Lead": "Contacted Lead",
-  "Build List": "Built List",
-  "Send List": "Sent List",
+  // Standardized visible milestone pair: the completed Last Action reads
+  // "List Built" / "List Sent" (the open Next Action stays "Build List" / "Send
+  // List"). DISPLAY ONLY — internal keys (build_list/send_list) are unchanged.
+  "Build List": "List Built",
+  "Send List": "List Sent",
   // Follow-ups intentionally fall through to their base label ("1st Follow-Up",
   // …) — the panel section is already titled LAST ACTION, so a "Completed" prefix
   // is redundant. Identity/keys (fu1/follow_up_1/…) are unchanged.
