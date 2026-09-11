@@ -14,6 +14,7 @@ const TABS: { label: string; href: string }[] = [
   { label: "Calendar", href: `${BASE}/calendar` },
   { label: "Accounts", href: `${BASE}/accounts` },
   { label: "History", href: `${BASE}/history` },
+  { label: "Analytics", href: `${BASE}/analytics` },
 ]
 
 export default function SocialAutopilotNav() {

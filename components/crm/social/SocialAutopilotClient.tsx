@@ -501,7 +501,11 @@ export default function SocialAutopilotClient() {
 
   return (
     <div>
-      {/* One compact controls row: Search · Market filters · Sort · [Sample] · Upload */}
+      {/* One compact controls row: Search · Market filters · Sort · Upload Videos.
+          Upload sits on THIS row (ml-auto → right-aligned) and shrink-0 keeps it from
+          being squeezed; the row wraps gracefully at narrow widths. The standalone
+          "SAMPLE DATA" pill was removed — sample state is still obvious from the per-card
+          "Sample" markers on the demo fixtures. */}
       <div className="mb-3 flex items-center gap-2.5 flex-wrap">
         <input
           type="search"
@@ -525,12 +529,7 @@ export default function SocialAutopilotClient() {
             ))}
           </select>
         </label>
-        {usingDemo && (
-          <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border border-dashed border-[var(--crm-border)] text-[var(--crm-text-muted)]" title="Sample content for layout preview — not saved">
-            Sample data
-          </span>
-        )}
-        <button type="button" className={`ml-auto text-[13px] font-semibold px-3.5 py-2 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)]`} onClick={pickFiles}>
+        <button type="button" className={`ml-auto shrink-0 text-[13px] font-semibold px-3.5 py-2 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)]`} onClick={pickFiles}>
           Upload Videos
         </button>
         <input
