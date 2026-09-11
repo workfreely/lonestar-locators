@@ -225,6 +225,15 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
             </Link>
           )}
 
+          {/* Social Autopilot — platform-admin-only internal beta. This menu row is
+              UX convenience; the /admin/social-autopilot page, its APIs, RLS, and the
+              social-media bucket all enforce is_platform_admin() server-side. */}
+          {isOwner && (
+            <Link href="/admin/social-autopilot" onClick={() => setOpen(false)} className={linkCls}>
+              Social Autopilot
+            </Link>
+          )}
+
           {/* Theme — inline workspace theme picker (instant feedback).
               Only shown where a ThemeProvider exists (i.e. inside the CRM). */}
           {theme && (
