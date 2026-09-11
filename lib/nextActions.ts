@@ -125,7 +125,10 @@ export function rankLeadActions(
     }
   }
 
-  let openManual = manualActions.filter((a) => !a.completed && a.lead_id === lead.id)
+  // "canceled" is a closed state (like completed): a superseded action — e.g. a
+  // Contact FU canceled when the lead is reached mid-chase — must never surface as
+  // an open Next Action. It is NOT a Last Action either (that filters on completed).
+  let openManual = manualActions.filter((a) => !a.completed && (a as any).status !== "canceled" && a.lead_id === lead.id)
 
   // Once a lead is Closed, its required next step is "Get Invoice Details". The
   // Applied-stage "Check App" row is created earlier and never auto-deleted, so

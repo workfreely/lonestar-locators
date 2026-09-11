@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase/client"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
 import { getNextContactFollowUpAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
+import { isContactFollowUpAction } from "@/lib/leads/workflowActionLabels"
 import { emitWorkflowActionCreated } from "@/lib/workflowToast"
 
 /**
@@ -18,13 +19,16 @@ import { emitWorkflowActionCreated } from "@/lib/workflowToast"
  *   3. keeps the lead in its current stage (NO stage change); and
  *   4. creates AT MOST one successor (Contact FU2/FU3) via getNextContactFollowUp-
  *      Action — but ONLY while the lead is still in the pre-list chase. That chase
- *      now lives in the Contacted stage (an unanswered attempt advances New →
- *      Contacted), so the guard allows crm_status ∈ {new, contacted} AND requires
- *      that NO build_list action exists (a build_list means the lead was reached and
- *      is on the Build List → List Sent track — the chase is superseded). If the
- *      lead has progressed to Searching/List Sent/etc., or a build_list exists, NO
- *      successor is created. Completing Contact FU3 creates nothing (no FU4) and does
- *      NOT archive — the 7-day ghost/archive behavior is intentionally unchanged here.
+ *      lives in {new, contacted} AND requires that NO build_list action exists (a
+ *      build_list means the lead was reached and is on the Build List → List Sent
+ *      track — the chase is superseded). If the lead has progressed (Searching+) or
+ *      a build_list exists, NO successor is created and NO archive happens.
+ *   5. TERMINAL GHOST: completing Contact FU3 (no successor) while still in the chase
+ *      archives the lead as ghosted (crm_status "archived", archive_reason "ghosted"
+ *      — the SAME canonical pair the post-list Final completion + the 7-day cron use).
+ *      This matches FU3's "I'll go ahead and pause your search" message. No FU4, no
+ *      Build List, no post-list follow-up. An archived lead's ranker never falls back
+ *      to the stage's Build List (getNextAction has no 'archived' rule).
  *
  * Demo leads never reach this (recordPendingOutreach no-ops on demo ids, so no
  * contact-FU rows exist for them); the guards below are still demo-safe.
@@ -43,7 +47,33 @@ export async function completeContactFollowUp(opts: {
 }): Promise<void> {
   const { lead, followRow, completedTitle, now, timeZone, onOptimistic, onWorkflowAction } = opts
 
-  // 1) The "sent" signal that drives Waiting for Reply (demo is a no-op here).
+  const succ = getNextContactFollowUpAction(completedTitle, timeZone) // FU2/FU3, or null after FU3
+
+  // SUPERSESSION — determined BEFORE the optimistic update so a terminal FU3 can
+  // decide whether to archive. The chase lives in {new, contacted}; a build_list
+  // action (reached) means the lead is on the Build List track — superseded. On a
+  // query error, fail safe (treat as superseded) so we never wrongly archive.
+  let superseded = lead.crm_status !== "new" && lead.crm_status !== "contacted"
+  if (!superseded && !isDemoLeadId(lead.id)) {
+    const { data: buildRows, error: buildErr } = await supabase
+      .from("lead_next_actions")
+      .select("id")
+      .eq("lead_id", lead.id)
+      .eq("action_key", "build_list")
+      .limit(1)
+    if (buildErr) {
+      console.error("[contact-follow-up] build_list supersession check failed:", buildErr)
+      superseded = true
+    } else if (buildRows && buildRows.length > 0) {
+      superseded = true
+    }
+  }
+
+  // Terminal ghost: completing Contact FU3 (no successor) while still in the chase →
+  // archive as ghosted. Superseded (reached/progressed) → neither successor nor archive.
+  const willArchiveGhost = !succ && isContactFollowUpAction(completedTitle) && !superseded
+
+  // 1) The "sent" signal (the FU message was sent).
   recordTimelineEvent({ leadId: lead.id, type: "text_sent", method: "text", sequence: null, occurredAt: now })
 
   // 2) Complete the persisted row (real leads) so Last Action derives the label.
@@ -55,34 +85,28 @@ export async function completeContactFollowUp(opts: {
     if (error) console.error("[contact-follow-up] complete row failed:", error)
   }
 
-  // 3) Reflect optimistically — no stage change, no post-list cache fields touched.
-  onOptimistic?.({ ...lead })
+  // 3) Reflect optimistically — completed row, plus the terminal-ghost archive when
+  //    applicable (so the card moves to Archived immediately). No post-list cache.
+  onOptimistic?.({ ...lead, ...(willArchiveGhost ? { crm_status: "archived", archive_reason: "ghosted" } : {}) })
 
   if (isDemoLeadId(lead.id)) return
 
-  // 4) SUPERSESSION GUARD. The pre-list chase lives in New (legacy) or Contacted
-  //    (an unanswered attempt now advances New → Contacted). Beyond that — Searching,
-  //    List Sent, etc. — the lead has progressed and the chase is over.
-  if (lead.crm_status !== "new" && lead.crm_status !== "contacted") return
-
-  //    A build_list action (open OR completed) means the lead was REACHED and is on
-  //    the Build List → List Sent track — the pre-list chase is superseded even while
-  //    the stage still reads Contacted. Do not create a Contact FU successor then.
-  const { data: buildRows, error: buildErr } = await supabase
-    .from("lead_next_actions")
-    .select("id")
-    .eq("lead_id", lead.id)
-    .eq("action_key", "build_list")
-    .limit(1)
-  if (buildErr) {
-    console.error("[contact-follow-up] build_list supersession check failed:", buildErr)
-    return
+  // 3b) Persist the terminal-ghost archive (RLS-scoped by the caller's client). Same
+  //     canonical archived/ghosted pair as the post-list Final + auto-archive cron.
+  if (willArchiveGhost) {
+    const { error: archErr } = await supabase
+      .from("leads")
+      .update({ crm_status: "archived", archive_reason: "ghosted" })
+      .eq("id", lead.id)
+    if (archErr) console.error("[contact-follow-up] ghost archive failed:", archErr)
+    return // no FU4, no Build List, no post-list follow-up.
   }
-  if (buildRows && buildRows.length > 0) return
 
-  const succ = getNextContactFollowUpAction(completedTitle, timeZone)
-  if (!succ) return // Contact FU3 (terminal) — no FU4, no archive.
+  // 4) Superseded (reached/progressed) → no successor.
+  if (superseded) return
 
+  // 5) One successor (Contact FU2/FU3).
+  if (!succ) return // defensive — FU3 terminal handled above.
   const created = await createWorkflowActionIfNeeded(supabase, lead.id, succ)
   if (created) {
     onWorkflowAction?.(created)

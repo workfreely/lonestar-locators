@@ -1336,10 +1336,34 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // Contacted), pins the card to the top of Contacted, and re-posts so Companion/
   // Kanban/Agenda/Lead Panel refresh — identical to the existing verb behavior.
   function applyFirstContact(lead: any, method: "call" | "text") {
-    if (lead.crm_status !== "new") return
+    // Successful contact applies to a fresh New lead OR a Contacted lead still in
+    // the pre-list Contact FU chase (reached-during-chase). A lead already past the
+    // pre-list phase (Searching+, or Contacted with no open chase) is not
+    // re-processed here — success there is not a first-contact milestone.
+    const openContactFu = localNextActionsRef.current.filter(
+      (a: any) =>
+        String(a.lead_id) === String(lead.id) &&
+        !a.completed &&
+        String(a.status ?? "") !== "canceled" &&
+        ["contact_follow_up_1", "contact_follow_up_2", "contact_follow_up_3"].includes(String(a.action_key ?? ""))
+    )
+    const reachedDuringChase = lead.crm_status === "contacted" && openContactFu.length > 0
+    if (lead.crm_status !== "new" && !reachedDuringChase) return
+
+    // Optimistically supersede the open Contact FU locally (recordFirstContact
+    // cancels it in the DB) so the chase stops showing immediately; Build List
+    // arrives via onWorkflowAction below.
+    if (reachedDuringChase) {
+      const ids = new Set(openContactFu.map((a: any) => String(a.id)))
+      setLocalNextActions((prev) =>
+        prev.map((a: any) => (ids.has(String(a.id)) ? { ...a, status: "canceled" } : a))
+      )
+    }
+
     recordFirstContact({
       lead,
       method,
+      timeZone,
       onOptimistic: (updated) => {
         setLocalLeads((prev) =>
           prev.map((l) =>

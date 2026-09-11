@@ -341,7 +341,9 @@ export function buildActiveClientPayload(
   // pending outreach (action_key contacted_follow_up) carries the resting Status
   // so the panel shows "No Answer" / "Waiting for Reply" instead of plain Pending.
   const openReal: NextActionDTO[] = (nextActions || [])
-    .filter((a) => String(a.lead_id) === String(lead.id) && !a.completed)
+    // "canceled" is a closed state — a superseded row (e.g. a Contact FU canceled
+    // when the lead was reached mid-chase) must never show as an open action.
+    .filter((a) => String(a.lead_id) === String(lead.id) && !a.completed && String(a.status ?? "") !== "canceled")
     .map((a) => ({
       id: a.id,
       leadId: a.lead_id,
@@ -371,7 +373,7 @@ export function buildActiveClientPayload(
   // open-row leads (the common case) are byte-identical to before (guarded).
   let orderedOpen = openReal
   if (openReal.length > 1) {
-    const openRaw = (nextActions || []).filter((a) => String(a.lead_id) === String(lead.id) && !a.completed)
+    const openRaw = (nextActions || []).filter((a) => String(a.lead_id) === String(lead.id) && !a.completed && String(a.status ?? "") !== "canceled")
     const ranked = rankLeadActions(
       { ...lead, follow_up_count: dto.workflow.followUpCount },
       openRaw as any,
