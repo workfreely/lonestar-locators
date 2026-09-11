@@ -253,6 +253,9 @@ export function buildActiveClientPayload(
   // follow-up, so a fresh FU1 (nothing sent yet) and any stale New-lead text never
   // trigger it. Never stored — derived only. Pending/Overdue logic is untouched.
   const FOLLOW_UP_KEYS = new Set(["follow_up_1", "follow_up_2", "follow_up_3", "final_follow_up"])
+  // Pre-list contact chase keys — resting status via pendingFollowUpStatus (not the
+  // post-list followUpWaitingStatus path). Separate from FOLLOW_UP_KEYS on purpose.
+  const CONTACT_FOLLOW_UP_KEYS = new Set(["contact_follow_up_1", "contact_follow_up_2", "contact_follow_up_3"])
   const lastCompletedFollowUpAt =
     (nextActions || [])
       .filter(
@@ -352,7 +355,9 @@ export function buildActiveClientPayload(
       // the panel can label "Send Guest Card — {property}".
       propertyName: str(a.property_name),
       statusLabel:
-        a.action_key === "contacted_follow_up"
+        // Pre-list contact chase (retired contacted_follow_up + Contact FU1/2/3):
+        // the resting "No Answer" / "Waiting for Reply" status, same as before.
+        a.action_key === "contacted_follow_up" || CONTACT_FOLLOW_UP_KEYS.has(String(a.action_key))
           ? pendingFollowUpStatus
           : FOLLOW_UP_KEYS.has(String(a.action_key))
           ? followUpWaitingStatus

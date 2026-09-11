@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { LeadSummaryDTO, NextActionDTO } from "@bc/companion-shared";
-import { formatWorkflowActionLabel, formatLastActionLabel, isFollowUpAction, formatDateDisplay, formatDueDateTime, isPastDue, formatPersonName, formatPhone, formatUnitDisplay } from "@bc/companion-shared";
+import { formatWorkflowActionLabel, formatLastActionLabel, isFollowUpAction, isContactFollowUpAction, formatDateDisplay, formatDueDateTime, isPastDue, formatPersonName, formatPhone, formatUnitDisplay } from "@bc/companion-shared";
 import { SectionCard, Field, StageBadge, StatusPill, Button } from "./primitives";
 
 /**
@@ -333,7 +333,10 @@ export function LeadPanelBody({
   // ambiguous contact action (no auto call/text choice).
   const isContactLead = (openAction?.title ?? "").trim().toLowerCase() === "contact lead";
   const isSendList = (openAction?.title ?? "").trim().toLowerCase() === "send list";
-  const isFollowUp = isFollowUpAction(openAction?.title);
+  // Both the post-List-Sent FU ladder and the pre-list Contact FU chase use the
+  // SAME "Send Follow-Up" button + confirmation UX (onSendFollowUp routes to the
+  // correct template builder by sequence). No new prompt or placement.
+  const isFollowUp = isFollowUpAction(openAction?.title) || isContactFollowUpAction(openAction?.title);
   const isSetupTour = (openAction?.title ?? "").trim().toLowerCase() === "setup tour";
   const isGuestCard = (openAction?.title ?? "").trim().toLowerCase() === "email guest card";
   const isTourFollowUp = (openAction?.title ?? "").trim().toLowerCase() === "tour follow-up";

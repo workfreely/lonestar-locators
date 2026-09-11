@@ -16,6 +16,12 @@ import { z } from "zod";
 export const WORKFLOW_ACTION_KEYS = [
   "contact_lead",
   "contacted_follow_up",
+  // Pre-list contact-chase sequence (Contact FU1 → FU2 → FU3). Distinct from the
+  // post-List-Sent follow_up_1/2/3 + final_follow_up ladder. contacted_follow_up
+  // is the retired single-step predecessor (kept for history; no longer produced).
+  "contact_follow_up_1",
+  "contact_follow_up_2",
+  "contact_follow_up_3",
   "build_list",
   "send_list",
   "setup_tour",

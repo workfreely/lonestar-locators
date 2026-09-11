@@ -26,11 +26,14 @@ import { emitWorkflowActionCreated } from "@/lib/workflowToast"
  *        - Text Sent  → type 'text_sent',       method 'text'  → "Sent Text"        / Status "Waiting for Reply"
  *      (lead_timeline.type is free `text`, so 'text_sent' needs no migration.)
  *
- *   2. The canonical open Follow Up next action — action_key 'contacted_follow_up'
- *      (the existing contacted-stage chase key; NOT contacted-only — nothing in
- *      code assumes that), titled "Follow Up", due +2 days @ 9AM. Deduped one-open
- *      -per-lead by createWorkflowActionIfNeeded, so a No Answer followed later by
- *      a Text Sent on the same lead reuse the SAME Follow Up rather than doubling.
+ *   2. Contact FU1 — the first step of the pre-list contact chase (Contact FU1 →
+ *      FU2 → FU3), action_key 'contact_follow_up_1', title "Contact FU1", due +2
+ *      days @ 9AM. One open contact follow-up per lead across all three levels
+ *      (guarded here + createWorkflowActionIfNeeded's per-key dedup), so a No
+ *      Answer followed by a Text Sent reuse the SAME open step rather than doubling.
+ *      This REPLACES the retired single-step 'contacted_follow_up' "Follow Up".
+ *      The pre-list chase and the post-List-Sent follow_up_1/2/3 + final_follow_up
+ *      sequence are entirely separate and never share keys.
  */
 export type PendingOutreachOutcome = "no-answer" | "text-sent"
 
@@ -63,15 +66,34 @@ export async function recordPendingOutreach(opts: {
   // Demo leads live entirely client-side (string ids can't key the bigint tables).
   if (isDemoLeadId(lead.id)) return
 
-  // 2) Canonical Follow Up — ONLY for a still-New lead. A lead already advanced
-  //    past New keeps its own workflow; this pending-outreach Follow Up is a
-  //    New-lead concept. Never advances the stage.
+  // 2) Contact FU1 — the FIRST step of the pre-list contact chase (Contact FU1 →
+  //    FU2 → FU3). ONLY for a still-New lead: a lead already advanced past New
+  //    keeps its own workflow; this chase is a New-lead concept and never advances
+  //    the stage. (Replaces the retired single-step contacted_follow_up "Follow Up".)
   if (lead.crm_status !== "new") return
 
+  // One open contact follow-up per lead ACROSS all three levels. createWorkflow-
+  // ActionIfNeeded only dedups within a single action_key, so a repeat outreach
+  // while (say) an open Contact FU2 already exists would otherwise add a second
+  // open contact FU. Guard across the whole chase set before creating FU1.
+  const { data: openContactFu, error: guardErr } = await supabase
+    .from("lead_next_actions")
+    .select("id")
+    .eq("lead_id", lead.id)
+    .eq("status", "open")
+    .in("action_key", ["contact_follow_up_1", "contact_follow_up_2", "contact_follow_up_3"])
+    .limit(1)
+  if (guardErr) {
+    console.error("[pending-outreach] open-contact-fu guard failed:", guardErr)
+    return
+  }
+  if (openContactFu && openContactFu.length > 0) return // already chasing — keep the one open step
+
   const created = await createWorkflowActionIfNeeded(supabase, lead.id, {
-    title: "Follow Up",
+    title: "Contact FU1",
     dueAt: autoDueInDays(2, timeZone),
-    actionKey: "contacted_follow_up",
+    actionKey: "contact_follow_up_1",
+    sequence: 1,
   })
   if (created) {
     onFollowUpAction?.(created)

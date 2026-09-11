@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO, RecommendationDTO, FollowUpOverrides, AutofillLocator } from "@bc/companion-shared";
 import { sanitizeFollowUpOverrides } from "@bc/companion-shared";
 import type { CurrentProperty } from "@/types";
-import { formatPersonName, buildIntroSmsBody, buildFollowUpSmsBody, isFollowUpAction, formatWorkflowActionLabel, DEFAULT_TIME_VALUE } from "@bc/companion-shared";
+import { formatPersonName, buildIntroSmsBody, buildFollowUpSmsBody, buildContactFollowUpSmsBody, isFollowUpAction, isContactFollowUpAction, formatWorkflowActionLabel, DEFAULT_TIME_VALUE } from "@bc/companion-shared";
 import { PanelApp } from "./PanelApp";
 import { runAutofillOnActiveTab } from "./autofill/runAutofill";
 import { useTourMode } from "./tour/useTourMode";
@@ -900,19 +900,26 @@ export function ProductionPanel() {
   const onSendFollowUp = () => {
     const lead = active?.lead;
     if (!lead || lead.id === undefined || lead.id === null) return;
-    const open = (active?.nextActions ?? []).find((a) => !a.completed && isFollowUpAction(a.title));
+    // Match either sequence: the post-List-Sent FU1–Final ladder OR the pre-list
+    // Contact FU1–FU3 chase. Each uses the SAME send/confirm UX; only the template
+    // BUILDER differs, chosen by which sequence the open action belongs to.
+    const open = (active?.nextActions ?? []).find(
+      (a) => !a.completed && (isFollowUpAction(a.title) || isContactFollowUpAction(a.title)),
+    );
     if (!open) return;
     const name = formatPersonName(lead.firstName) || "this client";
-    // Same open follow-up identity as before (isFollowUpAction / open.title) — the
-    // workflow is untouched. Only the message TEXT resolves override ?? default,
-    // with the approved variables available if the override uses them.
-    const body = buildFollowUpSmsBody(open.title, name, followUpOverrides, {
-      agentFirstName: (active?.agentName ?? "").trim().split(/\s+/)[0] ?? "",
-      beds: lead.searchCriteria?.beds,
-      baths: lead.searchCriteria?.baths,
-      propertyType: lead.searchCriteria?.propertyType,
-      moveDate: lead.searchCriteria?.moveDate,
-    });
+    // Pre-list Contact FU → the dedicated builder (explicit content-key mapping,
+    // never falls through to the post-list Final template). Only Contact FU1
+    // personalizes with {first_name}; FU2/FU3 are static.
+    const body = isContactFollowUpAction(open.title)
+      ? buildContactFollowUpSmsBody(open.title, name, followUpOverrides)
+      : buildFollowUpSmsBody(open.title, name, followUpOverrides, {
+          agentFirstName: (active?.agentName ?? "").trim().split(/\s+/)[0] ?? "",
+          beds: lead.searchCriteria?.beds,
+          baths: lead.searchCriteria?.baths,
+          propertyType: lead.searchCriteria?.propertyType,
+          moveDate: lead.searchCriteria?.moveDate,
+        });
     launchCommunication("text", lead.phone, body);
     setFollowUpConfirm({ leadId: lead.id, actionId: open.id, title: open.title, name });
   };

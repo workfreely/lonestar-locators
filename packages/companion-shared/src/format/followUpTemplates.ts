@@ -26,14 +26,23 @@
  */
 import { tidyRenderedMessage } from "./followUpVars";
 
-/** Content-only lookup keys for editable message text. NOT workflow action keys. */
+/** Content-only lookup keys for editable message text. NOT workflow action keys.
+ *
+ * The `contact_follow_up_*` keys are the PRE-LIST contact-chase sequence (a lead
+ * contacted/attempted but not yet at List Sent). They are DISTINCT from the
+ * post-List-Sent `follow_up_1/2/3` + `final_follow_up` sequence and must never be
+ * confused with them — see followUpSms.ts for the explicit (never-fall-through)
+ * content-key mapping. */
 export type FollowUpTemplateKey =
   | "intro"
   | "text_top_3"
   | "follow_up_1"
   | "follow_up_2"
   | "follow_up_3"
-  | "final_follow_up";
+  | "final_follow_up"
+  | "contact_follow_up_1"
+  | "contact_follow_up_2"
+  | "contact_follow_up_3";
 
 /**
  * The canonical DEFAULT wording. Each value is the EXACT current text with the
@@ -60,6 +69,14 @@ export const DEFAULT_FOLLOW_UP_TEMPLATES: Record<FollowUpTemplateKey, string> = 
     "I'm calling communities you were interested in to get updated pricing and specials. Are you still looking to move?",
   final_follow_up:
     "Hey {first_name}, I haven't heard back so I'll pause your search for now. No rush, just let me know when you'd like me to pick it back up!",
+  // ── PRE-LIST contact-chase sequence (Contact FU1 → FU2 → FU3) ──────────────
+  // Separate from the post-List-Sent ladder above. Only FU1 personalizes with
+  // {first_name}; FU2 and FU3 are intentionally static (no client name).
+  contact_follow_up_1:
+    "Hey {first_name}! Are you still looking for a place? I can put together some options for you.",
+  contact_follow_up_2: "Did you see any properties on my page you'd like more info on?",
+  contact_follow_up_3:
+    "I'll go ahead and pause your search for now. Please let me know if you'd like help finding a place!",
 };
 
 /**
@@ -74,6 +91,10 @@ export const TEMPLATE_TOKENS: Record<FollowUpTemplateKey, readonly string[]> = {
   follow_up_2: [],
   follow_up_3: [],
   final_follow_up: ["first_name"],
+  // Pre-list contact chase: only FU1 personalizes; FU2/FU3 are static.
+  contact_follow_up_1: ["first_name"],
+  contact_follow_up_2: [],
+  contact_follow_up_3: [],
 };
 
 /**
@@ -129,6 +150,9 @@ export const TEMPLATE_CHAR_LIMITS: Record<FollowUpTemplateKey, number> = {
   follow_up_2: 140,
   follow_up_3: 140,
   final_follow_up: 180,
+  contact_follow_up_1: 180,
+  contact_follow_up_2: 140,
+  contact_follow_up_3: 180,
 };
 
 /**

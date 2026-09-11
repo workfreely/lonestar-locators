@@ -152,7 +152,7 @@ export { formatUnitDisplay } from "./format/unit";
 
 // Canonical New-lead intro SMS body (prefilled first-outreach text; NOT contact)
 export { buildIntroSmsBody } from "./format/introSms";
-export { buildFollowUpSmsBody } from "./format/followUpSms";
+export { buildFollowUpSmsBody, buildContactFollowUpSmsBody } from "./format/followUpSms";
 
 // Editable follow-up MESSAGE TEXT layer (content-only; no workflow coupling).
 export {
@@ -203,6 +203,7 @@ export type { WorkflowActionKey, ActionType, ActionOrigin, ActionStatus } from "
 // Workflow-action display labels (identity stays fu1/fu2/fu3/final_follow_up)
 export {
   isFollowUpAction,
+  isContactFollowUpAction,
   formatWorkflowActionLabel,
   workflowActionCompactLabel,
   formatLastActionLabel,

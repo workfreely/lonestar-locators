@@ -41,3 +41,38 @@ export function buildFollowUpSmsBody(
   const rendered = renderTemplate(tpl ?? DEFAULT_FOLLOW_UP_TEMPLATES[key], vars);
   return tpl ? tidyRenderedMessage(rendered) : rendered;
 }
+
+// ── PRE-LIST contact chase (Contact FU1 → FU2 → FU3) ──────────────────────────
+// A DELIBERATELY SEPARATE mapping + builder from the post-List-Sent ladder above.
+// It maps ONLY the three contact-chase identities to their own content keys and
+// has NO default fall-through, so a contact action can never render the post-list
+// `final_follow_up` (or any other) template. An unrecognized value returns null —
+// callers must pass a genuine Contact FU identity.
+function contactContentKeyFor(
+  titleOrKey: string,
+): "contact_follow_up_1" | "contact_follow_up_2" | "contact_follow_up_3" | null {
+  const k = (titleOrKey || "").trim().toLowerCase();
+  if (k === "contact fu1" || k === "contact_follow_up_1") return "contact_follow_up_1";
+  if (k === "contact fu2" || k === "contact_follow_up_2") return "contact_follow_up_2";
+  if (k === "contact fu3" || k === "contact_follow_up_3") return "contact_follow_up_3";
+  return null;
+}
+
+/**
+ * Build the SMS body for a pre-list Contact FU. Only Contact FU1 uses {first_name};
+ * FU2/FU3 are static (their defaults contain no tokens, so `name` never appears).
+ * Per-workspace overrides are honored via the SAME shared template map/key. Returns
+ * "" for an unrecognized identity rather than risking a post-list template.
+ */
+export function buildContactFollowUpSmsBody(
+  titleOrKey: string,
+  name: string,
+  overrides?: Partial<Record<FollowUpTemplateKey, string>> | null,
+): string {
+  const key = contactContentKeyFor(titleOrKey);
+  if (!key) return "";
+  const vars = buildFollowUpTemplateVars({ firstName: name });
+  const tpl = overrides?.[key];
+  const rendered = renderTemplate(tpl ?? DEFAULT_FOLLOW_UP_TEMPLATES[key], vars);
+  return tpl ? tidyRenderedMessage(rendered) : rendered;
+}

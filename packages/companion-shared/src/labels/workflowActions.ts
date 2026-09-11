@@ -51,6 +51,10 @@ const FULL: Record<string, string> = {
   lease_follow_up: "Renewal Follow-Up",
   email_guest_card: "Send Guest Card",
   waiting_for_response: "Waiting for Reply",
+  // Pre-list contact chase (agent-facing labels). Distinct from the post-list FUs.
+  contact_follow_up_1: "Contact FU1",
+  contact_follow_up_2: "Contact FU2",
+  contact_follow_up_3: "Contact FU3",
 };
 
 const COMPACT: Record<string, string> = {
@@ -61,6 +65,14 @@ const COMPACT: Record<string, string> = {
 };
 
 const FOLLOW_UP_KEYS = new Set(["fu1", "fu2", "fu3", "final_follow_up"]);
+
+// Pre-list contact-chase identities — a SEPARATE set from FOLLOW_UP_KEYS so
+// isContactFollowUpAction never overlaps the post-List-Sent isFollowUpAction.
+const CONTACT_FOLLOW_UP_KEYS = new Set([
+  "contact_follow_up_1",
+  "contact_follow_up_2",
+  "contact_follow_up_3",
+]);
 
 // Legacy/display title strings AND canonical keys → canonical key.
 const TO_KEY: Record<string, string> = {
@@ -106,6 +118,12 @@ const TO_KEY: Record<string, string> = {
   "waiting for response": "waiting_for_response",
   "waiting for reply": "waiting_for_response",
   waiting_for_response: "waiting_for_response",
+  "contact fu1": "contact_follow_up_1",
+  contact_follow_up_1: "contact_follow_up_1",
+  "contact fu2": "contact_follow_up_2",
+  contact_follow_up_2: "contact_follow_up_2",
+  "contact fu3": "contact_follow_up_3",
+  contact_follow_up_3: "contact_follow_up_3",
 };
 
 function keyOf(titleOrKey: string | null | undefined): string | null {
@@ -113,10 +131,18 @@ function keyOf(titleOrKey: string | null | undefined): string | null {
   return TO_KEY[k] ?? (FULL[k] ? k : null);
 }
 
-/** True when the title/key is one of the four follow-up steps. */
+/** True when the title/key is one of the four POST-List-Sent follow-up steps.
+ *  Deliberately does NOT match the pre-list Contact FU steps. */
 export function isFollowUpAction(titleOrKey: string | null | undefined): boolean {
   const key = keyOf(titleOrKey);
   return key !== null && FOLLOW_UP_KEYS.has(key);
+}
+
+/** True when the title/key is one of the three PRE-List Contact FU steps.
+ *  Separate from isFollowUpAction so the two sequences never cross. */
+export function isContactFollowUpAction(titleOrKey: string | null | undefined): boolean {
+  const key = keyOf(titleOrKey);
+  return key !== null && CONTACT_FOLLOW_UP_KEYS.has(key);
 }
 
 /** Full display label ("1st Follow-Up", "Get Invoice Details", …). Others pass through. */

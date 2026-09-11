@@ -134,6 +134,22 @@ export function getNextFollowUpAction(completedTitle: string, timeZone?: string 
 }
 
 /**
+ * PRE-LIST contact chase: Contact FU1 → FU2 → FU3, then STOP (no FU4).
+ * Completely separate from getNextFollowUpAction (the post-List-Sent ladder).
+ * Each step is due +2 days at 9:00 AM local (flat cadence — NOT the move-date
+ * cadence the post-list sequence uses). Only ever the ONE next step, created on
+ * completion of the previous one — never the whole chain in advance.
+ */
+export function getNextContactFollowUpAction(completedTitle: string, timeZone?: string | null): WorkflowActionSpec | null {
+  switch ((completedTitle || "").trim()) {
+    case "Contact FU1": return { title: "Contact FU2", dueAt: autoDueInDays(2, timeZone), actionKey: "contact_follow_up_2", sequence: 2 }
+    case "Contact FU2": return { title: "Contact FU3", dueAt: autoDueInDays(2, timeZone), actionKey: "contact_follow_up_3", sequence: 3 }
+    // Contact FU3 is terminal — no successor, and (per this checkpoint) no archive.
+    default: return null
+  }
+}
+
+/**
  * Duplicate-protected insert: does nothing if an open (not completed)
  * action with the same title already exists for this lead. Never
  * overwrites a manually created action — it only ever checks-then-inserts.

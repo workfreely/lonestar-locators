@@ -88,8 +88,8 @@ eq(renderTemplate("no tokens here", {}), "no tokens here", "renderTemplate no-op
 eq(renderTemplate("{a}", { a: "{a}" }), "{a}", "renderTemplate is single-pass (no re-substitution)")
 
 // ── Metadata sanity (content keys, limits, tokens) ───────────────────────────
-const KEYS = ["intro", "text_top_3", "follow_up_1", "follow_up_2", "follow_up_3", "final_follow_up"] as const
-eq(Object.keys(DEFAULT_FOLLOW_UP_TEMPLATES).sort().join(","), [...KEYS].sort().join(","), "default map has exactly the 6 content keys")
+const KEYS = ["intro", "text_top_3", "follow_up_1", "follow_up_2", "follow_up_3", "final_follow_up", "contact_follow_up_1", "contact_follow_up_2", "contact_follow_up_3"] as const
+eq(Object.keys(DEFAULT_FOLLOW_UP_TEMPLATES).sort().join(","), [...KEYS].sort().join(","), "default map has exactly the content keys (incl. contact_follow_up_1/2/3)")
 eq(TEMPLATE_CHAR_LIMITS.intro, 180, "intro limit 180")
 eq(TEMPLATE_CHAR_LIMITS.follow_up_1, 140, "FU1 limit 140")
 eq(TEMPLATE_CHAR_LIMITS.follow_up_2, 140, "FU2 limit 140")

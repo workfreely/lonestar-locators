@@ -35,6 +35,8 @@ import { recordPendingOutreach } from "@/lib/leads/pendingOutreach"
 import { completeBuildList, startBuildList } from "@/lib/leads/buildListWorkflow"
 import { completeSendList } from "@/lib/leads/sendListWorkflow"
 import { completeFollowUp } from "@/lib/leads/followUpWorkflow"
+import { completeContactFollowUp } from "@/lib/leads/contactFollowUpWorkflow"
+import { isContactFollowUpAction } from "@/lib/leads/workflowActionLabels"
 import { completeSetupTour, rescheduleTour, cancelTour, localTourToUtc } from "@/lib/leads/setupTourWorkflow"
 import { createManualTask } from "@/lib/leads/createManualTask"
 import GuestCardModal from "./GuestCardModal"
@@ -1827,6 +1829,53 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         )
         const completedTitle = String(followRow?.title ?? payload.title ?? "").trim()
         if (!completedTitle) return
+
+        // ── PRE-LIST Contact FU branch ────────────────────────────────────────
+        // A Contact FU1/FU2/FU3 completion runs the SEPARATE pre-list chase handler
+        // (contactFollowUpWorkflow) — never the post-List-Sent completeFollowUp. It
+        // creates the next Contact FU only while the lead is still New (supersession),
+        // stops after FU3, and never archives / never touches follow_up_count.
+        const contactKey = String(followRow?.action_key ?? "")
+        if (isContactFollowUpAction(contactKey) || isContactFollowUpAction(completedTitle)) {
+          void completeContactFollowUp({
+            lead,
+            followRow: followRow ? { id: followRow.id } : null,
+            completedTitle,
+            now,
+            timeZone,
+            onOptimistic: (updated) => {
+              setLocalLeads((prev) =>
+                prev.map((l) =>
+                  String(l.id) === String(updated.id)
+                    ? { ...l, ...updated, _justDropped: true }
+                    : { ...l, _justDropped: false }
+                )
+              )
+              // Mark the completed contact FU in place (retain it so Last Action can
+              // derive it) — no synthesized post-list rows here.
+              const marked = localNextActionsRef.current.map((a: any) =>
+                followRow && String(a.id) === String(followRow.id)
+                  ? { ...a, completed: true, completed_at: now, status: "completed" }
+                  : a
+              )
+              setLocalNextActions(marked)
+              // Same text_sent → Waiting-for-Reply signal used elsewhere (the contact
+              // FU is a text). Successor Contact FU then resolves "Waiting for Reply".
+              const nextMap = {
+                ...latestOutreachRef.current,
+                [String(lead.id)]: { type: "text_sent" as const, method: "text" as const, occurredAt: now },
+              }
+              latestOutreachRef.current = nextMap
+              setLatestOutreach(nextMap)
+              postCompanionActiveClient({ ...lead, ...updated }, marked)
+            },
+            onWorkflowAction: (a) => {
+              setLocalNextActions((prev) => [...prev, a])
+              postCompanionActiveClient({ ...lead }, [...localNextActionsRef.current, a])
+            },
+          })
+          return
+        }
 
         // No persisted row to mark (a purely DTO-synthesized follow-up): record the
         // COMPLETED follow-up locally with the real timestamp so Last Action derives
