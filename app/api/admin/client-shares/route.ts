@@ -35,15 +35,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "valid leadId required" }, { status: 400 })
   }
 
-  // The raw token is generated HERE and returned to the caller ONCE; only its
-  // sha256 hash reaches the database (never the raw), so a DB leak can't yield a
-  // working URL.
+  // The raw token is generated HERE. Its sha256 hash powers public resolution; the
+  // raw itself is passed (as an RPC bind parameter, not inlined SQL) so the function
+  // can stash it ENCRYPTED in Supabase Vault — enabling Copy Link to return the
+  // exact same URL later without ever storing the raw in plaintext.
   const { raw, hash, prefix } = generateShareToken()
 
   const { data, error } = await supabase.rpc("lb_create_client_share", {
     p_lead_id: leadId,
     p_token_hash: hash,
     p_token_prefix: prefix,
+    p_raw_token: raw,
   })
   if (error) {
     // The membership guard raises "…not a member of this lead's workspace".
