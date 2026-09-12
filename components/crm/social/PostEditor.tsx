@@ -6,6 +6,7 @@ import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
 import { POST_TYPES_BY_PLATFORM, POST_TYPE_LABEL, previewAspectClass } from "@/lib/social/postTypes"
 import { buildHashtags, normalizeHashtag } from "@/lib/social/hashtags"
 import { overlayPreviewStyle } from "@/lib/social/overlaySpec"
+import DateTimePicker from "@/components/crm/DateTimePicker"
 
 // Social Autopilot Post Composer. Auto-prepared, fully-editable fields (overlay headline/
 // subheadline, Instagram caption, hashtags, music) → server-side FFmpeg render → FAITHFUL
@@ -38,14 +39,23 @@ const AUDIO_OPTIONS: { key: string; label: string; disabled?: boolean; note?: st
   { key: "lb_track", label: "Locator Beast Music", disabled: true, note: "Coming soon" },
 ]
 
-function splitLocal(iso: string | null) {
-  if (!iso) return { date: "", time: "" }
+// Schedule is one local "YYYY-MM-DDTHH:mm" string (the shared DateTimePicker's value format),
+// converted to/from social_posts.scheduled_at (ISO). Local parse preserves the existing
+// Social Autopilot timezone semantics (the value is interpreted in the admin's local zone).
+const pad2 = (n: number) => String(n).padStart(2, "0")
+function isoToLocalInput(iso: string | null): string {
+  if (!iso) return ""
   const d = new Date(iso)
-  if (isNaN(d.getTime())) return { date: "", time: "" }
-  const pad = (n: number) => String(n).padStart(2, "0")
-  return { date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`, time: `${pad(d.getHours())}:${pad(d.getMinutes())}` }
+  if (isNaN(d.getTime())) return ""
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`
 }
-const combineLocal = (date: string, time: string) => (date && time && !isNaN(new Date(`${date}T${time}`).getTime()) ? new Date(`${date}T${time}`).toISOString() : null)
+const scheduleToIso = (v: string): string | null => (v && !isNaN(new Date(v).getTime()) ? new Date(v).toISOString() : null)
+function fmtSchedule(v: string): string {
+  if (!v) return ""
+  const d = new Date(v)
+  if (isNaN(d.getTime())) return ""
+  return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} at ${d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`
+}
 
 export default function PostEditor({ postId }: { postId: string }) {
   const router = useRouter()
@@ -63,8 +73,8 @@ export default function PostEditor({ postId }: { postId: string }) {
   const [hashtags, setHashtags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState("")
   const [audioChoice, setAudioChoice] = useState("original")
-  const [date, setDate] = useState("")
-  const [time, setTime] = useState("")
+  const [scheduleVal, setScheduleVal] = useState("") // local "YYYY-MM-DDTHH:mm"
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   const load = useCallback(async () => {
     setError(null)
@@ -83,9 +93,7 @@ export default function PostEditor({ postId }: { postId: string }) {
       setCaption(p.caption ?? "")
       setHashtags(Array.isArray(p.hashtags) ? p.hashtags : [])
       setAudioChoice(p.audioChoice || "original")
-      const { date: d, time: t } = splitLocal(p.scheduledAt)
-      setDate(d)
-      setTime(t)
+      setScheduleVal(isoToLocalInput(p.scheduledAt))
     } catch {
       setError("Couldn't load the post.")
     }
@@ -125,11 +133,11 @@ export default function PostEditor({ postId }: { postId: string }) {
   )
 
   const saveDraft = async () => {
-    if (await patch({ scheduledAt: combineLocal(date, time) ?? "" }, "Draft saved.")) await load()
+    if (await patch({ scheduledAt: scheduleToIso(scheduleVal) ?? "" }, "Draft saved.")) await load()
   }
   const schedule = async () => {
-    const iso = combineLocal(date, time)
-    if (!iso) return setError("Pick a date and time to schedule.")
+    const iso = scheduleToIso(scheduleVal)
+    if (!iso) return setError("Set a date and time to schedule.")
     if (await patch({ intent: "schedule", scheduledAt: iso }, "Scheduled.")) router.push("/admin/social-autopilot/queue")
   }
   const backToDraft = async () => {
@@ -154,7 +162,7 @@ export default function PostEditor({ postId }: { postId: string }) {
     setError(null)
     setNotice(null)
     try {
-      const saved = await patch({ scheduledAt: combineLocal(date, time) ?? "" }, null)
+      const saved = await patch({ scheduledAt: scheduleToIso(scheduleVal) ?? "" }, null)
       if (!saved) return
       const res = await fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}/render`, { method: "POST" })
       if (!res.ok) {
@@ -170,7 +178,7 @@ export default function PostEditor({ postId }: { postId: string }) {
     } finally {
       setRendering(false)
     }
-  }, [postId, patch, date, time, load])
+  }, [postId, patch, scheduleVal, load])
 
   const addTag = (raw: string) => {
     const t = normalizeHashtag(raw)
@@ -337,15 +345,36 @@ export default function PostEditor({ postId }: { postId: string }) {
             <span className="text-[10.5px] text-[var(--crm-text-muted)]">Added to the caption when published (kept separate here).</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <span className={fieldLabel}>Scheduled date</span>
-              <input type="date" className={`${control} mt-1`} value={date} onChange={(e) => setDate(e.target.value)} />
-            </label>
-            <label className="block">
-              <span className={fieldLabel}>Scheduled time</span>
-              <input type="time" className={`${control} mt-1`} value={time} onChange={(e) => setTime(e.target.value)} />
-            </label>
+          {/* ONE combined Schedule field — reuses Locator Beast's Schedule Tour DateTimePicker
+              (custom popover; NO browser-native date/time control). Optional for a draft. */}
+          <div className="block">
+            <span className={fieldLabel}>Schedule</span>
+            <div className="mt-1 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPickerOpen((o) => !o)}
+                aria-expanded={pickerOpen}
+                aria-haspopup="dialog"
+                className={`${control} text-left flex items-center justify-between`}
+              >
+                <span className={scheduleVal ? "text-[var(--crm-text-primary)]" : "text-[var(--crm-text-muted)]"}>
+                  {scheduleVal ? fmtSchedule(scheduleVal) : "Set a date & time"}
+                </span>
+                <span className="text-[var(--crm-text-muted)] ml-2">▾</span>
+              </button>
+              {scheduleVal && (
+                <button type="button" className="text-[11.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]" onClick={() => setScheduleVal("")}>
+                  Clear
+                </button>
+              )}
+            </div>
+            {pickerOpen && (
+              <DateTimePicker
+                value={scheduleVal}
+                onApply={(v) => { setScheduleVal(v); setPickerOpen(false) }}
+                onCancel={() => setPickerOpen(false)}
+              />
+            )}
           </div>
 
           <div className="flex items-center gap-2 mt-1 flex-wrap">
