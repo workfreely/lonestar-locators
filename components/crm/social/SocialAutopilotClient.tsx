@@ -615,7 +615,14 @@ export default function SocialAutopilotClient() {
           No videos match.
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+        <div
+          /* Density = 5 cards on a full ~1200px content area, driven by ACTUAL container
+             width (auto-fill) rather than viewport breakpoints — so it steps 5→4→3→2 as the
+             content area narrows, INCLUDING when Beast Companion consumes width. ~210px min
+             avoids cramping; min(…,45%) keeps 2-up on phones. 9:16 ratio + typography kept. */
+          className="grid gap-3"
+          style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(210px, 45%), 1fr))" }}
+        >
           {cards.map((c) => {
             const isSel = !c.demo && c.raw ? selected.has(c.raw.id) : false
             return (
