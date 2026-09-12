@@ -18,8 +18,10 @@ const AUTHORIZE_URL = "https://www.instagram.com/oauth/authorize"
 const TOKEN_URL = "https://api.instagram.com/oauth/access_token"
 const GRAPH_BASE = "https://graph.instagram.com"
 
-/** Connection-only scope. Publishing scope is added in the later checkpoint. */
-export const INSTAGRAM_SCOPES = ["instagram_business_basic"] as const
+/** Requested scopes: basic identity + content publish (Reels/Feed/Story publishing). The
+ *  token is scoped at authorization time, so adding a scope here requires the user to
+ *  RE-CONNECT (disconnect → connect) before the granted token can publish. */
+export const INSTAGRAM_SCOPES = ["instagram_business_basic", "instagram_business_content_publish"] as const
 
 // Read env values defensively: trim stray whitespace so a copy/paste artifact never leaks
 // into the OAuth URL. The Instagram App ID is always numeric.
