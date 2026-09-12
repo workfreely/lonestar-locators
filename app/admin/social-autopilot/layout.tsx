@@ -12,7 +12,7 @@ export default async function SocialAutopilotLayout({ children }: { children: Re
   await ensurePlatformAdminPage()
 
   return (
-    <div className="relative h-full w-full flex flex-col bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]">
+    <div className="sa-scope relative h-full w-full flex flex-col bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]">
       <AppHeader variant="dark" fullBleed>
         <BackToDashboard />
       </AppHeader>

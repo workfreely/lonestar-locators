@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
   // PUBLIC-safe metadata used for auto-preparation (notes/placeId are intentionally excluded).
   const { data: src, error: srcErr } = await supabase
     .from("social_content")
-    .select("id, display_name, property_name, market, special, budget_range, amenities")
+    .select("id, display_name, property_name, property_type, market, special, budget_range, amenities")
     .eq("id", sourceContentId)
     .maybeSingle()
   if (srcErr) return NextResponse.json({ error: "create_failed" }, { status: 500 })
@@ -137,6 +137,7 @@ export async function POST(req: NextRequest) {
   const prepared = preparePost({
     propertyName: s.property_name as string | null,
     market: s.market as string | null,
+    propertyType: s.property_type as string | null,
     special: s.special as string | null,
     budgetRange: s.budget_range as string | null,
     amenities: s.amenities as string | null,

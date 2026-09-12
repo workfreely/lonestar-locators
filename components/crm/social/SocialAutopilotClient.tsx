@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/client"
 import { DEMO_LIBRARY } from "./demoFixtures"
 import { SOCIAL_MARKETS, normalizeSocialMarket } from "@/lib/social/markets"
+import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
+import { inferFromFilename } from "@/lib/social/filenameInference"
 
 // Social Autopilot → Library (platform-admin only; server-enforced). SA1.1: multi-file
 // upload with a one-time batch setup (Market + Property + shared metadata), per-file
@@ -27,6 +29,7 @@ type Item = {
   batchSeq: number | null
   originalFilename: string | null
   propertyName: string | null
+  propertyType: string | null
   market: string | null
   special: string | null
   budgetRange: string | null
@@ -65,6 +68,7 @@ type UploadFile = {
 type BatchMeta = {
   market: string
   propertyName: string
+  propertyType: string
   special: string
   budgetRange: string
   amenities: string
@@ -181,7 +185,7 @@ export default function SocialAutopilotClient() {
   // Upload flow.
   const fileRef = useRef<HTMLInputElement>(null)
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null) // files awaiting batch setup
-  const [batch, setBatch] = useState<BatchMeta>({ market: "", propertyName: "", special: "", budgetRange: "", amenities: "", notes: "" })
+  const [batch, setBatch] = useState<BatchMeta>({ market: "", propertyName: "", propertyType: "", special: "", budgetRange: "", amenities: "", notes: "" })
   const [uploads, setUploads] = useState<UploadFile[] | null>(null) // active/finished progress list
   const [uploadingBatch, setUploadingBatch] = useState(false)
 
@@ -310,8 +314,11 @@ export default function SocialAutopilotClient() {
   const onFilesChosen = (list: FileList | null) => {
     const files = Array.from(list ?? [])
     if (files.length === 0) return
+    // Prefill batch fields from the FIRST file's filename (editable suggestions). For a single
+    // video or a same-property batch this is exactly right; the user can override any field.
+    const inf = inferFromFilename(files[0].name)
     setPendingFiles(files)
-    setBatch({ market: "", propertyName: "", special: "", budgetRange: "", amenities: "", notes: "" })
+    setBatch({ market: inf.market ?? "", propertyName: inf.propertyName ?? "", propertyType: inf.propertyType ?? "", special: "", budgetRange: "", amenities: "", notes: "" })
     if (fileRef.current) fileRef.current.value = ""
   }
 
@@ -338,6 +345,7 @@ export default function SocialAutopilotClient() {
           batchSeq: uf.seq,
           market: meta.market || null,
           propertyName: meta.propertyName || null,
+          propertyType: meta.propertyType || null,
           special: meta.special || null,
           budgetRange: meta.budgetRange || null,
           amenities: meta.amenities || null,
@@ -444,6 +452,7 @@ export default function SocialAutopilotClient() {
     setDraft({
       displayName: it.displayName ?? "",
       propertyName: it.propertyName ?? "",
+      propertyType: it.propertyType ?? "",
       market: it.market ?? "",
       special: it.special ?? "",
       budgetRange: it.budgetRange ?? "",
@@ -458,6 +467,7 @@ export default function SocialAutopilotClient() {
     try {
       const body: Record<string, unknown> = {
         propertyName: draft.propertyName ?? "",
+        propertyType: draft.propertyType ?? "",
         market: draft.market ?? "",
         special: draft.special ?? "",
         budgetRange: draft.budgetRange ?? "",
@@ -693,7 +703,7 @@ export default function SocialAutopilotClient() {
         <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={() => !uploadingBatch && setPendingFiles(null)}>
           <div className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4" onClick={(e) => e.stopPropagation()}>
             <div className="text-[15px] font-bold text-[var(--crm-text-primary)]">Upload {pendingFiles.length} {pendingFiles.length === 1 ? "video" : "videos"}</div>
-            <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5 mb-3">These details apply to the whole batch. Each video stays its own record — you can refine any of them individually afterward.</div>
+            <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5 mb-3">Suggestions were prefilled from the filename — edit anything. These apply to the whole batch; each video stays its own record you can refine afterward.</div>
             <div className="flex flex-col gap-2.5">
               <label className="block">
                 <span className={fieldLabel}>Market <span className="text-[var(--crm-text-primary)]">*</span></span>
@@ -707,6 +717,15 @@ export default function SocialAutopilotClient() {
               <label className="block">
                 <span className={fieldLabel}>Property / building name</span>
                 <input className={`${inputCls} mt-1`} value={batch.propertyName} onChange={(e) => setBatch((b) => ({ ...b, propertyName: e.target.value }))} placeholder="Encouraged — used to name each video" />
+              </label>
+              <label className="block">
+                <span className={fieldLabel}>Property type</span>
+                <select className={`${inputCls} mt-1`} value={batch.propertyType} onChange={(e) => setBatch((b) => ({ ...b, propertyType: e.target.value }))}>
+                  <option value="">Select type…</option>
+                  {PROPERTY_TYPES.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
@@ -732,11 +751,12 @@ export default function SocialAutopilotClient() {
                 ))}
               </ul>
             </div>
-            <div className="flex gap-2 mt-4">
-              <button type="button" className={primaryBtn} disabled={!batch.market || uploadingBatch} onClick={() => void startBatch()}>
-                {uploadingBatch ? "Starting…" : "Start upload"}
-              </button>
+            {/* Action hierarchy: Cancel = secondary (left), Start Upload = primary (rightmost). */}
+            <div className="flex items-center justify-end gap-2 mt-4">
               <button type="button" className={btn} disabled={uploadingBatch} onClick={() => setPendingFiles(null)}>Cancel</button>
+              <button type="button" className={primaryBtn} disabled={!batch.market || uploadingBatch} onClick={() => void startBatch()}>
+                {uploadingBatch ? "Starting…" : "Start Upload"}
+              </button>
             </div>
           </div>
         </div>
@@ -827,6 +847,15 @@ export default function SocialAutopilotClient() {
                   <option value="">No market</option>
                   {[...SOCIAL_MARKETS, ...(draft.market && !SOCIAL_MARKETS.includes(draft.market) ? [draft.market] : [])].map((m) => (
                     <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className={fieldLabel}>Property type</span>
+                <select className={`${inputCls} mt-1`} value={draft.propertyType ?? ""} onChange={(e) => setDraft((d) => ({ ...d, propertyType: e.target.value }))}>
+                  <option value="">No type</option>
+                  {PROPERTY_TYPES.map((t) => (
+                    <option key={t} value={t}>{t}</option>
                   ))}
                 </select>
               </label>

@@ -5,16 +5,19 @@
 
 import { normalizeSocialMarket } from "@/lib/social/markets"
 
-/** General, always-relevant apartment-locator tags (public-safe). */
-const GENERAL: readonly string[] = [
-  "#apartmenthunting",
-  "#apartmentlocator",
-  "#apartmenttour",
-  "#nowleasing",
-  "#luxuryapartments",
-  "#apartmentliving",
-  "#forrent",
-]
+// Always-relevant tags (service + leasing), regardless of property type.
+const BASE: readonly string[] = ["#nowleasing", "#apartmentlocator", "#forrent"]
+// Property-type-specific tags so a townhome isn't tagged with apartment terms.
+const TYPE_TAGS: Record<string, readonly string[]> = {
+  Townhome: ["#townhomes", "#townhouseliving", "#townhomeliving", "#townhometour"],
+  "Build-to-Rent": ["#buildtorent", "#rentalhome", "#newhomes", "#hometour"],
+  // Apartment-family (Apartment / High-Rise / Mid-Rise / Garden-Style / Student Housing / default)
+  Apartment: ["#apartmenthunting", "#apartmentliving", "#luxuryapartments", "#apartmenttour"],
+}
+function typeTags(propertyType: string | null | undefined): readonly string[] {
+  if (propertyType && TYPE_TAGS[propertyType]) return TYPE_TAGS[propertyType]!
+  return TYPE_TAGS.Apartment
+}
 
 /** Market-specific approved tags. Keys are the SA market labels (verbatim). */
 const BY_MARKET: Record<string, readonly string[]> = {
@@ -33,13 +36,14 @@ export const HASHTAG_MARKETS = Object.keys(BY_MARKET)
  * general, deduped case-insensitively. Returns [] for an unknown/empty market's specifics but
  * still fills from general so the list is never empty when a count is requested.
  */
-export function buildHashtags(market: string | null | undefined, target = 8): string[] {
+export function buildHashtags(market: string | null | undefined, target = 8, propertyType?: string | null): string[] {
   const clamp = Math.max(7, Math.min(10, target))
   const label = normalizeSocialMarket(market) // keeps Dallas/DFW distinct
   const marketTags = BY_MARKET[label] ?? []
   const out: string[] = []
   const seen = new Set<string>()
-  for (const tag of [...marketTags, ...GENERAL]) {
+  // Market-specific first, then type-specific, then base leasing/service tags.
+  for (const tag of [...marketTags, ...typeTags(propertyType), ...BASE]) {
     const key = tag.toLowerCase()
     if (seen.has(key)) continue
     seen.add(key)

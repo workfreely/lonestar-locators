@@ -8,10 +8,12 @@
 
 import { buildHashtags } from "@/lib/social/hashtags"
 import { normalizeSocialMarket } from "@/lib/social/markets"
+import { propertyNoun } from "@/lib/social/propertyTypes"
 
 export type SourceMeta = {
   propertyName?: string | null
   market?: string | null
+  propertyType?: string | null
   special?: string | null
   budgetRange?: string | null
   amenities?: string | null
@@ -53,18 +55,20 @@ export function buildCaption(src: SourceMeta): string {
   const budget = clean(src.budgetRange)
   const amenities = clean(src.amenities)
 
+  const noun = propertyNoun(src.propertyType) // townhome | apartment | home | …
+
   const lines: string[] = []
   // Lead line: property + market.
   if (prop && market) lines.push(`${prop} — ${market}`)
   else if (prop) lines.push(prop)
   else if (market) lines.push(`Now leasing in ${market}`)
-  else lines.push("New apartment tour")
+  else lines.push(`New ${noun} tour`)
 
   if (special) lines.push(`✨ ${special}`)
   if (budget) lines.push(`💰 ${budget}`)
   if (amenities) lines.push(`Amenities: ${amenities}`)
 
-  lines.push("DM me to schedule a tour — free apartment locating. 🔑")
+  lines.push("DM me to schedule a tour — free locating, no cost to you. 🔑")
   return lines.join("\n").slice(0, 1800)
 }
 
@@ -74,7 +78,7 @@ export function preparePost(src: SourceMeta): PreparedPost {
     overlayHeadline: buildOverlayHeadline(src),
     overlaySubheadline: buildOverlaySubheadline(src),
     caption: buildCaption(src),
-    hashtags: buildHashtags(src.market, 8),
+    hashtags: buildHashtags(src.market, 8, src.propertyType),
   }
 }
 

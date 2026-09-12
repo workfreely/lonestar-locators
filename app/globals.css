@@ -2017,6 +2017,17 @@ body.jaybot-open {
    (--kb-accent) as the calendar selection above, but an OUTER ring + soft glow around the
    WHOLE card boundary (box-shadow only, so no layout shift / no size or ratio change).
    Subtle, theme-aware, pointer cursor; focus-visible mirrors hover for keyboard users. */
+/* Social Autopilot focus — override the app-wide hard-coded green input:focus (globals.css
+   ~L293) with the THEME accent, scoped to SA surfaces only (.sa-scope on the SA layout).
+   Higher specificity than the global rule, so keyboard-visible focus follows the workspace
+   theme instead of a fixed green. Unrelated app focus styling is untouched. */
+.sa-scope input:focus,
+.sa-scope select:focus,
+.sa-scope textarea:focus {
+  border-color: var(--kb-accent, var(--crm-accent));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--kb-accent, var(--crm-accent)) 18%, transparent);
+}
+
 .sa-lib-card { cursor: pointer; transition: box-shadow .18s ease, border-color .18s ease; }
 .sa-lib-card:hover,
 .sa-lib-card:focus-visible {
