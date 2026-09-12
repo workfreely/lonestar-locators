@@ -38,9 +38,13 @@ export function instagramConfigured(): boolean {
   return /^[0-9]+$/.test(appId()) && appSecret().length > 0
 }
 
-/** The exact redirect URI, derived from the request origin (must be registered in Meta). */
+/** The exact redirect URI, derived from the request origin (must be registered in Meta).
+ *  This MUST point at the API ROUTE handler (/api/…/callback) — not the /admin page path —
+ *  since that is where the GET handler lives; the non-/api path has no page and 404s. Both
+ *  the Connect authorize step and the callback token exchange call this, so they always match
+ *  (the token exchange requires the SAME redirect_uri as the authorize request). */
 export function instagramRedirectUri(origin: string): string {
-  return `${origin}/admin/social-autopilot/accounts/instagram/callback`
+  return `${origin}/api/admin/social-autopilot/accounts/instagram/callback`
 }
 
 /** CSRF state check: the value echoed back by Instagram must match the one we stored, and

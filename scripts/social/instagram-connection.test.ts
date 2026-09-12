@@ -68,7 +68,7 @@ async function run() {
 
   console.log("authorize URL + redirect URI:")
   const redirect = instagramRedirectUri("https://locatorbeast.com")
-  ok("redirect URI is the callback path", redirect === "https://locatorbeast.com/admin/social-autopilot/accounts/instagram/callback")
+  ok("redirect URI points at the API route handler (not the /admin page path)", redirect === "https://locatorbeast.com/api/admin/social-autopilot/accounts/instagram/callback")
   const url = new URL(instagramAuthorizeUrl(redirect, "STATE123"))
   ok("authorizes on instagram.com", url.origin + url.pathname === "https://www.instagram.com/oauth/authorize")
   ok("response_type=code", url.searchParams.get("response_type") === "code")
