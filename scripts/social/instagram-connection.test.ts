@@ -42,14 +42,22 @@ const okRes = (body: unknown): MockRes => ({ ok: true, status: 200, json: async 
 const errRes = (status: number): MockRes => ({ ok: false, status, json: async () => ({ error: "x" }) })
 
 async function run() {
-  console.log("env-config gating (Not configured when env missing):")
+  console.log("env-config gating (Not configured when env missing/invalid):")
   delete process.env.INSTAGRAM_APP_ID
   delete process.env.INSTAGRAM_APP_SECRET
   ok("unconfigured when both env vars absent", instagramConfigured() === false)
-  process.env.INSTAGRAM_APP_ID = "IG_APP_ID"
+  process.env.INSTAGRAM_APP_ID = "123456789012345"
   ok("still unconfigured with only APP_ID", instagramConfigured() === false)
   process.env.INSTAGRAM_APP_SECRET = "IG_APP_SECRET"
-  ok("configured when both present", instagramConfigured() === true)
+  ok("configured when numeric App ID + secret", instagramConfigured() === true)
+  // Digits-guard: a masked/placeholder value must NOT be treated as configured.
+  process.env.INSTAGRAM_APP_ID = "••••••"
+  ok("bullet App ID → Not configured (no broken authorize URL)", instagramConfigured() === false)
+  process.env.INSTAGRAM_APP_ID = "not-a-number"
+  ok("non-numeric App ID → Not configured", instagramConfigured() === false)
+  process.env.INSTAGRAM_APP_ID = "  123456789012345  "
+  ok("whitespace-padded numeric App ID → configured (trimmed)", instagramConfigured() === true)
+  process.env.INSTAGRAM_APP_ID = "123456789012345"
 
   console.log("CSRF state validation:")
   ok("equal non-empty states valid", isValidOAuthState("abc", "abc") === true)
@@ -67,7 +75,8 @@ async function run() {
   ok("minimum scope only (instagram_business_basic)", url.searchParams.get("scope") === "instagram_business_basic")
   ok("scope list is exactly the one connection scope", INSTAGRAM_SCOPES.length === 1 && INSTAGRAM_SCOPES[0] === "instagram_business_basic")
   ok("carries state", url.searchParams.get("state") === "STATE123")
-  ok("carries client_id from env", url.searchParams.get("client_id") === "IG_APP_ID")
+  ok("carries numeric client_id from env (not bullets)", url.searchParams.get("client_id") === "123456789012345")
+  ok("client_id is all digits", /^[0-9]+$/.test(url.searchParams.get("client_id") ?? ""))
   ok("carries redirect_uri", url.searchParams.get("redirect_uri") === redirect)
 
   console.log("token exchanges (mocked Meta responses):")

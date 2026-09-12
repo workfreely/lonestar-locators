@@ -21,9 +21,21 @@ const GRAPH_BASE = "https://graph.instagram.com"
 /** Connection-only scope. Publishing scope is added in the later checkpoint. */
 export const INSTAGRAM_SCOPES = ["instagram_business_basic"] as const
 
-/** True only when both credentials are present — drives the "Not configured" UI. */
+// Read env values defensively: trim stray whitespace so a copy/paste artifact never leaks
+// into the OAuth URL. The Instagram App ID is always numeric.
+function appId(): string {
+  return (process.env.INSTAGRAM_APP_ID ?? "").trim()
+}
+function appSecret(): string {
+  return (process.env.INSTAGRAM_APP_SECRET ?? "").trim()
+}
+
+/** True only when a PLAUSIBLE App ID (all digits) + a secret are present — drives the "Not
+ *  configured" UI. Requiring digits means a masked/placeholder value (e.g. bullet chars
+ *  pasted from a masked field) shows "Not configured" instead of building a broken authorize
+ *  URL with client_id=•••. */
 export function instagramConfigured(): boolean {
-  return !!process.env.INSTAGRAM_APP_ID && !!process.env.INSTAGRAM_APP_SECRET
+  return /^[0-9]+$/.test(appId()) && appSecret().length > 0
 }
 
 /** The exact redirect URI, derived from the request origin (must be registered in Meta). */
@@ -40,7 +52,7 @@ export function isValidOAuthState(received: string | null | undefined, expected:
 /** Instagram authorization-window URL. `state` is our CSRF nonce. */
 export function instagramAuthorizeUrl(redirectUri: string, state: string): string {
   const params = new URLSearchParams({
-    client_id: process.env.INSTAGRAM_APP_ID ?? "",
+    client_id: appId(),
     redirect_uri: redirectUri,
     response_type: "code",
     scope: INSTAGRAM_SCOPES.join(","),
@@ -56,8 +68,8 @@ export type InstagramProfile = { user_id?: string; username?: string; account_ty
 /** Exchange the authorization code for a SHORT-lived token (+ the IG-scoped user id). */
 export async function exchangeCodeForShortToken(code: string, redirectUri: string): Promise<ShortToken> {
   const body = new URLSearchParams({
-    client_id: process.env.INSTAGRAM_APP_ID ?? "",
-    client_secret: process.env.INSTAGRAM_APP_SECRET ?? "",
+    client_id: appId(),
+    client_secret: appSecret(),
     grant_type: "authorization_code",
     redirect_uri: redirectUri,
     code,
@@ -75,7 +87,7 @@ export async function exchangeCodeForShortToken(code: string, redirectUri: strin
 export async function exchangeForLongLivedToken(shortToken: string): Promise<LongToken> {
   const params = new URLSearchParams({
     grant_type: "ig_exchange_token",
-    client_secret: process.env.INSTAGRAM_APP_SECRET ?? "",
+    client_secret: appSecret(),
     access_token: shortToken,
   })
   const res = await fetch(`${GRAPH_BASE}/access_token?${params.toString()}`)
