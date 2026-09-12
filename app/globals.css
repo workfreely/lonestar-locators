@@ -2012,6 +2012,19 @@ body.jaybot-open {
               inset 0 0 0 5px color-mix(in srgb, var(--kb-accent, var(--crm-accent)) 14%, transparent);
   background: color-mix(in srgb, var(--kb-accent, var(--crm-accent)) 6%, transparent);
 }
+
+/* Social Autopilot Library card — hover / keyboard-focus glow. Same theme accent token
+   (--kb-accent) as the calendar selection above, but an OUTER ring + soft glow around the
+   WHOLE card boundary (box-shadow only, so no layout shift / no size or ratio change).
+   Subtle, theme-aware, pointer cursor; focus-visible mirrors hover for keyboard users. */
+.sa-lib-card { cursor: pointer; transition: box-shadow .18s ease, border-color .18s ease; }
+.sa-lib-card:hover,
+.sa-lib-card:focus-visible {
+  border-color: var(--kb-accent, var(--crm-accent));
+  box-shadow: 0 0 0 1.5px var(--kb-accent, var(--crm-accent)),
+              0 0 0 5px color-mix(in srgb, var(--kb-accent, var(--crm-accent)) 14%, transparent);
+  outline: none;
+}
 /* Active-client context — the lead the Beast Companion is currently showing.
    A subtle accent ring + soft outer glow so the agent can spot the active card
    on a crowded board. Composed from the per-theme --kb-accent (follows every

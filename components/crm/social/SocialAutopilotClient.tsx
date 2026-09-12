@@ -625,9 +625,19 @@ export default function SocialAutopilotClient() {
         >
           {cards.map((c) => {
             const isSel = !c.demo && c.raw ? selected.has(c.raw.id) : false
+            const real = !c.demo && c.raw
             return (
-              <div key={c.key} className={`rounded-2xl border bg-[var(--crm-panel)] overflow-hidden flex flex-col ${isSel ? "border-[var(--crm-text-primary)] ring-1 ring-[var(--crm-text-primary)]" : "border-[var(--crm-border)]"}`}>
-                <div className="relative aspect-[9/16] bg-[var(--crm-card)]">
+              <div
+                key={c.key}
+                // Real cards: theme-accent hover/focus glow + double-click opens the composer
+                // (canonical Create Post → one guarded draft). Inner controls stop double-click
+                // from bubbling, so play/select/Edit/Delete never create a post.
+                tabIndex={real ? 0 : undefined}
+                onDoubleClick={real ? () => void createPost(c.raw!.id) : undefined}
+                onKeyDown={real ? (e) => { if (e.key === "Enter" && e.target === e.currentTarget) { e.preventDefault(); void createPost(c.raw!.id) } } : undefined}
+                className={`rounded-2xl border bg-[var(--crm-panel)] overflow-hidden flex flex-col ${real ? "sa-lib-card" : ""} ${isSel ? "border-[var(--crm-text-primary)] ring-1 ring-[var(--crm-text-primary)]" : "border-[var(--crm-border)]"}`}
+              >
+                <div className="relative aspect-[9/16] bg-[var(--crm-card)]" onDoubleClick={(e) => e.stopPropagation()}>
                   <Thumb card={c} />
                   {c.demo ? (
                     <span className="absolute top-1.5 left-1.5 text-[9.5px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-black/55 text-white">
@@ -656,7 +666,7 @@ export default function SocialAutopilotClient() {
                   </div>
                   <div className="text-[11px] text-[var(--crm-text-muted)] mt-0.5">{c.dateLabel}</div>
                   {!c.demo && c.raw && (
-                    <div className="mt-2 pt-2 border-t border-[var(--crm-border)] flex flex-col gap-1.5">
+                    <div className="mt-2 pt-2 border-t border-[var(--crm-border)] flex flex-col gap-1.5" onDoubleClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
                         className="text-[12px] font-semibold px-2.5 py-1.5 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"
