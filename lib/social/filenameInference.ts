@@ -28,6 +28,19 @@ const MARKET_PHRASES: [RegExp, string][] = [
 // Generic camera/export filenames that carry NO real property info.
 const GENERIC = /^(img|dji|dsc|vid|mov|movie|clip|video|final|export|render|reel|gopro|iphone|screen[\s-]?recording)[\s_-]*\d*[a-z]?$/i
 
+/** Detect an SA-taxonomy market anywhere in free text (filename or a place address).
+ *  Fort Worth → DFW; Dallas stays Dallas (distinct). Null when none present. */
+export function detectMarket(text: string): string | null {
+  const t = ` ${(text || "").toLowerCase()} `
+  for (const [re, label] of MARKET_PHRASES) {
+    if (re.test(t)) {
+      const m = normalizeSocialMarket(label)
+      return SOCIAL_MARKETS.includes(m) ? m : null
+    }
+  }
+  return null
+}
+
 function normalize(name: string): string {
   return name
     .replace(/\.[^.]+$/, "") // drop extension

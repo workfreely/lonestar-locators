@@ -6,7 +6,9 @@ import { supabase } from "@/lib/supabase/client"
 import { DEMO_LIBRARY } from "./demoFixtures"
 import { SOCIAL_MARKETS, normalizeSocialMarket } from "@/lib/social/markets"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
-import { inferFromFilename } from "@/lib/social/filenameInference"
+import { inferFromFilename, detectMarket } from "@/lib/social/filenameInference"
+import BulkReview from "@/components/crm/social/BulkReview"
+import PropertySearchField from "@/components/crm/social/PropertySearchField"
 
 // Social Autopilot → Library (platform-admin only; server-enforced). SA1.1: multi-file
 // upload with a one-time batch setup (Market + Property + shared metadata), per-file
@@ -69,6 +71,8 @@ type BatchMeta = {
   market: string
   propertyName: string
   propertyType: string
+  placeId: string | null
+  matched: boolean
   special: string
   budgetRange: string
   amenities: string
@@ -184,8 +188,9 @@ export default function SocialAutopilotClient() {
 
   // Upload flow.
   const fileRef = useRef<HTMLInputElement>(null)
-  const [pendingFiles, setPendingFiles] = useState<File[] | null>(null) // files awaiting batch setup
-  const [batch, setBatch] = useState<BatchMeta>({ market: "", propertyName: "", propertyType: "", special: "", budgetRange: "", amenities: "", notes: "" })
+  const [pendingFiles, setPendingFiles] = useState<File[] | null>(null) // 1-file quick setup
+  const [bulkFiles, setBulkFiles] = useState<File[] | null>(null) // 2+ files → Bulk Review
+  const [batch, setBatch] = useState<BatchMeta>({ market: "", propertyName: "", propertyType: "", placeId: null, matched: false, special: "", budgetRange: "", amenities: "", notes: "" })
   const [uploads, setUploads] = useState<UploadFile[] | null>(null) // active/finished progress list
   const [uploadingBatch, setUploadingBatch] = useState(false)
 
@@ -314,11 +319,15 @@ export default function SocialAutopilotClient() {
   const onFilesChosen = (list: FileList | null) => {
     const files = Array.from(list ?? [])
     if (files.length === 0) return
-    // Prefill batch fields from the FIRST file's filename (editable suggestions). For a single
-    // video or a same-property batch this is exactly right; the user can override any field.
-    const inf = inferFromFilename(files[0].name)
-    setPendingFiles(files)
-    setBatch({ market: inf.market ?? "", propertyName: inf.propertyName ?? "", propertyType: inf.propertyType ?? "", special: "", budgetRange: "", amenities: "", notes: "" })
+    if (files.length >= 2) {
+      // 2+ files → Bulk Review (per-file inference + review/exception workflow).
+      setBulkFiles(files)
+    } else {
+      // 1 file → quick single-video setup, prefilled from the filename (editable).
+      const inf = inferFromFilename(files[0].name)
+      setPendingFiles(files)
+      setBatch({ market: inf.market ?? "", propertyName: inf.propertyName ?? "", propertyType: inf.propertyType ?? "", placeId: null, matched: false, special: "", budgetRange: "", amenities: "", notes: "" })
+    }
     if (fileRef.current) fileRef.current.value = ""
   }
 
@@ -346,6 +355,7 @@ export default function SocialAutopilotClient() {
           market: meta.market || null,
           propertyName: meta.propertyName || null,
           propertyType: meta.propertyType || null,
+          placeId: meta.placeId || null,
           special: meta.special || null,
           budgetRange: meta.budgetRange || null,
           amenities: meta.amenities || null,
@@ -698,6 +708,11 @@ export default function SocialAutopilotClient() {
         </div>
       )}
 
+      {/* 2+ files → Bulk Review / Intake. */}
+      {bulkFiles && (
+        <BulkReview files={bulkFiles} onClose={() => setBulkFiles(null)} onUploaded={() => void load()} />
+      )}
+
       {/* Batch setup modal — assign Market (required) + Property + shared metadata ONCE. */}
       {pendingFiles && (
         <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={() => !uploadingBatch && setPendingFiles(null)}>
@@ -716,7 +731,15 @@ export default function SocialAutopilotClient() {
               </label>
               <label className="block">
                 <span className={fieldLabel}>Property / building name</span>
-                <input className={`${inputCls} mt-1`} value={batch.propertyName} onChange={(e) => setBatch((b) => ({ ...b, propertyName: e.target.value }))} placeholder="Encouraged — used to name each video" />
+                <PropertySearchField
+                  value={batch.propertyName}
+                  matched={batch.matched}
+                  inputClassName={`${inputCls} mt-1`}
+                  placeholder="Search existing property or type…"
+                  onChange={(v) => setBatch((b) => ({ ...b, propertyName: v, matched: false, placeId: null }))}
+                  onMatch={(m) => setBatch((b) => ({ ...b, propertyName: m.name, placeId: m.placeId, matched: true, market: b.market || detectMarket(m.address ?? "") || "" }))}
+                  onClearMatch={() => setBatch((b) => ({ ...b, matched: false, placeId: null }))}
+                />
               </label>
               <label className="block">
                 <span className={fieldLabel}>Property type</span>
@@ -839,7 +862,15 @@ export default function SocialAutopilotClient() {
               </label>
               <label className="block">
                 <span className={fieldLabel}>Property / building name</span>
-                <input className={`${inputCls} mt-1`} value={draft.propertyName ?? ""} onChange={(e) => setDraft((d) => ({ ...d, propertyName: e.target.value }))} />
+                <PropertySearchField
+                  value={draft.propertyName ?? ""}
+                  matched={!!(draft.placeId ?? "")}
+                  inputClassName={`${inputCls} mt-1`}
+                  placeholder="Search existing property or type…"
+                  onChange={(v) => setDraft((d) => ({ ...d, propertyName: v, placeId: "" }))}
+                  onMatch={(m) => setDraft((d) => ({ ...d, propertyName: m.name, placeId: m.placeId, market: d.market || detectMarket(m.address ?? "") || "" }))}
+                  onClearMatch={() => setDraft((d) => ({ ...d, placeId: "" }))}
+                />
               </label>
               <label className="block">
                 <span className={fieldLabel}>City / market</span>
