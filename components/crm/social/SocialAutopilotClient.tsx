@@ -36,6 +36,7 @@ type Item = {
   special: string | null
   budgetRange: string | null
   amenities: string | null
+  tags: string[]
   notes: string | null
   placeId: string | null
   createdAt: string
@@ -202,6 +203,8 @@ export default function SocialAutopilotClient() {
 
   // Individual edit.
   const [editing, setEditing] = useState<Item | null>(null)
+  const [editTags, setEditTags] = useState<string[]>([])
+  const [editTagInput, setEditTagInput] = useState("")
   const [draft, setDraft] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
 
@@ -459,6 +462,8 @@ export default function SocialAutopilotClient() {
   // ---- Individual edit -------------------------------------------------------
   const openEdit = (it: Item) => {
     setEditing(it)
+    setEditTags(Array.isArray(it.tags) ? it.tags : [])
+    setEditTagInput("")
     setDraft({
       displayName: it.displayName ?? "",
       propertyName: it.propertyName ?? "",
@@ -482,6 +487,7 @@ export default function SocialAutopilotClient() {
         special: draft.special ?? "",
         budgetRange: draft.budgetRange ?? "",
         amenities: draft.amenities ?? "",
+        tags: editTags,
         placeId: draft.placeId ?? "",
         notes: draft.notes ?? "",
       }
@@ -902,10 +908,29 @@ export default function SocialAutopilotClient() {
                 <span className={fieldLabel}>Amenities</span>
                 <input className={`${inputCls} mt-1`} value={draft.amenities ?? ""} onChange={(e) => setDraft((d) => ({ ...d, amenities: e.target.value }))} />
               </label>
-              <label className="block">
-                <span className={fieldLabel}>Google Place ID (optional)</span>
-                <input className={`${inputCls} mt-1`} value={draft.placeId ?? ""} onChange={(e) => setDraft((d) => ({ ...d, placeId: e.target.value }))} />
-              </label>
+              {/* Tags = internal SA organization/generation, distinct from Amenities. The raw
+                  Google Place ID is no longer a visible field — it's established by selecting a
+                  property above (kept persisted in draft.placeId, shown as "Matched property"). */}
+              <div className="block">
+                <span className={fieldLabel}>Tags <span className="text-[var(--crm-text-muted)] normal-case">(internal)</span></span>
+                <div className="mt-1 flex flex-wrap gap-1.5 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] p-2 min-h-[38px]">
+                  {editTags.map((t, i) => (
+                    <span key={`${t}-${i}`} className="inline-flex items-center gap-1 text-[12px] px-2 py-0.5 rounded-full bg-[var(--crm-panel)] border border-[var(--crm-border)] text-[var(--crm-text-primary)]">
+                      {t}
+                      <button type="button" aria-label={`Remove ${t}`} className="text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]" onClick={() => setEditTags((prev) => prev.filter((_, idx) => idx !== i))}>×</button>
+                    </span>
+                  ))}
+                  <input
+                    className="flex-1 min-w-[100px] bg-transparent text-[12.5px] text-[var(--crm-text-primary)] outline-none"
+                    value={editTagInput}
+                    onChange={(e) => setEditTagInput(e.target.value)}
+                    onKeyDown={(e) => { if ((e.key === "Enter" || e.key === ",") && editTagInput.trim()) { e.preventDefault(); const t = editTagInput.trim(); setEditTags((prev) => (prev.some((x) => x.toLowerCase() === t.toLowerCase()) ? prev : [...prev, t])); setEditTagInput("") } }}
+                    onBlur={() => { const t = editTagInput.trim(); if (t) { setEditTags((prev) => (prev.some((x) => x.toLowerCase() === t.toLowerCase()) ? prev : [...prev, t])); setEditTagInput("") } }}
+                    placeholder="Add tag…"
+                  />
+                </div>
+                <span className="text-[10.5px] text-[var(--crm-text-muted)]">Internal organization (e.g. luxury, new construction) — not amenities.</span>
+              </div>
               <label className="block">
                 <span className={fieldLabel}>Notes</span>
                 <textarea className={`${inputCls} mt-1 min-h-[56px]`} value={draft.notes ?? ""} onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))} />

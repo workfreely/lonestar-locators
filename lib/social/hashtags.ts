@@ -8,10 +8,11 @@ import { normalizeSocialMarket } from "@/lib/social/markets"
 // Always-relevant tags (service + leasing), regardless of property type.
 const BASE: readonly string[] = ["#nowleasing", "#apartmentlocator", "#forrent"]
 // Property-type-specific tags so a townhome isn't tagged with apartment terms.
+// Keyed by CANONICAL property types (lib/formOptions.ts).
 const TYPE_TAGS: Record<string, readonly string[]> = {
   Townhome: ["#townhomes", "#townhouseliving", "#townhomeliving", "#townhometour"],
-  "Build-to-Rent": ["#buildtorent", "#rentalhome", "#newhomes", "#hometour"],
-  // Apartment-family (Apartment / High-Rise / Mid-Rise / Garden-Style / Student Housing / default)
+  "Rental Home": ["#rentalhome", "#homeforrent", "#houseforrent", "#hometour"],
+  // Apartment-family (Apartment / High-Rise / Studio / Penthouse / Open to All / default)
   Apartment: ["#apartmenthunting", "#apartmentliving", "#luxuryapartments", "#apartmenttour"],
 }
 function typeTags(propertyType: string | null | undefined): readonly string[] {

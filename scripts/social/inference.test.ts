@@ -37,19 +37,24 @@ ok("no type keyword → null type", f.propertyType === null)
 ok("name = Mueller Flats", f.propertyName === "Mueller Flats")
 ok("review (name+market present → actually ready)", f.confidence === "ready")
 
-const g = inferFromFilename("student-living-tower-houston.mp4")
-ok("Houston + Student Housing", g.market === "Houston" && g.propertyType === "Student Housing")
+const g = inferFromFilename("the-penthouse-collection-houston.mp4")
+ok("Houston + Penthouse (canonical)", g.market === "Houston" && g.propertyType === "Penthouse")
 
-const h = inferFromFilename("garden-style-villas.mp4") // no market
-ok("garden-style type", h.propertyType === "Garden-Style")
+const h = inferFromFilename("garden-style-villas.mp4") // no market, non-canonical hint
+ok("non-canonical 'garden-style' → null type", h.propertyType === null)
 ok("no market → review", h.market === null && h.confidence === "review")
 
-console.log("property type detection + noun:")
-ok("btr variant", detectPropertyType("the reserve btr collection") === "Build-to-Rent")
-ok("townhouse variant", detectPropertyType("maple townhouse") === "Townhome")
+console.log("canonical property type detection + noun:")
+ok("townhouse variant → Townhome (canonical)", detectPropertyType("maple townhouse") === "Townhome")
+ok("studio → Studio", detectPropertyType("downtown studio lofts") === "Studio")
+ok("single-family → Rental Home", detectPropertyType("elm single-family rentals") === "Rental Home")
+ok("btr no longer a type", detectPropertyType("the reserve btr collection") === null)
+ok("garden-style no longer a type", detectPropertyType("garden style villas") === null)
 ok("noun townhome", propertyNoun("Townhome") === "townhome")
+ok("noun rental home", propertyNoun("Rental Home") === "rental home")
 ok("noun default apartment", propertyNoun(null) === "apartment")
-ok("8 property types", PROPERTY_TYPES.length === 8)
+ok("7 canonical property types", PROPERTY_TYPES.length === 7)
+ok("no SA-only values", !(PROPERTY_TYPES as readonly string[]).includes("Garden-Style") && !(PROPERTY_TYPES as readonly string[]).includes("Build-to-Rent"))
 
 console.log(`\nInference unit: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

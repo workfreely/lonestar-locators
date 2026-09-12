@@ -47,6 +47,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const cur = current as Record<string, unknown>
 
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  if ("tags" in body && Array.isArray(body.tags)) {
+    patch.tags = (body.tags as unknown[]).filter((t): t is string => typeof t === "string" && t.trim().length > 0).map((t) => t.trim().slice(0, 60)).slice(0, 40)
+  }
   for (const k of EDITABLE) {
     if (k in body) patch[COLUMN[k]] = typeof body[k] === "string" && (body[k] as string).trim() ? (body[k] as string).trim().slice(0, 5000) : null
   }
