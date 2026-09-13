@@ -14,11 +14,12 @@ const SELECT =
   "id, platform, post_type, post_name, caption, on_video_text, on_video_config, " +
   "overlay_headline, overlay_subheadline, hashtags, audio_choice, audio_track_id, rendered_storage_path, render_status, render_error, render_version, " +
   "status, scheduled_at, published_at, external_post_url, created_at, updated_at, source_content_id, " +
-  "source:source_content_id(display_name, property_name, market, special, budget_range, amenities, storage_path, original_filename, kind)"
+  "source:source_content_id(display_name, property_name, property_type, market, special, budget_range, amenities, storage_path, original_filename, kind)"
 
 type SourceEmbed = {
   display_name: string | null
   property_name: string | null
+  property_type: string | null
   market: string | null
   special: string | null
   budget_range: string | null
@@ -62,6 +63,7 @@ async function shape(supabase: PlatformAdminGuardOk["supabase"], rows: Record<st
           ? {
               displayName: src.display_name,
               propertyName: src.property_name,
+              propertyType: src.property_type,
               market: src.market,
               originalFilename: src.original_filename,
               kind: src.kind,

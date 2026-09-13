@@ -22,7 +22,7 @@ type CalPost = {
   scheduledAt: string | null
   postName: string | null
   caption: string | null
-  source: { displayName: string | null; propertyName: string | null; market: string | null; originalFilename: string | null; kind: string | null } | null
+  source: { displayName: string | null; propertyName: string | null; propertyType: string | null; market: string | null; originalFilename: string | null; kind: string | null } | null
   previewUrl: string | null
 }
 
@@ -46,6 +46,18 @@ const timeLabel = (iso: string | null) => {
 }
 const label = (p: CalPost) => p.source?.propertyName || p.source?.displayName || p.postName || "Post"
 const dateKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+
+// Compact Month-cell helpers: "8:30 · SA · Botanica". Time without meridiem, an abbreviated
+// market, then the shortest meaningful identifier (property name → type → display name).
+const MARKET_ABBR: Record<string, string> = { "San Antonio": "SA", Dallas: "DAL", DFW: "DFW", Houston: "HOU", Austin: "ATX" }
+const marketAbbr = (m: string | null | undefined) => (m ? MARKET_ABBR[m] ?? m.replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase() : "")
+const shortTime = (iso: string | null) => {
+  if (!iso) return ""
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ""
+  return `${((d.getHours() + 11) % 12) + 1}:${String(d.getMinutes()).padStart(2, "0")}`
+}
+const shortLabel = (p: CalPost) => p.source?.propertyName || p.source?.propertyType || p.source?.displayName || p.postName || "Post"
 const STATUS_DOT: Record<PostStatus, string> = {
   draft: "bg-[var(--crm-text-muted)]",
   rendering: "bg-amber-500",
@@ -211,6 +223,25 @@ function CellPost({ p, onOpenPost }: { p: CalPost; onOpenPost: (id: string) => v
   )
 }
 
+// Month-cell entry: compact TEXT (no thumbnail) — "8:30 · SA · Botanica".
+function MonthEntry({ p, onOpenPost }: { p: CalPost; onOpenPost: (id: string) => void }) {
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation()
+  const t = shortTime(p.scheduledAt)
+  const mkt = marketAbbr(p.source?.market)
+  return (
+    <button
+      type="button"
+      onClick={(e) => { stop(e); onOpenPost(p.id) }}
+      onDoubleClick={stop}
+      title={`${label(p)} · Instagram · ${timeLabel(p.scheduledAt)}`}
+      className="w-full flex items-baseline gap-1 rounded px-1 py-0.5 text-left hover:bg-[var(--crm-card)] transition-colors leading-tight"
+    >
+      <span className="text-[10px] font-semibold text-[var(--crm-text-secondary)] tabular-nums flex-none">{t}</span>
+      <span className="text-[10px] text-[var(--crm-text-muted)] truncate">{mkt ? `· ${mkt} ` : ""}· {shortLabel(p)}</span>
+    </button>
+  )
+}
+
 type MonthProps = {
   cursor: Date
   today: Date
@@ -285,7 +316,7 @@ function MonthGrid({ cursor, today, byDay, onOpenPost, selected, onSelectDate, o
                     )}
                   </div>
                   <div className="mt-1 flex flex-col gap-0.5">
-                    {dayPosts.slice(0, MONTH_CELL_MAX).map((p) => <CellPost key={p.id} p={p} onOpenPost={onOpenPost} />)}
+                    {dayPosts.slice(0, MONTH_CELL_MAX).map((p) => <MonthEntry key={p.id} p={p} onOpenPost={onOpenPost} />)}
                     {dayPosts.length > MONTH_CELL_MAX && (
                       <button
                         type="button"

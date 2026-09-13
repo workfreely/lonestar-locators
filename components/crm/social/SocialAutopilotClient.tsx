@@ -692,7 +692,6 @@ export default function SocialAutopilotClient() {
                   <div className="text-[11px] text-[var(--crm-text-muted)] mt-0.5">{c.dateLabel}</div>
                   {!c.demo && c.raw && (() => {
                     const roll = postsBySource[c.raw.id]
-                    const hasPosts = (roll?.total ?? 0) > 0
                     return (
                       <div className="mt-2 pt-2 border-t border-[var(--crm-border)] flex flex-col gap-1.5" onDoubleClick={(e) => e.stopPropagation()}>
                         <button
@@ -701,7 +700,7 @@ export default function SocialAutopilotClient() {
                           disabled={creatingId === c.raw.id}
                           onClick={() => void createPost(c.raw!.id)}
                         >
-                          {creatingId === c.raw.id ? "Creating…" : hasPosts ? "+ Create Another Post" : "+ Create Post"}
+                          {creatingId === c.raw.id ? "Creating…" : "+ Create Post"}
                         </button>
                         <div className="flex items-center gap-1.5">
                           {roll?.openId ? (

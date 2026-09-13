@@ -52,6 +52,8 @@ type Post = {
   renderedPreviewUrl: string | null
 }
 
+const MAX_HASHTAGS = 7 // Instagram limit enforced in the editor (approved bank/logic unchanged)
+
 const AUDIO_OPTIONS: { key: string; label: string; disabled?: boolean; note?: string }[] = [
   { key: "original", label: "Original Audio" },
   { key: "none", label: "No Music" },
@@ -82,7 +84,7 @@ function fmtSchedule(v: string): string {
 
 export default function PostEditor({ postId, from }: { postId: string; from?: string | null }) {
   const router = useRouter()
-  const back = BACK[from ?? ""] ?? BACK.queue
+  const back = BACK[from ?? ""] ?? BACK.library // absent/invalid origin defaults to Library
   const [post, setPost] = useState<Post | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -241,10 +243,11 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const addTag = (raw: string) => {
     const t = normalizeHashtag(raw)
     if (!t) return
-    setHashtags((prev) => (prev.some((x) => x.toLowerCase() === t.toLowerCase()) ? prev : [...prev, t]))
+    setHashtags((prev) => (prev.length >= MAX_HASHTAGS || prev.some((x) => x.toLowerCase() === t.toLowerCase()) ? prev : [...prev, t]))
     setTagInput("")
   }
-  const suggestTags = () => setHashtags(buildHashtags(market || post?.source?.market, 8, propertyType || post?.source?.propertyType))
+  // Suggest from the approved bank, capped at the Instagram limit (unchanged generation logic).
+  const suggestTags = () => setHashtags(buildHashtags(market || post?.source?.market, MAX_HASHTAGS, propertyType || post?.source?.propertyType).slice(0, MAX_HASHTAGS))
 
   const control = "w-full text-[13px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] px-2.5 py-1.5"
   const fieldLabel = "text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]"
@@ -272,7 +275,17 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       <div className="mb-3 flex items-center gap-2.5 flex-wrap">
         <button type="button" className={btn} onClick={() => router.push(back.path)}>{back.label}</button>
         <span className="text-[11.5px] font-semibold px-2.5 py-1 rounded-full bg-[var(--crm-card)] text-[var(--crm-text-secondary)]">{POST_STATUS_LABEL[post.status] ?? post.status}</span>
-        <span className="text-[11.5px] font-semibold px-2.5 py-1 rounded-full border border-[var(--crm-border)] text-[var(--crm-text-secondary)]">Instagram · {POST_TYPE_LABEL[postType] ?? postType}</span>
+        {/* Editable Instagram post type — compact, in the status area (not a large body field). */}
+        <div className="inline-flex items-center gap-1 rounded-full border border-[var(--crm-border)] pl-2.5 pr-0.5 py-0.5">
+          <span className="text-[11px] font-semibold text-[var(--crm-text-secondary)]">Instagram</span>
+          <div className="inline-flex items-center gap-0.5">
+            {types.map((t) => (
+              <button key={t} type="button" onClick={() => setPostType(t)} className={"text-[11px] font-semibold px-2 py-0.5 rounded-full transition-colors " + (postType === t ? "bg-[var(--crm-text-primary)] text-[var(--crm-panel)]" : "text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]")}>
+                {POST_TYPE_LABEL[t] ?? t}
+              </button>
+            ))}
+          </div>
+        </div>
         {rendered && <span className="text-[11.5px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">VIDEO READY</span>}
         <button type="button" className={`${btn} ml-auto`} disabled={busy || rendering} onClick={() => void duplicate()}>Duplicate</button>
       </div>
@@ -330,8 +343,8 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
 
         {/* Fields column — compact paired rows. */}
         <div className="flex flex-col gap-3">
-          {/* Row 1: Property | Type */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Row 1: Property (widest) | Market | Type */}
+          <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr_1fr] gap-3">
             <label className="block">
               <span className={fieldLabel}>Property / Building Name</span>
               <PropertySearchField
@@ -345,6 +358,13 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               />
             </label>
             <label className="block">
+              <span className={fieldLabel}>Market</span>
+              <select className={`${control} mt-1`} value={market} onChange={(e) => setMarket(e.target.value)}>
+                <option value="">No market</option>
+                {[...SOCIAL_MARKETS, ...(market && !SOCIAL_MARKETS.includes(market) ? [market] : [])].map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </label>
+            <label className="block">
               <span className={fieldLabel}>Property Type</span>
               <select className={`${control} mt-1`} value={propertyType} onChange={(e) => setPropertyType(e.target.value)}>
                 <option value="">No type</option>
@@ -353,21 +373,10 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             </label>
           </div>
 
-          {/* Row 2: Post Type | Music/Audio */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="block">
-              <span className={`${fieldLabel} block`}>Instagram Post Type</span>
-              <div className="mt-1 flex w-fit items-center gap-1 rounded-lg border border-[var(--crm-border)] p-0.5 bg-[var(--crm-panel)]">
-                {types.map((t) => (
-                  <button key={t} type="button" onClick={() => setPostType(t)} className={"text-[12.5px] font-semibold px-3 py-1.5 rounded-md transition-colors " + (postType === t ? "bg-[var(--crm-text-primary)] text-[var(--crm-panel)]" : "text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]")}>
-                    {POST_TYPE_LABEL[t] ?? t}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="block">
-              <span className={fieldLabel}>Music / Audio</span>
-              <div className="mt-1 flex items-center gap-1 flex-wrap">
+          {/* Music / Audio (Instagram post type moved to the header status area) */}
+          <div className="block">
+            <span className={fieldLabel}>Music / Audio</span>
+            <div className="mt-1 flex items-center gap-1 flex-wrap">
                 {AUDIO_OPTIONS.map((a) => (
                   <button
                     key={a.key}
@@ -381,7 +390,6 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                   </button>
                 ))}
               </div>
-            </div>
           </div>
 
           {/* Row 3: Overlay Headline | Subheadline */}
@@ -404,7 +412,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             </label>
             <div className="block">
               <div className="flex items-center justify-between">
-                <span className={fieldLabel}>Hashtags <span className="text-[var(--crm-text-muted)] normal-case">({hashtags.length})</span></span>
+                <span className={fieldLabel}>Hashtags <span className="text-[var(--crm-text-muted)] normal-case">({hashtags.length}/{MAX_HASHTAGS})</span></span>
                 <button type="button" className="text-[11px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]" onClick={suggestTags}>Suggest from market</button>
               </div>
               <div className="mt-1 flex flex-wrap gap-1.5 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] p-2 min-h-[76px] content-start">
@@ -414,16 +422,18 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                     <button type="button" aria-label={`Remove ${t}`} className="text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]" onClick={() => setHashtags((prev) => prev.filter((_, idx) => idx !== i))}>×</button>
                   </span>
                 ))}
-                <input
-                  className="flex-1 min-w-[110px] bg-transparent text-[12.5px] text-[var(--crm-text-primary)] outline-none"
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={(e) => { if ((e.key === "Enter" || e.key === ",") && tagInput.trim()) { e.preventDefault(); addTag(tagInput) } }}
-                  onBlur={() => tagInput.trim() && addTag(tagInput)}
-                  placeholder="Add hashtag…"
-                />
+                {hashtags.length < MAX_HASHTAGS && (
+                  <input
+                    className="flex-1 min-w-[110px] bg-transparent text-[12.5px] text-[var(--crm-text-primary)] outline-none"
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => { if ((e.key === "Enter" || e.key === ",") && tagInput.trim()) { e.preventDefault(); addTag(tagInput) } }}
+                    onBlur={() => tagInput.trim() && addTag(tagInput)}
+                    placeholder="Add hashtag…"
+                  />
+                )}
               </div>
-              <span className="text-[10.5px] text-[var(--crm-text-muted)]">Added to the caption when published (kept separate here).</span>
+              <span className="text-[10.5px] text-[var(--crm-text-muted)]">{hashtags.length >= MAX_HASHTAGS ? `Instagram limit of ${MAX_HASHTAGS} reached — remove one to add another.` : "Added to the caption when published (kept separate here)."}</span>
             </div>
           </div>
 
@@ -467,14 +477,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             </button>
             {moreOpen && (
               <div className="px-3 pb-3 flex flex-col gap-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <label className="block">
-                    <span className={fieldLabel}>Market</span>
-                    <select className={`${control} mt-1`} value={market} onChange={(e) => setMarket(e.target.value)}>
-                      <option value="">No market</option>
-                      {[...SOCIAL_MARKETS, ...(market && !SOCIAL_MARKETS.includes(market) ? [market] : [])].map((m) => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                  </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <label className="block">
                     <span className={fieldLabel}>Current Special</span>
                     <input className={`${control} mt-1`} value={special} onChange={(e) => setSpecial(e.target.value)} />
@@ -493,12 +496,15 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             )}
           </div>
 
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
+          <p className="text-[11px] text-[var(--crm-text-muted)]">Prepare Video produces the final 9:16 video with the overlay burned in and your audio choice. Nothing is published to Instagram in this checkpoint.</p>
+
+          {/* Primary actions — compact sticky bar, lower-RIGHT of the editor workspace. Sits above
+              a translucent panel background so it never obscures the fields it floats over. */}
+          <div className="sticky bottom-0 -mx-1 px-1 pt-2 pb-1 mt-1 flex items-center justify-end gap-2 flex-wrap bg-gradient-to-t from-[var(--crm-panel)] via-[var(--crm-panel)] to-transparent">
+            {post.status === "scheduled" && <button type="button" className={`${btn} mr-auto`} disabled={busy} onClick={() => void backToDraft()}>Move back to Draft</button>}
             <button type="button" className={primaryBtn} disabled={busy || rendering} onClick={() => void saveDraft()}>{busy ? "Saving…" : "Save Draft"}</button>
             <button type="button" className={primaryBtn} disabled={busy || rendering} onClick={() => void schedule()}>Schedule</button>
-            {post.status === "scheduled" && <button type="button" className={btn} disabled={busy} onClick={() => void backToDraft()}>Move back to Draft</button>}
           </div>
-          <p className="text-[11px] text-[var(--crm-text-muted)]">Prepare Video produces the final 9:16 video with the overlay burned in and your audio choice. Nothing is published to Instagram in this checkpoint.</p>
         </div>
       </div>
     </div>
