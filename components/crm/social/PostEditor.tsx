@@ -89,7 +89,6 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [rendering, setRendering] = useState(false)
 
   // social_posts (public post) fields
   const [postName, setPostName] = useState("") // INTERNAL — kept, not shown as a field
@@ -202,42 +201,10 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const backToDraft = async () => {
     if (await patch({ intent: "unschedule" }, "Moved back to Draft.")) await load()
   }
-  const duplicate = useCallback(async () => {
-    setBusy(true)
-    try {
-      const res = await fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}/duplicate`, { method: "POST" })
-      if (!res.ok) return setError("Couldn't duplicate.")
-      const j = (await res.json()) as { id?: string }
-      if (j.id) router.push(`/admin/social-autopilot/posts/${encodeURIComponent(j.id)}${from ? `?from=${from}` : ""}`)
-    } finally {
-      setBusy(false)
-    }
-  }, [postId, router, from])
-
-  // Prepare Video: persist current fields (source + post), then run the server FFmpeg render
-  // (synchronous), then reload so the faithful final preview plays the rendered derivative.
-  const prepare = useCallback(async () => {
-    setRendering(true)
-    setError(null)
-    setNotice(null)
-    try {
-      const saved = await patch({ scheduledAt: scheduleToIso(scheduleVal) ?? "" }, null)
-      if (!saved) return
-      const res = await fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}/render`, { method: "POST" })
-      if (!res.ok) {
-        setError("Video preparation failed. Check the video and try again.")
-        await load()
-        return
-      }
-      setNotice("Video ready — review the final preview.")
-      await load()
-    } catch {
-      setError("Video preparation failed.")
-      await load()
-    } finally {
-      setRendering(false)
-    }
-  }, [postId, patch, scheduleVal, load])
+  // NOTE: FFmpeg render infrastructure (the /render route + renderVideo) and post-duplicate
+  // (/duplicate route) are intentionally KEPT. They are no longer surfaced as manual editor
+  // buttons — rendering will run internally as part of Publish/Schedule, and post variations may
+  // be exposed from the Library later.
 
   const addTag = (raw: string) => {
     const t = normalizeHashtag(raw)
@@ -270,7 +237,6 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const rendered = post.renderStatus === "ready" && !!post.renderedPreviewUrl
   const headLines = wrapHeadline(headline) // shared with the render, so the sub never collides
   const ov = overlayPreviewStyle(headLines.length || 1)
-  const prepareLabel = rendering ? "Preparing…" : post.renderStatus === "error" ? "Retry — Prepare Video" : rendered ? "Re-prepare Video" : "Prepare Video"
 
   return (
     <div>
@@ -299,8 +265,6 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             ))}
           </select>
         </div>
-        {rendered && <span className="text-[11.5px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">VIDEO READY</span>}
-        <button type="button" className={`${btn} ml-auto`} disabled={busy || rendering} onClick={() => void duplicate()}>Duplicate</button>
       </div>
 
       {(error || notice) && (
@@ -339,19 +303,9 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               <div className="w-full h-full flex items-center justify-center text-[12px] text-[var(--crm-text-muted)]">No preview</div>
             )}
           </div>
-          <div className="mt-1.5 text-[10.5px] text-[var(--crm-text-muted)]">
-            {rendered ? "Final video — overlay burned in, audio applied." : rendering ? "Preparing the final video…" : "Approximation. Prepare the video to see the exact final."}
-          </div>
-
-          <button type="button" className={`${primaryBtn} mt-2 w-full`} disabled={rendering || busy} onClick={() => void prepare()}>
-            {prepareLabel}
-          </button>
-          {post.renderStatus === "error" && post.renderError && <div className="mt-1 text-[11px] text-red-500">Last error: {post.renderError}</div>}
-
-          {/* Publish depends on a current prepared video; it is enabled in a later checkpoint. */}
-          <button type="button" className="mt-2 w-full text-[12.5px] font-semibold px-3.5 py-2 rounded-lg border border-[var(--crm-border)] text-[var(--crm-text-muted)] opacity-70 cursor-not-allowed" disabled title={rendered ? "Publishing is enabled in a later checkpoint" : "Prepare the video first — then publishing is enabled in a later checkpoint"}>
-            Publish Now
-          </button>
+          {/* The left column ends with the preview. Rendering happens internally as part of
+              Publish/Schedule — there is no manual Prepare step in the UI. A faithful final
+              preview still shows automatically once a derivative exists. */}
         </div>
 
         {/* Fields column — compact paired rows. */}
@@ -422,7 +376,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             </label>
             <div className="block">
               <div className="flex items-center justify-between">
-                <span className={fieldLabel}>Hashtags <span className="text-[var(--crm-text-muted)] normal-case">({hashtags.length}/{MAX_HASHTAGS})</span></span>
+                <span className={fieldLabel}>Hashtags <span className={"normal-case " + (hashtags.length > MAX_HASHTAGS ? "text-amber-600 dark:text-amber-400" : "text-[var(--crm-text-muted)]")}>{hashtags.length > MAX_HASHTAGS ? `(${hashtags.length} · max ${MAX_HASHTAGS})` : `(${hashtags.length}/${MAX_HASHTAGS})`}</span></span>
                 <button type="button" className="text-[11px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]" onClick={suggestTags}>Suggest from market</button>
               </div>
               <div className="mt-1 flex flex-wrap gap-1.5 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] p-2 min-h-[76px] content-start">
@@ -443,7 +397,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                   />
                 )}
               </div>
-              <span className="text-[10.5px] text-[var(--crm-text-muted)]">{hashtags.length >= MAX_HASHTAGS ? `Instagram limit of ${MAX_HASHTAGS} reached — remove one to add another.` : "Added to the caption when published (kept separate here)."}</span>
+              <span className="text-[10.5px] text-[var(--crm-text-muted)]">{hashtags.length > MAX_HASHTAGS ? `Over the ${MAX_HASHTAGS}-tag Instagram limit — remove ${hashtags.length - MAX_HASHTAGS} before publishing.` : hashtags.length === MAX_HASHTAGS ? `Instagram limit of ${MAX_HASHTAGS} reached — remove one to add another.` : "Added to the caption when published (kept separate here)."}</span>
             </div>
           </div>
 
@@ -478,14 +432,22 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             )}
           </div>
 
-          <p className="text-[11px] text-[var(--crm-text-muted)]">Property name, area, and notes never post publicly unless you type them into the caption or overlay. Prepare Video burns in the overlay + your audio choice; nothing is published to Instagram in this checkpoint.</p>
-
-          {/* Primary actions — compact sticky bar, lower-RIGHT of the editor workspace. Sits above
-              a translucent panel background so it never obscures the fields it floats over. */}
-          <div className="sticky bottom-0 -mx-1 px-1 pt-2 pb-1 mt-1 flex items-center justify-end gap-2 flex-wrap bg-gradient-to-t from-[var(--crm-panel)] via-[var(--crm-panel)] to-transparent">
+          {/* One static action row beneath Schedule, aligned lower-right: Save Draft (secondary),
+              Schedule (primary), Publish Now (strongest final action). Rendering runs internally
+              as part of Publish/Schedule — no manual prepare step. Publish stays disabled until a
+              production-safe Instagram publish pipeline exists (no fake publishing). */}
+          <div className="mt-1 flex items-center justify-end gap-2 flex-wrap">
             {post.status === "scheduled" && <button type="button" className={`${btn} mr-auto`} disabled={busy} onClick={() => void backToDraft()}>Move back to Draft</button>}
-            <button type="button" className={primaryBtn} disabled={busy || rendering} onClick={() => void saveDraft()}>{busy ? "Saving…" : "Save Draft"}</button>
-            <button type="button" className={primaryBtn} disabled={busy || rendering} onClick={() => void schedule()}>Schedule</button>
+            <button type="button" className={btn} disabled={busy} onClick={() => void saveDraft()}>{busy ? "Saving…" : "Save Draft"}</button>
+            <button type="button" className={primaryBtn} disabled={busy} onClick={() => void schedule()}>Schedule</button>
+            <button
+              type="button"
+              disabled
+              title="Live Instagram publishing isn't enabled yet"
+              className="text-[12.5px] font-semibold px-3.5 py-2 rounded-lg bg-emerald-600 text-white opacity-60 cursor-not-allowed"
+            >
+              Publish Now
+            </button>
           </div>
         </div>
       </div>
