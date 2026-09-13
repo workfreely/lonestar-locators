@@ -10,16 +10,22 @@ export const OVERLAY_CANVAS = { w: 1080, h: 1920 } as const
 // `maxChars` (chosen so a full line ≈ the box width at that font) with an even harder per-word
 // character break so nonsense/no-space text can never run off-screen. The SAME wrap drives both
 // the CSS preview and the FFmpeg render (FFmpeg centers each line via x=(w-text_w)/2, so the
-// char-wrap is what constrains its width to the box). Headline box ≈ 800px, sub box ≈ 840px.
+// char-wrap is what constrains its width to the box). Headline box ≈ 800px, sub box ≈ 930px.
 export const OVERLAY_SPEC = {
-  headline: { yFrac: 0.13, fontPx: 84, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24, maxChars: 16, maxLines: 3, sideMarginPx: 140 },
+  // Headline font grown ~12% (84→94px) for more impact. maxChars tightened 16→14 so a full line
+  // still fits the SAME ~800px safe box (140px margins) at the larger glyph size — the headline
+  // never gets closer to the video edges. Position (yFrac), weight/style, and wrap algorithm are
+  // unchanged. Applied identically to the CSS preview and the FFmpeg render (both read this spec).
+  headline: { yFrac: 0.13, fontPx: 94, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24, maxChars: 14, maxLines: 3, sideMarginPx: 140 },
   // The sub sits `gapPx` BELOW the bottom of the (possibly multi-line) headline block, in its own
-  // centered box. It now uses substantially more of the video width before wrapping (wider box +
-  // higher maxChars) so a normal long subheadline reads on fewer lines — while KEEPING generous
-  // safe margins (120px ≈ 11% each side, never edge-to-edge) and the per-word hard-split so a long
-  // unbroken string still can't overflow. Preview and FFmpeg share this maxChars, so wrapping is
-  // identical; the wider box only lets the CSS preview hold a full maxChars line without re-wrapping.
-  sub: { gapPx: 44, fontPx: 40, lineSpacing: 6, boxAlpha: 0.28, boxBorderPx: 16, maxChars: 30, maxLines: 4, sideMarginPx: 120 },
+  // centered box. Its safe box is now ≈86% of the 1080 canvas (930px; 75px ≈ 6.9% margins each
+  // side — reasonable safe margin, never edge-to-edge), with maxChars raised to 33 so normal
+  // marketing copy uses substantially more horizontal space before wrapping (e.g. "8 WEEKS FREE +
+  // WAIVED APP & ADMIN" fits on one line). Multi-line wrapping, the 4-line cap, and the per-word
+  // hard-split (so a pathological long unbroken string still can't overflow) are all unchanged.
+  // Preview and FFmpeg share this maxChars, so wrapping is identical; the wider box only lets the
+  // CSS preview hold a full maxChars line without re-wrapping.
+  sub: { gapPx: 44, fontPx: 40, lineSpacing: 6, boxAlpha: 0.28, boxBorderPx: 16, maxChars: 33, maxLines: 4, sideMarginPx: 75 },
   safe: { topFrac: 0.1, bottomFrac: 0.2 },
 } as const
 
