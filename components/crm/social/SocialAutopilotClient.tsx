@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase/client"
 import { DEMO_LIBRARY } from "./demoFixtures"
 import { SOCIAL_MARKETS, normalizeSocialMarket } from "@/lib/social/markets"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
-import { inferFromFilename, detectMarket } from "@/lib/social/filenameInference"
+import { inferFromFilename, detectMarket, suggestArea } from "@/lib/social/filenameInference"
 import BulkReview from "@/components/crm/social/BulkReview"
 import PropertySearchField from "@/components/crm/social/PropertySearchField"
 
@@ -33,6 +33,7 @@ type Item = {
   propertyName: string | null
   propertyType: string | null
   market: string | null
+  areaNeighborhood: string | null
   special: string | null
   budgetRange: string | null
   amenities: string | null
@@ -70,6 +71,7 @@ type UploadFile = {
 
 type BatchMeta = {
   market: string
+  areaNeighborhood: string
   propertyName: string
   propertyType: string
   placeId: string | null
@@ -191,7 +193,7 @@ export default function SocialAutopilotClient() {
   const fileRef = useRef<HTMLInputElement>(null)
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null) // 1-file quick setup
   const [bulkFiles, setBulkFiles] = useState<File[] | null>(null) // 2+ files → Bulk Review
-  const [batch, setBatch] = useState<BatchMeta>({ market: "", propertyName: "", propertyType: "", placeId: null, matched: false, special: "", budgetRange: "", amenities: "", notes: "" })
+  const [batch, setBatch] = useState<BatchMeta>({ market: "", areaNeighborhood: "", propertyName: "", propertyType: "", placeId: null, matched: false, special: "", budgetRange: "", amenities: "", notes: "" })
   const [uploads, setUploads] = useState<UploadFile[] | null>(null) // active/finished progress list
   const [uploadingBatch, setUploadingBatch] = useState(false)
 
@@ -329,7 +331,7 @@ export default function SocialAutopilotClient() {
       // 1 file → quick single-video setup, prefilled from the filename (editable).
       const inf = inferFromFilename(files[0].name)
       setPendingFiles(files)
-      setBatch({ market: inf.market ?? "", propertyName: inf.propertyName ?? "", propertyType: inf.propertyType ?? "", placeId: null, matched: false, special: "", budgetRange: "", amenities: "", notes: "" })
+      setBatch({ market: inf.market ?? "", areaNeighborhood: "", propertyName: inf.propertyName ?? "", propertyType: inf.propertyType ?? "", placeId: null, matched: false, special: "", budgetRange: "", amenities: "", notes: "" })
     }
     if (fileRef.current) fileRef.current.value = ""
   }
@@ -358,6 +360,7 @@ export default function SocialAutopilotClient() {
           market: meta.market || null,
           propertyName: meta.propertyName || null,
           propertyType: meta.propertyType || null,
+          areaNeighborhood: meta.areaNeighborhood || null,
           placeId: meta.placeId || null,
           special: meta.special || null,
           budgetRange: meta.budgetRange || null,
@@ -469,6 +472,7 @@ export default function SocialAutopilotClient() {
       propertyName: it.propertyName ?? "",
       propertyType: it.propertyType ?? "",
       market: it.market ?? "",
+      areaNeighborhood: it.areaNeighborhood ?? "",
       special: it.special ?? "",
       budgetRange: it.budgetRange ?? "",
       amenities: it.amenities ?? "",
@@ -484,6 +488,7 @@ export default function SocialAutopilotClient() {
         propertyName: draft.propertyName ?? "",
         propertyType: draft.propertyType ?? "",
         market: draft.market ?? "",
+        areaNeighborhood: draft.areaNeighborhood ?? "",
         special: draft.special ?? "",
         budgetRange: draft.budgetRange ?? "",
         amenities: draft.amenities ?? "",
@@ -743,7 +748,7 @@ export default function SocialAutopilotClient() {
                   inputClassName={`${inputCls} mt-1`}
                   placeholder="Search existing property or type…"
                   onChange={(v) => setBatch((b) => ({ ...b, propertyName: v, matched: false, placeId: null }))}
-                  onMatch={(m) => setBatch((b) => ({ ...b, propertyName: m.name, placeId: m.placeId, matched: true, market: b.market || detectMarket(m.address ?? "") || "" }))}
+                  onMatch={(m) => setBatch((b) => { const market = b.market || detectMarket(m.address ?? "") || ""; return { ...b, propertyName: m.name, placeId: m.placeId, matched: true, market, areaNeighborhood: b.areaNeighborhood || suggestArea(m.address, market) } })}
                   onClearMatch={() => setBatch((b) => ({ ...b, matched: false, placeId: null }))}
                 />
               </label>
@@ -755,6 +760,10 @@ export default function SocialAutopilotClient() {
                     <option key={t} value={t}>{t}</option>
                   ))}
                 </select>
+              </label>
+              <label className="block">
+                <span className={fieldLabel}>Area / Neighborhood</span>
+                <input className={`${inputCls} mt-1`} value={batch.areaNeighborhood} onChange={(e) => setBatch((b) => ({ ...b, areaNeighborhood: e.target.value }))} placeholder="e.g. Schertz, Stone Oak, The Rim, Uptown" />
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
@@ -874,7 +883,7 @@ export default function SocialAutopilotClient() {
                   inputClassName={`${inputCls} mt-1`}
                   placeholder="Search existing property or type…"
                   onChange={(v) => setDraft((d) => ({ ...d, propertyName: v, placeId: "" }))}
-                  onMatch={(m) => setDraft((d) => ({ ...d, propertyName: m.name, placeId: m.placeId, market: d.market || detectMarket(m.address ?? "") || "" }))}
+                  onMatch={(m) => setDraft((d) => { const market = d.market || detectMarket(m.address ?? "") || ""; return { ...d, propertyName: m.name, placeId: m.placeId, market, areaNeighborhood: d.areaNeighborhood || suggestArea(m.address, market) } })}
                   onClearMatch={() => setDraft((d) => ({ ...d, placeId: "" }))}
                 />
               </label>
@@ -886,6 +895,10 @@ export default function SocialAutopilotClient() {
                     <option key={m} value={m}>{m}</option>
                   ))}
                 </select>
+              </label>
+              <label className="block">
+                <span className={fieldLabel}>Area / Neighborhood</span>
+                <input className={`${inputCls} mt-1`} value={draft.areaNeighborhood ?? ""} onChange={(e) => setDraft((d) => ({ ...d, areaNeighborhood: e.target.value }))} placeholder="e.g. Schertz, Stone Oak, The Rim, Uptown" />
               </label>
               <label className="block">
                 <span className={fieldLabel}>Property type</span>
@@ -912,7 +925,7 @@ export default function SocialAutopilotClient() {
                   Google Place ID is no longer a visible field — it's established by selecting a
                   property above (kept persisted in draft.placeId, shown as "Matched property"). */}
               <div className="block">
-                <span className={fieldLabel}>Tags <span className="text-[var(--crm-text-muted)] normal-case">(internal)</span></span>
+                <span className={fieldLabel}>Tags / Keywords</span>
                 <div className="mt-1 flex flex-wrap gap-1.5 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] p-2 min-h-[38px]">
                   {editTags.map((t, i) => (
                     <span key={`${t}-${i}`} className="inline-flex items-center gap-1 text-[12px] px-2 py-0.5 rounded-full bg-[var(--crm-panel)] border border-[var(--crm-border)] text-[var(--crm-text-primary)]">
@@ -926,10 +939,10 @@ export default function SocialAutopilotClient() {
                     onChange={(e) => setEditTagInput(e.target.value)}
                     onKeyDown={(e) => { if ((e.key === "Enter" || e.key === ",") && editTagInput.trim()) { e.preventDefault(); const t = editTagInput.trim(); setEditTags((prev) => (prev.some((x) => x.toLowerCase() === t.toLowerCase()) ? prev : [...prev, t])); setEditTagInput("") } }}
                     onBlur={() => { const t = editTagInput.trim(); if (t) { setEditTags((prev) => (prev.some((x) => x.toLowerCase() === t.toLowerCase()) ? prev : [...prev, t])); setEditTagInput("") } }}
-                    placeholder="Add tag…"
+                    placeholder="Add tag or keyword…"
                   />
                 </div>
-                <span className="text-[10.5px] text-[var(--crm-text-muted)]">Internal organization (e.g. luxury, new construction) — not amenities.</span>
+                <span className="text-[10.5px] text-[var(--crm-text-muted)]">Used to help generate relevant captions and hashtags for this video.</span>
               </div>
               <label className="block">
                 <span className={fieldLabel}>Notes</span>

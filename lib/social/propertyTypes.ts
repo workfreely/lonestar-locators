@@ -3,7 +3,11 @@
 // NOT maintain a second taxonomy and never modifies the canonical list.
 import { PROPERTY_TYPES as CANONICAL_PROPERTY_TYPES } from "@/lib/formOptions"
 
-export const PROPERTY_TYPES = CANONICAL_PROPERTY_TYPES // Studio | Apartment | High-Rise | Townhome | Rental Home | Penthouse | Open to All
+// SA describes an actual property/content asset, not a renter preference, so it filters the
+// renter-preference value "Open to All" OUT of the canonical list — a Social-Autopilot-only
+// view. The canonical taxonomy in lib/formOptions.ts is NOT modified; "Open to All" remains
+// everywhere else in Locator Beast.
+export const PROPERTY_TYPES = CANONICAL_PROPERTY_TYPES.filter((t) => t !== "Open to All") // Studio | Apartment | High-Rise | Townhome | Rental Home | Penthouse
 export type PropertyType = (typeof PROPERTY_TYPES)[number]
 
 export function isPropertyType(v: string | null | undefined): v is PropertyType {

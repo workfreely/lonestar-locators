@@ -37,14 +37,19 @@ export const HASHTAG_MARKETS = Object.keys(BY_MARKET)
  * general, deduped case-insensitively. Returns [] for an unknown/empty market's specifics but
  * still fills from general so the list is never empty when a count is requested.
  */
-export function buildHashtags(market: string | null | undefined, target = 8, propertyType?: string | null): string[] {
+export function buildHashtags(market: string | null | undefined, target = 8, propertyType?: string | null, area?: string | null): string[] {
   const clamp = Math.max(7, Math.min(10, target))
   const label = normalizeSocialMarket(market) // keeps Dallas/DFW distinct
   const marketTags = BY_MARKET[label] ?? []
+  // A finer area/neighborhood tag (e.g. Schertz → #schertz), only when it's distinct from the
+  // market (avoids duplicate geography). Placed first so it survives the 7–10 cap.
+  const areaSlug = (area ?? "").toLowerCase().replace(/[^a-z0-9]/g, "")
+  const marketSlug = label.toLowerCase().replace(/[^a-z0-9]/g, "")
+  const areaTags = areaSlug && areaSlug !== marketSlug ? [`#${areaSlug}`] : []
   const out: string[] = []
   const seen = new Set<string>()
-  // Market-specific first, then type-specific, then base leasing/service tags.
-  for (const tag of [...marketTags, ...typeTags(propertyType), ...BASE]) {
+  // Area (if distinct) → market-specific → type-specific → base leasing/service tags.
+  for (const tag of [...areaTags, ...marketTags, ...typeTags(propertyType), ...BASE]) {
     const key = tag.toLowerCase()
     if (seen.has(key)) continue
     seen.add(key)

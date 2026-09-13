@@ -18,7 +18,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from("social_content")
     .select(
-      "id, storage_path, kind, original_filename, content_type, size_bytes, duration_s, display_name, name_customized, upload_batch_id, batch_seq, property_name, property_type, market, special, budget_range, amenities, tags, notes, place_id, details, created_at, updated_at",
+      "id, storage_path, kind, original_filename, content_type, size_bytes, duration_s, display_name, name_customized, upload_batch_id, batch_seq, property_name, property_type, market, area_neighborhood, special, budget_range, amenities, tags, notes, place_id, details, created_at, updated_at",
     )
     .order("created_at", { ascending: false })
   if (error) return NextResponse.json({ error: "list_failed" }, { status: 500 })
@@ -43,6 +43,7 @@ export async function GET() {
         sizeBytes: r.size_bytes,
         propertyName: r.property_name,
         propertyType: r.property_type,
+        areaNeighborhood: r.area_neighborhood,
         tags: Array.isArray(r.tags) ? r.tags : [],
         market: r.market,
         special: r.special,
@@ -88,6 +89,7 @@ export async function POST(req: NextRequest) {
 
   const propertyName = str(body.propertyName)
   const propertyType = isPropertyType(typeof body.propertyType === "string" ? body.propertyType : "") ? (body.propertyType as string) : null
+  const areaNeighborhood = typeof body.areaNeighborhood === "string" && body.areaNeighborhood.trim() ? body.areaNeighborhood.trim().slice(0, 200) : null
   const tags = Array.isArray(body.tags) ? (body.tags as unknown[]).filter((t): t is string => typeof t === "string" && t.trim().length > 0).map((t) => t.trim().slice(0, 60)).slice(0, 40) : null
   const market = str(body.market)
   const originalFilename = str(body.originalFilename, 500)
@@ -120,6 +122,7 @@ export async function POST(req: NextRequest) {
       name_customized: false,
       property_name: propertyName,
       property_type: propertyType,
+      area_neighborhood: areaNeighborhood,
       tags: tags,
       market: market,
       special: str(body.special),

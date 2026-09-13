@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { supabase } from "@/lib/supabase/client"
 import { SOCIAL_MARKETS } from "@/lib/social/markets"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
-import { inferFromFilename, detectMarket, type FilenameInference } from "@/lib/social/filenameInference"
+import { inferFromFilename, detectMarket, suggestArea, type FilenameInference } from "@/lib/social/filenameInference"
 import { buildHashtags } from "@/lib/social/hashtags"
 import { preparePost } from "@/lib/social/composePost"
 import PropertySearchField, { type PropertyMatch } from "@/components/crm/social/PropertySearchField"
@@ -38,6 +38,7 @@ type Row = {
   inf: FilenameInference
   propertyName: string
   market: string
+  areaNeighborhood: string
   propertyType: string
   placeId: string | null
   matched: boolean
@@ -120,6 +121,7 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
         inf,
         propertyName: inf.propertyName ?? "",
         market: inf.market ?? "",
+        areaNeighborhood: "",
         propertyType: inf.propertyType ?? "",
         placeId: null,
         matched: false,
@@ -162,8 +164,10 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
 
   // Detail-panel property match → set name + place_id + (derive market from address if empty).
   const onMatch = (uid: string, m: PropertyMatch) => {
-    const derived = detectMarket(m.address ?? "") || detectMarket(m.name)
-    patchRow(uid, { propertyName: m.name, placeId: m.placeId, matched: true, ...(derived ? { market: derived } : {}) })
+    const row = rows.find((r) => r.uid === uid)
+    const market = row?.market || detectMarket(m.address ?? "") || detectMarket(m.name) || ""
+    const area = row?.areaNeighborhood || suggestArea(m.address, market)
+    patchRow(uid, { propertyName: m.name, placeId: m.placeId, matched: true, ...(market ? { market } : {}), ...(area ? { areaNeighborhood: area } : {}) })
   }
 
   const approveAndNext = (uid: string) => {
@@ -205,6 +209,7 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
               market: r.market || null,
               propertyName: r.propertyName || null,
               propertyType: r.propertyType || null,
+              areaNeighborhood: r.areaNeighborhood || null,
               placeId: r.placeId || null,
             }),
           })
@@ -229,7 +234,7 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
   const primaryBtn = "text-[12.5px] font-semibold px-3.5 py-2 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"
   const chip = (on: boolean) => "text-[12px] font-semibold px-2.5 py-1 rounded-full border transition-colors " + (on ? "border-[var(--crm-text-primary)] text-[var(--crm-text-primary)] bg-[var(--crm-card)]" : "border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]")
 
-  const activePrep = active ? preparePost({ propertyName: active.propertyName, market: active.market, propertyType: active.propertyType }) : null
+  const activePrep = active ? preparePost({ propertyName: active.propertyName, market: active.market, areaNeighborhood: active.areaNeighborhood, propertyType: active.propertyType }) : null
 
   return (
     <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={() => !uploading && onClose()}>
@@ -347,6 +352,10 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
                     </select>
                   </label>
                 </div>
+                <label className="block">
+                  <span className={fieldLabel}>Area / Neighborhood</span>
+                  <input className={`${inputCls} mt-1`} value={active.areaNeighborhood} onChange={(e) => patchRow(active.uid, { areaNeighborhood: e.target.value })} placeholder="e.g. Schertz, Stone Oak, Uptown" />
+                </label>
                 {/* Read-only prepared preview (materialized into a draft later, not now). */}
                 {activePrep && (
                   <div className="rounded-lg border border-[var(--crm-border)] p-2 text-[11.5px] text-[var(--crm-text-secondary)]">

@@ -13,12 +13,15 @@ import { propertyNoun } from "@/lib/social/propertyTypes"
 export type SourceMeta = {
   propertyName?: string | null
   market?: string | null
+  areaNeighborhood?: string | null
   propertyType?: string | null
   special?: string | null
   budgetRange?: string | null
   amenities?: string | null
   // notes / placeId / originalFilename are intentionally NOT accepted — internal only.
 }
+
+const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "")
 
 export type PreparedPost = {
   overlayHeadline: string
@@ -41,9 +44,12 @@ export function buildOverlayHeadline(src: SourceMeta): string {
  *  actually adds public value). */
 export function buildOverlaySubheadline(src: SourceMeta): string {
   const special = clean(src.special)
+  const area = clean(src.areaNeighborhood)
   const market = clean(normalizeSocialMarket(src.market))
   if (special) return special.slice(0, 60)
-  if (market && clean(src.propertyName)) return market.slice(0, 60) // property is the headline, market fits as sub
+  // Prefer the finer geographic signal (area) over the broad market for the sub.
+  if (area && slug(area) !== slug(market)) return area.slice(0, 60)
+  if (market && clean(src.propertyName)) return market.slice(0, 60)
   return ""
 }
 
@@ -78,7 +84,7 @@ export function preparePost(src: SourceMeta): PreparedPost {
     overlayHeadline: buildOverlayHeadline(src),
     overlaySubheadline: buildOverlaySubheadline(src),
     caption: buildCaption(src),
-    hashtags: buildHashtags(src.market, 8, src.propertyType),
+    hashtags: buildHashtags(src.market, 8, src.propertyType, clean(src.areaNeighborhood)),
   }
 }
 

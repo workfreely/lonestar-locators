@@ -10,11 +10,12 @@ import { buildSocialDisplayName } from "@/lib/social/displayName"
 // overwritten. Editing property/market while NOT customized auto-refines display_name to
 // "Property - Market - YYYY-MM-DD - NN" (date from created_at, NN from batch_seq).
 // PROTECTED fields (owner_user_id, storage_path, original_filename) are never mutated here.
-const EDITABLE = ["propertyName", "propertyType", "market", "special", "budgetRange", "amenities", "notes", "placeId"] as const
+const EDITABLE = ["propertyName", "propertyType", "market", "areaNeighborhood", "special", "budgetRange", "amenities", "notes", "placeId"] as const
 const COLUMN: Record<(typeof EDITABLE)[number], string> = {
   propertyName: "property_name",
   propertyType: "property_type",
   market: "market",
+  areaNeighborhood: "area_neighborhood",
   special: "special",
   budgetRange: "budget_range",
   amenities: "amenities",

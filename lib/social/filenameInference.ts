@@ -28,6 +28,25 @@ const MARKET_PHRASES: [RegExp, string][] = [
 // Generic camera/export filenames that carry NO real property info.
 const GENERIC = /^(img|dji|dsc|vid|mov|movie|clip|video|final|export|render|reel|gopro|iphone|screen[\s-]?recording)[\s_-]*\d*[a-z]?$/i
 
+/** The locality/city from a formatted place address ("…, Schertz, TX 78154, USA" → "Schertz"),
+ *  or null. Used to SUGGEST Area/Neighborhood from a matched property — no extra Places flow. */
+export function localityFromAddress(address: string | null | undefined): string | null {
+  const m = (address ?? "").match(/(?:^|,)\s*([A-Za-z][A-Za-z .'-]+?),\s*[A-Z]{2}\b/)
+  return m ? m[1].trim() : null
+}
+
+/** Suggested Area/Neighborhood from a matched place address, EXCLUDING the case where it just
+ *  duplicates the Market (avoids "Schertz San Antonio Schertz"-style redundancy). "" when none
+ *  or when it equals the market. Never fabricates — derived only from the address. */
+export function suggestArea(address: string | null | undefined, market: string | null | undefined): string {
+  const loc = localityFromAddress(address)
+  if (!loc) return ""
+  const m = (market ?? "").trim().toLowerCase()
+  if (loc.toLowerCase() === m) return ""
+  if (normalizeSocialMarket(loc).toLowerCase() === m) return ""
+  return loc
+}
+
 /** Detect an SA-taxonomy market anywhere in free text (filename or a place address).
  *  Fort Worth → DFW; Dallas stays Dallas (distinct). Null when none present. */
 export function detectMarket(text: string): string | null {

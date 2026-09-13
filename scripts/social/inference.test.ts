@@ -53,8 +53,10 @@ ok("garden-style no longer a type", detectPropertyType("garden style villas") ==
 ok("noun townhome", propertyNoun("Townhome") === "townhome")
 ok("noun rental home", propertyNoun("Rental Home") === "rental home")
 ok("noun default apartment", propertyNoun(null) === "apartment")
-ok("7 canonical property types", PROPERTY_TYPES.length === 7)
+ok("6 SA property types (canonical minus 'Open to All')", PROPERTY_TYPES.length === 6)
 ok("no SA-only values", !(PROPERTY_TYPES as readonly string[]).includes("Garden-Style") && !(PROPERTY_TYPES as readonly string[]).includes("Build-to-Rent"))
+ok("Open to All excluded from SA", !(PROPERTY_TYPES as readonly string[]).includes("Open to All"))
+ok("canonical members present", ["Studio","Apartment","High-Rise","Townhome","Rental Home","Penthouse"].every((t) => (PROPERTY_TYPES as readonly string[]).includes(t)))
 
 console.log(`\nInference unit: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)
