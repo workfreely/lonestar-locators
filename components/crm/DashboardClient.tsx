@@ -152,6 +152,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     const params = new URLSearchParams(window.location.search)
     const id = params.get("id")
     if (id) setSelectedLeadId(id)
+    // Restore Focus Mode from the URL so a refresh on a Focus Lead Detail (or Focus board) stays
+    // in Focus. A normal (no ?focus=1) URL leaves Focus off — normal navigation is unaffected.
+    if (params.get("focus") === "1") setFocusMode(true)
   }, [])
 
   // Testing-only persistence of the Agenda side (no DB). Reads once on mount.
@@ -2600,20 +2603,40 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     return () => window.removeEventListener("keydown", onKey)
   }, [focusMode])
 
+  // Keep the URL's `focus` param in sync with Focus Mode so it survives a browser refresh.
+  // Preserves `id` and any other params; uses replace (no history spam). Re-runs when the lead
+  // selection changes so a navigation that dropped the param re-adds it while Focus is ON. A
+  // normal (Focus-OFF) URL never carries ?focus=1, so normal navigation is unaffected.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const cur = new URLSearchParams(window.location.search)
+    if ((cur.get("focus") === "1") === focusMode) return
+    if (focusMode) cur.set("focus", "1")
+    else cur.delete("focus")
+    const qs = cur.toString()
+    router.replace(`/admin/leads${qs ? `?${qs}` : ""}`)
+  }, [focusMode, selectedLeadId, router])
+
   // Focus-mode Lead Detail: the board (and its EXACT toolbar — Dashboard/Map/Search/Detailed/
   // Compact/Overview/Exit Focus) stays visible; only the content underneath swaps to the lead.
   // We measure the board toolbar's height so the Lead Detail overlay/veil begin just below it
   // (no separate/alternate toolbar is created — the real board toolbar is reused as-is).
   const boardWrapRef = useRef<HTMLDivElement>(null)
   const [focusToolbarH, setFocusToolbarH] = useState(0)
+  const [focusBoardPad, setFocusBoardPad] = useState(18) // .kb-board top padding — the board's own content breathing room
   useEffect(() => {
     if (!(focusMode && selectedLeadId != null)) { setFocusToolbarH(0); return }
-    const el = boardWrapRef.current?.querySelector<HTMLElement>(".kb-toolbar")
-    if (!el) return
-    const measure = () => setFocusToolbarH(el.offsetHeight)
+    const bar = boardWrapRef.current?.querySelector<HTMLElement>(".kb-toolbar")
+    if (!bar) return
+    const measure = () => {
+      setFocusToolbarH(bar.offsetHeight)
+      const board = boardWrapRef.current?.querySelector<HTMLElement>(".kb-board")
+      const pad = board ? parseFloat(getComputedStyle(board).paddingTop) : NaN
+      if (Number.isFinite(pad)) setFocusBoardPad(pad)
+    }
     measure()
     const ro = new ResizeObserver(measure)
-    ro.observe(el)
+    ro.observe(bar)
     return () => ro.disconnect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusMode, selectedLeadId])
@@ -2631,9 +2654,14 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   const overlayInsetCls = agendaOnRight
     ? followUpsOpen ? "left-0 right-[242px]" : "left-0 right-[62px]"
     : followUpsOpen ? "left-[242px] right-0" : "left-[62px] right-0"
-  // In Focus Mode with a lead open, start the veil + Lead Detail overlay just below the board
-  // toolbar so that toolbar stays visible; otherwise the normal top-2 (8px) inset applies.
-  const detailTopStyle = focusMode && selectedLeadId != null && focusToolbarH > 0 ? { top: focusToolbarH } : undefined
+  // In Focus Mode with a lead open, the board toolbar stays visible: the veil starts just below
+  // it, and the Lead Detail content starts a further `focusBoardPad` (the board's own .kb-board
+  // top padding) down — so the content begins at the SAME Y as the Kanban cards do (same
+  // breathing room, no abrupt jump between Board and Lead Detail). Otherwise the normal top-2
+  // (8px) inset applies.
+  const focusDetail = focusMode && selectedLeadId != null && focusToolbarH > 0
+  const detailVeilStyle = focusDetail ? { top: focusToolbarH } : undefined
+  const detailOverlayStyle = focusDetail ? { top: focusToolbarH + focusBoardPad } : undefined
 
   return (
     <div
@@ -2730,7 +2758,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             sidebar itself, so its frosted-glass look over the dark photo
             is fully preserved. */}
         {selectedLead && (
-          <div style={detailTopStyle} className={`absolute top-2 bottom-2 ${veilInsetCls} bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]`} />
+          <div style={detailVeilStyle} className={`absolute top-2 bottom-2 ${veilInsetCls} bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]`} />
         )}
 
         {/* LEFT SIDEBAR — Agenda (Follow-ups). Recessed column-like panel so
@@ -2921,7 +2949,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
 
         {/* LEAD DETAIL OVERLAY */}
         {selectedLead && (
-          <div style={detailTopStyle} className={`absolute top-2 bottom-2 ${overlayInsetCls} z-40 flex pointer-events-none`}>
+          <div style={detailOverlayStyle} className={`absolute top-2 bottom-2 ${overlayInsetCls} z-40 flex pointer-events-none`}>
             <div className="flex gap-2 w-full h-full pointer-events-auto">
 
               {/* LEAD PANEL — hidden in the dev Phase-1 preview (see
