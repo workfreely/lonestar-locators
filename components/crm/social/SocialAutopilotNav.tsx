@@ -8,12 +8,13 @@ import { usePathname } from "next/navigation"
 // Autopilot — they do not replace the global Locator Beast navigation (the app header
 // with the profile menu sits above this).
 const BASE = "/admin/social-autopilot"
+// Display order only — routes, labels, and active-tab logic are unchanged.
 const TABS: { label: string; href: string }[] = [
   { label: "Library", href: BASE },
-  { label: "Queue", href: `${BASE}/queue` },
   { label: "Calendar", href: `${BASE}/calendar` },
-  { label: "Accounts", href: `${BASE}/accounts` },
+  { label: "Queue", href: `${BASE}/queue` },
   { label: "History", href: `${BASE}/history` },
+  { label: "Accounts", href: `${BASE}/accounts` },
   { label: "Analytics", href: `${BASE}/analytics` },
 ]
 
