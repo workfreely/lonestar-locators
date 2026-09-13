@@ -376,11 +376,14 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             </label>
           </div>
 
-          {/* Row 4: Caption | Hashtags (≈50/50) */}
+          {/* Row 4: Caption (left) | Hashtags → Audio → Schedule → actions (right). Caption gets a
+              taller DEFAULT so its bottom lands near the bottom of the right-column stack / preview
+              — set via rows (initial height), NOT a large min-height, so it stays resizable DOWN to
+              the 76px floor. resize-y keeps resizing vertical only (never breaks the column width). */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block">
               <span className={fieldLabel}>Instagram Caption</span>
-              <textarea className={`${control} mt-1 min-h-[76px]`} rows={4} value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Public caption" />
+              <textarea className={`${control} mt-1 min-h-[76px] resize-y`} rows={14} value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Public caption" />
             </label>
             <div className="block">
               <div className="flex items-center justify-between">
@@ -422,47 +425,48 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                   ))}
                 </select>
               </label>
-            </div>
-          </div>
 
-          {/* Row 5: Schedule — opens the calendar-based Schedule workspace (no inline picker). */}
-          <div className="block">
-            <span className={fieldLabel}>Schedule</span>
-            <div className="mt-1 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setScheduling(true)}
-                className={`${control} text-left flex items-center justify-between`}
-              >
-                <span className={scheduleVal ? "text-[var(--crm-text-primary)]" : "text-[var(--crm-text-muted)]"}>
-                  {scheduleVal ? fmtSchedule(scheduleVal) : "Pick a date & time"}
-                </span>
-                <span className="text-[var(--crm-text-muted)] ml-2">▾</span>
-              </button>
-              {scheduleVal && (
-                <button type="button" className="text-[11.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]" onClick={() => setScheduleVal("")}>
-                  Clear
+              {/* Schedule — stacked under Audio in the right column. Opens the SAME calendar-based
+                  Schedule workspace (setScheduling(true)); behavior unchanged. */}
+              <div className="block mt-3">
+                <span className={fieldLabel}>Schedule</span>
+                <div className="mt-1 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setScheduling(true)}
+                    className={`${control} text-left flex items-center justify-between`}
+                  >
+                    <span className={scheduleVal ? "text-[var(--crm-text-primary)]" : "text-[var(--crm-text-muted)]"}>
+                      {scheduleVal ? fmtSchedule(scheduleVal) : "Pick a date & time"}
+                    </span>
+                    <span className="text-[var(--crm-text-muted)] ml-2">▾</span>
+                  </button>
+                  {scheduleVal && (
+                    <button type="button" className="text-[11.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]" onClick={() => setScheduleVal("")}>
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Action row — right-aligned beneath Schedule (still in the right column): Save Draft
+                  (secondary), Schedule (primary), Publish Now (strongest final action, disabled
+                  until a production-safe publish pipeline exists). Rendering runs internally as part
+                  of Publish/Schedule — no manual prepare step. */}
+              <div className="mt-3 flex items-center justify-end gap-2 flex-wrap">
+                {post.status === "scheduled" && <button type="button" className={`${btn} mr-auto`} disabled={busy} onClick={() => void backToDraft()}>Move back to Draft</button>}
+                <button type="button" className={btn} disabled={busy} onClick={() => void saveDraft()}>{busy ? "Saving…" : "Save Draft"}</button>
+                <button type="button" className={primaryBtn} disabled={busy} onClick={() => setScheduling(true)}>Schedule</button>
+                <button
+                  type="button"
+                  disabled
+                  title="Live Instagram publishing isn't enabled yet"
+                  className="text-[12.5px] font-semibold px-3.5 py-2 rounded-lg bg-emerald-600 text-white opacity-60 cursor-not-allowed"
+                >
+                  Publish Now
                 </button>
-              )}
+              </div>
             </div>
-          </div>
-
-          {/* One static action row beneath Schedule, aligned lower-right: Save Draft (secondary),
-              Schedule (primary), Publish Now (strongest final action). Rendering runs internally
-              as part of Publish/Schedule — no manual prepare step. Publish stays disabled until a
-              production-safe Instagram publish pipeline exists (no fake publishing). */}
-          <div className="mt-1 flex items-center justify-end gap-2 flex-wrap">
-            {post.status === "scheduled" && <button type="button" className={`${btn} mr-auto`} disabled={busy} onClick={() => void backToDraft()}>Move back to Draft</button>}
-            <button type="button" className={btn} disabled={busy} onClick={() => void saveDraft()}>{busy ? "Saving…" : "Save Draft"}</button>
-            <button type="button" className={primaryBtn} disabled={busy} onClick={() => setScheduling(true)}>Schedule</button>
-            <button
-              type="button"
-              disabled
-              title="Live Instagram publishing isn't enabled yet"
-              className="text-[12.5px] font-semibold px-3.5 py-2 rounded-lg bg-emerald-600 text-white opacity-60 cursor-not-allowed"
-            >
-              Publish Now
-            </button>
           </div>
           </>
           )}

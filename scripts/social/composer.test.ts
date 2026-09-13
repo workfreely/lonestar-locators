@@ -74,21 +74,23 @@ console.log("subheadline width constraint (compact centered block; preview === r
 ok("no sub → no lines", wrapSub("").length === 0)
 ok("short sub → one line", wrapSub("PRIVATE YARDS").length === 1)
 ok("long sub wraps to a multi-line block", wrapSub("PRIVATE YARDS + GARAGES + RESORT POOL + GATED ENTRY + WALK-IN CLOSETS").length >= 2)
-ok("sub box is narrower (more inset) than the headline box", overlayPreviewStyle(1).subSideMarginPct > overlayPreviewStyle(1).sideMarginPct)
-ok("sub is capped at maxLines (never runaway)", wrapSub("one two three four five six seven eight nine ten eleven twelve").length <= 4)
+ok("sub box now uses MORE width than the headline box (wider, less inset)", overlayPreviewStyle(1).subSideMarginPct < overlayPreviewStyle(1).sideMarginPct)
+ok("sub box still keeps safe margins (never edge-to-edge)", overlayPreviewStyle(1).subSideMarginPct >= 8)
+ok("a normal long sentence now fits on fewer lines than the old narrow box", wrapSub("Now leasing brand new luxury apartments").length <= 2)
+ok("sub is capped at maxLines (never runaway)", wrapSub("one two three four five six seven eight nine ten eleven twelve thirteen fourteen").length <= 4)
 // FFmpeg render wraps the sub the same way (newlines in the sub textfile driver would be the file
 // content; here we assert the sub drawtext carries line_spacing for the multi-line block).
 ok("render sub drawtext has line_spacing (multi-line ready)", /textfile='\/s\.txt'[^,]*line_spacing=/.test(buildVideoFilter("/f.ttf", "/h.txt", "/s.txt", 1)))
 
 console.log("Reels-safe boxes (generous margins; no-space text can't run off-screen):")
 ok("headline box has generous side margins (not edge-to-edge)", overlayPreviewStyle(1).sideMarginPct >= 12)
-ok("sub box is even more inset than the headline box", overlayPreviewStyle(1).subSideMarginPct > overlayPreviewStyle(1).sideMarginPct)
+ok("sub box is wider than the headline box but still safely inset", overlayPreviewStyle(1).subSideMarginPct < overlayPreviewStyle(1).sideMarginPct && overlayPreviewStyle(1).subSideMarginPct >= 8)
 // Nonsense/no-space text must hard-break so no single line can overflow the box.
 const noSpaceH = wrapHeadline("X".repeat(60))
 ok("no-space headline hard-splits (every line ≤ maxChars)", noSpaceH.length > 0 && noSpaceH.every((l) => l.length <= 16))
 ok("no-space headline still capped at maxLines", noSpaceH.length <= 3)
 const noSpaceS = wrapSub("Y".repeat(120))
-ok("no-space subheadline hard-splits (every line ≤ maxChars)", noSpaceS.length > 0 && noSpaceS.every((l) => l.length <= 22))
+ok("no-space subheadline hard-splits (every line ≤ maxChars)", noSpaceS.length > 0 && noSpaceS.every((l) => l.length <= 30))
 ok("two-line headline still wraps to 2", wrapHeadline("SAN ANTONIO LUXURY TOWNHOMES").length === 2)
 
 console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)

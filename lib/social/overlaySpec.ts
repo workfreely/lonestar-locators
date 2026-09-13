@@ -10,12 +10,16 @@ export const OVERLAY_CANVAS = { w: 1080, h: 1920 } as const
 // `maxChars` (chosen so a full line ≈ the box width at that font) with an even harder per-word
 // character break so nonsense/no-space text can never run off-screen. The SAME wrap drives both
 // the CSS preview and the FFmpeg render (FFmpeg centers each line via x=(w-text_w)/2, so the
-// char-wrap is what constrains its width to the box). Headline box ≈ 800px, sub box ≈ 720px.
+// char-wrap is what constrains its width to the box). Headline box ≈ 800px, sub box ≈ 840px.
 export const OVERLAY_SPEC = {
   headline: { yFrac: 0.13, fontPx: 84, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24, maxChars: 16, maxLines: 3, sideMarginPx: 140 },
   // The sub sits `gapPx` BELOW the bottom of the (possibly multi-line) headline block, in its own
-  // narrower centered box, so long text becomes a compact centered multi-line block.
-  sub: { gapPx: 44, fontPx: 40, lineSpacing: 6, boxAlpha: 0.28, boxBorderPx: 16, maxChars: 22, maxLines: 4, sideMarginPx: 180 },
+  // centered box. It now uses substantially more of the video width before wrapping (wider box +
+  // higher maxChars) so a normal long subheadline reads on fewer lines — while KEEPING generous
+  // safe margins (120px ≈ 11% each side, never edge-to-edge) and the per-word hard-split so a long
+  // unbroken string still can't overflow. Preview and FFmpeg share this maxChars, so wrapping is
+  // identical; the wider box only lets the CSS preview hold a full maxChars line without re-wrapping.
+  sub: { gapPx: 44, fontPx: 40, lineSpacing: 6, boxAlpha: 0.28, boxBorderPx: 16, maxChars: 30, maxLines: 4, sideMarginPx: 120 },
   safe: { topFrac: 0.1, bottomFrac: 0.2 },
 } as const
 
