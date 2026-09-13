@@ -382,7 +382,12 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               the 76px floor. resize-y keeps resizing vertical only (never breaks the column width). */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block">
-              <span className={fieldLabel}>Instagram Caption</span>
+              {/* Wrap the label in the SAME flex header row as Hashtags (right column) so the two
+                  labels share identical vertical placement — the Caption label was a bare span and
+                  sat a hair lower/higher than the Hashtags label inside its flex row. */}
+              <div className="flex items-center justify-between">
+                <span className={fieldLabel}>Instagram Caption</span>
+              </div>
               <textarea className={`${control} mt-1 min-h-[76px] resize-y`} rows={14} value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Public caption" />
             </label>
             <div className="block">
