@@ -2689,6 +2689,36 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         </div>
       )}
 
+      {/* ─── FOCUS-MODE LEAD-DETAIL BAR ───
+          Focus hides the full app header, and opening a lead hides the board (which
+          hosts the board's own Focus controls) — so on the Lead Detail screen while
+          Focus is ON there would be no navigation at all. This compact bar fills only
+          that exact gap: Back to the board + Exit Focus. It is NOT the normal header
+          and deliberately omits board-only controls (Dashboard/Map/Detailed/Compact/
+          Overview). The CRM search is not reproduced here: it lives as internal state
+          in LeadBoard and cannot be reused without lifting that state (which would
+          change existing behavior), so it is intentionally left off. Shown ONLY when
+          focus is on AND a lead is open — every other case is untouched. */}
+      {focusMode && selectedLead && (
+        <div className="flex-none flex items-center gap-2 px-4 py-2 bg-[var(--crm-panel)] border-b border-[var(--crm-border)]">
+          <button
+            type="button"
+            onClick={() => { setSelectedLeadId(null); router.push("/admin/leads") }}
+            className={CRM_SECONDARY_BUTTON}
+          >
+            <span aria-hidden>‹</span> Board
+          </button>
+          <button
+            type="button"
+            onClick={() => setFocusMode(false)}
+            className={`${CRM_SECONDARY_BUTTON} ml-auto`}
+            aria-pressed
+          >
+            <span aria-hidden>⛶</span> Exit Focus
+          </button>
+        </div>
+      )}
+
       {/* ─── BODY ─── (Agenda side mirrors via bodyFlexCls)
           mt-2 (8px) gives the whole workspace row breathing room below the top
           nav. Applied to the row as a unit (not to Agenda/center/cards) so it
