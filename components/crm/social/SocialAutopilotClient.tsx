@@ -8,8 +8,19 @@ import { SOCIAL_MARKETS, normalizeSocialMarket } from "@/lib/social/markets"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
 import { inferFromFilename, detectMarket, suggestArea } from "@/lib/social/filenameInference"
 import { resolvePropertyMatch } from "@/lib/social/resolveProperty"
+import { preparePost } from "@/lib/social/composePost"
+import { normalizeHashtag } from "@/lib/social/hashtags"
+import { overlayPreviewStyle } from "@/lib/social/overlaySpec"
 import BulkReview from "@/components/crm/social/BulkReview"
 import PropertySearchField from "@/components/crm/social/PropertySearchField"
+
+type PreparedPost = { overlayHeadline: string; overlaySubheadline: string; caption: string; hashtags: string[] }
+// Auto-prepare the PUBLIC-SAFE post from a source's factual fields (market/type/special/price/
+// amenities only — never property name/area/notes). Reuses the approved engine + hashtag bank.
+function autoPreparedFrom(src: { market?: string | null; propertyType?: string | null; special?: string | null; budgetRange?: string | null; amenities?: string | null }): PreparedPost {
+  const p = preparePost({ market: src.market, propertyType: src.propertyType, special: src.special, budgetRange: src.budgetRange, amenities: src.amenities })
+  return { overlayHeadline: p.overlayHeadline, overlaySubheadline: p.overlaySubheadline, caption: p.caption, hashtags: p.hashtags }
+}
 
 // Social Autopilot → Library (platform-admin only; server-enforced). SA1.1: multi-file
 // upload with a one-time batch setup (Market + Property + shared metadata), per-file
@@ -43,6 +54,7 @@ type Item = {
   placeId: string | null
   createdAt: string
   previewUrl: string | null
+  preparedPost: PreparedPost | null // saved public-post overrides (from social_content.details)
 }
 
 type Card = {
@@ -212,6 +224,9 @@ export default function SocialAutopilotClient() {
   // hidden), so social_content.tags is preserved without giving the operator a redundant field.
   const [editTags, setEditTags] = useState<string[]>([])
   const [draft, setDraft] = useState<Record<string, string>>({})
+  // Prepared Social Post (public-facing) — separate from the internal source metadata in `draft`.
+  const [editPrepared, setEditPrepared] = useState<PreparedPost>({ overlayHeadline: "", overlaySubheadline: "", caption: "", hashtags: [] })
+  const [editHashtagsText, setEditHashtagsText] = useState("")
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
@@ -499,6 +514,27 @@ export default function SocialAutopilotClient() {
       placeId: it.placeId ?? "",
       notes: it.notes ?? "",
     })
+    // Prepared Social Post: use saved overrides if present, else auto-prepare from the source's
+    // public-safe facts (reusing the approved engine + hashtag bank).
+    const prepared = it.preparedPost ?? autoPreparedFrom(it)
+    setEditPrepared(prepared)
+    setEditHashtagsText(prepared.hashtags.join(" "))
+  }
+  // Re-generate the prepared post from the CURRENT (possibly edited) source fields.
+  const regeneratePrepared = () => {
+    const prepared = autoPreparedFrom({ market: draft.market, propertyType: draft.propertyType, special: draft.special, budgetRange: draft.budgetRange, amenities: draft.amenities })
+    setEditPrepared(prepared)
+    setEditHashtagsText(prepared.hashtags.join(" "))
+  }
+  // Parse the hashtag text field into a normalized #tag list (space/comma separated).
+  const parseHashtags = (text: string): string[] => {
+    const seen = new Set<string>()
+    const out: string[] = []
+    for (const raw of text.split(/[\s,]+/)) {
+      const tag = normalizeHashtag(raw)
+      if (tag && !seen.has(tag.toLowerCase())) { seen.add(tag.toLowerCase()); out.push(tag) }
+    }
+    return out
   }
   const saveEdit = useCallback(async () => {
     if (!editing) return
@@ -515,6 +551,13 @@ export default function SocialAutopilotClient() {
         tags: editTags,
         placeId: draft.placeId ?? "",
         notes: draft.notes ?? "",
+        // Prepared public post (overlay/caption/hashtags) — persisted as SA-only overrides.
+        preparedPost: {
+          overlayHeadline: editPrepared.overlayHeadline,
+          overlaySubheadline: editPrepared.overlaySubheadline,
+          caption: editPrepared.caption,
+          hashtags: parseHashtags(editHashtagsText),
+        },
       }
       // Only send Display Name when the user actually changed it — a manual change locks
       // the name (name_customized=true); leaving it lets Market/Property auto-refine it.
@@ -590,6 +633,7 @@ export default function SocialAutopilotClient() {
   const primaryBtn = "text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"
   const inputCls = "w-full text-[13px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] px-2.5 py-1.5"
   const fieldLabel = "text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]"
+  const ov = overlayPreviewStyle() // CSS overlay geometry shared with Post Composer + FFmpeg burn-in
 
   return (
     <div>
@@ -900,6 +944,7 @@ export default function SocialAutopilotClient() {
               Original file: {editing.originalFilename}
             </div>
             <div className="flex flex-col gap-2">
+              <span className="text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)] font-semibold">Source Details</span>
               {/* Display Name is an INTERNAL source-asset identifier (auto-generated from Property
                   + Market + date + sequence) — not an Instagram publishing field, so it is not
                   editable here. The DB column and auto-naming are unchanged; the original filename
@@ -962,6 +1007,57 @@ export default function SocialAutopilotClient() {
                 <textarea className={`${inputCls} mt-1 min-h-[56px]`} value={draft.notes ?? ""} onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))} />
               </label>
             </div>
+
+            {/* ── Prepared Social Post ── the actual PUBLIC-facing content. Auto-prepared from the
+                source facts above via the approved engine + hashtag bank; fully editable. Property
+                name / area / notes never appear here unless the operator types them in. */}
+            <div className="mt-4 pt-3 border-t border-[var(--crm-border)] flex flex-col gap-2.5">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)] font-semibold">Prepared Social Post</span>
+                <button type="button" className={`${btn} ml-auto`} onClick={regeneratePrepared} title="Re-generate from the source facts above">Regenerate</button>
+              </div>
+              <div className="text-[10.5px] text-[var(--crm-text-muted)] -mt-1.5">Public-facing content, auto-prepared from the source facts above. Property name, Area/Neighborhood, and Notes are never included automatically.</div>
+
+              {/* Video preview with the prepared overlay (CSS approximation — no FFmpeg here). */}
+              {editing.previewUrl && (editing.kind !== "image") && (
+                <div className="relative w-full max-w-[210px] mx-auto aspect-[9/16] rounded-xl overflow-hidden border border-[var(--crm-border)] bg-black">
+                  <video src={editing.previewUrl} controls muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                  {(editPrepared.overlayHeadline || editPrepared.overlaySubheadline) && (
+                    <div className="pointer-events-none absolute inset-0" aria-hidden>
+                      {editPrepared.overlayHeadline && (
+                        <div style={{ position: "absolute", top: `${ov.headlineTopPct}%`, left: `${ov.sideMarginPct}%`, right: `${ov.sideMarginPct}%`, textAlign: "center", color: "white", fontWeight: 800, lineHeight: 1.05, fontSize: `${ov.headlineFontPct}vh`, textShadow: "0 2px 8px rgba(0,0,0,.6)" }}>
+                          {editPrepared.overlayHeadline.toUpperCase()}
+                        </div>
+                      )}
+                      {editPrepared.overlaySubheadline && (
+                        <div style={{ position: "absolute", top: `${ov.subTopPct}%`, left: `${ov.sideMarginPct}%`, right: `${ov.sideMarginPct}%`, textAlign: "center", color: "white", fontWeight: 700, fontSize: `${ov.subFontPct}vh`, textShadow: "0 2px 8px rgba(0,0,0,.6)" }}>
+                          {editPrepared.overlaySubheadline}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <label className="block">
+                <span className={fieldLabel}>Overlay Headline</span>
+                <input className={`${inputCls} mt-1`} value={editPrepared.overlayHeadline} onChange={(e) => setEditPrepared((p) => ({ ...p, overlayHeadline: e.target.value }))} placeholder="e.g. SAN ANTONIO TOWNHOMES" />
+              </label>
+              <label className="block">
+                <span className={fieldLabel}>Overlay Subheadline</span>
+                <input className={`${inputCls} mt-1`} value={editPrepared.overlaySubheadline} onChange={(e) => setEditPrepared((p) => ({ ...p, overlaySubheadline: e.target.value }))} placeholder="e.g. PRIVATE YARDS + GARAGES" />
+              </label>
+              <label className="block">
+                <span className={fieldLabel}>Caption</span>
+                <textarea className={`${inputCls} mt-1 min-h-[92px]`} value={editPrepared.caption} onChange={(e) => setEditPrepared((p) => ({ ...p, caption: e.target.value }))} />
+              </label>
+              <label className="block">
+                <span className={fieldLabel}>Hashtags</span>
+                <input className={`${inputCls} mt-1`} value={editHashtagsText} onChange={(e) => setEditHashtagsText(e.target.value)} placeholder="#nowleasing #sanantonioapartments …" />
+                <span className="text-[10.5px] text-[var(--crm-text-muted)]">{parseHashtags(editHashtagsText).length} hashtags · seeded from the approved bank; edit freely.</span>
+              </label>
+            </div>
+
             <div className="flex gap-2 mt-4">
               <button type="button" className={primaryBtn} disabled={saving} onClick={() => void saveEdit()}>
                 {saving ? "Saving…" : "Save"}

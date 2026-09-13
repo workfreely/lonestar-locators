@@ -40,7 +40,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   const { data: current, error: readErr } = await supabase
     .from("social_content")
-    .select("id, created_at, batch_seq, name_customized, property_name, market, original_filename")
+    .select("id, created_at, batch_seq, name_customized, property_name, market, original_filename, details")
     .eq("id", id)
     .maybeSingle()
   if (readErr) return NextResponse.json({ error: "update_failed" }, { status: 500 })
@@ -53,6 +53,25 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
   for (const k of EDITABLE) {
     if (k in body) patch[COLUMN[k]] = typeof body[k] === "string" && (body[k] as string).trim() ? (body[k] as string).trim().slice(0, 5000) : null
+  }
+
+  // Prepared PUBLIC post (overlay/caption/hashtags) — SA-only overrides stored inside the
+  // existing details jsonb (no schema change). Merged so other details keys are preserved. An
+  // all-empty prepared post clears the override (falls back to auto-preparation at post time).
+  if ("preparedPost" in body && body.preparedPost && typeof body.preparedPost === "object") {
+    const pp = body.preparedPost as Record<string, unknown>
+    const s = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "")
+    const overlayHeadline = s(pp.overlayHeadline, 200)
+    const overlaySubheadline = s(pp.overlaySubheadline, 200)
+    const caption = s(pp.caption, 2200)
+    const hashtags = Array.isArray(pp.hashtags)
+      ? (pp.hashtags as unknown[]).filter((t): t is string => typeof t === "string" && t.trim().length > 0).map((t) => t.trim().slice(0, 60)).slice(0, 30)
+      : []
+    const prepared = overlayHeadline || overlaySubheadline || caption || hashtags.length ? { overlayHeadline, overlaySubheadline, caption, hashtags } : null
+    const details = cur.details && typeof cur.details === "object" && !Array.isArray(cur.details) ? { ...(cur.details as Record<string, unknown>) } : {}
+    if (prepared) details.preparedPost = prepared
+    else delete details.preparedPost
+    patch.details = details
   }
 
   const displayNameEdited = typeof body.displayName === "string"

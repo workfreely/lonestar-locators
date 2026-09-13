@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
   // PUBLIC-safe metadata used for auto-preparation (notes/placeId are intentionally excluded).
   const { data: src, error: srcErr } = await supabase
     .from("social_content")
-    .select("id, display_name, property_name, property_type, market, special, budget_range, amenities")
+    .select("id, display_name, property_name, property_type, market, special, budget_range, amenities, details")
     .eq("id", sourceContentId)
     .maybeSingle()
   if (srcErr) return NextResponse.json({ error: "create_failed" }, { status: 500 })
@@ -143,6 +143,15 @@ export async function POST(req: NextRequest) {
     budgetRange: s.budget_range as string | null,
     amenities: s.amenities as string | null,
   })
+  // Prefer the operator's SAVED prepared post (from Edit Details → details.preparedPost) over the
+  // freshly auto-prepared copy, per field. Falls back to auto-preparation whenever none is saved.
+  const stored = s.details && typeof s.details === "object" && !Array.isArray(s.details) ? ((s.details as Record<string, unknown>).preparedPost as Record<string, unknown> | undefined) : undefined
+  const storedStr = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null)
+  const storedTags = Array.isArray(stored?.hashtags) ? (stored!.hashtags as unknown[]).filter((t): t is string => typeof t === "string" && t.trim().length > 0) : []
+  const effectiveHeadline = storedStr(stored?.overlayHeadline) ?? prepared.overlayHeadline
+  const effectiveSub = storedStr(stored?.overlaySubheadline) ?? prepared.overlaySubheadline
+  const effectiveCaption = storedStr(stored?.caption) ?? prepared.caption
+  const effectiveHashtags = storedTags.length ? storedTags : prepared.hashtags
 
   const { data, error } = await supabase
     .from("social_posts")
@@ -152,10 +161,10 @@ export async function POST(req: NextRequest) {
       platform,
       post_type: postType,
       post_name: postName,
-      caption: str(body.caption) ?? prepared.caption,
-      overlay_headline: prepared.overlayHeadline,
-      overlay_subheadline: prepared.overlaySubheadline,
-      hashtags: prepared.hashtags,
+      caption: str(body.caption) ?? effectiveCaption,
+      overlay_headline: effectiveHeadline,
+      overlay_subheadline: effectiveSub,
+      hashtags: effectiveHashtags,
       audio_choice: "original",
       render_status: "none",
       status: "draft",

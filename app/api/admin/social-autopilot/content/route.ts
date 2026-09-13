@@ -53,6 +53,11 @@ export async function GET() {
         placeId: r.place_id,
         createdAt: r.created_at,
         previewUrl,
+        // SA-only prepared public-post overrides live in details.preparedPost (jsonb).
+        preparedPost:
+          r.details && typeof r.details === "object" && !Array.isArray(r.details)
+            ? ((r.details as Record<string, unknown>).preparedPost ?? null)
+            : null,
       }
     }),
   )
