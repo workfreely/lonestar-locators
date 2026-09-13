@@ -287,14 +287,17 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 <video src={post.previewUrl} controls muted playsInline preload="metadata" className="w-full h-full object-cover" />
                 {/* Pre-render APPROXIMATION overlay (CSS) — replaced by the burned-in render. */}
                 {(headline || subheadline) && (
-                  <div className="pointer-events-none absolute inset-0" aria-hidden>
+                  // containerType:size makes cqh resolve to THIS box's height, so the font sizes
+                  // scale on the same basis as the top-%% positions (both box-relative). Using vh
+                  // here made the headline larger than the layout assumed and it overlapped the sub.
+                  <div className="pointer-events-none absolute inset-0" aria-hidden style={{ containerType: "size" }}>
                     {headline && (
-                      <div style={{ position: "absolute", top: `${ov.headlineTopPct}%`, left: `${ov.sideMarginPct}%`, right: `${ov.sideMarginPct}%`, textAlign: "center", color: "white", fontWeight: 800, lineHeight: 1.05, fontSize: `${ov.headlineFontPct}vh`, textShadow: "0 2px 8px rgba(0,0,0,.6)", whiteSpace: "pre-line" }}>
+                      <div style={{ position: "absolute", top: `${ov.headlineTopPct}%`, left: `${ov.sideMarginPct}%`, right: `${ov.sideMarginPct}%`, textAlign: "center", color: "white", fontWeight: 800, lineHeight: 1.05, fontSize: `${ov.headlineFontPct}cqh`, textShadow: "0 2px 8px rgba(0,0,0,.6)", whiteSpace: "pre-line" }}>
                         {headLines.join("\n").toUpperCase()}
                       </div>
                     )}
                     {subheadline && (
-                      <div style={{ position: "absolute", top: `${ov.subTopPct}%`, left: `${ov.sideMarginPct}%`, right: `${ov.sideMarginPct}%`, textAlign: "center", color: "white", fontWeight: 700, fontSize: `${ov.subFontPct}vh`, textShadow: "0 2px 8px rgba(0,0,0,.6)" }}>
+                      <div style={{ position: "absolute", top: `${ov.subTopPct}%`, left: `${ov.sideMarginPct}%`, right: `${ov.sideMarginPct}%`, textAlign: "center", color: "white", fontWeight: 700, fontSize: `${ov.subFontPct}cqh`, textShadow: "0 2px 8px rgba(0,0,0,.6)" }}>
                         {subheadline}
                       </div>
                     )}

@@ -702,31 +702,18 @@ export default function SocialAutopilotClient() {
                   {!c.demo && c.raw && (() => {
                     const sid = c.raw.id
                     const ed = postsBySource[sid] ?? []
-                    const menuOpen = editMenuFor === sid && ed.length > 1
                     return (
                       <div className="relative mt-2 pt-2 border-t border-[var(--crm-border)] flex flex-col gap-1.5" onDoubleClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
                           className="text-[12px] font-semibold px-2.5 py-1.5 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"
                           disabled={creatingId === sid}
-                          aria-haspopup={ed.length > 1 ? "menu" : undefined}
-                          aria-expanded={ed.length > 1 ? menuOpen : undefined}
+                          aria-haspopup={ed.length > 1 ? "dialog" : undefined}
+                          aria-expanded={ed.length > 1 ? editMenuFor === sid : undefined}
                           onClick={() => editPost(sid)}
                         >
                           {creatingId === sid ? "Creating…" : "Edit Post"}
                         </button>
-                        {menuOpen && (
-                          <div className="absolute z-20 top-full left-0 right-0 mt-1 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-panel)] shadow-lg p-1 flex flex-col gap-0.5" role="menu">
-                            <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-[var(--crm-text-muted)]">Choose a post to edit</div>
-                            {ed.map((p) => (
-                              <button key={p.id} type="button" role="menuitem" onClick={() => { setEditMenuFor(null); openPost(p.id) }} className="text-left px-2 py-1 rounded hover:bg-[var(--crm-card)] text-[12px] text-[var(--crm-text-primary)]">
-                                <span className="font-semibold">{p.name}</span>
-                                <span className="text-[var(--crm-text-muted)]"> · {p.status}{p.scheduledAt ? ` · ${new Date(p.scheduledAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}</span>
-                              </button>
-                            ))}
-                            <button type="button" role="menuitem" onClick={() => { setEditMenuFor(null); void createPost(sid) }} className="text-left px-2 py-1 rounded hover:bg-[var(--crm-card)] text-[12px] text-[var(--crm-text-secondary)]">+ New post variation</button>
-                          </div>
-                        )}
                         <div className="flex items-center gap-1.5">
                           <button type="button" aria-label="Delete source video" title="Delete source video" className="ml-auto p-1.5 rounded-lg text-[var(--crm-text-muted)] hover:text-red-500 hover:bg-[var(--crm-card)] transition-colors" onClick={() => remove(c.raw!.id)}>
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>
@@ -745,6 +732,30 @@ export default function SocialAutopilotClient() {
       {/* 2+ files → Bulk Review / Intake. */}
       {bulkFiles && (
         <BulkReview files={bulkFiles} onClose={() => setBulkFiles(null)} onUploaded={() => void load()} />
+      )}
+
+      {/* Edit Post chooser — shown when a source has MORE THAN ONE editable post, so "Edit Post"
+          never guesses. A modal (not an in-card dropdown, which the card's overflow-hidden clipped
+          — the cause of the "click does nothing" bug). Pick a post to open, or create a variation. */}
+      {editMenuFor && (postsBySource[editMenuFor]?.length ?? 0) > 1 && (
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={() => setEditMenuFor(null)}>
+          <div className="w-full max-w-sm rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4" onClick={(e) => e.stopPropagation()}>
+            <div className="text-[15px] font-bold text-[var(--crm-text-primary)]">Edit which post?</div>
+            <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5 mb-3">This source has {postsBySource[editMenuFor]!.length} editable posts. Choose one to open, or start a new variation.</div>
+            <div className="flex flex-col gap-1.5 max-h-[50vh] overflow-y-auto">
+              {postsBySource[editMenuFor]!.map((p) => (
+                <button key={p.id} type="button" className="text-left px-3 py-2 rounded-lg border border-[var(--crm-border)] hover:bg-[var(--crm-card)] transition-colors" onClick={() => { const id = p.id; setEditMenuFor(null); openPost(id) }}>
+                  <span className="text-[13px] font-semibold text-[var(--crm-text-primary)]">{p.name}</span>
+                  <span className="text-[11.5px] text-[var(--crm-text-muted)]"> · {p.status}{p.scheduledAt ? ` · ${new Date(p.scheduledAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}</span>
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button type="button" className={primaryBtn} onClick={() => { const s = editMenuFor; setEditMenuFor(null); void createPost(s!) }}>+ New post variation</button>
+              <button type="button" className={btn} onClick={() => setEditMenuFor(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Batch setup modal — assign Market (required) + Property + shared metadata ONCE. */}
