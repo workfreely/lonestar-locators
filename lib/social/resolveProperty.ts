@@ -7,7 +7,7 @@
 // win and otherwise leave the inferred text for the operator to confirm from suggestions.
 import { loadGoogleMaps } from "@/lib/propertyExplorer/loadMaps"
 import { nameSearchTextQuery } from "@/lib/propertyExplorer/nameSearch"
-import { coreTokens, decideAutoMatch, type AutoMatchCandidate, type AutoMatchResult } from "@/lib/social/propertyAutoMatch"
+import { brandSeed, decideAutoMatch, type AutoMatchCandidate, type AutoMatchResult } from "@/lib/social/propertyAutoMatch"
 
 export type ResolveResult = AutoMatchResult & { candidates: AutoMatchCandidate[] }
 
@@ -26,13 +26,13 @@ export async function resolvePropertyMatch(
     const maps = await loadGoogleMaps()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Place = (maps as any).places.Place
-    // Search with the DISTINCTIVE brand tokens (generic nouns + geo suffixes stripped) when there
-    // are enough of them, so a noisy filename like "Botanica Hills Townhomes Medical Center 01"
-    // queries "botanica hills medical center" and Google surfaces the real community. This only
+    // Search with the leading distinctive BRAND phrase — property types, market/geo terms,
+    // sequence numbers, and trailing area descriptors dropped — so a noisy filename like
+    // "Botanica Hills Townhomes Medical Center 01" queries "botanica hills" and Google surfaces
+    // the real community (Botanica Oak Hills) instead of Medical-Center-area noise. This only
     // sharpens what we FIND — the acceptance gate (decideAutoMatch) still runs on the full name
     // and stays strict, so this never loosens matching.
-    const core = coreTokens(name)
-    const searchName = core.length >= 2 ? core.join(" ") : name
+    const searchName = brandSeed(name)
     const { places } = await Place.searchByText({
       fields: ["id", "displayName", "formattedAddress"],
       textQuery: nameSearchTextQuery(searchName),

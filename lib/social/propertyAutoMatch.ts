@@ -46,6 +46,44 @@ export function coreTokens(name: string | null | undefined): string[] {
     .filter((t) => t.length >= 3 && !STOP.has(t) && !/^\d+$/.test(t))
 }
 
+// Tokens that mark the END of the distinctive brand phrase in a filename-derived name: property
+// types, market/geo terms, and numbers. In apartment filenames the brand leads and these
+// descriptors trail ("botanica hills | townhomes san antonio medical center 02"), so the brand
+// is everything BEFORE the first of these. Deliberately excludes connectors like the/at/of so a
+// real multi-word brand ("The Standard at Legacy") survives intact.
+const BRAND_BOUNDARY = new Set([
+  "apartment", "apartments", "apt", "apts", "townhome", "townhomes", "townhouse", "townhouses",
+  "home", "homes", "house", "houses", "studio", "studios", "penthouse", "penthouses",
+  "highrise", "high", "rise", "loft", "lofts", "villa", "villas", "flat", "flats",
+  "residence", "residences", "condo", "condos", "condominium", "condominiums",
+  "community", "communities", "living", "luxury",
+  "san", "antonio", "dallas", "dfw", "fort", "worth", "houston", "austin", "tx", "texas", "usa",
+])
+
+const SMALL_CONNECTORS = new Set(["at", "of", "the", "and", "in", "on", "by", "for", "to", "a", "an"])
+
+/**
+ * The CANONICAL-SEARCH SEED for a filename-derived name: the leading distinctive brand phrase,
+ * with property-type words, market/geo terms, sequence numbers, and trailing area/location
+ * descriptors dropped. "Botanica Hills Townhomes Medical Center 02" → "botanica hills" (so the
+ * canonical search finds "Botanica Oak Hills" instead of Medical-Center-area noise). Falls back
+ * to the distinctive core tokens, then the raw trimmed name, so a query is never empty. This only
+ * shapes what we SEARCH FOR — the acceptance gate (decideAutoMatch) still runs on the full name.
+ */
+export function brandSeed(name: string | null | undefined): string {
+  const toks = (name ?? "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean)
+  const brand: string[] = []
+  for (const t of toks) {
+    if (/^\d+$/.test(t) || BRAND_BOUNDARY.has(t)) break // number or descriptor ends the brand
+    brand.push(t)
+  }
+  // Trim leading/trailing connectors (the/at/of/…) that carry no search value on their own.
+  while (brand.length && SMALL_CONNECTORS.has(brand[0])) brand.shift()
+  while (brand.length && SMALL_CONNECTORS.has(brand[brand.length - 1])) brand.pop()
+  const seed = brand.filter((t) => t.length >= 2).join(" ").trim()
+  return seed || coreTokens(name).join(" ") || (name ?? "").trim()
+}
+
 function eq(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((t, i) => t === b[i])
 }

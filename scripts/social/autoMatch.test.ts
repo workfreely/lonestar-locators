@@ -1,6 +1,7 @@
 // Unit tests for Social Autopilot filename → canonical property AUTO-RESOLUTION confidence gate.
 // Pure logic only — no Google SDK. Run: npx tsx scripts/social/autoMatch.test.ts
-import { decideAutoMatch, coreTokens, type AutoMatchCandidate } from "@/lib/social/propertyAutoMatch"
+import { decideAutoMatch, coreTokens, brandSeed, type AutoMatchCandidate } from "@/lib/social/propertyAutoMatch"
+import { inferFromFilename } from "@/lib/social/filenameInference"
 
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
@@ -12,6 +13,27 @@ ok("strips townhomes + market", JSON.stringify(coreTokens("Botanica Hills Townho
 ok("strips leading number + generic 'apartments'", JSON.stringify(coreTokens("01 Alta Apartments")) === JSON.stringify(["alta"]))
 ok("all-generic → empty", coreTokens("Luxury Apartments").length === 0)
 ok("high-rise stripped", JSON.stringify(coreTokens("The Maple High-Rise")) === JSON.stringify(["maple"]))
+
+console.log("brandSeed (canonical-search query = leading brand phrase):")
+ok("drops type + market + area + seq: 'botanica hills'", brandSeed("Botanica Hills Townhomes Medical Center 02") === "botanica hills")
+ok("keeps multi-word brand + mid connector (leading 'the' trimmed)", brandSeed("The Standard at Legacy") === "standard at legacy")
+ok("stops at type word 'flats'", brandSeed("Mueller Flats") === "mueller")
+ok("plain brand unchanged", brandSeed("Alta Westover Hills") === "alta westover hills")
+ok("empty → empty", brandSeed("") === "")
+
+console.log("Botanica test filenames → seed resolves to canonical (end-to-end):")
+for (const f of ["botanica-hills-townhomes-san-antonio-medical-center-01.MOV", "botanica-hills-townhomes-san-antonio-medical-center-02.MOV", "botanica-hills-townhomes-san-antonio-medical-center-03.MOV"]) {
+  const inf = inferFromFilename(f)
+  const seed = brandSeed(inf.propertyName ?? "")
+  ok(`${f.slice(-6)}: query seed = 'botanica hills'`, seed === "botanica hills")
+  // Given the canonical search returns Botanica Oak Hills as the clear SA community, the FULL
+  // inferred name still resolves to the canonical match (name replaced + place_id set).
+  const dec = decideAutoMatch(inf.propertyName ?? "", inf.market, [
+    { placeId: "ChIJbotanica", name: "Botanica Oak Hills", address: "1 Medical Dr, San Antonio, TX 78229, USA" },
+    { placeId: "ChIJother", name: "The Reserve at Medical Center", address: "San Antonio, TX 78240, USA" },
+  ])
+  ok(`${f.slice(-6)}: resolves to canonical "Botanica Oak Hills"`, dec.match?.name === "Botanica Oak Hills" && dec.match?.placeId === "ChIJbotanica")
+}
 
 console.log("auto-match (clear single winner):")
 const botanica = decideAutoMatch("Botanica Hills Townhomes Medical Center", "San Antonio", [
