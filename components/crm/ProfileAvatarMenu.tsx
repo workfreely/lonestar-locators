@@ -148,9 +148,10 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
     ? "w-[44px] h-[44px] rounded-full bg-white flex items-center justify-center text-[#9098a8] overflow-hidden flex-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2f6bff] focus-visible:ring-offset-1"
     : "w-[44px] h-[44px] rounded-full bg-[var(--crm-inset)] flex items-center justify-center text-[var(--crm-text-muted)] overflow-hidden flex-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--crm-accent)] focus-visible:ring-offset-1"
 
+  // overflow-hidden lets the full-width section bands meet the rounded panel edge cleanly.
   const panelCls = light
-    ? "absolute right-0 top-full mt-2 w-60 bg-white border border-[#e5e7ee] rounded-xl shadow-[0_12px_32px_rgba(15,23,42,0.14)] py-1.5 z-50"
-    : "absolute right-0 top-full mt-2 w-60 bg-[var(--crm-panel)] border border-[var(--crm-border)] rounded-xl shadow-[0_8px_24px_rgba(15,23,42,0.18)] py-1.5 z-50"
+    ? "absolute right-0 top-full mt-2 w-60 bg-white border border-[#e5e7ee] rounded-xl shadow-[0_12px_32px_rgba(15,23,42,0.14)] py-1.5 z-50 overflow-hidden"
+    : "absolute right-0 top-full mt-2 w-60 bg-[var(--crm-panel)] border border-[var(--crm-border)] rounded-xl shadow-[0_8px_24px_rgba(15,23,42,0.18)] py-1.5 z-50 overflow-hidden"
 
   const rowCls = light
     ? "text-[13px] font-medium text-[#111318] hover:bg-[#f4f5f8]"
@@ -166,9 +167,12 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
 
   const workspaceLabelCls = light ? "text-[#9098a8]" : "text-[var(--crm-text-muted)]"
 
-  // Small, muted, uppercase, NON-clickable section heading. `pt-2` gives the gentle
-  // vertical breathing room between sections; the first heading trims its own top pad.
-  const sectionCls = `px-3.5 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider select-none ${workspaceLabelCls}`
+  // Section header: a subtle, full-width darker band behind small uppercase muted text. The band
+  // is a fixed neutral (black alpha) — NOT the theme accent — so it darkens consistently across
+  // every workspace theme and leaves the accent reserved for row hover. `mt-1` keeps the gentle
+  // gap between groups; `py-1.5` is the band's own height. Non-clickable (a plain div).
+  const bandCls = light ? "bg-black/[0.05]" : "bg-black/25"
+  const sectionCls = `mt-1 px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider select-none ${bandCls} ${workspaceLabelCls}`
 
   return (
     <div className="relative flex-none" ref={menuRef}>
@@ -190,7 +194,7 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
       {open && (
         <div className={panelCls}>
           {/* ── ACCOUNT ── */}
-          <div className={`${sectionCls} pt-1`}>Account</div>
+          <div className={sectionCls}>Account</div>
           <Link href="/admin/profile" onClick={() => setOpen(false)} className={linkCls}>Profile</Link>
           <Link href="/smart-lead-form" onClick={() => setOpen(false)} className={linkCls}>Smart Lead Form</Link>
           <Link href="/admin/analytics" onClick={() => setOpen(false)} className={linkCls}>Analytics</Link>
