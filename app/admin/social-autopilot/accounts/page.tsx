@@ -3,31 +3,66 @@ export const dynamic = "force-dynamic"
 import { ensurePlatformAdminPage } from "@/lib/auth/ensurePlatformAdminPage"
 import { createClient } from "@/lib/supabase/server"
 import { instagramConfigured } from "@/lib/social/instagram"
-import InstagramAccountCard, { type InstagramConnection } from "@/components/crm/social/InstagramAccountCard"
+import PublishingDestinations, { type Destination, type PendingInvite } from "@/components/crm/social/PublishingDestinations"
 
-// Social Autopilot → Accounts. Instagram is real (Instagram Login connection); TikTok and
-// YouTube stay "Coming later". Platform-admin gated. Tokens live server-side (Vault) and are
-// never read here — only safe identity fields are shown.
+// Social Autopilot → Accounts. Manages N Instagram Publishing Destinations for the current
+// platform-admin owner (was single-connection). Platform-admin gated. Tokens live in Vault and are
+// never read here — only safe identity/label/status fields are selected. RLS scopes every query to
+// the owner, so this only ever returns the admin's own destinations.
 export default async function SocialAutopilotAccountsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await ensurePlatformAdminPage()
   const sp = await searchParams
 
   const configured = instagramConfigured()
-
-  // Read the admin's own connection under RLS (never the token — token_secret_id is omitted).
-  let connection: InstagramConnection = null
   const supabase = await createClient()
-  const { data } = await supabase
-    .from("social_connections")
-    .select("username, account_type, status, token_expires_at")
-    .eq("provider", "instagram")
-    .maybeSingle()
-  if (data) {
-    const row = data as { username: string | null; account_type: string | null; status: string; token_expires_at: string | null }
-    const expired = !!row.token_expires_at && new Date(row.token_expires_at).getTime() < Date.now()
-    connection = { username: row.username, accountType: row.account_type, status: row.status, expired }
-  }
 
+  // ALL Instagram destinations for this owner (RLS-scoped). NEVER selects token_secret_id /
+  // external_account_id / owner_user_id — only safe display fields. connection id is used solely to
+  // address connection-ID-scoped backend actions; it is not shown in the UI.
+  const { data: connRows } = await supabase
+    .from("social_connections")
+    .select("id, username, status, label, posting_paused, posts_per_day, token_expires_at")
+    .eq("provider", "instagram")
+    .order("created_at", { ascending: true })
+
+  const destinations: Destination[] = (connRows ?? []).map((r) => {
+    const row = r as {
+      id: string
+      username: string | null
+      status: string
+      label: string | null
+      posting_paused: boolean | null
+      posts_per_day: number | null
+      token_expires_at: string | null
+    }
+    return {
+      id: row.id,
+      username: row.username,
+      label: row.label,
+      status: row.status,
+      paused: !!row.posting_paused,
+      postsPerDay: row.posts_per_day,
+      expired: !!row.token_expires_at && new Date(row.token_expires_at).getTime() < Date.now(),
+    }
+  })
+
+  // Active (unused, unrevoked, unexpired) invitations — the safe list; the raw token is NEVER
+  // stored or shown again after creation.
+  const nowIso = new Date().toISOString()
+  const { data: inviteRows } = await supabase
+    .from("social_destination_invitations")
+    .select("id, label, created_at, expires_at, used_at, revoked_at")
+    .is("used_at", null)
+    .is("revoked_at", null)
+    .gt("expires_at", nowIso)
+    .order("created_at", { ascending: false })
+
+  const pendingInvites: PendingInvite[] = (inviteRows ?? []).map((r) => {
+    const row = r as { id: string; label: string | null; created_at: string; expires_at: string }
+    return { id: row.id, label: row.label, createdAt: row.created_at, expiresAt: row.expires_at }
+  })
+
+  // Flash from the direct admin-connect callback (?connected / ?error).
   const connected = sp.connected === "instagram"
   const errorCode = typeof sp.error === "string" ? sp.error : null
   const errorText: Record<string, string> = {
@@ -51,20 +86,7 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <InstagramAccountCard configured={configured} connection={connection} />
-
-        {/* TikTok / YouTube — later in the sequence */}
-        {["TikTok", "YouTube"].map((name) => (
-          <div key={name} className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4 flex flex-col">
-            <div className="flex items-center justify-between">
-              <div className="text-[14px] font-bold text-[var(--crm-text-primary)]">{name}</div>
-              <span className="text-[11.5px] font-semibold text-[var(--crm-text-muted)]">Coming later</span>
-            </div>
-            <div className="mt-4 h-[30px]" aria-hidden />
-          </div>
-        ))}
-      </div>
+      <PublishingDestinations configured={configured} destinations={destinations} pendingInvites={pendingInvites} />
     </div>
   )
 }
