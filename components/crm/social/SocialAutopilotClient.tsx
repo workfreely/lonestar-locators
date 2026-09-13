@@ -900,13 +900,10 @@ export default function SocialAutopilotClient() {
               Original file: {editing.originalFilename}
             </div>
             <div className="flex flex-col gap-2">
-              <label className="block">
-                <span className={fieldLabel}>Display name</span>
-                <input className={`${inputCls} mt-1`} value={draft.displayName ?? ""} onChange={(e) => setDraft((d) => ({ ...d, displayName: e.target.value }))} />
-                <span className="text-[10.5px] text-[var(--crm-text-muted)]">
-                  {editing.nameCustomized ? "Custom name — won't auto-update." : "Auto-generated from Property + Market until you edit it here."}
-                </span>
-              </label>
+              {/* Display Name is an INTERNAL source-asset identifier (auto-generated from Property
+                  + Market + date + sequence) — not an Instagram publishing field, so it is not
+                  editable here. The DB column and auto-naming are unchanged; the original filename
+                  above remains the internal reference. */}
               <label className="block">
                 <span className={fieldLabel}>Property / building name</span>
                 <PropertySearchField
