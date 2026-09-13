@@ -2600,6 +2600,24 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     return () => window.removeEventListener("keydown", onKey)
   }, [focusMode])
 
+  // Focus-mode Lead Detail: the board (and its EXACT toolbar — Dashboard/Map/Search/Detailed/
+  // Compact/Overview/Exit Focus) stays visible; only the content underneath swaps to the lead.
+  // We measure the board toolbar's height so the Lead Detail overlay/veil begin just below it
+  // (no separate/alternate toolbar is created — the real board toolbar is reused as-is).
+  const boardWrapRef = useRef<HTMLDivElement>(null)
+  const [focusToolbarH, setFocusToolbarH] = useState(0)
+  useEffect(() => {
+    if (!(focusMode && selectedLeadId != null)) { setFocusToolbarH(0); return }
+    const el = boardWrapRef.current?.querySelector<HTMLElement>(".kb-toolbar")
+    if (!el) return
+    const measure = () => setFocusToolbarH(el.offsetHeight)
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusMode, selectedLeadId])
+
   // ── Agenda orientation (pure mirror) ──────────────────────────────────────
   // Same components, same widths/margins/insets — only the SIDE flips. The BODY
   // flex reverses; the Agenda's OUTER margin moves to the opposite edge; and the
@@ -2613,6 +2631,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   const overlayInsetCls = agendaOnRight
     ? followUpsOpen ? "left-0 right-[242px]" : "left-0 right-[62px]"
     : followUpsOpen ? "left-[242px] right-0" : "left-[62px] right-0"
+  // In Focus Mode with a lead open, start the veil + Lead Detail overlay just below the board
+  // toolbar so that toolbar stays visible; otherwise the normal top-2 (8px) inset applies.
+  const detailTopStyle = focusMode && selectedLeadId != null && focusToolbarH > 0 ? { top: focusToolbarH } : undefined
 
   return (
     <div
@@ -2689,36 +2710,6 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         </div>
       )}
 
-      {/* ─── FOCUS-MODE LEAD-DETAIL BAR ───
-          Focus hides the full app header, and opening a lead hides the board (which
-          hosts the board's own Focus controls) — so on the Lead Detail screen while
-          Focus is ON there would be no navigation at all. This compact bar fills only
-          that exact gap: Back to the board + Exit Focus. It is NOT the normal header
-          and deliberately omits board-only controls (Dashboard/Map/Detailed/Compact/
-          Overview). The CRM search is not reproduced here: it lives as internal state
-          in LeadBoard and cannot be reused without lifting that state (which would
-          change existing behavior), so it is intentionally left off. Shown ONLY when
-          focus is on AND a lead is open — every other case is untouched. */}
-      {focusMode && selectedLead && (
-        <div className="flex-none flex items-center gap-2 px-4 py-2 bg-[var(--crm-panel)] border-b border-[var(--crm-border)]">
-          <button
-            type="button"
-            onClick={() => { setSelectedLeadId(null); router.push("/admin/leads") }}
-            className={CRM_SECONDARY_BUTTON}
-          >
-            <span aria-hidden>‹</span> Board
-          </button>
-          <button
-            type="button"
-            onClick={() => setFocusMode(false)}
-            className={`${CRM_SECONDARY_BUTTON} ml-auto`}
-            aria-pressed
-          >
-            <span aria-hidden>⛶</span> Exit Focus
-          </button>
-        </div>
-      )}
-
       {/* ─── BODY ─── (Agenda side mirrors via bodyFlexCls)
           mt-2 (8px) gives the whole workspace row breathing room below the top
           nav. Applied to the row as a unit (not to Agenda/center/cards) so it
@@ -2739,7 +2730,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             sidebar itself, so its frosted-glass look over the dark photo
             is fully preserved. */}
         {selectedLead && (
-          <div className={`absolute top-2 bottom-2 ${veilInsetCls} bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]`} />
+          <div style={detailTopStyle} className={`absolute top-2 bottom-2 ${veilInsetCls} bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]`} />
         )}
 
         {/* LEFT SIDEBAR — Agenda (Follow-ups). Recessed column-like panel so
@@ -2776,10 +2767,13 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           </div>
         )}
 
-        {/* MAIN BOARD */}
+        {/* MAIN BOARD — stays mounted+visible in Focus Mode even when a lead is selected, so its
+            toolbar (the exact Focus toolbar) persists; the Lead Detail overlay below covers the
+            columns. Outside Focus Mode it hides on selection exactly as before. */}
         <div
+          ref={boardWrapRef}
           className={`relative z-10 flex-1 overflow-hidden ${
-            selectedLead ? "hidden" : "block"
+            selectedLead && !focusMode ? "hidden" : "block"
           } ${demoMode ? "crm-fade-in" : ""}`}
         >
           <LeadBoard
@@ -2927,7 +2921,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
 
         {/* LEAD DETAIL OVERLAY */}
         {selectedLead && (
-          <div className={`absolute top-2 bottom-2 ${overlayInsetCls} z-40 flex pointer-events-none`}>
+          <div style={detailTopStyle} className={`absolute top-2 bottom-2 ${overlayInsetCls} z-40 flex pointer-events-none`}>
             <div className="flex gap-2 w-full h-full pointer-events-auto">
 
               {/* LEAD PANEL — hidden in the dev Phase-1 preview (see

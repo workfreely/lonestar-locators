@@ -214,9 +214,11 @@ export default function SocialAutopilotClient() {
   // Source metadata is now edited inside PostEditor (the single editor). The Library only creates
   // posts, opens the single editable draft, and deletes source videos.
 
-  // Per-source post rollup: how many posts a source has, and the single editable draft's id (if
-  // exactly one). Drives the card's optional "Open Draft" affordance — never guesses.
-  const [postsBySource, setPostsBySource] = useState<Record<string, { total: number; openId: string | null }>>({})
+  // Per-source rollup of EDITABLE (non-published) posts. Drives the "Edit Post" workflow:
+  // 0 → create+open, 1 → open it, >1 → let the operator pick (never silently guess).
+  type EditablePost = { id: string; status: string; scheduledAt: string | null; name: string }
+  const [postsBySource, setPostsBySource] = useState<Record<string, EditablePost[]>>({})
+  const [editMenuFor, setEditMenuFor] = useState<string | null>(null) // source id whose picker is open
 
   const load = useCallback(async () => {
     setError(null)
@@ -233,23 +235,18 @@ export default function SocialAutopilotClient() {
       setError("Couldn't load the library.")
       setItems([])
     }
-    // Post rollup (best-effort; a failure just hides the Open Draft affordance).
+    // Editable-post rollup (best-effort; a failure just falls back to create-on-click).
     try {
       const pres = await fetch("/api/admin/social-autopilot/posts", { headers: { Accept: "application/json" } })
       if (pres.ok) {
-        const pj = (await pres.json()) as { items?: { id: string; sourceContentId: string | null; status: string }[] }
-        const totals: Record<string, number> = {}
-        const editable: Record<string, string[]> = {} // source → ids of non-published posts
+        const pj = (await pres.json()) as {
+          items?: { id: string; sourceContentId: string | null; status: string; scheduledAt: string | null; postName: string | null; source: { propertyName: string | null; displayName: string | null } | null }[]
+        }
+        const map: Record<string, EditablePost[]> = {}
         for (const p of pj.items ?? []) {
           const sid = p.sourceContentId
-          if (!sid) continue
-          totals[sid] = (totals[sid] ?? 0) + 1
-          if (p.status !== "published") (editable[sid] ??= []).push(p.id)
-        }
-        const map: Record<string, { total: number; openId: string | null }> = {}
-        for (const sid of Object.keys(totals)) {
-          const ed = editable[sid] ?? []
-          map[sid] = { total: totals[sid], openId: ed.length === 1 ? ed[0] : null } // Open Draft only when exactly one editable post
+          if (!sid || p.status === "published") continue // only editable (non-published) posts
+          ;(map[sid] ??= []).push({ id: p.id, status: p.status, scheduledAt: p.scheduledAt, name: p.source?.propertyName || p.source?.displayName || p.postName || "Untitled" })
         }
         setPostsBySource(map)
       }
@@ -553,6 +550,17 @@ export default function SocialAutopilotClient() {
     [router, scheduleDate],
   )
 
+  // Open an existing post in the unified editor (Library origin).
+  const openPost = useCallback((postId: string) => router.push(`/admin/social-autopilot/posts/${encodeURIComponent(postId)}?from=library`), [router])
+  // "Edit Post" workflow: 0 editable → create the first draft + open; exactly 1 → open it;
+  // >1 → open a small picker so the operator chooses (never silently guesses).
+  const editPost = useCallback((sid: string) => {
+    const ed = postsBySource[sid] ?? []
+    if (ed.length === 0) return void createPost(sid)
+    if (ed.length === 1) return openPost(ed[0].id)
+    setEditMenuFor((cur) => (cur === sid ? null : sid))
+  }, [postsBySource, createPost, openPost])
+
   // ---- styles ----------------------------------------------------------------
   const chip = (active: boolean) =>
     "text-[12px] font-semibold px-3 py-1.5 rounded-full border transition-colors " +
@@ -692,21 +700,34 @@ export default function SocialAutopilotClient() {
                   </div>
                   <div className="text-[11px] text-[var(--crm-text-muted)] mt-0.5">{c.dateLabel}</div>
                   {!c.demo && c.raw && (() => {
-                    const roll = postsBySource[c.raw.id]
+                    const sid = c.raw.id
+                    const ed = postsBySource[sid] ?? []
+                    const menuOpen = editMenuFor === sid && ed.length > 1
                     return (
-                      <div className="mt-2 pt-2 border-t border-[var(--crm-border)] flex flex-col gap-1.5" onDoubleClick={(e) => e.stopPropagation()}>
+                      <div className="relative mt-2 pt-2 border-t border-[var(--crm-border)] flex flex-col gap-1.5" onDoubleClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
                           className="text-[12px] font-semibold px-2.5 py-1.5 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"
-                          disabled={creatingId === c.raw.id}
-                          onClick={() => void createPost(c.raw!.id)}
+                          disabled={creatingId === sid}
+                          aria-haspopup={ed.length > 1 ? "menu" : undefined}
+                          aria-expanded={ed.length > 1 ? menuOpen : undefined}
+                          onClick={() => editPost(sid)}
                         >
-                          {creatingId === c.raw.id ? "Creating…" : "+ Create Post"}
+                          {creatingId === sid ? "Creating…" : "Edit Post"}
                         </button>
+                        {menuOpen && (
+                          <div className="absolute z-20 top-full left-0 right-0 mt-1 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-panel)] shadow-lg p-1 flex flex-col gap-0.5" role="menu">
+                            <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-[var(--crm-text-muted)]">Choose a post to edit</div>
+                            {ed.map((p) => (
+                              <button key={p.id} type="button" role="menuitem" onClick={() => { setEditMenuFor(null); openPost(p.id) }} className="text-left px-2 py-1 rounded hover:bg-[var(--crm-card)] text-[12px] text-[var(--crm-text-primary)]">
+                                <span className="font-semibold">{p.name}</span>
+                                <span className="text-[var(--crm-text-muted)]"> · {p.status}{p.scheduledAt ? ` · ${new Date(p.scheduledAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}</span>
+                              </button>
+                            ))}
+                            <button type="button" role="menuitem" onClick={() => { setEditMenuFor(null); void createPost(sid) }} className="text-left px-2 py-1 rounded hover:bg-[var(--crm-card)] text-[12px] text-[var(--crm-text-secondary)]">+ New post variation</button>
+                          </div>
+                        )}
                         <div className="flex items-center gap-1.5">
-                          {roll?.openId && (
-                            <button type="button" className={btn} onClick={() => router.push(`/admin/social-autopilot/posts/${encodeURIComponent(roll.openId!)}?from=library`)}>Open Draft</button>
-                          )}
                           <button type="button" aria-label="Delete source video" title="Delete source video" className="ml-auto p-1.5 rounded-lg text-[var(--crm-text-muted)] hover:text-red-500 hover:bg-[var(--crm-card)] transition-colors" onClick={() => remove(c.raw!.id)}>
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>
                           </button>
