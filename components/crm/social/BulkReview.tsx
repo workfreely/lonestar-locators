@@ -275,8 +275,9 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
   const primaryBtn = "text-[12.5px] font-semibold px-3.5 py-2 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"
   const chip = (on: boolean) => "text-[12px] font-semibold px-2.5 py-1 rounded-full border transition-colors " + (on ? "border-[var(--crm-text-primary)] text-[var(--crm-text-primary)] bg-[var(--crm-card)]" : "border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]")
 
-  // area_neighborhood is INTERNAL reference only — intentionally not fed into the public preview.
-  const activePrep = active ? preparePost({ propertyName: active.propertyName, market: active.market, propertyType: active.propertyType }) : null
+  // Property name / area are INTERNAL — the public preview uses only market + type (Bulk Review
+  // rows don't capture special/price/amenities; those refine the preview later in Create Post).
+  const activePrep = active ? preparePost({ market: active.market, propertyType: active.propertyType }) : null
   const ov = overlayPreviewStyle() // CSS overlay geometry shared with the Post Composer + FFmpeg burn-in
   const activeConfirmed = !!(active && active.matched && active.placeId)
 

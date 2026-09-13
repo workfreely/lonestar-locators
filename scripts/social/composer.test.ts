@@ -24,24 +24,32 @@ ok("adds # and strips junk", normalizeHashtag("  luxury apts! ") === "#luxuryapt
 ok("collapses leading #", normalizeHashtag("##atx") === "#atx")
 ok("empty → empty", normalizeHashtag("  ") === "")
 
-console.log("auto-prepare (public-safe; no internal notes):")
-const src = { propertyName: "Alta Westover Hills", market: "San Antonio", special: "1 Month Free", budgetRange: "$1,200–$1,600", amenities: "Pool, Gym" }
+console.log("auto-prepare (PUBLIC-SAFE only — never the property name/area/notes):")
+// Botanica Oak Hills is the INTERNAL canonical property; it must NOT appear in public copy.
+const src = { market: "San Antonio", propertyType: "Townhome", special: "1 Month Free", budgetRange: "$1,200–$1,600", amenities: "private yard, garage, pool" }
 const prep = preparePost(src)
-ok("headline = property, uppercased", prep.overlayHeadline === "ALTA WESTOVER HILLS")
-ok("subheadline = special", prep.overlaySubheadline === "1 Month Free")
-ok("caption includes property + market", prep.caption.includes("Alta Westover Hills") && prep.caption.includes("San Antonio"))
-ok("caption includes special + budget + amenities", prep.caption.includes("1 Month Free") && prep.caption.includes("$1,200") && prep.caption.includes("Pool, Gym"))
+ok("headline = MARKET + TYPE (not property name)", prep.overlayHeadline === "SAN ANTONIO TOWNHOMES")
+ok("subheadline = special when present", prep.overlaySubheadline === "1 Month Free")
+ok("caption leads with market + type, not property", prep.caption.startsWith("Now leasing — San Antonio townhomes"))
+ok("caption includes special + price + features", prep.caption.includes("1 Month Free") && prep.caption.includes("$1,200") && prep.caption.includes("private yard"))
 ok("caption has 7–10 hashtags prepared separately", prep.hashtags.length >= 7 && prep.hashtags.length <= 10)
-ok("Dallas market → DFW NOT substituted in headline/caption", buildOverlayHeadline({ propertyName: null, market: "Dallas" }) === "DALLAS")
-// PRIVACY: notes are never accepted into the SourceMeta type, so they can't leak. Confirm a
-// caption from bare market doesn't invent internal detail.
-ok("no property → 'Now leasing in <market>'", buildCaption({ market: "Austin" }).startsWith("Now leasing in Austin"))
-ok("subheadline empty when no special and no property", buildOverlaySubheadline({ market: "Austin" }) === "")
-ok("final caption appends hashtags", composeFinalCaption("Hello", ["#a", "#b"]) === "Hello\n\n#a #b")
+// Even if a property name were somehow supplied, the type-level SourceMeta drops it — verify no
+// internal identity leaks into the public copy.
+const leaky = preparePost({ market: "San Antonio", propertyType: "Townhome", amenities: "private yard, garage, pool", ...( { propertyName: "Botanica Oak Hills", areaNeighborhood: "Medical Center", notes: "call owner" } as unknown as object) })
+ok("internal property name never leaks into caption", !leaky.caption.includes("Botanica"))
+ok("internal area never leaks into caption/overlay", !leaky.caption.includes("Medical Center") && !leaky.overlayHeadline.includes("MEDICAL") && !leaky.overlaySubheadline.includes("MEDICAL"))
+ok("internal notes never leak", !leaky.caption.includes("call owner"))
 
-console.log("subheadline market fallback:")
-ok("subheadline = market when property present, no special", buildOverlaySubheadline({ propertyName: "X", market: "Dallas" }) === "Dallas")
-ok("subheadline empty when no property", buildOverlaySubheadline({ market: "Dallas" }) === "")
+console.log("subheadline priority: special → features → price → empty:")
+ok("no special → features hook (pluralized, uppercased)", buildOverlaySubheadline({ market: "San Antonio", amenities: "private yard, garage, pool" }) === "PRIVATE YARDS + GARAGES")
+ok("no special/features → price range", buildOverlaySubheadline({ market: "Dallas", budgetRange: "$1,500+" }) === "$1,500+")
+ok("nothing public → empty", buildOverlaySubheadline({ market: "Austin" }) === "")
+
+console.log("headline market/type fallbacks:")
+ok("Dallas market → DFW NOT substituted", buildOverlayHeadline({ market: "Dallas" }) === "DALLAS APARTMENTS")
+ok("market only → market + apartments", buildOverlayHeadline({ market: "Austin" }) === "AUSTIN APARTMENTS")
+ok("no market → 'Now leasing in <market>' absent, generic tour", buildCaption({}).startsWith("New apartment tour"))
+ok("final caption appends hashtags", composeFinalCaption("Hello", ["#a", "#b"]) === "Hello\n\n#a #b")
 
 console.log("ffmpeg arg builder (Reel-safe encoders):")
 const filt = buildVideoFilter("/f/font.ttf", "/w/head.txt", null)

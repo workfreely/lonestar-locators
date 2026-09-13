@@ -208,8 +208,9 @@ export default function SocialAutopilotClient() {
 
   // Individual edit.
   const [editing, setEditing] = useState<Item | null>(null)
+  // editTags is initialized from the item's stored tags and saved back UNCHANGED (the Tags UI is
+  // hidden), so social_content.tags is preserved without giving the operator a redundant field.
   const [editTags, setEditTags] = useState<string[]>([])
-  const [editTagInput, setEditTagInput] = useState("")
   const [draft, setDraft] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
 
@@ -486,7 +487,6 @@ export default function SocialAutopilotClient() {
   const openEdit = (it: Item) => {
     setEditing(it)
     setEditTags(Array.isArray(it.tags) ? it.tags : [])
-    setEditTagInput("")
     setDraft({
       displayName: it.displayName ?? "",
       propertyName: it.propertyName ?? "",
@@ -752,16 +752,7 @@ export default function SocialAutopilotClient() {
             <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5 mb-3">Suggestions were prefilled from the filename — edit anything. These apply to the whole batch; each video stays its own record you can refine afterward.</div>
             <div className="flex flex-col gap-2.5">
               <label className="block">
-                <span className={fieldLabel}>Market <span className="text-[var(--crm-text-primary)]">*</span></span>
-                <select className={`${inputCls} mt-1`} value={batch.market} onChange={(e) => setBatch((b) => ({ ...b, market: e.target.value }))}>
-                  <option value="">Select market…</option>
-                  {SOCIAL_MARKETS.map((m) => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
-                <span className={fieldLabel}>Property / building name</span>
+                <span className={fieldLabel}>Property / building name <span className="normal-case text-[var(--crm-text-muted)]">· internal</span></span>
                 <PropertySearchField
                   value={batch.propertyName}
                   matched={batch.matched}
@@ -773,6 +764,15 @@ export default function SocialAutopilotClient() {
                 />
               </label>
               <label className="block">
+                <span className={fieldLabel}>City / Market <span className="text-[var(--crm-text-primary)]">*</span></span>
+                <select className={`${inputCls} mt-1`} value={batch.market} onChange={(e) => setBatch((b) => ({ ...b, market: e.target.value }))}>
+                  <option value="">Select market…</option>
+                  {SOCIAL_MARKETS.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
                 <span className={fieldLabel}>Property type</span>
                 <select className={`${inputCls} mt-1`} value={batch.propertyType} onChange={(e) => setBatch((b) => ({ ...b, propertyType: e.target.value }))}>
                   <option value="">Select type…</option>
@@ -782,25 +782,25 @@ export default function SocialAutopilotClient() {
                 </select>
               </label>
               <label className="block">
-                <span className={fieldLabel}>Area / Neighborhood</span>
+                <span className={fieldLabel}>Area / Neighborhood <span className="normal-case text-[var(--crm-text-muted)]">· internal</span></span>
                 <input className={`${inputCls} mt-1`} value={batch.areaNeighborhood} onChange={(e) => setBatch((b) => ({ ...b, areaNeighborhood: e.target.value }))} placeholder="e.g. Schertz, Stone Oak, The Rim, Uptown" />
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
-                  <span className={fieldLabel}>Special</span>
+                  <span className={fieldLabel}>Current Special</span>
                   <input className={`${inputCls} mt-1`} value={batch.special} onChange={(e) => setBatch((b) => ({ ...b, special: e.target.value }))} />
                 </label>
                 <label className="block">
-                  <span className={fieldLabel}>Budget / price</span>
+                  <span className={fieldLabel}>Price Range</span>
                   <input className={`${inputCls} mt-1`} value={batch.budgetRange} onChange={(e) => setBatch((b) => ({ ...b, budgetRange: e.target.value }))} />
                 </label>
               </div>
               <label className="block">
-                <span className={fieldLabel}>Amenities</span>
+                <span className={fieldLabel}>Amenities / Features</span>
                 <input className={`${inputCls} mt-1`} value={batch.amenities} onChange={(e) => setBatch((b) => ({ ...b, amenities: e.target.value }))} />
               </label>
               <label className="block">
-                <span className={fieldLabel}>Notes</span>
+                <span className={fieldLabel}>Notes <span className="normal-case text-[var(--crm-text-muted)]">· internal</span></span>
                 <textarea className={`${inputCls} mt-1 min-h-[52px]`} value={batch.notes} onChange={(e) => setBatch((b) => ({ ...b, notes: e.target.value }))} />
               </label>
               <ul className="mt-1 max-h-[120px] overflow-y-auto text-[11.5px] text-[var(--crm-text-secondary)] rounded-lg border border-[var(--crm-border)] divide-y divide-[var(--crm-border)]">
@@ -904,8 +904,11 @@ export default function SocialAutopilotClient() {
                   + Market + date + sequence) — not an Instagram publishing field, so it is not
                   editable here. The DB column and auto-naming are unchanged; the original filename
                   above remains the internal reference. */}
+              {/* Source facts, in canonical order: Property → Market → Type → Area → Special →
+                  Price → Amenities → Notes. Property / Area / Notes are INTERNAL references and
+                  never auto-appear in public post copy. */}
               <label className="block">
-                <span className={fieldLabel}>Property / building name</span>
+                <span className={fieldLabel}>Property / building name <span className="normal-case text-[var(--crm-text-muted)]">· internal</span></span>
                 <PropertySearchField
                   value={draft.propertyName ?? ""}
                   matched={!!(draft.placeId ?? "")}
@@ -917,17 +920,13 @@ export default function SocialAutopilotClient() {
                 />
               </label>
               <label className="block">
-                <span className={fieldLabel}>City / market</span>
+                <span className={fieldLabel}>City / Market</span>
                 <select className={`${inputCls} mt-1`} value={draft.market ?? ""} onChange={(e) => setDraft((d) => ({ ...d, market: e.target.value }))}>
                   <option value="">No market</option>
                   {[...SOCIAL_MARKETS, ...(draft.market && !SOCIAL_MARKETS.includes(draft.market) ? [draft.market] : [])].map((m) => (
                     <option key={m} value={m}>{m}</option>
                   ))}
                 </select>
-              </label>
-              <label className="block">
-                <span className={fieldLabel}>Area / Neighborhood</span>
-                <input className={`${inputCls} mt-1`} value={draft.areaNeighborhood ?? ""} onChange={(e) => setDraft((d) => ({ ...d, areaNeighborhood: e.target.value }))} placeholder="e.g. Schertz, Stone Oak, The Rim, Uptown" />
               </label>
               <label className="block">
                 <span className={fieldLabel}>Property type</span>
@@ -939,42 +938,27 @@ export default function SocialAutopilotClient() {
                 </select>
               </label>
               <label className="block">
-                <span className={fieldLabel}>Current or historical special</span>
+                <span className={fieldLabel}>Area / Neighborhood <span className="normal-case text-[var(--crm-text-muted)]">· internal</span></span>
+                <input className={`${inputCls} mt-1`} value={draft.areaNeighborhood ?? ""} onChange={(e) => setDraft((d) => ({ ...d, areaNeighborhood: e.target.value }))} placeholder="e.g. Schertz, Stone Oak, The Rim, Uptown" />
+              </label>
+              <label className="block">
+                <span className={fieldLabel}>Current Special</span>
                 <input className={`${inputCls} mt-1`} value={draft.special ?? ""} onChange={(e) => setDraft((d) => ({ ...d, special: e.target.value }))} />
               </label>
               <label className="block">
-                <span className={fieldLabel}>Budget / price range</span>
+                <span className={fieldLabel}>Price Range</span>
                 <input className={`${inputCls} mt-1`} value={draft.budgetRange ?? ""} onChange={(e) => setDraft((d) => ({ ...d, budgetRange: e.target.value }))} />
               </label>
               <label className="block">
-                <span className={fieldLabel}>Amenities</span>
+                <span className={fieldLabel}>Amenities / Features</span>
                 <input className={`${inputCls} mt-1`} value={draft.amenities ?? ""} onChange={(e) => setDraft((d) => ({ ...d, amenities: e.target.value }))} />
               </label>
-              {/* Tags = internal SA organization/generation, distinct from Amenities. The raw
-                  Google Place ID is no longer a visible field — it's established by selecting a
-                  property above (kept persisted in draft.placeId, shown as "Matched property"). */}
-              <div className="block">
-                <span className={fieldLabel}>Tags / Keywords</span>
-                <div className="mt-1 flex flex-wrap gap-1.5 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] p-2 min-h-[38px]">
-                  {editTags.map((t, i) => (
-                    <span key={`${t}-${i}`} className="inline-flex items-center gap-1 text-[12px] px-2 py-0.5 rounded-full bg-[var(--crm-panel)] border border-[var(--crm-border)] text-[var(--crm-text-primary)]">
-                      {t}
-                      <button type="button" aria-label={`Remove ${t}`} className="text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]" onClick={() => setEditTags((prev) => prev.filter((_, idx) => idx !== i))}>×</button>
-                    </span>
-                  ))}
-                  <input
-                    className="flex-1 min-w-[100px] bg-transparent text-[12.5px] text-[var(--crm-text-primary)] outline-none"
-                    value={editTagInput}
-                    onChange={(e) => setEditTagInput(e.target.value)}
-                    onKeyDown={(e) => { if ((e.key === "Enter" || e.key === ",") && editTagInput.trim()) { e.preventDefault(); const t = editTagInput.trim(); setEditTags((prev) => (prev.some((x) => x.toLowerCase() === t.toLowerCase()) ? prev : [...prev, t])); setEditTagInput("") } }}
-                    onBlur={() => { const t = editTagInput.trim(); if (t) { setEditTags((prev) => (prev.some((x) => x.toLowerCase() === t.toLowerCase()) ? prev : [...prev, t])); setEditTagInput("") } }}
-                    placeholder="Add tag or keyword…"
-                  />
-                </div>
-                <span className="text-[10.5px] text-[var(--crm-text-muted)]">Used to help generate relevant captions and hashtags for this video.</span>
-              </div>
+              {/* Tags / Keywords UI intentionally hidden: they did not feed any preparation logic
+                  and overlapped with Amenities / Features (which now seeds the subheadline) and the
+                  approved hashtag bank. The social_content.tags column + any stored values are
+                  preserved and round-tripped unchanged on save — nothing is deleted. */}
               <label className="block">
-                <span className={fieldLabel}>Notes</span>
+                <span className={fieldLabel}>Notes <span className="normal-case text-[var(--crm-text-muted)]">· internal</span></span>
                 <textarea className={`${inputCls} mt-1 min-h-[56px]`} value={draft.notes ?? ""} onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))} />
               </label>
             </div>

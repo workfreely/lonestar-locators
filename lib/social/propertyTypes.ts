@@ -48,6 +48,25 @@ export function propertyNoun(type: string | null | undefined): string {
   }
 }
 
+/** Plural noun for headlines/captions ("San Antonio townhomes"). Falls back to "apartments"
+ *  for unknown/absent types — a generic, public-safe leasing term (never the property name). */
+export function propertyNounPlural(type: string | null | undefined): string {
+  switch (type) {
+    case "Studio":
+      return "studios"
+    case "High-Rise":
+      return "high-rises"
+    case "Townhome":
+      return "townhomes"
+    case "Rental Home":
+      return "rental homes"
+    case "Penthouse":
+      return "penthouses"
+    default:
+      return "apartments"
+  }
+}
+
 // Normalize a legacy Social-Autopilot-only value (from a pre-canonical build) to the canonical
 // list. SCOPED TO SA DATA ONLY — never applied to lead/CRM/property records. Returns null when
 // there is no sensible canonical equivalent.

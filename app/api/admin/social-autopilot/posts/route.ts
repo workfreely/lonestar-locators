@@ -134,10 +134,10 @@ export async function POST(req: NextRequest) {
   const requestedType = typeof body.postType === "string" ? body.postType : ""
   const postType = isValidPostType(platform, requestedType) ? requestedType : defaultPostType(platform)
 
+  // Only PUBLIC-SAFE facts flow into prepared copy. property_name / area_neighborhood / notes are
+  // INTERNAL references and are intentionally NOT passed — they never appear in public copy.
   const prepared = preparePost({
-    propertyName: s.property_name as string | null,
     market: s.market as string | null,
-    // area_neighborhood is INTERNAL reference only — intentionally not fed into public copy.
     propertyType: s.property_type as string | null,
     special: s.special as string | null,
     budgetRange: s.budget_range as string | null,
