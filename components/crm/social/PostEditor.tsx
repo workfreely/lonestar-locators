@@ -6,14 +6,32 @@ import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
 import { POST_TYPES_BY_PLATFORM, POST_TYPE_LABEL, previewAspectClass } from "@/lib/social/postTypes"
 import { buildHashtags, normalizeHashtag } from "@/lib/social/hashtags"
 import { overlayPreviewStyle } from "@/lib/social/overlaySpec"
+import { SOCIAL_MARKETS } from "@/lib/social/markets"
+import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
+import { detectMarket } from "@/lib/social/filenameInference"
+import PropertySearchField from "@/components/crm/social/PropertySearchField"
 import DateTimePicker from "@/components/crm/DateTimePicker"
 
-// Social Autopilot Post Composer. Auto-prepared, fully-editable fields (overlay headline/
-// subheadline, Instagram caption, hashtags, music) → server-side FFmpeg render → FAITHFUL
-// FINAL PREVIEW that plays the real rendered derivative (overlay burned in + chosen audio) →
-// READY TO PUBLISH. NO Instagram publish here. Source stays immutable; the derivative has its
-// own storage identity.
+// Social Autopilot — the ONE user-facing editor. Composes a social_posts variation (post type,
+// overlay, caption, hashtags, audio, schedule) AND edits the useful public-safe SOURCE facts
+// (social_content: property + place_id, type, market, and — under More Details — special/price/
+// amenities), so there is no separate source-metadata form. The two tables stay separate
+// internally; the operator sees one screen. Preview stays on the LEFT (the right-side workspace
+// is Beast Companion). Overlay text + audio drive the FFmpeg render; caption/hashtags are the IG
+// caption (assembled at publish). NO Instagram publish here.
 
+type Source = {
+  displayName: string | null
+  propertyName: string | null
+  propertyType: string | null
+  placeId: string | null
+  market: string | null
+  special: string | null
+  budgetRange: string | null
+  amenities: string | null
+  originalFilename: string | null
+  kind: string | null
+}
 type Post = {
   id: string
   platform: string
@@ -28,7 +46,8 @@ type Post = {
   renderError: string | null
   status: PostStatus
   scheduledAt: string | null
-  source: { displayName: string | null; propertyName: string | null; market: string | null; originalFilename: string | null; kind: string | null } | null
+  sourceContentId: string | null
+  source: Source | null
   previewUrl: string | null
   renderedPreviewUrl: string | null
 }
@@ -39,9 +58,13 @@ const AUDIO_OPTIONS: { key: string; label: string; disabled?: boolean; note?: st
   { key: "lb_track", label: "Locator Beast Music", disabled: true, note: "Coming soon" },
 ]
 
-// Schedule is one local "YYYY-MM-DDTHH:mm" string (the shared DateTimePicker's value format),
-// converted to/from social_posts.scheduled_at (ISO). Local parse preserves the existing
-// Social Autopilot timezone semantics (the value is interpreted in the admin's local zone).
+// Where the editor returns to, based on where the user entered from.
+const BACK: Record<string, { path: string; label: string }> = {
+  library: { path: "/admin/social-autopilot", label: "← Back to Library" },
+  queue: { path: "/admin/social-autopilot/queue", label: "← Back to Queue" },
+  calendar: { path: "/admin/social-autopilot/calendar", label: "← Back to Calendar" },
+}
+
 const pad2 = (n: number) => String(n).padStart(2, "0")
 function isoToLocalInput(iso: string | null): string {
   if (!iso) return ""
@@ -57,15 +80,17 @@ function fmtSchedule(v: string): string {
   return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} at ${d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`
 }
 
-export default function PostEditor({ postId }: { postId: string }) {
+export default function PostEditor({ postId, from }: { postId: string; from?: string | null }) {
   const router = useRouter()
+  const back = BACK[from ?? ""] ?? BACK.queue
   const [post, setPost] = useState<Post | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [rendering, setRendering] = useState(false)
 
-  const [postName, setPostName] = useState("")
+  // social_posts (public post) fields
+  const [postName, setPostName] = useState("") // INTERNAL — kept, not shown as a field
   const [postType, setPostType] = useState("reel")
   const [headline, setHeadline] = useState("")
   const [subheadline, setSubheadline] = useState("")
@@ -75,6 +100,17 @@ export default function PostEditor({ postId }: { postId: string }) {
   const [audioChoice, setAudioChoice] = useState("original")
   const [scheduleVal, setScheduleVal] = useState("") // local "YYYY-MM-DDTHH:mm"
   const [pickerOpen, setPickerOpen] = useState(false)
+
+  // social_content (source) public-safe fields — edited here, written back to the source row.
+  const [sourceContentId, setSourceContentId] = useState<string | null>(null)
+  const [propertyName, setPropertyName] = useState("")
+  const [propertyType, setPropertyType] = useState("")
+  const [market, setMarket] = useState("")
+  const [placeId, setPlaceId] = useState("")
+  const [special, setSpecial] = useState("")
+  const [priceRange, setPriceRange] = useState("")
+  const [amenities, setAmenities] = useState("")
+  const [moreOpen, setMoreOpen] = useState(false)
 
   const load = useCallback(async () => {
     setError(null)
@@ -94,6 +130,14 @@ export default function PostEditor({ postId }: { postId: string }) {
       setHashtags(Array.isArray(p.hashtags) ? p.hashtags : [])
       setAudioChoice(p.audioChoice || "original")
       setScheduleVal(isoToLocalInput(p.scheduledAt))
+      setSourceContentId(p.sourceContentId ?? null)
+      setPropertyName(p.source?.propertyName ?? "")
+      setPropertyType(p.source?.propertyType ?? "")
+      setMarket(p.source?.market ?? "")
+      setPlaceId(p.source?.placeId ?? "")
+      setSpecial(p.source?.special ?? "")
+      setPriceRange(p.source?.budgetRange ?? "")
+      setAmenities(p.source?.amenities ?? "")
     } catch {
       setError("Couldn't load the post.")
     }
@@ -107,12 +151,26 @@ export default function PostEditor({ postId }: { postId: string }) {
     [postName, postType, caption, headline, subheadline, hashtags, audioChoice],
   )
 
+  // Persist the public-safe SOURCE facts to social_content (reuses the canonical content PATCH,
+  // which also keeps place_id + auto-display-name behavior). Internal fields are never touched.
+  const patchSource = useCallback(async (): Promise<boolean> => {
+    if (!sourceContentId) return true
+    const res = await fetch(`/api/admin/social-autopilot/content/${encodeURIComponent(sourceContentId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ propertyName, propertyType, market, placeId, special, budgetRange: priceRange, amenities }),
+    })
+    return res.ok
+  }, [sourceContentId, propertyName, propertyType, market, placeId, special, priceRange, amenities])
+
   const patch = useCallback(
     async (extra: Record<string, unknown>, successMsg: string | null) => {
       setBusy(true)
       setError(null)
       setNotice(null)
       try {
+        const okSource = await patchSource()
+        if (!okSource) { setError("Couldn't save."); return false }
         const res = await fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -129,7 +187,7 @@ export default function PostEditor({ postId }: { postId: string }) {
         setBusy(false)
       }
     },
-    [postId, fieldsBody],
+    [postId, fieldsBody, patchSource],
   )
 
   const saveDraft = async () => {
@@ -138,7 +196,7 @@ export default function PostEditor({ postId }: { postId: string }) {
   const schedule = async () => {
     const iso = scheduleToIso(scheduleVal)
     if (!iso) return setError("Set a date and time to schedule.")
-    if (await patch({ intent: "schedule", scheduledAt: iso }, "Scheduled.")) router.push("/admin/social-autopilot/queue")
+    if (await patch({ intent: "schedule", scheduledAt: iso }, "Scheduled.")) router.push(back.path)
   }
   const backToDraft = async () => {
     if (await patch({ intent: "unschedule" }, "Moved back to Draft.")) await load()
@@ -149,15 +207,15 @@ export default function PostEditor({ postId }: { postId: string }) {
       const res = await fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}/duplicate`, { method: "POST" })
       if (!res.ok) return setError("Couldn't duplicate.")
       const j = (await res.json()) as { id?: string }
-      if (j.id) router.push(`/admin/social-autopilot/posts/${encodeURIComponent(j.id)}`)
+      if (j.id) router.push(`/admin/social-autopilot/posts/${encodeURIComponent(j.id)}${from ? `?from=${from}` : ""}`)
     } finally {
       setBusy(false)
     }
-  }, [postId, router])
+  }, [postId, router, from])
 
-  // Render: persist current fields, then run the server FFmpeg render (synchronous), then
-  // reload so the faithful final preview plays the rendered derivative.
-  const render = useCallback(async () => {
+  // Prepare Video: persist current fields (source + post), then run the server FFmpeg render
+  // (synchronous), then reload so the faithful final preview plays the rendered derivative.
+  const prepare = useCallback(async () => {
     setRendering(true)
     setError(null)
     setNotice(null)
@@ -166,14 +224,14 @@ export default function PostEditor({ postId }: { postId: string }) {
       if (!saved) return
       const res = await fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}/render`, { method: "POST" })
       if (!res.ok) {
-        setError("Render failed. Check the video and try again.")
+        setError("Video preparation failed. Check the video and try again.")
         await load()
         return
       }
-      setNotice("Rendered. Review the final preview below.")
+      setNotice("Video ready — review the final preview.")
       await load()
     } catch {
-      setError("Render failed.")
+      setError("Video preparation failed.")
       await load()
     } finally {
       setRendering(false)
@@ -186,7 +244,7 @@ export default function PostEditor({ postId }: { postId: string }) {
     setHashtags((prev) => (prev.some((x) => x.toLowerCase() === t.toLowerCase()) ? prev : [...prev, t]))
     setTagInput("")
   }
-  const suggestTags = () => setHashtags(buildHashtags(post?.source?.market, 8))
+  const suggestTags = () => setHashtags(buildHashtags(market || post?.source?.market, 8, propertyType || post?.source?.propertyType))
 
   const control = "w-full text-[13px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] px-2.5 py-1.5"
   const fieldLabel = "text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]"
@@ -196,7 +254,7 @@ export default function PostEditor({ postId }: { postId: string }) {
   if (error && !post) {
     return (
       <div>
-        <button type="button" className={btn} onClick={() => router.push("/admin/social-autopilot/queue")}>← Back to Queue</button>
+        <button type="button" className={btn} onClick={() => router.push(back.path)}>{back.label}</button>
         <div className="mt-3 rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] px-6 py-12 text-center text-[13px] text-[var(--crm-text-secondary)]">{error}</div>
       </div>
     )
@@ -207,14 +265,15 @@ export default function PostEditor({ postId }: { postId: string }) {
   const aspect = previewAspectClass(post.platform, postType)
   const rendered = post.renderStatus === "ready" && !!post.renderedPreviewUrl
   const ov = overlayPreviewStyle()
+  const prepareLabel = rendering ? "Preparing…" : post.renderStatus === "error" ? "Retry — Prepare Video" : rendered ? "Re-prepare Video" : "Prepare Video"
 
   return (
     <div>
       <div className="mb-3 flex items-center gap-2.5 flex-wrap">
-        <button type="button" className={btn} onClick={() => router.push("/admin/social-autopilot/queue")}>← Back to Queue</button>
+        <button type="button" className={btn} onClick={() => router.push(back.path)}>{back.label}</button>
         <span className="text-[11.5px] font-semibold px-2.5 py-1 rounded-full bg-[var(--crm-card)] text-[var(--crm-text-secondary)]">{POST_STATUS_LABEL[post.status] ?? post.status}</span>
         <span className="text-[11.5px] font-semibold px-2.5 py-1 rounded-full border border-[var(--crm-border)] text-[var(--crm-text-secondary)]">Instagram · {POST_TYPE_LABEL[postType] ?? postType}</span>
-        {rendered && <span className="text-[11.5px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">READY TO PUBLISH</span>}
+        {rendered && <span className="text-[11.5px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">VIDEO READY</span>}
         <button type="button" className={`${btn} ml-auto`} disabled={busy || rendering} onClick={() => void duplicate()}>Duplicate</button>
       </div>
 
@@ -225,7 +284,7 @@ export default function PostEditor({ postId }: { postId: string }) {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-5">
-        {/* Preview column */}
+        {/* Preview column — LEFT (right side is the Beast Companion workspace). */}
         <div>
           <div className={`relative ${aspect} rounded-2xl overflow-hidden border border-[var(--crm-border)] bg-black`}>
             {rendered ? (
@@ -255,98 +314,120 @@ export default function PostEditor({ postId }: { postId: string }) {
             )}
           </div>
           <div className="mt-1.5 text-[10.5px] text-[var(--crm-text-muted)]">
-            {rendered ? "Final rendered video — overlay burned in, audio applied." : "Approximation. Render to see the exact final video."}
+            {rendered ? "Final video — overlay burned in, audio applied." : rendering ? "Preparing the final video…" : "Approximation. Prepare the video to see the exact final."}
           </div>
 
-          <button type="button" className={`${primaryBtn} mt-2 w-full`} disabled={rendering || busy} onClick={() => void render()}>
-            {rendering ? "Rendering…" : rendered ? "Re-render" : "Render final video"}
+          <button type="button" className={`${primaryBtn} mt-2 w-full`} disabled={rendering || busy} onClick={() => void prepare()}>
+            {prepareLabel}
           </button>
-          {post.renderStatus === "error" && post.renderError && <div className="mt-1 text-[11px] text-red-500">Last render error: {post.renderError}</div>}
+          {post.renderStatus === "error" && post.renderError && <div className="mt-1 text-[11px] text-red-500">Last error: {post.renderError}</div>}
 
-          {/* Publish is the NEXT checkpoint — visible target, intentionally disabled here. */}
-          <button type="button" className="mt-2 w-full text-[12.5px] font-semibold px-3.5 py-2 rounded-lg border border-[var(--crm-border)] text-[var(--crm-text-muted)] opacity-70 cursor-not-allowed" disabled title="Publishing is enabled in the next checkpoint">
+          {/* Publish depends on a current prepared video; it is enabled in a later checkpoint. */}
+          <button type="button" className="mt-2 w-full text-[12.5px] font-semibold px-3.5 py-2 rounded-lg border border-[var(--crm-border)] text-[var(--crm-text-muted)] opacity-70 cursor-not-allowed" disabled title={rendered ? "Publishing is enabled in a later checkpoint" : "Prepare the video first — then publishing is enabled in a later checkpoint"}>
             Publish Now
           </button>
         </div>
 
-        {/* Fields column */}
+        {/* Fields column — compact paired rows. */}
         <div className="flex flex-col gap-3">
-          <label className="block">
-            <span className={fieldLabel}>Internal post name</span>
-            <input className={`${control} mt-1`} value={postName} onChange={(e) => setPostName(e.target.value)} placeholder="Private — not published" />
-          </label>
+          {/* Row 1: Property | Type */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="block">
+              <span className={fieldLabel}>Property / Building Name</span>
+              <PropertySearchField
+                value={propertyName}
+                matched={!!placeId}
+                inputClassName={`${control} mt-1`}
+                placeholder="Search existing property or type…"
+                onChange={(v) => { setPropertyName(v); setPlaceId("") }}
+                onMatch={(m) => { setPropertyName(m.name); setPlaceId(m.placeId); setMarket((mk) => mk || detectMarket(m.address ?? "") || "") }}
+                onClearMatch={() => setPlaceId("")}
+              />
+            </label>
+            <label className="block">
+              <span className={fieldLabel}>Property Type</span>
+              <select className={`${control} mt-1`} value={propertyType} onChange={(e) => setPropertyType(e.target.value)}>
+                <option value="">No type</option>
+                {PROPERTY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </label>
+          </div>
 
-          <div className="block">
-            <span className={fieldLabel}>Instagram post type</span>
-            <div className="mt-1 inline-flex items-center gap-1 rounded-lg border border-[var(--crm-border)] p-0.5 bg-[var(--crm-panel)]">
-              {types.map((t) => (
-                <button key={t} type="button" onClick={() => setPostType(t)} className={"text-[12.5px] font-semibold px-3 py-1.5 rounded-md transition-colors " + (postType === t ? "bg-[var(--crm-text-primary)] text-[var(--crm-panel)]" : "text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]")}>
-                  {POST_TYPE_LABEL[t] ?? t}
-                </button>
-              ))}
+          {/* Row 2: Post Type | Music/Audio */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="block">
+              <span className={`${fieldLabel} block`}>Instagram Post Type</span>
+              <div className="mt-1 flex w-fit items-center gap-1 rounded-lg border border-[var(--crm-border)] p-0.5 bg-[var(--crm-panel)]">
+                {types.map((t) => (
+                  <button key={t} type="button" onClick={() => setPostType(t)} className={"text-[12.5px] font-semibold px-3 py-1.5 rounded-md transition-colors " + (postType === t ? "bg-[var(--crm-text-primary)] text-[var(--crm-panel)]" : "text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]")}>
+                    {POST_TYPE_LABEL[t] ?? t}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="block">
+              <span className={fieldLabel}>Music / Audio</span>
+              <div className="mt-1 flex items-center gap-1 flex-wrap">
+                {AUDIO_OPTIONS.map((a) => (
+                  <button
+                    key={a.key}
+                    type="button"
+                    disabled={a.disabled}
+                    onClick={() => !a.disabled && setAudioChoice(a.key)}
+                    title={a.note}
+                    className={"text-[12px] font-semibold px-2.5 py-1.5 rounded-lg border transition-colors " + (audioChoice === a.key ? "border-[var(--crm-text-primary)] bg-[var(--crm-card)] text-[var(--crm-text-primary)]" : "border-[var(--crm-border)] text-[var(--crm-text-secondary)]") + (a.disabled ? " opacity-60 cursor-not-allowed" : "")}
+                  >
+                    {a.label}{a.note ? ` · ${a.note}` : ""}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
+          {/* Row 3: Overlay Headline | Subheadline */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block">
-              <span className={fieldLabel}>Overlay headline</span>
+              <span className={fieldLabel}>Overlay Headline</span>
               <input className={`${control} mt-1`} value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="Burned into the video" />
             </label>
             <label className="block">
-              <span className={fieldLabel}>Overlay subheadline</span>
+              <span className={fieldLabel}>Overlay Subheadline</span>
               <input className={`${control} mt-1`} value={subheadline} onChange={(e) => setSubheadline(e.target.value)} placeholder="Optional" />
             </label>
           </div>
 
-          <div className="block">
-            <span className={fieldLabel}>Music / audio</span>
-            <div className="mt-1 flex items-center gap-1 flex-wrap">
-              {AUDIO_OPTIONS.map((a) => (
-                <button
-                  key={a.key}
-                  type="button"
-                  disabled={a.disabled}
-                  onClick={() => !a.disabled && setAudioChoice(a.key)}
-                  title={a.note}
-                  className={"text-[12.5px] font-semibold px-3 py-1.5 rounded-lg border transition-colors " + (audioChoice === a.key ? "border-[var(--crm-text-primary)] bg-[var(--crm-card)] text-[var(--crm-text-primary)]" : "border-[var(--crm-border)] text-[var(--crm-text-secondary)]") + (a.disabled ? " opacity-60 cursor-not-allowed" : "")}
-                >
-                  {a.label}{a.note ? ` · ${a.note}` : ""}
-                </button>
-              ))}
+          {/* Row 4: Caption | Hashtags (≈50/50) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="block">
+              <span className={fieldLabel}>Instagram Caption</span>
+              <textarea className={`${control} mt-1 min-h-[76px]`} rows={4} value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Public caption" />
+            </label>
+            <div className="block">
+              <div className="flex items-center justify-between">
+                <span className={fieldLabel}>Hashtags <span className="text-[var(--crm-text-muted)] normal-case">({hashtags.length})</span></span>
+                <button type="button" className="text-[11px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]" onClick={suggestTags}>Suggest from market</button>
+              </div>
+              <div className="mt-1 flex flex-wrap gap-1.5 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] p-2 min-h-[76px] content-start">
+                {hashtags.map((t, i) => (
+                  <span key={`${t}-${i}`} className="inline-flex items-center gap-1 h-fit text-[12px] font-semibold px-2 py-0.5 rounded-full bg-[var(--crm-panel)] border border-[var(--crm-border)] text-[var(--crm-text-primary)]">
+                    {t}
+                    <button type="button" aria-label={`Remove ${t}`} className="text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]" onClick={() => setHashtags((prev) => prev.filter((_, idx) => idx !== i))}>×</button>
+                  </span>
+                ))}
+                <input
+                  className="flex-1 min-w-[110px] bg-transparent text-[12.5px] text-[var(--crm-text-primary)] outline-none"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => { if ((e.key === "Enter" || e.key === ",") && tagInput.trim()) { e.preventDefault(); addTag(tagInput) } }}
+                  onBlur={() => tagInput.trim() && addTag(tagInput)}
+                  placeholder="Add hashtag…"
+                />
+              </div>
+              <span className="text-[10.5px] text-[var(--crm-text-muted)]">Added to the caption when published (kept separate here).</span>
             </div>
           </div>
 
-          <label className="block">
-            <span className={fieldLabel}>Instagram caption</span>
-            <textarea className={`${control} mt-1 min-h-[120px]`} value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Public caption" />
-          </label>
-
-          <div className="block">
-            <div className="flex items-center justify-between">
-              <span className={fieldLabel}>Hashtags <span className="text-[var(--crm-text-muted)] normal-case">({hashtags.length})</span></span>
-              <button type="button" className="text-[11px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]" onClick={suggestTags}>Suggest from market</button>
-            </div>
-            <div className="mt-1 flex flex-wrap gap-1.5 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] p-2 min-h-[40px]">
-              {hashtags.map((t, i) => (
-                <span key={`${t}-${i}`} className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-0.5 rounded-full bg-[var(--crm-panel)] border border-[var(--crm-border)] text-[var(--crm-text-primary)]">
-                  {t}
-                  <button type="button" aria-label={`Remove ${t}`} className="text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]" onClick={() => setHashtags((prev) => prev.filter((_, idx) => idx !== i))}>×</button>
-                </span>
-              ))}
-              <input
-                className="flex-1 min-w-[120px] bg-transparent text-[12.5px] text-[var(--crm-text-primary)] outline-none"
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => { if ((e.key === "Enter" || e.key === ",") && tagInput.trim()) { e.preventDefault(); addTag(tagInput) } }}
-                onBlur={() => tagInput.trim() && addTag(tagInput)}
-                placeholder="Add hashtag…"
-              />
-            </div>
-            <span className="text-[10.5px] text-[var(--crm-text-muted)]">Added to the caption when published (kept separate here).</span>
-          </div>
-
-          {/* ONE combined Schedule field — reuses Locator Beast's Schedule Tour DateTimePicker
-              (custom popover; NO browser-native date/time control). Optional for a draft. */}
+          {/* Row 5: Schedule (full width) — reuses Locator Beast's DateTimePicker popover. */}
           <div className="block">
             <span className={fieldLabel}>Schedule</span>
             <div className="mt-1 flex items-center gap-2">
@@ -377,12 +458,47 @@ export default function PostEditor({ postId }: { postId: string }) {
             )}
           </div>
 
+          {/* More Details — optional supporting source facts. Internal fields (name, filename,
+              place_id, IDs, area/neighborhood, notes) stay hidden and preserved server-side. */}
+          <div className="block rounded-lg border border-[var(--crm-border)]">
+            <button type="button" className="w-full flex items-center justify-between px-3 py-2 text-left" onClick={() => setMoreOpen((o) => !o)} aria-expanded={moreOpen}>
+              <span className={fieldLabel}>More Details</span>
+              <span className="text-[var(--crm-text-muted)] text-[12px]">{moreOpen ? "▴" : "▾"}</span>
+            </button>
+            {moreOpen && (
+              <div className="px-3 pb-3 flex flex-col gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className={fieldLabel}>Market</span>
+                    <select className={`${control} mt-1`} value={market} onChange={(e) => setMarket(e.target.value)}>
+                      <option value="">No market</option>
+                      {[...SOCIAL_MARKETS, ...(market && !SOCIAL_MARKETS.includes(market) ? [market] : [])].map((m) => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className={fieldLabel}>Current Special</span>
+                    <input className={`${control} mt-1`} value={special} onChange={(e) => setSpecial(e.target.value)} />
+                  </label>
+                  <label className="block">
+                    <span className={fieldLabel}>Price Range</span>
+                    <input className={`${control} mt-1`} value={priceRange} onChange={(e) => setPriceRange(e.target.value)} />
+                  </label>
+                  <label className="block">
+                    <span className={fieldLabel}>Amenities / Features</span>
+                    <input className={`${control} mt-1`} value={amenities} onChange={(e) => setAmenities(e.target.value)} />
+                  </label>
+                </div>
+                <span className="text-[10.5px] text-[var(--crm-text-muted)]">Source facts (help compose the post). Property name, area, and notes never post publicly unless you type them into the caption or overlay.</span>
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             <button type="button" className={primaryBtn} disabled={busy || rendering} onClick={() => void saveDraft()}>{busy ? "Saving…" : "Save Draft"}</button>
             <button type="button" className={primaryBtn} disabled={busy || rendering} onClick={() => void schedule()}>Schedule</button>
             {post.status === "scheduled" && <button type="button" className={btn} disabled={busy} onClick={() => void backToDraft()}>Move back to Draft</button>}
           </div>
-          <p className="text-[11px] text-[var(--crm-text-muted)]">Render produces the final 9:16 video with the overlay burned in and your audio choice. Nothing is published to Instagram in this checkpoint.</p>
+          <p className="text-[11px] text-[var(--crm-text-muted)]">Prepare Video produces the final 9:16 video with the overlay burned in and your audio choice. Nothing is published to Instagram in this checkpoint.</p>
         </div>
       </div>
     </div>

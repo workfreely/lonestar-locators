@@ -105,7 +105,7 @@ export default function QueueClient() {
             <button
               key={p.id}
               type="button"
-              onClick={() => router.push(`/admin/social-autopilot/posts/${encodeURIComponent(p.id)}`)}
+              onClick={() => router.push(`/admin/social-autopilot/posts/${encodeURIComponent(p.id)}?from=queue`)}
               className="w-full text-left flex items-center gap-3 px-3 py-2.5 hover:bg-[var(--crm-card)] transition-colors"
             >
               <div className="w-10 h-[71px] flex-none rounded-md overflow-hidden bg-black">

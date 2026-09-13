@@ -12,7 +12,7 @@ const SELECT =
   "id, platform, post_type, post_name, caption, on_video_text, on_video_config, " +
   "overlay_headline, overlay_subheadline, hashtags, audio_choice, audio_track_id, rendered_storage_path, render_status, render_error, render_version, " +
   "status, scheduled_at, published_at, external_post_url, created_at, updated_at, source_content_id, " +
-  "source:source_content_id(display_name, property_name, market, storage_path, original_filename, kind)"
+  "source:source_content_id(display_name, property_name, property_type, place_id, market, special, budget_range, amenities, storage_path, original_filename, kind)"
 const SIGNED_URL_TTL = 60 * 30
 const AUDIO_CHOICES = new Set(["original", "none", "lb_track"])
 const MAX_HASHTAGS = 30
@@ -29,7 +29,11 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   if (!data) return NextResponse.json({ error: "not_found" }, { status: 404 })
 
   const r = data as unknown as Record<string, unknown>
-  const src = (r.source ?? null) as { display_name: string | null; property_name: string | null; market: string | null; storage_path: string | null; original_filename: string | null; kind: string | null } | null
+  const src = (r.source ?? null) as {
+    display_name: string | null; property_name: string | null; property_type: string | null; place_id: string | null
+    market: string | null; special: string | null; budget_range: string | null; amenities: string | null
+    storage_path: string | null; original_filename: string | null; kind: string | null
+  } | null
   const sign = async (p: string | null) => (p ? (await supabase.storage.from("social-media").createSignedUrl(p, SIGNED_URL_TTL)).data?.signedUrl ?? null : null)
   const previewUrl = await sign(src?.storage_path ?? null)
   const renderedPreviewUrl = await sign((r.rendered_storage_path as string | null) ?? null)
@@ -56,7 +60,18 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     updatedAt: r.updated_at,
     sourceContentId: r.source_content_id,
     source: src
-      ? { displayName: src.display_name, propertyName: src.property_name, market: src.market, originalFilename: src.original_filename, kind: src.kind }
+      ? {
+          displayName: src.display_name,
+          propertyName: src.property_name,
+          propertyType: src.property_type,
+          placeId: src.place_id,
+          market: src.market,
+          special: src.special,
+          budgetRange: src.budget_range,
+          amenities: src.amenities,
+          originalFilename: src.original_filename,
+          kind: src.kind,
+        }
       : null,
     previewUrl,
     renderedPreviewUrl,

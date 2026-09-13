@@ -101,7 +101,7 @@ export default function CalendarShell() {
     void load()
   }, [load])
 
-  const openPost = useCallback((id: string) => router.push(`/admin/social-autopilot/posts/${encodeURIComponent(id)}`), [router])
+  const openPost = useCallback((id: string) => router.push(`/admin/social-autopilot/posts/${encodeURIComponent(id)}?from=calendar`), [router])
 
   const byDay = useMemo(() => {
     const m = new Map<string, CalPost[]>()

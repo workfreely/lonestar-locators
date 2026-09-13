@@ -8,19 +8,12 @@ import { SOCIAL_MARKETS, normalizeSocialMarket } from "@/lib/social/markets"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
 import { inferFromFilename, detectMarket, suggestArea } from "@/lib/social/filenameInference"
 import { resolvePropertyMatch } from "@/lib/social/resolveProperty"
-import { preparePost } from "@/lib/social/composePost"
-import { normalizeHashtag } from "@/lib/social/hashtags"
-import { overlayPreviewStyle } from "@/lib/social/overlaySpec"
 import BulkReview from "@/components/crm/social/BulkReview"
 import PropertySearchField from "@/components/crm/social/PropertySearchField"
 
+// Public-post overrides once stored on a source (social_content.details.preparedPost). Retained
+// for the Item shape / backward compatibility; the editor lives in PostEditor now, not here.
 type PreparedPost = { overlayHeadline: string; overlaySubheadline: string; caption: string; hashtags: string[] }
-// Auto-prepare the PUBLIC-SAFE post from a source's factual fields (market/type/special/price/
-// amenities only — never property name/area/notes). Reuses the approved engine + hashtag bank.
-function autoPreparedFrom(src: { market?: string | null; propertyType?: string | null; special?: string | null; budgetRange?: string | null; amenities?: string | null }): PreparedPost {
-  const p = preparePost({ market: src.market, propertyType: src.propertyType, special: src.special, budgetRange: src.budgetRange, amenities: src.amenities })
-  return { overlayHeadline: p.overlayHeadline, overlaySubheadline: p.overlaySubheadline, caption: p.caption, hashtags: p.hashtags }
-}
 
 // Social Autopilot → Library (platform-admin only; server-enforced). SA1.1: multi-file
 // upload with a one-time batch setup (Market + Property + shared metadata), per-file
@@ -218,16 +211,12 @@ export default function SocialAutopilotClient() {
   const [bulkMatched, setBulkMatched] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
 
-  // Individual edit.
-  const [editing, setEditing] = useState<Item | null>(null)
-  // editTags is initialized from the item's stored tags and saved back UNCHANGED (the Tags UI is
-  // hidden), so social_content.tags is preserved without giving the operator a redundant field.
-  const [editTags, setEditTags] = useState<string[]>([])
-  const [draft, setDraft] = useState<Record<string, string>>({})
-  // Prepared Social Post (public-facing) — separate from the internal source metadata in `draft`.
-  const [editPrepared, setEditPrepared] = useState<PreparedPost>({ overlayHeadline: "", overlaySubheadline: "", caption: "", hashtags: [] })
-  const [editHashtagsText, setEditHashtagsText] = useState("")
-  const [saving, setSaving] = useState(false)
+  // Source metadata is now edited inside PostEditor (the single editor). The Library only creates
+  // posts, opens the single editable draft, and deletes source videos.
+
+  // Per-source post rollup: how many posts a source has, and the single editable draft's id (if
+  // exactly one). Drives the card's "Open Draft" / "n posts" affordance — never guesses.
+  const [postsBySource, setPostsBySource] = useState<Record<string, { total: number; openId: string | null }>>({})
 
   const load = useCallback(async () => {
     setError(null)
@@ -244,6 +233,27 @@ export default function SocialAutopilotClient() {
       setError("Couldn't load the library.")
       setItems([])
     }
+    // Post rollup (best-effort; a failure just hides the Open Draft affordance).
+    try {
+      const pres = await fetch("/api/admin/social-autopilot/posts", { headers: { Accept: "application/json" } })
+      if (pres.ok) {
+        const pj = (await pres.json()) as { items?: { id: string; sourceContentId: string | null; status: string }[] }
+        const totals: Record<string, number> = {}
+        const editable: Record<string, string[]> = {} // source → ids of non-published posts
+        for (const p of pj.items ?? []) {
+          const sid = p.sourceContentId
+          if (!sid) continue
+          totals[sid] = (totals[sid] ?? 0) + 1
+          if (p.status !== "published") (editable[sid] ??= []).push(p.id)
+        }
+        const map: Record<string, { total: number; openId: string | null }> = {}
+        for (const sid of Object.keys(totals)) {
+          const ed = editable[sid] ?? []
+          map[sid] = { total: totals[sid], openId: ed.length === 1 ? ed[0] : null } // Open Draft only when exactly one editable post
+        }
+        setPostsBySource(map)
+      }
+    } catch { /* non-fatal */ }
   }, [])
   useEffect(() => {
     void load()
@@ -498,86 +508,6 @@ export default function SocialAutopilotClient() {
     }
   }, [bulkKind, bulkValue, bulkPlaceId, bulkMatched, selected, load])
 
-  // ---- Individual edit -------------------------------------------------------
-  const openEdit = (it: Item) => {
-    setEditing(it)
-    setEditTags(Array.isArray(it.tags) ? it.tags : [])
-    setDraft({
-      displayName: it.displayName ?? "",
-      propertyName: it.propertyName ?? "",
-      propertyType: it.propertyType ?? "",
-      market: it.market ?? "",
-      areaNeighborhood: it.areaNeighborhood ?? "",
-      special: it.special ?? "",
-      budgetRange: it.budgetRange ?? "",
-      amenities: it.amenities ?? "",
-      placeId: it.placeId ?? "",
-      notes: it.notes ?? "",
-    })
-    // Prepared Social Post: use saved overrides if present, else auto-prepare from the source's
-    // public-safe facts (reusing the approved engine + hashtag bank).
-    const prepared = it.preparedPost ?? autoPreparedFrom(it)
-    setEditPrepared(prepared)
-    setEditHashtagsText(prepared.hashtags.join(" "))
-  }
-  // Re-generate the prepared post from the CURRENT (possibly edited) source fields.
-  const regeneratePrepared = () => {
-    const prepared = autoPreparedFrom({ market: draft.market, propertyType: draft.propertyType, special: draft.special, budgetRange: draft.budgetRange, amenities: draft.amenities })
-    setEditPrepared(prepared)
-    setEditHashtagsText(prepared.hashtags.join(" "))
-  }
-  // Parse the hashtag text field into a normalized #tag list (space/comma separated).
-  const parseHashtags = (text: string): string[] => {
-    const seen = new Set<string>()
-    const out: string[] = []
-    for (const raw of text.split(/[\s,]+/)) {
-      const tag = normalizeHashtag(raw)
-      if (tag && !seen.has(tag.toLowerCase())) { seen.add(tag.toLowerCase()); out.push(tag) }
-    }
-    return out
-  }
-  const saveEdit = useCallback(async () => {
-    if (!editing) return
-    setSaving(true)
-    try {
-      const body: Record<string, unknown> = {
-        propertyName: draft.propertyName ?? "",
-        propertyType: draft.propertyType ?? "",
-        market: draft.market ?? "",
-        areaNeighborhood: draft.areaNeighborhood ?? "",
-        special: draft.special ?? "",
-        budgetRange: draft.budgetRange ?? "",
-        amenities: draft.amenities ?? "",
-        tags: editTags,
-        placeId: draft.placeId ?? "",
-        notes: draft.notes ?? "",
-        // Prepared public post (overlay/caption/hashtags) — persisted as SA-only overrides.
-        preparedPost: {
-          overlayHeadline: editPrepared.overlayHeadline,
-          overlaySubheadline: editPrepared.overlaySubheadline,
-          caption: editPrepared.caption,
-          hashtags: parseHashtags(editHashtagsText),
-        },
-      }
-      // Only send Display Name when the user actually changed it — a manual change locks
-      // the name (name_customized=true); leaving it lets Market/Property auto-refine it.
-      if ((draft.displayName ?? "") !== (editing.displayName ?? "")) body.displayName = draft.displayName ?? ""
-      const res = await fetch(`/api/admin/social-autopilot/content/${encodeURIComponent(editing.id)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) {
-        setError("Couldn't save.")
-        return
-      }
-      setEditing(null)
-      setDraft({})
-      await load()
-    } finally {
-      setSaving(false)
-    }
-  }, [editing, draft, load])
   const remove = useCallback(
     async (id: string) => {
       if (!confirm("Delete this source video and its file? This cannot be undone.")) return
@@ -610,8 +540,9 @@ export default function SocialAutopilotClient() {
         }
         const json = (await res.json()) as { id?: string }
         if (json.id) {
-          const q = scheduleDate ? `?date=${encodeURIComponent(scheduleDate)}` : ""
-          router.push(`/admin/social-autopilot/posts/${encodeURIComponent(json.id)}${q}`)
+          const params = new URLSearchParams({ from: "library" })
+          if (scheduleDate) params.set("date", scheduleDate)
+          router.push(`/admin/social-autopilot/posts/${encodeURIComponent(json.id)}?${params.toString()}`)
         }
       } catch {
         setError("Couldn't create the post.")
@@ -633,7 +564,6 @@ export default function SocialAutopilotClient() {
   const primaryBtn = "text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"
   const inputCls = "w-full text-[13px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] px-2.5 py-1.5"
   const fieldLabel = "text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]"
-  const ov = overlayPreviewStyle() // CSS overlay geometry shared with Post Composer + FFmpeg burn-in
 
   return (
     <div>
@@ -760,22 +690,32 @@ export default function SocialAutopilotClient() {
                     {c.marketLabel ? ` · ${c.marketLabel}` : ""}
                   </div>
                   <div className="text-[11px] text-[var(--crm-text-muted)] mt-0.5">{c.dateLabel}</div>
-                  {!c.demo && c.raw && (
-                    <div className="mt-2 pt-2 border-t border-[var(--crm-border)] flex flex-col gap-1.5" onDoubleClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        className="text-[12px] font-semibold px-2.5 py-1.5 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"
-                        disabled={creatingId === c.raw.id}
-                        onClick={() => void createPost(c.raw!.id)}
-                      >
-                        {creatingId === c.raw.id ? "Creating…" : "+ Create Post"}
-                      </button>
-                      <div className="flex gap-1.5">
-                        <button type="button" className={btn} onClick={() => openEdit(c.raw!)}>Edit</button>
-                        <button type="button" className={btn} onClick={() => remove(c.raw!.id)}>Delete</button>
+                  {!c.demo && c.raw && (() => {
+                    const roll = postsBySource[c.raw.id]
+                    const hasPosts = (roll?.total ?? 0) > 0
+                    return (
+                      <div className="mt-2 pt-2 border-t border-[var(--crm-border)] flex flex-col gap-1.5" onDoubleClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          className="text-[12px] font-semibold px-2.5 py-1.5 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"
+                          disabled={creatingId === c.raw.id}
+                          onClick={() => void createPost(c.raw!.id)}
+                        >
+                          {creatingId === c.raw.id ? "Creating…" : hasPosts ? "+ Create Another Post" : "+ Create Post"}
+                        </button>
+                        <div className="flex items-center gap-1.5">
+                          {roll?.openId ? (
+                            <button type="button" className={btn} onClick={() => router.push(`/admin/social-autopilot/posts/${encodeURIComponent(roll.openId!)}?from=library`)}>Open Draft</button>
+                          ) : (roll?.total ?? 0) > 1 ? (
+                            <span className="text-[11.5px] text-[var(--crm-text-muted)] px-1">{roll!.total} posts</span>
+                          ) : null}
+                          <button type="button" aria-label="Delete source video" title="Delete source video" className="ml-auto p-1.5 rounded-lg text-[var(--crm-text-muted)] hover:text-red-500 hover:bg-[var(--crm-card)] transition-colors" onClick={() => remove(c.raw!.id)}>
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )
+                  })()}
                 </div>
               </div>
             )
@@ -935,138 +875,6 @@ export default function SocialAutopilotClient() {
         </div>
       )}
 
-      {/* Individual edit modal. */}
-      {editing && (
-        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={() => setEditing(null)}>
-          <div className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4" onClick={(e) => e.stopPropagation()}>
-            <div className="text-[15px] font-bold text-[var(--crm-text-primary)]">Edit details</div>
-            <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5 mb-3 truncate" title={editing.originalFilename ?? undefined}>
-              Original file: {editing.originalFilename}
-            </div>
-            <div className="flex flex-col gap-2">
-              <span className="text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)] font-semibold">Source Details</span>
-              {/* Display Name is an INTERNAL source-asset identifier (auto-generated from Property
-                  + Market + date + sequence) — not an Instagram publishing field, so it is not
-                  editable here. The DB column and auto-naming are unchanged; the original filename
-                  above remains the internal reference. */}
-              {/* Source facts, in canonical order: Property → Market → Type → Area → Special →
-                  Price → Amenities → Notes. Property / Area / Notes are INTERNAL references and
-                  never auto-appear in public post copy. */}
-              <label className="block">
-                <span className={fieldLabel}>Property / building name <span className="normal-case text-[var(--crm-text-muted)]">· internal</span></span>
-                <PropertySearchField
-                  value={draft.propertyName ?? ""}
-                  matched={!!(draft.placeId ?? "")}
-                  inputClassName={`${inputCls} mt-1`}
-                  placeholder="Search existing property or type…"
-                  onChange={(v) => setDraft((d) => ({ ...d, propertyName: v, placeId: "" }))}
-                  onMatch={(m) => setDraft((d) => { const market = d.market || detectMarket(m.address ?? "") || ""; return { ...d, propertyName: m.name, placeId: m.placeId, market, areaNeighborhood: d.areaNeighborhood || suggestArea(m.address, market) } })}
-                  onClearMatch={() => setDraft((d) => ({ ...d, placeId: "" }))}
-                />
-              </label>
-              <label className="block">
-                <span className={fieldLabel}>City / Market</span>
-                <select className={`${inputCls} mt-1`} value={draft.market ?? ""} onChange={(e) => setDraft((d) => ({ ...d, market: e.target.value }))}>
-                  <option value="">No market</option>
-                  {[...SOCIAL_MARKETS, ...(draft.market && !SOCIAL_MARKETS.includes(draft.market) ? [draft.market] : [])].map((m) => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
-                <span className={fieldLabel}>Property type</span>
-                <select className={`${inputCls} mt-1`} value={draft.propertyType ?? ""} onChange={(e) => setDraft((d) => ({ ...d, propertyType: e.target.value }))}>
-                  <option value="">No type</option>
-                  {PROPERTY_TYPES.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
-                <span className={fieldLabel}>Area / Neighborhood <span className="normal-case text-[var(--crm-text-muted)]">· internal</span></span>
-                <input className={`${inputCls} mt-1`} value={draft.areaNeighborhood ?? ""} onChange={(e) => setDraft((d) => ({ ...d, areaNeighborhood: e.target.value }))} placeholder="e.g. Schertz, Stone Oak, The Rim, Uptown" />
-              </label>
-              <label className="block">
-                <span className={fieldLabel}>Current Special</span>
-                <input className={`${inputCls} mt-1`} value={draft.special ?? ""} onChange={(e) => setDraft((d) => ({ ...d, special: e.target.value }))} />
-              </label>
-              <label className="block">
-                <span className={fieldLabel}>Price Range</span>
-                <input className={`${inputCls} mt-1`} value={draft.budgetRange ?? ""} onChange={(e) => setDraft((d) => ({ ...d, budgetRange: e.target.value }))} />
-              </label>
-              <label className="block">
-                <span className={fieldLabel}>Amenities / Features</span>
-                <input className={`${inputCls} mt-1`} value={draft.amenities ?? ""} onChange={(e) => setDraft((d) => ({ ...d, amenities: e.target.value }))} />
-              </label>
-              {/* Tags / Keywords UI intentionally hidden: they did not feed any preparation logic
-                  and overlapped with Amenities / Features (which now seeds the subheadline) and the
-                  approved hashtag bank. The social_content.tags column + any stored values are
-                  preserved and round-tripped unchanged on save — nothing is deleted. */}
-              <label className="block">
-                <span className={fieldLabel}>Notes <span className="normal-case text-[var(--crm-text-muted)]">· internal</span></span>
-                <textarea className={`${inputCls} mt-1 min-h-[56px]`} value={draft.notes ?? ""} onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))} />
-              </label>
-            </div>
-
-            {/* ── Prepared Social Post ── the actual PUBLIC-facing content. Auto-prepared from the
-                source facts above via the approved engine + hashtag bank; fully editable. Property
-                name / area / notes never appear here unless the operator types them in. */}
-            <div className="mt-4 pt-3 border-t border-[var(--crm-border)] flex flex-col gap-2.5">
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)] font-semibold">Prepared Social Post</span>
-                <button type="button" className={`${btn} ml-auto`} onClick={regeneratePrepared} title="Re-generate from the source facts above">Regenerate</button>
-              </div>
-              <div className="text-[10.5px] text-[var(--crm-text-muted)] -mt-1.5">Public-facing content, auto-prepared from the source facts above. Property name, Area/Neighborhood, and Notes are never included automatically.</div>
-
-              {/* Video preview with the prepared overlay (CSS approximation — no FFmpeg here). */}
-              {editing.previewUrl && (editing.kind !== "image") && (
-                <div className="relative w-full max-w-[210px] mx-auto aspect-[9/16] rounded-xl overflow-hidden border border-[var(--crm-border)] bg-black">
-                  <video src={editing.previewUrl} controls muted playsInline preload="metadata" className="w-full h-full object-cover" />
-                  {(editPrepared.overlayHeadline || editPrepared.overlaySubheadline) && (
-                    <div className="pointer-events-none absolute inset-0" aria-hidden>
-                      {editPrepared.overlayHeadline && (
-                        <div style={{ position: "absolute", top: `${ov.headlineTopPct}%`, left: `${ov.sideMarginPct}%`, right: `${ov.sideMarginPct}%`, textAlign: "center", color: "white", fontWeight: 800, lineHeight: 1.05, fontSize: `${ov.headlineFontPct}vh`, textShadow: "0 2px 8px rgba(0,0,0,.6)" }}>
-                          {editPrepared.overlayHeadline.toUpperCase()}
-                        </div>
-                      )}
-                      {editPrepared.overlaySubheadline && (
-                        <div style={{ position: "absolute", top: `${ov.subTopPct}%`, left: `${ov.sideMarginPct}%`, right: `${ov.sideMarginPct}%`, textAlign: "center", color: "white", fontWeight: 700, fontSize: `${ov.subFontPct}vh`, textShadow: "0 2px 8px rgba(0,0,0,.6)" }}>
-                          {editPrepared.overlaySubheadline}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <label className="block">
-                <span className={fieldLabel}>Overlay Headline</span>
-                <input className={`${inputCls} mt-1`} value={editPrepared.overlayHeadline} onChange={(e) => setEditPrepared((p) => ({ ...p, overlayHeadline: e.target.value }))} placeholder="e.g. SAN ANTONIO TOWNHOMES" />
-              </label>
-              <label className="block">
-                <span className={fieldLabel}>Overlay Subheadline</span>
-                <input className={`${inputCls} mt-1`} value={editPrepared.overlaySubheadline} onChange={(e) => setEditPrepared((p) => ({ ...p, overlaySubheadline: e.target.value }))} placeholder="e.g. PRIVATE YARDS + GARAGES" />
-              </label>
-              <label className="block">
-                <span className={fieldLabel}>Caption</span>
-                <textarea className={`${inputCls} mt-1 min-h-[92px]`} value={editPrepared.caption} onChange={(e) => setEditPrepared((p) => ({ ...p, caption: e.target.value }))} />
-              </label>
-              <label className="block">
-                <span className={fieldLabel}>Hashtags</span>
-                <input className={`${inputCls} mt-1`} value={editHashtagsText} onChange={(e) => setEditHashtagsText(e.target.value)} placeholder="#nowleasing #sanantonioapartments …" />
-                <span className="text-[10.5px] text-[var(--crm-text-muted)]">{parseHashtags(editHashtagsText).length} hashtags · seeded from the approved bank; edit freely.</span>
-              </label>
-            </div>
-
-            <div className="flex gap-2 mt-4">
-              <button type="button" className={primaryBtn} disabled={saving} onClick={() => void saveEdit()}>
-                {saving ? "Saving…" : "Save"}
-              </button>
-              <button type="button" className={btn} onClick={() => setEditing(null)}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
