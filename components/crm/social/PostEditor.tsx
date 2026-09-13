@@ -300,22 +300,8 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             )}
           </div>
 
-          {/* Audio — compact media control directly beneath the preview, matching the video column
-              width and the Property Type / Market select treatment. Options/behavior unchanged. */}
-          <label className="block mt-2">
-            <span className={fieldLabel}>Audio</span>
-            <select
-              aria-label="Audio"
-              value={audioChoice}
-              onChange={(e) => e.target.value !== "lb_track" && setAudioChoice(e.target.value)}
-              className={`${control} mt-1 cursor-pointer`}
-            >
-              {AUDIO_OPTIONS.map((a) => (
-                <option key={a.key} value={a.key} disabled={a.disabled}>{a.label}{a.note ? ` — ${a.note}` : ""}</option>
-              ))}
-            </select>
-          </label>
-          {/* Rendering happens internally as part of Publish/Schedule — no manual Prepare step. */}
+          {/* The left column contains only the video preview. Rendering happens internally as part
+              of Publish/Schedule — no manual Prepare step. */}
         </div>
 
         {/* Fields column — compact paired rows. Swaps to the Schedule workspace on demand; the
@@ -420,6 +406,22 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 )}
               </div>
               <span className="text-[10.5px] text-[var(--crm-text-muted)]">{hashtags.length > MAX_HASHTAGS ? `Over the ${MAX_HASHTAGS}-tag Instagram limit — remove ${hashtags.length - MAX_HASHTAGS} before publishing.` : hashtags.length === MAX_HASHTAGS ? `Instagram limit of ${MAX_HASHTAGS} reached — remove one to add another.` : "Added to the caption when published (kept separate here)."}</span>
+
+              {/* Audio sits under Hashtags in the right column — same select styling/behavior as
+                  before, width matching the right-column field (not the page). */}
+              <label className="block mt-3">
+                <span className={fieldLabel}>Audio</span>
+                <select
+                  aria-label="Audio"
+                  value={audioChoice}
+                  onChange={(e) => e.target.value !== "lb_track" && setAudioChoice(e.target.value)}
+                  className={`${control} mt-1 cursor-pointer`}
+                >
+                  {AUDIO_OPTIONS.map((a) => (
+                    <option key={a.key} value={a.key} disabled={a.disabled}>{a.label}{a.note ? ` — ${a.note}` : ""}</option>
+                  ))}
+                </select>
+              </label>
             </div>
           </div>
 
