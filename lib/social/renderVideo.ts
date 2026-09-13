@@ -8,7 +8,7 @@ import { execFile } from "node:child_process"
 import { promises as fs } from "node:fs"
 import path from "node:path"
 import os from "node:os"
-import { OVERLAY_SPEC, wrapHeadline, headlineBlockPx } from "@/lib/social/overlaySpec"
+import { OVERLAY_SPEC, wrapHeadline, wrapSub, headlineBlockPx } from "@/lib/social/overlaySpec"
 
 export type AudioChoice = "original" | "none" | "lb_track"
 
@@ -46,7 +46,7 @@ export function buildVideoFilter(fontPath: string, headFile: string | null, subF
     const subOffset = headFile ? headlineBlockPx(headLineCount) + OVERLAY_SPEC.sub.gapPx : 0
     parts.push(
       `drawtext=fontfile='${font}':textfile='${escFilterPath(subFile)}':fontcolor=white:fontsize=${OVERLAY_SPEC.sub.fontPx}` +
-        `:box=1:boxcolor=black@${OVERLAY_SPEC.sub.boxAlpha}:boxborderw=${OVERLAY_SPEC.sub.boxBorderPx}` +
+        `:line_spacing=${OVERLAY_SPEC.sub.lineSpacing}:box=1:boxcolor=black@${OVERLAY_SPEC.sub.boxAlpha}:boxborderw=${OVERLAY_SPEC.sub.boxBorderPx}` +
         `:x=(w-text_w)/2:y=${yHead}+${subOffset}`,
     )
   }
@@ -78,8 +78,10 @@ export async function renderReel(ffmpegPath: string, input: RenderInput): Promis
     await fs.writeFile(headFile, lines.join("\n"), "utf8")
   }
   if (sub) {
+    // Wrap the sub the SAME way the preview does → a compact centered multi-line block that stays
+    // inside the safe area, instead of one edge-to-edge line.
     subFile = path.join(input.workDir, "sub.txt")
-    await fs.writeFile(subFile, sub, "utf8")
+    await fs.writeFile(subFile, wrapSub(sub).join("\n"), "utf8")
   }
   const filter = buildVideoFilter(input.fontPath, headFile, subFile, headLineCount)
   const args = buildFfmpegArgs({ sourcePath: input.sourcePath, outputPath: input.outputPath, filter, audioChoice: input.audioChoice })

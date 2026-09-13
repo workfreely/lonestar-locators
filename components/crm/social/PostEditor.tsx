@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
 import { POST_TYPE_LABEL, previewAspectClass } from "@/lib/social/postTypes"
 import { buildHashtags, normalizeHashtag } from "@/lib/social/hashtags"
-import { overlayPreviewStyle, wrapHeadline } from "@/lib/social/overlaySpec"
+import { overlayPreviewStyle, wrapHeadline, wrapSub } from "@/lib/social/overlaySpec"
 import { SOCIAL_MARKETS } from "@/lib/social/markets"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
 import { detectMarket } from "@/lib/social/filenameInference"
@@ -238,6 +238,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const aspect = previewAspectClass(post.platform, postType)
   const rendered = post.renderStatus === "ready" && !!post.renderedPreviewUrl
   const headLines = wrapHeadline(headline) // shared with the render, so the sub never collides
+  const subLines = wrapSub(subheadline) // compact centered block inside the safe area (shared geometry)
   const ov = overlayPreviewStyle(headLines.length || 1)
 
   return (
@@ -298,8 +299,8 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                       </div>
                     )}
                     {subheadline && (
-                      <div style={{ position: "absolute", top: `${ov.subTopPct}%`, left: `${ov.sideMarginPct}%`, right: `${ov.sideMarginPct}%`, textAlign: "center", color: "white", fontWeight: 700, fontSize: `${ov.subFontPct}cqh`, textShadow: "0 2px 8px rgba(0,0,0,.6)" }}>
-                        {subheadline}
+                      <div style={{ position: "absolute", top: `${ov.subTopPct}%`, left: `${ov.subSideMarginPct}%`, right: `${ov.subSideMarginPct}%`, textAlign: "center", color: "white", fontWeight: 700, lineHeight: ov.subLineHeight, fontSize: `${ov.subFontPct}cqh`, textShadow: "0 2px 8px rgba(0,0,0,.6)", whiteSpace: "pre-line" }}>
+                        {subLines.join("\n")}
                       </div>
                     )}
                   </div>

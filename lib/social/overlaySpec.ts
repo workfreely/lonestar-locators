@@ -7,18 +7,19 @@ export const OVERLAY_CANVAS = { w: 1080, h: 1920 } as const
 
 export const OVERLAY_SPEC = {
   // Vertical anchors as a fraction of canvas height.
-  headline: { yFrac: 0.13, fontPx: 76, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24 },
+  headline: { yFrac: 0.13, fontPx: 84, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24 },
   // The sub sits `gapPx` BELOW the bottom of the (possibly multi-line) headline block — never a
-  // fixed offset from the headline top — so a wrapped headline always pushes the sub down.
-  sub: { gapPx: 44, fontPx: 40, boxAlpha: 0.28, boxBorderPx: 16 },
+  // fixed offset from the headline top — so a wrapped headline always pushes the sub down. It is
+  // constrained to a centered box (`sideMarginPx` each side) and wrapped to `maxChars`, so long
+  // text becomes a compact centered multi-line block instead of running edge-to-edge.
+  sub: { gapPx: 44, fontPx: 40, lineSpacing: 6, boxAlpha: 0.28, boxBorderPx: 16, maxChars: 22, maxLines: 4, sideMarginPx: 200 },
   safe: { topFrac: 0.1, bottomFrac: 0.2, sideMarginPx: 64 },
   wrap: { headlineMaxChars: 18, maxLines: 3 }, // shared headline wrapping (preview === render)
 } as const
 
-/** Deterministic headline wrapping — SHARED by the CSS preview and the FFmpeg render so both
- *  produce the SAME line count (and therefore the same sub-headline position). Greedy word wrap
- *  at `maxChars`; a single over-long word keeps its own line. Capped at `maxLines`. */
-export function wrapHeadline(text: string | null | undefined, maxChars = OVERLAY_SPEC.wrap.headlineMaxChars): string[] {
+// Deterministic greedy word-wrap — SHARED by the CSS preview and the FFmpeg render so both
+// produce the SAME lines. A single over-long word keeps its own line; capped at `maxLines`.
+function wrapWords(text: string | null | undefined, maxChars: number, maxLines: number): string[] {
   const words = (text ?? "").trim().split(/\s+/).filter(Boolean)
   if (words.length === 0) return []
   const lines: string[] = []
@@ -29,7 +30,18 @@ export function wrapHeadline(text: string | null | undefined, maxChars = OVERLAY
     else { lines.push(cur); cur = w }
   }
   if (cur) lines.push(cur)
-  return lines.slice(0, OVERLAY_SPEC.wrap.maxLines)
+  return lines.slice(0, maxLines)
+}
+
+/** Headline wrapping — drives the sub position via line count (preview === render). */
+export function wrapHeadline(text: string | null | undefined, maxChars = OVERLAY_SPEC.wrap.headlineMaxChars): string[] {
+  return wrapWords(text, maxChars, OVERLAY_SPEC.wrap.maxLines)
+}
+
+/** Subheadline wrapping — keeps a long sub inside its centered safe-area box as a compact
+ *  multi-line block (preview === render), instead of stretching across the video. */
+export function wrapSub(text: string | null | undefined, maxChars = OVERLAY_SPEC.sub.maxChars): string[] {
+  return wrapWords(text, maxChars, OVERLAY_SPEC.sub.maxLines)
 }
 
 /** Height (canvas px) of a headline block of `lineCount` lines. */
@@ -46,9 +58,11 @@ export function overlayPreviewStyle(headlineLineCount = 1) {
   const subTopPx = OVERLAY_SPEC.headline.yFrac * OVERLAY_CANVAS.h + headlineBlockPx(headlineLineCount) + OVERLAY_SPEC.sub.gapPx
   return {
     headlineTopPct: OVERLAY_SPEC.headline.yFrac * 100,
-    headlineFontPct: (OVERLAY_SPEC.headline.fontPx / OVERLAY_CANVAS.h) * 100, // vh-relative
+    headlineFontPct: (OVERLAY_SPEC.headline.fontPx / OVERLAY_CANVAS.h) * 100, // cqh (of preview box)
     subTopPct: (subTopPx / OVERLAY_CANVAS.h) * 100,
     subFontPct: (OVERLAY_SPEC.sub.fontPx / OVERLAY_CANVAS.h) * 100,
-    sideMarginPct: (OVERLAY_SPEC.safe.sideMarginPx / OVERLAY_CANVAS.w) * 100,
+    subLineHeight: (OVERLAY_SPEC.sub.fontPx + OVERLAY_SPEC.sub.lineSpacing) / OVERLAY_SPEC.sub.fontPx, // unitless
+    sideMarginPct: (OVERLAY_SPEC.safe.sideMarginPx / OVERLAY_CANVAS.w) * 100, // headline box margins
+    subSideMarginPct: (OVERLAY_SPEC.sub.sideMarginPx / OVERLAY_CANVAS.w) * 100, // narrower, centered sub box
   }
 }

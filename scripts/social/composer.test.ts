@@ -3,7 +3,7 @@
 import { buildHashtags, normalizeHashtag, HASHTAG_MARKETS } from "@/lib/social/hashtags"
 import { preparePost, buildCaption, buildOverlayHeadline, buildOverlaySubheadline, composeFinalCaption } from "@/lib/social/composePost"
 import { buildFfmpegArgs, buildVideoFilter } from "@/lib/social/renderVideo"
-import { wrapHeadline, overlayPreviewStyle } from "@/lib/social/overlaySpec"
+import { wrapHeadline, wrapSub, overlayPreviewStyle } from "@/lib/social/overlaySpec"
 
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
@@ -69,6 +69,16 @@ const subY = (n: number) => { const f = buildVideoFilter("/f.ttf", "/h.txt", "/s
 ok("2-line headline pushes the sub further down than 1-line", subY(2) > subY(1))
 // Preview shares the same geometry: subTopPct increases with line count.
 ok("preview sub position grows with headline lines", overlayPreviewStyle(2).subTopPct > overlayPreviewStyle(1).subTopPct)
+
+console.log("subheadline width constraint (compact centered block; preview === render):")
+ok("no sub → no lines", wrapSub("").length === 0)
+ok("short sub → one line", wrapSub("PRIVATE YARDS").length === 1)
+ok("long sub wraps to a multi-line block", wrapSub("PRIVATE YARDS + GARAGES + RESORT POOL + GATED ENTRY + WALK-IN CLOSETS").length >= 2)
+ok("sub box is narrower (more inset) than the headline box", overlayPreviewStyle(1).subSideMarginPct > overlayPreviewStyle(1).sideMarginPct)
+ok("sub is capped at maxLines (never runaway)", wrapSub("one two three four five six seven eight nine ten eleven twelve").length <= 4)
+// FFmpeg render wraps the sub the same way (newlines in the sub textfile driver would be the file
+// content; here we assert the sub drawtext carries line_spacing for the multi-line block).
+ok("render sub drawtext has line_spacing (multi-line ready)", /textfile='\/s\.txt'[^,]*line_spacing=/.test(buildVideoFilter("/f.ttf", "/h.txt", "/s.txt", 1)))
 
 console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

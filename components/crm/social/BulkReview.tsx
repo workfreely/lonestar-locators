@@ -8,7 +8,7 @@ import { inferFromFilename, detectMarket, suggestArea, type FilenameInference } 
 import { resolvePropertyMatch } from "@/lib/social/resolveProperty"
 import { buildHashtags } from "@/lib/social/hashtags"
 import { preparePost } from "@/lib/social/composePost"
-import { overlayPreviewStyle, wrapHeadline } from "@/lib/social/overlaySpec"
+import { overlayPreviewStyle, wrapHeadline, wrapSub } from "@/lib/social/overlaySpec"
 import PropertySearchField, { type PropertyMatch } from "@/components/crm/social/PropertySearchField"
 
 // Bulk Review / Intake — opens automatically for 2+ files. One compact row per source video,
@@ -279,6 +279,7 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
   // rows don't capture special/price/amenities; those refine the preview later in Create Post).
   const activePrep = active ? preparePost({ market: active.market, propertyType: active.propertyType }) : null
   const headLines = wrapHeadline(activePrep?.overlayHeadline) // shared wrapping (preview === render)
+  const subLines = wrapSub(activePrep?.overlaySubheadline) // compact centered sub block (shared geometry)
   const ov = overlayPreviewStyle(headLines.length || 1) // CSS overlay geometry shared with the Post Composer + FFmpeg burn-in
   const activeConfirmed = !!(active && active.matched && active.placeId)
 
@@ -409,8 +410,8 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
                           </div>
                         )}
                         {activePrep.overlaySubheadline && (
-                          <div style={{ position: "absolute", top: `${ov.subTopPct}%`, left: `${ov.sideMarginPct}%`, right: `${ov.sideMarginPct}%`, textAlign: "center", color: "white", fontWeight: 700, fontSize: `${ov.subFontPct}cqh`, textShadow: "0 2px 8px rgba(0,0,0,.6)" }}>
-                            {activePrep.overlaySubheadline}
+                          <div style={{ position: "absolute", top: `${ov.subTopPct}%`, left: `${ov.subSideMarginPct}%`, right: `${ov.subSideMarginPct}%`, textAlign: "center", color: "white", fontWeight: 700, lineHeight: ov.subLineHeight, fontSize: `${ov.subFontPct}cqh`, textShadow: "0 2px 8px rgba(0,0,0,.6)", whiteSpace: "pre-line" }}>
+                            {subLines.join("\n")}
                           </div>
                         )}
                       </div>
