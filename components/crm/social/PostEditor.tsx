@@ -245,7 +245,9 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       <div className="mb-3 flex items-center gap-2.5 flex-wrap">
         <button type="button" className={btn} onClick={() => router.push(back.path)}>{back.label}</button>
         <span className="text-[11.5px] font-semibold px-2.5 py-1 rounded-full bg-[var(--crm-card)] text-[var(--crm-text-secondary)]">{POST_STATUS_LABEL[post.status] ?? post.status}</span>
-        {/* Compact post settings — Instagram type (Reel/Story) + Audio — in the status area. */}
+        {/* Compact post settings in the status area: Instagram type (Reel/Story) pill + a plain
+            Audio dropdown that uses the SAME select treatment as Market/Property Type (no special
+            outlined container of its own). */}
         <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--crm-border)] pl-2.5 pr-1 py-0.5">
           <span className="text-[11px] font-semibold text-[var(--crm-text-secondary)]">Instagram</span>
           <div className="inline-flex items-center gap-0.5">
@@ -255,18 +257,17 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               </button>
             ))}
           </div>
-          <span className="w-px h-4 bg-[var(--crm-border)]" aria-hidden />
-          <select
-            aria-label="Audio"
-            value={audioChoice}
-            onChange={(e) => e.target.value !== "lb_track" && setAudioChoice(e.target.value)}
-            className="text-[11px] font-semibold bg-transparent text-[var(--crm-text-secondary)] outline-none cursor-pointer pr-0.5"
-          >
-            {AUDIO_OPTIONS.map((a) => (
-              <option key={a.key} value={a.key} disabled={a.disabled}>{a.label}{a.note ? ` — ${a.note}` : ""}</option>
-            ))}
-          </select>
         </div>
+        <select
+          aria-label="Audio"
+          value={audioChoice}
+          onChange={(e) => e.target.value !== "lb_track" && setAudioChoice(e.target.value)}
+          className="text-[13px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] px-2.5 py-1.5 cursor-pointer"
+        >
+          {AUDIO_OPTIONS.map((a) => (
+            <option key={a.key} value={a.key} disabled={a.disabled}>{a.label}{a.note ? ` — ${a.note}` : ""}</option>
+          ))}
+        </select>
       </div>
 
       {(error || notice) && (
