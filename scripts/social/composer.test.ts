@@ -80,5 +80,16 @@ ok("sub is capped at maxLines (never runaway)", wrapSub("one two three four five
 // content; here we assert the sub drawtext carries line_spacing for the multi-line block).
 ok("render sub drawtext has line_spacing (multi-line ready)", /textfile='\/s\.txt'[^,]*line_spacing=/.test(buildVideoFilter("/f.ttf", "/h.txt", "/s.txt", 1)))
 
+console.log("Reels-safe boxes (generous margins; no-space text can't run off-screen):")
+ok("headline box has generous side margins (not edge-to-edge)", overlayPreviewStyle(1).sideMarginPct >= 12)
+ok("sub box is even more inset than the headline box", overlayPreviewStyle(1).subSideMarginPct > overlayPreviewStyle(1).sideMarginPct)
+// Nonsense/no-space text must hard-break so no single line can overflow the box.
+const noSpaceH = wrapHeadline("X".repeat(60))
+ok("no-space headline hard-splits (every line ≤ maxChars)", noSpaceH.length > 0 && noSpaceH.every((l) => l.length <= 16))
+ok("no-space headline still capped at maxLines", noSpaceH.length <= 3)
+const noSpaceS = wrapSub("Y".repeat(120))
+ok("no-space subheadline hard-splits (every line ≤ maxChars)", noSpaceS.length > 0 && noSpaceS.every((l) => l.length <= 22))
+ok("two-line headline still wraps to 2", wrapHeadline("SAN ANTONIO LUXURY TOWNHOMES").length === 2)
+
 console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

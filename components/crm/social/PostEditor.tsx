@@ -246,9 +246,8 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       <div className="mb-3 flex items-center gap-2.5 flex-wrap">
         <button type="button" className={btn} onClick={() => router.push(back.path)}>{back.label}</button>
         <span className="text-[11.5px] font-semibold px-2.5 py-1 rounded-full bg-[var(--crm-card)] text-[var(--crm-text-secondary)]">{POST_STATUS_LABEL[post.status] ?? post.status}</span>
-        {/* Compact post settings in the status area: Instagram type (Reel/Story) pill + a plain
-            Audio dropdown that uses the SAME select treatment as Market/Property Type (no special
-            outlined container of its own). */}
+        {/* Instagram post type (Reel/Story) stays in the status area. Audio moved beneath the
+            video preview (left column). */}
         <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--crm-border)] pl-2.5 pr-1 py-0.5">
           <span className="text-[11px] font-semibold text-[var(--crm-text-secondary)]">Instagram</span>
           <div className="inline-flex items-center gap-0.5">
@@ -259,16 +258,6 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             ))}
           </div>
         </div>
-        <select
-          aria-label="Audio"
-          value={audioChoice}
-          onChange={(e) => e.target.value !== "lb_track" && setAudioChoice(e.target.value)}
-          className="text-[13px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] px-2.5 py-1.5 cursor-pointer"
-        >
-          {AUDIO_OPTIONS.map((a) => (
-            <option key={a.key} value={a.key} disabled={a.disabled}>{a.label}{a.note ? ` — ${a.note}` : ""}</option>
-          ))}
-        </select>
       </div>
 
       {(error || notice) && (
@@ -294,12 +283,12 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                   // here made the headline larger than the layout assumed and it overlapped the sub.
                   <div className="pointer-events-none absolute inset-0" aria-hidden style={{ containerType: "size" }}>
                     {headline && (
-                      <div style={{ position: "absolute", top: `${ov.headlineTopPct}%`, left: `${ov.sideMarginPct}%`, right: `${ov.sideMarginPct}%`, textAlign: "center", color: "white", fontWeight: 800, lineHeight: 1.05, fontSize: `${ov.headlineFontPct}cqh`, textShadow: "0 2px 8px rgba(0,0,0,.6)", whiteSpace: "pre-line" }}>
+                      <div style={{ position: "absolute", top: `${ov.headlineTopPct}%`, left: `${ov.sideMarginPct}%`, right: `${ov.sideMarginPct}%`, textAlign: "center", color: "white", fontWeight: 800, lineHeight: 1.05, fontSize: `${ov.headlineFontPct}cqh`, textShadow: "0 2px 8px rgba(0,0,0,.6)", whiteSpace: "pre-line", overflowWrap: "anywhere" }}>
                         {headLines.join("\n").toUpperCase()}
                       </div>
                     )}
                     {subheadline && (
-                      <div style={{ position: "absolute", top: `${ov.subTopPct}%`, left: `${ov.subSideMarginPct}%`, right: `${ov.subSideMarginPct}%`, textAlign: "center", color: "white", fontWeight: 700, lineHeight: ov.subLineHeight, fontSize: `${ov.subFontPct}cqh`, textShadow: "0 2px 8px rgba(0,0,0,.6)", whiteSpace: "pre-line" }}>
+                      <div style={{ position: "absolute", top: `${ov.subTopPct}%`, left: `${ov.subSideMarginPct}%`, right: `${ov.subSideMarginPct}%`, textAlign: "center", color: "white", fontWeight: 700, lineHeight: ov.subLineHeight, fontSize: `${ov.subFontPct}cqh`, textShadow: "0 2px 8px rgba(0,0,0,.6)", whiteSpace: "pre-line", overflowWrap: "anywhere" }}>
                         {subLines.join("\n")}
                       </div>
                     )}
@@ -310,9 +299,23 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               <div className="w-full h-full flex items-center justify-center text-[12px] text-[var(--crm-text-muted)]">No preview</div>
             )}
           </div>
-          {/* The left column ends with the preview. Rendering happens internally as part of
-              Publish/Schedule — there is no manual Prepare step in the UI. A faithful final
-              preview still shows automatically once a derivative exists. */}
+
+          {/* Audio — compact media control directly beneath the preview, matching the video column
+              width and the Property Type / Market select treatment. Options/behavior unchanged. */}
+          <label className="block mt-2">
+            <span className={fieldLabel}>Audio</span>
+            <select
+              aria-label="Audio"
+              value={audioChoice}
+              onChange={(e) => e.target.value !== "lb_track" && setAudioChoice(e.target.value)}
+              className={`${control} mt-1 cursor-pointer`}
+            >
+              {AUDIO_OPTIONS.map((a) => (
+                <option key={a.key} value={a.key} disabled={a.disabled}>{a.label}{a.note ? ` — ${a.note}` : ""}</option>
+              ))}
+            </select>
+          </label>
+          {/* Rendering happens internally as part of Publish/Schedule — no manual Prepare step. */}
         </div>
 
         {/* Fields column — compact paired rows. Swaps to the Schedule workspace on demand; the
