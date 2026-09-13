@@ -38,31 +38,14 @@ function ChevronIcon({ open, light }: { open: boolean; light: boolean }) {
   )
 }
 
-// Navigation links, split around the two conditional rows in the middle of the
-// menu — Beast Referral Network (members + owner only) and Theme (the inline
-// theme picker, which stays inline for instant visual feedback). Full menu
-// order: Profile, Smart Lead Form, Analytics, Sales Goals, Beast Referral
-// Network, License Verification (owner only), Theme, Integrations, Import Leads,
-// Billing, Sign Out.
-// Service Areas lives inside the Profile page and Connected Devices inside the
-// Integrations page — they are not top-level menu items.
-// Analytics is an account-level page (same /admin/analytics the top-nav
-// Analytics button opens) — this is an additional shortcut, not a replacement.
-// Order: Profile, Smart Lead Form, Analytics, [Social Autopilot — owner only],
-// Sales Goals, Beast Referral Network, License Verification, Theme, …
-// Social Autopilot + Sales Goals are rendered explicitly after this array so the
-// owner-only Social Autopilot sits between Analytics and Sales Goals.
-const LINKS_BEFORE_NETWORK: { label: string; href: string }[] = [
-  { label: "Smart Lead Form", href: "/smart-lead-form" },
-  { label: "Analytics", href: "/admin/analytics" },
-]
-
-const LINKS_AFTER_THEME: { label: string; href: string }[] = [
-  { label: "Integrations", href: "/admin/integrations" },
-  { label: "Import Leads", href: "/admin/import" },
-  { label: "Billing", href: "/admin/billing" },
-  { label: "Help Center", href: "/help" },
-]
+// The dropdown is grouped into subtle sections (ACCOUNT / TOOLS / BUSINESS /
+// SUPPORT & SETTINGS) — a visual organization only; every item keeps its exact
+// destination and existing conditional visibility. Conditional rows: Beast Social
+// (owner only, in TOOLS), Beast Referral Network (members + owner, in TOOLS),
+// License Verification (owner only, in BUSINESS), Theme (inline picker, only where
+// a ThemeProvider exists, in SUPPORT & SETTINGS). Service Areas lives inside the
+// Profile page and Connected Devices inside the Integrations page — not top-level
+// items. Analytics is the same /admin/analytics the top-nav opens (a shortcut).
 
 // Persistent profile/avatar control mounted in the Dashboard & Performance
 // headers (dark) and the Business Settings shell header (light). The dropdown
@@ -183,6 +166,10 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
 
   const workspaceLabelCls = light ? "text-[#9098a8]" : "text-[var(--crm-text-muted)]"
 
+  // Small, muted, uppercase, NON-clickable section heading. `pt-2` gives the gentle
+  // vertical breathing room between sections; the first heading trims its own top pad.
+  const sectionCls = `px-3.5 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider select-none ${workspaceLabelCls}`
+
   return (
     <div className="relative flex-none" ref={menuRef}>
       <button
@@ -202,49 +189,41 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
 
       {open && (
         <div className={panelCls}>
-          {/* Profile */}
-          <Link href="/admin/profile" onClick={() => setOpen(false)} className={linkCls}>
-            Profile
-          </Link>
+          {/* ── ACCOUNT ── */}
+          <div className={`${sectionCls} pt-1`}>Account</div>
+          <Link href="/admin/profile" onClick={() => setOpen(false)} className={linkCls}>Profile</Link>
+          <Link href="/smart-lead-form" onClick={() => setOpen(false)} className={linkCls}>Smart Lead Form</Link>
+          <Link href="/admin/analytics" onClick={() => setOpen(false)} className={linkCls}>Analytics</Link>
 
-          {LINKS_BEFORE_NETWORK.map((item) => (
-            <Link key={item.href} href={item.href} onClick={() => setOpen(false)} className={linkCls}>
-              {item.label}
-            </Link>
-          ))}
-
-          {/* Social Autopilot — platform-admin-only internal beta, positioned as an
-              active tool between Analytics and Sales Goals. This menu row is UX
-              convenience; the /admin/social-autopilot layout, pages, APIs, RLS, and the
-              social-media bucket all enforce is_platform_admin() server-side. */}
+          {/* ── TOOLS ── */}
+          <div className={sectionCls}>Tools</div>
+          {/* Beast Social — platform-admin-only internal beta. UX shortcut only; the
+              /admin/social-autopilot layout, pages, APIs, RLS, and bucket all enforce
+              is_platform_admin() server-side. */}
           {isOwner && (
-            <Link href="/admin/social-autopilot" onClick={() => setOpen(false)} className={linkCls}>
-              Beast Social
-            </Link>
+            <Link href="/admin/social-autopilot" onClick={() => setOpen(false)} className={linkCls}>Beast Social</Link>
           )}
-
-          {/* Sales Goals */}
-          <Link href="/admin/settings" onClick={() => setOpen(false)} className={linkCls}>
-            Sales Goals
-          </Link>
-
-          {/* Beast Network — members + owner only */}
+          <Link href="/admin/settings" onClick={() => setOpen(false)} className={linkCls}>Sales Goals</Link>
+          {/* Beast Referral Network — members + owner only */}
           {showNetwork && (
-            <Link href="/admin/network" onClick={() => setOpen(false)} className={linkCls}>
-              Beast Referral Network
-            </Link>
+            <Link href="/admin/network" onClick={() => setOpen(false)} className={linkCls}>Beast Referral Network</Link>
           )}
 
-          {/* License Verification — platform owner ONLY (never network members).
-              The page and its RPCs enforce the same rule server-side. */}
+          {/* ── BUSINESS ── */}
+          <div className={sectionCls}>Business</div>
+          {/* License Verification — platform owner ONLY (never network members); the page
+              and its RPCs enforce the same rule server-side. */}
           {isOwner && (
-            <Link href="/admin/license-verification" onClick={() => setOpen(false)} className={linkCls}>
-              License Verification
-            </Link>
+            <Link href="/admin/license-verification" onClick={() => setOpen(false)} className={linkCls}>License Verification</Link>
           )}
+          <Link href="/admin/integrations" onClick={() => setOpen(false)} className={linkCls}>Integrations</Link>
+          <Link href="/admin/import" onClick={() => setOpen(false)} className={linkCls}>Import Leads</Link>
+          <Link href="/admin/billing" onClick={() => setOpen(false)} className={linkCls}>Billing</Link>
 
-          {/* Theme — inline workspace theme picker (instant feedback).
-              Only shown where a ThemeProvider exists (i.e. inside the CRM). */}
+          {/* ── SUPPORT & SETTINGS ── (Theme stays near the bottom, above Help Center) */}
+          <div className={sectionCls}>Support &amp; Settings</div>
+          {/* Theme — inline workspace theme picker (instant feedback). Only shown where a
+              ThemeProvider exists (i.e. inside the CRM). */}
           {theme && (
             <>
               <button
@@ -289,14 +268,9 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
               )}
             </>
           )}
+          <Link href="/help" onClick={() => setOpen(false)} className={linkCls}>Help Center</Link>
 
-          {/* Remaining navigation */}
-          {LINKS_AFTER_THEME.map((item) => (
-            <Link key={item.href} href={item.href} onClick={() => setOpen(false)} className={linkCls}>
-              {item.label}
-            </Link>
-          ))}
-
+          {/* Sign Out — visually separated at the bottom */}
           <div className={dividerCls}>
             <button type="button" onClick={handleSignOut} className={signOutCls}>
               Sign Out
