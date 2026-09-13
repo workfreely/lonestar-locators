@@ -18,13 +18,14 @@ type QueuePost = {
   previewUrl: string | null
 }
 
-const FILTERS = ["All", "Drafts", "Ready", "Scheduled", "Needs Attention"] as const
+// No generic "Needs Attention" filter — specific failure states (Render Failed, Publish Failed,
+// Connection Issue) will be added when those workflows exist.
+const FILTERS = ["All", "Drafts", "Ready", "Scheduled"] as const
 type Filter = (typeof FILTERS)[number]
 const FILTER_STATUS: Partial<Record<Filter, PostStatus>> = {
   Drafts: "draft",
   Ready: "ready",
   Scheduled: "scheduled",
-  "Needs Attention": "needs_attention",
 }
 
 const STATUS_STYLE: Record<PostStatus, string> = {

@@ -3,6 +3,7 @@
 import { buildHashtags, normalizeHashtag, HASHTAG_MARKETS } from "@/lib/social/hashtags"
 import { preparePost, buildCaption, buildOverlayHeadline, buildOverlaySubheadline, composeFinalCaption } from "@/lib/social/composePost"
 import { buildFfmpegArgs, buildVideoFilter } from "@/lib/social/renderVideo"
+import { wrapHeadline, overlayPreviewStyle } from "@/lib/social/overlaySpec"
 
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
@@ -59,6 +60,15 @@ ok("no sub drawtext when sub null", (filt.match(/drawtext/g) || []).length === 1
 const args = buildFfmpegArgs({ sourcePath: "/s.mp4", outputPath: "/o.mp4", filter: filt, audioChoice: "original" })
 ok("H.264 + yuv420p + faststart + AAC", args.includes("libx264") && args.includes("yuv420p") && args.includes("+faststart") && args.includes("aac"))
 ok("audio 'none' → -an (muted)", buildFfmpegArgs({ sourcePath: "/s", outputPath: "/o", filter: "x", audioChoice: "none" }).includes("-an"))
+
+console.log("overlay collision (sub below the full headline block; preview === render):")
+ok("long headline wraps to 2 lines", wrapHeadline("SAN ANTONIO LUXURY TOWNHOMES").length === 2)
+ok("short headline stays 1 line", wrapHeadline("SAN ANTONIO").length === 1)
+// FFmpeg: the sub's y-offset must grow when the headline occupies more lines.
+const subY = (n: number) => { const f = buildVideoFilter("/f.ttf", "/h.txt", "/s.txt", n); const m = f.match(/textfile='\/s\.txt'[^,]*y=h\*[0-9.]+\+([0-9.]+)/); return m ? parseFloat(m[1]) : NaN }
+ok("2-line headline pushes the sub further down than 1-line", subY(2) > subY(1))
+// Preview shares the same geometry: subTopPct increases with line count.
+ok("preview sub position grows with headline lines", overlayPreviewStyle(2).subTopPct > overlayPreviewStyle(1).subTopPct)
 
 console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

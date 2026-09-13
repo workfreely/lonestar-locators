@@ -51,12 +51,6 @@ const dateKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padS
 // market, then the shortest meaningful identifier (property name → type → display name).
 const MARKET_ABBR: Record<string, string> = { "San Antonio": "SA", Dallas: "DAL", DFW: "DFW", Houston: "HOU", Austin: "ATX" }
 const marketAbbr = (m: string | null | undefined) => (m ? MARKET_ABBR[m] ?? m.replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase() : "")
-const shortTime = (iso: string | null) => {
-  if (!iso) return ""
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return ""
-  return `${((d.getHours() + 11) % 12) + 1}:${String(d.getMinutes()).padStart(2, "0")}`
-}
 const shortLabel = (p: CalPost) => p.source?.propertyName || p.source?.propertyType || p.source?.displayName || p.postName || "Post"
 const STATUS_DOT: Record<PostStatus, string> = {
   draft: "bg-[var(--crm-text-muted)]",
@@ -226,7 +220,7 @@ function CellPost({ p, onOpenPost }: { p: CalPost; onOpenPost: (id: string) => v
 // Month-cell entry: compact TEXT (no thumbnail) — "8:30 · SA · Botanica".
 function MonthEntry({ p, onOpenPost }: { p: CalPost; onOpenPost: (id: string) => void }) {
   const stop = (e: React.SyntheticEvent) => e.stopPropagation()
-  const t = shortTime(p.scheduledAt)
+  const t = timeLabel(p.scheduledAt) // includes AM/PM, e.g. "8:30 AM"
   const mkt = marketAbbr(p.source?.market)
   return (
     <button

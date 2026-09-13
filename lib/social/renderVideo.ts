@@ -8,7 +8,7 @@ import { execFile } from "node:child_process"
 import { promises as fs } from "node:fs"
 import path from "node:path"
 import os from "node:os"
-import { OVERLAY_SPEC } from "@/lib/social/overlaySpec"
+import { OVERLAY_SPEC, wrapHeadline, headlineBlockPx } from "@/lib/social/overlaySpec"
 
 export type AudioChoice = "original" | "none" | "lb_track"
 
@@ -27,8 +27,10 @@ function escFilterPath(p: string): string {
   return p.replace(/\\/g, "\\\\").replace(/:/g, "\\:")
 }
 
-/** Build the -vf filtergraph: fill to 1080×1920 (9:16), then optional headline/sub drawtext. */
-export function buildVideoFilter(fontPath: string, headFile: string | null, subFile: string | null): string {
+/** Build the -vf filtergraph: fill to 1080×1920 (9:16), then optional headline/sub drawtext.
+ *  `headLineCount` is the number of wrapped headline lines — the sub is placed below the whole
+ *  block so a two-line headline pushes it down (shares geometry with the on-screen preview). */
+export function buildVideoFilter(fontPath: string, headFile: string | null, subFile: string | null, headLineCount = 1): string {
   const font = escFilterPath(fontPath)
   const parts = ["scale=1080:1920:force_original_aspect_ratio=increase", "crop=1080:1920"]
   const yHead = `h*${OVERLAY_SPEC.headline.yFrac}`
@@ -40,10 +42,12 @@ export function buildVideoFilter(fontPath: string, headFile: string | null, subF
     )
   }
   if (subFile) {
+    // Sub y = headline top + full headline block height + a consistent gap (0 when no headline).
+    const subOffset = headFile ? headlineBlockPx(headLineCount) + OVERLAY_SPEC.sub.gapPx : 0
     parts.push(
       `drawtext=fontfile='${font}':textfile='${escFilterPath(subFile)}':fontcolor=white:fontsize=${OVERLAY_SPEC.sub.fontPx}` +
         `:box=1:boxcolor=black@${OVERLAY_SPEC.sub.boxAlpha}:boxborderw=${OVERLAY_SPEC.sub.boxBorderPx}` +
-        `:x=(w-text_w)/2:y=${yHead}+${OVERLAY_SPEC.sub.gapPx}`,
+        `:x=(w-text_w)/2:y=${yHead}+${subOffset}`,
     )
   }
   return parts.join(",")
@@ -65,15 +69,19 @@ export async function renderReel(ffmpegPath: string, input: RenderInput): Promis
   const sub = (input.subheadline ?? "").trim()
   let headFile: string | null = null
   let subFile: string | null = null
+  let headLineCount = 1
   if (head) {
+    // Wrap the headline the SAME way the preview does, so the burned-in geometry matches.
+    const lines = wrapHeadline(head)
+    headLineCount = Math.max(1, lines.length)
     headFile = path.join(input.workDir, "head.txt")
-    await fs.writeFile(headFile, head, "utf8")
+    await fs.writeFile(headFile, lines.join("\n"), "utf8")
   }
   if (sub) {
     subFile = path.join(input.workDir, "sub.txt")
     await fs.writeFile(subFile, sub, "utf8")
   }
-  const filter = buildVideoFilter(input.fontPath, headFile, subFile)
+  const filter = buildVideoFilter(input.fontPath, headFile, subFile, headLineCount)
   const args = buildFfmpegArgs({ sourcePath: input.sourcePath, outputPath: input.outputPath, filter, audioChoice: input.audioChoice })
 
   // The traced static binary can lose its exec bit in the serverless bundle — restore it.

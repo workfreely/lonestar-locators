@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
-import { POST_TYPES_BY_PLATFORM, POST_TYPE_LABEL, previewAspectClass } from "@/lib/social/postTypes"
+import { POST_TYPE_LABEL, previewAspectClass } from "@/lib/social/postTypes"
 import { buildHashtags, normalizeHashtag } from "@/lib/social/hashtags"
-import { overlayPreviewStyle } from "@/lib/social/overlaySpec"
+import { overlayPreviewStyle, wrapHeadline } from "@/lib/social/overlaySpec"
 import { SOCIAL_MARKETS } from "@/lib/social/markets"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
 import { detectMarket } from "@/lib/social/filenameInference"
@@ -112,7 +112,6 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [special, setSpecial] = useState("")
   const [priceRange, setPriceRange] = useState("")
   const [amenities, setAmenities] = useState("")
-  const [moreOpen, setMoreOpen] = useState(false)
 
   const load = useCallback(async () => {
     setError(null)
@@ -264,10 +263,13 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   }
   if (!post) return <div className="text-[13px] text-[var(--crm-text-secondary)] py-10 text-center">Loading…</div>
 
-  const types = POST_TYPES_BY_PLATFORM[post.platform] ?? ["reel", "feed", "story"]
+  // This workflow is VIDEO-only: offer Reel + Story. Feed Post stays valid in the API/data for
+  // legacy records but is intentionally not offered here.
+  const types = ["reel", "story"]
   const aspect = previewAspectClass(post.platform, postType)
   const rendered = post.renderStatus === "ready" && !!post.renderedPreviewUrl
-  const ov = overlayPreviewStyle()
+  const headLines = wrapHeadline(headline) // shared with the render, so the sub never collides
+  const ov = overlayPreviewStyle(headLines.length || 1)
   const prepareLabel = rendering ? "Preparing…" : post.renderStatus === "error" ? "Retry — Prepare Video" : rendered ? "Re-prepare Video" : "Prepare Video"
 
   return (
@@ -275,8 +277,8 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       <div className="mb-3 flex items-center gap-2.5 flex-wrap">
         <button type="button" className={btn} onClick={() => router.push(back.path)}>{back.label}</button>
         <span className="text-[11.5px] font-semibold px-2.5 py-1 rounded-full bg-[var(--crm-card)] text-[var(--crm-text-secondary)]">{POST_STATUS_LABEL[post.status] ?? post.status}</span>
-        {/* Editable Instagram post type — compact, in the status area (not a large body field). */}
-        <div className="inline-flex items-center gap-1 rounded-full border border-[var(--crm-border)] pl-2.5 pr-0.5 py-0.5">
+        {/* Compact post settings — Instagram type (Reel/Story) + Audio — in the status area. */}
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--crm-border)] pl-2.5 pr-1 py-0.5">
           <span className="text-[11px] font-semibold text-[var(--crm-text-secondary)]">Instagram</span>
           <div className="inline-flex items-center gap-0.5">
             {types.map((t) => (
@@ -285,6 +287,17 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               </button>
             ))}
           </div>
+          <span className="w-px h-4 bg-[var(--crm-border)]" aria-hidden />
+          <select
+            aria-label="Audio"
+            value={audioChoice}
+            onChange={(e) => e.target.value !== "lb_track" && setAudioChoice(e.target.value)}
+            className="text-[11px] font-semibold bg-transparent text-[var(--crm-text-secondary)] outline-none cursor-pointer pr-0.5"
+          >
+            {AUDIO_OPTIONS.map((a) => (
+              <option key={a.key} value={a.key} disabled={a.disabled}>{a.label}{a.note ? ` — ${a.note}` : ""}</option>
+            ))}
+          </select>
         </div>
         {rendered && <span className="text-[11.5px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">VIDEO READY</span>}
         <button type="button" className={`${btn} ml-auto`} disabled={busy || rendering} onClick={() => void duplicate()}>Duplicate</button>
@@ -310,8 +323,8 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 {(headline || subheadline) && (
                   <div className="pointer-events-none absolute inset-0" aria-hidden>
                     {headline && (
-                      <div style={{ position: "absolute", top: `${ov.headlineTopPct}%`, left: `${ov.sideMarginPct}%`, right: `${ov.sideMarginPct}%`, textAlign: "center", color: "white", fontWeight: 800, lineHeight: 1.05, fontSize: `${ov.headlineFontPct}vh`, textShadow: "0 2px 8px rgba(0,0,0,.6)" }}>
-                        {headline.toUpperCase()}
+                      <div style={{ position: "absolute", top: `${ov.headlineTopPct}%`, left: `${ov.sideMarginPct}%`, right: `${ov.sideMarginPct}%`, textAlign: "center", color: "white", fontWeight: 800, lineHeight: 1.05, fontSize: `${ov.headlineFontPct}vh`, textShadow: "0 2px 8px rgba(0,0,0,.6)", whiteSpace: "pre-line" }}>
+                        {headLines.join("\n").toUpperCase()}
                       </div>
                     )}
                     {subheadline && (
@@ -343,7 +356,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
 
         {/* Fields column — compact paired rows. */}
         <div className="flex flex-col gap-3">
-          {/* Row 1: Property (widest) | Market | Type */}
+          {/* Row 1: Property (widest) | Type | Market */}
           <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr_1fr] gap-3">
             <label className="block">
               <span className={fieldLabel}>Property / Building Name</span>
@@ -358,38 +371,35 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               />
             </label>
             <label className="block">
-              <span className={fieldLabel}>Market</span>
-              <select className={`${control} mt-1`} value={market} onChange={(e) => setMarket(e.target.value)}>
-                <option value="">No market</option>
-                {[...SOCIAL_MARKETS, ...(market && !SOCIAL_MARKETS.includes(market) ? [market] : [])].map((m) => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </label>
-            <label className="block">
               <span className={fieldLabel}>Property Type</span>
               <select className={`${control} mt-1`} value={propertyType} onChange={(e) => setPropertyType(e.target.value)}>
                 <option value="">No type</option>
                 {PROPERTY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </label>
+            <label className="block">
+              <span className={fieldLabel}>Market</span>
+              <select className={`${control} mt-1`} value={market} onChange={(e) => setMarket(e.target.value)}>
+                <option value="">No market</option>
+                {[...SOCIAL_MARKETS, ...(market && !SOCIAL_MARKETS.includes(market) ? [market] : [])].map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </label>
           </div>
 
-          {/* Music / Audio (Instagram post type moved to the header status area) */}
-          <div className="block">
-            <span className={fieldLabel}>Music / Audio</span>
-            <div className="mt-1 flex items-center gap-1 flex-wrap">
-                {AUDIO_OPTIONS.map((a) => (
-                  <button
-                    key={a.key}
-                    type="button"
-                    disabled={a.disabled}
-                    onClick={() => !a.disabled && setAudioChoice(a.key)}
-                    title={a.note}
-                    className={"text-[12px] font-semibold px-2.5 py-1.5 rounded-lg border transition-colors " + (audioChoice === a.key ? "border-[var(--crm-text-primary)] bg-[var(--crm-card)] text-[var(--crm-text-primary)]" : "border-[var(--crm-border)] text-[var(--crm-text-secondary)]") + (a.disabled ? " opacity-60 cursor-not-allowed" : "")}
-                  >
-                    {a.label}{a.note ? ` · ${a.note}` : ""}
-                  </button>
-                ))}
-              </div>
+          {/* Row 2: Current Special (wide) | Amenities / Features (wide) | Price Range (narrow) */}
+          <div className="grid grid-cols-1 sm:grid-cols-[3fr_3fr_2fr] gap-3">
+            <label className="block">
+              <span className={fieldLabel}>Current Special</span>
+              <input className={`${control} mt-1`} value={special} onChange={(e) => setSpecial(e.target.value)} />
+            </label>
+            <label className="block">
+              <span className={fieldLabel}>Amenities / Features</span>
+              <input className={`${control} mt-1`} value={amenities} onChange={(e) => setAmenities(e.target.value)} />
+            </label>
+            <label className="block">
+              <span className={fieldLabel}>Price Range</span>
+              <input className={`${control} mt-1`} value={priceRange} onChange={(e) => setPriceRange(e.target.value)} />
+            </label>
           </div>
 
           {/* Row 3: Overlay Headline | Subheadline */}
@@ -468,35 +478,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             )}
           </div>
 
-          {/* More Details — optional supporting source facts. Internal fields (name, filename,
-              place_id, IDs, area/neighborhood, notes) stay hidden and preserved server-side. */}
-          <div className="block rounded-lg border border-[var(--crm-border)]">
-            <button type="button" className="w-full flex items-center justify-between px-3 py-2 text-left" onClick={() => setMoreOpen((o) => !o)} aria-expanded={moreOpen}>
-              <span className={fieldLabel}>More Details</span>
-              <span className="text-[var(--crm-text-muted)] text-[12px]">{moreOpen ? "▴" : "▾"}</span>
-            </button>
-            {moreOpen && (
-              <div className="px-3 pb-3 flex flex-col gap-3">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <label className="block">
-                    <span className={fieldLabel}>Current Special</span>
-                    <input className={`${control} mt-1`} value={special} onChange={(e) => setSpecial(e.target.value)} />
-                  </label>
-                  <label className="block">
-                    <span className={fieldLabel}>Price Range</span>
-                    <input className={`${control} mt-1`} value={priceRange} onChange={(e) => setPriceRange(e.target.value)} />
-                  </label>
-                  <label className="block">
-                    <span className={fieldLabel}>Amenities / Features</span>
-                    <input className={`${control} mt-1`} value={amenities} onChange={(e) => setAmenities(e.target.value)} />
-                  </label>
-                </div>
-                <span className="text-[10.5px] text-[var(--crm-text-muted)]">Source facts (help compose the post). Property name, area, and notes never post publicly unless you type them into the caption or overlay.</span>
-              </div>
-            )}
-          </div>
-
-          <p className="text-[11px] text-[var(--crm-text-muted)]">Prepare Video produces the final 9:16 video with the overlay burned in and your audio choice. Nothing is published to Instagram in this checkpoint.</p>
+          <p className="text-[11px] text-[var(--crm-text-muted)]">Property name, area, and notes never post publicly unless you type them into the caption or overlay. Prepare Video burns in the overlay + your audio choice; nothing is published to Instagram in this checkpoint.</p>
 
           {/* Primary actions — compact sticky bar, lower-RIGHT of the editor workspace. Sits above
               a translucent panel background so it never obscures the fields it floats over. */}

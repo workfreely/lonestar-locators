@@ -215,7 +215,7 @@ export default function SocialAutopilotClient() {
   // posts, opens the single editable draft, and deletes source videos.
 
   // Per-source post rollup: how many posts a source has, and the single editable draft's id (if
-  // exactly one). Drives the card's "Open Draft" / "n posts" affordance — never guesses.
+  // exactly one). Drives the card's optional "Open Draft" affordance — never guesses.
   const [postsBySource, setPostsBySource] = useState<Record<string, { total: number; openId: string | null }>>({})
 
   const load = useCallback(async () => {
@@ -578,7 +578,8 @@ export default function SocialAutopilotClient() {
           being squeezed; the row wraps gracefully at narrow widths. The standalone
           "SAMPLE DATA" pill was removed — sample state is still obvious from the per-card
           "Sample" markers on the demo fixtures. */}
-      <div className="mb-3 flex items-center gap-2.5 flex-wrap">
+      {/* mb-6 (24px) gives extra breathing room before the card grid vs. the tighter mb-3 rows. */}
+      <div className="mb-6 flex items-center gap-2.5 flex-wrap">
         <input
           type="search"
           value={search}
@@ -703,11 +704,9 @@ export default function SocialAutopilotClient() {
                           {creatingId === c.raw.id ? "Creating…" : "+ Create Post"}
                         </button>
                         <div className="flex items-center gap-1.5">
-                          {roll?.openId ? (
+                          {roll?.openId && (
                             <button type="button" className={btn} onClick={() => router.push(`/admin/social-autopilot/posts/${encodeURIComponent(roll.openId!)}?from=library`)}>Open Draft</button>
-                          ) : (roll?.total ?? 0) > 1 ? (
-                            <span className="text-[11.5px] text-[var(--crm-text-muted)] px-1">{roll!.total} posts</span>
-                          ) : null}
+                          )}
                           <button type="button" aria-label="Delete source video" title="Delete source video" className="ml-auto p-1.5 rounded-lg text-[var(--crm-text-muted)] hover:text-red-500 hover:bg-[var(--crm-card)] transition-colors" onClick={() => remove(c.raw!.id)}>
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>
                           </button>

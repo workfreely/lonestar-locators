@@ -219,7 +219,7 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
               social-media bucket all enforce is_platform_admin() server-side. */}
           {isOwner && (
             <Link href="/admin/social-autopilot" onClick={() => setOpen(false)} className={linkCls}>
-              Social Autopilot
+              Beast Social
             </Link>
           )}
 

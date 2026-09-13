@@ -8,7 +8,7 @@ import { inferFromFilename, detectMarket, suggestArea, type FilenameInference } 
 import { resolvePropertyMatch } from "@/lib/social/resolveProperty"
 import { buildHashtags } from "@/lib/social/hashtags"
 import { preparePost } from "@/lib/social/composePost"
-import { overlayPreviewStyle } from "@/lib/social/overlaySpec"
+import { overlayPreviewStyle, wrapHeadline } from "@/lib/social/overlaySpec"
 import PropertySearchField, { type PropertyMatch } from "@/components/crm/social/PropertySearchField"
 
 // Bulk Review / Intake — opens automatically for 2+ files. One compact row per source video,
@@ -278,7 +278,8 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
   // Property name / area are INTERNAL — the public preview uses only market + type (Bulk Review
   // rows don't capture special/price/amenities; those refine the preview later in Create Post).
   const activePrep = active ? preparePost({ market: active.market, propertyType: active.propertyType }) : null
-  const ov = overlayPreviewStyle() // CSS overlay geometry shared with the Post Composer + FFmpeg burn-in
+  const headLines = wrapHeadline(activePrep?.overlayHeadline) // shared wrapping (preview === render)
+  const ov = overlayPreviewStyle(headLines.length || 1) // CSS overlay geometry shared with the Post Composer + FFmpeg burn-in
   const activeConfirmed = !!(active && active.matched && active.placeId)
 
   return (
@@ -401,8 +402,8 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
                     {activePrep && (activePrep.overlayHeadline || activePrep.overlaySubheadline) && (
                       <div className="pointer-events-none absolute inset-0" aria-hidden>
                         {activePrep.overlayHeadline && (
-                          <div style={{ position: "absolute", top: `${ov.headlineTopPct}%`, left: `${ov.sideMarginPct}%`, right: `${ov.sideMarginPct}%`, textAlign: "center", color: "white", fontWeight: 800, lineHeight: 1.05, fontSize: `${ov.headlineFontPct}vh`, textShadow: "0 2px 8px rgba(0,0,0,.6)" }}>
-                            {activePrep.overlayHeadline.toUpperCase()}
+                          <div style={{ position: "absolute", top: `${ov.headlineTopPct}%`, left: `${ov.sideMarginPct}%`, right: `${ov.sideMarginPct}%`, textAlign: "center", color: "white", fontWeight: 800, lineHeight: 1.05, fontSize: `${ov.headlineFontPct}vh`, textShadow: "0 2px 8px rgba(0,0,0,.6)", whiteSpace: "pre-line" }}>
+                            {headLines.join("\n").toUpperCase()}
                           </div>
                         )}
                         {activePrep.overlaySubheadline && (
