@@ -3,28 +3,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
+// Shared calendar data + formatting — the SAME source of truth the Post Editor's scheduling
+// workspace uses, so the two views never disagree about what is scheduled.
+import { type CalPost, MONTH_CELL_MAX, WEEKDAYS, addDays, sameDay, dateKey, timeLabel, marketAbbr, shortLabel, calLabel as label, groupByDay } from "@/lib/social/calendar"
 
-// Social Autopilot → Calendar. Month | Week | List over REAL scheduled posts
+// Beast Social → Calendar. Month | Week | List over REAL scheduled posts
 // (social_posts, status='scheduled'). Interactive: single-click selects a day (theme-aware
 // glow, reusing the CRM selected-card --kb-accent treatment), double-click / Enter / the
 // selected-day "Open" chip opens a Day Detail modal, and clicking an individual post opens
 // the editor. Tiny cell previews → medium Day Detail list → large editor preview. Read-only
 // placement (no drag-reschedule); no external publishing; scheduled ≠ published.
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 const HOURS = [8, 10, 12, 14, 16, 18] // representative 2-hour buckets for Week view
-const MONTH_CELL_MAX = 3 // posts shown in a month cell before "+N more"
 type View = "Month" | "Week" | "List"
-
-type CalPost = {
-  id: string
-  status: PostStatus
-  platform: string
-  scheduledAt: string | null
-  postName: string | null
-  caption: string | null
-  source: { displayName: string | null; propertyName: string | null; propertyType: string | null; market: string | null; originalFilename: string | null; kind: string | null } | null
-  previewUrl: string | null
-}
 
 const startOfWeek = (d: Date) => {
   const s = new Date(d)
@@ -32,26 +22,7 @@ const startOfWeek = (d: Date) => {
   s.setHours(0, 0, 0, 0)
   return s
 }
-const addDays = (d: Date, n: number) => {
-  const x = new Date(d)
-  x.setDate(x.getDate() + n)
-  return x
-}
-const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString()
 const hourLabel = (h: number) => `${((h + 11) % 12) + 1} ${h < 12 ? "AM" : "PM"}`
-const timeLabel = (iso: string | null) => {
-  if (!iso) return ""
-  const d = new Date(iso)
-  return isNaN(d.getTime()) ? "" : d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
-}
-const label = (p: CalPost) => p.source?.propertyName || p.source?.displayName || p.postName || "Post"
-const dateKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
-
-// Compact Month-cell helpers: "8:30 · SA · Botanica". Time without meridiem, an abbreviated
-// market, then the shortest meaningful identifier (property name → type → display name).
-const MARKET_ABBR: Record<string, string> = { "San Antonio": "SA", Dallas: "DAL", DFW: "DFW", Houston: "HOU", Austin: "ATX" }
-const marketAbbr = (m: string | null | undefined) => (m ? MARKET_ABBR[m] ?? m.replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase() : "")
-const shortLabel = (p: CalPost) => p.source?.propertyName || p.source?.propertyType || p.source?.displayName || p.postName || "Post"
 const STATUS_DOT: Record<PostStatus, string> = {
   draft: "bg-[var(--crm-text-muted)]",
   rendering: "bg-amber-500",
@@ -109,19 +80,7 @@ export default function CalendarShell() {
 
   const openPost = useCallback((id: string) => router.push(`/admin/social-autopilot/posts/${encodeURIComponent(id)}?from=calendar`), [router])
 
-  const byDay = useMemo(() => {
-    const m = new Map<string, CalPost[]>()
-    for (const p of posts) {
-      if (!p.scheduledAt) continue
-      const d = new Date(p.scheduledAt)
-      if (isNaN(d.getTime())) continue
-      const arr = m.get(dateKey(d)) ?? []
-      arr.push(p)
-      m.set(dateKey(d), arr)
-    }
-    for (const arr of m.values()) arr.sort((a, b) => new Date(a.scheduledAt!).getTime() - new Date(b.scheduledAt!).getTime())
-    return m
-  }, [posts])
+  const byDay = useMemo(() => groupByDay(posts), [posts])
 
   const shift = (dir: number) => {
     if (view === "Month") setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + dir, 1))

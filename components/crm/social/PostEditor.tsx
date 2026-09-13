@@ -10,7 +10,7 @@ import { SOCIAL_MARKETS } from "@/lib/social/markets"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
 import { detectMarket } from "@/lib/social/filenameInference"
 import PropertySearchField from "@/components/crm/social/PropertySearchField"
-import DateTimePicker from "@/components/crm/DateTimePicker"
+import ScheduleWorkspace from "@/components/crm/social/ScheduleWorkspace"
 
 // Social Autopilot — the ONE user-facing editor. Composes a social_posts variation (post type,
 // overlay, caption, hashtags, audio, schedule) AND edits the useful public-safe SOURCE facts
@@ -100,7 +100,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [tagInput, setTagInput] = useState("")
   const [audioChoice, setAudioChoice] = useState("original")
   const [scheduleVal, setScheduleVal] = useState("") // local "YYYY-MM-DDTHH:mm"
-  const [pickerOpen, setPickerOpen] = useState(false)
+  const [scheduling, setScheduling] = useState(false) // RIGHT column shows the Schedule workspace
 
   // social_content (source) public-safe fields — edited here, written back to the source row.
   const [sourceContentId, setSourceContentId] = useState<string | null>(null)
@@ -193,8 +193,10 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const saveDraft = async () => {
     if (await patch({ scheduledAt: scheduleToIso(scheduleVal) ?? "" }, "Draft saved.")) await load()
   }
-  const schedule = async () => {
-    const iso = scheduleToIso(scheduleVal)
+  // Confirm scheduling from the Schedule workspace with an explicit local "YYYY-MM-DDTHH:mm".
+  // No render is triggered here — scheduling only writes scheduled_at (background render later).
+  const scheduleAt = async (localValue: string) => {
+    const iso = scheduleToIso(localValue)
     if (!iso) return setError("Set a date and time to schedule.")
     if (await patch({ intent: "schedule", scheduledAt: iso }, "Scheduled.")) router.push(back.path)
   }
@@ -308,8 +310,20 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               preview still shows automatically once a derivative exists. */}
         </div>
 
-        {/* Fields column — compact paired rows. */}
+        {/* Fields column — compact paired rows. Swaps to the Schedule workspace on demand; the
+            editor field values live in component state, so they survive the swap (Cancel returns
+            with everything intact). */}
         <div className="flex flex-col gap-3">
+          {scheduling ? (
+            <ScheduleWorkspace
+              initialValue={scheduleVal}
+              currentPostId={post.id}
+              busy={busy}
+              onCancel={() => setScheduling(false)}
+              onSchedule={(v) => { setScheduleVal(v); void scheduleAt(v) }}
+            />
+          ) : (
+          <>
           {/* Row 1: Property (widest) | Type | Market */}
           <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr_1fr] gap-3">
             <label className="block">
@@ -401,19 +415,17 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             </div>
           </div>
 
-          {/* Row 5: Schedule (full width) — reuses Locator Beast's DateTimePicker popover. */}
+          {/* Row 5: Schedule — opens the calendar-based Schedule workspace (no inline picker). */}
           <div className="block">
             <span className={fieldLabel}>Schedule</span>
             <div className="mt-1 flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setPickerOpen((o) => !o)}
-                aria-expanded={pickerOpen}
-                aria-haspopup="dialog"
+                onClick={() => setScheduling(true)}
                 className={`${control} text-left flex items-center justify-between`}
               >
                 <span className={scheduleVal ? "text-[var(--crm-text-primary)]" : "text-[var(--crm-text-muted)]"}>
-                  {scheduleVal ? fmtSchedule(scheduleVal) : "Set a date & time"}
+                  {scheduleVal ? fmtSchedule(scheduleVal) : "Pick a date & time"}
                 </span>
                 <span className="text-[var(--crm-text-muted)] ml-2">▾</span>
               </button>
@@ -423,13 +435,6 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 </button>
               )}
             </div>
-            {pickerOpen && (
-              <DateTimePicker
-                value={scheduleVal}
-                onApply={(v) => { setScheduleVal(v); setPickerOpen(false) }}
-                onCancel={() => setPickerOpen(false)}
-              />
-            )}
           </div>
 
           {/* One static action row beneath Schedule, aligned lower-right: Save Draft (secondary),
@@ -439,7 +444,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
           <div className="mt-1 flex items-center justify-end gap-2 flex-wrap">
             {post.status === "scheduled" && <button type="button" className={`${btn} mr-auto`} disabled={busy} onClick={() => void backToDraft()}>Move back to Draft</button>}
             <button type="button" className={btn} disabled={busy} onClick={() => void saveDraft()}>{busy ? "Saving…" : "Save Draft"}</button>
-            <button type="button" className={primaryBtn} disabled={busy} onClick={() => void schedule()}>Schedule</button>
+            <button type="button" className={primaryBtn} disabled={busy} onClick={() => setScheduling(true)}>Schedule</button>
             <button
               type="button"
               disabled
@@ -449,6 +454,8 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               Publish Now
             </button>
           </div>
+          </>
+          )}
         </div>
       </div>
     </div>
