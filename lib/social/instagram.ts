@@ -123,3 +123,36 @@ export function expiryFromExpiresIn(expiresIn: number | undefined | null): strin
   const secs = typeof expiresIn === "number" && expiresIn > 0 ? expiresIn : 60 * 24 * 60 * 60
   return new Date(Date.now() + secs * 1000).toISOString()
 }
+
+/** The redirect URI for the DESTINATION-AUTHORIZATION (recipient) flow. Distinct from the admin
+ *  connect callback so the unauthenticated recipient path shares NO code with the admin route.
+ *  This URI must be registered in the Meta app alongside the admin callback. */
+export function instagramAuthorizeRedirectUri(origin: string): string {
+  return `${origin}/api/social/authorize/instagram/callback`
+}
+
+export type InstagramOAuthResult = {
+  externalId: string
+  username: string | null
+  accountType: string | null
+  token: string
+  expiresAt: string
+}
+
+/** SHARED server-side OAuth completion used by BOTH the admin connect callback and the recipient
+ *  destination-authorization callback: exchange code → short token → long-lived token, fetch the
+ *  account identity, and derive the stable external id + expiry. The token stays server-side; the
+ *  caller decides how to persist it (Vault, under which owner). Throws on any exchange failure. */
+export async function completeInstagramOAuth(code: string, redirectUri: string): Promise<InstagramOAuthResult> {
+  const short = await exchangeCodeForShortToken(code, redirectUri)
+  const long = await exchangeForLongLivedToken(short.access_token)
+  const profile = await fetchInstagramProfile(long.access_token)
+  const externalId = String(profile.user_id ?? short.user_id ?? "")
+  return {
+    externalId,
+    username: profile.username ?? null,
+    accountType: profile.account_type ?? null,
+    token: long.access_token,
+    expiresAt: expiryFromExpiresIn(long.expires_in),
+  }
+}
