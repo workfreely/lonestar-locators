@@ -72,6 +72,9 @@ import type { ResolvedAgentIdentity } from "@/lib/notifications/agentSignature"
 // fully intact so we can later retire it or offer it as an optional view. This
 // flag is the single on/off switch — set it back to `true` to show it again.
 const SHOW_LEGACY_LEAD_PANEL = false
+// Per-tab persistence of Focus Mode (survives refresh; cleared on Exit Focus). Not URL-derived,
+// so lead-detail URLs are never forced into Focus.
+const FOCUS_KEY = "lb-crm-focus"
 
 // The signed-in locator's contact identity for Schedule Tour autofill (message
 // field only — never the client contact fields). Reuses the CRM's already-resolved
@@ -152,9 +155,14 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     const params = new URLSearchParams(window.location.search)
     const id = params.get("id")
     if (id) setSelectedLeadId(id)
-    // Restore Focus Mode from the URL so a refresh on a Focus Lead Detail (or Focus board) stays
-    // in Focus. A normal (no ?focus=1) URL leaves Focus off — normal navigation is unaffected.
-    if (params.get("focus") === "1") setFocusMode(true)
+    // Restore Focus Mode from sessionStorage so a refresh (board OR lead detail) stays in Focus
+    // until the user explicitly Exits. Per-tab session only — a fresh tab/visit is normal, and
+    // Focus is never inferred from the URL, so lead-detail URLs are not forced into Focus.
+    try {
+      if (sessionStorage.getItem(FOCUS_KEY) === "1") setFocusMode(true)
+    } catch {
+      /* storage unavailable — Focus simply won't persist */
+    }
   }, [])
 
   // Testing-only persistence of the Agenda side (no DB). Reads once on mount.
@@ -2592,30 +2600,29 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // deleting this block, the two props passed to LeadBoard, and `.kb-focus`.
   const [focusMode, setFocusMode] = useState(false)
 
+  // Single entry point for changing Focus: updates state AND persists to sessionStorage, so the
+  // mode survives a browser refresh (restored on mount) and clears on Exit Focus. Writing only on
+  // explicit change (never via a state-mirroring effect) avoids clobbering the restored value on
+  // first render.
+  const setFocus = useCallback((on: boolean) => {
+    setFocusMode(on)
+    try {
+      sessionStorage.setItem(FOCUS_KEY, on ? "1" : "0")
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
   // Esc leaves Focus. Convenience only — deliberately not advertised in the UI,
   // and unrelated to the browser's own fullscreen Esc behavior.
   useEffect(() => {
     if (!focusMode) return
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setFocusMode(false)
+      if (e.key === "Escape") setFocus(false)
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [focusMode])
-
-  // Keep the URL's `focus` param in sync with Focus Mode so it survives a browser refresh.
-  // Preserves `id` and any other params; uses replace (no history spam). Re-runs when the lead
-  // selection changes so a navigation that dropped the param re-adds it while Focus is ON. A
-  // normal (Focus-OFF) URL never carries ?focus=1, so normal navigation is unaffected.
-  useEffect(() => {
-    if (typeof window === "undefined") return
-    const cur = new URLSearchParams(window.location.search)
-    if ((cur.get("focus") === "1") === focusMode) return
-    if (focusMode) cur.set("focus", "1")
-    else cur.delete("focus")
-    const qs = cur.toString()
-    router.replace(`/admin/leads${qs ? `?${qs}` : ""}`)
-  }, [focusMode, selectedLeadId, router])
+  }, [focusMode, setFocus])
 
   // Focus-mode Lead Detail: the board (and its EXACT toolbar — Dashboard/Map/Search/Detailed/
   // Compact/Overview/Exit Focus) stays visible; only the content underneath swaps to the lead.
@@ -2758,7 +2765,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             sidebar itself, so its frosted-glass look over the dark photo
             is fully preserved. */}
         {selectedLead && (
-          <div style={detailVeilStyle} className={`absolute top-2 bottom-2 ${veilInsetCls} bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]`} />
+          <div style={detailVeilStyle} className={`absolute top-2 bottom-2 ${veilInsetCls} ${focusDetail ? "z-30" : ""} bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]`} />
         )}
 
         {/* LEFT SIDEBAR — Agenda (Follow-ups). Recessed column-like panel so
@@ -2942,7 +2949,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             }}
             timeZone={timeZone}
             focus={focusMode}
-            onToggleFocus={() => setFocusMode((v) => !v)}
+            onToggleFocus={() => setFocus(!focusMode)}
             voiceEnabled={voiceEnabled}
           />
         </div>
