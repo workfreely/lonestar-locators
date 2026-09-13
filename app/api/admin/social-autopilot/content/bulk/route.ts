@@ -44,6 +44,9 @@ export async function POST(req: NextRequest) {
   const str = (v: unknown, max = 2000) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null)
   const newMarket = changingMarket ? str(body.market) : undefined
   const newProperty = changingProperty ? str(body.propertyName) : undefined
+  // Canonical place_id travels WITH a property change: a picked match sets it, free-text (no
+  // match) clears any stale id. SA-only linkage — never written back to canonical systems.
+  const newPlaceId = changingProperty ? str(body.placeId, 300) : undefined
 
   // Fetch the caller's own target rows (RLS scopes to owner). Rows not returned = not
   // owned / not found → reported failed below.
@@ -63,7 +66,10 @@ export async function POST(req: NextRequest) {
     const id = String(row.id)
     const patch: Record<string, unknown> = { updated_at: nowISO }
     if (changingMarket) patch.market = newMarket
-    if (changingProperty) patch.property_name = newProperty
+    if (changingProperty) {
+      patch.property_name = newProperty
+      patch.place_id = newPlaceId // canonical id when matched; null clears a stale one
+    }
 
     // Regenerate the system name only when the user hasn't customized it.
     if (row.name_customized !== true) {

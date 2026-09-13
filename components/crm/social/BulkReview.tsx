@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase/client"
 import { SOCIAL_MARKETS } from "@/lib/social/markets"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
 import { inferFromFilename, detectMarket, suggestArea, type FilenameInference } from "@/lib/social/filenameInference"
+import { resolvePropertyMatch } from "@/lib/social/resolveProperty"
 import { buildHashtags } from "@/lib/social/hashtags"
 import { preparePost } from "@/lib/social/composePost"
 import PropertySearchField, { type PropertyMatch } from "@/components/crm/social/PropertySearchField"
@@ -131,7 +132,27 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
     })
     setRows(built)
     setActiveUid(built[0]?.uid ?? null)
-    return () => built.forEach((r) => URL.revokeObjectURL(r.objectUrl))
+    // Headless auto-resolution against the read-only property search — sequential + cancellable
+    // so a large batch never fires a burst of requests. A single clear in-market match fills the
+    // canonical name + place_id (+ area from its address); ambiguous rows keep inferred text and
+    // the operator confirms from suggestions. Never overwrites a row the operator already edited.
+    let cancelled = false
+    void (async () => {
+      for (const r of built) {
+        if (cancelled) break
+        const seed = r.inf.propertyName
+        if (!seed) continue
+        const res = await resolvePropertyMatch(seed, r.inf.market)
+        if (cancelled || !res.match) continue
+        setRows((prev) => prev.map((row) => {
+          if (row.uid !== r.uid || row.matched || row.propertyName !== seed) return row
+          const market = row.market || detectMarket(res.match!.address ?? "") || ""
+          const area = row.areaNeighborhood || suggestArea(res.match!.address, market)
+          return { ...row, propertyName: res.match!.name, placeId: res.match!.placeId, matched: true, ...(market ? { market } : {}), ...(area ? { areaNeighborhood: area } : {}) }
+        }))
+      }
+    })()
+    return () => { cancelled = true; built.forEach((r) => URL.revokeObjectURL(r.objectUrl)) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -234,7 +255,8 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
   const primaryBtn = "text-[12.5px] font-semibold px-3.5 py-2 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"
   const chip = (on: boolean) => "text-[12px] font-semibold px-2.5 py-1 rounded-full border transition-colors " + (on ? "border-[var(--crm-text-primary)] text-[var(--crm-text-primary)] bg-[var(--crm-card)]" : "border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]")
 
-  const activePrep = active ? preparePost({ propertyName: active.propertyName, market: active.market, areaNeighborhood: active.areaNeighborhood, propertyType: active.propertyType }) : null
+  // area_neighborhood is INTERNAL reference only — intentionally not fed into the public preview.
+  const activePrep = active ? preparePost({ propertyName: active.propertyName, market: active.market, propertyType: active.propertyType }) : null
 
   return (
     <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={() => !uploading && onClose()}>

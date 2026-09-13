@@ -7,6 +7,7 @@ import { DEMO_LIBRARY } from "./demoFixtures"
 import { SOCIAL_MARKETS, normalizeSocialMarket } from "@/lib/social/markets"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
 import { inferFromFilename, detectMarket, suggestArea } from "@/lib/social/filenameInference"
+import { resolvePropertyMatch } from "@/lib/social/resolveProperty"
 import BulkReview from "@/components/crm/social/BulkReview"
 import PropertySearchField from "@/components/crm/social/PropertySearchField"
 
@@ -201,6 +202,8 @@ export default function SocialAutopilotClient() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkKind, setBulkKind] = useState<null | "market" | "property">(null)
   const [bulkValue, setBulkValue] = useState("")
+  const [bulkPlaceId, setBulkPlaceId] = useState<string | null>(null) // canonical id when a match is picked
+  const [bulkMatched, setBulkMatched] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
 
   // Individual edit.
@@ -332,6 +335,21 @@ export default function SocialAutopilotClient() {
       const inf = inferFromFilename(files[0].name)
       setPendingFiles(files)
       setBatch({ market: inf.market ?? "", areaNeighborhood: "", propertyName: inf.propertyName ?? "", propertyType: inf.propertyType ?? "", placeId: null, matched: false, special: "", budgetRange: "", amenities: "", notes: "" })
+      // Auto-resolve the inferred name against the read-only property search. A single clear
+      // in-market match auto-fills the canonical name + place_id (+ area from its address);
+      // anything ambiguous is left as inferred text for the operator to confirm. Guarded so a
+      // late result never overwrites edits the operator has already made.
+      if (inf.propertyName) {
+        const seed = inf.propertyName
+        void resolvePropertyMatch(seed, inf.market).then((r) => {
+          if (!r.match) return
+          setBatch((b) => {
+            if (b.matched || b.propertyName !== seed) return b
+            const market = b.market || detectMarket(r.match!.address ?? "") || ""
+            return { ...b, propertyName: r.match!.name, placeId: r.match!.placeId, matched: true, market, areaNeighborhood: b.areaNeighborhood || suggestArea(r.match!.address, market) }
+          })
+        })
+      }
     }
     if (fileRef.current) fileRef.current.value = ""
   }
@@ -429,6 +447,8 @@ export default function SocialAutopilotClient() {
   const openBulk = (kind: "market" | "property") => {
     setBulkKind(kind)
     setBulkValue("")
+    setBulkPlaceId(null)
+    setBulkMatched(false)
   }
   const applyBulk = useCallback(async () => {
     if (!bulkKind) return
@@ -440,7 +460,7 @@ export default function SocialAutopilotClient() {
     try {
       const body: Record<string, unknown> = { ids }
       if (bulkKind === "market") body.market = bulkValue || null
-      else body.propertyName = bulkValue || null
+      else { body.propertyName = bulkValue || null; body.placeId = bulkMatched ? bulkPlaceId : null }
       const res = await fetch("/api/admin/social-autopilot/content/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -460,7 +480,7 @@ export default function SocialAutopilotClient() {
     } finally {
       setBulkBusy(false)
     }
-  }, [bulkKind, bulkValue, selected, load])
+  }, [bulkKind, bulkValue, bulkPlaceId, bulkMatched, selected, load])
 
   // ---- Individual edit -------------------------------------------------------
   const openEdit = (it: Item) => {
@@ -847,10 +867,22 @@ export default function SocialAutopilotClient() {
                 ))}
               </select>
             ) : (
-              <input className={inputCls} value={bulkValue} onChange={(e) => setBulkValue(e.target.value)} placeholder="Property / building name" autoFocus />
+              <>
+                <PropertySearchField
+                  value={bulkValue}
+                  matched={bulkMatched}
+                  placeholder="Search existing property or type…"
+                  onChange={(v) => { setBulkValue(v); setBulkMatched(false); setBulkPlaceId(null) }}
+                  onMatch={(m) => { setBulkValue(m.name); setBulkPlaceId(m.placeId); setBulkMatched(true) }}
+                  onClearMatch={() => { setBulkMatched(false); setBulkPlaceId(null) }}
+                />
+                <div className="text-[11px] text-[var(--crm-text-muted)] mt-1.5">
+                  {bulkMatched ? "✓ Canonical property will be linked to the selected videos." : "Pick a suggestion to link the canonical property, or type a name to set it manually."}
+                </div>
+              </>
             )}
             <div className="flex gap-2 mt-4">
-              <button type="button" className={primaryBtn} disabled={bulkBusy || (bulkKind === "market" && !bulkValue)} onClick={() => void applyBulk()}>
+              <button type="button" className={primaryBtn} disabled={bulkBusy || (bulkKind === "market" ? !bulkValue : !bulkValue.trim())} onClick={() => void applyBulk()}>
                 {bulkBusy ? "Applying…" : "Apply"}
               </button>
               <button type="button" className={btn} disabled={bulkBusy} onClick={() => setBulkKind(null)}>Cancel</button>

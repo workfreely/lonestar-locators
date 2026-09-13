@@ -39,12 +39,9 @@ ok("no property → 'Now leasing in <market>'", buildCaption({ market: "Austin" 
 ok("subheadline empty when no special and no property", buildOverlaySubheadline({ market: "Austin" }) === "")
 ok("final caption appends hashtags", composeFinalCaption("Hello", ["#a", "#b"]) === "Hello\n\n#a #b")
 
-console.log("area/neighborhood signal (no duplicate geography):")
-const areaPrep = preparePost({ propertyName: "Collection at Schertz Station", market: "San Antonio", areaNeighborhood: "Schertz", propertyType: "Townhome" })
-ok("subheadline uses area over market", buildOverlaySubheadline({ propertyName: "X", market: "San Antonio", areaNeighborhood: "Schertz" }) === "Schertz")
-ok("area added as a distinct hashtag (#schertz)", areaPrep.hashtags.includes("#schertz"))
-ok("area == market → no duplicate area tag", !preparePost({ propertyName: "X", market: "Austin", areaNeighborhood: "Austin" }).hashtags.includes("#austin"))
-ok("no area → subheadline falls back to market", buildOverlaySubheadline({ propertyName: "X", market: "Dallas" }) === "Dallas")
+console.log("subheadline market fallback:")
+ok("subheadline = market when property present, no special", buildOverlaySubheadline({ propertyName: "X", market: "Dallas" }) === "Dallas")
+ok("subheadline empty when no property", buildOverlaySubheadline({ market: "Dallas" }) === "")
 
 console.log("ffmpeg arg builder (Reel-safe encoders):")
 const filt = buildVideoFilter("/f/font.ttf", "/w/head.txt", null)
