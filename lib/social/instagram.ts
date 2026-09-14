@@ -131,6 +131,76 @@ export function instagramAuthorizeRedirectUri(origin: string): string {
   return `${origin}/api/social/authorize/instagram/callback`
 }
 
+// ─── Reels publishing (Instagram API with Instagram Login) ───────────────────────────────────
+// Meta's async flow: (1) create a media CONTAINER for the video, (2) poll its status until
+// FINISHED (video processing is async), (3) media_publish the container. The node is the IG user
+// id (external_account_id). The token is passed server-side only; it never reaches the browser and
+// is never placed in a logged string here. `video_url` must be a publicly fetchable HTTPS URL —
+// we pass a SHORT-LIVED SIGNED URL of the RENDERED derivative only (never the source/library).
+
+const PUBLISH_BASE = `${GRAPH_BASE}/v21.0`
+
+async function igError(res: Response): Promise<string> {
+  try {
+    const j = (await res.json()) as { error?: { message?: string; code?: number } }
+    return (j.error?.message || `ig ${res.status}`).slice(0, 400)
+  } catch {
+    return `ig ${res.status}`
+  }
+}
+
+/** (1) Create a REELS container. Returns the creation_id (container id). */
+export async function createReelContainer(igUserId: string, videoUrl: string, caption: string, token: string): Promise<string> {
+  const body = new URLSearchParams({ media_type: "REELS", video_url: videoUrl, caption, access_token: token })
+  const res = await fetch(`${PUBLISH_BASE}/${encodeURIComponent(igUserId)}/media`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  })
+  if (!res.ok) throw new Error(`container: ${await igError(res)}`)
+  const j = (await res.json()) as { id?: string }
+  if (!j.id) throw new Error("container: no id returned")
+  return j.id
+}
+
+export type ContainerStatus = "IN_PROGRESS" | "FINISHED" | "ERROR" | "EXPIRED" | "PUBLISHED" | "UNKNOWN"
+
+/** (2) Poll a container's processing status. */
+export async function getContainerStatus(containerId: string, token: string): Promise<ContainerStatus> {
+  const params = new URLSearchParams({ fields: "status_code", access_token: token })
+  const res = await fetch(`${PUBLISH_BASE}/${encodeURIComponent(containerId)}?${params.toString()}`)
+  if (!res.ok) throw new Error(`status: ${await igError(res)}`)
+  const j = (await res.json()) as { status_code?: string }
+  return (j.status_code as ContainerStatus) ?? "UNKNOWN"
+}
+
+/** (3) Publish a FINISHED container. Returns the published media id. */
+export async function publishReelContainer(igUserId: string, creationId: string, token: string): Promise<string> {
+  const body = new URLSearchParams({ creation_id: creationId, access_token: token })
+  const res = await fetch(`${PUBLISH_BASE}/${encodeURIComponent(igUserId)}/media_publish`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  })
+  if (!res.ok) throw new Error(`publish: ${await igError(res)}`)
+  const j = (await res.json()) as { id?: string }
+  if (!j.id) throw new Error("publish: no id returned")
+  return j.id
+}
+
+/** The public permalink of a published media (best-effort; null if unavailable). */
+export async function getMediaPermalink(mediaId: string, token: string): Promise<string | null> {
+  try {
+    const params = new URLSearchParams({ fields: "permalink", access_token: token })
+    const res = await fetch(`${PUBLISH_BASE}/${encodeURIComponent(mediaId)}?${params.toString()}`)
+    if (!res.ok) return null
+    const j = (await res.json()) as { permalink?: string }
+    return j.permalink ?? null
+  } catch {
+    return null
+  }
+}
+
 export type InstagramOAuthResult = {
   externalId: string
   username: string | null

@@ -101,6 +101,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [audioChoice, setAudioChoice] = useState("original")
   const [scheduleVal, setScheduleVal] = useState("") // local "YYYY-MM-DDTHH:mm"
   const [scheduling, setScheduling] = useState(false) // RIGHT column shows the Schedule workspace
+  const [publishing, setPublishing] = useState(false) // Publish Now in progress (render→container→poll)
 
   // social_content (source) public-safe fields — edited here, written back to the source row.
   const [sourceContentId, setSourceContentId] = useState<string | null>(null)
@@ -202,6 +203,62 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   }
   const backToDraft = async () => {
     if (await patch({ intent: "unschedule" }, "Moved back to Draft.")) await load()
+  }
+
+  // Publish Now (Instagram Reels, Phase 1). Persists edits, ensures a CURRENT render exists
+  // (renders if the derivative is stale/missing), creates the Reels container, then polls the
+  // finalize endpoint until Instagram finishes processing and media_publish completes. The server
+  // enforces ownership, the selected connection_id destination (rejecting paused/disconnected/
+  // reconnect-needed), Vault token retrieval, stale-render + duplicate-publish protection.
+  const PUBLISH_ERR: Record<string, string> = {
+    already_published: "This post is already published.",
+    not_ready: "The video render isn't ready. Please try again.",
+    no_destination: "No Publishing Destination is selected for this post.",
+    destination_unavailable: "The selected destination is paused, disconnected, or needs reconnecting.",
+    forbidden: "You don't own the selected destination.",
+    not_claimable: "This post can't be published from its current state.",
+    not_configured: "Instagram isn't configured yet.",
+    container_failed: "Instagram couldn't accept the video. Please try again.",
+  }
+  const pollPublish = async () => {
+    for (let i = 0; i < 60; i++) {
+      const r = await fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}/publish/status`, { method: "POST" })
+      const j = (await r.json().catch(() => ({}))) as { status?: string; url?: string }
+      if (j.status === "published") { setNotice(j.url ? `Published to Instagram ✓ — ${j.url}` : "Published to Instagram ✓"); await load(); return }
+      if (j.status === "failed") { setError("Instagram publish failed. The post is marked Needs attention."); await load(); return }
+      setNotice("Processing on Instagram…")
+      await new Promise((res) => setTimeout(res, 5000))
+    }
+    setNotice("Still processing on Instagram — check back shortly.")
+    await load()
+  }
+  const publishNow = async () => {
+    if (busy || publishing) return
+    setPublishing(true); setError(null); setNotice("Saving…")
+    try {
+      // 1) Persist current edits so the stored caption/hashtags/overlay match the editor.
+      if (!(await patch({ scheduledAt: scheduleToIso(scheduleVal) ?? "" }, null))) { setError("Couldn't save before publishing."); return }
+      const startPublish = () => fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}/publish`, { method: "POST" })
+      // 2) Start publish; if the render isn't current, render then retry once (server is authoritative).
+      setNotice("Preparing to publish…")
+      let res = await startPublish()
+      if (res.status === 409 && ((await res.clone().json().catch(() => ({}))) as { error?: string }).error === "not_ready") {
+        setNotice("Rendering video…")
+        const rr = await fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}/render`, { method: "POST" })
+        if (!rr.ok) { setError("Couldn't render the video. Please try again."); await load(); return }
+        res = await startPublish()
+      }
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string }
+        setError(PUBLISH_ERR[j.error ?? ""] ?? "Couldn't publish. Please try again.")
+        await load(); return
+      }
+      // 3) Container created & processing — poll finalize until published/failed.
+      setNotice("Uploading to Instagram…")
+      await pollPublish()
+    } finally {
+      setPublishing(false)
+    }
   }
   // NOTE: FFmpeg render infrastructure (the /render route + renderVideo) and post-duplicate
   // (/duplicate route) are intentionally KEPT. They are no longer surfaced as manual editor
@@ -455,20 +512,20 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               </div>
 
               {/* Action row — right-aligned beneath Schedule (still in the right column): Save Draft
-                  (secondary), Schedule (primary), Publish Now (strongest final action, disabled
-                  until a production-safe publish pipeline exists). Rendering runs internally as part
-                  of Publish/Schedule — no manual prepare step. */}
+                  (secondary), Schedule (primary), Publish Now (strongest final action). Publish Now
+                  renders (if needed) then publishes the Reel to the selected destination via the
+                  async container→status→publish flow. */}
               <div className="mt-3 flex items-center justify-end gap-2 flex-wrap">
-                {post.status === "scheduled" && <button type="button" className={`${btn} mr-auto`} disabled={busy} onClick={() => void backToDraft()}>Move back to Draft</button>}
-                <button type="button" className={btn} disabled={busy} onClick={() => void saveDraft()}>{busy ? "Saving…" : "Save Draft"}</button>
-                <button type="button" className={primaryBtn} disabled={busy} onClick={() => setScheduling(true)}>Schedule</button>
+                {post.status === "scheduled" && <button type="button" className={`${btn} mr-auto`} disabled={busy || publishing} onClick={() => void backToDraft()}>Move back to Draft</button>}
+                <button type="button" className={btn} disabled={busy || publishing} onClick={() => void saveDraft()}>{busy ? "Saving…" : "Save Draft"}</button>
+                <button type="button" className={primaryBtn} disabled={busy || publishing} onClick={() => setScheduling(true)}>Schedule</button>
                 <button
                   type="button"
-                  disabled
-                  title="Live Instagram publishing isn't enabled yet"
-                  className="text-[12.5px] font-semibold px-3.5 py-2 rounded-lg bg-emerald-600 text-white opacity-60 cursor-not-allowed"
+                  disabled={busy || publishing}
+                  onClick={() => void publishNow()}
+                  className="text-[12.5px] font-semibold px-3.5 py-2 rounded-lg bg-emerald-600 text-white disabled:opacity-60"
                 >
-                  Publish Now
+                  {publishing ? "Publishing…" : "Publish Now"}
                 </button>
               </div>
             </div>
