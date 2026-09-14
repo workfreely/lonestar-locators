@@ -55,18 +55,28 @@ export default function SpecialSelect({
 
   return (
     <div ref={wrapRef} className="relative">
-      <div className={`mt-1 flex flex-nowrap items-center gap-1 ${control} px-1.5 py-1 min-h-[40px]`}>
+      {/* The ENTIRE control opens the dropdown on click (like the native Property Type / Market
+          selects). Inner ✕ clear stops propagation so it doesn't reopen. */}
+      <div
+        role="button"
+        tabIndex={0}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen((o) => !o) } }}
+        className={`mt-1 flex flex-nowrap items-center gap-1 ${control} px-1.5 py-1 min-h-[40px] cursor-pointer`}
+      >
         {chip ? (
           <span className="inline-flex flex-none whitespace-nowrap items-center gap-1 h-fit text-[12px] font-semibold px-2 py-0.5 rounded-full bg-[var(--crm-panel)] border border-[var(--crm-border)] text-[var(--crm-text-primary)]">
             {chip}
-            <button type="button" aria-label="Clear social special" className="text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]" onClick={clear}>×</button>
+            <button type="button" aria-label="Clear social special" className="text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]" onClick={(e) => { e.stopPropagation(); clear() }}>×</button>
           </span>
         ) : (
-          <button type="button" className="min-w-0 truncate text-left text-[12.5px] text-[var(--crm-text-muted)]" onClick={() => setOpen((o) => !o)} title={fallbackHint ? `Auto: ${fallbackHint}` : "Choose a special"}>
+          <span className="min-w-0 truncate text-left text-[12.5px] text-[var(--crm-text-muted)]" title={fallbackHint ? `Auto: ${fallbackHint}` : "Choose a special"}>
             {fallbackHint ? `Auto: ${fallbackHint}` : "Choose…"}
-          </button>
+          </span>
         )}
-        <button type="button" aria-label="Open special options" className="ml-auto flex-none text-[12px] text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]" onClick={() => setOpen((o) => !o)}>▾</button>
+        <span aria-hidden className="ml-auto flex-none text-[12px] text-[var(--crm-text-secondary)]">▾</span>
       </div>
 
       {/* Gift Card amount (shown while editing a gift-card special). */}

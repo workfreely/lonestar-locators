@@ -135,7 +135,11 @@ export function headlineBlockPx(lineCount: number, fontPx: number = OVERLAY_SPEC
 // NOT forced into the giant Hero size. CENTER HOOK + DETAIL (T5): centered hook + a detail line
 // below, the whole group centered. Center-hook typography is a FIRST PASS (size/wrap tunable).
 export type LayoutFamily = "hero" | "center_hook" | "center_hook_detail"
-export const CENTER_HOOK = { fontPx: 64, lineSpacing: 12, maxChars: 20, maxLines: 4 } as const
+// ONE fixed, smaller size for the center-hook hook, chosen so the LONGEST supported sentence
+// ("Your sign to get that rental home in San Antonio", with tracking) still fits ONE line inside the
+// 900px safe box — so hooks never wrap or stack. Shared by preview + render → both draw one centered
+// line and cannot drift.
+export const CENTER_HOOK = { fontPx: 42, lineSpacing: 8 } as const
 
 export function templateFamily(template: string): LayoutFamily {
   if (template === "your_sign" || template === "next_property") return "center_hook"
@@ -165,8 +169,10 @@ export function computeOverlayLayout(template: string, headlineText: string, det
     return { family, headline, detail: detailBlock }
   }
 
-  // Center hook (+ optional detail) — wrap the sentence hook and vertically center the group.
-  const lines = wrapWords(headlineText, CENTER_HOOK.maxChars, CENTER_HOOK.maxLines)
+  // Center hook (+ optional detail) — the hook is ONE line at the fixed smaller size (no wrapping,
+  // no manual breaks). Vertically center the group.
+  const oneLine = (headlineText ?? "").replace(/\s+/g, " ").trim()
+  const lines = oneLine ? [oneLine] : []
   const n = Math.max(1, lines.length)
   const headBlockH = n * CENTER_HOOK.fontPx + (n - 1) * CENTER_HOOK.lineSpacing
   const hasDetail = family === "center_hook_detail" && detail.length > 0

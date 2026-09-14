@@ -368,6 +368,13 @@ ok("CENTER HOOK is vertically centred (not near the top)", hookL.headline.topPx 
 ok("CENTER HOOK uses a smaller size than the Hero headline (not forced giant)", hookL.headline.fontPx < heroL.headline.fontPx)
 const upL = computeOverlayLayout("upgrade", "What life looks like when you upgrade", "8 Weeks Free · Starting at $1,600/mo")
 ok("CENTER HOOK + DETAIL centres the group; detail below headline", !!upL.detail && upL.detail.topPx > upL.headline.topPx)
+// Center-hook hooks are ONE line (never wrapped/stacked), even the longest supported sentence, and
+// the headline stays one line even when a detail is present (T5).
+ok("CENTER HOOK headline is ONE line (no wrap)", hookL.headline.lines.length === 1)
+ok("longest T2 hook is ONE line", computeOverlayLayout("your_sign", buildTemplateHeadline("your_sign", { market: "San Antonio", propertyType: "Rental Home" }), "").headline.lines.length === 1)
+ok("longest T4 hook is ONE line", computeOverlayLayout("next_property", buildTemplateHeadline("next_property", { market: "San Antonio", propertyType: "Rental Home" }), "").headline.lines.length === 1)
+ok("T5 headline stays ONE line with detail present", upL.headline.lines.length === 1)
+ok("center-hook headline never wraps or stacks (no manual breaks)", !hookL.headline.lines.join("").includes("\n") && hookL.headline.lines.length === 1)
 
 console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)
