@@ -24,7 +24,7 @@ const COPY: Record<State, { title: string; body: string }> = {
   },
   connected: {
     title: "You’re all set!",
-    body: "Your Instagram account was connected to Beast Social successfully.\n\nAutomated posts can now be scheduled to this account.\n\nYou can close this window.",
+    body: "Your Instagram account was connected to Social Beast successfully.\n\nAutomated posts can now be scheduled to this account.\n\nYou can close this window.",
   },
   used: {
     title: "This link was already used",

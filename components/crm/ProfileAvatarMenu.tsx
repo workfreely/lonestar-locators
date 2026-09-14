@@ -269,7 +269,7 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
               {/* Beast Social — platform-admin-only internal beta. UX shortcut only; the
                   /admin/social-autopilot layout, pages, APIs, RLS, and bucket all enforce
                   is_platform_admin() server-side. */}
-              <Link href="/admin/social-autopilot" onClick={() => setOpen(false)} className={linkCls}>Beast Social</Link>
+              <Link href="/admin/social-autopilot" onClick={() => setOpen(false)} className={linkCls}>Social Beast</Link>
               {/* Beast Referral Network — kept under ADMIN for now (not yet rolled out to agents).
                   showNetwork is always true for the owner; route/permissions unchanged. */}
               {showNetwork && (

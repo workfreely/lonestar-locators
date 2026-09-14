@@ -123,7 +123,7 @@ export default function ScheduleWorkspace({
 
       {mode === "repeat" && onRepeat ? (
         <div className="rounded-xl border border-[var(--crm-border)] p-3 flex flex-col gap-3">
-          <div className="text-[12px] text-[var(--crm-text-muted)]">Beast Social auto-places each occurrence into an open posting window (Morning 7–10a · Midday 11:30a–2:30p · Evening 6–9p). Manual posts always keep their slot.</div>
+          <div className="text-[12px] text-[var(--crm-text-muted)]">Social Beast auto-places each occurrence into an open posting window (Morning 7–10a · Midday 11:30a–2:30p · Evening 6–9p). Manual posts always keep their slot.</div>
 
           <div>
             <div className="text-[10.5px] uppercase tracking-wide text-[var(--crm-text-muted)] font-semibold mb-1">Repeat every</div>
@@ -151,7 +151,7 @@ export default function ScheduleWorkspace({
           <div>
             <div className="text-[10.5px] uppercase tracking-wide text-[var(--crm-text-muted)] font-semibold mb-1">Placement</div>
             <div className="flex flex-wrap gap-1.5">
-              {([["any", "Let Beast Social choose"], ["morning", "Morning"], ["midday", "Midday"], ["evening", "Evening"]] as const).map(([val, label]) => (
+              {([["any", "Let Social Beast choose"], ["morning", "Morning"], ["midday", "Midday"], ["evening", "Evening"]] as const).map(([val, label]) => (
                 <button key={val} type="button" onClick={() => setPlacement(val)} className={placement === val ? primaryBtn : btn}>{label}</button>
               ))}
             </div>

@@ -7,7 +7,7 @@ import type { Metadata } from "next"
 // which reads well on the light card iMessage renders. Absolute URL so the preview crawler resolves
 // it without a global metadataBase. Does NOT affect global metadata or the apartment
 // recommendation / client-share previews (which set their own opengraph-image).
-const TITLE = "Connect your Instagram — Beast Social"
+const TITLE = "Connect your Instagram — Social Beast"
 const DESCRIPTION = "You've been invited to connect an Instagram account for scheduled posting."
 const OG_IMAGE = "https://locatorbeast.com/locator-beast/locator-beast-black-logo-transparent.png"
 

@@ -40,7 +40,7 @@ export default function SocialAutopilotNav() {
           adjacent "Admin Beta" pill (which had consumed that space and forced a wrap)
           has been removed. No title/label shrinking, no compressed spacing. */}
       <div className="flex items-center gap-2.5 lg:self-center lg:pb-2">
-        <h1 className="m-0 whitespace-nowrap text-left text-[20px] font-bold leading-none text-[var(--crm-text-primary)]">Beast Social</h1>
+        <h1 className="m-0 whitespace-nowrap text-left text-[20px] font-bold leading-none text-[var(--crm-text-primary)]">Social Beast</h1>
       </div>
 
       <nav className="mt-4 flex items-center gap-1 border-b border-[var(--crm-border)] lg:mt-0 lg:border-b-0 lg:justify-self-center">

@@ -551,7 +551,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
           <div className="flex items-center gap-3">
             <span className={fieldLabel}>Text Overlay</span>
             <div className="inline-flex rounded-lg border border-[var(--crm-border)] p-0.5">
-              {([["generate", "Generate with Beast Social"], ["existing", "Already has text"]] as const).map(([val, label]) => (
+              {([["generate", "Generate with Social Beast"], ["existing", "Already has text"]] as const).map(([val, label]) => (
                 <button
                   key={val}
                   type="button"
@@ -580,7 +580,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             </div>
           ) : (
             <div className="text-[11.5px] text-[var(--crm-text-muted)] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2">
-              Beast Social will keep the existing text in this video and won&apos;t add another overlay.
+              Social Beast will keep the existing text in this video and won&apos;t add another overlay.
             </div>
           )}
 

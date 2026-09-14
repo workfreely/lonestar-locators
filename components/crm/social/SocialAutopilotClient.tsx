@@ -800,7 +800,7 @@ export default function SocialAutopilotClient() {
               <label className="block">
                 <span className={fieldLabel}>Text Overlay</span>
                 <select className={`${inputCls} mt-1`} value={batch.overlayMode} onChange={(e) => setBatch((b) => ({ ...b, overlayMode: e.target.value === "existing" ? "existing" : "generate" }))}>
-                  <option value="generate">Generate with Beast Social</option>
+                  <option value="generate">Generate with Social Beast</option>
                   <option value="existing">Already has text</option>
                 </select>
               </label>
