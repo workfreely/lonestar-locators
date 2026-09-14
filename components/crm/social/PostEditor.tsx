@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
 import { POST_TYPE_LABEL, previewAspectClass } from "@/lib/social/postTypes"
 import { buildHashtags, normalizeHashtag } from "@/lib/social/hashtags"
+import { startingPriceLabel } from "@/lib/social/composePost"
 import { overlayPreviewStyle, wrapSub, headlineFit } from "@/lib/social/overlaySpec"
 import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
 import { SOCIAL_MARKETS } from "@/lib/social/markets"
@@ -424,7 +425,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             </label>
           </div>
 
-          {/* Row 2: Current Special (wide) | Amenities / Features (wide) | Price Range (narrow) */}
+          {/* Row 2: Current Special (wide) | Amenities / Features (wide) | Starting At (narrow) */}
           <div className="grid grid-cols-1 sm:grid-cols-[3fr_3fr_2fr] gap-3">
             <label className="block">
               <span className={fieldLabel}>Current Special</span>
@@ -434,9 +435,22 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               <span className={fieldLabel}>Amenities / Features</span>
               <input className={`${control} mt-1`} value={amenities} onChange={(e) => setAmenities(e.target.value)} />
             </label>
+            {/* Starting At — the user enters ONLY the lowest monthly rent (no $, "Starting at", or
+                /mo). The renderer/caption add "Starting at $…/mo". Stored in the same budget_range
+                column (no migration). Entering a value derives the overlay subheadline live. */}
             <label className="block">
-              <span className={fieldLabel}>Price Range</span>
-              <input className={`${control} mt-1`} value={priceRange} onChange={(e) => setPriceRange(e.target.value)} />
+              <span className={fieldLabel}>Starting At</span>
+              <div className="relative mt-1">
+                <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[13px] text-[var(--crm-text-muted)]">$</span>
+                <input
+                  inputMode="numeric"
+                  className="w-full text-[13px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] py-1.5 pl-6 pr-11"
+                  value={priceRange}
+                  onChange={(e) => { const v = e.target.value; setPriceRange(v); setSubheadline(startingPriceLabel(v)) }}
+                  placeholder="1495"
+                />
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[13px] text-[var(--crm-text-muted)]">/mo</span>
+              </div>
             </label>
           </div>
 
