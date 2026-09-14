@@ -10,6 +10,7 @@ import { AMENITY_BANK, canonicalizeAmenity, sanitizeCustomAmenity } from "@/lib/
 // strings — the parent serializes/persists them (newline-joined) via the existing content PATCH.
 
 const key = (s: string) => s.toLowerCase()
+const MAX = 3 // Post Editor workflow: at most 3 amenities (the caption uses the first 3, in order)
 
 export default function AmenitySelect({
   value,
@@ -21,6 +22,8 @@ export default function AmenitySelect({
   const [query, setQuery] = useState("")
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const atMax = value.length >= MAX
 
   // Close the dropdown when clicking outside the control.
   useEffect(() => {
@@ -50,11 +53,15 @@ export default function AmenitySelect({
     !AMENITY_BANK.some((a) => key(a) === key(canonicalOfQuery))
 
   const add = (raw: string) => {
+    if (value.length >= MAX) return // cap at 3
     const v = canonicalizeAmenity(raw) // known variant → canonical display; unknown → trimmed custom
     if (!v) return
     if (selectedKeys.has(key(v))) { setQuery(""); return } // no exact duplicates
-    onChange([...value, v])
+    const next = [...value, v]
+    onChange(next)
     setQuery("")
+    // Keep the picker open + focused so "Add another" flows without re-clicking, until we hit 3.
+    if (next.length < MAX) { setOpen(true); setTimeout(() => inputRef.current?.focus(), 0) } else setOpen(false)
   }
   const addCustom = () => {
     const v = sanitizeCustomAmenity(query)
@@ -73,26 +80,29 @@ export default function AmenitySelect({
             key={`${a}-${i}`}
             className="inline-flex items-center gap-1 h-fit text-[12px] font-semibold px-2 py-0.5 rounded-full bg-[var(--crm-panel)] border border-[var(--crm-border)] text-[var(--crm-text-primary)]"
           >
-            {i === 0 && <span className="text-[9px] uppercase tracking-wide text-[var(--crm-text-muted)]" title="Primary feature (first selected)">1st</span>}
             {a}
             <button type="button" aria-label={`Remove ${a}`} className="text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]" onClick={() => remove(i)}>×</button>
           </span>
         ))}
-        <input
-          className="flex-1 min-w-[130px] bg-transparent text-[12.5px] text-[var(--crm-text-primary)] outline-none"
-          value={query}
-          onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
-          onFocus={() => setOpen(true)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && q) { e.preventDefault(); if (matches.length && !showCustom) add(matches[0]); else if (showCustom) addCustom() }
-            else if (e.key === "Escape") setOpen(false)
-            else if (e.key === "Backspace" && !query && value.length) remove(value.length - 1)
-          }}
-          placeholder={value.length ? "Add another…" : "Search amenities…"}
-        />
+        {!atMax && (
+          <input
+            ref={inputRef}
+            className="flex-1 min-w-[130px] bg-transparent text-[12.5px] text-[var(--crm-text-primary)] outline-none"
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
+            onFocus={() => setOpen(true)}
+            onClick={() => setOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && q) { e.preventDefault(); if (matches.length && !showCustom) add(matches[0]); else if (showCustom) addCustom() }
+              else if (e.key === "Escape") setOpen(false)
+              else if (e.key === "Backspace" && !query && value.length) remove(value.length - 1)
+            }}
+            placeholder={value.length ? "Add another…" : "Search amenities…"}
+          />
+        )}
       </div>
 
-      {open && (matches.length > 0 || showCustom) && (
+      {open && !atMax && (matches.length > 0 || showCustom) && (
         <div className={`absolute z-20 mt-1 w-full max-h-[240px] overflow-auto ${control} shadow-lg py-1`}>
           {matches.map((a) => (
             <button

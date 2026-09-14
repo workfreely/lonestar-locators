@@ -29,19 +29,34 @@ function toLocalValue(date: Date, h12: number, min: string, ampm: "AM" | "PM"): 
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}T${pad2(h24)}:${min}`
 }
 
+export type RepeatConfig = {
+  intervalDays: number
+  placementPref: "any" | "morning" | "midday" | "evening"
+  duration: { mode: "days" | "date" | "until_stopped"; days?: number; endDate?: string }
+}
+
 export default function ScheduleWorkspace({
   initialValue,
   currentPostId,
   busy,
   onCancel,
   onSchedule,
+  onRepeat,
 }: {
   initialValue: string
   currentPostId: string
   busy: boolean
   onCancel: () => void
   onSchedule: (localValue: string) => void
+  onRepeat?: (cfg: RepeatConfig) => void
 }) {
+  // Primary choice: Post Once (manual date/time) OR Repeat (Beast Social auto-places occurrences).
+  const [mode, setMode] = useState<"once" | "repeat">("once")
+  const [repeatEvery, setRepeatEvery] = useState<number>(7)
+  const [durationMode, setDurationMode] = useState<"days" | "date" | "until_stopped">("days")
+  const [durationDays, setDurationDays] = useState<number>(30)
+  const [endDate, setEndDate] = useState<string>("")
+  const [placement, setPlacement] = useState<"any" | "morning" | "midday" | "evening">("any")
   const init = useMemo(() => parseInitial(initialValue), [initialValue])
   const [cursor, setCursor] = useState(() => new Date(init.date.getFullYear(), init.date.getMonth(), 1))
   const [selected, setSelected] = useState<Date>(init.date)
@@ -89,6 +104,77 @@ export default function ScheduleWorkspace({
         <button type="button" className={`${btn} ml-auto`} onClick={onCancel}>← Back to Post</button>
       </div>
 
+      {/* PRIMARY choice: Post Once (manual) or Repeat (Beast Social auto-places occurrences). */}
+      {onRepeat && (
+        <div className="inline-flex self-start rounded-lg border border-[var(--crm-border)] p-0.5">
+          {([["once", "Post Once"], ["repeat", "Repeat"]] as const).map(([val, label]) => (
+            <button
+              key={val}
+              type="button"
+              onClick={() => setMode(val)}
+              aria-pressed={mode === val}
+              className={"text-[12px] font-semibold px-3 py-1 rounded-md transition-colors " + (mode === val ? "bg-[var(--crm-text-primary)] text-[var(--crm-panel)]" : "text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]")}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {mode === "repeat" && onRepeat ? (
+        <div className="rounded-xl border border-[var(--crm-border)] p-3 flex flex-col gap-3">
+          <div className="text-[12px] text-[var(--crm-text-muted)]">Beast Social auto-places each occurrence into an open posting window (Morning 7–10a · Midday 11:30a–2:30p · Evening 6–9p). Manual posts always keep their slot.</div>
+
+          <div>
+            <div className="text-[10.5px] uppercase tracking-wide text-[var(--crm-text-muted)] font-semibold mb-1">Repeat every</div>
+            <div className="flex flex-wrap gap-1.5">
+              {[7, 14, 30].map((d) => (
+                <button key={d} type="button" onClick={() => setRepeatEvery(d)} className={repeatEvery === d ? primaryBtn : btn}>{d} days</button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[10.5px] uppercase tracking-wide text-[var(--crm-text-muted)] font-semibold mb-1">Duration</div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {[30, 60, 90].map((d) => (
+                <button key={d} type="button" onClick={() => { setDurationMode("days"); setDurationDays(d) }} className={durationMode === "days" && durationDays === d ? primaryBtn : btn}>{d} days</button>
+              ))}
+              <button type="button" onClick={() => setDurationMode("date")} className={durationMode === "date" ? primaryBtn : btn}>Custom end date</button>
+              <button type="button" onClick={() => setDurationMode("until_stopped")} className={durationMode === "until_stopped" ? primaryBtn : btn}>Repeat until stopped</button>
+            </div>
+            {durationMode === "date" && (
+              <input type="date" className={`${sel} mt-2`} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            )}
+          </div>
+
+          <div>
+            <div className="text-[10.5px] uppercase tracking-wide text-[var(--crm-text-muted)] font-semibold mb-1">Placement</div>
+            <div className="flex flex-wrap gap-1.5">
+              {([["any", "Let Beast Social choose"], ["morning", "Morning"], ["midday", "Midday"], ["evening", "Evening"]] as const).map(([val, label]) => (
+                <button key={val} type="button" onClick={() => setPlacement(val)} className={placement === val ? primaryBtn : btn}>{label}</button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <button type="button" className={btn} onClick={onCancel}>Cancel</button>
+            <button
+              type="button"
+              className={primaryBtn}
+              disabled={busy || (durationMode === "date" && !endDate)}
+              onClick={() => onRepeat({
+                intervalDays: repeatEvery,
+                placementPref: placement,
+                duration: durationMode === "days" ? { mode: "days", days: durationDays } : durationMode === "date" ? { mode: "date", endDate } : { mode: "until_stopped" },
+              })}
+            >
+              {busy ? "Setting up…" : "Set up recurring"}
+            </button>
+          </div>
+        </div>
+      ) : (
+      <>
       {/* Month calendar — same compact scheduled-post entries as the Calendar tab. */}
       <div className="rounded-xl border border-[var(--crm-border)] overflow-hidden">
         <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--crm-border)]">
@@ -186,6 +272,8 @@ export default function ScheduleWorkspace({
         <button type="button" className={btn} onClick={onCancel}>Cancel</button>
         <button type="button" className={primaryBtn} disabled={busy} onClick={() => onSchedule(toLocalValue(selected, h12, min, ampm))}>{busy ? "Scheduling…" : "Schedule"}</button>
       </div>
+      </>
+      )}
     </div>
   )
 }

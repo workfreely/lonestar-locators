@@ -252,6 +252,31 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
     if (await patch({ intent: "unschedule" }, "Moved back to Draft.")) await load()
   }
 
+  // Repeat: create a recurring RULE from this post's source and auto-place the first rolling horizon
+  // of occurrences into available posting windows (manual posts always keep priority). Each
+  // occurrence is its own scheduled social_posts row visible in Queue + Calendar. No publishing.
+  const setUpRecurring = async (cfg: { intervalDays: number; placementPref: string; duration: { mode: string; days?: number; endDate?: string } }) => {
+    if (!sourceContentId) { setError("This post has no source video to repeat."); return }
+    setBusy(true); setError(null); setNotice(null)
+    try {
+      await patchSource() // persist latest metadata so generated occurrences use it
+      const res = await fetch("/api/admin/social-autopilot/recurring", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceContentId, ...cfg }),
+      })
+      if (!res.ok) { setError("Couldn't set up recurring posts."); return }
+      const j = (await res.json()) as { created: number; horizonDays: number }
+      setNotice(`Recurring set up — ${j.created} post${j.created === 1 ? "" : "s"} placed across the next ${j.horizonDays} days. See the Calendar.`)
+      setScheduling(false)
+      router.push(back.path)
+    } catch {
+      setError("Couldn't set up recurring posts.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
   // Publish Now (Instagram Reels, Phase 1). Persists edits, ensures a CURRENT render exists
   // (renders if the derivative is stale/missing), creates the Reels container, then polls the
   // finalize endpoint until Instagram finishes processing and media_publish completes. The server
@@ -445,6 +470,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
         <div className="flex flex-col gap-3">
           {scheduling ? (
             <ScheduleWorkspace
+              onRepeat={setUpRecurring}
               initialValue={scheduleVal}
               currentPostId={post.id}
               busy={busy}
@@ -486,7 +512,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
           {/* Row 2: Current Special (wide) | Amenities / Features (wide) | Starting At (narrow) */}
           <div className="grid grid-cols-1 sm:grid-cols-[3fr_3fr_2fr] gap-3">
             <div className="block">
-              <span className={fieldLabel}>Social Special <span className="normal-case text-[var(--crm-text-muted)]">· public offer for this post</span></span>
+              <span className={fieldLabel}>Special</span>
               <SpecialSelect
                 value={socialSpecial}
                 fallbackHint={specialDisplay(special) || undefined}
@@ -494,7 +520,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               />
             </div>
             <div className="block">
-              <span className={fieldLabel}>Amenities / Features <span className="normal-case text-[var(--crm-text-muted)]">· first = primary; caption uses first 3</span></span>
+              <span className={fieldLabel}>Amenities / Features <span className="normal-case text-[var(--crm-text-muted)]">· choose up to 3</span></span>
               <AmenitySelect
                 value={parseAmenities(amenities)}
                 onChange={(next) => { const s = serializeAmenities(next); setAmenities(s); syncGenerated(metaOf({ amenities: s || null })) }}
@@ -504,7 +530,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 /mo). The renderer/caption add "Starting at $…/mo". Stored in the same budget_range
                 column (no migration). Entering a value derives the overlay subheadline live. */}
             <label className="block">
-              <span className={fieldLabel}>Starting At</span>
+              <span className={fieldLabel}>Starting At <span className="normal-case text-[var(--crm-text-muted)]">· monthly rent</span></span>
               <div className="relative mt-1">
                 <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[13px] text-[var(--crm-text-muted)]">$</span>
                 <input

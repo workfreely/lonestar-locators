@@ -51,7 +51,9 @@ export function buildVideoFilter(fontPath: string, headFile: string | null, subF
     const H = Math.max(1, Math.round(band.heightPx))
     const peak = Math.round(OVERLAY_SCRIM.peakAlpha * 255)
     graph.push(`color=c=black:s=1080x${H}:r=30,format=rgba,geq=r=0:g=0:b=0:a='${peak}*sin(PI*Y/${H})'[scrim]`)
-    graph.push(`[${label}][scrim]overlay=x=0:y=${Math.round(band.topPx)}:eof_action=repeat[base]`)
+    // shortest=1 ties the output length to the (finite) video — the scrim color source is infinite,
+    // so this guarantees the render always terminates regardless of clip length.
+    graph.push(`[${label}][scrim]overlay=x=0:y=${Math.round(band.topPx)}:shortest=1[base]`)
     label = "base"
   }
 
