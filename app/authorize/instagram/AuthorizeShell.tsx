@@ -23,8 +23,8 @@ const COPY: Record<State, { title: string; body: string }> = {
     body: "You've been invited to connect your Instagram account. You'll be sent to Instagram to authorize access. Nothing else is shared, and you won't create any account here.",
   },
   connected: {
-    title: "You're all set 🎉",
-    body: "Your Instagram account has been connected successfully. You can close this page — there's nothing else to do.",
+    title: "You’re all set!",
+    body: "Your Instagram account was connected to Beast Social successfully.\n\nAutomated posts can now be scheduled to this account.\n\nYou can close this window.",
   },
   used: {
     title: "This link was already used",
@@ -127,7 +127,7 @@ export default function AuthorizeShell({
             Invitation: <strong style={{ color: "#f5f5f7" }}>{label}</strong>
           </div>
         )}
-        <p style={{ fontSize: 14.5, lineHeight: 1.55, color: "#b7bcc6", margin: "0 0 22px" }}>{copy.body}</p>
+        <p style={{ fontSize: 14.5, lineHeight: 1.55, color: "#b7bcc6", margin: "0 0 22px", whiteSpace: "pre-line" }}>{copy.body}</p>
 
         {state === "valid" && beginHref && (
           <a
@@ -147,10 +147,13 @@ export default function AuthorizeShell({
           </a>
         )}
 
-        <div style={{ marginTop: 22, fontSize: 11.5, color: "#6c7079", lineHeight: 1.5 }}>
-          This link only authorizes your Instagram for scheduled posting. It does not create an
-          account or give access to anything else.
-        </div>
+        {/* Tiny helper footer — hidden on the success screen (copy request); unchanged elsewhere. */}
+        {state !== "connected" && (
+          <div style={{ marginTop: 22, fontSize: 11.5, color: "#6c7079", lineHeight: 1.5 }}>
+            This link only authorizes your Instagram for scheduled posting. It does not create an
+            account or give access to anything else.
+          </div>
+        )}
       </div>
     </div>
   )
