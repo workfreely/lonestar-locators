@@ -14,7 +14,7 @@ export type Slot = (typeof RECURRENCE_SLOTS)[number]
 // Morning 7:00–10:00 · Midday 11:30–2:30 · Evening 6:00–9:00.
 export const SLOT_WINDOWS: Record<Slot, { startMin: number; endMin: number; label: string }> = {
   morning: { startMin: 7 * 60, endMin: 10 * 60, label: "Morning" },
-  midday: { startMin: 11 * 60 + 30, endMin: 14 * 60 + 30, label: "Midday" },
+  midday: { startMin: 11 * 60 + 30, endMin: 14 * 60 + 30, label: "Afternoon" }, // slot key stays 'midday'; window 11:30–2:30 unchanged
   evening: { startMin: 18 * 60, endMin: 21 * 60, label: "Evening" },
 }
 

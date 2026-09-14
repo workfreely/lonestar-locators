@@ -88,6 +88,13 @@ function fmtSchedule(v: string): string {
   if (isNaN(d.getTime())) return ""
   return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} at ${d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`
 }
+// Compact date for the Repeat summary ("Sep 28").
+function fmtDateShort(iso: string): string {
+  const d = new Date(iso)
+  return isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+}
+// Friendly placement summary (slot key 'midday' shows as "Afternoons").
+const PLACEMENT_SUMMARY: Record<string, string> = { any: "Social Beast chooses the time", morning: "Mornings", midday: "Afternoons", evening: "Evenings" }
 
 export default function PostEditor({ postId, from }: { postId: string; from?: string | null }) {
   const router = useRouter()
@@ -116,12 +123,16 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [scheduling, setScheduling] = useState(false) // RIGHT column shows the Schedule workspace
   // Posting: Post Once (manual date/time) vs Repeat (recurring rule) — exposed inline in the editor.
   const [postingMode, setPostingMode] = useState<"once" | "repeat">("once")
-  const [repeatEvery, setRepeatEvery] = useState(7) // 7 | 14 | 30
+  const [repeatEvery, setRepeatEvery] = useState(14) // 14 | 30 | 60 (approved)
   const [durationMode, setDurationMode] = useState<"days" | "date" | "until_stopped">("until_stopped")
   const [durationDays, setDurationDays] = useState(30) // 30 | 60 | 90
   const [repeatEndDate, setRepeatEndDate] = useState("")
   const [placement, setPlacement] = useState<"any" | "morning" | "midday" | "evening">("any")
-  const [rule, setRule] = useState<{ id: string; state: string } | null>(null) // existing Repeat rule for this source
+  type Rule = { id: string; state: string; intervalDays: number; placementPref: string; endMode: string; endAt: string | null }
+  const [rule, setRule] = useState<Rule | null>(null) // existing Repeat rule for this source
+  const [ruleNextAt, setRuleNextAt] = useState<string | null>(null) // next scheduled occurrence date
+  const [editingRule, setEditingRule] = useState(false) // "Edit Repeat" reopens the settings form
+  const [ruleMenuOpen, setRuleMenuOpen] = useState(false) // ⋯ overflow (contains Stop Repeat)
   const [publishing, setPublishing] = useState(false) // Publish Now in progress (render→container→poll)
   const [lightbox, setLightbox] = useState<string | null>(null) // enlarged 9:16 video preview (src or null)
 
@@ -192,10 +203,12 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       try {
         const rr = await fetch("/api/admin/social-autopilot/recurring", { headers: { Accept: "application/json" } })
         if (rr.ok) {
-          const jr = (await rr.json()) as { items?: { id: string; source_content_id: string; state: string }[] }
+          const jr = (await rr.json()) as { items?: { id: string; source_content_id: string; state: string; interval_days: number; placement_pref: string; end_mode: string; end_at: string | null }[] }
           const found = (jr.items ?? []).find((x) => x.source_content_id === p.sourceContentId && x.state !== "stopped")
-          setRule(found ? { id: found.id, state: found.state } : null)
+          setRule(found ? { id: found.id, state: found.state, intervalDays: found.interval_days, placementPref: found.placement_pref, endMode: found.end_mode, endAt: found.end_at } : null)
           setPostingMode(found ? "repeat" : "once")
+          setEditingRule(false)
+          if (found) void refreshNextPost(found.id)
         }
       } catch { /* leave defaults on failure */ }
     } catch {
@@ -276,42 +289,90 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // of occurrences into available posting windows (manual posts always keep priority). Each
   // occurrence is its own scheduled social_posts row visible in Queue + Calendar. No publishing.
   // Reuses the EXISTING recurrence backend (POST /recurring). Builds the config from the inline form.
-  const setUpRecurring = async () => {
+  const durationBody = () => (durationMode === "days" ? { mode: "days", days: durationDays } : durationMode === "date" ? { mode: "date", endDate: repeatEndDate } : { mode: "until_stopped" })
+
+  // Load the next upcoming occurrence date for a rule (for the "Next post" summary line).
+  const refreshNextPost = async (ruleId: string) => {
+    try {
+      const res = await fetch("/api/admin/social-autopilot/posts?scope=scheduled", { headers: { Accept: "application/json" } })
+      if (!res.ok) return
+      const j = (await res.json()) as { items?: { scheduledAt: string | null; recurringRuleId?: string | null }[] }
+      const now = Date.now()
+      const next = (j.items ?? [])
+        .filter((x) => x.recurringRuleId === ruleId && x.scheduledAt && new Date(x.scheduledAt).getTime() > now)
+        .map((x) => x.scheduledAt as string)
+        .sort()[0]
+      setRuleNextAt(next ?? null)
+    } catch { /* ignore */ }
+  }
+
+  // Start Repeat (create the rule). After success the section collapses to the active summary.
+  const startRepeat = async () => {
     if (!sourceContentId) { setError("This post has no source video to repeat."); return }
-    const duration = durationMode === "days" ? { mode: "days", days: durationDays } : durationMode === "date" ? { mode: "date", endDate: repeatEndDate } : { mode: "until_stopped" }
     setBusy(true); setError(null); setNotice(null)
     try {
       await patchSource() // persist latest metadata so generated occurrences use it
       const res = await fetch("/api/admin/social-autopilot/recurring", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceContentId, intervalDays: repeatEvery, placementPref: placement, duration }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceContentId, intervalDays: repeatEvery, placementPref: placement, duration: durationBody() }),
       })
-      if (!res.ok) { setError("Couldn't set up recurring posts."); return }
+      if (!res.ok) { setError("Couldn't start Repeat."); return }
       const j = (await res.json()) as { id: string; created: number; horizonDays: number }
-      setRule({ id: j.id, state: "active" })
-      setNotice(`Repeat set up — ${j.created} post${j.created === 1 ? "" : "s"} placed across the next ${j.horizonDays} days. See the Calendar.`)
+      setRule({ id: j.id, state: "active", intervalDays: repeatEvery, placementPref: placement, endMode: durationMode === "until_stopped" ? "until_stopped" : durationMode === "date" ? "on_date" : "after_days", endAt: null })
+      setEditingRule(false)
+      setNotice(`Repeat started — ${j.created} post${j.created === 1 ? "" : "s"} scheduled. See the Calendar.`)
+      void refreshNextPost(j.id)
     } catch {
-      setError("Couldn't set up recurring posts.")
+      setError("Couldn't start Repeat.")
     } finally {
       setBusy(false)
     }
   }
 
-  // Pause / Resume / Stop an existing Repeat rule (existing PATCH /recurring/[id] backend). Pause
-  // stops NEW occurrences; Resume re-enables; Stop ends the rule permanently. None of these delete
-  // already-scheduled occurrences or published history — data is preserved.
-  const setRuleState = async (state: "active" | "paused" | "stopped") => {
+  // Save edits to an existing rule (Edit Repeat) via PATCH /recurring/[id] — same backend.
+  const saveRuleEdit = async () => {
     if (!rule) return
     setBusy(true); setError(null); setNotice(null)
     try {
       const res = await fetch(`/api/admin/social-autopilot/recurring/${encodeURIComponent(rule.id)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ state }),
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intervalDays: repeatEvery, placementPref: placement, duration: durationBody() }),
+      })
+      if (!res.ok) { setError("Couldn't update Repeat."); return }
+      setRule({ ...rule, intervalDays: repeatEvery, placementPref: placement })
+      setEditingRule(false)
+      setNotice("Repeat updated.")
+      void refreshNextPost(rule.id)
+    } catch {
+      setError("Couldn't update Repeat.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // Open the settings form pre-filled from the current rule.
+  const openEditRepeat = () => {
+    if (!rule) return
+    setRepeatEvery(rule.intervalDays)
+    setPlacement((["any", "morning", "midday", "evening"].includes(rule.placementPref) ? rule.placementPref : "any") as "any" | "morning" | "midday" | "evening")
+    setDurationMode(rule.endMode === "after_days" ? "days" : rule.endMode === "on_date" ? "date" : "until_stopped")
+    setRuleMenuOpen(false)
+    setEditingRule(true)
+  }
+
+  // Pause / Resume / Stop (existing PATCH /recurring/[id]). None delete scheduled occurrences or
+  // published history. Stop requires a confirmation and returns the section to Post Once | Repeat.
+  const setRuleState = async (state: "active" | "paused" | "stopped") => {
+    if (!rule) return
+    if (state === "stopped" && !window.confirm("Stop this Repeat? No new posts will be created. Already-scheduled and published posts are kept.")) return
+    setRuleMenuOpen(false)
+    setBusy(true); setError(null); setNotice(null)
+    try {
+      const res = await fetch(`/api/admin/social-autopilot/recurring/${encodeURIComponent(rule.id)}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state }),
       })
       if (!res.ok) { setError("Couldn't update the Repeat schedule."); return }
-      if (state === "stopped") { setRule(null); setNotice("Repeat stopped. Already-scheduled posts are kept — nothing was deleted.") }
+      if (state === "stopped") { setRule(null); setRuleNextAt(null); setEditingRule(false); setPostingMode("once"); setNotice("Repeat stopped. Already-scheduled posts are kept — nothing was deleted.") }
       else { setRule({ ...rule, state }); setNotice(state === "paused" ? "Repeat paused — no new posts will be created." : "Repeat resumed.") }
     } catch {
       setError("Couldn't update the Repeat schedule.")
@@ -710,76 +771,97 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               {/* Posting — Post Once (manual date/time) or Repeat (recurring), exposed INLINE (no need
                   to open the calendar first). Repeat reuses the existing recurrence backend. */}
               <div className="block mt-3">
-                <span className={fieldLabel}>Posting</span>
-                <div className="mt-1 inline-flex rounded-lg border border-[var(--crm-border)] p-0.5">
-                  {([["once", "Post Once"], ["repeat", "Repeat"]] as const).map(([val, label]) => (
-                    <button key={val} type="button" onClick={() => setPostingMode(val)} aria-pressed={postingMode === val}
-                      className={"text-[12px] font-semibold px-3 py-1 rounded-md transition-colors " + (postingMode === val ? "bg-[var(--crm-text-primary)] text-[var(--crm-panel)]" : "text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]")}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
+                <span className={`${fieldLabel} block mb-2`}>Posting</span>
 
-                {postingMode === "once" ? (
-                  <div className="mt-2 flex items-center gap-2">
-                    <button type="button" onClick={() => setScheduling(true)} className={`${control} text-left flex items-center justify-between`}>
-                      <span className={scheduleVal ? "text-[var(--crm-text-primary)]" : "text-[var(--crm-text-muted)]"}>{scheduleVal ? fmtSchedule(scheduleVal) : "Pick a date & time"}</span>
-                      <span className="text-[var(--crm-text-muted)] ml-2">▾</span>
-                    </button>
-                    {scheduleVal && (
-                      <button type="button" className="text-[11.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]" onClick={() => setScheduleVal("")}>Clear</button>
-                    )}
-                  </div>
-                ) : rule ? (
-                  <div className="mt-2 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] p-2.5 flex flex-col gap-2">
-                    <div className="text-[12px] text-[var(--crm-text-secondary)]">
-                      Repeat is <span className="font-semibold text-[var(--crm-text-primary)]">{rule.state === "paused" ? "Paused" : "Active"}</span>. New posts are placed automatically into open posting windows.
+                {rule && !editingRule ? (
+                  /* ── Active / Paused: collapsed summary (no toggle, no verbose copy) ── */
+                  <div className="rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] p-3 flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] uppercase tracking-wide font-semibold text-[var(--crm-text-secondary)]">{rule.state === "paused" ? "Repeat Paused" : "Repeating"}</span>
+                      <div className="relative">
+                        <button type="button" aria-label="More Repeat options" className="text-[15px] leading-none text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)] px-1.5" onClick={() => setRuleMenuOpen((o) => !o)}>⋯</button>
+                        {ruleMenuOpen && (
+                          <div className="absolute right-0 mt-1 z-20 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-panel)] shadow-lg py-1 min-w-[130px]">
+                            <button type="button" className="block w-full text-left text-[12.5px] px-3 py-1.5 text-red-600 dark:text-red-400 hover:bg-[var(--crm-card)]" disabled={busy} onClick={() => void setRuleState("stopped")}>Stop Repeat</button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="text-[13px] text-[var(--crm-text-primary)]">Every {rule.intervalDays} days · {PLACEMENT_SUMMARY[rule.placementPref] ?? PLACEMENT_SUMMARY.any}</div>
+                    {ruleNextAt && <div className="text-[11.5px] text-[var(--crm-text-muted)]">Next post: {fmtDateShort(ruleNextAt)}</div>}
+                    <div className="mt-1 flex items-center gap-2">
+                      <button type="button" className={btn} disabled={busy} onClick={openEditRepeat}>Edit Repeat</button>
                       {rule.state === "paused"
-                        ? <button type="button" className={btn} disabled={busy} onClick={() => void setRuleState("active")}>Resume Repeat</button>
-                        : <button type="button" className={btn} disabled={busy} onClick={() => void setRuleState("paused")}>Pause Repeat</button>}
-                      <button type="button" className={btn} disabled={busy} onClick={() => void setRuleState("stopped")}>Stop Repeat</button>
+                        ? <button type="button" className={btn} disabled={busy} onClick={() => void setRuleState("active")}>Resume</button>
+                        : <button type="button" className={btn} disabled={busy} onClick={() => void setRuleState("paused")}>Pause</button>}
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-2 flex flex-col gap-2">
-                    <label className="block">
-                      <span className="text-[11px] text-[var(--crm-text-muted)]">Frequency</span>
-                      <select className={`${control} mt-1 cursor-pointer`} value={repeatEvery} onChange={(e) => setRepeatEvery(Number(e.target.value))}>
-                        <option value={7}>Every 7 days</option><option value={14}>Every 14 days</option><option value={30}>Every 30 days</option>
-                      </select>
-                    </label>
-                    <label className="block">
-                      <span className="text-[11px] text-[var(--crm-text-muted)]">Duration</span>
-                      <select className={`${control} mt-1 cursor-pointer`}
-                        value={durationMode === "days" ? `d${durationDays}` : durationMode === "date" ? "date" : "until"}
-                        onChange={(e) => { const v = e.target.value; if (v === "date") setDurationMode("date"); else if (v === "until") setDurationMode("until_stopped"); else { setDurationMode("days"); setDurationDays(Number(v.slice(1))) } }}>
-                        <option value="d30">30 days</option><option value="d60">60 days</option><option value="d90">90 days</option><option value="date">Custom end date</option><option value="until">Repeat until stopped</option>
-                      </select>
-                    </label>
-                    {durationMode === "date" && <input type="date" className={control} value={repeatEndDate} onChange={(e) => setRepeatEndDate(e.target.value)} />}
-                    <label className="block">
-                      <span className="text-[11px] text-[var(--crm-text-muted)]">Placement</span>
-                      <select className={`${control} mt-1 cursor-pointer`} value={placement} onChange={(e) => setPlacement(e.target.value as "any" | "morning" | "midday" | "evening")}>
-                        <option value="any">Let Social Beast choose</option><option value="morning">Morning</option><option value="midday">Midday</option><option value="evening">Evening</option>
-                      </select>
-                    </label>
-                    <button type="button" className={actionLight} disabled={busy || (durationMode === "date" && !repeatEndDate)} onClick={() => void setUpRecurring()}>{busy ? "Setting up…" : "Set up Repeat"}</button>
-                    <span className="text-[10.5px] text-[var(--crm-text-muted)]">Placed into Morning (7–10a), Midday (11:30a–2:30p), or Evening (6–9p), America/Chicago. Manual posts keep priority.</span>
-                  </div>
+                  <>
+                    {!editingRule && (
+                      <div className="inline-flex rounded-lg border border-[var(--crm-border)] p-0.5">
+                        {([["once", "Post Once"], ["repeat", "Repeat"]] as const).map(([val, label]) => (
+                          <button key={val} type="button" onClick={() => setPostingMode(val)} aria-pressed={postingMode === val}
+                            className={"text-[12px] font-semibold px-3 py-1 rounded-md transition-colors " + (postingMode === val ? "bg-[var(--crm-text-primary)] text-[var(--crm-panel)]" : "text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]")}>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {editingRule || postingMode === "repeat" ? (
+                      <div className="mt-2 flex flex-col gap-2">
+                        <label className="block">
+                          <span className="text-[11px] text-[var(--crm-text-muted)]">Repeat every</span>
+                          <select className={`${control} mt-1 cursor-pointer`} value={repeatEvery} onChange={(e) => setRepeatEvery(Number(e.target.value))}>
+                            <option value={14}>Every 14 days</option><option value={30}>Every 30 days</option><option value={60}>Every 60 days</option>
+                          </select>
+                        </label>
+                        <label className="block">
+                          <span className="text-[11px] text-[var(--crm-text-muted)]">For</span>
+                          <select className={`${control} mt-1 cursor-pointer`}
+                            value={durationMode === "days" ? `d${durationDays}` : durationMode === "date" ? "date" : "until"}
+                            onChange={(e) => { const v = e.target.value; if (v === "date") setDurationMode("date"); else if (v === "until") setDurationMode("until_stopped"); else { setDurationMode("days"); setDurationDays(Number(v.slice(1))) } }}>
+                            <option value="until">Repeat until stopped</option><option value="d30">30 days</option><option value="d60">60 days</option><option value="d90">90 days</option><option value="date">Custom end date</option>
+                          </select>
+                        </label>
+                        {durationMode === "date" && <input type="date" className={control} value={repeatEndDate} onChange={(e) => setRepeatEndDate(e.target.value)} />}
+                        <label className="block">
+                          <span className="text-[11px] text-[var(--crm-text-muted)]">Posting time</span>
+                          <select className={`${control} mt-1 cursor-pointer`} value={placement} onChange={(e) => setPlacement(e.target.value as "any" | "morning" | "midday" | "evening")}>
+                            <option value="any">Let Social Beast choose</option><option value="morning">Morning</option><option value="midday">Afternoon</option><option value="evening">Evening</option>
+                          </select>
+                        </label>
+                        {editingRule ? (
+                          <div className="flex items-center gap-2">
+                            <button type="button" className={actionLight} disabled={busy || (durationMode === "date" && !repeatEndDate)} onClick={() => void saveRuleEdit()}>{busy ? "Saving…" : "Save Changes"}</button>
+                            <button type="button" className={btn} disabled={busy} onClick={() => setEditingRule(false)}>Cancel</button>
+                          </div>
+                        ) : (
+                          <button type="button" className={actionLight} disabled={busy || (durationMode === "date" && !repeatEndDate)} onClick={() => void startRepeat()}>{busy ? "Starting…" : "Start Repeat"}</button>
+                        )}
+                        <span className="text-[10.5px] text-[var(--crm-text-muted)]">Placed into Morning (7–10a), Afternoon (11:30a–2:30p), or Evening (6–9p), America/Chicago. Manual posts keep priority.</span>
+                      </div>
+                    ) : (
+                      <div className="mt-2 flex items-center gap-2">
+                        <button type="button" onClick={() => setScheduling(true)} className={`${control} text-left flex items-center justify-between`}>
+                          <span className={scheduleVal ? "text-[var(--crm-text-primary)]" : "text-[var(--crm-text-muted)]"}>{scheduleVal ? fmtSchedule(scheduleVal) : "Pick a date & time"}</span>
+                          <span className="text-[var(--crm-text-muted)] ml-2">▾</span>
+                        </button>
+                        {scheduleVal && (
+                          <button type="button" className="text-[11.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]" onClick={() => setScheduleVal("")}>Clear</button>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 
-              {/* Action row — right-aligned beneath Schedule (still in the right column): Save Draft
-                  (secondary), Schedule (primary), Publish Now (strongest final action). Publish Now
-                  renders (if needed) then publishes the Reel to the selected destination via the
-                  async container→status→publish flow. */}
+              {/* Action row: Create Variation + Save Draft (secondary, equal weight), Publish Now
+                  (primary green). "Move back to Draft" sits left-aligned when scheduled. */}
               <div className="mt-3 flex items-center justify-end gap-2 flex-wrap">
-                <div className="mr-auto flex items-center gap-2">
-                  <button type="button" className={btn} disabled={busy || publishing} onClick={() => void clonePost()}>Clone</button>
-                  {post.status === "scheduled" && <button type="button" className={btn} disabled={busy || publishing} onClick={() => void backToDraft()}>Move back to Draft</button>}
-                </div>
+                {post.status === "scheduled" && <button type="button" className={`${btn} mr-auto`} disabled={busy || publishing} onClick={() => void backToDraft()}>Move back to Draft</button>}
+                <button type="button" className={actionSecondary} disabled={busy || publishing} onClick={() => void clonePost()}>Create Variation</button>
                 <button type="button" className={actionSecondary} disabled={busy || publishing} onClick={() => void saveDraft()}>{busy ? "Saving…" : "Save Draft"}</button>
                 <button type="button" className={actionGreen} disabled={busy || publishing} onClick={() => void publishNow()}>{publishing ? "Publishing…" : "Publish Now"}</button>
               </div>

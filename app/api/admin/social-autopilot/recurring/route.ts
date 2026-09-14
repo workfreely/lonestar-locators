@@ -6,7 +6,7 @@ import { generateOccurrences, type RuleRow } from "@/lib/social/generateRecurren
 // occurrence instances (normal social_posts, status 'scheduled'). GET lists this admin's rules.
 // Platform-admin ONLY + RLS owner-scoping. NO Instagram publishing; no daily cron in this checkpoint.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const INTERVALS = new Set([7, 14, 30])
+const INTERVALS = new Set([14, 30, 60]) // approved user-facing frequencies (custom 1–365 still accepted server-side)
 const PLACEMENTS = new Set(["any", "morning", "midday", "evening"])
 
 export async function GET() {
