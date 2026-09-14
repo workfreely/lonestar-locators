@@ -41,13 +41,13 @@ function ChevronIcon({ open, light }: { open: boolean; light: boolean }) {
 // The dropdown is grouped into subtle sections (PROFILE / MARKETING TOOLS / ANALYTICS /
 // SUPPORT & SETTINGS / ADMIN) — a visual organization only; every item keeps its EXACT
 // destination and existing conditional visibility. Conditional rows: Theme (inline picker,
-// only where a ThemeProvider exists, under PROFILE); Beast Social (owner only, under ADMIN),
-// Beast Referral Network (members + owner, under ADMIN), Agent Licenses (owner only, under
-// ADMIN — the /admin/license-verification page, label changed from "License Verification";
-// route + permissions unchanged). The ADMIN section header renders only when at least one of
-// its items is visible (isOwner || showNetwork), so a plain regular agent never sees it.
-// Service Areas lives inside the Profile page and Connected Devices inside the Integrations
-// page — not top-level items. Analytics is the same /admin/analytics the top-nav opens.
+// only where a ThemeProvider exists, under PROFILE). The ADMIN section is platform-admin
+// (owner) ONLY — gated on isOwner so regular agents AND non-owner network members never see
+// the ADMIN heading or its items: Beast Social, Beast Referral Network (kept here for now —
+// not yet rolled out to agents), and License Verification (/admin/license-verification).
+// Item routes + server-side permissions are unchanged. Service Areas lives inside the Profile
+// page and Connected Devices inside the Integrations page — not top-level items. "Sales
+// Analytics" is the same /admin/analytics the top-nav opens.
 
 // Persistent profile/avatar control mounted in the Dashboard & Performance
 // headers (dark) and the Business Settings shell header (light). The dropdown
@@ -251,7 +251,7 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
 
           {/* ── ANALYTICS ── */}
           <div className={sectionCls}>Analytics</div>
-          <Link href="/admin/analytics" onClick={() => setOpen(false)} className={linkCls}>Analytics</Link>
+          <Link href="/admin/analytics" onClick={() => setOpen(false)} className={linkCls}>Sales Analytics</Link>
           <Link href="/admin/settings" onClick={() => setOpen(false)} className={linkCls}>Sales Goals</Link>
 
           {/* ── SUPPORT & SETTINGS ── */}
@@ -261,27 +261,23 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
           <Link href="/admin/billing" onClick={() => setOpen(false)} className={linkCls}>Billing</Link>
           <Link href="/help" onClick={() => setOpen(false)} className={linkCls}>Help Center</Link>
 
-          {/* ── ADMIN ── platform-admin / network-member only. Each item keeps its EXACT existing
-              gating (unchanged); the header renders only when at least one item is visible, so a
-              plain regular agent (no network status, not owner) never sees an ADMIN section. */}
-          {(isOwner || showNetwork) && (
+          {/* ── ADMIN ── platform-admin (owner) ONLY. Gated on isOwner, so regular agents AND
+              non-owner network members never see the ADMIN heading or any of these three items. */}
+          {isOwner && (
             <>
               <div className={sectionCls}>Admin</div>
               {/* Beast Social — platform-admin-only internal beta. UX shortcut only; the
                   /admin/social-autopilot layout, pages, APIs, RLS, and bucket all enforce
                   is_platform_admin() server-side. */}
-              {isOwner && (
-                <Link href="/admin/social-autopilot" onClick={() => setOpen(false)} className={linkCls}>Beast Social</Link>
-              )}
-              {/* Beast Referral Network — members + owner only (unchanged) */}
+              <Link href="/admin/social-autopilot" onClick={() => setOpen(false)} className={linkCls}>Beast Social</Link>
+              {/* Beast Referral Network — kept under ADMIN for now (not yet rolled out to agents).
+                  showNetwork is always true for the owner; route/permissions unchanged. */}
               {showNetwork && (
                 <Link href="/admin/network" onClick={() => setOpen(false)} className={linkCls}>Beast Referral Network</Link>
               )}
-              {/* Agent Licenses — platform owner ONLY (never network members); the /admin/license-
-                  verification page and its RPCs enforce the same rule server-side. Label only. */}
-              {isOwner && (
-                <Link href="/admin/license-verification" onClick={() => setOpen(false)} className={linkCls}>Agent Licenses</Link>
-              )}
+              {/* License Verification — platform owner ONLY; the /admin/license-verification page
+                  and its RPCs enforce the same rule server-side. */}
+              <Link href="/admin/license-verification" onClick={() => setOpen(false)} className={linkCls}>License Verification</Link>
             </>
           )}
 
