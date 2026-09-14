@@ -26,7 +26,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
 
   const { data: post, error: readErr } = await supabase
     .from("social_posts")
-    .select("id, source_content_id, overlay_headline, overlay_subheadline, audio_choice, render_version, source:source_content_id(storage_path)")
+    .select("id, source_content_id, overlay_headline, overlay_subheadline, overlay_mode, audio_choice, render_version, source:source_content_id(storage_path)")
     .eq("id", id)
     .maybeSingle()
   if (readErr) return NextResponse.json({ error: "render_failed" }, { status: 500 })
@@ -51,13 +51,17 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     await fs.writeFile(srcLocal, Buffer.from(await res.arrayBuffer()))
 
     const outLocal = path.join(work, "out.mp4")
+    // 'existing' mode = the uploaded video already has burned-in text: draw NO Beast Social overlay
+    // (empty headline/subheadline → no drawtext) and keep the original audio. 'generate' = the
+    // normal Template 1 overlay. Either way the derivative is a 9:16 mp4 (source is never modified).
+    const existingText = (p.overlay_mode as string) === "existing"
     await renderReel(ffmpegPath as unknown as string, {
       sourcePath: srcLocal,
       outputPath: outLocal,
       fontPath: FONT_PATH,
-      headline: (p.overlay_headline as string | null) ?? "",
-      subheadline: (p.overlay_subheadline as string | null) ?? "",
-      audioChoice: ((p.audio_choice as string) || "original") as AudioChoice,
+      headline: existingText ? "" : ((p.overlay_headline as string | null) ?? ""),
+      subheadline: existingText ? "" : ((p.overlay_subheadline as string | null) ?? ""),
+      audioChoice: existingText ? "original" : (((p.audio_choice as string) || "original") as AudioChoice),
       workDir: work,
     })
 

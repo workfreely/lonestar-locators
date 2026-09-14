@@ -86,6 +86,7 @@ type BatchMeta = {
   budgetRange: string
   amenities: string
   notes: string
+  overlayMode: "generate" | "existing"
 }
 
 const SORTS = ["Newest", "Oldest", "Property", "Market"] as const
@@ -199,7 +200,7 @@ export default function SocialAutopilotClient() {
   const fileRef = useRef<HTMLInputElement>(null)
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null) // 1-file quick setup
   const [bulkFiles, setBulkFiles] = useState<File[] | null>(null) // 2+ files → Bulk Review
-  const [batch, setBatch] = useState<BatchMeta>({ market: "", areaNeighborhood: "", propertyName: "", propertyType: "", placeId: null, matched: false, special: "", budgetRange: "", amenities: "", notes: "" })
+  const [batch, setBatch] = useState<BatchMeta>({ market: "", areaNeighborhood: "", propertyName: "", propertyType: "", placeId: null, matched: false, special: "", budgetRange: "", amenities: "", notes: "", overlayMode: "generate" })
   const [uploads, setUploads] = useState<UploadFile[] | null>(null) // active/finished progress list
   const [uploadingBatch, setUploadingBatch] = useState(false)
 
@@ -357,7 +358,7 @@ export default function SocialAutopilotClient() {
       // 1 file → quick single-video setup, prefilled from the filename (editable).
       const inf = inferFromFilename(files[0].name)
       setPendingFiles(files)
-      setBatch({ market: inf.market ?? "", areaNeighborhood: "", propertyName: inf.propertyName ?? "", propertyType: inf.propertyType ?? "", placeId: null, matched: false, special: "", budgetRange: "", amenities: "", notes: "" })
+      setBatch({ market: inf.market ?? "", areaNeighborhood: "", propertyName: inf.propertyName ?? "", propertyType: inf.propertyType ?? "", placeId: null, matched: false, special: "", budgetRange: "", amenities: "", notes: "", overlayMode: "generate" })
       // Auto-resolve the inferred name against the read-only property search. A single clear
       // in-market match auto-fills the canonical name + place_id (+ area from its address);
       // anything ambiguous is left as inferred text for the operator to confirm. Guarded so a
@@ -401,6 +402,7 @@ export default function SocialAutopilotClient() {
           market: meta.market || null,
           propertyName: meta.propertyName || null,
           propertyType: meta.propertyType || null,
+          overlayMode: meta.overlayMode,
           areaNeighborhood: meta.areaNeighborhood || null,
           placeId: meta.placeId || null,
           special: meta.special || null,
@@ -793,6 +795,13 @@ export default function SocialAutopilotClient() {
                   {PROPERTY_TYPES.map((t) => (
                     <option key={t} value={t}>{t}</option>
                   ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className={fieldLabel}>Text Overlay</span>
+                <select className={`${inputCls} mt-1`} value={batch.overlayMode} onChange={(e) => setBatch((b) => ({ ...b, overlayMode: e.target.value === "existing" ? "existing" : "generate" }))}>
+                  <option value="generate">Generate with Beast Social</option>
+                  <option value="existing">Already has text</option>
                 </select>
               </label>
               <label className="block">

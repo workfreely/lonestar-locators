@@ -133,6 +133,9 @@ export async function POST(req: NextRequest) {
       special: str(body.special),
       budget_range: str(body.budgetRange),
       amenities: str(body.amenities),
+      // Default overlay mode for this source ('generate' unless flagged 'existing' at upload). New
+      // posts inherit it; the Post Editor can override per post.
+      overlay_mode: body.overlayMode === "existing" ? "existing" : "generate",
       notes: str(body.notes, 5000),
       place_id: str(body.placeId, 512),
     })

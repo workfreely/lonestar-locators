@@ -42,6 +42,7 @@ type Post = {
   caption: string | null
   overlayHeadline: string | null
   overlaySubheadline: string | null
+  overlayMode: string
   hashtags: string[]
   audioChoice: string
   renderStatus: string
@@ -97,6 +98,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [postType, setPostType] = useState("reel")
   const [headline, setHeadline] = useState("")
   const [subheadline, setSubheadline] = useState("")
+  const [overlayMode, setOverlayMode] = useState<"generate" | "existing">("generate")
   const [caption, setCaption] = useState("")
   const [hashtags, setHashtags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState("")
@@ -130,6 +132,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       setPostType(p.postType || "reel")
       setHeadline(p.overlayHeadline ?? "")
       setSubheadline(p.overlaySubheadline ?? "")
+      setOverlayMode(p.overlayMode === "existing" ? "existing" : "generate")
       setCaption(p.caption ?? "")
       setHashtags(Array.isArray(p.hashtags) ? p.hashtags : [])
       setAudioChoice(p.audioChoice || "original")
@@ -159,8 +162,8 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   }, [lightbox])
 
   const fieldsBody = useCallback(
-    () => ({ postName, postType, caption, overlayHeadline: headline, overlaySubheadline: subheadline, hashtags, audioChoice }),
-    [postName, postType, caption, headline, subheadline, hashtags, audioChoice],
+    () => ({ postName, postType, caption, overlayHeadline: headline, overlaySubheadline: subheadline, overlayMode, hashtags, audioChoice }),
+    [postName, postType, caption, headline, subheadline, overlayMode, hashtags, audioChoice],
   )
 
   // Persist the public-safe SOURCE facts to social_content (reuses the canonical content PATCH,
@@ -375,7 +378,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 <video src={post.previewUrl} controls controlsList="nofullscreen" disablePictureInPicture muted playsInline preload="metadata" className="w-full h-full object-cover" />
                 {/* Pre-render APPROXIMATION overlay (CSS) — SHARED with the enlarged lightbox so
                     both previews render the exact same overlay. Replaced by the burned-in render. */}
-                <PreviewOverlay headLines={headLines} subLines={subLines} ov={ov} showHeadline={!!headline} showSub={!!subheadline} />
+                <PreviewOverlay headLines={headLines} subLines={subLines} ov={ov} showHeadline={overlayMode === "generate" && !!headline} showSub={overlayMode === "generate" && !!subheadline} />
               </>
             ) : (
               <div className="w-full h-full flex items-center justify-center text-[12px] text-[var(--crm-text-muted)]">No preview</div>
@@ -473,17 +476,43 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             </label>
           </div>
 
-          {/* Row 3: Overlay Headline | Subheadline */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <label className="block">
-              <span className={fieldLabel}>Overlay Headline</span>
-              <input className={`${control} mt-1`} value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="Burned into the video" />
-            </label>
-            <label className="block">
-              <span className={fieldLabel}>Overlay Subheadline</span>
-              <input className={`${control} mt-1`} value={subheadline} onChange={(e) => setSubheadline(e.target.value)} placeholder="Optional" />
-            </label>
+          {/* Text Overlay mode — directly above the overlay controls. 'Generate' shows the Template 1
+              controls + generated preview/render; 'Already has text' hides them and leaves the
+              uploaded video (with its own burned-in text) untouched. */}
+          <div className="block">
+            <span className={fieldLabel}>Text Overlay</span>
+            <div className="mt-1 inline-flex rounded-lg border border-[var(--crm-border)] p-0.5">
+              {([["generate", "Generate with Beast Social"], ["existing", "Already has text"]] as const).map(([val, label]) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => setOverlayMode(val)}
+                  aria-pressed={overlayMode === val}
+                  className={"text-[12px] font-semibold px-2.5 py-1 rounded-md transition-colors " + (overlayMode === val ? "bg-[var(--crm-text-primary)] text-[var(--crm-panel)]" : "text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]")}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {overlayMode === "generate" ? (
+            /* Row 3: Overlay Headline | Subheadline (generated Template 1 controls) */
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="block">
+                <span className={fieldLabel}>Overlay Headline</span>
+                <input className={`${control} mt-1`} value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="Burned into the video" />
+              </label>
+              <label className="block">
+                <span className={fieldLabel}>Overlay Subheadline</span>
+                <input className={`${control} mt-1`} value={subheadline} onChange={(e) => setSubheadline(e.target.value)} placeholder="Optional" />
+              </label>
+            </div>
+          ) : (
+            <div className="text-[11.5px] text-[var(--crm-text-muted)] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2">
+              Beast Social will keep the existing text in this video and won&apos;t add another overlay.
+            </div>
+          )}
 
           {/* Row 4: Caption (left) | Hashtags → Audio → Schedule → actions (right). Caption gets a
               taller DEFAULT so its bottom lands near the bottom of the right-column stack / preview
@@ -595,7 +624,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             <video src={lightbox} controls autoPlay playsInline controlsList="nofullscreen" disablePictureInPicture className="w-full h-full object-contain rounded-xl bg-black" />
             {/* Same SHARED overlay as the inline preview — only for the pre-render approximation
                 (when the rendered derivative isn't showing; the render already has it burned in). */}
-            {!rendered && <PreviewOverlay headLines={headLines} subLines={subLines} ov={ov} showHeadline={!!headline} showSub={!!subheadline} />}
+            {!rendered && overlayMode === "generate" && <PreviewOverlay headLines={headLines} subLines={subLines} ov={ov} showHeadline={!!headline} showSub={!!subheadline} />}
             <button
               type="button"
               aria-label="Close preview"

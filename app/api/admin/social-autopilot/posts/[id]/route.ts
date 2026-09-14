@@ -10,9 +10,9 @@ import { normalizeHashtag } from "@/lib/social/hashtags"
 // overlay text or audio choice invalidates any existing render (render_status → 'none').
 const SELECT =
   "id, platform, post_type, post_name, caption, on_video_text, on_video_config, " +
-  "overlay_headline, overlay_subheadline, hashtags, audio_choice, audio_track_id, rendered_storage_path, render_status, render_error, render_version, " +
+  "overlay_headline, overlay_subheadline, overlay_mode, hashtags, audio_choice, audio_track_id, rendered_storage_path, render_status, render_error, render_version, " +
   "status, scheduled_at, published_at, external_post_url, created_at, updated_at, source_content_id, " +
-  "source:source_content_id(display_name, property_name, property_type, place_id, market, special, budget_range, amenities, storage_path, original_filename, kind)"
+  "source:source_content_id(display_name, property_name, property_type, place_id, market, special, budget_range, amenities, storage_path, original_filename, kind, overlay_mode)"
 const SIGNED_URL_TTL = 60 * 30
 const AUDIO_CHOICES = new Set(["original", "none", "lb_track"])
 const MAX_HASHTAGS = 30
@@ -48,6 +48,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     onVideoConfig: r.on_video_config,
     overlayHeadline: r.overlay_headline,
     overlaySubheadline: r.overlay_subheadline,
+    overlayMode: (r.overlay_mode as string) === "existing" ? "existing" : "generate",
     hashtags: Array.isArray(r.hashtags) ? r.hashtags : [],
     audioChoice: (r.audio_choice as string) || "original",
     audioTrackId: r.audio_track_id,
@@ -106,6 +107,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   let renderAffecting = false
   if ("overlayHeadline" in body) { patch.overlay_headline = str(body.overlayHeadline, 200); renderAffecting = true }
   if ("overlaySubheadline" in body) { patch.overlay_subheadline = str(body.overlaySubheadline, 200); renderAffecting = true }
+  // Overlay MODE ('generate' | 'existing') is a post-level override; switching it changes what the
+  // renderer draws, so it invalidates any existing derivative.
+  if ("overlayMode" in body && (body.overlayMode === "generate" || body.overlayMode === "existing")) { patch.overlay_mode = body.overlayMode; renderAffecting = true }
   if ("audioChoice" in body && typeof body.audioChoice === "string" && AUDIO_CHOICES.has(body.audioChoice)) { patch.audio_choice = body.audioChoice; renderAffecting = true }
   if ("hashtags" in body && Array.isArray(body.hashtags)) {
     const seen = new Set<string>()

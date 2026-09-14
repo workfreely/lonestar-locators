@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
   // PUBLIC-safe metadata used for auto-preparation (notes/placeId are intentionally excluded).
   const { data: src, error: srcErr } = await supabase
     .from("social_content")
-    .select("id, display_name, property_name, property_type, market, special, budget_range, amenities, details")
+    .select("id, display_name, property_name, property_type, market, special, budget_range, amenities, details, overlay_mode")
     .eq("id", sourceContentId)
     .maybeSingle()
   if (srcErr) return NextResponse.json({ error: "create_failed" }, { status: 500 })
@@ -172,6 +172,9 @@ export async function POST(req: NextRequest) {
       overlay_headline: effectiveHeadline,
       overlay_subheadline: effectiveSub,
       hashtags: effectiveHashtags,
+      // New posts inherit the source's default overlay mode ('generate' unless the source is
+      // flagged 'existing'); the Post Editor can override it per post.
+      overlay_mode: s.overlay_mode === "existing" ? "existing" : "generate",
       audio_choice: "original",
       render_status: "none",
       status: "draft",

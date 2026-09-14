@@ -42,6 +42,7 @@ type Row = {
   market: string
   areaNeighborhood: string
   propertyType: string
+  overlayMode: "generate" | "existing"
   placeId: string | null
   matched: boolean
   approved: boolean
@@ -114,10 +115,10 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
   const [activeUid, setActiveUid] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [batch, setBatch] = useState({ propertyName: "", market: "", propertyType: "", placeId: null as string | null, matched: false })
+  const [batch, setBatch] = useState({ propertyName: "", market: "", propertyType: "", overlayMode: "generate" as "generate" | "existing", placeId: null as string | null, matched: false })
   // Which optional batch-override action is open (null = none). These are conveniences, not the
   // primary per-row workflow, so they only surface as explicit actions.
-  const [bulkKind, setBulkKind] = useState<null | "property" | "market" | "type">(null)
+  const [bulkKind, setBulkKind] = useState<null | "property" | "market" | "type" | "overlay">(null)
 
   // Build rows once from the selected files.
   useEffect(() => {
@@ -133,6 +134,7 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
         market: inf.market ?? "",
         areaNeighborhood: "",
         propertyType: inf.propertyType ?? "",
+        overlayMode: "generate",
         placeId: null,
         matched: false,
         approved: false,
@@ -181,12 +183,12 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
   const selectAllVisible = () => setSelected(allVisibleSelected ? new Set() : new Set(visible.map((r) => r.uid)))
 
   // Open one optional batch-override action with a clean draft.
-  const openBulk = (kind: "property" | "market" | "type") => {
-    setBatch({ propertyName: "", market: "", propertyType: "", placeId: null, matched: false })
+  const openBulk = (kind: "property" | "market" | "type" | "overlay") => {
+    setBatch({ propertyName: "", market: "", propertyType: "", overlayMode: "generate", placeId: null, matched: false })
     setBulkKind(kind)
   }
   const clearSelection = () => { setSelected(new Set()); setBulkKind(null) }
-  const bulkCanApply = bulkKind === "property" ? !!batch.propertyName.trim() : bulkKind === "market" ? !!batch.market : bulkKind === "type" ? !!batch.propertyType : false
+  const bulkCanApply = bulkKind === "property" ? !!batch.propertyName.trim() : bulkKind === "market" ? !!batch.market : bulkKind === "type" ? !!batch.propertyType : bulkKind === "overlay" ? true : false
 
   // Apply ONLY the open action's field to the selected rows. Property carries its canonical
   // place_id (a picked match); a free-text property clears any stale id and its matched flag.
@@ -198,6 +200,7 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
       if (bulkKind === "property") { next.propertyName = batch.propertyName.trim(); next.placeId = batch.matched ? batch.placeId : null; next.matched = batch.matched }
       if (bulkKind === "market") next.market = batch.market
       if (bulkKind === "type") next.propertyType = batch.propertyType
+      if (bulkKind === "overlay") next.overlayMode = batch.overlayMode
       return next
     }))
     setBulkKind(null)
@@ -250,6 +253,7 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
               market: r.market || null,
               propertyName: r.propertyName || null,
               propertyType: r.propertyType || null,
+              overlayMode: r.overlayMode,
               areaNeighborhood: r.areaNeighborhood || null,
               placeId: r.placeId || null,
             }),
@@ -308,6 +312,7 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
               <button type="button" className={btn} onClick={() => openBulk("property")}>Change Property</button>
               <button type="button" className={btn} onClick={() => openBulk("market")}>Change Market</button>
               <button type="button" className={btn} onClick={() => openBulk("type")}>Change Type</button>
+              <button type="button" className={btn} onClick={() => openBulk("overlay")}>Change Overlay</button>
               <button type="button" className={`${btn} ml-auto`} onClick={clearSelection}>Clear</button>
             </div>
             {bulkKind && (
@@ -335,6 +340,15 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
                     <span className={fieldLabel}>Type</span>
                     <select className={`${inputCls} mt-0.5`} value={batch.propertyType} onChange={(e) => setBatch((b) => ({ ...b, propertyType: e.target.value }))} autoFocus>
                       <option value="">Select type…</option>{PROPERTY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                )}
+                {bulkKind === "overlay" && (
+                  <div>
+                    <span className={fieldLabel}>Overlay</span>
+                    <select className={`${inputCls} mt-0.5`} value={batch.overlayMode} onChange={(e) => setBatch((b) => ({ ...b, overlayMode: e.target.value === "existing" ? "existing" : "generate" }))} autoFocus>
+                      <option value="generate">Generate</option>
+                      <option value="existing">Already has text</option>
                     </select>
                   </div>
                 )}
@@ -468,6 +482,15 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
                       </select>
                     </label>
                   </div>
+                  {/* Text Overlay default for this source: Generate (Beast Social overlay) vs Already
+                      has text (video already has burned-in text — no Beast Social overlay). */}
+                  <label className="block">
+                    <span className={fieldLabel}>Overlay</span>
+                    <select className={`${inputCls} mt-1`} value={active.overlayMode} onChange={(e) => patchRow(active.uid, { overlayMode: e.target.value === "existing" ? "existing" : "generate" })}>
+                      <option value="generate">Generate</option>
+                      <option value="existing">Already has text</option>
+                    </select>
+                  </label>
                   <label className="block">
                     <span className={fieldLabel}>Area / Neighborhood <span className="normal-case text-[var(--crm-text-muted)]">· internal</span></span>
                     <input className={`${inputCls} mt-1`} value={active.areaNeighborhood} onChange={(e) => patchRow(active.uid, { areaNeighborhood: e.target.value })} placeholder="e.g. Schertz, Stone Oak, Uptown" />
