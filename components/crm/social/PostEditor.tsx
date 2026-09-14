@@ -6,6 +6,7 @@ import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
 import { POST_TYPE_LABEL, previewAspectClass } from "@/lib/social/postTypes"
 import { buildHashtags, normalizeHashtag } from "@/lib/social/hashtags"
 import { overlayPreviewStyle, wrapSub, headlineFit } from "@/lib/social/overlaySpec"
+import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
 import { SOCIAL_MARKETS } from "@/lib/social/markets"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
 import { detectMarket } from "@/lib/social/filenameInference"
@@ -289,8 +290,10 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // The three footer actions share ONE physical size (height/padding/radius/font/line-height/min
   // footprint) via actionBase; only color/hierarchy differs. Every variant carries a border (visible
   // on Save Draft, transparent on the others) so heights match exactly.
-  const actionBase = "text-[12.5px] leading-5 font-semibold px-3.5 py-2 rounded-lg border min-w-[104px] text-center transition-colors disabled:opacity-50"
-  const actionSecondary = `${actionBase} border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]` // Save Draft (secondary/dark)
+  const actionBase = "text-[12.5px] leading-5 font-semibold px-4 py-2.5 rounded-lg border min-w-[120px] text-center transition-colors disabled:opacity-50"
+  // Save Draft: filled SECONDARY surface (not primary) so it carries the same visual weight and the
+  // same physical footprint (height/padding/min-width) as the filled Schedule/Publish buttons.
+  const actionSecondary = `${actionBase} border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-inset)]` // Save Draft (secondary/dark)
   const actionLight = `${actionBase} border-transparent bg-[var(--crm-text-primary)] text-[var(--crm-panel)]` // Schedule (light)
   const actionGreen = `${actionBase} border-transparent bg-emerald-600 text-white` // Publish Now (green primary)
 
@@ -350,24 +353,9 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             ) : post.previewUrl ? (
               <>
                 <video src={post.previewUrl} controls controlsList="nofullscreen" disablePictureInPicture muted playsInline preload="metadata" className="w-full h-full object-cover" />
-                {/* Pre-render APPROXIMATION overlay (CSS) — replaced by the burned-in render. */}
-                {(headline || subheadline) && (
-                  // containerType:size makes cqh resolve to THIS box's height, so the font sizes
-                  // scale on the same basis as the top-%% positions (both box-relative). Using vh
-                  // here made the headline larger than the layout assumed and it overlapped the sub.
-                  <div className="pointer-events-none absolute inset-0" aria-hidden style={{ containerType: "size" }}>
-                    {headline && (
-                      <div style={{ position: "absolute", top: `${ov.headlineTopPct}%`, left: `${ov.sideMarginPct}%`, right: `${ov.sideMarginPct}%`, textAlign: "center", color: "white", fontWeight: 800, lineHeight: 1.05, fontSize: `${ov.headlineFontPct}cqh`, textShadow: "0 2px 8px rgba(0,0,0,.6)", whiteSpace: "pre-line", overflowWrap: "anywhere" }}>
-                        {headLines.join("\n").toUpperCase()}
-                      </div>
-                    )}
-                    {subheadline && (
-                      <div style={{ position: "absolute", top: `${ov.subTopPct}%`, left: `${ov.subSideMarginPct}%`, right: `${ov.subSideMarginPct}%`, textAlign: "center", color: "white", fontWeight: 700, lineHeight: ov.subLineHeight, fontSize: `${ov.subFontPct}cqh`, textShadow: "0 2px 8px rgba(0,0,0,.6)", whiteSpace: "pre-line", overflowWrap: "anywhere" }}>
-                        {subLines.join("\n")}
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* Pre-render APPROXIMATION overlay (CSS) — SHARED with the enlarged lightbox so
+                    both previews render the exact same overlay. Replaced by the burned-in render. */}
+                <PreviewOverlay headLines={headLines} subLines={subLines} ov={ov} showHeadline={!!headline} showSub={!!subheadline} />
               </>
             ) : (
               <div className="w-full h-full flex items-center justify-center text-[12px] text-[var(--crm-text-muted)]">No preview</div>
@@ -570,8 +558,11 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
           role="dialog"
           aria-modal="true"
         >
-          <div className="relative" style={{ height: "88vh", aspectRatio: "9 / 16", maxWidth: "calc(100vw - 2rem)" }} onClick={(e) => e.stopPropagation()}>
+          <div className="relative overflow-hidden rounded-xl" style={{ height: "88vh", aspectRatio: "9 / 16", maxWidth: "calc(100vw - 2rem)" }} onClick={(e) => e.stopPropagation()}>
             <video src={lightbox} controls autoPlay playsInline controlsList="nofullscreen" disablePictureInPicture className="w-full h-full object-contain rounded-xl bg-black" />
+            {/* Same SHARED overlay as the inline preview — only for the pre-render approximation
+                (when the rendered derivative isn't showing; the render already has it burned in). */}
+            {!rendered && <PreviewOverlay headLines={headLines} subLines={subLines} ov={ov} showHeadline={!!headline} showSub={!!subheadline} />}
             <button
               type="button"
               aria-label="Close preview"
