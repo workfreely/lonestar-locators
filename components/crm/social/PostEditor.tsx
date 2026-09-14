@@ -135,7 +135,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [ruleNextAt, setRuleNextAt] = useState<string | null>(null) // next scheduled occurrence date
   const [editingRule, setEditingRule] = useState(false) // "Edit Repeat" reopens the settings form
   const [ruleMenuOpen, setRuleMenuOpen] = useState(false) // ⋯ overflow (contains Stop Repeat)
-  const [publishing, setPublishing] = useState(false) // Publish Now in progress (render→container→poll)
+  const [publishing, setPublishing] = useState(false) // Publish (hand-off to Social Beast scheduling) in progress
   const [lightbox, setLightbox] = useState<string | null>(null) // enlarged 9:16 video preview (src or null)
 
   // social_content (source) public-safe fields — edited here, written back to the source row.
@@ -306,7 +306,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       const res = await fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}/autoschedule`, { method: "POST" })
       if (!res.ok) {
         const j = (await res.json().catch(() => ({}))) as { error?: string }
-        setError(j.error === "no_slot" ? "No open posting slot in the next few weeks — try Change date & time." : "Couldn't schedule.")
+        setError(j.error === "no_slot" ? "Social Beast couldn't find an open posting slot in the next few weeks. Free up a slot in the Calendar and try again." : "Couldn't schedule.")
         return
       }
       const j = (await res.json()) as { scheduledAt: string }
@@ -437,57 +437,23 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
     }
   }
 
-  // Publish Now (Instagram Reels, Phase 1). Persists edits, ensures a CURRENT render exists
-  // (renders if the derivative is stale/missing), creates the Reels container, then polls the
-  // finalize endpoint until Instagram finishes processing and media_publish completes. The server
-  // enforces ownership, the selected connection_id destination (rejecting paused/disconnected/
-  // reconnect-needed), Vault token retrieval, stale-render + duplicate-publish protection.
-  const PUBLISH_ERR: Record<string, string> = {
-    already_published: "This post is already published.",
-    not_ready: "The video render isn't ready. Please try again.",
-    no_destination: "No Publishing Destination is selected for this post.",
-    destination_unavailable: "The selected destination is paused, disconnected, or needs reconnecting.",
-    forbidden: "You don't own the selected destination.",
-    not_claimable: "This post can't be published from its current state.",
-    not_configured: "Instagram isn't configured yet.",
-    container_failed: "Instagram couldn't accept the video. Please try again.",
-  }
-  const pollPublish = async () => {
-    for (let i = 0; i < 60; i++) {
-      const r = await fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}/publish/status`, { method: "POST" })
-      const j = (await r.json().catch(() => ({}))) as { status?: string; url?: string }
-      if (j.status === "published") { setNotice(j.url ? `Published to Instagram ✓ — ${j.url}` : "Published to Instagram ✓"); await load(); return }
-      if (j.status === "failed") { setError("Instagram publish failed. The post is marked Needs attention."); await load(); return }
-      setNotice("Processing on Instagram…")
-      await new Promise((res) => setTimeout(res, 5000))
-    }
-    setNotice("Still processing on Instagram — check back shortly.")
-    await load()
-  }
-  const publishNow = async () => {
+  // Publish — the ONE primary action. This does NOT publish to Instagram. "Publish" means: hand
+  // this post to Social Beast for automatic placement. Actual Instagram publishing (/media,
+  // /media_publish) happens later at the scheduled slot, only once the publishing worker is
+  // approved/enabled — NEVER from this button.
+  //   • Post Once  → schedule ONE occurrence into the next open approved slot (autoSchedule).
+  //   • Recurring  → activate the recurring rule + auto-populate open slots (startRepeat); when the
+  //                  Edit form is open it saves the edits to the existing rule instead.
+  const publish = async () => {
     if (busy || publishing) return
-    setPublishing(true); setError(null); setNotice("Saving…")
+    setPublishing(true)
     try {
-      // 1) Persist current edits so the stored caption/hashtags/overlay match the editor.
-      if (!(await patch({ scheduledAt: scheduleToIso(scheduleVal) ?? "" }, null))) { setError("Couldn't save before publishing."); return }
-      const startPublish = () => fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}/publish`, { method: "POST" })
-      // 2) Start publish; if the render isn't current, render then retry once (server is authoritative).
-      setNotice("Preparing to publish…")
-      let res = await startPublish()
-      if (res.status === 409 && ((await res.clone().json().catch(() => ({}))) as { error?: string }).error === "not_ready") {
-        setNotice("Rendering video…")
-        const rr = await fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}/render`, { method: "POST" })
-        if (!rr.ok) { setError("Couldn't render the video. Please try again."); await load(); return }
-        res = await startPublish()
+      if (editingRule && rule) { await saveRuleEdit(); return }
+      if (postingMode === "repeat") {
+        if (rule) { setError(null); setNotice("This post is already recurring."); return }
+        await startRepeat(); return
       }
-      if (!res.ok) {
-        const j = (await res.json().catch(() => ({}))) as { error?: string }
-        setError(PUBLISH_ERR[j.error ?? ""] ?? "Couldn't publish. Please try again.")
-        await load(); return
-      }
-      // 3) Container created & processing — poll finalize until published/failed.
-      setNotice("Uploading to Instagram…")
-      await pollPublish()
+      await autoSchedule() // Post Once → next open slot
     } finally {
       setPublishing(false)
     }
@@ -541,7 +507,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // same physical footprint (height/padding/min-width) as the filled Schedule/Publish buttons.
   const actionSecondary = `${actionBase} border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-inset)]` // Save Draft (secondary/dark)
   const actionLight = `${actionBase} border-transparent bg-[var(--crm-text-primary)] text-[var(--crm-panel)]` // Schedule (light)
-  const actionGreen = `${actionBase} border-transparent bg-emerald-600 text-white` // Publish Now (green primary)
+  const actionGreen = `${actionBase} border-transparent bg-emerald-600 text-white` // Publish (green primary — schedules via Social Beast, no IG publish)
 
   if (error && !post) {
     return (
@@ -856,64 +822,68 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                     )}
 
                     {editingRule || postingMode === "repeat" ? (
+                      /* Recurring settings — ONE compact horizontal row on desktop (Repeat Post |
+                         Duration | Posting time), stacking only on narrow screens. NO activation
+                         button — the green Publish (below) activates recurrence. */
                       <div className="mt-2 flex flex-col gap-2">
-                        <label className="block">
-                          <span className="text-[11px] text-[var(--crm-text-muted)]">Repeat every</span>
-                          <select className={`${control} mt-1 cursor-pointer`} value={repeatEvery} onChange={(e) => setRepeatEvery(Number(e.target.value))}>
-                            <option value={14}>Every 14 days</option><option value={30}>Every 30 days</option><option value={60}>Every 60 days</option>
-                          </select>
-                        </label>
-                        <label className="block">
-                          <span className="text-[11px] text-[var(--crm-text-muted)]">For</span>
-                          <select className={`${control} mt-1 cursor-pointer`}
-                            value={durationMode === "days" ? `d${durationDays}` : durationMode === "date" ? "date" : "until"}
-                            onChange={(e) => { const v = e.target.value; if (v === "date") setDurationMode("date"); else if (v === "until") setDurationMode("until_stopped"); else { setDurationMode("days"); setDurationDays(Number(v.slice(1))) } }}>
-                            <option value="until">Repeat until stopped</option><option value="d30">30 days</option><option value="d60">60 days</option><option value="d90">90 days</option><option value="date">Custom end date</option>
-                          </select>
-                        </label>
-                        {durationMode === "date" && <input type="date" className={control} value={repeatEndDate} onChange={(e) => setRepeatEndDate(e.target.value)} />}
-                        <label className="block">
-                          <span className="text-[11px] text-[var(--crm-text-muted)]">Posting time</span>
-                          <select className={`${control} mt-1 cursor-pointer`} value={placement} onChange={(e) => setPlacement(e.target.value as "any" | "morning" | "midday" | "evening")}>
-                            <option value="any">Let Social Beast choose</option><option value="morning">Morning</option><option value="midday">Afternoon</option><option value="evening">Evening</option>
-                          </select>
-                        </label>
-                        {editingRule ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.25fr)] gap-2.5">
+                          <label className="block min-w-0">
+                            <span className="text-[11px] text-[var(--crm-text-muted)]">Repeat Post</span>
+                            <select className={`${control} mt-1 cursor-pointer`} value={repeatEvery} onChange={(e) => setRepeatEvery(Number(e.target.value))}>
+                              <option value={14}>Every 14 days</option><option value={30}>Every 30 days</option><option value={60}>Every 60 days</option>
+                            </select>
+                          </label>
+                          <label className="block min-w-0">
+                            <span className="text-[11px] text-[var(--crm-text-muted)]">Duration</span>
+                            <select className={`${control} mt-1 cursor-pointer`}
+                              value={durationMode === "days" ? `d${durationDays}` : durationMode === "date" ? "date" : "until"}
+                              onChange={(e) => { const v = e.target.value; if (v === "date") setDurationMode("date"); else if (v === "until") setDurationMode("until_stopped"); else { setDurationMode("days"); setDurationDays(Number(v.slice(1))) } }}>
+                              <option value="d30">30 days</option><option value="d60">60 days</option><option value="d90">90 days</option><option value="date">Custom end date</option><option value="until">Until stopped</option>
+                            </select>
+                          </label>
+                          <label className="block min-w-0">
+                            <span className="text-[11px] text-[var(--crm-text-muted)]">Posting time</span>
+                            <select className={`${control} mt-1 cursor-pointer`} value={placement} onChange={(e) => setPlacement(e.target.value as "any" | "morning" | "midday" | "evening")}>
+                              <option value="any">Social Beast chooses</option><option value="morning">Morning</option><option value="midday">Afternoon</option><option value="evening">Evening</option>
+                            </select>
+                          </label>
+                        </div>
+                        {durationMode === "date" && <input type="date" className={`${control} sm:max-w-[220px]`} value={repeatEndDate} onChange={(e) => setRepeatEndDate(e.target.value)} />}
+                        <span className="text-[10.5px] text-[var(--crm-text-muted)]">Social Beast chooses the next open Morning, Afternoon, or Evening slot.</span>
+                        {editingRule && (
                           <div className="flex items-center gap-2">
                             <button type="button" className={actionLight} disabled={busy || (durationMode === "date" && !repeatEndDate)} onClick={() => void saveRuleEdit()}>{busy ? "Saving…" : "Save Changes"}</button>
                             <button type="button" className={btn} disabled={busy} onClick={() => setEditingRule(false)}>Cancel</button>
                           </div>
-                        ) : (
-                          <button type="button" className={actionLight} disabled={busy || (durationMode === "date" && !repeatEndDate)} onClick={() => void startRepeat()}>{busy ? "Starting…" : "Start Recurring"}</button>
                         )}
-                        <span className="text-[10.5px] text-[var(--crm-text-muted)]">Placed into Morning (7–10a), Afternoon (11:30a–2:30p), or Evening (6–9p), America/Chicago. Manual posts keep priority.</span>
                       </div>
                     ) : scheduleVal ? (
-                      /* Already scheduled — show the chosen slot + optional manual change. */
+                      /* SCHEDULED — Social Beast picked the slot. Read-only; any later override happens
+                         from the Calendar/Queue, not here. */
                       <div className="mt-2 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] p-3 flex flex-col gap-1">
                         <span className="text-[11px] uppercase tracking-wide font-semibold text-[var(--crm-text-secondary)]">Scheduled</span>
                         <div className="text-[13px] text-[var(--crm-text-primary)]">{fmtSchedule(scheduleVal)}</div>
-                        <button type="button" className={`${btn} mt-1 self-start`} onClick={() => setScheduling(true)}>Change date &amp; time</button>
+                        <span className="text-[11.5px] text-[var(--crm-text-muted)]">Social Beast selected the next open slot.</span>
                       </div>
                     ) : (
-                      /* Not scheduled — Social Beast auto-places into the next open slot. Manual is secondary. */
-                      <div className="mt-2 flex flex-col gap-2">
-                        <button type="button" className={actionLight} disabled={busy} onClick={() => void autoSchedule()}>{busy ? "Scheduling…" : "Schedule Post"}</button>
-                        <button type="button" className="text-[11.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)] self-start" onClick={() => setScheduling(true)}>Change date &amp; time</button>
-                        <span className="text-[10.5px] text-[var(--crm-text-muted)]">Social Beast picks the next open Morning / Afternoon / Evening slot, America/Chicago. Manual posts keep priority.</span>
+                      /* Post Once, not yet placed — informational only. Publish hands it to Social
+                         Beast, which picks the next open slot. No date/time picker. */
+                      <div className="mt-2 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2.5">
+                        <span className="text-[11.5px] text-[var(--crm-text-muted)]">Social Beast will add this to the next open posting slot.</span>
                       </div>
                     )}
                   </>
                 )}
               </div>
 
-              {/* Action row: Create Variation + Save Draft (secondary, equal weight), Publish Now
-                  (primary green). "Move back to Draft" sits left-aligned when scheduled. */}
+              {/* Action row: Create Variation + Save Draft (secondary, equal weight), Publish
+                  (primary green — hands the post to Social Beast for automatic placement; NO
+                  Instagram publish). "Move back to Draft" sits left-aligned when scheduled. */}
               <div className="mt-3 flex items-center justify-end gap-2 flex-wrap">
                 {post.status === "scheduled" && <button type="button" className={`${btn} mr-auto`} disabled={busy || publishing} onClick={() => void backToDraft()}>Move back to Draft</button>}
                 <button type="button" className={actionSecondary} disabled={busy || publishing} onClick={() => void clonePost()}>Create Variation</button>
                 <button type="button" className={actionSecondary} disabled={busy || publishing} onClick={() => void saveDraft()}>{busy ? "Saving…" : "Save Draft"}</button>
-                <button type="button" className={actionGreen} disabled={busy || publishing} onClick={() => void publishNow()}>{publishing ? "Publishing…" : "Publish Now"}</button>
+                <button type="button" className={actionGreen} disabled={busy || publishing} onClick={() => void publish()}>{publishing ? "Publishing…" : "Publish"}</button>
               </div>
             </div>
           </div>
