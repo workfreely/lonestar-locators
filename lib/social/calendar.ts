@@ -13,6 +13,7 @@ export type CalPost = {
   caption: string | null
   source: { displayName: string | null; propertyName: string | null; propertyType: string | null; market: string | null; originalFilename: string | null; kind: string | null } | null
   previewUrl: string | null
+  recurring?: boolean // auto-placed by a Repeat rule (shown with a small "Recurring" badge)
 }
 
 export const MONTH_CELL_MAX = 3 // posts shown in a month cell before "+N more"

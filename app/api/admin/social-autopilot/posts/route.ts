@@ -13,7 +13,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const SELECT =
   "id, platform, post_type, post_name, caption, on_video_text, on_video_config, " +
   "overlay_headline, overlay_subheadline, hashtags, audio_choice, audio_track_id, rendered_storage_path, render_status, render_error, render_version, " +
-  "status, scheduled_at, published_at, external_post_url, created_at, updated_at, source_content_id, " +
+  "status, scheduled_at, published_at, external_post_url, created_at, updated_at, source_content_id, recurring_rule_id, recurrence_slot, " +
   "source:source_content_id(display_name, property_name, property_type, market, special, budget_range, amenities, storage_path, original_filename, kind)"
 
 type SourceEmbed = {
@@ -59,6 +59,9 @@ async function shape(supabase: PlatformAdminGuardOk["supabase"], rows: Record<st
         createdAt: r.created_at,
         updatedAt: r.updated_at,
         sourceContentId: r.source_content_id,
+        recurring: !!r.recurring_rule_id, // this instance was auto-placed by a Repeat rule
+        recurringRuleId: (r.recurring_rule_id as string | null) ?? null,
+        recurrenceSlot: (r.recurrence_slot as string | null) ?? null,
         source: src
           ? {
               displayName: src.display_name,

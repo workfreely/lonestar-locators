@@ -171,6 +171,7 @@ function CellPost({ p, onOpenPost }: { p: CalPost; onOpenPost: (id: string) => v
       <Thumb p={p} className="h-4 w-3 flex-none rounded-[2px]" />
       <InstagramIcon className="h-2.5 w-2.5 flex-none text-[var(--crm-text-muted)]" />
       <span className="text-[10px] font-semibold text-[var(--crm-text-secondary)] tabular-nums flex-none">{timeLabel(p.scheduledAt)}</span>
+      {p.recurring && <span title="Recurring" aria-label="Recurring" className="flex-none text-[10px] text-[var(--crm-text-muted)] leading-none">↻</span>}
       <span className="text-[10px] text-[var(--crm-text-muted)] truncate">{label(p)}</span>
     </button>
   )
@@ -190,6 +191,7 @@ function MonthEntry({ p, onOpenPost }: { p: CalPost; onOpenPost: (id: string) =>
       className="w-full flex items-baseline gap-1 rounded px-1 py-0.5 text-left hover:bg-[var(--crm-card)] transition-colors leading-tight"
     >
       <span className="text-[10px] font-semibold text-[var(--crm-text-secondary)] tabular-nums flex-none">{t}</span>
+      {p.recurring && <span title="Recurring" aria-label="Recurring" className="flex-none text-[10px] text-[var(--crm-text-muted)] leading-none">↻</span>}
       <span className="text-[10px] text-[var(--crm-text-muted)] truncate">{mkt ? `· ${mkt} ` : ""}· {shortLabel(p)}</span>
     </button>
   )

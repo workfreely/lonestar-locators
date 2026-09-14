@@ -16,6 +16,7 @@ type QueuePost = {
   scheduledAt: string | null
   source: { displayName: string | null; propertyName: string | null; market: string | null; originalFilename: string | null } | null
   previewUrl: string | null
+  recurring?: boolean
 }
 
 // No generic "Needs Attention" filter — specific failure states (Render Failed, Publish Failed,
@@ -116,7 +117,10 @@ export default function QueueClient() {
                 ) : null}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-[13px] font-bold text-[var(--crm-text-primary)] truncate">{p.postName || p.source?.displayName || "Untitled post"}</div>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <div className="text-[13px] font-bold text-[var(--crm-text-primary)] truncate">{p.postName || p.source?.displayName || "Untitled post"}</div>
+                  {p.recurring && <span className="flex-none text-[9.5px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-[var(--crm-card)] text-[var(--crm-text-secondary)] border border-[var(--crm-border)]">Recurring</span>}
+                </div>
                 <div className="text-[11.5px] text-[var(--crm-text-secondary)] truncate">
                   Instagram{p.source?.market ? ` · ${p.source.market}` : ""}
                 </div>
