@@ -79,6 +79,33 @@ ok("CTA has no emoji", !/[☀-➿\uD83C-\uDBFF]/.test("My apartment locating ser
 // No city AND no type → no hook line at all (never an unresolved placeholder); starts with CTA.
 ok("no city + no type → caption starts with the CTA (no empty hook)", buildCaption({}).split("\n")[0] === "My apartment locating service is completely free!")
 
+console.log("caption whitespace hardening (messy input → clean output):")
+// Padded city (Hook 1 is seed-index 0 for these seeds' pool; assert the produced hook is clean).
+ok("' Dallas ' → clean city hook, no double space / no space before ?", (() => {
+  const first = buildCaption({ market: " Dallas " }, "s0").split("\n")[0]
+  return APPROVED_HOOKS_CITY.includes(first) && first.includes("Dallas") && !/ {2,}/.test(first) && !/\s[?.,]/.test(first)
+})())
+// Padded property type must still resolve Hook 4 (regression: whitespace previously dropped it).
+ok("' Townhome ' → 'Need a new townhome?' (padded type still resolves)", buildCaption({ propertyType: " Townhome " }).split("\n")[0] === "Need a new townhome?")
+ok("' High-Rise ' padded → 'Need a new high-rise?'", buildCaption({ propertyType: " High-Rise " }).split("\n")[0] === "Need a new high-rise?")
+// Padded special / price → trimmed, single space after emoji.
+ok("' 8 weeks free ' → '✨ 8 weeks free' (trimmed)", buildCaption({ market: "Dallas", special: " 8 weeks free " }, "s0").includes("\n✨ 8 weeks free\n"))
+ok("' Starting at $1,495 ' → '💰 Starting at $1,495' (trimmed)", buildCaption({ market: "Dallas", budgetRange: " Starting at $1,495 " }, "s0").includes("\n💰 Starting at $1,495\n"))
+// Amenities with surrounding + inter-item whitespace → exact comma-separated list.
+ok("messy amenities → '🏡 Rooftop pool, fitness center, dog park'", buildCaption({ market: "Dallas", amenities: "  Rooftop pool ,  fitness center , dog park  " }, "s0").includes("\n🏡 Rooftop pool, fitness center, dog park\n"))
+// Whole-caption cleanliness with messy input: no double spaces, no trailing spaces on any line,
+// no space-before-punctuation, and no blank/whitespace-only lines.
+const messy = buildCaption({ market: "  Dallas  ", propertyType: "  Townhome  ", special: "  8 weeks free  ", budgetRange: "  Starting at $1,495  ", amenities: "  Rooftop pool ,  fitness center , dog park  " }, "s0")
+ok("no double spaces anywhere in caption", !/ {2,}/.test(messy))
+ok("no trailing whitespace on any line", messy.split("\n").every((l) => l === l.replace(/\s+$/, "")))
+ok("no space before ? . or , (hook/detail punctuation)", !/\s[?,]/.test(messy) && !/\s\.(?=\s|$)/.test(messy))
+ok("no blank / whitespace-only lines", messy.split("\n").every((l) => l.trim().length > 0))
+// Missing optional fields must not create malformed spacing or empty lines.
+const sparse = buildCaption({ market: "Dallas", propertyType: "Townhome" }, "s0")
+ok("absent optional fields → no ✨/🏡/💰 lines, no empty lines", !sparse.includes("✨") && !sparse.includes("🏡") && !sparse.includes("💰") && sparse.split("\n").every((l) => l.trim().length > 0))
+// Intentional paragraph break BEFORE hashtags is preserved by composeFinalCaption (blank line).
+ok("paragraph break before hashtags preserved (\\n\\n)", composeFinalCaption(messy, ["#a", "#b"]).includes(messy + "\n\n#a #b"))
+
 console.log("subheadline priority: special → features → price → empty:")
 ok("no special → features hook (pluralized, uppercased)", buildOverlaySubheadline({ market: "San Antonio", amenities: "private yard, garage, pool" }) === "PRIVATE YARDS + GARAGES")
 ok("no special/features → price range", buildOverlaySubheadline({ market: "Dallas", budgetRange: "$1,500+" }) === "$1,500+")

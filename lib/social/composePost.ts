@@ -125,7 +125,9 @@ function eligibleHooks(city: string, canonicalType: string | null): string[] {
  *  given source video deterministically gets the same eligible hook. */
 export function buildCaption(src: SourceMeta, seed?: string | number): string {
   const city = clean(normalizeSocialMarket(src.market))
-  const canonicalType = normalizeToCanonical(src.propertyType) // null for missing/non-canonical
+  // Trim/normalize whitespace on the raw property type BEFORE canonicalization — a padded value
+  // ("  Townhome  ") is not a canonical match otherwise and would wrongly drop Hook 4.
+  const canonicalType = normalizeToCanonical(clean(src.propertyType) || null) // null for missing/non-canonical
   const special = clean(src.special)
   const price = clean(src.budgetRange)
   const feats = features(src.amenities).slice(0, 3) // max 3, existing stored order, verbatim
