@@ -32,6 +32,12 @@ export default function PreviewOverlay({
   showSub: boolean
 }) {
   if (!showHeadline && !showSub) return null
+  // Use the SAME production font as the FFmpeg render so glyph widths match, and `pre` so the
+  // browser NEVER re-wraps the already-computed lines (headlineFit/wrapSub decide the line breaks —
+  // the preview must not recompute wrapping with a different font's metrics). This is what made
+  // "SAN ANTONIO TOWNHOMES" wrap to two lines: the default system font is wider than Overlay-Bold
+  // and `pre-line` let it break at the space.
+  const FONT = '"OverlayBold", system-ui, sans-serif'
   const headStyle: CSSProperties = {
     position: "absolute",
     top: `${ov.headlineTopPct}%`,
@@ -39,12 +45,12 @@ export default function PreviewOverlay({
     right: `${ov.sideMarginPct}%`,
     textAlign: "center",
     color: "white",
+    fontFamily: FONT,
     fontWeight: 800,
     lineHeight: 1.05,
     fontSize: `${ov.headlineFontPct}cqh`,
     textShadow: "0 2px 8px rgba(0,0,0,.6)",
-    whiteSpace: "pre-line",
-    overflowWrap: "anywhere",
+    whiteSpace: "pre",
   }
   const subStyle: CSSProperties = {
     position: "absolute",
@@ -53,12 +59,12 @@ export default function PreviewOverlay({
     right: `${ov.subSideMarginPct}%`,
     textAlign: "center",
     color: "white",
+    fontFamily: FONT,
     fontWeight: 700,
     lineHeight: ov.subLineHeight,
     fontSize: `${ov.subFontPct}cqh`,
     textShadow: "0 2px 8px rgba(0,0,0,.6)",
-    whiteSpace: "pre-line",
-    overflowWrap: "anywhere",
+    whiteSpace: "pre",
   }
   return (
     <div className="pointer-events-none absolute inset-0" aria-hidden style={{ containerType: "size" }}>

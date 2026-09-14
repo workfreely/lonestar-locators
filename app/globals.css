@@ -5,6 +5,19 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Beast Social overlay preview font — the SAME face the FFmpeg renderer burns in
+   (assets/social/fonts/Overlay-Bold.ttf). Using it in the CSS preview makes the preview's glyph
+   widths match the 1080×1920 render, so a Template-1 headline that fits on one line in the render
+   also fits on one line in the preview. font-weight range 100–900 maps every requested weight to
+   this single face (no synthetic bolding, which would widen the text vs the render). */
+@font-face {
+  font-family: "OverlayBold";
+  src: url("/fonts/Overlay-Bold.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* ================================
    Root Theme Variables
    ================================ */
