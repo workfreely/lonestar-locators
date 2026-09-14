@@ -28,7 +28,7 @@ const COPY: Record<State, { title: string; body: string }> = {
   },
   used: {
     title: "This link was already used",
-    body: "This invitation has already been completed. If you need to connect again, ask for a fresh link.",
+    body: "The invitation has already been completed. Contact the admin if you need to connect again.",
   },
   revoked: {
     title: "This link is no longer active",
@@ -147,8 +147,9 @@ export default function AuthorizeShell({
           </a>
         )}
 
-        {/* Tiny helper footer — hidden on the success screen (copy request); unchanged elsewhere. */}
-        {state !== "connected" && (
+        {/* Tiny helper footer — hidden on the success and already-used screens (copy requests);
+            unchanged elsewhere. */}
+        {state !== "connected" && state !== "used" && (
           <div style={{ marginTop: 22, fontSize: 11.5, color: "#6c7079", lineHeight: 1.5 }}>
             This link only authorizes your Instagram for scheduled posting. It does not create an
             account or give access to anything else.
