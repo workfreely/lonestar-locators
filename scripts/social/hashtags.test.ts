@@ -1,0 +1,89 @@
+// Deterministic tests for the centralized hashtag engine. No network. Run: npx tsx scripts/social/hashtags.test.ts
+import { buildHashtags, HASHTAG_MARKETS, normalizeHashtag } from "@/lib/social/hashtags"
+import { isGeneratedHashtags, MAX_HASHTAGS } from "@/lib/social/composePost"
+
+let pass = 0, fail = 0
+const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
+const has = (h: string[], t: string) => h.map((x) => x.toLowerCase()).includes(t.toLowerCase())
+const some = (h: string[], re: RegExp) => h.some((x) => re.test(x.toLowerCase()))
+const noDupes = (h: string[]) => new Set(h.map((x) => x.toLowerCase())).size === h.length
+// singular/plural stuffing check: no two tags share the concept (strip # + one trailing s)
+const con = (t: string) => t.toLowerCase().replace(/^#+/, "").replace(/s$/, "")
+const noStuffing = (h: string[]) => new Set(h.map(con)).size === h.length
+
+const MARKETS = ["San Antonio", "Austin", "Dallas", "Houston"] as const
+const TYPES = ["Apartment", "High-Rise", "Townhome", "Rental Home", "Loft", "Penthouse"] as const
+const MARKET_TOKEN: Record<string, RegExp> = {
+  "San Antonio": /sanantonio|satx/, Austin: /austin|atx/, Dallas: /dallas|dfw/, Houston: /houston|htx/,
+}
+const OTHER_TOKENS: Record<string, RegExp> = {
+  "San Antonio": /austin|dallas|houston/, Austin: /sanantonio|dallas|houston/,
+  Dallas: /sanantonio|austin|houston/, Houston: /sanantonio|austin|dallas/,
+}
+const MOVING: Record<string, string> = {
+  "San Antonio": "#movingtosanantonio", Austin: "#movingtoaustin", Dallas: "#movingtodallas", Houston: "#movingtohouston",
+}
+
+console.log("engine invariants across every market × property type:")
+for (const m of MARKETS) {
+  for (const t of TYPES) {
+    const h = buildHashtags(m, 7, t)
+    const tag = `${m} · ${t}`
+    ok(`${tag}: 1–7 tags`, h.length >= 1 && h.length <= 7)
+    ok(`${tag}: no duplicates`, noDupes(h))
+    ok(`${tag}: no singular/plural stuffing`, noStuffing(h))
+    ok(`${tag}: correct market represented`, some(h, MARKET_TOKEN[m]))
+    ok(`${tag}: NO other market leaked`, !some(h, OTHER_TOKENS[m]))
+    ok(`${tag}: Moving-To included`, has(h, MOVING[m]))
+    ok(`${tag}: Apartment Locator/service represented`, some(h, /apartmentlocator/))
+    if (t === "High-Rise" || t === "Penthouse") ok(`${tag}: Downtown reserved (High-Rise/Penthouse)`, some(h, /downtown/))
+  }
+}
+
+console.log("property-type responses:")
+ok("Loft includes #loft (every market)", MARKETS.every((m) => has(buildHashtags(m, 7, "Loft"), "#loft")))
+ok("Townhome includes a townhome/townhouse term", MARKETS.every((m) => some(buildHashtags(m, 7, "Townhome"), /townhome|townhouse/)))
+ok("Rental Home includes a rental/home-for-rent term", MARKETS.every((m) => some(buildHashtags(m, 7, "Rental Home"), /rentalhome|forrent/)))
+ok("Penthouse includes #penthouse", MARKETS.every((m) => has(buildHashtags(m, 7, "Penthouse"), "#penthouse")))
+ok("Studio includes a studio term", MARKETS.every((m) => some(buildHashtags(m, 7, "Studio"), /studio/)))
+ok("changing property type changes the set", JSON.stringify(buildHashtags("Dallas", 7, "High-Rise")) !== JSON.stringify(buildHashtags("Dallas", 7, "Townhome")))
+
+console.log("High-Rise market rules:")
+const dallasHR = buildHashtags("Dallas", 7, "High-Rise")
+ok("Dallas High-Rise prioritizes #dallashighrise", has(dallasHR, "#dallashighrise"))
+ok("Dallas High-Rise also carries generic #highrise", has(dallasHR, "#highrise"))
+ok("Dallas High-Rise reserves a Downtown Dallas tag", some(dallasHR, /downtowndallas/))
+const houstonHR = buildHashtags("Houston", 7, "High-Rise")
+ok("Houston High-Rise prioritizes the researched #houstonhighrise", has(houstonHR, "#houstonhighrise"))
+ok("Houston High-Rise does NOT stuff both #houstonhighrise + #houstonhighrises", !(has(houstonHR, "#houstonhighrise") && has(houstonHR, "#houstonhighrises")))
+ok("Houston High-Rise reserves a Downtown Houston tag", some(houstonHR, /downtownhouston|downtownhtx/))
+const austinHR = buildHashtags("Austin", 7, "High-Rise")
+ok("Austin High-Rise does NOT prioritize #austinhighrise", !has(austinHR, "#austinhighrise"))
+ok("Austin High-Rise uses generic #highrise", has(austinHR, "#highrise"))
+ok("Austin High-Rise reserves a Downtown Austin tag", some(austinHR, /downtownaustin/))
+const saHR = buildHashtags("San Antonio", 7, "High-Rise")
+ok("San Antonio does NOT fabricate a city-specific High-Rise", !some(saHR, /sanantoniohighrise/))
+ok("San Antonio High-Rise uses generic high-rise", some(saHR, /highrise/))
+ok("San Antonio High-Rise reserves a Downtown SA tag", some(saHR, /downtownsanantonio|downtownsatx/))
+
+console.log("Downtown is a HASHTAG rule only — non-High-Rise/Penthouse gets NO forced downtown:")
+ok("Dallas Apartment has no forced downtown tag", !some(buildHashtags("Dallas", 7, "Apartment"), /downtown/))
+ok("Houston Townhome has no forced downtown tag", !some(buildHashtags("Houston", 7, "Townhome"), /downtown/))
+
+console.log("generated-vs-manual protection (unchanged behavior):")
+ok("a generated set is recognized as generator-owned", isGeneratedHashtags(buildHashtags("Dallas", MAX_HASHTAGS, "High-Rise"), { market: "Dallas", propertyType: "High-Rise" }))
+ok("a stale generated set (other market/type) still recognized as generated", isGeneratedHashtags(buildHashtags("San Antonio", MAX_HASHTAGS, "Townhome"), { market: "Dallas", propertyType: "Loft" }))
+ok("a true manual set is NOT overwritten (not generator-owned)", !isGeneratedHashtags(["#myteam", "#customtag"], { market: "Dallas", propertyType: "High-Rise" }))
+
+console.log("misc:")
+ok("HASHTAG_MARKETS covers the 4 researched markets", ["San Antonio", "Austin", "Dallas", "Houston"].every((m) => HASHTAG_MARKETS.includes(m)))
+ok("normalizeHashtag cleans input", normalizeHashtag("  luxury apts! ") === "#luxuryapts" && normalizeHashtag("##atx") === "#atx" && normalizeHashtag("  ") === "")
+ok("respects a lower target cap", buildHashtags("Dallas", 5, "High-Rise").length <= 5)
+
+console.log("\nrepresentative generated 7-tag outputs:")
+for (const [m, t] of [["Dallas", "High-Rise"], ["Houston", "High-Rise"], ["Austin", "High-Rise"], ["San Antonio", "High-Rise"], ["Dallas", "Townhome"], ["San Antonio", "Loft"], ["Houston", "Penthouse"]] as const) {
+  console.log(`  ${m} · ${t}:  ${buildHashtags(m, 7, t).join(" ")}`)
+}
+
+console.log(`\nHashtag engine: ${pass} passed, ${fail} failed`)
+process.exit(fail === 0 ? 0 : 1)
