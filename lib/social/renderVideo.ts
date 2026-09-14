@@ -27,19 +27,25 @@ function escFilterPath(p: string): string {
   return p.replace(/\\/g, "\\\\").replace(/:/g, "\\:")
 }
 
-/** Build the -filter_complex graph (final label [v]): fill to 1080×1920 (9:16), lay a SOFT
- *  translucent dark gradient scrim behind the text group (readability — replaces the old hard box;
- *  a full-width band with a raised-cosine vertical fade that follows the text, never full-screen),
- *  then draw the headline/detail with a light drop shadow. `headLineCount` is the number of wrapped
- *  headline lines — the detail is placed below the whole block so a two-line headline pushes it
- *  down (shares geometry with the on-screen preview). `subLineCount` sizes the scrim band. */
+/** Build the -filter_complex graph (final label [v]): fill to 1080×1920 (9:16), then draw the
+ *  headline/detail with a localized drop shadow + light edge (no background band/box). `headLineCount`
+ *  is the number of wrapped headline lines — the detail is placed below the whole block so a two-line
+ *  headline pushes it down (shares geometry with the on-screen preview). `subLineCount` is unused now
+ *  (kept for signature stability). */
 export function buildVideoFilter(fontPath: string, headFile: string | null, subFile: string | null, headLineCount = 1, headlineFontPx: number = OVERLAY_SPEC.headline.fontPx, subLineCount = subFile ? 1 : 0): string {
   const font = escFilterPath(fontPath)
   const yHead = `h*${OVERLAY_SPEC.headline.yFrac}`
-  // Letter-hugging readability: a subtle dark OUTLINE (border) around each glyph + a small soft drop
-  // shadow. NO background band/box — the footage between letters is untouched.
-  const shadow = `:shadowcolor=black@${OVERLAY_TEXT.shadowAlpha}:shadowx=${OVERLAY_TEXT.shadowDx}:shadowy=${OVERLAY_TEXT.shadowDy}`
-  const hug = (borderPx: number) => `:borderw=${borderPx}:bordercolor=black@${OVERLAY_TEXT.borderAlpha}${shadow}`
+  // Depth (Option A): a localized black DROP SHADOW (offset, scaled from em × font size) plus a very
+  // light edge — NO background band/box. NOTE: FFmpeg drawtext has no letter-spacing (tracking) or
+  // shadow blur, so the burned-in text omits the subtle tracking and uses a hard-offset shadow; the
+  // preview carries the full treatment. To make the render match exactly, switch to a rasterized
+  // text overlay (SVG→PNG) — pending visual approval of the look.
+  const depth = (fontPx: number) => {
+    const edge = Math.max(1, Math.round(OVERLAY_TEXT.edgeEm * fontPx))
+    const dy = Math.max(1, Math.round(OVERLAY_TEXT.shadowDyEm * fontPx))
+    const dx = Math.round(OVERLAY_TEXT.shadowDxEm * fontPx)
+    return `:borderw=${edge}:bordercolor=black@${OVERLAY_TEXT.edgeAlpha}:shadowcolor=black@${OVERLAY_TEXT.shadowAlpha}:shadowx=${dx}:shadowy=${dy}`
+  }
 
   // 1) Cover-fit the source to the 9:16 canvas.
   const graph: string[] = [`[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920[bg]`]
@@ -50,7 +56,7 @@ export function buildVideoFilter(fontPath: string, headFile: string | null, subF
     const next = subFile ? "h" : "v"
     graph.push(
       `[${label}]drawtext=fontfile='${font}':textfile='${escFilterPath(headFile)}':fontcolor=white:fontsize=${headlineFontPx}` +
-        `:line_spacing=${OVERLAY_SPEC.headline.lineSpacing}${hug(OVERLAY_TEXT.headlineBorderPx)}:x=(w-text_w)/2:y=${yHead}[${next}]`,
+        `:line_spacing=${OVERLAY_SPEC.headline.lineSpacing}${depth(headlineFontPx)}:x=(w-text_w)/2:y=${yHead}[${next}]`,
     )
     label = next
   }
@@ -59,7 +65,7 @@ export function buildVideoFilter(fontPath: string, headFile: string | null, subF
     const subOffset = headFile ? headlineBlockPx(headLineCount, headlineFontPx) + OVERLAY_SPEC.sub.gapPx : 0
     graph.push(
       `[${label}]drawtext=fontfile='${font}':textfile='${escFilterPath(subFile)}':fontcolor=white:fontsize=${OVERLAY_SPEC.sub.fontPx}` +
-        `:line_spacing=${OVERLAY_SPEC.sub.lineSpacing}${hug(OVERLAY_TEXT.subBorderPx)}:x=(w-text_w)/2:y=${yHead}+${subOffset}[v]`,
+        `:line_spacing=${OVERLAY_SPEC.sub.lineSpacing}${depth(OVERLAY_SPEC.sub.fontPx)}:x=(w-text_w)/2:y=${yHead}+${subOffset}[v]`,
     )
     label = "v"
   }
@@ -72,7 +78,7 @@ export function buildVideoFilter(fontPath: string, headFile: string | null, subF
 /** Full ffmpeg argument list. audioChoice 'none' mutes; 'lb_track' currently falls back to the
  *  source audio (the Locator Beast Music library ships in a later checkpoint). */
 export function buildFfmpegArgs(input: { sourcePath: string; outputPath: string; filter: string; audioChoice: AudioChoice }): string[] {
-  // The scrim requires a generated (color) source, so the graph is a -filter_complex ending in [v].
+  // The graph is a labelled -filter_complex ending in [v]; map that plus the source audio through.
   const args = ["-y", "-i", input.sourcePath, "-filter_complex", input.filter, "-map", "[v]", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-r", "30"]
   if (input.audioChoice === "none") args.push("-an")
   else args.push("-map", "0:a?", "-c:a", "aac", "-b:a", "128k")

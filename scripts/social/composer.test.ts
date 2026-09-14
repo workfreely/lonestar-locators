@@ -5,7 +5,7 @@ import { AMENITY_BANK, canonicalizeAmenity, parseAmenities, serializeAmenities, 
 import { preparePost, buildCaption, buildOverlayHeadline, buildOverlaySubheadline, composeFinalCaption, startingPriceLabel, buildOverlayDetail, joinDetailParts, specialDisplay, resolveSocialSpecial, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags } from "@/lib/social/composePost"
 import { SOCIAL_SPECIAL_OPTIONS, giftCardLabel, isGiftCardSpecial, sanitizeCustomSpecial } from "@/lib/social/socialSpecial"
 import { buildFfmpegArgs, buildVideoFilter } from "@/lib/social/renderVideo"
-import { wrapHeadline, wrapSub, overlayPreviewStyle, headlineFit, OVERLAY_SPEC, OVERLAY_TEXT, HEADLINE_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
+import { wrapHeadline, wrapSub, overlayPreviewStyle, headlineFit, trackedHeadlineWidthPx, OVERLAY_SPEC, OVERLAY_TEXT, HEADLINE_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
 
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
@@ -133,21 +133,26 @@ ok("Rental Home→Rental Homes", buildOverlayHeadline({ market: "San Antonio", p
 ok("Penthouse→Penthouses", buildOverlayHeadline({ market: "Austin", propertyType: "Penthouse" }) === "AUSTIN PENTHOUSES")
 ok("headline trims surrounding whitespace", buildOverlayHeadline({ market: " Dallas ", propertyType: " High-Rise " }) === "DALLAS HIGH-RISES")
 const CITIES = ["Austin", "Dallas", "DFW", "Houston", "San Antonio"]
-const TYPES = ["Studio", "Apartment", "High-Rise", "Townhome", "Rental Home", "Penthouse"]
+const TYPES = ["Studio", "Apartment", "High-Rise", "Townhome", "Rental Home", "Penthouse", "Loft"]
 const FIXED = OVERLAY_SPEC.headline.fontPx
-let allOneLine = true, allSameFixed = true
+let allOneLine = true, allSameFixed = true, allTrackedFit = true
+let widest = "", widestPx = 0
 for (const c of CITIES) for (const t of TYPES) {
-  const fit = headlineFit(buildOverlayHeadline({ market: c, propertyType: t }))
+  const text = buildOverlayHeadline({ market: c, propertyType: t })
+  const fit = headlineFit(text)
   if (fit.lines.length !== 1) allOneLine = false
   if (fit.fontPx !== FIXED) allSameFixed = false
+  const w = trackedHeadlineWidthPx(text) // fixed size WITH tracking
+  if (!(w <= HEADLINE_TEXT_AVAIL_PX)) allTrackedFit = false
+  if (w > widestPx) { widestPx = w; widest = text }
 }
-ok("EVERY supported city×type headline stays ONE line", allOneLine)
+ok("EVERY supported city×type (incl Loft) headline stays ONE line", allOneLine)
 ok("EVERY supported combo uses the SAME fixed font (no per-combo resizing)", allSameFixed)
-ok("fixed Template 1 headline size is 81px", FIXED === 81)
-ok("longest combo (SAN ANTONIO RENTAL HOMES) = fixed 81px, one line", headlineFit("SAN ANTONIO RENTAL HOMES").fontPx === 81 && headlineFit("SAN ANTONIO RENTAL HOMES").lines.length === 1)
-ok("shorter combo (DALLAS HIGH-RISES) is NOT larger than San Antonio — identical 81px", headlineFit("DALLAS HIGH-RISES").fontPx === headlineFit("SAN ANTONIO RENTAL HOMES").fontPx)
-ok("SAN ANTONIO APARTMENTS also 81px", headlineFit("SAN ANTONIO APARTMENTS").fontPx === 81)
-ok("usable text width = safe area − box borders = 852px (90px margins)", HEADLINE_TEXT_AVAIL_PX === 852)
+ok("new fixed Template 1 headline size is 78px", FIXED === 78)
+ok("EVERY combo TRACKED width fits the 900px safe box (one-line safe with tracking)", allTrackedFit)
+ok("widest tracked combo is SAN ANTONIO RENTAL HOMES within the safe box", widest === "SAN ANTONIO RENTAL HOMES" && widestPx <= HEADLINE_TEXT_AVAIL_PX)
+ok("Loft combos are supported one-line (e.g. SAN ANTONIO LOFTS)", headlineFit("SAN ANTONIO LOFTS").lines.length === 1 && headlineFit("SAN ANTONIO LOFTS").fontPx === 78)
+ok("usable text width = safe area (no box) = 900px (90px margins)", HEADLINE_TEXT_AVAIL_PX === 900)
 ok("unknown/custom headline keeps the fixed font + char-wrap", headlineFit("SOME ENTIRELY CUSTOM HEADLINE TEXT").fontPx === FIXED)
 
 console.log("Template 1 vertical lockup: tightened headline→sub gap:")
@@ -324,12 +329,13 @@ ok("raw Current Special metadata is never mutated by resolution", rawKept.specia
 ok("Template 1 overlay detail stays PRICE-ONLY regardless of Social Special", buildOverlayDetail({ ...rawKept, budgetRange: "1495" }) === "Starting at $1,495/mo")
 ok("one primary Social Special (single value feeds caption)", (capExplicit.match(/✨/g) || []).length === 1)
 
-console.log("overlay readability = letter-hugging outline + shadow (NO background band/box/scrim):")
+console.log("overlay typography = subtle tracking + localized drop shadow (NO band/box/scrim):")
 const hugFilt = buildVideoFilter("/f.ttf", "/h.txt", "/s.txt", 1, OVERLAY_SPEC.headline.fontPx, 1)
 ok("NO scrim/band/box in render (no geq/overlay/box)", !hugFilt.includes("geq=") && !hugFilt.includes("overlay=") && !hugFilt.includes("box=1"))
-ok("drawtext hugs each letter with a dark outline (border)", hugFilt.includes("borderw=") && hugFilt.includes("bordercolor=black@"))
-ok("drawtext carries a small drop shadow", hugFilt.includes("shadowcolor=black@") && hugFilt.includes("shadowy="))
-ok("outline alpha is subtle (0 < a < 1)", OVERLAY_TEXT.borderAlpha > 0 && OVERLAY_TEXT.borderAlpha < 1)
+ok("drawtext has a localized drop shadow (offset)", hugFilt.includes("shadowcolor=black@") && hugFilt.includes("shadowy="))
+ok("drawtext keeps only a light edge (not a heavy outline)", hugFilt.includes("bordercolor=black@") && OVERLAY_TEXT.edgeAlpha < 0.4)
+ok("tracking is subtle (Option A)", OVERLAY_TEXT.trackingEm > 0 && OVERLAY_TEXT.trackingEm <= 0.05)
+ok("drop-shadow alpha is strong enough to lift text", OVERLAY_TEXT.shadowAlpha >= 0.6)
 ok("render graph still outputs the [v] label", /\[v\]$/.test(hugFilt))
 
 console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)

@@ -12,13 +12,14 @@ export const OVERLAY_CANVAS = { w: 1080, h: 1920 } as const
 // the CSS preview and the FFmpeg render (FFmpeg centers each line via x=(w-text_w)/2, so the
 // char-wrap is what constrains its width to the box). Headline box ≈ 800px, sub box ≈ 930px.
 export const OVERLAY_SPEC = {
-  // Template 1 uses ONE FIXED headline size (81px) for EVERY supported {city} {type_plural} combo,
-  // so all posts look visually consistent — no per-combo resizing. 81px is the largest single size
-  // at which the WIDEST supported combo ("SAN ANTONIO RENTAL HOMES", 988px @94 in the production
-  // font) still fits on one line inside the safe box, using a slightly wider-but-safe 90px margin
-  // (8.3% each side; was an over-conservative 140px/13%). maxChars/maxLines are the FALLBACK wrap
-  // for arbitrary/custom headline text only (never for the controlled Template-1 vocabulary).
-  headline: { yFrac: 0.13, fontPx: 81, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24, maxChars: 16, maxLines: 3, sideMarginPx: 90 },
+  // Template 1 uses ONE FIXED headline size for EVERY supported {city} {type_plural} combo — no
+  // per-post resizing. 78px is the largest single size at which the WIDEST supported combo
+  // ("SAN ANTONIO RENTAL HOMES", 988px @94 in the production font) still fits ONE line inside the
+  // 900px safe box (90px margins, no background box) WITH the subtle OVERLAY_TEXT.trackingEm applied
+  // (tracked width ≈ 876px, ~12px spare each side). Slightly under the old 81px so the character
+  // tracking adds breathing room without stretching or wrapping. maxChars/maxLines are the FALLBACK
+  // wrap for arbitrary/custom headline text only (never for the controlled Template-1 vocabulary).
+  headline: { yFrac: 0.13, fontPx: 78, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24, maxChars: 16, maxLines: 3, sideMarginPx: 90 },
   // The sub sits `gapPx` BELOW the headline block. gap tightened 44→35 (~20%) so the headline +
   // "Starting at $…/mo" read as one compact lockup. Its safe box is ≈86% of the canvas (930px;
   // 75px margins each side). maxChars/maxLines/hard-split unchanged (shared preview===render).
@@ -26,18 +27,21 @@ export const OVERLAY_SPEC = {
   safe: { topFrac: 0.1, bottomFrac: 0.2 },
 } as const
 
-// Readability for generated overlay text is LETTER-HUGGING only — a subtle dark OUTLINE plus a
-// small soft drop shadow attached to the glyphs. NO background band/scrim/box: the footage around
-// and between the letters is left untouched. Shared by the CSS preview and the FFmpeg render so the
-// two match. Border widths are absolute canvas px (per element); the preview scales them via em so
-// the proportion matches at any preview size.
+// Generated overlay text typography (Template 1). Option A: subtle CHARACTER TRACKING + a localized
+// DROP SHADOW that provides most of the depth, with only a very light edge for consistency on bright
+// footage — NO background band/scrim/box, and NOT a heavy meme-style outline. All values are in em
+// (fraction of the element's own font size), so preview and render scale identically. `trackingEm`
+// widens the space between individual characters ONLY (word spacing is untouched). FFmpeg drawtext
+// has no letter-spacing/blur, so the burned-in render approximates the drop shadow (hard offset) and
+// omits tracking until the render is switched to a rasterized text overlay (see renderVideo).
 export const OVERLAY_TEXT = {
-  borderAlpha: 0.5,
-  headlineBorderPx: 3,
-  subBorderPx: 2,
-  shadowAlpha: 0.6,
-  shadowDx: 0,
-  shadowDy: 2,
+  trackingEm: 0.03, // subtle inter-character tracking (Option A) — between letters, not words
+  edgeAlpha: 0.28, // very light letter edge (kept minimal; the drop shadow carries the depth)
+  edgeEm: 0.02,
+  shadowAlpha: 0.7, // localized black drop shadow — offset + blur, lifts letters off bright footage
+  shadowDxEm: 0,
+  shadowDyEm: 0.05,
+  shadowBlurEm: 0.07,
 } as const
 
 // Deterministic word-wrap — SHARED by the CSS preview and the FFmpeg render so both produce the
@@ -82,9 +86,8 @@ export function wrapSub(text: string | null | undefined, maxChars = OVERLAY_SPEC
 // SUPPORTED SET (its 94px widths are kept for documentation/verification); every entry renders at
 // the SAME fixed font. Any headline NOT in the set (arbitrary/custom text) falls back to char-wrap.
 //
-// Usable text width = canvas − 2·sideMargin − 2·boxBorder (the box must stay in the safe area).
-export const HEADLINE_TEXT_AVAIL_PX =
-  OVERLAY_CANVAS.w - 2 * OVERLAY_SPEC.headline.sideMarginPx - 2 * OVERLAY_SPEC.headline.boxBorderPx // 852 (90px margins)
+// Usable text width = canvas − 2·sideMargin (no background box any more, so no box padding).
+export const HEADLINE_TEXT_AVAIL_PX = OVERLAY_CANVAS.w - 2 * OVERLAY_SPEC.headline.sideMarginPx // 900 (90px margins)
 
 // Measured advance width (px) of each uppercase headline at 94px in Overlay-Bold.ttf. Used to
 // derive/verify the fixed size and as the supported-combo membership set (font is FIXED, not scaled).
@@ -94,6 +97,16 @@ const HEADLINE_WIDTH_AT_94: Record<string, number> = {
   "DFW STUDIOS": 454, "DFW APARTMENTS": 627, "DFW HIGH-RISES": 554, "DFW TOWNHOMES": 615, "DFW RENTAL HOMES": 691, "DFW PENTHOUSES": 603,
   "HOUSTON STUDIOS": 614, "HOUSTON APARTMENTS": 787, "HOUSTON HIGH-RISES": 714, "HOUSTON TOWNHOMES": 775, "HOUSTON RENTAL HOMES": 851, "HOUSTON PENTHOUSES": 763,
   "SAN ANTONIO STUDIOS": 751, "SAN ANTONIO APARTMENTS": 924, "SAN ANTONIO HIGH-RISES": 851, "SAN ANTONIO TOWNHOMES": 912, "SAN ANTONIO RENTAL HOMES": 988, "SAN ANTONIO PENTHOUSES": 900,
+  "AUSTIN LOFTS": 462, "DALLAS LOFTS": 478, "DFW LOFTS": 374, "HOUSTON LOFTS": 534, "SAN ANTONIO LOFTS": 671,
+}
+
+/** Tracked advance width (canvas px) of a supported headline at the fixed size WITH tracking:
+ *  base-advance scaled from the 94px measurement + trackingEm applied between every character.
+ *  Used to verify one-line fit inside HEADLINE_TEXT_AVAIL_PX. */
+export function trackedHeadlineWidthPx(text: string, fontPx = OVERLAY_SPEC.headline.fontPx, trackingEm = OVERLAY_TEXT.trackingEm): number {
+  const base = HEADLINE_WIDTH_AT_94[text.toUpperCase()]
+  if (base == null) return NaN
+  return (base * fontPx) / 94 + trackingEm * fontPx * text.length
 }
 
 export type HeadlineFit = { fontPx: number; lines: string[] }
