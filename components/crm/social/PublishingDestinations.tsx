@@ -125,13 +125,25 @@ export default function PublishingDestinations({
     }
   }
 
+  // ALWAYS start a fresh invitation flow. Never reopen a previously created show-once link:
+  // clear newLink + label + flags before opening, so "+ Add Publishing Destination" is always a
+  // clean, empty form regardless of prior state (connected/pending/used destinations never block it).
+  const openAdd = () => {
+    setNewLink(null)
+    setInviteLabel("")
+    setAddError(null)
+    setCopied(false)
+    setGenerating(false)
+    setAdding(true)
+  }
+
   const closeAdd = () => {
     setAdding(false)
     setInviteLabel("")
     setNewLink(null)
     setCopied(false)
     setAddError(null)
-    router.refresh() // pick up the new pending invitation
+    router.refresh() // pick up the new pending invitation; drop any just-revoked one
   }
 
   const revokeInvite = async (id: string) => {
@@ -140,6 +152,38 @@ export default function PublishingDestinations({
     try {
       const res = await fetch(`${INVITES}/${id}/revoke`, { method: "POST" })
       if (res.ok) router.refresh()
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  // Create New Link for a PENDING invitation: revoke the old one, mint a fresh invitation with the
+  // SAME label, and show the new raw link ONCE (in the add panel's created-link view). The old
+  // invitation's raw token is never reconstructed or redisplayed.
+  const createNewLink = async (inv: PendingInvite) => {
+    const who = inv.label || "this invitation"
+    if (!confirm(`Replace the link for ${who}? The old link stops working immediately and a new one-time link is created.`)) return
+    setBusyId(inv.id)
+    setAddError(null)
+    try {
+      const rev = await fetch(`${INVITES}/${inv.id}/revoke`, { method: "POST" })
+      if (!rev.ok) return
+      const res = await fetch(INVITES, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(inv.label ? { label: inv.label } : {}),
+      })
+      const data = await res.json().catch(() => null)
+      if (res.ok && data?.link) {
+        setInviteLabel(inv.label ?? "")
+        setCopied(false)
+        setNewLink(data.link as string)
+        setAdding(true) // surface the created-link view
+        router.refresh() // old invite revoked, new one now pending
+      } else {
+        setAddError("Couldn't create a new link. Please try again.")
+        setAdding(true)
+      }
     } finally {
       setBusyId(null)
     }
@@ -162,7 +206,7 @@ export default function PublishingDestinations({
             <h2 className="text-[14px] font-bold text-[var(--crm-text-primary)]">Publishing Destinations</h2>
             <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">Instagram accounts you publish to. Add one by sending a private authorization link.</p>
           </div>
-          <button type="button" className={btnPrimary} disabled={!configured} onClick={() => setAdding((v) => !v)}>
+          <button type="button" className={btnPrimary} disabled={!configured} onClick={openAdd}>
             + Add Publishing Destination
           </button>
         </div>
@@ -175,25 +219,28 @@ export default function PublishingDestinations({
         {adding && (
           <div className="mt-3 rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] p-3">
             {!newLink ? (
-              <div className="flex items-end gap-2 flex-wrap">
-                <label className="block flex-1 min-w-[200px]">
-                  <span className="text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]">Label (optional)</span>
-                  <input className={`${control} mt-1`} value={inviteLabel} onChange={(e) => setInviteLabel(e.target.value)} placeholder="e.g. Wife, Sister-in-law, Dallas Account" />
-                </label>
-                <button type="button" className={btnPrimary} disabled={generating} onClick={() => void generateLink()}>{generating ? "Generating…" : "Generate link"}</button>
-                <button type="button" className={btn} disabled={generating} onClick={closeAdd}>Cancel</button>
-                {addError && <div className="w-full text-[11.5px] text-amber-600 dark:text-amber-400">{addError}</div>}
+              <div>
+                <div className="text-[13px] font-semibold text-[var(--crm-text-primary)]">Add Publishing Destination</div>
+                <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">Create a secure link for the Instagram account you want to connect.</p>
+                <div className="mt-2 flex items-end gap-2 flex-wrap">
+                  <label className="block flex-1 min-w-[200px]">
+                    <span className="text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]">Label (optional)</span>
+                    <input className={`${control} mt-1`} value={inviteLabel} onChange={(e) => setInviteLabel(e.target.value)} placeholder="e.g. Wife, Dallas Account" />
+                  </label>
+                  <button type="button" className={btnPrimary} disabled={generating} onClick={() => void generateLink()}>{generating ? "Creating…" : "Create Authorization Link"}</button>
+                  <button type="button" className={btn} disabled={generating} onClick={closeAdd}>Cancel</button>
+                </div>
+                {addError && <div className="mt-2 text-[11.5px] text-amber-600 dark:text-amber-400">{addError}</div>}
               </div>
             ) : (
               <div>
-                <div className="text-[12.5px] font-semibold text-[var(--crm-text-primary)]">Private authorization link{inviteLabel.trim() ? ` — ${inviteLabel.trim()}` : ""}</div>
-                <div className="text-[11.5px] text-amber-600 dark:text-amber-400 mt-0.5">Copy this now — it&apos;s shown once and can&apos;t be retrieved later.</div>
+                <div className="text-[13px] font-semibold text-[var(--crm-text-primary)]">Authorization link created</div>
+                <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">This link can be used once and expires in 7 days.</p>
                 <div className="mt-2 flex items-center gap-2 flex-wrap">
                   <input readOnly value={newLink} onFocus={(e) => e.currentTarget.select()} className={`${control} flex-1 min-w-[220px] font-mono text-[12px]`} />
                   <button type="button" className={btnPrimary} onClick={() => void copyLink()}>{copied ? "Copied ✓" : "Copy Link"}</button>
                   <button type="button" className={btn} onClick={closeAdd}>Done</button>
                 </div>
-                <div className="text-[11px] text-[var(--crm-text-muted)] mt-2">Send this to the account owner. They authorize their own Instagram — no Beast Social account or access is created.</div>
               </div>
             )}
           </div>
@@ -264,7 +311,10 @@ export default function PublishingDestinations({
                   <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-[var(--crm-text-secondary)]">{dot("bg-sky-500")} Awaiting authorization</span>
                   <span className="text-[11px] text-[var(--crm-text-muted)]">Created {fmtDate(inv.createdAt)} · Expires {fmtDate(inv.expiresAt)}</span>
                 </div>
-                <button type="button" className={btn} disabled={busyId === inv.id} onClick={() => void revokeInvite(inv.id)}>Revoke</button>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button type="button" className={btn} disabled={busyId === inv.id} onClick={() => void createNewLink(inv)}>Create New Link</button>
+                  <button type="button" className={btn} disabled={busyId === inv.id} onClick={() => void revokeInvite(inv.id)}>Revoke</button>
+                </div>
               </div>
             ))}
           </div>
