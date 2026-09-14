@@ -55,18 +55,18 @@ export default function SpecialSelect({
 
   return (
     <div ref={wrapRef} className="relative">
-      <div className={`mt-1 flex flex-wrap items-center gap-1.5 ${control} p-2 min-h-[40px]`}>
+      <div className={`mt-1 flex flex-nowrap items-center gap-1 ${control} px-1.5 py-1 min-h-[40px]`}>
         {chip ? (
-          <span className="inline-flex items-center gap-1 h-fit text-[12px] font-semibold px-2 py-0.5 rounded-full bg-[var(--crm-panel)] border border-[var(--crm-border)] text-[var(--crm-text-primary)]">
+          <span className="inline-flex flex-none whitespace-nowrap items-center gap-1 h-fit text-[12px] font-semibold px-2 py-0.5 rounded-full bg-[var(--crm-panel)] border border-[var(--crm-border)] text-[var(--crm-text-primary)]">
             {chip}
             <button type="button" aria-label="Clear social special" className="text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]" onClick={clear}>×</button>
           </span>
         ) : (
-          <button type="button" className="text-[12.5px] text-[var(--crm-text-muted)]" onClick={() => setOpen((o) => !o)}>
-            {fallbackHint ? `Auto: ${fallbackHint} — choose to override…` : "Choose a special…"}
+          <button type="button" className="min-w-0 truncate text-left text-[12.5px] text-[var(--crm-text-muted)]" onClick={() => setOpen((o) => !o)} title={fallbackHint ? `Auto: ${fallbackHint}` : "Choose a special"}>
+            {fallbackHint ? `Auto: ${fallbackHint}` : "Choose…"}
           </button>
         )}
-        <button type="button" aria-label="Open special options" className="ml-auto text-[12px] text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]" onClick={() => setOpen((o) => !o)}>▾</button>
+        <button type="button" aria-label="Open special options" className="ml-auto flex-none text-[12px] text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]" onClick={() => setOpen((o) => !o)}>▾</button>
       </div>
 
       {/* Gift Card amount (shown while editing a gift-card special). */}
