@@ -509,9 +509,20 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             </label>
           </div>
 
-          {/* Row 2: Current Special (wide) | Amenities / Features (wide) | Starting At (narrow) */}
-          <div className="grid grid-cols-1 sm:grid-cols-[3fr_3fr_2fr] gap-3">
-            <div className="block">
+          {/* Amenities gets its OWN full-width row so up to 3 chips — including the longest canonical
+              combo (Stainless Steel Appliances · Floor-to-Ceiling Windows · Washer & Dryer Included ≈
+              563px) — stay on ONE line at the editor width. A shared 3-up row could offer only
+              ≤~548px even at 60%, forcing a wrap; this guarantees one line without shrinking or
+              truncating. Special + Starting At are short values → a compact row beneath. */}
+          <div className="block min-w-0">
+            <span className={fieldLabel}>Amenities / Features <span className="normal-case text-[var(--crm-text-muted)]">· choose up to 3</span></span>
+            <AmenitySelect
+              value={parseAmenities(amenities)}
+              onChange={(next) => { const s = serializeAmenities(next); setAmenities(s); syncGenerated(metaOf({ amenities: s || null })) }}
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,300px)_minmax(0,190px)] gap-3">
+            <div className="block min-w-0">
               <span className={fieldLabel}>Special</span>
               <SpecialSelect
                 value={socialSpecial}
@@ -519,17 +530,10 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 onChange={(v) => { setSocialSpecial(v); syncGenerated(metaOf({ socialSpecial: v || null })) }}
               />
             </div>
-            <div className="block">
-              <span className={fieldLabel}>Amenities / Features <span className="normal-case text-[var(--crm-text-muted)]">· choose up to 3</span></span>
-              <AmenitySelect
-                value={parseAmenities(amenities)}
-                onChange={(next) => { const s = serializeAmenities(next); setAmenities(s); syncGenerated(metaOf({ amenities: s || null })) }}
-              />
-            </div>
             {/* Starting At — the user enters ONLY the lowest monthly rent (no $, "Starting at", or
                 /mo). The renderer/caption add "Starting at $…/mo". Stored in the same budget_range
                 column (no migration). Entering a value derives the overlay subheadline live. */}
-            <label className="block">
+            <label className="block min-w-0">
               <span className={fieldLabel}>Starting At <span className="normal-case text-[var(--crm-text-muted)]">· monthly rent</span></span>
               <div className="relative mt-1">
                 <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[13px] text-[var(--crm-text-muted)]">$</span>

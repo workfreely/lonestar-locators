@@ -74,11 +74,14 @@ export default function AmenitySelect({
 
   return (
     <div ref={wrapRef} className="relative">
-      <div className={`mt-1 flex flex-wrap gap-1.5 ${control} p-2 min-h-[40px] content-start`}>
+      {/* Chips stay on ONE line: flex-nowrap + compact padding/gap so up to 3 canonical amenities
+          fit the (widest) column; if a rare long combo overflows it scrolls horizontally rather than
+          wrapping onto a second row, shrinking, or truncating. Chip styling itself is unchanged. */}
+      <div className={`mt-1 flex flex-nowrap items-center gap-1 ${control} px-1.5 py-1 min-h-[40px] overflow-x-auto`}>
         {value.map((a, i) => (
           <span
             key={`${a}-${i}`}
-            className="inline-flex items-center gap-1 h-fit text-[12px] font-semibold px-2 py-0.5 rounded-full bg-[var(--crm-panel)] border border-[var(--crm-border)] text-[var(--crm-text-primary)]"
+            className="inline-flex flex-none whitespace-nowrap items-center gap-1 h-fit text-[12px] font-semibold px-2 py-0.5 rounded-full bg-[var(--crm-panel)] border border-[var(--crm-border)] text-[var(--crm-text-primary)]"
           >
             {a}
             <button type="button" aria-label={`Remove ${a}`} className="text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]" onClick={() => remove(i)}>×</button>

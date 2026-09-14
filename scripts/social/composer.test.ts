@@ -5,7 +5,7 @@ import { AMENITY_BANK, canonicalizeAmenity, parseAmenities, serializeAmenities, 
 import { preparePost, buildCaption, buildOverlayHeadline, buildOverlaySubheadline, composeFinalCaption, startingPriceLabel, buildOverlayDetail, joinDetailParts, specialDisplay, resolveSocialSpecial, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags } from "@/lib/social/composePost"
 import { SOCIAL_SPECIAL_OPTIONS, giftCardLabel, isGiftCardSpecial, sanitizeCustomSpecial } from "@/lib/social/socialSpecial"
 import { buildFfmpegArgs, buildVideoFilter } from "@/lib/social/renderVideo"
-import { wrapHeadline, wrapSub, overlayPreviewStyle, headlineFit, overlayScrimBand, OVERLAY_SPEC, OVERLAY_SCRIM, OVERLAY_CANVAS, HEADLINE_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
+import { wrapHeadline, wrapSub, overlayPreviewStyle, headlineFit, OVERLAY_SPEC, OVERLAY_TEXT, HEADLINE_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
 
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
@@ -327,18 +327,13 @@ ok("raw Current Special metadata is never mutated by resolution", rawKept.specia
 ok("Template 1 overlay detail stays PRICE-ONLY regardless of Social Special", buildOverlayDetail({ ...rawKept, budgetRange: "1495" }) === "Starting at $1,495/mo")
 ok("one primary Social Special (single value feeds caption)", (capExplicit.match(/✨/g) || []).length === 1)
 
-console.log("overlay readability scrim (soft band that follows the text group, not full-screen):")
-const bandHS = overlayScrimBand(1, 1)
-ok("scrim band has positive height for headline + detail", bandHS.heightPx > 0)
-ok("band starts ABOVE the headline (padded)", bandHS.topPx < OVERLAY_SPEC.headline.yFrac * OVERLAY_CANVAS.h)
-ok("band is NOT full-screen (well under canvas height)", bandHS.heightPx < OVERLAY_CANVAS.h * 0.5)
-ok("headline-only band is shorter than headline+detail band", overlayScrimBand(1, 0).heightPx < overlayScrimBand(1, 1).heightPx)
-ok("peak alpha is subtle (0 < a < 0.6)", OVERLAY_SCRIM.peakAlpha > 0 && OVERLAY_SCRIM.peakAlpha < 0.6)
-// Render carries a soft scrim (overlay of a faded black source) instead of a hard box.
-const scrimFilt = buildVideoFilter("/f.ttf", "/h.txt", "/s.txt", 1, OVERLAY_SPEC.headline.fontPx, 1)
-ok("render builds a faded scrim + overlay (no hard drawtext box)", scrimFilt.includes("geq=") && scrimFilt.includes("overlay=") && !scrimFilt.includes("box=1"))
-ok("render drawtext carries a soft shadow", scrimFilt.includes("shadowcolor="))
-ok("render graph outputs the [v] label", /\[v\]$/.test(scrimFilt))
+console.log("overlay readability = letter-hugging outline + shadow (NO background band/box/scrim):")
+const hugFilt = buildVideoFilter("/f.ttf", "/h.txt", "/s.txt", 1, OVERLAY_SPEC.headline.fontPx, 1)
+ok("NO scrim/band/box in render (no geq/overlay/box)", !hugFilt.includes("geq=") && !hugFilt.includes("overlay=") && !hugFilt.includes("box=1"))
+ok("drawtext hugs each letter with a dark outline (border)", hugFilt.includes("borderw=") && hugFilt.includes("bordercolor=black@"))
+ok("drawtext carries a small drop shadow", hugFilt.includes("shadowcolor=black@") && hugFilt.includes("shadowy="))
+ok("outline alpha is subtle (0 < a < 1)", OVERLAY_TEXT.borderAlpha > 0 && OVERLAY_TEXT.borderAlpha < 1)
+ok("render graph still outputs the [v] label", /\[v\]$/.test(hugFilt))
 
 console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

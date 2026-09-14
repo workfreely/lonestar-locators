@@ -8,7 +8,7 @@ import { execFile } from "node:child_process"
 import { promises as fs } from "node:fs"
 import path from "node:path"
 import os from "node:os"
-import { OVERLAY_SPEC, OVERLAY_SCRIM, overlayScrimBand, wrapSub, headlineBlockPx, headlineFit } from "@/lib/social/overlaySpec"
+import { OVERLAY_SPEC, OVERLAY_TEXT, wrapSub, headlineBlockPx, headlineFit } from "@/lib/social/overlaySpec"
 
 export type AudioChoice = "original" | "none" | "lb_track"
 
@@ -36,42 +36,30 @@ function escFilterPath(p: string): string {
 export function buildVideoFilter(fontPath: string, headFile: string | null, subFile: string | null, headLineCount = 1, headlineFontPx: number = OVERLAY_SPEC.headline.fontPx, subLineCount = subFile ? 1 : 0): string {
   const font = escFilterPath(fontPath)
   const yHead = `h*${OVERLAY_SPEC.headline.yFrac}`
-  // Common drawtext readability shadow (soft, subtle — the scrim carries most of the contrast).
-  const shadow = ":shadowcolor=black@0.5:shadowx=0:shadowy=3"
+  // Letter-hugging readability: a subtle dark OUTLINE (border) around each glyph + a small soft drop
+  // shadow. NO background band/box — the footage between letters is untouched.
+  const shadow = `:shadowcolor=black@${OVERLAY_TEXT.shadowAlpha}:shadowx=${OVERLAY_TEXT.shadowDx}:shadowy=${OVERLAY_TEXT.shadowDy}`
+  const hug = (borderPx: number) => `:borderw=${borderPx}:bordercolor=black@${OVERLAY_TEXT.borderAlpha}${shadow}`
 
   // 1) Cover-fit the source to the 9:16 canvas.
   const graph: string[] = [`[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920[bg]`]
   let label = "bg"
 
-  // 2) Readability scrim (only when there is overlay text). A black RGBA source whose alpha is a
-  //    raised-cosine hump over the band height → 0 at the band's top/bottom edges, peak in the
-  //    middle. Overlaid at the band's top y so it hugs the text group.
-  if (headFile || subFile) {
-    const band = overlayScrimBand(headFile ? headLineCount : 0, subFile ? subLineCount : 0, headlineFontPx)
-    const H = Math.max(1, Math.round(band.heightPx))
-    const peak = Math.round(OVERLAY_SCRIM.peakAlpha * 255)
-    graph.push(`color=c=black:s=1080x${H}:r=30,format=rgba,geq=r=0:g=0:b=0:a='${peak}*sin(PI*Y/${H})'[scrim]`)
-    // shortest=1 ties the output length to the (finite) video — the scrim color source is infinite,
-    // so this guarantees the render always terminates regardless of clip length.
-    graph.push(`[${label}][scrim]overlay=x=0:y=${Math.round(band.topPx)}:shortest=1[base]`)
-    label = "base"
-  }
-
-  // 3) Headline.
+  // 2) Headline.
   if (headFile) {
     const next = subFile ? "h" : "v"
     graph.push(
       `[${label}]drawtext=fontfile='${font}':textfile='${escFilterPath(headFile)}':fontcolor=white:fontsize=${headlineFontPx}` +
-        `:line_spacing=${OVERLAY_SPEC.headline.lineSpacing}${shadow}:x=(w-text_w)/2:y=${yHead}[${next}]`,
+        `:line_spacing=${OVERLAY_SPEC.headline.lineSpacing}${hug(OVERLAY_TEXT.headlineBorderPx)}:x=(w-text_w)/2:y=${yHead}[${next}]`,
     )
     label = next
   }
-  // 4) Detail — y = headline top + full headline block height (at the FIT font size) + a gap.
+  // 3) Detail — y = headline top + full headline block height (at the FIT font size) + a gap.
   if (subFile) {
     const subOffset = headFile ? headlineBlockPx(headLineCount, headlineFontPx) + OVERLAY_SPEC.sub.gapPx : 0
     graph.push(
       `[${label}]drawtext=fontfile='${font}':textfile='${escFilterPath(subFile)}':fontcolor=white:fontsize=${OVERLAY_SPEC.sub.fontPx}` +
-        `:line_spacing=${OVERLAY_SPEC.sub.lineSpacing}${shadow}:x=(w-text_w)/2:y=${yHead}+${subOffset}[v]`,
+        `:line_spacing=${OVERLAY_SPEC.sub.lineSpacing}${hug(OVERLAY_TEXT.subBorderPx)}:x=(w-text_w)/2:y=${yHead}+${subOffset}[v]`,
     )
     label = "v"
   }

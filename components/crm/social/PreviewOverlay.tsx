@@ -1,5 +1,17 @@
 import type { CSSProperties } from "react"
-import { OVERLAY_CANVAS, OVERLAY_SCRIM, overlayScrimBand } from "@/lib/social/overlaySpec"
+import { OVERLAY_SPEC, OVERLAY_TEXT } from "@/lib/social/overlaySpec"
+
+// Letter-hugging readability shadow, matching the FFmpeg render: a dark OUTLINE (8-direction, sized
+// by em so it scales with the font) plus a small soft drop shadow — NO background band. `fontPx` is
+// the element's canvas font size, so the border-in-em matches the render's absolute border width.
+function hugShadow(borderPx: number, fontPx: number): string {
+  const e = borderPx / fontPx // outline thickness as a fraction of the font (em)
+  const a = OVERLAY_TEXT.borderAlpha
+  const dirs: [number, number][] = [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1], [0, 1], [-1, 0], [1, 0]]
+  const outline = dirs.map(([x, y]) => `${(x * e).toFixed(3)}em ${(y * e).toFixed(3)}em 0 rgba(0,0,0,${a})`).join(", ")
+  const drop = `${OVERLAY_TEXT.shadowDx / fontPx}em ${(OVERLAY_TEXT.shadowDy / fontPx).toFixed(3)}em ${(1.5 * e).toFixed(3)}em rgba(0,0,0,${OVERLAY_TEXT.shadowAlpha})`
+  return `${outline}, ${drop}`
+}
 
 // SHARED overlay composition (pre-render CSS approximation) used by BOTH the inline Post Editor
 // preview and the enlarged 9:16 lightbox, so the two can never drift. It renders the headline +
@@ -39,7 +51,6 @@ export default function PreviewOverlay({
   // "SAN ANTONIO TOWNHOMES" wrap to two lines: the default system font is wider than Overlay-Bold
   // and `pre-line` let it break at the space.
   const FONT = '"OverlayBold", system-ui, sans-serif'
-  const letterSpacing = `${(OVERLAY_SCRIM.letterSpacingPx / OVERLAY_CANVAS.h) * 100}cqh`
   const headStyle: CSSProperties = {
     position: "absolute",
     top: `${ov.headlineTopPct}%`,
@@ -51,8 +62,7 @@ export default function PreviewOverlay({
     fontWeight: 800,
     lineHeight: 1.05,
     fontSize: `${ov.headlineFontPct}cqh`,
-    letterSpacing,
-    textShadow: "0 2px 8px rgba(0,0,0,.6)",
+    textShadow: hugShadow(OVERLAY_TEXT.headlineBorderPx, OVERLAY_SPEC.headline.fontPx),
     whiteSpace: "pre",
   }
   const subStyle: CSSProperties = {
@@ -66,29 +76,12 @@ export default function PreviewOverlay({
     fontWeight: 700,
     lineHeight: ov.subLineHeight,
     fontSize: `${ov.subFontPct}cqh`,
-    letterSpacing,
-    textShadow: "0 2px 8px rgba(0,0,0,.6)",
+    textShadow: hugShadow(OVERLAY_TEXT.subBorderPx, OVERLAY_SPEC.sub.fontPx),
     whiteSpace: "pre",
-  }
-
-  // Readability BACKDROP — a soft translucent dark band behind the text GROUP (not full-screen),
-  // matching the FFmpeg scrim: a vertical fade that is transparent at the band's edges and peaks
-  // (OVERLAY_SCRIM.peakAlpha) in the middle. Recover the headline px size from ov.headlineFontPct
-  // so the band lands exactly where the render draws it.
-  const headlineFontPx = (ov.headlineFontPct / 100) * OVERLAY_CANVAS.h
-  const band = overlayScrimBand(showHeadline ? headLines.length : 0, showSub ? subLines.length : 0, headlineFontPx)
-  const scrimStyle: CSSProperties = {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    top: `${(band.topPx / OVERLAY_CANVAS.h) * 100}%`,
-    height: `${(band.heightPx / OVERLAY_CANVAS.h) * 100}%`,
-    background: `linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,${OVERLAY_SCRIM.peakAlpha}) 50%, rgba(0,0,0,0) 100%)`,
   }
 
   return (
     <div className="pointer-events-none absolute inset-0" aria-hidden style={{ containerType: "size" }}>
-      {(showHeadline || showSub) && band.heightPx > 0 && <div style={scrimStyle} />}
       {showHeadline && <div style={headStyle}>{headLines.join("\n").toUpperCase()}</div>}
       {showSub && <div style={subStyle}>{subLines.join("\n")}</div>}
     </div>
