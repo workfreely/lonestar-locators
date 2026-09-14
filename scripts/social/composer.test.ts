@@ -131,23 +131,21 @@ ok("Penthouse→Penthouses", buildOverlayHeadline({ market: "Austin", propertyTy
 ok("headline trims surrounding whitespace", buildOverlayHeadline({ market: " Dallas ", propertyType: " High-Rise " }) === "DALLAS HIGH-RISES")
 const CITIES = ["Austin", "Dallas", "DFW", "Houston", "San Antonio"]
 const TYPES = ["Studio", "Apartment", "High-Rise", "Townhome", "Rental Home", "Penthouse"]
-let allOneLine = true, allInRange = true, aboveFloor = true
+const FIXED = OVERLAY_SPEC.headline.fontPx
+let allOneLine = true, allSameFixed = true
 for (const c of CITIES) for (const t of TYPES) {
   const fit = headlineFit(buildOverlayHeadline({ market: c, propertyType: t }))
   if (fit.lines.length !== 1) allOneLine = false
-  if (fit.fontPx < OVERLAY_SPEC.headline.minFontPx || fit.fontPx > OVERLAY_SPEC.headline.fontPx) allInRange = false
-  if (fit.fontPx <= OVERLAY_SPEC.headline.minFontPx) aboveFloor = false
+  if (fit.fontPx !== FIXED) allSameFixed = false
 }
 ok("EVERY supported city×type headline stays ONE line", allOneLine)
-ok("every fit font is within [minFontPx, 94]", allInRange)
-ok("no supported combo hits the minimum floor (never needs to wrap)", aboveFloor)
-ok("a combo that fits keeps the MAX 94px (DALLAS HIGH-RISES)", headlineFit("DALLAS HIGH-RISES").fontPx === 94)
-ok("longest combo shrinks to 71px, still one line (SAN ANTONIO RENTAL HOMES)", headlineFit("SAN ANTONIO RENTAL HOMES").fontPx === 71 && headlineFit("SAN ANTONIO RENTAL HOMES").lines.length === 1)
-ok("SAN ANTONIO APARTMENTS → 76px", headlineFit("SAN ANTONIO APARTMENTS").fontPx === 76)
-ok("SAN ANTONIO HIGH-RISES → 83px", headlineFit("SAN ANTONIO HIGH-RISES").fontPx === 83)
-ok("SAN ANTONIO TOWNHOMES → 77px", headlineFit("SAN ANTONIO TOWNHOMES").fontPx === 77)
-ok("usable text width = safe area − box borders = 752px", HEADLINE_TEXT_AVAIL_PX === 752)
-ok("unknown/custom headline falls back to base 94px + char-wrap", headlineFit("SOME ENTIRELY CUSTOM HEADLINE TEXT").fontPx === OVERLAY_SPEC.headline.fontPx)
+ok("EVERY supported combo uses the SAME fixed font (no per-combo resizing)", allSameFixed)
+ok("fixed Template 1 headline size is 81px", FIXED === 81)
+ok("longest combo (SAN ANTONIO RENTAL HOMES) = fixed 81px, one line", headlineFit("SAN ANTONIO RENTAL HOMES").fontPx === 81 && headlineFit("SAN ANTONIO RENTAL HOMES").lines.length === 1)
+ok("shorter combo (DALLAS HIGH-RISES) is NOT larger than San Antonio — identical 81px", headlineFit("DALLAS HIGH-RISES").fontPx === headlineFit("SAN ANTONIO RENTAL HOMES").fontPx)
+ok("SAN ANTONIO APARTMENTS also 81px", headlineFit("SAN ANTONIO APARTMENTS").fontPx === 81)
+ok("usable text width = safe area − box borders = 852px (90px margins)", HEADLINE_TEXT_AVAIL_PX === 852)
+ok("unknown/custom headline keeps the fixed font + char-wrap", headlineFit("SOME ENTIRELY CUSTOM HEADLINE TEXT").fontPx === FIXED)
 
 console.log("Template 1 vertical lockup: tightened headline→sub gap:")
 ok("gap is 35px (tightened from 44)", OVERLAY_SPEC.sub.gapPx === 35)
@@ -186,11 +184,11 @@ ok("sub is capped at maxLines (never runaway)", wrapSub("one two three four five
 ok("render sub drawtext has line_spacing (multi-line ready)", /textfile='\/s\.txt'[^,]*line_spacing=/.test(buildVideoFilter("/f.ttf", "/h.txt", "/s.txt", 1)))
 
 console.log("Reels-safe boxes (generous margins; no-space text can't run off-screen):")
-ok("headline box has generous side margins (not edge-to-edge)", overlayPreviewStyle(1).sideMarginPct >= 12)
+ok("headline box keeps safe side margins (8.3% each; not edge-to-edge)", overlayPreviewStyle(1).sideMarginPct >= 8 && overlayPreviewStyle(1).sideMarginPct < 12)
 ok("sub box is wider than the headline box but still safely inset", overlayPreviewStyle(1).subSideMarginPct < overlayPreviewStyle(1).sideMarginPct && overlayPreviewStyle(1).subSideMarginPct >= 6)
 // Nonsense/no-space text must hard-break so no single line can overflow the box.
 const noSpaceH = wrapHeadline("X".repeat(60))
-ok("no-space headline hard-splits (every line ≤ maxChars)", noSpaceH.length > 0 && noSpaceH.every((l) => l.length <= 14))
+ok("no-space headline hard-splits (every line ≤ maxChars)", noSpaceH.length > 0 && noSpaceH.every((l) => l.length <= 16))
 ok("no-space headline still capped at maxLines", noSpaceH.length <= 3)
 const noSpaceS = wrapSub("Y".repeat(120))
 ok("no-space subheadline hard-splits (every line ≤ maxChars)", noSpaceS.length > 0 && noSpaceS.every((l) => l.length <= 33))
