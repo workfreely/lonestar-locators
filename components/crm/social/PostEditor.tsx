@@ -534,7 +534,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 /mo). The renderer/caption add "Starting at $…/mo". Stored in the same budget_range
                 column (no migration). Entering a value derives the overlay subheadline live. */}
             <label className="block min-w-0">
-              <span className={fieldLabel}>Starting At <span className="normal-case text-[var(--crm-text-muted)]">· monthly rent</span></span>
+              <span className={fieldLabel}>Starting At</span>
               <div className="relative mt-1">
                 <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[13px] text-[var(--crm-text-muted)]">$</span>
                 <input
