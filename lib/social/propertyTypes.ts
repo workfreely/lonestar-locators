@@ -7,7 +7,7 @@ import { PROPERTY_TYPES as CANONICAL_PROPERTY_TYPES } from "@/lib/formOptions"
 // renter-preference value "Open to All" OUT of the canonical list — a Social-Autopilot-only
 // view. The canonical taxonomy in lib/formOptions.ts is NOT modified; "Open to All" remains
 // everywhere else in Locator Beast.
-export const PROPERTY_TYPES = CANONICAL_PROPERTY_TYPES.filter((t) => t !== "Open to All") // Studio | Apartment | High-Rise | Townhome | Rental Home | Penthouse
+export const PROPERTY_TYPES = CANONICAL_PROPERTY_TYPES.filter((t) => t !== "Open to All") // Studio | Apartment | High-Rise | Townhome | Rental Home | Penthouse | Loft
 export type PropertyType = (typeof PROPERTY_TYPES)[number]
 
 export function isPropertyType(v: string | null | undefined): v is PropertyType {
@@ -22,6 +22,7 @@ const KEYWORDS: [RegExp, PropertyType][] = [
   [/\b(high[\s-]?rise)\b/i, "High-Rise"],
   [/\b(town\s?homes?|town\s?houses?)\b/i, "Townhome"],
   [/\b(rental\s?homes?|single[\s-]?family)\b/i, "Rental Home"],
+  [/\b(lofts?)\b/i, "Loft"],
   [/\b(apartments?|apts?)\b/i, "Apartment"],
 ]
 
@@ -43,6 +44,8 @@ export function propertyNoun(type: string | null | undefined): string {
       return "rental home"
     case "Penthouse":
       return "penthouse"
+    case "Loft":
+      return "loft"
     default:
       return "apartment" // Apartment / Open to All / unknown
   }
@@ -62,6 +65,8 @@ export function propertyNounPlural(type: string | null | undefined): string {
       return "rental homes"
     case "Penthouse":
       return "penthouses"
+    case "Loft":
+      return "lofts"
     default:
       return "apartments"
   }

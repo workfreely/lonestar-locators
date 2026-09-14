@@ -12,6 +12,7 @@ const BASE: readonly string[] = ["#nowleasing", "#apartmentlocator", "#forrent"]
 const TYPE_TAGS: Record<string, readonly string[]> = {
   Townhome: ["#townhomes", "#townhouseliving", "#townhomeliving", "#townhometour"],
   "Rental Home": ["#rentalhome", "#homeforrent", "#houseforrent", "#hometour"],
+  Loft: ["#lofts", "#loftliving", "#loftlife", "#lofttour"],
   // Apartment-family (Apartment / High-Rise / Studio / Penthouse / Open to All / default)
   Apartment: ["#apartmenthunting", "#apartmentliving", "#luxuryapartments", "#apartmenttour"],
 }

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
 import { POST_TYPE_LABEL, previewAspectClass } from "@/lib/social/postTypes"
 import { buildHashtags, normalizeHashtag } from "@/lib/social/hashtags"
-import { startingPriceLabel, buildOverlayHeadline } from "@/lib/social/composePost"
+import { startingPriceLabel, buildOverlayHeadline, buildCaption, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags, type SourceMeta } from "@/lib/social/composePost"
 import { overlayPreviewStyle, wrapSub, headlineFit } from "@/lib/social/overlaySpec"
 import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
 import { SOCIAL_MARKETS } from "@/lib/social/markets"
@@ -97,10 +97,15 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [postName, setPostName] = useState("") // INTERNAL — kept, not shown as a field
   const [postType, setPostType] = useState("reel")
   const [headline, setHeadline] = useState("")
-  const [subheadline, setSubheadline] = useState("")
   const [overlayMode, setOverlayMode] = useState<"generate" | "existing">("generate")
   const [caption, setCaption] = useState("")
   const [hashtags, setHashtags] = useState<string[]>([])
+  // Manual-override flags: an AUTO-GENERATED field stays synced with metadata; once the user edits
+  // it directly it is a manual override and is preserved. (Overlay Detail has no manual mode — it
+  // is always derived from the template + metadata.)
+  const [headlineDirty, setHeadlineDirty] = useState(false)
+  const [captionDirty, setCaptionDirty] = useState(false)
+  const [hashtagsDirty, setHashtagsDirty] = useState(false)
   const [tagInput, setTagInput] = useState("")
   const [audioChoice, setAudioChoice] = useState("original")
   const [scheduleVal, setScheduleVal] = useState("") // local "YYYY-MM-DDTHH:mm"
@@ -130,11 +135,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       setPost(p)
       setPostName(p.postName ?? "")
       setPostType(p.postType || "reel")
-      setHeadline(p.overlayHeadline ?? "")
-      setSubheadline(p.overlaySubheadline ?? "")
       setOverlayMode(p.overlayMode === "existing" ? "existing" : "generate")
-      setCaption(p.caption ?? "")
-      setHashtags(Array.isArray(p.hashtags) ? p.hashtags : [])
       setAudioChoice(p.audioChoice || "original")
       setScheduleVal(isoToLocalInput(p.scheduledAt))
       setSourceContentId(p.sourceContentId ?? null)
@@ -145,6 +146,31 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       setSpecial(p.source?.special ?? "")
       setPriceRange(p.source?.budgetRange ?? "")
       setAmenities(p.source?.amenities ?? "")
+
+      // Generated-vs-manual detection on load. A stored value that matches a generated form for
+      // SOME market/type is AUTO-GENERATED → re-synced to the CURRENT metadata (repairs anything
+      // left stale by a prior metadata change). A value matching no generated form is a MANUAL
+      // override → kept as-is and flagged dirty. Overlay Detail is always derived (never manual).
+      const meta: SourceMeta = {
+        market: p.source?.market ?? null,
+        propertyType: p.source?.propertyType ?? null,
+        special: p.source?.special ?? null,
+        budgetRange: p.source?.budgetRange ?? null,
+        amenities: p.source?.amenities ?? null,
+      }
+      const seed = p.sourceContentId ?? undefined
+      const storedHead = p.overlayHeadline ?? ""
+      const hDirty = !isGeneratedHeadline(storedHead)
+      setHeadlineDirty(hDirty)
+      setHeadline(hDirty ? storedHead : buildOverlayHeadline(meta))
+      const storedCap = p.caption ?? ""
+      const cDirty = !isGeneratedCaption(storedCap, meta, seed)
+      setCaptionDirty(cDirty)
+      setCaption(cDirty ? storedCap : buildCaption(meta, seed))
+      const storedTags = Array.isArray(p.hashtags) ? p.hashtags : []
+      const tDirty = !isGeneratedHashtags(storedTags, meta)
+      setHashtagsDirty(tDirty)
+      setHashtags(tDirty ? storedTags : buildHashtags(meta.market, MAX_HASHTAGS, meta.propertyType))
     } catch {
       setError("Couldn't load the post.")
     }
@@ -162,8 +188,8 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   }, [lightbox])
 
   const fieldsBody = useCallback(
-    () => ({ postName, postType, caption, overlayHeadline: headline, overlaySubheadline: subheadline, overlayMode, hashtags, audioChoice }),
-    [postName, postType, caption, headline, subheadline, overlayMode, hashtags, audioChoice],
+    () => ({ postName, postType, caption, overlayHeadline: headline, overlaySubheadline: overlayMode === "generate" ? startingPriceLabel(priceRange) : "", overlayMode, hashtags, audioChoice }),
+    [postName, postType, caption, headline, priceRange, overlayMode, hashtags, audioChoice],
   )
 
   // Persist the public-safe SOURCE facts to social_content (reuses the canonical content PATCH,
@@ -283,29 +309,32 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
     const t = normalizeHashtag(raw)
     if (!t) return
     setHashtags((prev) => (prev.length >= MAX_HASHTAGS || prev.some((x) => x.toLowerCase() === t.toLowerCase()) ? prev : [...prev, t]))
+    setHashtagsDirty(true) // manual edit
     setTagInput("")
   }
-  // Suggest from the approved bank, capped at the Instagram limit (unchanged generation logic).
-  const suggestTags = () => setHashtags(buildHashtags(market || post?.source?.market, MAX_HASHTAGS, propertyType || post?.source?.propertyType).slice(0, MAX_HASHTAGS))
+  const removeTag = (idx: number) => { setHashtags((prev) => prev.filter((_, i) => i !== idx)); setHashtagsDirty(true) }
+  // Suggest from the approved bank, capped at the Instagram limit — this RE-SYNCS hashtags to the
+  // current market/type, so it clears the manual-override flag.
+  const suggestTags = () => { setHashtags(buildHashtags(market || post?.source?.market, MAX_HASHTAGS, propertyType || post?.source?.propertyType).slice(0, MAX_HASHTAGS)); setHashtagsDirty(false) }
 
-  // Regenerate the AUTO-GENERATED Template 1 headline when Market/Property Type changes — but ONLY
-  // when the current headline is still the generated value for the current source (or empty), so an
-  // intentional MANUAL override is never clobbered. buildOverlayHeadline is the single source of the
-  // {city} {property_type_plural} headline the FFmpeg render uses; this keeps the editor preview,
-  // enlarged preview, and the saved overlay_headline in sync with Market/Type.
-  // A headline is treated as AUTO-GENERATED (safe to regenerate) when it is empty or matches a
-  // Template 1 generated form for the current market — the market-only fallback or ANY of the 6
-  // canonical property types. This still detects a headline left stale from a prior type change
-  // (e.g. "SAN ANTONIO TOWNHOMES" while type is now High-Rise) as generated, while a truly custom
-  // manual headline (not a {city} {type_plural} form) is preserved.
-  const isGeneratedHeadline = (h: string, mkt: string) =>
-    !h.trim() ||
-    buildOverlayHeadline({ market: mkt }) === h ||
-    PROPERTY_TYPES.some((t) => buildOverlayHeadline({ market: mkt, propertyType: t }) === h)
-
-  const regenHeadlineFor = (nextMarket: string, nextType: string) => {
-    if (isGeneratedHeadline(headline, market)) setHeadline(buildOverlayHeadline({ market: nextMarket, propertyType: nextType }))
+  // ── Synchronization engine ─────────────────────────────────────────────────────────────────
+  // The overlay headline, the Instagram caption, and the hashtags are AUTO-GENERATED from metadata;
+  // the Overlay DETAIL is always derived from the template + metadata. When any metadata field
+  // changes we re-resolve every NON-manual generated value from the CURRENT metadata (the overlay
+  // and the caption are independent systems consuming the same metadata; hashtags follow the market;
+  // the caption keeps its deterministic hook and only re-resolves its variables). A field the user
+  // has manually overridden (dirty) is left untouched.
+  const metaOf = (over: Partial<SourceMeta> = {}): SourceMeta => ({
+    market, propertyType, special: special || null, budgetRange: priceRange || null, amenities: amenities || null, ...over,
+  })
+  const syncGenerated = (meta: SourceMeta) => {
+    if (!headlineDirty) setHeadline(buildOverlayHeadline(meta))
+    if (!captionDirty) setCaption(buildCaption(meta, sourceContentId ?? undefined))
+    if (!hashtagsDirty) setHashtags(buildHashtags(meta.market, MAX_HASHTAGS, meta.propertyType))
+    // Overlay Detail is derived from priceRange in the render/save path — no state to set here.
   }
+  // Overlay DETAIL (Template 1) = "Starting at {price}/mo" or empty. Derived, never manual.
+  const overlayDetail = overlayMode === "generate" ? startingPriceLabel(priceRange) : ""
 
   const control = "w-full text-[13px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] px-2.5 py-1.5"
   const fieldLabel = "text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]"
@@ -338,7 +367,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const previewSrc = rendered ? post.renderedPreviewUrl : post.previewUrl // source for the enlarge modal
   const headFit = headlineFit(headline) // fit-to-width (one line for supported combos); shared with the render
   const headLines = headFit.lines
-  const subLines = wrapSub(subheadline) // compact centered block inside the safe area (shared geometry)
+  const subLines = wrapSub(overlayDetail) // derived Template 1 detail (shared geometry)
   const ov = overlayPreviewStyle(headLines.length || 1, headFit.fontPx)
 
   return (
@@ -378,7 +407,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 <video src={post.previewUrl} controls controlsList="nofullscreen" disablePictureInPicture muted playsInline preload="metadata" className="w-full h-full object-cover" />
                 {/* Pre-render APPROXIMATION overlay (CSS) — SHARED with the enlarged lightbox so
                     both previews render the exact same overlay. Replaced by the burned-in render. */}
-                <PreviewOverlay headLines={headLines} subLines={subLines} ov={ov} showHeadline={overlayMode === "generate" && !!headline} showSub={overlayMode === "generate" && !!subheadline} />
+                <PreviewOverlay headLines={headLines} subLines={subLines} ov={ov} showHeadline={overlayMode === "generate" && !!headline} showSub={overlayMode === "generate" && !!overlayDetail} />
               </>
             ) : (
               <div className="w-full h-full flex items-center justify-center text-[12px] text-[var(--crm-text-muted)]">No preview</div>
@@ -433,14 +462,14 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             </label>
             <label className="block">
               <span className={fieldLabel}>Property Type</span>
-              <select className={`${control} mt-1`} value={propertyType} onChange={(e) => { const v = e.target.value; regenHeadlineFor(market, v); setPropertyType(v) }}>
+              <select className={`${control} mt-1`} value={propertyType} onChange={(e) => { const v = e.target.value; setPropertyType(v); syncGenerated(metaOf({ propertyType: v })) }}>
                 <option value="">No type</option>
                 {PROPERTY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </label>
             <label className="block">
               <span className={fieldLabel}>Market</span>
-              <select className={`${control} mt-1`} value={market} onChange={(e) => { const v = e.target.value; regenHeadlineFor(v, propertyType); setMarket(v) }}>
+              <select className={`${control} mt-1`} value={market} onChange={(e) => { const v = e.target.value; setMarket(v); syncGenerated(metaOf({ market: v })) }}>
                 <option value="">No market</option>
                 {[...SOCIAL_MARKETS, ...(market && !SOCIAL_MARKETS.includes(market) ? [market] : [])].map((m) => <option key={m} value={m}>{m}</option>)}
               </select>
@@ -451,11 +480,11 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
           <div className="grid grid-cols-1 sm:grid-cols-[3fr_3fr_2fr] gap-3">
             <label className="block">
               <span className={fieldLabel}>Current Special</span>
-              <input className={`${control} mt-1`} value={special} onChange={(e) => setSpecial(e.target.value)} />
+              <input className={`${control} mt-1`} value={special} onChange={(e) => { const v = e.target.value; setSpecial(v); syncGenerated(metaOf({ special: v || null })) }} />
             </label>
             <label className="block">
               <span className={fieldLabel}>Amenities / Features</span>
-              <input className={`${control} mt-1`} value={amenities} onChange={(e) => setAmenities(e.target.value)} />
+              <input className={`${control} mt-1`} value={amenities} onChange={(e) => { const v = e.target.value; setAmenities(v); syncGenerated(metaOf({ amenities: v || null })) }} />
             </label>
             {/* Starting At — the user enters ONLY the lowest monthly rent (no $, "Starting at", or
                 /mo). The renderer/caption add "Starting at $…/mo". Stored in the same budget_range
@@ -468,7 +497,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                   inputMode="numeric"
                   className="w-full text-[13px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] py-1.5 pl-6 pr-11"
                   value={priceRange}
-                  onChange={(e) => { const v = e.target.value; setPriceRange(v); setSubheadline(startingPriceLabel(v)) }}
+                  onChange={(e) => { const v = e.target.value; setPriceRange(v); syncGenerated(metaOf({ budgetRange: v || null })) }}
                   placeholder="1495"
                 />
                 <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[13px] text-[var(--crm-text-muted)]">/mo</span>
@@ -497,15 +526,16 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
           </div>
 
           {overlayMode === "generate" ? (
-            /* Row 3: Overlay Headline | Subheadline (generated Template 1 controls) */
+            /* Row 3: Overlay Headline (generated, editable = manual override) | Overlay Detail
+               (DERIVED from the template + Starting At — read-only; not a free-text field). */
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="block">
                 <span className={fieldLabel}>Overlay Headline</span>
-                <input className={`${control} mt-1`} value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="Burned into the video" />
+                <input className={`${control} mt-1`} value={headline} onChange={(e) => { setHeadline(e.target.value); setHeadlineDirty(true) }} placeholder="Burned into the video" />
               </label>
               <label className="block">
-                <span className={fieldLabel}>Overlay Subheadline</span>
-                <input className={`${control} mt-1`} value={subheadline} onChange={(e) => setSubheadline(e.target.value)} placeholder="Optional" />
+                <span className={fieldLabel}>Overlay Detail <span className="normal-case text-[var(--crm-text-muted)]">· auto from Starting At</span></span>
+                <input readOnly className={`${control} mt-1 text-[var(--crm-text-muted)]`} value={overlayDetail} placeholder="Set Starting At to show a price" />
               </label>
             </div>
           ) : (
@@ -526,7 +556,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               <div className="flex items-center justify-between">
                 <span className={fieldLabel}>Instagram Caption</span>
               </div>
-              <textarea className={`${control} mt-1 min-h-[76px] resize-y`} rows={14} value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Public caption" />
+              <textarea className={`${control} mt-1 min-h-[76px] resize-y`} rows={14} value={caption} onChange={(e) => { setCaption(e.target.value); setCaptionDirty(true) }} placeholder="Public caption" />
             </label>
             <div className="block">
               <div className="flex items-center justify-between">
@@ -537,7 +567,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 {hashtags.map((t, i) => (
                   <span key={`${t}-${i}`} className="inline-flex items-center gap-1 h-fit text-[12px] font-semibold px-2 py-0.5 rounded-full bg-[var(--crm-panel)] border border-[var(--crm-border)] text-[var(--crm-text-primary)]">
                     {t}
-                    <button type="button" aria-label={`Remove ${t}`} className="text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]" onClick={() => setHashtags((prev) => prev.filter((_, idx) => idx !== i))}>×</button>
+                    <button type="button" aria-label={`Remove ${t}`} className="text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]" onClick={() => removeTag(i)}>×</button>
                   </span>
                 ))}
                 {hashtags.length < MAX_HASHTAGS && (
@@ -624,7 +654,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             <video src={lightbox} controls autoPlay playsInline controlsList="nofullscreen" disablePictureInPicture className="w-full h-full object-contain rounded-xl bg-black" />
             {/* Same SHARED overlay as the inline preview — only for the pre-render approximation
                 (when the rendered derivative isn't showing; the render already has it burned in). */}
-            {!rendered && overlayMode === "generate" && <PreviewOverlay headLines={headLines} subLines={subLines} ov={ov} showHeadline={!!headline} showSub={!!subheadline} />}
+            {!rendered && overlayMode === "generate" && <PreviewOverlay headLines={headLines} subLines={subLines} ov={ov} showHeadline={!!headline} showSub={!!overlayDetail} />}
             <button
               type="button"
               aria-label="Close preview"

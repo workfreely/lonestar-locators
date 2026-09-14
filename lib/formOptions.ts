@@ -11,6 +11,7 @@ export const PROPERTY_TYPES = [
   "Townhome",
   "Rental Home",
   "Penthouse",
+  "Loft",
   "Open to All",
 ] as const
 

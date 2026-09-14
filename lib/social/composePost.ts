@@ -12,8 +12,8 @@
 // any of those into the editable fields as an explicit creative decision.
 
 import { buildHashtags } from "@/lib/social/hashtags"
-import { normalizeSocialMarket } from "@/lib/social/markets"
-import { propertyNoun, propertyNounPlural, normalizeToCanonical } from "@/lib/social/propertyTypes"
+import { normalizeSocialMarket, SOCIAL_MARKETS } from "@/lib/social/markets"
+import { propertyNoun, propertyNounPlural, normalizeToCanonical, PROPERTY_TYPES } from "@/lib/social/propertyTypes"
 
 // Instagram's approved cap for a Beast Social caption's hashtag block.
 export const MAX_HASHTAGS = 7
@@ -146,6 +146,53 @@ export function preparePost(src: SourceMeta, seed?: string | number): PreparedPo
     caption: buildCaption(src, seed),
     hashtags: buildHashtags(src.market, MAX_HASHTAGS, src.propertyType),
   }
+}
+
+// ── Overlay Template detail + generated-vs-manual detection (sync engine) ─────────────────────
+// The OVERLAY TEMPLATE decides the detail formula; the metadata supplies the values. TEMPLATE 1's
+// detail is "Starting at {lowest price}/mo" (or empty). It is DERIVED — never a free-text field —
+// so a stale manual value (e.g. "This could be your next home") can never masquerade as it.
+export function buildOverlayDetail(src: SourceMeta): string {
+  return startingPriceLabel(src.budgetRange)
+}
+
+// A field is AUTO-GENERATED (safe to keep in sync with metadata) when it equals what the generator
+// WOULD produce for SOME supported market × property type — market-agnostic, so a value left stale
+// by a prior market/type change (e.g. "SAN ANTONIO TOWNHOMES" while the market is now Dallas) is
+// still recognized as generated and re-synced. Anything that matches no generated form is treated
+// as an intentional MANUAL override and preserved. Empty always counts as generated (nothing typed).
+const MARKETS_WITH_NULL: (string | null)[] = [...SOCIAL_MARKETS, null]
+const TYPES_WITH_NULL: (string | null)[] = [...PROPERTY_TYPES, null]
+
+export function isGeneratedHeadline(text: string | null | undefined): boolean {
+  const t = (text ?? "").trim()
+  if (!t) return true
+  for (const m of MARKETS_WITH_NULL) for (const pt of TYPES_WITH_NULL) {
+    if (buildOverlayHeadline({ market: m, propertyType: pt }) === t) return true
+  }
+  return false
+}
+
+/** Caption is generated if it matches buildCaption for SOME market × type, holding the CURRENT
+ *  special/price/amenities + the deterministic seed fixed (only the metadata-driven variables vary). */
+export function isGeneratedCaption(text: string | null | undefined, src: SourceMeta, seed?: string | number): boolean {
+  const t = (text ?? "").trim()
+  if (!t) return true
+  for (const m of MARKETS_WITH_NULL) for (const pt of TYPES_WITH_NULL) {
+    if (buildCaption({ ...src, market: m, propertyType: pt }, seed).trim() === t) return true
+  }
+  return false
+}
+
+/** Hashtags are generated if they match buildHashtags for SOME market × type (7-tag cap). */
+export function isGeneratedHashtags(tags: string[] | null | undefined, src: SourceMeta): boolean {
+  const arr = (tags ?? []).filter(Boolean)
+  if (arr.length === 0) return true
+  const joined = arr.join(" ")
+  for (const m of SOCIAL_MARKETS) for (const pt of TYPES_WITH_NULL) {
+    if (buildHashtags(m, MAX_HASHTAGS, pt).join(" ") === joined) return true
+  }
+  return false
 }
 
 /** Combine the approved caption + hashtags into the final publish text (composer keeps them

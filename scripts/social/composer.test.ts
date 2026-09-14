@@ -1,7 +1,7 @@
 // Focused unit tests for the Post Composer's auto-preparation + hashtag bank + render args.
 // Pure logic only — no network, no ffmpeg. Run: npx tsx scripts/social/composer.test.ts
 import { buildHashtags, normalizeHashtag, HASHTAG_MARKETS } from "@/lib/social/hashtags"
-import { preparePost, buildCaption, buildOverlayHeadline, buildOverlaySubheadline, composeFinalCaption, startingPriceLabel } from "@/lib/social/composePost"
+import { preparePost, buildCaption, buildOverlayHeadline, buildOverlaySubheadline, composeFinalCaption, startingPriceLabel, buildOverlayDetail, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags } from "@/lib/social/composePost"
 import { buildFfmpegArgs, buildVideoFilter } from "@/lib/social/renderVideo"
 import { wrapHeadline, wrapSub, overlayPreviewStyle, headlineFit, OVERLAY_SPEC, HEADLINE_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
 
@@ -196,3 +196,30 @@ ok("two-line headline still wraps to 2", wrapHeadline("SAN ANTONIO HOMES").lengt
 
 console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)
+
+console.log("Loft canonical property type:")
+ok("Loft plural → DALLAS LOFTS", buildOverlayHeadline({ market: "Dallas", propertyType: "Loft" }) === "DALLAS LOFTS")
+ok("Loft caption Hook 4 → 'Need a new loft?'", buildCaption({ propertyType: "Loft" }).split("\n")[0] === "Need a new loft?")
+ok("Loft padded still resolves", buildOverlayHeadline({ market: " Dallas ", propertyType: " Loft " }) === "DALLAS LOFTS")
+
+console.log("generated-vs-manual detectors (sync engine):")
+ok("headline generated forms recognized (any market/type)", isGeneratedHeadline("DALLAS TOWNHOMES") && isGeneratedHeadline("SAN ANTONIO RENTAL HOMES") && isGeneratedHeadline("DALLAS LOFTS"))
+ok("empty headline counts as generated", isGeneratedHeadline("") && isGeneratedHeadline(null))
+ok("custom manual headline NOT generated", !isGeneratedHeadline("MY CUSTOM TAGLINE"))
+ok("generated caption recognized", isGeneratedCaption(buildCaption({ market: "Dallas", propertyType: "Townhome" }, "s1"), { market: "Dallas", propertyType: "Townhome" }, "s1"))
+ok("stale caption (wrong type) still recognized as generated", isGeneratedCaption("Need a new high-rise?\nMy apartment locating service is completely free!\nSubmit the form to get your free custom apartment list.", { market: "Dallas", propertyType: "Townhome" }, "s1"))
+ok("manual caption NOT generated", !isGeneratedCaption("Check out this amazing place!", { market: "Dallas", propertyType: "Townhome" }, "s1"))
+ok("generated hashtags recognized (Dallas)", isGeneratedHashtags(buildHashtags("Dallas", 7, "Townhome"), { market: "Dallas", propertyType: "Townhome" }))
+ok("stale San Antonio hashtags recognized as generated (any market)", isGeneratedHashtags(buildHashtags("San Antonio", 7, "Townhome"), { market: "Dallas", propertyType: "Townhome" }))
+ok("custom hashtags NOT generated", !isGeneratedHashtags(["#mycustomtag", "#anothercustom"], { market: "Dallas" }))
+
+console.log("overlay detail (Template 1 formula) + CASE A/B sync:")
+ok("detail = Starting at price", buildOverlayDetail({ budgetRange: "1495" }) === "Starting at $1,495/mo")
+ok("detail empty when no price", buildOverlayDetail({}) === "")
+// CASE A: Dallas + Townhome + 1495
+ok("A overlay headline", buildOverlayHeadline({ market: "Dallas", propertyType: "Townhome" }) === "DALLAS TOWNHOMES")
+ok("A overlay detail", buildOverlayDetail({ budgetRange: "1495" }) === "Starting at $1,495/mo")
+ok("A hashtags are Dallas, max 7, ZERO San Antonio", (() => { const h = buildHashtags("Dallas", 7, "Townhome"); return h.length <= 7 && h.includes("#dallasapartments") && !h.some((t) => t.includes("sanantonio") || t.includes("satx")) })())
+// CASE B: Dallas + Loft + 1495
+ok("B overlay headline", buildOverlayHeadline({ market: "Dallas", propertyType: "Loft" }) === "DALLAS LOFTS")
+ok("B hashtags Dallas + loft, ZERO San Antonio", (() => { const h = buildHashtags("Dallas", 7, "Loft"); return h.length <= 7 && h.includes("#dallasapartments") && h.includes("#lofts") && !h.some((t) => t.includes("sanantonio") || t.includes("satx")) })())
