@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import AgentSearchField, { type AgentHit } from "@/components/crm/social/AgentSearchField"
 
 // Beast Social → Accounts → Publishing Destinations (admin-only management UI).
 //
@@ -20,6 +21,9 @@ export type Destination = {
   paused: boolean
   postsPerDay: number | null
   expired: boolean
+  addedAt: string
+  agentName: string | null // selected Locator Beast agent (display identity)
+  agentPhotoUrl: string | null
 }
 
 export type PendingInvite = {
@@ -27,6 +31,9 @@ export type PendingInvite = {
   label: string | null
   createdAt: string
   expiresAt: string
+  agentUserId: string | null // to recreate the link for the same agent
+  agentName: string | null
+  agentPhotoUrl: string | null
 }
 
 const MANAGE = "/api/admin/social-autopilot/destinations/manage"
@@ -55,6 +62,7 @@ export default function PublishingDestinations({
   // Add-destination invitation flow.
   const [adding, setAdding] = useState(false)
   const [inviteLabel, setInviteLabel] = useState("")
+  const [selectedAgent, setSelectedAgent] = useState<AgentHit | null>(null)
   const [generating, setGenerating] = useState(false)
   const [newLink, setNewLink] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -64,6 +72,17 @@ export default function PublishingDestinations({
   const btnPrimary = "text-[12.5px] font-semibold px-3 py-1.5 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"
   const control = "w-full text-[13px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] px-2.5 py-1.5"
   const dot = (cls: string) => <span className={`h-1.5 w-1.5 rounded-full ${cls}`} />
+
+  // Small avatar (photo or initial) for agent identity on cards / pending rows.
+  const avatar = (name: string | null, photoUrl: string | null, size = 24) => {
+    const initial = (name || "?").trim().charAt(0).toUpperCase()
+    return photoUrl ? (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={photoUrl} alt="" width={size} height={size} className="rounded-full object-cover flex-none" style={{ width: size, height: size }} />
+    ) : (
+      <span className="rounded-full flex-none inline-flex items-center justify-center bg-[var(--crm-inset)] text-[var(--crm-text-secondary)] font-semibold" style={{ width: size, height: size, fontSize: size * 0.45 }}>{initial}</span>
+    )
+  }
 
   const manage = async (id: string, body: Record<string, unknown>) => {
     setBusyId(id)
@@ -96,10 +115,19 @@ export default function PublishingDestinations({
     setAddError(null)
     setCopied(false)
     try {
+      // Carry the selected agent (id + name) so the invitation — and later the connected
+      // destination — is associated with that Locator Beast agent. Label mirrors the agent name.
+      const payload: Record<string, unknown> = {}
+      if (selectedAgent) {
+        payload.agentUserId = selectedAgent.id
+        payload.label = selectedAgent.name
+      } else if (inviteLabel.trim()) {
+        payload.label = inviteLabel.trim()
+      }
       const res = await fetch(INVITES, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(inviteLabel.trim() ? { label: inviteLabel.trim() } : {}),
+        body: JSON.stringify(payload),
       })
       const data = await res.json().catch(() => null)
       if (res.ok && data?.link) {
@@ -131,6 +159,7 @@ export default function PublishingDestinations({
   const openAdd = () => {
     setNewLink(null)
     setInviteLabel("")
+    setSelectedAgent(null)
     setAddError(null)
     setCopied(false)
     setGenerating(false)
@@ -140,6 +169,7 @@ export default function PublishingDestinations({
   const closeAdd = () => {
     setAdding(false)
     setInviteLabel("")
+    setSelectedAgent(null)
     setNewLink(null)
     setCopied(false)
     setAddError(null)
@@ -168,14 +198,18 @@ export default function PublishingDestinations({
     try {
       const rev = await fetch(`${INVITES}/${inv.id}/revoke`, { method: "POST" })
       if (!rev.ok) return
+      const payload: Record<string, unknown> = {}
+      if (inv.agentUserId) payload.agentUserId = inv.agentUserId
+      if (inv.label) payload.label = inv.label
       const res = await fetch(INVITES, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(inv.label ? { label: inv.label } : {}),
+        body: JSON.stringify(payload),
       })
       const data = await res.json().catch(() => null)
       if (res.ok && data?.link) {
         setInviteLabel(inv.label ?? "")
+        setSelectedAgent(inv.agentUserId ? { id: inv.agentUserId, name: inv.agentName ?? inv.label ?? "Agent", photoUrl: inv.agentPhotoUrl, email: null } : null)
         setCopied(false)
         setNewLink(data.link as string)
         setAdding(true) // surface the created-link view
@@ -221,15 +255,29 @@ export default function PublishingDestinations({
             {!newLink ? (
               <div>
                 <div className="text-[13px] font-semibold text-[var(--crm-text-primary)]">Add Publishing Destination</div>
-                <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">Create a secure link for the Instagram account you want to connect.</p>
-                <div className="mt-2 flex items-end gap-2 flex-wrap">
-                  <label className="block flex-1 min-w-[200px]">
-                    <span className="text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]">Label (optional)</span>
-                    <input className={`${control} mt-1`} value={inviteLabel} onChange={(e) => setInviteLabel(e.target.value)} placeholder="e.g. Wife, Dallas Account" />
-                  </label>
-                  <button type="button" className={btnPrimary} disabled={generating} onClick={() => void generateLink()}>{generating ? "Creating…" : "Create Authorization Link"}</button>
-                  <button type="button" className={btn} disabled={generating} onClick={closeAdd}>Cancel</button>
-                </div>
+                <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">Search for the Locator Beast agent this account belongs to, then create a secure link to send them.</p>
+                {!selectedAgent ? (
+                  <div className="mt-2">
+                    <span className="text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]">Agent</span>
+                    <div className="mt-1"><AgentSearchField inputClassName={control} onSelect={(a) => setSelectedAgent(a)} placeholder="Search agents by name" /></div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <button type="button" className={btn} disabled={generating} onClick={closeAdd}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-2">
+                    <span className="text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]">Agent</span>
+                    <div className="mt-1 flex items-center gap-2 flex-wrap">
+                      <span className="inline-flex items-center gap-2 rounded-full border border-[var(--crm-border)] bg-[var(--crm-panel)] pl-1 pr-2.5 py-1">
+                        {avatar(selectedAgent.name, selectedAgent.photoUrl, 22)}
+                        <span className="text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{selectedAgent.name}</span>
+                        <button type="button" aria-label="Clear agent" className="text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]" disabled={generating} onClick={() => setSelectedAgent(null)}>×</button>
+                      </span>
+                      <button type="button" className={btnPrimary} disabled={generating} onClick={() => void generateLink()}>{generating ? "Creating…" : "Create Authorization Link"}</button>
+                      <button type="button" className={btn} disabled={generating} onClick={closeAdd}>Cancel</button>
+                    </div>
+                  </div>
+                )}
                 {addError && <div className="mt-2 text-[11.5px] text-amber-600 dark:text-amber-400">{addError}</div>}
               </div>
             ) : (
@@ -253,16 +301,23 @@ export default function PublishingDestinations({
           ) : (
             destinations.map((d) => (
               <div key={d.id} className="rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2.5 flex items-center justify-between gap-3 flex-wrap">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[13.5px] font-semibold text-[var(--crm-text-primary)] truncate">@{d.username ?? "instagram"}</span>
-                    {d.label && <span className="text-[11.5px] text-[var(--crm-text-secondary)] rounded-full border border-[var(--crm-border)] px-2 py-0.5">{d.label}</span>}
-                    {statusPill(d)}
-                    {d.postsPerDay != null && (
-                      <span className="text-[11px] text-[var(--crm-text-muted)]" title="Scheduling automation is coming later — this is a saved preference only.">
-                        {d.postsPerDay} posts/day · scheduling coming soon
-                      </span>
-                    )}
+                <div className="min-w-0 flex items-center gap-2.5">
+                  {d.agentName && avatar(d.agentName, d.agentPhotoUrl, 32)}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[13.5px] font-semibold text-[var(--crm-text-primary)] truncate">{d.agentName || `@${d.username ?? "instagram"}`}</span>
+                      {!d.agentName && d.label && <span className="text-[11.5px] text-[var(--crm-text-secondary)] rounded-full border border-[var(--crm-border)] px-2 py-0.5">{d.label}</span>}
+                      {statusPill(d)}
+                      {d.postsPerDay != null && (
+                        <span className="text-[11px] text-[var(--crm-text-muted)]" title="Scheduling automation is coming later — this is a saved preference only.">
+                          {d.postsPerDay} posts/day · scheduling coming soon
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">
+                      {d.agentName && <span className="text-[var(--crm-text-secondary)]">@{d.username ?? "instagram"} · </span>}
+                      Added {fmtDate(d.addedAt)}
+                    </div>
                   </div>
                   {renamingId === d.id && (
                     <div className="mt-2 flex items-center gap-2">
@@ -307,7 +362,8 @@ export default function PublishingDestinations({
             {pendingInvites.map((inv) => (
               <div key={inv.id} className="rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2.5 flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-2 flex-wrap text-[12.5px]">
-                  <span className="font-semibold text-[var(--crm-text-primary)]">{inv.label || "Untitled invitation"}</span>
+                  {inv.agentName && avatar(inv.agentName, inv.agentPhotoUrl, 22)}
+                  <span className="font-semibold text-[var(--crm-text-primary)]">{inv.agentName || inv.label || "Untitled invitation"}</span>
                   <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-[var(--crm-text-secondary)]">{dot("bg-sky-500")} Awaiting authorization</span>
                   <span className="text-[11px] text-[var(--crm-text-muted)]">Created {fmtDate(inv.createdAt)} · Expires {fmtDate(inv.expiresAt)}</span>
                 </div>

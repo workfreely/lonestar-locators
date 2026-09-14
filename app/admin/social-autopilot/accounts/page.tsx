@@ -21,20 +21,43 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
   // address connection-ID-scoped backend actions; it is not shown in the UI.
   const { data: connRows } = await supabase
     .from("social_connections")
-    .select("id, username, status, label, posting_paused, posts_per_day, token_expires_at")
+    .select("id, username, status, label, posting_paused, posts_per_day, token_expires_at, created_at, agent_user_id")
     .eq("provider", "instagram")
     .order("created_at", { ascending: true })
 
-  const destinations: Destination[] = (connRows ?? []).map((r) => {
-    const row = r as {
-      id: string
-      username: string | null
-      status: string
-      label: string | null
-      posting_paused: boolean | null
-      posts_per_day: number | null
-      token_expires_at: string | null
+  // Active (unused, unrevoked, unexpired) invitations — the safe list; the raw token is NEVER
+  // stored or shown again after creation.
+  const nowIso = new Date().toISOString()
+  const { data: inviteRows } = await supabase
+    .from("social_destination_invitations")
+    .select("id, label, created_at, expires_at, used_at, revoked_at, agent_user_id")
+    .is("used_at", null)
+    .is("revoked_at", null)
+    .gt("expires_at", nowIso)
+    .order("created_at", { ascending: false })
+
+  // Resolve the selected-agent display fields (photo + name) for every referenced agent, via the
+  // admin-gated definer RPC — profiles' own-profile-only RLS blocks a direct cross-user read.
+  type ConnRow = { id: string; username: string | null; status: string; label: string | null; posting_paused: boolean | null; posts_per_day: number | null; token_expires_at: string | null; created_at: string; agent_user_id: string | null }
+  type InviteRow = { id: string; label: string | null; created_at: string; expires_at: string; agent_user_id: string | null }
+  const conns = (connRows ?? []) as ConnRow[]
+  const invites = (inviteRows ?? []) as InviteRow[]
+
+  const agentIds = Array.from(
+    new Set([...conns, ...invites].map((r) => r.agent_user_id).filter((x): x is string => !!x)),
+  )
+  const agentMap = new Map<string, { name: string; photoUrl: string | null }>()
+  if (agentIds.length > 0) {
+    const { data: agentRows } = await supabase.rpc("sa_agents_by_ids", { p_ids: agentIds })
+    for (const a of (agentRows ?? []) as { id: string; first_name: string | null; last_name: string | null; preferred_name: string | null; profile_photo_url: string | null }[]) {
+      const name = [a.first_name, a.last_name].filter(Boolean).join(" ").trim() || a.preferred_name || ""
+      agentMap.set(a.id, { name, photoUrl: a.profile_photo_url })
     }
+  }
+  const agentOf = (id: string | null) => (id ? agentMap.get(id) ?? null : null)
+
+  const destinations: Destination[] = conns.map((row) => {
+    const agent = agentOf(row.agent_user_id)
     return {
       id: row.id,
       username: row.username,
@@ -43,23 +66,23 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
       paused: !!row.posting_paused,
       postsPerDay: row.posts_per_day,
       expired: !!row.token_expires_at && new Date(row.token_expires_at).getTime() < Date.now(),
+      addedAt: row.created_at,
+      agentName: agent?.name ?? null,
+      agentPhotoUrl: agent?.photoUrl ?? null,
     }
   })
 
-  // Active (unused, unrevoked, unexpired) invitations — the safe list; the raw token is NEVER
-  // stored or shown again after creation.
-  const nowIso = new Date().toISOString()
-  const { data: inviteRows } = await supabase
-    .from("social_destination_invitations")
-    .select("id, label, created_at, expires_at, used_at, revoked_at")
-    .is("used_at", null)
-    .is("revoked_at", null)
-    .gt("expires_at", nowIso)
-    .order("created_at", { ascending: false })
-
-  const pendingInvites: PendingInvite[] = (inviteRows ?? []).map((r) => {
-    const row = r as { id: string; label: string | null; created_at: string; expires_at: string }
-    return { id: row.id, label: row.label, createdAt: row.created_at, expiresAt: row.expires_at }
+  const pendingInvites: PendingInvite[] = invites.map((row) => {
+    const agent = agentOf(row.agent_user_id)
+    return {
+      id: row.id,
+      label: row.label,
+      createdAt: row.created_at,
+      expiresAt: row.expires_at,
+      agentUserId: row.agent_user_id,
+      agentName: agent?.name ?? null,
+      agentPhotoUrl: agent?.photoUrl ?? null,
+    }
   })
 
   // Flash from the direct admin-connect callback (?connected / ?error).

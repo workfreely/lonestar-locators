@@ -18,13 +18,17 @@ export async function POST(request: Request) {
   if (!guard.ok) return guard.response
   const { supabase } = guard
 
-  let body: { label?: unknown; ttlMs?: unknown } = {}
+  let body: { label?: unknown; ttlMs?: unknown; agentUserId?: unknown } = {}
   try {
     body = await request.json()
   } catch {
     /* empty body allowed */
   }
   const label = typeof body.label === "string" ? body.label.slice(0, 120) : null
+  // Optional selected Locator Beast agent (profiles.id). Stored on the invitation and later copied
+  // onto the connection; the RPC validates admin + owner binding. Basic uuid shape check only.
+  const agentUserId =
+    typeof body.agentUserId === "string" && /^[0-9a-f-]{36}$/i.test(body.agentUserId) ? body.agentUserId : null
   const ttlMs =
     typeof body.ttlMs === "number" && body.ttlMs > 0 && body.ttlMs <= 30 * 24 * 60 * 60 * 1000
       ? body.ttlMs
@@ -38,6 +42,7 @@ export async function POST(request: Request) {
     p_token_hash: tokenHash,
     p_label: label,
     p_expires_at: expiresAt,
+    p_agent_user_id: agentUserId,
   })
   if (error || !id) return NextResponse.json({ error: "create_failed" }, { status: 500 })
 
