@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
 import { POST_TYPE_LABEL, previewAspectClass } from "@/lib/social/postTypes"
 import { buildHashtags, normalizeHashtag } from "@/lib/social/hashtags"
-import { startingPriceLabel } from "@/lib/social/composePost"
+import { startingPriceLabel, buildOverlayHeadline } from "@/lib/social/composePost"
 import { overlayPreviewStyle, wrapSub, headlineFit } from "@/lib/social/overlaySpec"
 import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
 import { SOCIAL_MARKETS } from "@/lib/social/markets"
@@ -285,6 +285,25 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // Suggest from the approved bank, capped at the Instagram limit (unchanged generation logic).
   const suggestTags = () => setHashtags(buildHashtags(market || post?.source?.market, MAX_HASHTAGS, propertyType || post?.source?.propertyType).slice(0, MAX_HASHTAGS))
 
+  // Regenerate the AUTO-GENERATED Template 1 headline when Market/Property Type changes — but ONLY
+  // when the current headline is still the generated value for the current source (or empty), so an
+  // intentional MANUAL override is never clobbered. buildOverlayHeadline is the single source of the
+  // {city} {property_type_plural} headline the FFmpeg render uses; this keeps the editor preview,
+  // enlarged preview, and the saved overlay_headline in sync with Market/Type.
+  // A headline is treated as AUTO-GENERATED (safe to regenerate) when it is empty or matches a
+  // Template 1 generated form for the current market — the market-only fallback or ANY of the 6
+  // canonical property types. This still detects a headline left stale from a prior type change
+  // (e.g. "SAN ANTONIO TOWNHOMES" while type is now High-Rise) as generated, while a truly custom
+  // manual headline (not a {city} {type_plural} form) is preserved.
+  const isGeneratedHeadline = (h: string, mkt: string) =>
+    !h.trim() ||
+    buildOverlayHeadline({ market: mkt }) === h ||
+    PROPERTY_TYPES.some((t) => buildOverlayHeadline({ market: mkt, propertyType: t }) === h)
+
+  const regenHeadlineFor = (nextMarket: string, nextType: string) => {
+    if (isGeneratedHeadline(headline, market)) setHeadline(buildOverlayHeadline({ market: nextMarket, propertyType: nextType }))
+  }
+
   const control = "w-full text-[13px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] px-2.5 py-1.5"
   const fieldLabel = "text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]"
   const btn = "text-[12.5px] font-semibold px-3 py-1.5 rounded-lg border border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] transition-colors disabled:opacity-50"
@@ -411,14 +430,14 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             </label>
             <label className="block">
               <span className={fieldLabel}>Property Type</span>
-              <select className={`${control} mt-1`} value={propertyType} onChange={(e) => setPropertyType(e.target.value)}>
+              <select className={`${control} mt-1`} value={propertyType} onChange={(e) => { const v = e.target.value; regenHeadlineFor(market, v); setPropertyType(v) }}>
                 <option value="">No type</option>
                 {PROPERTY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </label>
             <label className="block">
               <span className={fieldLabel}>Market</span>
-              <select className={`${control} mt-1`} value={market} onChange={(e) => setMarket(e.target.value)}>
+              <select className={`${control} mt-1`} value={market} onChange={(e) => { const v = e.target.value; regenHeadlineFor(v, propertyType); setMarket(v) }}>
                 <option value="">No market</option>
                 {[...SOCIAL_MARKETS, ...(market && !SOCIAL_MARKETS.includes(market) ? [market] : [])].map((m) => <option key={m} value={m}>{m}</option>)}
               </select>
@@ -581,7 +600,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               type="button"
               aria-label="Close preview"
               onClick={() => setLightbox(null)}
-              className="absolute -top-3 -right-3 h-8 w-8 rounded-full bg-white text-black shadow-lg flex items-center justify-center hover:bg-white/90"
+              className="absolute top-2 right-2 z-10 h-8 w-8 rounded-full bg-white text-black shadow-lg flex items-center justify-center hover:bg-white/90"
             >
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
             </button>
