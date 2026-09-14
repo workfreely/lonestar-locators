@@ -42,7 +42,10 @@ function hasAudio(file: string): boolean {
   return false
 }
 function render(src: string, out: string, audioChoice: "original" | "none"): void {
-  const filter = buildVideoFilter(FONT, path.join(dir, "head.txt"), path.join(dir, "sub.txt"), 1, OVERLAY_SPEC.headline.fontPx, 1)
+  const filter = buildVideoFilter(FONT, [
+    { file: path.join(dir, "head.txt"), fontPx: OVERLAY_SPEC.headline.fontPx, topPx: 250, lineSpacing: 8 },
+    { file: path.join(dir, "sub.txt"), fontPx: OVERLAY_SPEC.sub.fontPx, topPx: 420, lineSpacing: 6 },
+  ])
   const args = buildFfmpegArgs({ sourcePath: src, outputPath: out, filter, audioChoice })
   execFileSync(FF!, args, { stdio: "pipe" })
 }

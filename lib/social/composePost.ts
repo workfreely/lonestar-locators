@@ -200,12 +200,74 @@ export function buildOverlayDetail(src: SourceMeta): string {
 }
 
 /** Join present overlay-detail parts into ONE line with the canonical centered-dot separator
- *  (" · " — never a comma or pipe). Shared helper for the template-driven detail lines: e.g.
- *  Template 3 uses [special_display, feature]; Template 5 uses [special_display, "Starting at …/mo"].
- *  Empty/whitespace parts are dropped, so special-only / price-only / neither fall out naturally.
- *  (Templates 2–5 are NOT implemented yet; this exists so the shared formatting is correct.) */
+ *  (" · " — never a comma or pipe). Empty/whitespace parts are dropped, so special-only /
+ *  price-only / feature-only / neither fall out naturally. */
 export function joinDetailParts(parts: (string | null | undefined)[]): string {
   return parts.map((p) => (p ?? "").trim()).filter(Boolean).join(" · ")
+}
+
+// ── Overlay TEMPLATES (per-post choice of the on-video overlay copy) ──────────────────────────
+// Five templates, three layout families (geometry lives in overlaySpec):
+//   1 market_type     — HERO           — {CITY} {TYPE_PLURAL} / "Starting at $X/mo"
+//   2 your_sign       — CENTER HOOK    — "Your sign to get that {type} in {city}" / no detail
+//   3 special_feature — HERO           — {CITY} {TYPE_PLURAL} / "{special} · {feature}"
+//   4 next_property   — CENTER HOOK    — "What your next {type} could look like" / no detail
+//   5 upgrade         — CENTER HOOK+D  — "What life looks like when you upgrade" / "{special} · Starting at $X/mo"
+export const OVERLAY_TEMPLATES = ["market_type", "your_sign", "special_feature", "next_property", "upgrade"] as const
+export type OverlayTemplate = (typeof OVERLAY_TEMPLATES)[number]
+export const DEFAULT_OVERLAY_TEMPLATE: OverlayTemplate = "market_type"
+export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
+  market_type: "Market + Type",
+  your_sign: "Your Sign",
+  special_feature: "Special + Feature",
+  next_property: "Next Property",
+  upgrade: "Upgrade",
+}
+export function isOverlayTemplate(v: unknown): v is OverlayTemplate {
+  return typeof v === "string" && (OVERLAY_TEMPLATES as readonly string[]).includes(v)
+}
+
+/** The FIRST selected amenity (the primary feature), used by Template 3's detail. */
+function firstFeature(amenities: string | null | undefined): string {
+  return features(amenities)[0] ?? ""
+}
+
+/** HERO headlines (T1/T3) are UPPERCASE {city} {type_plural}; CENTER-HOOK headlines (T2/T4/T5) are
+ *  natural sentence-case hooks. Never the property name/area/notes — public-safe fields only. */
+export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta): string {
+  const city = clean(normalizeSocialMarket(src.market))
+  const canonicalType = normalizeToCanonical(clean(src.propertyType) || null)
+  const noun = canonicalType ? propertyNoun(canonicalType) : "" // "high-rise" | "townhome" | …
+  switch (template) {
+    case "market_type":
+    case "special_feature":
+      return buildOverlayHeadline(src) // "SAN ANTONIO HIGH-RISES" (or market/generic fallback)
+    case "your_sign":
+      return city && noun ? `Your sign to get that ${noun} in ${city}` : noun ? `Your sign to get that ${noun}` : city ? `Your sign to move to ${city}` : "This is your sign"
+    case "next_property":
+      return `What your next ${noun || "home"} could look like`
+    case "upgrade":
+      return "What life looks like when you upgrade"
+  }
+}
+
+/** Template detail (ONE line, " · "-joined). Derived from metadata per template; empty when the
+ *  template has no detail or the needed values are missing (never fabricated). */
+export function buildTemplateDetail(template: OverlayTemplate, src: SourceMeta): string {
+  const special = resolveSocialSpecial(src)
+  const price = startingPriceLabel(src.budgetRange)
+  const feature = firstFeature(src.amenities)
+  switch (template) {
+    case "market_type":
+      return price // "Starting at $X/mo" or ""
+    case "your_sign":
+    case "next_property":
+      return "" // center-hook, no detail
+    case "special_feature":
+      return joinDetailParts([special, feature]) // special+feature / special / feature / none
+    case "upgrade":
+      return joinDetailParts([special, price]) // special+price / special / price / none
+  }
 }
 
 // A field is AUTO-GENERATED (safe to keep in sync with metadata) when it equals what the generator

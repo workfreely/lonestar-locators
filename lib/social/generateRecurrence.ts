@@ -10,10 +10,47 @@ import type { PlatformAdminGuardOk } from "@/lib/auth/requirePlatformAdmin"
 import { preparePost, startingPriceLabel } from "@/lib/social/composePost"
 import {
   planOccurrences, dayKeysFrom, dateKeyInTz, wallClockToUtcISO, horizonDays, maxOccurrencesFor,
-  slotForMinute, isGeneratingState, DEFAULT_TIMEZONE, type Occupancy, type Slot, type PlacementPref,
+  slotForMinute, isGeneratingState, DEFAULT_TIMEZONE, DEFAULT_POSTS_PER_DAY, type Occupancy, type Slot, type PlacementPref,
 } from "@/lib/social/recurrence"
 
 type SB = PlatformAdminGuardOk["supabase"]
+
+// Build slot occupancy from every existing PLANNED post for an owner (manual posts + prior
+// occurrences occupy slots first). Shared by recurring generation and single-post auto-placement.
+async function buildOccupancy(supabase: SB, ownerId: string, tz: string): Promise<Occupancy> {
+  const { data: existing } = await supabase
+    .from("social_posts")
+    .select("scheduled_at")
+    .eq("owner_user_id", ownerId)
+    .not("scheduled_at", "is", null)
+  const occupancy: Occupancy = new Map()
+  const hm = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour12: false, hour: "2-digit", minute: "2-digit" })
+  for (const row of (existing ?? []) as { scheduled_at: string }[]) {
+    const d = new Date(row.scheduled_at)
+    if (isNaN(d.getTime())) continue
+    const dk = dateKeyInTz(d, tz)
+    const parts = Object.fromEntries(hm.formatToParts(d).map((x) => [x.type, x.value]))
+    const min = (Number(parts.hour) % 24) * 60 + Number(parts.minute)
+    const slot = slotForMinute(min)
+    const day = occupancy.get(dk) ?? { count: 0, slots: new Set<Slot>() }
+    day.count += 1
+    if (slot) day.slots.add(slot)
+    occupancy.set(dk, day)
+  }
+  return occupancy
+}
+
+/** Find the next OPEN approved slot for a single post (Post Once auto-placement). Starts tomorrow,
+ *  respects the daily goal + existing occupancy (manual posts win), deterministic. Returns the UTC
+ *  ISO for the chosen slot, or null if none is open within the search window. */
+export async function nextOpenSlotISO(supabase: SB, ownerId: string, tz: string = DEFAULT_TIMEZONE): Promise<string | null> {
+  const startKey = dateKeyInTz(new Date(Date.now() + 86400000), tz) // tomorrow (never the past)
+  const days = dayKeysFrom(startKey, 30)
+  const occupancy = await buildOccupancy(supabase, ownerId, tz)
+  const placements = planOccurrences({ ruleId: `single:${ownerId}`, intervalDays: 1, placementPref: "any", postsPerDay: DEFAULT_POSTS_PER_DAY, days, occupancy, maxOccurrences: 1 })
+  if (!placements.length) return null
+  return wallClockToUtcISO(placements[0].dateKey, placements[0].minute, tz)
+}
 
 export type RuleRow = {
   id: string
@@ -56,26 +93,8 @@ export async function generateOccurrences(supabase: SB, rule: RuleRow, tz: strin
   const maxOcc = maxOccurrencesFor(rule.interval_days, horizon)
   const days = dayKeysFrom(startKey, horizon + 25) // +buffer so bumped occurrences still fit
 
-  // Occupancy from every existing PLANNED post for this owner (manual + prior occurrences).
-  const { data: existing } = await supabase
-    .from("social_posts")
-    .select("scheduled_at")
-    .eq("owner_user_id", rule.owner_user_id)
-    .not("scheduled_at", "is", null)
-  const occupancy: Occupancy = new Map()
-  const hm = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour12: false, hour: "2-digit", minute: "2-digit" })
-  for (const row of (existing ?? []) as { scheduled_at: string }[]) {
-    const d = new Date(row.scheduled_at)
-    if (isNaN(d.getTime())) continue
-    const dk = dateKeyInTz(d, tz)
-    const parts = Object.fromEntries(hm.formatToParts(d).map((x) => [x.type, x.value]))
-    const min = (Number(parts.hour) % 24) * 60 + Number(parts.minute)
-    const slot = slotForMinute(min)
-    const day = occupancy.get(dk) ?? { count: 0, slots: new Set<Slot>() }
-    day.count += 1
-    if (slot) day.slots.add(slot)
-    occupancy.set(dk, day)
-  }
+  // Occupancy from every existing PLANNED post for this owner (manual + prior occurrences win first).
+  const occupancy = await buildOccupancy(supabase, rule.owner_user_id, tz)
 
   const placements = planOccurrences({
     ruleId: rule.id,

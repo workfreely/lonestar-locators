@@ -10,11 +10,12 @@ import { normalizeHashtag } from "@/lib/social/hashtags"
 // overlay text or audio choice invalidates any existing render (render_status → 'none').
 const SELECT =
   "id, platform, post_type, post_name, caption, social_special, on_video_text, on_video_config, " +
-  "overlay_headline, overlay_subheadline, overlay_mode, hashtags, audio_choice, audio_track_id, rendered_storage_path, render_status, render_error, render_version, " +
+  "overlay_headline, overlay_subheadline, overlay_mode, overlay_template, hashtags, audio_choice, audio_track_id, rendered_storage_path, render_status, render_error, render_version, " +
   "status, scheduled_at, published_at, external_post_url, created_at, updated_at, source_content_id, " +
   "source:source_content_id(display_name, property_name, property_type, place_id, market, special, budget_range, amenities, storage_path, original_filename, kind, overlay_mode)"
 const SIGNED_URL_TTL = 60 * 30
 const AUDIO_CHOICES = new Set(["original", "none", "lb_track"])
+const OVERLAY_TEMPLATE_SET = new Set(["market_type", "your_sign", "special_feature", "next_property", "upgrade"])
 const MAX_HASHTAGS = 30
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -50,6 +51,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     overlayHeadline: r.overlay_headline,
     overlaySubheadline: r.overlay_subheadline,
     overlayMode: (r.overlay_mode as string) === "existing" ? "existing" : "generate",
+    overlayTemplate: (r.overlay_template as string | null) ?? "market_type",
     hashtags: Array.isArray(r.hashtags) ? r.hashtags : [],
     audioChoice: (r.audio_choice as string) || "original",
     audioTrackId: r.audio_track_id,
@@ -114,6 +116,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   // Overlay MODE ('generate' | 'existing') is a post-level override; switching it changes what the
   // renderer draws, so it invalidates any existing derivative.
   if ("overlayMode" in body && (body.overlayMode === "generate" || body.overlayMode === "existing")) { patch.overlay_mode = body.overlayMode; renderAffecting = true }
+  if ("overlayTemplate" in body && typeof body.overlayTemplate === "string" && OVERLAY_TEMPLATE_SET.has(body.overlayTemplate)) { patch.overlay_template = body.overlayTemplate; renderAffecting = true }
   if ("audioChoice" in body && typeof body.audioChoice === "string" && AUDIO_CHOICES.has(body.audioChoice)) { patch.audio_choice = body.audioChoice; renderAffecting = true }
   if ("hashtags" in body && Array.isArray(body.hashtags)) {
     const seen = new Set<string>()

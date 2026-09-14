@@ -1,10 +1,8 @@
 import type { CSSProperties } from "react"
-import { OVERLAY_SPEC, OVERLAY_TEXT } from "@/lib/social/overlaySpec"
+import { OVERLAY_CANVAS, OVERLAY_TEXT, type OverlayBlock, type OverlayLayout } from "@/lib/social/overlaySpec"
 
 // Typography depth (Option A): a localized black DROP SHADOW (offset + blur) that lifts the white
-// letters off bright footage, plus a very light 8-direction EDGE for consistency — NOT a heavy
-// outline, NO background band. All in em so it scales with the font; the same values drive the
-// render's rasterized text so preview and output match.
+// letters off bright footage, plus a very light 8-direction EDGE — NOT a heavy outline, NO band.
 function depthShadow(): string {
   const e = OVERLAY_TEXT.edgeEm
   const dirs: [number, number][] = [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1], [0, 1], [-1, 0], [1, 0]]
@@ -14,78 +12,40 @@ function depthShadow(): string {
 }
 
 // SHARED overlay composition (pre-render CSS approximation) used by BOTH the inline Post Editor
-// preview and the enlarged 9:16 lightbox, so the two can never drift. It renders the headline +
-// subheadline with the SAME font, size, position, spacing, alignment, and visibility rules driven
-// by overlayPreviewStyle(). Font sizes are in `cqh`, so this element sets containerType:size and
-// fills its parent (absolute inset-0) — the parent MUST be position:relative and a 9:16 box, so
-// the same fractions render proportionally identical in the small preview and the large modal.
-// This is the editing APPROXIMATION only (not the burned-in FFmpeg render).
+// preview and the enlarged 9:16 lightbox, so they can never drift. It renders whatever the chosen
+// TEMPLATE's layout (computeOverlayLayout) produces — Hero, Center Hook, or Center Hook + Detail —
+// at the same font/size/position/spacing the FFmpeg render uses. Font sizes are in `cqh`, so this
+// element sets containerType:size and fills a 9:16 parent. Editing APPROXIMATION only.
+const FONT = '"OverlayBold", system-ui, sans-serif'
 
-export type OverlayPreviewGeometry = {
-  headlineTopPct: number
-  headlineFontPct: number
-  sideMarginPct: number
-  subTopPct: number
-  subFontPct: number
-  subLineHeight: number
-  subSideMarginPct: number
+function blockStyle(b: OverlayBlock, weight: number): CSSProperties {
+  const H = OVERLAY_CANVAS.h
+  const W = OVERLAY_CANVAS.w
+  return {
+    position: "absolute",
+    top: `${(b.topPx / H) * 100}%`,
+    left: `${(b.sideMarginPx / W) * 100}%`,
+    right: `${(b.sideMarginPx / W) * 100}%`,
+    textAlign: "center",
+    color: "white",
+    fontFamily: FONT,
+    fontWeight: weight,
+    lineHeight: 1.12,
+    fontSize: `${(b.fontPx / H) * 100}cqh`,
+    letterSpacing: `${OVERLAY_TEXT.trackingEm}em`,
+    textShadow: depthShadow(),
+    whiteSpace: "pre",
+  }
 }
 
-export default function PreviewOverlay({
-  headLines,
-  subLines,
-  ov,
-  showHeadline,
-  showSub,
-}: {
-  headLines: string[]
-  subLines: string[]
-  ov: OverlayPreviewGeometry
-  showHeadline: boolean
-  showSub: boolean
-}) {
-  if (!showHeadline && !showSub) return null
-  // Use the SAME production font as the FFmpeg render so glyph widths match, and `pre` so the
-  // browser NEVER re-wraps the already-computed lines (headlineFit/wrapSub decide the line breaks —
-  // the preview must not recompute wrapping with a different font's metrics). This is what made
-  // "SAN ANTONIO TOWNHOMES" wrap to two lines: the default system font is wider than Overlay-Bold
-  // and `pre-line` let it break at the space.
-  const FONT = '"OverlayBold", system-ui, sans-serif'
-  const headStyle: CSSProperties = {
-    position: "absolute",
-    top: `${ov.headlineTopPct}%`,
-    left: `${ov.sideMarginPct}%`,
-    right: `${ov.sideMarginPct}%`,
-    textAlign: "center",
-    color: "white",
-    fontFamily: FONT,
-    fontWeight: 800,
-    lineHeight: 1.05,
-    fontSize: `${ov.headlineFontPct}cqh`,
-    letterSpacing: `${OVERLAY_TEXT.trackingEm}em`, // subtle character tracking (Option A)
-    textShadow: depthShadow(),
-    whiteSpace: "pre",
-  }
-  const subStyle: CSSProperties = {
-    position: "absolute",
-    top: `${ov.subTopPct}%`,
-    left: `${ov.subSideMarginPct}%`,
-    right: `${ov.subSideMarginPct}%`,
-    textAlign: "center",
-    color: "white",
-    fontFamily: FONT,
-    fontWeight: 700,
-    lineHeight: ov.subLineHeight,
-    fontSize: `${ov.subFontPct}cqh`,
-    letterSpacing: `${OVERLAY_TEXT.trackingEm}em`, // matching subtle tracking on the detail
-    textShadow: depthShadow(),
-    whiteSpace: "pre",
-  }
+const blockText = (b: OverlayBlock) => (b.uppercase ? b.lines.join("\n").toUpperCase() : b.lines.join("\n"))
 
+export default function PreviewOverlay({ layout }: { layout: OverlayLayout | null }) {
+  if (!layout) return null
   return (
     <div className="pointer-events-none absolute inset-0" aria-hidden style={{ containerType: "size" }}>
-      {showHeadline && <div style={headStyle}>{headLines.join("\n").toUpperCase()}</div>}
-      {showSub && <div style={subStyle}>{subLines.join("\n")}</div>}
+      {layout.headline.lines.length > 0 && <div style={blockStyle(layout.headline, 800)}>{blockText(layout.headline)}</div>}
+      {layout.detail && layout.detail.lines.length > 0 && <div style={blockStyle(layout.detail, 700)}>{blockText(layout.detail)}</div>}
     </div>
   )
 }

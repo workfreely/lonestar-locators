@@ -129,6 +129,59 @@ export function headlineBlockPx(lineCount: number, fontPx: number = OVERLAY_SPEC
   return n * fontPx + (n - 1) * OVERLAY_SPEC.headline.lineSpacing
 }
 
+// ── Overlay TEMPLATE layout families ─────────────────────────────────────────────────────────
+// HERO (T1/T3): uppercase {city}{type} headline near the top + optional detail below (Template-1
+// geometry). CENTER HOOK (T2/T4): a sentence-case hook, wrapped, VERTICALLY CENTERED, no detail —
+// NOT forced into the giant Hero size. CENTER HOOK + DETAIL (T5): centered hook + a detail line
+// below, the whole group centered. Center-hook typography is a FIRST PASS (size/wrap tunable).
+export type LayoutFamily = "hero" | "center_hook" | "center_hook_detail"
+export const CENTER_HOOK = { fontPx: 64, lineSpacing: 12, maxChars: 20, maxLines: 4 } as const
+
+export function templateFamily(template: string): LayoutFamily {
+  if (template === "your_sign" || template === "next_property") return "center_hook"
+  if (template === "upgrade") return "center_hook_detail"
+  return "hero" // market_type, special_feature, unknown → hero
+}
+
+export type OverlayBlock = { lines: string[]; fontPx: number; topPx: number; uppercase: boolean; sideMarginPx: number; lineSpacing: number }
+export type OverlayLayout = { family: LayoutFamily; headline: OverlayBlock; detail: OverlayBlock | null }
+
+/** Resolve the on-canvas (1080×1920) layout for a template + its already-computed headline/detail
+ *  text. Shared by the CSS preview and the FFmpeg render so the two match. */
+export function computeOverlayLayout(template: string, headlineText: string, detailText: string): OverlayLayout {
+  const family = templateFamily(template)
+  const H = OVERLAY_CANVAS.h
+  const detail = (detailText ?? "").trim()
+
+  if (family === "hero") {
+    const fit = headlineFit(headlineText)
+    const headTop = OVERLAY_SPEC.headline.yFrac * H
+    const headline: OverlayBlock = { lines: fit.lines, fontPx: fit.fontPx, topPx: headTop, uppercase: true, sideMarginPx: OVERLAY_SPEC.headline.sideMarginPx, lineSpacing: OVERLAY_SPEC.headline.lineSpacing }
+    let detailBlock: OverlayBlock | null = null
+    if (detail) {
+      const detailTop = headTop + headlineBlockPx(Math.max(1, fit.lines.length), fit.fontPx) + OVERLAY_SPEC.sub.gapPx
+      detailBlock = { lines: wrapSub(detail), fontPx: OVERLAY_SPEC.sub.fontPx, topPx: detailTop, uppercase: false, sideMarginPx: OVERLAY_SPEC.sub.sideMarginPx, lineSpacing: OVERLAY_SPEC.sub.lineSpacing }
+    }
+    return { family, headline, detail: detailBlock }
+  }
+
+  // Center hook (+ optional detail) — wrap the sentence hook and vertically center the group.
+  const lines = wrapWords(headlineText, CENTER_HOOK.maxChars, CENTER_HOOK.maxLines)
+  const n = Math.max(1, lines.length)
+  const headBlockH = n * CENTER_HOOK.fontPx + (n - 1) * CENTER_HOOK.lineSpacing
+  const hasDetail = family === "center_hook_detail" && detail.length > 0
+  const detailLines = hasDetail ? wrapSub(detail) : []
+  const detailBlockH = hasDetail ? detailLines.length * OVERLAY_SPEC.sub.fontPx + Math.max(0, detailLines.length - 1) * OVERLAY_SPEC.sub.lineSpacing : 0
+  const gap = hasDetail ? OVERLAY_SPEC.sub.gapPx : 0
+  const totalH = headBlockH + gap + detailBlockH
+  const groupTop = (H - totalH) / 2
+  const headline: OverlayBlock = { lines, fontPx: CENTER_HOOK.fontPx, topPx: groupTop, uppercase: false, sideMarginPx: OVERLAY_SPEC.headline.sideMarginPx, lineSpacing: CENTER_HOOK.lineSpacing }
+  const detailBlock: OverlayBlock | null = hasDetail
+    ? { lines: detailLines, fontPx: OVERLAY_SPEC.sub.fontPx, topPx: groupTop + headBlockH + gap, uppercase: false, sideMarginPx: OVERLAY_SPEC.sub.sideMarginPx, lineSpacing: OVERLAY_SPEC.sub.lineSpacing }
+    : null
+  return { family, headline, detail: detailBlock }
+}
+
 /** Editing-preview helper: convert canvas px / fracs to % of the preview box (which is also
  *  9:16), so the CSS approximation lines up with where FFmpeg will draw. The sub position is a
  *  function of the headline's line count so the two never collide. The FINAL preview still plays

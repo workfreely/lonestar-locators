@@ -5,7 +5,8 @@ import { AMENITY_BANK, canonicalizeAmenity, parseAmenities, serializeAmenities, 
 import { preparePost, buildCaption, buildOverlayHeadline, buildOverlaySubheadline, composeFinalCaption, startingPriceLabel, buildOverlayDetail, joinDetailParts, specialDisplay, resolveSocialSpecial, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags } from "@/lib/social/composePost"
 import { SOCIAL_SPECIAL_OPTIONS, giftCardLabel, isGiftCardSpecial, sanitizeCustomSpecial } from "@/lib/social/socialSpecial"
 import { buildFfmpegArgs, buildVideoFilter } from "@/lib/social/renderVideo"
-import { wrapHeadline, wrapSub, overlayPreviewStyle, headlineFit, trackedHeadlineWidthPx, OVERLAY_SPEC, OVERLAY_TEXT, HEADLINE_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
+import { wrapHeadline, wrapSub, overlayPreviewStyle, headlineFit, trackedHeadlineWidthPx, computeOverlayLayout, OVERLAY_SPEC, OVERLAY_TEXT, HEADLINE_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
+import { buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES } from "@/lib/social/composePost"
 
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
@@ -159,37 +160,31 @@ console.log("Template 1 vertical lockup: tightened headline→sub gap:")
 ok("gap is 35px (tightened from 44)", OVERLAY_SPEC.sub.gapPx === 35)
 ok("a smaller (fit) headline font pulls the sub UP", overlayPreviewStyle(1, 71).subTopPct < overlayPreviewStyle(1, 94).subTopPct)
 
-console.log("ffmpeg arg builder (Reel-safe encoders):")
-const filt = buildVideoFilter("/f/font.ttf", "/w/head.txt", null)
+console.log("ffmpeg arg builder (Reel-safe encoders); buildVideoFilter draws layout items:")
+const headItem = { file: "/w/head.txt", fontPx: 78, topPx: 250, lineSpacing: 8 }
+const subItem = { file: "/w/sub.txt", fontPx: 40, topPx: 420, lineSpacing: 6 }
+const filt = buildVideoFilter("/f/font.ttf", [headItem])
 ok("filter fills to 1080x1920 then crops", filt.includes("scale=1080:1920:force_original_aspect_ratio=increase") && filt.includes("crop=1080:1920"))
 ok("filter draws headline when present", filt.includes("drawtext") && filt.includes("head.txt"))
-ok("no sub drawtext when sub null", (filt.match(/drawtext/g) || []).length === 1)
+ok("one item → one drawtext", (filt.match(/drawtext/g) || []).length === 1)
+ok("graph outputs the [v] label", /\[v\]$/.test(filt))
 const args = buildFfmpegArgs({ sourcePath: "/s.mp4", outputPath: "/o.mp4", filter: filt, audioChoice: "original" })
 ok("H.264 + yuv420p + faststart + AAC", args.includes("libx264") && args.includes("yuv420p") && args.includes("+faststart") && args.includes("aac"))
 ok("audio 'none' → -an (muted)", buildFfmpegArgs({ sourcePath: "/s", outputPath: "/o", filter: "x", audioChoice: "none" }).includes("-an"))
+ok("audio 'original' maps the source audio (-map 0:a?)", args.includes("0:a?"))
+const filt2 = buildVideoFilter("/f.ttf", [headItem, subItem])
+ok("two items → two drawtext", (filt2.match(/drawtext/g) || []).length === 2)
+ok("each item drawn at its own topPx (y=250, y=420)", filt2.includes(":y=250[") && filt2.includes(":y=420[v]"))
+ok("each drawtext carries its line_spacing", /textfile='\/w\/head\.txt'[^;]*line_spacing=8/.test(filt2) && /textfile='\/w\/sub\.txt'[^;]*line_spacing=6/.test(filt2))
+ok("no overlay items → cover-fit exposed as [v]", /\[v\]$/.test(buildVideoFilter("/f.ttf", [])) && !buildVideoFilter("/f.ttf", []).includes("drawtext"))
 
-console.log("overlay collision (sub below the full headline block; preview === render):")
+console.log("wrap helpers (preview === render):")
 ok("long headline wraps to 2 lines", wrapHeadline("SAN ANTONIO HOMES").length === 2)
 ok("short headline stays 1 line", wrapHeadline("SAN ANTONIO").length === 1)
-// FFmpeg: the sub's y-offset must grow when the headline occupies more lines.
-const subY = (n: number) => { const f = buildVideoFilter("/f.ttf", "/h.txt", "/s.txt", n); const m = f.match(/textfile='\/s\.txt'[^,]*y=h\*[0-9.]+\+([0-9.]+)/); return m ? parseFloat(m[1]) : NaN }
-ok("2-line headline pushes the sub further down than 1-line", subY(2) > subY(1))
-// Preview shares the same geometry: subTopPct increases with line count.
-ok("preview sub position grows with headline lines", overlayPreviewStyle(2).subTopPct > overlayPreviewStyle(1).subTopPct)
-
-console.log("subheadline width constraint (compact centered block; preview === render):")
 ok("no sub → no lines", wrapSub("").length === 0)
 ok("short sub → one line", wrapSub("PRIVATE YARDS").length === 1)
 ok("long sub wraps to a multi-line block", wrapSub("PRIVATE YARDS + GARAGES + RESORT POOL + GATED ENTRY + WALK-IN CLOSETS").length >= 2)
-ok("sub box now uses MORE width than the headline box (wider, less inset)", overlayPreviewStyle(1).subSideMarginPct < overlayPreviewStyle(1).sideMarginPct)
-ok("sub box still keeps safe margins (never edge-to-edge)", overlayPreviewStyle(1).subSideMarginPct >= 6)
-ok("a normal long sentence now fits on fewer lines than the old narrow box", wrapSub("Now leasing brand new luxury apartments").length <= 2)
-ok("'8 WEEKS FREE' is a single line", wrapSub("8 WEEKS FREE").length === 1)
-ok("'8 WEEKS FREE + WAIVED APP & ADMIN' now fits on ONE line (wider box)", wrapSub("8 WEEKS FREE + WAIVED APP & ADMIN").length === 1)
 ok("sub is capped at maxLines (never runaway)", wrapSub("one two three four five six seven eight nine ten eleven twelve thirteen fourteen").length <= 4)
-// FFmpeg render wraps the sub the same way (newlines in the sub textfile driver would be the file
-// content; here we assert the sub drawtext carries line_spacing for the multi-line block).
-ok("render sub drawtext has line_spacing (multi-line ready)", /textfile='\/s\.txt'[^,]*line_spacing=/.test(buildVideoFilter("/f.ttf", "/h.txt", "/s.txt", 1)))
 
 console.log("Reels-safe boxes (generous margins; no-space text can't run off-screen):")
 ok("headline box keeps safe side margins (8.3% each; not edge-to-edge)", overlayPreviewStyle(1).sideMarginPct >= 8 && overlayPreviewStyle(1).sideMarginPct < 12)
@@ -330,13 +325,49 @@ ok("Template 1 overlay detail stays PRICE-ONLY regardless of Social Special", bu
 ok("one primary Social Special (single value feeds caption)", (capExplicit.match(/✨/g) || []).length === 1)
 
 console.log("overlay typography = subtle tracking + localized drop shadow (NO band/box/scrim):")
-const hugFilt = buildVideoFilter("/f.ttf", "/h.txt", "/s.txt", 1, OVERLAY_SPEC.headline.fontPx, 1)
+const hugFilt = buildVideoFilter("/f.ttf", [{ file: "/h.txt", fontPx: 78, topPx: 250, lineSpacing: 8 }, { file: "/s.txt", fontPx: 40, topPx: 420, lineSpacing: 6 }])
 ok("NO scrim/band/box in render (no geq/overlay/box)", !hugFilt.includes("geq=") && !hugFilt.includes("overlay=") && !hugFilt.includes("box=1"))
 ok("drawtext has a localized drop shadow (offset)", hugFilt.includes("shadowcolor=black@") && hugFilt.includes("shadowy="))
 ok("drawtext keeps only a light edge (not a heavy outline)", hugFilt.includes("bordercolor=black@") && OVERLAY_TEXT.edgeAlpha < 0.4)
 ok("tracking is subtle (Option A)", OVERLAY_TEXT.trackingEm > 0 && OVERLAY_TEXT.trackingEm <= 0.05)
 ok("drop-shadow alpha is strong enough to lift text", OVERLAY_TEXT.shadowAlpha >= 0.6)
 ok("render graph still outputs the [v] label", /\[v\]$/.test(hugFilt))
+
+console.log("Overlay TEMPLATES 1–5 (headline/detail generation + layout families):")
+const tMeta = { market: "San Antonio", propertyType: "High-Rise", socialSpecial: "8 Weeks Free", budgetRange: "1600", amenities: "Private Yards, Rooftop Pool" }
+ok("5 templates defined", OVERLAY_TEMPLATES.length === 5)
+// T1 Market + Type (HERO)
+ok("T1 headline = CITY TYPE_PLURAL", buildTemplateHeadline("market_type", tMeta) === "SAN ANTONIO HIGH-RISES")
+ok("T1 detail = Starting at price", buildTemplateDetail("market_type", tMeta) === "Starting at $1,600/mo")
+ok("T1 detail omitted when no price", buildTemplateDetail("market_type", { market: "San Antonio", propertyType: "High-Rise" }) === "")
+// T2 Your Sign (CENTER HOOK, no detail)
+ok("T2 headline hook", buildTemplateHeadline("your_sign", tMeta) === "Your sign to get that high-rise in San Antonio")
+ok("T2 no detail", buildTemplateDetail("your_sign", tMeta) === "")
+// T3 Special + Feature (HERO)
+ok("T3 headline = CITY TYPE_PLURAL", buildTemplateHeadline("special_feature", tMeta) === "SAN ANTONIO HIGH-RISES")
+ok("T3 detail special + feature", buildTemplateDetail("special_feature", tMeta) === "8 Weeks Free · Private Yards")
+ok("T3 detail special only", buildTemplateDetail("special_feature", { market: "Dallas", propertyType: "Townhome", socialSpecial: "8 Weeks Free" }) === "8 Weeks Free")
+ok("T3 detail feature only", buildTemplateDetail("special_feature", { market: "Dallas", propertyType: "Townhome", amenities: "Private Yards" }) === "Private Yards")
+ok("T3 detail neither → empty", buildTemplateDetail("special_feature", { market: "Dallas", propertyType: "Townhome" }) === "")
+// T4 Next Property (CENTER HOOK, no detail)
+ok("T4 headline hook", buildTemplateHeadline("next_property", tMeta) === "What your next high-rise could look like")
+ok("T4 no detail", buildTemplateDetail("next_property", tMeta) === "")
+// T5 Upgrade (CENTER HOOK + DETAIL)
+ok("T5 headline fixed", buildTemplateHeadline("upgrade", tMeta) === "What life looks like when you upgrade")
+ok("T5 detail special + price", buildTemplateDetail("upgrade", tMeta) === "8 Weeks Free · Starting at $1,600/mo")
+ok("T5 detail price only", buildTemplateDetail("upgrade", { market: "San Antonio", propertyType: "High-Rise", budgetRange: "1600" }) === "Starting at $1,600/mo")
+// Layout families
+ok("T1/T3 are HERO (headline near top, uppercase)", computeOverlayLayout("market_type", "SAN ANTONIO HIGH-RISES", "Starting at $1,600/mo").family === "hero" && computeOverlayLayout("special_feature", "X", "").family === "hero")
+ok("T2/T4 are CENTER HOOK (no detail block)", computeOverlayLayout("your_sign", "Your sign to get that high-rise in San Antonio", "").family === "center_hook" && computeOverlayLayout("next_property", "What your next high-rise could look like", "").family === "center_hook")
+ok("T5 is CENTER HOOK + DETAIL", computeOverlayLayout("upgrade", "What life looks like when you upgrade", "8 Weeks Free · Starting at $1,600/mo").family === "center_hook_detail")
+const heroL = computeOverlayLayout("market_type", "SAN ANTONIO HIGH-RISES", "Starting at $1,600/mo")
+ok("HERO headline sits near the top; detail below it", heroL.headline.topPx < 400 && !!heroL.detail && heroL.detail.topPx > heroL.headline.topPx)
+ok("HERO headline is uppercase-flagged; center hook is not", heroL.headline.uppercase === true && computeOverlayLayout("your_sign", "Your sign", "").headline.uppercase === false)
+const hookL = computeOverlayLayout("your_sign", "Your sign to get that high-rise in San Antonio", "")
+ok("CENTER HOOK is vertically centred (not near the top)", hookL.headline.topPx > 400 && hookL.headline.topPx < 1920 && hookL.detail === null)
+ok("CENTER HOOK uses a smaller size than the Hero headline (not forced giant)", hookL.headline.fontPx < heroL.headline.fontPx)
+const upL = computeOverlayLayout("upgrade", "What life looks like when you upgrade", "8 Weeks Free · Starting at $1,600/mo")
+ok("CENTER HOOK + DETAIL centres the group; detail below headline", !!upL.detail && upL.detail.topPx > upL.headline.topPx)
 
 console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

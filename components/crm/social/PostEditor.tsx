@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation"
 import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
 import { POST_TYPE_LABEL, previewAspectClass } from "@/lib/social/postTypes"
 import { buildHashtags, normalizeHashtag } from "@/lib/social/hashtags"
-import { startingPriceLabel, buildOverlayHeadline, buildCaption, specialDisplay, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags, type SourceMeta } from "@/lib/social/composePost"
+import { buildCaption, specialDisplay, buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, DEFAULT_OVERLAY_TEMPLATE, type OverlayTemplate, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags, type SourceMeta } from "@/lib/social/composePost"
 import SpecialSelect from "@/components/crm/social/SpecialSelect"
-import { overlayPreviewStyle, wrapSub, headlineFit } from "@/lib/social/overlaySpec"
+import { computeOverlayLayout } from "@/lib/social/overlaySpec"
 import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
 import AmenitySelect from "@/components/crm/social/AmenitySelect"
 import { parseAmenities, serializeAmenities } from "@/lib/social/amenities"
@@ -47,6 +47,7 @@ type Post = {
   overlayHeadline: string | null
   overlaySubheadline: string | null
   overlayMode: string
+  overlayTemplate?: string | null
   hashtags: string[]
   audioChoice: string
   renderStatus: string
@@ -109,6 +110,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [postType, setPostType] = useState("reel")
   const [headline, setHeadline] = useState("")
   const [overlayMode, setOverlayMode] = useState<"generate" | "existing">("generate")
+  const [overlayTemplate, setOverlayTemplate] = useState<OverlayTemplate>(DEFAULT_OVERLAY_TEMPLATE)
   const [caption, setCaption] = useState("")
   const [hashtags, setHashtags] = useState<string[]>([])
   // Manual-override flags: an AUTO-GENERATED field stays synced with metadata; once the user edits
@@ -160,6 +162,8 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       setPostName(p.postName ?? "")
       setPostType(p.postType || "reel")
       setOverlayMode(p.overlayMode === "existing" ? "existing" : "generate")
+      const tpl = (OVERLAY_TEMPLATES as readonly string[]).includes(p.overlayTemplate ?? "") ? (p.overlayTemplate as OverlayTemplate) : DEFAULT_OVERLAY_TEMPLATE
+      setOverlayTemplate(tpl)
       setAudioChoice(p.audioChoice || "original")
       setScheduleVal(isoToLocalInput(p.scheduledAt))
       setSourceContentId(p.sourceContentId ?? null)
@@ -186,9 +190,12 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       }
       const seed = p.sourceContentId ?? undefined
       const storedHead = p.overlayHeadline ?? ""
-      const hDirty = !isGeneratedHeadline(storedHead)
+      const genHead = buildTemplateHeadline(tpl, meta)
+      // Manual if a non-empty stored headline matches neither the current template's output nor any
+      // supported market/type Hero form; otherwise it is generated → re-sync to the template.
+      const hDirty = !!storedHead && storedHead !== genHead && !isGeneratedHeadline(storedHead)
       setHeadlineDirty(hDirty)
-      setHeadline(hDirty ? storedHead : buildOverlayHeadline(meta))
+      setHeadline(hDirty ? storedHead : genHead)
       const storedCap = p.caption ?? ""
       const cDirty = !isGeneratedCaption(storedCap, meta, seed)
       setCaptionDirty(cDirty)
@@ -228,8 +235,13 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   }, [lightbox])
 
   const fieldsBody = useCallback(
-    () => ({ postName, postType, caption, socialSpecial: socialSpecial || null, overlayHeadline: headline, overlaySubheadline: overlayMode === "generate" ? startingPriceLabel(priceRange) : "", overlayMode, hashtags, audioChoice }),
-    [postName, postType, caption, socialSpecial, headline, priceRange, overlayMode, hashtags, audioChoice],
+    () => ({
+      postName, postType, caption, socialSpecial: socialSpecial || null,
+      overlayHeadline: headline,
+      overlaySubheadline: overlayMode === "generate" ? buildTemplateDetail(overlayTemplate, { market, propertyType, special: special || null, socialSpecial: socialSpecial || null, budgetRange: priceRange || null, amenities: amenities || null }) : "",
+      overlayMode, overlayTemplate, hashtags, audioChoice,
+    }),
+    [postName, postType, caption, socialSpecial, headline, overlayMode, overlayTemplate, market, propertyType, special, priceRange, amenities, hashtags, audioChoice],
   )
 
   // Persist the public-safe SOURCE facts to social_content (reuses the canonical content PATCH,
@@ -285,6 +297,28 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
     if (await patch({ intent: "unschedule" }, "Moved back to Draft.")) await load()
   }
 
+  // Post Once AUTO-PLACEMENT: persist edits, then let Social Beast pick the next open approved slot.
+  const autoSchedule = async () => {
+    setBusy(true); setError(null); setNotice(null)
+    try {
+      const okSource = await patchSource()
+      if (okSource) await fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(fieldsBody()) })
+      const res = await fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}/autoschedule`, { method: "POST" })
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string }
+        setError(j.error === "no_slot" ? "No open posting slot in the next few weeks — try Change date & time." : "Couldn't schedule.")
+        return
+      }
+      const j = (await res.json()) as { scheduledAt: string }
+      setNotice(`Scheduled — ${fmtSchedule(isoToLocalInput(j.scheduledAt))}`)
+      await load()
+    } catch {
+      setError("Couldn't schedule.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
   // Repeat: create a recurring RULE from this post's source and auto-place the first rolling horizon
   // of occurrences into available posting windows (manual posts always keep priority). Each
   // occurrence is its own scheduled social_posts row visible in Queue + Calendar. No publishing.
@@ -320,7 +354,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       const j = (await res.json()) as { id: string; created: number; horizonDays: number }
       setRule({ id: j.id, state: "active", intervalDays: repeatEvery, placementPref: placement, endMode: durationMode === "until_stopped" ? "until_stopped" : durationMode === "date" ? "on_date" : "after_days", endAt: null })
       setEditingRule(false)
-      setNotice(`Repeat started — ${j.created} post${j.created === 1 ? "" : "s"} scheduled. See the Calendar.`)
+      setNotice(`Recurring started — ${j.created} post${j.created === 1 ? "" : "s"} scheduled. See the Calendar.`)
       void refreshNextPost(j.id)
     } catch {
       setError("Couldn't start Repeat.")
@@ -341,7 +375,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       if (!res.ok) { setError("Couldn't update Repeat."); return }
       setRule({ ...rule, intervalDays: repeatEvery, placementPref: placement })
       setEditingRule(false)
-      setNotice("Repeat updated.")
+      setNotice("Recurring updated.")
       void refreshNextPost(rule.id)
     } catch {
       setError("Couldn't update Repeat.")
@@ -364,7 +398,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // published history. Stop requires a confirmation and returns the section to Post Once | Repeat.
   const setRuleState = async (state: "active" | "paused" | "stopped") => {
     if (!rule) return
-    if (state === "stopped" && !window.confirm("Stop this Repeat? No new posts will be created. Already-scheduled and published posts are kept.")) return
+    if (state === "stopped" && !window.confirm("Stop this recurring schedule? No new posts will be created. Already-scheduled and published posts are kept.")) return
     setRuleMenuOpen(false)
     setBusy(true); setError(null); setNotice(null)
     try {
@@ -372,8 +406,8 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
         method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state }),
       })
       if (!res.ok) { setError("Couldn't update the Repeat schedule."); return }
-      if (state === "stopped") { setRule(null); setRuleNextAt(null); setEditingRule(false); setPostingMode("once"); setNotice("Repeat stopped. Already-scheduled posts are kept — nothing was deleted.") }
-      else { setRule({ ...rule, state }); setNotice(state === "paused" ? "Repeat paused — no new posts will be created." : "Repeat resumed.") }
+      if (state === "stopped") { setRule(null); setRuleNextAt(null); setEditingRule(false); setPostingMode("once"); setNotice("Recurring stopped. Already-scheduled posts are kept — nothing was deleted.") }
+      else { setRule({ ...rule, state }); setNotice(state === "paused" ? "Recurring paused — no new posts will be created." : "Recurring resumed.") }
     } catch {
       setError("Couldn't update the Repeat schedule.")
     } finally {
@@ -485,14 +519,16 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const metaOf = (over: Partial<SourceMeta> = {}): SourceMeta => ({
     market, propertyType, special: special || null, socialSpecial: socialSpecial || null, budgetRange: priceRange || null, amenities: amenities || null, ...over,
   })
-  const syncGenerated = (meta: SourceMeta) => {
-    if (!headlineDirty) setHeadline(buildOverlayHeadline(meta))
+  const syncGenerated = (meta: SourceMeta, tpl: OverlayTemplate = overlayTemplate) => {
+    if (!headlineDirty) setHeadline(buildTemplateHeadline(tpl, meta))
     if (!captionDirty) setCaption(buildCaption(meta, sourceContentId ?? undefined))
     if (!hashtagsDirty) setHashtags(buildHashtags(meta.market, MAX_HASHTAGS, meta.propertyType))
-    // Overlay Detail is derived from priceRange in the render/save path — no state to set here.
+    // Overlay Detail is derived from the template + metadata — no state to set here.
   }
-  // Overlay DETAIL (Template 1) = "Starting at {price}/mo" or empty. Derived, never manual.
-  const overlayDetail = overlayMode === "generate" ? startingPriceLabel(priceRange) : ""
+  // Change the overlay template: regenerate the (non-manual) headline from the new template.
+  const changeTemplate = (tpl: OverlayTemplate) => { setOverlayTemplate(tpl); if (!headlineDirty) setHeadline(buildTemplateHeadline(tpl, metaOf())) }
+  // Overlay DETAIL — derived from the selected template + metadata (never manual).
+  const overlayDetail = overlayMode === "generate" ? buildTemplateDetail(overlayTemplate, metaOf()) : ""
 
   const control = "w-full text-[13px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] px-2.5 py-1.5"
   const fieldLabel = "text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]"
@@ -523,10 +559,9 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const aspect = previewAspectClass(post.platform, postType)
   const rendered = post.renderStatus === "ready" && !!post.renderedPreviewUrl
   const previewSrc = rendered ? post.renderedPreviewUrl : post.previewUrl // source for the enlarge modal
-  const headFit = headlineFit(headline) // fit-to-width (one line for supported combos); shared with the render
-  const headLines = headFit.lines
-  const subLines = wrapSub(overlayDetail) // derived Template 1 detail (shared geometry)
-  const ov = overlayPreviewStyle(headLines.length || 1, headFit.fontPx)
+  // The chosen template's layout drives the preview (Hero / Center Hook / Center Hook + Detail),
+  // shared with the FFmpeg render. 'existing' mode draws no overlay.
+  const overlayLayout = overlayMode === "existing" ? null : computeOverlayLayout(overlayTemplate, headline, overlayDetail)
 
   return (
     <div>
@@ -565,7 +600,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 <video src={post.previewUrl} controls controlsList="nofullscreen" disablePictureInPicture muted playsInline preload="metadata" className="w-full h-full object-cover" />
                 {/* Pre-render APPROXIMATION overlay (CSS) — SHARED with the enlarged lightbox so
                     both previews render the exact same overlay. Replaced by the burned-in render. */}
-                <PreviewOverlay headLines={headLines} subLines={subLines} ov={ov} showHeadline={overlayMode === "generate" && !!headline} showSub={overlayMode === "generate" && !!overlayDetail} />
+                <PreviewOverlay layout={overlayLayout} />
               </>
             ) : (
               <div className="w-full h-full flex items-center justify-center text-[12px] text-[var(--crm-text-muted)]">No preview</div>
@@ -694,17 +729,28 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             </div>
           </div>
 
+          {overlayMode === "generate" && (
+            /* Overlay Template — per-post choice of the 5 overlay layouts. Changing it regenerates
+               the (non-manual) headline + derived detail from the template. */
+            <label className="block">
+              <span className={fieldLabel}>Overlay Template</span>
+              <select className={`${control} mt-1 cursor-pointer`} value={overlayTemplate} onChange={(e) => changeTemplate(e.target.value as OverlayTemplate)}>
+                {OVERLAY_TEMPLATES.map((t, i) => <option key={t} value={t}>{i + 1}. {OVERLAY_TEMPLATE_LABEL[t]}</option>)}
+              </select>
+            </label>
+          )}
+
           {overlayMode === "generate" ? (
-            /* Row 3: Overlay Headline (generated, editable = manual override) | Overlay Detail
-               (DERIVED from the template + Starting At — read-only; not a free-text field). */
+            /* Overlay Headline (generated from the template, editable = manual override) | Overlay
+               Detail (DERIVED from the template + metadata — read-only). */
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="block">
                 <span className={fieldLabel}>Overlay Headline</span>
                 <input className={`${control} mt-1`} value={headline} onChange={(e) => { setHeadline(e.target.value); setHeadlineDirty(true) }} placeholder="Burned into the video" />
               </label>
               <label className="block">
-                <span className={fieldLabel}>Overlay Detail <span className="normal-case text-[var(--crm-text-muted)]">· auto from Starting At</span></span>
-                <input readOnly className={`${control} mt-1 text-[var(--crm-text-muted)]`} value={overlayDetail} placeholder="Set Starting At to show a price" />
+                <span className={fieldLabel}>Overlay Detail <span className="normal-case text-[var(--crm-text-muted)]">· auto from template</span></span>
+                <input readOnly className={`${control} mt-1 text-[var(--crm-text-muted)]`} value={overlayDetail} placeholder="—" />
               </label>
             </div>
           ) : (
@@ -777,12 +823,12 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                   /* ── Active / Paused: collapsed summary (no toggle, no verbose copy) ── */
                   <div className="rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] p-3 flex flex-col gap-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] uppercase tracking-wide font-semibold text-[var(--crm-text-secondary)]">{rule.state === "paused" ? "Repeat Paused" : "Repeating"}</span>
+                      <span className="text-[11px] uppercase tracking-wide font-semibold text-[var(--crm-text-secondary)]">{rule.state === "paused" ? "Recurring Paused" : "Recurring"}</span>
                       <div className="relative">
                         <button type="button" aria-label="More Repeat options" className="text-[15px] leading-none text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)] px-1.5" onClick={() => setRuleMenuOpen((o) => !o)}>⋯</button>
                         {ruleMenuOpen && (
                           <div className="absolute right-0 mt-1 z-20 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-panel)] shadow-lg py-1 min-w-[130px]">
-                            <button type="button" className="block w-full text-left text-[12.5px] px-3 py-1.5 text-red-600 dark:text-red-400 hover:bg-[var(--crm-card)]" disabled={busy} onClick={() => void setRuleState("stopped")}>Stop Repeat</button>
+                            <button type="button" className="block w-full text-left text-[12.5px] px-3 py-1.5 text-red-600 dark:text-red-400 hover:bg-[var(--crm-card)]" disabled={busy} onClick={() => void setRuleState("stopped")}>Stop Recurring</button>
                           </div>
                         )}
                       </div>
@@ -790,7 +836,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                     <div className="text-[13px] text-[var(--crm-text-primary)]">Every {rule.intervalDays} days · {PLACEMENT_SUMMARY[rule.placementPref] ?? PLACEMENT_SUMMARY.any}</div>
                     {ruleNextAt && <div className="text-[11.5px] text-[var(--crm-text-muted)]">Next post: {fmtDateShort(ruleNextAt)}</div>}
                     <div className="mt-1 flex items-center gap-2">
-                      <button type="button" className={btn} disabled={busy} onClick={openEditRepeat}>Edit Repeat</button>
+                      <button type="button" className={btn} disabled={busy} onClick={openEditRepeat}>Edit</button>
                       {rule.state === "paused"
                         ? <button type="button" className={btn} disabled={busy} onClick={() => void setRuleState("active")}>Resume</button>
                         : <button type="button" className={btn} disabled={busy} onClick={() => void setRuleState("paused")}>Pause</button>}
@@ -800,7 +846,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                   <>
                     {!editingRule && (
                       <div className="inline-flex rounded-lg border border-[var(--crm-border)] p-0.5">
-                        {([["once", "Post Once"], ["repeat", "Repeat"]] as const).map(([val, label]) => (
+                        {([["once", "Post Once"], ["repeat", "Recurring"]] as const).map(([val, label]) => (
                           <button key={val} type="button" onClick={() => setPostingMode(val)} aria-pressed={postingMode === val}
                             className={"text-[12px] font-semibold px-3 py-1 rounded-md transition-colors " + (postingMode === val ? "bg-[var(--crm-text-primary)] text-[var(--crm-panel)]" : "text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]")}>
                             {label}
@@ -838,19 +884,23 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                             <button type="button" className={btn} disabled={busy} onClick={() => setEditingRule(false)}>Cancel</button>
                           </div>
                         ) : (
-                          <button type="button" className={actionLight} disabled={busy || (durationMode === "date" && !repeatEndDate)} onClick={() => void startRepeat()}>{busy ? "Starting…" : "Start Repeat"}</button>
+                          <button type="button" className={actionLight} disabled={busy || (durationMode === "date" && !repeatEndDate)} onClick={() => void startRepeat()}>{busy ? "Starting…" : "Start Recurring"}</button>
                         )}
                         <span className="text-[10.5px] text-[var(--crm-text-muted)]">Placed into Morning (7–10a), Afternoon (11:30a–2:30p), or Evening (6–9p), America/Chicago. Manual posts keep priority.</span>
                       </div>
+                    ) : scheduleVal ? (
+                      /* Already scheduled — show the chosen slot + optional manual change. */
+                      <div className="mt-2 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] p-3 flex flex-col gap-1">
+                        <span className="text-[11px] uppercase tracking-wide font-semibold text-[var(--crm-text-secondary)]">Scheduled</span>
+                        <div className="text-[13px] text-[var(--crm-text-primary)]">{fmtSchedule(scheduleVal)}</div>
+                        <button type="button" className={`${btn} mt-1 self-start`} onClick={() => setScheduling(true)}>Change date &amp; time</button>
+                      </div>
                     ) : (
-                      <div className="mt-2 flex items-center gap-2">
-                        <button type="button" onClick={() => setScheduling(true)} className={`${control} text-left flex items-center justify-between`}>
-                          <span className={scheduleVal ? "text-[var(--crm-text-primary)]" : "text-[var(--crm-text-muted)]"}>{scheduleVal ? fmtSchedule(scheduleVal) : "Pick a date & time"}</span>
-                          <span className="text-[var(--crm-text-muted)] ml-2">▾</span>
-                        </button>
-                        {scheduleVal && (
-                          <button type="button" className="text-[11.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]" onClick={() => setScheduleVal("")}>Clear</button>
-                        )}
+                      /* Not scheduled — Social Beast auto-places into the next open slot. Manual is secondary. */
+                      <div className="mt-2 flex flex-col gap-2">
+                        <button type="button" className={actionLight} disabled={busy} onClick={() => void autoSchedule()}>{busy ? "Scheduling…" : "Schedule Post"}</button>
+                        <button type="button" className="text-[11.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)] self-start" onClick={() => setScheduling(true)}>Change date &amp; time</button>
+                        <span className="text-[10.5px] text-[var(--crm-text-muted)]">Social Beast picks the next open Morning / Afternoon / Evening slot, America/Chicago. Manual posts keep priority.</span>
                       </div>
                     )}
                   </>
@@ -887,7 +937,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             <video src={lightbox} controls autoPlay playsInline controlsList="nofullscreen" disablePictureInPicture className="w-full h-full object-contain rounded-xl bg-black" />
             {/* Same SHARED overlay as the inline preview — only for the pre-render approximation
                 (when the rendered derivative isn't showing; the render already has it burned in). */}
-            {!rendered && overlayMode === "generate" && <PreviewOverlay headLines={headLines} subLines={subLines} ov={ov} showHeadline={!!headline} showSub={!!overlayDetail} />}
+            {!rendered && <PreviewOverlay layout={overlayLayout} />}
             <button
               type="button"
               aria-label="Close preview"
