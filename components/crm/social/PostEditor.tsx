@@ -102,6 +102,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [scheduleVal, setScheduleVal] = useState("") // local "YYYY-MM-DDTHH:mm"
   const [scheduling, setScheduling] = useState(false) // RIGHT column shows the Schedule workspace
   const [publishing, setPublishing] = useState(false) // Publish Now in progress (render→container→poll)
+  const [lightbox, setLightbox] = useState<string | null>(null) // enlarged 9:16 video preview (src or null)
 
   // social_content (source) public-safe fields — edited here, written back to the source row.
   const [sourceContentId, setSourceContentId] = useState<string | null>(null)
@@ -146,6 +147,14 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   useEffect(() => {
     void load()
   }, [load])
+
+  // Close the enlarged video preview on Escape (backdrop click + X handled inline).
+  useEffect(() => {
+    if (!lightbox) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setLightbox(null) }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [lightbox])
 
   const fieldsBody = useCallback(
     () => ({ postName, postType, caption, overlayHeadline: headline, overlaySubheadline: subheadline, hashtags, audioChoice }),
@@ -277,7 +286,13 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const control = "w-full text-[13px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] px-2.5 py-1.5"
   const fieldLabel = "text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]"
   const btn = "text-[12.5px] font-semibold px-3 py-1.5 rounded-lg border border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] transition-colors disabled:opacity-50"
-  const primaryBtn = "text-[12.5px] font-semibold px-3.5 py-2 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"
+  // The three footer actions share ONE physical size (height/padding/radius/font/line-height/min
+  // footprint) via actionBase; only color/hierarchy differs. Every variant carries a border (visible
+  // on Save Draft, transparent on the others) so heights match exactly.
+  const actionBase = "text-[12.5px] leading-5 font-semibold px-3.5 py-2 rounded-lg border min-w-[104px] text-center transition-colors disabled:opacity-50"
+  const actionSecondary = `${actionBase} border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]` // Save Draft (secondary/dark)
+  const actionLight = `${actionBase} border-transparent bg-[var(--crm-text-primary)] text-[var(--crm-panel)]` // Schedule (light)
+  const actionGreen = `${actionBase} border-transparent bg-emerald-600 text-white` // Publish Now (green primary)
 
   if (error && !post) {
     return (
@@ -294,6 +309,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const types = ["reel", "story"]
   const aspect = previewAspectClass(post.platform, postType)
   const rendered = post.renderStatus === "ready" && !!post.renderedPreviewUrl
+  const previewSrc = rendered ? post.renderedPreviewUrl : post.previewUrl // source for the enlarge modal
   const headFit = headlineFit(headline) // fit-to-width (one line for supported combos); shared with the render
   const headLines = headFit.lines
   const subLines = wrapSub(subheadline) // compact centered block inside the safe area (shared geometry)
@@ -330,10 +346,10 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
           <div className={`relative ${aspect} rounded-2xl overflow-hidden border border-[var(--crm-border)] bg-black`}>
             {rendered ? (
               // FAITHFUL FINAL PREVIEW — the real rendered derivative (overlay burned in + audio).
-              <video src={post.renderedPreviewUrl!} controls playsInline preload="metadata" className="w-full h-full object-cover" />
+              <video src={post.renderedPreviewUrl!} controls controlsList="nofullscreen" disablePictureInPicture playsInline preload="metadata" className="w-full h-full object-cover" />
             ) : post.previewUrl ? (
               <>
-                <video src={post.previewUrl} controls muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                <video src={post.previewUrl} controls controlsList="nofullscreen" disablePictureInPicture muted playsInline preload="metadata" className="w-full h-full object-cover" />
                 {/* Pre-render APPROXIMATION overlay (CSS) — replaced by the burned-in render. */}
                 {(headline || subheadline) && (
                   // containerType:size makes cqh resolve to THIS box's height, so the font sizes
@@ -355,6 +371,20 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               </>
             ) : (
               <div className="w-full h-full flex items-center justify-center text-[12px] text-[var(--crm-text-muted)]">No preview</div>
+            )}
+            {/* Enlarge control — opens a 9:16 contain lightbox (replaces native fullscreen, which
+                zoomed/cropped the vertical video). Native fullscreen is disabled via controlsList. */}
+            {previewSrc && (
+              <button
+                type="button"
+                aria-label="Enlarge video"
+                onClick={() => setLightbox(previewSrc)}
+                className="absolute top-2 right-2 z-10 rounded-lg bg-black/55 hover:bg-black/75 text-white p-1.5 backdrop-blur-sm transition-colors"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                </svg>
+              </button>
             )}
           </div>
 
@@ -518,16 +548,9 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                   async container→status→publish flow. */}
               <div className="mt-3 flex items-center justify-end gap-2 flex-wrap">
                 {post.status === "scheduled" && <button type="button" className={`${btn} mr-auto`} disabled={busy || publishing} onClick={() => void backToDraft()}>Move back to Draft</button>}
-                <button type="button" className={btn} disabled={busy || publishing} onClick={() => void saveDraft()}>{busy ? "Saving…" : "Save Draft"}</button>
-                <button type="button" className={primaryBtn} disabled={busy || publishing} onClick={() => setScheduling(true)}>Schedule</button>
-                <button
-                  type="button"
-                  disabled={busy || publishing}
-                  onClick={() => void publishNow()}
-                  className="text-[12.5px] font-semibold px-3.5 py-2 rounded-lg bg-emerald-600 text-white disabled:opacity-60"
-                >
-                  {publishing ? "Publishing…" : "Publish Now"}
-                </button>
+                <button type="button" className={actionSecondary} disabled={busy || publishing} onClick={() => void saveDraft()}>{busy ? "Saving…" : "Save Draft"}</button>
+                <button type="button" className={actionLight} disabled={busy || publishing} onClick={() => setScheduling(true)}>Schedule</button>
+                <button type="button" className={actionGreen} disabled={busy || publishing} onClick={() => void publishNow()}>{publishing ? "Publishing…" : "Publish Now"}</button>
               </div>
             </div>
           </div>
@@ -535,6 +558,31 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
           )}
         </div>
       </div>
+
+      {/* Enlarged 9:16 video preview (lightbox). Native fullscreen is disabled on the inline
+          players; this shows the vertical video at its true aspect (object-contain, never cropped/
+          zoomed), sized to ~88vh (width derived 9:16), centered over a blurred dark backdrop.
+          Closes via X, Escape, or backdrop click. `fixed` overlay → no page layout shift. */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center p-4 sm:p-8 bg-black/70 backdrop-blur-sm"
+          onClick={() => setLightbox(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="relative" style={{ height: "88vh", aspectRatio: "9 / 16", maxWidth: "calc(100vw - 2rem)" }} onClick={(e) => e.stopPropagation()}>
+            <video src={lightbox} controls autoPlay playsInline controlsList="nofullscreen" disablePictureInPicture className="w-full h-full object-contain rounded-xl bg-black" />
+            <button
+              type="button"
+              aria-label="Close preview"
+              onClick={() => setLightbox(null)}
+              className="absolute -top-3 -right-3 h-8 w-8 rounded-full bg-white text-black shadow-lg flex items-center justify-center hover:bg-white/90"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
