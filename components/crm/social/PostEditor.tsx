@@ -866,11 +866,10 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                         <span className="text-[11.5px] text-[var(--crm-text-muted)]">Social Beast selected the next open slot.</span>
                       </div>
                     ) : (
-                      /* Post Once, not yet placed — informational only. Publish hands it to Social
-                         Beast, which picks the next open slot. No date/time picker. */
-                      <div className="mt-2 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2.5">
-                        <span className="text-[11.5px] text-[var(--crm-text-muted)]">Social Beast will add this to the next open posting slot.</span>
-                      </div>
+                      /* Post Once, not yet placed — plain muted helper text (same treatment as the
+                         Recurring helper below the controls; no box/border/card). Publish hands it
+                         to Social Beast, which picks the next open slot. No date/time picker. */
+                      <span className="mt-2 block text-[10.5px] text-[var(--crm-text-muted)]">Social Beast will add this to the next open posting slot.</span>
                     )}
                   </>
                 )}
