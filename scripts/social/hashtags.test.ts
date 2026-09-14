@@ -85,5 +85,26 @@ for (const [m, t] of [["Dallas", "High-Rise"], ["Houston", "High-Rise"], ["Austi
   console.log(`  ${m} · ${t}:  ${buildHashtags(m, 7, t).join(" ")}`)
 }
 
+console.log("Property Type → hashtag REGENERATION (generator-owned sets re-sync; manual preserved):")
+// The editor regenerates hashtags on a metadata change ONLY when the current set is generator-owned
+// (isGeneratedHashtags). These assert that switching type both (a) recognizes the prior set as
+// generated and (b) produces type-appropriate tags.
+const saApt = buildHashtags("San Antonio", 7, "Apartment")
+ok("1. SA + Apartment → apartment-appropriate, no townhome tags", some(saApt, /apartment/) && !some(saApt, /townhome|townhouse/))
+ok("prior SA·Apartment set is recognized as generator-owned", isGeneratedHashtags(saApt, { market: "San Antonio", propertyType: "Townhome" }))
+const saTown = buildHashtags("San Antonio", 7, "Townhome")
+ok("2. → Townhome regenerates to townhome-family tags", some(saTown, /townhome|townhouse/) && !has(saTown, "#apartmenthunting"))
+ok("3. → High-Rise regenerates (has #highrise + Downtown)", (() => { const h = buildHashtags("San Antonio", 7, "High-Rise"); return has(h, "#highrise") && some(h, /downtown/) })())
+ok("4. → Rental Home regenerates (rental/home-for-rent)", some(buildHashtags("San Antonio", 7, "Rental Home"), /rentalhome|forrent/))
+ok("5. → Loft regenerates (#loft)", has(buildHashtags("San Antonio", 7, "Loft"), "#loft"))
+// 6. Manual overrides survive: a set with a CUSTOM tag is NOT generator-owned → editor won't overwrite.
+ok("6a. manual set (custom tag) is NOT generator-owned → preserved", !isGeneratedHashtags(["#sanantonioapartments", "#myteamtag"], { market: "San Antonio", propertyType: "Townhome" }))
+ok("6b. all-canonical set (incl LEGACY engine tags) IS generator-owned → re-syncs", isGeneratedHashtags(["#sanantonioapartments", "#satxapartments", "#sanantoniotx", "#satxliving", "#sanantoniorealestate", "#townhomes", "#townhouseliving"], { market: "San Antonio", propertyType: "Townhome" }))
+// 7 & 8 across every type transition.
+const TT = ["Studio", "Apartment", "High-Rise", "Townhome", "Rental Home", "Penthouse", "Loft"] as const
+ok("7. every regenerated set ≤ 7", TT.every((t) => buildHashtags("San Antonio", 7, t).length <= 7))
+ok("8. every regenerated set has no duplicates", TT.every((t) => noDupes(buildHashtags("San Antonio", 7, t))))
+ok("type transitions each change the generated set", ["Apartment→Townhome", "Townhome→High-Rise", "High-Rise→Penthouse", "Penthouse→Loft", "Loft→Rental Home"].every((pair) => { const [a, b] = pair.split("→"); return JSON.stringify(buildHashtags("San Antonio", 7, a)) !== JSON.stringify(buildHashtags("San Antonio", 7, b)) }))
+
 console.log(`\nHashtag engine: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

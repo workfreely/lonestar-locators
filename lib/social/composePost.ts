@@ -11,7 +11,7 @@
 // SourceMeta, so they can never leak into public copy automatically. The operator may still type
 // any of those into the editable fields as an explicit creative decision.
 
-import { buildHashtags } from "@/lib/social/hashtags"
+import { buildHashtags, isCanonicalHashtag } from "@/lib/social/hashtags"
 import { parseAmenities } from "@/lib/social/amenities"
 import { normalizeSocialMarket, SOCIAL_MARKETS } from "@/lib/social/markets"
 import { propertyNoun, propertyNounPlural, normalizeToCanonical, PROPERTY_TYPES } from "@/lib/social/propertyTypes"
@@ -305,7 +305,10 @@ export function isGeneratedCaption(text: string | null | undefined, src: SourceM
   return false
 }
 
-/** Hashtags are generated if they match buildHashtags for SOME market × type (7-tag cap). */
+/** A hashtag set is GENERATOR-OWNED (safe to re-sync when Market/Property Type changes) when it
+ *  matches buildHashtags for SOME market × type, OR — to cover re-ordered / OLDER-engine generated
+ *  sets — when EVERY tag is a recognized canonical/legacy hashtag. A set containing any tag outside
+ *  the canonical vocabulary is treated as a MANUAL override and is preserved (never overwritten). */
 export function isGeneratedHashtags(tags: string[] | null | undefined, src: SourceMeta): boolean {
   const arr = (tags ?? []).filter(Boolean)
   if (arr.length === 0) return true
@@ -313,7 +316,8 @@ export function isGeneratedHashtags(tags: string[] | null | undefined, src: Sour
   for (const m of SOCIAL_MARKETS) for (const pt of TYPES_WITH_NULL) {
     if (buildHashtags(m, MAX_HASHTAGS, pt).join(" ") === joined) return true
   }
-  return false
+  // Every tag canonical (current bank or legacy) ⇒ generator-owned; any custom tag ⇒ manual.
+  return arr.every((t) => isCanonicalHashtag(t))
 }
 
 /** Combine the approved caption + hashtags into the final publish text (composer keeps them

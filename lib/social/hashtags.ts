@@ -81,6 +81,34 @@ const PROPERTY_BANKS: Record<string, string[]> = {
 // Always-relevant service/leasing fallback tags (used only to fill remaining slots).
 const BASE: readonly string[] = ["#nowleasing", "#apartmentlocator", "#forrent"]
 
+// LEGACY tags produced by the PREVIOUS hashtag engine. Kept ONLY for generated-vs-manual DETECTION
+// (never for generation/selection), so migrated posts whose stored hashtags predate the current
+// engine are still recognized as generator-owned and re-sync on a metadata change — instead of being
+// mistaken for manual overrides. Adding a term here does NOT change any generated set.
+const LEGACY_HASHTAGS: readonly string[] = [
+  "#atxliving", "#austinrealestate", "#dallasliving", "#dallasrealestate", "#uptowndallas",
+  "#dfwliving", "#htxliving", "#houstonrealestate", "#satxliving", "#sanantoniorealestate",
+  "#townhouseliving", "#townhometour", "#hometour", "#loftlife", "#lofttour",
+  "#apartmenthunting", "#apartmentliving", "#luxuryapartments", "#apartmenttour",
+]
+
+// The full canonical hashtag VOCABULARY (every tag the engine can emit + curated legacy tags), used
+// by the generated-vs-manual detector: a set whose every tag is in here is generator-owned; a set
+// with any OTHER tag is a manual override and is preserved.
+const HASHTAG_VOCABULARY: ReadonlySet<string> = new Set(
+  [
+    ...Object.values(MARKET_BANKS).flatMap((b) => [...b.apartment, ...b.locator, ...b.movingTo, ...b.downtown, ...b.highRise, ...b.general]),
+    ...Object.values(PROPERTY_BANKS).flat(),
+    ...BASE,
+    ...LEGACY_HASHTAGS,
+  ].map((t) => t.toLowerCase()),
+)
+
+/** Is this a recognized canonical (or legacy) hashtag — i.e., not a custom/manual tag? */
+export function isCanonicalHashtag(tag: string | null | undefined): boolean {
+  return !!tag && HASHTAG_VOCABULARY.has(tag.toLowerCase())
+}
+
 /** All market labels with a curated bank (for reference/UI). */
 export const HASHTAG_MARKETS = Object.keys(MARKET_BANKS)
 
