@@ -5,9 +5,12 @@ import { useRouter } from "next/navigation"
 import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
 import { POST_TYPE_LABEL, previewAspectClass } from "@/lib/social/postTypes"
 import { buildHashtags, normalizeHashtag } from "@/lib/social/hashtags"
-import { startingPriceLabel, buildOverlayHeadline, buildCaption, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags, type SourceMeta } from "@/lib/social/composePost"
+import { startingPriceLabel, buildOverlayHeadline, buildCaption, specialDisplay, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags, type SourceMeta } from "@/lib/social/composePost"
+import SpecialSelect from "@/components/crm/social/SpecialSelect"
 import { overlayPreviewStyle, wrapSub, headlineFit } from "@/lib/social/overlaySpec"
 import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
+import AmenitySelect from "@/components/crm/social/AmenitySelect"
+import { parseAmenities, serializeAmenities } from "@/lib/social/amenities"
 import { SOCIAL_MARKETS } from "@/lib/social/markets"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
 import { detectMarket } from "@/lib/social/filenameInference"
@@ -40,6 +43,7 @@ type Post = {
   postType: string
   postName: string | null
   caption: string | null
+  socialSpecial: string | null
   overlayHeadline: string | null
   overlaySubheadline: string | null
   overlayMode: string
@@ -119,7 +123,8 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [propertyType, setPropertyType] = useState("")
   const [market, setMarket] = useState("")
   const [placeId, setPlaceId] = useState("")
-  const [special, setSpecial] = useState("")
+  const [special, setSpecial] = useState("") // RAW Current Special (source metadata; preserved)
+  const [socialSpecial, setSocialSpecial] = useState("") // per-post explicit Social Special
   const [priceRange, setPriceRange] = useState("")
   const [amenities, setAmenities] = useState("")
 
@@ -144,6 +149,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       setMarket(p.source?.market ?? "")
       setPlaceId(p.source?.placeId ?? "")
       setSpecial(p.source?.special ?? "")
+      setSocialSpecial(p.socialSpecial ?? "")
       setPriceRange(p.source?.budgetRange ?? "")
       setAmenities(p.source?.amenities ?? "")
 
@@ -155,6 +161,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
         market: p.source?.market ?? null,
         propertyType: p.source?.propertyType ?? null,
         special: p.source?.special ?? null,
+        socialSpecial: p.socialSpecial ?? null,
         budgetRange: p.source?.budgetRange ?? null,
         amenities: p.source?.amenities ?? null,
       }
@@ -188,8 +195,8 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   }, [lightbox])
 
   const fieldsBody = useCallback(
-    () => ({ postName, postType, caption, overlayHeadline: headline, overlaySubheadline: overlayMode === "generate" ? startingPriceLabel(priceRange) : "", overlayMode, hashtags, audioChoice }),
-    [postName, postType, caption, headline, priceRange, overlayMode, hashtags, audioChoice],
+    () => ({ postName, postType, caption, socialSpecial: socialSpecial || null, overlayHeadline: headline, overlaySubheadline: overlayMode === "generate" ? startingPriceLabel(priceRange) : "", overlayMode, hashtags, audioChoice }),
+    [postName, postType, caption, socialSpecial, headline, priceRange, overlayMode, hashtags, audioChoice],
   )
 
   // Persist the public-safe SOURCE facts to social_content (reuses the canonical content PATCH,
@@ -325,7 +332,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // the caption keeps its deterministic hook and only re-resolves its variables). A field the user
   // has manually overridden (dirty) is left untouched.
   const metaOf = (over: Partial<SourceMeta> = {}): SourceMeta => ({
-    market, propertyType, special: special || null, budgetRange: priceRange || null, amenities: amenities || null, ...over,
+    market, propertyType, special: special || null, socialSpecial: socialSpecial || null, budgetRange: priceRange || null, amenities: amenities || null, ...over,
   })
   const syncGenerated = (meta: SourceMeta) => {
     if (!headlineDirty) setHeadline(buildOverlayHeadline(meta))
@@ -478,14 +485,21 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
 
           {/* Row 2: Current Special (wide) | Amenities / Features (wide) | Starting At (narrow) */}
           <div className="grid grid-cols-1 sm:grid-cols-[3fr_3fr_2fr] gap-3">
-            <label className="block">
-              <span className={fieldLabel}>Current Special</span>
-              <input className={`${control} mt-1`} value={special} onChange={(e) => { const v = e.target.value; setSpecial(v); syncGenerated(metaOf({ special: v || null })) }} />
-            </label>
-            <label className="block">
-              <span className={fieldLabel}>Amenities / Features</span>
-              <input className={`${control} mt-1`} value={amenities} onChange={(e) => { const v = e.target.value; setAmenities(v); syncGenerated(metaOf({ amenities: v || null })) }} />
-            </label>
+            <div className="block">
+              <span className={fieldLabel}>Social Special <span className="normal-case text-[var(--crm-text-muted)]">· public offer for this post</span></span>
+              <SpecialSelect
+                value={socialSpecial}
+                fallbackHint={specialDisplay(special) || undefined}
+                onChange={(v) => { setSocialSpecial(v); syncGenerated(metaOf({ socialSpecial: v || null })) }}
+              />
+            </div>
+            <div className="block">
+              <span className={fieldLabel}>Amenities / Features <span className="normal-case text-[var(--crm-text-muted)]">· first = primary; caption uses first 3</span></span>
+              <AmenitySelect
+                value={parseAmenities(amenities)}
+                onChange={(next) => { const s = serializeAmenities(next); setAmenities(s); syncGenerated(metaOf({ amenities: s || null })) }}
+              />
+            </div>
             {/* Starting At — the user enters ONLY the lowest monthly rent (no $, "Starting at", or
                 /mo). The renderer/caption add "Starting at $…/mo". Stored in the same budget_range
                 column (no migration). Entering a value derives the overlay subheadline live. */}
@@ -508,9 +522,9 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
           {/* Text Overlay mode — directly above the overlay controls. 'Generate' shows the Template 1
               controls + generated preview/render; 'Already has text' hides them and leaves the
               uploaded video (with its own burned-in text) untouched. */}
-          <div className="block">
+          <div className="flex items-center gap-3">
             <span className={fieldLabel}>Text Overlay</span>
-            <div className="mt-1 inline-flex rounded-lg border border-[var(--crm-border)] p-0.5">
+            <div className="inline-flex rounded-lg border border-[var(--crm-border)] p-0.5">
               {([["generate", "Generate with Beast Social"], ["existing", "Already has text"]] as const).map(([val, label]) => (
                 <button
                   key={val}

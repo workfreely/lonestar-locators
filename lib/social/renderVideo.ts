@@ -8,7 +8,7 @@ import { execFile } from "node:child_process"
 import { promises as fs } from "node:fs"
 import path from "node:path"
 import os from "node:os"
-import { OVERLAY_SPEC, wrapSub, headlineBlockPx, headlineFit } from "@/lib/social/overlaySpec"
+import { OVERLAY_SPEC, OVERLAY_SCRIM, overlayScrimBand, wrapSub, headlineBlockPx, headlineFit } from "@/lib/social/overlaySpec"
 
 export type AudioChoice = "original" | "none" | "lb_track"
 
@@ -27,38 +27,65 @@ function escFilterPath(p: string): string {
   return p.replace(/\\/g, "\\\\").replace(/:/g, "\\:")
 }
 
-/** Build the -vf filtergraph: fill to 1080×1920 (9:16), then optional headline/sub drawtext.
- *  `headLineCount` is the number of wrapped headline lines — the sub is placed below the whole
- *  block so a two-line headline pushes it down (shares geometry with the on-screen preview). */
-export function buildVideoFilter(fontPath: string, headFile: string | null, subFile: string | null, headLineCount = 1, headlineFontPx: number = OVERLAY_SPEC.headline.fontPx): string {
+/** Build the -filter_complex graph (final label [v]): fill to 1080×1920 (9:16), lay a SOFT
+ *  translucent dark gradient scrim behind the text group (readability — replaces the old hard box;
+ *  a full-width band with a raised-cosine vertical fade that follows the text, never full-screen),
+ *  then draw the headline/detail with a light drop shadow. `headLineCount` is the number of wrapped
+ *  headline lines — the detail is placed below the whole block so a two-line headline pushes it
+ *  down (shares geometry with the on-screen preview). `subLineCount` sizes the scrim band. */
+export function buildVideoFilter(fontPath: string, headFile: string | null, subFile: string | null, headLineCount = 1, headlineFontPx: number = OVERLAY_SPEC.headline.fontPx, subLineCount = subFile ? 1 : 0): string {
   const font = escFilterPath(fontPath)
-  const parts = ["scale=1080:1920:force_original_aspect_ratio=increase", "crop=1080:1920"]
   const yHead = `h*${OVERLAY_SPEC.headline.yFrac}`
+  // Common drawtext readability shadow (soft, subtle — the scrim carries most of the contrast).
+  const shadow = ":shadowcolor=black@0.5:shadowx=0:shadowy=3"
+
+  // 1) Cover-fit the source to the 9:16 canvas.
+  const graph: string[] = [`[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920[bg]`]
+  let label = "bg"
+
+  // 2) Readability scrim (only when there is overlay text). A black RGBA source whose alpha is a
+  //    raised-cosine hump over the band height → 0 at the band's top/bottom edges, peak in the
+  //    middle. Overlaid at the band's top y so it hugs the text group.
+  if (headFile || subFile) {
+    const band = overlayScrimBand(headFile ? headLineCount : 0, subFile ? subLineCount : 0, headlineFontPx)
+    const H = Math.max(1, Math.round(band.heightPx))
+    const peak = Math.round(OVERLAY_SCRIM.peakAlpha * 255)
+    graph.push(`color=c=black:s=1080x${H}:r=30,format=rgba,geq=r=0:g=0:b=0:a='${peak}*sin(PI*Y/${H})'[scrim]`)
+    graph.push(`[${label}][scrim]overlay=x=0:y=${Math.round(band.topPx)}:eof_action=repeat[base]`)
+    label = "base"
+  }
+
+  // 3) Headline.
   if (headFile) {
-    parts.push(
-      `drawtext=fontfile='${font}':textfile='${escFilterPath(headFile)}':fontcolor=white:fontsize=${headlineFontPx}` +
-        `:line_spacing=${OVERLAY_SPEC.headline.lineSpacing}:box=1:boxcolor=black@${OVERLAY_SPEC.headline.boxAlpha}` +
-        `:boxborderw=${OVERLAY_SPEC.headline.boxBorderPx}:x=(w-text_w)/2:y=${yHead}`,
+    const next = subFile ? "h" : "v"
+    graph.push(
+      `[${label}]drawtext=fontfile='${font}':textfile='${escFilterPath(headFile)}':fontcolor=white:fontsize=${headlineFontPx}` +
+        `:line_spacing=${OVERLAY_SPEC.headline.lineSpacing}${shadow}:x=(w-text_w)/2:y=${yHead}[${next}]`,
     )
+    label = next
   }
+  // 4) Detail — y = headline top + full headline block height (at the FIT font size) + a gap.
   if (subFile) {
-    // Sub y = headline top + full headline block height (at the FIT font size) + a consistent gap.
     const subOffset = headFile ? headlineBlockPx(headLineCount, headlineFontPx) + OVERLAY_SPEC.sub.gapPx : 0
-    parts.push(
-      `drawtext=fontfile='${font}':textfile='${escFilterPath(subFile)}':fontcolor=white:fontsize=${OVERLAY_SPEC.sub.fontPx}` +
-        `:line_spacing=${OVERLAY_SPEC.sub.lineSpacing}:box=1:boxcolor=black@${OVERLAY_SPEC.sub.boxAlpha}:boxborderw=${OVERLAY_SPEC.sub.boxBorderPx}` +
-        `:x=(w-text_w)/2:y=${yHead}+${subOffset}`,
+    graph.push(
+      `[${label}]drawtext=fontfile='${font}':textfile='${escFilterPath(subFile)}':fontcolor=white:fontsize=${OVERLAY_SPEC.sub.fontPx}` +
+        `:line_spacing=${OVERLAY_SPEC.sub.lineSpacing}${shadow}:x=(w-text_w)/2:y=${yHead}+${subOffset}[v]`,
     )
+    label = "v"
   }
-  return parts.join(",")
+
+  // No overlay text → expose the cover-fit output as [v].
+  if (label !== "v") graph.push(`[${label}]null[v]`)
+  return graph.join(";")
 }
 
 /** Full ffmpeg argument list. audioChoice 'none' mutes; 'lb_track' currently falls back to the
  *  source audio (the Locator Beast Music library ships in a later checkpoint). */
 export function buildFfmpegArgs(input: { sourcePath: string; outputPath: string; filter: string; audioChoice: AudioChoice }): string[] {
-  const args = ["-y", "-i", input.sourcePath, "-vf", input.filter, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-r", "30"]
+  // The scrim requires a generated (color) source, so the graph is a -filter_complex ending in [v].
+  const args = ["-y", "-i", input.sourcePath, "-filter_complex", input.filter, "-map", "[v]", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-r", "30"]
   if (input.audioChoice === "none") args.push("-an")
-  else args.push("-c:a", "aac", "-b:a", "128k")
+  else args.push("-map", "0:a?", "-c:a", "aac", "-b:a", "128k")
   args.push("-movflags", "+faststart", input.outputPath)
   return args
 }
@@ -80,13 +107,16 @@ export async function renderReel(ffmpegPath: string, input: RenderInput): Promis
     headFile = path.join(input.workDir, "head.txt")
     await fs.writeFile(headFile, lines.join("\n"), "utf8")
   }
+  let subLineCount = 0
   if (sub) {
     // Wrap the sub the SAME way the preview does → a compact centered multi-line block that stays
     // inside the safe area, instead of one edge-to-edge line.
+    const subLines = wrapSub(sub)
+    subLineCount = Math.max(1, subLines.length)
     subFile = path.join(input.workDir, "sub.txt")
-    await fs.writeFile(subFile, wrapSub(sub).join("\n"), "utf8")
+    await fs.writeFile(subFile, subLines.join("\n"), "utf8")
   }
-  const filter = buildVideoFilter(input.fontPath, headFile, subFile, headLineCount, headlineFontPx)
+  const filter = buildVideoFilter(input.fontPath, headFile, subFile, headLineCount, headlineFontPx, subLineCount)
   const args = buildFfmpegArgs({ sourcePath: input.sourcePath, outputPath: input.outputPath, filter, audioChoice: input.audioChoice })
 
   // The traced static binary can lose its exec bit in the serverless bundle — restore it.

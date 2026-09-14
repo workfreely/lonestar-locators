@@ -9,7 +9,7 @@ import { normalizeHashtag } from "@/lib/social/hashtags"
 // render_status) are NEVER mutable via client payloads — only the whitelist below. Editing the
 // overlay text or audio choice invalidates any existing render (render_status → 'none').
 const SELECT =
-  "id, platform, post_type, post_name, caption, on_video_text, on_video_config, " +
+  "id, platform, post_type, post_name, caption, social_special, on_video_text, on_video_config, " +
   "overlay_headline, overlay_subheadline, overlay_mode, hashtags, audio_choice, audio_track_id, rendered_storage_path, render_status, render_error, render_version, " +
   "status, scheduled_at, published_at, external_post_url, created_at, updated_at, source_content_id, " +
   "source:source_content_id(display_name, property_name, property_type, place_id, market, special, budget_range, amenities, storage_path, original_filename, kind, overlay_mode)"
@@ -44,6 +44,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     postType: r.post_type,
     postName: r.post_name,
     caption: r.caption,
+    socialSpecial: (r.social_special as string | null) ?? null,
     onVideoText: r.on_video_text,
     onVideoConfig: r.on_video_config,
     overlayHeadline: r.overlay_headline,
@@ -98,6 +99,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if ("postName" in body) patch.post_name = str(body.postName, 300)
   if (typeof body.postType === "string" && isValidPostType("instagram", body.postType)) patch.post_type = body.postType
   if ("caption" in body) patch.caption = str(body.caption)
+  // Per-post Social Special (explicit public offer). Null clears it → generated copy falls back to
+  // the normalized raw Current Special. Not render-affecting (caption/overlay text only).
+  if ("socialSpecial" in body) patch.social_special = str(body.socialSpecial, 80)
   if ("onVideoText" in body) patch.on_video_text = str(body.onVideoText, 500)
   if ("onVideoConfig" in body && body.onVideoConfig && typeof body.onVideoConfig === "object") patch.on_video_config = body.onVideoConfig
 

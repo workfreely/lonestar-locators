@@ -1,9 +1,11 @@
 // Focused unit tests for the Post Composer's auto-preparation + hashtag bank + render args.
 // Pure logic only — no network, no ffmpeg. Run: npx tsx scripts/social/composer.test.ts
 import { buildHashtags, normalizeHashtag, HASHTAG_MARKETS } from "@/lib/social/hashtags"
-import { preparePost, buildCaption, buildOverlayHeadline, buildOverlaySubheadline, composeFinalCaption, startingPriceLabel, buildOverlayDetail, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags } from "@/lib/social/composePost"
+import { AMENITY_BANK, canonicalizeAmenity, parseAmenities, serializeAmenities, sanitizeCustomAmenity } from "@/lib/social/amenities"
+import { preparePost, buildCaption, buildOverlayHeadline, buildOverlaySubheadline, composeFinalCaption, startingPriceLabel, buildOverlayDetail, joinDetailParts, specialDisplay, resolveSocialSpecial, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags } from "@/lib/social/composePost"
+import { SOCIAL_SPECIAL_OPTIONS, giftCardLabel, isGiftCardSpecial, sanitizeCustomSpecial } from "@/lib/social/socialSpecial"
 import { buildFfmpegArgs, buildVideoFilter } from "@/lib/social/renderVideo"
-import { wrapHeadline, wrapSub, overlayPreviewStyle, headlineFit, OVERLAY_SPEC, HEADLINE_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
+import { wrapHeadline, wrapSub, overlayPreviewStyle, headlineFit, overlayScrimBand, OVERLAY_SPEC, OVERLAY_SCRIM, OVERLAY_CANVAS, HEADLINE_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
 
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
@@ -31,7 +33,7 @@ const src = { market: "San Antonio", propertyType: "Townhome", special: "1 Month
 const prep = preparePost(src, "seed-A")
 ok("headline = MARKET + TYPE (not property name)", prep.overlayHeadline === "SAN ANTONIO TOWNHOMES")
 ok("subheadline = Starting-at lowest price (Template 1)", prep.overlaySubheadline === "Starting at $1,200/mo")
-ok("caption includes special + price + amenities lines", prep.caption.includes("✨ 1 Month Free") && prep.caption.includes("💰 $1,200–$1,600") && prep.caption.includes("🏡 private yard, garage, pool"))
+ok("caption includes special + bulleted amenities; NO price line (overlay-only)", prep.caption.includes("✨ 1 Month Free") && prep.caption.includes("🏡 Amenities\n• private yard\n• garage\n• pool") && !prep.caption.includes("💰"))
 ok("caption at most 7 hashtags prepared separately", prep.hashtags.length <= 7 && prep.hashtags.length >= 1)
 // Even if a property name were somehow supplied, the type-level SourceMeta drops it — verify no
 // internal identity leaks into the public copy.
@@ -64,16 +66,17 @@ ok("Studio → 'studio'", buildCaption({ propertyType: "Studio" }).split("\n")[0
 ok("city substituted, no unresolved placeholder", buildCaption({ market: "Austin" }, "x").includes("Austin") && !buildCaption({ market: "Austin", propertyType: "Apartment" }, "x").includes("{"))
 // Conditional detail lines.
 const full = buildCaption({ market: "Dallas", propertyType: "Townhome", special: "8 weeks free", budgetRange: "Starting at $1,495", amenities: "Rooftop pool, fitness center, dog park, sauna" }, "z")
-ok("✨ line present when special present", full.includes("\n✨ 8 weeks free"))
-ok("🏡 amenities capped at 3, comma-separated, verbatim, no 4th", full.includes("\n🏡 Rooftop pool, fitness center, dog park") && !full.includes("sauna"))
-ok("💰 line present when price present", full.includes("\n💰 Starting at $1,495"))
+ok("✨ line present (special normalized to social-display form)", full.includes("✨ 8 Weeks Free"))
+ok("🏡 amenities bulleted, canonicalized, capped at 3, no 4th", full.includes("🏡 Amenities\n• Rooftop Pool\n• Fitness Center\n• Dog Park") && !full.includes("sauna"))
+ok("NO 💰 price line in caption (price lives in the overlay detail only)", !full.includes("💰"))
 const noSpecial = buildCaption({ market: "Dallas", propertyType: "Townhome", amenities: "Private yard", budgetRange: "Starting at $1,895" }, "z")
 ok("✨ line OMITTED entirely (emoji included) when special missing", !noSpecial.includes("✨"))
-ok("🏡 single amenity when only one exists", noSpecial.includes("\n🏡 Private yard"))
+ok("🏡 single amenity → heading + one bullet", noSpecial.includes("🏡 Amenities\n• Private yard"))
 const bare = buildCaption({ market: "Dallas", propertyType: "Townhome" }, "z")
 ok("no 🏡/💰/✨ lines when none present", !bare.includes("🏡") && !bare.includes("💰") && !bare.includes("✨"))
-// Fixed CTA — always, verbatim, no emoji, never rotated.
-ok("fixed CTA present verbatim", full.includes("My apartment locating service is completely free!\nSubmit the form to get your free custom apartment list."))
+// Fixed CTA — always, verbatim, no emoji, never rotated. The two sentences are separated by a
+// blank line (their own sections), so the caption renders them one line apart.
+ok("fixed CTA present verbatim (blank line between the two sentences)", full.includes("My apartment locating service is completely free!\n\nSubmit the form to get your free custom apartment list."))
 ok("caption always ends with the CTA", full.endsWith("Submit the form to get your free custom apartment list.") && bare.endsWith("Submit the form to get your free custom apartment list."))
 ok("CTA has no emoji", !/[☀-➿\uD83C-\uDBFF]/.test("My apartment locating service is completely free! Submit the form to get your free custom apartment list."))
 // No city AND no type → no hook line at all (never an unresolved placeholder); starts with CTA.
@@ -88,21 +91,24 @@ ok("' Dallas ' → clean city hook, no double space / no space before ?", (() =>
 // Padded property type must still resolve Hook 4 (regression: whitespace previously dropped it).
 ok("' Townhome ' → 'Need a new townhome?' (padded type still resolves)", buildCaption({ propertyType: " Townhome " }).split("\n")[0] === "Need a new townhome?")
 ok("' High-Rise ' padded → 'Need a new high-rise?'", buildCaption({ propertyType: " High-Rise " }).split("\n")[0] === "Need a new high-rise?")
-// Padded special / price → trimmed, single space after emoji.
-ok("' 8 weeks free ' → '✨ 8 weeks free' (trimmed)", buildCaption({ market: "Dallas", special: " 8 weeks free " }, "s0").includes("\n✨ 8 weeks free\n"))
-ok("' Starting at $1,495 ' → '💰 Starting at $1,495' (trimmed)", buildCaption({ market: "Dallas", budgetRange: " Starting at $1,495 " }, "s0").includes("\n💰 Starting at $1,495\n"))
-// Amenities with surrounding + inter-item whitespace → exact comma-separated list.
-ok("messy amenities → '🏡 Rooftop pool, fitness center, dog park'", buildCaption({ market: "Dallas", amenities: "  Rooftop pool ,  fitness center , dog park  " }, "s0").includes("\n🏡 Rooftop pool, fitness center, dog park\n"))
+// Padded special / price → trimmed, single space after emoji (special normalized to display form).
+ok("' 8 weeks free ' → '✨ 8 Weeks Free' (trimmed + normalized)", buildCaption({ market: "Dallas", special: " 8 weeks free " }, "s0").includes("✨ 8 Weeks Free"))
+ok("budgetRange present → still NO 💰 line (price is overlay-only)", !buildCaption({ market: "Dallas", budgetRange: " Starting at $1,495 " }, "s0").includes("💰"))
+// Amenities with surrounding + inter-item whitespace → exact bulleted list.
+ok("messy amenities → bulleted, canonicalized '🏡 Amenities' list", buildCaption({ market: "Dallas", amenities: "  Rooftop pool ,  fitness center , dog park  " }, "s0").includes("🏡 Amenities\n• Rooftop Pool\n• Fitness Center\n• Dog Park"))
 // Whole-caption cleanliness with messy input: no double spaces, no trailing spaces on any line,
-// no space-before-punctuation, and no blank/whitespace-only lines.
+// no space-before-punctuation. Blank lines BETWEEN sections are intentional (readable spacing), so
+// we require blank separators to be truly empty (never whitespace-only) and never tripled.
 const messy = buildCaption({ market: "  Dallas  ", propertyType: "  Townhome  ", special: "  8 weeks free  ", budgetRange: "  Starting at $1,495  ", amenities: "  Rooftop pool ,  fitness center , dog park  " }, "s0")
 ok("no double spaces anywhere in caption", !/ {2,}/.test(messy))
 ok("no trailing whitespace on any line", messy.split("\n").every((l) => l === l.replace(/\s+$/, "")))
 ok("no space before ? . or , (hook/detail punctuation)", !/\s[?,]/.test(messy) && !/\s\.(?=\s|$)/.test(messy))
-ok("no blank / whitespace-only lines", messy.split("\n").every((l) => l.trim().length > 0))
-// Missing optional fields must not create malformed spacing or empty lines.
+ok("blank separators are truly empty (no whitespace-only lines)", messy.split("\n").every((l) => l.length === 0 || l.trim().length > 0))
+ok("sections separated by exactly ONE blank line (never tripled)", !/\n\n\n/.test(messy))
+// Missing optional fields must not create malformed spacing (only the blank line between the two
+// CTA sentences remains). No stray ✨/🏡/💰.
 const sparse = buildCaption({ market: "Dallas", propertyType: "Townhome" }, "s0")
-ok("absent optional fields → no ✨/🏡/💰 lines, no empty lines", !sparse.includes("✨") && !sparse.includes("🏡") && !sparse.includes("💰") && sparse.split("\n").every((l) => l.trim().length > 0))
+ok("absent optional fields → no ✨/🏡/💰, clean spacing", !sparse.includes("✨") && !sparse.includes("🏡") && !sparse.includes("💰") && !/\n\n\n/.test(sparse) && sparse.split("\n").every((l) => l.length === 0 || l.trim().length > 0))
 // Intentional paragraph break BEFORE hashtags is preserved by composeFinalCaption (blank line).
 ok("paragraph break before hashtags preserved (\\n\\n)", composeFinalCaption(messy, ["#a", "#b"]).includes(messy + "\n\n#a #b"))
 
@@ -194,9 +200,6 @@ const noSpaceS = wrapSub("Y".repeat(120))
 ok("no-space subheadline hard-splits (every line ≤ maxChars)", noSpaceS.length > 0 && noSpaceS.every((l) => l.length <= 33))
 ok("two-line headline still wraps to 2", wrapHeadline("SAN ANTONIO HOMES").length === 2)
 
-console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)
-process.exit(fail === 0 ? 0 : 1)
-
 console.log("Loft canonical property type:")
 ok("Loft plural → DALLAS LOFTS", buildOverlayHeadline({ market: "Dallas", propertyType: "Loft" }) === "DALLAS LOFTS")
 ok("Loft caption Hook 4 → 'Need a new loft?'", buildCaption({ propertyType: "Loft" }).split("\n")[0] === "Need a new loft?")
@@ -223,3 +226,119 @@ ok("A hashtags are Dallas, max 7, ZERO San Antonio", (() => { const h = buildHas
 // CASE B: Dallas + Loft + 1495
 ok("B overlay headline", buildOverlayHeadline({ market: "Dallas", propertyType: "Loft" }) === "DALLAS LOFTS")
 ok("B hashtags Dallas + loft, ZERO San Antonio", (() => { const h = buildHashtags("Dallas", 7, "Loft"); return h.length <= 7 && h.includes("#dallasapartments") && h.includes("#lofts") && !h.some((t) => t.includes("sanantonio") || t.includes("satx")) })())
+
+console.log("Current Special → concise social-display (deterministic; never fabricated):")
+ok("'8 weeks free' → '8 Weeks Free'", specialDisplay("8 weeks free") === "8 Weeks Free")
+ok("'eight weeks free' → '8 Weeks Free'", specialDisplay("eight weeks free") === "8 Weeks Free")
+ok("'6 weeks free on select units' → '6 Weeks Free'", specialDisplay("6 weeks free on select units") === "6 Weeks Free")
+ok("'six weeks free on select floorplans' → '6 Weeks Free'", specialDisplay("six weeks free on select floorplans") === "6 Weeks Free")
+ok("'4 weeks free' → '4 Weeks Free'", specialDisplay("4 weeks free") === "4 Weeks Free")
+ok("'one month free' → '1 Month Free'", specialDisplay("one month free") === "1 Month Free")
+ok("'1 month free' → '1 Month Free'", specialDisplay("1 month free") === "1 Month Free")
+ok("'1 week free' → singular '1 Week Free'", specialDisplay("1 week free") === "1 Week Free")
+ok("long leasing sentence containing '8 weeks free' → '8 Weeks Free'", specialDisplay("Receive up to 8 weeks free on select units when you move in by September 30. Restrictions apply.") === "8 Weeks Free")
+// Unrecognized / non-duration special: NEVER invent — return the factual original unchanged.
+ok("unrecognized special preserved verbatim (no fabrication)", specialDisplay("Waived application & admin fees") === "Waived application & admin fees")
+ok("empty special → empty", specialDisplay("") === "" && specialDisplay(null) === "")
+ok("original metadata is untouched — specialDisplay is pure/derived", (() => { const original = "Receive up to 8 weeks free on select units"; specialDisplay(original); return original === "Receive up to 8 weeks free on select units" })())
+
+console.log("Instagram caption formatting (readable vertical spacing + bulleted amenities):")
+const houston = buildCaption({ market: "Houston", propertyType: "Townhome", special: "Receive up to 8 weeks free on select units when you move in by September 30. Restrictions apply.", budgetRange: "1495", amenities: "floor-to-ceiling windows\nmodern appliances\nkitchen counter" }, "seed-houston")
+ok("caption uses the concise special display in the ✨ section", houston.includes("✨ 8 Weeks Free") && !houston.includes("Restrictions apply"))
+ok("amenities render as a heading + '• ' bullets (canonicalized; not a comma line)", houston.includes("🏡 Amenities\n• Floor-to-Ceiling Windows\n• modern appliances\n• kitchen counter") && !houston.includes("windows, modern"))
+ok("ONE blank line between each present section (join with \\n\\n)", houston.split("\n").filter((l) => l === "").length >= 4 && !/\n\n\n/.test(houston))
+ok("blank line between the two fixed CTA sentences", houston.includes("My apartment locating service is completely free!\n\nSubmit the form to get your free custom apartment list."))
+ok("caption ends with CTA sentence 2", houston.endsWith("Submit the form to get your free custom apartment list."))
+ok("hook is the first line, followed by a blank line", (() => { const lines = houston.split("\n"); return lines[0].length > 0 && lines[1] === "" })())
+// Amenities capping + empty-entry hygiene in the bulleted list.
+const bulletCap = buildCaption({ market: "Houston", amenities: "one, two, , three, four" }, "s0")
+ok("bulleted amenities capped at 3, empties ignored", bulletCap.includes("🏡 Amenities\n• one\n• two\n• three") && !bulletCap.includes("• four"))
+// No amenities → the whole Amenities section (heading + bullets) is omitted.
+ok("no amenities → no '🏡 Amenities' heading at all", !buildCaption({ market: "Houston", propertyType: "Townhome" }, "s0").includes("🏡"))
+
+console.log("overlay detail one-line composition helper (· separator; future template rules):")
+ok("special + price → '8 Weeks Free · Starting at $1,495/mo'", joinDetailParts([specialDisplay("8 weeks free"), startingPriceLabel("1495")]) === "8 Weeks Free · Starting at $1,495/mo")
+ok("special only", joinDetailParts([specialDisplay("8 weeks free"), startingPriceLabel(null)]) === "8 Weeks Free")
+ok("price only", joinDetailParts([specialDisplay(null), startingPriceLabel("1495")]) === "Starting at $1,495/mo")
+ok("neither → empty (no detail)", joinDetailParts([specialDisplay(null), startingPriceLabel(null)]) === "")
+ok("uses centered-dot ' · ' separator, never comma/pipe", (() => { const d = joinDetailParts(["A", "B"]); return d === "A · B" && !d.includes(",") && !d.includes("|") })())
+
+console.log("CASE 14 — Houston + Townhome + 1495 (Template 1 is PRICE-ONLY; special stays in caption):")
+ok("Template 1 overlay headline", buildOverlayHeadline({ market: "Houston", propertyType: "Townhome" }) === "HOUSTON TOWNHOMES")
+ok("Template 1 overlay detail is price-only (does NOT add the special)", buildOverlayDetail({ market: "Houston", propertyType: "Townhome", special: "8 weeks free", budgetRange: "1495" }) === "Starting at $1,495/mo")
+ok("Houston hashtags: market bank, max 7, ZERO San Antonio / Dallas", (() => { const h = buildHashtags("Houston", 7, "Townhome"); return h.length <= 7 && h.includes("#houstonapartments") && !h.some((t) => /sanantonio|satx|dallas|dfw/.test(t)) })())
+// Deterministic hook is preserved (not forced to Hook 4); whatever hook this seed selects is used.
+ok("caption hook resolves to CURRENT Houston/Townhome metadata (deterministic, not forced)", (() => {
+  const first = houston.split("\n")[0]
+  const approved = ["Moving to Houston? This is your sign.", "This is your sign to move to Houston.", "Moving to Houston? You need to see this one.", "Need a new townhome?"]
+  return approved.includes(first)
+})())
+
+console.log("regression: generated caption re-syncs across NEW section format (blank-line-insensitive):")
+// A caption stored in the OLDER compressed (single-newline) format must still be recognized as
+// generated for the current metadata, so it re-syncs rather than masquerading as a manual override.
+const oldFormat = "Need a new townhome?\nMy apartment locating service is completely free!\nSubmit the form to get your free custom apartment list."
+ok("old compressed caption still detected as generated", isGeneratedCaption(oldFormat, { market: "Dallas", propertyType: "Townhome" }, "s1"))
+ok("new spaced caption detected as generated", isGeneratedCaption(buildCaption({ market: "Dallas", propertyType: "Townhome" }, "s1"), { market: "Dallas", propertyType: "Townhome" }, "s1"))
+ok("genuine manual caption still NOT generated", !isGeneratedCaption("Come see this stunning place today!", { market: "Dallas", propertyType: "Townhome" }, "s1"))
+
+console.log("amenity bank (canonical multi-select + custom fallback + ordered storage):")
+ok("bank contains common canonical selling points", AMENITY_BANK.includes("Private Yards") && AMENITY_BANK.includes("Floor-to-Ceiling Windows") && AMENITY_BANK.includes("Washer & Dryer Included"))
+// Variant collapsing → ONE canonical display value.
+ok("'floor to ceiling windows' → canonical", canonicalizeAmenity("floor to ceiling windows") === "Floor-to-Ceiling Windows")
+ok("'Floor-To-Ceiling Windows' → canonical", canonicalizeAmenity("Floor-To-Ceiling Windows") === "Floor-to-Ceiling Windows")
+ok("'  floor-to-ceiling   windows ' → canonical (trim+collapse)", canonicalizeAmenity("  floor-to-ceiling   windows ") === "Floor-to-Ceiling Windows")
+ok("unknown value preserved verbatim (custom, wording kept)", canonicalizeAmenity("Speakeasy Lounge") === "Speakeasy Lounge")
+ok("custom sanitized of delimiter chars (single safe chip)", sanitizeCustomAmenity("24/7, on-site\nconcierge") === "24 7 on-site concierge")
+// Selecting multiple canonical amenities, order preserved.
+const sel = ["Private Yards", "Attached Garages", "Floor-to-Ceiling Windows", "Fitness Center"]
+ok("serialize→parse round-trips selection + order", JSON.stringify(parseAmenities(serializeAmenities(sel))) === JSON.stringify(sel))
+ok("first selected amenity is the primary {feature} (future Template 3)", parseAmenities(serializeAmenities(sel))[0] === "Private Yards")
+// No exact duplicates (case-insensitive), first occurrence wins.
+ok("exact duplicates removed", JSON.stringify(parseAmenities("Private Yards\nprivate yards\nDog Park")) === JSON.stringify(["Private Yards", "Dog Park"]))
+// Legacy free-text loads safely.
+ok("existing COMMA-separated free-text loads as chips", JSON.stringify(parseAmenities("private yard, garage, pool")) === JSON.stringify(["private yard", "garage", "pool"]))
+ok("existing NEWLINE-separated free-text loads as chips", JSON.stringify(parseAmenities("Rooftop Pool\nDog Park")) === JSON.stringify(["Rooftop Pool", "Dog Park"]))
+ok("legacy custom value with '/' or 'and' stays intact (not over-split)", JSON.stringify(parseAmenities("24/7 Concierge\nCats and Dogs Welcome")) === JSON.stringify(["24/7 Concierge", "Cats and Dogs Welcome"]))
+// Caption uses first up to 3, in order, bulleted; the 4th is stored but not shown.
+const capSel = buildCaption({ market: "Dallas", propertyType: "Townhome", amenities: serializeAmenities(sel) }, "s0")
+ok("caption uses first 3 selected amenities, in order, bulleted", capSel.includes("🏡 Amenities\n• Private Yards\n• Attached Garages\n• Floor-to-Ceiling Windows"))
+ok("4th selected amenity stored but NOT in caption (max 3)", !capSel.includes("Fitness Center"))
+
+console.log("Social Special selector (standardized short-forms + gift card + custom):")
+ok("standardized options use NUMBERS, not spelled-out", SOCIAL_SPECIAL_OPTIONS.includes("8 Weeks Free") && SOCIAL_SPECIAL_OPTIONS.includes("1 Month Free") && SOCIAL_SPECIAL_OPTIONS.includes("Free Movers") && !SOCIAL_SPECIAL_OPTIONS.some((o) => /eight|six|one month/i.test(o)))
+ok("gift card with amount → '$500 Gift Card'", giftCardLabel(500) === "$500 Gift Card")
+ok("gift card 1000 → '$1,000 Gift Card' (comma-grouped)", giftCardLabel("1000") === "$1,000 Gift Card")
+ok("gift card no/zero amount → 'Gift Card' (never invents an amount)", giftCardLabel("") === "Gift Card" && giftCardLabel(0) === "Gift Card" && giftCardLabel(null) === "Gift Card")
+ok("isGiftCardSpecial detects gift-card values", isGiftCardSpecial("$500 Gift Card") && isGiftCardSpecial("Gift Card") && !isGiftCardSpecial("8 Weeks Free"))
+ok("custom special trimmed, wording preserved, capped", sanitizeCustomSpecial("  Look & Lease Bonus  ") === "Look & Lease Bonus")
+ok("empty custom rejected", sanitizeCustomSpecial("   ") === "")
+// Precedence: explicit Social Special wins; else normalized raw; else "".
+ok("explicit Social Special wins over raw special", resolveSocialSpecial({ socialSpecial: "$500 Gift Card", special: "8 weeks free on select units" }) === "$500 Gift Card")
+ok("no explicit → normalized raw special", resolveSocialSpecial({ special: "Receive up to 8 weeks free on select units" }) === "8 Weeks Free")
+ok("neither → empty (no fabrication)", resolveSocialSpecial({}) === "" && resolveSocialSpecial({ special: "Call for details" }) === "Call for details")
+// Caption reflects the explicit Social Special and never mutates the raw metadata.
+const capExplicit = buildCaption({ market: "Dallas", propertyType: "Townhome", special: "8 weeks free on select units", socialSpecial: "$500 Gift Card" }, "s0")
+ok("caption uses explicit Social Special in ✨ line", capExplicit.includes("✨ $500 Gift Card") && !capExplicit.includes("✨ 8 Weeks Free"))
+ok("Free Movers renders verbatim in caption", buildCaption({ market: "Dallas", socialSpecial: "Free Movers" }, "s0").includes("✨ Free Movers"))
+const rawKept = { market: "Dallas", propertyType: "Townhome", special: "8 weeks free on select units", socialSpecial: "$500 Gift Card" }
+buildCaption(rawKept, "s0"); resolveSocialSpecial(rawKept)
+ok("raw Current Special metadata is never mutated by resolution", rawKept.special === "8 weeks free on select units")
+ok("Template 1 overlay detail stays PRICE-ONLY regardless of Social Special", buildOverlayDetail({ ...rawKept, budgetRange: "1495" }) === "Starting at $1,495/mo")
+ok("one primary Social Special (single value feeds caption)", (capExplicit.match(/✨/g) || []).length === 1)
+
+console.log("overlay readability scrim (soft band that follows the text group, not full-screen):")
+const bandHS = overlayScrimBand(1, 1)
+ok("scrim band has positive height for headline + detail", bandHS.heightPx > 0)
+ok("band starts ABOVE the headline (padded)", bandHS.topPx < OVERLAY_SPEC.headline.yFrac * OVERLAY_CANVAS.h)
+ok("band is NOT full-screen (well under canvas height)", bandHS.heightPx < OVERLAY_CANVAS.h * 0.5)
+ok("headline-only band is shorter than headline+detail band", overlayScrimBand(1, 0).heightPx < overlayScrimBand(1, 1).heightPx)
+ok("peak alpha is subtle (0 < a < 0.6)", OVERLAY_SCRIM.peakAlpha > 0 && OVERLAY_SCRIM.peakAlpha < 0.6)
+// Render carries a soft scrim (overlay of a faded black source) instead of a hard box.
+const scrimFilt = buildVideoFilter("/f.ttf", "/h.txt", "/s.txt", 1, OVERLAY_SPEC.headline.fontPx, 1)
+ok("render builds a faded scrim + overlay (no hard drawtext box)", scrimFilt.includes("geq=") && scrimFilt.includes("overlay=") && !scrimFilt.includes("box=1"))
+ok("render drawtext carries a soft shadow", scrimFilt.includes("shadowcolor="))
+ok("render graph outputs the [v] label", /\[v\]$/.test(scrimFilt))
+
+console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)
+process.exit(fail === 0 ? 0 : 1)

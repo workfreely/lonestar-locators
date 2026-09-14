@@ -26,6 +26,31 @@ export const OVERLAY_SPEC = {
   safe: { topFrac: 0.1, bottomFrac: 0.2 },
 } as const
 
+// Readability BACKDROP for generated overlay text: instead of a hard solid box, a soft translucent
+// dark scrim that FOLLOWS THE TEXT GROUP (never full-screen). It is a full-width band spanning the
+// headline+detail block (plus padding), with a raised-cosine vertical alpha fade — 0 at the band's
+// top/bottom edges, `peakAlpha` at the vertical centre — so it reads as a social-video gradient,
+// not a UI panel. The SAME band drives the CSS preview and the FFmpeg render (parity). NOT FROZEN:
+// tune `peakAlpha`/padding after reviewing production screenshots. `letterSpacingPx` is a small
+// fixed tracking bump under evaluation for readability (0 = off).
+export const OVERLAY_SCRIM = { peakAlpha: 0.42, padTopPx: 64, padBottomPx: 64, letterSpacingPx: 0 } as const
+
+/** Vertical band (canvas px) the readability scrim occupies for the given headline/detail line
+ *  counts — from a little above the headline to a little below the detail block. Shared by preview
+ *  and render so the soft backdrop lands in exactly the same place in both. */
+export function overlayScrimBand(headLineCount: number, subLineCount: number, headlineFontPx: number = OVERLAY_SPEC.headline.fontPx): { topPx: number; heightPx: number } {
+  const headTop = OVERLAY_SPEC.headline.yFrac * OVERLAY_CANVAS.h
+  const headBlock = headLineCount > 0 ? headlineBlockPx(headLineCount, headlineFontPx) : 0
+  let bottom = headTop + headBlock
+  if (subLineCount > 0) {
+    const subTop = headTop + headBlock + (headBlock > 0 ? OVERLAY_SPEC.sub.gapPx : 0)
+    bottom = subTop + subLineCount * OVERLAY_SPEC.sub.fontPx + (subLineCount - 1) * OVERLAY_SPEC.sub.lineSpacing
+  }
+  const top = Math.max(0, headTop - OVERLAY_SCRIM.padTopPx)
+  const height = Math.min(OVERLAY_CANVAS.h - top, bottom + OVERLAY_SCRIM.padBottomPx - top)
+  return { topPx: top, heightPx: Math.max(0, height) }
+}
+
 // Deterministic word-wrap — SHARED by the CSS preview and the FFmpeg render so both produce the
 // SAME lines. Greedy by words; a single word longer than `maxChars` is HARD-split into
 // maxChars-sized chunks so even no-space text stays inside the box. Capped at `maxLines`.
