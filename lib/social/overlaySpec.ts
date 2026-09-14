@@ -12,20 +12,15 @@ export const OVERLAY_CANVAS = { w: 1080, h: 1920 } as const
 // the CSS preview and the FFmpeg render (FFmpeg centers each line via x=(w-text_w)/2, so the
 // char-wrap is what constrains its width to the box). Headline box ≈ 800px, sub box ≈ 930px.
 export const OVERLAY_SPEC = {
-  // Headline font grown ~12% (84→94px) for more impact. maxChars tightened 16→14 so a full line
-  // still fits the SAME ~800px safe box (140px margins) at the larger glyph size — the headline
-  // never gets closer to the video edges. Position (yFrac), weight/style, and wrap algorithm are
-  // unchanged. Applied identically to the CSS preview and the FFmpeg render (both read this spec).
-  headline: { yFrac: 0.13, fontPx: 94, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24, maxChars: 14, maxLines: 3, sideMarginPx: 140 },
-  // The sub sits `gapPx` BELOW the bottom of the (possibly multi-line) headline block, in its own
-  // centered box. Its safe box is now ≈86% of the 1080 canvas (930px; 75px ≈ 6.9% margins each
-  // side — reasonable safe margin, never edge-to-edge), with maxChars raised to 33 so normal
-  // marketing copy uses substantially more horizontal space before wrapping (e.g. "8 WEEKS FREE +
-  // WAIVED APP & ADMIN" fits on one line). Multi-line wrapping, the 4-line cap, and the per-word
-  // hard-split (so a pathological long unbroken string still can't overflow) are all unchanged.
-  // Preview and FFmpeg share this maxChars, so wrapping is identical; the wider box only lets the
-  // CSS preview hold a full maxChars line without re-wrapping.
-  sub: { gapPx: 44, fontPx: 40, lineSpacing: 6, boxAlpha: 0.28, boxBorderPx: 16, maxChars: 33, maxLines: 4, sideMarginPx: 75 },
+  // `fontPx` (94) is now the MAXIMUM headline size. Template 1 headlines ({city} {type_plural})
+  // are FIT-TO-WIDTH per combination via headlineFit(): a headline that fits at 94px keeps 94px;
+  // longer ones shrink only as much as needed to stay ONE line inside the safe box (down to
+  // minFontPx). maxChars/maxLines are the FALLBACK wrap for arbitrary/custom headline text only.
+  headline: { yFrac: 0.13, fontPx: 94, minFontPx: 60, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24, maxChars: 14, maxLines: 3, sideMarginPx: 140 },
+  // The sub sits `gapPx` BELOW the headline block. gap tightened 44→35 (~20%) so the headline +
+  // "Starting at $…/mo" read as one compact lockup. Its safe box is ≈86% of the canvas (930px;
+  // 75px margins each side). maxChars/maxLines/hard-split unchanged (shared preview===render).
+  sub: { gapPx: 35, fontPx: 40, lineSpacing: 6, boxAlpha: 0.28, boxBorderPx: 16, maxChars: 33, maxLines: 4, sideMarginPx: 75 },
   safe: { topFrac: 0.1, bottomFrac: 0.2 },
 } as const
 
@@ -63,21 +58,60 @@ export function wrapSub(text: string | null | undefined, maxChars = OVERLAY_SPEC
   return wrapWords(text, maxChars, OVERLAY_SPEC.sub.maxLines)
 }
 
-/** Height (canvas px) of a headline block of `lineCount` lines. */
-export function headlineBlockPx(lineCount: number): number {
+// ── Headline fit-to-width (Template 1) ───────────────────────────────────────────────────────
+// The headline vocabulary is CONTROLLED ({city} {property_type_plural}), so widths are measured
+// once with the actual production font (assets/social/fonts/Overlay-Bold.ttf) via PIL getlength
+// at the 94px base and baked here — real rendered advance widths, NOT character counts. At render
+// AND preview time we scale the font linearly to keep the drawn text inside the safe box on ONE
+// line. Any headline NOT in this table (arbitrary/custom text) falls back to the char-wrap.
+//
+// Usable text width = canvas − 2·sideMargin − 2·boxBorder (the black box must stay in the safe
+// area). fontPx = clamp( floor(94 · usable / width@94), minFontPx, 94 ).
+export const HEADLINE_TEXT_AVAIL_PX =
+  OVERLAY_CANVAS.w - 2 * OVERLAY_SPEC.headline.sideMarginPx - 2 * OVERLAY_SPEC.headline.boxBorderPx // 752
+
+// Measured advance width (px) of each uppercase headline at 94px in Overlay-Bold.ttf.
+const HEADLINE_WIDTH_AT_94: Record<string, number> = {
+  "AUSTIN STUDIOS": 542, "AUSTIN APARTMENTS": 715, "AUSTIN HIGH-RISES": 642, "AUSTIN TOWNHOMES": 703, "AUSTIN RENTAL HOMES": 779, "AUSTIN PENTHOUSES": 691,
+  "DALLAS STUDIOS": 558, "DALLAS APARTMENTS": 731, "DALLAS HIGH-RISES": 658, "DALLAS TOWNHOMES": 719, "DALLAS RENTAL HOMES": 795, "DALLAS PENTHOUSES": 707,
+  "DFW STUDIOS": 454, "DFW APARTMENTS": 627, "DFW HIGH-RISES": 554, "DFW TOWNHOMES": 615, "DFW RENTAL HOMES": 691, "DFW PENTHOUSES": 603,
+  "HOUSTON STUDIOS": 614, "HOUSTON APARTMENTS": 787, "HOUSTON HIGH-RISES": 714, "HOUSTON TOWNHOMES": 775, "HOUSTON RENTAL HOMES": 851, "HOUSTON PENTHOUSES": 763,
+  "SAN ANTONIO STUDIOS": 751, "SAN ANTONIO APARTMENTS": 924, "SAN ANTONIO HIGH-RISES": 851, "SAN ANTONIO TOWNHOMES": 912, "SAN ANTONIO RENTAL HOMES": 988, "SAN ANTONIO PENTHOUSES": 900,
+}
+
+export type HeadlineFit = { fontPx: number; lines: string[] }
+
+/** Fit a headline to ONE line at the largest size that keeps its box inside the safe area. For a
+ *  known controlled combination this uses the measured width; for anything else it falls back to
+ *  the char-wrap at the base font (so custom text still can't overflow). Shared by preview+render. */
+export function headlineFit(text: string | null | undefined): HeadlineFit {
+  const t = (text ?? "").trim()
+  if (!t) return { fontPx: OVERLAY_SPEC.headline.fontPx, lines: [] }
+  const w94 = HEADLINE_WIDTH_AT_94[t.toUpperCase()]
+  if (w94 && w94 > 0) {
+    const raw = Math.floor((OVERLAY_SPEC.headline.fontPx * HEADLINE_TEXT_AVAIL_PX) / w94)
+    const fontPx = Math.max(OVERLAY_SPEC.headline.minFontPx, Math.min(OVERLAY_SPEC.headline.fontPx, raw))
+    return { fontPx, lines: [t] } // one line, uppercase preserved as supplied
+  }
+  // Unknown/custom headline → base font + the existing multi-line char-wrap safety.
+  return { fontPx: OVERLAY_SPEC.headline.fontPx, lines: wrapHeadline(t) }
+}
+
+/** Height (canvas px) of a headline block of `lineCount` lines at `fontPx` (defaults to the max). */
+export function headlineBlockPx(lineCount: number, fontPx: number = OVERLAY_SPEC.headline.fontPx): number {
   const n = Math.max(1, lineCount)
-  return n * OVERLAY_SPEC.headline.fontPx + (n - 1) * OVERLAY_SPEC.headline.lineSpacing
+  return n * fontPx + (n - 1) * OVERLAY_SPEC.headline.lineSpacing
 }
 
 /** Editing-preview helper: convert canvas px / fracs to % of the preview box (which is also
  *  9:16), so the CSS approximation lines up with where FFmpeg will draw. The sub position is a
  *  function of the headline's line count so the two never collide. The FINAL preview still plays
  *  the real rendered file — this is only for the pre-render editing view. */
-export function overlayPreviewStyle(headlineLineCount = 1) {
-  const subTopPx = OVERLAY_SPEC.headline.yFrac * OVERLAY_CANVAS.h + headlineBlockPx(headlineLineCount) + OVERLAY_SPEC.sub.gapPx
+export function overlayPreviewStyle(headlineLineCount = 1, headlineFontPx: number = OVERLAY_SPEC.headline.fontPx) {
+  const subTopPx = OVERLAY_SPEC.headline.yFrac * OVERLAY_CANVAS.h + headlineBlockPx(headlineLineCount, headlineFontPx) + OVERLAY_SPEC.sub.gapPx
   return {
     headlineTopPct: OVERLAY_SPEC.headline.yFrac * 100,
-    headlineFontPct: (OVERLAY_SPEC.headline.fontPx / OVERLAY_CANVAS.h) * 100, // cqh (of preview box)
+    headlineFontPct: (headlineFontPx / OVERLAY_CANVAS.h) * 100, // cqh (of preview box) — fit-to-width size
     subTopPct: (subTopPx / OVERLAY_CANVAS.h) * 100,
     subFontPct: (OVERLAY_SPEC.sub.fontPx / OVERLAY_CANVAS.h) * 100,
     subLineHeight: (OVERLAY_SPEC.sub.fontPx + OVERLAY_SPEC.sub.lineSpacing) / OVERLAY_SPEC.sub.fontPx, // unitless

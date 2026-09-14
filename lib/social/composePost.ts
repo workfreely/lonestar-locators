@@ -45,38 +45,34 @@ function features(amenities: string | null | undefined): string[] {
     .filter(Boolean)
 }
 
-/** Light pluralize a short feature phrase for a headline ("private yard" → "private yards"). */
-function pluralizeFeature(f: string): string {
-  const words = f.split(" ")
-  const last = words[words.length - 1]
-  if (!last) return f
-  const lower = last.toLowerCase()
-  if (lower.endsWith("s")) return f // already plural / mass noun
-  const plural = /[^aeiou]y$/i.test(last) ? last.slice(0, -1) + "ies" : last + "s"
-  words[words.length - 1] = plural
-  return words.join(" ")
+/** Overlay price rule (Template 1): "Starting at {lowest}/mo" derived from the LOWEST valid price
+ *  in the Price Range metadata. The full Price Range stays stored internally — this is only overlay
+ *  presentation. Handles "$1,495–$2,100" → 1495, "$1,895" → 1895, "$1,200+" → 1200. No valid price
+ *  → "" (the overlay omits the line; never fabricates or substitutes another message). */
+export function startingPriceLabel(range: string | null | undefined): string {
+  const tokens = (range ?? "").match(/\d[\d,]*/g)
+  if (!tokens) return ""
+  const values = tokens.map((n) => parseInt(n.replace(/,/g, ""), 10)).filter((n) => Number.isFinite(n) && n > 0)
+  if (!values.length) return ""
+  return `Starting at $${Math.min(...values).toLocaleString("en-US")}/mo`
 }
 
 /** Headline = Market + Property Type ("SAN ANTONIO TOWNHOMES"), a generic, public-safe leasing
  *  hook — NEVER the property/building name. Falls back to market alone, then a generic hook. */
 export function buildOverlayHeadline(src: SourceMeta): string {
   const market = clean(normalizeSocialMarket(src.market))
-  const typePlural = src.propertyType ? propertyNounPlural(src.propertyType) : ""
+  const cleanType = clean(src.propertyType) // trim BEFORE pluralizing (whitespace would drop to "apartments")
+  const typePlural = cleanType ? propertyNounPlural(cleanType) : ""
   const text = market && typePlural ? `${market} ${typePlural}` : market ? `${market} ${propertyNounPlural(null)}` : typePlural || "New Listing"
   return text.toUpperCase().slice(0, 40)
 }
 
-/** Subheadline = the current special if present, else a short public-safe features hook
- *  ("PRIVATE YARDS + GARAGES"), else the price range, else empty. NEVER the property name, area,
- *  or notes. */
+/** Subheadline (Template 1) = "Starting at {lowest price}/mo" from the Price Range, or "" when no
+ *  valid price exists (the overlay simply omits the line — no fabrication, no substitute yet).
+ *  NEVER the property name, area, or notes. The current special still appears in the CAPTION's ✨
+ *  line — it is intentionally not part of the Template 1 overlay subheadline. */
 export function buildOverlaySubheadline(src: SourceMeta): string {
-  const special = clean(src.special)
-  if (special) return special.slice(0, 60)
-  const feats = features(src.amenities).slice(0, 2).map(pluralizeFeature)
-  if (feats.length) return feats.join(" + ").toUpperCase().slice(0, 60)
-  const price = clean(src.budgetRange)
-  if (price) return price.slice(0, 60)
-  return ""
+  return startingPriceLabel(src.budgetRange).slice(0, 60)
 }
 
 // ── APPROVED caption template system ─────────────────────────────────────────────────────────

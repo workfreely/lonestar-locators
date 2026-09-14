@@ -1,9 +1,9 @@
 // Focused unit tests for the Post Composer's auto-preparation + hashtag bank + render args.
 // Pure logic only — no network, no ffmpeg. Run: npx tsx scripts/social/composer.test.ts
 import { buildHashtags, normalizeHashtag, HASHTAG_MARKETS } from "@/lib/social/hashtags"
-import { preparePost, buildCaption, buildOverlayHeadline, buildOverlaySubheadline, composeFinalCaption } from "@/lib/social/composePost"
+import { preparePost, buildCaption, buildOverlayHeadline, buildOverlaySubheadline, composeFinalCaption, startingPriceLabel } from "@/lib/social/composePost"
 import { buildFfmpegArgs, buildVideoFilter } from "@/lib/social/renderVideo"
-import { wrapHeadline, wrapSub, overlayPreviewStyle } from "@/lib/social/overlaySpec"
+import { wrapHeadline, wrapSub, overlayPreviewStyle, headlineFit, OVERLAY_SPEC, HEADLINE_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
 
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
@@ -30,7 +30,7 @@ console.log("auto-prepare (PUBLIC-SAFE only — never the property name/area/not
 const src = { market: "San Antonio", propertyType: "Townhome", special: "1 Month Free", budgetRange: "$1,200–$1,600", amenities: "private yard, garage, pool" }
 const prep = preparePost(src, "seed-A")
 ok("headline = MARKET + TYPE (not property name)", prep.overlayHeadline === "SAN ANTONIO TOWNHOMES")
-ok("subheadline = special when present", prep.overlaySubheadline === "1 Month Free")
+ok("subheadline = Starting-at lowest price (Template 1)", prep.overlaySubheadline === "Starting at $1,200/mo")
 ok("caption includes special + price + amenities lines", prep.caption.includes("✨ 1 Month Free") && prep.caption.includes("💰 $1,200–$1,600") && prep.caption.includes("🏡 private yard, garage, pool"))
 ok("caption at most 7 hashtags prepared separately", prep.hashtags.length <= 7 && prep.hashtags.length >= 1)
 // Even if a property name were somehow supplied, the type-level SourceMeta drops it — verify no
@@ -106,15 +106,52 @@ ok("absent optional fields → no ✨/🏡/💰 lines, no empty lines", !sparse.
 // Intentional paragraph break BEFORE hashtags is preserved by composeFinalCaption (blank line).
 ok("paragraph break before hashtags preserved (\\n\\n)", composeFinalCaption(messy, ["#a", "#b"]).includes(messy + "\n\n#a #b"))
 
-console.log("subheadline priority: special → features → price → empty:")
-ok("no special → features hook (pluralized, uppercased)", buildOverlaySubheadline({ market: "San Antonio", amenities: "private yard, garage, pool" }) === "PRIVATE YARDS + GARAGES")
-ok("no special/features → price range", buildOverlaySubheadline({ market: "Dallas", budgetRange: "$1,500+" }) === "$1,500+")
-ok("nothing public → empty", buildOverlaySubheadline({ market: "Austin" }) === "")
+console.log("Template 1 subheadline: 'Starting at {lowest}/mo' (or empty; special stays in caption):")
+ok("range → lowest price", startingPriceLabel("$1,495–$2,100") === "Starting at $1,495/mo")
+ok("single value → that price", startingPriceLabel("$1,895") === "Starting at $1,895/mo")
+ok("open-ended '$1,200+' → 1200", startingPriceLabel("$1,200+") === "Starting at $1,200/mo")
+ok("surrounding whitespace trimmed", startingPriceLabel("  $2,000 – $3,000  ") === "Starting at $2,000/mo")
+ok("no digits → empty (no fabrication)", startingPriceLabel("Call for pricing") === "" && startingPriceLabel("") === "" && startingPriceLabel(null) === "")
+ok("sub uses starting price from range", buildOverlaySubheadline({ market: "Dallas", budgetRange: "$1,495–$2,100" }) === "Starting at $1,495/mo")
+ok("sub omits when no price (special is NOT the overlay sub in Template 1)", buildOverlaySubheadline({ market: "Dallas", special: "1 Month Free", amenities: "pool, gym" }) === "")
+ok("sub empty when nothing", buildOverlaySubheadline({ market: "Austin" }) === "")
 
 console.log("headline market/type fallbacks:")
 ok("Dallas market → DFW NOT substituted", buildOverlayHeadline({ market: "Dallas" }) === "DALLAS APARTMENTS")
 ok("market only → market + apartments", buildOverlayHeadline({ market: "Austin" }) === "AUSTIN APARTMENTS")
 ok("final caption appends hashtags", composeFinalCaption("Hello", ["#a", "#b"]) === "Hello\n\n#a #b")
+
+console.log("Template 1 headline: pluralization + whitespace + fit-to-width (real font widths):")
+ok("Studio→Studios", buildOverlayHeadline({ market: "Dallas", propertyType: "Studio" }) === "DALLAS STUDIOS")
+ok("Apartment→Apartments", buildOverlayHeadline({ market: "Austin", propertyType: "Apartment" }) === "AUSTIN APARTMENTS")
+ok("High-Rise→High-Rises", buildOverlayHeadline({ market: "Dallas", propertyType: "High-Rise" }) === "DALLAS HIGH-RISES")
+ok("Townhome→Townhomes", buildOverlayHeadline({ market: "Houston", propertyType: "Townhome" }) === "HOUSTON TOWNHOMES")
+ok("Rental Home→Rental Homes", buildOverlayHeadline({ market: "San Antonio", propertyType: "Rental Home" }) === "SAN ANTONIO RENTAL HOMES")
+ok("Penthouse→Penthouses", buildOverlayHeadline({ market: "Austin", propertyType: "Penthouse" }) === "AUSTIN PENTHOUSES")
+ok("headline trims surrounding whitespace", buildOverlayHeadline({ market: " Dallas ", propertyType: " High-Rise " }) === "DALLAS HIGH-RISES")
+const CITIES = ["Austin", "Dallas", "DFW", "Houston", "San Antonio"]
+const TYPES = ["Studio", "Apartment", "High-Rise", "Townhome", "Rental Home", "Penthouse"]
+let allOneLine = true, allInRange = true, aboveFloor = true
+for (const c of CITIES) for (const t of TYPES) {
+  const fit = headlineFit(buildOverlayHeadline({ market: c, propertyType: t }))
+  if (fit.lines.length !== 1) allOneLine = false
+  if (fit.fontPx < OVERLAY_SPEC.headline.minFontPx || fit.fontPx > OVERLAY_SPEC.headline.fontPx) allInRange = false
+  if (fit.fontPx <= OVERLAY_SPEC.headline.minFontPx) aboveFloor = false
+}
+ok("EVERY supported city×type headline stays ONE line", allOneLine)
+ok("every fit font is within [minFontPx, 94]", allInRange)
+ok("no supported combo hits the minimum floor (never needs to wrap)", aboveFloor)
+ok("a combo that fits keeps the MAX 94px (DALLAS HIGH-RISES)", headlineFit("DALLAS HIGH-RISES").fontPx === 94)
+ok("longest combo shrinks to 71px, still one line (SAN ANTONIO RENTAL HOMES)", headlineFit("SAN ANTONIO RENTAL HOMES").fontPx === 71 && headlineFit("SAN ANTONIO RENTAL HOMES").lines.length === 1)
+ok("SAN ANTONIO APARTMENTS → 76px", headlineFit("SAN ANTONIO APARTMENTS").fontPx === 76)
+ok("SAN ANTONIO HIGH-RISES → 83px", headlineFit("SAN ANTONIO HIGH-RISES").fontPx === 83)
+ok("SAN ANTONIO TOWNHOMES → 77px", headlineFit("SAN ANTONIO TOWNHOMES").fontPx === 77)
+ok("usable text width = safe area − box borders = 752px", HEADLINE_TEXT_AVAIL_PX === 752)
+ok("unknown/custom headline falls back to base 94px + char-wrap", headlineFit("SOME ENTIRELY CUSTOM HEADLINE TEXT").fontPx === OVERLAY_SPEC.headline.fontPx)
+
+console.log("Template 1 vertical lockup: tightened headline→sub gap:")
+ok("gap is 35px (tightened from 44)", OVERLAY_SPEC.sub.gapPx === 35)
+ok("a smaller (fit) headline font pulls the sub UP", overlayPreviewStyle(1, 71).subTopPct < overlayPreviewStyle(1, 94).subTopPct)
 
 console.log("ffmpeg arg builder (Reel-safe encoders):")
 const filt = buildVideoFilter("/f/font.ttf", "/w/head.txt", null)
