@@ -13,7 +13,10 @@
 
 import { buildHashtags } from "@/lib/social/hashtags"
 import { normalizeSocialMarket } from "@/lib/social/markets"
-import { propertyNoun, propertyNounPlural } from "@/lib/social/propertyTypes"
+import { propertyNoun, propertyNounPlural, normalizeToCanonical } from "@/lib/social/propertyTypes"
+
+// Instagram's approved cap for a Beast Social caption's hashtag block.
+export const MAX_HASHTAGS = 7
 
 export type SourceMeta = {
   market?: string | null
@@ -76,37 +79,74 @@ export function buildOverlaySubheadline(src: SourceMeta): string {
   return ""
 }
 
-/** Public Instagram caption from PUBLIC-SAFE fields only (market, type, special, price,
- *  amenities). Never emits the property name, area/neighborhood, or notes. */
-export function buildCaption(src: SourceMeta): string {
-  const market = clean(normalizeSocialMarket(src.market))
+// ── APPROVED caption template system ─────────────────────────────────────────────────────────
+// The fixed CTA every caption ends with (two lines, no emoji — never rotated).
+const CTA_LINES = [
+  "My apartment locating service is completely free!",
+  "Submit the form to get your free custom apartment list.",
+] as const
+
+// Deterministic, stable string hash (FNV-1a, 32-bit unsigned) used ONLY to pick a hook. Same seed
+// (a source video's id) → same hook across renders/deploys; different sources rotate. NO AI, no RNG.
+function hashSeed(seed: string | number | undefined): number {
+  const s = String(seed ?? "")
+  let h = 2166136261 >>> 0
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 16777619) >>> 0
+  }
+  return h >>> 0
+}
+
+/** The 4 APPROVED rotating opening hooks, in fixed order. Hooks 1–3 require {city}; Hook 4
+ *  requires a canonical {property_type}. Only fully-resolvable hooks are eligible, so an
+ *  unresolved {city}/{property_type} placeholder can never be emitted. Verbatim wording. */
+function eligibleHooks(city: string, canonicalType: string | null): string[] {
+  const noun = canonicalType ? propertyNoun(canonicalType) : "" // apartment | studio | high-rise | townhome | rental home | penthouse
+  const hooks: { text: string; ok: boolean }[] = [
+    { text: `Moving to ${city}? This is your sign.`, ok: !!city },
+    { text: `This is your sign to move to ${city}.`, ok: !!city },
+    { text: `Moving to ${city}? You need to see this one.`, ok: !!city },
+    { text: `Need a new ${noun}?`, ok: !!canonicalType },
+  ]
+  return hooks.filter((h) => h.ok).map((h) => h.text)
+}
+
+/** Public Instagram caption in the APPROVED format:
+ *    {rotating hook}
+ *    ✨ {current special}      — only if present
+ *    🏡 {up to 3 amenities}    — only if present
+ *    💰 {price range}          — only if present
+ *    My apartment locating service is completely free!
+ *    Submit the form to get your free custom apartment list.
+ *  Built from PUBLIC-SAFE fields only (market, type, special, price, amenities). NEVER the property
+ *  name, area/neighborhood, notes, place_id, or any internal/source-only metadata. Hashtags are
+ *  handled separately and merged at publish (composeFinalCaption). `seed` is the source id, so a
+ *  given source video deterministically gets the same eligible hook. */
+export function buildCaption(src: SourceMeta, seed?: string | number): string {
+  const city = clean(normalizeSocialMarket(src.market))
+  const canonicalType = normalizeToCanonical(src.propertyType) // null for missing/non-canonical
   const special = clean(src.special)
   const price = clean(src.budgetRange)
-  const amenities = clean(src.amenities)
-  const noun = propertyNoun(src.propertyType) // townhome | apartment | home | …
-  const typePlural = src.propertyType ? propertyNounPlural(src.propertyType) : ""
+  const feats = features(src.amenities).slice(0, 3) // max 3, existing stored order, verbatim
 
   const lines: string[] = []
-  // Lead line: market + type — a public leasing hook, not the property identity.
-  if (market && typePlural) lines.push(`Now leasing — ${market} ${typePlural}`)
-  else if (market) lines.push(`Now leasing in ${market}`)
-  else lines.push(`New ${noun} tour`)
-
+  const hooks = eligibleHooks(city, canonicalType)
+  if (hooks.length) lines.push(hooks[hashSeed(seed) % hooks.length])
   if (special) lines.push(`✨ ${special}`)
+  if (feats.length) lines.push(`🏡 ${feats.join(", ")}`)
   if (price) lines.push(`💰 ${price}`)
-  if (amenities) lines.push(`Features: ${amenities}`)
-
-  lines.push("DM me to schedule a tour — free locating, no cost to you. 🔑")
+  lines.push(...CTA_LINES)
   return lines.join("\n").slice(0, 1800)
 }
 
-/** Prepare all suggested fields at once. */
-export function preparePost(src: SourceMeta): PreparedPost {
+/** Prepare all suggested fields at once. `seed` (the source id) makes hook rotation deterministic. */
+export function preparePost(src: SourceMeta, seed?: string | number): PreparedPost {
   return {
     overlayHeadline: buildOverlayHeadline(src),
     overlaySubheadline: buildOverlaySubheadline(src),
-    caption: buildCaption(src),
-    hashtags: buildHashtags(src.market, 8, src.propertyType),
+    caption: buildCaption(src, seed),
+    hashtags: buildHashtags(src.market, MAX_HASHTAGS, src.propertyType),
   }
 }
 

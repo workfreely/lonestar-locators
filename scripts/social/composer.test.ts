@@ -28,18 +28,56 @@ ok("empty → empty", normalizeHashtag("  ") === "")
 console.log("auto-prepare (PUBLIC-SAFE only — never the property name/area/notes):")
 // Botanica Oak Hills is the INTERNAL canonical property; it must NOT appear in public copy.
 const src = { market: "San Antonio", propertyType: "Townhome", special: "1 Month Free", budgetRange: "$1,200–$1,600", amenities: "private yard, garage, pool" }
-const prep = preparePost(src)
+const prep = preparePost(src, "seed-A")
 ok("headline = MARKET + TYPE (not property name)", prep.overlayHeadline === "SAN ANTONIO TOWNHOMES")
 ok("subheadline = special when present", prep.overlaySubheadline === "1 Month Free")
-ok("caption leads with market + type, not property", prep.caption.startsWith("Now leasing — San Antonio townhomes"))
-ok("caption includes special + price + features", prep.caption.includes("1 Month Free") && prep.caption.includes("$1,200") && prep.caption.includes("private yard"))
-ok("caption has 7–10 hashtags prepared separately", prep.hashtags.length >= 7 && prep.hashtags.length <= 10)
+ok("caption includes special + price + amenities lines", prep.caption.includes("✨ 1 Month Free") && prep.caption.includes("💰 $1,200–$1,600") && prep.caption.includes("🏡 private yard, garage, pool"))
+ok("caption at most 7 hashtags prepared separately", prep.hashtags.length <= 7 && prep.hashtags.length >= 1)
 // Even if a property name were somehow supplied, the type-level SourceMeta drops it — verify no
 // internal identity leaks into the public copy.
-const leaky = preparePost({ market: "San Antonio", propertyType: "Townhome", amenities: "private yard, garage, pool", ...( { propertyName: "Botanica Oak Hills", areaNeighborhood: "Medical Center", notes: "call owner" } as unknown as object) })
+const leaky = preparePost({ market: "San Antonio", propertyType: "Townhome", amenities: "private yard, garage, pool", ...( { propertyName: "Botanica Oak Hills", areaNeighborhood: "Medical Center", notes: "call owner" } as unknown as object) }, "seed-B")
 ok("internal property name never leaks into caption", !leaky.caption.includes("Botanica"))
 ok("internal area never leaks into caption/overlay", !leaky.caption.includes("Medical Center") && !leaky.overlayHeadline.includes("MEDICAL") && !leaky.overlaySubheadline.includes("MEDICAL"))
 ok("internal notes never leak", !leaky.caption.includes("call owner"))
+
+console.log("APPROVED caption template (4 rotating hooks, conditional lines, fixed CTA):")
+const APPROVED_HOOKS_CITY = ["Moving to Dallas? This is your sign.", "This is your sign to move to Dallas.", "Moving to Dallas? You need to see this one."]
+const APPROVED_HOOK4 = (noun: string) => `Need a new ${noun}?`
+// Rotation across many seeds (city + type present) → only the 4 approved hooks, and >1 distinct.
+const seenTownhome = new Set<string>()
+for (let i = 0; i < 60; i++) seenTownhome.add(buildCaption({ market: "Dallas", propertyType: "Townhome" }, "s" + i).split("\n")[0])
+const APPROVED4 = new Set([...APPROVED_HOOKS_CITY, APPROVED_HOOK4("townhome")])
+ok("every produced hook is one of the 4 approved (verbatim)", [...seenTownhome].every((h) => APPROVED4.has(h)))
+ok("rotation actually varies across sources (>1 distinct hook)", seenTownhome.size > 1)
+ok("Hook 4 uses lowercase natural property noun ('townhome')", seenTownhome.has("Need a new townhome?"))
+ok("deterministic: same seed → same hook", buildCaption({ market: "Dallas", propertyType: "Townhome" }, "fixed") === buildCaption({ market: "Dallas", propertyType: "Townhome" }, "fixed"))
+// Missing property type → Hook 4 NOT eligible; only Hooks 1–3.
+const seenNoType = new Set<string>()
+for (let i = 0; i < 60; i++) seenNoType.add(buildCaption({ market: "Dallas" }, "n" + i).split("\n")[0])
+ok("missing property type excludes Hook 4", [...seenNoType].every((h) => APPROVED_HOOKS_CITY.includes(h)) && ![...seenNoType].some((h) => h.startsWith("Need a new")))
+// Property-type nouns render naturally lowercase.
+ok("High-Rise → 'high-rise'", buildCaption({ propertyType: "High-Rise" }).split("\n")[0] === "Need a new high-rise?")
+ok("Rental Home → 'rental home'", buildCaption({ propertyType: "Rental Home" }).split("\n")[0] === "Need a new rental home?")
+ok("Studio → 'studio'", buildCaption({ propertyType: "Studio" }).split("\n")[0] === "Need a new studio?")
+// City substitution is real (no leftover placeholder), never an unresolved {city}/{property_type}.
+// (Use a city-only source so a Hook 1–3 city hook is guaranteed for the substitution check.)
+ok("city substituted, no unresolved placeholder", buildCaption({ market: "Austin" }, "x").includes("Austin") && !buildCaption({ market: "Austin", propertyType: "Apartment" }, "x").includes("{"))
+// Conditional detail lines.
+const full = buildCaption({ market: "Dallas", propertyType: "Townhome", special: "8 weeks free", budgetRange: "Starting at $1,495", amenities: "Rooftop pool, fitness center, dog park, sauna" }, "z")
+ok("✨ line present when special present", full.includes("\n✨ 8 weeks free"))
+ok("🏡 amenities capped at 3, comma-separated, verbatim, no 4th", full.includes("\n🏡 Rooftop pool, fitness center, dog park") && !full.includes("sauna"))
+ok("💰 line present when price present", full.includes("\n💰 Starting at $1,495"))
+const noSpecial = buildCaption({ market: "Dallas", propertyType: "Townhome", amenities: "Private yard", budgetRange: "Starting at $1,895" }, "z")
+ok("✨ line OMITTED entirely (emoji included) when special missing", !noSpecial.includes("✨"))
+ok("🏡 single amenity when only one exists", noSpecial.includes("\n🏡 Private yard"))
+const bare = buildCaption({ market: "Dallas", propertyType: "Townhome" }, "z")
+ok("no 🏡/💰/✨ lines when none present", !bare.includes("🏡") && !bare.includes("💰") && !bare.includes("✨"))
+// Fixed CTA — always, verbatim, no emoji, never rotated.
+ok("fixed CTA present verbatim", full.includes("My apartment locating service is completely free!\nSubmit the form to get your free custom apartment list."))
+ok("caption always ends with the CTA", full.endsWith("Submit the form to get your free custom apartment list.") && bare.endsWith("Submit the form to get your free custom apartment list."))
+ok("CTA has no emoji", !/[☀-➿\uD83C-\uDBFF]/.test("My apartment locating service is completely free! Submit the form to get your free custom apartment list."))
+// No city AND no type → no hook line at all (never an unresolved placeholder); starts with CTA.
+ok("no city + no type → caption starts with the CTA (no empty hook)", buildCaption({}).split("\n")[0] === "My apartment locating service is completely free!")
 
 console.log("subheadline priority: special → features → price → empty:")
 ok("no special → features hook (pluralized, uppercased)", buildOverlaySubheadline({ market: "San Antonio", amenities: "private yard, garage, pool" }) === "PRIVATE YARDS + GARAGES")
@@ -49,7 +87,6 @@ ok("nothing public → empty", buildOverlaySubheadline({ market: "Austin" }) ===
 console.log("headline market/type fallbacks:")
 ok("Dallas market → DFW NOT substituted", buildOverlayHeadline({ market: "Dallas" }) === "DALLAS APARTMENTS")
 ok("market only → market + apartments", buildOverlayHeadline({ market: "Austin" }) === "AUSTIN APARTMENTS")
-ok("no market → 'Now leasing in <market>' absent, generic tour", buildCaption({}).startsWith("New apartment tour"))
 ok("final caption appends hashtags", composeFinalCaption("Hello", ["#a", "#b"]) === "Hello\n\n#a #b")
 
 console.log("ffmpeg arg builder (Reel-safe encoders):")

@@ -277,7 +277,7 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
 
   // Property name / area are INTERNAL — the public preview uses only market + type (Bulk Review
   // rows don't capture special/price/amenities; those refine the preview later in Create Post).
-  const activePrep = active ? preparePost({ market: active.market, propertyType: active.propertyType }) : null
+  const activePrep = active ? preparePost({ market: active.market, propertyType: active.propertyType }, active.uid) : null
   const headLines = wrapHeadline(activePrep?.overlayHeadline) // shared wrapping (preview === render)
   const subLines = wrapSub(activePrep?.overlaySubheadline) // compact centered sub block (shared geometry)
   const ov = overlayPreviewStyle(headLines.length || 1) // CSS overlay geometry shared with the Post Composer + FFmpeg burn-in

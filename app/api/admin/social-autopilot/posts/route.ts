@@ -138,13 +138,18 @@ export async function POST(req: NextRequest) {
 
   // Only PUBLIC-SAFE facts flow into prepared copy. property_name / area_neighborhood / notes are
   // INTERNAL references and are intentionally NOT passed — they never appear in public copy.
-  const prepared = preparePost({
-    market: s.market as string | null,
-    propertyType: s.property_type as string | null,
-    special: s.special as string | null,
-    budgetRange: s.budget_range as string | null,
-    amenities: s.amenities as string | null,
-  })
+  const prepared = preparePost(
+    {
+      market: s.market as string | null,
+      propertyType: s.property_type as string | null,
+      special: s.special as string | null,
+      budgetRange: s.budget_range as string | null,
+      amenities: s.amenities as string | null,
+    },
+    // Deterministic hook rotation seed: the source video id — one source always gets the same
+    // approved hook, while different sources rotate across the four variations.
+    sourceContentId,
+  )
   // Prefer the operator's SAVED prepared post (from Edit Details → details.preparedPost) over the
   // freshly auto-prepared copy, per field. Falls back to auto-preparation whenever none is saved.
   const stored = s.details && typeof s.details === "object" && !Array.isArray(s.details) ? ((s.details as Record<string, unknown>).preparedPost as Record<string, unknown> | undefined) : undefined
