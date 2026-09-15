@@ -57,16 +57,24 @@ export function pill(label: string, value: string | null | undefined): string {
 
 // Reusable label/value table — used for lead details and any structured summary.
 // Values are escaped here; labels are trusted (developer-supplied) constants.
-export function infoTable(rows: { label: string; value: string | null | undefined }[]): string {
+export function infoTable(
+  rows: { label: string; value: string | null | undefined }[],
+  // Optional sizing so a client-facing email can render a more readable summary
+  // on mobile. Defaults preserve the original look for every existing caller.
+  opts?: { labelSize?: number; valueSize?: number; pad?: number },
+): string {
+  const labelSize = opts?.labelSize ?? 13
+  const valueSize = opts?.valueSize ?? 14
+  const pad = opts?.pad ?? 8
   const body = rows
     .filter((r) => r.value !== undefined && r.value !== null && String(r.value).trim() !== "")
     .map(
       (r) => `
       <tr>
-        <td style="padding:8px 0;font-size:13px;color:${BRAND.inkSoft};width:160px;vertical-align:top;">${esc(
+        <td style="padding:${pad}px 0;font-size:${labelSize}px;color:${BRAND.inkSoft};width:160px;vertical-align:top;">${esc(
           r.label
         )}</td>
-        <td style="padding:8px 0;font-size:14px;color:${BRAND.ink};font-weight:600;vertical-align:top;">${esc(
+        <td style="padding:${pad}px 0;font-size:${valueSize}px;color:${BRAND.ink};font-weight:600;vertical-align:top;">${esc(
           r.value
         )}</td>
       </tr>`

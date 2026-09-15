@@ -285,33 +285,42 @@ export function leadConfirmationEmail({ locatorName, signature, lead }: LeadConf
   const layout = bedsBathsLabel(lead)
   const locatorFirst = (locatorName ?? "").trim().split(/\s+/)[0]
 
+  // Client-facing readability: slightly larger body text + line height than the
+  // shared helpers, scoped to THIS renter email only (other notifications keep
+  // the compact defaults). Each step is its own block with breathing room so it
+  // scans cleanly on mobile.
+  const bodyPara = (html: string) =>
+    `<p style="margin:0 0 18px 0;font-size:16px;line-height:1.65;color:${BRAND.inkSoft};">${html}</p>`
   const step = (n: number, text: string) =>
-    `<div style="margin-bottom:14px;font-size:15px;line-height:1.6;color:${BRAND.inkSoft};"><span style="font-weight:700;color:${BRAND.ink};">Step ${n}:</span> ${text}</div>`
+    `<div style="margin:0 0 16px 0;font-size:16px;line-height:1.7;color:${BRAND.inkSoft};"><span style="font-weight:700;color:${BRAND.ink};">Step ${n}:</span> ${text}</div>`
 
   const contentHtml = `
-    ${paragraph(
+    ${bodyPara(
       `Thanks for reaching out about your search in <strong>${esc(
         city
       )}</strong>! We've received your details and are reviewing your budget, move timeline, and location preferences to find the best available options for you.`
     )}
-    <h2 style="margin:24px 0 6px 0;font-size:17px;font-weight:700;color:${BRAND.ink};">Your search summary</h2>
-    ${infoTable([
-      { label: "Move date", value: lead.move_date ? formatDateDisplay(lead.move_date) : null },
-      { label: "Budget", value: lead.desired_rent },
-      { label: "Monthly Income", value: lead.income },
-      { label: "Layout", value: layout },
-      { label: "Property type", value: lead.property_type },
-      { label: "Preferred areas", value: lead.neighborhoods },
-      { label: "Nearby areas", value: lead.submarkets },
-      { label: "Notes", value: lead.notes },
-      // PRIVACY: credit/eviction/criminal screening is NEVER shown to the renter.
-      // It stays internal to the workspace-owner notification only.
-    ])}
-    <h2 style="margin:26px 0 12px 0;font-size:17px;font-weight:700;color:${BRAND.ink};">What happens next?</h2>
+    <h2 style="margin:28px 0 8px 0;font-size:18px;font-weight:700;color:${BRAND.ink};">Your search summary</h2>
+    ${infoTable(
+      [
+        { label: "Move date", value: lead.move_date ? formatDateDisplay(lead.move_date) : null },
+        { label: "Budget", value: lead.desired_rent },
+        { label: "Monthly Income", value: lead.income },
+        { label: "Layout", value: layout },
+        { label: "Property type", value: lead.property_type },
+        { label: "Preferred areas", value: lead.neighborhoods },
+        { label: "Nearby areas", value: lead.submarkets },
+        { label: "Notes", value: lead.notes },
+        // PRIVACY: credit/eviction/criminal screening is NEVER shown to the renter.
+        // It stays internal to the workspace-owner notification only.
+      ],
+      { labelSize: 14, valueSize: 15, pad: 9 },
+    )}
+    <h2 style="margin:30px 0 14px 0;font-size:18px;font-weight:700;color:${BRAND.ink};">What happens next?</h2>
     ${step(1, "Your locator reviews real-time pricing and availability to find the best options for your approval profile.")}
     ${step(2, "You receive a focused, custom list with clear pricing and any current incentives.")}
     ${step(3, "You tour only the properties that make the most sense for you.")}
-    ${paragraph(
+    ${bodyPara(
       `If anything changes with your budget, location, or timeline, just reply to this email${
         locatorFirst ? ` and ${esc(locatorFirst)} will help` : ""
       }.`

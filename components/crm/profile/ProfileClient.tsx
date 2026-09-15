@@ -60,6 +60,7 @@ type ProfileInitial = {
   licenseVerifiedAt: string | null
   phone: string
   email: string
+  clientContactEmail: string
   photoUrl: string | null
   timeZone: string
 }
@@ -109,6 +110,7 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
   const [licenseVerified, setLicenseVerified] = useState(!!initial.licenseVerifiedAt)
   const [phone, setPhone] = useState(formatPhoneInput(initial.phone))
   const [email, setEmail] = useState(initial.email)
+  const [clientContactEmail, setClientContactEmail] = useState(initial.clientContactEmail)
   const [photoUrl, setPhotoUrl] = useState<string | null>(initial.photoUrl)
 
   const [saving, setSaving] = useState(false)
@@ -303,6 +305,7 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
             : { license_number: licenseNumber.trim(), license_state: licenseState || null }),
           phone_number: phone.trim(),
           email: email.trim(),
+          client_contact_email: clientContactEmail.trim() || null,
         })
         .eq("id", userId)
 
@@ -528,6 +531,23 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
               inputMode="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              className={settingsInputCls}
+            />
+          </SettingsField>
+        </div>
+        {/* Client Contact Email — the address LEADS see (emails + client-facing
+            pages). Separate from the account/login email above, which stays
+            private. Optional: blank falls back to existing behavior. */}
+        <div className="mt-4">
+          <SettingsField
+            label="Client Contact Email"
+            hint="Shown to leads in your emails and client-facing pages."
+          >
+            <input
+              inputMode="email"
+              value={clientContactEmail}
+              onChange={(e) => setClientContactEmail(e.target.value)}
+              placeholder={email || "you@yourbrokerage.com"}
               className={settingsInputCls}
             />
           </SettingsField>

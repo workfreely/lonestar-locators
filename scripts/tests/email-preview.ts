@@ -64,19 +64,35 @@ const owner = { locatorName: "Alex Rivera", leadUrl: "https://locatorbeast.com/a
 const jay = buildAgentIdentity({
   profile: {
     preferred_name: "Jay Morris",
-    brokerage: "AptAmigo",
-    phone_number: "(512) 555-0142",
-    email: "jay.morris@aptamigo.com",
+    brokerage: "ReLIVe Realty",
+    phone_number: "(210) 895-5766",
+    email: "jay.login@account.example", // account/login email — must NOT show
+    client_contact_email: "jay@reliverealty.com", // client-facing — SHOULD show
     profile_photo_url: "https://locatorbeast.com/themes/texas/houston.webp",
     business_logo_url: "https://locatorbeast.com/themes/texas/austin.webp",
   },
   workspace: {
-    website: "https://www.aptamigo.com/",
-    service_areas: ["austin", "dallas", "houston"],
+    website: "https://www.reliverealty.com/",
+    service_areas: ["san-antonio", "dallas", "austin", "houston", "fort-worth"],
     smart_form_config: {
-      copy: { agentTitle: "Apartment Locator" },
+      copy: { agentTitle: "Licensed Apartment Locator" },
       footer: { iabsUrl: "https://s3.amazonaws.com/portal.aptamigo.com/document/trec_iabs.pdf" },
     },
+  },
+});
+// Stress case — long brokerage, long client contact email, long market list.
+const longValues = buildAgentIdentity({
+  profile: {
+    preferred_name: "Alexandria Montgomery-Whitfield",
+    brokerage: "Montgomery Whitfield Luxury Residential Group International",
+    phone_number: "(210) 895-5766",
+    client_contact_email: "alexandria.montgomery.whitfield@luxuryresidentialgroup.example",
+    profile_photo_url: "https://locatorbeast.com/themes/texas/san-antonio.webp",
+  },
+  workspace: {
+    website: "https://www.montgomerywhitfieldluxuryresidential.example/",
+    service_areas: ["san-antonio", "dallas", "austin", "houston", "fort-worth"],
+    smart_form_config: { copy: { agentTitle: "Licensed Apartment Locator" }, footer: {} },
   },
 });
 // Texas agent with NO IABS URL → disclosure shows unlinked + Settings warning.
@@ -113,6 +129,8 @@ const files: Record<string, string> = {
   // No-signature back-compat fallback.
   "email-confirm-nosig.html": confirm(chicago, null),
   "email-confirm-unknown.html": confirm(unknown, jay),
+  // Long brokerage / email / market list — verify no overflow or crowding.
+  "email-confirm-long.html": confirm(houston, longValues),
 };
 for (const [name, html] of Object.entries(files)) writeFileSync(`${outDir}/${name}`, html);
 

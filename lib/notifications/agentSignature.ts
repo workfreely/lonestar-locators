@@ -59,7 +59,10 @@ export type RawIdentityInput = {
     brokerage?: string | null
     business_name?: string | null
     phone_number?: string | null
+    /** Locator Beast account/login email — NOT client-facing on its own. */
     email?: string | null
+    /** Dedicated client-facing contact email (preferred for lead-facing surfaces). */
+    client_contact_email?: string | null
     profile_photo_url?: string | null
     business_logo_url?: string | null
   } | null
@@ -125,7 +128,10 @@ export function buildAgentIdentity(input: RawIdentityInput): ResolvedAgentIdenti
       clean(p.brokerage) ?? clean(p.business_name) ?? clean(w.name) ?? clean(cfg.copy?.brokerageName),
     serviceAreas: areaLabelFromSlugs ?? clean(cfg.copy?.serviceAreas),
     phone: clean(p.phone_number) ?? clean(w.phone) ?? clean(cfg.copy?.phoneNumber),
-    email: clean(p.email) ?? clean(w.email),
+    // Prefer the dedicated client-facing address; fall back to the existing
+    // behavior only when it is unset, so an agent's account/login email is never
+    // shown to a lead once they have configured a client contact email.
+    email: clean(p.client_contact_email) ?? clean(p.email) ?? clean(w.email),
     website: withProtocol(w.website) ?? withProtocol(cfg.footer?.brokerageWebsiteUrl),
     // Single source of truth — the agent photo is ALWAYS the live profile photo.
     // No Smart-Form-config fallback (that separate field is not maintained).
@@ -148,7 +154,7 @@ export async function resolveAgentIdentityForOwner(
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "preferred_name, preferred_first_name, preferred_last_name, first_name, last_name, full_name, brokerage, business_name, phone_number, email, profile_photo_url, business_logo_url",
+      "preferred_name, preferred_first_name, preferred_last_name, first_name, last_name, full_name, brokerage, business_name, phone_number, email, client_contact_email, profile_photo_url, business_logo_url",
     )
     .eq("id", ownerId)
     .maybeSingle()
@@ -276,58 +282,62 @@ export function renderClientSignatureHtml(
       )}${formName}${esc(IABS_DISCLOSURE_SUFFIX)}</p>`
     : ""
 
+  // Larger, prominent profile image on TOP (circular, no distortion). 72px reads
+  // as a real headshot rather than a tiny avatar, and stays mobile-safe.
+  const avatarSize = 72
   const avatar = identity.photoUrl
-    ? `<img src="${identity.photoUrl}" width="56" height="56" alt="" style="display:block;width:56px;height:56px;border-radius:9999px;object-fit:cover;border:0;" />`
-    : `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="56" height="56" style="width:56px;height:56px;"><tr><td align="center" valign="middle" bgcolor="${BRAND.ink}" style="width:56px;height:56px;border-radius:9999px;background:${BRAND.ink};color:#ffffff;font-size:20px;font-weight:700;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">${esc(
+    ? `<img src="${identity.photoUrl}" width="${avatarSize}" height="${avatarSize}" alt="" style="display:block;width:${avatarSize}px;height:${avatarSize}px;border-radius:9999px;object-fit:cover;border:0;" />`
+    : `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="${avatarSize}" height="${avatarSize}" style="width:${avatarSize}px;height:${avatarSize}px;"><tr><td align="center" valign="middle" bgcolor="${BRAND.ink}" style="width:${avatarSize}px;height:${avatarSize}px;border-radius:9999px;background:${BRAND.ink};color:#ffffff;font-size:26px;font-weight:700;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">${esc(
         initials(identity.name),
       )}</td></tr></table>`
 
-  // Detail lines — each omitted when its value is missing (no blank rows).
-  const detailLine = (html: string) =>
-    `<div style="font-size:13px;line-height:1.5;color:${BRAND.inkSoft};">${html}</div>`
-  const details: string[] = []
+  // Identity block — name / title / brokerage stacked tightly as one unit.
+  const identityLines: string[] = []
   if (identity.name)
-    details.push(
-      `<div style="font-size:15px;font-weight:700;color:${BRAND.ink};line-height:1.3;">${esc(
-        identity.name,
-      )}</div>`,
+    identityLines.push(
+      `<div style="font-size:18px;font-weight:700;color:${BRAND.ink};line-height:1.35;">${esc(identity.name)}</div>`,
     )
-  details.push(detailLine(esc(identity.title)))
-  if (identity.brokerage) details.push(detailLine(esc(identity.brokerage)))
-  if (identity.serviceAreas) details.push(detailLine(`Serving ${esc(identity.serviceAreas)}`))
-  const contactBits: string[] = []
+  identityLines.push(`<div style="font-size:14.5px;line-height:1.55;color:${BRAND.inkSoft};">${esc(identity.title)}</div>`)
+  if (identity.brokerage)
+    identityLines.push(`<div style="font-size:14.5px;line-height:1.55;color:${BRAND.inkSoft};">${esc(identity.brokerage)}</div>`)
+
+  // Serving line — sits BELOW the identity block, separated, so it never
+  // competes with the name/brokerage/contact.
+  const serving = identity.serviceAreas
+    ? `<div style="font-size:13.5px;line-height:1.55;color:${BRAND.inkSoft};padding-top:12px;">Serving: ${esc(
+        identity.serviceAreas,
+      )}</div>`
+    : ""
+
+  // Contact — phone and email each on their OWN line (client contact email).
+  const contactLines: string[] = []
   if (identity.phone)
-    contactBits.push(
-      `<a href="tel:${esc(identity.phone.replace(/[^\d+]/g, ""))}" style="color:${BRAND.inkSoft};text-decoration:none;">${esc(
-        identity.phone,
-      )}</a>`,
+    contactLines.push(
+      `<div style="font-size:14.5px;line-height:1.7;"><a href="tel:${esc(
+        identity.phone.replace(/[^\d+]/g, ""),
+      )}" style="color:${BRAND.inkSoft};text-decoration:none;">${esc(identity.phone)}</a></div>`,
     )
   if (identity.email)
-    contactBits.push(
-      `<a href="mailto:${esc(identity.email)}" style="color:${BRAND.blue};text-decoration:none;">${esc(
+    contactLines.push(
+      `<div style="font-size:14.5px;line-height:1.7;"><a href="mailto:${esc(identity.email)}" style="color:${BRAND.blue};text-decoration:none;">${esc(
         identity.email,
-      )}</a>`,
+      )}</a></div>`,
     )
-  if (contactBits.length) details.push(detailLine(contactBits.join(" &nbsp;•&nbsp; ")))
   if (identity.website)
-    details.push(
-      detailLine(
-        `<a href="${identity.website}" target="_blank" rel="noopener noreferrer" style="color:${BRAND.blue};text-decoration:none;">${esc(
-          identity.website.replace(/^https?:\/\//i, ""),
-        )}</a>`,
-      ),
+    contactLines.push(
+      `<div style="font-size:14.5px;line-height:1.7;"><a href="${identity.website}" target="_blank" rel="noopener noreferrer" style="color:${BRAND.blue};text-decoration:none;">${esc(
+        identity.website.replace(/^https?:\/\//i, ""),
+      )}</a></div>`,
     )
+  const contact = contactLines.length ? `<div style="padding-top:12px;">${contactLines.join("")}</div>` : ""
 
   const logo = identity.logoUrl
-    ? `<tr><td colspan="2" style="padding:14px 0 0 0;"><img src="${identity.logoUrl}" alt="" height="28" style="display:block;height:28px;width:auto;max-width:180px;border:0;" /></td></tr>`
+    ? `<div style="padding-top:14px;"><img src="${identity.logoUrl}" alt="" height="28" style="display:block;height:28px;width:auto;max-width:180px;border:0;" /></div>`
     : ""
 
   return `${disclosure}
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 4px 0;">
-  <tr>
-    <td valign="top" style="padding-right:14px;">${avatar}</td>
-    <td valign="top">${details.join("")}</td>
-  </tr>
-  ${logo}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 4px 0;">
+  <tr><td style="padding-bottom:14px;">${avatar}</td></tr>
+  <tr><td>${identityLines.join("")}${serving}${contact}${logo}</td></tr>
 </table>`
 }
