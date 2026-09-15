@@ -22,9 +22,9 @@ export type ThankYouStep = {
 // text), so the two can never drift.
 export const THANKYOU_DEFAULTS = {
   intro:
-    "You're one step closer to finding the perfect home in {city}. We're already working on your best list of options and will be in touch soon.",
+    "You're one step closer to finding the perfect home in {city}. I'm already working on your best list of options and will be in touch soon.",
   introNoCity:
-    "You're one step closer to finding the perfect home. We're already working on your best list of options and will be in touch soon.",
+    "You're one step closer to finding the perfect home. I'm already working on your best list of options and will be in touch soon.",
   step1Title: "Tell us what you're looking for",
   step1Body: "Your search details are in.",
   step2Title: "Get your personalized apartment list",
@@ -34,7 +34,7 @@ export const THANKYOU_DEFAULTS = {
   step3Body: "Once you narrow down your options, we'll help coordinate tours and answer questions along the way.",
   step4Title: "List your locator when you apply",
   rewardTitle: "Move in and get rewarded",
-  rewardBody: "After you move in and your lease is confirmed, you'll receive your reward.",
+  rewardBody: "Get free movers or a cash rebate for working with me.",
 } as const
 
 const pick = (override: string | null | undefined, fallback: string) => {
