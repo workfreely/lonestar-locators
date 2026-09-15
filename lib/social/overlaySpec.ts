@@ -18,10 +18,11 @@ export const OVERLAY_SPEC = {
   // MAX (HERO_MAX_PX) used as the block default; the actual per-headline size comes from headlineFit.
   // maxChars/maxLines are the FALLBACK char-wrap for arbitrary/custom headline text only.
   headline: { yFrac: 0.13, fontPx: 66, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24, maxChars: 16, maxLines: 3, sideMarginPx: 90 },
-  // The sub/detail sits `gapPx` BELOW the headline block; it is the SECONDARY line and reads smaller
-  // and lighter than the headline (Bodoni-Detail, opsz 18). 36px keeps the headline clearly dominant.
+  // The sub/detail sits `gapPx` BELOW the headline block; it is the SECONDARY line (Bodoni-Detail,
+  // opsz 18). 44px (raised from 36) makes "Starting at $X/mo" clearly readable and intentional in the
+  // editor/enlarged preview and the render, while staying clearly secondary to the headline (56–66).
   // Its safe box is ≈86% of the canvas (930px; 75px margins each side). maxChars/maxLines unchanged.
-  sub: { gapPx: 35, fontPx: 36, lineSpacing: 6, boxAlpha: 0.28, boxBorderPx: 16, maxChars: 33, maxLines: 4, sideMarginPx: 75 },
+  sub: { gapPx: 35, fontPx: 44, lineSpacing: 6, boxAlpha: 0.28, boxBorderPx: 16, maxChars: 33, maxLines: 4, sideMarginPx: 75 },
   safe: { topFrac: 0.1, bottomFrac: 0.2 },
 } as const
 
@@ -42,10 +43,10 @@ export const OVERLAY_TEXT = {
   trackingEm: 0.02, // subtle inter-character tracking (keeps the widest Hero combo one line in Bodoni)
   edgeAlpha: 0, //     NO visible outline (crisp solid white per the reference)
   edgeEm: 0, //        (border width irrelevant at alpha 0)
-  shadowAlpha: 0.5, // SUBTLE, non-obvious drop shadow — invisible over mid-tone footage, keeps white
-  shadowDxEm: 0, //    text legible over pure-white walls / bright skies
-  shadowDyEm: 0.03, // small offset straight below the text (not an obvious drop shadow)
-  shadowBlurEm: 0.04, // CSS-only blur (FFmpeg render is a hard offset) — keeps it soft, not a glow
+  shadowAlpha: 0.6, // SUBTLE, non-obvious drop shadow (nudged 0.5→0.6) — helps white text separate
+  shadowDxEm: 0, //    from bright skies / white walls without becoming an obvious design element
+  shadowDyEm: 0.035, // small offset straight below the text (not an obvious drop shadow)
+  shadowBlurEm: 0.05, // CSS-only blur (FFmpeg render is a hard offset) — keeps it soft, not a glow
 } as const
 
 // Deterministic word-wrap — SHARED by the CSS preview and the FFmpeg render so both produce the
@@ -171,7 +172,7 @@ export const CENTER_HOOK = { maxPx: HOOK_MAX_PX, minPx: HOOK_MIN_PX, lineSpacing
 
 export function templateFamily(template: string): LayoutFamily {
   if (template === "your_sign" || template === "next_property" || template === "pov_upgrade" || template === "affordable_luxury") return "center_hook"
-  if (template === "upgrade") return "center_hook_detail"
+  if (template === "upgrade" || template === "pov_price") return "center_hook_detail"
   return "hero" // market_type, special_feature, unknown → hero
 }
 

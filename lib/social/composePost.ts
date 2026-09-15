@@ -215,7 +215,8 @@ export function joinDetailParts(parts: (string | null | undefined)[]): string {
 //   5 upgrade          — CENTER HOOK+D  — "What life looks like when you upgrade" / "{special} · Starting at $X/mo"
 //   6 pov_upgrade      — CENTER HOOK    — "POV: You upgraded …" (explicit per-type mapping) / no detail
 //   7 affordable_luxury— CENTER HOOK    — "Luxury doesn't have to be expensive" (fixed) / no detail
-export const OVERLAY_TEMPLATES = ["market_type", "your_sign", "special_feature", "next_property", "upgrade", "pov_upgrade", "affordable_luxury"] as const
+//   8 pov_price        — CENTER HOOK+D  — same POV per-type headline / "Starting at $X/mo" (or none)
+export const OVERLAY_TEMPLATES = ["market_type", "your_sign", "special_feature", "next_property", "upgrade", "pov_upgrade", "affordable_luxury", "pov_price"] as const
 export type OverlayTemplate = (typeof OVERLAY_TEMPLATES)[number]
 export const DEFAULT_OVERLAY_TEMPLATE: OverlayTemplate = "market_type"
 export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
@@ -226,6 +227,7 @@ export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
   upgrade: "Upgrade",
   pov_upgrade: "POV Upgrade",
   affordable_luxury: "Affordable Luxury",
+  pov_price: "POV + Price",
 }
 
 // Template 6 (POV Upgrade) — EXPLICIT deterministic copy per canonical Property Type. The grammar
@@ -269,6 +271,7 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
     case "upgrade":
       return "What life looks like when you upgrade"
     case "pov_upgrade":
+    case "pov_price":
       return (canonicalType && POV_UPGRADE_HEADLINE[canonicalType]) || POV_UPGRADE_FALLBACK
     case "affordable_luxury":
       return AFFORDABLE_LUXURY_HEADLINE
@@ -283,7 +286,8 @@ export function buildTemplateDetail(template: OverlayTemplate, src: SourceMeta):
   const feature = firstFeature(src.amenities)
   switch (template) {
     case "market_type":
-      return price // "Starting at $X/mo" or ""
+    case "pov_price":
+      return price // "Starting at $X/mo" or "" (T8 shows the POV headline + this price line)
     case "your_sign":
     case "next_property":
     case "pov_upgrade":

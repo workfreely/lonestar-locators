@@ -332,7 +332,7 @@ ok("render graph still outputs the [v] label", /\[v\]$/.test(hugFilt))
 
 console.log("Overlay TEMPLATES 1–5 (headline/detail generation + layout families):")
 const tMeta = { market: "San Antonio", propertyType: "High-Rise", socialSpecial: "8 Weeks Free", budgetRange: "1600", amenities: "Private Yards, Rooftop Pool" }
-ok("7 templates defined", OVERLAY_TEMPLATES.length === 7)
+ok("8 templates defined", OVERLAY_TEMPLATES.length === 8)
 // T1 Market + Type (HERO)
 ok("T1 headline = CITY TYPE_PLURAL", buildTemplateHeadline("market_type", tMeta) === "SAN ANTONIO HIGH-RISES")
 ok("T1 detail = Starting at price", buildTemplateDetail("market_type", tMeta) === "Starting at $1,600/mo")
@@ -416,7 +416,29 @@ ok("T6 generated strings recognized (so they re-sync on Property Type change)", 
 ok("T6 regenerates for the CURRENT type (Townhome vs Loft)", buildTemplateHeadline("pov_upgrade", { propertyType: "Townhome" }) === "POV: You upgraded to a townhome" && buildTemplateHeadline("pov_upgrade", { propertyType: "Loft" }) === "POV: You upgraded to a loft")
 ok("T7 fixed headline recognized as generated", isGeneratedHeadline("Luxury doesn't have to be expensive"))
 ok("a genuinely MANUAL hook is NOT treated as generated (override protected)", !isGeneratedHeadline("POV: You finally made it home"))
-ok("selector lists exactly 7 templates ending in pov_upgrade, affordable_luxury", OVERLAY_TEMPLATES.length === 7 && OVERLAY_TEMPLATES[5] === "pov_upgrade" && OVERLAY_TEMPLATES[6] === "affordable_luxury")
+ok("selector lists exactly 8 templates ending in pov_upgrade, affordable_luxury, pov_price", OVERLAY_TEMPLATES.length === 8 && OVERLAY_TEMPLATES[5] === "pov_upgrade" && OVERLAY_TEMPLATES[6] === "affordable_luxury" && OVERLAY_TEMPLATES[7] === "pov_price")
+
+console.log("Template 8 (POV + Price — CENTER HOOK + DETAIL):")
+// T8 headline = same explicit POV per-type mapping as T6.
+for (const [type, expected] of Object.entries(POV)) {
+  ok(`T8 headline ${type} → "${expected}"`, buildTemplateHeadline("pov_price", { market: "San Antonio", propertyType: type }) === expected)
+}
+ok("T8 no property type → 'POV: You upgraded'", buildTemplateHeadline("pov_price", {}) === "POV: You upgraded")
+ok("T8 detail = 'Starting at $X/mo' when a price exists", buildTemplateDetail("pov_price", { propertyType: "Townhome", budgetRange: "1800" }) === "Starting at $1,800/mo")
+ok("T8 detail omitted when NO price", buildTemplateDetail("pov_price", { propertyType: "Townhome" }) === "")
+ok("T8 detail ignores special/amenities (price only)", buildTemplateDetail("pov_price", { propertyType: "Loft", budgetRange: "1250", socialSpecial: "8 Weeks Free", amenities: "Rooftop Pool" }) === "Starting at $1,250/mo")
+const t8 = computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", "Starting at $1,800/mo")
+ok("T8 is CENTER HOOK + DETAIL (headline + detail block)", t8.family === "center_hook_detail" && !!t8.detail && t8.detail.lines.length === 1)
+ok("T8 detail sits below the headline", !!t8.detail && t8.detail.topPx > t8.headline.topPx)
+ok("T8 hierarchy: detail smaller than the POV headline", !!t8.detail && t8.detail.fontPx < t8.headline.fontPx)
+ok("T8 headline is ONE line (fit-to-width) within the safe box", t8.headline.lines.length === 1 && headlineTextWidthPx(t8.headline.lines[0], t8.headline.fontPx) <= HEADLINE_TEXT_AVAIL_PX)
+const t8NoPrice = computeOverlayLayout("pov_price", "POV: You upgraded to a loft", "")
+ok("T8 with no price → headline only (no detail block)", t8NoPrice.detail === null)
+ok("T8 headline re-syncs with Property Type (generator-owned)", isGeneratedHeadline("POV: You upgraded to a townhome") && buildTemplateHeadline("pov_price", { propertyType: "Loft" }) === "POV: You upgraded to a loft")
+// /mo canonical output has NO space between "/" and "mo" (multiple prices).
+for (const [p, exp] of [["995", "Starting at $995/mo"], ["1250", "Starting at $1,250/mo"], ["1800", "Starting at $1,800/mo"], ["2495", "Starting at $2,495/mo"]] as const) {
+  ok(`price ${p} → "${exp}" (no '/ mo' space)`, startingPriceLabel(p) === exp && !startingPriceLabel(p).includes("/ mo"))
+}
 
 console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)
