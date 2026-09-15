@@ -3,16 +3,18 @@
 import SettingsShell, { SettingsCard } from "@/components/crm/settings/SettingsShell"
 import BeastCompanionExtensionSection from "@/components/crm/integrations/BeastCompanionExtensionSection"
 import BeastCompanionSection from "@/components/crm/integrations/BeastCompanionSection"
+import MetaAdsSection from "@/components/crm/integrations/MetaAdsSection"
 import ConnectedDevicesSection from "@/components/crm/devices/ConnectedDevicesSection"
 
 // Phone Sync lives in its own Beast Companion section below (it's the desktop
 // Companion), so it's no longer a generic "Soon" row here.
 // `google` marks the rows served by the one Google OAuth grant (Calendar +
 // Contacts scopes); those get a working Connect/Reconnect action.
+// Meta Ads (Instagram & Facebook Ads) is now its own interactive section (MetaAdsSection) below,
+// rendered inside the same card. The static rows here are the Google OAuth integrations only.
 const INTEGRATIONS: { name: string; description: string; google?: boolean }[] = [
   { name: "Google Calendar", description: "Automatically create tours and reminders on your calendar.", google: true },
   { name: "Google Contacts", description: "Automatically add your clients' contact information to your phone.", google: true },
-  { name: "Meta Ads", description: "Bring in leads from your Facebook and Instagram ad campaigns." },
 ]
 
 // The one working Google connect entry point — the SAME OAuth flow onboarding
@@ -74,6 +76,8 @@ export default function IntegrationsClient({ googleConnected }: { googleConnecte
               )}
             </div>
           ))}
+          {/* Instagram & Facebook Ads (Meta) — interactive connect/manage row. */}
+          <MetaAdsSection />
         </div>
       </SettingsCard>
 
