@@ -98,18 +98,18 @@ export default async function SmartLeadFormThankYouPage({
             <li key={i} className="relative flex gap-4 pb-6 last:pb-0 sm:gap-5">
               {!isLast && (
                 <span
-                  className={`absolute left-[17px] top-10 bottom-1 w-px ${step.done ? "bg-[#bfe6cf]" : "bg-[#e6e8ee]"}`}
+                  className={`absolute left-[20px] top-[46px] bottom-1 w-px ${step.done ? "bg-[#bfe6cf]" : "bg-[#e6e8ee]"}`}
                   aria-hidden
                 />
               )}
               {step.done ? (
-                <span className="relative z-10 flex h-9 w-9 flex-none items-center justify-center rounded-full bg-[#12a150] text-white">
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <span className="relative z-10 flex h-[42px] w-[42px] flex-none items-center justify-center rounded-full bg-[#12a150] text-white shadow-sm">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                     <path d="M20 6 9 17l-5-5" />
                   </svg>
                 </span>
               ) : (
-                <span className="relative z-10 flex h-9 w-9 flex-none items-center justify-center rounded-full border border-[#e2e5ec] bg-white text-[15px] font-bold text-[#111318]">
+                <span className="relative z-10 flex h-[42px] w-[42px] flex-none items-center justify-center rounded-full border border-[#e2e5ec] bg-white text-[16px] font-semibold text-[#111318]">
                   {i + 1}
                 </span>
               )}
