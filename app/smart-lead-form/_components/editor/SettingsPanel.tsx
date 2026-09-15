@@ -5,9 +5,10 @@ import type { SmartLeadFormConfig } from "../../_lib/types"
 import BrandingPanel from "./panels/BrandingPanel"
 import ContentPanel from "./panels/ContentPanel"
 import FieldsPanel from "./panels/FieldsPanel"
+import ThankYouPanel from "./panels/ThankYouPanel"
 import SharePanel from "./panels/SharePanel"
 
-type Tab = "branding" | "content" | "fields" | "share"
+type Tab = "branding" | "content" | "fields" | "thankyou" | "share"
 type Updater = (updater: (prev: SmartLeadFormConfig) => SmartLeadFormConfig) => void
 
 // Ordered to match the natural build workflow: brand the page, write the
@@ -21,6 +22,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "branding", label: "Branding" },
   { id: "content", label: "Content" },
   { id: "fields", label: "Fields" },
+  { id: "thankyou", label: "Thank You Page" },
   { id: "share", label: "Share" },
 ]
 
@@ -76,6 +78,7 @@ export default function SettingsPanel({
         {tab === "branding" && <BrandingPanel config={config} onChange={onChange} />}
         {tab === "content" && <ContentPanel config={config} onChange={onChange} licenseState={licenseState} />}
         {tab === "fields" && <FieldsPanel config={config} onChange={onChange} />}
+        {tab === "thankyou" && <ThankYouPanel config={config} onChange={onChange} />}
         {tab === "share" && <SharePanel slug={slug} />}
       </div>
     </div>
