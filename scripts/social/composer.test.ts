@@ -338,7 +338,7 @@ ok("T1 headline = CITY TYPE_PLURAL", buildTemplateHeadline("market_type", tMeta)
 ok("T1 detail = Starting at price", buildTemplateDetail("market_type", tMeta) === "Starting at $1,600/mo")
 ok("T1 detail omitted when no price", buildTemplateDetail("market_type", { market: "San Antonio", propertyType: "High-Rise" }) === "")
 // T2 Your Sign (CENTER HOOK, no detail)
-ok("T2 headline hook", buildTemplateHeadline("your_sign", tMeta) === "Your sign to get that high-rise in San Antonio")
+ok("T2 headline hook (Property Type only, no Market)", buildTemplateHeadline("your_sign", tMeta) === "Your sign to get that high-rise")
 ok("T2 no detail", buildTemplateDetail("your_sign", tMeta) === "")
 // T3 Special + Feature (HERO)
 ok("T3 headline = CITY TYPE_PLURAL", buildTemplateHeadline("special_feature", tMeta) === "SAN ANTONIO HIGH-RISES")
@@ -374,14 +374,13 @@ ok("longest T2 hook is ONE line", computeOverlayLayout("your_sign", buildTemplat
 ok("longest T4 hook is ONE line", computeOverlayLayout("next_property", buildTemplateHeadline("next_property", { market: "San Antonio", propertyType: "Rental Home" }), "").headline.lines.length === 1)
 ok("T5 headline stays ONE line with detail present", upL.headline.lines.length === 1)
 ok("center-hook headline never wraps or stacks (no manual breaks)", !hookL.headline.lines.join("").includes("\n") && hookL.headline.lines.length === 1)
-// Center-hook fit-to-width: sizes land in [HOOK_MIN_PX, HOOK_MAX_PX]; shorter hooks render larger,
-// the longest supported hook shrinks only as needed, both fit the 900px safe box.
-const t2Short = computeOverlayLayout("your_sign", buildTemplateHeadline("your_sign", { market: "San Antonio", propertyType: "Townhome" }), "").headline
-const t2Long = computeOverlayLayout("your_sign", buildTemplateHeadline("your_sign", { market: "San Antonio", propertyType: "Rental Home" }), "").headline
+// Center-hook fit-to-width: sizes land in [HOOK_MIN_PX, HOOK_MAX_PX]; both T2 hooks fit the 900px box.
+const t2Short = computeOverlayLayout("your_sign", buildTemplateHeadline("your_sign", { propertyType: "Loft" }), "").headline
+const t2Long = computeOverlayLayout("your_sign", buildTemplateHeadline("your_sign", { propertyType: "Rental Home" }), "").headline
 ok("center-hook fit range is 37–46px", HOOK_MIN_PX === 37 && HOOK_MAX_PX === 46)
 ok("center-hook fitted size stays within [37,46]", t2Short.fontPx >= HOOK_MIN_PX && t2Short.fontPx <= HOOK_MAX_PX && t2Long.fontPx >= HOOK_MIN_PX && t2Long.fontPx <= HOOK_MAX_PX)
-ok("shorter hook renders LARGER than the longest hook", t2Short.fontPx > t2Long.fontPx)
-ok("longest hook fits the 900px safe box at its fitted size", headlineTextWidthPx(t2Long.lines[0], t2Long.fontPx) <= HEADLINE_TEXT_AVAIL_PX)
+ok("T2 (Market removed) renders large — at the center-hook max (46px)", t2Short.fontPx === HOOK_MAX_PX && t2Long.fontPx === HOOK_MAX_PX)
+ok("T2 hook fits the 900px safe box at its fitted size", headlineTextWidthPx(t2Long.lines[0], t2Long.fontPx) <= HEADLINE_TEXT_AVAIL_PX)
 
 console.log("Templates 6 & 7 (POV Upgrade + Affordable Luxury — CENTER HOOK, no detail):")
 // T6 — explicit per-type mapping (grammar intentionally differs; NOT a generic formula).
@@ -462,7 +461,7 @@ for (const p of ["Starting at $995/mo", "Starting at $1,250/mo", "Starting at $1
 ok("T8 price detail is larger than T5 detail (price stays strong)", computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", "Starting at $1,900/mo").detail!.fontPx > computeOverlayLayout("upgrade", "What life looks like when you upgrade", "Starting at $1,900/mo").detail!.fontPx)
 // Tighter gap: center-hook detail sits closer than the standard Hero sub gap; T3 gap tighter too.
 const t5L = computeOverlayLayout("upgrade", "What life looks like when you upgrade", "Starting at $1,900/mo")
-ok("T5 detail sits within ~20px below the hook (tight lockup)", !!t5L.detail && (t5L.detail.topPx - (t5L.headline.topPx + t5L.headline.fontPx)) <= 20)
+ok("T5 detail sits ~21px below the hook (breathing room, still a lockup)", !!t5L.detail && (t5L.detail.topPx - (t5L.headline.topPx + t5L.headline.fontPx)) <= 22)
 const t3gap = computeOverlayLayout("special_feature", "SAN ANTONIO TOWNHOMES", "8 Weeks Free · Private Yards")
 const t1gap = computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,900/mo")
 const t1GapPx = t1gap.detail!.topPx - (t1gap.headline.topPx + t1gap.headline.fontPx)
@@ -472,6 +471,28 @@ ok("T8 with no price → no detail block (omitted)", computeOverlayLayout("pov_p
 // Guardrails: Template 1 stays 52, Template 3 stays the shared sub size.
 ok("Template 1 detail STAYS 52px", computeOverlayLayout("market_type", "SAN ANTONIO LOFTS", "Starting at $1,900/mo").detail!.fontPx === 52)
 ok("Template 3 detail UNCHANGED (shared sub size)", computeOverlayLayout("special_feature", "SAN ANTONIO LOFTS", "8 Weeks Free · Private Yards").detail!.fontPx === OVERLAY_SPEC.sub.fontPx)
+
+console.log("Final cleanup — T2 no Market, T4 smaller, T5 gap:")
+// T2 — Property Type only, Market removed, for EVERY type.
+const T2 = { Studio: "Your sign to get that studio", Apartment: "Your sign to get that apartment", "High-Rise": "Your sign to get that high-rise", Townhome: "Your sign to get that townhome", "Rental Home": "Your sign to get that rental home", Penthouse: "Your sign to get that penthouse", Loft: "Your sign to get that loft" }
+for (const [type, expected] of Object.entries(T2)) {
+  ok(`T2 ${type} → "${expected}"`, buildTemplateHeadline("your_sign", { market: "San Antonio", propertyType: type }) === expected)
+}
+ok("T2 NO Market in copy (even when market set)", !buildTemplateHeadline("your_sign", { market: "San Antonio", propertyType: "Townhome" }).includes("San Antonio") && !buildTemplateHeadline("your_sign", { market: "San Antonio", propertyType: "Townhome" }).includes(" in "))
+ok("T2 no detail line", buildTemplateDetail("your_sign", { market: "San Antonio", propertyType: "Townhome" }) === "")
+ok("T2 generated forms recognized (re-sync on Property Type change)", isGeneratedHeadline("Your sign to get that townhome") && isGeneratedHeadline("Your sign to get that loft"))
+ok("T2 manual override still protected", !isGeneratedHeadline("Your sign to get that dream home"))
+// T4 — smaller than the shared center-hook max (more side margin); T4 only.
+const t4 = computeOverlayLayout("next_property", "What your next townhome could look like", "").headline
+ok("T4 headline is capped smaller (≤40px) for side margin", t4.fontPx <= 40)
+ok("T4 reduction does NOT affect other center-hooks (T2 stays 46)", computeOverlayLayout("your_sign", "Your sign to get that loft", "").headline.fontPx === 46 && computeOverlayLayout("upgrade", "What life looks like when you upgrade", "Starting at $1,900/mo").headline.fontPx > 40)
+ok("T4 wording unchanged + one line", buildTemplateHeadline("next_property", { propertyType: "Townhome" }) === "What your next townhome could look like" && t4.lines.length === 1)
+// T5 gap 16 → 21; T8 gap stays 16.
+const t5g = computeOverlayLayout("upgrade", "What life looks like when you upgrade", "6 Weeks Free · Starting at $1,800/mo")
+const t8g = computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", "Starting at $1,800/mo")
+ok("T5 gap increased to 21px", (t5g.detail!.topPx - (t5g.headline.topPx + t5g.headline.fontPx)) === 21)
+ok("T8 gap stays 16px (unchanged)", (t8g.detail!.topPx - (t8g.headline.topPx + t8g.headline.fontPx)) === 16)
+ok("T5 detail stayed 38px", t5g.detail!.fontPx === 38)
 
 console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

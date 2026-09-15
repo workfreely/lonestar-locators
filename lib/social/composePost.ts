@@ -257,7 +257,6 @@ function firstFeature(amenities: string | null | undefined): string {
 /** HERO headlines (T1/T3) are UPPERCASE {city} {type_plural}; CENTER-HOOK headlines (T2/T4/T5) are
  *  natural sentence-case hooks. Never the property name/area/notes — public-safe fields only. */
 export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta): string {
-  const city = clean(normalizeSocialMarket(src.market))
   const canonicalType = normalizeToCanonical(clean(src.propertyType) || null)
   const noun = canonicalType ? propertyNoun(canonicalType) : "" // "high-rise" | "townhome" | …
   switch (template) {
@@ -265,7 +264,8 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
     case "special_feature":
       return buildOverlayHeadline(src) // "SAN ANTONIO HIGH-RISES" (or market/generic fallback)
     case "your_sign":
-      return city && noun ? `Your sign to get that ${noun} in ${city}` : noun ? `Your sign to get that ${noun}` : city ? `Your sign to move to ${city}` : "This is your sign"
+      // Property Type ONLY (Market removed) — shorter copy renders larger via fit-to-width.
+      return noun ? `Your sign to get that ${noun}` : "This is your sign"
     case "next_property":
       return `What your next ${noun || "home"} could look like`
     case "upgrade":

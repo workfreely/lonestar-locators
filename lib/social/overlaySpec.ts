@@ -159,6 +159,9 @@ function centerHookDetailMaxPx(template: string, hookPx: number): number {
 // Gap below the hook for center-hook + detail (T5/T8): tighter than the Hero sub gap so the two lines
 // read as ONE lockup instead of two separated elements.
 const CENTER_HOOK_DETAIL_GAP_PX = 16
+// Template 5 (Upgrade) ONLY — a slightly looser gap so the headline + special/price get a little
+// breathing room. Template 8 keeps CENTER_HOOK_DETAIL_GAP_PX (16).
+const UPGRADE_DETAIL_GAP_PX = 21
 // Hero gaps (per template): T3 Special + Feature hugs the headline; T1 Market + Type slightly reduced
 // from the old 35 so its price reads as one lockup with the headline (still a touch looser than T3
 // because T1's detail is larger at 52px). Other hero templates keep OVERLAY_SPEC.sub.gapPx.
@@ -212,6 +215,10 @@ export type LayoutFamily = "hero" | "center_hook" | "center_hook_detail"
 // the detail uses `detailFontPx` (smaller than the hook, Bodoni-Detail) so the hook stays dominant.
 // Shared by preview + render (parity).
 export const CENTER_HOOK = { maxPx: HOOK_MAX_PX, minPx: HOOK_MIN_PX, lineSpacing: 8, detailFontPx: 30 } as const
+// Template 4 (Next Property) ONLY — a smaller max than the shared center-hook cap so its headline
+// has more left/right breathing room (same wording, centered, still prominent). Other center-hook
+// templates (T2/T5/T6/T7/T8) keep CENTER_HOOK.maxPx.
+export const NEXT_PROPERTY_MAX_PX = 40
 
 // Template 1 (market_type) renders its "Starting at $X/mo" detail LARGER than the shared HERO detail
 // (OVERLAY_SPEC.sub.fontPx) so the price reads as a true secondary headline. ONLY Template 1 uses
@@ -252,7 +259,8 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   // wrapping, no manual breaks). Vertically center the group.
   const oneLine = (headlineText ?? "").replace(/\s+/g, " ").trim()
   const lines = oneLine ? [oneLine] : []
-  const hookPx = oneLine ? fitHeadlinePx(oneLine, CENTER_HOOK.maxPx, CENTER_HOOK.minPx) : CENTER_HOOK.maxPx
+  const hookMaxPx = template === "next_property" ? NEXT_PROPERTY_MAX_PX : CENTER_HOOK.maxPx // T4 slightly smaller for side margin
+  const hookPx = oneLine ? fitHeadlinePx(oneLine, hookMaxPx, CENTER_HOOK.minPx) : hookMaxPx
   const n = Math.max(1, lines.length)
   const headBlockH = n * hookPx + (n - 1) * CENTER_HOOK.lineSpacing
   const hasDetail = family === "center_hook_detail" && detail.length > 0
@@ -262,7 +270,7 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   const detailPx = hasDetail ? fitDetailPx(detail, centerHookDetailMaxPx(template, hookPx), CENTER_HOOK_DETAIL_MIN) : CENTER_HOOK.detailFontPx
   const detailLines = hasDetail ? [detail] : []
   const detailBlockH = hasDetail ? detailPx : 0 // one line
-  const gap = hasDetail ? CENTER_HOOK_DETAIL_GAP_PX : 0 // tighter lockup below the hook (T5/T8)
+  const gap = hasDetail ? (template === "upgrade" ? UPGRADE_DETAIL_GAP_PX : CENTER_HOOK_DETAIL_GAP_PX) : 0 // T5 a touch looser; T8 stays 16
   const totalH = headBlockH + gap + detailBlockH
   const groupTop = (H - totalH) / 2
   const headline: OverlayBlock = { lines, fontPx: hookPx, topPx: groupTop, uppercase: false, sideMarginPx: OVERLAY_SPEC.headline.sideMarginPx, lineSpacing: CENTER_HOOK.lineSpacing }
