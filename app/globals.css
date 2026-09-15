@@ -5,14 +5,21 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Beast Social overlay preview font — the SAME face the FFmpeg renderer burns in
-   (assets/social/fonts/Overlay-Bold.ttf). Using it in the CSS preview makes the preview's glyph
-   widths match the 1080×1920 render, so a Template-1 headline that fits on one line in the render
-   also fits on one line in the preview. font-weight range 100–900 maps every requested weight to
-   this single face (no synthetic bolding, which would widen the text vs the render). */
+/* Beast Social overlay preview fonts — the SAME Bodoni Moda cuts the FFmpeg renderer burns in, so
+   the preview's glyph widths match the 1080×1920 render (a headline that fits one line in the render
+   also fits one line in the preview). "OverlayHead" = display cut (headlines); "OverlayDetail" =
+   text cut (secondary/detail). Each is a single baked weight, so no synthetic bolding widens the
+   preview vs the render. */
 @font-face {
-  font-family: "OverlayBold";
-  src: url("/fonts/Overlay-Bold.ttf") format("truetype");
+  font-family: "OverlayHead";
+  src: url("/fonts/BodoniModa-Head.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "OverlayDetail";
+  src: url("/fonts/BodoniModa-Detail.ttf") format("truetype");
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;

@@ -18,7 +18,7 @@ if (!FF || !existsSync(FF)) {
   console.log("render.test: ffmpeg-static unavailable — SKIPPED")
   process.exit(0)
 }
-const FONT = "assets/social/fonts/Overlay-Bold.ttf"
+const FONT = "assets/social/fonts/BodoniModa-Head.ttf"
 const dir = mkdtempSync(path.join(tmpdir(), "sa-render-test-"))
 writeFileSync(path.join(dir, "head.txt"), "HOUSTON TOWNHOMES", "utf8")
 writeFileSync(path.join(dir, "sub.txt"), "Starting at $1,495/mo", "utf8")

@@ -13,41 +13,41 @@ export const OVERLAY_CANVAS = { w: 1080, h: 1920 } as const
 // char-wrap is what constrains its width to the box). Headline box ≈ 800px, sub box ≈ 930px.
 export const OVERLAY_SPEC = {
   // Template 1 (Hero) uses ONE FIXED headline size for EVERY supported {city} {type_plural} combo —
-  // no per-post resizing. Refined 78→70px (~10% smaller) for a less dominant, more editorial feel;
-  // at 70px the WIDEST supported combo ("SAN ANTONIO RENTAL HOMES", 988px @94 in the bundled font)
-  // fits ONE line inside the 900px safe box (90px margins, no box) WITH OVERLAY_TEXT.trackingEm
-  // applied — tracked width ≈ 786px, ~57px spare each side. maxChars/maxLines are the FALLBACK wrap
-  // for arbitrary/custom headline text only (never for the controlled Template-1 vocabulary).
-  headline: { yFrac: 0.13, fontPx: 70, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24, maxChars: 16, maxLines: 3, sideMarginPx: 90 },
+  // no per-post resizing. Bodoni Moda is much WIDER than the old condensed Anton, so the fixed size
+  // is 56px: at 56px the WIDEST supported combo ("SAN ANTONIO RENTAL HOMES", 1440px @94 in Bodoni-
+  // Head) fits ONE line inside the 900px safe box (90px margins) in BOTH paths — render ≈858px, and
+  // CSS preview ≈885px WITH OVERLAY_TEXT.trackingEm (0.02) applied. maxChars/maxLines are the FALLBACK
+  // wrap for arbitrary/custom headline text only (never for the controlled Template-1 vocabulary).
+  headline: { yFrac: 0.13, fontPx: 56, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24, maxChars: 16, maxLines: 3, sideMarginPx: 90 },
   // The sub/detail sits `gapPx` BELOW the headline block; it is the SECONDARY line and reads smaller
-  // and lighter than the headline. 40→36px keeps the headline clearly dominant. Its safe box is ≈86%
-  // of the canvas (930px; 75px margins each side). maxChars/maxLines/hard-split unchanged (parity).
+  // and lighter than the headline (Bodoni-Detail, opsz 18). 36px keeps the headline clearly dominant.
+  // Its safe box is ≈86% of the canvas (930px; 75px margins each side). maxChars/maxLines unchanged.
   sub: { gapPx: 35, fontPx: 36, lineSpacing: 6, boxAlpha: 0.28, boxBorderPx: 16, maxChars: 33, maxLines: 4, sideMarginPx: 75 },
   safe: { topFrac: 0.1, bottomFrac: 0.2 },
 } as const
 
-// NOTE ON THE FONT: the bundled overlay face (assets/social/fonts/Overlay-Bold.ttf) is actually
-// ANTON — a single-weight (400), ultra-condensed heavy POSTER typeface. It has no lighter weight,
-// so CSS font-weight cannot lighten it and there is no "medium/semibold Anton" to switch to. The
-// bulk of the "chunky/stamped" look is the typeface itself; the levers we DO control (and that
-// stay in preview↔render parity) are the letter EDGE, the drop SHADOW, and the SIZE — refined below.
-// A true editorial/"Atelier" look would require an approved editorial font asset (not present).
+// NOTE ON THE FONT: the active overlay face is BODONI MODA (open-source, OFL, from Google Fonts),
+// instanced to two static cuts we bundle: headlines use the DISPLAY cut (opsz 96, wght 600 —
+// high-contrast, dramatic thick/thin) and detail text uses the TEXT cut (opsz 18, wght 500 — more
+// legible small). Bodoni is a high-contrast Didone: elegant/editorial, NOT condensed or heavy. Anton
+// (the old Overlay-Bold.ttf) is no longer used by the overlay system.
 //
-// Typography depth: subtle CHARACTER TRACKING + a localized DROP SHADOW that carries the depth, with
-// only a MINIMAL letter edge for reliability on bright footage — NO background band/scrim/box, and
-// NOT a meme-style outline. Values are in em (fraction of the element's own font size), so preview
-// and render scale identically. FFmpeg drawtext has NO letter-spacing and NO shadow blur (verified),
-// so the burned-in render uses a hard-offset shadow and omits tracking; the CSS preview keeps only a
-// tiny blur so the two read materially the same. A truly soft/glowy shadow would require switching
-// the render to rasterized text (PNG) — deferred pending approval.
+// Typography depth: white text + subtle CHARACTER TRACKING + a NOTICEABLE-but-refined DROP SHADOW
+// that carries most of the separation (so Bodoni's thin strokes pop on bright walls/windows/skies),
+// plus only a MINIMAL 1px hairline edge — NO background band/scrim/box, and NOT a heavy outline.
+// Values are in em (fraction of the element's own font size), so preview and render scale identically.
+// FFmpeg drawtext has NO letter-spacing and NO shadow blur (verified), so the burned-in render uses a
+// hard-offset shadow and omits tracking; the CSS preview keeps a small blur so the two read materially
+// the same (a soft-shadow difference is expected). A truly soft/glowy shadow would need PNG text
+// rasterization — deferred.
 export const OVERLAY_TEXT = {
-  trackingEm: 0.03, // subtle inter-character tracking (Option A) — between letters, not words
-  edgeAlpha: 0.25, // subtle 1px hairline edge (was 0.28) — needed for reliability on near-white footage
-  edgeEm: 0.008, //   (was 0.02) — the chunk came from EDGE WIDTH (2px→1px on Hero), not this alpha
-  shadowAlpha: 0.6, // localized black drop shadow (was 0.7) — lifts letters off bright footage
+  trackingEm: 0.02, // subtle inter-character tracking (reduced 0.03→0.02 so the widest Hero combo fits one line in Bodoni)
+  edgeAlpha: 0.28, // MINIMAL 1px hairline edge — the shadow does the heavy lifting, not this
+  edgeEm: 0.008, //   ~1px at every size (never a thick outline)
+  shadowAlpha: 0.75, // NOTICEABLE black drop shadow — lifts the thin Bodoni strokes off bright footage
   shadowDxEm: 0,
-  shadowDyEm: 0.045, // (was 0.05) — a touch tighter under the text
-  shadowBlurEm: 0.045, // CSS-only blur (was 0.07) — kept small so it approximates FFmpeg's hard offset
+  shadowDyEm: 0.06, // visible depth straight below the text (premium, not a hard duplicate)
+  shadowBlurEm: 0.08, // CSS-only blur (FFmpeg render is a hard offset) — soft, premium, not a glow
 } as const
 
 // Deterministic word-wrap — SHARED by the CSS preview and the FFmpeg render so both produce the
@@ -86,24 +86,24 @@ export function wrapSub(text: string | null | undefined, maxChars = OVERLAY_SPEC
 
 // ── Headline sizing (Template 1: ONE fixed size for every supported combo) ───────────────────
 // The headline vocabulary is CONTROLLED ({city} {property_type_plural}). Widths were measured once
-// with the bundled font (assets/social/fonts/Overlay-Bold.ttf = Anton) at 94px — real advance widths,
-// NOT character counts — to pick the single fixed size (OVERLAY_SPEC.headline.fontPx = 70px) at
-// which the WIDEST combo still fits one line inside the 90px-margin safe box. This table is the
+// with the active headline font (assets/social/fonts/BodoniModa-Head.ttf) at 94px — real advance
+// widths, NOT character counts — to pick the single fixed size (OVERLAY_SPEC.headline.fontPx = 56px)
+// at which the WIDEST combo still fits one line inside the 90px-margin safe box. This table is the
 // SUPPORTED SET (its 94px widths are kept for documentation/verification); every entry renders at
 // the SAME fixed font. Any headline NOT in the set (arbitrary/custom text) falls back to char-wrap.
 //
 // Usable text width = canvas − 2·sideMargin (no background box any more, so no box padding).
 export const HEADLINE_TEXT_AVAIL_PX = OVERLAY_CANVAS.w - 2 * OVERLAY_SPEC.headline.sideMarginPx // 900 (90px margins)
 
-// Measured advance width (px) of each uppercase headline at 94px in Overlay-Bold.ttf. Used to
+// Measured advance width (px) of each uppercase headline at 94px in BodoniModa-Head.ttf. Used to
 // derive/verify the fixed size and as the supported-combo membership set (font is FIXED, not scaled).
 const HEADLINE_WIDTH_AT_94: Record<string, number> = {
-  "AUSTIN STUDIOS": 542, "AUSTIN APARTMENTS": 715, "AUSTIN HIGH-RISES": 642, "AUSTIN TOWNHOMES": 703, "AUSTIN RENTAL HOMES": 779, "AUSTIN PENTHOUSES": 691,
-  "DALLAS STUDIOS": 558, "DALLAS APARTMENTS": 731, "DALLAS HIGH-RISES": 658, "DALLAS TOWNHOMES": 719, "DALLAS RENTAL HOMES": 795, "DALLAS PENTHOUSES": 707,
-  "DFW STUDIOS": 454, "DFW APARTMENTS": 627, "DFW HIGH-RISES": 554, "DFW TOWNHOMES": 615, "DFW RENTAL HOMES": 691, "DFW PENTHOUSES": 603,
-  "HOUSTON STUDIOS": 614, "HOUSTON APARTMENTS": 787, "HOUSTON HIGH-RISES": 714, "HOUSTON TOWNHOMES": 775, "HOUSTON RENTAL HOMES": 851, "HOUSTON PENTHOUSES": 763,
-  "SAN ANTONIO STUDIOS": 751, "SAN ANTONIO APARTMENTS": 924, "SAN ANTONIO HIGH-RISES": 851, "SAN ANTONIO TOWNHOMES": 912, "SAN ANTONIO RENTAL HOMES": 988, "SAN ANTONIO PENTHOUSES": 900,
-  "AUSTIN LOFTS": 462, "DALLAS LOFTS": 478, "DFW LOFTS": 374, "HOUSTON LOFTS": 534, "SAN ANTONIO LOFTS": 671,
+  "AUSTIN STUDIOS": 802, "AUSTIN APARTMENTS": 1047, "AUSTIN HIGH-RISES": 943, "AUSTIN TOWNHOMES": 1022, "AUSTIN RENTAL HOMES": 1131, "AUSTIN PENTHOUSES": 1013,
+  "DALLAS STUDIOS": 819, "DALLAS APARTMENTS": 1064, "DALLAS HIGH-RISES": 960, "DALLAS TOWNHOMES": 1039, "DALLAS RENTAL HOMES": 1148, "DALLAS PENTHOUSES": 1030,
+  "DFW STUDIOS": 661, "DFW APARTMENTS": 906, "DFW HIGH-RISES": 802, "DFW TOWNHOMES": 881, "DFW RENTAL HOMES": 990, "DFW PENTHOUSES": 872,
+  "HOUSTON STUDIOS": 905, "HOUSTON APARTMENTS": 1150, "HOUSTON HIGH-RISES": 1046, "HOUSTON TOWNHOMES": 1125, "HOUSTON RENTAL HOMES": 1234, "HOUSTON PENTHOUSES": 1116,
+  "SAN ANTONIO STUDIOS": 1111, "SAN ANTONIO APARTMENTS": 1356, "SAN ANTONIO HIGH-RISES": 1252, "SAN ANTONIO TOWNHOMES": 1331, "SAN ANTONIO RENTAL HOMES": 1440, "SAN ANTONIO PENTHOUSES": 1322,
+  "AUSTIN LOFTS": 685, "DALLAS LOFTS": 702, "DFW LOFTS": 544, "HOUSTON LOFTS": 788, "SAN ANTONIO LOFTS": 994,
 }
 
 /** Tracked advance width (canvas px) of a supported headline at the fixed size WITH tracking:
@@ -141,13 +141,13 @@ export function headlineBlockPx(lineCount: number, fontPx: number = OVERLAY_SPEC
 // NOT forced into the giant Hero size. CENTER HOOK + DETAIL (T5): centered hook + a detail line
 // below, the whole group centered. Center-hook typography is a FIRST PASS (size/wrap tunable).
 export type LayoutFamily = "hero" | "center_hook" | "center_hook_detail"
-// ONE fixed, smaller size for the center-hook hook, chosen so the LONGEST supported sentence
-// ("Your sign to get that rental home in San Antonio", with tracking) still fits ONE line inside the
-// 900px safe box — so hooks never wrap or stack. Refined 42→38px (~10% smaller) alongside the Hero
-// reduction for a lighter, more editorial feel (the fit only improves at the smaller size). When a
-// center-hook template carries a detail line (T5 Upgrade), the detail uses `detailFontPx` (smaller
-// than the hook) so the headline stays clearly dominant. Shared by preview + render (parity).
-export const CENTER_HOOK = { fontPx: 38, lineSpacing: 8, detailFontPx: 30 } as const
+// ONE fixed size for the center-hook hook, chosen so the LONGEST supported sentence ("Your sign to
+// get that rental home in San Antonio") still fits ONE line inside the 900px safe box in BOTH paths
+// with Bodoni-Head — at 37px: render ≈839px, CSS preview ≈875px WITH tracking — so hooks never wrap
+// or stack. When a center-hook template carries a detail line (T5 Upgrade), the detail uses
+// `detailFontPx` (smaller than the hook, Bodoni-Detail) so the headline stays clearly dominant.
+// Shared by preview + render (parity).
+export const CENTER_HOOK = { fontPx: 37, lineSpacing: 8, detailFontPx: 30 } as const
 
 export function templateFamily(template: string): LayoutFamily {
   if (template === "your_sign" || template === "next_property") return "center_hook"

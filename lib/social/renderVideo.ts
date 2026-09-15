@@ -15,7 +15,8 @@ export type AudioChoice = "original" | "none" | "lb_track"
 export type RenderInput = {
   sourcePath: string // local path to the downloaded immutable source
   outputPath: string // local path to write the rendered derivative
-  fontPath: string // bundled TTF for drawtext
+  fontPath: string // bundled TTF for HEADLINE drawtext (Bodoni-Head)
+  detailFontPath?: string // bundled TTF for DETAIL drawtext (Bodoni-Detail); falls back to fontPath
   template?: string | null // overlay template (drives the layout family); defaults to market_type
   headline?: string | null
   subheadline?: string | null // the template's detail line
@@ -23,8 +24,10 @@ export type RenderInput = {
   workDir: string // dir for temp textfiles
 }
 
-// One drawtext item: pre-wrapped text file + its font size, top Y (canvas px), and line spacing.
-export type DrawItem = { file: string; fontPx: number; topPx: number; lineSpacing: number }
+// One drawtext item: pre-wrapped text file + its font size, top Y (canvas px), line spacing, and an
+// OPTIONAL per-item font path (headline vs detail use different Bodoni cuts). Falls back to the
+// buildVideoFilter fontPath when omitted.
+export type DrawItem = { file: string; fontPx: number; topPx: number; lineSpacing: number; font?: string }
 
 // FFmpeg filter path escaping: backslash-escape ':' and '\' inside filtergraph option values.
 function escFilterPath(p: string): string {
@@ -38,7 +41,6 @@ function escFilterPath(p: string): string {
  *  drawtext has no letter-spacing (tracking) or shadow blur, so the burned-in text omits the subtle
  *  tracking and uses a hard-offset shadow; the preview carries the full treatment. */
 export function buildVideoFilter(fontPath: string, items: DrawItem[]): string {
-  const font = escFilterPath(fontPath)
   const depth = (fontPx: number) => {
     const edge = Math.max(1, Math.round(OVERLAY_TEXT.edgeEm * fontPx))
     const dy = Math.max(1, Math.round(OVERLAY_TEXT.shadowDyEm * fontPx))
@@ -50,6 +52,7 @@ export function buildVideoFilter(fontPath: string, items: DrawItem[]): string {
   let label = "bg"
   items.forEach((it, i) => {
     const next = i === items.length - 1 ? "v" : `t${i}`
+    const font = escFilterPath(it.font ?? fontPath) // per-item font (Bodoni-Head vs Bodoni-Detail)
     graph.push(
       `[${label}]drawtext=fontfile='${font}':textfile='${escFilterPath(it.file)}':fontcolor=white:fontsize=${it.fontPx}` +
         `:line_spacing=${it.lineSpacing}${depth(it.fontPx)}:x=(w-text_w)/2:y=${Math.round(it.topPx)}[${next}]`,
@@ -74,16 +77,17 @@ export function buildFfmpegArgs(input: { sourcePath: string; outputPath: string;
 /** Compute the template layout, write each text block to a temp file, run ffmpeg. Throws on failure. */
 export async function renderReel(ffmpegPath: string, input: RenderInput): Promise<void> {
   const layout = computeOverlayLayout(input.template ?? "market_type", (input.headline ?? "").trim(), (input.subheadline ?? "").trim())
+  const detailFont = input.detailFontPath ?? input.fontPath
   const items: DrawItem[] = []
   if (layout.headline.lines.length) {
     const headFile = path.join(input.workDir, "head.txt")
     await fs.writeFile(headFile, (layout.headline.uppercase ? layout.headline.lines.join("\n").toUpperCase() : layout.headline.lines.join("\n")), "utf8")
-    items.push({ file: headFile, fontPx: layout.headline.fontPx, topPx: layout.headline.topPx, lineSpacing: layout.headline.lineSpacing })
+    items.push({ file: headFile, fontPx: layout.headline.fontPx, topPx: layout.headline.topPx, lineSpacing: layout.headline.lineSpacing, font: input.fontPath })
   }
   if (layout.detail && layout.detail.lines.length) {
     const subFile = path.join(input.workDir, "sub.txt")
     await fs.writeFile(subFile, layout.detail.lines.join("\n"), "utf8")
-    items.push({ file: subFile, fontPx: layout.detail.fontPx, topPx: layout.detail.topPx, lineSpacing: layout.detail.lineSpacing })
+    items.push({ file: subFile, fontPx: layout.detail.fontPx, topPx: layout.detail.topPx, lineSpacing: layout.detail.lineSpacing, font: detailFont })
   }
   const filter = buildVideoFilter(input.fontPath, items)
   const args = buildFfmpegArgs({ sourcePath: input.sourcePath, outputPath: input.outputPath, filter, audioChoice: input.audioChoice })

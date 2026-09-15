@@ -13,7 +13,9 @@ import { renderReel, makeWorkDir, type AudioChoice } from "@/lib/social/renderVi
 // modified; the derivative gets its OWN path {owner}/{contentId}/renders/{postId}-{v}.mp4 in
 // the same private bucket. NO Instagram publishing here. Runs the render synchronously and
 // returns the final status (short Reels complete well within maxDuration).
-const FONT_PATH = path.join(process.cwd(), "assets/social/fonts/Overlay-Bold.ttf")
+// Active overlay font: Bodoni Moda (OFL) — headlines use the display cut, detail uses the text cut.
+const HEAD_FONT_PATH = path.join(process.cwd(), "assets/social/fonts/BodoniModa-Head.ttf")
+const DETAIL_FONT_PATH = path.join(process.cwd(), "assets/social/fonts/BodoniModa-Detail.ttf")
 const extOf = (p: string) => (p.split(".").pop() || "mp4").toLowerCase().replace(/[^a-z0-9]/g, "") || "mp4"
 
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -58,7 +60,8 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     await renderReel(ffmpegPath as unknown as string, {
       sourcePath: srcLocal,
       outputPath: outLocal,
-      fontPath: FONT_PATH,
+      fontPath: HEAD_FONT_PATH,
+      detailFontPath: DETAIL_FONT_PATH,
       template: existingText ? "market_type" : ((p.overlay_template as string | null) ?? "market_type"),
       headline: existingText ? "" : ((p.overlay_headline as string | null) ?? ""),
       subheadline: existingText ? "" : ((p.overlay_subheadline as string | null) ?? ""),

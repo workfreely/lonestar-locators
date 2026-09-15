@@ -149,10 +149,10 @@ for (const c of CITIES) for (const t of TYPES) {
 }
 ok("EVERY supported city×type (incl Loft) headline stays ONE line", allOneLine)
 ok("EVERY supported combo uses the SAME fixed font (no per-combo resizing)", allSameFixed)
-ok("new fixed Template 1 headline size is 70px (refined ~10% smaller)", FIXED === 70)
+ok("new fixed Template 1 headline size is 56px (Bodoni Moda — wider than Anton)", FIXED === 56)
 ok("EVERY combo TRACKED width fits the 900px safe box (one-line safe with tracking)", allTrackedFit)
 ok("widest tracked combo is SAN ANTONIO RENTAL HOMES within the safe box", widest === "SAN ANTONIO RENTAL HOMES" && widestPx <= HEADLINE_TEXT_AVAIL_PX)
-ok("Loft combos are supported one-line (e.g. SAN ANTONIO LOFTS)", headlineFit("SAN ANTONIO LOFTS").lines.length === 1 && headlineFit("SAN ANTONIO LOFTS").fontPx === 70)
+ok("Loft combos are supported one-line (e.g. SAN ANTONIO LOFTS)", headlineFit("SAN ANTONIO LOFTS").lines.length === 1 && headlineFit("SAN ANTONIO LOFTS").fontPx === 56)
 ok("usable text width = safe area (no box) = 900px (90px margins)", HEADLINE_TEXT_AVAIL_PX === 900)
 ok("unknown/custom headline keeps the fixed font + char-wrap", headlineFit("SOME ENTIRELY CUSTOM HEADLINE TEXT").fontPx === FIXED)
 

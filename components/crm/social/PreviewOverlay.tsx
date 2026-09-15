@@ -18,9 +18,11 @@ function depthShadow(): string {
 // TEMPLATE's layout (computeOverlayLayout) produces — Hero, Center Hook, or Center Hook + Detail —
 // at the same font/size/position/spacing the FFmpeg render uses. Font sizes are in `cqh`, so this
 // element sets containerType:size and fills a 9:16 parent. Editing APPROXIMATION only.
-const FONT = '"OverlayBold", system-ui, sans-serif'
+// Bodoni Moda cuts (must match the FFmpeg render): headlines = display cut, detail = text cut.
+const FONT_HEAD = '"OverlayHead", Georgia, "Times New Roman", serif'
+const FONT_DETAIL = '"OverlayDetail", Georgia, "Times New Roman", serif'
 
-function blockStyle(b: OverlayBlock, weight: number): CSSProperties {
+function blockStyle(b: OverlayBlock, weight: number, fontFamily: string): CSSProperties {
   const H = OVERLAY_CANVAS.h
   const W = OVERLAY_CANVAS.w
   return {
@@ -30,7 +32,7 @@ function blockStyle(b: OverlayBlock, weight: number): CSSProperties {
     right: `${(b.sideMarginPx / W) * 100}%`,
     textAlign: "center",
     color: "white",
-    fontFamily: FONT,
+    fontFamily,
     fontWeight: weight,
     lineHeight: 1.12,
     fontSize: `${(b.fontPx / H) * 100}cqh`,
@@ -46,11 +48,10 @@ export default function PreviewOverlay({ layout }: { layout: OverlayLayout | nul
   if (!layout) return null
   return (
     <div className="pointer-events-none absolute inset-0" aria-hidden style={{ containerType: "size" }}>
-      {/* Weights are largely inert: the bundled face (Anton) ships one weight, and the @font-face
-          maps 100–900 to it with no synthetic bolding. Kept at normal/medium to express the intended
-          hierarchy (headline > detail) rather than an extra-bold caption look. */}
-      {layout.headline.lines.length > 0 && <div style={blockStyle(layout.headline, 500)}>{blockText(layout.headline)}</div>}
-      {layout.detail && layout.detail.lines.length > 0 && <div style={blockStyle(layout.detail, 400)}>{blockText(layout.detail)}</div>}
+      {/* Each Bodoni cut is a single baked weight (headline w600, detail w500); the @font-face maps
+          100–900 to it with no synthetic bolding. Headline uses the display cut, detail the text cut. */}
+      {layout.headline.lines.length > 0 && <div style={blockStyle(layout.headline, 600, FONT_HEAD)}>{blockText(layout.headline)}</div>}
+      {layout.detail && layout.detail.lines.length > 0 && <div style={blockStyle(layout.detail, 500, FONT_DETAIL)}>{blockText(layout.detail)}</div>}
     </div>
   )
 }
