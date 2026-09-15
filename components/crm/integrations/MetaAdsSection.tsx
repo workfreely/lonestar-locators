@@ -37,7 +37,7 @@ const ERROR_COPY: Record<string, string> = {
 
 const CONNECT_URL = "/api/integrations/meta/connect"
 const NAME = "Instagram & Facebook Ads"
-const DESC = "Connect Instagram or Facebook ads to track leads and view sales analytics."
+const DESC = "Connect Instagram or Facebook ads to track leads and sales analytics."
 const last4 = (id: string | null | undefined) => (id ? id.replace(/\D/g, "").slice(-4) : "")
 
 export default function MetaAdsSection() {

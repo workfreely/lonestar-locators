@@ -41,6 +41,7 @@ import { resolveUserTimeZone } from "@/lib/timezone/server"
 import { sendNotification, newLeadEmail, leadConfirmationEmail, absoluteUrl } from "@/lib/notifications"
 import { resolveAgentIdentityForOwner } from "@/lib/notifications/agentSignature"
 import { resolveClientType } from "@/lib/leads/leadClassification"
+import { shouldExitDemoOnLead, exitDemoModeForOwner } from "@/lib/demo/demoExit"
 
 // Server-only client — SUPABASE_SERVICE_ROLE_KEY has no NEXT_PUBLIC_
 // prefix, so it is never bundled into browser JS.
@@ -546,6 +547,24 @@ export async function POST(request: Request) {
         })
       } catch (err) {
         console.error("[api/leads/submit] Failed to schedule Workflow Engine action:", err)
+      }
+    }
+
+    // ─── Real lead arrives → leave the sample workspace ──────────────────
+    // While profiles.demo_mode is on, app/admin/leads/page.tsx serves the demo
+    // fixtures (DEMO_ALL_LEADS) and never queries the real table, so a genuine
+    // lead would stay invisible. The first real, persisted, attributed lead
+    // flips demo_mode off (only if it is still on) so the live CRM switches to
+    // real data. This NEVER deletes demo data — the fixtures are static
+    // client-side data, so Add / Reset / Remove Demo Workspace stay fully
+    // functional. Deferred + isolated (exitDemoModeForOwner never throws): it
+    // can never affect the saved lead or the response.
+    if (shouldExitDemoOnLead(isNewLead, attributedOwnerId)) {
+      const ownerId = attributedOwnerId as string
+      try {
+        after(() => exitDemoModeForOwner(supabaseAdmin, ownerId))
+      } catch (err) {
+        console.error("[api/leads/submit] Failed to schedule exit-demo-mode:", err)
       }
     }
 
