@@ -26,14 +26,18 @@ export async function GET() {
   const slug = ws?.slug ?? null
   const adLink = slug ? buildAdDestinationUrl(slug, "instagram") : null
   const adLinkFacebook = slug ? buildAdDestinationUrl(slug, "facebook") : null
+  // Configurable setup-tutorial video (drop the URL in via env later without a rebuild). Null → the
+  // link is hidden (never a dead link). Available to all agents (trial + paid) — no paywall.
+  const tutorialUrl = (process.env.META_ADS_TUTORIAL_URL ?? "").trim() || null
 
-  if (!data) return NextResponse.json({ betaAllowed: allowed, connection: null, adLink, adLinkFacebook })
+  if (!data) return NextResponse.json({ betaAllowed: allowed, connection: null, adLink, adLinkFacebook, tutorialUrl })
 
   const maskedAdAccount = data.ad_account_id ? `••••${String(data.ad_account_id).replace(/\D/g, "").slice(-4)}` : null
   return NextResponse.json({
     betaAllowed: allowed,
     adLink,
     adLinkFacebook,
+    tutorialUrl,
     connection: {
       status: data.connection_status,
       instagramUsername: data.instagram_username,

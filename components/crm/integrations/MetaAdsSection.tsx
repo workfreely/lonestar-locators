@@ -20,7 +20,7 @@ type Connection = {
   tokenExpiresAt: string | null
   options: Options | null
 }
-type Manage = { betaAllowed: boolean; connection: Connection | null; adLink?: string | null; adLinkFacebook?: string | null }
+type Manage = { betaAllowed: boolean; connection: Connection | null; adLink?: string | null; adLinkFacebook?: string | null; tutorialUrl?: string | null }
 
 const ERROR_COPY: Record<string, string> = {
   beta: "Instagram & Facebook Ads is in limited beta right now.",
@@ -37,7 +37,7 @@ const ERROR_COPY: Record<string, string> = {
 
 const CONNECT_URL = "/api/integrations/meta/connect"
 const NAME = "Instagram & Facebook Ads"
-const DESC = "Connect your Instagram or Facebook ads to bring new leads into your CRM and analytics."
+const DESC = "Connect Instagram or Facebook ads to track spend, leads and sales from your Smart Lead Form."
 const last4 = (id: string | null | undefined) => (id ? id.replace(/\D/g, "").slice(-4) : "")
 
 export default function MetaAdsSection() {
@@ -138,18 +138,15 @@ export default function MetaAdsSection() {
     )
   } else if (conn && conn.status !== "pending") {
     const needsReconnect = conn.status === "expired" || conn.status === "revoked" || conn.status === "error"
+    // Match the Google rows exactly: a centered [Connected pill] + [action button] on the right, so
+    // the pill and Manage/Reconnect line up across all integration rows. Account detail moves to a
+    // subline under the description (below) for breathing room.
     action = needsReconnect ? (
       <a href={CONNECT_URL} className="rounded-lg bg-[#2f6bff] px-4 py-2 text-[13px] font-semibold text-white">Reconnect</a>
     ) : (
-      <div className="flex flex-col items-end gap-1">
-        <div className="flex items-center gap-3">
-          <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-[#15803d]"><span className="h-1.5 w-1.5 rounded-full bg-[#16a34a]" />Connected</span>
-          <button type="button" onClick={() => setManageOpen((o) => !o)} className="rounded-lg border border-[#e5e7ee] bg-white px-4 py-2 text-[13px] font-semibold text-[#111318] hover:bg-[#f4f5f8]">Manage</button>
-        </div>
-        <p className="text-[12px] text-[#6b7280]">
-          {conn.instagramUsername ? `@${conn.instagramUsername}` : conn.pageName || "Meta account"}
-          {conn.adAccountMasked ? ` · Ad account ${conn.adAccountMasked}` : ""}
-        </p>
+      <div className="flex flex-none items-center gap-3">
+        <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-[#15803d]"><span className="h-1.5 w-1.5 rounded-full bg-[#16a34a]" />Connected</span>
+        <button type="button" onClick={() => setManageOpen((o) => !o)} className="rounded-lg border border-[#e5e7ee] bg-white px-4 py-2 text-[13px] font-semibold text-[#111318] hover:bg-[#f4f5f8]">Manage</button>
       </div>
     )
     if (manageOpen && !needsReconnect) {
@@ -186,12 +183,26 @@ export default function MetaAdsSection() {
     action = <a href={CONNECT_URL} className="rounded-lg bg-[#2f6bff] px-4 py-2 text-[13px] font-semibold text-white hover:bg-[#255ae0]">Connect</a>
   }
 
+  const connectedInfo =
+    conn && conn.status === "connected"
+      ? `${conn.instagramUsername ? `@${conn.instagramUsername}` : conn.pageName || "Meta account"}${conn.adAccountMasked ? ` · Ad account ${conn.adAccountMasked}` : ""}`
+      : null
+  const tutorialUrl = data?.tutorialUrl ?? null
+
   return (
     <div className="py-4 first:pt-0 last:pb-0">
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
           <p className="text-[14px] font-semibold text-[#111318]">{NAME}</p>
           <p className="text-[12.5px] text-[#6b7280]">{DESC}</p>
+          {connectedInfo && <p className="mt-1 text-[12px] text-[#6b7280]">{connectedInfo}</p>}
+          {/* Subtle setup tutorial — available to any beta agent (trial or paid), never paywalled.
+              Rendered only when a URL is configured (META_ADS_TUTORIAL_URL) so we never ship a dead link. */}
+          {betaAllowed && tutorialUrl && (
+            <a href={tutorialUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-[12px] font-medium text-[#2f6bff] hover:underline">
+              New to Meta ads? Watch the setup tutorial →
+            </a>
+          )}
         </div>
         <div className="flex-none">{action}</div>
       </div>
