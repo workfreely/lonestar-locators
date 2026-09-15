@@ -149,11 +149,19 @@ export function fitDetailPx(text: string, maxPx: number, minPx: number, availPx 
 // stay a couple px below the hook so it always reads as clearly secondary (the hook is also the
 // heavier wght-650 cut). Non-price center-hook detail keeps the small default.
 const CENTER_HOOK_DETAIL_MIN = 30
-const CENTER_HOOK_DETAIL_TARGET: Record<string, number> = { upgrade: 46, pov_price: 50 }
+// Detail max per template — reduced so the detail clearly supports (not competes with) the hook:
+// T5 Upgrade 38, T8 POV+Price 40 (price stays strong but secondary). Still coupled ≤ hook − 2.
+const CENTER_HOOK_DETAIL_TARGET: Record<string, number> = { upgrade: 38, pov_price: 40 }
 function centerHookDetailMaxPx(template: string, hookPx: number): number {
   const target = CENTER_HOOK_DETAIL_TARGET[template] ?? CENTER_HOOK.detailFontPx
   return Math.min(target, Math.max(CENTER_HOOK_DETAIL_MIN, hookPx - 2)) // never larger than hook − 2
 }
+// Gap below the hook for center-hook + detail (T5/T8): tighter than the Hero sub gap so the two lines
+// read as ONE lockup instead of two separated elements.
+const CENTER_HOOK_DETAIL_GAP_PX = 16
+// Hero (T3 Special + Feature) gap: tighter than the shared sub gap so its detail hugs the headline.
+// T1 (market_type) keeps the standard OVERLAY_SPEC.sub.gapPx — do not change T1.
+const SPECIAL_FEATURE_GAP_PX = 18
 
 // Supported Hero vocabulary ({CITY} {TYPE_PLURAL}, uppercase) → renders one line (fit-to-width);
 // any headline NOT in this set (arbitrary/custom) falls back to the multi-line char-wrap.
@@ -230,7 +238,8 @@ export function computeOverlayLayout(template: string, headlineText: string, det
     const headline: OverlayBlock = { lines: fit.lines, fontPx: fit.fontPx, topPx: headTop, uppercase: true, sideMarginPx: OVERLAY_SPEC.headline.sideMarginPx, lineSpacing: OVERLAY_SPEC.headline.lineSpacing }
     let detailBlock: OverlayBlock | null = null
     if (detail) {
-      const detailTop = headTop + headlineBlockPx(Math.max(1, fit.lines.length), fit.fontPx) + OVERLAY_SPEC.sub.gapPx
+      const heroGapPx = template === "special_feature" ? SPECIAL_FEATURE_GAP_PX : OVERLAY_SPEC.sub.gapPx // T3 hugs headline; T1 unchanged
+      const detailTop = headTop + headlineBlockPx(Math.max(1, fit.lines.length), fit.fontPx) + heroGapPx
       const detailPx = template === "market_type" ? MARKET_TYPE_DETAIL_PX : OVERLAY_SPEC.sub.fontPx // T1 price is larger; T3 keeps the shared size
       detailBlock = { lines: wrapSub(detail), fontPx: detailPx, topPx: detailTop, uppercase: false, sideMarginPx: OVERLAY_SPEC.sub.sideMarginPx, lineSpacing: OVERLAY_SPEC.sub.lineSpacing }
     }
@@ -251,7 +260,7 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   const detailPx = hasDetail ? fitDetailPx(detail, centerHookDetailMaxPx(template, hookPx), CENTER_HOOK_DETAIL_MIN) : CENTER_HOOK.detailFontPx
   const detailLines = hasDetail ? [detail] : []
   const detailBlockH = hasDetail ? detailPx : 0 // one line
-  const gap = hasDetail ? OVERLAY_SPEC.sub.gapPx : 0
+  const gap = hasDetail ? CENTER_HOOK_DETAIL_GAP_PX : 0 // tighter lockup below the hook (T5/T8)
   const totalH = headBlockH + gap + detailBlockH
   const groupTop = (H - totalH) / 2
   const headline: OverlayBlock = { lines, fontPx: hookPx, topPx: groupTop, uppercase: false, sideMarginPx: OVERLAY_SPEC.headline.sideMarginPx, lineSpacing: CENTER_HOOK.lineSpacing }

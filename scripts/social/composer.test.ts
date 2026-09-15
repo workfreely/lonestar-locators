@@ -447,19 +447,25 @@ ok("T1 detail stays ONE line for all test prices", ["Starting at $995/mo", "Star
 ok("T3 (special_feature) detail UNCHANGED at the shared sub size", (computeOverlayLayout("special_feature", "SAN ANTONIO TOWNHOMES", "8 Weeks Free · Private Yards").detail!.fontPx) === OVERLAY_SPEC.sub.fontPx)
 ok("T1 detail still clearly secondary to the headline", !!t1d && t1d.fontPx < computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,800/mo").headline.fontPx)
 
-console.log("Templates 5 & 8 price-detail prominence (larger, fit-to-width, one line, secondary):")
-// T5 Upgrade — larger detail, still below the hook, one line for every fallback.
+console.log("Templates 5 & 8 detail hierarchy (supporting the hook — one line, secondary, tight gap):")
+// T5 Upgrade — detail 38px (reduced to support, not compete), one line for every fallback.
 const t5cases = ["8 Weeks Free · Starting at $1,900/mo", "Starting at $1,900/mo", "8 Weeks Free"]
 for (const d of t5cases) {
   const L = computeOverlayLayout("upgrade", "What life looks like when you upgrade", d)
-  ok(`T5 detail one line, prominent (>=40), secondary: "${d}" (${L.detail!.fontPx}px)`, L.detail!.lines.length === 1 && L.detail!.fontPx >= 40 && L.detail!.fontPx < L.headline.fontPx && detailTextWidthPx(d, L.detail!.fontPx) <= DETAIL_TEXT_AVAIL_PX)
+  ok(`T5 detail one line, 38px, secondary: "${d}" (${L.detail!.fontPx}px)`, L.detail!.lines.length === 1 && L.detail!.fontPx === 38 && L.detail!.fontPx < L.headline.fontPx && detailTextWidthPx(d, L.detail!.fontPx) <= DETAIL_TEXT_AVAIL_PX)
 }
-// T8 POV + Price — larger price detail, still below the POV headline, one line for all test prices.
+// T8 POV + Price — price detail 40px (strong but below the POV headline), one line for all prices.
 for (const p of ["Starting at $995/mo", "Starting at $1,250/mo", "Starting at $1,900/mo", "Starting at $2,495/mo"]) {
   const L = computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", p)
-  ok(`T8 price one line, prominent (>=40), secondary: "${p}" (${L.detail!.fontPx}px)`, L.detail!.lines.length === 1 && L.detail!.fontPx >= 40 && L.detail!.fontPx < L.headline.fontPx && detailTextWidthPx(p, L.detail!.fontPx) <= DETAIL_TEXT_AVAIL_PX)
+  ok(`T8 price one line, 40px, secondary: "${p}" (${L.detail!.fontPx}px)`, L.detail!.lines.length === 1 && L.detail!.fontPx === 40 && L.detail!.fontPx < L.headline.fontPx && detailTextWidthPx(p, L.detail!.fontPx) <= DETAIL_TEXT_AVAIL_PX)
 }
-ok("T5/T8 price detail is much larger than the old 30px default", computeOverlayLayout("upgrade", "What life looks like when you upgrade", "Starting at $1,900/mo").detail!.fontPx > 30 && computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", "Starting at $1,900/mo").detail!.fontPx > 30)
+ok("T8 price detail is larger than T5 detail (price stays strong)", computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", "Starting at $1,900/mo").detail!.fontPx > computeOverlayLayout("upgrade", "What life looks like when you upgrade", "Starting at $1,900/mo").detail!.fontPx)
+// Tighter gap: center-hook detail sits closer than the standard Hero sub gap; T3 gap tighter too.
+const t5L = computeOverlayLayout("upgrade", "What life looks like when you upgrade", "Starting at $1,900/mo")
+ok("T5 detail sits within ~20px below the hook (tight lockup)", !!t5L.detail && (t5L.detail.topPx - (t5L.headline.topPx + t5L.headline.fontPx)) <= 20)
+const t3gap = computeOverlayLayout("special_feature", "SAN ANTONIO TOWNHOMES", "8 Weeks Free · Private Yards")
+const t1gap = computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,900/mo")
+ok("T3 detail gap is TIGHTER than T1 (T1 unchanged)", (t3gap.detail!.topPx - (t3gap.headline.topPx + t3gap.headline.fontPx)) < (t1gap.detail!.topPx - (t1gap.headline.topPx + t1gap.headline.fontPx)))
 ok("T8 with no price → no detail block (omitted)", computeOverlayLayout("pov_price", "POV: You upgraded to a loft", "").detail === null)
 // Guardrails: Template 1 stays 52, Template 3 stays the shared sub size.
 ok("Template 1 detail STAYS 52px", computeOverlayLayout("market_type", "SAN ANTONIO LOFTS", "Starting at $1,900/mo").detail!.fontPx === 52)
