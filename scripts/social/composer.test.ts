@@ -5,7 +5,7 @@ import { AMENITY_BANK, canonicalizeAmenity, parseAmenities, serializeAmenities, 
 import { preparePost, buildCaption, buildOverlayHeadline, buildOverlaySubheadline, composeFinalCaption, startingPriceLabel, buildOverlayDetail, joinDetailParts, specialDisplay, resolveSocialSpecial, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags } from "@/lib/social/composePost"
 import { SOCIAL_SPECIAL_OPTIONS, giftCardLabel, isGiftCardSpecial, sanitizeCustomSpecial } from "@/lib/social/socialSpecial"
 import { buildFfmpegArgs, buildVideoFilter } from "@/lib/social/renderVideo"
-import { wrapHeadline, wrapSub, overlayPreviewStyle, headlineFit, headlineTextWidthPx, computeOverlayLayout, OVERLAY_SPEC, OVERLAY_TEXT, HEADLINE_TEXT_AVAIL_PX, HERO_MAX_PX, HERO_MIN_PX, HOOK_MAX_PX, HOOK_MIN_PX } from "@/lib/social/overlaySpec"
+import { wrapHeadline, wrapSub, overlayPreviewStyle, headlineFit, headlineTextWidthPx, computeOverlayLayout, OVERLAY_SPEC, OVERLAY_TEXT, HEADLINE_TEXT_AVAIL_PX, HERO_MAX_PX, HERO_MIN_PX, HOOK_MAX_PX, HOOK_MIN_PX, detailTextWidthPx, DETAIL_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
 import { buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES } from "@/lib/social/composePost"
 
 let pass = 0, fail = 0
@@ -446,6 +446,24 @@ ok("T1 detail renders at 52px (larger secondary line)", !!t1d && t1d.fontPx === 
 ok("T1 detail stays ONE line for all test prices", ["Starting at $995/mo", "Starting at $1,250/mo", "Starting at $1,800/mo", "Starting at $2,495/mo"].every((p) => computeOverlayLayout("market_type", "SAN ANTONIO LOFTS", p).detail!.lines.length === 1))
 ok("T3 (special_feature) detail UNCHANGED at the shared sub size", (computeOverlayLayout("special_feature", "SAN ANTONIO TOWNHOMES", "8 Weeks Free · Private Yards").detail!.fontPx) === OVERLAY_SPEC.sub.fontPx)
 ok("T1 detail still clearly secondary to the headline", !!t1d && t1d.fontPx < computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,800/mo").headline.fontPx)
+
+console.log("Templates 5 & 8 price-detail prominence (larger, fit-to-width, one line, secondary):")
+// T5 Upgrade — larger detail, still below the hook, one line for every fallback.
+const t5cases = ["8 Weeks Free · Starting at $1,900/mo", "Starting at $1,900/mo", "8 Weeks Free"]
+for (const d of t5cases) {
+  const L = computeOverlayLayout("upgrade", "What life looks like when you upgrade", d)
+  ok(`T5 detail one line, prominent (>=40), secondary: "${d}" (${L.detail!.fontPx}px)`, L.detail!.lines.length === 1 && L.detail!.fontPx >= 40 && L.detail!.fontPx < L.headline.fontPx && detailTextWidthPx(d, L.detail!.fontPx) <= DETAIL_TEXT_AVAIL_PX)
+}
+// T8 POV + Price — larger price detail, still below the POV headline, one line for all test prices.
+for (const p of ["Starting at $995/mo", "Starting at $1,250/mo", "Starting at $1,900/mo", "Starting at $2,495/mo"]) {
+  const L = computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", p)
+  ok(`T8 price one line, prominent (>=40), secondary: "${p}" (${L.detail!.fontPx}px)`, L.detail!.lines.length === 1 && L.detail!.fontPx >= 40 && L.detail!.fontPx < L.headline.fontPx && detailTextWidthPx(p, L.detail!.fontPx) <= DETAIL_TEXT_AVAIL_PX)
+}
+ok("T5/T8 price detail is much larger than the old 30px default", computeOverlayLayout("upgrade", "What life looks like when you upgrade", "Starting at $1,900/mo").detail!.fontPx > 30 && computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", "Starting at $1,900/mo").detail!.fontPx > 30)
+ok("T8 with no price → no detail block (omitted)", computeOverlayLayout("pov_price", "POV: You upgraded to a loft", "").detail === null)
+// Guardrails: Template 1 stays 52, Template 3 stays the shared sub size.
+ok("Template 1 detail STAYS 52px", computeOverlayLayout("market_type", "SAN ANTONIO LOFTS", "Starting at $1,900/mo").detail!.fontPx === 52)
+ok("Template 3 detail UNCHANGED (shared sub size)", computeOverlayLayout("special_feature", "SAN ANTONIO LOFTS", "8 Weeks Free · Private Yards").detail!.fontPx === OVERLAY_SPEC.sub.fontPx)
 
 console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

@@ -122,6 +122,39 @@ export function fitHeadlinePx(text: string, maxPx: number, minPx: number, availP
   return minPx
 }
 
+// ── Detail (Bodoni-Detail) fit-to-width — for the price-bearing center-hook detail (T5/T8) ─────────
+// Detail text uses the TEXT cut, which has different metrics from the headline, so it needs its own
+// per-character advance map (advance px at 100px in BodoniModa-Detail, incl. digits/$,·/). Summed
+// advances equal FFmpeg drawtext's line width; adding the same tracking the CSS preview uses keeps
+// the fit conservative for the browser too — so preview and render resolve the SAME detail size.
+export const DETAIL_TEXT_AVAIL_PX = OVERLAY_CANVAS.w - 2 * OVERLAY_SPEC.sub.sideMarginPx // 930 (75px margins)
+const DETAIL_ADV: Record<string, number> = {
+  A: 77, B: 66, C: 70, D: 73, E: 61, F: 59, G: 74, H: 77, I: 39, J: 47, K: 72, L: 60, M: 87, N: 76, O: 75, P: 64, Q: 75, R: 72, S: 58, T: 67, U: 72, V: 77, W: 102, X: 77, Y: 73, Z: 58,
+  a: 54, b: 61, c: 51, d: 61, e: 53, f: 40, g: 60, h: 60, i: 30, j: 31, k: 61, l: 33, m: 86, n: 60, o: 56, p: 61, q: 61, r: 45, s: 44, t: 35, u: 60, v: 55, w: 78, x: 57, y: 56, z: 47,
+  "0": 63, "1": 45, "2": 56, "3": 53, "4": 61, "5": 51, "6": 57, "7": 51, "8": 56, "9": 57,
+  " ": 25, ".": 22, ",": 23, $: 57, "/": 41, "·": 21, ":": 25, "'": 25, "-": 36,
+}
+/** Width (canvas px) of a detail line at `fontPx` WITH tracking — constrains both render and preview. */
+export function detailTextWidthPx(text: string, fontPx: number, trackingEm = OVERLAY_TEXT.trackingEm): number {
+  let adv = 0
+  for (const c of text) adv += DETAIL_ADV[c] ?? ADV_FALLBACK
+  return (adv * fontPx) / 100 + trackingEm * fontPx * text.length
+}
+/** Largest integer px in [minPx, maxPx] at which the detail fits ONE line inside the detail safe box. */
+export function fitDetailPx(text: string, maxPx: number, minPx: number, availPx = DETAIL_TEXT_AVAIL_PX): number {
+  for (let px = maxPx; px > minPx; px--) if (detailTextWidthPx(text, px) <= availPx) return px
+  return minPx
+}
+// Price-bearing center-hook detail (T5 Upgrade, T8 POV + Price): larger, fit-to-width, but COUPLED to
+// stay a couple px below the hook so it always reads as clearly secondary (the hook is also the
+// heavier wght-650 cut). Non-price center-hook detail keeps the small default.
+const CENTER_HOOK_DETAIL_MIN = 30
+const CENTER_HOOK_DETAIL_TARGET: Record<string, number> = { upgrade: 46, pov_price: 50 }
+function centerHookDetailMaxPx(template: string, hookPx: number): number {
+  const target = CENTER_HOOK_DETAIL_TARGET[template] ?? CENTER_HOOK.detailFontPx
+  return Math.min(target, Math.max(CENTER_HOOK_DETAIL_MIN, hookPx - 2)) // never larger than hook − 2
+}
+
 // Supported Hero vocabulary ({CITY} {TYPE_PLURAL}, uppercase) → renders one line (fit-to-width);
 // any headline NOT in this set (arbitrary/custom) falls back to the multi-line char-wrap.
 const SUPPORTED_HEADLINES: ReadonlySet<string> = new Set([
@@ -212,15 +245,18 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   const n = Math.max(1, lines.length)
   const headBlockH = n * hookPx + (n - 1) * CENTER_HOOK.lineSpacing
   const hasDetail = family === "center_hook_detail" && detail.length > 0
-  const detailLines = hasDetail ? wrapSub(detail) : []
-  // Center-hook detail is smaller than the hook (CENTER_HOOK.detailFontPx) so the hook stays dominant.
-  const detailBlockH = hasDetail ? detailLines.length * CENTER_HOOK.detailFontPx + Math.max(0, detailLines.length - 1) * OVERLAY_SPEC.sub.lineSpacing : 0
+  // Detail is ONE line, FIT-TO-WIDTH (Bodoni-Detail) at a larger price-detail size that stays below
+  // the hook (see centerHookDetailMaxPx) so it reads as a strong-but-secondary line. Shrinks only if
+  // an unusually long detail needs it; never wraps/stacks.
+  const detailPx = hasDetail ? fitDetailPx(detail, centerHookDetailMaxPx(template, hookPx), CENTER_HOOK_DETAIL_MIN) : CENTER_HOOK.detailFontPx
+  const detailLines = hasDetail ? [detail] : []
+  const detailBlockH = hasDetail ? detailPx : 0 // one line
   const gap = hasDetail ? OVERLAY_SPEC.sub.gapPx : 0
   const totalH = headBlockH + gap + detailBlockH
   const groupTop = (H - totalH) / 2
   const headline: OverlayBlock = { lines, fontPx: hookPx, topPx: groupTop, uppercase: false, sideMarginPx: OVERLAY_SPEC.headline.sideMarginPx, lineSpacing: CENTER_HOOK.lineSpacing }
   const detailBlock: OverlayBlock | null = hasDetail
-    ? { lines: detailLines, fontPx: CENTER_HOOK.detailFontPx, topPx: groupTop + headBlockH + gap, uppercase: false, sideMarginPx: OVERLAY_SPEC.sub.sideMarginPx, lineSpacing: OVERLAY_SPEC.sub.lineSpacing }
+    ? { lines: detailLines, fontPx: detailPx, topPx: groupTop + headBlockH + gap, uppercase: false, sideMarginPx: OVERLAY_SPEC.sub.sideMarginPx, lineSpacing: OVERLAY_SPEC.sub.lineSpacing }
     : null
   return { family, headline, detail: detailBlock }
 }
