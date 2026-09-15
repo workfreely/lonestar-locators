@@ -829,11 +829,14 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                          Duration | Posting time), stacking only on narrow screens. NO activation
                          button — the green Publish (below) activates recurrence. */
                       <div className="mt-2 flex flex-col gap-2">
-                        {/* Three settings on ONE compact desktop row (stacks on narrow screens).
-                            Repeat Post + Duration size to their content; Posting time takes the
-                            remaining width so its longest value ("Social Beast chooses") shows in
-                            full without truncation. */}
-                        <div className="grid grid-cols-1 sm:grid-cols-[max-content_max-content_minmax(0,1fr)] gap-2.5">
+                        {/* Three settings on ONE desktop row (stacks on narrow screens). Explicit
+                            proportional widths 30/29/41 — Posting time is the WIDEST (41%) so its
+                            longest value "Social Beast chooses" shows in full (verified at the
+                            1200px-capped desktop layout: ~132px text room vs ~120px text); Duration
+                            (29%) is narrower than Repeat Post but still fits "Until stopped". NOT
+                            max-content — that sized selects to their widest OPTION and starved
+                            Posting time in production. */}
+                        <div className="grid grid-cols-1 sm:grid-cols-[30fr_29fr_41fr] gap-2.5">
                           <label className="block min-w-0">
                             <span className="text-[11px] text-[var(--crm-text-muted)]">Repeat Post</span>
                             <select className={`${controlCompact} mt-1 cursor-pointer`} value={repeatEvery} onChange={(e) => setRepeatEvery(Number(e.target.value))}>
