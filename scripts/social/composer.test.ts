@@ -332,7 +332,7 @@ ok("render graph still outputs the [v] label", /\[v\]$/.test(hugFilt))
 
 console.log("Overlay TEMPLATES 1–5 (headline/detail generation + layout families):")
 const tMeta = { market: "San Antonio", propertyType: "High-Rise", socialSpecial: "8 Weeks Free", budgetRange: "1600", amenities: "Private Yards, Rooftop Pool" }
-ok("5 templates defined", OVERLAY_TEMPLATES.length === 5)
+ok("7 templates defined", OVERLAY_TEMPLATES.length === 7)
 // T1 Market + Type (HERO)
 ok("T1 headline = CITY TYPE_PLURAL", buildTemplateHeadline("market_type", tMeta) === "SAN ANTONIO HIGH-RISES")
 ok("T1 detail = Starting at price", buildTemplateDetail("market_type", tMeta) === "Starting at $1,600/mo")
@@ -382,6 +382,41 @@ ok("center-hook fit range is 37–46px", HOOK_MIN_PX === 37 && HOOK_MAX_PX === 4
 ok("center-hook fitted size stays within [37,46]", t2Short.fontPx >= HOOK_MIN_PX && t2Short.fontPx <= HOOK_MAX_PX && t2Long.fontPx >= HOOK_MIN_PX && t2Long.fontPx <= HOOK_MAX_PX)
 ok("shorter hook renders LARGER than the longest hook", t2Short.fontPx > t2Long.fontPx)
 ok("longest hook fits the 900px safe box at its fitted size", headlineTextWidthPx(t2Long.lines[0], t2Long.fontPx) <= HEADLINE_TEXT_AVAIL_PX)
+
+console.log("Templates 6 & 7 (POV Upgrade + Affordable Luxury — CENTER HOOK, no detail):")
+// T6 — explicit per-type mapping (grammar intentionally differs; NOT a generic formula).
+const POV: Record<string, string> = {
+  Studio: "POV: You upgraded your studio",
+  Apartment: "POV: You upgraded your apartment",
+  "High-Rise": "POV: You upgraded to high-rise living",
+  Townhome: "POV: You upgraded to a townhome",
+  "Rental Home": "POV: You upgraded to a rental home",
+  Penthouse: "POV: You upgraded to a penthouse",
+  Loft: "POV: You upgraded to a loft",
+}
+for (const [type, expected] of Object.entries(POV)) {
+  ok(`T6 ${type} → "${expected}"`, buildTemplateHeadline("pov_upgrade", { market: "San Antonio", propertyType: type }) === expected)
+}
+ok("T6 Apartment is 'your apartment' (NOT 'to an apartment')", buildTemplateHeadline("pov_upgrade", { propertyType: "Apartment" }) === "POV: You upgraded your apartment")
+ok("T6 High-Rise is 'to high-rise living' (NOT 'to a high-rise')", buildTemplateHeadline("pov_upgrade", { propertyType: "High-Rise" }) === "POV: You upgraded to high-rise living")
+ok("T6 no detail line", buildTemplateDetail("pov_upgrade", tMeta) === "")
+ok("T6 is CENTER HOOK (no detail block)", computeOverlayLayout("pov_upgrade", buildTemplateHeadline("pov_upgrade", { propertyType: "Townhome" }), "").family === "center_hook" && computeOverlayLayout("pov_upgrade", "x", "").detail === null)
+// T7 — fixed universal hook; no variables/metadata, no detail.
+ok("T7 headline is the fixed universal hook", buildTemplateHeadline("affordable_luxury", tMeta) === "Luxury doesn't have to be expensive")
+ok("T7 ignores ALL metadata (type/market/special/price)", buildTemplateHeadline("affordable_luxury", { market: "Dallas", propertyType: "Loft", socialSpecial: "8 Weeks Free", budgetRange: "1200" }) === "Luxury doesn't have to be expensive")
+ok("T7 no detail line", buildTemplateDetail("affordable_luxury", tMeta) === "")
+ok("T7 is CENTER HOOK (no detail block)", computeOverlayLayout("affordable_luxury", "Luxury doesn't have to be expensive", "").family === "center_hook")
+// Fit-to-width: longest T6 variant + T7 render ONE line within the 900px safe box (shared engine).
+for (const s of ["POV: You upgraded to high-rise living", "POV: You upgraded to a rental home", "Luxury doesn't have to be expensive"]) {
+  const L = computeOverlayLayout("pov_upgrade", s, "")
+  ok(`T6/T7 fit-to-width ONE line: "${s}" (${L.headline.fontPx}px)`, L.headline.lines.length === 1 && L.headline.fontPx >= HOOK_MIN_PX && L.headline.fontPx <= HOOK_MAX_PX && headlineTextWidthPx(s, L.headline.fontPx) <= HEADLINE_TEXT_AVAIL_PX)
+}
+// Generated-state sync + manual-override protection for the new templates.
+ok("T6 generated strings recognized (so they re-sync on Property Type change)", isGeneratedHeadline("POV: You upgraded to a townhome") && isGeneratedHeadline("POV: You upgraded to a loft"))
+ok("T6 regenerates for the CURRENT type (Townhome vs Loft)", buildTemplateHeadline("pov_upgrade", { propertyType: "Townhome" }) === "POV: You upgraded to a townhome" && buildTemplateHeadline("pov_upgrade", { propertyType: "Loft" }) === "POV: You upgraded to a loft")
+ok("T7 fixed headline recognized as generated", isGeneratedHeadline("Luxury doesn't have to be expensive"))
+ok("a genuinely MANUAL hook is NOT treated as generated (override protected)", !isGeneratedHeadline("POV: You finally made it home"))
+ok("selector lists exactly 7 templates ending in pov_upgrade, affordable_luxury", OVERLAY_TEMPLATES.length === 7 && OVERLAY_TEMPLATES[5] === "pov_upgrade" && OVERLAY_TEMPLATES[6] === "affordable_luxury")
 
 console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

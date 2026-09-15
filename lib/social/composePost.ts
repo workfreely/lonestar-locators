@@ -207,13 +207,15 @@ export function joinDetailParts(parts: (string | null | undefined)[]): string {
 }
 
 // ── Overlay TEMPLATES (per-post choice of the on-video overlay copy) ──────────────────────────
-// Five templates, three layout families (geometry lives in overlaySpec):
-//   1 market_type     — HERO           — {CITY} {TYPE_PLURAL} / "Starting at $X/mo"
-//   2 your_sign       — CENTER HOOK    — "Your sign to get that {type} in {city}" / no detail
-//   3 special_feature — HERO           — {CITY} {TYPE_PLURAL} / "{special} · {feature}"
-//   4 next_property   — CENTER HOOK    — "What your next {type} could look like" / no detail
-//   5 upgrade         — CENTER HOOK+D  — "What life looks like when you upgrade" / "{special} · Starting at $X/mo"
-export const OVERLAY_TEMPLATES = ["market_type", "your_sign", "special_feature", "next_property", "upgrade"] as const
+// Seven templates, three layout families (geometry lives in overlaySpec):
+//   1 market_type      — HERO           — {CITY} {TYPE_PLURAL} / "Starting at $X/mo"
+//   2 your_sign        — CENTER HOOK    — "Your sign to get that {type} in {city}" / no detail
+//   3 special_feature  — HERO           — {CITY} {TYPE_PLURAL} / "{special} · {feature}"
+//   4 next_property    — CENTER HOOK    — "What your next {type} could look like" / no detail
+//   5 upgrade          — CENTER HOOK+D  — "What life looks like when you upgrade" / "{special} · Starting at $X/mo"
+//   6 pov_upgrade      — CENTER HOOK    — "POV: You upgraded …" (explicit per-type mapping) / no detail
+//   7 affordable_luxury— CENTER HOOK    — "Luxury doesn't have to be expensive" (fixed) / no detail
+export const OVERLAY_TEMPLATES = ["market_type", "your_sign", "special_feature", "next_property", "upgrade", "pov_upgrade", "affordable_luxury"] as const
 export type OverlayTemplate = (typeof OVERLAY_TEMPLATES)[number]
 export const DEFAULT_OVERLAY_TEMPLATE: OverlayTemplate = "market_type"
 export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
@@ -222,7 +224,25 @@ export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
   special_feature: "Special + Feature",
   next_property: "Next Property",
   upgrade: "Upgrade",
+  pov_upgrade: "POV Upgrade",
+  affordable_luxury: "Affordable Luxury",
 }
+
+// Template 6 (POV Upgrade) — EXPLICIT deterministic copy per canonical Property Type. The grammar
+// intentionally differs by type (NOT a generic "POV: You upgraded to a {type}" formula). When no
+// property type is set, a neutral fallback is used.
+const POV_UPGRADE_HEADLINE: Record<string, string> = {
+  Studio: "POV: You upgraded your studio",
+  Apartment: "POV: You upgraded your apartment",
+  "High-Rise": "POV: You upgraded to high-rise living",
+  Townhome: "POV: You upgraded to a townhome",
+  "Rental Home": "POV: You upgraded to a rental home",
+  Penthouse: "POV: You upgraded to a penthouse",
+  Loft: "POV: You upgraded to a loft",
+}
+const POV_UPGRADE_FALLBACK = "POV: You upgraded"
+// Template 7 (Affordable Luxury) — FIXED universal hook, no variables.
+const AFFORDABLE_LUXURY_HEADLINE = "Luxury doesn't have to be expensive"
 export function isOverlayTemplate(v: unknown): v is OverlayTemplate {
   return typeof v === "string" && (OVERLAY_TEMPLATES as readonly string[]).includes(v)
 }
@@ -248,6 +268,10 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
       return `What your next ${noun || "home"} could look like`
     case "upgrade":
       return "What life looks like when you upgrade"
+    case "pov_upgrade":
+      return (canonicalType && POV_UPGRADE_HEADLINE[canonicalType]) || POV_UPGRADE_FALLBACK
+    case "affordable_luxury":
+      return AFFORDABLE_LUXURY_HEADLINE
   }
 }
 
@@ -262,6 +286,8 @@ export function buildTemplateDetail(template: OverlayTemplate, src: SourceMeta):
       return price // "Starting at $X/mo" or ""
     case "your_sign":
     case "next_property":
+    case "pov_upgrade":
+    case "affordable_luxury":
       return "" // center-hook, no detail
     case "special_feature":
       return joinDetailParts([special, feature]) // special+feature / special / feature / none
@@ -281,8 +307,16 @@ const TYPES_WITH_NULL: (string | null)[] = [...PROPERTY_TYPES, null]
 export function isGeneratedHeadline(text: string | null | undefined): boolean {
   const t = (text ?? "").trim()
   if (!t) return true
+  // Recognize a headline as generator-owned if it equals what ANY template would produce for SOME
+  // market × property type. This covers the Hero forms AND every center-hook form (incl. Template 6's
+  // per-type POV strings and Template 7's fixed hook), so a value left stale by a prior market/type
+  // change is re-synced rather than mistaken for a manual override. (Headlines depend only on
+  // market/type — never special/price/amenities — so those can stay unset here.)
   for (const m of MARKETS_WITH_NULL) for (const pt of TYPES_WITH_NULL) {
     if (buildOverlayHeadline({ market: m, propertyType: pt }) === t) return true
+    for (const tpl of OVERLAY_TEMPLATES) {
+      if (buildTemplateHeadline(tpl, { market: m, propertyType: pt }) === t) return true
+    }
   }
   return false
 }

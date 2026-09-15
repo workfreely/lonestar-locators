@@ -26,7 +26,7 @@ export const OVERLAY_SPEC = {
 } as const
 
 // NOTE ON THE FONT: the active overlay face is BODONI MODA (open-source, OFL, from Google Fonts),
-// instanced to two static cuts we bundle: headlines use the DISPLAY cut (opsz 96, wght 600 — solid,
+// instanced to two static cuts we bundle: headlines use the DISPLAY cut (opsz 96, wght 650 — solid,
 // high-contrast, dramatic thick/thin) and detail text uses the TEXT cut (opsz 18, wght 500 — more
 // legible small). Bodoni is a high-contrast Didone: elegant/editorial, NOT condensed or heavy. Anton
 // (the old Overlay-Bold.ttf) is no longer used by the overlay system.
@@ -98,13 +98,13 @@ export const HEADLINE_TEXT_AVAIL_PX = OVERLAY_CANVAS.w - 2 * OVERLAY_SPEC.headli
 export const HERO_MAX_PX = 66, HERO_MIN_PX = 56
 export const HOOK_MAX_PX = 46, HOOK_MIN_PX = 37
 
-// Per-character advance (px) at 100px in BodoniModa-Head.ttf (wght 600). Covers the full headline
-// vocabulary (A–Z, a–z, space, hyphen). Any other char falls back to a mid advance (safe: slight
-// over-estimate → shrinks a hair more, never clips).
+// Per-character advance (px) at 100px in BodoniModa-Head.ttf (wght 650). Covers the full headline
+// vocabulary (A–Z, a–z, space, hyphen, colon, apostrophe). Any other char falls back to a mid
+// advance (safe: slight over-estimate → shrinks a hair more, never clips).
 const HEAD_ADV: Record<string, number> = {
-  A: 76, B: 67, C: 69, D: 73, E: 61, F: 59, G: 74, H: 77, I: 40, J: 49, K: 73, L: 60, M: 86, N: 74, O: 75, P: 65, Q: 75, R: 72, S: 58, T: 66, U: 71, V: 76, W: 105, X: 77, Y: 72, Z: 59,
-  a: 56, b: 62, c: 52, d: 62, e: 53, f: 40, g: 61, h: 60, i: 30, j: 31, k: 62, l: 34, m: 87, n: 60, o: 56, p: 62, q: 62, r: 46, s: 45, t: 36, u: 60, v: 57, w: 80, x: 57, y: 58, z: 48,
-  " ": 25, "-": 36,
+  A: 77, B: 68, C: 69, D: 75, E: 62, F: 59, G: 75, H: 78, I: 41, J: 51, K: 75, L: 60, M: 87, N: 74, O: 75, P: 66, Q: 75, R: 73, S: 59, T: 67, U: 72, V: 77, W: 107, X: 78, Y: 73, Z: 60,
+  a: 57, b: 62, c: 52, d: 62, e: 53, f: 40, g: 62, h: 61, i: 31, j: 32, k: 63, l: 34, m: 87, n: 61, o: 56, p: 62, q: 62, r: 47, s: 45, t: 36, u: 61, v: 57, w: 82, x: 57, y: 59, z: 48,
+  " ": 25, "-": 36, ":": 25, "'": 25,
 }
 const ADV_FALLBACK = 55
 
@@ -170,7 +170,7 @@ export type LayoutFamily = "hero" | "center_hook" | "center_hook_detail"
 export const CENTER_HOOK = { maxPx: HOOK_MAX_PX, minPx: HOOK_MIN_PX, lineSpacing: 8, detailFontPx: 30 } as const
 
 export function templateFamily(template: string): LayoutFamily {
-  if (template === "your_sign" || template === "next_property") return "center_hook"
+  if (template === "your_sign" || template === "next_property" || template === "pov_upgrade" || template === "affordable_luxury") return "center_hook"
   if (template === "upgrade") return "center_hook_detail"
   return "hero" // market_type, special_feature, unknown → hero
 }
