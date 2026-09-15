@@ -35,7 +35,7 @@ function daysFromNow(n: number, hour = 9): string {
 export const DEMO_LEADS: any[] = [
   // ── New (3) ──
   {
-    id: "demo-1", is_demo: true, crm_status: "new", lead_type: "long",
+    id: "demo-1", is_demo: true, crm_status: "new", lead_type: "renter", form_variant: "full",
     first_name: "Maria", last_name: "Gonzalez", phone: "2142221234", email: "maria.g@example.com",
     city: "Dallas", neighborhoods: "Downtown Dallas", desired_rent: "$2,500-$2,700",
     property_type: "High-rise", beds: "1", baths: "1", move_date: daysFromNow(30),
@@ -45,7 +45,7 @@ export const DEMO_LEADS: any[] = [
     created_at: daysFromNow(-1),
   },
   {
-    id: "demo-2", is_demo: true, crm_status: "new", lead_type: "long",
+    id: "demo-2", is_demo: true, crm_status: "new", lead_type: "renter", form_variant: "full",
     first_name: "Jalen", last_name: "Brooks", phone: "7130000000", email: "jalen.b@example.com",
     city: "Houston", neighborhoods: "Midtown, Montrose", desired_rent: "$1,300-$1,500",
     property_type: "Apartment", beds: "1", baths: "1", move_date: thisMonth(28),
@@ -55,7 +55,7 @@ export const DEMO_LEADS: any[] = [
     created_at: daysFromNow(-2),
   },
   {
-    id: "demo-3", is_demo: true, crm_status: "new", lead_type: "long",
+    id: "demo-3", is_demo: true, crm_status: "new", lead_type: "renter", form_variant: "full",
     first_name: "Priya", last_name: "Nair", phone: "5125550111", email: "priya.n@example.com",
     city: "Austin", neighborhoods: "All of Austin", desired_rent: "$1,800-$2,100",
     property_type: "Apartment", beds: "2", baths: "2", move_date: thisMonth(27),
@@ -67,7 +67,7 @@ export const DEMO_LEADS: any[] = [
 
   // ── Contacted (2) ──
   {
-    id: "demo-4", is_demo: true, crm_status: "contacted", lead_type: "long",
+    id: "demo-4", is_demo: true, crm_status: "contacted", lead_type: "renter", form_variant: "full",
     first_name: "Devon", last_name: "Carter", phone: "5120000000", email: "devon.c@example.com",
     city: "Austin", neighborhoods: "All of Austin", desired_rent: "$1,200-$1,400",
     property_type: "Apartment", beds: "1", baths: "1", move_date: thisMonth(26),
@@ -77,7 +77,7 @@ export const DEMO_LEADS: any[] = [
     created_at: daysFromNow(-5),
   },
   {
-    id: "demo-5", is_demo: true, crm_status: "contacted", lead_type: "long",
+    id: "demo-5", is_demo: true, crm_status: "contacted", lead_type: "renter", form_variant: "full",
     first_name: "Marcus", last_name: "Reed", phone: "5125550155", email: "marcus.r@example.com",
     city: "Austin", neighborhoods: "South Austin, Zilker", desired_rent: "$1,500-$1,700",
     property_type: "Apartment", beds: "1", baths: "1", move_date: thisMonth(28),
@@ -89,7 +89,7 @@ export const DEMO_LEADS: any[] = [
 
   // ── Searching (3) ──
   {
-    id: "demo-6", is_demo: true, crm_status: "searching", lead_type: "long",
+    id: "demo-6", is_demo: true, crm_status: "searching", lead_type: "renter", form_variant: "full",
     first_name: "Sarah", last_name: "Kim", phone: "5125550133", email: "sarah.k@example.com",
     city: "Cedar Park", neighborhoods: "Cedar Park", desired_rent: "$1,500-$1,700",
     property_type: "Apartment", beds: "2", baths: "1", move_date: thisMonth(28),
@@ -100,7 +100,7 @@ export const DEMO_LEADS: any[] = [
     created_at: daysFromNow(-8),
   },
   {
-    id: "demo-7", is_demo: true, crm_status: "searching", lead_type: "long",
+    id: "demo-7", is_demo: true, crm_status: "searching", lead_type: "renter", form_variant: "full",
     first_name: "Miguel", last_name: "Torres", phone: "2105550190", email: "miguel.t@example.com",
     city: "San Antonio", neighborhoods: "Stone Oak, La Cantera/The Rim", desired_rent: "$1,600-$1,900",
     property_type: "Apartment", beds: "2", baths: "2", move_date: thisMonth(28),
@@ -110,7 +110,7 @@ export const DEMO_LEADS: any[] = [
     created_at: daysFromNow(-9),
   },
   {
-    id: "demo-8", is_demo: true, crm_status: "searching", lead_type: "long",
+    id: "demo-8", is_demo: true, crm_status: "searching", lead_type: "renter", form_variant: "full",
     first_name: "Sofia", last_name: "Reyes", phone: "2105550122", email: "sofia.r@example.com",
     city: "San Antonio", neighborhoods: "All of San Antonio", desired_rent: "$1,700-$2,000",
     property_type: "Apartment", beds: "3", baths: "2", move_date: thisMonth(28),
@@ -122,7 +122,7 @@ export const DEMO_LEADS: any[] = [
 
   // ── List Sent (5) ──
   {
-    id: "demo-9", is_demo: true, crm_status: "list_sent", lead_type: "long",
+    id: "demo-9", is_demo: true, crm_status: "list_sent", lead_type: "renter", form_variant: "full",
     first_name: "Emily", last_name: "Watson", phone: "5125550166", email: "emily.w@example.com",
     city: "Austin", neighborhoods: "Downtown Austin", desired_rent: "$2,500-$3,000",
     property_type: "High-Rise", beds: "2", baths: "2", move_date: thisMonth(28),
@@ -132,7 +132,7 @@ export const DEMO_LEADS: any[] = [
     created_at: daysFromNow(-11),
   },
   {
-    id: "demo-10", is_demo: true, crm_status: "list_sent", lead_type: "long",
+    id: "demo-10", is_demo: true, crm_status: "list_sent", lead_type: "renter", form_variant: "full",
     first_name: "Kevin", last_name: "O'Brien", phone: "5125550177", email: "kevin.o@example.com",
     city: "Austin", neighborhoods: "Downtown Austin", desired_rent: "$2,000-$2,300",
     property_type: "High-Rise", beds: "1", baths: "1", move_date: thisMonth(28),
@@ -142,7 +142,7 @@ export const DEMO_LEADS: any[] = [
     created_at: daysFromNow(-12),
   },
   {
-    id: "demo-11", is_demo: true, crm_status: "list_sent", lead_type: "long",
+    id: "demo-11", is_demo: true, crm_status: "list_sent", lead_type: "renter", form_variant: "full",
     first_name: "Hannah", last_name: "Lee", phone: "5125550144", email: "hannah.l@example.com",
     city: "Austin", neighborhoods: "North Austin, Domain", desired_rent: "$1,600-$1,800",
     property_type: "Apartment", beds: "1", baths: "1", move_date: thisMonth(28),
@@ -154,7 +154,7 @@ export const DEMO_LEADS: any[] = [
   {
     // Furthest along the follow-up sequence — three follow-ups done, so the
     // next action is the Final Follow-Up (follow_up_count 3 → "Final Follow-Up").
-    id: "demo-24", is_demo: true, crm_status: "list_sent", lead_type: "long",
+    id: "demo-24", is_demo: true, crm_status: "list_sent", lead_type: "renter", form_variant: "full",
     first_name: "Grace", last_name: "Bennett", phone: "5125550231", email: "grace.b@example.com",
     city: "Austin", neighborhoods: "South Austin", desired_rent: "$1,500-$1,700",
     property_type: "Apartment", beds: "1", baths: "1", move_date: thisMonth(28),
@@ -168,7 +168,7 @@ export const DEMO_LEADS: any[] = [
     // archives the lead (Ghosted / No Response), exactly as completeFollowUp does in
     // the live workflow. An exhausted lead exits the active pipeline; it is NOT left
     // active with no Next Action. Renders via the dedicated Archive Reason UI.
-    id: "demo-25", is_demo: true, crm_status: "archived", archive_reason: "ghosted", lead_type: "long",
+    id: "demo-25", is_demo: true, crm_status: "archived", archive_reason: "ghosted", lead_type: "renter", form_variant: "full",
     first_name: "Trevor", last_name: "Nash", phone: "5125550240", email: "trevor.n@example.com",
     city: "Austin", neighborhoods: "East Austin", desired_rent: "$1,400-$1,600",
     property_type: "Apartment", beds: "1", baths: "1", move_date: thisMonth(28),
@@ -180,7 +180,7 @@ export const DEMO_LEADS: any[] = [
 
   // ── Ready to Tour (2) ──
   {
-    id: "demo-12", is_demo: true, crm_status: "ready_to_tour", lead_type: "long",
+    id: "demo-12", is_demo: true, crm_status: "ready_to_tour", lead_type: "renter", form_variant: "full",
     first_name: "Carlos", last_name: "Mendez", phone: "5125550188", email: "carlos.m@example.com",
     city: "Austin", neighborhoods: "East Austin", desired_rent: "$1,600-$1,800",
     // Demo only — three must-haves the SAD test property positively confirms
@@ -194,7 +194,7 @@ export const DEMO_LEADS: any[] = [
     created_at: daysFromNow(-14),
   },
   {
-    id: "demo-13", is_demo: true, crm_status: "ready_to_tour", lead_type: "long",
+    id: "demo-13", is_demo: true, crm_status: "ready_to_tour", lead_type: "renter", form_variant: "full",
     first_name: "Aisha", last_name: "Rahman", phone: "5125550109", email: "aisha.r@example.com",
     city: "Austin", neighborhoods: "East Austin, Mueller", desired_rent: "$1,600-$1,800",
     property_type: "Apartment", beds: "1", baths: "1", move_date: thisMonth(28),
@@ -206,7 +206,7 @@ export const DEMO_LEADS: any[] = [
 
   // ── Done Touring (2) ──
   {
-    id: "demo-14", is_demo: true, crm_status: "done_touring", lead_type: "long",
+    id: "demo-14", is_demo: true, crm_status: "done_touring", lead_type: "renter", form_variant: "full",
     first_name: "Ashley", last_name: "Nguyen", phone: "5125550199", email: "ashley.n@example.com",
     city: "Austin", neighborhoods: "Mueller", desired_rent: "$1,700-$1,900",
     property_type: "Apartment", beds: "1", baths: "1", move_date: thisMonth(28),
@@ -216,7 +216,7 @@ export const DEMO_LEADS: any[] = [
     created_at: daysFromNow(-15),
   },
   {
-    id: "demo-15", is_demo: true, crm_status: "done_touring", lead_type: "long",
+    id: "demo-15", is_demo: true, crm_status: "done_touring", lead_type: "renter", form_variant: "full",
     first_name: "Marcus", last_name: "Hill", phone: "5125550118", email: "marcus.h@example.com",
     city: "Austin", neighborhoods: "South Austin", desired_rent: "$1,500-$1,700",
     property_type: "Apartment", beds: "1", baths: "1", move_date: thisMonth(28),
@@ -228,7 +228,7 @@ export const DEMO_LEADS: any[] = [
 
   // ── Applied (3) ──
   {
-    id: "demo-16", is_demo: true, crm_status: "applied", lead_type: "long",
+    id: "demo-16", is_demo: true, crm_status: "applied", lead_type: "renter", form_variant: "full",
     first_name: "Tyler", last_name: "James", phone: "5125550101", email: "tyler.j@example.com",
     city: "Austin", neighborhoods: "South Congress (SoCo)", desired_rent: "$1,800-$2,000",
     property_type: "Apartment", beds: "2", baths: "2", move_date: thisMonth(28),
@@ -238,7 +238,7 @@ export const DEMO_LEADS: any[] = [
     created_at: daysFromNow(-17),
   },
   {
-    id: "demo-17", is_demo: true, crm_status: "applied", lead_type: "long",
+    id: "demo-17", is_demo: true, crm_status: "applied", lead_type: "renter", form_variant: "full",
     first_name: "Olivia", last_name: "Park", phone: "5125550107", email: "olivia.p@example.com",
     city: "Austin", neighborhoods: "North Austin", desired_rent: "$1,500-$1,700",
     property_type: "Apartment", beds: "1", baths: "1", move_date: thisMonth(28),
@@ -248,7 +248,7 @@ export const DEMO_LEADS: any[] = [
     created_at: daysFromNow(-17),
   },
   {
-    id: "demo-18", is_demo: true, crm_status: "applied", lead_type: "long",
+    id: "demo-18", is_demo: true, crm_status: "applied", lead_type: "renter", form_variant: "full",
     first_name: "Jordan", last_name: "Blake", phone: "5125550104", email: "jordan.b@example.com",
     city: "Austin", neighborhoods: "East Austin", desired_rent: "$1,400-$1,600",
     property_type: "Apartment", beds: "1", baths: "1", move_date: thisMonth(28),
@@ -260,7 +260,7 @@ export const DEMO_LEADS: any[] = [
 
   // ── Closed (3) ──
   {
-    id: "demo-19", is_demo: true, crm_status: "closed", lead_type: "long",
+    id: "demo-19", is_demo: true, crm_status: "closed", lead_type: "renter", form_variant: "full",
     first_name: "Bianca", last_name: "Flores", phone: "5125550102", email: "bianca.f@example.com",
     city: "Austin", neighborhoods: "Downtown Austin", desired_rent: "$1,900-$2,100",
     property_type: "Apartment", beds: "1", baths: "1", move_date: thisMonth(15),
@@ -270,7 +270,7 @@ export const DEMO_LEADS: any[] = [
     created_at: daysFromNow(-23),
   },
   {
-    id: "demo-20", is_demo: true, crm_status: "closed", lead_type: "long",
+    id: "demo-20", is_demo: true, crm_status: "closed", lead_type: "renter", form_variant: "full",
     first_name: "Greg", last_name: "Underwood", phone: "5125550103", email: "greg.u@example.com",
     city: "Pflugerville", neighborhoods: "Pflugerville", desired_rent: "$1,600-$1,800",
     property_type: "Apartment", beds: "2", baths: "2", move_date: thisMonth(10),
@@ -280,7 +280,7 @@ export const DEMO_LEADS: any[] = [
     created_at: daysFromNow(-24),
   },
   {
-    id: "demo-21", is_demo: true, crm_status: "closed", lead_type: "long",
+    id: "demo-21", is_demo: true, crm_status: "closed", lead_type: "renter", form_variant: "full",
     first_name: "Nina", last_name: "Petrova", phone: "5125550106", email: "nina.p@example.com",
     city: "Austin", neighborhoods: "Downtown Austin", desired_rent: "$1,800-$2,000",
     property_type: "Apartment", beds: "1", baths: "1", move_date: thisMonth(18),
@@ -292,7 +292,7 @@ export const DEMO_LEADS: any[] = [
 
   // ── Archived (2) — monthly Closed cleanup wins ──
   {
-    id: "demo-22", is_demo: true, crm_status: "archived", archive_reason: "closed", lead_type: "long",
+    id: "demo-22", is_demo: true, crm_status: "archived", archive_reason: "closed", lead_type: "renter", form_variant: "full",
     first_name: "Andre", last_name: "Wells", phone: "5125550113", email: "andre.w@example.com",
     city: "Austin", neighborhoods: "North Austin", desired_rent: "$1,500-$1,700",
     property_type: "Apartment", beds: "1", baths: "1",
@@ -302,7 +302,7 @@ export const DEMO_LEADS: any[] = [
     created_at: daysFromNow(-24),
   },
   {
-    id: "demo-23", is_demo: true, crm_status: "archived", archive_reason: "closed", lead_type: "long",
+    id: "demo-23", is_demo: true, crm_status: "archived", archive_reason: "closed", lead_type: "renter", form_variant: "full",
     first_name: "Daniel", last_name: "Okafor", phone: "5125550114", email: "daniel.o@example.com",
     city: "Austin", neighborhoods: "South Austin", desired_rent: "$1,600-$1,800",
     property_type: "Apartment", beds: "1", baths: "1",

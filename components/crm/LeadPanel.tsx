@@ -15,6 +15,7 @@ import { advanceBuildListToSearching } from "@/lib/leads/buildListWorkflow"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import LeadSourceBadge from "./LeadSourceBadge"
 import { inferMarketFromLandingPage } from "@/lib/leads/inferMarketFromLandingPage"
+import { shouldInferMarketFromLandingPage } from "@/lib/leads/leadClassification"
 import { ARCHIVE_REASONS } from "@/lib/leads/archiveReasons"
 import { rankLeadActions, isTourScheduled } from "@/lib/nextActions"
 import { getNextFollowUpAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
@@ -590,8 +591,9 @@ export default function LeadPanel({
     completedAtTs || primaryAction.title === "Waiting for Response" ? null : primaryAction
 
   // ─── Short-form market inference (display only) ────────────────────────
+  // Gated on form_variant (the form shape) — lead_type is now the client type.
   const inferredMarket =
-    lead.lead_type === "short" && !lead.city
+    shouldInferMarketFromLandingPage(lead)
       ? inferMarketFromLandingPage(lead.landing_page)
       : null
 

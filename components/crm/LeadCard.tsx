@@ -8,6 +8,7 @@ import { useState, useRef, useLayoutEffect } from "react"
 import { formatPhone } from "@/lib/utils/formatPhone"
 import LeadSourceBadge from "./LeadSourceBadge"
 import { inferMarketFromLandingPage } from "@/lib/leads/inferMarketFromLandingPage"
+import { shouldInferMarketFromLandingPage } from "@/lib/leads/leadClassification"
 import { getArchiveReasonBadgeLabel } from "@/lib/leads/archiveReasons"
 import { formatPersonName } from "@bc/companion-shared"
 
@@ -143,8 +144,9 @@ export default function LeadCard({
   const nextText = `${actionLabel}${followUpStatus === "today" ? " · Today" : followUpStatus === "overdue" ? " · Overdue" : ""}`
 
   // ─── Short-form market inference (display only) ─────────────────────────
+  // Gated on form_variant (the form shape) — lead_type is now the client type.
   const inferredMarket =
-    lead.lead_type === "short" && !lead.city ? inferMarketFromLandingPage(lead.landing_page) : null
+    shouldInferMarketFromLandingPage(lead) ? inferMarketFromLandingPage(lead.landing_page) : null
 
   // ─── Archive reason badge (archived leads only) ────────────────────────
   const archiveBadgeLabel =

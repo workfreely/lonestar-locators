@@ -40,6 +40,7 @@ import { getStageWorkflowAction, createWorkflowActionIfNeeded } from "@/lib/work
 import { resolveUserTimeZone } from "@/lib/timezone/server"
 import { sendNotification, newLeadEmail, leadConfirmationEmail, absoluteUrl } from "@/lib/notifications"
 import { resolveAgentIdentityForOwner } from "@/lib/notifications/agentSignature"
+import { resolveLeadClassification } from "@/lib/leads/leadClassification"
 
 // Server-only client — SUPABASE_SERVICE_ROLE_KEY has no NEXT_PUBLIC_
 // prefix, so it is never bundled into browser JS.
@@ -163,7 +164,16 @@ function validateAndBuildPayload(
     errors.push({ field: "email", message: "email is not valid" })
   }
 
-  payload.lead_type = formType
+  // Two independent dimensions, kept separate (see lib/leads/leadClassification):
+  //   lead_type    = CLIENT TYPE  ('renter' | 'buyer' | 'seller')
+  //   form_variant = FORM SHAPE   ('short' | 'full')
+  // The form shape used to be written into lead_type (formType), conflating the
+  // two so renter leads were stored as "full"/"short". Now formType feeds
+  // form_variant, and lead_type is normalized to a canonical client type
+  // (renter-only intake today) so it can never violate leads_lead_type_check.
+  const classification = resolveLeadClassification(formType, payload.lead_type as string | undefined)
+  payload.lead_type = classification.lead_type
+  payload.form_variant = classification.form_variant
   payload.lead_category = "renter"
 
   return errors.length > 0 ? { errors } : { payload }

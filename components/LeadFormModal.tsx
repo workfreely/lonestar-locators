@@ -75,7 +75,7 @@ export default function LeadFormModal({
     source: "",
     crm_status: "new",
     priority: "warm",
-    lead_type: "full",
+    lead_type: "renter",
   })
 
   // Broadcast open state so global surfaces (Ask Beast AI) can step aside while the
@@ -276,7 +276,7 @@ export default function LeadFormModal({
       source: "",
       crm_status: "new",
       priority: "warm",
-      lead_type: "full",
+      lead_type: "renter",
     })
   }
 
