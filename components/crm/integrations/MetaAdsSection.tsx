@@ -37,7 +37,7 @@ const ERROR_COPY: Record<string, string> = {
 
 const CONNECT_URL = "/api/integrations/meta/connect"
 const NAME = "Instagram & Facebook Ads"
-const DESC = "Connect Instagram or Facebook ads to track spend, leads and sales from your Smart Lead Form."
+const DESC = "Connect Instagram or Facebook ads to track leads and sales."
 const last4 = (id: string | null | undefined) => (id ? id.replace(/\D/g, "").slice(-4) : "")
 
 export default function MetaAdsSection() {
@@ -146,7 +146,8 @@ export default function MetaAdsSection() {
     ) : (
       <div className="flex flex-none items-center gap-3">
         <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-[#15803d]"><span className="h-1.5 w-1.5 rounded-full bg-[#16a34a]" />Connected</span>
-        <button type="button" onClick={() => setManageOpen((o) => !o)} className="rounded-lg border border-[#e5e7ee] bg-white px-4 py-2 text-[13px] font-semibold text-[#111318] hover:bg-[#f4f5f8]">Manage</button>
+        {/* Match the Google Reconnect button exactly (width/height/padding/transition). */}
+        <button type="button" onClick={() => setManageOpen((o) => !o)} className="rounded-lg border border-[#e5e7ee] bg-white px-4 py-2 text-[13px] font-semibold text-[#111318] transition-colors hover:bg-[#f4f5f8]">Manage</button>
       </div>
     )
     if (manageOpen && !needsReconnect) {
@@ -188,24 +189,33 @@ export default function MetaAdsSection() {
       ? `${conn.instagramUsername ? `@${conn.instagramUsername}` : conn.pageName || "Meta account"}${conn.adAccountMasked ? ` · Ad account ${conn.adAccountMasked}` : ""}`
       : null
   const tutorialUrl = data?.tutorialUrl ?? null
+  const tutorialText = "New to Meta ads? Watch the setup tutorial →"
 
   return (
     <div className="py-4 first:pt-0 last:pb-0">
+      {/* Header row — IDENTICAL structure to the Google rows (items-center over name + one-line
+          helper), so the Connected pill + action button line up exactly with Google's. */}
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
           <p className="text-[14px] font-semibold text-[#111318]">{NAME}</p>
           <p className="text-[12.5px] text-[#6b7280]">{DESC}</p>
-          {connectedInfo && <p className="mt-1 text-[12px] text-[#6b7280]">{connectedInfo}</p>}
-          {/* Subtle setup tutorial — available to any beta agent (trial or paid), never paywalled.
-              Rendered only when a URL is configured (META_ADS_TUTORIAL_URL) so we never ship a dead link. */}
-          {betaAllowed && tutorialUrl && (
-            <a href={tutorialUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-[12px] font-medium text-[#2f6bff] hover:underline">
-              New to Meta ads? Watch the setup tutorial →
-            </a>
-          )}
         </div>
         <div className="flex-none">{action}</div>
       </div>
+      {/* Secondary line — tutorial (left) + connected account detail (right, beneath the action). */}
+      {betaAllowed && (connectedInfo || tutorialUrl !== undefined) && (
+        <div className="mt-1.5 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            {tutorialUrl ? (
+              <a href={tutorialUrl} target="_blank" rel="noopener noreferrer" className="text-[12px] font-medium text-[#2f6bff] hover:underline">{tutorialText}</a>
+            ) : (
+              // No URL wired yet — visible placeholder, non-navigating (never a broken external link).
+              <span className="cursor-default text-[12px] font-medium text-[#9aa3b2]" title="Setup tutorial coming soon">{tutorialText}</span>
+            )}
+          </div>
+          {connectedInfo && <p className="flex-none text-right text-[12px] text-[#6b7280]">{connectedInfo}</p>}
+        </div>
+      )}
       {banner && <p className={"mt-2 text-[12.5px] " + (banner.kind === "error" ? "text-[#b91c1c]" : "text-[#15803d]")}>{banner.text}</p>}
       {panel && <div className="mt-3">{panel}</div>}
     </div>
