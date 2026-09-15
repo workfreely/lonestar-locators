@@ -116,6 +116,10 @@ export type SmartLeadFormConfig = {
     criminalBackground: boolean // + charge type / age follow-ups
     notes: boolean
   }
+  // Optional agent intro video (a YouTube URL) shown on the post-submission
+  // thank-you page. Empty string = no video, and the page shows the enhanced
+  // agent card instead — it always looks complete either way.
+  thankYouVideoUrl: string
 }
 
 export type TestimonialItem = {

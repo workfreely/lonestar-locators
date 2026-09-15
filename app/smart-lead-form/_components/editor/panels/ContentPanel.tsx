@@ -144,6 +144,21 @@ export default function ContentPanel({
         </p>
       </div>
 
+      {/* ── Thank You Page (optional intro video) ───────────────────────────── */}
+      <div className="pt-3">
+        <div className="py-2.5">
+          <p className="text-[13px] font-semibold text-[#111318]">Thank You Page Video</p>
+        </div>
+        <p className="pb-1 text-[11.5px] leading-relaxed text-[#9098a8]">
+          Add an optional video to introduce yourself and explain what happens next.
+        </p>
+        <TextField
+          label="YouTube video URL"
+          value={config.thankYouVideoUrl}
+          onChange={(v) => onChange((prev) => ({ ...prev, thankYouVideoUrl: v }))}
+        />
+      </div>
+
       {/* ── Testimonials (optional) ─────────────────────────────────────────── */}
       <div className="pt-3">
         <ToggleRow strong label="Testimonials" checked={visibility.testimonials} onChange={(v) => updateVisibility({ testimonials: v })} />

@@ -89,4 +89,5 @@ export const DEFAULT_CONFIG: SmartLeadFormConfig = {
     criminalBackground: true,
     notes: true,
   },
+  thankYouVideoUrl: "",
 }
