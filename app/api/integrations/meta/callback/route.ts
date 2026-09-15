@@ -7,6 +7,7 @@ import { isMetaAdsBetaAllowed } from "@/lib/meta/beta"
 import { isValidMetaState, META_PHASE1_SCOPES } from "@/lib/meta/config"
 import { exchangeCodeForToken, exchangeForLongLivedToken, metaExpiryFromExpiresIn, MetaError } from "@/lib/meta/client"
 import { discoverAssets, autoMatch, publicAssets } from "@/lib/meta/assets"
+import { syncWorkspaceInsights } from "@/lib/meta/sync"
 
 // GET → Meta OAuth callback. Validates CSRF state, exchanges the code for a long-lived user token,
 // discovers assets, and either auto-connects (one obvious setup) or stores a PENDING connection with
@@ -48,7 +49,7 @@ export async function GET(request: Request) {
     const scopes = [...META_PHASE1_SCOPES]
     if (match.status === "auto") {
       const { business, page, adAccount } = match.chosen
-      const { error } = await guard.supabase.rpc("meta_connect", {
+      const { data, error } = await guard.supabase.rpc("meta_connect", {
         p_workspace_id: guard.workspaceId,
         p_owner_scope: "locator",
         p_status: "connected",
@@ -67,6 +68,10 @@ export async function GET(request: Request) {
         p_discovered: null,
       })
       if (error) return back("meta_error=save")
+      // Best-effort backfill of ad performance so Sales Analytics has data on first view. Never blocks
+      // the connect redirect (a sync failure just leaves an empty cache until the next daily sync).
+      const connId = Array.isArray(data) ? (data[0] as { id?: string } | undefined)?.id ?? null : null
+      if (adAccount?.id) { try { await syncWorkspaceInsights(guard.workspaceId, connId, adAccount.id) } catch { /* ignore */ } }
       return back("meta=connected")
     }
 

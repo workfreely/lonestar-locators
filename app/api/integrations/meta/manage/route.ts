@@ -3,6 +3,7 @@ export const runtime = "nodejs"
 import { NextResponse } from "next/server"
 import { requireWorkspaceMember } from "@/lib/auth/requireWorkspaceMember"
 import { isMetaAdsBetaAllowed } from "@/lib/meta/beta"
+import { buildAdDestinationUrl } from "@/lib/meta/adLink"
 
 // GET → the current workspace's Meta connection (friendly, NON-SECRET fields only) + ambiguity
 // options while pending. Never returns tokens or Vault ids. Used by the Integrations card + Manage UI.
@@ -20,11 +21,19 @@ export async function GET() {
     .eq("provider", "meta")
     .maybeSingle()
 
-  if (!data) return NextResponse.json({ betaAllowed: allowed, connection: null })
+  // The workspace's public Smart Form slug → the ad-destination URL the locator pastes into their ad.
+  const { data: ws } = await guard.supabase.from("workspaces").select("slug").eq("id", guard.workspaceId).maybeSingle()
+  const slug = ws?.slug ?? null
+  const adLink = slug ? buildAdDestinationUrl(slug, "instagram") : null
+  const adLinkFacebook = slug ? buildAdDestinationUrl(slug, "facebook") : null
+
+  if (!data) return NextResponse.json({ betaAllowed: allowed, connection: null, adLink, adLinkFacebook })
 
   const maskedAdAccount = data.ad_account_id ? `••••${String(data.ad_account_id).replace(/\D/g, "").slice(-4)}` : null
   return NextResponse.json({
     betaAllowed: allowed,
+    adLink,
+    adLinkFacebook,
     connection: {
       status: data.connection_status,
       instagramUsername: data.instagram_username,

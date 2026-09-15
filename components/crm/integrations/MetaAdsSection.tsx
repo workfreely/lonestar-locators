@@ -20,7 +20,7 @@ type Connection = {
   tokenExpiresAt: string | null
   options: Options | null
 }
-type Manage = { betaAllowed: boolean; connection: Connection | null }
+type Manage = { betaAllowed: boolean; connection: Connection | null; adLink?: string | null; adLinkFacebook?: string | null }
 
 const ERROR_COPY: Record<string, string> = {
   beta: "Instagram & Facebook Ads is in limited beta right now.",
@@ -37,7 +37,7 @@ const ERROR_COPY: Record<string, string> = {
 
 const CONNECT_URL = "/api/integrations/meta/connect"
 const NAME = "Instagram & Facebook Ads"
-const DESC = "Connect your Instagram & Facebook ads so new leads can flow into your CRM and you can see which campaigns actually close."
+const DESC = "Connect your Instagram or Facebook ads to bring new leads into your CRM and analytics."
 const last4 = (id: string | null | undefined) => (id ? id.replace(/\D/g, "").slice(-4) : "")
 
 export default function MetaAdsSection() {
@@ -80,6 +80,16 @@ export default function MetaAdsSection() {
     try { await fetch("/api/integrations/meta/disconnect", { method: "POST" }); setManageOpen(false); await load() }
     finally { setBusy(false) }
   }
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
+  const refresh = async () => {
+    setBusy(true); setSyncMsg("Refreshing…")
+    try {
+      const res = await fetch("/api/integrations/meta/sync", { method: "POST" })
+      setSyncMsg(res.ok ? "Performance updated." : "Couldn’t refresh — try again shortly.")
+    } catch { setSyncMsg("Couldn’t refresh — try again shortly.") }
+    finally { setBusy(false) }
+  }
+  const copy = (v: string) => { try { void navigator.clipboard.writeText(v) } catch { /* ignore */ } }
 
   const conn = data?.connection ?? null
   const betaAllowed = data?.betaAllowed ?? false
@@ -152,10 +162,22 @@ export default function MetaAdsSection() {
             <Field label="Status" value={conn.status === "connected" ? "Connected" : conn.status} />
             {conn.businessName ? <Field label="Business" value={conn.businessName} /> : null}
           </dl>
+          {data?.adLink && (
+            <div className="mt-3 rounded-lg border border-[#e5e7ee] bg-white p-3">
+              <p className="text-[12px] font-semibold text-[#111318]">Your ad link</p>
+              <p className="text-[11.5px] text-[#6b7280]">Paste this as your Instagram/Facebook ad’s website URL. New leads will be tagged to the exact campaign & ad automatically.</p>
+              <div className="mt-2 flex items-center gap-2">
+                <input readOnly value={data.adLink} className="min-w-0 flex-1 truncate rounded-md border border-[#e5e7ee] bg-[#fafbfc] px-2 py-1.5 text-[11.5px] text-[#6b7280]" />
+                <button type="button" onClick={() => copy(data.adLink!)} className="flex-none rounded-lg border border-[#e5e7ee] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#111318] hover:bg-[#f4f5f8]">Copy</button>
+              </div>
+            </div>
+          )}
           <div className="mt-3 flex items-center gap-2">
+            <button type="button" disabled={busy} onClick={() => void refresh()} className="rounded-lg border border-[#e5e7ee] bg-white px-4 py-2 text-[13px] font-semibold text-[#111318] hover:bg-[#f4f5f8]">Refresh performance</button>
             <a href={CONNECT_URL} className="rounded-lg border border-[#e5e7ee] bg-white px-4 py-2 text-[13px] font-semibold text-[#111318] hover:bg-[#f4f5f8]">Reconnect</a>
             <button type="button" disabled={busy} onClick={() => void disconnect()} className="rounded-lg border border-[#fecaca] bg-white px-4 py-2 text-[13px] font-semibold text-[#b91c1c] hover:bg-[#fef2f2]">Disconnect</button>
           </div>
+          {syncMsg && <p className="mt-2 text-[12px] text-[#6b7280]">{syncMsg}</p>}
         </div>
       )
     }

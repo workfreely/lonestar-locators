@@ -4,6 +4,7 @@ import { useMemo, useState } from "react"
 import DatePicker from "react-datepicker"
 import "react-datepicker/dist/react-datepicker.css"
 import type { SmartLeadFormConfig } from "../../../_lib/types"
+import { collectLeadAttribution } from "@/lib/leads/attribution"
 import { MARKETS, getMarketByName, marketsForSlugs } from "@/lib/markets/catalog"
 import SelectableGrid, { bulkButtonClass } from "./SelectableGrid"
 import { MUST_HAVE_AMENITIES, MAX_MUST_HAVE_AMENITIES } from "@bc/companion-shared"
@@ -296,6 +297,13 @@ export default function LeadFormFields({
     // Public page — post a real, attributed lead. The username is resolved
     // server-side to the owning workspace/agent (never trusted from the body).
     setSubmitting(true)
+    // Ad/link attribution from the landing URL (utm_*, fbclid, Meta campaign/ad ids + name snapshots,
+    // landing_page, referrer). Single-step form, so the query string is still on window at submit —
+    // no client persistence needed. Un-substituted Meta placeholders are dropped (never fabricated).
+    const attribution =
+      typeof window !== "undefined"
+        ? collectLeadAttribution(new URLSearchParams(window.location.search), window.location.href, document.referrer || undefined)
+        : {}
     try {
       const res = await fetch("/api/leads/submit", {
         method: "POST",
@@ -338,6 +346,10 @@ export default function LeadFormFields({
             // the same new-lead notification + Workflow Engine "Contact Lead".
             lead_type: "renter",
             lead_category: "renter",
+            // Landing-URL attribution LAST so a captured platform `source` (e.g. instagram) + utm_* +
+            // Meta campaign/ad ids override the defaults above. All fields are in the submit
+            // allowlist; absent values are omitted.
+            ...attribution,
           },
         }),
       })
