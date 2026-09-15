@@ -540,8 +540,8 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
             private. Optional: blank falls back to existing behavior. */}
         <div className="mt-4">
           <SettingsField
-            label="Client Contact Email"
-            hint="Shown to leads in your emails and client-facing pages."
+            label="Client Contact Email (Optional)"
+            hint="Only use this if you want clients to contact you at a different email than your account email."
           >
             <input
               inputMode="email"

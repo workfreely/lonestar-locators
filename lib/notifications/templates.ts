@@ -340,6 +340,9 @@ export function leadConfirmationEmail({ locatorName, signature, lead }: LeadConf
     html: renderEmail({
       ...cityBanner(lead.city), // city skyline follows the LEAD's market
       hideWordmark: true, // thin skyline band only — no wordmark band
+      // Client-facing: the renter should see their AGENT's contact info, not a
+      // platform support address, so the support footer line is suppressed here.
+      hideSupport: true,
       preheader: `We've received your ${city} apartment search and are finding your best options.`,
       heading,
       contentHtml,

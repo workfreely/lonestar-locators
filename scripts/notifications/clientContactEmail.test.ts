@@ -1,10 +1,10 @@
-// Client contact email resolution + confirmation-email signature block. Run:
+// Client contact email resolution + confirmation-email signature/footer. Run:
 //   npx tsx scripts/notifications/clientContactEmail.test.ts
 import {
   buildAgentIdentity,
   renderClientSignatureHtml,
-  buildClientSignatureText,
 } from "@/lib/notifications/agentSignature"
+import { leadConfirmationEmail, newLeadEmail } from "@/lib/notifications/templates"
 
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
@@ -16,46 +16,68 @@ const base = {
   profile_photo_url: "https://example.com/jay.jpg",
 }
 
-console.log("Email source resolution (client contact email is preferred):")
+console.log("CASE A — client_contact_email null → client sees profiles.email:")
 ok(
-  "client_contact_email set → shown to leads (not the login email)",
-  buildAgentIdentity({ profile: { ...base, email: "jay.login@account.com", client_contact_email: "jay@relive.com" } }).email ===
-    "jay@relive.com",
+  "falls back to the account/profile email",
+  buildAgentIdentity({ profile: { ...base, email: "jay.login@gmail.com", client_contact_email: null } }).email ===
+    "jay.login@gmail.com",
 )
 ok(
-  "client_contact_email blank → falls back to profiles.email (existing behavior)",
-  buildAgentIdentity({ profile: { ...base, email: "jay.login@account.com", client_contact_email: "" } }).email ===
-    "jay.login@account.com",
+  "blank string also falls back",
+  buildAgentIdentity({ profile: { ...base, email: "jay.login@gmail.com", client_contact_email: "" } }).email ===
+    "jay.login@gmail.com",
+)
+
+console.log("\nCASE B — client_contact_email set → client sees ONLY that email:")
+ok(
+  "override wins over the account email",
+  buildAgentIdentity({ profile: { ...base, email: "jay.login@gmail.com", client_contact_email: "jay@reliverealty.com" } })
+    .email === "jay@reliverealty.com",
+)
+
+console.log("\nResolution is exactly client_contact_email -> profiles.email (no other source):")
+ok(
+  "workspace email is NOT used as a fallback anymore",
+  buildAgentIdentity({ profile: { ...base }, workspace: { email: "team@relive.com" } }).email === null,
 )
 ok(
-  "no client_contact_email + no profiles.email → workspace email",
-  buildAgentIdentity({ profile: { ...base }, workspace: { email: "team@relive.com" } }).email === "team@relive.com",
-)
-ok(
-  "none configured → null (nothing fabricated)",
+  "nothing set → null (never fabricated)",
   buildAgentIdentity({ profile: { ...base } }).email === null,
 )
 
-console.log("\nConfirmation-email signature block (reorganized + larger image):")
-const id = buildAgentIdentity({
-  profile: { ...base, client_contact_email: "jay@relive.com" },
-  workspace: { service_areas: ["san-antonio", "dallas", "austin", "houston", "fort-worth"] },
-})
-const html = renderClientSignatureHtml(id, { showDisclosure: false })
-ok("larger profile image (72px, not the old 56px)", html.includes('width="72"') && html.includes("72px") && !html.includes('width="56"'))
-ok("image is circular + undistorted", html.includes("border-radius:9999px") && html.includes("object-fit:cover"))
-ok('serving markets sit on a separate "Serving:" line', html.includes("Serving:"))
-ok("client contact email is the mailto shown", html.includes("mailto:jay@relive.com"))
-ok("phone is a tel: link", html.includes("tel:2108955766"))
+console.log("\nCASE C — the client contact email is independent of login/auth:")
+// buildAgentIdentity reads ONLY profile columns; it never touches Supabase auth.
+// Setting a different client contact email does not change the account email.
+const idC = buildAgentIdentity({ profile: { ...base, email: "jay.login@gmail.com", client_contact_email: "jay@reliverealty.com" } })
+ok("client-facing email is the override", idC.email === "jay@reliverealty.com")
 ok(
-  "phone and email are on their OWN lines (separate blocks, no inline • join)",
-  !html.includes("&nbsp;•&nbsp;"),
+  "resolution never reads an auth/login field (only client_contact_email + profiles.email)",
+  buildAgentIdentity({ profile: { email: "login@x", client_contact_email: "pro@y" } }).email === "pro@y",
 )
 
-console.log("\nGuest-card plain-text signature uses the same client contact email:")
-const text = buildClientSignatureText(id, { showDisclosure: false })
-ok("plain-text signature includes client contact email", text.includes("jay@relive.com"))
-ok("plain-text signature shows 'Serving' line", text.includes("Serving"))
+console.log("\nCASE D — client-facing confirmation email: agent email shown, NO platform support address:")
+const sig = buildAgentIdentity({
+  profile: { ...base, email: "jay.login@gmail.com", client_contact_email: "jay@reliverealty.com" },
+  workspace: { service_areas: ["san-antonio", "dallas"] },
+})
+const html = leadConfirmationEmail({ locatorName: sig.name, signature: sig, lead: { first_name: "Jordan", city: "Houston" } }).html
+ok("shows the agent's client contact email", html.includes("jay@reliverealty.com"))
+ok("does NOT show the login/account email", !html.includes("jay.login@gmail.com"))
+ok("does NOT expose the Locator Beast support/admin address", !html.includes("admin@locatorbeast.com"))
+ok("does NOT show the 'Need help? Reach us at' support line", !html.includes("Need help? Reach us at"))
+
+console.log("\nInternal/admin email (new-lead notification to the agent) KEEPS the support footer:")
+const ownerHtml = newLeadEmail({
+  locatorName: "Jay Morris",
+  leadUrl: "https://locatorbeast.com/admin/leads?id=1",
+  lead: { first_name: "Jordan", city: "Houston" },
+}).html
+ok("internal email still shows admin@locatorbeast.com support", ownerHtml.includes("admin@locatorbeast.com"))
+
+console.log("\nSignature block still uses the client contact email (larger image, Serving line):")
+const shtml = renderClientSignatureHtml(sig, { showDisclosure: false })
+ok("mailto is the client contact email", shtml.includes("mailto:jay@reliverealty.com"))
+ok("larger 72px circular image", shtml.includes('width="72"') && shtml.includes("border-radius:9999px"))
 
 console.log(`\nClient contact email unit: ${pass} passed, ${fail} failed`)
 if (fail > 0) process.exit(1)

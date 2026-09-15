@@ -128,10 +128,12 @@ export function buildAgentIdentity(input: RawIdentityInput): ResolvedAgentIdenti
       clean(p.brokerage) ?? clean(p.business_name) ?? clean(w.name) ?? clean(cfg.copy?.brokerageName),
     serviceAreas: areaLabelFromSlugs ?? clean(cfg.copy?.serviceAreas),
     phone: clean(p.phone_number) ?? clean(w.phone) ?? clean(cfg.copy?.phoneNumber),
-    // Prefer the dedicated client-facing address; fall back to the existing
-    // behavior only when it is unset, so an agent's account/login email is never
-    // shown to a lead once they have configured a client contact email.
-    email: clean(p.client_contact_email) ?? clean(p.email) ?? clean(w.email),
+    // One email for most agents: the account/profile email is the client-facing
+    // email by default. The optional Client Contact Email is an override only, so
+    // resolution is simply client_contact_email -> profiles.email. (The account
+    // email is profiles.email; changing the client contact email never touches
+    // authentication, which lives in Supabase auth, not this column.)
+    email: clean(p.client_contact_email) ?? clean(p.email),
     website: withProtocol(w.website) ?? withProtocol(cfg.footer?.brokerageWebsiteUrl),
     // Single source of truth — the agent photo is ALWAYS the live profile photo.
     // No Smart-Form-config fallback (that separate field is not maintained).

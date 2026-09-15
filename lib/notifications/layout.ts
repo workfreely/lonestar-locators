@@ -113,9 +113,16 @@ export type EmailLayoutInput = {
    * lead-facing emails; other notifications keep the wordmark header.
    */
   hideWordmark?: boolean
+  /**
+   * Hide the "Need help? Reach us at admin@locatorbeast.com" support line in the
+   * footer. Used by CLIENT-FACING emails (renter confirmation/update), where the
+   * lead should primarily see their agent's contact info, not a platform support
+   * address. Internal/admin emails leave it on. The brand copyright line stays.
+   */
+  hideSupport?: boolean
 }
 
-export function renderEmail({ preheader, heading, contentHtml, cta, footerNote, bannerImageUrl, bannerAlt, hideWordmark }: EmailLayoutInput): string {
+export function renderEmail({ preheader, heading, contentHtml, cta, footerNote, bannerImageUrl, bannerAlt, hideWordmark, hideSupport }: EmailLayoutInput): string {
   const year = "2026"
 
   // Thin skyline band: fixed ~60px, full-width, object-fit cover, empty alt +
@@ -199,12 +206,14 @@ ${
                 ? `<p style="margin:0 0 12px 0;font-size:12px;line-height:1.6;color:${BRAND.inkSoft};">${footerNote}</p>`
                 : ""
             }
-            <p style="margin:0 0 6px 0;font-size:12px;line-height:1.6;color:${BRAND.inkSoft};">
+            ${
+              hideSupport
+                ? ""
+                : `<p style="margin:0 0 6px 0;font-size:12px;line-height:1.6;color:${BRAND.inkSoft};">
               Need help? Reach us at
-              <a href="mailto:${BRAND.supportEmail}" style="color:${BRAND.blue};text-decoration:none;">${
-    BRAND.supportEmail
-  }</a>.
-            </p>
+              <a href="mailto:${BRAND.supportEmail}" style="color:${BRAND.blue};text-decoration:none;">${BRAND.supportEmail}</a>.
+            </p>`
+            }
             <p style="margin:0;font-size:12px;line-height:1.6;color:#9098a8;">
               &copy; ${year} ${esc(BRAND.name)} &middot;
               <a href="${BRAND.siteUrl}" style="color:#9098a8;text-decoration:underline;">locatorbeast.com</a>
