@@ -12,12 +12,8 @@ type Updater = (updater: (prev: SmartLeadFormConfig) => SmartLeadFormConfig) => 
 // is optional; a blank field uses the default (shown as placeholder), so the
 // thank-you page always looks complete.
 //
-// Visual hierarchy mirrors the Content tab exactly:
-//   • section title    → text-[13px] font-semibold text-[#111318]   (e.g. "Smart Lead Form")
-//   • sub-group title  → text-[12px] font-semibold text-[#4b5162]   (e.g. "Testimonial 1")
-//   • field label      → provided by TextField (text-[12px] font-semibold text-[#6b7280])
-//   • helper copy      → text-[11.5px] leading-relaxed text-[#9098a8]
-//   • section spacing  → each group wrapped in pt-3
+// Visual hierarchy mirrors the Content tab (section title #111318 / sub-group
+// #4b5162 / TextField label / #9098a8 helper; pt-3 section rhythm).
 export default function ThankYouPanel({
   config,
   onChange,
@@ -34,20 +30,16 @@ export default function ThankYouPanel({
 
   return (
     <div className="pt-3">
-      {/* Framing — removes any ambiguity about where these appear. */}
+      {/* Framing */}
       <p className={sectionTitle}>Thank You Page</p>
       <p className="text-[11.5px] leading-relaxed text-[#9098a8]">
-        Customize what clients see after they submit your Smart Lead Form. These settings do not change the form itself.
-        Every field is optional — leave one blank to use the default.
+        Customize what clients see after they submit your Smart Lead Form.
       </p>
 
       {/* ── Intro ─────────────────────────────────────────────────────────── */}
       <div className="pt-3">
         <p className={sectionTitle}>Intro</p>
-        <p className={helper}>
-          The headline stays “Thanks, {"{firstName}"}!”. Edit the supporting line below — use {"{firstName}"} and{" "}
-          {"{city}"} to personalize it.
-        </p>
+        <p className={helper}>Use {"{firstName}"} and {"{city}"} to personalize it.</p>
         <TextField
           label="Supporting message"
           value={config.thankYouIntro}
@@ -60,7 +52,7 @@ export default function ThankYouPanel({
       {/* ── Steps ─────────────────────────────────────────────────────────── */}
       <div className="pt-3">
         <p className={sectionTitle}>Steps</p>
-        <p className={helper}>Step 1 (“{THANKYOU_DEFAULTS.step1Title}”) is shown as completed and isn’t editable.</p>
+        <p className={helper}>Step 1 is shown as completed and can’t be edited.</p>
 
         <p className={`pt-2 ${groupTitle}`}>Step 2</p>
         <TextField label="Title" value={config.thankYouStep2Title} onChange={(v) => set({ thankYouStep2Title: v })} placeholder={THANKYOU_DEFAULTS.step2Title} />
@@ -71,19 +63,18 @@ export default function ThankYouPanel({
         <TextField label="Description" value={config.thankYouStep3Body} onChange={(v) => set({ thankYouStep3Body: v })} placeholder={THANKYOU_DEFAULTS.step3Body} multiline />
 
         <p className={`pt-3 ${groupTitle}`}>Step 4 — Applying</p>
-        <p className={helper}>The default description automatically lists your name and brokerage. Add your own instructions to override it.</p>
+        <p className={helper}>Uses your name and brokerage by default.</p>
         <TextField label="Title" value={config.thankYouStep4Title} onChange={(v) => set({ thankYouStep4Title: v })} placeholder={THANKYOU_DEFAULTS.step4Title} />
         <TextField label="Application instructions" value={config.thankYouApplyInstructions} onChange={(v) => set({ thankYouApplyInstructions: v })} placeholder="Uses your name + brokerage by default" multiline />
       </div>
 
-      {/* ── Reward step (optional) — the ToggleRow is the section header, mirroring
-          how Testimonials / FAQs head their sections in the Content tab. ────── */}
+      {/* ── Reward step (optional) — ToggleRow heads the section, like Content. */}
       <div className="pt-3">
         <ToggleRow strong label="Reward step" checked={rewardOn} onChange={(v) => set({ thankYouShowReward: v ? "on" : "off" })} />
+        <p className={helper}>Use this for rebates, free movers, or other client rewards.</p>
         {rewardOn && (
           <>
             <TextField label="Reward title" value={config.thankYouRewardTitle} onChange={(v) => set({ thankYouRewardTitle: v })} placeholder={THANKYOU_DEFAULTS.rewardTitle} />
-            <p className={`pt-1 ${helper}`}>Describe the reward (rebate, gift, free movers, etc.). This is the only reward data.</p>
             <TextField label="Reward description" value={config.thankYouIncentive} onChange={(v) => set({ thankYouIncentive: v })} placeholder={THANKYOU_DEFAULTS.rewardBody} multiline />
           </>
         )}
@@ -91,12 +82,15 @@ export default function ThankYouPanel({
 
       {/* ── Video (optional) ──────────────────────────────────────────────── */}
       <div className="pt-3">
-        <p className={sectionTitle}>Video</p>
-        <p className={helper}>
-          Add a YouTube video to introduce yourself and explain what happens next. It appears on your thank-you page after a
-          client submits the form, never on the form itself.
+        <p className={`flex items-center gap-1.5 ${sectionTitle}`}>
+          <svg width="17" height="17" viewBox="0 0 24 24" className="flex-none" aria-hidden>
+            <rect x="2" y="5" width="20" height="14" rx="4" fill="#FF0000" />
+            <path d="M10 8.5l6 3.5-6 3.5v-7z" fill="#ffffff" />
+          </svg>
+          Thank You Page Video
         </p>
-        <TextField label="Thank You Page Video (Optional)" value={config.thankYouVideoUrl} onChange={(v) => set({ thankYouVideoUrl: v })} placeholder="https://youtu.be/…" />
+        <p className={helper}>Add an optional YouTube video for your clients.</p>
+        <TextField label="YouTube URL" value={config.thankYouVideoUrl} onChange={(v) => set({ thankYouVideoUrl: v })} placeholder="https://youtu.be/…" />
       </div>
     </div>
   )
