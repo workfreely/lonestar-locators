@@ -139,6 +139,12 @@ export default async function SmartLeadFormThankYouPage({
     </>
   )
 
+  const ClosingLine = () => (
+    <p className="mt-7 text-[15.5px] leading-relaxed text-[#4b5162]">
+      Keep an eye on your texts and email for your personalized options.
+    </p>
+  )
+
   // Portrait (9:16) intro video — a Shorts-style frame, capped so it never
   // dominates the page; right column on desktop, centered on mobile.
   const Video = () => (
@@ -176,20 +182,20 @@ export default async function SmartLeadFormThankYouPage({
             <aside className="mb-7 w-full md:mb-0 md:w-[300px] md:flex-none">
               <Video />
             </aside>
+            {/* Closing line lives INSIDE the steps column so it follows Step 4
+                directly — it never waits for the taller video column, so there is
+                no empty gap under the steps when there is no reward step. */}
             <section className="w-full md:flex-1">
               <StepList />
+              <ClosingLine />
             </section>
           </div>
         ) : (
           <section className="mt-6 max-w-2xl md:mt-8">
             <StepList />
+            <ClosingLine />
           </section>
         )}
-
-        {/* ── Closing line ──────────────────────────────────────────────── */}
-        <p className="mt-7 max-w-2xl text-[15.5px] leading-relaxed text-[#4b5162]">
-          Keep an eye on your texts and email for your personalized options.
-        </p>
 
         {/* ── Agent signature (bottom) — compact, horizontally efficient ── */}
         <div className="mt-6 border-t border-[#eef0f5] pt-5">
