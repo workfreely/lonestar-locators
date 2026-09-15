@@ -2,7 +2,7 @@ import { notFound } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { mergeSmartFormConfig } from "@/app/smart-lead-form/_lib/mergeConfig"
 import { youtubeEmbedUrl } from "@/lib/smartForm/thankYouVideo"
-import { buildThankYouSteps } from "@/lib/smartForm/thankYouSteps"
+import { buildThankYouSteps, buildThankYouIntro } from "@/lib/smartForm/thankYouSteps"
 import { serviceAreasLabel } from "@/lib/markets/catalog"
 
 export const dynamic = "force-dynamic"
@@ -65,14 +65,19 @@ export default async function SmartLeadFormThankYouPage({
   // so it stays consistent and agent-controlled.
   const title = (config.copy.agentTitle ?? "").trim() || "Apartment Locator"
 
-  const intro = where
-    ? `You're one step closer to finding the perfect home in ${where}. We're already working on your best list of options and will be in touch soon.`
-    : `You're one step closer to finding the perfect home. We're already working on your best list of options and will be in touch soon.`
+  const intro = buildThankYouIntro(config.thankYouIntro, { firstName: name, city: where })
 
   const steps = buildThankYouSteps({
     agentName: form.agent_name ?? "",
     brokerage,
+    step2Title: config.thankYouStep2Title,
+    step2Body: config.thankYouStep2Body,
+    step3Title: config.thankYouStep3Title,
+    step3Body: config.thankYouStep3Body,
+    step4Title: config.thankYouStep4Title,
     applyInstructions: config.thankYouApplyInstructions,
+    showReward: config.thankYouShowReward,
+    rewardTitle: config.thankYouRewardTitle,
     incentive: config.thankYouIncentive,
   })
 

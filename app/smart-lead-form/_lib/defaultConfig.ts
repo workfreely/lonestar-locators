@@ -92,4 +92,12 @@ export const DEFAULT_CONFIG: SmartLeadFormConfig = {
   thankYouVideoUrl: "",
   thankYouApplyInstructions: "",
   thankYouIncentive: "",
+  thankYouShowReward: "",
+  thankYouRewardTitle: "",
+  thankYouIntro: "",
+  thankYouStep2Title: "",
+  thankYouStep2Body: "",
+  thankYouStep3Title: "",
+  thankYouStep3Body: "",
+  thankYouStep4Title: "",
 }

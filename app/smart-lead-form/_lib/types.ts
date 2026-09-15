@@ -123,9 +123,20 @@ export type SmartLeadFormConfig = {
   // Optional override for the thank-you page's "apply" step copy. Blank uses the
   // default, which lists the agent name + brokerage from the canonical profile.
   thankYouApplyInstructions: string
-  // Optional client incentive/reward (e.g. "a $200 rebate"). When blank, the
-  // thank-you page's reward step is omitted entirely — never a placeholder.
+  // Reward step (step 5). thankYouIncentive is the reward DESCRIPTION (canonical
+  // reward field — reused, not duplicated). thankYouShowReward toggles the step:
+  // "on"/"off" are explicit; "" (default) shows it only when a reward is set.
   thankYouIncentive: string
+  thankYouShowReward: "" | "on" | "off"
+  thankYouRewardTitle: string
+  // Optional per-step overrides for the thank-you page. Blank uses the shared
+  // defaults (see THANKYOU_DEFAULTS). Step 1 is standardized and not editable.
+  thankYouIntro: string
+  thankYouStep2Title: string
+  thankYouStep2Body: string
+  thankYouStep3Title: string
+  thankYouStep3Body: string
+  thankYouStep4Title: string
 }
 
 export type TestimonialItem = {
