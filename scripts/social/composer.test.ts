@@ -324,10 +324,10 @@ ok("one primary Social Special (single value feeds caption)", (capExplicit.match
 console.log("overlay typography = subtle tracking + localized drop shadow (NO band/box/scrim):")
 const hugFilt = buildVideoFilter("/f.ttf", [{ file: "/h.txt", fontPx: 78, topPx: 250, lineSpacing: 8 }, { file: "/s.txt", fontPx: 40, topPx: 420, lineSpacing: 6 }])
 ok("NO scrim/band/box in render (no geq/overlay/box)", !hugFilt.includes("geq=") && !hugFilt.includes("overlay=") && !hugFilt.includes("box=1"))
-ok("drawtext has a localized drop shadow (offset)", hugFilt.includes("shadowcolor=black@") && hugFilt.includes("shadowy="))
-ok("drawtext keeps only a light edge (not a heavy outline)", hugFilt.includes("bordercolor=black@") && OVERLAY_TEXT.edgeAlpha < 0.4)
+ok("drawtext has a subtle drop shadow (offset)", hugFilt.includes("shadowcolor=black@") && hugFilt.includes("shadowy="))
+ok("NO visible outline (edge alpha 0 — crisp solid white)", OVERLAY_TEXT.edgeAlpha === 0)
 ok("tracking is subtle (Option A)", OVERLAY_TEXT.trackingEm > 0 && OVERLAY_TEXT.trackingEm <= 0.05)
-ok("drop-shadow alpha is strong enough to lift text", OVERLAY_TEXT.shadowAlpha >= 0.6)
+ok("drop-shadow is subtle / non-obvious (insurance for white footage)", OVERLAY_TEXT.shadowAlpha > 0 && OVERLAY_TEXT.shadowAlpha <= 0.6)
 ok("render graph still outputs the [v] label", /\[v\]$/.test(hugFilt))
 
 console.log("Overlay TEMPLATES 1–5 (headline/detail generation + layout families):")

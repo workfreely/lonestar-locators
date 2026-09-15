@@ -26,27 +26,26 @@ export const OVERLAY_SPEC = {
 } as const
 
 // NOTE ON THE FONT: the active overlay face is BODONI MODA (open-source, OFL, from Google Fonts),
-// instanced to two static cuts we bundle: headlines use the DISPLAY cut (opsz 96, wght 600 —
+// instanced to two static cuts we bundle: headlines use the DISPLAY cut (opsz 96, wght 600 — solid,
 // high-contrast, dramatic thick/thin) and detail text uses the TEXT cut (opsz 18, wght 500 — more
 // legible small). Bodoni is a high-contrast Didone: elegant/editorial, NOT condensed or heavy. Anton
 // (the old Overlay-Bold.ttf) is no longer used by the overlay system.
 //
-// Typography depth: white text + subtle CHARACTER TRACKING + a NOTICEABLE-but-refined DROP SHADOW
-// that carries most of the separation (so Bodoni's thin strokes pop on bright walls/windows/skies),
-// plus only a MINIMAL 1px hairline edge — NO background band/scrim/box, and NOT a heavy outline.
-// Values are in em (fraction of the element's own font size), so preview and render scale identically.
-// FFmpeg drawtext has NO letter-spacing and NO shadow blur (verified), so the burned-in render uses a
-// hard-offset shadow and omits tracking; the CSS preview keeps a small blur so the two read materially
-// the same (a soft-shadow difference is expected). A truly soft/glowy shadow would need PNG text
-// rasterization — deferred.
+// Typography treatment (tuned to a luxury-editorial reference): CRISP SOLID WHITE text with NO
+// visible outline and NO obvious shadow — clean, not stamped. There is NO background band/scrim/box/
+// gradient. We keep a SUBTLE, NON-OBVIOUS drop shadow only as insurance so the white text never
+// disappears over pure-white walls / bright skies (imperceptible over normal mid-tone footage, like
+// the reference). Values are in em (preview and render scale identically). FFmpeg drawtext has NO
+// letter-spacing and NO shadow blur (verified), so the render uses a hard-offset shadow and omits
+// tracking; the CSS preview adds a tiny blur so the two read materially the same.
 export const OVERLAY_TEXT = {
-  trackingEm: 0.02, // subtle inter-character tracking (reduced 0.03→0.02 so the widest Hero combo fits one line in Bodoni)
-  edgeAlpha: 0.28, // MINIMAL 1px hairline edge — the shadow does the heavy lifting, not this
-  edgeEm: 0.008, //   ~1px at every size (never a thick outline)
-  shadowAlpha: 0.75, // NOTICEABLE black drop shadow — lifts the thin Bodoni strokes off bright footage
-  shadowDxEm: 0,
-  shadowDyEm: 0.06, // visible depth straight below the text (premium, not a hard duplicate)
-  shadowBlurEm: 0.08, // CSS-only blur (FFmpeg render is a hard offset) — soft, premium, not a glow
+  trackingEm: 0.02, // subtle inter-character tracking (keeps the widest Hero combo one line in Bodoni)
+  edgeAlpha: 0, //     NO visible outline (crisp solid white per the reference)
+  edgeEm: 0, //        (border width irrelevant at alpha 0)
+  shadowAlpha: 0.5, // SUBTLE, non-obvious drop shadow — invisible over mid-tone footage, keeps white
+  shadowDxEm: 0, //    text legible over pure-white walls / bright skies
+  shadowDyEm: 0.03, // small offset straight below the text (not an obvious drop shadow)
+  shadowBlurEm: 0.04, // CSS-only blur (FFmpeg render is a hard offset) — keeps it soft, not a glow
 } as const
 
 // Deterministic word-wrap — SHARED by the CSS preview and the FFmpeg render so both produce the
@@ -99,12 +98,12 @@ export const HEADLINE_TEXT_AVAIL_PX = OVERLAY_CANVAS.w - 2 * OVERLAY_SPEC.headli
 export const HERO_MAX_PX = 66, HERO_MIN_PX = 56
 export const HOOK_MAX_PX = 46, HOOK_MIN_PX = 37
 
-// Per-character advance (px) at 100px in BodoniModa-Head.ttf (wght 500). Covers the full headline
+// Per-character advance (px) at 100px in BodoniModa-Head.ttf (wght 600). Covers the full headline
 // vocabulary (A–Z, a–z, space, hyphen). Any other char falls back to a mid advance (safe: slight
 // over-estimate → shrinks a hair more, never clips).
 const HEAD_ADV: Record<string, number> = {
-  A: 75, B: 65, C: 68, D: 72, E: 59, F: 57, G: 72, H: 75, I: 38, J: 45, K: 70, L: 58, M: 84, N: 74, O: 73, P: 63, Q: 73, R: 71, S: 57, T: 64, U: 70, V: 75, W: 101, X: 75, Y: 71, Z: 57,
-  a: 54, b: 61, c: 51, d: 61, e: 53, f: 39, g: 59, h: 59, i: 29, j: 30, k: 60, l: 32, m: 85, n: 59, o: 55, p: 61, q: 61, r: 44, s: 45, t: 35, u: 59, v: 56, w: 79, x: 56, y: 57, z: 47,
+  A: 76, B: 67, C: 69, D: 73, E: 61, F: 59, G: 74, H: 77, I: 40, J: 49, K: 73, L: 60, M: 86, N: 74, O: 75, P: 65, Q: 75, R: 72, S: 58, T: 66, U: 71, V: 76, W: 105, X: 77, Y: 72, Z: 59,
+  a: 56, b: 62, c: 52, d: 62, e: 53, f: 40, g: 61, h: 60, i: 30, j: 31, k: 62, l: 34, m: 87, n: 60, o: 56, p: 62, q: 62, r: 46, s: 45, t: 36, u: 60, v: 57, w: 80, x: 57, y: 58, z: 48,
   " ": 25, "-": 36,
 }
 const ADV_FALLBACK = 55
