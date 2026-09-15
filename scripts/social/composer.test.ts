@@ -5,7 +5,7 @@ import { AMENITY_BANK, canonicalizeAmenity, parseAmenities, serializeAmenities, 
 import { preparePost, buildCaption, buildOverlayHeadline, buildOverlaySubheadline, composeFinalCaption, startingPriceLabel, buildOverlayDetail, joinDetailParts, specialDisplay, resolveSocialSpecial, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags } from "@/lib/social/composePost"
 import { SOCIAL_SPECIAL_OPTIONS, giftCardLabel, isGiftCardSpecial, sanitizeCustomSpecial } from "@/lib/social/socialSpecial"
 import { buildFfmpegArgs, buildVideoFilter } from "@/lib/social/renderVideo"
-import { wrapHeadline, wrapSub, overlayPreviewStyle, headlineFit, trackedHeadlineWidthPx, computeOverlayLayout, OVERLAY_SPEC, OVERLAY_TEXT, HEADLINE_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
+import { wrapHeadline, wrapSub, overlayPreviewStyle, headlineFit, headlineTextWidthPx, computeOverlayLayout, OVERLAY_SPEC, OVERLAY_TEXT, HEADLINE_TEXT_AVAIL_PX, HERO_MAX_PX, HERO_MIN_PX, HOOK_MAX_PX, HOOK_MIN_PX } from "@/lib/social/overlaySpec"
 import { buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES } from "@/lib/social/composePost"
 
 let pass = 0, fail = 0
@@ -135,26 +135,23 @@ ok("Penthouse→Penthouses", buildOverlayHeadline({ market: "Austin", propertyTy
 ok("headline trims surrounding whitespace", buildOverlayHeadline({ market: " Dallas ", propertyType: " High-Rise " }) === "DALLAS HIGH-RISES")
 const CITIES = ["Austin", "Dallas", "DFW", "Houston", "San Antonio"]
 const TYPES = ["Studio", "Apartment", "High-Rise", "Townhome", "Rental Home", "Penthouse", "Loft"]
-const FIXED = OVERLAY_SPEC.headline.fontPx
-let allOneLine = true, allSameFixed = true, allTrackedFit = true
-let widest = "", widestPx = 0
+let allOneLine = true, allInRange = true, allFit = true
 for (const c of CITIES) for (const t of TYPES) {
   const text = buildOverlayHeadline({ market: c, propertyType: t })
   const fit = headlineFit(text)
   if (fit.lines.length !== 1) allOneLine = false
-  if (fit.fontPx !== FIXED) allSameFixed = false
-  const w = trackedHeadlineWidthPx(text) // fixed size WITH tracking
-  if (!(w <= HEADLINE_TEXT_AVAIL_PX)) allTrackedFit = false
-  if (w > widestPx) { widestPx = w; widest = text }
+  if (!(fit.fontPx >= HERO_MIN_PX && fit.fontPx <= HERO_MAX_PX)) allInRange = false
+  if (!(headlineTextWidthPx(text, fit.fontPx) <= HEADLINE_TEXT_AVAIL_PX)) allFit = false // fitted size stays in the safe box
 }
-ok("EVERY supported city×type (incl Loft) headline stays ONE line", allOneLine)
-ok("EVERY supported combo uses the SAME fixed font (no per-combo resizing)", allSameFixed)
-ok("new fixed Template 1 headline size is 56px (Bodoni Moda — wider than Anton)", FIXED === 56)
-ok("EVERY combo TRACKED width fits the 900px safe box (one-line safe with tracking)", allTrackedFit)
-ok("widest tracked combo is SAN ANTONIO RENTAL HOMES within the safe box", widest === "SAN ANTONIO RENTAL HOMES" && widestPx <= HEADLINE_TEXT_AVAIL_PX)
-ok("Loft combos are supported one-line (e.g. SAN ANTONIO LOFTS)", headlineFit("SAN ANTONIO LOFTS").lines.length === 1 && headlineFit("SAN ANTONIO LOFTS").fontPx === 56)
+ok("EVERY supported city×type (incl Loft) headline stays ONE line (fit-to-width)", allOneLine)
+ok("EVERY supported combo's fitted size is within the Hero range [56,66]", allInRange)
+ok("Hero fit range is 56–66px", HERO_MIN_PX === 56 && HERO_MAX_PX === 66)
+ok("EVERY supported combo fits the 900px safe box at its fitted size", allFit)
+ok("shorter combo renders LARGER (SAN ANTONIO TOWNHOMES > SAN ANTONIO RENTAL HOMES)", headlineFit("SAN ANTONIO TOWNHOMES").fontPx > headlineFit("SAN ANTONIO RENTAL HOMES").fontPx)
+ok("widest combo SAN ANTONIO RENTAL HOMES still fits one line via fit-down", headlineFit("SAN ANTONIO RENTAL HOMES").lines.length === 1 && headlineTextWidthPx("SAN ANTONIO RENTAL HOMES", headlineFit("SAN ANTONIO RENTAL HOMES").fontPx) <= HEADLINE_TEXT_AVAIL_PX)
+ok("Loft combos are supported one-line (e.g. SAN ANTONIO LOFTS)", headlineFit("SAN ANTONIO LOFTS").lines.length === 1)
 ok("usable text width = safe area (no box) = 900px (90px margins)", HEADLINE_TEXT_AVAIL_PX === 900)
-ok("unknown/custom headline keeps the fixed font + char-wrap", headlineFit("SOME ENTIRELY CUSTOM HEADLINE TEXT").fontPx === FIXED)
+ok("unknown/custom headline char-wraps at the Hero minimum size", headlineFit("SOME ENTIRELY CUSTOM HEADLINE TEXT").fontPx === HERO_MIN_PX)
 
 console.log("Template 1 vertical lockup: tightened headline→sub gap:")
 ok("gap is 35px (tightened from 44)", OVERLAY_SPEC.sub.gapPx === 35)
@@ -377,6 +374,14 @@ ok("longest T2 hook is ONE line", computeOverlayLayout("your_sign", buildTemplat
 ok("longest T4 hook is ONE line", computeOverlayLayout("next_property", buildTemplateHeadline("next_property", { market: "San Antonio", propertyType: "Rental Home" }), "").headline.lines.length === 1)
 ok("T5 headline stays ONE line with detail present", upL.headline.lines.length === 1)
 ok("center-hook headline never wraps or stacks (no manual breaks)", !hookL.headline.lines.join("").includes("\n") && hookL.headline.lines.length === 1)
+// Center-hook fit-to-width: sizes land in [HOOK_MIN_PX, HOOK_MAX_PX]; shorter hooks render larger,
+// the longest supported hook shrinks only as needed, both fit the 900px safe box.
+const t2Short = computeOverlayLayout("your_sign", buildTemplateHeadline("your_sign", { market: "San Antonio", propertyType: "Townhome" }), "").headline
+const t2Long = computeOverlayLayout("your_sign", buildTemplateHeadline("your_sign", { market: "San Antonio", propertyType: "Rental Home" }), "").headline
+ok("center-hook fit range is 37–46px", HOOK_MIN_PX === 37 && HOOK_MAX_PX === 46)
+ok("center-hook fitted size stays within [37,46]", t2Short.fontPx >= HOOK_MIN_PX && t2Short.fontPx <= HOOK_MAX_PX && t2Long.fontPx >= HOOK_MIN_PX && t2Long.fontPx <= HOOK_MAX_PX)
+ok("shorter hook renders LARGER than the longest hook", t2Short.fontPx > t2Long.fontPx)
+ok("longest hook fits the 900px safe box at its fitted size", headlineTextWidthPx(t2Long.lines[0], t2Long.fontPx) <= HEADLINE_TEXT_AVAIL_PX)
 
 console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

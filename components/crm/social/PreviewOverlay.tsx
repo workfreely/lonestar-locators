@@ -48,9 +48,9 @@ export default function PreviewOverlay({ layout }: { layout: OverlayLayout | nul
   if (!layout) return null
   return (
     <div className="pointer-events-none absolute inset-0" aria-hidden style={{ containerType: "size" }}>
-      {/* Each Bodoni cut is a single baked weight (headline w600, detail w500); the @font-face maps
+      {/* Each Bodoni cut is a single baked weight (headline w500, detail w500); the @font-face maps
           100–900 to it with no synthetic bolding. Headline uses the display cut, detail the text cut. */}
-      {layout.headline.lines.length > 0 && <div style={blockStyle(layout.headline, 600, FONT_HEAD)}>{blockText(layout.headline)}</div>}
+      {layout.headline.lines.length > 0 && <div style={blockStyle(layout.headline, 500, FONT_HEAD)}>{blockText(layout.headline)}</div>}
       {layout.detail && layout.detail.lines.length > 0 && <div style={blockStyle(layout.detail, 500, FONT_DETAIL)}>{blockText(layout.detail)}</div>}
     </div>
   )

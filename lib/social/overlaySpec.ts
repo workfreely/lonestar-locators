@@ -12,13 +12,12 @@ export const OVERLAY_CANVAS = { w: 1080, h: 1920 } as const
 // the CSS preview and the FFmpeg render (FFmpeg centers each line via x=(w-text_w)/2, so the
 // char-wrap is what constrains its width to the box). Headline box ≈ 800px, sub box ≈ 930px.
 export const OVERLAY_SPEC = {
-  // Template 1 (Hero) uses ONE FIXED headline size for EVERY supported {city} {type_plural} combo —
-  // no per-post resizing. Bodoni Moda is much WIDER than the old condensed Anton, so the fixed size
-  // is 56px: at 56px the WIDEST supported combo ("SAN ANTONIO RENTAL HOMES", 1440px @94 in Bodoni-
-  // Head) fits ONE line inside the 900px safe box (90px margins) in BOTH paths — render ≈858px, and
-  // CSS preview ≈885px WITH OVERLAY_TEXT.trackingEm (0.02) applied. maxChars/maxLines are the FALLBACK
-  // wrap for arbitrary/custom headline text only (never for the controlled Template-1 vocabulary).
-  headline: { yFrac: 0.13, fontPx: 56, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24, maxChars: 16, maxLines: 3, sideMarginPx: 90 },
+  // Template 1/3 (Hero) headline size is FIT-TO-WIDTH per actual text (see headlineFit): each combo
+  // renders at the largest size in [HERO_MIN_PX, HERO_MAX_PX] that fits one line in the 900px safe box,
+  // so "SAN ANTONIO TOWNHOMES" is larger than "SAN ANTONIO RENTAL HOMES". `fontPx` here is the START/
+  // MAX (HERO_MAX_PX) used as the block default; the actual per-headline size comes from headlineFit.
+  // maxChars/maxLines are the FALLBACK char-wrap for arbitrary/custom headline text only.
+  headline: { yFrac: 0.13, fontPx: 66, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24, maxChars: 16, maxLines: 3, sideMarginPx: 90 },
   // The sub/detail sits `gapPx` BELOW the headline block; it is the SECONDARY line and reads smaller
   // and lighter than the headline (Bodoni-Detail, opsz 18). 36px keeps the headline clearly dominant.
   // Its safe box is ≈86% of the canvas (930px; 75px margins each side). maxChars/maxLines unchanged.
@@ -84,49 +83,71 @@ export function wrapSub(text: string | null | undefined, maxChars = OVERLAY_SPEC
   return wrapWords(text, maxChars, OVERLAY_SPEC.sub.maxLines)
 }
 
-// ── Headline sizing (Template 1: ONE fixed size for every supported combo) ───────────────────
-// The headline vocabulary is CONTROLLED ({city} {property_type_plural}). Widths were measured once
-// with the active headline font (assets/social/fonts/BodoniModa-Head.ttf) at 94px — real advance
-// widths, NOT character counts — to pick the single fixed size (OVERLAY_SPEC.headline.fontPx = 56px)
-// at which the WIDEST combo still fits one line inside the 90px-margin safe box. This table is the
-// SUPPORTED SET (its 94px widths are kept for documentation/verification); every entry renders at
-// the SAME fixed font. Any headline NOT in the set (arbitrary/custom text) falls back to char-wrap.
+// ── Headline sizing: deterministic FIT-TO-WIDTH (shared by preview + render) ──────────────────
+// Rather than lock every headline to the worst-case size, each ACTUAL generated headline starts
+// large and shrinks (by 1px) only until it fits one line inside the safe box. The width is computed
+// from a baked per-character ADVANCE map (advance px at 100px in BodoniModa-Head, wght 500) — summing
+// advances exactly equals FFmpeg drawtext's line width (drawtext applies no kerning), and adding the
+// same trackingEm the CSS preview uses makes the fit conservative for the browser too. So the SAME
+// pure function resolves the SAME px for a given (text) in both paths — no preview/render bait-and-
+// switch. The result is larger, lighter, editorial headlines that only shrink when the words require.
 //
-// Usable text width = canvas − 2·sideMargin (no background box any more, so no box padding).
+// Usable text width = canvas − 2·sideMargin (no background box, so no box padding).
 export const HEADLINE_TEXT_AVAIL_PX = OVERLAY_CANVAS.w - 2 * OVERLAY_SPEC.headline.sideMarginPx // 900 (90px margins)
 
-// Measured advance width (px) of each uppercase headline at 94px in BodoniModa-Head.ttf. Used to
-// derive/verify the fixed size and as the supported-combo membership set (font is FIXED, not scaled).
-const HEADLINE_WIDTH_AT_94: Record<string, number> = {
-  "AUSTIN STUDIOS": 802, "AUSTIN APARTMENTS": 1047, "AUSTIN HIGH-RISES": 943, "AUSTIN TOWNHOMES": 1022, "AUSTIN RENTAL HOMES": 1131, "AUSTIN PENTHOUSES": 1013,
-  "DALLAS STUDIOS": 819, "DALLAS APARTMENTS": 1064, "DALLAS HIGH-RISES": 960, "DALLAS TOWNHOMES": 1039, "DALLAS RENTAL HOMES": 1148, "DALLAS PENTHOUSES": 1030,
-  "DFW STUDIOS": 661, "DFW APARTMENTS": 906, "DFW HIGH-RISES": 802, "DFW TOWNHOMES": 881, "DFW RENTAL HOMES": 990, "DFW PENTHOUSES": 872,
-  "HOUSTON STUDIOS": 905, "HOUSTON APARTMENTS": 1150, "HOUSTON HIGH-RISES": 1046, "HOUSTON TOWNHOMES": 1125, "HOUSTON RENTAL HOMES": 1234, "HOUSTON PENTHOUSES": 1116,
-  "SAN ANTONIO STUDIOS": 1111, "SAN ANTONIO APARTMENTS": 1356, "SAN ANTONIO HIGH-RISES": 1252, "SAN ANTONIO TOWNHOMES": 1331, "SAN ANTONIO RENTAL HOMES": 1440, "SAN ANTONIO PENTHOUSES": 1322,
-  "AUSTIN LOFTS": 685, "DALLAS LOFTS": 702, "DFW LOFTS": 544, "HOUSTON LOFTS": 788, "SAN ANTONIO LOFTS": 994,
+// Hero (T1/T3) fit range and Center-hook (T2/T4/T5) fit range, in canvas px.
+export const HERO_MAX_PX = 66, HERO_MIN_PX = 56
+export const HOOK_MAX_PX = 46, HOOK_MIN_PX = 37
+
+// Per-character advance (px) at 100px in BodoniModa-Head.ttf (wght 500). Covers the full headline
+// vocabulary (A–Z, a–z, space, hyphen). Any other char falls back to a mid advance (safe: slight
+// over-estimate → shrinks a hair more, never clips).
+const HEAD_ADV: Record<string, number> = {
+  A: 75, B: 65, C: 68, D: 72, E: 59, F: 57, G: 72, H: 75, I: 38, J: 45, K: 70, L: 58, M: 84, N: 74, O: 73, P: 63, Q: 73, R: 71, S: 57, T: 64, U: 70, V: 75, W: 101, X: 75, Y: 71, Z: 57,
+  a: 54, b: 61, c: 51, d: 61, e: 53, f: 39, g: 59, h: 59, i: 29, j: 30, k: 60, l: 32, m: 85, n: 59, o: 55, p: 61, q: 61, r: 44, s: 45, t: 35, u: 59, v: 56, w: 79, x: 56, y: 57, z: 47,
+  " ": 25, "-": 36,
+}
+const ADV_FALLBACK = 55
+
+/** Width (canvas px) of a headline at `fontPx` WITH tracking — the deterministic value both the
+ *  FFmpeg render and the CSS preview are constrained by. */
+export function headlineTextWidthPx(text: string, fontPx: number, trackingEm = OVERLAY_TEXT.trackingEm): number {
+  let adv = 0
+  for (const c of text) adv += HEAD_ADV[c] ?? ADV_FALLBACK
+  return (adv * fontPx) / 100 + trackingEm * fontPx * text.length
+}
+/** Largest integer px in [minPx, maxPx] at which `text` fits one line inside the safe box. */
+export function fitHeadlinePx(text: string, maxPx: number, minPx: number, availPx = HEADLINE_TEXT_AVAIL_PX): number {
+  for (let px = maxPx; px > minPx; px--) if (headlineTextWidthPx(text, px) <= availPx) return px
+  return minPx
 }
 
-/** Tracked advance width (canvas px) of a supported headline at the fixed size WITH tracking:
- *  base-advance scaled from the 94px measurement + trackingEm applied between every character.
- *  Used to verify one-line fit inside HEADLINE_TEXT_AVAIL_PX. */
-export function trackedHeadlineWidthPx(text: string, fontPx = OVERLAY_SPEC.headline.fontPx, trackingEm = OVERLAY_TEXT.trackingEm): number {
-  const base = HEADLINE_WIDTH_AT_94[text.toUpperCase()]
-  if (base == null) return NaN
-  return (base * fontPx) / 94 + trackingEm * fontPx * text.length
+// Supported Hero vocabulary ({CITY} {TYPE_PLURAL}, uppercase) → renders one line (fit-to-width);
+// any headline NOT in this set (arbitrary/custom) falls back to the multi-line char-wrap.
+const SUPPORTED_HEADLINES: ReadonlySet<string> = new Set([
+  "AUSTIN STUDIOS", "AUSTIN APARTMENTS", "AUSTIN HIGH-RISES", "AUSTIN TOWNHOMES", "AUSTIN RENTAL HOMES", "AUSTIN PENTHOUSES", "AUSTIN LOFTS",
+  "DALLAS STUDIOS", "DALLAS APARTMENTS", "DALLAS HIGH-RISES", "DALLAS TOWNHOMES", "DALLAS RENTAL HOMES", "DALLAS PENTHOUSES", "DALLAS LOFTS",
+  "DFW STUDIOS", "DFW APARTMENTS", "DFW HIGH-RISES", "DFW TOWNHOMES", "DFW RENTAL HOMES", "DFW PENTHOUSES", "DFW LOFTS",
+  "HOUSTON STUDIOS", "HOUSTON APARTMENTS", "HOUSTON HIGH-RISES", "HOUSTON TOWNHOMES", "HOUSTON RENTAL HOMES", "HOUSTON PENTHOUSES", "HOUSTON LOFTS",
+  "SAN ANTONIO STUDIOS", "SAN ANTONIO APARTMENTS", "SAN ANTONIO HIGH-RISES", "SAN ANTONIO TOWNHOMES", "SAN ANTONIO RENTAL HOMES", "SAN ANTONIO PENTHOUSES", "SAN ANTONIO LOFTS",
+])
+
+/** Back-compat helper (used in tests): width of a supported headline at a size WITH tracking. */
+export function trackedHeadlineWidthPx(text: string, fontPx = HERO_MAX_PX, trackingEm = OVERLAY_TEXT.trackingEm): number {
+  return SUPPORTED_HEADLINES.has(text.toUpperCase()) ? headlineTextWidthPx(text, fontPx, trackingEm) : NaN
 }
 
 export type HeadlineFit = { fontPx: number; lines: string[] }
 
-/** Template 1 headline sizing: ONE fixed font (OVERLAY_SPEC.headline.fontPx) for EVERY supported
- *  {city} {type_plural} combo, which all fit on one line at that size. Arbitrary/custom headlines
- *  keep the same fixed font but fall back to the multi-line char-wrap so they can't overflow.
- *  Shared by the FFmpeg render and the CSS preview (parity). Font size never varies by combination. */
+/** Hero (Template 1/3) headline sizing: FIT-TO-WIDTH per ACTUAL text. A supported {city} {type}
+ *  combo renders ONE line at the largest size in [HERO_MIN_PX, HERO_MAX_PX] that fits the safe box
+ *  (so short combos are larger, long ones shrink only as needed). Arbitrary/custom headlines fall
+ *  back to the multi-line char-wrap at the minimum size. Shared by the render + preview (parity). */
 export function headlineFit(text: string | null | undefined): HeadlineFit {
-  const fontPx = OVERLAY_SPEC.headline.fontPx // FIXED for Template 1
   const t = (text ?? "").trim()
-  if (!t) return { fontPx, lines: [] }
-  if (HEADLINE_WIDTH_AT_94[t.toUpperCase()]) return { fontPx, lines: [t] } // supported combo → one line
-  return { fontPx, lines: wrapHeadline(t) } // custom/unknown text → char-wrap fallback
+  if (!t) return { fontPx: HERO_MAX_PX, lines: [] }
+  if (SUPPORTED_HEADLINES.has(t.toUpperCase())) return { fontPx: fitHeadlinePx(t, HERO_MAX_PX, HERO_MIN_PX), lines: [t] }
+  return { fontPx: HERO_MIN_PX, lines: wrapHeadline(t) } // custom/unknown text → char-wrap fallback
 }
 
 /** Height (canvas px) of a headline block of `lineCount` lines at `fontPx` (defaults to the max). */
@@ -141,13 +162,13 @@ export function headlineBlockPx(lineCount: number, fontPx: number = OVERLAY_SPEC
 // NOT forced into the giant Hero size. CENTER HOOK + DETAIL (T5): centered hook + a detail line
 // below, the whole group centered. Center-hook typography is a FIRST PASS (size/wrap tunable).
 export type LayoutFamily = "hero" | "center_hook" | "center_hook_detail"
-// ONE fixed size for the center-hook hook, chosen so the LONGEST supported sentence ("Your sign to
-// get that rental home in San Antonio") still fits ONE line inside the 900px safe box in BOTH paths
-// with Bodoni-Head — at 37px: render ≈839px, CSS preview ≈875px WITH tracking — so hooks never wrap
-// or stack. When a center-hook template carries a detail line (T5 Upgrade), the detail uses
-// `detailFontPx` (smaller than the hook, Bodoni-Detail) so the headline stays clearly dominant.
+// Center-hook (T2/T4/T5) hook size is FIT-TO-WIDTH per actual sentence, [HOOK_MIN_PX, HOOK_MAX_PX]:
+// each hook renders at the largest size that fits ONE line in the 900px safe box (short hooks larger,
+// the longest supported hook "Your sign to get that rental home in San Antonio" shrinks only as
+// needed — never wrapped or stacked). When a center-hook template carries a detail line (T5 Upgrade),
+// the detail uses `detailFontPx` (smaller than the hook, Bodoni-Detail) so the hook stays dominant.
 // Shared by preview + render (parity).
-export const CENTER_HOOK = { fontPx: 37, lineSpacing: 8, detailFontPx: 30 } as const
+export const CENTER_HOOK = { maxPx: HOOK_MAX_PX, minPx: HOOK_MIN_PX, lineSpacing: 8, detailFontPx: 30 } as const
 
 export function templateFamily(template: string): LayoutFamily {
   if (template === "your_sign" || template === "next_property") return "center_hook"
@@ -177,12 +198,13 @@ export function computeOverlayLayout(template: string, headlineText: string, det
     return { family, headline, detail: detailBlock }
   }
 
-  // Center hook (+ optional detail) — the hook is ONE line at the fixed smaller size (no wrapping,
-  // no manual breaks). Vertically center the group.
+  // Center hook (+ optional detail) — the hook is ONE line, FIT-TO-WIDTH per actual sentence (no
+  // wrapping, no manual breaks). Vertically center the group.
   const oneLine = (headlineText ?? "").replace(/\s+/g, " ").trim()
   const lines = oneLine ? [oneLine] : []
+  const hookPx = oneLine ? fitHeadlinePx(oneLine, CENTER_HOOK.maxPx, CENTER_HOOK.minPx) : CENTER_HOOK.maxPx
   const n = Math.max(1, lines.length)
-  const headBlockH = n * CENTER_HOOK.fontPx + (n - 1) * CENTER_HOOK.lineSpacing
+  const headBlockH = n * hookPx + (n - 1) * CENTER_HOOK.lineSpacing
   const hasDetail = family === "center_hook_detail" && detail.length > 0
   const detailLines = hasDetail ? wrapSub(detail) : []
   // Center-hook detail is smaller than the hook (CENTER_HOOK.detailFontPx) so the hook stays dominant.
@@ -190,7 +212,7 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   const gap = hasDetail ? OVERLAY_SPEC.sub.gapPx : 0
   const totalH = headBlockH + gap + detailBlockH
   const groupTop = (H - totalH) / 2
-  const headline: OverlayBlock = { lines, fontPx: CENTER_HOOK.fontPx, topPx: groupTop, uppercase: false, sideMarginPx: OVERLAY_SPEC.headline.sideMarginPx, lineSpacing: CENTER_HOOK.lineSpacing }
+  const headline: OverlayBlock = { lines, fontPx: hookPx, topPx: groupTop, uppercase: false, sideMarginPx: OVERLAY_SPEC.headline.sideMarginPx, lineSpacing: CENTER_HOOK.lineSpacing }
   const detailBlock: OverlayBlock | null = hasDetail
     ? { lines: detailLines, fontPx: CENTER_HOOK.detailFontPx, topPx: groupTop + headBlockH + gap, uppercase: false, sideMarginPx: OVERLAY_SPEC.sub.sideMarginPx, lineSpacing: OVERLAY_SPEC.sub.lineSpacing }
     : null
