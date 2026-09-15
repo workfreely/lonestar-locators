@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server"
 import { mergeSmartFormConfig } from "@/app/smart-lead-form/_lib/mergeConfig"
 import { youtubeEmbedUrl } from "@/lib/smartForm/thankYouVideo"
 import { buildThankYouSteps } from "@/lib/smartForm/thankYouSteps"
+import { serviceAreasLabel } from "@/lib/markets/catalog"
 
 export const dynamic = "force-dynamic"
 
@@ -11,18 +12,21 @@ type PublicForm = {
   brokerage_name: string | null
   photo_url: string | null
   form_config: unknown
+  service_areas: string[] | null
+  agent_phone: string | null
+  agent_email: string | null
 }
 
 // Post-submission confirmation for a per-agent Smart Lead Form, served at
 // locatorbeast.com/{username}/thank-you.
 //
-// Renter-facing service-value page: a personal greeting, then a substantial
-// "what happens next" flow that sells the value of using a locator (personalized
-// list, tours, applying with the locator listed, and an optional reward), an
-// optional agent intro video on the right, and the agent's signature at the
-// bottom. Every dynamic value (name, city, agent, brokerage, video, apply
-// instructions, reward) resolves from the current workspace — nothing is
-// hardcoded to any agent. No acquisition/attribution data is ever shown.
+// Renter-facing service-value page: a personal greeting, a substantial "what
+// happens next" flow (personalized list, tours, applying with the locator
+// listed, and an optional reward), an optional agent intro video on the right,
+// and a full agent signature at the bottom. Every dynamic value resolves from
+// the current workspace — nothing hardcoded to any agent. The signature uses the
+// CLIENT-FACING phone + email (never a platform/support address) and never shows
+// any acquisition/attribution data.
 export default async function SmartLeadFormThankYouPage({
   params,
   searchParams,
@@ -43,6 +47,9 @@ export default async function SmartLeadFormThankYouPage({
   const where = (city ?? "").trim()
   const agentName = (form.agent_name ?? "").trim() || "Your local locator"
   const brokerage = (form.brokerage_name ?? "").trim()
+  const phone = (form.agent_phone ?? "").trim()
+  const email = (form.agent_email ?? "").trim()
+  const serving = serviceAreasLabel(form.service_areas).trim()
   const initials =
     agentName
       .split(/\s+/)
@@ -54,14 +61,14 @@ export default async function SmartLeadFormThankYouPage({
 
   const config = mergeSmartFormConfig(form.form_config)
   const embedUrl = youtubeEmbedUrl(config.thankYouVideoUrl)
+  // Agent title — same source as the email signature (config.copy.agentTitle),
+  // so it stays consistent and agent-controlled.
+  const title = (config.copy.agentTitle ?? "").trim() || "Apartment Locator"
 
   const intro = where
     ? `You're one step closer to finding the perfect home in ${where}. We're already working on your best list of options and will be in touch soon.`
     : `You're one step closer to finding the perfect home. We're already working on your best list of options and will be in touch soon.`
 
-  // Fully dynamic + multi-agent: apply-step names the current agent/brokerage (or
-  // an agent-configured override), and the reward step appears only when the
-  // agent has configured an incentive.
   const steps = buildThankYouSteps({
     agentName: form.agent_name ?? "",
     brokerage,
@@ -72,11 +79,11 @@ export default async function SmartLeadFormThankYouPage({
   const StepList = () => (
     <>
       <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[#9098a8]">What happens next</h2>
-      <ol className="mt-6">
+      <ol className="mt-5">
         {steps.map((step, i) => {
           const isLast = i === steps.length - 1
           return (
-            <li key={i} className="relative flex gap-4 pb-8 last:pb-0 sm:gap-5">
+            <li key={i} className="relative flex gap-4 pb-7 last:pb-0 sm:gap-5">
               {!isLast && (
                 <span
                   className={`absolute left-[17px] top-10 bottom-1 w-px ${step.done ? "bg-[#bfe6cf]" : "bg-[#e6e8ee]"}`}
@@ -133,23 +140,20 @@ export default async function SmartLeadFormThankYouPage({
   )
 
   return (
-    <main className="min-h-screen bg-[#fbfbfd] px-5 py-14 sm:py-20">
+    <main className="min-h-screen bg-[#fbfbfd] px-5 py-10 sm:py-12">
       <div className="mx-auto w-full max-w-[980px]">
         {/* ── Intro ─────────────────────────────────────────────────────── */}
         <header className="max-w-2xl">
-          <h1 className="text-[30px] font-bold leading-[1.12] tracking-[-0.02em] text-[#111318] sm:text-[40px]">
+          <h1 className="text-[28px] font-bold leading-[1.12] tracking-[-0.02em] text-[#111318] sm:text-[36px]">
             {name ? `Thanks, ${name}!` : "Thank you!"}
           </h1>
-          <p className="mt-4 text-[16px] leading-relaxed text-[#4b5162] sm:text-[17px]">{intro}</p>
+          <p className="mt-3 text-[16px] leading-relaxed text-[#4b5162] sm:text-[16.5px]">{intro}</p>
         </header>
 
-        {/* ── Main journey: steps + optional video ──────────────────────────
-            With a video, this is a two-column row (steps left, video right on
-            desktop; DOM order keeps mobile as intro -> video -> steps). Without
-            a video, the steps expand on their own — no empty column. */}
+        {/* ── Main journey: steps + optional video ─────────────────────── */}
         {embedUrl ? (
-          <div className="mt-10 md:mt-14 md:flex md:flex-row-reverse md:items-start md:gap-10">
-            <aside className="mb-9 w-full md:mb-0 md:w-[40%] md:flex-none">
+          <div className="mt-7 md:mt-9 md:flex md:flex-row-reverse md:items-start md:gap-10">
+            <aside className="mb-7 w-full md:mb-0 md:w-[40%] md:flex-none">
               <Video />
             </aside>
             <section className="w-full md:w-[60%]">
@@ -157,18 +161,18 @@ export default async function SmartLeadFormThankYouPage({
             </section>
           </div>
         ) : (
-          <section className="mt-10 max-w-2xl md:mt-14">
+          <section className="mt-7 max-w-2xl md:mt-9">
             <StepList />
           </section>
         )}
 
-        {/* ── Closing line ──────────────────────────────────────────────── */}
-        <p className="mt-12 max-w-2xl text-[15.5px] leading-relaxed text-[#4b5162]">
-          Keep an eye on your texts and email. I'll be in touch soon.
+        {/* ── Closing line (no longer repeats the intro's "in touch soon") ─ */}
+        <p className="mt-8 max-w-2xl text-[15.5px] leading-relaxed text-[#4b5162]">
+          Keep an eye on your texts and email for your personalized options.
         </p>
 
-        {/* ── Agent signature (bottom) ──────────────────────────────────── */}
-        <div className="mt-8 flex items-center gap-4 border-t border-[#eef0f5] pt-8">
+        {/* ── Agent signature (bottom) — full contact block ─────────────── */}
+        <div className="mt-6 flex items-start gap-4 border-t border-[#eef0f5] pt-6">
           <div className="h-16 w-16 flex-none overflow-hidden rounded-full border border-[#e5e7ee] bg-[#f4f5f8] shadow-sm">
             {form.photo_url ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -179,10 +183,26 @@ export default async function SmartLeadFormThankYouPage({
               </div>
             )}
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-[16px] font-semibold text-[#111318]">{agentName}</p>
-            {brokerage && <p className="mt-0.5 text-[13.5px] text-[#6b7280]">{brokerage}</p>}
-            <p className="mt-1 text-[13px] text-[#9098a8]">Your apartment locator</p>
+            <p className="mt-0.5 text-[13.5px] text-[#6b7280]">{title}</p>
+            {brokerage && <p className="text-[13.5px] text-[#6b7280]">{brokerage}</p>}
+            {(phone || email) && (
+              <p className="mt-2 text-[13.5px] leading-relaxed text-[#4b5162]">
+                {phone && (
+                  <a href={`tel:${phone.replace(/[^\d+]/g, "")}`} className="text-[#4b5162] no-underline hover:underline">
+                    {phone}
+                  </a>
+                )}
+                {phone && email && <span className="px-1.5 text-[#c7ccd6]">·</span>}
+                {email && (
+                  <a href={`mailto:${email}`} className="break-all text-[#2f6bff] no-underline hover:underline">
+                    {email}
+                  </a>
+                )}
+              </p>
+            )}
+            {serving && <p className="mt-1 text-[12.5px] text-[#9098a8]">Serving {serving}</p>}
           </div>
         </div>
       </div>
