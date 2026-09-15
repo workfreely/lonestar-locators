@@ -90,4 +90,6 @@ export const DEFAULT_CONFIG: SmartLeadFormConfig = {
     notes: true,
   },
   thankYouVideoUrl: "",
+  thankYouApplyInstructions: "",
+  thankYouIncentive: "",
 }

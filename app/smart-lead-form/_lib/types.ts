@@ -120,6 +120,12 @@ export type SmartLeadFormConfig = {
   // thank-you page. Empty string = no video, and the page shows the enhanced
   // agent card instead — it always looks complete either way.
   thankYouVideoUrl: string
+  // Optional override for the thank-you page's "apply" step copy. Blank uses the
+  // default, which lists the agent name + brokerage from the canonical profile.
+  thankYouApplyInstructions: string
+  // Optional client incentive/reward (e.g. "a $200 rebate"). When blank, the
+  // thank-you page's reward step is omitted entirely — never a placeholder.
+  thankYouIncentive: string
 }
 
 export type TestimonialItem = {

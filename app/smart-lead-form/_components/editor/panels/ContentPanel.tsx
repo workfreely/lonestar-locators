@@ -144,18 +144,35 @@ export default function ContentPanel({
         </p>
       </div>
 
-      {/* ── Thank You Page (optional intro video) ───────────────────────────── */}
+      {/* ── Thank You Page (all optional) ───────────────────────────────────── */}
       <div className="pt-3">
         <div className="py-2.5">
-          <p className="text-[13px] font-semibold text-[#111318]">Thank You Page Video</p>
+          <p className="text-[13px] font-semibold text-[#111318]">Thank You Page</p>
         </div>
         <p className="pb-1 text-[11.5px] leading-relaxed text-[#9098a8]">
           Add an optional video to introduce yourself and explain what happens next.
         </p>
         <TextField
-          label="YouTube video URL"
+          label="Video URL (YouTube)"
           value={config.thankYouVideoUrl}
           onChange={(v) => onChange((prev) => ({ ...prev, thankYouVideoUrl: v }))}
+        />
+        <p className="pb-1 pt-3 text-[11.5px] leading-relaxed text-[#9098a8]">
+          Optional: customize how clients should list you when they apply. Leave blank to use your name and brokerage.
+        </p>
+        <TextField
+          label="Application instructions"
+          value={config.thankYouApplyInstructions}
+          onChange={(v) => onChange((prev) => ({ ...prev, thankYouApplyInstructions: v }))}
+          multiline
+        />
+        <p className="pb-1 pt-3 text-[11.5px] leading-relaxed text-[#9098a8]">
+          Optional: if you offer clients a reward (rebate, gift, free movers, etc.), describe it. Leave blank to hide the reward step.
+        </p>
+        <TextField
+          label="Client reward"
+          value={config.thankYouIncentive}
+          onChange={(v) => onChange((prev) => ({ ...prev, thankYouIncentive: v }))}
         />
       </div>
 
