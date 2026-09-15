@@ -170,6 +170,11 @@ export type LayoutFamily = "hero" | "center_hook" | "center_hook_detail"
 // Shared by preview + render (parity).
 export const CENTER_HOOK = { maxPx: HOOK_MAX_PX, minPx: HOOK_MIN_PX, lineSpacing: 8, detailFontPx: 30 } as const
 
+// Template 1 (market_type) renders its "Starting at $X/mo" detail LARGER than the shared HERO detail
+// (OVERLAY_SPEC.sub.fontPx) so the price reads as a true secondary headline. ONLY Template 1 uses
+// this — Template 3 (special_feature) keeps the shared sub size. All test prices stay one line.
+export const MARKET_TYPE_DETAIL_PX = 52
+
 export function templateFamily(template: string): LayoutFamily {
   if (template === "your_sign" || template === "next_property" || template === "pov_upgrade" || template === "affordable_luxury") return "center_hook"
   if (template === "upgrade" || template === "pov_price") return "center_hook_detail"
@@ -193,7 +198,8 @@ export function computeOverlayLayout(template: string, headlineText: string, det
     let detailBlock: OverlayBlock | null = null
     if (detail) {
       const detailTop = headTop + headlineBlockPx(Math.max(1, fit.lines.length), fit.fontPx) + OVERLAY_SPEC.sub.gapPx
-      detailBlock = { lines: wrapSub(detail), fontPx: OVERLAY_SPEC.sub.fontPx, topPx: detailTop, uppercase: false, sideMarginPx: OVERLAY_SPEC.sub.sideMarginPx, lineSpacing: OVERLAY_SPEC.sub.lineSpacing }
+      const detailPx = template === "market_type" ? MARKET_TYPE_DETAIL_PX : OVERLAY_SPEC.sub.fontPx // T1 price is larger; T3 keeps the shared size
+      detailBlock = { lines: wrapSub(detail), fontPx: detailPx, topPx: detailTop, uppercase: false, sideMarginPx: OVERLAY_SPEC.sub.sideMarginPx, lineSpacing: OVERLAY_SPEC.sub.lineSpacing }
     }
     return { family, headline, detail: detailBlock }
   }

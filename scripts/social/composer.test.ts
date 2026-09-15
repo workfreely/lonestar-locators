@@ -440,5 +440,12 @@ for (const [p, exp] of [["995", "Starting at $995/mo"], ["1250", "Starting at $1
   ok(`price ${p} → "${exp}" (no '/ mo' space)`, startingPriceLabel(p) === exp && !startingPriceLabel(p).includes("/ mo"))
 }
 
+console.log("Template 1 detail size (larger price line; T1 only):")
+const t1d = computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,800/mo").detail
+ok("T1 detail renders at 52px (larger secondary line)", !!t1d && t1d.fontPx === 52)
+ok("T1 detail stays ONE line for all test prices", ["Starting at $995/mo", "Starting at $1,250/mo", "Starting at $1,800/mo", "Starting at $2,495/mo"].every((p) => computeOverlayLayout("market_type", "SAN ANTONIO LOFTS", p).detail!.lines.length === 1))
+ok("T3 (special_feature) detail UNCHANGED at the shared sub size", (computeOverlayLayout("special_feature", "SAN ANTONIO TOWNHOMES", "8 Weeks Free · Private Yards").detail!.fontPx) === OVERLAY_SPEC.sub.fontPx)
+ok("T1 detail still clearly secondary to the headline", !!t1d && t1d.fontPx < computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,800/mo").headline.fontPx)
+
 console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

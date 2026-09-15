@@ -698,28 +698,25 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             </div>
           </div>
 
-          {overlayMode === "generate" && (
-            /* Overlay Template — per-post choice of the 5 overlay layouts. Changing it regenerates
-               the (non-manual) headline + derived detail from the template. */
-            <label className="block">
-              <span className={fieldLabel}>Overlay Template</span>
-              <select className={`${control} mt-1 cursor-pointer`} value={overlayTemplate} onChange={(e) => changeTemplate(e.target.value as OverlayTemplate)}>
-                {OVERLAY_TEMPLATES.map((t, i) => <option key={t} value={t}>{i + 1}. {OVERLAY_TEMPLATE_LABEL[t]}</option>)}
-              </select>
-            </label>
-          )}
-
           {overlayMode === "generate" ? (
-            /* Overlay Headline (generated from the template, editable = manual override) | Overlay
-               Detail (DERIVED from the template + metadata — read-only). */
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label className="block">
+            /* COMPACT one-row overlay controls on desktop: Overlay Headline (widest, editable =
+               manual override) | Overlay Detail (DERIVED, read-only) | Overlay Template (right;
+               changing it regenerates the non-manual headline + detail). Proportions 40/30/30.
+               Wraps to 2 rows on tablet (sm) and stacks on mobile — same fields/handlers/values. */
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[40fr_30fr_30fr] gap-3">
+              <label className="block min-w-0">
                 <span className={fieldLabel}>Overlay Headline</span>
                 <input className={`${control} mt-1`} value={headline} onChange={(e) => { setHeadline(e.target.value); setHeadlineDirty(true) }} placeholder="Burned into the video" />
               </label>
-              <label className="block">
+              <label className="block min-w-0">
                 <span className={fieldLabel}>Overlay Detail <span className="normal-case text-[var(--crm-text-muted)]">· auto from template</span></span>
                 <input readOnly className={`${control} mt-1 text-[var(--crm-text-muted)]`} value={overlayDetail} placeholder="—" />
+              </label>
+              <label className="block min-w-0">
+                <span className={fieldLabel}>Overlay Template</span>
+                <select className={`${control} mt-1 cursor-pointer`} value={overlayTemplate} onChange={(e) => changeTemplate(e.target.value as OverlayTemplate)}>
+                  {OVERLAY_TEMPLATES.map((t, i) => <option key={t} value={t}>{i + 1}. {OVERLAY_TEMPLATE_LABEL[t]}</option>)}
+                </select>
               </label>
             </div>
           ) : (
