@@ -12,36 +12,42 @@ export const OVERLAY_CANVAS = { w: 1080, h: 1920 } as const
 // the CSS preview and the FFmpeg render (FFmpeg centers each line via x=(w-text_w)/2, so the
 // char-wrap is what constrains its width to the box). Headline box ≈ 800px, sub box ≈ 930px.
 export const OVERLAY_SPEC = {
-  // Template 1 uses ONE FIXED headline size for EVERY supported {city} {type_plural} combo — no
-  // per-post resizing. 78px is the largest single size at which the WIDEST supported combo
-  // ("SAN ANTONIO RENTAL HOMES", 988px @94 in the production font) still fits ONE line inside the
-  // 900px safe box (90px margins, no background box) WITH the subtle OVERLAY_TEXT.trackingEm applied
-  // (tracked width ≈ 876px, ~12px spare each side). Slightly under the old 81px so the character
-  // tracking adds breathing room without stretching or wrapping. maxChars/maxLines are the FALLBACK
-  // wrap for arbitrary/custom headline text only (never for the controlled Template-1 vocabulary).
-  headline: { yFrac: 0.13, fontPx: 78, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24, maxChars: 16, maxLines: 3, sideMarginPx: 90 },
-  // The sub sits `gapPx` BELOW the headline block. gap tightened 44→35 (~20%) so the headline +
-  // "Starting at $…/mo" read as one compact lockup. Its safe box is ≈86% of the canvas (930px;
-  // 75px margins each side). maxChars/maxLines/hard-split unchanged (shared preview===render).
-  sub: { gapPx: 35, fontPx: 40, lineSpacing: 6, boxAlpha: 0.28, boxBorderPx: 16, maxChars: 33, maxLines: 4, sideMarginPx: 75 },
+  // Template 1 (Hero) uses ONE FIXED headline size for EVERY supported {city} {type_plural} combo —
+  // no per-post resizing. Refined 78→70px (~10% smaller) for a less dominant, more editorial feel;
+  // at 70px the WIDEST supported combo ("SAN ANTONIO RENTAL HOMES", 988px @94 in the bundled font)
+  // fits ONE line inside the 900px safe box (90px margins, no box) WITH OVERLAY_TEXT.trackingEm
+  // applied — tracked width ≈ 786px, ~57px spare each side. maxChars/maxLines are the FALLBACK wrap
+  // for arbitrary/custom headline text only (never for the controlled Template-1 vocabulary).
+  headline: { yFrac: 0.13, fontPx: 70, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24, maxChars: 16, maxLines: 3, sideMarginPx: 90 },
+  // The sub/detail sits `gapPx` BELOW the headline block; it is the SECONDARY line and reads smaller
+  // and lighter than the headline. 40→36px keeps the headline clearly dominant. Its safe box is ≈86%
+  // of the canvas (930px; 75px margins each side). maxChars/maxLines/hard-split unchanged (parity).
+  sub: { gapPx: 35, fontPx: 36, lineSpacing: 6, boxAlpha: 0.28, boxBorderPx: 16, maxChars: 33, maxLines: 4, sideMarginPx: 75 },
   safe: { topFrac: 0.1, bottomFrac: 0.2 },
 } as const
 
-// Generated overlay text typography (Template 1). Option A: subtle CHARACTER TRACKING + a localized
-// DROP SHADOW that provides most of the depth, with only a very light edge for consistency on bright
-// footage — NO background band/scrim/box, and NOT a heavy meme-style outline. All values are in em
-// (fraction of the element's own font size), so preview and render scale identically. `trackingEm`
-// widens the space between individual characters ONLY (word spacing is untouched). FFmpeg drawtext
-// has no letter-spacing/blur, so the burned-in render approximates the drop shadow (hard offset) and
-// omits tracking until the render is switched to a rasterized text overlay (see renderVideo).
+// NOTE ON THE FONT: the bundled overlay face (assets/social/fonts/Overlay-Bold.ttf) is actually
+// ANTON — a single-weight (400), ultra-condensed heavy POSTER typeface. It has no lighter weight,
+// so CSS font-weight cannot lighten it and there is no "medium/semibold Anton" to switch to. The
+// bulk of the "chunky/stamped" look is the typeface itself; the levers we DO control (and that
+// stay in preview↔render parity) are the letter EDGE, the drop SHADOW, and the SIZE — refined below.
+// A true editorial/"Atelier" look would require an approved editorial font asset (not present).
+//
+// Typography depth: subtle CHARACTER TRACKING + a localized DROP SHADOW that carries the depth, with
+// only a MINIMAL letter edge for reliability on bright footage — NO background band/scrim/box, and
+// NOT a meme-style outline. Values are in em (fraction of the element's own font size), so preview
+// and render scale identically. FFmpeg drawtext has NO letter-spacing and NO shadow blur (verified),
+// so the burned-in render uses a hard-offset shadow and omits tracking; the CSS preview keeps only a
+// tiny blur so the two read materially the same. A truly soft/glowy shadow would require switching
+// the render to rasterized text (PNG) — deferred pending approval.
 export const OVERLAY_TEXT = {
   trackingEm: 0.03, // subtle inter-character tracking (Option A) — between letters, not words
-  edgeAlpha: 0.28, // very light letter edge (kept minimal; the drop shadow carries the depth)
-  edgeEm: 0.02,
-  shadowAlpha: 0.7, // localized black drop shadow — offset + blur, lifts letters off bright footage
+  edgeAlpha: 0.25, // subtle 1px hairline edge (was 0.28) — needed for reliability on near-white footage
+  edgeEm: 0.008, //   (was 0.02) — the chunk came from EDGE WIDTH (2px→1px on Hero), not this alpha
+  shadowAlpha: 0.6, // localized black drop shadow (was 0.7) — lifts letters off bright footage
   shadowDxEm: 0,
-  shadowDyEm: 0.05,
-  shadowBlurEm: 0.07,
+  shadowDyEm: 0.045, // (was 0.05) — a touch tighter under the text
+  shadowBlurEm: 0.045, // CSS-only blur (was 0.07) — kept small so it approximates FFmpeg's hard offset
 } as const
 
 // Deterministic word-wrap — SHARED by the CSS preview and the FFmpeg render so both produce the
@@ -80,8 +86,8 @@ export function wrapSub(text: string | null | undefined, maxChars = OVERLAY_SPEC
 
 // ── Headline sizing (Template 1: ONE fixed size for every supported combo) ───────────────────
 // The headline vocabulary is CONTROLLED ({city} {property_type_plural}). Widths were measured once
-// with the production font (assets/social/fonts/Overlay-Bold.ttf) at 94px — real advance widths,
-// NOT character counts — to pick the single fixed size (OVERLAY_SPEC.headline.fontPx = 81px) at
+// with the bundled font (assets/social/fonts/Overlay-Bold.ttf = Anton) at 94px — real advance widths,
+// NOT character counts — to pick the single fixed size (OVERLAY_SPEC.headline.fontPx = 70px) at
 // which the WIDEST combo still fits one line inside the 90px-margin safe box. This table is the
 // SUPPORTED SET (its 94px widths are kept for documentation/verification); every entry renders at
 // the SAME fixed font. Any headline NOT in the set (arbitrary/custom text) falls back to char-wrap.
@@ -137,9 +143,11 @@ export function headlineBlockPx(lineCount: number, fontPx: number = OVERLAY_SPEC
 export type LayoutFamily = "hero" | "center_hook" | "center_hook_detail"
 // ONE fixed, smaller size for the center-hook hook, chosen so the LONGEST supported sentence
 // ("Your sign to get that rental home in San Antonio", with tracking) still fits ONE line inside the
-// 900px safe box — so hooks never wrap or stack. Shared by preview + render → both draw one centered
-// line and cannot drift.
-export const CENTER_HOOK = { fontPx: 42, lineSpacing: 8 } as const
+// 900px safe box — so hooks never wrap or stack. Refined 42→38px (~10% smaller) alongside the Hero
+// reduction for a lighter, more editorial feel (the fit only improves at the smaller size). When a
+// center-hook template carries a detail line (T5 Upgrade), the detail uses `detailFontPx` (smaller
+// than the hook) so the headline stays clearly dominant. Shared by preview + render (parity).
+export const CENTER_HOOK = { fontPx: 38, lineSpacing: 8, detailFontPx: 30 } as const
 
 export function templateFamily(template: string): LayoutFamily {
   if (template === "your_sign" || template === "next_property") return "center_hook"
@@ -177,13 +185,14 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   const headBlockH = n * CENTER_HOOK.fontPx + (n - 1) * CENTER_HOOK.lineSpacing
   const hasDetail = family === "center_hook_detail" && detail.length > 0
   const detailLines = hasDetail ? wrapSub(detail) : []
-  const detailBlockH = hasDetail ? detailLines.length * OVERLAY_SPEC.sub.fontPx + Math.max(0, detailLines.length - 1) * OVERLAY_SPEC.sub.lineSpacing : 0
+  // Center-hook detail is smaller than the hook (CENTER_HOOK.detailFontPx) so the hook stays dominant.
+  const detailBlockH = hasDetail ? detailLines.length * CENTER_HOOK.detailFontPx + Math.max(0, detailLines.length - 1) * OVERLAY_SPEC.sub.lineSpacing : 0
   const gap = hasDetail ? OVERLAY_SPEC.sub.gapPx : 0
   const totalH = headBlockH + gap + detailBlockH
   const groupTop = (H - totalH) / 2
   const headline: OverlayBlock = { lines, fontPx: CENTER_HOOK.fontPx, topPx: groupTop, uppercase: false, sideMarginPx: OVERLAY_SPEC.headline.sideMarginPx, lineSpacing: CENTER_HOOK.lineSpacing }
   const detailBlock: OverlayBlock | null = hasDetail
-    ? { lines: detailLines, fontPx: OVERLAY_SPEC.sub.fontPx, topPx: groupTop + headBlockH + gap, uppercase: false, sideMarginPx: OVERLAY_SPEC.sub.sideMarginPx, lineSpacing: OVERLAY_SPEC.sub.lineSpacing }
+    ? { lines: detailLines, fontPx: CENTER_HOOK.detailFontPx, topPx: groupTop + headBlockH + gap, uppercase: false, sideMarginPx: OVERLAY_SPEC.sub.sideMarginPx, lineSpacing: OVERLAY_SPEC.sub.lineSpacing }
     : null
   return { family, headline, detail: detailBlock }
 }

@@ -497,6 +497,9 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const overlayDetail = overlayMode === "generate" ? buildTemplateDetail(overlayTemplate, metaOf()) : ""
 
   const control = "w-full text-[13px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] px-2.5 py-1.5"
+  // Compact select for the three inline Recurring controls (tighter font/padding) so all three fit
+  // one desktop row AND the full "Social Beast chooses" value shows without truncation.
+  const controlCompact = "w-full text-[12px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] px-2 py-1.5"
   const fieldLabel = "text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]"
   const btn = "text-[12.5px] font-semibold px-3 py-1.5 rounded-lg border border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] transition-colors disabled:opacity-50"
   // The three footer actions share ONE physical size (height/padding/radius/font/line-height/min
@@ -826,24 +829,28 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                          Duration | Posting time), stacking only on narrow screens. NO activation
                          button — the green Publish (below) activates recurrence. */
                       <div className="mt-2 flex flex-col gap-2">
-                        <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.25fr)] gap-2.5">
+                        {/* Three settings on ONE compact desktop row (stacks on narrow screens).
+                            Repeat Post + Duration size to their content; Posting time takes the
+                            remaining width so its longest value ("Social Beast chooses") shows in
+                            full without truncation. */}
+                        <div className="grid grid-cols-1 sm:grid-cols-[max-content_max-content_minmax(0,1fr)] gap-2.5">
                           <label className="block min-w-0">
                             <span className="text-[11px] text-[var(--crm-text-muted)]">Repeat Post</span>
-                            <select className={`${control} mt-1 cursor-pointer`} value={repeatEvery} onChange={(e) => setRepeatEvery(Number(e.target.value))}>
+                            <select className={`${controlCompact} mt-1 cursor-pointer`} value={repeatEvery} onChange={(e) => setRepeatEvery(Number(e.target.value))}>
                               <option value={14}>Every 14 days</option><option value={30}>Every 30 days</option><option value={60}>Every 60 days</option>
                             </select>
                           </label>
                           <label className="block min-w-0">
                             <span className="text-[11px] text-[var(--crm-text-muted)]">Duration</span>
-                            <select className={`${control} mt-1 cursor-pointer`}
+                            <select className={`${controlCompact} mt-1 cursor-pointer`}
                               value={durationMode === "days" ? `d${durationDays}` : durationMode === "date" ? "date" : "until"}
                               onChange={(e) => { const v = e.target.value; if (v === "date") setDurationMode("date"); else if (v === "until") setDurationMode("until_stopped"); else { setDurationMode("days"); setDurationDays(Number(v.slice(1))) } }}>
-                              <option value="d30">30 days</option><option value="d60">60 days</option><option value="d90">90 days</option><option value="date">Custom end date</option><option value="until">Until stopped</option>
+                              <option value="d30">30 days</option><option value="d60">60 days</option><option value="d90">90 days</option><option value="date">Custom date</option><option value="until">Until stopped</option>
                             </select>
                           </label>
                           <label className="block min-w-0">
                             <span className="text-[11px] text-[var(--crm-text-muted)]">Posting time</span>
-                            <select className={`${control} mt-1 cursor-pointer`} value={placement} onChange={(e) => setPlacement(e.target.value as "any" | "morning" | "midday" | "evening")}>
+                            <select className={`${controlCompact} mt-1 cursor-pointer`} value={placement} onChange={(e) => setPlacement(e.target.value as "any" | "morning" | "midday" | "evening")}>
                               <option value="any">Social Beast chooses</option><option value="morning">Morning</option><option value="midday">Afternoon</option><option value="evening">Evening</option>
                             </select>
                           </label>

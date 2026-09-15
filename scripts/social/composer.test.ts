@@ -149,10 +149,10 @@ for (const c of CITIES) for (const t of TYPES) {
 }
 ok("EVERY supported city×type (incl Loft) headline stays ONE line", allOneLine)
 ok("EVERY supported combo uses the SAME fixed font (no per-combo resizing)", allSameFixed)
-ok("new fixed Template 1 headline size is 78px", FIXED === 78)
+ok("new fixed Template 1 headline size is 70px (refined ~10% smaller)", FIXED === 70)
 ok("EVERY combo TRACKED width fits the 900px safe box (one-line safe with tracking)", allTrackedFit)
 ok("widest tracked combo is SAN ANTONIO RENTAL HOMES within the safe box", widest === "SAN ANTONIO RENTAL HOMES" && widestPx <= HEADLINE_TEXT_AVAIL_PX)
-ok("Loft combos are supported one-line (e.g. SAN ANTONIO LOFTS)", headlineFit("SAN ANTONIO LOFTS").lines.length === 1 && headlineFit("SAN ANTONIO LOFTS").fontPx === 78)
+ok("Loft combos are supported one-line (e.g. SAN ANTONIO LOFTS)", headlineFit("SAN ANTONIO LOFTS").lines.length === 1 && headlineFit("SAN ANTONIO LOFTS").fontPx === 70)
 ok("usable text width = safe area (no box) = 900px (90px margins)", HEADLINE_TEXT_AVAIL_PX === 900)
 ok("unknown/custom headline keeps the fixed font + char-wrap", headlineFit("SOME ENTIRELY CUSTOM HEADLINE TEXT").fontPx === FIXED)
 
@@ -368,6 +368,8 @@ ok("CENTER HOOK is vertically centred (not near the top)", hookL.headline.topPx 
 ok("CENTER HOOK uses a smaller size than the Hero headline (not forced giant)", hookL.headline.fontPx < heroL.headline.fontPx)
 const upL = computeOverlayLayout("upgrade", "What life looks like when you upgrade", "8 Weeks Free · Starting at $1,600/mo")
 ok("CENTER HOOK + DETAIL centres the group; detail below headline", !!upL.detail && upL.detail.topPx > upL.headline.topPx)
+ok("CENTER HOOK + DETAIL hierarchy: detail is smaller than the hook", !!upL.detail && upL.detail.fontPx < upL.headline.fontPx)
+ok("HERO hierarchy: detail is smaller than the headline", !!heroL.detail && heroL.detail.fontPx < heroL.headline.fontPx)
 // Center-hook hooks are ONE line (never wrapped/stacked), even the longest supported sentence, and
 // the headline stays one line even when a detail is present (T5).
 ok("CENTER HOOK headline is ONE line (no wrap)", hookL.headline.lines.length === 1)

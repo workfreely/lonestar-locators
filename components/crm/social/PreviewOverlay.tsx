@@ -1,8 +1,10 @@
 import type { CSSProperties } from "react"
 import { OVERLAY_CANVAS, OVERLAY_TEXT, type OverlayBlock, type OverlayLayout } from "@/lib/social/overlaySpec"
 
-// Typography depth (Option A): a localized black DROP SHADOW (offset + blur) that lifts the white
-// letters off bright footage, plus a very light 8-direction EDGE — NOT a heavy outline, NO band.
+// Typography depth: a localized black DROP SHADOW (small offset + tiny blur) that lifts the white
+// letters off bright footage, plus a MINIMAL 8-direction EDGE — not a heavy outline, no band. The
+// tiny blur is kept close to FFmpeg's hard-offset shadow (drawtext has no blur) so preview↔render
+// read materially the same.
 function depthShadow(): string {
   const e = OVERLAY_TEXT.edgeEm
   const dirs: [number, number][] = [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1], [0, 1], [-1, 0], [1, 0]]
@@ -44,8 +46,11 @@ export default function PreviewOverlay({ layout }: { layout: OverlayLayout | nul
   if (!layout) return null
   return (
     <div className="pointer-events-none absolute inset-0" aria-hidden style={{ containerType: "size" }}>
-      {layout.headline.lines.length > 0 && <div style={blockStyle(layout.headline, 800)}>{blockText(layout.headline)}</div>}
-      {layout.detail && layout.detail.lines.length > 0 && <div style={blockStyle(layout.detail, 700)}>{blockText(layout.detail)}</div>}
+      {/* Weights are largely inert: the bundled face (Anton) ships one weight, and the @font-face
+          maps 100–900 to it with no synthetic bolding. Kept at normal/medium to express the intended
+          hierarchy (headline > detail) rather than an extra-bold caption look. */}
+      {layout.headline.lines.length > 0 && <div style={blockStyle(layout.headline, 500)}>{blockText(layout.headline)}</div>}
+      {layout.detail && layout.detail.lines.length > 0 && <div style={blockStyle(layout.detail, 400)}>{blockText(layout.detail)}</div>}
     </div>
   )
 }
