@@ -26,6 +26,8 @@ const other = buildThankYouSteps({ agentName: "Morgan Lee", brokerage: "Peachtre
 ok("different workspace → different names", other[3].body.includes("Morgan Lee") && other[3].body.includes("Peachtree Rentals"))
 ok("never Jay/AptAmigo/ReLIVe/Lone Star", !/Jay Morris|AptAmigo|ReLIVe|Relive|Lone Star/i.test(JSON.stringify(base) + JSON.stringify(other)))
 ok("apply-instruction override wins", buildThankYouSteps({ agentName: "Dana Reyes", applyInstructions: "List me as Dana." })[3].body === "List me as Dana.")
+ok("default apply step emphasizes '{agent} with {brokerage}' (a substring of the body)", base[3].emphasis === "Dana Reyes with Hill Country Living" && base[3].body.includes(base[3].emphasis!))
+ok("override apply step has NO emphasis", buildThankYouSteps({ agentName: "Dana Reyes", applyInstructions: "List me as Dana." })[3].emphasis === undefined)
 ok("missing agent → 'your locator'", buildThankYouSteps({ agentName: "" })[3].body.includes("your locator"))
 
 console.log("\nReward step toggle (three-state) + description reuse:")

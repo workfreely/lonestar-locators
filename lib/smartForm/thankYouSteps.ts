@@ -12,6 +12,10 @@ export type ThankYouStep = {
   body: string
   /** Step 1 (the just-submitted form) renders as completed. */
   done?: boolean
+  /** A substring of `body` the page should render in bold (e.g. the agent +
+   *  brokerage in the default apply step). Only set when it is a safe, known
+   *  substring of `body`; never set for agent-provided override text. */
+  emphasis?: string
 }
 
 // Canonical defaults — shared by the page (fallbacks) and the editor (placeholder
@@ -80,17 +84,23 @@ export function buildThankYouSteps(input: {
   const agent = (input.agentName ?? "").trim() || "your locator"
   const brokerage = (input.brokerage ?? "").trim()
 
-  const applyBody = (input.applyInstructions ?? "").trim()
-    ? (input.applyInstructions as string).trim()
-    : `When you're ready to apply, select Realtor or Apartment Locator and list ${agent}${
-        brokerage ? ` with ${brokerage}` : ""
-      } so the property knows who helped you.`
+  // Default apply step lists "{agent} with {brokerage}" and emphasizes it; an
+  // agent-provided override is used verbatim with no emphasis.
+  const usingDefaultApply = !(input.applyInstructions ?? "").trim()
+  const applyPhrase = `${agent}${brokerage ? ` with ${brokerage}` : ""}`
+  const applyBody = usingDefaultApply
+    ? `When you're ready to apply, select Realtor or Apartment Locator and list ${applyPhrase} so the property knows who helped you.`
+    : (input.applyInstructions as string).trim()
 
   const steps: ThankYouStep[] = [
     { title: THANKYOU_DEFAULTS.step1Title, body: THANKYOU_DEFAULTS.step1Body, done: true },
     { title: pick(input.step2Title, THANKYOU_DEFAULTS.step2Title), body: pick(input.step2Body, THANKYOU_DEFAULTS.step2Body) },
     { title: pick(input.step3Title, THANKYOU_DEFAULTS.step3Title), body: pick(input.step3Body, THANKYOU_DEFAULTS.step3Body) },
-    { title: pick(input.step4Title, THANKYOU_DEFAULTS.step4Title), body: applyBody },
+    {
+      title: pick(input.step4Title, THANKYOU_DEFAULTS.step4Title),
+      body: applyBody,
+      emphasis: usingDefaultApply ? applyPhrase : undefined,
+    },
   ]
 
   if (shouldShowReward(input.showReward, input.incentive)) {
