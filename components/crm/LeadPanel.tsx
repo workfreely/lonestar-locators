@@ -14,8 +14,6 @@ import { recordFirstContact as recordFirstContactCascade } from "@/lib/leads/con
 import { advanceBuildListToSearching } from "@/lib/leads/buildListWorkflow"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import LeadSourceBadge from "./LeadSourceBadge"
-import { inferMarketFromLandingPage } from "@/lib/leads/inferMarketFromLandingPage"
-import { shouldInferMarketFromLandingPage } from "@/lib/leads/leadClassification"
 import { ARCHIVE_REASONS } from "@/lib/leads/archiveReasons"
 import { rankLeadActions, isTourScheduled } from "@/lib/nextActions"
 import { getNextFollowUpAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
@@ -590,12 +588,6 @@ export default function LeadPanel({
   const nextOpenAction =
     completedAtTs || primaryAction.title === "Waiting for Response" ? null : primaryAction
 
-  // ─── Short-form market inference (display only) ────────────────────────
-  // Gated on form_variant (the form shape) — lead_type is now the client type.
-  const inferredMarket =
-    shouldInferMarketFromLandingPage(lead)
-      ? inferMarketFromLandingPage(lead.landing_page)
-      : null
 
   // Message templates for the Next Action button (openAction). NOTE: opening a
   // message never completes an action — a follow-up is completed only by the
@@ -998,7 +990,7 @@ export default function LeadPanel({
             Income = the SmartLead Form's Monthly Household Income range, rendered
             verbatim (incl. "/ month"), directly after Budget. */}
         {(() => {
-          const cityValue = inferredMarket || lead.city
+          const cityValue = lead.city
           const bedsBaths = lead.beds || lead.baths ? `${lead.beds || "—"} / ${lead.baths || "—"}` : null
           const moveDate = hasValue(lead.move_date) ? formatDate(lead.move_date) : null
           const areas = formatDesiredAreas(lead.neighborhoods, lead.city)
@@ -1013,7 +1005,7 @@ export default function LeadPanel({
           if (!anyPresent) return null
           return (
             <SectionCard title="Search Criteria" shaded collapsible defaultOpen={true} storageKey="search-criteria">
-              {hasValue(cityValue) && <Field label={inferredMarket ? "Interest" : "City"} value={cityValue} />}
+              {hasValue(cityValue) && <Field label="City" value={cityValue} />}
               {hasValue(lead.desired_rent) && <Field label="Budget" value={formatRent(lead.desired_rent)} />}
               {hasValue(lead.income) && <Field label="Income" value={lead.income} />}
               {hasValue(lead.property_type) && <Field label="Property Type" value={lead.property_type} />}

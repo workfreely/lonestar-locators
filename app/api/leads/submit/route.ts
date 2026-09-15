@@ -40,7 +40,7 @@ import { getStageWorkflowAction, createWorkflowActionIfNeeded } from "@/lib/work
 import { resolveUserTimeZone } from "@/lib/timezone/server"
 import { sendNotification, newLeadEmail, leadConfirmationEmail, absoluteUrl } from "@/lib/notifications"
 import { resolveAgentIdentityForOwner } from "@/lib/notifications/agentSignature"
-import { resolveLeadClassification } from "@/lib/leads/leadClassification"
+import { resolveClientType } from "@/lib/leads/leadClassification"
 
 // Server-only client — SUPABASE_SERVICE_ROLE_KEY has no NEXT_PUBLIC_
 // prefix, so it is never bundled into browser JS.
@@ -164,16 +164,11 @@ function validateAndBuildPayload(
     errors.push({ field: "email", message: "email is not valid" })
   }
 
-  // Two independent dimensions, kept separate (see lib/leads/leadClassification):
-  //   lead_type    = CLIENT TYPE  ('renter' | 'buyer' | 'seller')
-  //   form_variant = FORM SHAPE   ('short' | 'full')
-  // The form shape used to be written into lead_type (formType), conflating the
-  // two so renter leads were stored as "full"/"short". Now formType feeds
-  // form_variant, and lead_type is normalized to a canonical client type
-  // (renter-only intake today) so it can never violate leads_lead_type_check.
-  const classification = resolveLeadClassification(formType, payload.lead_type as string | undefined)
-  payload.lead_type = classification.lead_type
-  payload.form_variant = classification.form_variant
+  // lead_type describes the CLIENT, not the form. Locator Beast has ONE Smart
+  // Lead Form; question configuration never creates a different "form type", so
+  // lead_type is never derived from formType/field count/config — it is a
+  // canonical client type (renter-only intake today) and defaults to renter.
+  payload.lead_type = resolveClientType(payload.lead_type as string | undefined)
   payload.lead_category = "renter"
 
   return errors.length > 0 ? { errors } : { payload }

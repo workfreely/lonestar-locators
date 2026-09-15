@@ -7,8 +7,6 @@ import { formatWorkflowActionLabel } from "@/lib/leads/workflowActionLabels"
 import { useState, useRef, useLayoutEffect } from "react"
 import { formatPhone } from "@/lib/utils/formatPhone"
 import LeadSourceBadge from "./LeadSourceBadge"
-import { inferMarketFromLandingPage } from "@/lib/leads/inferMarketFromLandingPage"
-import { shouldInferMarketFromLandingPage } from "@/lib/leads/leadClassification"
 import { getArchiveReasonBadgeLabel } from "@/lib/leads/archiveReasons"
 import { formatPersonName } from "@bc/companion-shared"
 
@@ -143,10 +141,6 @@ export default function LeadCard({
   const actionLabel = formatWorkflowActionLabel(action)
   const nextText = `${actionLabel}${followUpStatus === "today" ? " · Today" : followUpStatus === "overdue" ? " · Overdue" : ""}`
 
-  // ─── Short-form market inference (display only) ─────────────────────────
-  // Gated on form_variant (the form shape) — lead_type is now the client type.
-  const inferredMarket =
-    shouldInferMarketFromLandingPage(lead) ? inferMarketFromLandingPage(lead.landing_page) : null
 
   // ─── Archive reason badge (archived leads only) ────────────────────────
   const archiveBadgeLabel =
@@ -301,10 +295,10 @@ export default function LeadCard({
             Income (SmartLead Form Monthly Household Income) sits directly after
             Budget, on the layouts that show Budget (detailed + compact). */}
         <div className="kb-grid">
-          {hasValue(inferredMarket || lead.city) && (
+          {hasValue(lead.city) && (
             <div className="kb-row">
-              <span className="kb-k">{inferredMarket ? "Interest" : "City"}</span>
-              <span className="kb-v">{inferredMarket || lead.city}</span>
+              <span className="kb-k">City</span>
+              <span className="kb-v">{lead.city}</span>
             </div>
           )}
           {!twoFields && hasValue(lead.desired_rent) && (
