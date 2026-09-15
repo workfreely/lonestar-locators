@@ -37,7 +37,7 @@ const ERROR_COPY: Record<string, string> = {
 
 const CONNECT_URL = "/api/integrations/meta/connect"
 const NAME = "Instagram & Facebook Ads"
-const DESC = "Connect Instagram or Facebook ads to track leads and sales."
+const DESC = "Connect Instagram or Facebook ads to track leads and view sales analytics."
 const last4 = (id: string | null | undefined) => (id ? id.replace(/\D/g, "").slice(-4) : "")
 
 export default function MetaAdsSection() {
@@ -204,7 +204,7 @@ export default function MetaAdsSection() {
       </div>
       {/* Secondary line — tutorial (left) + connected account detail (right, beneath the action). */}
       {betaAllowed && (connectedInfo || tutorialUrl !== undefined) && (
-        <div className="mt-1.5 flex items-start justify-between gap-4">
+        <div className="mt-4 flex items-start justify-between gap-4">
           <div className="min-w-0">
             {tutorialUrl ? (
               <a href={tutorialUrl} target="_blank" rel="noopener noreferrer" className="text-[12px] font-medium text-[#2f6bff] hover:underline">{tutorialText}</a>
