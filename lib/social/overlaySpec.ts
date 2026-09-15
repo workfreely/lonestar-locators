@@ -159,9 +159,11 @@ function centerHookDetailMaxPx(template: string, hookPx: number): number {
 // Gap below the hook for center-hook + detail (T5/T8): tighter than the Hero sub gap so the two lines
 // read as ONE lockup instead of two separated elements.
 const CENTER_HOOK_DETAIL_GAP_PX = 16
-// Hero (T3 Special + Feature) gap: tighter than the shared sub gap so its detail hugs the headline.
-// T1 (market_type) keeps the standard OVERLAY_SPEC.sub.gapPx — do not change T1.
+// Hero gaps (per template): T3 Special + Feature hugs the headline; T1 Market + Type slightly reduced
+// from the old 35 so its price reads as one lockup with the headline (still a touch looser than T3
+// because T1's detail is larger at 52px). Other hero templates keep OVERLAY_SPEC.sub.gapPx.
 const SPECIAL_FEATURE_GAP_PX = 18
+const MARKET_TYPE_GAP_PX = 24
 
 // Supported Hero vocabulary ({CITY} {TYPE_PLURAL}, uppercase) → renders one line (fit-to-width);
 // any headline NOT in this set (arbitrary/custom) falls back to the multi-line char-wrap.
@@ -238,7 +240,7 @@ export function computeOverlayLayout(template: string, headlineText: string, det
     const headline: OverlayBlock = { lines: fit.lines, fontPx: fit.fontPx, topPx: headTop, uppercase: true, sideMarginPx: OVERLAY_SPEC.headline.sideMarginPx, lineSpacing: OVERLAY_SPEC.headline.lineSpacing }
     let detailBlock: OverlayBlock | null = null
     if (detail) {
-      const heroGapPx = template === "special_feature" ? SPECIAL_FEATURE_GAP_PX : OVERLAY_SPEC.sub.gapPx // T3 hugs headline; T1 unchanged
+      const heroGapPx = template === "special_feature" ? SPECIAL_FEATURE_GAP_PX : template === "market_type" ? MARKET_TYPE_GAP_PX : OVERLAY_SPEC.sub.gapPx
       const detailTop = headTop + headlineBlockPx(Math.max(1, fit.lines.length), fit.fontPx) + heroGapPx
       const detailPx = template === "market_type" ? MARKET_TYPE_DETAIL_PX : OVERLAY_SPEC.sub.fontPx // T1 price is larger; T3 keeps the shared size
       detailBlock = { lines: wrapSub(detail), fontPx: detailPx, topPx: detailTop, uppercase: false, sideMarginPx: OVERLAY_SPEC.sub.sideMarginPx, lineSpacing: OVERLAY_SPEC.sub.lineSpacing }

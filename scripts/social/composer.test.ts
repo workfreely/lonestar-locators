@@ -465,7 +465,9 @@ const t5L = computeOverlayLayout("upgrade", "What life looks like when you upgra
 ok("T5 detail sits within ~20px below the hook (tight lockup)", !!t5L.detail && (t5L.detail.topPx - (t5L.headline.topPx + t5L.headline.fontPx)) <= 20)
 const t3gap = computeOverlayLayout("special_feature", "SAN ANTONIO TOWNHOMES", "8 Weeks Free · Private Yards")
 const t1gap = computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,900/mo")
-ok("T3 detail gap is TIGHTER than T1 (T1 unchanged)", (t3gap.detail!.topPx - (t3gap.headline.topPx + t3gap.headline.fontPx)) < (t1gap.detail!.topPx - (t1gap.headline.topPx + t1gap.headline.fontPx)))
+const t1GapPx = t1gap.detail!.topPx - (t1gap.headline.topPx + t1gap.headline.fontPx)
+ok("T1 gap reduced to 24px (tighter lockup, was 35)", t1GapPx === 24)
+ok("T3 detail gap (18) is still TIGHTER than T1 (24)", (t3gap.detail!.topPx - (t3gap.headline.topPx + t3gap.headline.fontPx)) < t1GapPx)
 ok("T8 with no price → no detail block (omitted)", computeOverlayLayout("pov_price", "POV: You upgraded to a loft", "").detail === null)
 // Guardrails: Template 1 stays 52, Template 3 stays the shared sub size.
 ok("Template 1 detail STAYS 52px", computeOverlayLayout("market_type", "SAN ANTONIO LOFTS", "Starting at $1,900/mo").detail!.fontPx === 52)
