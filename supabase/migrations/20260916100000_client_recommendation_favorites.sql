@@ -54,12 +54,18 @@ begin
    limit 1;
   if v_item.id is null then return; end if;
 
+  -- Table column qualified on the right-hand side so it is never confused with the
+  -- OUT column of the same name (favorited_count) that this function returns.
   if p_favorited and not v_item.was then
     update public.client_recommendation_share_items set favorited_at = now() where id = v_item.id;
-    update public.client_recommendation_shares set favorited_count = favorited_count + 1 where id = v_share.id;
+    update public.client_recommendation_shares
+       set favorited_count = client_recommendation_shares.favorited_count + 1
+     where id = v_share.id;
   elsif (not p_favorited) and v_item.was then
     update public.client_recommendation_share_items set favorited_at = null where id = v_item.id;
-    update public.client_recommendation_shares set favorited_count = greatest(favorited_count - 1, 0) where id = v_share.id;
+    update public.client_recommendation_shares
+       set favorited_count = greatest(client_recommendation_shares.favorited_count - 1, 0)
+     where id = v_share.id;
   end if;
 
   return query
