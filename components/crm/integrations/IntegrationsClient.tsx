@@ -3,6 +3,7 @@
 import SettingsShell, { SettingsCard } from "@/components/crm/settings/SettingsShell"
 import BeastCompanionExtensionSection from "@/components/crm/integrations/BeastCompanionExtensionSection"
 import BeastCompanionSection from "@/components/crm/integrations/BeastCompanionSection"
+import MessagingSetupSection from "@/components/crm/integrations/MessagingSetupSection"
 import MetaAdsSection from "@/components/crm/integrations/MetaAdsSection"
 import ConnectedDevicesSection from "@/components/crm/devices/ConnectedDevicesSection"
 
@@ -34,6 +35,10 @@ export default function IntegrationsClient({ googleConnected }: { googleConnecte
 
       {/* Beast Sync — the desktop app; macOS + Windows are supported platforms. */}
       <BeastCompanionSection />
+
+      {/* Messaging Setup — Apple Messages (live via Beast Sync) + Google Messages
+          (Android, not yet implemented). Presentation only; no messaging logic. */}
+      <MessagingSetupSection />
 
       {/* Third-party integrations — below Locator Beast's own tools. */}
       <SettingsCard>
