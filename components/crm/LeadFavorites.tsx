@@ -277,7 +277,7 @@ export default function LeadFavorites({
     <>
       <SectionCard title="Favorite Properties" collapsible defaultOpen={true} storageKey="favorite-properties">
         {leadFavorites.length === 0 ? (
-          <p className="text-[12.5px] text-[var(--crm-text-muted)]">No favorite properties added.</p>
+          <p className="text-[11px] text-[var(--crm-text-muted)]">No favorite properties added.</p>
         ) : (
           <div className="space-y-1.5">
             {leadFavorites.map((fav) => {

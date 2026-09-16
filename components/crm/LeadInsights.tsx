@@ -403,7 +403,7 @@ function AiInsightsCard({ leadId, onCloseWorkspace, beastInsight }: { leadId: st
           >
             <polyline points="9 18 15 12 9 6" />
           </svg>
-          <h3 className="text-xs font-semibold text-[var(--crm-text-secondary)] whitespace-nowrap">
+          <h3 className="text-[10.5px] font-semibold text-[var(--crm-text-secondary)] uppercase tracking-widest whitespace-nowrap">
             🧠 AI INSIGHTS
           </h3>
         </div>
@@ -479,7 +479,7 @@ function AiInsightsCard({ leadId, onCloseWorkspace, beastInsight }: { leadId: st
             )}
           </>
         ) : (
-          <p className="text-[12px] text-[var(--crm-text-muted)] italic py-1">
+          <p className="text-[11px] text-[var(--crm-text-muted)]">
             {syncError ? null : "No insights yet — sync messages to generate."}
           </p>
         )}

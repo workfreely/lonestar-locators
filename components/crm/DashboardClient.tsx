@@ -2703,14 +2703,8 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           </svg>
           Analytics
         </Link>
-        {/* Client Tools → Sent Lists: workspace-wide management of the client
-            recommendation lists already sent through the Send List workflow. */}
-        <Link href="/admin/sent-lists" className={CRM_SECONDARY_BUTTON}>
-          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
-            <path d="M2 3.5h10M2 7h10M2 10.5h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-          </svg>
-          Sent Lists
-        </Link>
+        {/* Sent Lists removed from primary nav — the global /admin/sent-lists page
+            remains available directly as a secondary utility. */}
         <button
           onClick={() => setShowLeadModal(true)}
           className={CRM_PRIMARY_BUTTON}
