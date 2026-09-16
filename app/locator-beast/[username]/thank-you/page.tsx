@@ -1,3 +1,4 @@
+import type { ReactNode } from "react"
 import { notFound } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { mergeSmartFormConfig } from "@/app/smart-lead-form/_lib/mergeConfig"
@@ -17,20 +18,34 @@ type PublicForm = {
   agent_email: string | null
 }
 
-// Renders a step body, bolding a known emphasis substring (e.g. the agent +
-// brokerage in the default apply step). Splits on the first occurrence only and
-// wraps the substring in a real element — no HTML injection from config values.
-function renderBody(body: string, emphasis?: string) {
-  if (!emphasis) return body
-  const i = body.indexOf(emphasis)
-  if (i < 0) return body
-  return (
-    <>
-      {body.slice(0, i)}
-      <strong className="font-semibold text-[#111318]">{emphasis}</strong>
-      {body.slice(i + emphasis.length)}
-    </>
-  )
+// Renders a step body, bolding known emphasis substrings (e.g. the action to
+// select + the agent/brokerage to list in the default apply step). Wraps each
+// (first, non-overlapping) match in a real element — no HTML injection from
+// config values, and never a link/color, just weight.
+function renderBody(body: string, emphasis?: string[]) {
+  const phrases = (emphasis ?? []).filter(Boolean)
+  if (!phrases.length) return body
+  const ranges = phrases
+    .map((p) => [body.indexOf(p), p.length] as const)
+    .filter(([i]) => i >= 0)
+    .map(([i, len]) => [i, i + len] as [number, number])
+    .sort((a, b) => a[0] - b[0])
+  if (!ranges.length) return body
+  const parts: ReactNode[] = []
+  let cursor = 0
+  let key = 0
+  for (const [start, end] of ranges) {
+    if (start < cursor) continue // skip overlaps
+    if (start > cursor) parts.push(body.slice(cursor, start))
+    parts.push(
+      <strong key={key++} className="font-semibold text-[#111318]">
+        {body.slice(start, end)}
+      </strong>,
+    )
+    cursor = end
+  }
+  if (cursor < body.length) parts.push(body.slice(cursor))
+  return <>{parts}</>
 }
 
 // Post-submission confirmation for a per-agent Smart Lead Form, served at

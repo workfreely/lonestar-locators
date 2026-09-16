@@ -12,10 +12,11 @@ export type ThankYouStep = {
   body: string
   /** Step 1 (the just-submitted form) renders as completed. */
   done?: boolean
-  /** A substring of `body` the page should render in bold (e.g. the agent +
-   *  brokerage in the default apply step). Only set when it is a safe, known
-   *  substring of `body`; never set for agent-provided override text. */
-  emphasis?: string
+  /** Substrings of `body` the page should render in bold (e.g. the action to
+   *  select + the agent/brokerage to list, in the default apply step). Only set
+   *  to safe, known substrings of `body`; never set for agent-provided override
+   *  text. */
+  emphasis?: string[]
 }
 
 // Canonical defaults — shared by the page (fallbacks) and the editor (placeholder
@@ -99,7 +100,9 @@ export function buildThankYouSteps(input: {
     {
       title: pick(input.step4Title, THANKYOU_DEFAULTS.step4Title),
       body: applyBody,
-      emphasis: usingDefaultApply ? applyPhrase : undefined,
+      // Bold the two scannable phrases in the default copy: what to select and
+      // who to list. Overrides carry no emphasis (rendered as the agent wrote).
+      emphasis: usingDefaultApply ? ["Realtor or Apartment Locator", applyPhrase] : undefined,
     },
   ]
 
