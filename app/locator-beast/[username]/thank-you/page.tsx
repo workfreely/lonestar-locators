@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server"
 import { mergeSmartFormConfig } from "@/app/smart-lead-form/_lib/mergeConfig"
 import { youtubeEmbedUrl } from "@/lib/smartForm/thankYouVideo"
 import { buildThankYouSteps, buildThankYouIntro } from "@/lib/smartForm/thankYouSteps"
-import { serviceAreasLabel } from "@/lib/markets/catalog"
+import { serviceAreasLabelCanonical } from "@/lib/markets/catalog"
 
 export const dynamic = "force-dynamic"
 
@@ -59,7 +59,7 @@ export default async function SmartLeadFormThankYouPage({
   const brokerage = (form.brokerage_name ?? "").trim()
   const phone = (form.agent_phone ?? "").trim()
   const email = (form.agent_email ?? "").trim()
-  const serving = serviceAreasLabel(form.service_areas).trim()
+  const serving = serviceAreasLabelCanonical(form.service_areas).trim()
   const initials =
     agentName
       .split(/\s+/)

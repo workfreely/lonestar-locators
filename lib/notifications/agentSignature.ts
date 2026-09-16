@@ -15,7 +15,7 @@
 // (smart_form_config.footer.iabsUrl) — no new/duplicate field.
 
 import type { SupabaseClient } from "@supabase/supabase-js"
-import { marketsForSlugs, serviceAreasLabel, getMarketByName } from "@/lib/markets/catalog"
+import { marketsForSlugs, serviceAreasLabelCanonical, getMarketByName } from "@/lib/markets/catalog"
 import { BRAND } from "./branding"
 import { esc } from "./layout"
 import { displayFullName } from "@bc/companion-shared"
@@ -118,7 +118,7 @@ export function buildAgentIdentity(input: RawIdentityInput): ResolvedAgentIdenti
   const name = structured ?? clean(p.preferred_name) ?? legalFull
 
   const slugs = w.service_areas ?? null
-  const areaLabelFromSlugs = clean(serviceAreasLabel(slugs))
+  const areaLabelFromSlugs = clean(serviceAreasLabelCanonical(slugs))
   const servesTexas = marketsForSlugs(slugs).some((m) => m.state === "TX")
 
   return {

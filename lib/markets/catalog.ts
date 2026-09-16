@@ -411,9 +411,20 @@ export function marketsForSlugs(slugs: string[] | null | undefined): Market[] {
     .filter((m): m is Market => !!m)
 }
 
-/** Comma-separated display string for the selected markets ("San Antonio, Austin"). */
+/** Comma-separated display string for the selected markets ("San Antonio, Austin").
+ *  Preserves the given slug order. */
 export function serviceAreasLabel(slugs: string[] | null | undefined): string {
   return marketsForSlugs(slugs)
+    .map((m) => m.name)
+    .join(", ")
+}
+
+/** Like serviceAreasLabel, but always in canonical catalog order (independent of
+ *  the stored selection order), so client-facing service-area lists render in a
+ *  stable order that matches how Profile presents the markets. */
+export function serviceAreasLabelCanonical(slugs: string[] | null | undefined): string {
+  const set = new Set((slugs ?? []).filter(Boolean))
+  return MARKETS.filter((m) => set.has(m.slug))
     .map((m) => m.name)
     .join(", ")
 }

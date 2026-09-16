@@ -1,5 +1,5 @@
 import type { SmartLeadFormConfig, AfterFormSectionId } from "../../_lib/types"
-import { serviceAreasLabel } from "@/lib/markets/catalog"
+import { serviceAreasLabelCanonical } from "@/lib/markets/catalog"
 import Hero from "./sections/Hero"
 import AgentProfile from "./sections/AgentProfile"
 import LeadFormFields from "./sections/LeadFormFields"
@@ -31,18 +31,15 @@ export default function SmartLeadForm({
   // submit is a no-op confirmation.
   submitUsername?: string
 }) {
-  // Displayed "Service Areas" text. The agent's configured copy.serviceAreas is
-  // authoritative — its exact order (and any grouped labels like "Dallas–Fort
-  // Worth") is preserved. Only when that field is blank do we fall back to a
-  // label derived from the selected market slugs, so a form that never set the
-  // text still shows the current markets. This is display-only: the canonical
-  // market selection (serviceAreaSlugs) is untouched.
+  // Service Areas come from ONE source: the agent's Profile market selection
+  // (serviceAreaSlugs). They render in canonical catalog order (matching how
+  // Profile lists them), so the display is stable and never drifts from Profile.
+  // The old editable copy.serviceAreas is no longer a source of truth. This is
+  // display-only — the canonical selection is untouched.
   const displayConfig: SmartLeadFormConfig =
-    config.copy.serviceAreas?.trim()
-      ? config
-      : serviceAreaSlugs && serviceAreaSlugs.length
-        ? { ...config, copy: { ...config.copy, serviceAreas: serviceAreasLabel(serviceAreaSlugs) } }
-        : config
+    serviceAreaSlugs && serviceAreaSlugs.length
+      ? { ...config, copy: { ...config.copy, serviceAreas: serviceAreasLabelCanonical(serviceAreaSlugs) } }
+      : config
 
   const { visibility } = displayConfig.sections
   // Under Headline puts the photo and agent info text inside Hero itself,

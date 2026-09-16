@@ -191,7 +191,7 @@ export default function SmartLeadFormEditor() {
           {/* The panel edits the real config, so it waits for one. The column
               keeps its width and border, so nothing shifts when it appears. */}
           {config && (
-            <SettingsPanel config={config} onChange={updateConfig} slug={slug} licenseState={licenseState} />
+            <SettingsPanel config={config} onChange={updateConfig} slug={slug} licenseState={licenseState} serviceAreaSlugs={serviceAreaSlugs} />
           )}
         </div>
       </div>

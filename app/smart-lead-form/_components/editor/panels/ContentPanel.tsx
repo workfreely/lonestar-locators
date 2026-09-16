@@ -1,5 +1,6 @@
 import type { SmartLeadFormConfig, TestimonialItem, FaqItem } from "../../../_lib/types"
 import { TextField } from "../ui/TextField"
+import { serviceAreasLabelCanonical } from "@/lib/markets/catalog"
 import ToggleRow from "../ui/ToggleRow"
 import Card from "../ui/Card"
 import UploadTile from "../ui/UploadTile"
@@ -11,6 +12,7 @@ export default function ContentPanel({
   config,
   onChange,
   licenseState,
+  serviceAreaSlugs,
 }: {
   config: SmartLeadFormConfig
   onChange: Updater
@@ -18,6 +20,9 @@ export default function ContentPanel({
    *  offered ONLY to Texas agents — showing them to a Florida agent implied a
    *  disclosure obligation that does not apply to them. */
   licenseState?: string | null
+  /** Workspace market slugs — the canonical Profile source for Service Areas,
+   *  shown read-only here (edited in Profile, not the form). */
+  serviceAreaSlugs?: string[]
 }) {
   const isTexas = (licenseState ?? "").toUpperCase() === "TX"
   const copy = config.copy
@@ -124,7 +129,18 @@ export default function ContentPanel({
           )}
           <ToggleRow label="Show service areas" checked={visibility.serviceAreas} onChange={(v) => updateVisibility({ serviceAreas: v })} />
           {visibility.serviceAreas && (
-            <TextField label="Service Areas" value={copy.serviceAreas} onChange={(v) => updateCopy({ serviceAreas: v })} />
+            <div className="py-2">
+              <p className="pb-1.5 text-[12px] font-semibold text-[#6b7280]">Service Areas</p>
+              <p className="rounded-lg border border-[#e5e7ee] bg-[#f9fafb] px-3 py-2.5 text-[13.5px] text-[#111318]">
+                {serviceAreasLabelCanonical(serviceAreaSlugs) || "No markets selected"}
+              </p>
+              <p className="mt-1.5 text-[11.5px] leading-relaxed text-[#9098a8]">
+                Managed in Profile.{" "}
+                <a href="/admin/profile" className="font-medium text-[#2f6bff] hover:underline">
+                  Edit in Profile →
+                </a>
+              </p>
+            </div>
           )}
           <ToggleRow label="Show phone number" checked={visibility.phoneNumber} onChange={(v) => updateVisibility({ phoneNumber: v })} />
           {visibility.phoneNumber && (
