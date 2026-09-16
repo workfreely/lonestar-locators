@@ -8,12 +8,13 @@ import { THANKYOU_DEFAULTS, shouldShowReward } from "@/lib/smartForm/thankYouSte
 type Updater = (updater: (prev: SmartLeadFormConfig) => SmartLeadFormConfig) => void
 
 // The "Thank You Page" tab — everything here controls the POST-SUBMIT experience
-// (the /{username}/thank-you page), NOT the Smart Lead Form itself. Every field
-// is optional; a blank field uses the default (shown as placeholder), so the
-// thank-you page always looks complete.
+// (the /{username}/thank-you page), NOT the Smart Lead Form itself. The editor
+// mirrors the public page 1:1 (Intro, then the numbered steps in order, then the
+// video) so an agent can scan it and know exactly where each item appears. Every
+// field is optional; a blank field uses the default (shown as placeholder).
 //
-// Visual hierarchy mirrors the Content tab (section title #111318 / sub-group
-// #4b5162 / TextField label / #9098a8 helper; pt-3 section rhythm).
+// Visual hierarchy matches the Content tab (section title #111318 / TextField
+// label / #9098a8 helper; pt-3 section rhythm).
 export default function ThankYouPanel({
   config,
   onChange,
@@ -25,7 +26,6 @@ export default function ThankYouPanel({
   const rewardOn = shouldShowReward(config.thankYouShowReward, config.thankYouIncentive)
 
   const sectionTitle = "pb-1 text-[13px] font-semibold text-[#111318]"
-  const groupTitle = "pb-1 text-[12px] font-semibold text-[#4b5162]"
   const helper = "pb-1 text-[11.5px] leading-relaxed text-[#9098a8]"
 
   return (
@@ -36,7 +36,7 @@ export default function ThankYouPanel({
         Customize what clients see after they submit your Smart Lead Form.
       </p>
 
-      {/* ── Intro ─────────────────────────────────────────────────────────── */}
+      {/* ── Intro (kept separate from the numbered steps) ─────────────────── */}
       <div className="pt-3">
         <p className={sectionTitle}>Intro</p>
         <p className={helper}>Use {"{firstName}"} and {"{city}"} to personalize it.</p>
@@ -49,28 +49,38 @@ export default function ThankYouPanel({
         />
       </div>
 
-      {/* ── Steps ─────────────────────────────────────────────────────────── */}
+      {/* ── Step 1 — informational only ───────────────────────────────────── */}
       <div className="pt-3">
-        <p className={sectionTitle}>Steps</p>
-        <p className={helper}>Step 1 is shown as completed and can’t be edited.</p>
+        <p className={sectionTitle}>Step 1 — Form submitted</p>
+        <p className="text-[11.5px] leading-relaxed text-[#9098a8]">Completed automatically.</p>
+      </div>
 
-        <p className={`pt-2 ${groupTitle}`}>Step 2</p>
+      {/* ── Step 2 ────────────────────────────────────────────────────────── */}
+      <div className="pt-3">
+        <p className={sectionTitle}>Step 2 — Personalized apartment list</p>
         <TextField label="Title" value={config.thankYouStep2Title} onChange={(v) => set({ thankYouStep2Title: v })} placeholder={THANKYOU_DEFAULTS.step2Title} />
         <TextField label="Description" value={config.thankYouStep2Body} onChange={(v) => set({ thankYouStep2Body: v })} placeholder={THANKYOU_DEFAULTS.step2Body} multiline />
+      </div>
 
-        <p className={`pt-3 ${groupTitle}`}>Step 3</p>
+      {/* ── Step 3 ────────────────────────────────────────────────────────── */}
+      <div className="pt-3">
+        <p className={sectionTitle}>Step 3 — Tour your favorites</p>
         <TextField label="Title" value={config.thankYouStep3Title} onChange={(v) => set({ thankYouStep3Title: v })} placeholder={THANKYOU_DEFAULTS.step3Title} />
         <TextField label="Description" value={config.thankYouStep3Body} onChange={(v) => set({ thankYouStep3Body: v })} placeholder={THANKYOU_DEFAULTS.step3Body} multiline />
+      </div>
 
-        <p className={`pt-3 ${groupTitle}`}>Step 4 — Applying</p>
+      {/* ── Step 4 ────────────────────────────────────────────────────────── */}
+      <div className="pt-3">
+        <p className={sectionTitle}>Step 4 — Applying</p>
         <p className={helper}>Uses your name and brokerage by default.</p>
         <TextField label="Title" value={config.thankYouStep4Title} onChange={(v) => set({ thankYouStep4Title: v })} placeholder={THANKYOU_DEFAULTS.step4Title} />
         <TextField label="Application instructions" value={config.thankYouApplyInstructions} onChange={(v) => set({ thankYouApplyInstructions: v })} placeholder="Uses your name + brokerage by default" multiline />
       </div>
 
-      {/* ── Reward step (optional) — ToggleRow heads the section, like Content. */}
+      {/* ── Step 5 — reward (optional) ────────────────────────────────────── */}
       <div className="pt-3">
-        <ToggleRow strong label="Reward step" checked={rewardOn} onChange={(v) => set({ thankYouShowReward: v ? "on" : "off" })} />
+        <p className={sectionTitle}>Step 5 — Reward</p>
+        <ToggleRow label="Show reward step" checked={rewardOn} onChange={(v) => set({ thankYouShowReward: v ? "on" : "off" })} />
         <p className={helper}>Use this for rebates, free movers, or other client rewards.</p>
         {rewardOn && (
           <>
