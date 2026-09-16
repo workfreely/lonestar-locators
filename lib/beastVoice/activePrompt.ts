@@ -15,10 +15,10 @@
 // rename into a failing test instead of a silent regression.
 
 /** Which existing action a rendered button performs. */
-export type PromptAction = "call" | "text" | "yes" | "no" | "cancel"
+export type PromptAction = "call" | "text" | "yes" | "no" | "cancel" | "guest_card_send"
 
 /** Which existing question is on screen. */
-export type PromptPhase = "choose-method" | "confirm-call" | "confirm-text"
+export type PromptPhase = "choose-method" | "confirm-call" | "confirm-text" | "guest-card"
 
 /** The exact labels the existing modal renders, mapped to what they do. */
 export const BUTTON_ACTIONS: Record<string, PromptAction> = {
@@ -28,6 +28,10 @@ export const BUTTON_ACTIONS: Record<string, PromptAction> = {
   "No Answer": "no",
   "Yes, Sent": "yes",
   Cancel: "cancel",
+  // Guest Card guard modal. "Yes, I Sent It" is the affirmative; "Send Guest Card"
+  // opens the existing composer; "Cancel" aborts. All three are answerable by voice.
+  "Yes, I Sent It": "yes",
+  "Send Guest Card": "guest_card_send",
 }
 
 /** Responses that are valid for each phase — derived from what the phase renders. */
@@ -37,6 +41,9 @@ export const PHASE_ACTIONS: Record<PromptPhase, PromptAction[]> = {
   // The existing Text confirmation renders only "Yes, Sent" and "Cancel".
   // There is deliberately no "no" here: saying No must invent nothing.
   "confirm-text": ["yes", "cancel"],
+  // Guest Card guard: confirm ("Yes, I Sent It"), open the composer ("Send Guest
+  // Card"), or cancel — all answerable by voice.
+  "guest-card": ["yes", "guest_card_send", "cancel"],
 }
 
 /**
@@ -46,6 +53,9 @@ export const PHASE_ACTIONS: Record<PromptPhase, PromptAction[]> = {
  */
 export function derivePhase(labels: string[]): PromptPhase | null {
   const set = new Set(labels.map((l) => l.trim()))
+  // Guest Card guard first — its "Yes, I Sent It" is unique, so it can never be
+  // confused with the contact gate's "Yes, Sent" / "Yes, Contacted".
+  if (set.has("Yes, I Sent It")) return "guest-card"
   if (set.has("Call") && set.has("Text")) return "choose-method"
   if (set.has("Yes, Contacted") && set.has("No Answer")) return "confirm-call"
   if (set.has("Yes, Sent")) return "confirm-text"

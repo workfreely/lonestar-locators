@@ -17,6 +17,7 @@ import type {
   CrmOpenVerb,
   PropertyVerb,
   CompletionTarget,
+  CanonicalStage,
 } from "./phrases"
 export type { ContactMethod }
 
@@ -128,6 +129,12 @@ export type ParsedCommand =
   | { kind: "unleash" }
   | { kind: "ask_beast" }
   | { kind: "completion"; target: CompletionTarget }
+  // Lifecycle: stage move (both directions), archive (opens reason dialog), and
+  // bare restore (recognized, needs a destination). Restore WITH a destination
+  // parses as move_stage onto that stage.
+  | { kind: "move_stage"; clientName: string | null; stage: CanonicalStage }
+  | { kind: "archive_lead"; clientName: string | null }
+  | { kind: "restore_bare"; clientName: string | null }
   | { kind: "stop" }
 
 // ── Resolved action ───────────────────────────────────────────────────────
@@ -153,6 +160,9 @@ export type VoiceAction =
   | { kind: "unleash" }
   | { kind: "ask_beast" }
   | { kind: "completion"; target: CompletionTarget }
+  | { kind: "move_stage"; clientName: string | null; stage: CanonicalStage }
+  | { kind: "archive_lead"; clientName: string | null }
+  | { kind: "restore_bare"; clientName: string | null }
   | { kind: "stop" }
   | { kind: "unknown" }
 

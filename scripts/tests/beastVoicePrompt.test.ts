@@ -29,6 +29,19 @@ for (const [label, action] of [
   ["Cancel", "cancel"],
 ] as const) check(`"${label}" → ${action}`, BUTTON_ACTIONS[label], action)
 
+console.log("\nGuest Card guard modal is answerable by voice (yes / send / cancel)")
+check('"Yes, I Sent It" → yes', BUTTON_ACTIONS["Yes, I Sent It"], "yes")
+check('"Send Guest Card" → guest_card_send', BUTTON_ACTIONS["Send Guest Card"], "guest_card_send")
+check("guest-card phase derived", derivePhase(["Yes, I Sent It", "Send Guest Card", "Cancel"]), "guest-card")
+check("guest-card accepts yes", isValidForPhase("guest-card", "yes"), true)
+check("guest-card accepts send", isValidForPhase("guest-card", "guest_card_send"), true)
+check("guest-card accepts cancel", isValidForPhase("guest-card", "cancel"), true)
+check("guest-card rejects call (fail closed)", isValidForPhase("guest-card", "call"), false)
+// "Send Guest Card" is ONLY valid on the guest-card phase — never a free-floating action.
+check("send NOT valid on choose-method", isValidForPhase("choose-method", "guest_card_send"), false)
+check("send NOT valid on confirm-call", isValidForPhase("confirm-call", "guest_card_send"), false)
+check("guest-card 'Yes, I Sent It' not confused with contact 'Yes, Sent'", derivePhase(["Yes, Sent", "Cancel"]), "confirm-text")
+
 console.log("\nphase derived from the rendered buttons")
 check("chooser", derivePhase(["Call", "Text", "Cancel"]), "choose-method")
 check("call confirmation", derivePhase(["Yes, Contacted", "No Answer", "Cancel"]), "confirm-call")

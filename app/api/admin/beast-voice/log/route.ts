@@ -62,9 +62,14 @@ const INTENTS = new Set([
   "unleash",
   "ask_beast",
   "completion",
+  "move_stage",
+  "archive_lead",
+  "restore_bare",
   "stop",
+  // A contextual answer to the Guest Card guard modal ("Send Guest Card").
+  "guest_card_send",
 ])
-const PHASES = new Set(["choose-method", "confirm-call", "confirm-text"])
+const PHASES = new Set(["choose-method", "confirm-call", "confirm-text", "guest-card"])
 const ACTIONS = new Set(["initiate-contact", "execute"])
 const METHODS = new Set(["unspecified", "call", "text"])
 

@@ -27,7 +27,7 @@ import type {
   VoiceAction,
   ParsedCommand,
 } from "@/lib/beastVoice/types"
-import type { AgendaOp, CrmOpenVerb, PropertyVerb } from "@/lib/beastVoice/phrases"
+import type { AgendaOp, CrmOpenVerb, PropertyVerb, CanonicalStage } from "@/lib/beastVoice/phrases"
 
 // Beast Voice V1 — the mic that lives inside the existing Kanban search field.
 //
@@ -88,6 +88,9 @@ const RESPONSE_ACTIONS: Record<string, PromptAction> = {
   confirm_yes: "yes",
   confirm_no: "no",
   cancel: "cancel",
+  // Answers the Guest Card guard modal's "Send Guest Card" button. Only ever
+  // valid while that modal is on screen (isValidForPhase gates it to "guest-card").
+  guest_card_send: "guest_card_send",
 }
 
 /** Clicking these launches tel:/sms: to the OS. */
@@ -156,6 +159,7 @@ function speechErrorMessage(code: SpeechErrorCode): string {
 export default function BeastVoiceMic({
   leads,
   onInitiateContact,
+  onContactGate,
   onListeningChange,
   createProvider,
   onSelectClient,
@@ -165,11 +169,19 @@ export default function BeastVoiceMic({
   onAddLead,
   getSelectedLead,
   getCurrentProperty,
+  onMoveStage,
+  onArchiveLead,
 }: {
   /** The leads already loaded in the board — resolution never queries. */
   leads: any[]
-  /** The existing Contact Gate entry point (identical to the drag's). */
+  /** The existing Contact Gate entry point (identical to the drag's — it also
+   *  selects the lead + opens the detail workspace). Used as a fallback. */
   onInitiateContact?: (lead: any) => void
+  /** Preferred New-lead contact entry for Voice: opens the SAME Contact Gate but
+   *  WITHOUT selecting the lead / navigating to its workspace. A spoken contact
+   *  command resolves the client by identity and triggers the gate only — it must
+   *  not open the client detail view (only explicit "Open <name>" does that). */
+  onContactGate?: (lead: any) => void
   /** Lets the search field swap its placeholder while a session runs. */
   onListeningChange?: (state: "idle" | "listening" | "working") => void
   /** Override the speech backend (tests, future per-workspace selection). */
@@ -192,6 +204,12 @@ export default function BeastVoiceMic({
   getCurrentProperty?: () =>
     | { propertyUrl?: string; placeId?: string | null; propertyAddress?: string | null; propertyName?: string | null }
     | null
+  /** The SHARED Kanban stage-transition handler (the same function manual drag
+   *  calls) — used for forward/backward moves AND named restores (§1, §2, §7). */
+  onMoveStage?: (leadId: string | number, newStage: CanonicalStage) => void
+  /** Opens the EXISTING Archive reason dialog for a lead (§6) — never archives
+   *  directly; the dialog + its handler perform the archive after a reason. */
+  onArchiveLead?: (leadId: string | number) => void
 }) {
   const router = useRouter()
   const theme = useOptionalTheme()
@@ -407,8 +425,14 @@ export default function BeastVoiceMic({
     }, PROMPT_WAIT_MS)
 
     setPhase({ name: "idle" })
-    // Everything past this line is the CRM's existing workflow, untouched.
-    onInitiateContact?.(lead)
+    // Open the EXISTING Contact Gate. `onContactGate` opens the gate for the
+    // resolved lead WITHOUT selecting it (no workspace/detail navigation) — a
+    // spoken "Move/Contact/Text/Call <New lead>" resolves identity only, exactly
+    // as the user asked. It falls back to `onInitiateContact` (the drag's prop,
+    // which also selects) only when the no-select entry isn't wired. Everything
+    // past this point — chooser, tel:/sms: launch, "Were you able to contact…?",
+    // recordFirstContact — is the existing workflow, untouched.
+    ;(onContactGate ?? onInitiateContact)?.(lead)
   }
 
   /** End the voice flow and release the microphone. Idempotent. */
@@ -733,9 +757,81 @@ export default function BeastVoiceMic({
         }
       }
 
+      case "move_stage": {
+        const t = forced ? { lead: forced } : resolveTarget(action.clientName, ctxLead)
+        if (t.ask) return { outcome: "ambiguous", ask: { leads: t.ask, spoken: action.clientName ?? "", action } }
+        if (!t.lead) {
+          return action.clientName
+            ? { outcome: "not-found", feedback: { tone: "error", message: `No client matching "${action.clientName}".` } }
+            : { outcome: "no-context", feedback: { tone: "info", message: "Open a client first." } }
+        }
+        const lead = t.lead
+        const stage = action.stage
+        // CLOSED is CRM-owned + financial — open Confirm Lease, never a direct move (§5).
+        if (stage === "closed") {
+          postWorkflowVerb(lead.id, "open-confirm-lease")
+          return { outcome: "executed", feedback: { tone: "info", message: "Opened Confirm Lease." }, endsChain: true, nextLead: lead }
+        }
+        // ARCHIVED as a move target → route to the reason dialog (§6). (Normally
+        // parsed as archive_lead; handled here too for safety.)
+        if (stage === "archived") {
+          if (!onArchiveLead) return { outcome: "no-context" }
+          onArchiveLead(lead.id)
+          return { outcome: "executed", feedback: { tone: "info", message: `Archiving ${displayName(lead)} — choose a reason.` }, endsChain: true }
+        }
+        // NEW → CONTACTED stays the Contact Gate (§3) — the same full flow the
+        // contact command uses (launch + result prompt + voice re-arm).
+        if (stage === "contacted" && String(lead.crm_status ?? "") === ELIGIBLE_STAGE) {
+          handOff(lead, transcript, "unspecified", "voice-move-contacted")
+          return { outcome: "handed-off", handledPhase: true, endsChain: true, nextLead: lead }
+        }
+        if (String(lead.crm_status ?? "") === stage) {
+          return { outcome: "no-context", feedback: { tone: "info", message: `${displayName(lead)} is already in ${stageLabel(stage)}.` } }
+        }
+        if (!onMoveStage) return { outcome: "no-context" }
+        // The SAME shared handler manual drag calls — forward, backward, or the
+        // restore branch when the lead is archived. Voice writes no crm_status.
+        const wasArchived = String(lead.crm_status ?? "") === "archived"
+        onMoveStage(lead.id, stage)
+        return {
+          outcome: "executed",
+          feedback: { tone: "info", message: `${wasArchived ? "Restored" : "Moved"} ${displayName(lead)} to ${stageLabel(stage)}.` },
+          nextLead: lead,
+        }
+      }
+
+      case "archive_lead": {
+        const t = forced ? { lead: forced } : resolveTarget(action.clientName, ctxLead)
+        if (t.ask) return { outcome: "ambiguous", ask: { leads: t.ask, spoken: action.clientName ?? "", action } }
+        if (!t.lead) {
+          return action.clientName
+            ? { outcome: "not-found", feedback: { tone: "error", message: `No client matching "${action.clientName}".` } }
+            : { outcome: "no-context", feedback: { tone: "info", message: "Open a client first." } }
+        }
+        if (String(t.lead.crm_status ?? "") === "archived") {
+          return { outcome: "no-context", feedback: { tone: "info", message: `${displayName(t.lead)} is already archived.` } }
+        }
+        if (!onArchiveLead) return { outcome: "no-context" }
+        // Opens the EXISTING reason dialog; the archive happens only after a reason
+        // is chosen there. Voice never archives directly (§6).
+        onArchiveLead(t.lead.id)
+        return { outcome: "executed", feedback: { tone: "info", message: `Archiving ${displayName(t.lead)} — choose a reason.` }, endsChain: true, nextLead: t.lead }
+      }
+
+      case "restore_bare": {
+        // Recognized, but no live handler restores to the previous stage and Voice
+        // must not pick one — so nothing is mutated; ask for a destination (§8).
+        const who = action.clientName ?? "this client"
+        return {
+          outcome: "no-context",
+          feedback: { tone: "info", message: `Tell me which stage to restore ${who} to.` },
+          endsChain: true,
+        }
+      }
+
       case "stop":
         endFlow()
-        return { outcome: "stopped", handledPhase: true, endsChain: true }
+        return { outcome: "stopped", endsChain: true }
 
       case "unknown":
         return { outcome: "unparsed" }
@@ -784,9 +880,9 @@ export default function BeastVoiceMic({
       const res = executeAction(action, ctxLead, transcript)
       ranSomething = true
 
-      // Log every step here EXCEPT the New-lead contact hand-off, which logs its
-      // own richer "handed-off" row inside handOff (handledPhase === true).
-      if (!(action.kind === "contact" && res.handledPhase)) {
+      // Log every step here EXCEPT one that handed the UI to an existing flow that
+      // logs its own richer row (the Contact Gate hand-off, handledPhase === true).
+      if (!res.handledPhase) {
         log({
           transcript,
           parsedIntent: parsed.kind,
@@ -855,6 +951,15 @@ export default function BeastVoiceMic({
           return
         }
         respondToPrompt(prompt, parsed.kind, transcript)
+        return
+      }
+      // "Send guest card" is a valid answer ONLY to the Guest Card guard modal —
+      // it clicks that modal's existing "Send Guest Card" button (opening the
+      // existing composer). It is never a free-floating contextual action:
+      // isValidForPhase keeps it to the "guest-card" phase, so on any other prompt
+      // it falls through to the not-valid-for-phase log below.
+      if (prompt.phase === "guest-card" && parsed.kind === "crm_open" && parsed.verb === "open-guest-card") {
+        respondToPrompt(prompt, "guest_card_send", transcript)
         return
       }
       log({ transcript, parsedIntent: parsed.kind, workflowPhase: prompt.phase, outcome: "not-valid-for-phase" })

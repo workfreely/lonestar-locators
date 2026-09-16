@@ -197,12 +197,90 @@ check("single command is a one-element chain",
 check("chain preserves the market segment payload",
   (parseChain("open map, switch to Dallas")[1] as any).spoken, "dallas")
 
+// ── Lifecycle: stage movement / Archive / Restore (approved full lifecycle) ───
+console.log("\nstage moves — forward")
+for (const [i, stage] of [
+  ["move Jerry to Searching", "searching"],
+  ["move Maria to List Sent", "list_sent"],
+  ["put Jerry in Ready to Tour", "ready_to_tour"],
+  ["advance Maria to Done Touring", "done_touring"],
+  ["move Maria to Applied", "applied"],
+  ["send Maria to List Sent", "list_sent"],
+] as const) check(`"${i}"`, p(i), { kind: "move_stage", clientName: i.match(/jerry/i) ? "jerry" : "maria", stage })
+
+console.log("\nstage moves — backward + 'this client'")
+check("move Jerry back to Contacted", p("move jerry back to contacted"), { kind: "move_stage", clientName: "jerry", stage: "contacted" })
+check("move Jerry back to New", p("move jerry back to new"), { kind: "move_stage", clientName: "jerry", stage: "new" })
+check("move Maria back to Searching", p("move maria back to searching"), { kind: "move_stage", clientName: "maria", stage: "searching" })
+check("move Ready→List Sent (backward)", p("move maria back to list sent"), { kind: "move_stage", clientName: "maria", stage: "list_sent" })
+check("move this client back to Searching", p("move this client back to searching"), { kind: "move_stage", clientName: null, stage: "searching" })
+
+console.log("\nApplied uses the normal stage path (NOT open-apply)")
+check("'move Maria to Applied' is a stage move", p("move maria to applied").kind, "move_stage")
+check("'apply' is still the workflow flow", p("apply"), { kind: "crm_open", verb: "open-apply", clientName: null })
+check("'check application' is still the workflow flow", p("check application").kind, "crm_open")
+
+console.log("\nClosed → move_stage(closed) (executor reroutes to Confirm Lease)")
+check("move Maria to Closed", p("move maria to closed"), { kind: "move_stage", clientName: "maria", stage: "closed" })
+check("close Maria", p("close maria"), { kind: "move_stage", clientName: "maria", stage: "closed" })
+check("mark Maria closed", p("mark maria closed"), { kind: "move_stage", clientName: "maria", stage: "closed" })
+
+console.log("\nArchive → archive_lead (opens reason dialog; never archives from the phrase)")
+check("archive Jerry Springer", p("archive jerry springer"), { kind: "archive_lead", clientName: "jerry springer" })
+check("archive this client", p("archive this client"), { kind: "archive_lead", clientName: null })
+check("move Jerry to archived → archive", p("move jerry to archived"), { kind: "archive_lead", clientName: "jerry" })
+
+console.log("\nRestore — with destination = a stage move; bare = recognized, no mutation")
+check("restore Jerry to List Sent", p("restore jerry to list sent"), { kind: "move_stage", clientName: "jerry", stage: "list_sent" })
+check("unarchive Jerry to Searching", p("unarchive jerry to searching"), { kind: "move_stage", clientName: "jerry", stage: "searching" })
+check("move Jerry out of archive to Contacted", p("move jerry out of archive to contacted"), { kind: "move_stage", clientName: "jerry", stage: "contacted" })
+check("bare 'restore Jerry' → restore_bare", p("restore jerry"), { kind: "restore_bare", clientName: "jerry" })
+check("bare 'unarchive Jerry' → restore_bare", p("unarchive jerry"), { kind: "restore_bare", clientName: "jerry" })
+check("bare 'move Jerry out of archive' → restore_bare", p("move jerry out of archive"), { kind: "restore_bare", clientName: "jerry" })
+
+console.log("\nparser collisions — specific patterns win over generic movement")
+check("'Send Maria to List Sent' → stage move", p("send maria to list sent").kind, "move_stage")
+check("'Send Maria's list' → Send List (deferred completion)", p("send maria's list"), { kind: "completion", target: "send_list" })
+check("'Send invoice' → invoice flow", p("send invoice"), { kind: "crm_open", verb: "open-send-invoice", clientName: null })
+check("'Send guest card' → guest card flow", p("send guest card"), { kind: "crm_open", verb: "open-guest-card", clientName: null })
+check("'move this to favorites' stays a property action", p("move this to favorites").kind, "property_action")
+
+// ── BUG FIXES: Contacted speech variants + identity-vs-selection separation ───
+console.log("\ncontacted speech-to-text variants → move_stage(contacted)")
+for (const i of [
+  "move Jerry Springer to Contacted",
+  "move Jerry Springer to contactit",
+  "move Jerry to contact it",
+  "move Jerry to contact ed",
+]) check(`"${i}"`, p(i), { kind: "move_stage", clientName: i.match(/springer/i) ? "jerry springer" : "jerry", stage: "contacted" })
+
+console.log("\nother stage speech variants (narrow aliases only)")
+check("list send → List Sent", p("move maria to list send"), { kind: "move_stage", clientName: "maria", stage: "list_sent" })
+check("ready for tour → Ready to Tour", p("move maria to ready for tour"), { kind: "move_stage", clientName: "maria", stage: "ready_to_tour" })
+check("done tour → Done Touring", p("move maria to done tour"), { kind: "move_stage", clientName: "maria", stage: "done_touring" })
+
+console.log("\nno accidental stage match on unrelated words")
+check("unresolvable stage phrase stays unknown", kind("move maria to the moon"), "unknown")
+check("normal Contacted→Searching still works", p("move maria to searching"), { kind: "move_stage", clientName: "maria", stage: "searching" })
+
+console.log("\nidentity-resolving ACTIONS are NOT the select/open intent")
+// Action commands resolve a client by identity; only 'select_client' (Open …)
+// carries the workspace-selection intent. These must classify as their action,
+// never as select_client — so the executor never opens the client workspace.
+check("'Open Jerry Springer' → select_client (opens workspace)", p("open jerry springer").kind, "select_client")
+check("'Move Jerry to Contacted' → move_stage (no select)", p("move jerry to contacted").kind, "move_stage")
+check("'Move Jerry to Searching' → move_stage (no select)", p("move jerry to searching").kind, "move_stage")
+check("'Text Jerry Springer' → contact_client (no select)", p("text jerry springer").kind, "contact_client")
+check("'Call Jerry Springer' → contact_client (no select)", p("call jerry springer").kind, "contact_client")
+check("'Archive Jerry Springer' → archive_lead (no select)", p("archive jerry springer").kind, "archive_lead")
+
 // ── Negative tests (§44, §46) — deferred / unsupported never parse ────────────
 console.log("\nnegative — deferred + unsupported produce NO command")
 for (const [label, i] of [
-  ["archive (deferred §10)", "archive maria"],
   ["add task (deferred §11)", "add task"],
   ["paste (deferred §9)", "paste into the phone field"],
+  // "return"/"set" are NOT movement verbs, so these deferred phrasings never
+  // become a stage move (§46).
   ["return-to-stage (deferred §46)", "return maria to contacted"],
   ["raw set-stage (deferred §46)", "set maria to closed"],
   ["autofill (deferred §9)", "autofill maria gonzalez"],

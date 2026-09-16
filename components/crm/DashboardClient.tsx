@@ -51,6 +51,11 @@ import { leaseFollowUpDueAt } from "@/lib/leads/leaseFollowUp"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
 import ConfirmDialog from "./ConfirmDialog"
 import { isGuestCardTitle } from "@/lib/leads/guestCardWorkflow"
+import {
+  resolveGuardPropertyId,
+  isGuestCardHandled,
+} from "@/lib/leads/guestCardGuard"
+import GuestCardGuardModal, { type GuestCardGuardView } from "./GuestCardGuardModal"
 import { completeTourFollowUp } from "@/lib/leads/tourFollowUpWorkflow"
 import { completeApplicationOutcome } from "@/lib/leads/applicationOutcomeWorkflow"
 import { completeConfirmLease } from "@/lib/leads/confirmLeaseWorkflow"
@@ -247,6 +252,26 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // 'closed' is reached ONLY on the agent's explicit "Yes, Lease Signed" — approval
   // alone never marks Closed. Scoped to the Top Pick's open confirm_lease.
   const [confirmLease, setConfirmLease] = useState<null | { lead: any; action: any }>(null)
+
+  // ── Property-specific Guest Card guard (shared by manual drag + Beast Voice) ──
+  // Runs before a lead advances to Applied/Closed; protects the commission by
+  // ensuring the guest card was handled for the applied/leased property. The
+  // pending state carries the target stage, the resolved property, and the
+  // `proceed` callback that continues the original move once handled/confirmed.
+  const [guestCardGuard, setGuestCardGuard] = useState<
+    | null
+    | {
+        lead: any
+        targetStage: "applied" | "closed"
+        propertyId: number | string | null
+        proceed: () => void
+        view: GuestCardGuardView
+      }
+  >(null)
+  // Session record of guest cards the agent confirmed externally this session, as
+  // `${leadId}:${propertyId}` — so a confirmed property doesn't re-prompt within
+  // the session (the truthful persistent record is the guest_card timeline event).
+  const confirmedGuestCardsRef = useRef<Set<string>>(new Set())
   // Get Invoice Details intake modal (compact batch form). Opened from the Closed
   // lead's Top Pick Favorite or the Companion verb; Save persists the canonical
   // invoice_* fields and completes the get_invoice_details action.
@@ -895,10 +920,22 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     if (!lead || !action) return
     setConfirmApply({ lead, action })
   }
+  // The agent confirmed the client submitted. Before the Applied transition,
+  // run the SAME shared Guest Card guard every other path uses (drag / Voice) —
+  // so a lead can never reach Applied without the property-specific check,
+  // regardless of how Applied is reached. The existing application behavior is
+  // otherwise unchanged; the guard only gates the continuation.
   async function confirmApplicationSubmitted() {
     const ca = confirmApply
     setConfirmApply(null)
     if (!ca) return
+    runGuestCardGuard(ca.lead.id, "applied", () => {
+      void applyApplicationSubmitted(ca)
+    })
+  }
+  // The existing Apply advance, unchanged — extracted verbatim so the shared
+  // guard can gate it (identical to the drag/Voice `proceed`).
+  async function applyApplicationSubmitted(ca: { lead: any; action: any }) {
     const { lead, action } = ca
     const now = new Date().toISOString()
     const demo = isDemoLeadId(lead.id)
@@ -1001,12 +1038,141 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     postCompanionActiveClient(updatedLead, nextActions)
   }
 
+  // ── Guest Card guard orchestration ──────────────────────────────────────────
+  // The ONE canonical guard both the Lead Board drag (via moveLeadToStage) and
+  // Beast Voice funnel through. Resolves the applied/leased property, checks
+  // whether the guest card was handled FOR THAT property, and only then continues
+  // the caller's move. Never fabricates history.
+  function guestCardPropertyName(propertyId: number | string | null): string {
+    if (propertyId == null) return "this property"
+    const fav = localFavoritesRef.current.find((f: any) => String(f.id) === String(propertyId))
+    return (fav?.property_name || fav?.property_address || "this property").toString()
+  }
+  async function hasConfirmedGuestCardTimeline(leadId: number | string, propertyId: number | string): Promise<boolean> {
+    // Demo leads never write timeline (string ids); rely on the session set only.
+    if (isDemoLeadId(leadId)) return false
+    try {
+      const { data } = await supabase
+        .from("lead_timeline")
+        .select("id")
+        .eq("lead_id", leadId)
+        .eq("type", "guest_card")
+        .eq("metadata->>property_id", String(propertyId))
+        .limit(1)
+      return Array.isArray(data) && data.length > 0
+    } catch {
+      return false
+    }
+  }
+  function runGuestCardGuard(leadId: string | number, targetStage: "applied" | "closed", proceed: () => void) {
+    const lead = localLeadsRef.current.find((l: any) => String(l.id) === String(leadId))
+    if (!lead) return // unknown lead — do nothing (never a silent wrong move)
+    const clientName = formatPersonName(lead.first_name) || "this client"
+    const propertyId = resolveGuardPropertyId(lead, localNextActionsRef.current, targetStage)
+
+    // No canonical applied/leased property yet (raw jump / friend-referral): the
+    // agent must identify it via the existing Favorites/Top Pick mechanism before
+    // a property-specific check can run. Never accept a property-less confirmation.
+    if (propertyId == null) {
+      const favorites = localFavoritesRef.current.filter((f: any) => String(f.lead_id) === String(lead.id))
+      setGuestCardGuard({
+        lead,
+        targetStage,
+        propertyId: null,
+        proceed,
+        view: { mode: "identify", clientName, favorites },
+      })
+      return
+    }
+
+    // Handled synchronously (completed per-property card, or this session's
+    // external confirmation)? Proceed with no friction.
+    const sessionConfirmed = [...confirmedGuestCardsRef.current]
+      .filter((k) => k.startsWith(`${lead.id}:`))
+      .map((k) => k.slice(String(lead.id).length + 1))
+    if (isGuestCardHandled(propertyId, localNextActionsRef.current, sessionConfirmed)) {
+      proceed()
+      return
+    }
+
+    // Otherwise consult the durable guest_card timeline confirmation before prompting.
+    void hasConfirmedGuestCardTimeline(lead.id, propertyId).then((confirmed) => {
+      if (confirmed) {
+        proceed()
+        return
+      }
+      setGuestCardGuard({
+        lead,
+        targetStage,
+        propertyId,
+        proceed,
+        view: { mode: "confirm", clientName, propertyName: guestCardPropertyName(propertyId), context: targetStage },
+      })
+    })
+  }
+
+  // "Yes, I Sent It" — record the TRUTHFUL external confirmation (never a fake
+  // system-sent email_guest_card row), then continue the original move.
+  function guardConfirmSent() {
+    const g = guestCardGuard
+    setGuestCardGuard(null)
+    if (!g || g.propertyId == null) return
+    confirmedGuestCardsRef.current.add(`${g.lead.id}:${g.propertyId}`)
+    recordTimelineEvent({
+      leadId: g.lead.id,
+      type: "guest_card",
+      metadata: {
+        source: "agent_confirmed_external",
+        property_id: g.propertyId,
+        property_name: guestCardPropertyName(g.propertyId),
+        context: g.targetStage,
+      },
+    })
+    g.proceed()
+  }
+
+  // "Send Guest Card" — open the EXISTING composer for the applied property; the
+  // move waits (does NOT proceed). The canonical Guest Card flow stays authoritative.
+  function guardSendGuestCard() {
+    const g = guestCardGuard
+    setGuestCardGuard(null)
+    if (!g || g.propertyId == null) return
+    const fav = localFavoritesRef.current.find((f: any) => String(f.id) === String(g.propertyId))
+    if (!fav) return
+    const gcAction = localNextActionsRef.current.find(
+      (a: any) =>
+        String(a.lead_id) === String(g.lead.id) &&
+        String(a.action_key ?? "") === "email_guest_card" &&
+        String(a.property_id ?? "") === String(g.propertyId),
+    )
+    openGuestCardComposer(g.lead, fav, null, gcAction?.id ?? null)
+  }
+
+  // "identify" mode → the agent picked the applied property from Favorites. Set it
+  // as the durable Top Pick (reusing the existing column), then re-run the guard.
+  function guardSelectProperty(favorite: { id: number | string }) {
+    const g = guestCardGuard
+    setGuestCardGuard(null)
+    if (!g) return
+    const leadId = g.lead.id
+    setLocalLeads((prev) => prev.map((l: any) => (String(l.id) === String(leadId) ? { ...l, top_pick_favorite_id: favorite.id } : l)))
+    if (!isDemoLeadId(leadId)) {
+      void supabase.from("leads").update({ top_pick_favorite_id: favorite.id }).eq("id", leadId)
+    }
+    // Re-run against the just-set Top Pick (read from the merged local lead).
+    const relead = { ...g.lead, top_pick_favorite_id: favorite.id }
+    localLeadsRef.current = localLeadsRef.current.map((l: any) => (String(l.id) === String(leadId) ? relead : l))
+    runGuestCardGuard(leadId, g.targetStage, g.proceed)
+  }
+
   // ── Confirm Lease (Approved → Lease Signed → Closed) ────────────────────────
   // Open the "Did the client sign their lease?" confirmation. Reaching 'closed'
-  // requires the explicit "Yes, Lease Signed" — approval alone never closes.
+  // requires the explicit "Yes, Lease Signed" — approval alone never closes. The
+  // Guest Card backstop runs FIRST (before the modal opens), so a lease can never
+  // be confirmed for a property whose guest card was never handled.
   function handleConfirmLease(lead: any, args: { action: any }) {
     if (!lead || !args.action) return
-    setConfirmLease({ lead, action: args.action })
+    runGuestCardGuard(lead.id, "closed", () => setConfirmLease({ lead, action: args.action }))
   }
   async function confirmLeaseSigned() {
     const cl = confirmLease
@@ -2966,6 +3132,27 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             // recommend/favorite controls resolve against.
             getVoiceSelectedLead={() => sessionClientLead ?? null}
             getVoiceCurrentProperty={() => lastCurrentPropertyRef.current}
+            // Voice contact for a NEW lead opens the SAME Contact Gate as the drag,
+            // but resolves identity ONLY — no setSelectedLeadId / router.push, so it
+            // never opens the client detail workspace (a spoken "Move/Text/Call
+            // <New>" stays on the Lead Board). Same guards + same dragContact
+            // payload as onInitiateContact; the gate modal renders on `dragContact`
+            // alone and the appliers act on dragContact.leadId, so no selection is
+            // needed. Only an explicit "Open <name>" opens the workspace.
+            onVoiceContactGate={(lead) => {
+              if (!crmMayConfirm("contact_outcome", /* initiatedInCrm */ true)) return
+              if (dragContact) return
+              setDragContact({
+                leadId: lead.id,
+                name: formatPersonName(lead.first_name) || "this client",
+                phone: lead.phone ?? null,
+                method: null,
+                phase: "choose-method",
+              })
+            }}
+            // Shared property-specific Guest Card guard for →Applied / →Closed
+            // (drag AND Voice funnel through moveLeadToStage → here).
+            onGuestCardGuard={runGuestCardGuard}
           />
         </div>
 
@@ -3386,6 +3573,15 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       {/* Centered CRM contact modal — the Kanban-drag presentation of the SAME
           canonical contact flow (Companion uses its bottom sheet). Compact, no
           explanatory paragraph; same wording as Companion. */}
+      {/* Property-specific Guest Card guard modal (shared by drag + Voice). */}
+      <GuestCardGuardModal
+        view={guestCardGuard?.view ?? null}
+        onConfirmSent={guardConfirmSent}
+        onSendGuestCard={guardSendGuestCard}
+        onSelectProperty={guardSelectProperty}
+        onCancel={() => setGuestCardGuard(null)}
+      />
+
       {dragContact && (
         <div className="fixed inset-0 z-[10000] bg-black/40 backdrop-blur-sm flex items-center justify-center px-4">
           <div className="w-full max-w-xs bg-[var(--crm-panel)] rounded-2xl shadow-2xl p-5">

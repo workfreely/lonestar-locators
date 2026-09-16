@@ -41,9 +41,10 @@ export const CONTACT_PATTERNS: ContactPattern[] = [
   { id: "text", method: "text", re: /^(?:text|message)\s+(.+)$/ },
 
   // — method: unspecified — the locator has not decided; the existing Call/Text
-  //   chooser asks. "move X to contacted" is deliberately NOT a stage write:
-  //   the Contact Gate owns what New → Contacted means.
-  { id: "move-to-contacted", method: "unspecified", re: /^move\s+(.+?)\s+(?:to|into|2)\s+contact(?:ed|s|\s+it)?$/ },
+  //   chooser asks. NOTE: "move X to contacted" is handled by the STAGE-MOVE
+  //   grammar below (which routes a NEW lead through the same Contact Gate via
+  //   the shared move handler, and a non-New lead through a normal backward
+  //   move), so it is intentionally NOT a contact pattern here.
   { id: "contact", method: "unspecified", re: /^contact\s+(.+)$/ },
 ]
 
@@ -291,6 +292,103 @@ export const PROPERTY_PATTERNS: PropertyPattern[] = [
   { verb: "move-to-favorite", re: /^favorite\s+(?:this|it)$/ },
   { verb: "move-to-recommendation", re: /^move\s+this\s+to\s+recommendations?$/ },
   { verb: "add-recommendation", re: /^(?:recommend\s+(?:this|it)(?:\s+property)?|add\s+(?:this|it)\s+to\s+(?:the\s+)?recommendations?)$/ },
+]
+
+// ── Lifecycle: stage movement / Archive / Restore (approved full-lifecycle) ───
+// Voice never writes crm_status and never computes a previous stage. It resolves
+// the canonical destination stage and invokes the SAME shared Kanban move handler
+// a manual drag uses (both directions), or the SAME Archive reason dialog / live
+// restore-drag path. Special cases (New→Contacted gate, Closed→Confirm Lease,
+// Archive reason dialog, bare Restore→ask) are enforced by the executor.
+export type CanonicalStage =
+  | "new"
+  | "contacted"
+  | "searching"
+  | "list_sent"
+  | "ready_to_tour"
+  | "done_touring"
+  | "applied"
+  | "closed"
+  | "archived"
+
+// Spoken stage phrase → canonical id. Only these map; anything else is not a
+// stage move (so "move this to favorites" stays a property action, etc.).
+// Canonical stage names ONLY, plus narrow speech-to-text variants a recognizer
+// commonly emits for these exact words (e.g. "Contacted" → "contact it" /
+// "contactit" / "contact ed"). This is explicit alias normalization, NOT fuzzy
+// matching — it never touches client-name resolution and only applies to the
+// stage phrase captured after "to/in/into" in a move command.
+const STAGE_ALIASES: Record<string, CanonicalStage> = {
+  new: "new",
+  // Contacted — the recognizer frequently breaks the word up or drops the "-ed".
+  contacted: "contacted",
+  contact: "contacted",
+  contacts: "contacted",
+  "contact it": "contacted",
+  contactit: "contacted",
+  "contact ed": "contacted",
+  "contact did": "contacted",
+  "contact to": "contacted",
+  searching: "searching",
+  search: "searching",
+  // List Sent — "sent" is often heard as "send".
+  "list sent": "list_sent",
+  listsent: "list_sent",
+  "list send": "list_sent",
+  "lists sent": "list_sent",
+  "list scent": "list_sent",
+  // Ready to Tour.
+  "ready to tour": "ready_to_tour",
+  "ready for tour": "ready_to_tour",
+  "ready tour": "ready_to_tour",
+  "ready to to": "ready_to_tour",
+  // Done Touring.
+  "done touring": "done_touring",
+  "done tour": "done_touring",
+  "done toutrue": "done_touring",
+  toured: "done_touring",
+  applied: "applied",
+  application: "applied",
+  closed: "closed",
+  close: "closed",
+  archived: "archived",
+  archive: "archived",
+}
+export function resolveStagePhrase(raw: string): CanonicalStage | null {
+  const key = raw.toLowerCase().replace(/[-_]/g, " ").replace(/\s+/g, " ").trim()
+  return STAGE_ALIASES[key] ?? null
+}
+
+// "this client" / "this" / "it" → the current client (clientName null).
+export const THIS_CLIENT_RE = /^(?:this(?:\s+(?:client|lead|one))?|it|the\s+client)$/
+
+// Stage move (BOTH directions). group 1 = client (or a "this client" phrase),
+// group 2 = the spoken stage phrase (resolved via resolveStagePhrase). "back" is
+// absorbed. Verbs are movement-only; "send X's list" / "send invoice" etc. are
+// matched by their specific patterns earlier and never reach this.
+export const STAGE_MOVE_RE = /^(?:move|put|send|advance|drag)\s+(.+?)\s+(?:back\s+)?(?:in\s?to|into|to|in)\s+(.+)$/
+
+// Close aliases → the executor reroutes "closed" to the existing Confirm Lease
+// flow (never a direct stage write), because entering Closed stamps closed_at +
+// a frozen commission snapshot.
+export const CLOSE_RE: RegExp[] = [/^close\s+(.+)$/, /^mark\s+(.+?)\s+closed$/]
+
+// Archive → opens the existing reason dialog (never archives from the command).
+export const ARCHIVE_RE: RegExp[] = [/^archive\s+(.+)$/]
+
+// Restore WITH a named destination → a normal move onto that stage (the shared
+// handler's restore branch runs because the lead is archived). group1=name,
+// group2=stage phrase.
+export const RESTORE_TO_RE: RegExp[] = [
+  /^(?:restore|unarchive)\s+(.+?)\s+to\s+(.+)$/,
+  /^move\s+(.+?)\s+out\s+of\s+archive\s+to\s+(.+)$/,
+]
+
+// Restore WITHOUT a destination → recognized, but no live handler restores to the
+// previous stage, so the executor asks for a destination and mutates nothing.
+export const RESTORE_BARE_RE: RegExp[] = [
+  /^(?:restore|unarchive)\s+(.+)$/,
+  /^move\s+(.+?)\s+out\s+of\s+archive$/,
 ]
 
 // ── Completion of COMPANION-OWNED workflow prompts (§2, §3, §33, §34, §35) ────

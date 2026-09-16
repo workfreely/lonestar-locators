@@ -32,7 +32,7 @@ import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 // { rebate_action_id, property_id, property_name, rebate_amount }). No durable
 // leads.* flag exists for this — the completed send_rebate action row IS the state;
 // this is the immutable "when/which property/how much" record.
-export type LeadTimelineType = "first_contact" | "follow_up" | "contact_attempt" | "text_sent" | "tour_outcome" | "application_outcome" | "lease_signed" | "invoice_sent" | "commission_paid" | "rebate_sent"
+export type LeadTimelineType = "first_contact" | "follow_up" | "contact_attempt" | "text_sent" | "tour_outcome" | "application_outcome" | "lease_signed" | "invoice_sent" | "commission_paid" | "rebate_sent" | "guest_card"
 export type LeadTimelineMethod = "call" | "text" | "email"
 
 export type TimelineEventInput = {

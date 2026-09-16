@@ -92,6 +92,8 @@ export default function LeadBoard({
   onVoiceAddLead,
   getVoiceSelectedLead,
   getVoiceCurrentProperty,
+  onVoiceContactGate,
+  onGuestCardGuard,
 }: {
   leads: any[]
   setLeads: React.Dispatch<React.SetStateAction<any[]>>
@@ -182,6 +184,15 @@ export default function LeadBoard({
   getVoiceCurrentProperty?: () =>
     | { propertyUrl?: string; placeId?: string | null; propertyAddress?: string | null; propertyName?: string | null }
     | null
+  /** Opens the existing Contact Gate for a New lead WITHOUT selecting it (no
+   *  workspace navigation) — the no-select entry the mic prefers over the
+   *  drag's onInitiateContact. */
+  onVoiceContactGate?: (lead: any) => void
+  /** Property-specific Guest Card guard for moves to Applied/Closed. Called with
+   *  the target stage and a `proceed` callback; the guard (owned by the parent)
+   *  runs the check/modal and calls `proceed()` only when the move may continue.
+   *  Both manual drag and Beast Voice funnel through here — one shared policy. */
+  onGuestCardGuard?: (leadId: string | number, targetStage: "applied" | "closed", proceed: () => void) => void
 }) {
   const [mounted, setMounted] = useState(false)
   const [activeLead, setActiveLead] = useState<any | null>(null)
@@ -234,10 +245,29 @@ export default function LeadBoard({
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
     if (!over) return
+    await moveLeadToStage(active.id, over.id as string)
+  }
 
-    const leadId = active.id
-    const newStage = over.id as string
+  // The SHARED stage-transition entry both manual drag AND Beast Voice call.
+  // Before advancing to Applied/Closed it runs the property-specific Guest Card
+  // guard (the ONE canonical policy — never duplicated in Voice); the guard
+  // decides whether to proceed. Every other move goes straight through.
+  async function moveLeadToStage(leadId: string | number, newStage: string) {
+    if (onGuestCardGuard && (newStage === "applied" || newStage === "closed")) {
+      onGuestCardGuard(leadId, newStage, () => {
+        void applyStageMove(leadId, newStage)
+      })
+      return
+    }
+    await applyStageMove(leadId, newStage)
+  }
 
+  // The SHARED stage-transition core, extracted verbatim from the drag handler so
+  // BOTH manual drag AND Beast Voice invoke the SAME path: the New→Contacted
+  // Contact Gate, the archived-restore branch, the per-destination follow-up
+  // date/count rules, the optimistic update, the update-stage POST, and the
+  // workflow-action toast. Pure extraction — behavior is unchanged.
+  async function applyStageMove(leadId: string | number, newStage: string) {
     const draggedLead = leads.find((l) => String(l.id) === String(leadId))
     const oldStage = draggedLead?.crm_status ?? null
 
@@ -475,6 +505,7 @@ export default function LeadBoard({
               <BeastVoiceMic
                 leads={leads}
                 onInitiateContact={onInitiateContact}
+                onContactGate={onVoiceContactGate}
                 onListeningChange={setVoiceState}
                 onSelectClient={onVoiceSelectClient}
                 onWorkspace={onWorkspaceChange}
@@ -483,6 +514,8 @@ export default function LeadBoard({
                 onAddLead={onVoiceAddLead}
                 getSelectedLead={getVoiceSelectedLead}
                 getCurrentProperty={getVoiceCurrentProperty}
+                onMoveStage={moveLeadToStage}
+                onArchiveLead={handleArchive}
               />
             )}
             {/* Failed-search state. An overlay pinned to inset:0 of .kb-search

@@ -63,6 +63,12 @@ export function resolveIntent(parsed: ParsedCommand): VoiceAction {
       return { kind: "ask_beast" }
     case "completion":
       return { kind: "completion", target: parsed.target }
+    case "move_stage":
+      return { kind: "move_stage", clientName: parsed.clientName, stage: parsed.stage }
+    case "archive_lead":
+      return { kind: "archive_lead", clientName: parsed.clientName }
+    case "restore_bare":
+      return { kind: "restore_bare", clientName: parsed.clientName }
     case "stop":
       return { kind: "stop" }
     // Contextual answers and unknown are not command-mode actions — the executor

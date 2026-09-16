@@ -31,10 +31,9 @@ for (const i of [
   "Beast, contact Maria", "Contact Maria",
   "Beast, contact Maria Gonzalez", "Contact Maria Gonzalez",
 ]) contact(i, i.toLowerCase().includes("gonzalez") ? "maria gonzalez" : "maria", "unspecified")
-for (const i of [
-  "Beast, move Maria to Contacted", "Move Maria to Contacted",
-  "Beast, move Maria Gonzalez to Contacted", "Move Maria Gonzalez to Contacted",
-]) contact(i, i.toLowerCase().includes("gonzalez") ? "maria gonzalez" : "maria", "unspecified")
+// NOTE: "move X to contacted" is now a STAGE move (see beastVoiceV1.test.ts).
+// The executor routes a NEW lead through the same Contact Gate, so the live
+// behavior is preserved; only the parse classification changed.
 
 console.log("\ncontact_client — method: call")
 for (const i of [
@@ -63,7 +62,6 @@ console.log("\nspeech tolerances")
 contact("BEAST!! CONTACT MARIA GONZALEZ.", "maria gonzalez", "unspecified")
 contact("least contact maria", "maria", "unspecified")
 contact("contact the client Maria please", "maria", "unspecified")
-contact("move maria gonzalez to contact", "maria gonzalez", "unspecified")
 
 console.log("\nconfirm_yes")
 for (const i of [
@@ -100,7 +98,7 @@ console.log("\nmust NOT execute")
 for (const [label, input] of [
   ["empty", ""],
   ["wake word alone", "Beast"],
-  ["out-of-scope stage", "move maria gonzalez to closed"],
+  ["unresolvable stage phrase", "move maria gonzalez to the moon"],
   ["out-of-scope command", "schedule a tour for maria"],
   ["no client named", "contact"],
   ["chatter", "what's the weather"],

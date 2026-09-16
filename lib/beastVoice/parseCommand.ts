@@ -29,6 +29,13 @@ import {
   SEND_LIST_OPEN_PATTERNS,
   BUILD_LIST_OPEN_PATTERNS,
   SCHEDULE_TOUR_OPEN_PATTERNS,
+  STAGE_MOVE_RE,
+  CLOSE_RE,
+  ARCHIVE_RE,
+  RESTORE_TO_RE,
+  RESTORE_BARE_RE,
+  resolveStagePhrase,
+  THIS_CLIENT_RE,
   STOP_PATTERNS,
   CHAIN_SPLIT,
   type ThemeName,
@@ -62,6 +69,14 @@ function cleanName(raw: string): string {
     name = next
   }
   return name.replace(LEADING_CLIENT_NOUN, "").trim()
+}
+
+/** A captured client name, or null when it names the CURRENT client ("this
+ *  client"/"this"/"it"). Empty → null. */
+function nameOrCurrent(raw: string): string | null {
+  const name = cleanName(raw)
+  if (!name || THIS_CLIENT_RE.test(name)) return null
+  return name
 }
 
 /** Openers that mean "bring up / go to" — stripped so bare targets (a route,
@@ -180,6 +195,49 @@ function parseSegment(text: string): ParsedCommand {
   if (SEND_LIST_OPEN_PATTERNS.some((re) => re.test(command))) return { kind: "completion", target: "send_list" }
   if (BUILD_LIST_OPEN_PATTERNS.some((re) => re.test(command))) return { kind: "completion", target: "build_list" }
   if (SCHEDULE_TOUR_OPEN_PATTERNS.some((re) => re.test(command))) return { kind: "completion", target: "schedule_tour" }
+
+  // ── Lifecycle: Restore (with destination), Archive, Close, Stage move ────────
+  // Restore-with-destination is tried FIRST so "move X out of archive to Y" isn't
+  // mis-split by the generic stage-move regex; it resolves to a normal move onto
+  // the named stage (the shared handler runs its restore branch for an archived
+  // lead).
+  for (const re of RESTORE_TO_RE) {
+    const m = command.match(re)
+    if (!m) continue
+    const stage = resolveStagePhrase(m[2] ?? "")
+    if (!stage) continue
+    return { kind: "move_stage", clientName: nameOrCurrent(m[1] ?? ""), stage }
+  }
+
+  // Close aliases → move_stage(closed); the executor reroutes to Confirm Lease.
+  for (const re of CLOSE_RE) {
+    const m = command.match(re)
+    if (m) return { kind: "move_stage", clientName: nameOrCurrent(m[1] ?? ""), stage: "closed" }
+  }
+
+  // Archive → opens the reason dialog (executor); never archives from the phrase.
+  for (const re of ARCHIVE_RE) {
+    const m = command.match(re)
+    if (m) return { kind: "archive_lead", clientName: nameOrCurrent(m[1] ?? "") }
+  }
+
+  // Generic stage move (both directions). "move X to archived" resolves to the
+  // archive command; every other resolvable stage is a move.
+  {
+    const m = command.match(STAGE_MOVE_RE)
+    if (m) {
+      const stage = resolveStagePhrase(m[2] ?? "")
+      if (stage === "archived") return { kind: "archive_lead", clientName: nameOrCurrent(m[1] ?? "") }
+      if (stage) return { kind: "move_stage", clientName: nameOrCurrent(m[1] ?? ""), stage }
+      // Unresolvable destination → not a stage move; fall through.
+    }
+  }
+
+  // Bare Restore (no destination) → recognized, needs a stage (executor asks).
+  for (const re of RESTORE_BARE_RE) {
+    const m = command.match(re)
+    if (m) return { kind: "restore_bare", clientName: nameOrCurrent(m[1] ?? "") }
+  }
 
   // ── Contact (existing grammar, §6) ───────────────────────────────────────────
   for (const pattern of CONTACT_PATTERNS) {
