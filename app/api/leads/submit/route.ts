@@ -71,7 +71,9 @@ const STRING_FIELDS = [
   // Stable Meta campaign/ad ids (canonical join to ad performance) + display-only name snapshots,
   // captured from the ad destination URL by the Smart Lead Form. Attribution → NOT in SCALAR_LABELS,
   // so they are first-touch protected (never overwritten on a resubmission).
-  "meta_campaign_id", "meta_adset_id", "meta_ad_id", "meta_campaign_name", "meta_adset_name", "meta_ad_name",
+  // meta_publisher_platform = Meta's {{site_source_name}} (fb|ig|msg|an) — the actual
+  // Facebook-vs-Instagram delivery surface for this click; same first-touch protection.
+  "meta_campaign_id", "meta_adset_id", "meta_ad_id", "meta_campaign_name", "meta_adset_name", "meta_ad_name", "meta_publisher_platform",
   "device_type", "browser", "operating_system",
   // Manual "Add Lead" (LeadFormModal) field — added when that form was
   // routed through this endpoint so it gains the same allowlist/honeypot/
