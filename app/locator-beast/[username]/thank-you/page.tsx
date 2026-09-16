@@ -117,8 +117,8 @@ export default async function SmartLeadFormThankYouPage({
                 {step.done ? (
                   <div className="flex flex-wrap items-center gap-2.5">
                     <p className="text-[17px] font-semibold text-[#9aa3b2] line-through">{step.title}</p>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[#12a150] px-2.5 py-[3px] text-[11px] font-bold uppercase tracking-wide text-white">
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-[#12a150] px-3.5 py-1 text-[12.5px] font-bold uppercase tracking-wide text-white">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                         <path d="M20 6 9 17l-5-5" />
                       </svg>
                       Completed
@@ -139,7 +139,7 @@ export default async function SmartLeadFormThankYouPage({
   )
 
   const ClosingLine = () => (
-    <p className="mt-7 text-[15.5px] leading-relaxed text-[#4b5162]">
+    <p className="mt-4 text-[15.5px] leading-relaxed text-[#4b5162]">
       Keep an eye on your texts and email for your personalized options.
     </p>
   )
@@ -197,7 +197,7 @@ export default async function SmartLeadFormThankYouPage({
         )}
 
         {/* ── Agent signature (bottom) — compact, horizontally efficient ── */}
-        <div className="mt-6 border-t border-[#eef0f5] pt-5">
+        <div className="mt-5 border-t border-[#eef0f5] pt-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
             {/* photo + identity */}
             <div className="flex flex-none items-center gap-4">
