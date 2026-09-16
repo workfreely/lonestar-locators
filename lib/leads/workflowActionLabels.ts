@@ -50,9 +50,12 @@ const FULL: Record<string, string> = {
   email_guest_card: "Send Guest Card",
   waiting_for_response: "Waiting for Reply",
   // Pre-list contact chase (agent-facing labels). Distinct from the post-list FUs.
-  contact_follow_up_1: "Contact FU1",
-  contact_follow_up_2: "Contact FU2",
-  contact_follow_up_3: "Contact FU3",
+  // Numbered as ATTEMPTS: the first outreach already happened, so contact_follow_up_1
+  // is the 2nd attempt. DISPLAY ONLY — stored titles ("Contact FU1"…) and keys are
+  // unchanged; TO_KEY still resolves the legacy "contact fu1" title below.
+  contact_follow_up_1: "2nd Contact Attempt",
+  contact_follow_up_2: "3rd Contact Attempt",
+  contact_follow_up_3: "Final Contact Attempt",
 }
 
 const COMPACT: Record<string, string> = {

@@ -57,10 +57,11 @@ ok(!isContactFollowUpAction("FU1") && !isContactFollowUpAction("Final"), "isCont
 ok(!isFollowUpAction("Contact FU1") && !isFollowUpAction("contact_follow_up_2"), "isFollowUpAction rejects contact FUs")
 ok(isFollowUpAction("FU1") && isFollowUpAction("Final"), "isFollowUpAction still matches post-list FUs")
 
-// ── Labels ────────────────────────────────────────────────────────────────────
-eq(formatWorkflowActionLabel("Contact FU1"), "Contact FU1", "label Contact FU1")
-eq(formatWorkflowActionLabel("contact_follow_up_2"), "Contact FU2", "label Contact FU2 (from key)")
-eq(formatWorkflowActionLabel("contact_follow_up_3"), "Contact FU3", "label Contact FU3 (from key)")
+// ── Labels (DISPLAY ONLY — stored titles/keys unchanged; the first outreach is
+// attempt 1, so contact_follow_up_1 renders as the "2nd Contact Attempt") ───────
+eq(formatWorkflowActionLabel("Contact FU1"), "2nd Contact Attempt", "label from legacy title Contact FU1")
+eq(formatWorkflowActionLabel("contact_follow_up_2"), "3rd Contact Attempt", "label 3rd Contact Attempt (from key)")
+eq(formatWorkflowActionLabel("contact_follow_up_3"), "Final Contact Attempt", "label Final Contact Attempt (from key)")
 
 // ── Successor chain + timing (+2 days @ 9AM via the SHARED autoDueInDays helper) ─
 // Assert the dueAt equals what the existing infrastructure produces for +2 days,
