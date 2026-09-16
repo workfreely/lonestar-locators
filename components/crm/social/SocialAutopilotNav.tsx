@@ -10,7 +10,7 @@ import { usePathname } from "next/navigation"
 const BASE = "/admin/social-autopilot"
 // Display order only — routes, labels, and active-tab logic are unchanged.
 const TABS: { label: string; href: string }[] = [
-  { label: "Library", href: BASE },
+  { label: "Video Library", href: BASE },
   { label: "Calendar", href: `${BASE}/calendar` },
   { label: "Queue", href: `${BASE}/queue` },
   { label: "History", href: `${BASE}/history` },

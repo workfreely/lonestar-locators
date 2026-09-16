@@ -70,7 +70,7 @@ const AUDIO_OPTIONS: { key: string; label: string; disabled?: boolean; note?: st
 
 // Where the editor returns to, based on where the user entered from.
 const BACK: Record<string, { path: string; label: string }> = {
-  library: { path: "/admin/social-autopilot", label: "← Back to Library" },
+  library: { path: "/admin/social-autopilot", label: "← Back to Video Library" },
   queue: { path: "/admin/social-autopilot/queue", label: "← Back to Queue" },
   calendar: { path: "/admin/social-autopilot/calendar", label: "← Back to Calendar" },
 }
