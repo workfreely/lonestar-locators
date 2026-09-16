@@ -133,17 +133,6 @@ export default function ContentPanel({
         </div>
       </div>
 
-      {/* ── Smart Lead Form (always shown; fields live in the Fields tab) ────── */}
-      <div className="pt-3">
-        <div className="flex items-center justify-between py-2.5">
-          <p className="text-[13px] font-semibold text-[#111318]">Smart Lead Form</p>
-          <span className="text-[11px] font-medium text-[#9098a8]">Always shown</span>
-        </div>
-        <p className="pb-1 text-[11.5px] leading-relaxed text-[#9098a8]">
-          Fields are set in the Fields tab.
-        </p>
-      </div>
-
 
       {/* ── Testimonials (optional) ─────────────────────────────────────────── */}
       <div className="pt-3">

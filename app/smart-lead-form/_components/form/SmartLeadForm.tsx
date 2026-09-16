@@ -31,14 +31,18 @@ export default function SmartLeadForm({
   // submit is a no-op confirmation.
   submitUsername?: string
 }) {
-  // The displayed "Service Areas" text is derived from the selected markets
-  // (single source of truth), overriding the editor copy when a selection
-  // exists. Every section reads config.copy.serviceAreas, so overriding here
-  // updates the whole page with no extra threading.
+  // Displayed "Service Areas" text. The agent's configured copy.serviceAreas is
+  // authoritative — its exact order (and any grouped labels like "Dallas–Fort
+  // Worth") is preserved. Only when that field is blank do we fall back to a
+  // label derived from the selected market slugs, so a form that never set the
+  // text still shows the current markets. This is display-only: the canonical
+  // market selection (serviceAreaSlugs) is untouched.
   const displayConfig: SmartLeadFormConfig =
-    serviceAreaSlugs && serviceAreaSlugs.length
-      ? { ...config, copy: { ...config.copy, serviceAreas: serviceAreasLabel(serviceAreaSlugs) } }
-      : config
+    config.copy.serviceAreas?.trim()
+      ? config
+      : serviceAreaSlugs && serviceAreaSlugs.length
+        ? { ...config, copy: { ...config.copy, serviceAreas: serviceAreasLabel(serviceAreaSlugs) } }
+        : config
 
   const { visibility } = displayConfig.sections
   // Under Headline puts the photo and agent info text inside Hero itself,
