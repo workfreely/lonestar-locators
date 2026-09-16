@@ -2,8 +2,7 @@
 
 import SettingsShell, { SettingsCard } from "@/components/crm/settings/SettingsShell"
 import BeastCompanionExtensionSection from "@/components/crm/integrations/BeastCompanionExtensionSection"
-import BeastCompanionSection from "@/components/crm/integrations/BeastCompanionSection"
-import MessagingSetupSection from "@/components/crm/integrations/MessagingSetupSection"
+import DeviceEcosystemSection from "@/components/crm/integrations/DeviceEcosystemSection"
 import MetaAdsSection from "@/components/crm/integrations/MetaAdsSection"
 import ConnectedDevicesSection from "@/components/crm/devices/ConnectedDevicesSection"
 
@@ -30,15 +29,14 @@ export default function IntegrationsClient({ googleConnected }: { googleConnecte
           followed by third-party integrations. Presentation order only — the
           sections themselves are unchanged. */}
 
-      {/* Beast Companion — upcoming Chrome extension (placeholder, above Beast Sync). */}
+      {/* Beast Companion — upcoming Chrome extension (placeholder, above the desktop tools). */}
       <BeastCompanionExtensionSection />
 
-      {/* Beast Sync — the desktop app; macOS + Windows are supported platforms. */}
-      <BeastCompanionSection />
-
-      {/* Messaging Setup — Apple Messages (live via Beast Sync) + Google Messages
-          (Android, not yet implemented). Presentation only; no messaging logic. */}
-      <MessagingSetupSection />
+      {/* Beast Sync + messaging grouped by device ecosystem: "Mac + iPhone"
+          (Beast Sync for macOS + iPhone Messages) and "Windows + Android"
+          (Beast Sync for Windows + Google Messages). Presentation only — Beast
+          Sync's download/pending behaviour is byte-preserved. */}
+      <DeviceEcosystemSection />
 
       {/* Third-party integrations — below Locator Beast's own tools. */}
       <SettingsCard>
