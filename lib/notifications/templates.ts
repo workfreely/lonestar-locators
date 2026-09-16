@@ -397,7 +397,7 @@ export function welcomeEmail(params: { name?: string | null }): BuiltEmail {
   const contentHtml = `
     ${paragraph(`${greeting(params.name)} welcome to Locator Beast — the operating system built for apartment locators.`)}
     ${paragraph("Your account is ready. Capture leads with your Smart Lead Form, automate follow-ups, and close more leases — all in one place.")}
-    ${paragraph("Jump into your dashboard to get set up.")}
+    ${paragraph("Jump into your Lead Board to get set up.")}
   `
   return {
     category: "transactional",
@@ -406,7 +406,7 @@ export function welcomeEmail(params: { name?: string | null }): BuiltEmail {
       preheader: "Your Locator Beast account is ready.",
       heading: "Welcome to Locator Beast",
       contentHtml,
-      cta: { label: "Open your dashboard", url: absoluteUrl("/admin/leads") },
+      cta: { label: "Open your Lead Board", url: absoluteUrl("/admin/leads") },
     }),
   }
 }
@@ -487,7 +487,7 @@ export function subscriptionSuccessfulEmail(params: { name?: string | null }): B
       preheader: "Thanks for subscribing — you have full access.",
       heading: "Subscription confirmed 🎉",
       contentHtml,
-      cta: { label: "Go to your dashboard", url: absoluteUrl("/admin/leads") },
+      cta: { label: "Go to your Lead Board", url: absoluteUrl("/admin/leads") },
     }),
   }
 }
@@ -547,7 +547,7 @@ export function subscriptionReactivatedEmail(params: { name?: string | null }): 
       preheader: "Your subscription is active again.",
       heading: "You're back in 🎉",
       contentHtml,
-      cta: { label: "Go to your dashboard", url: absoluteUrl("/admin/leads") },
+      cta: { label: "Go to your Lead Board", url: absoluteUrl("/admin/leads") },
     }),
   }
 }

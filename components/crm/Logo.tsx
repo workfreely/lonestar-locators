@@ -65,7 +65,7 @@ export default function Logo({
            HTML. inline-flex so the link box hugs the image exactly — the
            clickable area is the visible logo and nothing more. /admin/leads is
            the app's canonical home. */
-        <Link href="/admin/leads" aria-label="Locator Beast — go to dashboard" className="inline-flex">
+        <Link href="/admin/leads" aria-label="Locator Beast — go to Lead Board" className="inline-flex">
           {wordmark}
         </Link>
       ) : (

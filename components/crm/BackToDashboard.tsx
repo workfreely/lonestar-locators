@@ -23,7 +23,7 @@ export default function BackToDashboard({ variant = "dark" }: { variant?: "dark"
   return (
     <Link href="/admin/leads" className={className}>
       <HiOutlineArrowLeft className="h-4 w-4 shrink-0" />
-      Back to Dashboard
+      Back to Lead Board
     </Link>
   )
 }
