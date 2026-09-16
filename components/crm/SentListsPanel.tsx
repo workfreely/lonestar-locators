@@ -20,6 +20,7 @@ type SentList = {
   sentAt: string | null
   status: "active" | "disabled"
   itemCount: number
+  favoritedCount: number
   lastViewedAt: string | null
   viewSessionCount: number
 }
@@ -176,6 +177,7 @@ export default function SentListsPanel({ timeZone }: { timeZone: string }) {
                 <th className="px-3 py-3 font-semibold">List</th>
                 <th className="px-3 py-3 font-semibold">Sent</th>
                 <th className="px-3 py-3 font-semibold text-right">Properties</th>
+                <th className="px-3 py-3 font-semibold text-right">Favorited</th>
                 <th className="px-3 py-3 font-semibold">Status</th>
                 <th className="px-3 py-3 font-semibold text-right">Views</th>
                 <th className="px-3 py-3 font-semibold">Last Viewed</th>
@@ -191,6 +193,18 @@ export default function SentListsPanel({ timeZone }: { timeZone: string }) {
                     <td className="px-3 py-3 text-[var(--crm-text-secondary)] whitespace-nowrap">List {r.listNumber}</td>
                     <td className="px-3 py-3 text-[var(--crm-text-secondary)] whitespace-nowrap">{fmtDate(r.sentAt) ?? "—"}</td>
                     <td className="px-3 py-3 text-[var(--crm-text-secondary)] text-right tabular-nums">{r.itemCount}</td>
+                    <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">
+                      {r.favoritedCount > 0 ? (
+                        <span className="inline-flex items-center gap-1 font-semibold text-[#e0245e]">
+                          <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden fill="#e0245e" stroke="#e0245e" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l8.8 8.8 8.8-8.8a5.5 5.5 0 0 0 0-7.8Z" />
+                          </svg>
+                          {r.favoritedCount}
+                        </span>
+                      ) : (
+                        <span className="text-[var(--crm-text-muted)]">—</span>
+                      )}
+                    </td>
                     <td className="px-3 py-3 whitespace-nowrap">
                       <span
                         className={

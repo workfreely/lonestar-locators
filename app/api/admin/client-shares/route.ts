@@ -114,7 +114,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await supabase
       .from("client_recommendation_shares")
       .select(
-        "id, lead_id, list_number, token_prefix, sent_at, disabled_at, last_viewed_at, view_session_count, item_count, leads(first_name, last_name)",
+        "id, lead_id, list_number, token_prefix, sent_at, disabled_at, last_viewed_at, view_session_count, item_count, favorited_count, leads(first_name, last_name)",
       )
       .not("sent_at", "is", null)
       .order("sent_at", { ascending: false })
@@ -138,6 +138,7 @@ export async function GET(req: NextRequest) {
         sentAt: s.sent_at,
         status: s.disabled_at ? "disabled" : "active",
         itemCount: s.item_count,
+        favoritedCount: s.favorited_count ?? 0,
         lastViewedAt: s.last_viewed_at,
         viewSessionCount: s.view_session_count,
       }
