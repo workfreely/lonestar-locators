@@ -86,6 +86,12 @@ export default function LeadBoard({
   onWorkspaceChange,
   mapSlot,
   voiceEnabled = false,
+  onVoiceSelectClient,
+  onVoiceFocus,
+  onVoiceAgenda,
+  onVoiceAddLead,
+  getVoiceSelectedLead,
+  getVoiceCurrentProperty,
 }: {
   leads: any[]
   setLeads: React.Dispatch<React.SetStateAction<any[]>>
@@ -158,6 +164,24 @@ export default function LeadBoard({
   // triggers the EXISTING contact workflow via onInitiateContact — it adds no
   // CRM behavior of its own.
   voiceEnabled?: boolean
+  // ── Beast Voice V1 forwards (optional; only wired by the CRM) ──────────────
+  // Each is the EXISTING setter/handler, passed straight through to the mic so
+  // Voice invokes the same behavior the manual control does. LeadBoard neither
+  // interprets nor changes them.
+  /** Select/open a lead by object (the mic already holds the resolved lead). */
+  onVoiceSelectClient?: (lead: any) => void
+  /** Absolute focus set (the mic needs on/off, not a toggle). */
+  onVoiceFocus?: (on: boolean) => void
+  /** Agenda open/close/expand/collapse/left/right — the existing Agenda setters. */
+  onVoiceAgenda?: (op: "open" | "close" | "expand" | "collapse" | "left" | "right") => void
+  /** Open the existing Add Lead modal. */
+  onVoiceAddLead?: () => void
+  /** The currently selected/shown lead, for "this client" commands. */
+  getVoiceSelectedLead?: () => any | null
+  /** The current Map property (never fabricated), for "this property" commands. */
+  getVoiceCurrentProperty?: () =>
+    | { propertyUrl?: string; placeId?: string | null; propertyAddress?: string | null; propertyName?: string | null }
+    | null
 }) {
   const [mounted, setMounted] = useState(false)
   const [activeLead, setActiveLead] = useState<any | null>(null)
@@ -452,6 +476,13 @@ export default function LeadBoard({
                 leads={leads}
                 onInitiateContact={onInitiateContact}
                 onListeningChange={setVoiceState}
+                onSelectClient={onVoiceSelectClient}
+                onWorkspace={onWorkspaceChange}
+                onFocus={onVoiceFocus}
+                onAgenda={onVoiceAgenda}
+                onAddLead={onVoiceAddLead}
+                getSelectedLead={getVoiceSelectedLead}
+                getCurrentProperty={getVoiceCurrentProperty}
               />
             )}
             {/* Failed-search state. An overlay pinned to inset:0 of .kb-search

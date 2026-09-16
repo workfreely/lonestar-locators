@@ -873,6 +873,43 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
 
   useEffect(() => () => beastReset(), [beastReset])
 
+  // ── Beast Voice adapter (§1) ────────────────────────────────────────────────
+  // A thin, same-page listener that lets Beast Voice invoke the EXACT existing
+  // behaviors this component already exposes — nothing more. "select-market"
+  // calls the same setMarketOverride the market switcher's <select> calls;
+  // "unleash" calls the same unleashTheBeast the toolbar button calls. It changes
+  // no market, service-area, map, or search logic; it adds no second search or
+  // market-selection path. The listener exists only while the Explorer is mounted
+  // (Map workspace), so a voice market/unleash issued on the board reaches no
+  // listener and safely does nothing — and an out-of-service-area market never
+  // resolves, so it does nothing either (§44).
+  useEffect(() => {
+    function norm(s: unknown): string {
+      return String(s ?? "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim()
+    }
+    function onVoice(e: Event) {
+      const detail = (e as CustomEvent).detail as { action?: string; spoken?: string } | undefined
+      if (!detail) return
+      if (detail.action === "unleash") {
+        unleashTheBeast()
+        return
+      }
+      if (detail.action === "select-market") {
+        const q = norm(detail.spoken)
+        if (!q) return
+        // Only the agent's OWN service-area markets are selectable — identical to
+        // the switcher's option list. Exact name/slug match, else a unique
+        // name-prefix; anything ambiguous or out-of-area resolves to nothing.
+        const markets = marketsForSlugs(serviceAreaSlugs)
+        const exact = markets.filter((m) => norm(m.name) === q || norm(m.slug) === q)
+        const hits = exact.length > 0 ? exact : markets.filter((m) => norm(m.name).startsWith(q))
+        if (hits.length === 1) setMarketOverride(hits[0].slug)
+      }
+    }
+    window.addEventListener("lb-voice-explorer", onVoice as EventListener)
+    return () => window.removeEventListener("lb-voice-explorer", onVoice as EventListener)
+  }, [serviceAreaSlugs, unleashTheBeast])
+
   // Markers = the substring filter UNIONED with the name-search matches AND the
   // current selection, so a name-searched / picker-clicked / selected property is
   // ALWAYS marker-visible while it is in `results` — never hidden by the live filter.

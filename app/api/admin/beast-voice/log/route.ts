@@ -31,6 +31,12 @@ const OUTCOMES = new Set([
   "no-active-prompt",
   "not-valid-for-phase",
   "responded",
+  // ── V1 input-layer outcomes (append-only; the column is free text) ─────────
+  "executed",
+  "no-context",
+  "stopped",
+  "chain-aborted",
+  "deferred",
 ])
 const INTENTS = new Set([
   "contact_client",
@@ -40,9 +46,26 @@ const INTENTS = new Set([
   "confirm_no",
   "cancel",
   "unknown",
+  // ── V1 command-mode intents ────────────────────────────────────────────────
+  "navigate",
+  "workspace",
+  "focus",
+  "agenda",
+  "theme",
+  "add_lead",
+  "select_client",
+  "copy",
+  "crm_open",
+  "edit_client",
+  "property_action",
+  "market",
+  "unleash",
+  "ask_beast",
+  "completion",
+  "stop",
 ])
 const PHASES = new Set(["choose-method", "confirm-call", "confirm-text"])
-const ACTIONS = new Set(["initiate-contact"])
+const ACTIONS = new Set(["initiate-contact", "execute"])
 const METHODS = new Set(["unspecified", "call", "text"])
 
 /** Trim to a sane column length; transcripts are single spoken commands. */

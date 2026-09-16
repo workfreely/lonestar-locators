@@ -2948,6 +2948,24 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             focus={focusMode}
             onToggleFocus={() => setFocus(!focusMode)}
             voiceEnabled={voiceEnabled}
+            // ── Beast Voice V1 — each forward is an EXISTING setter/handler, so
+            //    Voice invokes the identical behavior of the manual control. ──
+            onVoiceSelectClient={(lead) => {
+              setSelectedLeadId(lead.id)
+              router.push(`/admin/leads?id=${lead.id}`)
+            }}
+            onVoiceFocus={(on) => setFocus(on)}
+            onVoiceAgenda={(op) => {
+              if (op === "left" || op === "right") setAgendaSide(op)
+              else setFollowUpsOpen(op === "open" || op === "expand")
+            }}
+            onVoiceAddLead={() => setShowLeadModal(true)}
+            // The mic is only visible while no lead is selected (the board is
+            // hidden behind the detail overlay otherwise), so "this client" is the
+            // session/Companion active client — the SAME lead the map's own
+            // recommend/favorite controls resolve against.
+            getVoiceSelectedLead={() => sessionClientLead ?? null}
+            getVoiceCurrentProperty={() => lastCurrentPropertyRef.current}
           />
         </div>
 

@@ -7,7 +7,17 @@
 // use. Keeping that boundary is what stops Beast Voice from becoming a second
 // workflow system.
 
-import type { ContactMethod } from "./phrases"
+import type {
+  ContactMethod,
+  NavTarget,
+  AgendaOp,
+  ThemeName,
+  CopyField,
+  CopyTarget,
+  CrmOpenVerb,
+  PropertyVerb,
+  CompletionTarget,
+} from "./phrases"
 export type { ContactMethod }
 
 // ── Speech provider ─────────────────────────────────────────────────────────
@@ -102,6 +112,49 @@ export type ParsedCommand =
   | { kind: "confirm_no" }
   | { kind: "cancel" }
   | { kind: "unknown" }
+  // ── V1 command-mode intents (syntactic; the resolver/executor add meaning) ──
+  | { kind: "navigate"; target: NavTarget }
+  | { kind: "workspace"; target: "board" | "map" }
+  | { kind: "focus"; on: boolean }
+  | { kind: "agenda"; op: AgendaOp }
+  | { kind: "theme"; theme: ThemeName }
+  | { kind: "add_lead" }
+  | { kind: "select_client"; clientName: string }
+  | { kind: "copy"; field: CopyField; target: CopyTarget; clientName: string | null }
+  | { kind: "crm_open"; verb: CrmOpenVerb; clientName: string | null }
+  | { kind: "edit_client"; clientName: string | null }
+  | { kind: "property_action"; verb: PropertyVerb }
+  | { kind: "market"; spoken: string }
+  | { kind: "unleash" }
+  | { kind: "ask_beast" }
+  | { kind: "completion"; target: CompletionTarget }
+  | { kind: "stop" }
+
+// ── Resolved action ───────────────────────────────────────────────────────
+// The executor-facing instruction, produced PURELY from a ParsedCommand by
+// resolveIntent (no side effects, no context). It only ever names an existing
+// product action; the executor invokes the exact existing handler/setter/verb.
+// Client resolution (needs the loaded leads) and current-property/active-prompt
+// lookups happen in the executor, so those actions carry the spoken name only.
+export type VoiceAction =
+  | { kind: "navigate"; route: string; label: string }
+  | { kind: "workspace"; target: "board" | "map" }
+  | { kind: "focus"; on: boolean }
+  | { kind: "agenda"; op: AgendaOp }
+  | { kind: "theme"; theme: ThemeName }
+  | { kind: "add_lead" }
+  | { kind: "select_client"; clientName: string }
+  | { kind: "contact"; clientName: string; method: ContactMethod }
+  | { kind: "copy"; field: CopyField; target: CopyTarget; clientName: string | null }
+  | { kind: "crm_open"; verb: CrmOpenVerb; clientName: string | null }
+  | { kind: "edit_client"; clientName: string | null }
+  | { kind: "property_action"; verb: PropertyVerb }
+  | { kind: "market"; spoken: string }
+  | { kind: "unleash" }
+  | { kind: "ask_beast" }
+  | { kind: "completion"; target: CompletionTarget }
+  | { kind: "stop" }
+  | { kind: "unknown" }
 
 // ── Client resolution ───────────────────────────────────────────────────────
 export type ClientMatch =
@@ -139,7 +192,10 @@ export type VoiceLogEntry = {
   activationLive: boolean | null
   matchedLeadId: string | number | null
   matchedCount: number
-  requestedAction: "initiate-contact" | null
+  /** The existing action a command invoked. `initiate-contact` for the contact
+   *  gate; `execute` for every other V1 input-layer action (nav, workspace,
+   *  theme, copy, open-* verb, …). Null for a command that ran nothing. */
+  requestedAction: "initiate-contact" | "execute" | null
   /** Whether the command reached the existing workflow (its own UI then confirms). */
   handedOff: boolean
   outcome:
@@ -157,5 +213,20 @@ export type VoiceLogEntry = {
     | "not-valid-for-phase"
     /** A valid response clicked the existing rendered button. */
     | "responded"
+    // ── V1 input-layer outcomes ──────────────────────────────────────────────
+    /** A non-workflow input action ran (navigate, workspace, focus, theme,
+     *  agenda, add-lead, select, market/unleash, copy, open-* verb, property verb). */
+    | "executed"
+    /** The command needed context that was absent (no current property, no
+     *  selected client, out-of-area market) — nothing was done (§20, §44). */
+    | "no-context"
+    /** A "stop" phrase ended listening / the chain without reversing anything. */
+    | "stopped"
+    /** A chain segment could not be parsed / was ambiguous, so the chain aborted (§40). */
+    | "chain-aborted"
+    /** A recognized-but-DEFERRED command (companion-owned completion): nothing was
+     *  mutated and the user was told it must be completed in Beast Companion.
+     *  Explicitly not a success — kept for forward compatibility + telemetry. */
+    | "deferred"
   errorReason: string | null
 }

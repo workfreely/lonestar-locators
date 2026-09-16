@@ -79,13 +79,20 @@ for (const i of [
 ]) check(`"${i}"`, parseCommand(i).kind, "confirm_no")
 
 console.log("\ncancel")
-for (const i of ["Cancel", "Never mind", "Nevermind", "Stop", "Forget it"])
+// "Stop" is NO LONGER a cancel — V1 §37 makes Stop its own intent (end listening
+// / the chain, reverse nothing), distinct from Cancel (dismiss). "Stop it/that"
+// stays a cancel because it targets a thing to dismiss.
+for (const i of ["Cancel", "Never mind", "Nevermind", "Forget it", "Stop it", "Cancel that"])
   check(`"${i}"`, parseCommand(i).kind, "cancel")
+
+console.log("\nstop (§37 — distinct from cancel)")
+for (const i of ["Stop", "Stop listening", "That's enough"])
+  check(`"${i}"`, parseCommand(i).kind, "stop")
 
 console.log("\nresponses never swallow a command")
 check("'no answer' stays an answer", parseCommand("no answer").kind, "confirm_no")
 check("'call Maria' is not cancel", (parseCommand("call maria") as any).kind, "contact_client")
-check("'stop' alone is cancel", parseCommand("stop").kind, "cancel")
+check("'stop' alone is a stop, not cancel", parseCommand("stop").kind, "stop")
 check("'text Maria' is not a yes", (parseCommand("text maria") as any).kind, "contact_client")
 check("a response inside a sentence is not an answer", parseCommand("yes contact maria").kind, "unknown")
 

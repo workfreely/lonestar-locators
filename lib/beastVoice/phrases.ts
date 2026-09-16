@@ -102,6 +102,249 @@ export const CANCEL_PATTERNS: RegExp[] = [
   /^(?:no\s*,?\s*)?nothing$/,
 ]
 
+// ═══════════════════════════════════════════════════════════════════════════
+// BEAST VOICE V1 — INPUT-LAYER COMMAND VOCABULARY
+//
+// Everything below is NEW V1 grammar. It only ever names an EXISTING product
+// action; nothing here implies a new workflow, stage, or business rule. Each
+// family is data (patterns) so widening a phrasing never touches the parser.
+//
+// Whole-utterance anchored, deterministic, offline — identical discipline to the
+// contact grammar above. Anything unmatched stays `unknown` and executes nothing.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** The verb families that carry a client target the resolver must look up. */
+
+// ── Navigation (approved routes, §17) ───────────────────────────────────────
+// Voice only router.push()es these; each destination page enforces its own
+// auth/gating server-side, exactly as the manual menu links do.
+export type NavTarget =
+  | "profile"
+  | "smart_lead_form"
+  | "analytics"
+  | "sales_goals"
+  | "integrations"
+  | "import_leads"
+  | "billing"
+  | "help"
+  | "social_beast"
+  | "referral_network"
+  | "license_verification"
+
+export type NavPattern = { id: NavTarget; re: RegExp }
+
+// "open"/"show"/"pull up"/"go to" are all accepted openers; the target name is
+// the discriminating part. Longer/more-specific names are listed first so
+// "sales analytics" is never shadowed by a looser "analytics".
+const OPEN = /^(?:open|show|pull\s+up|go\s+to|take\s+me\s+to|view)\s+/
+export const NAV_PATTERNS: NavPattern[] = [
+  { id: "smart_lead_form", re: /^(?:my\s+)?smart\s+lead\s+form$/ },
+  { id: "sales_goals", re: /^sales\s+goals$/ },
+  { id: "analytics", re: /^(?:sales\s+)?analytics$/ },
+  { id: "integrations", re: /^integrations?$/ },
+  { id: "import_leads", re: /^import(?:\s+leads?)?$/ },
+  { id: "billing", re: /^billing$/ },
+  { id: "help", re: /^(?:help(?:\s+center)?)$/ },
+  { id: "social_beast", re: /^(?:beast\s+)?social(?:\s+beast)?$/ },
+  { id: "referral_network", re: /^(?:beast\s+)?referral\s+network$/ },
+  { id: "referral_network", re: /^referral\s+network$/ },
+  { id: "license_verification", re: /^(?:license\s+verification|agent\s+licenses?)$/ },
+  { id: "profile", re: /^(?:my\s+)?profile$/ },
+]
+
+// ── Workspace (Lead Board / Map, §13) ───────────────────────────────────────
+export const BOARD_PATTERNS: RegExp[] = [/^lead\s+board$/, /^board$/, /^kanban$/]
+export const MAP_PATTERNS: RegExp[] = [/^map$/, /^property\s+map$/, /^explorer$/]
+
+// ── Focus (§16) ─────────────────────────────────────────────────────────────
+export const FOCUS_ON_PATTERNS: RegExp[] = [/^focus(?:\s+mode)?$/, /^enter\s+focus(?:\s+mode)?$/, /^focus\s+on$/]
+export const FOCUS_OFF_PATTERNS: RegExp[] = [/^exit\s+focus(?:\s+mode)?$/, /^leave\s+focus$/, /^focus\s+off$/, /^unfocus$/]
+
+// ── Agenda (§15) — absolute where the target state is known, never a blind toggle. ──
+export type AgendaOp = "open" | "close" | "expand" | "collapse" | "left" | "right"
+export type AgendaPattern = { op: AgendaOp; re: RegExp }
+export const AGENDA_PATTERNS: AgendaPattern[] = [
+  // "move the agenda …" and the chain-friendly pronoun form "move it …".
+  { op: "left", re: /^move\s+(?:the\s+agenda|it)\s+(?:to\s+the\s+)?left$/ },
+  { op: "right", re: /^move\s+(?:the\s+agenda|it)\s+(?:to\s+the\s+)?right$/ },
+  { op: "expand", re: /^expand\s+(?:the\s+)?agenda$/ },
+  { op: "collapse", re: /^collapse\s+(?:the\s+)?agenda$/ },
+  { op: "open", re: /^open\s+(?:the\s+)?agenda$/ },
+  { op: "close", re: /^close\s+(?:the\s+)?agenda$/ },
+]
+
+// ── Theme (§18) — canonical ids only; validated again in the executor. ───────
+export type ThemeName = "midnight" | "obsidian" | "rose" | "evergreen" | "purple"
+export const THEME_PATTERNS: RegExp[] = [
+  /^(?:set|change|use|switch)\s+(?:the\s+)?theme\s+(?:to\s+|=\s*)?(midnight|obsidian|rose|evergreen|purple)$/,
+  /^(?:set|change|use)\s+(midnight|obsidian|rose|evergreen|purple)\s+theme$/,
+  /^theme\s+(midnight|obsidian|rose|evergreen|purple)$/,
+  /^(midnight|obsidian|rose|evergreen|purple)\s+theme$/,
+]
+
+// ── Add Lead (§14) — opens the EXISTING modal only, creates nothing. ─────────
+export const ADD_LEAD_PATTERNS: RegExp[] = [/^add\s+lead$/, /^new\s+lead$/, /^create\s+lead$/, /^add\s+a\s+lead$/]
+
+// ── Select / Open client (§19) — captures the spoken name in group 1. This is
+//    the LAST-RESORT opener, tried only after every specific "open X" family
+//    (nav, workspace, agenda, Ask Beast, CRM-owned flows). When no client
+//    matches while the Map is open, the executor re-routes it to a market
+//    attempt (see MARKET_PATTERNS). ──────────────────────────────────────────
+export const SELECT_CLIENT_PATTERNS: RegExp[] = [
+  /^(?:open|select|show|pull\s+up|go\s+to)\s+(.+)$/,
+]
+
+// ── Ask Beast (§36) — open/focus the existing panel only. ────────────────────
+export const ASK_BEAST_PATTERNS: RegExp[] = [/^(?:open\s+)?ask\s+beast(?:\s+ai)?$/]
+
+// ── Unleash the Beast (§1) ───────────────────────────────────────────────────
+export const UNLEASH_PATTERNS: RegExp[] = [/^unleash(?:\s+(?:the\s+)?beast)?$/, /^release\s+the\s+beast$/]
+
+// ── Market selection (§1) — captures the spoken market in group 1; the
+//    executor validates it against the agent's service areas and does nothing
+//    for an out-of-area market. Deliberately MARKET-ONLY verbs: "select X" is
+//    NOT here because it collides with selecting a client — instead select_client
+//    falls back to a market attempt when no client matches while the map is open,
+//    so "Open map, select Dallas, unleash Beast" resolves Dallas as the market. ─
+export const MARKET_PATTERNS: RegExp[] = [
+  /^(?:switch\s+to|set\s+market\s+to|choose\s+market)\s+(.+)$/,
+  /^market\s+(.+)$/,
+]
+
+// ── Copy (§8) — allow-listed fields only. group 1 (when present) = client name. ──
+export type CopyField = "phone" | "email" | "address"
+export type CopyTarget = "client" | "current_property"
+export type CopyPattern = { field: CopyField; target: CopyTarget; re: RegExp; nameGroup: number | null }
+// The "this …/current" forms are listed BEFORE the named forms so a phrase like
+// "copy this client's phone" resolves to the current client (clientName null),
+// not to a client literally named "this client".
+export const COPY_PATTERNS: CopyPattern[] = [
+  // Current property address — "this property/address".
+  { field: "address", target: "current_property", nameGroup: null, re: /^copy\s+(?:this\s+)?(?:property(?:'s)?\s+)?address$/ },
+  { field: "address", target: "current_property", nameGroup: null, re: /^copy\s+the\s+address$/ },
+  // Client phone — "this client" first, then a named client.
+  { field: "phone", target: "client", nameGroup: null, re: /^copy\s+(?:this\s+client'?s?\s+|this\s+|the\s+)?(?:phone(?:\s+number)?|number)$/ },
+  { field: "phone", target: "client", nameGroup: 1, re: /^copy\s+(.+?)(?:'s)?\s+(?:phone(?:\s+number)?|number)$/ },
+  // Client email — "this client" first, then a named client.
+  { field: "email", target: "client", nameGroup: null, re: /^copy\s+(?:this\s+client'?s?\s+|this\s+|the\s+)?email(?:\s+address)?$/ },
+  { field: "email", target: "client", nameGroup: 1, re: /^copy\s+(.+?)(?:'s)?\s+(?:email(?:\s+address)?)$/ },
+]
+
+// ── CRM-owned OPEN actions (§7, §24–§32) ─────────────────────────────────────
+// Voice may OPEN these existing CRM-owned flows; the human completes them in the
+// modal. Completion words on these ("mark commission paid") ALSO map here — a
+// CRM-owned action is never completed by voice, only opened (§5, §30). The verb
+// is the exact existing workflow-verb the Companion's open-* delegation uses.
+//
+// group `nameGroup` (when non-null) captures a client the resolver looks up;
+// otherwise the currently selected client is the target.
+export type CrmOpenVerb =
+  | "open-check-application"
+  | "open-apply"
+  | "open-confirm-lease"
+  | "open-guest-card"
+  | "open-invoice-details"
+  | "open-send-invoice"
+  | "open-commission-paid"
+  | "open-send-rebate"
+  | "open-tour-follow-up"
+export type CrmOpenPattern = { verb: CrmOpenVerb; re: RegExp; nameGroup: number | null }
+export const CRM_OPEN_PATTERNS: CrmOpenPattern[] = [
+  { verb: "open-check-application", nameGroup: 1, re: /^(?:open\s+|mark\s+)?check(?:\s+(.+?)(?:'s)?)?\s+application$/ },
+  { verb: "open-check-application", nameGroup: null, re: /^(?:mark\s+)?application\s+checked$/ },
+  { verb: "open-apply", nameGroup: null, re: /^(?:open\s+)?appl(?:y|ication)$/ },
+  { verb: "open-confirm-lease", nameGroup: null, re: /^(?:open\s+)?confirm\s+lease$/ },
+  { verb: "open-guest-card", nameGroup: null, re: /^(?:open\s+|send\s+)?guest\s+card$/ },
+  { verb: "open-invoice-details", nameGroup: null, re: /^(?:open\s+)?invoice\s+details$/ },
+  { verb: "open-send-invoice", nameGroup: null, re: /^send\s+invoice$/ },
+  { verb: "open-commission-paid", nameGroup: null, re: /^(?:mark\s+)?commission\s+paid$/ },
+  { verb: "open-send-rebate", nameGroup: null, re: /^send\s+rebate$/ },
+  { verb: "open-tour-follow-up", nameGroup: null, re: /^(?:open\s+)?tour\s+follow[\s-]?up$/ },
+]
+
+// ── Edit client (§23) — opens the existing editor modal. ─────────────────────
+export type EditClientPattern = { re: RegExp; nameGroup: number | null }
+// The bare "edit client" / "open client editor" forms are listed BEFORE the
+// named "edit X" so "edit client" targets the current client, not one named
+// "client".
+export const EDIT_CLIENT_PATTERNS: EditClientPattern[] = [
+  { nameGroup: null, re: /^(?:edit\s+client|open\s+client\s+editor)$/ },
+  { nameGroup: 1, re: /^edit\s+(.+)$/ },
+]
+
+// ── Property actions on the CURRENT property (§20–§22) ───────────────────────
+// These are direct-write verbs the CRM already posts itself from the property
+// card controls (no interactive prompt) — so voice posting the same verb is
+// identical to the manual click. "this" resolves ONLY from a known current
+// property; with none, the executor does nothing (§20, §44).
+export type PropertyVerb =
+  | "add-recommendation"
+  | "add-favorite"
+  | "move-to-favorite"
+  | "move-to-recommendation"
+  | "remove-recommendation"
+export type PropertyPattern = { verb: PropertyVerb; re: RegExp }
+export const PROPERTY_PATTERNS: PropertyPattern[] = [
+  { verb: "remove-recommendation", re: /^remove\s+(?:this\s+)?(?:from\s+)?(?:the\s+)?recommendations?$/ },
+  { verb: "remove-recommendation", re: /^remove\s+this\s+recommendation$/ },
+  { verb: "move-to-favorite", re: /^(?:move\s+this\s+to|add\s+this\s+to)\s+favorites?$/ },
+  { verb: "move-to-favorite", re: /^favorite\s+(?:this|it)$/ },
+  { verb: "move-to-recommendation", re: /^move\s+this\s+to\s+recommendations?$/ },
+  { verb: "add-recommendation", re: /^(?:recommend\s+(?:this|it)(?:\s+property)?|add\s+(?:this|it)\s+to\s+(?:the\s+)?recommendations?)$/ },
+]
+
+// ── Completion of COMPANION-OWNED workflow prompts (§2, §3, §33, §34, §35) ────
+// These name an existing companion-owned confirmation (post-list follow-ups,
+// contact-attempt chase, send list, build list, setup tour, schedule tour). The
+// executor NEVER blind-posts their completion verb: it answers an on-screen CRM
+// prompt if one is readable, and otherwise does nothing (their confirmation is
+// owned by the Companion, not the CRM DOM). Parsed so usage is logged and so the
+// distinction from "show"/"open" (§5) is enforced by a matched pattern.
+export type CompletionTarget =
+  | "post_list_follow_up"
+  | "contact_follow_up"
+  | "send_list"
+  | "build_list"
+  | "setup_tour"
+  | "schedule_tour"
+  | "generic"
+export type CompletionPattern = { target: CompletionTarget; re: RegExp }
+// Leading completion verbs a phrase may open with ("mark/complete/finish/done
+// with …"). Kept as one fragment so every target shares the same opener set.
+const DONE_PREFIX = "(?:mark\\s+|complete\\s+|finish\\s+|done\\s+with\\s+)?"
+export const COMPLETION_PATTERNS: CompletionPattern[] = [
+  { target: "contact_follow_up", re: new RegExp(`^${DONE_PREFIX}(?:the\\s+)?(?:2nd|second|3rd|third|final)\\s+contact\\s+attempt(?:\\s+(?:complete|done|finished))?$`) },
+  { target: "post_list_follow_up", re: new RegExp(`^${DONE_PREFIX}(?:the\\s+)?(?:1st|first|2nd|second|3rd|third|final)\\s+follow[\\s-]?up(?:\\s+(?:complete|done|finished|is\\s+done))?$`) },
+  { target: "post_list_follow_up", re: /^(?:1st|first|2nd|second|3rd|third|final)\s+follow[\s-]?up\s+(?:complete|done|finished|is\s+done)$/ },
+  { target: "send_list", re: /^(?:complete\s+|finish\s+|mark\s+)?send\s+list(?:\s+(?:complete|done))?$/ },
+  { target: "build_list", re: /^(?:complete|finish)\s+build\s+list$/ },
+  { target: "setup_tour", re: /^(?:mark\s+|complete\s+)?setup\s+tour(?:\s+(?:complete|done))?$/ },
+  { target: "schedule_tour", re: /^(?:mark\s+)?schedule(?:d)?\s+tour(?:\s+(?:complete|done))?$/ },
+  // Bare completion ("mark this complete", "done", "finished") — no named target.
+  { target: "generic", re: /^(?:mark\s+this\s+(?:complete|done)|complete\s+this|done|finished|mark\s+complete)$/ },
+]
+
+// ── Send List / Build List / Schedule Tour OPENERS (§33, §34, §35) ───────────
+// "Send list" / "build list" / "schedule tour" as bare openers name companion-
+// owned flows whose interactive step lives in the Companion. Parsed to their
+// completion target so the executor applies the same conservative rule (answer a
+// readable CRM prompt, else do nothing) rather than blind-posting.
+export const SEND_LIST_OPEN_PATTERNS: RegExp[] = [/^send\s+list$/, /^send\s+(.+?)(?:'s)?\s+list$/]
+export const BUILD_LIST_OPEN_PATTERNS: RegExp[] = [/^(?:start\s+)?build\s+list$/]
+export const SCHEDULE_TOUR_OPEN_PATTERNS: RegExp[] = [/^(?:open\s+)?schedule\s+tour$/, /^open\s+tour\s+setup$/]
+
+// ── Stop (§37) — distinct from Cancel. Terminates Voice listening / the chain,
+//    reverses nothing. Cancel answers an existing dismiss when unambiguous. ────
+export const STOP_PATTERNS: RegExp[] = [/^stop$/, /^stop\s+listening$/, /^that'?s\s+enough$/]
+
+// ── Chain connectors (§38, §39) ──────────────────────────────────────────────
+// Split ONE utterance into ordered segments. Applied to comma-PRESERVING text
+// (before punctuation is normalized away), so a comma, "then", "and then", or a
+// bare "and" all delimit steps. Only these explicit connectors split; a segment
+// that then fails the grammar aborts the chain (§40.1) rather than guessing, so
+// a stray "and" inside a name degrades safely instead of executing wrong.
+export const CHAIN_SPLIT = /\s*,\s*(?:then\s+|and\s+then\s+|and\s+)?|\s+and\s+then\s+|\s+then\s+|\s+and\s+/
+
 // ── Utterance tolerances ────────────────────────────────────────────────────
 
 /**
