@@ -110,7 +110,8 @@ export default function SharePanel({ slug }: { slug: string | null }) {
       </div>
 
       <div>
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">QR Code</p>
+        <p className="mb-1 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">QR Code</p>
+        <p className="mb-2 text-[11.5px] leading-relaxed text-[#9098a8]">Optional for print materials, events, or in-person sharing.</p>
         <Card className="flex flex-col items-center gap-3">
           {qrDataUrl ? (
             // eslint-disable-next-line @next/next/no-img-element

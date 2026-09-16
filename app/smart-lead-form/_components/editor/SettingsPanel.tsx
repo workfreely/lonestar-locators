@@ -21,7 +21,7 @@ type Updater = (updater: (prev: SmartLeadFormConfig) => SmartLeadFormConfig) => 
 const TABS: { id: Tab; label: string }[] = [
   { id: "branding", label: "Branding" },
   { id: "content", label: "Content" },
-  { id: "fields", label: "Fields" },
+  { id: "fields", label: "Form Fields" },
   { id: "thankyou", label: "Thank You Page" },
   { id: "share", label: "Share Form" },
 ]

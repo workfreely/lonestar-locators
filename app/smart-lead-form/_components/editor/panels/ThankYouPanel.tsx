@@ -79,7 +79,7 @@ export default function ThankYouPanel({
 
       {/* ── Step 5 — reward (optional) ────────────────────────────────────── */}
       <div className="pt-3">
-        <p className={sectionTitle}>Step 5 — Reward</p>
+        <p className={sectionTitle}>Step 5 — Reward (Optional)</p>
         <ToggleRow label="Show reward step" checked={rewardOn} onChange={(v) => set({ thankYouShowReward: v ? "on" : "off" })} />
         <p className={helper}>Use this for rebates, free movers, or other client rewards.</p>
         {rewardOn && (

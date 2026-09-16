@@ -54,7 +54,7 @@ export default function FieldsPanel({
   return (
     <div className="flex flex-col gap-6">
       <Card muted className="text-[12px] leading-relaxed text-[#6b7280]">
-        Show or hide fields.
+        Show or hide fields on your Smart Lead Form.
       </Card>
 
       <div>
