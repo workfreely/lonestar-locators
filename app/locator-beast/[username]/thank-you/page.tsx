@@ -123,7 +123,6 @@ export default async function SmartLeadFormThankYouPage({
                       </svg>
                       Completed
                     </span>
-                    <p className="w-full text-[14px] text-[#9aa3b2]">{step.body}</p>
                   </div>
                 ) : (
                   <>
