@@ -54,6 +54,7 @@ import { isGuestCardTitle } from "@/lib/leads/guestCardWorkflow"
 import { completeTourFollowUp } from "@/lib/leads/tourFollowUpWorkflow"
 import { completeApplicationOutcome } from "@/lib/leads/applicationOutcomeWorkflow"
 import { completeConfirmLease } from "@/lib/leads/confirmLeaseWorkflow"
+import { DEFAULT_PROJECTION_METHOD, type ProjectionMethod } from "@/lib/leads/commissionEstimate"
 import { createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
 import type { TourOutcome, ApplicationStatus } from "@bc/companion-shared"
 import { supabase } from "@/lib/supabase/client"
@@ -94,7 +95,7 @@ function toCompanionLocator(signature: ResolvedAgentIdentity | null, agentName?:
   }
 }
 
-export default function DashboardClient({ leads, nextActions, favorites, recommendations = [], outreach = [], tours = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, timeZone = DEFAULT_TIMEZONE, voiceEnabled = false, companionOwner = "", userId = "", serviceAreaSlugs = [], primaryMarket = null, licenseState = null, followUpTemplates = {} }: { leads: any[]; nextActions: any[]; favorites: any[]; recommendations?: any[]; outreach?: any[]; tours?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; timeZone?: string; /** Beast Voice alpha — true only for a platform admin, resolved server-side. */ voiceEnabled?: boolean;
+export default function DashboardClient({ leads, nextActions, favorites, recommendations = [], outreach = [], tours = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, projectionMethod = DEFAULT_PROJECTION_METHOD, timeZone = DEFAULT_TIMEZONE, voiceEnabled = false, companionOwner = "", userId = "", serviceAreaSlugs = [], primaryMarket = null, licenseState = null, followUpTemplates = {} }: { leads: any[]; nextActions: any[]; favorites: any[]; recommendations?: any[]; outreach?: any[]; tours?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; projectionMethod?: ProjectionMethod; timeZone?: string; /** Beast Voice alpha — true only for a platform admin, resolved server-side. */ voiceEnabled?: boolean;
   /** Opaque "<userId>:<workspaceId>" for the signed-in locator. Beast Companion
    *  binds every stored client record to it so a different account on the same
    *  browser can never see this locator's client. Server-derived. */
@@ -1019,6 +1020,8 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       lead,
       confirmAction: { id: action.id, property_id: action.property_id ?? null, property_name: action.property_name ?? null },
       now,
+      method: projectionMethod,
+      avgCommission,
       onOptimistic: (patch) => {
         leadPatch = patch.leadPatch
         merged = merged.map((a: any) =>

@@ -10,6 +10,12 @@ import { getOAuthClient } from "@/lib/google/getOAuthClient"
 import { createListSentCalendarEvent } from "@/lib/google/createCalendarEvent"
 import { getStageWorkflowAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
 import { resolveUserTimeZone } from "@/lib/timezone/server"
+import {
+  resolveClosedCommissionSnapshot,
+  DEFAULT_PROJECTION_METHOD,
+  type ProjectionMethod,
+} from "@/lib/leads/commissionEstimate"
+import { DEFAULT_AVG_COMMISSION_PER_LEASE } from "@/lib/demo/demoWorkspace"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -133,7 +139,7 @@ export async function POST(request: Request) {
 
     const { data: leadBefore } = await supabase
       .from("leads")
-      .select("crm_status")
+      .select("crm_status, owner_user_id, desired_rent, closed_at")
       .eq("id", leadId)
       .maybeSingle()
 
@@ -156,9 +162,37 @@ export async function POST(request: Request) {
     // Set once per transition into "closed" — the historical closed date
     // that Closed-based reporting relies on (see closed_at migration),
     // independent of whether the lead later gets archived by the monthly
-    // Closed cleanup.
+    // Closed cleanup — PLUS the frozen estimated-commission snapshot. The
+    // snapshot uses the ONE canonical estimator the dashboards use, with the
+    // lead OWNER's Sales Goals AT THIS MOMENT, so a later Sales Goals change
+    // never rewrites this closed lead's historical Sales/Meta reporting. It is
+    // recomputed on every fresh close, so a reopen → reclose freezes against
+    // whatever settings are in force at the new close.
     if (oldStage !== "closed" && crm_status === "closed") {
       stageUpdate.closed_at = new Date().toISOString()
+
+      const ownerId = leadBefore.owner_user_id ?? userId
+      const { data: goals } = await supabaseAdmin
+        .from("profiles")
+        .select("avg_commission_per_lease, projection_method")
+        .eq("id", ownerId)
+        .maybeSingle()
+      const method = (goals?.projection_method as ProjectionMethod) ?? DEFAULT_PROJECTION_METHOD
+      const avgCommission = Number(goals?.avg_commission_per_lease) || DEFAULT_AVG_COMMISSION_PER_LEASE
+      const snapshot = resolveClosedCommissionSnapshot(leadBefore, method, avgCommission)
+      stageUpdate.closed_estimated_commission = snapshot.closed_estimated_commission
+      stageUpdate.closed_estimation_method = snapshot.closed_estimation_method
+    }
+
+    // ↩️ REOPEN — a lead moved OUT of "closed" into an active (non-archived)
+    // stage is no longer a historical close: clear the close date + frozen
+    // snapshot so it stops counting in closed/revenue reporting. A later
+    // reclose stamps a fresh snapshot (above). NOTE: closed → archived is NOT a
+    // reopen — an archived close is still a close, so its snapshot is preserved.
+    if (oldStage === "closed" && crm_status !== "closed" && crm_status !== "archived") {
+      stageUpdate.closed_at = null
+      stageUpdate.closed_estimated_commission = null
+      stageUpdate.closed_estimation_method = null
     }
 
     // ↩️ RESTORE — moving a lead OUT of "archived" into any active stage is a

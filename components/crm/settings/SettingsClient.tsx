@@ -58,7 +58,7 @@ export default function SettingsClient({
 
 
   return (
-    <SettingsShell title="Sales Goals" description="These drive your dashboard's monthly progress and projected pipeline.">
+    <SettingsShell title="Sales Goals" description="These drive your dashboard's monthly progress, projected pipeline, and estimated commission reporting (including Meta ad ROAS). A lead's estimate is frozen when it closes, so changing these never rewrites past closed reporting.">
       <SettingsCard title="Sales Goal Settings">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-2">

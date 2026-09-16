@@ -18,6 +18,10 @@ export type LeadAttribution = {
   meta_campaign_name?: string
   meta_adset_name?: string
   meta_ad_name?: string
+  // Raw Meta {{site_source_name}} token for THIS click (fb | ig | msg | an | …).
+  // The only reliable Facebook-vs-Instagram signal; normalized for display in
+  // lib/meta/publisherPlatform.ts. Stored verbatim, never collapsed here.
+  meta_publisher_platform?: string
 }
 
 // A Meta dynamic-URL placeholder that never got substituted (organic click, or the ad wasn't set up
@@ -67,6 +71,8 @@ export function collectLeadAttribution(
     meta_campaign_name: g("meta_campaign_name"),
     meta_adset_name: g("meta_adset_name"),
     meta_ad_name: g("meta_ad_name"),
+    // Delivery surface (fb/ig/msg/an). clean() drops an un-substituted placeholder.
+    meta_publisher_platform: g("meta_publisher_platform"),
   }
   const src = normalizeSource(utm_source)
   if (src) out.source = src // else the caller's default (e.g. "smart_lead_form") stands

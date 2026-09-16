@@ -10,6 +10,7 @@ import { greetingName, displayFullName, sanitizeFollowUpOverrides, type FollowUp
 import { reconcilePrimaryMarket } from "@/lib/markets/catalog"
 import { attachCatalogRatings } from "@/lib/propertyExplorer/catalog"
 import { DEMO_ALL_LEADS, DEMO_NEXT_ACTIONS, DEMO_FAVORITES, DEMO_RECOMMENDATIONS, DEFAULT_AVG_COMMISSION_PER_LEASE } from "@/lib/demo/demoWorkspace"
+import { DEFAULT_PROJECTION_METHOD, type ProjectionMethod } from "@/lib/leads/commissionEstimate"
 
 // Fallback per-close commission when a profile hasn't set its own — matches
 // the dashboard's REVENUE_PER_CLOSE default. Drives Beast Milestone thresholds.
@@ -155,16 +156,16 @@ async function getScheduledTours() {
 // first_name personalizes the demo welcome banner.
 type AgentProfile = { name: string; brokerage: string; phone: string; email: string }
 
-async function getProfileContext(): Promise<{ demoMode: boolean; firstName: string; googleConnected: boolean; agent: AgentProfile; signature: ResolvedAgentIdentity | null; avgCommission: number; timeZone: string; companionOwner: string; userId: string; serviceAreaSlugs: string[]; primaryMarket: string | null; licenseState: string | null; followUpTemplates: FollowUpOverrides }> {
+async function getProfileContext(): Promise<{ demoMode: boolean; firstName: string; googleConnected: boolean; agent: AgentProfile; signature: ResolvedAgentIdentity | null; avgCommission: number; projectionMethod: ProjectionMethod; timeZone: string; companionOwner: string; userId: string; serviceAreaSlugs: string[]; primaryMarket: string | null; licenseState: string | null; followUpTemplates: FollowUpOverrides }> {
   const emptyAgent: AgentProfile = { name: "", brokerage: "", phone: "", email: "" }
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) return { demoMode: false, firstName: "", googleConnected: false, agent: emptyAgent, signature: null, avgCommission: DEFAULT_AVG_COMMISSION, timeZone: DEFAULT_TIMEZONE, companionOwner: "", userId: "", serviceAreaSlugs: [], primaryMarket: null, licenseState: null, followUpTemplates: {} }
+  if (!user) return { demoMode: false, firstName: "", googleConnected: false, agent: emptyAgent, signature: null, avgCommission: DEFAULT_AVG_COMMISSION, projectionMethod: DEFAULT_PROJECTION_METHOD, timeZone: DEFAULT_TIMEZONE, companionOwner: "", userId: "", serviceAreaSlugs: [], primaryMarket: null, licenseState: null, followUpTemplates: {} }
   const { data: profile } = await supabase
     .from("profiles")
-    .select("demo_mode, first_name, last_name, preferred_name, preferred_first_name, preferred_last_name, email, brokerage, phone_number, google_connected, avg_commission_per_lease, license_state")
+    .select("demo_mode, first_name, last_name, preferred_name, preferred_first_name, preferred_last_name, email, brokerage, phone_number, google_connected, avg_commission_per_lease, projection_method, license_state")
     .eq("id", user.id)
     .single()
 
@@ -225,6 +226,7 @@ async function getProfileContext(): Promise<{ demoMode: boolean; firstName: stri
     agent,
     signature,
     avgCommission: Number(profile?.avg_commission_per_lease) || DEFAULT_AVG_COMMISSION,
+    projectionMethod: (profile?.projection_method as ProjectionMethod) ?? DEFAULT_PROJECTION_METHOD,
     timeZone,
     companionOwner,
     userId: user.id,
@@ -256,7 +258,7 @@ async function isPlatformAdmin(): Promise<boolean> {
 }
 
 export default async function Page() {
-  const { demoMode, firstName, googleConnected, agent, signature, avgCommission, timeZone, companionOwner, userId, serviceAreaSlugs, primaryMarket, licenseState, followUpTemplates } = await getProfileContext()
+  const { demoMode, firstName, googleConnected, agent, signature, avgCommission, projectionMethod, timeZone, companionOwner, userId, serviceAreaSlugs, primaryMarket, licenseState, followUpTemplates } = await getProfileContext()
   const voiceEnabled = await isPlatformAdmin()
 
   if (demoMode) {
@@ -276,6 +278,7 @@ export default async function Page() {
         agent={agent}
         signature={signature}
         avgCommission={DEFAULT_AVG_COMMISSION_PER_LEASE}
+        projectionMethod={DEFAULT_PROJECTION_METHOD}
         timeZone={timeZone}
         voiceEnabled={voiceEnabled}
         companionOwner={companionOwner}
@@ -295,5 +298,5 @@ export default async function Page() {
     getScheduledTours(),
   ])
 
-  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} recommendations={recommendations} outreach={outreach} tours={tours} agent={agent} signature={signature} avgCommission={avgCommission} timeZone={timeZone} voiceEnabled={voiceEnabled} companionOwner={companionOwner} userId={userId} serviceAreaSlugs={serviceAreaSlugs} primaryMarket={primaryMarket} licenseState={licenseState} followUpTemplates={followUpTemplates} />
+  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} recommendations={recommendations} outreach={outreach} tours={tours} agent={agent} signature={signature} avgCommission={avgCommission} projectionMethod={projectionMethod} timeZone={timeZone} voiceEnabled={voiceEnabled} companionOwner={companionOwner} userId={userId} serviceAreaSlugs={serviceAreaSlugs} primaryMarket={primaryMarket} licenseState={licenseState} followUpTemplates={followUpTemplates} />
 }

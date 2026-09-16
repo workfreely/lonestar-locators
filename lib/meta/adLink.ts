@@ -26,6 +26,11 @@ export function buildAdDestinationUrl(username: string, platform: AdPlatform = "
     `meta_campaign_name={{campaign.name}}`,
     `meta_adset_name={{adset.name}}`,
     `meta_ad_name={{ad.name}}`,
+    // ACTUAL delivery surface for THIS click — Meta substitutes fb | ig | msg | an
+    // (and others) at delivery. utm_source above is only the static link the
+    // locator pasted; this is the real Facebook-vs-Instagram signal, normalized
+    // for display in lib/meta/publisherPlatform.ts.
+    `meta_publisher_platform={{site_source_name}}`,
   ].join("&")
   return `${base}?${params}`
 }

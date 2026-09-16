@@ -14,6 +14,7 @@ import { supabase } from "@/lib/supabase/client"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
 import { createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
+import { resolveClosedCommissionSnapshot, type ProjectionMethod } from "@/lib/leads/commissionEstimate"
 
 // The optimistic patch the caller applies to localNextActions / localLeads.
 export type ConfirmLeasePatch = {
@@ -37,11 +38,16 @@ export async function completeConfirmLease(opts: {
   // Pick — property_id was stamped at creation).
   confirmAction: { id: number | string; property_id: number | null; property_name?: string | null }
   now: string
+  // The account's canonical Sales Goals at this moment — used to FREEZE this
+  // lead's estimated commission on close, via the same estimator the dashboards
+  // use (no second formula). Mirrors the Kanban → Closed drag snapshot.
+  method: ProjectionMethod
+  avgCommission: number
   onOptimistic?: (patch: ConfirmLeasePatch) => void
   // The created Get Invoice Details action.
   onActionCreated?: (action: any) => void
 }): Promise<void> {
-  const { lead, confirmAction, now, onOptimistic, onActionCreated } = opts
+  const { lead, confirmAction, now, method, avgCommission, onOptimistic, onActionCreated } = opts
   const demo = isDemoLeadId(lead.id)
   const propId = confirmAction.property_id
   const propertyName = (confirmAction.property_name || "").toString().trim() || null
@@ -60,7 +66,14 @@ export async function completeConfirmLease(opts: {
   //    approval). Stamps closed_at once (mirrors the Kanban → Closed drag). [real only]
   if (!demo) {
     const patch: Record<string, unknown> = { crm_status: "closed" }
-    if (!lead.closed_at) patch.closed_at = now
+    // Freeze the close date + estimated-commission snapshot only on the FIRST
+    // close (mirrors the Kanban drag: never overwrite an existing snapshot).
+    if (!lead.closed_at) {
+      patch.closed_at = now
+      const snapshot = resolveClosedCommissionSnapshot(lead, method, avgCommission)
+      patch.closed_estimated_commission = snapshot.closed_estimated_commission
+      patch.closed_estimation_method = snapshot.closed_estimation_method
+    }
     const { error } = await supabase.from("leads").update(patch).eq("id", lead.id)
     if (error) console.error("[confirm-lease] advance to closed failed:", error)
   }

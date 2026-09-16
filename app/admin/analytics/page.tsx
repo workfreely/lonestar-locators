@@ -9,6 +9,7 @@ import {
   DEFAULT_AVG_COMMISSION_PER_LEASE,
 } from "@/lib/demo/demoWorkspace"
 import { DEFAULT_PROJECTION_METHOD, type ProjectionMethod } from "@/lib/leads/commissionEstimate"
+import { loadMetaSalesAnalytics } from "@/lib/meta/loadSalesAnalytics"
 
 async function getLeads() {
   // Authenticated, RLS-enforced client — scopes to the caller's workspace.
@@ -93,6 +94,14 @@ export default async function PerformancePage() {
 
   const [leads, dashboardLeads] = await Promise.all([getLeads(), getDashboardLeads()])
 
+  // Meta Sales Analytics — reuses the RLS-scoped lead set for attribution and
+  // reads the workspace's synced Meta performance through the same client.
+  const supabase = await createClient()
+  const metaSales = await loadMetaSalesAnalytics(supabase, leads, {
+    method: projectionMethod,
+    avgCommission,
+  })
+
   return (
     <PerformanceClient
       leads={leads}
@@ -100,6 +109,7 @@ export default async function PerformancePage() {
       monthlyGoal={monthlyGoal}
       avgCommission={avgCommission}
       projectionMethod={projectionMethod}
+      metaSales={metaSales}
     />
   )
 }

@@ -46,3 +46,65 @@ export function sumEstimatedCommission(
 ): number {
   return leads.reduce((total, lead) => total + estimateLeadCommission(lead, method, avgCommission), 0)
 }
+
+// ─── Closed-lead commission snapshot (frozen at close) ──────────────────────
+// Historical Sales / Meta analytics must stay stable when an agent later changes
+// their Sales Goals. So the moment a lead CLOSES we compute its estimated
+// commission with the SAME canonical estimateLeadCommission above and freeze it
+// on the lead (closed_estimated_commission + closed_estimation_method). There is
+// no second formula — this reuses the one estimator, so a snapshot can never
+// drift from what the dashboard would have shown for that lead at close time.
+
+export type ClosedCommissionSnapshot = {
+  closed_estimated_commission: number
+  closed_estimation_method: ProjectionMethod
+}
+
+// Build the frozen snapshot for a lead that is closing right now, under the
+// account's projection method + average commission AT THIS MOMENT.
+export function resolveClosedCommissionSnapshot(
+  lead: any,
+  method: ProjectionMethod,
+  avgCommission: number,
+): ClosedCommissionSnapshot {
+  return {
+    closed_estimated_commission: estimateLeadCommission(lead, method, avgCommission),
+    closed_estimation_method: method,
+  }
+}
+
+// Coerce a persisted numeric (supabase-js may hand back `numeric` as a string).
+function toNumberOrNull(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
+}
+
+// One closed lead's historical commission: the frozen snapshot when present,
+// else a live estimate (legacy / pre-migration close). The single place that
+// resolves "frozen or estimate" for one lead — reused by the sum below and by
+// Meta Sales Analytics so both treat pre-snapshot closes identically.
+export function toFrozenOrEstimate(
+  frozen: unknown,
+  lead: any,
+  method: ProjectionMethod,
+  avgCommission: number,
+): number {
+  return toNumberOrNull(frozen) ?? estimateLeadCommission(lead, method, avgCommission)
+}
+
+// Estimated commission across a set of CLOSED leads for HISTORICAL reporting.
+// Prefers the frozen per-lead snapshot; falls back to a live estimate only for
+// closes that predate the snapshot (legacy / pre-migration rows). This is what
+// keeps Sales Analytics — and Meta ROAS — stable across Sales Goals changes,
+// while never dropping an older close that has no snapshot yet.
+export function sumClosedEstimatedCommission(
+  closedLeads: any[],
+  method: ProjectionMethod,
+  avgCommission: number,
+): number {
+  return closedLeads.reduce(
+    (total, lead) => total + toFrozenOrEstimate(lead?.closed_estimated_commission, lead, method, avgCommission),
+    0,
+  )
+}

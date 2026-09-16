@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { getSourceBarColor } from "@/lib/leads/sourceStyles"
-import { sumEstimatedCommission, DEFAULT_PROJECTION_METHOD, type ProjectionMethod } from "@/lib/leads/commissionEstimate"
+import { sumEstimatedCommission, sumClosedEstimatedCommission, DEFAULT_PROJECTION_METHOD, type ProjectionMethod } from "@/lib/leads/commissionEstimate"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 // Fallbacks when a profile hasn't set its own goals (real operator today).
@@ -103,9 +103,14 @@ export default function DashboardStats({
 
   // Closed this month — keyed off closed_at (the lead's actual closed
   // date), not crm_status, so this stays correct after the monthly Closed
-  // cleanup archives a lead out of the Closed column.
+  // cleanup archives a lead out of the Closed column. (A reopened lead has its
+  // closed_at cleared server-side, so it correctly drops out here.)
   const closedThisMonth  = leads.filter((l) => l.closed_at && isThisMonth(l.closed_at))
-  const revenueThisMonth = estimate(closedThisMonth)
+  // Historical closed revenue uses the FROZEN per-lead snapshot taken at close
+  // (falls back to a live estimate only for pre-snapshot closes), so changing
+  // Sales Goals never rewrites past closed reporting. Open pipeline below stays
+  // on the live estimate — intentional, since forecasts should track new assumptions.
+  const revenueThisMonth = sumClosedEstimatedCommission(closedThisMonth, projectionMethod, avgCommission)
   const progressPct      = Math.min(Math.round((revenueThisMonth / monthlyGoal) * 100), 100)
 
   // Leads generated this month

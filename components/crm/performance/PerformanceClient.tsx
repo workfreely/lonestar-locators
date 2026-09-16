@@ -9,9 +9,11 @@ import LandingPageTable from "./LandingPageTable"
 import LeadsByCityCard from "./LeadsByCityCard"
 import ClosedDealsByCityCard from "./ClosedDealsByCityCard"
 import MonthlyPerformanceHistory from "./MonthlyPerformanceHistory"
+import MetaSalesAnalytics from "./MetaSalesAnalytics"
 import CollapsibleSection from "@/components/crm/CollapsibleSection"
 import AppHeader from "@/components/crm/AppHeader"
 import type { ProjectionMethod } from "@/lib/leads/commissionEstimate"
+import type { MetaSalesAnalytics as MetaSalesAnalyticsData } from "@/lib/meta/salesAnalytics"
 
 // Composes the Phase 1 Performance page from the reusable pieces above.
 // Deliberately thin — Phase 2 (ROI, spend, charts, funnels) adds new
@@ -24,12 +26,14 @@ export default function PerformanceClient({
   monthlyGoal,
   avgCommission,
   projectionMethod,
+  metaSales = null,
 }: {
   leads: any[]
   dashboardLeads: any[]
   monthlyGoal?: number
   avgCommission?: number
   projectionMethod?: ProjectionMethod
+  metaSales?: MetaSalesAnalyticsData | null
 }) {
   return (
     <div className="relative h-screen w-full flex flex-col bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]">
@@ -79,6 +83,10 @@ export default function PerformanceClient({
         </CollapsibleSection>
 
         <CampaignTable leads={leads} />
+
+        {/* Meta Sales Analytics — spend → attributed lead → close → estimated
+            commission → ROAS, plus a Facebook/Instagram lead breakdown. */}
+        <MetaSalesAnalytics data={metaSales} />
 
         <MonthlyPerformanceHistory leads={leads} />
       </div>
