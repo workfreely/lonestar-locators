@@ -42,6 +42,7 @@ import { sendNotification, newLeadEmail, leadConfirmationEmail, absoluteUrl } fr
 import { resolveAgentIdentityForOwner } from "@/lib/notifications/agentSignature"
 import { resolveClientType } from "@/lib/leads/leadClassification"
 import { shouldExitDemoOnLead, exitDemoModeForOwner } from "@/lib/demo/demoExit"
+import { resolveSupabaseProject } from "@/lib/supabase/projects"
 
 // Server-only client — SUPABASE_SERVICE_ROLE_KEY has no NEXT_PUBLIC_
 // prefix, so it is never bundled into browser JS.
@@ -317,6 +318,10 @@ export async function POST(request: Request) {
   // public form can never read/update another tenant's lead. Requests without a
   // formUsername (the existing Lone Star forms) are unchanged.
   const formUsername = typeof body?.formUsername === "string" ? body.formUsername : null
+  // The Lone Star → LB bridge forwards a full lead to this route (path B) and
+  // asks us NOT to re-send the renter confirmation — Lone Star already sends its
+  // own client-facing messaging. Jay's internal new-lead notification still fires.
+  const suppressCustomerConfirmation = body?.suppressCustomerConfirmation === true
   let attributedOwnerId: string | null = null
   let attributedWorkspaceId: string | null = null
   if (formUsername) {
@@ -443,6 +448,38 @@ export async function POST(request: Request) {
 
       data = created
       dedupAction = match.confidence === "possible" ? "possible_duplicate" : "created"
+    }
+
+    // ─── Lone Star Locators → Locator Beast bridge (FULL form only) ───────
+    // On the Lone Star deployment (legacy DB), forward each validated FULL-form
+    // renter lead to the canonical LB route as Jay's public form (path B), so it
+    // becomes ONE canonical LB CRM lead (workspace/owner = Jay, lead_type=renter,
+    // crm_status=new, source="Lone Star Website"), with LB's workspace-scoped
+    // dedupe handling retries. Short-form and non-legacy deployments never
+    // forward. Deferred + isolated so it can never affect the legacy write or the
+    // renter's response; suppressCustomerConfirmation avoids a double renter email.
+    if (formType === "full" && resolveSupabaseProject(process.env.NEXT_PUBLIC_SUPABASE_URL)?.role === "legacy") {
+      const bridgeLead = { ...result.payload, source: "Lone Star Website" }
+      try {
+        after(async () => {
+          try {
+            await fetch("https://locatorbeast.com/api/leads/submit", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                formType: "full",
+                formUsername: "jay-morris",
+                suppressCustomerConfirmation: true,
+                lead: bridgeLead,
+              }),
+            })
+          } catch (err) {
+            console.error("[api/leads/submit] Lone Star → LB bridge failed:", err)
+          }
+        })
+      } catch (err) {
+        console.error("[api/leads/submit] Failed to schedule Lone Star → LB bridge:", err)
+      }
     }
 
     // ─── New Lead Calendar event (server-side, best-effort) ───────────────
@@ -610,7 +647,7 @@ export async function POST(request: Request) {
     // Deferred + isolated so a mail failure never affects the saved lead. The
     // renter replies land with their locator (Reply-To = the owner's email); the
     // city skyline header follows the lead's market via the shared theme registry.
-    if (isNewLead && attributedOwnerId && result.payload.email) {
+    if (isNewLead && attributedOwnerId && result.payload.email && !suppressCustomerConfirmation) {
       const ownerId = attributedOwnerId
       const leadRow = data
       const customerEmail = result.payload.email as string
