@@ -24,7 +24,7 @@ export type GuestCardGuardView =
   // seedQuery prefills the search box — used only when returning here via "Change
   // property", so the agent sees the property they're changing from. Blank on a fresh open.
   | { step: "property"; clientName: string; favorites: FavoriteOption[]; seedQuery?: string }
-  | { step: "guest-card"; clientName: string; propertyName: string }
+  | { step: "guest-card"; clientName: string; propertyName: string; propertyAddress?: string | null }
 
 export default function GuestCardGuardModal({
   view,
@@ -124,7 +124,12 @@ export default function GuestCardGuardModal({
             <h3 className="text-lg font-bold text-[var(--crm-text-primary)]">Did you send a guest card for {view.clientName}?</h3>
             {/* Property name as a clear secondary label. */}
             <p className="mt-1.5 text-sm font-semibold text-[var(--crm-text-primary)]">{view.propertyName}</p>
-            {/* Subtle correction affordance, directly beneath the property name.
+            {/* Address: smaller + muted confirmation, using the already-resolved value.
+                Omitted entirely when unavailable (never fabricated). */}
+            {view.propertyAddress ? (
+              <p className="mt-0.5 text-[11.5px] text-[var(--crm-text-muted)]">{view.propertyAddress}</p>
+            ) : null}
+            {/* Subtle correction affordance, directly beneath the address.
                 Returns to the approved Step 1 search without canceling the workflow or
                 moving the client; the prior pick is provisional, so nothing was
                 recorded to undo. */}

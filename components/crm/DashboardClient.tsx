@@ -1066,6 +1066,15 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     const fav = localFavoritesRef.current.find((f: any) => String(f.id) === String(propertyId))
     return (fav?.property_name || fav?.property_address || "this property").toString()
   }
+  // The property's already-resolved address for display (from the loaded favorite
+  // row). Read-only reuse of existing data — no new lookup. Null when unavailable so
+  // the modal can simply omit the line rather than fabricate an address.
+  function guestCardPropertyAddress(propertyId: number | string | null): string | null {
+    if (propertyId == null) return null
+    const fav = localFavoritesRef.current.find((f: any) => String(f.id) === String(propertyId))
+    const addr = (fav?.property_address ?? "").toString().trim()
+    return addr || null
+  }
   async function hasConfirmedGuestCardTimeline(leadId: number | string, propertyId: number | string): Promise<boolean> {
     // Demo leads never write timeline (string ids); rely on the session set only.
     if (isDemoLeadId(leadId)) return false
@@ -1146,11 +1155,17 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         return
       }
     }
+    // Use the already-resolved address from the provisional selection (searched/added
+    // carry it; an existing favorite has it on its loaded row). No new lookup.
+    const pendingAddress =
+      pending.kind === "property"
+        ? (pending.address ?? "").toString().trim() || null
+        : guestCardPropertyAddress(pending.favId)
     setGuestCardGuard({
       ...g,
       favId: null,
       pending,
-      view: { step: "guest-card", clientName: g.view.clientName, propertyName: pending.name },
+      view: { step: "guest-card", clientName: g.view.clientName, propertyName: pending.name, propertyAddress: pendingAddress },
     })
   }
 
@@ -1332,7 +1347,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         targetStage,
         favId: propertyId,
         proceed,
-        view: { step: "guest-card", clientName, propertyName: guestCardPropertyName(propertyId) },
+        view: { step: "guest-card", clientName, propertyName: guestCardPropertyName(propertyId), propertyAddress: guestCardPropertyAddress(propertyId) },
       })
     })
   }
