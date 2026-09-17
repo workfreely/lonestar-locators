@@ -1704,12 +1704,22 @@ export function ProductionPanel() {
           }}
         >
           <div onClick={(e) => e.stopPropagation()} style={SHEET_STYLE}>
+            {/* Copy differs by sequence (workflow/completion behavior is identical):
+                - Contact Attempts (2nd/3rd/Final) may be a call OR a text, so the
+                  prompt asks "Did you make the … contact attempt?" and confirms
+                  "Yes, Done".
+                - Post-list Follow-Ups are always a sent text, so they keep the
+                  "Did you send … text?" / "Yes, Sent" wording. */}
             <p style={SHEET_QUESTION_STYLE}>
-              Did you send the {formatWorkflowActionLabel(followUpConfirm.title)} text to {followUpConfirm.name}?
+              {isContactFollowUpAction(followUpConfirm.title)
+                ? `Did you make the ${formatWorkflowActionLabel(followUpConfirm.title)
+                    .replace(/\s*Contact Attempt$/i, "")
+                    .toLowerCase()} contact attempt?`
+                : `Did you send the ${formatWorkflowActionLabel(followUpConfirm.title)} text to ${followUpConfirm.name}?`}
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <button type="button" onClick={confirmFollowUp} style={SHEET_PRIMARY_BTN}>
-                Yes, Sent
+                {isContactFollowUpAction(followUpConfirm.title) ? "Yes, Done" : "Yes, Sent"}
               </button>
               <button type="button" onClick={() => setFollowUpConfirm(null)} style={SHEET_CANCEL_BTN}>
                 Cancel
