@@ -121,18 +121,17 @@ export default function GuestCardGuardModal({
           </>
         ) : (
           <>
-            <h3 className="text-lg font-bold text-[var(--crm-text-primary)]">Was a guest card sent?</h3>
-            <p className="text-sm text-[var(--crm-text-secondary)] mt-1">
-              For <span className="font-semibold text-[var(--crm-text-primary)]">{view.propertyName}</span> —{" "}
-              {view.clientName}.
-            </p>
-            {/* Subtle correction affordance. Returns to the approved Step 1 search
-                without canceling the workflow or moving the client; the prior pick is
-                provisional, so nothing was recorded to undo. */}
+            <h3 className="text-lg font-bold text-[var(--crm-text-primary)]">Did you send a guest card for {view.clientName}?</h3>
+            {/* Property name as a clear secondary label. */}
+            <p className="mt-1.5 text-sm font-semibold text-[var(--crm-text-primary)]">{view.propertyName}</p>
+            {/* Subtle correction affordance, directly beneath the property name.
+                Returns to the approved Step 1 search without canceling the workflow or
+                moving the client; the prior pick is provisional, so nothing was
+                recorded to undo. */}
             <button
               type="button"
               onClick={onChangeProperty}
-              className="mt-1 text-[12px] font-medium text-[var(--crm-text-muted)] underline underline-offset-2 hover:text-[var(--crm-text-primary)] transition-colors"
+              className="mt-0.5 text-[12px] font-medium text-[var(--crm-text-muted)] underline underline-offset-2 hover:text-[var(--crm-text-primary)] transition-colors"
             >
               Change property
             </button>
