@@ -41,6 +41,7 @@ import { crmMayConfirm } from "@/lib/workflow/promptOwnership"
 import { completeSetupTour, rescheduleTour, cancelTour, localTourToUtc } from "@/lib/leads/setupTourWorkflow"
 import { createManualTask } from "@/lib/leads/createManualTask"
 import GuestCardModal from "./GuestCardModal"
+import AddPropertyModal from "./AddPropertyModal"
 import TourFollowUpModal from "./TourFollowUpModal"
 import CheckApplicationModal from "./CheckApplicationModal"
 import GetInvoiceDetailsModal from "./GetInvoiceDetailsModal"
@@ -50,7 +51,7 @@ import { autoInvoicePropertyName, formatInvoiceCurrency } from "@/lib/leads/invo
 import { leaseFollowUpDueAt } from "@/lib/leads/leaseFollowUp"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
 import ConfirmDialog from "./ConfirmDialog"
-import { isGuestCardTitle } from "@/lib/leads/guestCardWorkflow"
+import { isGuestCardTitle, createGuestCardForProperty } from "@/lib/leads/guestCardWorkflow"
 import {
   resolveGuardPropertyId,
   isGuestCardHandled,
@@ -235,7 +236,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // Send Guest Card composer (reuses GuestCardModal). Opened per scheduled
   // property from the Workspace Favorite or a Companion verb; completing it marks
   // that property's email_guest_card done and lets Tour Follow-Up surface.
-  const [guestCard, setGuestCard] = useState<null | { lead: any; property: any; actionId: number | string | null }>(null)
+  const [guestCard, setGuestCard] = useState<null | { lead: any; property: any; actionId: number | string | null; onSent?: () => void }>(null)
   // Tour Follow-Up outcome modal ("How did the tour go?"). Scoped to ONE
   // tour/property; completing it records the outcome + drives the next canonical
   // action. Opened from the Workspace Favorite or the Companion verb.
@@ -263,11 +264,24 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     | {
         lead: any
         targetStage: "applied" | "closed"
-        propertyId: number | string | null
+        // The applied/leased property when it was resolved from EXISTING recorded
+        // state (a lead_favorites id) — the "known property" path. null while Step 1
+        // is open or when the property is a provisional Step-1 selection (see pending).
+        favId: number | string | null
+        // A provisional Step-1 selection, held in memory only. NOTHING is written for
+        // it (no favorite row, no Top Pick, no guest-card record) until the workflow
+        // completes, so "Change property" can never leave an accidental selection as
+        // recorded state. Resolved into a real favorite id at completion (finalize).
+        pending?:
+          | { kind: "favorite"; favId: number | string; name: string }
+          | { kind: "property"; propertyUrl: string; name: string; address?: string | null }
         proceed: () => void
         view: GuestCardGuardView
       }
   >(null)
+  // Add Property sub-modal opened from the guard's Step 1 (reuses the existing
+  // AddPropertyModal form); its onSaved persists a favorite and resumes the guard.
+  const [guardAddProperty, setGuardAddProperty] = useState<null | { seed: string }>(null)
   // Session record of guest cards the agent confirmed externally this session, as
   // `${leadId}:${propertyId}` — so a confirmed property doesn't re-prompt within
   // the session (the truthful persistent record is the guest_card timeline event).
@@ -858,6 +872,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     )
     setLocalNextActions(merged)
     postCompanionActiveClient({ ...gc.lead }, merged)
+    // Applied-flow "No" path: the guest card has now been handled, so continue the
+    // deferred move to Applied. Undefined for the normal (non-guard) composer use.
+    gc.onSent?.()
   }
 
   // ── Tour Follow-Up (property/tour-scoped) ───────────────────────────────────
@@ -1064,29 +1081,130 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       return false
     }
   }
+  // Persist the lead's Top Pick (the applied/leased property). Reuses the existing
+  // top_pick_favorite_id column; optimistic + DB write + ref sync.
+  function setLeadTopPick(leadId: number | string, favId: number | string) {
+    setLocalLeads((prev) => prev.map((l: any) => (String(l.id) === String(leadId) ? { ...l, top_pick_favorite_id: favId } : l)))
+    localLeadsRef.current = localLeadsRef.current.map((l: any) =>
+      String(l.id) === String(leadId) ? { ...l, top_pick_favorite_id: favId } : l,
+    )
+    if (!isDemoLeadId(leadId)) void supabase.from("leads").update({ top_pick_favorite_id: favId }).eq("id", leadId)
+  }
+
+  // Find (by property_url) or create the lead_favorites row for a chosen property,
+  // reusing the EXISTING favorite insert (LeadFavorites pattern) — the canonical
+  // property identity + Top Pick target. Returns { id, name }.
+  async function ensureFavoriteForProperty(
+    leadId: number | string,
+    property: { propertyUrl: string; propertyName: string; propertyAddress?: string | null },
+  ): Promise<{ id: number | string; name: string } | null> {
+    const url = property.propertyUrl.trim()
+    const name = (property.propertyName || "").trim() || "Property"
+    const existing = localFavoritesRef.current.find(
+      (f: any) => String(f.lead_id) === String(leadId) && url && String(f.property_url ?? "") === url,
+    )
+    if (existing) return { id: existing.id, name: existing.property_name || name }
+    if (isDemoLeadId(leadId)) {
+      const demo = { id: `demo-fav-${leadId}-${Date.now()}`, lead_id: leadId, property_name: name, property_url: url || null, property_address: property.propertyAddress ?? null }
+      setLocalFavorites((prev: any) => [...prev, demo])
+      localFavoritesRef.current = [...localFavoritesRef.current, demo]
+      return { id: demo.id, name }
+    }
+    const { data, error } = await supabase
+      .from("lead_favorites")
+      .insert({ lead_id: leadId, property_name: name, property_url: url || null, property_address: property.propertyAddress ?? null, property_image_url: null })
+      .select("*")
+      .single()
+    if (error || !data) {
+      console.error("[applied-guard] favorite create failed:", error?.message)
+      return null
+    }
+    setLocalFavorites((prev: any) => [...prev, data])
+    localFavoritesRef.current = [...localFavoritesRef.current, data]
+    return { id: data.id, name: data.property_name || name }
+  }
+
+  // Advance the guard to Step 2 (guest card) for a PROVISIONAL Step-1 selection.
+  // Writes NOTHING here — no favorite row, no Top Pick, no guest-card record — so a
+  // property the agent selects then changes away from (via "Change property") never
+  // becomes recorded state. The selection is finalized only on completion. An
+  // existing favorite whose guest card is already handled short-circuits to proceed
+  // (that IS a completion, so its Top Pick is recorded then).
+  type GuardPending = NonNullable<NonNullable<typeof guestCardGuard>["pending"]>
+  function guardAdvanceToGuestCard(pending: GuardPending) {
+    const g = guestCardGuard
+    if (!g) return
+    if (pending.kind === "favorite") {
+      const sessionConfirmed = [...confirmedGuestCardsRef.current]
+        .filter((k) => k.startsWith(`${g.lead.id}:`))
+        .map((k) => k.slice(String(g.lead.id).length + 1))
+      if (isGuestCardHandled(pending.favId, localNextActionsRef.current, sessionConfirmed)) {
+        setGuestCardGuard(null)
+        setLeadTopPick(g.lead.id, pending.favId)
+        g.proceed()
+        return
+      }
+    }
+    setGuestCardGuard({
+      ...g,
+      favId: null,
+      pending,
+      view: { step: "guest-card", clientName: g.view.clientName, propertyName: pending.name },
+    })
+  }
+
+  // Resolve the guard's chosen property into a real favorite id at COMPLETION, and
+  // only now record it as the application property (Top Pick). For a provisional
+  // Step-1 selection this creates the favorite row (searched/added) and sets Top
+  // Pick; for the "known property" path (no pending) it returns the already-resolved
+  // favId unchanged — no new write, matching prior behavior.
+  async function guardFinalizeSelection(g: NonNullable<typeof guestCardGuard>): Promise<
+    { favId: number | string; fav: any } | null
+  > {
+    if (g.pending) {
+      let favId: number | string
+      if (g.pending.kind === "favorite") {
+        favId = g.pending.favId
+      } else {
+        const created = await ensureFavoriteForProperty(g.lead.id, {
+          propertyUrl: g.pending.propertyUrl,
+          propertyName: g.pending.name,
+          propertyAddress: g.pending.address ?? undefined,
+        })
+        if (!created) return null
+        favId = created.id
+      }
+      setLeadTopPick(g.lead.id, favId)
+      const fav = localFavoritesRef.current.find((f: any) => String(f.id) === String(favId)) ?? null
+      return { favId, fav }
+    }
+    if (g.favId == null) return null
+    const fav = localFavoritesRef.current.find((f: any) => String(f.id) === String(g.favId)) ?? null
+    return { favId: g.favId, fav }
+  }
+
+  // Shared guard entry (drag / Voice / canonical Apply / Confirm Lease). Skips the
+  // modal when the property is known AND its guest card is already handled;
+  // otherwise opens the guided modal (Step 1 property search when no property yet,
+  // else Step 2 guest card). The stage transition happens ONLY via `proceed`.
   function runGuestCardGuard(leadId: string | number, targetStage: "applied" | "closed", proceed: () => void) {
     const lead = localLeadsRef.current.find((l: any) => String(l.id) === String(leadId))
-    if (!lead) return // unknown lead — do nothing (never a silent wrong move)
+    if (!lead) return
     const clientName = formatPersonName(lead.first_name) || "this client"
     const propertyId = resolveGuardPropertyId(lead, localNextActionsRef.current, targetStage)
 
-    // No canonical applied/leased property yet (raw jump / friend-referral): the
-    // agent must identify it via the existing Favorites/Top Pick mechanism before
-    // a property-specific check can run. Never accept a property-less confirmation.
-    if (propertyId == null) {
+    const openStep1 = () => {
       const favorites = localFavoritesRef.current.filter((f: any) => String(f.lead_id) === String(lead.id))
-      setGuestCardGuard({
-        lead,
-        targetStage,
-        propertyId: null,
-        proceed,
-        view: { mode: "identify", clientName, favorites },
-      })
+      setGuestCardGuard({ lead, targetStage, favId: null, proceed, view: { step: "property", clientName, favorites } })
+    }
+
+    if (propertyId == null) {
+      // No applied/leased property yet → Step 1 (search / favorites / add).
+      openStep1()
       return
     }
 
-    // Handled synchronously (completed per-property card, or this session's
-    // external confirmation)? Proceed with no friction.
+    // Property known — already handled? proceed silently.
     const sessionConfirmed = [...confirmedGuestCardsRef.current]
       .filter((k) => k.startsWith(`${lead.id}:`))
       .map((k) => k.slice(String(lead.id).length + 1))
@@ -1094,75 +1212,118 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       proceed()
       return
     }
-
-    // Otherwise consult the durable guest_card timeline confirmation before prompting.
     void hasConfirmedGuestCardTimeline(lead.id, propertyId).then((confirmed) => {
       if (confirmed) {
         proceed()
         return
       }
+      // Known property, not handled → Step 2 (guest card Yes/No).
       setGuestCardGuard({
         lead,
         targetStage,
-        propertyId,
+        favId: propertyId,
         proceed,
-        view: { mode: "confirm", clientName, propertyName: guestCardPropertyName(propertyId), context: targetStage },
+        view: { step: "guest-card", clientName, propertyName: guestCardPropertyName(propertyId) },
       })
     })
   }
 
-  // "Yes, I Sent It" — record the TRUTHFUL external confirmation (never a fake
-  // system-sent email_guest_card row), then continue the original move.
-  function guardConfirmSent() {
-    const g = guestCardGuard
-    setGuestCardGuard(null)
-    if (!g || g.propertyId == null) return
-    confirmedGuestCardsRef.current.add(`${g.lead.id}:${g.propertyId}`)
-    recordTimelineEvent({
-      leadId: g.lead.id,
-      type: "guest_card",
-      metadata: {
-        source: "agent_confirmed_external",
-        property_id: g.propertyId,
-        property_name: guestCardPropertyName(g.propertyId),
-        context: g.targetStage,
-      },
+  // Step 1 — agent picked an EXISTING favorite as the applied property (provisional).
+  function guardSelectFavorite(favorite: { id: number | string; property_name?: string | null; property_address?: string | null }) {
+    guardAdvanceToGuestCard({
+      kind: "favorite",
+      favId: favorite.id,
+      name: (favorite.property_name || favorite.property_address || "this property").toString(),
     })
-    g.proceed()
   }
 
-  // "Send Guest Card" — open the EXISTING composer for the applied property; the
-  // move waits (does NOT proceed). The canonical Guest Card flow stays authoritative.
-  function guardSendGuestCard() {
+  // Step 1 — agent picked a SEARCHED (canonical Places) property (provisional). No
+  // favorite row is created yet; the canonical identity is materialized at completion.
+  function guardSelectSearched(match: { placeId: string; name: string; address: string | null }) {
+    guardAdvanceToGuestCard({ kind: "property", propertyUrl: placeUrl(match.placeId), name: match.name, address: match.address })
+  }
+
+  // Step 1 — the Map search's failed-search "+ Add New Property": open the EXISTING
+  // Add Property form (seeded with the typed text); on save it hands back name/url.
+  function guardOpenAddProperty(typed: string) {
+    setGuardAddProperty({ seed: typed })
+  }
+  function guardAddPropertySaved(p: { propertyName: string; propertyUrl: string }) {
+    setGuardAddProperty(null)
+    guardAdvanceToGuestCard({ kind: "property", propertyUrl: p.propertyUrl, name: p.propertyName })
+  }
+
+  // Step 2 — "Change property": return to the approved Step 1 search WITHOUT closing
+  // the workflow or moving the client. The prior selection is provisional (nothing
+  // was written), so this simply reopens Step 1; picking a new property overwrites
+  // the pending selection. Client Favorites are rebuilt from live state.
+  function guardBackToProperty() {
     const g = guestCardGuard
-    setGuestCardGuard(null)
-    if (!g || g.propertyId == null) return
-    const fav = localFavoritesRef.current.find((f: any) => String(f.id) === String(g.propertyId))
-    if (!fav) return
-    const gcAction = localNextActionsRef.current.find(
-      (a: any) =>
-        String(a.lead_id) === String(g.lead.id) &&
-        String(a.action_key ?? "") === "email_guest_card" &&
-        String(a.property_id ?? "") === String(g.propertyId),
-    )
-    openGuestCardComposer(g.lead, fav, null, gcAction?.id ?? null)
+    if (!g) return
+    const favorites = localFavoritesRef.current.filter((f: any) => String(f.lead_id) === String(g.lead.id))
+    // Seed Step 1 with the property being changed from (the current Step-2 name), so
+    // the agent sees what they're changing before picking a different property.
+    const seedQuery = g.view.step === "guest-card" ? g.view.propertyName : undefined
+    setGuestCardGuard({
+      ...g,
+      favId: null,
+      pending: undefined,
+      view: { step: "property", clientName: g.view.clientName, favorites, seedQuery },
+    })
   }
 
-  // "identify" mode → the agent picked the applied property from Favorites. Set it
-  // as the durable Top Pick (reusing the existing column), then re-run the guard.
-  function guardSelectProperty(favorite: { id: number | string }) {
+  // Step 2 — "Yes": finalize the chosen property (create favorite/Top Pick now, at
+  // completion), record the guest card as sent (truthful agent-confirmed guest_card
+  // timeline event — never a fabricated system send), then proceed.
+  function guardGuestSent() {
     const g = guestCardGuard
     setGuestCardGuard(null)
     if (!g) return
-    const leadId = g.lead.id
-    setLocalLeads((prev) => prev.map((l: any) => (String(l.id) === String(leadId) ? { ...l, top_pick_favorite_id: favorite.id } : l)))
-    if (!isDemoLeadId(leadId)) {
-      void supabase.from("leads").update({ top_pick_favorite_id: favorite.id }).eq("id", leadId)
-    }
-    // Re-run against the just-set Top Pick (read from the merged local lead).
-    const relead = { ...g.lead, top_pick_favorite_id: favorite.id }
-    localLeadsRef.current = localLeadsRef.current.map((l: any) => (String(l.id) === String(leadId) ? relead : l))
-    runGuestCardGuard(leadId, g.targetStage, g.proceed)
+    void (async () => {
+      const resolved = await guardFinalizeSelection(g)
+      if (!resolved) return
+      const { favId } = resolved
+      confirmedGuestCardsRef.current.add(`${g.lead.id}:${favId}`)
+      recordTimelineEvent({
+        leadId: g.lead.id,
+        type: "guest_card",
+        metadata: { source: "agent_confirmed_external", property_id: favId, property_name: guestCardPropertyName(favId), context: g.targetStage },
+      })
+      g.proceed()
+    })()
+  }
+
+  // Step 2 — "No": finalize the chosen property, then open the EXISTING Guest Card
+  // composer for it; the move continues (proceed) only after the guest card is
+  // actually sent (handleGuestCardSent → onSent). Closing the composer without
+  // sending leaves the lead pre-Applied.
+  function guardGuestSendNow() {
+    const g = guestCardGuard
+    setGuestCardGuard(null)
+    if (!g) return
+    const proceed = g.proceed
+    void (async () => {
+      const resolved = await guardFinalizeSelection(g)
+      if (!resolved) return
+      const { favId, fav } = resolved
+      if (!fav) return
+      // Ensure the per-property email_guest_card action exists (dedup inside), so
+      // the composer can complete it — reusing the canonical creator.
+      let actionId: number | string | null =
+        localNextActionsRef.current.find(
+          (a: any) => String(a.lead_id) === String(g.lead.id) && String(a.action_key ?? "") === "email_guest_card" && String(a.property_id ?? "") === String(favId),
+        )?.id ?? null
+      if (actionId == null && !isDemoLeadId(g.lead.id)) {
+        const created = await createGuestCardForProperty(supabase, g.lead.id, fav)
+        if (created) {
+          setLocalNextActions((prev) => [...prev, created])
+          actionId = created.id
+        }
+      }
+      openGuestCardComposer(g.lead, fav, null, actionId)
+      // Continue to Applied once the card is sent from the composer.
+      setGuestCard((prev) => (prev ? { ...prev, onSent: proceed } : prev))
+    })()
   }
 
   // ── Confirm Lease (Approved → Lease Signed → Closed) ────────────────────────
@@ -3605,11 +3766,23 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       {/* Property-specific Guest Card guard modal (shared by drag + Voice). */}
       <GuestCardGuardModal
         view={guestCardGuard?.view ?? null}
-        onConfirmSent={guardConfirmSent}
-        onSendGuestCard={guardSendGuestCard}
-        onSelectProperty={guardSelectProperty}
+        onSelectFavorite={guardSelectFavorite}
+        onSelectSearched={guardSelectSearched}
+        onAddProperty={guardOpenAddProperty}
+        onGuestSent={guardGuestSent}
+        onGuestSendNow={guardGuestSendNow}
+        onChangeProperty={guardBackToProperty}
         onCancel={() => setGuestCardGuard(null)}
       />
+      {/* Applied-flow "+ Add Property" — reuses the existing Add Property form; its
+          onSaved persists a favorite (canonical identity) and resumes the guard. */}
+      {guardAddProperty && (
+        <AddPropertyModal
+          initialName={guardAddProperty.seed}
+          onClose={() => setGuardAddProperty(null)}
+          onSaved={guardAddPropertySaved}
+        />
+      )}
 
       {dragContact && (
         <div className="fixed inset-0 z-[10000] bg-black/40 backdrop-blur-sm flex items-center justify-center px-4">
@@ -3617,7 +3790,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             {dragContact.phase === "choose-method" ? (
               <>
                 <h3 className="text-base font-bold text-[var(--crm-text-primary)] mb-4 text-center">
-                  Would you like to call or text {dragContact.name}?
+                  Contact {dragContact.name}?
                 </h3>
                 <div className="flex flex-col gap-2">
                   <button

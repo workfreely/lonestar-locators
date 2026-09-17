@@ -40,11 +40,17 @@ function isValidUrl(value: string) {
 export default function AddPropertyModal({
   initialName = "",
   onClose,
+  onSaved,
 }: {
   /** The text the locator searched for. Prefills Property Name, since a failed
    *  search is usually the property's name typed correctly. */
   initialName?: string
   onClose: () => void
+  /** OPTIONAL. When provided (e.g. the Applied flow's "+ Add Property"), the Add
+   *  Property button returns the entered name/url so the caller can persist it via
+   *  the EXISTING favorite path and continue. When omitted (the Lead Board failed-
+   *  search caller), the button stays inert exactly as before — no behavior change. */
+  onSaved?: (property: { propertyName: string; propertyUrl: string }) => void
 }) {
   const [url, setUrl] = useState("")
   const [name, setName] = useState(initialName)
@@ -225,12 +231,18 @@ export default function AddPropertyModal({
           >
             Cancel
           </button>
-          {/* INERT. Saving needs the property-schema work that is not approved —
-              wiring it now would write a property with nowhere durable to live. */}
+          {/* Without onSaved this stays INERT (no approved property schema to write
+              to). With onSaved (the Applied flow) it hands the entered name/url back
+              so the caller persists it via the existing favorite path — needs a name. */}
           <button
             type="button"
-            onClick={() => {}}
-            className="rounded-lg bg-[#2f6bff] px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#265fe0]"
+            onClick={() => {
+              if (!onSaved) return
+              if (name.trim() === "") return
+              onSaved({ propertyName: name.trim(), propertyUrl: url.trim() })
+            }}
+            disabled={!!onSaved && name.trim() === ""}
+            className="rounded-lg bg-[#2f6bff] px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#265fe0] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Add Property
           </button>

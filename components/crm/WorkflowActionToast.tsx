@@ -65,7 +65,7 @@ export default function WorkflowActionToast({
           <p className="text-[13px] font-semibold text-[var(--crm-text-secondary)]">Action removed</p>
         ) : (
           <>
-            <p className="text-[13px] font-semibold text-emerald-600">✓ Next Action Created</p>
+            <p className="text-[13.5px] font-bold text-emerald-600 tracking-tight">Next Action Created</p>
             <p className="text-[14.5px] font-bold text-[var(--crm-text-primary)] mt-1">{formatWorkflowActionLabel(action.title)}</p>
             <p className="text-[12px] text-[var(--crm-text-secondary)] mt-0.5">
               Due: {formatDueDateTime(action.due_at, { verbose: true })}

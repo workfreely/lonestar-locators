@@ -21,6 +21,7 @@ export default function PropertySearchField({
   onChange,
   onMatch,
   onClearMatch,
+  onAddProperty,
   placeholder,
   inputClassName,
 }: {
@@ -29,12 +30,21 @@ export default function PropertySearchField({
   onChange: (name: string) => void
   onMatch: (m: PropertyMatch) => void
   onClearMatch?: () => void
+  // OPT-IN. When provided, the field mirrors the Map search's failed-search
+  // behavior: pressing Enter on a query that returns no matches reveals a
+  // "No results found → + Add New Property" state, and clicking it calls this
+  // with the typed text. Omitted (e.g. Social Autopilot) → no Enter/no-results
+  // behavior at all, so the approved autocomplete/typing are unchanged there.
+  onAddProperty?: (typed: string) => void
   placeholder?: string
   inputClassName?: string
 }) {
   const [open, setOpen] = useState(false)
   const [results, setResults] = useState<Candidate[]>([])
   const [searching, setSearching] = useState(false)
+  // Whether Enter was pressed on the current query (Map-parity "submitted" flag).
+  // Only meaningful when onAddProperty is provided; reset on every new keystroke.
+  const [submitted, setSubmitted] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
 
@@ -68,16 +78,32 @@ export default function PropertySearchField({
 
   const onInput = (v: string) => {
     onChange(v)
+    setSubmitted(false) // a new keystroke un-submits the query (hides any no-results state)
     if (matched && onClearMatch) onClearMatch() // editing the text drops the prior canonical match
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(() => void run(v), 350)
   }
+
+  // The Map's failed-search state (opt-in via onAddProperty): show it only once the
+  // user has pressed Enter on a query that finished searching with zero matches.
+  const noResults = !!onAddProperty && submitted && !searching && results.length === 0 && value.trim().length >= 3
 
   return (
     <div className="relative">
       <input
         value={value}
         onChange={(e) => onInput(e.target.value)}
+        onKeyDown={(e) => {
+          // Enter submits the query — Map parity. Runs the search now (skipping the
+          // debounce) so the no-results state resolves immediately. Only when the
+          // failed-search affordance is enabled; otherwise keyboard behavior is unchanged.
+          if (e.key === "Enter" && onAddProperty) {
+            e.preventDefault()
+            if (timer.current) clearTimeout(timer.current)
+            setSubmitted(true)
+            void run(value)
+          }
+        }}
         onFocus={() => results.length > 0 && setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder={placeholder}
@@ -100,13 +126,30 @@ export default function PropertySearchField({
               key={r.placeId}
               type="button"
               // onMouseDown (not onClick) so it fires before the input's onBlur closes the list.
-              onMouseDown={(e) => { e.preventDefault(); onMatch(r); setOpen(false) }}
+              onMouseDown={(e) => { e.preventDefault(); setSubmitted(false); onMatch(r); setOpen(false) }}
               className="block w-full text-left px-3 py-1.5 hover:bg-[var(--crm-card)]"
             >
               <div className="text-[12.5px] font-semibold text-[var(--crm-text-primary)] truncate">{r.name}</div>
               {r.address && <div className="text-[11px] text-[var(--crm-text-muted)] truncate">{r.address}</div>}
             </button>
           ))}
+        </div>
+      )}
+      {/* Failed-search state — same behavior/action as the Map search: "No results
+          found" + "+ Add New Property", which opens the existing Add Property form
+          seeded with the typed text. onMouseDown fires before the input's onBlur. */}
+      {noResults && (
+        <div className="absolute z-30 mt-1 left-0 right-0 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-panel)] shadow-lg">
+          <div className="flex items-center justify-between gap-2 px-3 py-2">
+            <span className="text-[11.5px] text-[var(--crm-text-muted)]">No results found</span>
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); onAddProperty?.(value.trim()) }}
+              className="text-[12px] font-semibold text-[var(--kb-accent)] hover:opacity-80"
+            >
+              + Add New Property
+            </button>
+          </div>
         </div>
       )}
     </div>
