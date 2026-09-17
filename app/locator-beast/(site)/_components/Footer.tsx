@@ -67,7 +67,37 @@ export default function Footer() {
           <div className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={EQUAL_HOUSING_LOGO} alt="Equal Housing Opportunity" style={{ height: 26, width: "auto" }} />
-            <p>&copy; {year} Locator Beast. All rights reserved.</p>
+            {/* Copyright + Beast Security mark. flex-wrap so the security mark drops
+                cleanly below the copyright on narrow widths instead of compressing. */}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <p>&copy; {year} Locator Beast. All rights reserved.</p>
+              {/* Non-interactive, decorative mark. Text inherits the footer's muted
+                  color; only the shield carries the Locator Beast blue. */}
+              <span className="inline-flex items-center gap-1.5">
+                <span aria-hidden>·</span>
+                <svg
+                  aria-hidden="true"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  className="shrink-0"
+                >
+                  <path
+                    d="M12 2 L4 5 v6 c0 5 3.5 8.5 8 10 c4.5 -1.5 8 -5 8 -10 V5 Z"
+                    fill="var(--beast-blue)"
+                  />
+                  <path
+                    d="M8.5 11.6 l2.4 2.4 L15.4 9.3"
+                    fill="none"
+                    stroke="#ffffff"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <span>Protected by Beast Security&trade;</span>
+              </span>
+            </div>
           </div>
           <p>The AI-powered CRM platform built for apartment locators.</p>
         </div>
