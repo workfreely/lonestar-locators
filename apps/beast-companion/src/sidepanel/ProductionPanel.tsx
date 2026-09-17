@@ -1715,7 +1715,7 @@ export function ProductionPanel() {
                 ? `Did you make the ${formatWorkflowActionLabel(followUpConfirm.title)
                     .replace(/\s*Contact Attempt$/i, "")
                     .toLowerCase()} contact attempt?`
-                : `Did you send the ${formatWorkflowActionLabel(followUpConfirm.title)} text to ${followUpConfirm.name}?`}
+                : `Did you send the ${formatWorkflowActionLabel(followUpConfirm.title)}?`}
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <button type="button" onClick={confirmFollowUp} style={SHEET_PRIMARY_BTN}>
