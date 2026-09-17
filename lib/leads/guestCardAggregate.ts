@@ -83,6 +83,27 @@ export function guestCardObjectiveLabel(items: GuestCardItem[]): { title: string
 }
 
 /**
+ * The canonical Primary Next Action presentation for a Guest Card objective — the ONE
+ * function every surface (Lead Board card, Agenda, workspace, Companion) uses so the
+ * aggregation is identical everywhere. Returns null when the primary is NOT a genuine-
+ * Favorite Guest Card (the surface then renders its normal label). Otherwise:
+ *   • 1 outstanding  → { title:"Send Guest Card",  detail:"{Property}",    aggregate:false }
+ *   • 2+ outstanding → { title:"Send Guest Cards", detail:"{N} properties", aggregate:true }
+ */
+export function resolveGuestCardPrimary(
+  leadId: number | string,
+  primaryAction: ActionRow | null | undefined,
+  actions: ActionRow[],
+  favorites: FavoriteRow[],
+): { title: string; detail: string; aggregate: boolean } | null {
+  if (!isFavoriteGuestCardAction(primaryAction, leadId, favorites)) return null
+  const outstanding = outstandingFavoriteGuestCards(leadId, actions, favorites)
+  const label = guestCardObjectiveLabel(outstanding)
+  if (!label) return null
+  return { title: label.title, detail: label.detail, aggregate: outstanding.length >= 2 }
+}
+
+/**
  * Is this ranked/primary action a genuine-Favorite Guest Card (so the surface should
  * present the aggregated objective instead of the single row)? Used by the display
  * surfaces to decide whether to swap in the aggregate label + bulk dispatch.

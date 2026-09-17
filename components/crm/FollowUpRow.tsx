@@ -4,6 +4,7 @@ import { useState } from "react"
 import { rankLeadActions } from "@/lib/nextActions"
 import { getNextAction } from "@/lib/nextAction"
 import { formatWorkflowActionLabel } from "@/lib/leads/workflowActionLabels"
+import { resolveGuestCardPrimary } from "@/lib/leads/guestCardAggregate"
 import { getActionIcon, formatDueDateTime } from "@/lib/actionDisplay"
 import { formatPersonName } from "@bc/companion-shared"
 
@@ -20,6 +21,7 @@ type FilterType = "overdue" | "today"
 export default function FollowUpRow({
   leads,
   nextActions,
+  favorites = [],
   selectedLeadId,
   activeLeadId,
   onSelectLead,
@@ -31,6 +33,8 @@ export default function FollowUpRow({
 }: {
   leads: any[]
   nextActions: any[]
+  /** Genuine Client Favorites — for the canonical Guest Card aggregation. */
+  favorites?: any[]
   selectedLeadId?: string | number | null
   /** The active/current client (Companion's active client). The Lead Board card
    *  shows its visible highlight from this same id (kb-card--active-client), so the
@@ -134,6 +138,12 @@ export default function FollowUpRow({
             (selectedLeadId != null && String(selectedLeadId) === String(lead.id)) ||
             (activeLeadId != null && String(activeLeadId) === String(lead.id))
           const urg = primary.urgency === "overdue" ? "crit" : "warn"
+          // Canonical Guest Card Primary Next Action presentation (shared helper):
+          // 2+ outstanding genuine-Favorite Guest Cards → "Send Guest Cards · N
+          // properties"; 1 → "Send Guest Card · {Property}". Non-guest-card → normal.
+          const gcPrimary = primary.manualAction
+            ? resolveGuestCardPrimary(lead.id, primary.manualAction, nextActions, favorites)
+            : null
           return (
             <div
               key={lead.id}
@@ -147,8 +157,11 @@ export default function FollowUpRow({
               </p>
               {/* What */}
               <p className="ag-action">
-                {getActionIcon(primary.title)} {formatWorkflowActionLabel(primary.title)}
+                {getActionIcon(primary.title)} {gcPrimary ? gcPrimary.title : formatWorkflowActionLabel(primary.title)}
               </p>
+              {gcPrimary && (
+                <p className="ag-action" style={{ opacity: 0.7, marginTop: -2 }}>{gcPrimary.detail}</p>
+              )}
               {/* When */}
               <p className={`ag-due ag-due--${urg}`}>{primary.dueAt ? formatDueDateTime(primary.dueAt, { timeZone: timeZone ?? undefined }) : ""}</p>
             </div>

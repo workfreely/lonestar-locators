@@ -1,7 +1,7 @@
 import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO, RecommendationDTO, FollowUpOverrides } from "@bc/companion-shared"
 import { visibleRecommendations, favoriteMoveBlock } from "@/lib/leads/propertyCollections"
 import { isClientFavorite } from "@/lib/leads/favoriteOrigin"
-import { isFavoriteGuestCardAction, outstandingFavoriteGuestCards } from "@/lib/leads/guestCardAggregate"
+import { resolveGuestCardPrimary } from "@/lib/leads/guestCardAggregate"
 import { isLeadStage, APPLICATION_LAST_ACTION_LABELS, isApplicationStatus } from "@bc/companion-shared"
 import { getNextAction } from "@/lib/nextAction"
 import { rankLeadActions } from "@/lib/nextActions"
@@ -419,24 +419,22 @@ export function buildActiveClientPayload(
   // complete. Clicking it opens the sequential bulk modal (open-guest-card verb).
   if (actions[0]) {
     const rawPrimary = (nextActions || []).find((a: any) => String(a.id) === String(actions[0].id))
-    if (isFavoriteGuestCardAction(rawPrimary, lead.id, favorites || [])) {
-      const outstanding = outstandingFavoriteGuestCards(lead.id, nextActions || [], favorites || [])
-      if (outstanding.length >= 2) {
-        actions = [
-          {
-            id: `gc-bulk-${lead.id}`,
-            leadId: lead.id,
-            title: "Send Guest Cards",
-            dueAt: actions[0].dueAt,
-            priority: actions[0].priority,
-            notes: null,
-            completed: false,
-            completedAt: null,
-            propertyName: `${outstanding.length} properties`,
-          },
-          ...actions.slice(1),
-        ]
-      }
+    const gcPrimary = resolveGuestCardPrimary(lead.id, rawPrimary, nextActions || [], favorites || [])
+    if (gcPrimary?.aggregate) {
+      actions = [
+        {
+          id: `gc-bulk-${lead.id}`,
+          leadId: lead.id,
+          title: gcPrimary.title,
+          dueAt: actions[0].dueAt,
+          priority: actions[0].priority,
+          notes: null,
+          completed: false,
+          completedAt: null,
+          propertyName: gcPrimary.detail,
+        },
+        ...actions.slice(1),
+      ]
     }
   }
 

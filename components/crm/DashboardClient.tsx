@@ -3505,6 +3505,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             <FollowUpRow
               leads={localLeads}
               nextActions={localNextActions}
+              favorites={localFavorites}
               selectedLeadId={selectedLeadId}
               // Same active-client id the Lead Board card highlights on
               // (kb-card--active-client), so the Agenda item stays in sync.
@@ -3546,6 +3547,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           className={`relative z-10 flex-1 overflow-hidden block ${demoMode ? "crm-fade-in" : ""}`}
         >
           <LeadBoard
+            favorites={localFavorites}
             workspace={workspace}
             onWorkspaceChange={handleWorkspaceNav}
             mapSlot={(query, hosts, onMatchCount, submittedName, onResolveName) => (

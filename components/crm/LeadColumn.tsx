@@ -15,6 +15,9 @@ type Props = {
   // All open actions (any lead) — forwarded to each card so its Next Action
   // derives from the canonical ranked state. Optional (falls back to stage action).
   nextActions?: any[]
+  /** Genuine Client Favorites — forwarded so the card's Guest Card Primary Next
+   *  Action aggregates 2+ outstanding into "Send Guest Cards · N properties". */
+  favorites?: any[]
   selectedLeadId?: string | number | null
   /** The lead the Beast Companion is currently showing — highlighted on the
    *  board so the agent can see which card is the active client context. */
@@ -49,6 +52,7 @@ export default function LeadColumn({
   title,
   leads,
   nextActions,
+  favorites,
   selectedLeadId,
   activeCompanionLeadId,
   onSelectLead,
@@ -75,6 +79,7 @@ export default function LeadColumn({
             key={lead.id}
             lead={lead}
             nextActions={nextActions}
+            favorites={favorites}
             isSelected={String(selectedLeadId) === String(lead.id)}
             isActiveClient={
               activeCompanionLeadId != null &&

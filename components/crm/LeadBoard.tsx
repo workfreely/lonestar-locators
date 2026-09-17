@@ -73,6 +73,7 @@ export default function LeadBoard({
   leads,
   setLeads,
   nextActions,
+  favorites,
   selectedLeadId,
   activeCompanionLeadId,
   onSelectLead,
@@ -103,6 +104,8 @@ export default function LeadBoard({
   // the stage's automatic "Schedule Tour"). Optional: cards fall back to the
   // stage action when omitted (unchanged behavior).
   nextActions?: any[]
+  /** Genuine Client Favorites — forwarded to cards for Guest Card aggregation. */
+  favorites?: any[]
   selectedLeadId?: string | number | null
   /** The lead the Beast Companion is currently showing. When set and the board
    *  is visible, that lead's card gets a subtle active-client highlight so the
@@ -645,6 +648,7 @@ export default function LeadBoard({
               title={col.title}
               view={view}
               nextActions={nextActions}
+              favorites={favorites}
               emptyMessage={searchQuery.trim() ? "No matching leads found." : "No leads"}
               leads={leads
                 .filter((lead) => lead.crm_status === col.id && matchesSearch(lead, searchQuery))
@@ -709,6 +713,7 @@ export default function LeadBoard({
                 view={view}
                 onSelect={() => {}}
                 nextActions={nextActions}
+                favorites={favorites}
               />
             </div>
           ) : null}

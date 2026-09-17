@@ -4,6 +4,7 @@ import { useDraggable } from "@dnd-kit/core"
 import { getNextAction } from "@/lib/nextAction"
 import { rankLeadActions } from "@/lib/nextActions"
 import { formatWorkflowActionLabel } from "@/lib/leads/workflowActionLabels"
+import { resolveGuestCardPrimary } from "@/lib/leads/guestCardAggregate"
 import { useState, useRef, useLayoutEffect } from "react"
 import { formatPhone } from "@/lib/utils/formatPhone"
 import LeadSourceBadge from "./LeadSourceBadge"
@@ -61,6 +62,7 @@ function getFollowUpStatus(date: string) {
 export default function LeadCard({
   lead,
   nextActions,
+  favorites,
   isSelected,
   isActiveClient,
   onSelect,
@@ -145,7 +147,14 @@ export default function LeadCard({
   const nextClass =
     followUpStatus === "overdue" ? "kb-pill--crit" : followUpStatus === "today" ? "kb-pill--warn" : "kb-pill--info"
   // Full follow-up label ("1st Follow-Up" …); non-FU actions pass through unchanged.
-  const actionLabel = formatWorkflowActionLabel(action)
+  // Canonical Guest Card Primary Next Action presentation (shared with Agenda /
+  // workspace / Companion): 2+ outstanding genuine-Favorite Guest Cards aggregate to
+  // "Send Guest Cards". Single/non-guest-card actions keep their normal label.
+  const gcPrimary =
+    rankedPrimary?.manualAction && Array.isArray(favorites)
+      ? resolveGuestCardPrimary(lead.id, rankedPrimary.manualAction, Array.isArray(nextActions) ? nextActions : [], favorites)
+      : null
+  const actionLabel = gcPrimary?.aggregate ? gcPrimary.title : formatWorkflowActionLabel(action)
   const nextText = `${actionLabel}${followUpStatus === "today" ? " · Today" : followUpStatus === "overdue" ? " · Overdue" : ""}`
 
 

@@ -1,7 +1,7 @@
 // Guest Card objective aggregation — genuine-Favorite outstanding Guest Cards.
 // Run: npx tsx scripts/tests/guestCardAggregate.test.ts
 
-import { outstandingFavoriteGuestCards, guestCardObjectiveLabel, isFavoriteGuestCardAction } from "../../lib/leads/guestCardAggregate"
+import { outstandingFavoriteGuestCards, guestCardObjectiveLabel, isFavoriteGuestCardAction, resolveGuestCardPrimary } from "../../lib/leads/guestCardAggregate"
 import { buildActiveClientPayload } from "../../lib/companion/leadToDto"
 
 let failures = 0
@@ -79,6 +79,16 @@ check("genuine-Favorite guest card → true", isFavoriteGuestCardAction(gc(1, 10
 check("application-only property guest card → false", isFavoriteGuestCardAction(gc(1, 99), LEAD, favorites), false)
 check("non-Favorite property guest card → false", isFavoriteGuestCardAction(gc(1, 500), LEAD, favorites), false)
 check("check_application → false (not a guest card)", isFavoriteGuestCardAction({ action_key: "check_application", property_id: 10, lead_id: LEAD }, LEAD, favorites), false)
+
+console.log("\nresolveGuestCardPrimary — the ONE shared presentation used by every surface")
+check("non-guest-card primary → null (surface uses its normal label)",
+  resolveGuestCardPrimary(LEAD, { action_key: "check_application", property_id: 10, lead_id: LEAD }, [gc(1, 10)], favorites), null)
+check("single genuine-Favorite guest card → singular presentation",
+  resolveGuestCardPrimary(LEAD, gc(1, 10), [gc(1, 10)], favorites), { title: "Send Guest Card", detail: "Atlantica at Alamo", aggregate: false })
+check("2+ genuine-Favorite guest cards → aggregate presentation",
+  resolveGuestCardPrimary(LEAD, gc(1, 10), [gc(1, 10), gc(2, 11), gc(3, 12)], favorites), { title: "Send Guest Cards", detail: "3 properties", aggregate: true })
+check("application-only property guest card primary → null",
+  resolveGuestCardPrimary(LEAD, gc(1, 99), [gc(1, 99)], favorites), null)
 
 console.log("\nCompanion (buildActiveClientPayload) aggregate primary — CRM/Companion parity")
 {
