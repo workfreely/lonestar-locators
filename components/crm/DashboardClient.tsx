@@ -3165,13 +3165,39 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     let tries = 0
     const bringIntoView = () => {
       const el = document.querySelector<HTMLElement>(".kb-board .kb-card--active-client")
-      if (el) {
-        el.scrollIntoView({ block: "nearest", inline: "nearest" })
+      if (!el) {
+        // Returning from Map remounts the columns — the card may not exist yet.
+        // Retry across a few frames before giving up so it never intermittently fails.
+        if (tries++ < 6) timer = window.setTimeout(bringIntoView, 60)
         return
       }
-      // Returning from Map remounts the columns — the card may not exist yet.
-      // Retry across a few frames before giving up so it never intermittently fails.
-      if (tries++ < 6) timer = window.setTimeout(bringIntoView, 60)
+      // HORIZONTAL only: reveal the card's stage column if it sits in an off-screen
+      // stage. block:"nearest" keeps the vertical nudge minimal; the precise vertical
+      // placement is done below (scrollIntoView can treat a partially-clipped card as
+      // "visible", which is the clipping this fixes).
+      el.scrollIntoView({ block: "nearest", inline: "nearest" })
+      // VERTICAL: measure the card against its ACTUAL vertical scroll container
+      // (.kb-col-body) and adjust that container's scrollTop only enough to show the
+      // WHOLE card with ~14px breathing room from the visible top/bottom boundary.
+      // A card already fully visible with that margin is left untouched.
+      const body = el.closest<HTMLElement>(".kb-col-body")
+      if (body) {
+        const MARGIN = 14
+        const cr = el.getBoundingClientRect()
+        const br = body.getBoundingClientRect()
+        let delta = 0
+        if (cr.top < br.top + MARGIN) {
+          delta = cr.top - (br.top + MARGIN) // clipped/flush at the top → scroll up
+        } else if (cr.bottom > br.bottom - MARGIN) {
+          delta = cr.bottom - (br.bottom - MARGIN) // clipped/flush at the bottom → scroll down
+        }
+        if (delta !== 0) {
+          const max = body.scrollHeight - body.clientHeight
+          // Clamp so a final card that lacks full bottom margin still reveals as much
+          // as the column's existing bottom padding allows — never over-scrolls.
+          body.scrollTop = Math.max(0, Math.min(max, body.scrollTop + delta))
+        }
+      }
     }
     // Wait for the board to paint its columns before measuring/scrolling.
     raf1 = requestAnimationFrame(() => { raf2 = requestAnimationFrame(bringIntoView) })
