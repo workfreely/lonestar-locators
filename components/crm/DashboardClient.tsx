@@ -3239,7 +3239,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
               )}
 
               {/* INSIGHTS PANEL (Phase 1 center working canvas) */}
-              <div className="beast-ai-clearance flex-1 bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)] p-6 overflow-y-auto">
+              <div className="beast-ai-clearance flex-1 bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)] py-6 overflow-y-auto">
                 {/* Desktop 50/50 workspace. LEFT column = Recommended Properties,
                     Favorite Properties, Client Tools (+ Invoice Details on Closed).
                     RIGHT column = AI Insights (rendered by LeadInsights, includes

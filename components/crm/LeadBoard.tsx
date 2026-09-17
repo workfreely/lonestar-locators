@@ -232,6 +232,19 @@ export default function LeadBoard({
     setView(readKanbanDensity())
   }, [])
 
+  // Item C — clear the SHARED search when switching between the Lead Board and
+  // Map workspaces, so a property query never carries into the lead search (and a
+  // lead query never carries into the property search). The two workspaces share
+  // this one input; without this reset, Map's query lands in the Board and it
+  // reports "No matching leads". Fires only on the Board↔Map transition (a
+  // `workspace` prop change on the same mounted instance) — never on client
+  // open/close, Focus, or Agenda (those don't change `workspace`). It resets ONLY
+  // the shared input state; the lead- and property-search logic is untouched.
+  useEffect(() => {
+    setSearchQuery("")
+    setSubmittedQuery("")
+  }, [workspace])
+
   function selectView(mode: KanbanView) {
     setView(mode)
     writeKanbanDensity(mode)
@@ -486,24 +499,32 @@ export default function LeadBoard({
                 if (e.key === "Enter") setSubmittedQuery(searchQuery)
               }}
               placeholder={
-                // Transient Voice session states take precedence in either
-                // workspace; otherwise the idle copy follows the selected
-                // workspace. Copy only — search/Map/Voice behavior is unchanged.
+                // Transient Voice session states take precedence; otherwise the
+                // idle copy follows the surface: inside a client workspace it drops
+                // the (irrelevant) lead/property-search language and just invites
+                // Voice; on the Board/Map it names the relevant search. Copy only —
+                // the input position/size/mic and search/Voice routing are unchanged.
                 voiceState === "listening"
                   ? "Listening..."
                   : voiceState === "working"
                     ? "Beast is working..."
-                    : workspace === "map"
-                      ? // Map mode filters the properties ALREADY loaded on the map —
-                        // it never runs a lead search and never calls Places per keystroke.
+                    : selectedLeadId != null
+                      ? // Client workspace — no lead/property search language here;
+                        // typed Beast commands + the mic still work exactly as before.
                         voiceEnabled
-                        ? "Search property name or speak to Beast…"
-                        : "Search property name..."
-                      : voiceEnabled
-                        ? // Only where the mic exists. A normal account has no Beast
-                          // Voice, so it must not be invited to speak to it.
-                          "Search by name, phone or speak to Beast…"
+                        ? "Speak to Beast…"
                         : "Search by name or phone..."
+                      : workspace === "map"
+                        ? // Map mode filters the properties ALREADY loaded on the map —
+                          // it never runs a lead search and never calls Places per keystroke.
+                          voiceEnabled
+                          ? "Search property name or speak to Beast…"
+                          : "Search property name..."
+                        : voiceEnabled
+                          ? // Only where the mic exists. A normal account has no Beast
+                            // Voice, so it must not be invited to speak to it.
+                            "Search by name, phone or speak to Beast…"
+                          : "Search by name or phone..."
               }
             />
             {voiceEnabled && (
