@@ -3148,6 +3148,40 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     [selectWorkspace],
   )
 
+  // Return-to-context: when the Lead Board becomes the visible surface again (e.g.
+  // switching back from Map/Properties) AND Beast Companion already has an active
+  // client, bring that client's EXISTING card into view within its own stage column.
+  // Pure scroll — no reorder, no stage change, no reselect: it reuses the
+  // `.kb-card--active-client` highlight the board already renders for companionLeadId
+  // (the persistent active-client state), so there's no new source of truth. block/
+  // inline "nearest" moves the minimum needed and is a no-op when the card is already
+  // fully visible (avoids jarring scroll). Runs only on the board itself (no client
+  // workspace open) with an active client set; otherwise the board behaves as today.
+  useEffect(() => {
+    if (workspace !== "board" || selectedLeadId != null || companionLeadId == null) return
+    let raf1 = 0
+    let raf2 = 0
+    let timer = 0
+    let tries = 0
+    const bringIntoView = () => {
+      const el = document.querySelector<HTMLElement>(".kb-board .kb-card--active-client")
+      if (el) {
+        el.scrollIntoView({ block: "nearest", inline: "nearest" })
+        return
+      }
+      // Returning from Map remounts the columns — the card may not exist yet.
+      // Retry across a few frames before giving up so it never intermittently fails.
+      if (tries++ < 6) timer = window.setTimeout(bringIntoView, 60)
+    }
+    // Wait for the board to paint its columns before measuring/scrolling.
+    raf1 = requestAnimationFrame(() => { raf2 = requestAnimationFrame(bringIntoView) })
+    return () => {
+      cancelAnimationFrame(raf1)
+      cancelAnimationFrame(raf2)
+      if (timer) clearTimeout(timer)
+    }
+  }, [workspace, selectedLeadId, companionLeadId])
+
   // ── Focus ─────────────────────────────────────────────────────────────────
   // An APP-LEVEL layout mode, not browser fullscreen. It hides the top nav and
   // lifts this same shell to `fixed inset-0`, escaping the admin layout's
