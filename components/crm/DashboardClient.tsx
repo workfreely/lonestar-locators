@@ -57,6 +57,7 @@ import {
   isGuestCardHandled,
 } from "@/lib/leads/guestCardGuard"
 import { FAVORITE_ORIGIN, isClientFavorite, isApplicationIdentity } from "@/lib/leads/favoriteOrigin"
+import { planGuestCardSent } from "@/lib/leads/appliedGuestCard"
 import GuestCardGuardModal, { type GuestCardGuardView } from "./GuestCardGuardModal"
 import { completeTourFollowUp } from "@/lib/leads/tourFollowUpWorkflow"
 import { completeApplicationOutcome } from "@/lib/leads/applicationOutcomeWorkflow"
@@ -1267,6 +1268,52 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     }
   }
 
+  // Reconcile the applied property's guest card into a COMPLETED state — the canonical
+  // "Guest Card Sent" record that deriveLastAction reads and that clears the open "Send
+  // Guest Card" Next Action. Reuses the EXISTING completion write (same fields
+  // handleGuestCardSent sets) and createGuestCardForProperty; never a parallel system.
+  //   • open email_guest_card for this property  → complete it
+  //   • none for this property                   → create (canonical) then complete
+  //   • already completed for this property      → noop (never a duplicate)
+  // Scoped to the selected property only; a different property's guest card is untouched.
+  async function reconcileGuestCardSent(lead: any, favId: number | string, favName: string) {
+    const plan = planGuestCardSent(favId, localNextActionsRef.current)
+    if (plan.action === "noop") return
+    const now = new Date().toISOString()
+    const applyCompleted = (id: number | string) => {
+      const patch = { completed: true, completed_at: now, status: "completed" }
+      setLocalNextActions((prev: any) => prev.map((a: any) => (String(a.id) === String(id) ? { ...a, ...patch } : a)))
+      localNextActionsRef.current = localNextActionsRef.current.map((a: any) => (String(a.id) === String(id) ? { ...a, ...patch } : a))
+      if (!isDemoLeadId(lead.id) && !String(id).startsWith("demo-")) {
+        void supabase.from("lead_next_actions").update({ completed: true, completed_at: now }).eq("id", id)
+      }
+    }
+    if (plan.action === "complete") {
+      applyCompleted(plan.actionId)
+      return
+    }
+    // create-complete: reuse the canonical creator, then complete the new row so it
+    // reads "Guest Card Sent · {property}" (agent confirmed it was sent externally).
+    const fav = localFavoritesRef.current.find((f: any) => String(f.id) === String(favId))
+    if (!fav) return
+    if (isDemoLeadId(lead.id)) {
+      const demo = {
+        id: `demo-act-gc-${Date.now()}`, lead_id: lead.id, title: "Email Guest Card", action_key: "email_guest_card",
+        property_id: favId, property_name: favName || null, due_at: now, priority: "high",
+        completed: true, completed_at: now, status: "completed",
+      }
+      setLocalNextActions((prev: any) => [...prev, demo])
+      localNextActionsRef.current = [...localNextActionsRef.current, demo]
+      return
+    }
+    const created = await createGuestCardForProperty(supabase, lead.id, fav)
+    if (!created) return // dedup inside (a row already exists in the DB) — nothing to duplicate
+    const done = { ...created, completed: true, completed_at: now, status: "completed" }
+    setLocalNextActions((prev: any) => [...prev, done])
+    localNextActionsRef.current = [...localNextActionsRef.current, done]
+    void supabase.from("lead_next_actions").update({ completed: true, completed_at: now }).eq("id", created.id)
+  }
+
   // Convert a genuine Favorite into an application-only identity row (origin=
   // 'application'): it leaves Favorite Properties but the row — and every property_id
   // FK / guest-card timeline reference pointing at it — is PRESERVED. Used when the
@@ -1408,11 +1455,18 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       if (!resolved) return
       const { favId } = resolved
       confirmedGuestCardsRef.current.add(`${g.lead.id}:${favId}`)
+      // Persistent "handled" signal for the guard (the client loads only OPEN actions,
+      // so a completed action isn't visible cross-session — this timeline row is).
       recordTimelineEvent({
         leadId: g.lead.id,
         type: "guest_card",
         metadata: { source: "agent_confirmed_external", property_id: favId, property_name: guestCardPropertyName(favId), context: g.targetStage },
       })
+      // Canonical completion so the workflow reads Guest Card Sent → Check App: complete
+      // (or create-then-complete) the property-scoped email_guest_card. Without this the
+      // open "Send Guest Card" action lingers and Last Action never becomes "Guest Card
+      // Sent" (deriveLastAction reads completed actions, not the timeline event).
+      await reconcileGuestCardSent(g.lead, favId, guestCardPropertyName(favId))
       g.proceed()
     })()
   }
