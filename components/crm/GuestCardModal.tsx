@@ -108,6 +108,7 @@ export default function GuestCardModal({
   signature = null,
   prefillTo = "",
   onSent,
+  progressLabel = null,
 }: {
   open: boolean
   onClose: () => void
@@ -118,6 +119,8 @@ export default function GuestCardModal({
   signature?: ResolvedAgentIdentity | null
   prefillTo?: string
   onSent?: () => void
+  /** Optional "Guest Card 1 of 3" progress line for the sequential bulk flow. */
+  progressLabel?: string | null
 }) {
   const fields = useMemo(
     () => buildGuestCardFields(lead || {}, property || {}, agent || {}),
@@ -177,8 +180,10 @@ export default function GuestCardModal({
     const mailto = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
     window.open(mailto, "_self")
     setBusy(false)
+    // Only signal SEND — the owner closes/advances via onSent (single composer closes
+    // in handleGuestCardSent; the bulk sequencer advances to the next property). This
+    // keeps Send distinct from Cancel (onClose), which the sequential bulk flow needs.
     onSent?.()
-    onClose()
   }
 
   const inputCls =
@@ -191,6 +196,9 @@ export default function GuestCardModal({
         {/* Header */}
         <div className="flex items-start justify-between gap-3 border-b border-[var(--crm-border)] px-6 py-4">
           <div>
+            {progressLabel && (
+              <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--crm-text-muted)]">{progressLabel}</p>
+            )}
             <h3 className="text-[16px] font-bold text-[var(--crm-text-primary)]">Email Guest Card</h3>
             <p className="mt-0.5 text-[12.5px] text-[var(--crm-text-secondary)]">
               Review the email, then open it to send.

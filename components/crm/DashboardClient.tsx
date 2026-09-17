@@ -58,6 +58,8 @@ import {
 } from "@/lib/leads/guestCardGuard"
 import { FAVORITE_ORIGIN, isClientFavorite, isApplicationIdentity } from "@/lib/leads/favoriteOrigin"
 import { planGuestCardSent } from "@/lib/leads/appliedGuestCard"
+import { outstandingFavoriteGuestCards } from "@/lib/leads/guestCardAggregate"
+import GuestCardBulkModal, { type BulkGuestCardItem } from "./GuestCardBulkModal"
 import GuestCardGuardModal, { type GuestCardGuardView } from "./GuestCardGuardModal"
 import { completeTourFollowUp } from "@/lib/leads/tourFollowUpWorkflow"
 import { completeApplicationOutcome } from "@/lib/leads/applicationOutcomeWorkflow"
@@ -239,6 +241,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // property from the Workspace Favorite or a Companion verb; completing it marks
   // that property's email_guest_card done and lets Tour Follow-Up surface.
   const [guestCard, setGuestCard] = useState<null | { lead: any; property: any; actionId: number | string | null; onSent?: () => void }>(null)
+  // Bulk Guest Cards — sequential orchestration over 2+ outstanding genuine-Favorite
+  // Guest Cards (independent property-scoped actions, one composer at a time).
+  const [guestCardBulk, setGuestCardBulk] = useState<null | { lead: any; items: BulkGuestCardItem[] }>(null)
   // Tour Follow-Up outcome modal ("How did the tour go?"). Scoped to ONE
   // tour/property; completing it records the outcome + drives the next canonical
   // action. Opened from the Workspace Favorite or the Companion verb.
@@ -848,8 +853,53 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     })
   }
   // From the Workspace Favorite (has the fav + tour + the open guest-card action).
-  function handleSendGuestCard(lead: any, args: { favorite: any; tour: any; actionId: number | string | null }) {
-    openGuestCardComposer(lead, args.favorite, args.tour, args.actionId)
+  async function handleSendGuestCard(lead: any, args: { favorite: any; tour: any; actionId: number | string | null }) {
+    // Property-scoped to THIS exact Favorite. Ensure its email_guest_card exists
+    // (reuse/dedup — never a duplicate on repeated clicks), so it persists as
+    // "Send Guest Card · {Property}" if the composer is cancelled and completion stays
+    // idempotent. An un-toured Favorite has no action yet → create one on demand.
+    let actionId = args.actionId
+    if (actionId == null) {
+      const existing = localNextActionsRef.current.find(
+        (a: any) =>
+          String(a.lead_id) === String(lead.id) &&
+          String(a.property_id ?? "") === String(args.favorite?.id) &&
+          String(a.action_key ?? "") === "email_guest_card" &&
+          a.completed !== true && String(a.status ?? "") !== "completed",
+      )
+      actionId = existing?.id ?? null
+      if (actionId == null && !isDemoLeadId(lead.id) && args.favorite?.id != null) {
+        const created = await createGuestCardForProperty(supabase, lead.id, args.favorite)
+        if (created) {
+          setLocalNextActions((prev) => [...prev, created])
+          actionId = created.id
+        }
+      }
+    }
+    openGuestCardComposer(lead, args.favorite, args.tour, actionId)
+  }
+
+  // The lead's outstanding genuine-Favorite Guest Cards as bulk items (each carries its
+  // own favorite row for the canonical composer). Application-only identity rows and
+  // non-Favorite/stale guest cards are excluded by outstandingFavoriteGuestCards.
+  function buildFavoriteGuestCardItems(lead: any): BulkGuestCardItem[] {
+    return outstandingFavoriteGuestCards(lead.id, localNextActionsRef.current, localFavoritesRef.current).map((it) => ({
+      ...it,
+      property: localFavoritesRef.current.find((f: any) => String(f.id) === String(it.propertyId)) ?? { id: it.propertyId, property_name: it.propertyName },
+    }))
+  }
+
+  // Canonical Guest Card OBJECTIVE dispatch. 2+ outstanding genuine-Favorite Guest
+  // Cards → the sequential bulk modal; exactly 1 → that property's single composer.
+  // Used by every "Send Guest Card(s)" aggregate entry (Companion verb, Next Action).
+  function dispatchGuestCardObjective(lead: any) {
+    const items = buildFavoriteGuestCardItems(lead)
+    if (items.length === 0) return
+    if (items.length === 1) {
+      openGuestCardComposer(lead, items[0].property, null, items[0].actionId)
+      return
+    }
+    setGuestCardBulk({ lead, items })
   }
   // "Continue to Email" fired inside the modal → mark THIS property's guest card
   // complete (Last Action "Guest Card Sent"). No Setup Tour successor (that was the
@@ -2986,15 +3036,18 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       // Beast Companion "Send Guest Card" → open the reused composer in the CRM
       // tab for the property's open guest card (the Companion has focused this tab).
       if (payload.verb === "open-guest-card") {
-        const gc =
-          localNextActionsRef.current.find((a: any) => payload.actionId != null && String(a.id) === String(payload.actionId)) ??
-          localNextActionsRef.current.find(
-            (a: any) =>
-              String(a.lead_id) === String(lead.id) &&
-              !a.completed &&
-              (String(a.action_key ?? "") === "email_guest_card" || isGuestCardTitle(a.title))
-          )
-        if (!gc) return
+        // A specific property was targeted (Favorite card / a specific action) → open
+        // that single composer. Otherwise this is the aggregate objective click →
+        // dispatch (bulk when 2+ outstanding genuine-Favorite Guest Cards, else single).
+        const specific =
+          payload.actionId != null
+            ? localNextActionsRef.current.find((a: any) => String(a.id) === String(payload.actionId))
+            : null
+        if (!specific) {
+          dispatchGuestCardObjective(lead)
+          return
+        }
+        const gc = specific
         const fav =
           localFavoritesRef.current.find((f: any) => String(f.id) === String((gc as any).property_id)) ??
           { property_name: (gc as any).property_name }
@@ -3924,6 +3977,26 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         signature={signature}
         onSent={handleGuestCardSent}
       />
+
+      {/* Bulk Guest Cards — sequential orchestration over 2+ outstanding genuine-
+          Favorite Guest Cards. Each property is completed canonically as its own
+          composer is sent; exiting midway leaves the rest open (aggregate recalculates). */}
+      {guestCardBulk && (
+        <GuestCardBulkModal
+          open
+          lead={guestCardBulk.lead}
+          items={guestCardBulk.items}
+          agent={agent ?? {}}
+          signature={signature}
+          onSentItem={(item) =>
+            void completeGuestCardSent(guestCardBulk.lead, item.propertyId, item.propertyName, {
+              actionId: item.actionId,
+              source: "guest_card_bulk",
+            })
+          }
+          onClose={() => setGuestCardBulk(null)}
+        />
+      )}
 
       {/* Tour Follow-Up outcome modal ("How did the tour go?") — property/tour
           scoped; the ONE canonical completion drives the next action per outcome. */}

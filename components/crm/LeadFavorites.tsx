@@ -331,7 +331,6 @@ export default function LeadFavorites({
                   (String(a.action_key ?? "") === "email_guest_card" || String(a.title ?? "").trim().toLowerCase() === "email guest card")
               )
               const gcSent = !!gcAction && (gcAction.completed === true || gcAction.status === "completed")
-              const gcOpen = !!gcAction && !gcSent
               // This property's scheduled tour (past OR future) + whether it has
               // already occurred → drives the Tour Follow-Up affordance once the
               // guest card is sent. (`tour` above is the FUTURE tour for display.)
@@ -540,27 +539,46 @@ export default function LeadFavorites({
                       same canonical formatDueDateTime). Edit / Cancel Tour sit to
                       the right on desktop. Only shown when a linked upcoming tour
                       exists; nothing rendered otherwise. */}
-                  {/* Schedule Tour (Slice A) — shown only when this Favorite has NO
-                      scheduled tour yet and a tour/contact page is known. Opens the real
-                      page in a new tab, then confirms "Did you schedule the tour?" — a
-                      tour record is created ONLY on Yes + a locator-entered date/time
-                      (a contact-form submission alone never counts as scheduled). */}
-                  {!scheduledTour && onScheduleTour && schedTarget && (
+                  {/* Property actions — Send Guest Card (LEFT) | Schedule Tour (RIGHT),
+                      ungated. Guest Card is the pre-tour prerequisite, so it leads and is
+                      no longer gated behind having scheduled a tour. Both are scoped to
+                      THIS exact Favorite (property_id). While the schedule confirm/date
+                      sub-flow is open for this card, that flow takes the row. */}
+                  {(onSendGuestCard || (onScheduleTour && schedTarget)) && (
                     <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
                       {schedFavId !== fav.id ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            window.open(schedTarget, "_blank", "noopener,noreferrer")
-                            // Tell an open Beast Companion to enter Tour Mode for THIS
-                            // favorite (leadId + favoriteId + name). Contextual + temporary.
-                            onEnterTourMode?.({ favoriteId: fav.id, propertyName: fav.property_name ?? null })
-                            setSchedFavId(fav.id); setSchedStep("confirm"); setSchedDateTime("")
-                          }}
-                          className="text-[11px] font-semibold text-[var(--crm-accent)] hover:underline"
-                        >
-                          Schedule Tour
-                        </button>
+                        <div className="flex items-center justify-between gap-3 text-[11px] font-semibold">
+                          {/* LEFT: Send Guest Card / ✓ Guest Card Sent (canonical state). */}
+                          {gcSent ? (
+                            <span className="text-emerald-600">✓ Guest Card Sent</span>
+                          ) : onSendGuestCard ? (
+                            <button
+                              type="button"
+                              onClick={() => onSendGuestCard(lead, { favorite: fav, tour: scheduledTour ?? null, actionId: gcAction?.id ?? null })}
+                              className="text-[var(--crm-accent)] hover:underline"
+                            >
+                              Send Guest Card
+                            </button>
+                          ) : (
+                            <span />
+                          )}
+                          {/* RIGHT: Schedule Tour (only when no tour is scheduled yet). */}
+                          {!scheduledTour && onScheduleTour && schedTarget ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                window.open(schedTarget, "_blank", "noopener,noreferrer")
+                                onEnterTourMode?.({ favoriteId: fav.id, propertyName: fav.property_name ?? null })
+                                setSchedFavId(fav.id); setSchedStep("confirm"); setSchedDateTime("")
+                              }}
+                              className="text-[var(--crm-accent)] hover:underline"
+                            >
+                              Schedule Tour
+                            </button>
+                          ) : (
+                            <span />
+                          )}
+                        </div>
                       ) : schedStep === "confirm" ? (
                         <div className="flex flex-wrap items-center gap-2.5">
                           <span className="text-[12px] text-[var(--crm-text-secondary)]">Did you schedule the tour?</span>
@@ -578,7 +596,7 @@ export default function LeadFavorites({
                               onClick={() => {
                                 const [d, t] = schedDateTime.split("T")
                                 if (!d || !t) return
-                                onScheduleTour(lead, { favoriteId: fav.id, propertyName: fav.property_name, tourDate: d, tourTime: t })
+                                onScheduleTour?.(lead, { favoriteId: fav.id, propertyName: fav.property_name, tourDate: d, tourTime: t })
                                 setSchedFavId(null); setSchedStep("confirm"); setSchedDateTime("")
                               }}
                               className="text-[11px] font-semibold text-[var(--crm-accent)] hover:underline disabled:opacity-40"
@@ -604,17 +622,11 @@ export default function LeadFavorites({
                           {formatDueDateTime(tour.scheduled_at, { timeZone: timeZone ?? undefined })}
                         </span>
                       </p>
-                      {(onRescheduleTour || onCancelTour || onSendGuestCard) && editingTourFavId !== fav.id && (() => {
-                        // Build the present actions, then interleave a subtle "·" so
-                        // they read as one compact line: [Send Guest Card ·] Reschedule · Cancel Tour.
+                      {(onRescheduleTour || onCancelTour) && editingTourFavId !== fav.id && (() => {
+                        // Tour management only — the Guest Card control lives in the
+                        // ungated top-level Send Guest Card | Schedule Tour row above, so
+                        // it isn't duplicated here: Reschedule · Cancel Tour.
                         const actions: ReactElement[] = []
-                        if (onSendGuestCard && gcOpen) {
-                          actions.push(
-                            <button key="gc" type="button" onClick={() => onSendGuestCard(lead, { favorite: fav, tour, actionId: gcAction!.id })} className="text-[var(--crm-accent)] hover:underline">Send Guest Card</button>
-                          )
-                        } else if (gcSent) {
-                          actions.push(<span key="gc" className="text-emerald-600">Guest Card Sent</span>)
-                        }
                         if (onRescheduleTour) {
                           actions.push(
                             <button key="re" type="button" onClick={() => startEditTour(fav, tour)} className="text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]">Reschedule</button>
