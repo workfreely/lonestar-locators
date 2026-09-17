@@ -27,6 +27,7 @@ import {
   PROPERTY_PATTERNS,
   COMPLETION_PATTERNS,
   SEND_LIST_OPEN_PATTERNS,
+  MARK_LIST_SENT_PATTERNS,
   BUILD_LIST_OPEN_PATTERNS,
   SCHEDULE_TOUR_OPEN_PATTERNS,
   STAGE_MOVE_RE,
@@ -238,6 +239,11 @@ function parseSegment(text: string): ParsedCommand {
     const m = command.match(re)
     if (m) return { kind: "restore_bare", clientName: nameOrCurrent(m[1] ?? "") }
   }
+
+  // "Mark the list sent for X" / "X's list is sent" → the companion-owned Send
+  // List milestone (deferred; recognized, never a raw stage write). Checked AFTER
+  // the stage-move block so "move/send X to list sent" is a STAGE move, not this.
+  if (MARK_LIST_SENT_PATTERNS.some((re) => re.test(command))) return { kind: "completion", target: "send_list" }
 
   // ── Contact (existing grammar, §6) ───────────────────────────────────────────
   for (const pattern of CONTACT_PATTERNS) {

@@ -2752,6 +2752,19 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     router.push("/admin/leads")
   }
 
+  // Toolbar Board|Map navigation, used from BOTH the Lead Board and the client
+  // workspace. When a client is open, first close it via the EXISTING
+  // closeWorkspace() (clears selectedLeadId + returns to /admin/leads), then set
+  // the requested workspace via the EXISTING selectWorkspace(). On the Lead Board
+  // (no client open) it is just the normal workspace toggle. No new navigation.
+  const handleWorkspaceNav = useCallback(
+    (target: CrmWorkspace) => {
+      if (selectedLeadIdRef.current != null) closeWorkspace()
+      selectWorkspace(target)
+    },
+    [selectWorkspace],
+  )
+
   // ── Focus ─────────────────────────────────────────────────────────────────
   // An APP-LEVEL layout mode, not browser fullscreen. It hides the top nav and
   // lifts this same shell to `fixed inset-0`, escaping the admin layout's
@@ -2801,7 +2814,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   const [focusToolbarH, setFocusToolbarH] = useState(0)
   const [focusBoardPad, setFocusBoardPad] = useState(18) // .kb-board top padding — the board's own content breathing room
   useEffect(() => {
-    if (!(focusMode && selectedLeadId != null)) { setFocusToolbarH(0); return }
+    // Measure whenever a client is open (Focus or not), so the persistent toolbar
+    // offset applies in both states.
+    if (selectedLeadId == null) { setFocusToolbarH(0); return }
     const bar = boardWrapRef.current?.querySelector<HTMLElement>(".kb-toolbar")
     if (!bar) return
     const measure = () => {
@@ -2835,9 +2850,12 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // top padding) down — so the content begins at the SAME Y as the Kanban cards do (same
   // breathing room, no abrupt jump between Board and Lead Detail). Otherwise the normal top-2
   // (8px) inset applies.
-  const focusDetail = focusMode && selectedLeadId != null && focusToolbarH > 0
-  const detailVeilStyle = focusDetail ? { top: focusToolbarH } : undefined
-  const detailOverlayStyle = focusDetail ? { top: focusToolbarH + focusBoardPad } : undefined
+  // The board toolbar now stays visible whenever a client is open (not just in
+  // Focus), so the veil/detail overlay start just below the measured toolbar in
+  // BOTH states — one offset, never doubled. Same geometry Focus already proved.
+  const detailBelowToolbar = selectedLeadId != null && focusToolbarH > 0
+  const detailVeilStyle = detailBelowToolbar ? { top: focusToolbarH } : undefined
+  const detailOverlayStyle = detailBelowToolbar ? { top: focusToolbarH + focusBoardPad } : undefined
 
   return (
     <div
@@ -2928,7 +2946,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             sidebar itself, so its frosted-glass look over the dark photo
             is fully preserved. */}
         {selectedLead && (
-          <div style={detailVeilStyle} className={`absolute top-2 bottom-2 ${veilInsetCls} ${focusDetail ? "z-30" : ""} bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]`} />
+          <div style={detailVeilStyle} className={`absolute top-2 bottom-2 ${veilInsetCls} z-30 bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]`} />
         )}
 
         {/* LEFT SIDEBAR — Agenda (Follow-ups). Recessed column-like panel so
@@ -2939,6 +2957,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
               leads={localLeads}
               nextActions={localNextActions}
               selectedLeadId={selectedLeadId}
+              // Same active-client id the Lead Board card highlights on
+              // (kb-card--active-client), so the Agenda item stays in sync.
+              activeLeadId={companionLeadId}
               onSelectLead={(id) => {
                 setSelectedLeadId(id)
                 router.push(`/admin/leads?id=${id}`)
@@ -2965,18 +2986,19 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           </div>
         )}
 
-        {/* MAIN BOARD — stays mounted+visible in Focus Mode even when a lead is selected, so its
-            toolbar (the exact Focus toolbar) persists; the Lead Detail overlay below covers the
-            columns. Outside Focus Mode it hides on selection exactly as before. */}
+        {/* MAIN BOARD — stays mounted+visible whenever a client is open (in Focus
+            AND normal), so its toolbar (Lead Board | Map | Search+mic | Focus)
+            persists as the core control bar; the Lead Detail veil/overlay below the
+            toolbar cover the columns. The view controls (Detailed/Compact/Overview)
+            hide themselves in the client workspace (see LeadBoard, gated on
+            selectedLeadId). */}
         <div
           ref={boardWrapRef}
-          className={`relative z-10 flex-1 overflow-hidden ${
-            selectedLead && !focusMode ? "hidden" : "block"
-          } ${demoMode ? "crm-fade-in" : ""}`}
+          className={`relative z-10 flex-1 overflow-hidden block ${demoMode ? "crm-fade-in" : ""}`}
         >
           <LeadBoard
             workspace={workspace}
-            onWorkspaceChange={selectWorkspace}
+            onWorkspaceChange={handleWorkspaceNav}
             mapSlot={(query, hosts, onMatchCount, submittedName, onResolveName) => (
               <BeastPropertyExplorer
                 query={query}
@@ -3614,7 +3636,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             ) : dragContact.method === "text" ? (
               <>
                 <h3 className="text-base font-bold text-[var(--crm-text-primary)] mb-4 text-center">
-                  Did you send the text to {dragContact.name}?
+                  Did you text {dragContact.name}?
                 </h3>
                 <div className="flex flex-col gap-2">
                   <button
@@ -3634,7 +3656,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             ) : (
               <>
                 <h3 className="text-base font-bold text-[var(--crm-text-primary)] mb-4 text-center">
-                  Were you able to contact {dragContact.name}?
+                  Did you call {dragContact.name}?
                 </h3>
                 <div className="flex flex-col gap-2">
                   <button

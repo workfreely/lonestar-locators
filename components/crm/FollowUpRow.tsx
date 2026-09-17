@@ -21,6 +21,7 @@ export default function FollowUpRow({
   leads,
   nextActions,
   selectedLeadId,
+  activeLeadId,
   onSelectLead,
   onCollapse,
   // Which outer edge the Agenda collapses toward — drives the collapse arrow
@@ -31,6 +32,11 @@ export default function FollowUpRow({
   leads: any[]
   nextActions: any[]
   selectedLeadId?: string | number | null
+  /** The active/current client (Companion's active client). The Lead Board card
+   *  shows its visible highlight from this same id (kb-card--active-client), so the
+   *  Agenda item highlights on it too — keeping both surfaces in sync. Reuses the
+   *  existing active-client identity; no Agenda-only selection state. */
+  activeLeadId?: string | number | null
   onSelectLead?: (leadId: string | number) => void
   onCollapse?: () => void
   collapseToward?: "left" | "right"
@@ -121,7 +127,12 @@ export default function FollowUpRow({
         )}
 
         {visibleLeads.map(({ lead, primary }) => {
-          const isSelected = selectedLeadId != null && String(selectedLeadId) === String(lead.id)
+          // Highlight the current client on the SAME identity the Lead Board card
+          // uses: the CRM selection (selectedLeadId) OR the active client
+          // (activeLeadId). Keeps the Agenda item and the board card in sync.
+          const isSelected =
+            (selectedLeadId != null && String(selectedLeadId) === String(lead.id)) ||
+            (activeLeadId != null && String(activeLeadId) === String(lead.id))
           const urg = primary.urgency === "overdue" ? "crit" : "warn"
           return (
             <div

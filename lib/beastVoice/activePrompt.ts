@@ -125,7 +125,10 @@ export function readActivePrompt(root: ParentNode = document): ActivePrompt | nu
 
   // The existing question names the client ("Were you able to contact Maria?").
   const heading = container?.closest("div")?.querySelector("h3")?.textContent ?? ""
-  const named = heading.match(/(?:contact|text to|call or text)\s+(.+?)\?/i)
+  // Matches the contact-gate/guard headings' client name, including the shorter
+  // "Did you text/call {name}?" phrasing. Longer alternatives first so "text to"
+  // / "call or text" win over the bare "text" / "call".
+  const named = heading.match(/(?:text to|call or text|contact|text|call)\s+(.+?)\?/i)
 
   return { phase, clientName: named ? named[1].trim() : null, buttons }
 }

@@ -14,6 +14,7 @@ import {
   type PromptAction,
 } from "@/lib/beastVoice/activePrompt"
 import { dialUrl, launchExternalProtocol } from "@/lib/leads/launchCommunication"
+import { hasSuccessfulContact } from "@/lib/leads/contactState"
 import { COMPANION_MSG_SOURCE } from "@/lib/companion/leadToDto"
 import { useOptionalTheme } from "@/components/theme/ThemeProvider"
 import { isCrmTheme } from "@/lib/theme"
@@ -63,10 +64,12 @@ type Phase =
   | { name: "ask-which"; leads: any[]; spoken: string; action: VoiceAction }
   | { name: "notice"; tone: "error" | "info"; message: string }
 
-// Only leads still in New have a first contact to make; every other stage means
-// contact already happened. Rather than invent a behavior for those, Beast Voice
-// says so and does nothing.
-const ELIGIBLE_STAGE = "new"
+// A lead needs the first-contact GATE only until it has been SUCCESSFULLY
+// contacted — decided by contact history (hasSuccessfulContact → first_text_sent_at),
+// NOT by crm_status. A lead can be in "contacted" from a No Answer / Text Sent
+// attempt yet never actually reached (still needs the gate), and a lead moved back
+// to "new" keeps its historical first contact (must NOT replay the gate). Once
+// successfully contacted, Text/Call is normal communication (launch only).
 
 // ── Active-flow safeguards ──────────────────────────────────────────────────
 // Beast Voice must never sit open on a hot microphone. Listening is re-armed
@@ -80,6 +83,9 @@ const MAX_SILENT_SESSIONS = 3
 const REARM_DELAY_MS = 350
 /** How long to wait for the workflow to render its first question before giving up. */
 const PROMPT_WAIT_MS = 6_000
+/** Hard cap on the transient "working" (transcribing) state — the watchdog
+ *  force-recovers the mic to idle if a handler/provider ever fails to settle it. */
+const WORKING_MAX_MS = 12_000
 
 /** Which existing rendered button a spoken response asks for. */
 const RESPONSE_ACTIONS: Record<string, PromptAction> = {
@@ -341,6 +347,20 @@ export default function BeastVoiceMic({
     return () => clearTimeout(t)
   }, [phase])
 
+  // Watchdog invariant: "working" is a transient transcription state. Every
+  // handler is expected to leave a terminal phase, but as a hard guarantee that
+  // the mic can NEVER stay stuck (a provider that never fires onResult/onEnd, a
+  // rejected promise, an unforeseen path), force it back to idle after a cap.
+  useEffect(() => {
+    if (phase.name !== "working") return
+    const t = setTimeout(() => {
+      provider.cancel()
+      endFlow()
+      setPhase({ name: "idle" })
+    }, WORKING_MAX_MS)
+    return () => clearTimeout(t)
+  }, [phase.name, provider])
+
   // Escape cancels whatever Beast Voice is doing (never the CRM behind it).
   useEffect(() => {
     if (phase.name === "idle") return
@@ -398,13 +418,12 @@ export default function BeastVoiceMic({
       matchedCount: 1,
     }
 
-    if (String(lead.crm_status ?? "") !== ELIGIBLE_STAGE) {
-      log({ ...base, outcome: "not-eligible", errorReason: `stage:${lead.crm_status}` })
-      setPhase({
-        name: "notice",
-        tone: "info",
-        message: `${displayName(lead)} is already in ${stageLabel(lead.crm_status)}.`,
-      })
+    // Defensive: the gate is for a lead not yet successfully contacted. Callers
+    // route already-contacted leads to normal comms, so this only trips if the
+    // signal changed underfoot — leave the workflow alone rather than replay.
+    if (hasSuccessfulContact(lead)) {
+      log({ ...base, outcome: "not-eligible", errorReason: `already-contacted:${lead.crm_status}` })
+      setPhase({ name: "notice", tone: "info", message: `${displayName(lead)} has already been contacted.` })
       return
     }
 
@@ -663,13 +682,14 @@ export default function BeastVoiceMic({
           return { outcome: "not-found", feedback: { tone: "error", message: `No client matching "${action.clientName}".` } }
         }
         const lead = t.lead
-        if (String(lead.crm_status ?? "") === ELIGIBLE_STAGE) {
-          // NEW lead → the existing Contact Gate (confirmation-first), unchanged.
+        if (!hasSuccessfulContact(lead)) {
+          // NEVER successfully contacted (New, or Contacted-via-attempt only) →
+          // the existing first-contact Gate (confirmation-first), unchanged.
           handOff(lead, transcript, action.method, "voice-contact")
           return { outcome: "handed-off", handledPhase: true, endsChain: true, nextLead: lead }
         }
-        // NON-NEW lead → pure comms, exactly like the manual header Call/Text on
-        // an active lead: launch tel:/sms:, NO prompt, NO workflow write (§6).
+        // ALREADY successfully contacted → pure comms, exactly like the manual
+        // header Call/Text: launch tel:/sms:, NO prompt, NO workflow write (§6).
         if (action.method === "unspecified") {
           return {
             outcome: "no-context",
@@ -779,9 +799,11 @@ export default function BeastVoiceMic({
           onArchiveLead(lead.id)
           return { outcome: "executed", feedback: { tone: "info", message: `Archiving ${displayName(lead)} — choose a reason.` }, endsChain: true }
         }
-        // NEW → CONTACTED stays the Contact Gate (§3) — the same full flow the
-        // contact command uses (launch + result prompt + voice re-arm).
-        if (stage === "contacted" && String(lead.crm_status ?? "") === ELIGIBLE_STAGE) {
+        // → CONTACTED uses the Contact Gate ONLY when the lead has never been
+        // successfully contacted (New, or Contacted-via-attempt); an already-
+        // contacted lead moved back is a plain stage move, not a first-contact
+        // replay (§5). Same canonical historical signal as the contact command.
+        if (stage === "contacted" && !hasSuccessfulContact(lead)) {
           handOff(lead, transcript, "unspecified", "voice-move-contacted")
           return { outcome: "handed-off", handledPhase: true, endsChain: true, nextLead: lead }
         }
@@ -907,7 +929,11 @@ export default function BeastVoiceMic({
       if (res.endsChain) break
     }
 
+    // Terminal-phase invariant: a chain must NEVER end still showing "working".
+    // Show the last step's feedback, else return to idle (e.g. a no-context step
+    // like an unresolved "open map for <name>" that produced no message).
     if (lastFeedback) setPhase({ name: "notice", tone: lastFeedback.tone, message: lastFeedback.message })
+    else setPhase({ name: "idle" })
   }
 
   /** Messaging for a single non-command utterance (contextual answer with nothing
@@ -951,6 +977,10 @@ export default function BeastVoiceMic({
           return
         }
         respondToPrompt(prompt, parsed.kind, transcript)
+        // A prompt answered outside a live re-arming flow (e.g. the Guest Card
+        // guard opened by a stage command) must not leave the mic "working".
+        // A live contact flow manages its own phase via onEnd/scheduleRearm.
+        if (!flowLiveRef.current) setPhase({ name: "idle" })
         return
       }
       // "Send guest card" is a valid answer ONLY to the Guest Card guard modal —
@@ -960,9 +990,12 @@ export default function BeastVoiceMic({
       // it falls through to the not-valid-for-phase log below.
       if (prompt.phase === "guest-card" && parsed.kind === "crm_open" && parsed.verb === "open-guest-card") {
         respondToPrompt(prompt, "guest_card_send", transcript)
+        if (!flowLiveRef.current) setPhase({ name: "idle" })
         return
       }
       log({ transcript, parsedIntent: parsed.kind, workflowPhase: prompt.phase, outcome: "not-valid-for-phase" })
+      // Nothing valid to answer — return the mic to idle rather than "working".
+      if (!flowLiveRef.current) setPhase({ name: "idle" })
       return
     }
 
@@ -990,7 +1023,15 @@ export default function BeastVoiceMic({
         transcript = result.transcript
         captureMsRef.current = result.audioDurationMs
         sessionHandledRef.current = true
-        handleTranscript(result.transcript)
+        // A thrown handler must never strand the mic in "working" — always land
+        // on a recoverable phase.
+        try {
+          handleTranscript(result.transcript)
+        } catch (err) {
+          log({ transcript: transcript || "", outcome: "speech-error", errorReason: `handler:${String(err)}` })
+          endFlow()
+          setPhase({ name: "notice", tone: "error", message: "Something went wrong. Try again." })
+        }
       },
       onError: (error: SpeechError) => {
         // A deliberate cancel already reset the UI; don't overwrite it.
@@ -1048,7 +1089,15 @@ export default function BeastVoiceMic({
       setPhase({ name: "idle" })
       return
     }
-    if (phase.name === "working") return
+    // Manual hard recovery: a click while "working" abandons the pending session
+    // and returns to idle, so the mic can never become permanently unclickable.
+    if (phase.name === "working") {
+      provider.cancel()
+      sessionHandledRef.current = true
+      endFlow()
+      setPhase({ name: "idle" })
+      return
+    }
     startListening()
   }
 
@@ -1069,8 +1118,9 @@ export default function BeastVoiceMic({
         className="kb-voice-mic"
         data-state={listening ? "listening" : working ? "working" : "idle"}
         onClick={toggle}
-        disabled={working}
-        aria-label={listening ? "Stop listening" : "Speak to Beast"}
+        // Intentionally NOT disabled while "working": a click must always be able
+        // to abandon a pending session and recover the mic (see toggle()).
+        aria-label={listening ? "Stop listening" : working ? "Cancel" : "Speak to Beast"}
         aria-pressed={listening}
         title={listening ? "Stop listening" : "Speak to Beast"}
       >

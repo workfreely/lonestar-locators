@@ -331,12 +331,20 @@ const STAGE_ALIASES: Record<string, CanonicalStage> = {
   "contact to": "contacted",
   searching: "searching",
   search: "searching",
-  // List Sent — "sent" is often heard as "send".
+  // List Sent — the recognizer mangles "sent" badly ("send"/"cent"/"scent") and
+  // sometimes collapses the whole phrase ("listen"/"listed"). These only resolve
+  // as a STAGE phrase (after "move/put/send … to"), so a plain "listen" elsewhere
+  // never triggers a stage move.
   "list sent": "list_sent",
   listsent: "list_sent",
   "list send": "list_sent",
   "lists sent": "list_sent",
   "list scent": "list_sent",
+  "list cent": "list_sent",
+  "lists cent": "list_sent",
+  listen: "list_sent",
+  listed: "list_sent",
+  "list it": "list_sent",
   // Ready to Tour.
   "ready to tour": "ready_to_tour",
   "ready for tour": "ready_to_tour",
@@ -428,6 +436,19 @@ export const COMPLETION_PATTERNS: CompletionPattern[] = [
 // completion target so the executor applies the same conservative rule (answer a
 // readable CRM prompt, else do nothing) rather than blind-posting.
 export const SEND_LIST_OPEN_PATTERNS: RegExp[] = [/^send\s+list$/, /^send\s+(.+?)(?:'s)?\s+list$/]
+
+// Natural "the list was sent" phrasings (§ bug 3). These name the SAME companion-
+// owned Send List milestone — so they resolve to the deferred completion path and
+// are surfaced with the explicit "complete it in Beast Companion" message, never a
+// raw stage write and never a fabricated send. Recognized so they don't fall to
+// "Didn't understand". They start with "mark"/"list"/"<name>'s", so they never
+// collide with the "move … to list sent" STAGE move (which starts with a move verb).
+export const MARK_LIST_SENT_PATTERNS: RegExp[] = [
+  /^(?:mark\s+)?(?:the\s+)?list\s+sent(?:\s+for\s+.+)?$/,
+  /^(?:mark\s+)?(?:the\s+)?list\s+(?:is|was)\s+sent(?:\s+for\s+.+)?$/,
+  /^(?:mark\s+)?(.+?)(?:'s)?\s+list\s+sent$/,
+  /^(.+?)(?:'s)?\s+list\s+(?:is|was)\s+sent$/,
+]
 export const BUILD_LIST_OPEN_PATTERNS: RegExp[] = [/^(?:start\s+)?build\s+list$/]
 export const SCHEDULE_TOUR_OPEN_PATTERNS: RegExp[] = [/^(?:open\s+)?schedule\s+tour$/, /^open\s+tour\s+setup$/]
 

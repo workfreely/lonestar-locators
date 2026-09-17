@@ -486,19 +486,24 @@ export default function LeadBoard({
                 if (e.key === "Enter") setSubmittedQuery(searchQuery)
               }}
               placeholder={
-                workspace === "map"
-                  ? // Map mode filters the properties ALREADY loaded on the map — it
-                    // never runs a lead search and never calls Places per keystroke.
-                    "Search property name..."
-                  : voiceState === "listening"
+                // Transient Voice session states take precedence in either
+                // workspace; otherwise the idle copy follows the selected
+                // workspace. Copy only — search/Map/Voice behavior is unchanged.
+                voiceState === "listening"
                   ? "Listening..."
                   : voiceState === "working"
                     ? "Beast is working..."
-                    : voiceEnabled
-                      ? // Only where the mic exists. A normal account has no Beast
-                        // Voice, so it must not be invited to speak to it.
-                        "Search by name, phone or speak to Beast…"
-                      : "Search by name or phone..."
+                    : workspace === "map"
+                      ? // Map mode filters the properties ALREADY loaded on the map —
+                        // it never runs a lead search and never calls Places per keystroke.
+                        voiceEnabled
+                        ? "Search property name or speak to Beast…"
+                        : "Search property name..."
+                      : voiceEnabled
+                        ? // Only where the mic exists. A normal account has no Beast
+                          // Voice, so it must not be invited to speak to it.
+                          "Search by name, phone or speak to Beast…"
+                        : "Search by name or phone..."
               }
             />
             {voiceEnabled && (
@@ -561,7 +566,11 @@ export default function LeadBoard({
           </div>
 
           <div className="kb-toolbar-controls">
-            {workspace !== "map" && (
+            {/* Detailed/Compact/Overview are Kanban-layout controls — shown only
+                on the Lead Board itself: not in Map, and not while a client
+                workspace is open (selectedLeadId set). The user's saved view
+                preference is untouched; it returns when they go back to the board. */}
+            {workspace !== "map" && selectedLeadId == null && (
             <div className="kb-density">
               {VIEW_MODES.map((mode) => (
                 <button

@@ -274,6 +274,35 @@ check("'Text Jerry Springer' → contact_client (no select)", p("text jerry spri
 check("'Call Jerry Springer' → contact_client (no select)", p("call jerry springer").kind, "contact_client")
 check("'Archive Jerry Springer' → archive_lead (no select)", p("archive jerry springer").kind, "archive_lead")
 
+// ── Bug batch (local manual test) ─────────────────────────────────────────────
+console.log("\nBUG2 — List Sent speech variants → move_stage(list_sent)")
+for (const i of [
+  "move Jerry to list sent",
+  "move Jerry to list send",
+  "move Jerry to list cent",
+  "move Jerry to listen",
+  "move Jerry to listed",
+  "move Jerry to list scent",
+]) check(`"${i}"`, p(i), { kind: "move_stage", clientName: "jerry", stage: "list_sent" })
+check("bare 'listen' is NOT a stage move", kind("listen"), "unknown")
+check("'move Jerry to list sent' is a MOVE, not a send-list completion", kind("move jerry to list sent"), "move_stage")
+
+console.log("\nBUG3 — 'mark list sent' natural language → deferred Send List completion")
+for (const i of [
+  "mark the list sent for Jerry Springer",
+  "mark list sent for Jerry",
+  "list sent for Jerry",
+  "mark Jerry's list sent",
+  "Jerry's list is sent",
+  "Jerry's list was sent",
+]) check(`"${i}"`, p(i), { kind: "completion", target: "send_list" })
+check("'mark list sent' is NEVER a raw move_stage", kind("mark the list sent for jerry") === "move_stage", false)
+
+console.log("\nBUG4 — 'open map for Jerry Springer' parses safely (no strand at runtime)")
+// It resolves to a client opener with no match → the executor returns to idle
+// (terminal-phase invariant); it never raw-writes a stage or hangs.
+check("parses to select_client (not a crash/partial)", kind("open map for jerry springer"), "select_client")
+
 // ── Negative tests (§44, §46) — deferred / unsupported never parse ────────────
 console.log("\nnegative — deferred + unsupported produce NO command")
 for (const [label, i] of [
