@@ -95,6 +95,10 @@ export function PanelApp({
   onEditClient,
   canEditClient = false,
   onEditTemplates,
+  textTop3On = false,
+  aiVoiceScriptOn = false,
+  onToggleTextTop3,
+  onToggleAiVoiceScript,
   connection = DISCONNECTED,
   onConnect,
   onContact,
@@ -157,6 +161,12 @@ export function PanelApp({
   /** Edit Follow-up Templates (menu) — LAUNCHER; posts the "edit-templates" verb
    *  so the CRM opens its template editor. Always available (workspace-level). */
   onEditTemplates?: () => void;
+  // Agent-level Companion preference toggles (menu). Persisted by the container in
+  // chrome.storage.local; passed through to CompanionMenu for the two toggle rows.
+  textTop3On?: boolean;
+  aiVoiceScriptOn?: boolean;
+  onToggleTextTop3?: () => void;
+  onToggleAiVoiceScript?: () => void;
   // Connection is derived from the SW's authenticated state. Production defaults
   // to DISCONNECTED — the panel is authenticated ONLY when this is "connected".
   connection?: CompanionConnection;
@@ -431,6 +441,10 @@ export function PanelApp({
           canEditClient={canEditClient}
           editClientFirstName={lead?.firstName ?? null}
           onEditTemplates={onEditTemplates}
+          textTop3On={textTop3On}
+          aiVoiceScriptOn={aiVoiceScriptOn}
+          onToggleTextTop3={onToggleTextTop3}
+          onToggleAiVoiceScript={onToggleAiVoiceScript}
         />
       )}
 

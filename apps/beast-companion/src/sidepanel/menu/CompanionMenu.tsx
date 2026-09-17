@@ -14,6 +14,26 @@ import "./menu.css";
  * verb so the CRM opens its template editor. Editing never happens in-Companion.
  */
 
+// Compact ON/OFF preference switch — presentation only, native to the menu
+// (styled in menu.css). Mirrors the Theme row's right-aligned control treatment.
+function PrefToggle({ on, onToggle, label }: { on: boolean; onToggle?: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      className={`bc-toggle${on ? " is-on" : ""}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle?.();
+      }}
+    >
+      <span className="bc-toggle-knob" aria-hidden />
+    </button>
+  );
+}
+
 // Initials fallback for the connection-block avatar (first letter of the first
 // one or two name words, uppercased). Empty name → "LB".
 function initials(name?: string | null): string {
@@ -33,6 +53,10 @@ export function CompanionMenu({
   canEditClient = false,
   editClientFirstName,
   onEditTemplates,
+  textTop3On = false,
+  aiVoiceScriptOn = false,
+  onToggleTextTop3,
+  onToggleAiVoiceScript,
 }: {
   onClose: () => void;
   theme: ThemeId;
@@ -48,6 +72,12 @@ export function CompanionMenu({
   // Edit Follow-up Templates — LAUNCHER only. Posts the "edit-templates" verb so
   // the CRM opens its template editor. Always available (workspace-level).
   onEditTemplates?: () => void;
+  // Agent-level preference toggles (persisted by the container in
+  // chrome.storage.local). Presentation only here — no generation/workflow.
+  textTop3On?: boolean;
+  aiVoiceScriptOn?: boolean;
+  onToggleTextTop3?: () => void;
+  onToggleAiVoiceScript?: () => void;
 }) {
   const firstItemRef = useRef<HTMLButtonElement>(null);
 
@@ -94,6 +124,18 @@ export function CompanionMenu({
         >
           <span className="bc-pop-label">Edit Follow-up Templates</span>
         </button>
+
+        {/* Agent-level preference toggles — PREFERENCE ONLY (no automatic behavior).
+            Text Top 3 and Voicemail Script features/code are preserved; their eventual
+            workflows are a separate decision. Compact rows, native to the menu. */}
+        <div className="bc-pop-item bc-theme-row" role="menuitem">
+          <span className="bc-pop-label">Text Top 3</span>
+          <PrefToggle on={textTop3On} onToggle={onToggleTextTop3} label="Text Top 3" />
+        </div>
+        <div className="bc-pop-item bc-theme-row" role="menuitem">
+          <span className="bc-pop-label">Voicemail Script</span>
+          <PrefToggle on={aiVoiceScriptOn} onToggle={onToggleAiVoiceScript} label="Voicemail Script" />
+        </div>
 
         <div className="bc-pop-item bc-theme-row">
           <span className="bc-pop-label">Theme</span>

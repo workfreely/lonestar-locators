@@ -264,3 +264,32 @@
   color: var(--lb-text-primary);
 }
 .bc-soon { font-size: 11px; font-weight: 600; color: var(--lb-text-secondary); opacity: 0.85; }
+
+/* Compact ON/OFF preference switch (Text Top 3 / AI Voice Script rows). Native to
+   the menu, right-aligned like the Theme selector; small and secondary. */
+.bc-toggle {
+  flex: none;
+  width: 34px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--lb-border);
+  border-radius: 999px;
+  background: transparent;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.bc-toggle:focus-visible { outline: 2px solid var(--lb-accent); outline-offset: 2px; }
+.bc-toggle.is-on { background: var(--lb-accent); border-color: var(--lb-accent); }
+.bc-toggle-knob {
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  transform: translateY(-50%);
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--lb-text-secondary);
+  transition: left 0.15s ease, background 0.15s ease;
+}
+.bc-toggle.is-on .bc-toggle-knob { left: 18px; background: #fff; }

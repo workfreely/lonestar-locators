@@ -111,6 +111,11 @@ function sadEnrichKey(cp: CurrentProperty): string {
     : `na:${(cp.propertyName ?? "").trim()}|${(cp.propertyAddress ?? "").trim()}`;
 }
 
+// Agent-level Companion preference keys (chrome.storage.local — same store as the
+// Theme). Booleans; absent/false = OFF. NOT per-client.
+const PREF_TEXT_TOP3_KEY = "lb-pref-text-top-3";
+const PREF_VOICE_SCRIPT_KEY = "lb-pref-ai-voice-script";
+
 export function ProductionPanel() {
   const [connection, setConnection] = useState<CompanionConnection>(DISCONNECTED);
   const [active, setActive] = useState<ActiveClientPayload | null>(null);
@@ -181,6 +186,45 @@ export function ProductionPanel() {
   // sent?" bottom sheet only shows on the Client view — never overlaying the
   // Properties tab the agent was just sent to after choosing a build tool.
   const [companionView, setCompanionView] = useState<"client" | "properties">("client");
+
+  // ── Agent-level Companion preferences (menu toggles) ─────────────────────────
+  // Both are AGENT/browser-profile preferences (NOT per-client) persisted in
+  // chrome.storage.local — the SAME mechanism the Theme selector uses — so they
+  // survive client switches, panel close/reopen, and sessions. No schema/DB change.
+  // PREFERENCE ONLY for now: neither toggle creates any automatic behavior. Text Top
+  // 3 and the Voicemail Script (formerly "AI Voice Script") features/code are
+  // preserved; their eventual workflows are a separate product decision.
+  const [textTop3On, setTextTop3On] = useState(false);
+  const [aiVoiceScriptOn, setAiVoiceScriptOn] = useState(false);
+  useEffect(() => {
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+    if (!store) return; // dev harness — prefs stay in-memory (default OFF)
+    store.get([PREF_TEXT_TOP3_KEY, PREF_VOICE_SCRIPT_KEY], (res: Record<string, unknown>) => {
+      setTextTop3On(res[PREF_TEXT_TOP3_KEY] === true);
+      setAiVoiceScriptOn(res[PREF_VOICE_SCRIPT_KEY] === true);
+    });
+    function onChanged(changes: { [k: string]: chrome.storage.StorageChange }, area: string) {
+      if (area !== "local") return;
+      if (changes[PREF_TEXT_TOP3_KEY]) setTextTop3On(changes[PREF_TEXT_TOP3_KEY].newValue === true);
+      if (changes[PREF_VOICE_SCRIPT_KEY]) setAiVoiceScriptOn(changes[PREF_VOICE_SCRIPT_KEY].newValue === true);
+    }
+    (globalThis as unknown as { chrome?: any }).chrome?.storage?.onChanged?.addListener(onChanged);
+    return () => (globalThis as unknown as { chrome?: any }).chrome?.storage?.onChanged?.removeListener(onChanged);
+  }, []);
+  const onToggleTextTop3 = () => {
+    setTextTop3On((v) => {
+      const next = !v;
+      (globalThis as unknown as { chrome?: any }).chrome?.storage?.local?.set({ [PREF_TEXT_TOP3_KEY]: next });
+      return next;
+    });
+  };
+  const onToggleAiVoiceScript = () => {
+    setAiVoiceScriptOn((v) => {
+      const next = !v;
+      (globalThis as unknown as { chrome?: any }).chrome?.storage?.local?.set({ [PREF_VOICE_SCRIPT_KEY]: next });
+      return next;
+    });
+  };
 
   // ── Deadline-aware snooze for the "Ready to send {name}'s list?" prompt ──────
   // "Not Yet" must not dismiss forever, and must not let the agent snooze past the
@@ -1398,6 +1442,10 @@ export function ProductionPanel() {
         onEditClient={onEditClient}
         canEditClient={!!active?.lead}
         onEditTemplates={onEditTemplates}
+        textTop3On={textTop3On}
+        aiVoiceScriptOn={aiVoiceScriptOn}
+        onToggleTextTop3={onToggleTextTop3}
+        onToggleAiVoiceScript={onToggleAiVoiceScript}
         onConnect={onConnect}
         onContact={onContact}
         onContactLead={onContactLead}
