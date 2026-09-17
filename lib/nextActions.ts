@@ -1,3 +1,5 @@
+import { actionRelevanceRank, RELEVANCE_FOREGROUND, type RelevanceRank } from "@/lib/leads/actionRelevance"
+
 // Unified Next Action ranking (CRM v1.1.0 Phase 1).
 //
 // Every lead may have one automatic stage action (computed, never stored —
@@ -33,6 +35,10 @@ export type ManualNextAction = {
   // lib/leads/guestCardWorkflow.ts.
   property_id?: number | null
   property_name?: string | null
+  // Workflow identity (present on real lead_next_actions rows) — used for
+  // workflow-relevance ranking. Optional so callers/tests can omit it.
+  action_key?: string | null
+  action_type?: string | null
 }
 
 export type RankedAction = {
@@ -41,6 +47,11 @@ export type RankedAction = {
   dueAt: string | null
   priority: "low" | "medium" | "high"
   urgency: "overdue" | "today" | "upcoming" | "none"
+  // Workflow-relevance tier (0 foreground / 1 background). Foreground actions —
+  // the current stage's objective/prerequisites/transaction, the automatic action,
+  // same-stage multi-property work, and manual tasks — always outrank background
+  // (stale earlier-context) actions, regardless of the background action's urgency.
+  relevance: RelevanceRank
   manualAction?: ManualNextAction
 }
 
@@ -79,6 +90,13 @@ function urgencyOf(dueAt: string | null): RankedAction["urgency"] {
 }
 
 function compareActions(a: RankedAction, b: RankedAction): number {
+  // Workflow relevance FIRST: a foreground action (advances the client's current
+  // objective/transaction) always outranks a background one (stale earlier-context /
+  // competing-property), even when the background action is more overdue. Within the
+  // same relevance tier the existing urgency → priority → due ordering decides.
+  const relevanceDiff = a.relevance - b.relevance
+  if (relevanceDiff !== 0) return relevanceDiff
+
   const urgencyDiff = URGENCY_RANK[a.urgency] - URGENCY_RANK[b.urgency]
   if (urgencyDiff !== 0) return urgencyDiff
 
@@ -120,6 +138,7 @@ export function rankLeadActions(
         dueAt: null,
         priority: "medium",
         urgency: "none",
+        relevance: RELEVANCE_FOREGROUND,
       },
       others: [],
     }
@@ -237,6 +256,8 @@ export function rankLeadActions(
     dueAt: lead.next_action_date ?? null,
     priority: "medium",
     urgency: urgencyOf(lead.next_action_date ?? null),
+    // The automatic action IS the stage's own action → always foreground.
+    relevance: actionRelevanceRank(lead, { isAutomatic: true }),
   }
 
   const manualRanked: RankedAction[] = openManual.map((a) => ({
@@ -245,6 +266,7 @@ export function rankLeadActions(
     dueAt: a.due_at,
     priority: a.priority,
     urgency: urgencyOf(a.due_at),
+    relevance: actionRelevanceRank(lead, { action_key: (a as any).action_key, action_type: (a as any).action_type }),
     manualAction: a,
   }))
 
@@ -257,7 +279,7 @@ export function rankLeadActions(
   // "none" urgency keeps it out of the Agenda's due queue.
   if (all.length === 0) {
     return {
-      primary: { kind: "automatic", title: automaticLabel, dueAt: null, priority: "medium", urgency: "none" },
+      primary: { kind: "automatic", title: automaticLabel, dueAt: null, priority: "medium", urgency: "none", relevance: RELEVANCE_FOREGROUND },
       others: [],
     }
   }

@@ -367,53 +367,45 @@ export function buildActiveClientPayload(
           : null,
     }))
 
-  // When a lead has MORE THAN ONE open row (e.g. a workflow action + a manual
-  // Add Task), order them by the SAME canonical ranker the Workspace/Kanban uses,
-  // so the Companion surfaces the same primary Next Action instead of arbitrary
-  // insertion order. Order-only — no row is added, removed, or mutated; single-
-  // open-row leads (the common case) are byte-identical to before (guarded).
-  let orderedOpen = openReal
-  if (openReal.length > 1) {
-    const openRaw = (nextActions || []).filter((a) => String(a.lead_id) === String(lead.id) && !a.completed && String(a.status ?? "") !== "canceled")
-    const ranked = rankLeadActions(
-      { ...lead, follow_up_count: dto.workflow.followUpCount },
-      openRaw as any,
-      getNextAction({ ...lead, follow_up_count: dto.workflow.followUpCount }),
-    )
-    const rankIndex = new Map<string, number>()
-    ;[ranked.primary, ...ranked.others].forEach((ra, i) => {
-      if (ra.manualAction) rankIndex.set(String((ra.manualAction as any).id), i)
-    })
-    orderedOpen = [...openReal].sort(
-      (a, b) => (rankIndex.get(String(a.id)) ?? Number.MAX_SAFE_INTEGER) - (rankIndex.get(String(b.id)) ?? Number.MAX_SAFE_INTEGER),
-    )
-  }
+  // ONE definition of Primary Next Action. Rank the real open rows AND the automatic
+  // stage action with the SAME rankLeadActions the CRM/Agenda/Board use, then surface
+  // that exact primary — so the Companion can no longer disagree with the CRM surfaces
+  // (previously it ignored the automatic action except as a zero-open-row fallback).
+  const openRaw = (nextActions || []).filter((a) => String(a.lead_id) === String(lead.id) && !a.completed && String(a.status ?? "") !== "canceled")
+  const rankedLead = { ...lead, follow_up_count: dto.workflow.followUpCount }
+  const ranked = rankLeadActions(rankedLead, openRaw as any, getNextAction(rankedLead))
 
-  // If there's no real open row, synthesize the stage-computed action (same title
-  // the CRM shows) so the Next Action still renders read-only. The generic "Next
-  // Action" fallback (archived leads / stages with no workflow rule) is omitted —
-  // it's a placeholder, not a real action, so those correctly show no open action.
+  // Order the real rows by the canonical rank (foreground → urgency → priority → due).
+  const rankIndex = new Map<string, number>()
+  ;[ranked.primary, ...ranked.others].forEach((ra, i) => {
+    if (ra.manualAction) rankIndex.set(String((ra.manualAction as any).id), i)
+  })
+  const orderedOpen = [...openReal].sort(
+    (a, b) => (rankIndex.get(String(a.id)) ?? Number.MAX_SAFE_INTEGER) - (rankIndex.get(String(b.id)) ?? Number.MAX_SAFE_INTEGER),
+  )
+
+  // When the automatic stage action is the canonical primary (it outranks every real
+  // open row, or there are none), surface it first — exactly as the CRM surfaces do.
+  // Skip the generic "Next Action" sentinel and the spent closing placeholder. When a
+  // real row is the primary, orderedOpen already has it first (it carries propertyName).
   let actions = orderedOpen
-  if (orderedOpen.length === 0) {
-    const computed = getNextAction({ ...lead, follow_up_count: dto.workflow.followUpCount })
-    // Once the closing chain has completed (commission paid), the "closed" stage
-    // rule still returns "Invoice Details" — but that step is long done, so do NOT
-    // fabricate a "Get Invoice Details" placeholder. Any genuine post-payment action
-    // (Cash Rebate → Send Rebate) is a REAL open row and takes the orderedOpen path
-    // above; Free Movers / No Client Incentive correctly end with no next action.
-    const isSpentClosingPlaceholder = computed === "Invoice Details" && !!lead.invoice_commission_paid
-    if (computed && computed !== "Next Action" && !isSpentClosingPlaceholder) {
+  if (ranked.primary.kind === "automatic") {
+    const title = ranked.primary.title
+    const isSentinel = title === "Next Action"
+    const isSpentClosingPlaceholder = title === "Invoice Details" && !!lead.invoice_commission_paid
+    if (title && !isSentinel && !isSpentClosingPlaceholder) {
       actions = [
         {
           id: `computed-${lead.id}`,
           leadId: lead.id,
-          title: computed,
+          title,
           dueAt: dto.workflow.nextActionDate ?? null,
           priority: "medium",
           notes: null,
           completed: false,
           completedAt: null,
         },
+        ...orderedOpen,
       ]
     }
   }

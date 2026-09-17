@@ -130,10 +130,17 @@ export default function LeadCard({
         ).primary
       : null
   const action = rankedPrimary ? rankedPrimary.title : getNextAction(lead)
+  // Urgency comes from the SAME ranked primary action's own due date — one
+  // definition of Primary Next Action AND its urgency. Falls back to the stage's
+  // next_action_date only when the actions list wasn't provided (rankedPrimary null).
   const followUpStatus =
-    lead.next_action_date && lead.crm_status !== "archived"
-      ? getFollowUpStatus(lead.next_action_date)
-      : "none"
+    lead.crm_status === "archived"
+      ? "none"
+      : rankedPrimary
+        ? rankedPrimary.urgency
+        : lead.next_action_date
+          ? getFollowUpStatus(lead.next_action_date)
+          : "none"
 
   const nextClass =
     followUpStatus === "overdue" ? "kb-pill--crit" : followUpStatus === "today" ? "kb-pill--warn" : "kb-pill--info"
