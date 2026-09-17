@@ -50,7 +50,7 @@ function kv(k: string, v: string | null | undefined) {
   return (
     <div style={{ display: "flex", fontSize: 11.5, padding: "2px 0", color: "var(--lb-text-secondary, #c2c7d0)" }}>
       <span style={{ color: "var(--lb-text-muted, #8b93a3)", width: 98, flex: "none" }}>{k}</span>
-      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{v}</span>
+      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", color: "var(--lb-text-primary, #e9ebef)", fontWeight: 600 }}>{v}</span>
     </div>
   );
 }
@@ -89,6 +89,12 @@ export function TourModeView({
   // never autofill). Same first+last source the Data preview uses; empty when the
   // client has no name so the line is omitted rather than rendering blank.
   const clientFullName = [client.firstName, client.lastName].filter(Boolean).join(" ").trim();
+  // First name for the autofill prompt copy (display only). Falls back to a
+  // grammatical generic when the client has no first name.
+  const clientFirst = (client.firstName ?? "").trim();
+  const autofillPrompt = clientFirst
+    ? `Allow Beast Companion to autofill ${clientFirst}’s information into this property’s tour form.`
+    : "Allow Beast Companion to autofill your client’s information into this property’s tour form.";
 
   async function autofill() {
     if (busy) return;
@@ -175,8 +181,8 @@ export function TourModeView({
           Chrome controls its own native prompt wording (which host it names, etc.)
           and we never customize or spoof it — this is our own explanatory copy so
           the agent understands why Chrome is about to ask before they click. */}
-      <p style={{ margin: "0 2px 8px", fontSize: 11.5, lineHeight: 1.4, color: "var(--lb-text-secondary, #c2c7d0)" }}>
-        Beast Companion needs permission to autofill your client&#39;s information on this property&#39;s tour form.
+      <p style={{ margin: "2px 2px 8px", fontSize: 12.5, lineHeight: 1.45, fontWeight: 600, color: "var(--lb-text-primary, #e9ebef)" }}>
+        {autofillPrompt}
       </p>
       {/* Primary action — clicking runs the per-site permission request, then the
           autofill. Never submits; never overwrites a field the agent already changed. */}
@@ -194,11 +200,10 @@ export function TourModeView({
       {/* Data preview — OPEN by default in Tour Mode (transparency: the agent sees
           exactly what Beast is about to autofill), still collapsible. */}
       <details open style={{ marginTop: 12, border: "1px solid var(--lb-border-soft, #242a37)", borderRadius: 10, overflow: "hidden" }}>
-        <summary style={{ listStyle: "none", cursor: "pointer", padding: "8px 11px", fontSize: 11.5, fontWeight: 600, color: "var(--lb-text-secondary, #c2c7d0)", background: "var(--lb-inset, #12151c)" }}>
-          Data Beast will use
+        <summary style={{ listStyle: "none", cursor: "pointer", padding: "8px 11px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--lb-text-secondary, #c2c7d0)", background: "var(--lb-inset, #12151c)" }}>
+          Information to Autofill
         </summary>
         <div style={{ padding: "8px 11px" }}>
-          <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--lb-text-muted, #8b93a3)", margin: "2px 0 5px", fontWeight: 700 }}>Client → prospect fields</div>
           {kv("Name", [client.firstName, client.lastName].filter(Boolean).join(" ") || null)}
           {kv("Email", client.email)}
           {/* Display-only formatting — the autofill payload keeps the raw values. */}
@@ -207,13 +212,13 @@ export function TourModeView({
           {kv("Bedrooms", client.bedrooms)}
         </div>
         <div style={{ padding: "8px 11px", borderTop: "1px solid var(--lb-border-soft, #242a37)" }}>
-          <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--lb-text-muted, #8b93a3)", margin: "2px 0 5px", fontWeight: 700 }}>Locator → message/comments only</div>
+          <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--lb-text-muted, #8b93a3)", margin: "2px 0 5px", fontWeight: 700 }}>Locator Information</div>
           {kv("Name", [locator?.firstName, locator?.lastName].filter(Boolean).join(" ") || null)}
           {kv("Email", locator?.email)}
           {kv("Phone", locator?.phone)}
-        </div>
-        <div style={{ fontSize: 10.5, color: "var(--lb-text-muted, #8b93a3)", padding: "6px 11px 9px", borderTop: "1px solid var(--lb-border-soft, #242a37)", fontStyle: "italic" }}>
-          Locator info never goes into prospect/client fields.
+          <div style={{ fontSize: 10.5, color: "var(--lb-text-muted, #8b93a3)", marginTop: 6 }}>
+            Locator information is only added to the message.
+          </div>
         </div>
       </details>
 
