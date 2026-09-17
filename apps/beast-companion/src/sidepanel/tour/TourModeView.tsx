@@ -85,6 +85,10 @@ export function TourModeView({
   const name = favorite?.propertyName ?? propertyNameFallback ?? "This property";
   const address = favorite?.propertyAddress ?? null;
   const rating = typeof favorite?.googleRating === "number" ? favorite.googleRating : null;
+  // Active client's full name for the Tour Mode header (display/context only —
+  // never autofill). Same first+last source the Data preview uses; empty when the
+  // client has no name so the line is omitted rather than rendering blank.
+  const clientFullName = [client.firstName, client.lastName].filter(Boolean).join(" ").trim();
 
   async function autofill() {
     if (busy) return;
@@ -137,9 +141,17 @@ export function TourModeView({
 
   return (
     <div style={{ padding: 12 }}>
-      <p style={{ margin: "0 0 8px", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--lb-text-muted, #8b93a3)", fontWeight: 700 }}>
+      <p style={{ margin: "0 0 3px", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--lb-text-muted, #8b93a3)", fontWeight: 700 }}>
         Scheduling Tour For
       </p>
+      {/* Active client's name — compact, legible, directly under the label and
+          above the property card. No surrounding card; no phone/email (those stay
+          in the Data preview below). Omitted entirely when the client has no name. */}
+      {clientFullName && (
+        <div style={{ margin: "0 0 9px", fontSize: 15, fontWeight: 700, lineHeight: 1.25, color: "var(--lb-text-primary, #e9ebef)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {clientFullName}
+        </div>
+      )}
 
       {/* Property card */}
       <div style={{ display: "flex", gap: 11, alignItems: "center", background: "var(--lb-inset, #12151c)", border: "1px solid var(--lb-border-soft, #242a37)", borderRadius: 11, padding: 10 }}>
