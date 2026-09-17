@@ -11,6 +11,7 @@ import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { upcomingTourForFavorite } from "@/lib/leads/upcomingTour"
 import { favoriteMoveBlock } from "@/lib/leads/propertyCollections"
 import { isClientFavorite } from "@/lib/leads/favoriteOrigin"
+import { HiOutlineEnvelope, HiOutlineCalendarDays, HiCheck } from "react-icons/hi2"
 import { propertyWebsiteHref } from "@/lib/propertyExplorer/types"
 import { displayAddress, formatRating } from "@bc/companion-shared"
 import { StarRating } from "./StarRating"
@@ -547,23 +548,31 @@ export default function LeadFavorites({
                   {(onSendGuestCard || (onScheduleTour && schedTarget)) && (
                     <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
                       {schedFavId !== fav.id ? (
-                        <div className="flex items-center justify-between gap-3 text-[11px] font-semibold">
-                          {/* LEFT: Send Guest Card / ✓ Guest Card Sent (canonical state). */}
+                        /* Compact, LEFT-aligned action group (not space-between):
+                           [✉ Send Guest Card] | [▣ Schedule Tour]. gap-x-5 (~20px)
+                           gives the divider its breathing room; icons are small and
+                           secondary; the existing accent/hover treatment is preserved. */
+                        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] font-semibold">
+                          {/* Send Guest Card / ✓ Guest Card Sent (completed = not clickable). */}
                           {gcSent ? (
-                            <span className="text-emerald-600">✓ Guest Card Sent</span>
+                            <span className="inline-flex items-center gap-1.5 text-emerald-600">
+                              <HiCheck className="text-[13px]" aria-hidden /> Guest Card Sent
+                            </span>
                           ) : onSendGuestCard ? (
                             <button
                               type="button"
                               onClick={() => onSendGuestCard(lead, { favorite: fav, tour: scheduledTour ?? null, actionId: gcAction?.id ?? null })}
-                              className="text-[var(--crm-accent)] hover:underline"
+                              className="inline-flex items-center gap-1.5 text-[var(--crm-accent)] hover:underline"
                             >
-                              Send Guest Card
+                              <HiOutlineEnvelope className="text-[13px]" aria-hidden /> Send Guest Card
                             </button>
-                          ) : (
-                            <span />
+                          ) : null}
+                          {/* Subtle, non-interactive divider — only when both actions show. */}
+                          {(gcSent || onSendGuestCard) && !scheduledTour && onScheduleTour && schedTarget && (
+                            <span aria-hidden className="h-3 w-px bg-[var(--crm-border)]" />
                           )}
-                          {/* RIGHT: Schedule Tour (only when no tour is scheduled yet). */}
-                          {!scheduledTour && onScheduleTour && schedTarget ? (
+                          {/* Schedule Tour (only when no tour is scheduled yet). */}
+                          {!scheduledTour && onScheduleTour && schedTarget && (
                             <button
                               type="button"
                               onClick={() => {
@@ -571,12 +580,10 @@ export default function LeadFavorites({
                                 onEnterTourMode?.({ favoriteId: fav.id, propertyName: fav.property_name ?? null })
                                 setSchedFavId(fav.id); setSchedStep("confirm"); setSchedDateTime("")
                               }}
-                              className="text-[var(--crm-accent)] hover:underline"
+                              className="inline-flex items-center gap-1.5 text-[var(--crm-accent)] hover:underline"
                             >
-                              Schedule Tour
+                              <HiOutlineCalendarDays className="text-[13px]" aria-hidden /> Schedule Tour
                             </button>
-                          ) : (
-                            <span />
                           )}
                         </div>
                       ) : schedStep === "confirm" ? (
