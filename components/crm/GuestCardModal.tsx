@@ -199,7 +199,7 @@ export default function GuestCardModal({
             {progressLabel && (
               <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--crm-text-muted)]">{progressLabel}</p>
             )}
-            <h3 className="text-[16px] font-bold text-[var(--crm-text-primary)]">Email Guest Card</h3>
+            <h3 className="text-[16px] font-bold text-[var(--crm-text-primary)]">{fields.clientFirstName ? `Guest Card for ${fields.clientFirstName}` : "Email Guest Card"}</h3>
             <p className="mt-0.5 text-[12.5px] text-[var(--crm-text-secondary)]">
               Review the email, then open it to send.
             </p>

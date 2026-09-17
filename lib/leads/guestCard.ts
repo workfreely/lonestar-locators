@@ -85,6 +85,11 @@ export type GuestCardFields = {
   bedsBathsPhrase: string
   budget: string
   moveIn: string
+  // Compact move date "M/D/YY" (no leading zeros, 2-digit year) for the intro
+  // sentence ("9/30/26"). "" when absent/unparseable so the intro clause drops
+  // entirely rather than showing a placeholder. The Client Details row keeps the
+  // full moveIn (MM/DD/YYYY).
+  moveInShort: string
   pets: string
   parking: string
   agentName: string
@@ -152,6 +157,19 @@ function bedsBathsPhraseLabel(lead: GuestCardLead): string {
 function moveInLabel(moveDate: string | null | undefined): string {
   if (!moveDate || !String(moveDate).trim()) return ""
   return formatDateDisplay(moveDate)
+}
+
+// Move date as compact "M/D/YY" (no leading zeros, 2-digit year) for the intro
+// sentence — same timezone-safe part parsing as formatDateDisplay (a date-only
+// "YYYY-MM-DD" is parsed by parts, never shifted a day by UTC). "" when absent OR
+// unrecognized, so the intro's move-date clause is dropped entirely rather than
+// rendering broken/placeholder text.
+function moveInShortLabel(moveDate: string | null | undefined): string {
+  if (!moveDate || !String(moveDate).trim()) return ""
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(String(moveDate).trim())
+  if (!m) return ""
+  const [, year, month, day] = m
+  return `${Number(month)}/${Number(day)}/${year.slice(2)}`
 }
 
 // Short scheduled-tour date ("09/22/2026") in the tour's zone (Mode A subject +
@@ -234,6 +252,7 @@ export function buildGuestCardFields(
     // Desired rent is optional on a guest card — omit when absent (no placeholder).
     budget: (lead.desired_rent ?? "").trim(),
     moveIn: moveInLabel(lead.move_date),
+    moveInShort: moveInShortLabel(lead.move_date),
     // Not in the schema yet — left empty so callers omit the row entirely.
     pets: (lead.pets || "").trim(),
     parking: (lead.parking || "").trim(),
@@ -303,9 +322,12 @@ export function buildGuestCardBody(
       ? `My client is interested in a ${phrase} at ${property} and has scheduled a tour for ${tourWhen}.`
       : `My client has scheduled a tour at ${property} for ${tourWhen}.`
   } else {
+    // Weave the target move date into the availability sentence when present.
+    // Absent/unparseable move date → no clause (existing behavior, no placeholder).
+    const moveClause = f.moveInShort ? ` with a target move date of ${f.moveInShort}` : ""
     intro = phrase
-      ? `My client is interested in a ${phrase} at ${property} and would like more information about your current availability.`
-      : `My client is interested in ${property} and would like more information about your current availability.`
+      ? `My client is interested in a ${phrase} at ${property} and would like more information about your current availability${moveClause}.`
+      : `My client is interested in ${property} and would like more information about your current availability${moveClause}.`
   }
 
   // Tour Details (Mode A) comes BEFORE Client Details; Property of Interest (Mode B)
