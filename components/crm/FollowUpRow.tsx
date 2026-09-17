@@ -126,7 +126,7 @@ export default function FollowUpRow({
                 <path d="M2 7l3.5 3.5L12 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
-            <p>{activeFilter ? "None in this filter" : "Nothing due today."}</p>
+            <p>{activeFilter === "overdue" ? "Nothing overdue." : activeFilter === "today" ? "Nothing due." : "Nothing due today."}</p>
           </div>
         )}
 

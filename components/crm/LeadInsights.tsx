@@ -404,7 +404,7 @@ function AiInsightsCard({ leadId, onCloseWorkspace, beastInsight }: { leadId: st
             <polyline points="9 18 15 12 9 6" />
           </svg>
           <h3 className="text-[10.5px] font-semibold text-[var(--crm-text-secondary)] uppercase tracking-widest whitespace-nowrap">
-            🧠 AI INSIGHTS
+            🧠 AI CLIENT INSIGHTS
           </h3>
         </div>
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
