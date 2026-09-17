@@ -4,6 +4,7 @@ import { SectionCard } from "./LeadPanelSections"
 import PropertyThumb from "./PropertyThumb"
 import { displayAddress, formatRating } from "@bc/companion-shared"
 import { StarRating } from "./StarRating"
+import { propertyWebsiteHref } from "@/lib/propertyExplorer/types"
 
 // Recommended Properties — the canonical per-client Recommendations collection
 // (lead_recommendations). Conceptually distinct from Favorite Properties:
@@ -45,19 +46,37 @@ export default function BestMatches({
               className="flex items-center gap-2.5 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] px-3 py-2"
             >
               <PropertyThumb src={r.property_image_url} alt={r.property_name} />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{r.property_name}</p>
-                {r.property_address && (
-                  <p className="truncate text-[11px] text-[var(--crm-text-muted)]">{displayAddress(r.property_address)}</p>
-                )}
-                {typeof r.google_rating === "number" && (
+              {(() => {
+                // The name links ONLY to the real property website (resolved read-side
+                // from property_catalog.website_url), never the property_url (Google
+                // Maps). No valid website → a plain, non-clickable name. Mirrors the
+                // Favorite Property name-link behavior exactly.
+                const recHref = propertyWebsiteHref((r as { website_url?: string | null }).website_url)
+                const rating = typeof r.google_rating === "number" && (
                   <div className="mt-0.5 flex items-center gap-1.5">
                     <span className="text-[11px] text-[var(--crm-text-muted)]">Google Rating:</span>
                     <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(r.google_rating)}</span>
                     <StarRating value={r.google_rating} />
                   </div>
-                )}
-              </div>
+                )
+                return recHref ? (
+                  <a href={recHref} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1">
+                    <p className="truncate text-[12.5px] font-semibold text-[var(--crm-accent)] hover:underline">{r.property_name}</p>
+                    {r.property_address && (
+                      <p className="truncate text-[11px] text-[var(--crm-text-muted)]">{displayAddress(r.property_address)}</p>
+                    )}
+                    {rating}
+                  </a>
+                ) : (
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{r.property_name}</p>
+                    {r.property_address && (
+                      <p className="truncate text-[11px] text-[var(--crm-text-muted)]">{displayAddress(r.property_address)}</p>
+                    )}
+                    {rating}
+                  </div>
+                )
+              })()}
               {/* Action area — ✕ (remove) on the LEFT, ♡ (move to Favorites) on the
                   RIGHT. Both dispatch the shared synced verbs. The heart is styled to
                   MATCH the Beast Companion Recommendation heart (bc-prop-move--heart):

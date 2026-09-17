@@ -460,7 +460,7 @@ export default function LeadFavorites({
               return (
                 <div
                   key={fav.id}
-                  className="bg-[var(--crm-inset)] border border-[var(--crm-border)] rounded-lg px-3 py-2 hover:border-[var(--crm-text-muted)] hover:bg-[var(--crm-card)] transition-colors"
+                  className="bg-[var(--crm-inset)] border border-[var(--crm-border)] rounded-lg px-3 py-2"
                 >
                   <div className="flex items-center gap-2.5">
                     {/* Shared property thumbnail (same treatment as Recommended
