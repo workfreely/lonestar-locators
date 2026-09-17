@@ -147,17 +147,16 @@ export function TourModeView({
 
   return (
     <div style={{ padding: 12 }}>
-      <p style={{ margin: "0 0 3px", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--lb-text-muted, #8b93a3)", fontWeight: 700 }}>
-        Scheduling Tour For
+      {/* Label + active client's name on ONE line — the muted uppercase label with
+          the client's name in white/semibold so their identity reads immediately.
+          flex-wrap lets an unusually long name drop to the next line; no card, no
+          phone/email (those stay in the data section below). */}
+      <p style={{ margin: "0 0 9px", display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 6, fontSize: 11, letterSpacing: "0.08em", lineHeight: 1.35 }}>
+        <span style={{ textTransform: "uppercase", color: "var(--lb-text-muted, #8b93a3)", fontWeight: 700 }}>Scheduling Tour For</span>
+        {clientFullName && (
+          <span style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: "normal", color: "var(--lb-text-primary, #e9ebef)" }}>{clientFullName}</span>
+        )}
       </p>
-      {/* Active client's name — compact, legible, directly under the label and
-          above the property card. No surrounding card; no phone/email (those stay
-          in the Data preview below). Omitted entirely when the client has no name. */}
-      {clientFullName && (
-        <div style={{ margin: "0 0 9px", fontSize: 15, fontWeight: 700, lineHeight: 1.25, color: "var(--lb-text-primary, #e9ebef)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {clientFullName}
-        </div>
-      )}
 
       {/* Property card */}
       <div style={{ display: "flex", gap: 11, alignItems: "center", background: "var(--lb-inset, #12151c)", border: "1px solid var(--lb-border-soft, #242a37)", borderRadius: 11, padding: 10 }}>
@@ -181,9 +180,20 @@ export function TourModeView({
           Chrome controls its own native prompt wording (which host it names, etc.)
           and we never customize or spoof it — this is our own explanatory copy so
           the agent understands why Chrome is about to ask before they click. */}
-      <p style={{ margin: "2px 2px 8px", fontSize: 12.5, lineHeight: 1.45, fontWeight: 600, color: "var(--lb-text-primary, #e9ebef)" }}>
-        {autofillPrompt}
-      </p>
+      <div style={{
+        margin: "0 0 8px",
+        padding: "9px 11px",
+        borderRadius: 10,
+        // Subtle tint of the existing LB green (--lb-good) — separates the prompt
+        // from the property card above and ties it to the green Autofill button
+        // below. Deliberately low-contrast (not a success/warning banner).
+        background: "color-mix(in srgb, var(--lb-good, #10b981) 12%, transparent)",
+        border: "1px solid color-mix(in srgb, var(--lb-good, #10b981) 30%, transparent)",
+      }}>
+        <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.45, fontWeight: 600, color: "var(--lb-text-primary, #e9ebef)" }}>
+          {autofillPrompt}
+        </p>
+      </div>
       {/* Primary action — clicking runs the per-site permission request, then the
           autofill. Never submits; never overwrites a field the agent already changed. */}
       <button type="button" onClick={autofill} disabled={busy} style={{ ...CTA, opacity: busy ? 0.6 : 1, cursor: busy ? "default" : "pointer" }}>
