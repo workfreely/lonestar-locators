@@ -859,23 +859,18 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     const gc = guestCard
     setGuestCard(null)
     if (!gc) return
-    const now = new Date().toISOString()
-    if (gc.actionId != null && !isDemoLeadId(gc.lead.id)) {
-      const { error } = await supabase
-        .from("lead_next_actions")
-        .update({ completed: true, completed_at: now })
-        .eq("id", gc.actionId)
-      if (error) console.error("[guest-card] complete failed:", error)
+    // CANONICAL completion for EVERY composer send (Favorite / Next Action / Applied →
+    // No): completes the exact property-scoped email_guest_card AND records the
+    // guest_card timeline once — the same completion the Applied → Yes path uses (fixes
+    // the prior asymmetry where the composer completed the action but wrote no history).
+    const favId = gc.property?.id ?? null
+    if (favId != null) {
+      const favName = (gc.property?.property_name || "").toString().trim() || guestCardPropertyName(favId)
+      await completeGuestCardSent(gc.lead, favId, favName, { actionId: gc.actionId, source: "guest_card_composer" })
     }
-    const merged = localNextActionsRef.current.map((a: any) =>
-      gc.actionId != null && String(a.id) === String(gc.actionId)
-        ? { ...a, completed: true, completed_at: now, status: "completed" }
-        : a
-    )
-    setLocalNextActions(merged)
-    postCompanionActiveClient({ ...gc.lead }, merged)
-    // Applied-flow "No" path: the guest card has now been handled, so continue the
-    // deferred move to Applied. Undefined for the normal (non-guard) composer use.
+    // Applied-flow "No" path: the guest card is now handled, so run the deferred
+    // continuation (record the applied property, then move to Applied). Undefined for
+    // the normal (non-guard) composer use.
     gc.onSent?.()
   }
 
@@ -1170,14 +1165,16 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     })
   }
 
-  // Resolve the guard's chosen property into a real favorite id at COMPLETION, and
-  // record it canonically on the property-scoped application action (NOT Top Pick —
-  // "Top Pick does NOT imply Applied"). For a provisional Step-1 selection this
-  // creates the property-identity row (searched/added, origin='application') and
-  // stamps/creates the Check App association. For the "known property" path (no
-  // pending) it returns the already-resolved favId and ensures the association exists.
-  async function guardFinalizeSelection(g: NonNullable<typeof guestCardGuard>): Promise<
-    { favId: number | string; fav: any } | null
+  // Resolve the guard's chosen property into a real favorite id + the MINIMAL
+  // property identity its guest card needs (the lead_favorites row that
+  // email_guest_card.property_id references — created origin='application' for a
+  // searched/added property). It does NOT write any application-specific state:
+  // the Check App association is deferred to SUCCESSFUL Guest Card completion
+  // (guardRecordAppliedProperty), so cancelling the composer never leaves an
+  // out-of-stage check_application behind. For the "known property" path (no
+  // pending) it returns the already-resolved favId.
+  async function guardResolveSelection(g: NonNullable<typeof guestCardGuard>): Promise<
+    { favId: number | string; favName: string; fav: any } | null
   > {
     let favId: number | string
     let favName = ""
@@ -1200,10 +1197,15 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       favId = g.favId
       favName = guestCardPropertyName(g.favId)
     }
-    // Canonical Applied-property association (replaces the old setLeadTopPick).
-    await ensureAppliedPropertyAction(g.lead, favId, favName, g.targetStage)
     const fav = localFavoritesRef.current.find((f: any) => String(f.id) === String(favId)) ?? null
-    return { favId, fav }
+    return { favId, favName, fav }
+  }
+
+  // Record the applied property on the canonical property-scoped application action.
+  // Called ONLY on successful completion (Guest Card sent / already-sent), never
+  // before the composer — so a cancelled composer leaves no check_application.
+  async function guardRecordAppliedProperty(g: NonNullable<typeof guestCardGuard>, favId: number | string, favName: string) {
+    await ensureAppliedPropertyAction(g.lead, favId, favName, g.targetStage)
   }
 
   // Record the chosen property on the canonical property-scoped application action —
@@ -1268,19 +1270,27 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     }
   }
 
-  // Reconcile the applied property's guest card into a COMPLETED state — the canonical
-  // "Guest Card Sent" record that deriveLastAction reads and that clears the open "Send
-  // Guest Card" Next Action. Reuses the EXISTING completion write (same fields
-  // handleGuestCardSent sets) and createGuestCardForProperty; never a parallel system.
-  //   • open email_guest_card for this property  → complete it
-  //   • none for this property                   → create (canonical) then complete
-  //   • already completed for this property      → noop (never a duplicate)
-  // Scoped to the selected property only; a different property's guest card is untouched.
-  async function reconcileGuestCardSent(lead: any, favId: number | string, favName: string) {
-    const plan = planGuestCardSent(favId, localNextActionsRef.current)
-    if (plan.action === "noop") return
+  // CANONICAL Guest Card completion — the ONE idempotent path every "guest card sent"
+  // entry point uses (Applied → Yes already-sent, the composer's Continue, and
+  // Applied → No on send). It:
+  //   • completes the exact property-scoped email_guest_card (by the caller's actionId
+  //     when known, else planned by property; creates one first if none exists);
+  //   • records the canonical guest_card timeline event for that property EXACTLY ONCE
+  //     (so Last Action reads "Guest Card Sent" and the Closed/guest-card guard won't
+  //     ask again); and
+  //   • never duplicates completion or history when invoked twice (already-completed →
+  //     no-op: no re-complete, no second timeline row).
+  // Callers run their continuation (proceed / application writes) AFTER this resolves.
+  async function completeGuestCardSent(
+    lead: any,
+    favId: number | string,
+    favName: string,
+    opts?: { actionId?: number | string | null; source?: string },
+  ) {
     const now = new Date().toISOString()
-    const applyCompleted = (id: number | string) => {
+    const sessionKey = `${lead.id}:${favId}`
+    const alreadyRecorded = confirmedGuestCardsRef.current.has(sessionKey)
+    const markCompleted = (id: number | string) => {
       const patch = { completed: true, completed_at: now, status: "completed" }
       setLocalNextActions((prev: any) => prev.map((a: any) => (String(a.id) === String(id) ? { ...a, ...patch } : a)))
       localNextActionsRef.current = localNextActionsRef.current.map((a: any) => (String(a.id) === String(id) ? { ...a, ...patch } : a))
@@ -1288,30 +1298,55 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         void supabase.from("lead_next_actions").update({ completed: true, completed_at: now }).eq("id", id)
       }
     }
-    if (plan.action === "complete") {
-      applyCompleted(plan.actionId)
-      return
-    }
-    // create-complete: reuse the canonical creator, then complete the new row so it
-    // reads "Guest Card Sent · {property}" (agent confirmed it was sent externally).
-    const fav = localFavoritesRef.current.find((f: any) => String(f.id) === String(favId))
-    if (!fav) return
-    if (isDemoLeadId(lead.id)) {
-      const demo = {
-        id: `demo-act-gc-${Date.now()}`, lead_id: lead.id, title: "Email Guest Card", action_key: "email_guest_card",
-        property_id: favId, property_name: favName || null, due_at: now, priority: "high",
-        completed: true, completed_at: now, status: "completed",
+
+    // 1) Complete the exact property-scoped email_guest_card.
+    let didComplete = false
+    if (opts?.actionId != null) {
+      const row = localNextActionsRef.current.find((a: any) => String(a.id) === String(opts.actionId))
+      const isDone = !!row && (row.completed === true || String(row.status ?? "") === "completed")
+      if (!isDone) { markCompleted(opts.actionId); didComplete = true }
+    } else {
+      const plan = planGuestCardSent(favId, localNextActionsRef.current)
+      if (plan.action === "complete") { markCompleted(plan.actionId); didComplete = true }
+      else if (plan.action === "create-complete") {
+        const fav = localFavoritesRef.current.find((f: any) => String(f.id) === String(favId))
+        if (fav) {
+          if (isDemoLeadId(lead.id)) {
+            const demo = {
+              id: `demo-act-gc-${Date.now()}`, lead_id: lead.id, title: "Email Guest Card", action_key: "email_guest_card",
+              property_id: favId, property_name: favName || null, due_at: now, priority: "high",
+              completed: true, completed_at: now, status: "completed",
+            }
+            setLocalNextActions((prev: any) => [...prev, demo])
+            localNextActionsRef.current = [...localNextActionsRef.current, demo]
+            didComplete = true
+          } else {
+            const created = await createGuestCardForProperty(supabase, lead.id, fav)
+            if (created) {
+              const done = { ...created, completed: true, completed_at: now, status: "completed" }
+              setLocalNextActions((prev: any) => [...prev, done])
+              localNextActionsRef.current = [...localNextActionsRef.current, done]
+              void supabase.from("lead_next_actions").update({ completed: true, completed_at: now }).eq("id", created.id)
+              didComplete = true
+            }
+          }
+        }
       }
-      setLocalNextActions((prev: any) => [...prev, demo])
-      localNextActionsRef.current = [...localNextActionsRef.current, demo]
-      return
+      // plan.action === "noop" → already completed → didComplete stays false
     }
-    const created = await createGuestCardForProperty(supabase, lead.id, fav)
-    if (!created) return // dedup inside (a row already exists in the DB) — nothing to duplicate
-    const done = { ...created, completed: true, completed_at: now, status: "completed" }
-    setLocalNextActions((prev: any) => [...prev, done])
-    localNextActionsRef.current = [...localNextActionsRef.current, done]
-    void supabase.from("lead_next_actions").update({ completed: true, completed_at: now }).eq("id", created.id)
+
+    // 2) Record the canonical guest_card timeline ONCE — skip if this session already
+    //    recorded it, or if nothing was newly completed (already handled → no dup).
+    if (!alreadyRecorded && didComplete) {
+      confirmedGuestCardsRef.current.add(sessionKey)
+      recordTimelineEvent({
+        leadId: lead.id,
+        type: "guest_card",
+        metadata: { source: opts?.source ?? "guest_card_sent", property_id: favId, property_name: favName || guestCardPropertyName(favId) },
+      })
+    }
+
+    postCompanionActiveClient({ ...lead }, localNextActionsRef.current)
   }
 
   // Convert a genuine Favorite into an application-only identity row (origin=
@@ -1451,42 +1486,39 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     setGuestCardGuard(null)
     if (!g) return
     void (async () => {
-      const resolved = await guardFinalizeSelection(g)
+      const resolved = await guardResolveSelection(g)
       if (!resolved) return
-      const { favId } = resolved
-      confirmedGuestCardsRef.current.add(`${g.lead.id}:${favId}`)
-      // Persistent "handled" signal for the guard (the client loads only OPEN actions,
-      // so a completed action isn't visible cross-session — this timeline row is).
-      recordTimelineEvent({
-        leadId: g.lead.id,
-        type: "guest_card",
-        metadata: { source: "agent_confirmed_external", property_id: favId, property_name: guestCardPropertyName(favId), context: g.targetStage },
-      })
-      // Canonical completion so the workflow reads Guest Card Sent → Check App: complete
-      // (or create-then-complete) the property-scoped email_guest_card. Without this the
-      // open "Send Guest Card" action lingers and Last Action never becomes "Guest Card
-      // Sent" (deriveLastAction reads completed actions, not the timeline event).
-      await reconcileGuestCardSent(g.lead, favId, guestCardPropertyName(favId))
+      const { favId, favName } = resolved
+      // Canonical Guest Card completion (completes the property-scoped email_guest_card
+      // AND records the guest_card timeline once — Last Action "Guest Card Sent",
+      // Closed guard satisfied). "Yes" = the agent confirms it was already sent.
+      await completeGuestCardSent(g.lead, favId, favName, { source: "agent_confirmed_external" })
+      // Only NOW, after successful completion, record the applied property (Check App).
+      await guardRecordAppliedProperty(g, favId, favName)
       g.proceed()
     })()
   }
 
-  // Step 2 — "No": finalize the chosen property, then open the EXISTING Guest Card
-  // composer for it; the move continues (proceed) only after the guest card is
-  // actually sent (handleGuestCardSent → onSent). Closing the composer without
-  // sending leaves the lead pre-Applied.
+  // Step 2 — "No": resolve the chosen property and its per-property email_guest_card,
+  // then open the EXISTING Guest Card composer. Application-specific writes are
+  // DEFERRED: the Check App association and the move to Applied happen only when the
+  // guest card is actually SENT (handleGuestCardSent → completeGuestCardSent → onSent).
+  // Cancelling the composer therefore leaves the lead NOT applied, no check_application,
+  // and only the open property-scoped email_guest_card (so "Send Guest Card · {Property}"
+  // remains/reappears as the Next Action) plus the minimal favorite identity it needs.
   function guardGuestSendNow() {
     const g = guestCardGuard
     setGuestCardGuard(null)
     if (!g) return
     const proceed = g.proceed
     void (async () => {
-      const resolved = await guardFinalizeSelection(g)
+      const resolved = await guardResolveSelection(g)
       if (!resolved) return
-      const { favId, fav } = resolved
+      const { favId, favName, fav } = resolved
       if (!fav) return
-      // Ensure the per-property email_guest_card action exists (dedup inside), so
-      // the composer can complete it — reusing the canonical creator.
+      // Ensure the per-property email_guest_card action exists (dedup inside), so the
+      // composer can complete it and it can surface as Next Action if the composer is
+      // cancelled. This is NOT an application write — it's the guest-card action itself.
       let actionId: number | string | null =
         localNextActionsRef.current.find(
           (a: any) => String(a.lead_id) === String(g.lead.id) && String(a.action_key ?? "") === "email_guest_card" && String(a.property_id ?? "") === String(favId),
@@ -1499,8 +1531,22 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         }
       }
       openGuestCardComposer(g.lead, fav, null, actionId)
-      // Continue to Applied once the card is sent from the composer.
-      setGuestCard((prev) => (prev ? { ...prev, onSent: proceed } : prev))
+      // On SEND (not cancel): record the applied property (Check App), THEN continue
+      // the deferred move to Applied. handleGuestCardSent completes the guest card +
+      // records history first, then invokes this.
+      setGuestCard((prev) =>
+        prev
+          ? {
+              ...prev,
+              onSent: () => {
+                void (async () => {
+                  await guardRecordAppliedProperty(g, favId, favName)
+                  proceed()
+                })()
+              },
+            }
+          : prev,
+      )
     })()
   }
 
