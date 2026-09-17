@@ -2842,9 +2842,16 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   const veilInsetCls = agendaOnRight
     ? followUpsOpen ? "left-0 right-[228px]" : "left-0 right-[48px]"
     : followUpsOpen ? "left-[228px] right-0" : "left-[48px] right-0"
+  // Align the client-workspace overlay to the board's CONTENT box so it lines up
+  // with the Lead Board shell: LEFT = the New column's left edge (agenda edge +
+  // the 18px .kb-board padding → 246px open / 66px closed), RIGHT = the Focus
+  // button / last-column edge (the 18px .kb-toolbar/.kb-board right padding). The
+  // veil above stays full-width (agenda edge → app edge) so no columns peek out;
+  // only the interactive content is inset to the shell box. Mirrors when the
+  // Agenda is on the right.
   const overlayInsetCls = agendaOnRight
-    ? followUpsOpen ? "left-0 right-[242px]" : "left-0 right-[62px]"
-    : followUpsOpen ? "left-[242px] right-0" : "left-[62px] right-0"
+    ? followUpsOpen ? "left-[18px] right-[246px]" : "left-[18px] right-[66px]"
+    : followUpsOpen ? "left-[246px] right-[18px]" : "left-[66px] right-[18px]"
   // In Focus Mode with a lead open, the board toolbar stays visible: the veil starts just below
   // it, and the Lead Detail content starts a further `focusBoardPad` (the board's own .kb-board
   // top padding) down — so the content begins at the SAME Y as the Kanban cards do (same

@@ -755,9 +755,11 @@ if (Number(lead.credit_score) <= 580) {
 
   return (
     // Desktop 50/50 two-column workspace (layout only). Left column and right
-    // column each keep their own vertical `space-y-2` rhythm; a 24px gutter
-    // (gap-6) separates them, no divider. Stacks to one column below `lg`.
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start pt-0 -mt-6">
+    // column each keep their own vertical `space-y-2` rhythm. A 32px center gutter
+    // (lg:gap-8 — modestly wider than the 16px Kanban column gap) separates
+    // properties/tools from insights/notes for clearer scanning, no divider. Below
+    // `lg` it stacks to one column with the standard 24px vertical gap (gap-6).
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-start pt-0 -mt-6">
 
       {/* LEFT COLUMN — Recommended Properties, Favorite Properties, Client Tools */}
       <div className="space-y-2 min-w-0">
