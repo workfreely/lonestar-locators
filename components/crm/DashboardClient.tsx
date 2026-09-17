@@ -10,7 +10,6 @@ import LeadPanel from "./LeadPanel"
 import LeadInsights from "./LeadInsights"
 import LeadFavorites from "./LeadFavorites"
 import LeadNotes from "./LeadNotes"
-import ClientWorkspaceTools from "./ClientWorkspaceTools"
 import BestMatches from "./BestMatches"
 import LeadFormModal from "../LeadFormModal"
 import FollowUpTemplatesModal from "./FollowUpTemplatesModal"
@@ -3868,12 +3867,11 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                       )
                     }}
                   />
-                  <ClientWorkspaceTools
-                    lead={selectedLead}
-                    topMatches={topMatches}
-                    locatorName={((agent?.name || "").trim().split(/\s+/)[0]) || ""}
-                    followUpTemplates={localFollowUpTemplates}
-                  />
+                  {/* Client Tools (Text Top 3 / AI/Voicemail Script) removed from the
+                      workspace — the vertical room returns to the property workflow.
+                      The features are PRESERVED (ClientWorkspaceTools, AiVoiceScriptModal,
+                      buildTextTop3Body) and their agent-level ON/OFF preferences now live
+                      in the Beast Companion hamburger. Relocation, not deletion. */}
                   {/* Invoice Details — the Closed-lead commission/invoice record
                       (leads.invoice_*). Surfaced in the workspace (the legacy Lead
                       Panel that used to host it is off) so the Closed workflow can
