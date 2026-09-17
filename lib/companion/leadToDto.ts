@@ -1,5 +1,6 @@
 import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO, RecommendationDTO, FollowUpOverrides } from "@bc/companion-shared"
 import { visibleRecommendations, favoriteMoveBlock } from "@/lib/leads/propertyCollections"
+import { isClientFavorite } from "@/lib/leads/favoriteOrigin"
 import { isLeadStage, APPLICATION_LAST_ACTION_LABELS, isApplicationStatus } from "@bc/companion-shared"
 import { getNextAction } from "@/lib/nextAction"
 import { rankLeadActions } from "@/lib/nextActions"
@@ -473,7 +474,8 @@ export function buildActiveClientPayload(
   }
 
   const favoriteDtos: FavoriteDTO[] = (favorites || [])
-    .filter((f: any) => String(f.lead_id) === String(lead.id))
+    // GENUINE Client Favorites only — application-only identity rows stay hidden.
+    .filter((f: any) => String(f.lead_id) === String(lead.id) && isClientFavorite(f))
     .map((f: any) => ({
       id: f.id,
       propertyName: str(f.property_name) ?? "Property",

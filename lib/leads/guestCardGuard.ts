@@ -38,9 +38,16 @@ const sameProp = (a: number | string | null | undefined, b: number | string | nu
  *
  *   applied → open start_application.property_id
  *           → open check_application.property_id
- *           → lead.top_pick_favorite_id
+ *           → lead.top_pick_favorite_id   (legacy fallback)
  *   closed  → open confirm_lease.property_id
- *           → lead.top_pick_favorite_id
+ *           → open check_application.property_id
+ *           → lead.top_pick_favorite_id   (legacy fallback)
+ *
+ * The check_application step in the `closed` branch lets a lead that reached Applied
+ * via the drag/Voice guard (which now stamps the applied property onto Check App
+ * rather than Top Pick) still resolve its property when advancing Applied → Closed,
+ * WITHOUT relying on Top Pick. top_pick_favorite_id stays as a last-resort fallback
+ * so legacy leads (whose property lives only in Top Pick) keep resolving.
  */
 export function resolveGuardPropertyId(
   lead: { top_pick_favorite_id?: number | string | null } | null | undefined,
@@ -58,6 +65,8 @@ export function resolveGuardPropertyId(
   } else {
     const fromLease = open("confirm_lease")
     if (fromLease != null) return fromLease
+    const fromCheck = open("check_application")
+    if (fromCheck != null) return fromCheck
   }
   return lead?.top_pick_favorite_id ?? null
 }

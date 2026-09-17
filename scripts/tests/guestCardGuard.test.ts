@@ -43,8 +43,17 @@ check("completed start_application does NOT count (must be open)",
 console.log("\nresolveGuardPropertyId — closed hierarchy")
 check("open confirm_lease wins",
   resolveGuardPropertyId({ top_pick_favorite_id: 99 }, [{ action_key: "confirm_lease", property_id: 33, status: "open" }], "closed"), 33)
-check("closed falls back to top_pick",
+check("closed reads open check_application before top_pick (drag/Voice Applied path, no Top Pick)",
+  resolveGuardPropertyId({ top_pick_favorite_id: 99 }, [{ action_key: "check_application", property_id: 44, status: "open" }], "closed"), 44)
+check("closed: confirm_lease still beats check_application",
+  resolveGuardPropertyId({ top_pick_favorite_id: 99 }, [
+    { action_key: "check_application", property_id: 44, status: "open" },
+    { action_key: "confirm_lease", property_id: 33, status: "open" },
+  ], "closed"), 33)
+check("closed falls back to top_pick (legacy) when no open action",
   resolveGuardPropertyId({ top_pick_favorite_id: 77 }, [], "closed"), 77)
+check("closed: completed check_application does NOT count",
+  resolveGuardPropertyId({ top_pick_favorite_id: 77 }, [{ action_key: "check_application", property_id: 44, status: "completed" }], "closed"), 77)
 
 console.log("\nhasCompletedGuestCardAction — PER-PROPERTY")
 check("completed card for A satisfies A", hasCompletedGuestCardAction(1, [gc(1)]), true)

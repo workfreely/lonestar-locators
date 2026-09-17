@@ -10,6 +10,7 @@ import { SectionCard } from "./LeadPanelSections"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { upcomingTourForFavorite } from "@/lib/leads/upcomingTour"
 import { favoriteMoveBlock } from "@/lib/leads/propertyCollections"
+import { isClientFavorite } from "@/lib/leads/favoriteOrigin"
 import { propertyWebsiteHref } from "@/lib/propertyExplorer/types"
 import { displayAddress, formatRating } from "@bc/companion-shared"
 import { StarRating } from "./StarRating"
@@ -138,7 +139,10 @@ export default function LeadFavorites({
     setSchedDateTime("")
   }, [lead.id])
 
-  const leadFavorites = favorites.filter((f) => f.lead_id === lead.id)
+  // Only GENUINE Client Favorites appear here — application-only identity rows
+  // (origin='application', created to anchor an Applied/guest-card workflow) are
+  // hidden. They remain in the favorites data (identity/FK target), just not shown.
+  const leadFavorites = favorites.filter((f) => f.lead_id === lead.id && isClientFavorite(f))
   // This lead's scheduled tours (read-only). Each Favorite resolves its own
   // upcoming appointment by lead_tours.property_id.
   const leadTours = tours.filter((t) => String(t.lead_id) === String(lead.id))
@@ -203,9 +207,38 @@ export default function LeadFavorites({
       return true
     }
 
+    // Dedupe/promotion by (lead_id, property_url): a property that already exists for
+    // this lead is never duplicated. If the existing row is an application-only
+    // identity row, PROMOTE it in place to a genuine favorite (same id, all FKs
+    // preserved); if it is already a genuine favorite, it is left as-is. Only entries
+    // with no existing row are inserted.
+    const existingByUrl = (url: string) =>
+      favorites.find((f) => f.lead_id === lead.id && String(f.property_url ?? "") === String(url ?? "")) ?? null
+    const toInsert = entries.filter((input) => !existingByUrl(input.propertyUrl || ""))
+    const toPromote = entries
+      .map((input) => existingByUrl(input.propertyUrl || ""))
+      .filter((row): row is any => !!row && !isClientFavorite(row))
+
+    if (toPromote.length > 0) {
+      const ids = toPromote.map((r) => r.id)
+      setFavorites?.((prev) => prev.map((f) => (ids.includes(f.id) ? { ...f, origin: "favorite" } : f)))
+      const realIds = ids.filter((id) => !String(id).startsWith("demo-"))
+      if (realIds.length > 0) {
+        const { error: promoteErr } = await supabase.from("lead_favorites").update({ origin: "favorite" }).in("id", realIds)
+        if (promoteErr) console.error("[favorite] promote failed:", promoteErr)
+      }
+    }
+
+    if (toInsert.length === 0) {
+      // Everything the agent added already existed (and any application rows were just
+      // promoted) — nothing new to insert.
+      setShowFavoriteModal(false)
+      return true
+    }
+
     const { data, error } = await supabase
       .from("lead_favorites")
-      .insert(entries.map((input) => ({
+      .insert(toInsert.map((input) => ({
         lead_id: lead.id,
         property_name: input.propertyName || null,
         property_url: input.propertyUrl || null,

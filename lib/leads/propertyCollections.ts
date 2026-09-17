@@ -7,6 +7,8 @@
 // mutation handler and the Companion's row controls can share one set of rules, and
 // so the rules are unit-testable without a database.
 
+import { isClientFavorite } from "@/lib/leads/favoriteOrigin"
+
 /** The stable identity of a saved property inside one client's collections. The SAD
  *  ViewProperty URL embeds the propertyID, so it is the same key both tables dedupe on. */
 export function propertyKey(row: { property_url?: string | null } | null | undefined): string {
@@ -27,11 +29,14 @@ function sameLead(row: { lead_id?: unknown }, leadId: unknown): boolean {
  */
 export function visibleRecommendations<T extends { lead_id?: unknown; property_url?: string | null }>(
   recommendations: T[],
-  favorites: { lead_id?: unknown; property_url?: string | null }[],
+  favorites: { lead_id?: unknown; property_url?: string | null; origin?: string | null }[],
   leadId: unknown,
 ): T[] {
+  // Only GENUINE Client Favorites suppress a matching Recommendation. An application-
+  // only identity row (origin='application') is a hidden workflow anchor, not a
+  // favorite, so it must NOT hide a real Recommendation of the same property.
   const favouredKeys = new Set(
-    (favorites || []).filter((f) => sameLead(f, leadId)).map(propertyKey).filter(Boolean),
+    (favorites || []).filter((f) => sameLead(f, leadId) && isClientFavorite(f)).map(propertyKey).filter(Boolean),
   )
   return (recommendations || []).filter((r) => {
     const key = propertyKey(r)

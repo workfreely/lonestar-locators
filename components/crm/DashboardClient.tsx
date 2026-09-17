@@ -56,6 +56,7 @@ import {
   resolveGuardPropertyId,
   isGuestCardHandled,
 } from "@/lib/leads/guestCardGuard"
+import { FAVORITE_ORIGIN, isClientFavorite, isApplicationIdentity } from "@/lib/leads/favoriteOrigin"
 import GuestCardGuardModal, { type GuestCardGuardView } from "./GuestCardGuardModal"
 import { completeTourFollowUp } from "@/lib/leads/tourFollowUpWorkflow"
 import { completeApplicationOutcome } from "@/lib/leads/applicationOutcomeWorkflow"
@@ -1081,19 +1082,16 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       return false
     }
   }
-  // Persist the lead's Top Pick (the applied/leased property). Reuses the existing
-  // top_pick_favorite_id column; optimistic + DB write + ref sync.
-  function setLeadTopPick(leadId: number | string, favId: number | string) {
-    setLocalLeads((prev) => prev.map((l: any) => (String(l.id) === String(leadId) ? { ...l, top_pick_favorite_id: favId } : l)))
-    localLeadsRef.current = localLeadsRef.current.map((l: any) =>
-      String(l.id) === String(leadId) ? { ...l, top_pick_favorite_id: favId } : l,
-    )
-    if (!isDemoLeadId(leadId)) void supabase.from("leads").update({ top_pick_favorite_id: favId }).eq("id", leadId)
-  }
+  // NOTE: the Applied guard no longer manufactures Top Pick ("Top Pick does NOT imply
+  // Applied"). The applied property is recorded on the property-scoped application
+  // action instead (ensureAppliedPropertyAction). Top Pick remains owned by the
+  // favorite-based flows (e.g. tourFollowUpWorkflow "Ready to Apply").
 
-  // Find (by property_url) or create the lead_favorites row for a chosen property,
-  // reusing the EXISTING favorite insert (LeadFavorites pattern) — the canonical
-  // property identity + Top Pick target. Returns { id, name }.
+  // Find (by property_url) or create the lead_favorites row that anchors a chosen
+  // Applied property. A NEW row is stamped origin='application' (a property-identity
+  // anchor, hidden from Favorite Properties — NOT a client favorite). A dedupe hit is
+  // returned UNCHANGED: if the client already favorited this property, applying to it
+  // must not demote that genuine favorite. Returns { id, name }.
   async function ensureFavoriteForProperty(
     leadId: number | string,
     property: { propertyUrl: string; propertyName: string; propertyAddress?: string | null },
@@ -1105,14 +1103,14 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     )
     if (existing) return { id: existing.id, name: existing.property_name || name }
     if (isDemoLeadId(leadId)) {
-      const demo = { id: `demo-fav-${leadId}-${Date.now()}`, lead_id: leadId, property_name: name, property_url: url || null, property_address: property.propertyAddress ?? null }
+      const demo = { id: `demo-fav-${leadId}-${Date.now()}`, lead_id: leadId, property_name: name, property_url: url || null, property_address: property.propertyAddress ?? null, origin: FAVORITE_ORIGIN.application }
       setLocalFavorites((prev: any) => [...prev, demo])
       localFavoritesRef.current = [...localFavoritesRef.current, demo]
       return { id: demo.id, name }
     }
     const { data, error } = await supabase
       .from("lead_favorites")
-      .insert({ lead_id: leadId, property_name: name, property_url: url || null, property_address: property.propertyAddress ?? null, property_image_url: null })
+      .insert({ lead_id: leadId, property_name: name, property_url: url || null, property_address: property.propertyAddress ?? null, property_image_url: null, origin: FAVORITE_ORIGIN.application })
       .select("*")
       .single()
     if (error || !data) {
@@ -1129,7 +1127,8 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // property the agent selects then changes away from (via "Change property") never
   // becomes recorded state. The selection is finalized only on completion. An
   // existing favorite whose guest card is already handled short-circuits to proceed
-  // (that IS a completion, so its Top Pick is recorded then).
+  // (that IS a completion, so the canonical application association is recorded then —
+  // via the property-scoped action, NOT Top Pick).
   type GuardPending = NonNullable<NonNullable<typeof guestCardGuard>["pending"]>
   function guardAdvanceToGuestCard(pending: GuardPending) {
     const g = guestCardGuard
@@ -1140,8 +1139,10 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         .map((k) => k.slice(String(g.lead.id).length + 1))
       if (isGuestCardHandled(pending.favId, localNextActionsRef.current, sessionConfirmed)) {
         setGuestCardGuard(null)
-        setLeadTopPick(g.lead.id, pending.favId)
-        g.proceed()
+        void (async () => {
+          await ensureAppliedPropertyAction(g.lead, pending.favId, pending.name, g.targetStage)
+          g.proceed()
+        })()
         return
       }
     }
@@ -1154,17 +1155,20 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   }
 
   // Resolve the guard's chosen property into a real favorite id at COMPLETION, and
-  // only now record it as the application property (Top Pick). For a provisional
-  // Step-1 selection this creates the favorite row (searched/added) and sets Top
-  // Pick; for the "known property" path (no pending) it returns the already-resolved
-  // favId unchanged — no new write, matching prior behavior.
+  // record it canonically on the property-scoped application action (NOT Top Pick —
+  // "Top Pick does NOT imply Applied"). For a provisional Step-1 selection this
+  // creates the property-identity row (searched/added, origin='application') and
+  // stamps/creates the Check App association. For the "known property" path (no
+  // pending) it returns the already-resolved favId and ensures the association exists.
   async function guardFinalizeSelection(g: NonNullable<typeof guestCardGuard>): Promise<
     { favId: number | string; fav: any } | null
   > {
+    let favId: number | string
+    let favName = ""
     if (g.pending) {
-      let favId: number | string
       if (g.pending.kind === "favorite") {
         favId = g.pending.favId
+        favName = g.pending.name
       } else {
         const created = await ensureFavoriteForProperty(g.lead.id, {
           propertyUrl: g.pending.propertyUrl,
@@ -1173,14 +1177,117 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         })
         if (!created) return null
         favId = created.id
+        favName = created.name
       }
-      setLeadTopPick(g.lead.id, favId)
-      const fav = localFavoritesRef.current.find((f: any) => String(f.id) === String(favId)) ?? null
-      return { favId, fav }
+    } else {
+      if (g.favId == null) return null
+      favId = g.favId
+      favName = guestCardPropertyName(g.favId)
     }
-    if (g.favId == null) return null
-    const fav = localFavoritesRef.current.find((f: any) => String(f.id) === String(g.favId)) ?? null
-    return { favId: g.favId, fav }
+    // Canonical Applied-property association (replaces the old setLeadTopPick).
+    await ensureAppliedPropertyAction(g.lead, favId, favName, g.targetStage)
+    const fav = localFavoritesRef.current.find((f: any) => String(f.id) === String(favId)) ?? null
+    return { favId, fav }
+  }
+
+  // Record the chosen property on the canonical property-scoped application action —
+  // the relationship the rest of the app already uses (resolveGuardPropertyId reads
+  // it; applicationOutcomeWorkflow / confirmLease read it). Idempotent, and keyed off
+  // which open action exists so it never double-creates:
+  //   • an open start_application  → stamp its property_id/name (applyApplicationSubmitted
+  //                                  then propagates it to check_application);
+  //   • else an open check_application → stamp it;
+  //   • else (drag/Voice → Applied, which creates no action) → create an open Check App
+  //     stamped with the property. For 'closed' we only stamp an existing open action
+  //     (the lease flow owns confirm_lease creation) and never fabricate one.
+  async function ensureAppliedPropertyAction(
+    lead: any,
+    favId: number | string,
+    favName: string,
+    targetStage: "applied" | "closed",
+  ) {
+    const isOpenRow = (a: any) => a?.completed !== true && String(a?.status ?? "") !== "completed" && String(a?.status ?? "") !== "canceled"
+    const findOpen = (key: string) =>
+      localNextActionsRef.current.find(
+        (a: any) => String(a.lead_id) === String(lead.id) && String(a.action_key ?? "") === key && isOpenRow(a),
+      )
+    const stamp = (row: any) => {
+      if (row.property_id != null && String(row.property_id) === String(favId)) return // already correct
+      const patch = { property_id: favId, property_name: favName || row.property_name || null }
+      setLocalNextActions((prev: any) => prev.map((a: any) => (String(a.id) === String(row.id) ? { ...a, ...patch } : a)))
+      localNextActionsRef.current = localNextActionsRef.current.map((a: any) => (String(a.id) === String(row.id) ? { ...a, ...patch } : a))
+      if (!isDemoLeadId(lead.id) && !String(row.id).startsWith("demo-")) {
+        void supabase.from("lead_next_actions").update(patch).eq("id", row.id)
+      }
+    }
+
+    const openApply = findOpen("start_application")
+    if (openApply) return stamp(openApply)
+    const openCheck = findOpen("check_application")
+    if (openCheck) return stamp(openCheck)
+    if (targetStage === "closed") return // lease flow owns confirm_lease; nothing to create here
+
+    // Drag/Voice → Applied created no property-scoped action — create the canonical
+    // Check App now, stamped with the chosen property (mirrors applyApplicationSubmitted).
+    if (isDemoLeadId(lead.id)) {
+      const demo = {
+        id: `demo-act-checkapp-${Date.now()}`, lead_id: lead.id, title: "Check App", action_key: "check_application",
+        property_id: favId, property_name: favName || null, due_at: autoDueInDays(3, timeZone),
+        priority: "medium", completed: false, status: "open",
+      }
+      setLocalNextActions((prev: any) => [...prev, demo])
+      localNextActionsRef.current = [...localNextActionsRef.current, demo]
+      return
+    }
+    const created = await createWorkflowActionIfNeeded(supabase, lead.id, {
+      title: "Check App",
+      dueAt: autoDueInDays(3, timeZone),
+      actionKey: "check_application",
+      propertyId: favId,
+      propertyName: favName || null,
+    })
+    if (created) {
+      setLocalNextActions((prev: any) => [...prev, created])
+      localNextActionsRef.current = [...localNextActionsRef.current, created]
+    }
+  }
+
+  // Convert a genuine Favorite into an application-only identity row (origin=
+  // 'application'): it leaves Favorite Properties but the row — and every property_id
+  // FK / guest-card timeline reference pointing at it — is PRESERVED. Used when the
+  // agent removes a Favorite that is still (or was) serving a property-scoped
+  // workflow, so removal strips Favorite status without destroying identity/history.
+  function convertFavoriteToApplication(fav: any, forLead: any) {
+    const next = localFavoritesRef.current.map((f: any) =>
+      String(f.id) === String(fav.id) ? { ...f, origin: FAVORITE_ORIGIN.application } : f,
+    )
+    localFavoritesRef.current = next
+    setLocalFavorites(next)
+    postCompanionActiveClient({ ...forLead }, localNextActionsRef.current)
+    if (!isDemoLeadId(forLead.id) && !String(fav.id).startsWith("demo-")) {
+      void supabase.from("lead_favorites").update({ origin: FAVORITE_ORIGIN.application }).eq("id", fav.id)
+    }
+  }
+
+  // Authoritative "is this favorite referenced by a property-scoped workflow?" check
+  // for safe removal. The client loads only OPEN next actions, so COMPLETED/historical
+  // references (a finished guest card / check app / lease) and guest-card timeline
+  // references are invisible locally — this queries them directly. Tours are checked
+  // too (lead_tours.property_id is ON DELETE SET NULL). Fails safe (preserve) on error.
+  async function favoriteHasHistoricalReference(leadId: number | string, favId: number | string): Promise<boolean> {
+    if (localToursRef.current.some((t: any) => String(t.property_id ?? "") === String(favId))) return true
+    if (isDemoLeadId(leadId) || String(favId).startsWith("demo-")) {
+      return localNextActionsRef.current.some((a: any) => String(a.property_id ?? "") === String(favId))
+    }
+    try {
+      const [actions, timeline] = await Promise.all([
+        supabase.from("lead_next_actions").select("id", { count: "exact", head: true }).eq("lead_id", leadId).eq("property_id", favId),
+        supabase.from("lead_timeline").select("id", { count: "exact", head: true }).eq("lead_id", leadId).eq("type", "guest_card").eq("metadata->>property_id", String(favId)),
+      ])
+      return (actions.count ?? 0) > 0 || (timeline.count ?? 0) > 0
+    } catch {
+      return true // uncertain → never destroy identity
+    }
   }
 
   // Shared guard entry (drag / Voice / canonical Apply / Confirm Lease). Skips the
@@ -1194,7 +1301,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     const propertyId = resolveGuardPropertyId(lead, localNextActionsRef.current, targetStage)
 
     const openStep1 = () => {
-      const favorites = localFavoritesRef.current.filter((f: any) => String(f.lead_id) === String(lead.id))
+      // Quick-pick chips show only GENUINE Client Favorites (never application-only
+      // identity rows). The agent can still search for any property.
+      const favorites = localFavoritesRef.current.filter((f: any) => String(f.lead_id) === String(lead.id) && isClientFavorite(f))
       setGuestCardGuard({ lead, targetStage, favId: null, proceed, view: { step: "property", clientName, favorites } })
     }
 
@@ -1260,7 +1369,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   function guardBackToProperty() {
     const g = guestCardGuard
     if (!g) return
-    const favorites = localFavoritesRef.current.filter((f: any) => String(f.lead_id) === String(g.lead.id))
+    const favorites = localFavoritesRef.current.filter((f: any) => String(f.lead_id) === String(g.lead.id) && isClientFavorite(f))
     // Seed Step 1 with the property being changed from (the current Step-2 name), so
     // the agent sees what they're changing before picking a different property.
     const seedQuery = g.view.step === "guest-card" ? g.view.propertyName : undefined
@@ -2571,25 +2680,69 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         const propertyName = String(p?.propertyName ?? sourceRow?.property_name ?? "").trim()
         if (!propertyName) return
 
-        // Favorite → Recommendation is blocked while the Favorite still carries a
-        // downstream dependency (Top Pick / scheduled tour / open property-scoped
-        // action). Re-checked HERE even though the Companion also disables the control,
-        // so a stale panel can never null out a real relationship.
+        // Removing a Favorite (× → move-to-recommendation) must never destroy a
+        // property identity a workflow depends on. If the Favorite is referenced by a
+        // property-scoped workflow — a LIVE dependency (Top Pick / scheduled tour /
+        // open action, via favoriteMoveBlock) OR a HISTORICAL one (completed action /
+        // guest-card timeline, checked async because only OPEN actions load client-
+        // side) — CONVERT it in place to an application-only identity row instead:
+        // it leaves Favorites, every FK/history is preserved, and NO Recommendation is
+        // created. Only a genuinely unreferenced Favorite falls through to the normal
+        // Favorite → Recommendation move below.
         if (!isFav && sourceRow) {
-          const block = favoriteMoveBlock({
-            favorite: sourceRow,
+          const src = sourceRow
+          const liveRef = !!favoriteMoveBlock({
+            favorite: src,
             lead,
             tours: localToursRef.current,
             nextActions: localNextActionsRef.current,
-          })
-          if (block.reason) {
-            postCompanionActiveClient({ ...lead }, localNextActionsRef.current) // re-sync control state
+          }).reason
+          if (liveRef) {
+            convertFavoriteToApplication(src, lead)
             return
           }
+          if (!(payload as any).__refChecked) {
+            void (async () => {
+              if (await favoriteHasHistoricalReference(lead.id, src.id)) {
+                convertFavoriteToApplication(src, lead)
+              } else {
+                // No dependency → re-dispatch the SAME move, flagged so this 2nd pass
+                // skips the async check and runs the normal move logic unchanged.
+                onVerb(
+                  new MessageEvent("message", {
+                    source: window,
+                    origin: window.location.origin,
+                    data: { source: COMPANION_MSG_SOURCE, type: "workflow-verb", payload: { ...payload, __refChecked: true } },
+                  }),
+                )
+              }
+            })()
+            return
+          }
+          // __refChecked → unreferenced; fall through to the normal move.
         }
 
         // Duplicate guard: same client + same property URL already in the destination.
-        if (currentList.some((r: any) => String(r.lead_id) === String(lead.id) && String(r.property_url ?? "") === propertyUrl)) {
+        const destDup = currentList.find(
+          (r: any) => String(r.lead_id) === String(lead.id) && String(r.property_url ?? "") === propertyUrl,
+        )
+        if (destDup) {
+          // PROMOTION: favoriting a property that already exists as an application-only
+          // identity row must reuse that SAME row (preserving its id + every FK), not
+          // create a duplicate. Flip it to a genuine favorite in place so it appears in
+          // Favorite Properties. (Recommendation dest is never application-origin.)
+          if (isFav && isApplicationIdentity(destDup)) {
+            const promoted = localFavoritesRef.current.map((f: any) =>
+              String(f.id) === String(destDup.id)
+                ? { ...f, origin: FAVORITE_ORIGIN.favorite, property_name: destDup.property_name || propertyName || f.property_name }
+                : f,
+            )
+            localFavoritesRef.current = promoted
+            setLocalFavorites(promoted)
+            if (!isDemoLeadId(lead.id) && !String(destDup.id).startsWith("demo-")) {
+              void supabase.from("lead_favorites").update({ origin: FAVORITE_ORIGIN.favorite }).eq("id", destDup.id)
+            }
+          }
           // Already at the destination. If a legacy duplicate still sits in the source
           // collection, this deliberate action resolves it through the normal path.
           if (sourceRow) removeSourceRow(sourceRow, isFav, lead)
