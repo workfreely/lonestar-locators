@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SectionCard } from "../lead/primitives";
 import { PropertyThumb } from "../properties/PropertyThumb";
 import { TourTimeField } from "../lead/TourTimeField";
 import { displayAddress, formatRating, formatPhone, DEFAULT_TIME_VALUE, type FavoriteDTO, type AutofillLocator } from "@bc/companion-shared";
@@ -126,12 +127,15 @@ export function TourModeView({
   const canSave = !!tourDate && !!tourTime;
 
   return (
-    <div style={{ padding: 12 }}>
+    // Column with a consistent gap between major sections — the same vertical
+    // rhythm the Companion's card screens use (property → autofill → info card →
+    // tour card), so Tour Mode no longer reads as compressed.
+    <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 14 }}>
       {/* Label + active client's name on ONE line — the muted uppercase label with
           the client's name in white/semibold so their identity reads immediately.
           flex-wrap lets an unusually long name drop to the next line; no card, no
           phone/email (those stay in the data section below). */}
-      <p style={{ margin: "0 0 9px", display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 6, fontSize: 11, letterSpacing: "0.08em", lineHeight: 1.35 }}>
+      <p style={{ margin: "0 0 2px", display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 6, fontSize: 11, letterSpacing: "0.08em", lineHeight: 1.35 }}>
         <span style={{ textTransform: "uppercase", color: "var(--lb-text-muted, #8b93a3)", fontWeight: 700 }}>Scheduling Tour For</span>
         {clientFullName && (
           <span style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: "normal", color: "var(--lb-text-primary, #e9ebef)" }}>{clientFullName}</span>
@@ -158,16 +162,15 @@ export function TourModeView({
 
       {/* Primary action — clicking runs the per-site permission request, then the
           autofill. Never submits; never overwrites a field the agent already changed. */}
-      <button type="button" onClick={autofill} disabled={busy} style={{ ...CTA, opacity: busy ? 0.6 : 1, cursor: busy ? "default" : "pointer" }}>
+      <button type="button" onClick={autofill} disabled={busy} style={{ ...CTA, marginTop: 0, opacity: busy ? 0.6 : 1, cursor: busy ? "default" : "pointer" }}>
         {busy ? "Autofilling…" : "Autofill Tour Form"}
       </button>
-      {/* Data preview — OPEN by default in Tour Mode (transparency: the agent sees
-          exactly what Beast is about to autofill), still collapsible. */}
-      <details open style={{ marginTop: 12, border: "1px solid var(--lb-border-soft, #242a37)", borderRadius: 10, overflow: "hidden" }}>
-        <summary style={{ listStyle: "none", cursor: "pointer", padding: "8px 11px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--lb-text-secondary, #c2c7d0)", background: "var(--lb-inset, #12151c)" }}>
-          Information to Autofill
-        </summary>
-        <div style={{ padding: "8px 11px" }}>
+      {/* ONE card holding BOTH client + locator info — the canonical Companion
+          SectionCard (same border/radius/surface/heading treatment as Search
+          Criteria, Current Property, etc.). Client rows, a divider, then the
+          Locator Information sub-group. */}
+      <SectionCard title="Information to Autofill">
+        <div>
           {kv("Name", [client.firstName, client.lastName].filter(Boolean).join(" ") || null)}
           {kv("Email", client.email)}
           {/* Display-only formatting — the autofill payload keeps the raw values. */}
@@ -175,8 +178,8 @@ export function TourModeView({
           {kv("Move date", displayMoveDate(client.moveDate))}
           {kv("Bedrooms", client.bedrooms)}
         </div>
-        <div style={{ padding: "8px 11px", borderTop: "1px solid var(--lb-border-soft, #242a37)" }}>
-          <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--lb-text-muted, #8b93a3)", margin: "2px 0 5px", fontWeight: 700 }}>Locator Information</div>
+        <div style={{ borderTop: "1px solid var(--lb-border-soft, #242a37)", paddingTop: 9 }}>
+          <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--lb-text-muted, #8b93a3)", margin: "0 0 5px", fontWeight: 700 }}>Locator Information</div>
           {kv("Name", [locator?.firstName, locator?.lastName].filter(Boolean).join(" ") || null)}
           {kv("Email", locator?.email)}
           {kv("Phone", locator?.phone)}
@@ -184,10 +187,12 @@ export function TourModeView({
             Locator information is only added to the message.
           </div>
         </div>
-      </details>
+      </SectionCard>
 
-      {/* Manual date/time → Confirm (v1). Runtime capture is the follow-up. */}
-      <div style={{ marginTop: 12, background: "var(--lb-inset, #12151c)", border: "1px solid var(--lb-border, #2b3140)", borderRadius: 11, padding: 11 }}>
+      {/* Manual date/time → Confirm. Aligned to the same card treatment (surface /
+          border / 14px radius) as the info card; the parent gap gives the breathing
+          room before it. */}
+      <div style={{ background: "var(--lb-surface, #12151c)", border: "1px solid var(--lb-border, #2b3140)", borderRadius: 14, padding: "11px 13px 13px" }}>
         <div style={{ fontSize: 13, color: "var(--lb-text-primary, #e9ebef)", fontWeight: 600, marginBottom: 8 }}>When is the tour?</div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <input
