@@ -3856,6 +3856,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                           leadId: selectedLead.id,
                           favoriteId: args.favoriteId,
                           propertyName: args.propertyName,
+                          // Exact scheduler URL opened for this tour — lets the Companion
+                          // bind Autofill to the property tab/origin (not the active tab).
+                          url: args.url,
                           nonce: `${Date.now()}-${Math.random()}`,
                         },
                         window.location.origin,

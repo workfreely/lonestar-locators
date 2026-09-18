@@ -80,7 +80,7 @@ export default function LeadFavorites({
   onScheduleTour?: (lead: any, args: { favoriteId: number | string; propertyName?: string | null; tourDate: string; tourTime: string }) => void
   // Fired the moment Schedule Tour opens the external scheduler — tells an open
   // Beast Companion to enter Tour Mode for this favorite. Absent → no signal.
-  onEnterTourMode?: (args: { favoriteId: number | string; propertyName: string | null }) => void
+  onEnterTourMode?: (args: { favoriteId: number | string; propertyName: string | null; url: string | null }) => void
   onCancelTour?: (lead: any, args: { tourId: number | string; propertyId?: number | string | null }) => void
   // Open the reused Guest Card composer for a scheduled property (Schedule Tour →
   // Send Guest Card → Tour Follow-Up). Absent → the control is hidden.
@@ -589,7 +589,11 @@ export default function LeadFavorites({
                               type="button"
                               onClick={() => {
                                 window.open(schedTarget, "_blank", "noopener,noreferrer")
-                                onEnterTourMode?.({ favoriteId: fav.id, propertyName: fav.property_name ?? null })
+                                // Pass the EXACT scheduler URL we just opened so the
+                                // Companion can bind Autofill to THIS property tab/origin
+                                // (never the active tab). schedTarget is the tour_url/
+                                // website the new tab was opened to.
+                                onEnterTourMode?.({ favoriteId: fav.id, propertyName: fav.property_name ?? null, url: schedTarget })
                                 setSchedFavId(fav.id); setSchedStep("confirm"); setSchedDateTime("")
                               }}
                               className="inline-flex items-center gap-1.5 text-[var(--crm-accent)] hover:underline"
