@@ -66,19 +66,43 @@ export function autofillTourForm(payload: AutofillPayload): AutofillResult {
     try { if (el.labels) for (let i = 0; i < el.labels.length; i++) bits.push(el.labels[i].innerText || ""); } catch (e) { /* noop */ }
     const al = el.getAttribute && el.getAttribute("aria-label"); if (al) bits.push(al);
     const lb = el.getAttribute && el.getAttribute("aria-labelledby");
-    if (lb) lb.split(/\s+/).forEach((id: string) => { const n = el.ownerDocument.getElementById(id); if (n) bits.push(n.innerText || ""); });
+    if (lb) lb.split(/\s+/).forEach((id: string) => {
+      // Resolve within the element's own root (shadow root or document) so a
+      // shadow-scoped label id still matches; fall back to the top document.
+      const root = el.getRootNode ? el.getRootNode() : null;
+      const n = (root && root.getElementById ? root.getElementById(id) : null) || el.ownerDocument.getElementById(id);
+      if (n) bits.push(n.innerText || "");
+    });
     const p = el.closest && el.closest("label"); if (p) bits.push(p.innerText || "");
     let prev = el.previousElementSibling; let hops = 0;
     while (prev && hops < 2) { if (prev.innerText) { bits.push(prev.innerText); break; } prev = prev.previousElementSibling; hops++; }
     return textNorm(bits.join(" "));
   }
 
+  // Collect input/select/textarea from a root AND every OPEN shadow root nested
+  // within it. querySelectorAll does not pierce shadow DOM, so a form rendered
+  // inside a web component (e.g. PERQ / RentCafe render their guided-tour contact
+  // form as a Vue app inside an open shadow root on the property page) is otherwise
+  // invisible to the scan. Same document + origin — no permission/injection change;
+  // closed shadow roots are inaccessible by design and simply skipped.
+  function collectFields(root: any, out: any[]): void {
+    if (!root || !root.querySelectorAll) return;
+    const nodes = root.querySelectorAll("input, select, textarea");
+    for (let i = 0; i < nodes.length; i++) out.push(nodes[i]);
+    const all = root.querySelectorAll("*");
+    for (let i = 0; i < all.length; i++) {
+      const sr = all[i].shadowRoot;
+      if (sr) collectFields(sr, out);
+    }
+  }
+
   function candidates(doc: any): any[] {
+    const raw: any[] = [];
+    collectFields(doc, raw);
     const out: any[] = [];
-    const nodes = doc.querySelectorAll("input, select, textarea");
-    for (let i = 0; i < nodes.length; i++) {
-      const el = nodes[i];
-      if (el.tagName.toLowerCase() === "input") {
+    for (let i = 0; i < raw.length; i++) {
+      const el = raw[i];
+      if (el.tagName && el.tagName.toLowerCase() === "input") {
         const t = (el.type || "text").toLowerCase();
         if (["submit", "button", "reset", "hidden", "file", "image", "checkbox", "radio", "password", "search"].indexOf(t) >= 0) continue;
       }
