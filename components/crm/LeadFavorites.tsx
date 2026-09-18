@@ -40,6 +40,7 @@ export default function LeadFavorites({
   setFavorites,
   nextActions = [],
   setNextActions,
+  sentGuestCards = [],
   tours = [],
   timeZone,
   onRescheduleTour,
@@ -62,6 +63,10 @@ export default function LeadFavorites({
   setFavorites?: React.Dispatch<React.SetStateAction<any[]>>
   nextActions?: any[]
   setNextActions?: React.Dispatch<React.SetStateAction<any[]>>
+  // Durable per-property "Guest Card Sent" signal (completed email_guest_card rows,
+  // {lead_id, property_id}). Kept separate from the open-only nextActions so the
+  // "Guest Card Sent" state survives a refresh (individual or bulk completion).
+  sentGuestCards?: any[]
   // Canonical lead_tours appointments (read-only display). Each Favorite shows its
   // own upcoming scheduled tour, if any — lead_tours stays the source of truth.
   tours?: any[]
@@ -331,7 +336,14 @@ export default function LeadFavorites({
                   String(a.property_id ?? "") === String(fav.id) &&
                   (String(a.action_key ?? "") === "email_guest_card" || String(a.title ?? "").trim().toLowerCase() === "email guest card")
               )
-              const gcSent = !!gcAction && (gcAction.completed === true || gcAction.status === "completed")
+              // "Guest Card Sent" when the property-scoped email_guest_card action is
+              // completed. Derives from EITHER the in-session action (open queue still
+              // holds it right after completion) OR the durable sentGuestCards source
+              // (survives refresh; individual or bulk) — both canonical + property-scoped.
+              const gcSentDurable = (sentGuestCards ?? []).some(
+                (s: any) => String(s.lead_id) === String(lead.id) && String(s.property_id ?? "") === String(fav.id),
+              )
+              const gcSent = gcSentDurable || (!!gcAction && (gcAction.completed === true || gcAction.status === "completed"))
               // This property's scheduled tour (past OR future) + whether it has
               // already occurred → drives the Tour Follow-Up affordance once the
               // guest card is sent. (`tour` above is the FUTURE tour for display.)

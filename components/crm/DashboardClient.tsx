@@ -104,7 +104,7 @@ function toCompanionLocator(signature: ResolvedAgentIdentity | null, agentName?:
   }
 }
 
-export default function DashboardClient({ leads, nextActions, favorites, recommendations = [], outreach = [], tours = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, projectionMethod = DEFAULT_PROJECTION_METHOD, timeZone = DEFAULT_TIMEZONE, voiceEnabled = false, companionOwner = "", userId = "", serviceAreaSlugs = [], primaryMarket = null, licenseState = null, followUpTemplates = {} }: { leads: any[]; nextActions: any[]; favorites: any[]; recommendations?: any[]; outreach?: any[]; tours?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; projectionMethod?: ProjectionMethod; timeZone?: string; /** Beast Voice alpha — true only for a platform admin, resolved server-side. */ voiceEnabled?: boolean;
+export default function DashboardClient({ leads, nextActions, favorites, recommendations = [], outreach = [], tours = [], sentGuestCards = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, projectionMethod = DEFAULT_PROJECTION_METHOD, timeZone = DEFAULT_TIMEZONE, voiceEnabled = false, companionOwner = "", userId = "", serviceAreaSlugs = [], primaryMarket = null, licenseState = null, followUpTemplates = {} }: { leads: any[]; nextActions: any[]; favorites: any[]; recommendations?: any[]; outreach?: any[]; tours?: any[]; sentGuestCards?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; projectionMethod?: ProjectionMethod; timeZone?: string; /** Beast Voice alpha — true only for a platform admin, resolved server-side. */ voiceEnabled?: boolean;
   /** Opaque "<userId>:<workspaceId>" for the signed-in locator. Beast Companion
    *  binds every stored client record to it so a different account on the same
    *  browser can never see this locator's client. Server-derived. */
@@ -200,6 +200,12 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   const [topMatches, setTopMatches] = useState<any[]>([])
   const [localLeads, setLocalLeads] = useState(leads)
   const [localNextActions, setLocalNextActions] = useState(nextActions)
+  // Durable "Guest Card Sent" signal per property (completed email_guest_card rows,
+  // loaded separately from the open-only queue). Seeded from the server and appended
+  // optimistically on completion so the Favorite card flips immediately AND survives
+  // a refresh — individual or bulk. Never merged into localNextActions (keeps the
+  // open queue/ranking/agenda/Companion DTO untouched).
+  const [localSentGuestCards, setLocalSentGuestCards] = useState<any[]>(sentGuestCards)
 
   // Latest NON-successful outreach per lead (leadId → {type, method, occurredAt}),
   // the discriminator that turns a still-New lead's Follow Up into "Called — No
@@ -1394,6 +1400,15 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         metadata: { source: opts?.source ?? "guest_card_sent", property_id: favId, property_name: favName || guestCardPropertyName(favId) },
       })
     }
+
+    // Durable "Guest Card Sent" marker for the Favorite card — applied on EVERY
+    // completion path (composer, bulk, agent-confirmed) so the state is consistent
+    // in-session and (via the server load) across refreshes. Dedup keeps it flat.
+    setLocalSentGuestCards((prev) =>
+      prev.some((s) => String(s.lead_id) === String(lead.id) && String(s.property_id ?? "") === String(favId))
+        ? prev
+        : [...prev, { lead_id: lead.id, property_id: favId }],
+    )
 
     postCompanionActiveClient({ ...lead }, localNextActionsRef.current)
   }
@@ -3824,6 +3839,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                     setFavorites={setLocalFavorites}
                     nextActions={localNextActions}
                     setNextActions={setLocalNextActions}
+                    sentGuestCards={localSentGuestCards}
                     tours={localTours}
                     timeZone={timeZone}
                     onRescheduleTour={handleRescheduleTour}

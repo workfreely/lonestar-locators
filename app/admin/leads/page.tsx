@@ -69,6 +69,28 @@ async function getOpenNextActions() {
   return data || []
 }
 
+// Completed per-property Guest Cards — the DURABLE "Guest Card Sent" signal for
+// the Favorite card. Open actions ship via getOpenNextActions (open-only); these
+// COMPLETED email_guest_card rows are loaded separately (never merged into the
+// open queue) so the "Guest Card Sent" state survives a refresh, whether the card
+// was completed individually or through the bulk flow. Property-scoped by
+// property_id — one row per property, so it never marks a different favorite sent.
+async function getSentGuestCards() {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("lead_next_actions")
+    .select("id, lead_id, property_id")
+    .eq("action_key", "email_guest_card")
+    .eq("completed", true)
+
+  if (error) {
+    console.error("Error fetching sent guest cards:", error.message)
+    return []
+  }
+
+  return data || []
+}
+
 // Pending-outreach events — the most recent NON-successful outreach per lead
 // (a No-Answer call = 'contact_attempt', or a sent-but-unanswered text =
 // 'text_sent'). Ordered newest-first so the client keeps the first (latest) it
@@ -289,14 +311,15 @@ export default async function Page() {
     )
   }
 
-  const [leads, nextActions, favorites, recommendations, outreach, tours] = await Promise.all([
+  const [leads, nextActions, favorites, recommendations, outreach, tours, sentGuestCards] = await Promise.all([
     getLeads(),
     getOpenNextActions(),
     getFavorites(),
     getRecommendations(),
     getLatestOutreach(),
     getScheduledTours(),
+    getSentGuestCards(),
   ])
 
-  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} recommendations={recommendations} outreach={outreach} tours={tours} agent={agent} signature={signature} avgCommission={avgCommission} projectionMethod={projectionMethod} timeZone={timeZone} voiceEnabled={voiceEnabled} companionOwner={companionOwner} userId={userId} serviceAreaSlugs={serviceAreaSlugs} primaryMarket={primaryMarket} licenseState={licenseState} followUpTemplates={followUpTemplates} />
+  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} recommendations={recommendations} outreach={outreach} tours={tours} sentGuestCards={sentGuestCards} agent={agent} signature={signature} avgCommission={avgCommission} projectionMethod={projectionMethod} timeZone={timeZone} voiceEnabled={voiceEnabled} companionOwner={companionOwner} userId={userId} serviceAreaSlugs={serviceAreaSlugs} primaryMarket={primaryMarket} licenseState={licenseState} followUpTemplates={followUpTemplates} />
 }
