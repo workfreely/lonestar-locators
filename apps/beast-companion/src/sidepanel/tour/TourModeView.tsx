@@ -78,7 +78,6 @@ export function TourModeView({
   onConfirmTour: (args: { tourDate: string; tourTime: string }) => void;
 }) {
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
   const [tourDate, setTourDate] = useState("");
   const [tourTime, setTourTime] = useState(DEFAULT_TIME_VALUE);
 
@@ -93,32 +92,10 @@ export function TourModeView({
   async function autofill() {
     if (busy) return;
     setBusy(true);
-    setMsg(null);
     try {
-      const out = await onAutofillTour();
-      switch (out.status) {
-        case "filled":
-          setMsg(`Filled ${out.result.filled} field${out.result.filled === 1 ? "" : "s"} — review and submit on the scheduler.`);
-          break;
-        case "no-fields":
-          // No message shown (removed per UX cleanup; no replacement helper text).
-          setMsg(null);
-          break;
-        case "denied":
-          setMsg("Permission not granted — the scheduler stays open to fill manually.");
-          break;
-        case "on-crm":
-          setMsg("Switch to the property's scheduler tab, then click Autofill Tour Form.");
-          break;
-        case "no-tab":
-          setMsg("Open the scheduler tab, then click Autofill Tour Form.");
-          break;
-        case "unsupported":
-          setMsg("This page can't be autofilled — fill it manually.");
-          break;
-        default:
-          setMsg("Couldn't autofill — fill it manually.");
-      }
+      // Execution + arming are unchanged (handled by onAutofillTour); no status text
+      // is shown beneath the button (removed per UX request).
+      await onAutofillTour();
     } finally {
       setBusy(false);
     }
@@ -170,14 +147,6 @@ export function TourModeView({
       <button type="button" onClick={autofill} disabled={busy} style={{ ...CTA, opacity: busy ? 0.6 : 1, cursor: busy ? "default" : "pointer" }}>
         {busy ? "Autofilling…" : "Autofill Tour Form"}
       </button>
-      {/* Post-click OUTCOME only (e.g. "Couldn't autofill — fill it manually").
-          No status → nothing renders here. */}
-      {msg && (
-        <p style={{ margin: "8px 2px 0", fontSize: 11.5, lineHeight: 1.4, color: "var(--lb-text-muted, #8b93a3)" }}>
-          {msg}
-        </p>
-      )}
-
       {/* Data preview — OPEN by default in Tour Mode (transparency: the agent sees
           exactly what Beast is about to autofill), still collapsible. */}
       <details open style={{ marginTop: 12, border: "1px solid var(--lb-border-soft, #242a37)", borderRadius: 10, overflow: "hidden" }}>
