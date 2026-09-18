@@ -350,7 +350,7 @@ export function PanelApp({
           permanent third tab). Both modes share ModeHeader styling/sizing. */}
       {isLoaded &&
         (tourMode ? (
-          <ModeHeader label="TOUR MODE" backLabel="← Back to Client" onBack={onTourBack} ariaLabel="Tour Mode" />
+          <ModeHeader label="TOUR MODE" backLabel="← Back to Client Profile" onBack={onTourBack} ariaLabel="Tour Mode" />
         ) : (
           <ClientPropertiesNav active={activeView} onChange={setActiveView} />
         ))}

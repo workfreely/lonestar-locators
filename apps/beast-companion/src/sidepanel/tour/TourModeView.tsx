@@ -89,12 +89,6 @@ export function TourModeView({
   // never autofill). Same first+last source the Data preview uses; empty when the
   // client has no name so the line is omitted rather than rendering blank.
   const clientFullName = [client.firstName, client.lastName].filter(Boolean).join(" ").trim();
-  // First name for the autofill prompt copy (display only). Falls back to a
-  // grammatical generic when the client has no first name.
-  const clientFirst = (client.firstName ?? "").trim();
-  const autofillPrompt = clientFirst
-    ? `Allow Beast Companion to autofill ${clientFirst}’s information into this property’s tour form.`
-    : "Allow Beast Companion to autofill your client’s information into this property’s tour form.";
 
   async function autofill() {
     if (busy) return;
@@ -106,15 +100,10 @@ export function TourModeView({
         case "filled":
           setMsg(`Filled ${out.result.filled} field${out.result.filled === 1 ? "" : "s"} — review and submit on the scheduler.`);
           break;
-        case "no-fields": {
-          const t = out.result.tourTriggers ?? [];
-          setMsg(
-            t.length
-              ? `No fillable fields yet — open the scheduler (${t.slice(0, 2).join(" / ")}) or select a tour time, then Autofill again.`
-              : "No fillable fields visible yet — select a tour time / open the scheduler, then click Autofill Tour Form again.",
-          );
+        case "no-fields":
+          // No message shown (removed per UX cleanup; no replacement helper text).
+          setMsg(null);
           break;
-        }
         case "denied":
           setMsg("Permission not granted — the scheduler stays open to fill manually.");
           break;
@@ -176,31 +165,13 @@ export function TourModeView({
         </div>
       </div>
 
-      {/* Plain-language reason shown IMMEDIATELY BEFORE the permission request.
-          Chrome controls its own native prompt wording (which host it names, etc.)
-          and we never customize or spoof it — this is our own explanatory copy so
-          the agent understands why Chrome is about to ask before they click. */}
-      <div style={{
-        margin: "0 0 8px",
-        padding: "9px 11px",
-        borderRadius: 10,
-        // Subtle tint of the existing LB green (--lb-good) — separates the prompt
-        // from the property card above and ties it to the green Autofill button
-        // below. Deliberately low-contrast (not a success/warning banner).
-        background: "color-mix(in srgb, var(--lb-good, #10b981) 12%, transparent)",
-        border: "1px solid color-mix(in srgb, var(--lb-good, #10b981) 30%, transparent)",
-      }}>
-        <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.45, fontWeight: 600, color: "var(--lb-text-primary, #e9ebef)" }}>
-          {autofillPrompt}
-        </p>
-      </div>
       {/* Primary action — clicking runs the per-site permission request, then the
           autofill. Never submits; never overwrites a field the agent already changed. */}
       <button type="button" onClick={autofill} disabled={busy} style={{ ...CTA, opacity: busy ? 0.6 : 1, cursor: busy ? "default" : "pointer" }}>
         {busy ? "Autofilling…" : "Autofill Tour Form"}
       </button>
-      {/* Post-click OUTCOME only (e.g. "No fillable fields yet…" / "Couldn't autofill…").
-          No status → nothing here, so the permission copy above stays the only helper. */}
+      {/* Post-click OUTCOME only (e.g. "Couldn't autofill — fill it manually").
+          No status → nothing renders here. */}
       {msg && (
         <p style={{ margin: "8px 2px 0", fontSize: 11.5, lineHeight: 1.4, color: "var(--lb-text-muted, #8b93a3)" }}>
           {msg}
