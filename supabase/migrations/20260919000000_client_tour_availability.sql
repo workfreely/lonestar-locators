@@ -96,11 +96,13 @@ declare
   v_lead     record;
   v_committed int := 0;
   v_advanced  boolean := false;
+  v_first_done boolean := false;
   v_rank_cur  int;
-  v_rank_rtt  constant int := 4; -- ready_to_tour in LEAD_STAGES order
+  v_rank_rtt  int;
   v_action_key   text;
   v_action_title text;
   v_action_due   timestamptz;
+  -- LEAD_STAGES order. array_position is 1-based, so ranks are new=1 … ready_to_tour=5.
   v_stages constant text[] := array['new','contacted','searching','list_sent','ready_to_tour','done_touring','applied','closed','archived'];
 begin
   -- Resolve share by token; revoked/unknown and disabled shares mutate nothing.
@@ -111,6 +113,7 @@ begin
   limit 1;
   if v_share.id is null then return null; end if;             -- revoked/unknown -> silent
   if v_share.disabled_at is not null then return null; end if; -- disabled -> no writes
+  v_first_done := (v_share.done_selecting_at is null);
 
   select l.id, l.crm_status, l.workspace_id, l.owner_user_id, l.move_date
     into v_lead
@@ -154,7 +157,8 @@ begin
 
   -- 3b) Forward-only stage advance: only from a stage earlier than ready_to_tour.
   v_rank_cur := coalesce(array_position(v_stages, v_lead.crm_status), -1);
-  if v_rank_cur >= 0 and v_rank_cur < v_rank_rtt then
+  v_rank_rtt := array_position(v_stages, 'ready_to_tour');
+  if v_rank_cur >= 1 and v_rank_cur < v_rank_rtt then
     update public.leads set crm_status = 'ready_to_tour' where id = v_lead.id;
     v_advanced := true;
 
@@ -187,12 +191,16 @@ begin
     set done_selecting_at = coalesce(done_selecting_at, now())
   where id = v_share.id;
 
-  insert into public.lead_timeline (lead_id, type, method, metadata, occurred_at, workspace_id, owner_user_id)
-  values (
-    v_lead.id, 'stage_change', 'client_done_selecting',
-    jsonb_build_object('to', 'ready_to_tour', 'advanced', v_advanced, 'favorites_committed', v_committed),
-    now(), v_lead.workspace_id, v_lead.owner_user_id
-  );
+  -- Append a timeline record only on the FIRST Done for this share, so reloading or
+  -- pressing Done again never duplicates the workflow event.
+  if v_first_done then
+    insert into public.lead_timeline (lead_id, type, method, metadata, occurred_at, workspace_id, owner_user_id)
+    values (
+      v_lead.id, 'stage_change', 'client_done_selecting',
+      jsonb_build_object('to', 'ready_to_tour', 'advanced', v_advanced, 'favorites_committed', v_committed),
+      now(), v_lead.workspace_id, v_lead.owner_user_id
+    );
+  end if;
 
   return jsonb_build_object('ok', true, 'favoritesCommitted', v_committed, 'advanced', v_advanced);
 end;
