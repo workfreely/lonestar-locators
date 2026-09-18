@@ -29,7 +29,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             enough not to compete with the form's 26px heading while staying
             clearly legible. Centering is unchanged: the parent is already flex +
             items-center. */}
-        <LocatorBeastWordmark variant="white" height={40} priority className="mb-10" />
+        <LocatorBeastWordmark variant="white" height={40} priority className="mb-4" />
         {children}
       </div>
     </div>

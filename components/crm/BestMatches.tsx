@@ -122,11 +122,20 @@ export default function BestMatches({
       )}
 
       {/* Recommendation actions — BELOW the cards, inside Recommended Properties (never
-          Favorites). Send Recommendations is the stronger action (filled accent);
-          Sent List History is secondary (bordered). Both operate on the canonical
-          client-share flow; neither touches Favorites. */}
+          Favorites). Order: Sent List History (left, secondary/bordered) then Send
+          Recommendations (right, stronger filled-accent action, and the wider button).
+          Both operate on the canonical client-share flow; neither touches Favorites. */}
       {lead?.id != null && (onSendRecommendations || onOpenSentHistory) && (
         <div className="mt-3 flex items-center gap-2 border-t border-[var(--crm-border-soft)] pt-3">
+          {onOpenSentHistory && (
+            <button
+              type="button"
+              onClick={onOpenSentHistory}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[var(--crm-border)] px-3 py-2 text-[12px] font-semibold text-[var(--crm-text-secondary)] transition-colors hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]"
+            >
+              Sent List History
+            </button>
+          )}
           {onSendRecommendations && (
             <button
               type="button"
@@ -136,15 +145,6 @@ export default function BestMatches({
               className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[var(--crm-accent)] px-3 py-2 text-[12px] font-semibold text-white transition-[filter,opacity] hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-100"
             >
               Send Recommendations
-            </button>
-          )}
-          {onOpenSentHistory && (
-            <button
-              type="button"
-              onClick={onOpenSentHistory}
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[var(--crm-border)] px-3 py-2 text-[12px] font-semibold text-[var(--crm-text-secondary)] transition-colors hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]"
-            >
-              Sent List History
             </button>
           )}
         </div>
