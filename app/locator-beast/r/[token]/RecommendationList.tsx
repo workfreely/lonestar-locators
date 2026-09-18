@@ -74,6 +74,29 @@ function money(n: number): string {
   return "$" + Math.round(n).toLocaleString("en-US")
 }
 
+/**
+ * Display-only cleanup for the CARD TITLE ONLY. Strips a single trailing generic
+ * "Apartments" suffix (case-insensitive, must be preceded by whitespace, at the very
+ * end of the name) so "Archer Medical District Apartments" reads "Archer Medical
+ * District". Deliberately narrow:
+ *   • only the exact word "Apartments" — never "Apartment", "Apartment Homes",
+ *     "Residences", "Lofts", or any other suffix;
+ *   • only when trailing — "Landing Furnished Apartments at Toscana at Sonterra"
+ *     keeps its mid-name "Apartments" untouched;
+ *   • only preceded by whitespace — a bare "Apartments" (no space before it) is left
+ *     as-is, and the guard below rejects any result that collapses to an article/blank
+ *     (e.g. "The Apartments" stays "The Apartments") so the title is never unusable.
+ * The RAW p.name is still used everywhere else (alt text, aria-labels, favourites, and
+ * — upstream — the stored snapshot, resolver, CRM, Companion, and Sent Lists).
+ */
+function displayPropertyName(name: string): string {
+  const cleaned = name.replace(/\s+Apartments\s*$/i, "").trim()
+  if (!cleaned) return name
+  // Reject degenerate results (only an article/filler left → not a usable title).
+  if (/^(the|a|an)$/i.test(cleaned)) return name
+  return cleaned
+}
+
 export default function RecommendationList({
   properties,
   token,
@@ -147,7 +170,7 @@ export default function RecommendationList({
               {p.currentSpecial && <div className="lbr-pill">{p.currentSpecial}</div>}
             </div>
             <div className="lbr-body">
-              <h3 className="lbr-pname">{p.name}</h3>
+              <h3 className="lbr-pname">{displayPropertyName(p.name)}</h3>
               {p.address && (
                 <div className="lbr-addr"><Pin /><span>{p.address}</span></div>
               )}
