@@ -26,6 +26,20 @@ export {
 } from "./leads/tourOutcome";
 export type { TourStatus, TourOutcome } from "./leads/tourOutcome";
 
+// Client tour-availability vocab (public /r "when can you generally tour?" flow)
+export {
+  TOUR_TYPES,
+  TOUR_TYPE_LABELS,
+  TOUR_WINDOWS,
+  TOUR_WINDOW_LABELS,
+  isTourType,
+  isTourWindow,
+  MAX_TOUR_DATES,
+  DATE_RE,
+  isFutureOrTodayYmd,
+} from "./leads/tourAvailability";
+export type { TourType, TourWindow, TourAvailabilityDate, TourAvailability } from "./leads/tourAvailability";
+
 // Domain — application status (durable outcome of a submitted application)
 export {
   APPLICATION_STATUSES,

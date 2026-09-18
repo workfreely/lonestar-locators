@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import { TOUR_TYPE_LABELS, TOUR_WINDOW_LABELS } from "@bc/companion-shared"
+import TourAvailabilityModal, { type Availability, type InitialAvailability } from "./TourAvailability"
 
 /**
  * The client-facing recommendation cards — the approved premium presentation.
@@ -113,14 +115,50 @@ function displayCardAddress(address: string): string {
 export default function RecommendationList({
   properties,
   token,
+  initialDoneSelecting = false,
+  initialAvailability = null,
 }: {
   properties: ClientProperty[]
   token: string
+  /** True once the client has pressed Done Selecting Favorites on this list. */
+  initialDoneSelecting?: boolean
+  /** The client's previously-submitted availability (for reload / Edit), if any. */
+  initialAvailability?: InitialAvailability
 }) {
   const [favorites, setFavorites] = useState<Set<number>>(
     () => new Set(properties.filter((p) => p.favorited).map((p) => p.index)),
   )
   const [pending, setPending] = useState<Set<number>>(new Set())
+  const [done, setDone] = useState<boolean>(initialDoneSelecting)
+  const [doneBusy, setDoneBusy] = useState(false)
+  const [doneError, setDoneError] = useState<string | null>(null)
+  const [availability, setAvailability] = useState<InitialAvailability>(initialAvailability)
+  const [modalOpen, setModalOpen] = useState(false)
+
+  async function markDone() {
+    setDoneBusy(true)
+    setDoneError(null)
+    try {
+      const res = await fetch("/api/r/done-selecting", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      })
+      if (!res.ok) throw new Error("failed")
+      // Done succeeded (favorites committed, lead advanced): only now open the modal.
+      setDone(true)
+      setModalOpen(true)
+    } catch {
+      setDoneError("Something went wrong. Please try again.")
+    } finally {
+      setDoneBusy(false)
+    }
+  }
+
+  function onAvailabilitySubmitted(a: Availability) {
+    setAvailability(a)
+    setModalOpen(false)
+  }
 
   async function toggle(index: number) {
     const next = !favorites.has(index)
@@ -152,7 +190,10 @@ export default function RecommendationList({
     }
   }
 
+  const favCount = favorites.size
+
   return (
+    <>
     <div className="lbr-grid">
       {properties.map((p) => {
         const isFav = favorites.has(p.index)
@@ -226,5 +267,56 @@ export default function RecommendationList({
         )
       })}
     </div>
+
+    {/* Done Selecting Favorites — the primary conversion CTA. Hidden at 0 favorites;
+        NOT sticky. On success the Tour Availability modal opens immediately. */}
+    {!done && favCount > 0 && (
+      <div className="lbr-done">
+        <p className="lbr-done-count">{favCount} {favCount === 1 ? "favorite" : "favorites"} selected</p>
+        <button type="button" className="lbr-done-btn" onClick={markDone} disabled={doneBusy} aria-busy={doneBusy}>
+          {doneBusy ? "Saving…" : "Done Selecting Favorites"}
+        </button>
+        <p className="lbr-done-copy">Ready to tour these? Continue to choose your availability.</p>
+        {doneError && <p className="lbr-done-err">{doneError}</p>}
+      </div>
+    )}
+
+    {/* After Done: a compact completed state (availability submitted) OR a clear way to
+        (re)open the modal. We never revert to the pre-Done CTA. */}
+    {done && !modalOpen && availability && (
+      <div className="lbr-avsent">
+        <div className="lbr-avsent-head">
+          <span className="lbr-ta-badge">Availability Sent</span>
+          <button type="button" className="lbr-ta-edit" onClick={() => setModalOpen(true)}>Edit</button>
+        </div>
+        <p className="lbr-avsent-msg">I&rsquo;ll coordinate your tour times and follow up with the details.</p>
+        <div className="lbr-ta-summary">
+          <div className="lbr-ta-srow"><span className="lbr-ta-slbl">Tour type</span><span>{TOUR_TYPE_LABELS[availability.tourType]}</span></div>
+          {availability.dates.map((d) => (
+            <div className="lbr-ta-srow" key={d.date}>
+              <span className="lbr-ta-slbl">{new Date(`${d.date}T00:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
+              <span>{d.windows.map((w) => TOUR_WINDOW_LABELS[w]).join(" · ")}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+
+    {done && !modalOpen && !availability && (
+      <div className="lbr-done">
+        <button type="button" className="lbr-done-btn" onClick={() => setModalOpen(true)}>Choose Tour Availability</button>
+        <p className="lbr-done-copy">Let me know when you&rsquo;re generally free and I&rsquo;ll coordinate the tours.</p>
+      </div>
+    )}
+
+    {modalOpen && (
+      <TourAvailabilityModal
+        token={token}
+        initial={availability}
+        onClose={() => setModalOpen(false)}
+        onSubmitted={onAvailabilitySubmitted}
+      />
+    )}
+    </>
   )
 }

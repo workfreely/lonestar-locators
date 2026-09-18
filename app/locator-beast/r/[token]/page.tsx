@@ -5,6 +5,7 @@ import { hashShareToken, looksLikeShareToken } from "@/lib/clientShare/token"
 import { mergeSmartFormConfig } from "@/app/smart-lead-form/_lib/mergeConfig"
 import Footer from "@/app/smart-lead-form/_components/form/sections/Footer"
 import RecommendationList, { type ClientProperty } from "./RecommendationList"
+import type { TourType, TourWindow } from "@bc/companion-shared"
 import { SKYLINE_PATH } from "@/lib/clientShare/skyline"
 
 export const dynamic = "force-dynamic"
@@ -155,10 +156,83 @@ const CSS = `
    shared Footer renders the brand name as a link; neutralize ONLY that link by its
    href, leaving the legal links clickable, without touching the shared component). */
 .lbr-legal a[href="https://locatorbeast.com"]{pointer-events:none;color:inherit;text-decoration:none;cursor:default}
+/* /r FOOTER ONLY: drop the two general site links (Privacy Policy / Terms of Service)
+   and their trailing separators. The two required TREC disclosures (Information About
+   Brokerage Services, Consumer Protection Notice) and the identity row are kept. This
+   hides the wrapper span (link + its dot) by href — the shared Footer component is not
+   modified; everything here is scoped to .lbr-legal on this page. */
+.lbr-legal span:has(> a[href="/privacy"]),
+.lbr-legal span:has(> a[href="/terms"]){display:none}
+/* Remove the mobile-only full-width break that used to push the disclosures onto their
+   own row, so the two remaining links flow as compactly as possible — on one row when
+   they fit, otherwise a clean natural wrap (no text shrinking, no overflow). */
+.lbr-legal span.basis-full{display:none}
 .lbr-notice{max-width:520px;margin:34px auto;padding:0 20px}
 .lbr-notice-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:30px 26px;text-align:center;box-shadow:0 20px 60px -44px rgba(14,37,69,.4)}
 .lbr-notice-card h1{font-size:20px;font-weight:800;color:var(--navy);margin:0}
 .lbr-notice-card p{font-size:14.5px;color:var(--muted);margin:10px auto 0;max-width:330px;line-height:1.5}
+/* DONE SELECTING FAVORITES — primary conversion CTA (theme token, never hard-coded). */
+.lbr-done{margin:22px 0 0;text-align:center}
+.lbr-done-count{font-size:14px;font-weight:700;color:var(--navy);margin:0 0 10px}
+.lbr-done-btn{appearance:none;border:none;cursor:pointer;background:var(--navy);color:#fff;font-family:inherit;font-weight:700;font-size:16px;letter-spacing:-.01em;min-height:54px;padding:0 30px;border-radius:14px;box-shadow:0 14px 30px -14px rgba(14,37,69,.55);transition:transform .06s ease,box-shadow .2s ease}
+.lbr-done-btn:hover{box-shadow:0 18px 36px -14px rgba(14,37,69,.6)}
+.lbr-done-btn:active{transform:scale(.98)}
+.lbr-done-btn:disabled{opacity:.6;cursor:default}
+.lbr-done-copy{font-size:13.5px;color:var(--muted);margin:11px 0 0}
+.lbr-done-err{font-size:13.5px;color:#c0264b;margin:9px 0 0}
+/* TOUR AVAILABILITY */
+.lbr-ta{margin:26px 0 0;background:#fff;border:1px solid var(--line);border-radius:18px;padding:26px 28px;box-shadow:0 10px 30px -24px rgba(14,37,69,.35)}
+.lbr-ta-h{font-size:23px;font-weight:800;color:var(--navy);letter-spacing:-.01em;margin:0;text-align:left}
+.lbr-ta-sub{font-size:14px;color:var(--muted);margin:6px 0 0;line-height:1.5}
+.lbr-ta-field{margin-top:20px}
+.lbr-ta-lbl{font-size:13px;font-weight:700;color:var(--navy);margin:0 0 9px}
+.lbr-ta-seg{display:flex;gap:8px}
+.lbr-ta-segbtn{flex:1;appearance:none;cursor:pointer;background:#fff;border:1.5px solid var(--line);color:var(--ink);font-family:inherit;font-weight:600;font-size:14px;padding:11px 8px;border-radius:12px;transition:border-color .15s,background .15s,color .15s}
+.lbr-ta-segbtn.is-on{border-color:var(--navy);background:var(--navy);color:#fff}
+.lbr-ta-cal{border:1px solid var(--line);border-radius:14px;padding:12px 12px 14px}
+.lbr-ta-calhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.lbr-ta-month{font-size:14.5px;font-weight:700;color:var(--navy)}
+.lbr-ta-nav{appearance:none;border:1px solid var(--line);background:#fff;color:var(--navy);width:34px;height:34px;border-radius:10px;font-size:19px;line-height:1;cursor:pointer}
+.lbr-ta-nav:disabled{opacity:.35;cursor:default}
+.lbr-ta-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px}
+.lbr-ta-dow span{text-align:center;font-size:11px;font-weight:700;color:var(--faint)}
+.lbr-ta-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.lbr-ta-cell{appearance:none;border:none;background:transparent;color:var(--ink);font-family:inherit;font-size:14px;aspect-ratio:1;border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.lbr-ta-cell:not(.is-blank):not(:disabled):hover{background:var(--line-soft)}
+.lbr-ta-cell:disabled{color:#c7cede;cursor:default}
+.lbr-ta-cell.is-blank{cursor:default}
+.lbr-ta-cell.is-on{background:var(--navy);color:#fff;font-weight:700}
+.lbr-ta-days{display:flex;flex-direction:column;gap:12px}
+.lbr-ta-day{border:1px solid var(--line-soft);border-radius:12px;padding:11px 12px}
+.lbr-ta-dayname{font-size:13.5px;font-weight:700;color:var(--navy);margin-bottom:8px}
+.lbr-ta-chips{display:flex;flex-wrap:wrap;gap:7px}
+.lbr-ta-chip{appearance:none;cursor:pointer;background:#fff;border:1.5px solid var(--line);color:var(--ink);font-family:inherit;font-weight:600;font-size:13px;padding:7px 13px;border-radius:999px;transition:border-color .15s,background .15s,color .15s}
+.lbr-ta-chip.is-on{border-color:var(--green);background:var(--pill-bg);color:var(--pill-tx)}
+.lbr-ta-err{font-size:13.5px;color:#c0264b;margin:14px 0 0}
+.lbr-ta-send{margin-top:20px;width:100%;appearance:none;border:none;cursor:pointer;background:var(--navy);color:#fff;font-family:inherit;font-weight:700;font-size:16px;min-height:54px;border-radius:14px;box-shadow:0 14px 30px -14px rgba(14,37,69,.55)}
+.lbr-ta-send:disabled{opacity:.55;cursor:default}
+.lbr-ta-badge{display:inline-block;background:var(--pill-bg);color:var(--pill-tx);font-size:13px;font-weight:800;padding:7px 14px;border-radius:999px}
+.lbr-ta-summary-lead{font-size:14px;color:var(--ink);margin:12px 0 0}
+.lbr-ta-summary{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+.lbr-ta-srow{display:flex;justify-content:space-between;gap:14px;font-size:14px;color:var(--ink);border-bottom:1px solid var(--line-soft);padding-bottom:8px}
+.lbr-ta-slbl{font-weight:700;color:var(--navy)}
+.lbr-ta-edit{appearance:none;background:#fff;border:1.5px solid var(--line);color:var(--navy);font-family:inherit;font-weight:700;font-size:14px;padding:9px 18px;border-radius:11px;cursor:pointer}
+/* MODAL (desktop: centered; mobile: bottom-sheet — see media query). */
+.lbr-modal-overlay{position:fixed;inset:0;z-index:50;background:rgba(14,37,69,.5);display:flex;align-items:center;justify-content:center;padding:24px}
+.lbr-modal{background:#fff;border-radius:20px;width:100%;max-width:520px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 40px 90px -30px rgba(14,37,69,.6);outline:none}
+.lbr-modal-head{position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 22px 14px;border-bottom:1px solid var(--line-soft)}
+.lbr-modal-grab{display:none}
+.lbr-modal-title{font-size:22px;font-weight:800;color:var(--navy);letter-spacing:-.01em;margin:0}
+.lbr-modal-x{flex:none;appearance:none;border:1px solid var(--line);background:#fff;color:var(--navy);width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.lbr-modal-x:active{transform:scale(.94)}
+.lbr-modal-body{overflow-y:auto;padding:16px 22px 10px;-webkit-overflow-scrolling:touch}
+.lbr-modal-body .lbr-ta-field:first-of-type{margin-top:14px}
+.lbr-modal-foot{padding:14px 22px 18px;border-top:1px solid var(--line-soft);background:#fff}
+.lbr-modal-foot .lbr-ta-send{margin-top:0}
+/* Compact completed state on the page after availability is submitted. */
+.lbr-avsent{margin:22px 0 0;background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px}
+.lbr-avsent-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.lbr-avsent-msg{font-size:14px;color:var(--ink);margin:12px 0 0;line-height:1.5}
 @media (max-width:640px){
 .lbr-shell{margin:0;border:none;border-radius:0;box-shadow:none}
 .lbr-intro{background:#fff}
@@ -194,10 +268,38 @@ const CSS = `
 .lbr-heart svg{width:25px;height:25px}
 /* Footer/legal: keep secondary but comfortably legible (shared Footer forces 11px). */
 .lbr-legal .slf-compact a,.lbr-legal .slf-compact span{font-size:13.5px!important}
+/* Disclosure links wrap to separate rows on mobile at the approved size — drop the
+   trailing separator dot so no dangling "·" hangs after Information About Brokerage
+   Services. Targets only the dot that trails a disclosure link (an external
+   target="_blank" anchor); the identity-row dots and the desktop one-row separator are
+   untouched. Mobile-only (inside this media query); shared Footer not modified. */
+.lbr-legal span:has(> a[target="_blank"]) > span[aria-hidden="true"]{display:none}
 .lbr-recs{padding:20px 16px 8px}
 .lbr-grid{grid-template-columns:1fr;gap:16px}
 .lbr-ph{aspect-ratio:16/11}
 .lbr-steps{margin:22px 16px 0;padding:22px 20px}
+/* Done CTA: full-width, prominent, ~54px; count/copy sized for phone legibility. */
+.lbr-done-count{font-size:15.5px}
+.lbr-done-btn{width:100%;min-height:54px;font-size:17px}
+.lbr-done-copy{font-size:14.5px}
+/* Tour Availability modal → bottom-sheet on mobile; larger supporting text. */
+.lbr-modal-overlay{align-items:flex-end;padding:0}
+.lbr-modal{max-width:none;max-height:92vh;border-radius:22px 22px 0 0}
+.lbr-modal-grab{display:block;position:absolute;top:8px;left:50%;transform:translateX(-50%);width:40px;height:4px;border-radius:2px;background:var(--line)}
+.lbr-modal-head{padding-top:22px}
+.lbr-modal-title{font-size:21px}
+.lbr-modal-body{padding-left:18px;padding-right:18px}
+.lbr-modal-foot{padding-left:18px;padding-right:18px}
+.lbr-avsent-msg{font-size:15px}
+.lbr-ta-h{font-size:22px}
+.lbr-ta-sub{font-size:15px}
+.lbr-ta-lbl{font-size:14.5px}
+.lbr-ta-segbtn{font-size:15px;padding:13px 8px}
+.lbr-ta-cell{font-size:15px}
+.lbr-ta-chip{font-size:14px}
+.lbr-ta-dayname{font-size:14.5px}
+.lbr-ta-send{font-size:17px}
+.lbr-ta-srow,.lbr-ta-summary-lead{font-size:15px}
 .lbr-sig{margin:24px 16px 0}
 .lbr-legal{padding:20px 16px 26px}
 }
@@ -252,6 +354,16 @@ export default async function ClientRecommendationsPage({
 
   // Deduped viewing session + first/last viewed. Unchanged.
   void supabase.rpc("lb_record_client_share_view", { p_token_hash: tokenHash })
+
+  // Tour-availability workflow state (Done pressed? availability submitted?) — a
+  // separate read RPC so the core resolver signature stays stable. Failure is
+  // non-fatal: the page still renders in the pre-Done state.
+  const { data: tourStateData } = await supabase.rpc("lb_get_client_tour_state", { p_token_hash: tokenHash })
+  const tourState = (Array.isArray(tourStateData) ? tourStateData[0] : tourStateData) as
+    | { doneSelecting?: boolean; availability?: { tourType: TourType; dates: { date: string; windows: TourWindow[] }[] } | null }
+    | null
+  const doneSelecting = tourState?.doneSelecting === true
+  const availability = tourState?.availability ?? null
 
   const firstName = share.client_first_name?.trim() || null
   const agentName = share.agent_name?.trim() || "Your locator"
@@ -309,7 +421,12 @@ export default async function ClientRecommendationsPage({
             <h2>Your Recommendations</h2>
             <p>{countLine}</p>
           </div>
-          <RecommendationList properties={properties} token={token} />
+          <RecommendationList
+            properties={properties}
+            token={token}
+            initialDoneSelecting={doneSelecting}
+            initialAvailability={availability}
+          />
         </section>
 
         {/* NEXT STEPS — navy circles */}

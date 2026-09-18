@@ -3152,17 +3152,21 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                 .eq("id", savedRow.id)
               if (error) {
                 // 23505: rewriting to the canonical place_id identity collided with a
-                // recommendation this lead already has — the SAD row resolved onto an
-                // already-recommended property (the "same property via two URL
-                // representations" case). Collapse into the canonical row: drop this now-
-                // redundant row and reconcile local state so it shows exactly once.
-                if (!isFav && (error as { code?: string }).code === "23505") {
-                  await supabase.from("lead_recommendations").delete().eq("id", savedRow.id)
-                  const deduped = localRecommendationsRef.current.filter(
+                // row this lead already has — the SAD row resolved onto an already-saved
+                // property (the "same property via two URL representations" case).
+                // Collapse into the canonical row: drop this now-redundant row and
+                // reconcile local state so it shows exactly once. Recommendations are
+                // guarded by lead_recommendations_lead_canonical_uidx; favorites by
+                // lead_favorites_lead_canonical_uidx (same rule on both tables).
+                if ((error as { code?: string }).code === "23505") {
+                  await supabase.from(isFav ? "lead_favorites" : "lead_recommendations").delete().eq("id", savedRow.id)
+                  const listRef = isFav ? localFavoritesRef : localRecommendationsRef
+                  const setList = isFav ? setLocalFavorites : setLocalRecommendations
+                  const deduped = listRef.current.filter(
                     (row: any) => String(row.id) !== String(savedRow.id),
                   )
-                  localRecommendationsRef.current = deduped
-                  setLocalRecommendations(deduped)
+                  listRef.current = deduped
+                  setList(deduped)
                   postCompanionActiveClient({ ...lead }, localNextActionsRef.current)
                   return
                 }
