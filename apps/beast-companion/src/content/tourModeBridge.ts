@@ -36,6 +36,17 @@ function clampStr(v: unknown, max: number): string | null {
   return v.length > max ? v.slice(0, max) : v;
 }
 
+// Only keep a real http(s) scheduler URL — never a chrome:/javascript:/data: value.
+function validSchedulerUrl(v: string | null): string | null {
+  if (!v) return null;
+  try {
+    const u = new URL(v);
+    return u.protocol === "https:" || u.protocol === "http:" ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
 export function startTourModeBridge(): void {
   if (!isCrmPage()) return;
   if (!chrome?.storage?.local) {
@@ -54,8 +65,12 @@ export function startTourModeBridge(): void {
     const nonce = clampStr(d.nonce, 64);
     if (leadId == null || favoriteId == null || !nonce) return;
     const propertyName = clampStr(d.propertyName, 200);
+    // The exact scheduler URL the CRM opened for this tour. Kept ONLY when it is a
+    // real http(s) URL so the panel can bind Autofill to that property tab/origin
+    // (never the active tab). Anything else → null (bind falls back to legacy).
+    const url = validSchedulerUrl(clampStr(d.url, 2048));
 
-    chrome.storage.local.set({ [CANONICAL_KEY]: { leadId, favoriteId, propertyName, nonce } });
+    chrome.storage.local.set({ [CANONICAL_KEY]: { leadId, favoriteId, propertyName, url, nonce } });
   });
 
   log("tour-mode bridge active on", location.host + location.pathname);

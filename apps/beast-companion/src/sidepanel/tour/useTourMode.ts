@@ -3,6 +3,9 @@ import { useEffect, useRef, useState } from "react";
 export type TourModeRequest = {
   favoriteId: string | number;
   propertyName: string | null;
+  /** The exact scheduler URL the CRM opened for this tour (http(s) only), used to
+   *  bind Autofill to the property tab/origin. Null when unknown (legacy CRM). */
+  schedulerUrl: string | null;
   /** The originating Schedule Tour click's nonce (`${Date.now()}-${rand}`). */
   nonce: string;
 };
@@ -63,7 +66,7 @@ export function useTourMode(activeLeadId: string | number | null | undefined): {
     const KEY = "lb-tour-mode";
 
     const consider = (
-      rec: { leadId?: unknown; favoriteId?: unknown; propertyName?: unknown; nonce?: string } | undefined,
+      rec: { leadId?: unknown; favoriteId?: unknown; propertyName?: unknown; url?: unknown; nonce?: string } | undefined,
       fromMount: boolean,
     ) => {
       if (!rec || rec.favoriteId == null || !rec.nonce) return;
@@ -81,6 +84,7 @@ export function useTourMode(activeLeadId: string | number | null | undefined): {
       setTour({
         favoriteId: rec.favoriteId as string | number,
         propertyName: typeof rec.propertyName === "string" ? rec.propertyName : null,
+        schedulerUrl: typeof rec.url === "string" ? rec.url : null,
         nonce: rec.nonce,
       });
     };

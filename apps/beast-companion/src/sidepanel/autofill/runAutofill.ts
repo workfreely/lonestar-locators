@@ -1,24 +1,24 @@
 import { autofillTourForm, type AutofillPayload, type AutofillResult } from "@bc/companion-shared";
 
-// Schedule Tour autofill trigger (safest per-site permission model).
+// Schedule Tour autofill (safest per-site permission model), BOUND to the property
+// scheduler tab captured at Tour Mode entry — never the currently active tab.
 //
-// The tour/contact page opens in a NEW tab (via Schedule Tour); this fills
-// whatever tab is active when the locator clicks Autofill. It MUST be called
-// directly from that click handler, because chrome.permissions.request needs the
-// user gesture.
+// runAutofillForScheduler(schedulerUrl, …) resolves the property tab by its ORIGIN
+// (the exact URL the CRM opened for this tour), so switching to an unrelated tab
+// (ChatGPT/Gmail/another property) can never redirect Autofill to it or prompt for
+// its origin. It MUST be called from the click handler, because
+// chrome.permissions.request needs the user gesture.
 //
-// Permission model, in order of preference:
-//   1. activeTab — declared, and covers a tab the user invoked the action on. It
-//      does NOT reliably cover a tab opened AFTER the panel, so we do not rely on
-//      it here.
-//   2. optional_host_permissions + chrome.permissions.request({ origins: [<this
-//      origin>/*] }) — a per-site grant requested ONLY on this click, scoped to
-//      the one property/scheduler origin. Never <all_urls>, never always-on.
+// Permission model: optional_host_permissions + chrome.permissions.request({
+// origins: [<scheduler origin>/*] }) — a per-site grant requested ONLY on this
+// click, scoped to the one property/scheduler origin (or a known provider wildcard).
+// Never <all_urls>, never always-on, never the active tab's origin.
 //
-// Declining the permission returns { status: "denied" } and changes nothing — the
-// page is already open, so manual scheduling stays fully usable. Cross-origin
-// iframes and calendar-first forms with no visible fields yet return with
-// filled === 0 ("no-fields"): the caller shows a manual/re-try hint, never an error.
+// Declining returns { status: "denied" } and changes nothing — the page is already
+// open, so manual scheduling stays fully usable. Multi-step (PERQ/calendar-first)
+// forms with no visible fields yet return filled === 0 ("no-fields"); the caller
+// arms a bounded re-inject (reinjectAutofillIntoTab) against the SAME bound tab so
+// the fields fill once they render, without another click or new permission prompt.
 
 export type AutofillOutcome =
   | { status: "filled"; result: AutofillResult }
@@ -128,55 +128,100 @@ async function injectAndAggregate(tabId: number, payload: AutofillPayload): Prom
   };
 }
 
-export async function runAutofillOnActiveTab(payload: AutofillPayload): Promise<AutofillOutcome> {
-  if (!chromeApis()) return { status: "unsupported" };
-
-  const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  const tab = tabs[0];
-  if (!tab || tab.id == null || !tab.url) return { status: "no-tab" };
-
-  let origin: string;
-  let protocol: string;
+// Resolve the property/scheduler TAB by the origin captured at Tour Mode entry —
+// NOT the active tab. This is the binding that keeps Autofill on the intended
+// property even after the locator switches to an unrelated tab (ChatGPT, Gmail,
+// another property). Returns the tab id + host, or null when no open tab matches
+// that origin (the scheduler tab was closed) — in which case NOTHING is prompted
+// or injected anywhere.
+async function resolveSchedulerTab(origin: string): Promise<{ tabId: number; host: string } | null> {
   try {
-    const u = new URL(tab.url);
-    origin = u.origin;
-    protocol = u.protocol;
+    const host = new URL(origin).host;
+    const tabs = await chrome.tabs.query({ url: origin + "/*" });
+    const tab = tabs.find((t) => t.id != null && !!t.url);
+    if (!tab || tab.id == null) return null;
+    return { tabId: tab.id, host };
+  } catch {
+    return null;
+  }
+}
+
+// Inject into an ALREADY-BOUND, already-permitted tab — NO permission request, so it
+// is safe to call on a timer without a user gesture. Used by the multi-step arm loop
+// to fill contact fields the moment they render. Idempotent downstream (the injected
+// filler guards with data-lb-filled and never overwrites a user-edited value).
+export async function reinjectAutofillIntoTab(tabId: number, payload: AutofillPayload): Promise<AutofillOutcome> {
+  if (!chromeApis()) return { status: "unsupported" };
+  // Bound tab gone (closed) → tell the caller to stop the loop cleanly.
+  try {
+    const t = await chrome.tabs.get(tabId);
+    if (!t || t.id == null) return { status: "no-tab" };
   } catch {
     return { status: "no-tab" };
   }
-  // Only real web pages can be scripted (never chrome://, extension pages, etc.).
-  if (protocol !== "https:" && protocol !== "http:") return { status: "unsupported" };
-  // Never autofill the locator's own CRM/SAD tab — the tour form is external.
-  let host: string;
-  try { host = new URL(tab.url).host; } catch { return { status: "no-tab" }; }
-  if (isCrmHost(host)) return { status: "on-crm" };
+  try {
+    const res = await injectAndAggregate(tabId, payload);
+    if (!res) return { status: "error", message: "no result from page" };
+    return res.filled > 0 ? { status: "filled", result: res } : { status: "no-fields", result: res };
+  } catch (e) {
+    return { status: "error", message: e instanceof Error ? e.message : String(e) };
+  }
+}
 
-  // Scope the grant: a known provider's shared wildcard (covers ALL its properties)
-  // when the tour form's origin is that provider, else the exact property origin.
-  // Requested on THIS gesture only; a granted provider wildcard persists, so the
-  // next property on the same provider never re-prompts.
+// One-action Autofill BOUND to the property scheduler context captured at Tour Mode
+// entry (schedulerUrl = the exact URL the CRM opened). Resolves the property tab by
+// its ORIGIN (never the active tab), requests a per-origin grant for THAT scheduler
+// origin only, injects once, and returns the bound tabId so the caller can arm a
+// bounded re-inject for multi-step (PERQ/calendar-first) schedulers. Switching to an
+// unrelated tab can never redirect this to that tab or prompt for its origin.
+export async function runAutofillForScheduler(
+  schedulerUrl: string,
+  payload: AutofillPayload,
+): Promise<{ outcome: AutofillOutcome; tabId?: number; host?: string }> {
+  if (!chromeApis()) return { outcome: { status: "unsupported" } };
+  let origin: string;
+  let host: string;
+  try {
+    const u = new URL(schedulerUrl);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return { outcome: { status: "unsupported" } };
+    origin = u.origin;
+    host = u.host;
+  } catch {
+    return { outcome: { status: "no-tab" } };
+  }
+  // The scheduler is always an external property site; never the locator's own CRM/SAD.
+  if (isCrmHost(host)) return { outcome: { status: "on-crm" } };
+
+  const resolved = await resolveSchedulerTab(origin);
+  if (!resolved) return { outcome: { status: "no-tab" } };
+  const tabId = resolved.tabId;
+
+  // Per-origin grant for the scheduler origin ONLY (a provider wildcard when the
+  // scheduler runs on a known shared provider). Never <all_urls>, never the active tab.
   const primaryPattern = providerPatternForHost(host) ?? origin + "/*";
-  if (!(await requestOriginPattern(primaryPattern))) return { status: "denied" };
+  if (!(await requestOriginPattern(primaryPattern))) return { outcome: { status: "denied" }, tabId, host };
 
   try {
-    const first = await injectAndAggregate(tab.id, payload);
-    if (!first) return { status: "error", message: "no result from page" };
-    if (first.filled > 0) return { status: "filled", result: first };
+    const first = await injectAndAggregate(tabId, payload);
+    if (!first) return { outcome: { status: "error", message: "no result from page" }, tabId, host };
+    if (first.filled > 0) return { outcome: { status: "filled", result: first }, tabId, host };
 
-    // Nothing filled in the top frame(s). If a KNOWN provider is embedded as a
-    // cross-origin iframe (e.g. a SecureCafe scheduler on the property site), offer
-    // the provider grant and re-inject — allFrames then reaches that frame under the
-    // SAME optional permission model (never broad access). Unknown cross-origin
-    // iframes are left alone (manual fallback).
+    // A KNOWN provider embedded as a cross-origin iframe on the scheduler page →
+    // offer that provider's per-origin grant (still on THIS gesture) + re-inject.
     const providerFrame = (first.crossOriginFrameHosts ?? [])
       .map((h) => providerPatternForHost(h))
       .find((p): p is string => !!p && p !== primaryPattern);
     if (providerFrame && (await requestOriginPattern(providerFrame))) {
-      const second = await injectAndAggregate(tab.id, payload);
-      if (second) return second.filled > 0 ? { status: "filled", result: second } : { status: "no-fields", result: second };
+      const second = await injectAndAggregate(tabId, payload);
+      if (second)
+        return {
+          outcome: second.filled > 0 ? { status: "filled", result: second } : { status: "no-fields", result: second },
+          tabId,
+          host,
+        };
     }
-    return { status: "no-fields", result: first };
+    return { outcome: { status: "no-fields", result: first }, tabId, host };
   } catch (e) {
-    return { status: "error", message: e instanceof Error ? e.message : String(e) };
+    return { outcome: { status: "error", message: e instanceof Error ? e.message : String(e) }, tabId, host };
   }
 }

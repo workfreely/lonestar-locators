@@ -4,7 +4,7 @@ import { sanitizeFollowUpOverrides } from "@bc/companion-shared";
 import type { CurrentProperty } from "@/types";
 import { formatPersonName, buildIntroSmsBody, buildFollowUpSmsBody, buildContactFollowUpSmsBody, isFollowUpAction, isContactFollowUpAction, formatWorkflowActionLabel, companionMayConfirm, DEFAULT_TIME_VALUE } from "@bc/companion-shared";
 import { PanelApp } from "./PanelApp";
-import { runAutofillOnActiveTab } from "./autofill/runAutofill";
+import { runAutofillForScheduler, reinjectAutofillIntoTab, type AutofillOutcome } from "./autofill/runAutofill";
 import { useTourMode } from "./tour/useTourMode";
 import type { AutofillPayload } from "@bc/companion-shared";
 import { TourTimeField } from "./lead/TourTimeField";
@@ -1073,6 +1073,62 @@ export function ProductionPanel() {
     exitTourMode();
   };
 
+  // ── Autofill: bound to the property scheduler tab, multi-step aware ──────────
+  // Clicking "Autofill Tour Form" is ONE intent. Autofill binds to the property
+  // tab/origin captured at Tour Mode entry (tourMode.schedulerUrl) — never the
+  // active tab — so switching to ChatGPT/Gmail/another property can never redirect
+  // it or prompt for that tab's origin. If the multi-step scheduler (PERQ/calendar-
+  // first) hasn't rendered the contact fields yet, we ARM a bounded re-inject
+  // against that SAME bound tab (no new permission prompts — already granted) so the
+  // fields fill once, the moment the locator reaches the contact step.
+  const autofillArmRef = useRef<{ intervalId: ReturnType<typeof setInterval>; tabId: number; nonce: string } | null>(null);
+  const clearAutofillArm = () => {
+    const arm = autofillArmRef.current;
+    if (arm) {
+      try { clearInterval(arm.intervalId); } catch { /* no-op */ }
+    }
+    autofillArmRef.current = null;
+  };
+  const armAutofillReinject = (tabId: number, payload: AutofillPayload, nonce: string) => {
+    clearAutofillArm(); // repeated clicks never stack observers/intervals
+    const startedAt = Date.now();
+    const MAX_MS = 5 * 60_000; // give up after 5 min (scheduler abandoned)
+    const intervalId = setInterval(async () => {
+      const arm = autofillArmRef.current;
+      if (!arm || arm.intervalId !== intervalId) return; // superseded
+      if (Date.now() - startedAt > MAX_MS) { clearAutofillArm(); return; }
+      const res = await reinjectAutofillIntoTab(tabId, payload);
+      // Filled once → done. Tab closed → stop. Otherwise keep waiting for fields.
+      if (res.status === "filled" || res.status === "no-tab" || res.status === "unsupported") clearAutofillArm();
+    }, 2000);
+    autofillArmRef.current = { intervalId, tabId, nonce };
+  };
+  const onAutofillTour = async (): Promise<AutofillOutcome> => {
+    if (!active) return { status: "unsupported" };
+    clearAutofillArm();
+    const schedulerUrl = tourMode?.schedulerUrl ?? null;
+    // SECURITY: with no bound scheduler context we do NOT fall back to the active
+    // tab — Autofill must never resolve/inject/prompt against whatever tab happens
+    // to be focused. No bound URL → safe no-op ("open the scheduler" hint).
+    if (!schedulerUrl) return { status: "no-tab" };
+    const payload = buildAutofillPayload(active);
+    const { outcome, tabId } = await runAutofillForScheduler(schedulerUrl, payload);
+    // Multi-step: fields not present yet → arm the bounded re-inject on the bound tab.
+    if (tabId != null && outcome.status === "no-fields") {
+      armAutofillReinject(tabId, payload, tourMode?.nonce ?? "");
+    }
+    return outcome;
+  };
+
+  // Disarm when Tour Mode exits or switches to a different property (the armed nonce
+  // no longer matches the active tour), and on unmount. Combined with the loop's own
+  // tab-closed + timeout + filled stops, this covers every required cleanup case.
+  useEffect(() => {
+    const arm = autofillArmRef.current;
+    if (arm && arm.nonce !== (tourMode?.nonce ?? "")) clearAutofillArm();
+  }, [tourMode]);
+  useEffect(() => () => clearAutofillArm(), []);
+
   // "+ Add Task" → open the task sheet for THIS client. Captures the lead id NOW
   // (client-switch guard closes it if the active client changes). Task Time
   // defaults to 9:00 AM (same as Schedule Tour); title + date open blank.
@@ -1434,7 +1490,7 @@ export function ProductionPanel() {
         onMoveToRecommendation={onMoveToRecommendation}
         onRemoveRecommendation={onRemoveRecommendation}
         onClearCurrentProperty={onClearCurrentProperty}
-        onAutofillTour={active ? () => runAutofillOnActiveTab(buildAutofillPayload(active)) : undefined}
+        onAutofillTour={active ? onAutofillTour : undefined}
         tourMode={tourMode}
         onTourBack={exitTourMode}
         onTourConfirm={confirmTourMode}
