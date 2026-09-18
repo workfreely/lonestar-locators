@@ -270,6 +270,11 @@ export type { SpecialInput, SpecialsResult, RentConcession } from "./specials";
 export { evaluateBudget, resolveClientBudget, parseMoneyRange, budgetTolerance, BUDGET_TOLERANCE } from "./budget";
 export type { MoneyRange } from "./budget";
 
+// Phase 2A — grounded recommendation reasons: rank/cap the evidence-gated fragments
+// the evaluators already produce (no new scoring, no LLM, never fabricated).
+export { collectRecommendationReasons } from "./recommendationReasons";
+export type { ReasonEvidence } from "./recommendationReasons";
+
 // Overall Match % — composes the existing Location/Budget/Approval/Amenities signals
 export { evaluateMatchScore, MIN_DIMENSIONS } from "./matchScore";
 export type { MatchScoreInput, AmenityCoverage } from "./matchScore";

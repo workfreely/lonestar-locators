@@ -73,7 +73,10 @@ import { followUpSuccessorDueAt } from "@/lib/workflow/moveDateCadence"
 import { autoDueInDays } from "@/lib/workflow/autoDueDate"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { dialUrl, launchExternalProtocol } from "@/lib/leads/launchCommunication"
-import { formatPersonName, greetingName, buildIntroSmsBody, type FollowUpOverrides } from "@bc/companion-shared"
+import { formatPersonName, greetingName, buildIntroSmsBody, type FollowUpOverrides,
+  resolveClientContext, evaluateLocationFit, evaluateBudget, evaluateApproval,
+  evaluateAmenities, evaluateSpecials, collectRecommendationReasons } from "@bc/companion-shared"
+import { assessLocationFit } from "@/lib/propertyExplorer/locationFit"
 import type { ResolvedAgentIdentity } from "@/lib/notifications/agentSignature"
 
 // The legacy Lead Panel is HIDDEN in every environment (localhost AND production)
@@ -3046,6 +3049,65 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           property_address: (p?.propertyAddress ?? sourceRow?.property_address ?? null) || null,
           property_image_url: (p?.propertyImageUrl ?? sourceRow?.property_image_url) ?? null,
         }
+
+        // Phase 2A — capture grounded price / special / reasons AT ADD TIME from the
+        // data the Companion (SAD CurrentProperty) or Explorer/Map (ExplorerProperty)
+        // already provide, using the EXISTING evaluators (no new scoring, no LLM, never
+        // fabricated). Recommendations only; only when the payload actually carries
+        // property data (a bare move leaves them null). lb_create_client_share (Phase 1)
+        // freezes these into the immutable share snapshot at send time. These fields are
+        // added ONLY to the recommendation upsert below — lead_favorites has no such
+        // columns, so rowBase itself stays untouched.
+        let recRentMin: number | null = null
+        let recRentMax: number | null = null
+        let recSpecial: string | null = null
+        let recReasons: string[] = []
+        // The verb payload is dynamically shaped (a rich SAD CurrentProperty or a Map
+        // ExplorerProperty), so read it untyped here.
+        const pp: any = p
+        const hasSadData = !!(pp && (pp.propertyRent || pp.propertyAmenities || pp.propertySpecials || pp.propertyManagement))
+        const hasMapData = !!(pp && (pp.neighborhood || pp.location || pp.currentSpecial || pp.locationKeywords))
+        if (!isFav && (hasSadData || hasMapData)) {
+          const ctx = resolveClientContext({
+            city: lead?.city ?? null,
+            budgetText: lead?.desired_rent ?? null,
+            desiredAreas: lead?.neighborhoods ?? lead?.submarkets ?? null,
+            clientNotes: lead?.notes ?? null,
+            locatorNotes: lead?.locator_notes ?? null,
+            mustHaveAmenities: String(lead?.must_have_amenities ?? "").split(",").map((s: string) => s.trim()).filter(Boolean),
+          })
+          if (hasSadData) {
+            const location = evaluateLocationFit(ctx, pp)
+            const budget = evaluateBudget(ctx, pp.propertyRent, pp.propertySpecials)
+            const approval = evaluateApproval(pp)
+            const amenities = evaluateAmenities(ctx, pp.propertyAmenities)
+            const specials = pp.propertySpecials != null ? evaluateSpecials({ lines: pp.propertySpecials }) : null
+            recRentMin = typeof pp.propertyRent?.min === "number" ? pp.propertyRent.min : null
+            recRentMax = typeof pp.propertyRent?.max === "number" ? pp.propertyRent.max : null
+            // The concession display, only when a real rent concession was parsed;
+            // fall back to an explicit currentSpecial string if the payload carries one.
+            recSpecial = specials?.hasRentConcession
+              ? specials.special
+              : (typeof pp.currentSpecial === "string" ? pp.currentSpecial.trim() || null : null)
+            recReasons = collectRecommendationReasons({
+              amenities,
+              locationMatch: location?.verdict === "good",
+              budget,
+              approvalReason: approval?.reason ?? null,
+              special: recSpecial,
+            })
+          } else {
+            // Map/Explorer: Google data only — a grounded location reason + a real
+            // special when present, and NO numeric rent (Google supplies none → NULL).
+            const loc = assessLocationFit(pp, { city: lead?.city ?? null, desiredAreas: lead?.neighborhoods ?? lead?.submarkets ?? null })
+            recSpecial = typeof pp.currentSpecial === "string" ? pp.currentSpecial.trim() || null : null
+            recReasons = collectRecommendationReasons({
+              locationMatch: loc?.tone === "match",
+              special: recSpecial,
+            })
+          }
+        }
+        const recRow = { ...rowBase, rent_min: recRentMin, rent_max: recRentMax, special: recSpecial, reasons: recReasons }
         const applyLocal = (row: any) => {
           if (isFav) {
             const next = [...localFavoritesRef.current, row]
@@ -3172,7 +3234,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         } else {
           supabase
             .from("lead_recommendations")
-            .upsert([rowBase], { onConflict: "lead_id,canonical_property_key", ignoreDuplicates: true })
+            .upsert([recRow], { onConflict: "lead_id,canonical_property_key", ignoreDuplicates: true })
             .select("*")
             .maybeSingle()
             .then(settleAdd)
@@ -3790,6 +3852,13 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                           propertyUrl: property.propertyUrl,
                           propertyAddress: property.propertyAddress,
                           propertyImageUrl: null,
+                          // Phase 2A — carry the Explorer/Google facts the add handler uses
+                          // for grounded map-path enrichment (location reason + a real
+                          // special). No numeric rent exists on the map path.
+                          neighborhood: property.neighborhood ?? null,
+                          location: property.location ?? null,
+                          locationKeywords: property.locationKeywords ?? null,
+                          currentSpecial: property.currentSpecial ?? null,
                         },
                       },
                     },
