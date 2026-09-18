@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { SectionCard } from "../lead/primitives";
+import { SectionCard, Field } from "../lead/primitives";
 import { PropertyThumb } from "../properties/PropertyThumb";
 import { TourTimeField } from "../lead/TourTimeField";
 import { displayAddress, formatRating, formatPhone, DEFAULT_TIME_VALUE, type FavoriteDTO, type AutofillLocator } from "@bc/companion-shared";
@@ -45,16 +45,6 @@ const CTA: React.CSSProperties = {
   border: "none",
   cursor: "pointer",
 };
-
-function kv(k: string, v: string | null | undefined) {
-  if (!v) return null;
-  return (
-    <div style={{ display: "flex", fontSize: 11.5, padding: "2px 0", color: "var(--lb-text-secondary, #c2c7d0)" }}>
-      <span style={{ color: "var(--lb-text-muted, #8b93a3)", width: 98, flex: "none" }}>{k}</span>
-      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", color: "var(--lb-text-primary, #e9ebef)", fontWeight: 600 }}>{v}</span>
-    </div>
-  );
-}
 
 /**
  * Tour Mode — a focused, temporary view for scheduling the ONE selected favorite.
@@ -169,24 +159,36 @@ export function TourModeView({
           SectionCard (same border/radius/surface/heading treatment as Search
           Criteria, Current Property, etc.). Client rows, a divider, then the
           Locator Information sub-group. */}
+      {/* Reuses the Companion Field row (same 12.5px label/value typography as Search
+          Criteria) with the section's 9px row rhythm. Empty rows are omitted. Display-
+          only formatting — the autofill payload keeps the raw values. */}
       <SectionCard title="Information to Autofill">
-        <div>
-          {kv("Name", [client.firstName, client.lastName].filter(Boolean).join(" ") || null)}
-          {kv("Email", client.email)}
-          {/* Display-only formatting — the autofill payload keeps the raw values. */}
-          {kv("Phone", formatPhone(client.phone) || null)}
-          {kv("Move date", displayMoveDate(client.moveDate))}
-          {kv("Bedrooms", client.bedrooms)}
-        </div>
-        <div style={{ borderTop: "1px solid var(--lb-border-soft, #242a37)", paddingTop: 9 }}>
-          <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--lb-text-muted, #8b93a3)", margin: "0 0 5px", fontWeight: 700 }}>Locator Information</div>
-          {kv("Name", [locator?.firstName, locator?.lastName].filter(Boolean).join(" ") || null)}
-          {kv("Email", locator?.email)}
-          {kv("Phone", locator?.phone)}
-          <div style={{ fontSize: 10.5, color: "var(--lb-text-muted, #8b93a3)", marginTop: 6 }}>
-            Locator information is only added to the message.
-          </div>
-        </div>
+        {(() => {
+          const clientName = [client.firstName, client.lastName].filter(Boolean).join(" ");
+          const clientPhone = formatPhone(client.phone);
+          const clientMove = displayMoveDate(client.moveDate);
+          const locatorName = [locator?.firstName, locator?.lastName].filter(Boolean).join(" ");
+          return (
+            <>
+              <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                {clientName && <Field label="Name" value={clientName} />}
+                {client.email && <Field label="Email" value={client.email} />}
+                {clientPhone && <Field label="Phone" value={clientPhone} />}
+                {clientMove && <Field label="Move date" value={clientMove} />}
+                {client.bedrooms && <Field label="Bedrooms" value={client.bedrooms} />}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 9, borderTop: "1px solid var(--lb-border-soft, #242a37)", paddingTop: 13 }}>
+                <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--lb-text-muted, #8b93a3)", fontWeight: 700 }}>Locator Information</div>
+                {locatorName && <Field label="Name" value={locatorName} />}
+                {locator?.email && <Field label="Email" value={locator.email} />}
+                {locator?.phone && <Field label="Phone" value={locator.phone} />}
+                <div style={{ fontSize: 10.5, color: "var(--lb-text-muted, #8b93a3)", marginTop: 2 }}>
+                  Locator information is only added to the message.
+                </div>
+              </div>
+            </>
+          );
+        })()}
       </SectionCard>
 
       {/* Manual date/time → Confirm. Aligned to the same card treatment (surface /
@@ -200,7 +202,10 @@ export function TourModeView({
             value={tourDate}
             onChange={(e) => { setTourDate(e.target.value); setUserEditedDate(true); }}
             onClick={openNativePicker}
-            style={{ font: "inherit", fontSize: 12, color: "var(--lb-text-secondary, #c2c7d0)", background: "var(--lb-card, #1e222c)", border: "1px solid var(--lb-border, #2b3140)", borderRadius: 8, padding: "8px 10px", colorScheme: "dark" }}
+            // Match the Time field (TourTimeField): the same theme-adaptive inset
+            // surface + border, so both inputs read correctly on every Companion theme
+            // (no hard-coded purplish --lb-card).
+            style={{ font: "inherit", fontSize: 14, color: "var(--lb-text, #e6ebf5)", background: "var(--lb-inset, rgba(255,255,255,0.04))", border: "1px solid var(--lb-border, rgba(255,255,255,0.14))", borderRadius: 9, padding: "9px 10px", colorScheme: "dark" }}
           />
           <TourTimeField value={tourTime} onChange={(v) => { setTourTime(v); setUserEditedTime(true); }} />
         </div>
@@ -208,7 +213,9 @@ export function TourModeView({
           type="button"
           disabled={!canSave}
           onClick={() => canSave && onConfirmTour({ tourDate, tourTime })}
-          style={{ ...CTA, marginTop: 10, background: canSave ? "var(--lb-good, #10b981)" : "var(--lb-card, #1e222c)", color: canSave ? "#fff" : "var(--lb-text-muted, #8b93a3)", cursor: canSave ? "pointer" : "not-allowed" }}
+          // Enabled → the established theme-aware primary action (CTA's --lb-accent).
+          // Disabled → a theme-aware muted surface (never hard-coded green/purple).
+          style={{ ...CTA, marginTop: 10, ...(canSave ? { cursor: "pointer" } : { background: "var(--lb-surface-elevated, #1b2030)", color: "var(--lb-text-muted, #8b93a3)", cursor: "not-allowed" }) }}
         >
           Save tour
         </button>
