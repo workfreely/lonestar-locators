@@ -209,8 +209,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   const [localSentGuestCards, setLocalSentGuestCards] = useState<any[]>(sentGuestCards)
   // ── Send Recommendations + Sent List History (canonical client-share flow) ──
   // Send Recommendations mirrors the Beast Companion "Send List" workflow: prepare/
-  // reuse the immutable snapshot (POST /api/admin/client-shares) and open a PREVIEW of
-  // the exact /r/<token> page the client will receive. The sheet offers a 2×2 grid —
+  // reuse the immutable snapshot (POST /api/admin/client-shares) and open ONLY the Send
+  // modal (no auto-preview tab — Preview in the modal is the sole opener of the
+  // /r/<token> page). The sheet offers a 2×2 grid —
   // Text List / Email List / Copy Link / Preview. Text List and Email List launch the
   // client's composer with the link; only AFTER that does the canonical "Did you send
   // {name}'s list?" confirmation appear, and only an affirmative runs the same
@@ -257,10 +258,6 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
 
   async function handleSendRecommendations(lead: any) {
     if (!lead?.id) return
-    // Open the preview tab synchronously inside the click gesture, then redirect it to
-    // the resolved client URL once prepared — this avoids the pop-up blocker that would
-    // silently swallow a window.open() issued after the async prepare returns.
-    const previewWin = typeof window !== "undefined" ? window.open("about:blank", "_blank") : null
     setSendBusy(true)
     setSendCopied(false)
     setSendConfirm(false)
@@ -275,20 +272,13 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       })
       const json: any = await res.json().catch(() => ({}))
       if (res.ok && typeof json?.url === "string" && typeof json?.shareId === "string") {
-        // Preview EXACTLY what the client will receive — the real /r/<token> page.
-        if (previewWin) {
-          try { previewWin.opener = null } catch { /* same-origin child; best effort */ }
-          previewWin.location.replace(json.url)
-        } else {
-          window.open(json.url, "_blank", "noopener,noreferrer")
-        }
+        // Prepare/reuse the snapshot and open ONLY the Send modal — no auto-preview tab.
+        // Preview (in the modal) is the sole action that opens the client /r/<token> page.
         setSendSheet({ ...base, url: json.url, shareId: json.shareId, error: null })
       } else {
-        previewWin?.close()
         setSendSheet({ ...base, url: null, shareId: null, error: "Couldn't prepare the recommendation list. Please try again." })
       }
     } catch {
-      previewWin?.close()
       setSendSheet({ ...base, url: null, shareId: null, error: "Something went wrong. Please try again." })
     } finally {
       setSendBusy(false)
@@ -4162,7 +4152,8 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       />
 
       {/* Send Recommendations — the canonical client-share flow. On open it prepares/
-          reuses the immutable snapshot and previews the exact /r/<token> page. A 2×2
+          reuses the immutable snapshot and opens ONLY this modal (Preview is the sole
+          action that opens the /r/<token> page). A 2×2
           grid (Text List / Email List / Copy Link / Preview) shares the same compact
           outlined treatment. Text List / Email List launch the client's composer and
           THEN reveal the canonical "Did you send {name}'s list?" confirmation; only
