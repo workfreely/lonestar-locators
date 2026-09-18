@@ -89,6 +89,7 @@ export function PanelApp({
   onClearCurrentProperty,
   onAutofillTour,
   tourMode = null,
+  detectedTour = null,
   onTourBack,
   onTourConfirm,
   locator = null,
@@ -148,6 +149,8 @@ export function PanelApp({
   onAutofillTour?: () => Promise<AutofillOutcome>;
   /** Active Tour Mode request (favorite to schedule), or null for the normal panel. */
   tourMode?: TourModeRequest | null;
+  /** Read-only detected tour date/time from the scheduler (either may be null). */
+  detectedTour?: { date: string | null; time: string | null } | null;
   /** Exit Tour Mode → return to Client. */
   onTourBack?: () => void;
   /** Confirm the tour → parent runs the existing complete-setup-tour flow, then exits. */
@@ -386,6 +389,7 @@ export function PanelApp({
                 propertyNameFallback={tourMode.propertyName}
                 client={tourClient}
                 locator={locator}
+                detectedTour={detectedTour}
                 onAutofillTour={onAutofillTour ?? autofillUnavailable}
                 onConfirmTour={(args) => onTourConfirm?.(args)}
               />

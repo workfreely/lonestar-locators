@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PropertyThumb } from "../properties/PropertyThumb";
 import { TourTimeField } from "../lead/TourTimeField";
 import { displayAddress, formatRating, formatPhone, DEFAULT_TIME_VALUE, type FavoriteDTO, type AutofillLocator } from "@bc/companion-shared";
@@ -67,6 +67,7 @@ export function TourModeView({
   propertyNameFallback,
   client,
   locator,
+  detectedTour = null,
   onAutofillTour,
   onConfirmTour,
 }: {
@@ -74,12 +75,25 @@ export function TourModeView({
   propertyNameFallback: string | null;
   client: TourModeClient;
   locator: AutofillLocator | null;
+  /** Read-only detected date ("YYYY-MM-DD") / time ("HH:mm") from the scheduler. */
+  detectedTour?: { date: string | null; time: string | null } | null;
   onAutofillTour: () => Promise<AutofillOutcome>;
   onConfirmTour: (args: { tourDate: string; tourTime: string }) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [tourDate, setTourDate] = useState("");
   const [tourTime, setTourTime] = useState(DEFAULT_TIME_VALUE);
+  // Once the locator manually edits a field it becomes authoritative and detection
+  // never overwrites it. Detection populates only the un-edited field(s).
+  const [userEditedDate, setUserEditedDate] = useState(false);
+  const [userEditedTime, setUserEditedTime] = useState(false);
+  useEffect(() => {
+    if (!detectedTour) return;
+    if (detectedTour.date && !userEditedDate) setTourDate((cur) => (cur === detectedTour.date ? cur : detectedTour.date!));
+    if (detectedTour.time && !userEditedTime) setTourTime((cur) => (cur === detectedTour.time ? cur : detectedTour.time!));
+    // Re-runs when the scheduler selection changes, so an updated pick propagates
+    // until the locator edits the field.
+  }, [detectedTour, userEditedDate, userEditedTime]);
 
   const name = favorite?.propertyName ?? propertyNameFallback ?? "This property";
   const address = favorite?.propertyAddress ?? null;
@@ -179,11 +193,11 @@ export function TourModeView({
           <input
             type="date"
             value={tourDate}
-            onChange={(e) => setTourDate(e.target.value)}
+            onChange={(e) => { setTourDate(e.target.value); setUserEditedDate(true); }}
             onClick={openNativePicker}
             style={{ font: "inherit", fontSize: 12, color: "var(--lb-text-secondary, #c2c7d0)", background: "var(--lb-card, #1e222c)", border: "1px solid var(--lb-border, #2b3140)", borderRadius: 8, padding: "8px 10px", colorScheme: "dark" }}
           />
-          <TourTimeField value={tourTime} onChange={setTourTime} />
+          <TourTimeField value={tourTime} onChange={(v) => { setTourTime(v); setUserEditedTime(true); }} />
         </div>
         <button
           type="button"

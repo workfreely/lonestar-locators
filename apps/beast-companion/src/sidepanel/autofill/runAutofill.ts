@@ -1,4 +1,12 @@
-import { autofillTourForm, type AutofillPayload, type AutofillResult } from "@bc/companion-shared";
+import {
+  autofillTourForm,
+  collectTourSelectionCandidates,
+  decideSelection,
+  type AutofillPayload,
+  type AutofillResult,
+  type DetectedSelection,
+  type SelectionCandidate,
+} from "@bc/companion-shared";
 
 // Schedule Tour autofill (safest per-site permission model), BOUND to the property
 // scheduler tab captured at Tour Mode entry — never the currently active tab.
@@ -179,6 +187,27 @@ async function resolveSchedulerTab(schedulerUrl: string): Promise<{ tabId: numbe
   } catch {
     return null;
   }
+}
+
+// READ-ONLY tour date/time detection in the bound tab. Injects the self-contained
+// harvester (light DOM + open shadow roots + same-origin frames), then decides
+// panel-side. No permission request (already granted), no writes, no clicks — pure
+// observation. Returns { date, time } (either may be null; low confidence → null).
+export async function detectTourSelectionInTab(tabId: number): Promise<DetectedSelection> {
+  if (!chromeApis()) return { date: null, time: null };
+  try { const t = await chrome.tabs.get(tabId); if (!t || t.id == null) return { date: null, time: null }; } catch { return { date: null, time: null }; }
+  let injections: chrome.scripting.InjectionResult<SelectionCandidate[]>[] | undefined;
+  try {
+    injections = await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, func: collectTourSelectionCandidates });
+  } catch {
+    try { injections = await chrome.scripting.executeScript({ target: { tabId }, func: collectTourSelectionCandidates }); }
+    catch { return { date: null, time: null }; }
+  }
+  const cands: SelectionCandidate[] = [];
+  for (const inj of injections ?? []) { const r = inj.result; if (Array.isArray(r)) for (const c of r) cands.push(c); }
+  const d = new Date();
+  const todayIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return decideSelection(cands, todayIso);
 }
 
 // Inject into an ALREADY-BOUND, already-permitted tab — NO permission request, so it

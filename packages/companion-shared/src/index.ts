@@ -130,6 +130,17 @@ export type { DueDateFormatOptions } from "./format/dueDate";
 // Schedule Tour autofill — the self-contained page filler + its typed contract
 // (the CRM/Companion assemble the values; chrome.scripting injects the filler).
 export { autofillTourForm } from "./autofill/formFill";
+export {
+  collectTourSelectionCandidates,
+  decideSelection,
+  parseDateValue,
+  parseTimeValue,
+  isMoveContext,
+  isHoursContext,
+  isTourContext,
+  type DetectedSelection,
+  type SelectionCandidate,
+} from "./autofill/detectSelection";
 export type {
   AutofillPayload, AutofillClient, AutofillLocator, AutofillResult,
   AutofillFieldReport, AutofillFieldKey, AutofillFieldAction,

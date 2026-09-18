@@ -4,7 +4,7 @@ import { sanitizeFollowUpOverrides } from "@bc/companion-shared";
 import type { CurrentProperty } from "@/types";
 import { formatPersonName, buildIntroSmsBody, buildFollowUpSmsBody, buildContactFollowUpSmsBody, isFollowUpAction, isContactFollowUpAction, formatWorkflowActionLabel, companionMayConfirm, DEFAULT_TIME_VALUE } from "@bc/companion-shared";
 import { PanelApp } from "./PanelApp";
-import { runAutofillForScheduler, reinjectAutofillIntoTab, type AutofillOutcome } from "./autofill/runAutofill";
+import { runAutofillForScheduler, reinjectAutofillIntoTab, detectTourSelectionInTab, type AutofillOutcome } from "./autofill/runAutofill";
 import { useTourMode } from "./tour/useTourMode";
 import type { AutofillPayload } from "@bc/companion-shared";
 import { TourTimeField } from "./lead/TourTimeField";
@@ -1081,6 +1081,9 @@ export function ProductionPanel() {
   // first) hasn't rendered the contact fields yet, we ARM a bounded re-inject
   // against that SAME bound tab (no new permission prompts — already granted) so the
   // fields fill once, the moment the locator reaches the contact step.
+  // Read-only detected tour date/time (from the bound scheduler tab). Populates the
+  // "When is the tour?" fields in TourModeView; the locator reviews + Saves manually.
+  const [detectedTour, setDetectedTour] = useState<{ date: string | null; time: string | null } | null>(null);
   const autofillArmRef = useRef<{ intervalId: ReturnType<typeof setInterval>; tabId: number; nonce: string } | null>(null);
   const clearAutofillArm = () => {
     const arm = autofillArmRef.current;
@@ -1089,17 +1092,36 @@ export function ProductionPanel() {
     }
     autofillArmRef.current = null;
   };
-  const armAutofillReinject = (tabId: number, payload: AutofillPayload, nonce: string) => {
+  // ONE bounded loop for the observation period: keeps re-injecting Autofill until it
+  // succeeds (idempotent), AND reads the selected date/time each cycle so a multi-step
+  // scheduler's later selection is caught. Stops on tab close, Tour Mode exit/switch,
+  // or timeout. Read-only detection never writes to the page.
+  const armObservation = (tabId: number, payload: AutofillPayload, alreadyFilled: boolean, nonce: string) => {
     clearAutofillArm(); // repeated clicks never stack observers/intervals
     const startedAt = Date.now();
     const MAX_MS = 5 * 60_000; // give up after 5 min (scheduler abandoned)
+    let filled = alreadyFilled;
     const intervalId = setInterval(async () => {
       const arm = autofillArmRef.current;
       if (!arm || arm.intervalId !== intervalId) return; // superseded
       if (Date.now() - startedAt > MAX_MS) { clearAutofillArm(); return; }
-      const res = await reinjectAutofillIntoTab(tabId, payload);
-      // Filled once → done. Tab closed → stop. Otherwise keep waiting for fields.
-      if (res.status === "filled" || res.status === "no-tab" || res.status === "unsupported") clearAutofillArm();
+      // Bound tab gone → stop everything.
+      try { const t = await chrome.tabs.get(tabId); if (!t || t.id == null) { clearAutofillArm(); return; } } catch { clearAutofillArm(); return; }
+      // (1) Autofill retry until the contact fields are filled (idempotent; unchanged).
+      if (!filled) {
+        const res = await reinjectAutofillIntoTab(tabId, payload);
+        if (res.status === "no-tab") { clearAutofillArm(); return; }
+        if (res.status === "filled") filled = true;
+      }
+      // (2) Read-only date/time detection — runs the whole period so a later selection
+      //     is picked up; updates if the scheduler selection changes.
+      const det = await detectTourSelectionInTab(tabId);
+      if (det && (det.date || det.time)) {
+        setDetectedTour((prev) => {
+          const next = { date: det.date ?? prev?.date ?? null, time: det.time ?? prev?.time ?? null };
+          return prev && prev.date === next.date && prev.time === next.time ? prev : next;
+        });
+      }
     }, 2000);
     autofillArmRef.current = { intervalId, tabId, nonce };
   };
@@ -1113,19 +1135,20 @@ export function ProductionPanel() {
     if (!schedulerUrl) return { status: "no-tab" };
     const payload = buildAutofillPayload(active);
     const { outcome, tabId } = await runAutofillForScheduler(schedulerUrl, payload);
-    // Multi-step: fields not present yet → arm the bounded re-inject on the bound tab.
-    if (tabId != null && outcome.status === "no-fields") {
-      armAutofillReinject(tabId, payload, tourMode?.nonce ?? "");
+    // Bound to the property tab → arm the bounded observation loop (autofill retry +
+    // read-only date/time detection), whether fields were present now or not yet.
+    if (tabId != null && (outcome.status === "filled" || outcome.status === "no-fields")) {
+      armObservation(tabId, payload, outcome.status === "filled", tourMode?.nonce ?? "");
     }
     return outcome;
   };
 
-  // Disarm when Tour Mode exits or switches to a different property (the armed nonce
-  // no longer matches the active tour), and on unmount. Combined with the loop's own
-  // tab-closed + timeout + filled stops, this covers every required cleanup case.
+  // Disarm + clear detection when Tour Mode exits or switches to a different property
+  // (the armed nonce no longer matches the active tour), and on unmount. Combined with
+  // the loop's own tab-closed + timeout stops, this covers every required cleanup case.
   useEffect(() => {
     const arm = autofillArmRef.current;
-    if (arm && arm.nonce !== (tourMode?.nonce ?? "")) clearAutofillArm();
+    if (arm && arm.nonce !== (tourMode?.nonce ?? "")) { clearAutofillArm(); setDetectedTour(null); }
   }, [tourMode]);
   useEffect(() => () => clearAutofillArm(), []);
 
@@ -1492,6 +1515,7 @@ export function ProductionPanel() {
         onClearCurrentProperty={onClearCurrentProperty}
         onAutofillTour={active ? onAutofillTour : undefined}
         tourMode={tourMode}
+        detectedTour={detectedTour}
         onTourBack={exitTourMode}
         onTourConfirm={confirmTourMode}
         locator={active?.locator ?? null}
