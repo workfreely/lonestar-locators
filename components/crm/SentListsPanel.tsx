@@ -25,7 +25,17 @@ type SentList = {
   viewSessionCount: number
 }
 
-export default function SentListsPanel({ timeZone }: { timeZone: string }) {
+export default function SentListsPanel({
+  timeZone,
+  leadId = null,
+  clientName = null,
+}: {
+  timeZone: string
+  /** When set, scope the view to ONE client's lists (the CRM Recommended Properties
+   *  entry). Null = the workspace-wide surface (/admin/sent-lists), unchanged. */
+  leadId?: number | string | null
+  clientName?: string | null
+}) {
   const [rows, setRows] = useState<SentList[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -62,12 +72,15 @@ export default function SentListsPanel({ timeZone }: { timeZone: string }) {
         return
       }
       const json = (await res.json()) as { shares?: SentList[] }
-      setRows(Array.isArray(json.shares) ? json.shares : [])
+      const all = Array.isArray(json.shares) ? json.shares : []
+      // Client-scoped entry (CRM Recommended Properties) filters the SAME canonical
+      // sent-only list to this lead — the smallest safe scoping, no API/schema change.
+      setRows(leadId != null ? all.filter((r) => String(r.leadId) === String(leadId)) : all)
     } catch {
       setError("Couldn't load sent lists.")
       setRows([])
     }
-  }, [])
+  }, [leadId])
 
   useEffect(() => {
     void load()
@@ -140,6 +153,7 @@ export default function SentListsPanel({ timeZone }: { timeZone: string }) {
     }
   }, [])
 
+  const scoped = leadId != null
   const wrap = "max-w-[1200px] mx-auto"
   const btn =
     "text-[12px] font-semibold px-2.5 py-1.5 rounded-lg border border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -147,9 +161,13 @@ export default function SentListsPanel({ timeZone }: { timeZone: string }) {
   return (
     <div className={wrap}>
       <div className="mb-5">
-        <h1 className="text-[20px] font-bold text-[var(--crm-text-primary)]">Sent Lists</h1>
+        <h1 className="text-[20px] font-bold text-[var(--crm-text-primary)]">
+          {scoped ? `Sent List History${clientName ? ` (${clientName})` : ""}` : "Sent Lists"}
+        </h1>
         <p className="text-[13px] text-[var(--crm-text-secondary)] mt-1">
-          Recommendation lists you&apos;ve sent to clients. Preview or copy the exact list a client sees, or disable a link.
+          {scoped
+            ? "Recommendation lists you've sent to this client. Preview or copy the exact list they see, or disable a link."
+            : "Recommendation lists you've sent to clients. Preview or copy the exact list a client sees, or disable a link."}
         </p>
       </div>
 
@@ -165,7 +183,7 @@ export default function SentListsPanel({ timeZone }: { timeZone: string }) {
         <div className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] px-6 py-12 text-center">
           <p className="text-[15px] font-semibold text-[var(--crm-text-primary)]">No sent lists yet</p>
           <p className="text-[13px] text-[var(--crm-text-secondary)] mt-1.5">
-            Lists you send to clients will appear here.
+            {scoped ? "Lists you send to this client will appear here." : "Lists you send to clients will appear here."}
           </p>
         </div>
       ) : (
@@ -173,7 +191,7 @@ export default function SentListsPanel({ timeZone }: { timeZone: string }) {
           <table className="w-full border-collapse text-[13px]">
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]">
-                <th className="px-4 py-3 font-semibold">Client</th>
+                {!scoped && <th className="px-4 py-3 font-semibold">Client</th>}
                 <th className="px-3 py-3 font-semibold">List</th>
                 <th className="px-3 py-3 font-semibold">Sent</th>
                 <th className="px-3 py-3 font-semibold text-right">Properties</th>
@@ -189,7 +207,7 @@ export default function SentListsPanel({ timeZone }: { timeZone: string }) {
                 const busy = busyId === r.id
                 return (
                   <tr key={r.id} className="border-t border-[var(--crm-border)]">
-                    <td className="px-4 py-3 font-semibold text-[var(--crm-text-primary)] whitespace-nowrap">{r.clientName}</td>
+                    {!scoped && <td className="px-4 py-3 font-semibold text-[var(--crm-text-primary)] whitespace-nowrap">{r.clientName}</td>}
                     <td className="px-3 py-3 text-[var(--crm-text-secondary)] whitespace-nowrap">List {r.listNumber}</td>
                     <td className="px-3 py-3 text-[var(--crm-text-secondary)] whitespace-nowrap">{fmtDate(r.sentAt) ?? "—"}</td>
                     <td className="px-3 py-3 text-[var(--crm-text-secondary)] text-right tabular-nums">{r.itemCount}</td>

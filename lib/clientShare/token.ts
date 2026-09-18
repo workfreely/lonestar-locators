@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "crypto"
+import { SHARE_TOKEN_PREFIX } from "./tokenShape"
 
 /**
  * Client Recommendation share tokens.
@@ -12,11 +13,13 @@ import { createHash, randomBytes } from "crypto"
  * a server component that has no business importing response helpers.
  */
 
-const PREFIX = "lbr_"
+// The edge-safe shape guard lives in ./tokenShape (no node:crypto) so the middleware
+// can share it. Re-exported here so existing importers of this module are unchanged.
+export { looksLikeShareToken } from "./tokenShape"
 
 /** A fresh share token. 32 random bytes — not guessable, not enumerable. */
 export function generateShareToken(): { raw: string; hash: string; prefix: string } {
-  const raw = PREFIX + randomBytes(32).toString("base64url")
+  const raw = SHARE_TOKEN_PREFIX + randomBytes(32).toString("base64url")
   return { raw, hash: hashShareToken(raw), prefix: raw.slice(0, 8) }
 }
 
@@ -28,9 +31,4 @@ export function generateShareToken(): { raw: string; hash: string; prefix: strin
  */
 export function hashShareToken(raw: string): string {
   return createHash("sha256").update(raw).digest("hex")
-}
-
-/** Cheap shape check so an obviously-malformed path never reaches the database. */
-export function looksLikeShareToken(raw: string): boolean {
-  return typeof raw === "string" && raw.startsWith(PREFIX) && raw.length >= 20 && raw.length <= 128
 }

@@ -23,6 +23,8 @@ export default function BestMatches({
   recommendations = [],
   onRemoveRecommendation,
   onMoveToFavorite,
+  onSendRecommendations,
+  onOpenSentHistory,
 }: {
   lead: any
   recommendations?: any[]
@@ -30,6 +32,10 @@ export default function BestMatches({
   onRemoveRecommendation?: (propertyUrl?: string | null) => void
   /** Heart — move the property from Recommendations → Favorites. */
   onMoveToFavorite?: (propertyUrl?: string | null) => void
+  /** Primary action — prepare/send the current Recommendations as a client share list. */
+  onSendRecommendations?: () => void
+  /** Secondary action — open this client's Sent List history (scoped to their lead). */
+  onOpenSentHistory?: () => void
 }) {
   const leadRecommendations = (recommendations || []).filter(
     (r) => String(r.lead_id) === String(lead?.id),
@@ -103,7 +109,7 @@ export default function BestMatches({
                       aria-label="Move to favorites"
                       title="Move to favorites"
                       onClick={() => onMoveToFavorite(r.property_url)}
-                      className="inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-md border border-[var(--crm-border)] bg-[var(--crm-card)] px-[5px] text-[15px] font-semibold leading-none text-[var(--crm-text-secondary)] transition-colors duration-[120ms] hover:border-red-500/60 hover:bg-red-500/10 hover:text-red-500"
+                      className="crm-rec-heart"
                     >
                       ♡
                     </button>
@@ -112,6 +118,35 @@ export default function BestMatches({
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Recommendation actions — BELOW the cards, inside Recommended Properties (never
+          Favorites). Send Recommendations is the stronger action (filled accent);
+          Sent List History is secondary (bordered). Both operate on the canonical
+          client-share flow; neither touches Favorites. */}
+      {lead?.id != null && (onSendRecommendations || onOpenSentHistory) && (
+        <div className="mt-3 flex items-center gap-2 border-t border-[var(--crm-border-soft)] pt-3">
+          {onSendRecommendations && (
+            <button
+              type="button"
+              onClick={onSendRecommendations}
+              disabled={leadRecommendations.length === 0}
+              title={leadRecommendations.length === 0 ? "Add recommendations first" : "Send these recommendations to the client"}
+              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[var(--crm-accent)] px-3 py-2 text-[12px] font-semibold text-white transition-[filter,opacity] hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-100"
+            >
+              Send Recommendations
+            </button>
+          )}
+          {onOpenSentHistory && (
+            <button
+              type="button"
+              onClick={onOpenSentHistory}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[var(--crm-border)] px-3 py-2 text-[12px] font-semibold text-[var(--crm-text-secondary)] transition-colors hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]"
+            >
+              Sent List History
+            </button>
+          )}
         </div>
       )}
     </SectionCard>

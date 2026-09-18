@@ -2180,6 +2180,41 @@ body.jaybot-open {
 [data-density="overview"] .kb-archive-line { margin-top:3px; }
 [data-density="overview"] .kb-fresh::after { border-radius:9px; }
 
+/* Recommended Property → Favorite heart — EXACT parity with the Beast Companion
+   Properties → Recommendations heart (.bc-prop-move + .bc-prop-move--heart in the
+   extension's panel.css): same 22px glyph control, 6px radius, 1px border + elevated
+   surface, empty ♡ at 15px/600, neutral at rest, red destination affordance on hover,
+   120ms. Same rules verbatim; only the token namespace maps --lb-* → --crm-* so it
+   stays theme-aware inside the CRM. `font: inherit` FIRST so the ♡ never falls back to
+   the UA button font (which renders it compressed) — the same reset the canonical uses. */
+.crm-rec-heart {
+  flex: none;
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  line-height: 1;
+  border-radius: 6px;
+  border: 1px solid var(--crm-border);
+  background: var(--crm-card);
+  color: var(--crm-text-secondary);
+  font-size: 15px;
+  font-weight: 600;
+  font-stretch: normal;
+  letter-spacing: normal;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.crm-rec-heart:hover:not(:disabled) {
+  color: #ef4444;
+  border-color: color-mix(in srgb, #ef4444 60%, var(--crm-border));
+  background: color-mix(in srgb, #ef4444 10%, var(--crm-card));
+}
+.crm-rec-heart:disabled { opacity: 0.4; cursor: not-allowed; }
+
 .kb-fresh::after { content:""; position:absolute; inset:-1px; border-radius:15px; pointer-events:none; animation:kb-pulse 2.4s cubic-bezier(.16,1,.3,1) infinite; }
 @keyframes kb-pulse { 0%{box-shadow:0 0 0 0 color-mix(in srgb, var(--kb-accent) 42%, transparent);} 60%{box-shadow:0 0 0 7px color-mix(in srgb, var(--kb-accent) 0%, transparent);} 100%{box-shadow:0 0 0 0 color-mix(in srgb, var(--kb-accent) 0%, transparent);} }
 

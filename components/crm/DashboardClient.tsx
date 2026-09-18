@@ -11,6 +11,7 @@ import LeadInsights from "./LeadInsights"
 import LeadFavorites from "./LeadFavorites"
 import LeadNotes from "./LeadNotes"
 import BestMatches from "./BestMatches"
+import SentListsPanel from "./SentListsPanel"
 import LeadFormModal from "../LeadFormModal"
 import FollowUpTemplatesModal from "./FollowUpTemplatesModal"
 import WorkflowActionToast from "./WorkflowActionToast"
@@ -206,6 +207,125 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // a refresh — individual or bulk. Never merged into localNextActions (keeps the
   // open queue/ranking/agenda/Companion DTO untouched).
   const [localSentGuestCards, setLocalSentGuestCards] = useState<any[]>(sentGuestCards)
+  // ── Send Recommendations + Sent List History (canonical client-share flow) ──
+  // Send Recommendations mirrors the Beast Companion "Send List" workflow: prepare/
+  // reuse the immutable snapshot (POST /api/admin/client-shares) and open a PREVIEW of
+  // the exact /r/<token> page the client will receive. The sheet offers a 2×2 grid —
+  // Text List / Email List / Copy Link / Preview. Text List and Email List launch the
+  // client's composer with the link; only AFTER that does the canonical "Did you send
+  // {name}'s list?" confirmation appear, and only an affirmative runs the same
+  // complete-send-list verb the Companion posts (stamps sent_at AND advances Searching →
+  // List Sent + FU1). Copy Link / Preview NEVER touch sent state. Sent History opens the
+  // existing SentListsPanel scoped to this lead. Nothing here touches Favorites, schema,
+  // snapshot semantics, or the public page.
+  const [sendSheet, setSendSheet] = useState<
+    | { leadId: number | string; fullName: string; firstName: string; phone: string | null; email: string | null; url: string | null; shareId: string | null; error: string | null }
+    | null
+  >(null)
+  const [sendBusy, setSendBusy] = useState(false)
+  const [sendCopied, setSendCopied] = useState(false)
+  // Revealed only after Text List / Email List is initiated — the canonical
+  // "Did you send {name}'s list?" confirmation. Copy Link / Preview never set it.
+  const [sendConfirm, setSendConfirm] = useState(false)
+  const [sentHistory, setSentHistory] = useState<{ leadId: number | string; clientName: string } | null>(null)
+  const shareClientName = (l: any) =>
+    ([l?.preferred_name, [l?.first_name, l?.last_name].filter(Boolean).join(" ")].find((n) => (n ?? "").trim()) as string) || "this client"
+
+  const closeSendSheet = () => {
+    setSendSheet(null)
+    setSendConfirm(false)
+  }
+
+  // The message a client receives — a short intro plus the stable /r/<token> link. Kept
+  // minimal and inline (no shared-package/template-editor change); the link is the point.
+  function recommendationTextBody(firstName: string, url: string) {
+    const hi = firstName ? `Hi ${firstName}, ` : "Hi, "
+    return `${hi}here are the rental options I put together for you: ${url}`
+  }
+
+  // Record the send through the canonical Companion path (workflow-verb → the existing
+  // complete-send-list handler): stamps sent_at on the snapshot AND completes send_list
+  // + advances Searching → List Sent + creates FU1. The SAME verb the Companion posts —
+  // no parallel send-state mechanism. Closes the sheet; the workflow toast confirms.
+  function recordListSent(leadId: number | string, shareId: string | null) {
+    window.postMessage(
+      { source: COMPANION_MSG_SOURCE, type: "workflow-verb", payload: { leadId, verb: "complete-send-list", shareId: shareId ?? undefined } },
+      window.location.origin,
+    )
+    closeSendSheet()
+  }
+
+  async function handleSendRecommendations(lead: any) {
+    if (!lead?.id) return
+    // Open the preview tab synchronously inside the click gesture, then redirect it to
+    // the resolved client URL once prepared — this avoids the pop-up blocker that would
+    // silently swallow a window.open() issued after the async prepare returns.
+    const previewWin = typeof window !== "undefined" ? window.open("about:blank", "_blank") : null
+    setSendBusy(true)
+    setSendCopied(false)
+    setSendConfirm(false)
+    const firstName = formatPersonName(lead.first_name || "") || ""
+    const fullName = formatPersonName([lead.first_name, lead.last_name].filter(Boolean).join(" ")) || firstName || shareClientName(lead)
+    const base = { leadId: lead.id, fullName, firstName, phone: lead.phone ?? null, email: lead.email ?? null }
+    try {
+      const res = await fetch("/api/admin/client-shares", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId: Number(lead.id) }),
+      })
+      const json: any = await res.json().catch(() => ({}))
+      if (res.ok && typeof json?.url === "string" && typeof json?.shareId === "string") {
+        // Preview EXACTLY what the client will receive — the real /r/<token> page.
+        if (previewWin) {
+          try { previewWin.opener = null } catch { /* same-origin child; best effort */ }
+          previewWin.location.replace(json.url)
+        } else {
+          window.open(json.url, "_blank", "noopener,noreferrer")
+        }
+        setSendSheet({ ...base, url: json.url, shareId: json.shareId, error: null })
+      } else {
+        previewWin?.close()
+        setSendSheet({ ...base, url: null, shareId: null, error: "Couldn't prepare the recommendation list. Please try again." })
+      }
+    } catch {
+      previewWin?.close()
+      setSendSheet({ ...base, url: null, shareId: null, error: "Something went wrong. Please try again." })
+    } finally {
+      setSendBusy(false)
+    }
+  }
+
+  // Text List — open the SMS composer pre-addressed to the client with the link, then
+  // reveal the canonical confirmation. Launching alone NEVER marks the list sent.
+  function textList() {
+    const s = sendSheet
+    if (!s?.url || !s.phone) return
+    launchExternalProtocol(dialUrl("text", s.phone, recommendationTextBody(s.firstName, s.url)))
+    setSendConfirm(true)
+  }
+
+  // Email List — open the email composer with the link, then reveal the confirmation.
+  // Launching alone NEVER marks the list sent.
+  function emailList() {
+    const s = sendSheet
+    if (!s?.url || !s.email) return
+    const subject = "Your rental recommendations"
+    const body = recommendationTextBody(s.firstName, s.url)
+    launchExternalProtocol(`mailto:${s.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`)
+    setSendConfirm(true)
+  }
+
+  async function copySendSheetUrl() {
+    const url = sendSheet?.url
+    if (!url) return
+    try {
+      await navigator.clipboard.writeText(url)
+      setSendCopied(true)
+      setTimeout(() => setSendCopied(false), 1800)
+    } catch {
+      /* clipboard blocked — the client link is still reachable via Preview */
+    }
+  }
 
   // Latest NON-successful outreach per lead (leadId → {type, method, occurredAt}),
   // the discriminator that turns a still-New lead's Follow Up into "Called — No
@@ -3832,6 +3952,8 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                         window.location.origin,
                       )
                     }}
+                    onSendRecommendations={() => selectedLead && handleSendRecommendations(selectedLead)}
+                    onOpenSentHistory={() => selectedLead && setSentHistory({ leadId: selectedLead.id, clientName: shareClientName(selectedLead) })}
                   />
                   <LeadFavorites
                     lead={selectedLead}
@@ -4038,6 +4160,69 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         timeZone={timeZone}
         onSubmit={handleCheckApplicationOutcome}
       />
+
+      {/* Send Recommendations — the canonical client-share flow. On open it prepares/
+          reuses the immutable snapshot and previews the exact /r/<token> page. A 2×2
+          grid (Text List / Email List / Copy Link / Preview) shares the same compact
+          outlined treatment. Text List / Email List launch the client's composer and
+          THEN reveal the canonical "Did you send {name}'s list?" confirmation; only
+          "Yes, List Sent" runs the complete-send-list verb (sent_at + Searching → List
+          Sent + FU1). Copy Link / Preview never touch sent state. No raw URL shown. */}
+      {sendSheet && (
+        <div className="fixed inset-0 z-[10000] bg-black/40 backdrop-blur-sm flex items-center justify-center px-4" onClick={closeSendSheet}>
+          <div className="w-full max-w-md rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="min-w-0 text-[16px] font-bold text-[var(--crm-text-primary)]">Send Recommendations to {sendSheet.fullName}</h3>
+              <button type="button" aria-label="Close" onClick={closeSendSheet} className="flex h-7 w-7 flex-none items-center justify-center rounded-lg text-[13px] text-[var(--crm-text-muted)] hover:bg-[var(--crm-card)] hover:text-[var(--crm-text-primary)]">✕</button>
+            </div>
+            {sendSheet.error ? (
+              <p className="mt-4 text-[13px] text-red-500">{sendSheet.error}</p>
+            ) : sendBusy && !sendSheet.url ? (
+              <p className="mt-4 text-[13px] text-[var(--crm-text-secondary)]">Preparing the list…</p>
+            ) : (
+              <>
+                {/* 2×2 grid — matching compact outlined buttons. */}
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <button type="button" onClick={textList} disabled={!sendSheet.phone} title={sendSheet.phone ? undefined : "No phone on file"} className="inline-flex w-full items-center justify-center rounded-lg bg-[var(--crm-accent)] px-3 py-2 text-[12px] font-semibold text-white transition-[filter,opacity] hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-100">Text List</button>
+                  <button type="button" onClick={emailList} disabled={!sendSheet.email} title={sendSheet.email ? undefined : "No email on file"} className="inline-flex w-full items-center justify-center rounded-lg bg-[var(--crm-accent)] px-3 py-2 text-[12px] font-semibold text-white transition-[filter,opacity] hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-100">Email List</button>
+                  <button type="button" onClick={copySendSheetUrl} className="inline-flex w-full items-center justify-center rounded-lg border border-[var(--crm-border)] px-3 py-2 text-[12px] font-semibold text-[var(--crm-text-secondary)] transition-colors hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]">{sendCopied ? "Link copied ✓" : "Copy Link"}</button>
+                  <button type="button" onClick={() => sendSheet.url && window.open(sendSheet.url, "_blank", "noopener,noreferrer")} className="inline-flex w-full items-center justify-center rounded-lg border border-[var(--crm-border)] px-3 py-2 text-[12px] font-semibold text-[var(--crm-text-secondary)] transition-colors hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]">Preview</button>
+                </div>
+
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Sent confirmation — the established CRM ConfirmDialog, NOT an inline block.
+          Revealed only after Text List / Email List launched a composer (sendConfirm).
+          "Yes, List Sent" runs the canonical complete-send-list verb (via recordListSent,
+          which also closes the sheet); "Not yet" just dismisses the confirmation. Copy
+          Link / Preview never set sendConfirm, so they can never reach this. */}
+      <ConfirmDialog
+        open={!!sendSheet && sendConfirm}
+        compact
+        title={`Did you send ${sendSheet?.firstName || "the client"}’s list?`}
+        confirmLabel="Yes, List Sent"
+        cancelLabel="Not yet"
+        onConfirm={() => sendSheet && recordListSent(sendSheet.leadId, sendSheet.shareId)}
+        onCancel={() => setSendConfirm(false)}
+      />
+
+      {/* Sent List History — the existing SentListsPanel, scoped to THIS client's lead
+          (workspace-wide /admin/sent-lists is unchanged). Preview / Copy / Disable /
+          Activate all reuse the canonical client-shares APIs. */}
+      {sentHistory && (
+        <div className="fixed inset-0 z-[10000] bg-black/40 backdrop-blur-sm flex items-start justify-center overflow-y-auto p-4 sm:p-8" onClick={() => setSentHistory(null)}>
+          <div className="w-full max-w-5xl rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-1 flex justify-end">
+              <button type="button" aria-label="Close" onClick={() => setSentHistory(null)} className="flex h-7 w-7 items-center justify-center rounded-lg text-[13px] text-[var(--crm-text-muted)] hover:bg-[var(--crm-card)] hover:text-[var(--crm-text-primary)]">✕</button>
+            </div>
+            <SentListsPanel timeZone={timeZone} leadId={sentHistory.leadId} clientName={sentHistory.clientName} />
+          </div>
+        </div>
+      )}
 
       {/* Apply → Applied confirmation. 'applied' is reached ONLY here, on explicit
           confirmation the client submitted (Ready to Apply never sets it). */}

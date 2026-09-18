@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { getAccessState, type OrganizationStatus } from "@/lib/billing/access";
+import { looksLikeShareToken } from "@/lib/clientShare/tokenShape";
 
 // Locator Beast (B2B SaaS marketing site) is served from its own domain but
 // lives inside this repo as app/locator-beast/*. Requests to that host are
@@ -156,6 +157,26 @@ async function billingGate(request: NextRequest): Promise<NextResponse | null> {
 export async function middleware(request: NextRequest) {
   const hostname = (request.headers.get("host") || "").split(":")[0];
   const { pathname } = request.nextUrl;
+
+  // 0) PUBLIC CLIENT-RECOMMENDATION SHORT LINK — host-independent.
+  //
+  // `/r/<token>` is a platform primitive that must resolve to the LB recommendation
+  // page (app/locator-beast/r/[token]) on EVERY host. The marketing rewrite below
+  // only fires on the locatorbeast.com host, so off that host (localhost, and the
+  // Lone Star domain) `/r/<token>` otherwise falls through to Lone Star routing
+  // (the (lonestar)/(site)/[city]/[category] segment) and renders the wrong site.
+  //
+  // Guarded by the SAME cheap share-token shape check the API and page use, so an
+  // ordinary two-segment route can never be captured — `r` is not a Lone Star city
+  // and no real path begins with the "lbr_" token prefix. Terminal rewrite: it does
+  // not re-enter middleware, and it changes neither the canonical URL the API
+  // returns nor any snapshot/token/data.
+  const shareMatch = pathname.match(/^\/r\/([^/]+)\/?$/);
+  if (shareMatch && looksLikeShareToken(shareMatch[1])) {
+    const rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = `${LOCATOR_BEAST_PREFIX}/r/${shareMatch[1]}`;
+    return NextResponse.rewrite(rewriteUrl);
+  }
 
   // 1) Premium-route protection — gate the CRM server-side. Skips /admin/billing
   //    so a lapsed user can always reach billing to subscribe.
