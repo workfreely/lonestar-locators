@@ -308,10 +308,14 @@ function getCloseRatio(
 
 // ─── AI Insights Card ─────────────────────────────────────────────────────────
 
-function AiInsightsCard({ leadId, onCloseWorkspace, beastInsight }: { leadId: string; onCloseWorkspace?: () => void; beastInsight: string }) {
+function AiInsightsCard({ leadId, onCloseWorkspace, beastInsight, clientFirstName }: { leadId: string; onCloseWorkspace?: () => void; beastInsight: string; clientFirstName?: string | null }) {
   const [brief, setBrief] = useState<AiClientBrief | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
+  // True only for the KNOWN "no messages for this client yet" outcome of a sync — a
+  // normal empty state, rendered muted (never the red error path). Genuine failures
+  // (network/server/etc.) still go through syncError. Reset on lead change + each sync.
+  const [noMessages, setNoMessages] = useState(false)
   const [open, setOpen] = useState(false)
   const initialOpenSet = useRef(false)
 
@@ -347,6 +351,7 @@ function AiInsightsCard({ leadId, onCloseWorkspace, beastInsight }: { leadId: st
   useEffect(() => {
     initialOpenSet.current = false
     setOpen(false)
+    setNoMessages(false)
     loadBrief()
   }, [leadId])
 
@@ -358,6 +363,7 @@ function AiInsightsCard({ leadId, onCloseWorkspace, beastInsight }: { leadId: st
     }
     setSyncing(true)
     setSyncError(null)
+    setNoMessages(false)
     try {
       const res = await fetch("/api/ai-insights/sync", {
         method: "POST",
@@ -366,7 +372,14 @@ function AiInsightsCard({ leadId, onCloseWorkspace, beastInsight }: { leadId: st
       })
       const json = await res.json()
       if (!res.ok) {
-        setSyncError(json?.error ?? "Sync failed")
+        // Normalize ONLY the known "no messages for this client yet" outcome into the
+        // muted empty state — never surface the raw backend string (it names an internal
+        // lead id + "Mac Companion"). Every other failure keeps the visible error path.
+        if (typeof json?.error === "string" && /^no messages found/i.test(json.error.trim())) {
+          setNoMessages(true)
+        } else {
+          setSyncError(json?.error ?? "Sync failed")
+        }
       } else {
         loadBrief()
       }
@@ -480,7 +493,18 @@ function AiInsightsCard({ leadId, onCloseWorkspace, beastInsight }: { leadId: st
           </>
         ) : (
           <p className="text-[11px] text-[var(--crm-text-muted)]">
-            {syncError ? null : "No insights yet — sync messages to generate."}
+            {syncError
+              ? null
+              : (() => {
+                  // Client's first name from existing lead data; neutral fallback when absent.
+                  const who = (clientFirstName ?? "").trim() || "this client"
+                  // noMessages ⇒ a sync just ran and found none (no "Click Sync" prompt).
+                  // Otherwise the client hasn't synced / connection can't be determined
+                  // from component state → prompt to Sync.
+                  return noMessages
+                    ? `No text messages found for ${who} yet.`
+                    : `No text messages found for ${who} yet. Click Sync to check for messages.`
+                })()}
           </p>
         )}
       </div>}
@@ -774,6 +798,7 @@ if (Number(lead.credit_score) <= 580) {
         leadId={String(lead.id)}
         onCloseWorkspace={onCloseWorkspace}
         beastInsight={`${approval.label} approval likelihood with ${responsiveness.toLowerCase()} responsiveness and a ${close.label} close probability.`}
+        clientFirstName={typeof lead?.first_name === "string" ? lead.first_name : null}
       />
 
       {/* Right-panel workspace — Locator Notes (see DashboardClient) */}
