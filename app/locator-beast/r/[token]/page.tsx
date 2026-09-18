@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation"
+import { Inter, Caveat } from "next/font/google"
 import { createClient } from "@/lib/supabase/server"
 import { hashShareToken, looksLikeShareToken } from "@/lib/clientShare/token"
 import { mergeSmartFormConfig } from "@/app/smart-lead-form/_lib/mergeConfig"
@@ -8,47 +9,27 @@ import { SKYLINE_PATH } from "@/lib/clientShare/skyline"
 
 export const dynamic = "force-dynamic"
 
+const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800", "900"], variable: "--lbr-sans", display: "swap" })
+const caveat = Caveat({ subsets: ["latin"], weight: ["600", "700"], variable: "--lbr-script", display: "swap" })
+
 /**
  * The client-facing Recommendation page — locatorbeast.com/r/<token>
  *
- * Opened from a link the locator texts. The renter has no Locator Beast account,
- * so the route is public; the unguessable token IS the credential.
+ * ONE canonical URL and ONE immutable snapshot; the presentation is fully responsive
+ * (a premium desktop landing at wide widths, a compact properties-first layout on a
+ * phone). Opened from a link the locator texts or emails; the renter has no account,
+ * so the route is public and the unguessable token IS the credential.
  *
- * SCOPE: this page recommends properties and collects favourites. It is not a
- * listing site. Rent, floor plans, availability, amenity lists and management
- * details are deliberately absent — the property's own website owns that data
- * and keeps it current.
- *
- * WHY IT LIVES UNDER app/locator-beast/ RATHER THAN THE APP ROOT
- * middleware.ts rewrites everything on the locatorbeast.com host under
- * /locator-beast/* unless the path matches APP_PATH_PATTERN. `r` is not in that
- * list, so a page at app/r/[token] would 404 on the live domain.
- *
- * EVERY access decision is made inside lb_resolve_client_recommendations, not
- * here. A paused list comes back with no property payload whatsoever — fetching
- * the properties and then hiding them in JSX would still ship them in this
- * page's serialised data.
- *
- * Nothing internal is reachable: no lead id, no workspace id, no notes, no
- * credit or background information, no commissions, no CRM stage, no client
- * contact details, and never property_url — the locator-only source link.
+ * SCOPE: recommends properties and collects favourites. Every access decision is made
+ * inside lb_resolve_client_recommendations — a disabled list returns no property payload
+ * at all. Nothing internal is reachable (no lead/workspace id, notes, credit, stage, or
+ * the locator-only property_url). All property facts (price/special/rating/reasons) are
+ * whatever was FROZEN into the snapshot at send time — the page omits any that are absent.
  */
 
-// The stable, client-facing origin for anything that ends up in a shared link's
-// metadata. NEVER process.env.VERCEL_URL: that is the ephemeral per-deployment
-// hostname, and a texted preview must not carry it (it leaks internal infra and
-// rots as soon as the next deploy supersedes it).
 const CANONICAL_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL || "https://locatorbeast.com"
-// Static, pre-optimized preview image on the stable domain — one file for every
-// share (nothing client-specific in a cached preview).
 const OG_IMAGE_PATH = "/locator-beast/r/og-recommendations.jpg"
 
-/**
- * Link-preview metadata. This page is delivered by text message, so the unfurled
- * preview IS part of the product. Title + image are fixed; only the description
- * is personalised, and only with the LOCATOR's name — never anything about the
- * client, and never the token.
- */
 export async function generateMetadata({
   params,
 }: {
@@ -57,42 +38,28 @@ export async function generateMetadata({
   const base = {
     metadataBase: new URL(CANONICAL_ORIGIN),
     title: "Your Apartment Recommendations",
-    robots: { index: false, follow: false },   // a texted link should not be indexed
+    robots: { index: false, follow: false },
   }
-
   const { token } = await params
   if (!looksLikeShareToken(token)) return base
-
   let agentName: string | null = null
   try {
     const supabase = await createClient()
-    const { data } = await supabase.rpc("lb_resolve_client_recommendations", {
-      p_token_hash: hashShareToken(token),
-    })
+    const { data } = await supabase.rpc("lb_resolve_client_recommendations", { p_token_hash: hashShareToken(token) })
     const share = (Array.isArray(data) ? data[0] : data) as { agent_name?: string | null } | undefined
     agentName = share?.agent_name?.trim() || null
   } catch {
-    // Preview metadata must never be the reason a page fails to render.
+    /* preview metadata must never fail the page */
   }
-
   const description = agentName ? `Personalized for you by ${agentName}` : "Personalized apartment recommendations"
-
   return {
     ...base,
     description,
     openGraph: {
-      title: base.title,
-      description,
-      type: "website" as const,
-      siteName: "Locator Beast",
+      title: base.title, description, type: "website" as const, siteName: "Locator Beast",
       images: [{ url: OG_IMAGE_PATH, width: 1200, height: 630, alt: "Your Apartment Recommendations — Locator Beast" }],
     },
-    twitter: {
-      card: "summary_large_image" as const,
-      title: base.title,
-      description,
-      images: [OG_IMAGE_PATH],
-    },
+    twitter: { card: "summary_large_image" as const, title: base.title, description, images: [OG_IMAGE_PATH] },
   }
 }
 
@@ -109,90 +76,176 @@ type Resolved = {
   properties: ClientProperty[] | null
 }
 
-const SERIF = "font-['Georgia',_'Times_New_Roman',_serif]"
+const LOGO = "/locator-beast/locator-beast-black-logo-transparent.png"
 
-/**
- * Hero. Deliberately carries NO product branding: the client is here because
- * their locator sent them a list, not because they are evaluating software.
- *
- * The skyline is the SAME artwork the link preview uses. Copy is passed in so the
- * unavailable / being-prepared states can show the eyebrow masthead WITHOUT the
- * "narrowed it down" / "heart these" lines that only make sense over a real list.
- */
-function Hero({ headline, subline }: { headline?: string | null; subline?: string | null }) {
-  return (
-    <header className="relative overflow-hidden px-6 pb-8 pt-9">
-      {/* Photograph, then a wash of the page colour over it. */}
-      <div aria-hidden className="absolute inset-0">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={SKYLINE_PATH} alt="" className="h-full w-full object-cover object-bottom" />
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage:
-              "linear-gradient(180deg, rgba(247,244,239,0.86) 0%, rgba(247,244,239,0.72) 42%, rgba(247,244,239,0.86) 78%, rgba(247,244,239,1) 100%)",
-          }}
-        />
-      </div>
-      <div className="relative text-center">
-        <p className="text-[12px] font-bold uppercase tracking-[0.2em] text-[#a8792a]">
-          Your Apartment Recommendations
-        </p>
-        {headline && (
-          <h1 className={`${SERIF} mt-3 text-[27px] font-bold leading-[1.16] text-[#1c2b4a]`}>{headline}</h1>
-        )}
-        {subline && <p className="mt-2.5 text-[16px] text-[#4a5164]">{subline}</p>}
-      </div>
-    </header>
-  )
+// ── The approved presentation, as scoped CSS (every selector prefixed `lbr-`). ──
+const STYLES = `
+.lbr-root{--navy:#0e2545;--ink:#3a4658;--muted:#7a869a;--faint:#9aa6b8;--line:#e7ebf2;--line-soft:#eef1f7;--bg:#f5f7fb;--green:#1f9d55;--pill-bg:#dff5e6;--pill-tx:#136c3a;--gold:#f5a524;--accentbg:#eaf1fc;--accentbg2:#e3ecfb;font-family:var(--lbr-sans),-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
+.lbr-root *{box-sizing:border-box}
+.lbr-script-f{font-family:var(--lbr-script),'Segoe Script',cursive}
+.lbr-page{background:var(--bg);min-height:100vh;padding:0}
+.lbr-shell{max-width:1160px;margin:26px auto 40px;background:#fff;border:1px solid var(--line);border-radius:22px;overflow:hidden;box-shadow:0 30px 80px -50px rgba(14,37,69,.35)}
+.lbr-hdr{display:flex;align-items:center;justify-content:space-between;padding:16px 26px;border-bottom:1px solid var(--line-soft);background:#fff}
+.lbr-brand img{height:26px;width:auto;display:block}
+.lbr-hdr-right{display:flex;align-items:center;gap:16px}
+.lbr-curated{font-size:12.5px;color:var(--muted);text-align:right;line-height:1.3}
+.lbr-curated b{color:var(--navy)}
+.lbr-textbtn{display:inline-flex;align-items:center;gap:8px;background:var(--navy);color:#fff;font-weight:600;font-size:13.5px;padding:9px 16px;border-radius:11px;border:none;text-decoration:none}
+.lbr-hero{position:relative;overflow:hidden;background:linear-gradient(180deg,#f7f9fc,#eef2f8)}
+.lbr-sky{position:absolute;inset:0;background-image:linear-gradient(90deg,rgba(247,249,252,.99) 0%,rgba(247,249,252,.9) 30%,rgba(247,249,252,.45) 60%,rgba(247,249,252,.2) 100%),url('${SKYLINE_PATH}');background-size:cover;background-position:right 38%}
+.lbr-hero-inner{position:relative;display:grid;grid-template-columns:1.2fr .8fr;gap:26px;align-items:center;padding:34px 40px 36px}
+.lbr-eyebrow{font-size:13px;color:var(--muted);font-weight:500;margin:0 0 12px}
+.lbr-eyebrow b{color:var(--navy)}
+.lbr-eyebrow .lbr-rule{display:block;width:66px;height:3px;border-radius:3px;background:linear-gradient(90deg,var(--gold),#f7c66b);margin-top:9px}
+.lbr-greet{font-size:40px;line-height:1.08;font-weight:800;color:var(--navy);letter-spacing:-.02em;margin:0 0 14px}
+.lbr-subcopy{font-size:15.5px;color:var(--ink);max-width:430px;margin:0}
+.lbr-hero-agent{position:relative;justify-self:end;width:100%;max-width:320px}
+.lbr-agent-photo{width:100%;aspect-ratio:1/1;border-radius:18px;object-fit:cover;box-shadow:0 20px 50px -24px rgba(14,37,69,.55);background:#dbe3ee}
+.lbr-agent-fallback{width:100%;aspect-ratio:1/1;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:56px;font-weight:800;color:#fff;background:linear-gradient(135deg,#22406e 0%,#16305a 100%);box-shadow:0 20px 50px -24px rgba(14,37,69,.55)}
+.lbr-agent-card{position:relative;z-index:2;margin-top:-46px;margin-left:auto;width:248px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:15px 18px;box-shadow:0 18px 44px -26px rgba(14,37,69,.4)}
+.lbr-agent-card .lbr-an{font-size:18px;font-weight:800;color:var(--navy)}
+.lbr-agent-card .lbr-ar{font-size:12.5px;color:var(--muted);margin-top:1px}
+.lbr-agent-card .lbr-ascript{font-size:20px;color:var(--navy);line-height:1;margin:8px 0 12px}
+.lbr-agent-card .lbr-arow{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink);margin-top:6px;word-break:break-word}
+.lbr-agent-card .lbr-arow svg{color:var(--gold);flex:none}
+.lbr-hero-script{position:absolute;right:40px;bottom:14px;font-size:22px;color:var(--navy);text-align:right;line-height:1.05;opacity:.9}
+.lbr-mobile-id{display:none}
+.lbr-recs{padding:30px 40px 8px}
+.lbr-recs-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:18px}
+.lbr-recs-head h2{font-size:27px;font-weight:800;color:var(--navy);letter-spacing:-.02em;margin:0}
+.lbr-recs-head p{margin:5px 0 0;font-size:14px;color:var(--muted)}
+.lbr-recs-script{font-size:22px;color:var(--navy);text-align:right;line-height:1.05;opacity:.85}
+.lbr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.lbr-card{background:#fff;border:1px solid var(--line);border-radius:18px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 10px 30px -22px rgba(14,37,69,.4)}
+.lbr-ph{position:relative;aspect-ratio:16/10;background:linear-gradient(135deg,#c7d2e0,#9fb2c8);overflow:hidden}
+.lbr-ph img{width:100%;height:100%;object-fit:cover;display:block}
+.lbr-ph-fallback{position:absolute;inset:0;background:linear-gradient(135deg,#c7d2e0,#9fb2c8)}
+.lbr-heart{position:absolute;top:12px;right:12px;width:40px;height:40px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(14,37,69,.28);cursor:pointer;border:none;padding:0}
+.lbr-heart:active{transform:scale(.9)}
+.lbr-pill{position:absolute;left:12px;bottom:12px;background:var(--pill-bg);color:var(--pill-tx);font-size:12.5px;font-weight:700;padding:6px 12px;border-radius:999px;box-shadow:0 4px 10px rgba(14,37,69,.14)}
+.lbr-body{padding:16px 17px 17px;display:flex;flex-direction:column;flex:1}
+.lbr-pname{font-size:18px;font-weight:800;color:var(--navy);letter-spacing:-.01em;margin:0}
+.lbr-addr{display:flex;align-items:flex-start;gap:6px;font-size:13px;color:var(--muted);margin-top:5px;line-height:1.35}
+.lbr-addr svg{color:var(--faint);flex:none;margin-top:2px}
+.lbr-rating{display:flex;align-items:center;gap:6px;font-size:13.5px;color:var(--ink);margin-top:7px;font-weight:600}
+.lbr-rating svg{color:var(--gold)}
+.lbr-why{margin-top:13px}
+.lbr-why-lbl{font-size:13px;font-weight:700;color:var(--navy);margin:0 0 7px}
+.lbr-why ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.lbr-why li{display:flex;gap:8px;font-size:13.5px;color:var(--ink);line-height:1.35}
+.lbr-check{color:var(--green);flex:none;margin-top:2px}
+.lbr-cardfoot{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:16px}
+.lbr-pl{font-size:12px;color:var(--muted)}
+.lbr-pv{font-size:18px;font-weight:800;color:var(--navy);letter-spacing:-.01em}
+.lbr-pmo{font-size:12px;font-weight:600;color:var(--muted)}
+.lbr-view{display:inline-flex;align-items:center;gap:7px;background:var(--navy);color:#fff;font-weight:600;font-size:13px;padding:9px 15px;border-radius:11px;border:none;text-decoration:none;white-space:nowrap}
+.lbr-close{margin:26px 40px 0;background:linear-gradient(180deg,var(--accentbg),var(--accentbg2));border:1px solid #dbe6f7;border-radius:20px;padding:26px 30px;display:grid;grid-template-columns:auto 1fr auto;gap:26px;align-items:center}
+.lbr-close-photo{width:132px;height:132px;border-radius:50%;object-fit:cover;border:5px solid #fff;box-shadow:0 14px 34px -18px rgba(14,37,69,.5);background:#dbe3ee}
+.lbr-close-fallback{width:132px;height:132px;border-radius:50%;border:5px solid #fff;display:flex;align-items:center;justify-content:center;font-size:44px;font-weight:800;color:#fff;background:linear-gradient(135deg,#22406e,#16305a);box-shadow:0 14px 34px -18px rgba(14,37,69,.5)}
+.lbr-close-copy h3{font-size:23px;font-weight:800;color:var(--navy);margin:0 0 8px}
+.lbr-close-copy p{font-size:14.5px;color:var(--ink);margin:0 0 12px;max-width:520px}
+.lbr-sig{font-size:26px;color:var(--navy);line-height:.9}
+.lbr-sigsub{font-size:13px;color:var(--muted);margin-top:2px}
+.lbr-close-actions{display:flex;flex-direction:column;gap:10px;min-width:190px}
+.lbr-act{display:inline-flex;align-items:center;justify-content:center;gap:9px;font-weight:600;font-size:14px;padding:12px 18px;border-radius:12px;text-decoration:none}
+.lbr-act.lbr-primary{background:var(--navy);color:#fff}
+.lbr-act.lbr-ghost{background:#fff;color:var(--navy);border:1px solid #cdd9ec}
+.lbr-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin:22px 40px 0}
+.lbr-step{display:flex;gap:12px;align-items:flex-start}
+.lbr-step .lbr-n{flex:none;width:34px;height:34px;border-radius:50%;background:#eef2fb;color:var(--navy);font-weight:800;display:flex;align-items:center;justify-content:center;font-size:15px}
+.lbr-step b{display:block;color:var(--navy);font-size:14.5px;font-weight:700}
+.lbr-step span{font-size:13px;color:var(--muted)}
+.lbr-foot{margin-top:26px;padding:22px 40px 26px;border-top:1px solid var(--line-soft);display:flex;align-items:center;justify-content:space-between;gap:16px}
+.lbr-foot img{height:24px}
+.lbr-foot .lbr-tag{font-size:13px;color:var(--muted)}
+.lbr-legal{padding:6px 26px 26px}
+.lbr-notice{max-width:520px;margin:34px auto;padding:0 20px}
+.lbr-notice-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:30px 26px;text-align:center;box-shadow:0 20px 60px -44px rgba(14,37,69,.4)}
+.lbr-notice-card h1{font-size:20px;font-weight:800;color:var(--navy);margin:0}
+.lbr-notice-card p{font-size:14.5px;color:var(--muted);margin:10px auto 0;max-width:330px;line-height:1.5}
+@media (max-width:640px){
+.lbr-shell{margin:0;border:none;border-radius:0;box-shadow:none}
+.lbr-hdr{padding:14px 16px}
+.lbr-hdr-right .lbr-curated,.lbr-hdr-right .lbr-textbtn{display:none}
+.lbr-hdr-right .lbr-menu{display:block}
+.lbr-hero{background:#fff}
+.lbr-sky{display:none}
+.lbr-hero-inner{grid-template-columns:1fr;gap:0;padding:18px 16px 6px}
+.lbr-greet{font-size:30px;margin-bottom:10px}
+.lbr-subcopy{font-size:14.5px}
+.lbr-hero-script,.lbr-hero-agent{display:none}
+.lbr-mobile-id{display:flex;align-items:center;gap:13px;margin:16px 16px 2px;padding:13px 14px;border:1px solid var(--line);border-radius:16px;background:#fff}
+.lbr-mobile-id img,.lbr-mobile-id .lbr-mid-fb{width:58px;height:58px;border-radius:50%;object-fit:cover;flex:none}
+.lbr-mobile-id .lbr-mid-fb{display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff;background:linear-gradient(135deg,#22406e,#16305a)}
+.lbr-mobile-id .lbr-an{font-size:16px;font-weight:800;color:var(--navy)}
+.lbr-mobile-id .lbr-ar{font-size:12px;color:var(--muted)}
+.lbr-mobile-id .lbr-ascript{font-size:17px;color:var(--navy);margin-top:2px}
+.lbr-recs{padding:20px 16px 8px}
+.lbr-recs-head{flex-direction:column;align-items:flex-start;gap:2px}
+.lbr-recs-head h2{font-size:23px}
+.lbr-recs-script{display:none}
+.lbr-grid{grid-template-columns:1fr;gap:16px}
+.lbr-ph{aspect-ratio:16/11}
+.lbr-close{margin:22px 16px 0;grid-template-columns:1fr;text-align:center;gap:14px;padding:24px 20px}
+.lbr-close-photo,.lbr-close-fallback{width:104px;height:104px;margin:0 auto}
+.lbr-close-copy p{margin-left:auto;margin-right:auto}
+.lbr-close-actions{min-width:0}
+.lbr-steps{grid-template-columns:1fr;margin:20px 16px 0;gap:14px}
+.lbr-foot{margin-top:22px;padding:20px 16px 24px;flex-direction:column;text-align:center;gap:10px}
+.lbr-legal{padding:6px 16px 24px}
+}
+`
+
+// Fix an accidental token in the gradient literals above (kept single-source):
+const CSS = STYLES
+
+function Phone() {
+  return (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .3 1.9.6 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.1a2 2 0 0 1 2.1-.5c.9.3 1.8.5 2.8.6a2 2 0 0 1 1.7 2Z" /></svg>)
+}
+function Mail() {
+  return (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-10 6L2 7" /></svg>)
+}
+function ChatIcon() {
+  return (<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>)
+}
+function PhoneBig() {
+  return (<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .3 1.9.6 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.1a2 2 0 0 1 2.1-.5c.9.3 1.8.5 2.8.6a2 2 0 0 1 1.7 2Z" /></svg>)
+}
+function MailBig() {
+  return (<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-10 6L2 7" /></svg>)
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
-  // Mobile is the design target — this arrives by text. The max-width keeps the
-  // phone composition intact on desktop rather than stretching cards into
-  // unreadable full-width rows.
-  return (
-    <div className="min-h-screen bg-[#f7f4ef]">
-      <div className="mx-auto w-full max-w-[430px] pb-8">{children}</div>
-    </div>
-  )
-}
-
-/**
- * The agent's OWN configured legal block, rendered by the SAME component the
- * public Smart Lead Form uses. Texas TREC presets and custom disclosure rows come
- * straight from their saved smart_form_config, so there is one place to edit them.
- */
+/** The agent's OWN configured legal block (TREC presets + custom disclosures), rendered
+ *  by the SAME component the public Smart Lead Form uses. */
 function LegalFooter({ config, brokerage }: { config: unknown; brokerage: string | null }) {
   const merged = mergeSmartFormConfig(config ?? {})
   const withBrokerage = brokerage ? { ...merged, copy: { ...merged.copy, brokerageName: brokerage } } : merged
   return (
-    <div className="px-2 pt-3">
+    <div className="lbr-legal">
       <Footer config={withBrokerage} compact />
     </div>
   )
 }
 
-/**
- * Compact single-message screen for the non-list states (being prepared / paused).
- * Old page shell + typography: the eyebrow masthead, then ONE white card carrying
- * the message — no duplicated hero copy, no Next Steps, no extra CTA.
- */
-function Notice({
+function NoticeScreen({
   title, body, config, brokerage,
 }: { title: string; body: string; config: unknown; brokerage: string | null }) {
   return (
-    <Shell>
-      <Hero />
-      <div className="px-3.5 pt-4">
-        <div className="rounded-2xl bg-white px-6 py-8 text-center shadow-[0_2px_10px_rgba(10,26,60,0.08)]">
-          <h1 className="text-[19px] font-bold text-[#0a1a3c]">{title}</h1>
-          <p className="mx-auto mt-2.5 max-w-[300px] text-[14px] leading-relaxed text-[#5b6270]">{body}</p>
+    <div className={`${inter.variable} ${caveat.variable} lbr-root`}>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <div className="lbr-page"><div className="lbr-shell">
+        <header className="lbr-hdr">
+          <span className="lbr-brand">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={LOGO} alt="Locator Beast" /></span>
+        </header>
+        <div className="lbr-notice">
+          <div className="lbr-notice-card">
+            <h1>{title}</h1>
+            <p>{body}</p>
+          </div>
         </div>
-        {/* A disclosure is not property data, so it stays even while paused. */}
         <LegalFooter config={config} brokerage={brokerage} />
-      </div>
-    </Shell>
+      </div></div>
+    </div>
   )
 }
 
@@ -202,139 +255,164 @@ export default async function ClientRecommendationsPage({
   params: Promise<{ token: string }>
 }) {
   const { token } = await params
-  if (!looksLikeShareToken(token)) notFound()   // junk path costs no DB round trip
+  if (!looksLikeShareToken(token)) notFound()
 
   const supabase = await createClient()
   const tokenHash = hashShareToken(token)
 
-  const { data, error } = await supabase.rpc("lb_resolve_client_recommendations", {
-    p_token_hash: tokenHash,
-  })
+  const { data, error } = await supabase.rpc("lb_resolve_client_recommendations", { p_token_hash: tokenHash })
   const share = (Array.isArray(data) ? data[0] : data) as Resolved | undefined
-
-  // Unknown AND revoked both land here, deliberately indistinguishable.
   if (error || !share) notFound()
 
-  // Records a deduped viewing SESSION and stamps first/last viewed.
+  // Deduped viewing session + first/last viewed. Unchanged.
   void supabase.rpc("lb_record_client_share_view", { p_token_hash: tokenHash })
 
   const firstName = share.client_first_name?.trim() || null
   const agentName = share.agent_name?.trim() || "Your locator"
   const agentFirst = agentName.split(/\s+/)[0]
-  const phoneHref = share.agent_phone ? share.agent_phone.replace(/[^\d+]/g, "") : null
+  const agentTitle = share.agent_title?.trim() || "Apartment Locator"
+  const brokerage = share.agent_brokerage?.trim() || null
+  const email = share.agent_email?.trim() || null
+  const phoneRaw = share.agent_phone?.trim() || null
+  const phoneHref = phoneRaw ? phoneRaw.replace(/[^\d+]/g, "") : null
+  const photo = share.agent_photo_url?.trim() || null
+  const initial = agentName.slice(0, 1).toUpperCase()
 
-  // A Disabled list withholds its properties and shows a neutral, client-facing
-  // unavailable screen — compact, no recommendation instructions.
   if (share.status === "disabled") {
     return (
-      <Notice
+      <NoticeScreen
         title="This list isn't available right now"
         body="Please reach out to your locator for access, or when you're ready to continue your apartment search."
         config={share.smart_form_config}
-        brokerage={share.agent_brokerage}
+        brokerage={brokerage}
       />
     )
   }
 
   const properties = share.properties ?? []
-
-  // An active link with an empty list is a real state: the locator is still
-  // building it. Compact "being prepared" message in the same shell.
   if (properties.length === 0) {
     return (
-      <Notice
+      <NoticeScreen
         title="Your list is being prepared"
         body={`${agentFirst} is still putting your recommendations together — you'll get a text as soon as they're ready.`}
         config={share.smart_form_config}
-        brokerage={share.agent_brokerage}
+        brokerage={brokerage}
       />
     )
   }
 
+  const curated = firstName ? `Curated for ${firstName} · by ${agentName}` : `Curated by ${agentName}`
+  const countLine = `${properties.length} ${properties.length === 1 ? "property" : "properties"} selected for you · Tap the heart on any property you like.`
+
   return (
-    <Shell>
-      <Hero
-        headline={firstName ? `${firstName}, I narrowed it down to your best options.` : "I narrowed it down to your best options."}
-        subline="Heart any you’d like to tour."
-      />
+    <div className={`${inter.variable} ${caveat.variable} lbr-root`}>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <div className="lbr-page"><div className="lbr-shell">
 
-      <RecommendationList properties={properties} token={token} />
-
-      {/* Secondary by construction: smaller type, lighter card, and it sits
-          after the list rather than competing with it. */}
-      <section className="px-4 pt-3">
-        <div className="rounded-xl bg-white px-5 py-5 shadow-[0_1px_3px_rgba(28,43,74,0.07)]">
-          <h2 className={`${SERIF} text-[23px] font-bold text-[#1c2b4a]`}>Next Steps</h2>
-          <ol className="mt-4 flex flex-col gap-4">
-            {[
-              { step: "Heart your top 2–3 favorites", detail: "Choose the properties you’d most like to tour." },
-              { step: "I’ll get your tour scheduled", detail: "I’ll coordinate everything with the properties." },
-              {
-                step: "List me as your Realtor or Locator when you apply",
-                detail: "This helps protect your referral and any rebates, movers, or other incentives you may qualify for.",
-              },
-            ].map((s, i) => (
-              <li key={i} className="flex items-start gap-3.5">
-                <span className={`${SERIF} mt-[1px] flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full bg-[#f2e6cd] text-[17px] font-bold text-[#8a6218]`}>
-                  {i + 1}
-                </span>
-                <div className="min-w-0">
-                  <p className="text-[17.5px] font-semibold leading-[1.35] text-[#1c2b4a]">{s.step}</p>
-                  <p className="mt-1 text-[15px] leading-[1.4] text-[#5b6270]">{s.detail}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
-          <p className="mt-4 border-t border-[#f0ece5] pt-3 text-[13.5px] leading-snug text-[#8a8681]">
-            Pricing and availability can change daily. Specials may not be reflected in advertised base rent.
-          </p>
-        </div>
-      </section>
-
-      {/* A professional signature — the person behind the list, sized to close
-          the page rather than to become another content section. */}
-      <section className="px-4 pt-3">
-        <div className="flex items-center gap-4 rounded-xl bg-white px-4 py-4 shadow-[0_1px_3px_rgba(28,43,74,0.07)]">
-          <div className="h-[92px] w-[92px] shrink-0 overflow-hidden rounded-full bg-[#e9e5de]">
-            {share.agent_photo_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={share.agent_photo_url} alt={agentName} className="h-full w-full object-cover" />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-[30px] font-bold text-[#a8a49c]">
-                {agentName.slice(0, 1).toUpperCase()}
-              </div>
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className={`${SERIF} text-[19px] font-bold leading-tight text-[#1c2b4a]`}>{agentName}</p>
-            <p className="mt-1 text-[12px] leading-snug text-[#6b7280]">
-              {share.agent_title ?? "Licensed Apartment Locator"}
-            </p>
-            {share.agent_brokerage && (
-              <p className="mt-[3px] text-[12px] font-medium leading-snug text-[#4a4f58]">{share.agent_brokerage}</p>
-            )}
-            {/* Tappable — this page is opened on a phone. */}
+        {/* HEADER */}
+        <header className="lbr-hdr">
+          <span className="lbr-brand">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={LOGO} alt="Locator Beast" /></span>
+          <div className="lbr-hdr-right">
+            <div className="lbr-curated">
+              {firstName ? (<>Curated for <b>{firstName}</b><br />by <b>{agentName}</b></>) : (<>by <b>{agentName}</b></>)}
+            </div>
             {phoneHref && (
-              <a href={`tel:${phoneHref}`} className="mt-1.5 flex items-center gap-1.5 text-[12.5px] text-[#1c2b4a]">
-                <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden fill="none" stroke="#c9932f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .3 1.9.6 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.1a2 2 0 0 1 2.1-.5c.9.3 1.8.5 2.8.6a2 2 0 0 1 1.7 2Z" />
-                </svg>
-                {share.agent_phone}
-              </a>
-            )}
-            {share.agent_email && (
-              <a href={`mailto:${share.agent_email}`} className="mt-0.5 flex items-center gap-1.5 truncate text-[12.5px] text-[#1c2b4a]">
-                <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden className="shrink-0" fill="none" stroke="#c9932f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-10 6L2 7" />
-                </svg>
-                <span className="truncate">{share.agent_email}</span>
-              </a>
+              <a className="lbr-textbtn" href={`sms:${phoneHref}`}><ChatIcon />Text {agentFirst}</a>
             )}
           </div>
-        </div>
-      </section>
+        </header>
 
-      <LegalFooter config={share.smart_form_config} brokerage={share.agent_brokerage} />
-    </Shell>
+        {/* HERO — desktop: agent + skyline; the sky + agent hide on mobile */}
+        <section className="lbr-hero">
+          <div className="lbr-sky" aria-hidden />
+          <div className="lbr-hero-inner">
+            <div>
+              <p className="lbr-eyebrow">{curated}<span className="lbr-rule" /></p>
+              <h1 className="lbr-greet">{firstName ? `Hey ${firstName},` : "Hey there,"}<br />I found some great options for you.</h1>
+              <p className="lbr-subcopy">These apartments match what you&rsquo;re looking for. Favorite the ones you like and I&rsquo;ll take care of the next steps.</p>
+            </div>
+            <div className="lbr-hero-agent">
+              {photo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className="lbr-agent-photo" src={photo} alt={agentName} />
+              ) : (
+                <div className="lbr-agent-fallback" aria-hidden>{initial}</div>
+              )}
+              <div className="lbr-agent-card">
+                <div className="lbr-an">{agentName}</div>
+                <div className="lbr-ar">{agentTitle}</div>
+                <div className="lbr-ascript lbr-script-f">Here to help you find home.</div>
+                {phoneRaw && <div className="lbr-arow"><Phone />{phoneRaw}</div>}
+                {email && <div className="lbr-arow"><Mail />{email}</div>}
+                {brokerage && <div className="lbr-arow" style={{ color: "#4a4f58", fontWeight: 500 }}>{brokerage}</div>}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* MOBILE compact identity (no big portrait before the properties) */}
+        <div className="lbr-mobile-id">
+          {photo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={photo} alt={agentName} />
+          ) : (
+            <div className="lbr-mid-fb" aria-hidden>{initial}</div>
+          )}
+          <div>
+            <div className="lbr-an">{agentName}</div>
+            <div className="lbr-ar">{agentTitle}{brokerage ? ` · ${brokerage}` : ""}</div>
+            <div className="lbr-ascript lbr-script-f">Here to help you find home.</div>
+          </div>
+        </div>
+
+        {/* RECOMMENDATIONS */}
+        <section className="lbr-recs">
+          <div className="lbr-recs-head">
+            <div>
+              <h2>Your Recommendations</h2>
+              <p>{countLine}</p>
+            </div>
+            <div className="lbr-recs-script lbr-script-f">Great apartments.<br />A brighter tomorrow.</div>
+          </div>
+          <RecommendationList properties={properties} token={token} />
+        </section>
+
+        {/* AGENT CLOSE */}
+        <section className="lbr-close">
+          {photo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img className="lbr-close-photo" src={photo} alt={agentName} />
+          ) : (
+            <div className="lbr-close-fallback" aria-hidden>{initial}</div>
+          )}
+          <div className="lbr-close-copy">
+            <h3>See something you like?</h3>
+            <p>Favorite your top choices and {agentFirst} will help you schedule tours, answer any questions, and take care of the next steps.</p>
+            <div className="lbr-sig lbr-script-f">{agentName}</div>
+            <div className="lbr-sigsub">{agentName} · {agentTitle}{brokerage ? ` · ${brokerage}` : ""}</div>
+          </div>
+          <div className="lbr-close-actions">
+            {phoneHref && <a className="lbr-act lbr-primary" href={`sms:${phoneHref}`}><ChatIcon />Text {agentFirst}</a>}
+            {phoneHref && <a className="lbr-act lbr-ghost" href={`tel:${phoneHref}`}><PhoneBig />Call {agentFirst}</a>}
+            {email && <a className="lbr-act lbr-ghost" href={`mailto:${email}`}><MailBig />Email {agentFirst}</a>}
+          </div>
+        </section>
+
+        {/* NEXT STEPS */}
+        <div className="lbr-steps">
+          <div className="lbr-step"><div className="lbr-n">1</div><div><b>Favorite</b><span>the properties you like</span></div></div>
+          <div className="lbr-step"><div className="lbr-n">2</div><div><b>I&rsquo;ll reach out</b><span>to confirm your top choices</span></div></div>
+          <div className="lbr-step"><div className="lbr-n">3</div><div><b>We&rsquo;ll schedule tours</b><span>and take the next steps</span></div></div>
+        </div>
+
+        {/* FOOTER */}
+        <footer className="lbr-foot">
+          {/* eslint-disable-next-line @next/next/no-img-element */}<img src={LOGO} alt="Locator Beast" />
+          <div className="lbr-tag">More apartments. A brighter tomorrow.</div>
+        </footer>
+
+        <LegalFooter config={share.smart_form_config} brokerage={brokerage} />
+      </div></div>
+    </div>
   )
 }
