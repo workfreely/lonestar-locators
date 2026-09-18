@@ -162,10 +162,33 @@ const CSS = `
 .lbr-intro{background:#fff}
 .lbr-sky{display:none}
 .lbr-intro-inner{padding:22px 18px 8px;max-width:none}
+/* Greeting + major headings stay ~where they are; increase the smaller supporting text. */
 .lbr-greet{font-size:29px;line-height:1.16;max-width:none}
-.lbr-subcopy{font-size:14.5px}
-.lbr-recs{padding:20px 16px 8px}
 .lbr-recs-head h2{font-size:23px}
+.lbr-steps h2{font-size:22px}
+.lbr-eyebrow{font-size:14.5px}
+.lbr-subcopy{font-size:16px}
+.lbr-recs-head p{font-size:15.5px}
+.lbr-pname{font-size:19px}
+.lbr-addr{font-size:15px}
+.lbr-rating{font-size:15px}
+.lbr-why-lbl{font-size:14.5px}
+.lbr-why li{font-size:15.5px}
+.lbr-pl{font-size:13.5px}
+.lbr-pv{font-size:19px}
+.lbr-pmo{font-size:13px}
+.lbr-pill{font-size:13.5px}
+.lbr-view{font-size:14.5px}
+.lbr-steps span{font-size:15.5px}
+.lbr-disclaimer{font-size:14px}
+.lbr-sig-role{font-size:15px}
+.lbr-sig-brok{font-size:14px}
+/* Heart — larger, unmistakable primary interaction (circle/position/behavior kept). */
+.lbr-heart{width:46px;height:46px}
+.lbr-heart svg{width:25px;height:25px}
+/* Footer/legal: keep secondary but comfortably legible (shared Footer forces 11px). */
+.lbr-legal .slf-compact a,.lbr-legal .slf-compact span{font-size:12.5px!important}
+.lbr-recs{padding:20px 16px 8px}
 .lbr-grid{grid-template-columns:1fr;gap:16px}
 .lbr-ph{aspect-ratio:16/11}
 .lbr-steps{margin:22px 16px 0;padding:22px 20px}
@@ -255,9 +278,9 @@ export default async function ClientRecommendationsPage({
     )
   }
 
-  const curated = firstName ? `Curated for ${firstName} · by ${agentName}` : `Curated by ${agentName}`
-  const countLine = `${properties.length} ${properties.length === 1 ? "property" : "properties"} selected for you · Tap the heart on any property you like.`
-  const greeting = firstName ? `Hey ${firstName}, I found some great options for you.` : "Hey there, I found some great options for you."
+  const curated = firstName ? `Custom List for ${firstName} · by ${agentName}` : `Custom List by ${agentName}`
+  const countLine = `${properties.length} ${properties.length === 1 ? "property" : "properties"} recommended for you · Tap the heart on any property you'd like to tour.`
+  const greeting = firstName ? `${firstName}, I found some great options for you!` : "I found some great options for you!"
 
   return (
     <div className={`${inter.variable} ${caveat.variable} lbr-root`}>
