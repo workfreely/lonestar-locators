@@ -3089,6 +3089,21 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                 .update({ property_url: newUrl })
                 .eq("id", savedRow.id)
               if (error) {
+                // 23505: rewriting to the canonical place_id identity collided with a
+                // recommendation this lead already has — the SAD row resolved onto an
+                // already-recommended property (the "same property via two URL
+                // representations" case). Collapse into the canonical row: drop this now-
+                // redundant row and reconcile local state so it shows exactly once.
+                if (!isFav && (error as { code?: string }).code === "23505") {
+                  await supabase.from("lead_recommendations").delete().eq("id", savedRow.id)
+                  const deduped = localRecommendationsRef.current.filter(
+                    (row: any) => String(row.id) !== String(savedRow.id),
+                  )
+                  localRecommendationsRef.current = deduped
+                  setLocalRecommendations(deduped)
+                  postCompanionActiveClient({ ...lead }, localNextActionsRef.current)
+                  return
+                }
                 console.error(`[sad-enrich] ${isFav ? "favorite" : "recommendation"} identity rewrite failed:`, error.message)
                 return
               }
@@ -3116,25 +3131,52 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           })
           return
         }
-        supabase
-          .from(isFav ? "lead_favorites" : "lead_recommendations")
-          .insert([rowBase])
-          .select("*")
-          .single()
-          .then(async ({ data, error }: { data: any; error: any }) => {
-            if (error) {
-              console.error(`[${isFav ? "favorite" : "recommendation"}] add failed:`, error.message)
-              return
-            }
-            if (!data) return
-            // Resolve the catalog google_rating for the just-added row (one batched
-            // query, same read-side path as the server load) so its rating/stars render
-            // immediately without a page reload. property_catalog stays the single
-            // source of truth — nothing rating-related is stored on the row.
-            const [enriched] = await attachCatalogRatings([data], supabase)
-            applyLocal(enriched)
-            backfillSadIdentity(enriched)
-          })
+        // Recommendations are protected by a DB unique index on
+        // (lead_id, canonical_property_key) — the authoritative dedupe guard shared by
+        // the CRM, the Companion, and any future writer. Use an idempotent upsert with
+        // ON CONFLICT DO NOTHING so a rapid double-dispatch (or the same property added
+        // twice) cannot create a second row; on a conflict the insert returns no row, so
+        // we reconcile to the EXISTING row and leave its metadata untouched (the first
+        // row stays canonical). Favorites keep the plain insert — that table has no such
+        // constraint yet (tracked separately; out of scope here).
+        const settleAdd = async ({ data, error }: { data: any; error: any }) => {
+          if (error) {
+            console.error(`[${isFav ? "favorite" : "recommendation"}] add failed:`, error.message)
+            return
+          }
+          let row = data
+          if (!row && !isFav) {
+            // ON CONFLICT DO NOTHING returned nothing → the row already exists. Reconcile
+            // the optimistic add to the authoritative existing row instead of duplicating.
+            const { data: existing } = await supabase
+              .from("lead_recommendations")
+              .select("*")
+              .eq("lead_id", lead.id)
+              .eq("property_url", rowBase.property_url)
+              .order("id", { ascending: true })
+              .limit(1)
+              .maybeSingle()
+            row = existing ?? null
+          }
+          if (!row) return
+          // Resolve the catalog google_rating for the just-added row (one batched
+          // query, same read-side path as the server load) so its rating/stars render
+          // immediately without a page reload. property_catalog stays the single
+          // source of truth — nothing rating-related is stored on the row.
+          const [enriched] = await attachCatalogRatings([row], supabase)
+          applyLocal(enriched)
+          backfillSadIdentity(enriched)
+        }
+        if (isFav) {
+          supabase.from("lead_favorites").insert([rowBase]).select("*").maybeSingle().then(settleAdd)
+        } else {
+          supabase
+            .from("lead_recommendations")
+            .upsert([rowBase], { onConflict: "lead_id,canonical_property_key", ignoreDuplicates: true })
+            .select("*")
+            .maybeSingle()
+            .then(settleAdd)
+        }
         return
       }
 
