@@ -134,13 +134,48 @@ async function injectAndAggregate(tabId: number, payload: AutofillPayload): Prom
 // another property). Returns the tab id + host, or null when no open tab matches
 // that origin (the scheduler tab was closed) — in which case NOTHING is prompted
 // or injected anywhere.
-async function resolveSchedulerTab(origin: string): Promise<{ tabId: number; host: string } | null> {
+// Normalize a host for tolerant matching. Property sites frequently redirect
+// www <-> apex (and http -> https) right after we open the stored URL, so an
+// EXACT-origin tab match misses the real tab (e.g. stored www.verandasatalamoranch
+// .com, tab lands on verandasatalamoranch.com). Stripping a single leading "www."
+// binds to the SAME property domain without broadening beyond it.
+function normHost(host: string): string {
+  return host.replace(/^www\./i, "").toLowerCase();
+}
+
+async function resolveSchedulerTab(schedulerUrl: string): Promise<{ tabId: number; origin: string; host: string } | null> {
+  let target: string;
   try {
-    const host = new URL(origin).host;
-    const tabs = await chrome.tabs.query({ url: origin + "/*" });
-    const tab = tabs.find((t) => t.id != null && !!t.url);
-    if (!tab || tab.id == null) return null;
-    return { tabId: tab.id, host };
+    target = normHost(new URL(schedulerUrl).host);
+  } catch {
+    return null;
+  }
+  if (!target) return null;
+  try {
+    // Query ALL tabs and match on the property domain (www/apex tolerant), then
+    // bind to the tab's ACTUAL origin — never the active tab. Requires the declared
+    // "tabs" permission to read URLs; no host permission needed to enumerate.
+    const tabs = await chrome.tabs.query({});
+    const matches = tabs.filter((t) => {
+      if (t.id == null || !t.url) return false;
+      try {
+        const u = new URL(t.url);
+        return (u.protocol === "https:" || u.protocol === "http:") && normHost(u.host) === target;
+      } catch {
+        return false;
+      }
+    });
+    if (!matches.length) return null;
+    // Prefer https, then the most recently accessed tab on that property domain.
+    matches.sort((a, b) => {
+      const ah = a.url!.startsWith("https:") ? 0 : 1;
+      const bh = b.url!.startsWith("https:") ? 0 : 1;
+      if (ah !== bh) return ah - bh;
+      return (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0);
+    });
+    const tab = matches[0];
+    const u = new URL(tab.url!);
+    return { tabId: tab.id!, origin: u.origin, host: u.host };
   } catch {
     return null;
   }
@@ -179,22 +214,22 @@ export async function runAutofillForScheduler(
   payload: AutofillPayload,
 ): Promise<{ outcome: AutofillOutcome; tabId?: number; host?: string }> {
   if (!chromeApis()) return { outcome: { status: "unsupported" } };
-  let origin: string;
-  let host: string;
+  // Validate the stored scheduler URL; the scheduler is always an external property
+  // site, never the locator's own CRM/SAD.
   try {
     const u = new URL(schedulerUrl);
     if (u.protocol !== "https:" && u.protocol !== "http:") return { outcome: { status: "unsupported" } };
-    origin = u.origin;
-    host = u.host;
+    if (isCrmHost(u.host)) return { outcome: { status: "on-crm" } };
   } catch {
     return { outcome: { status: "no-tab" } };
   }
-  // The scheduler is always an external property site; never the locator's own CRM/SAD.
-  if (isCrmHost(host)) return { outcome: { status: "on-crm" } };
 
-  const resolved = await resolveSchedulerTab(origin);
+  // Resolve the OPEN property tab (tolerant of www<->apex / http->https redirects)
+  // and bind to its ACTUAL origin — never the active tab, never a broadened host.
+  const resolved = await resolveSchedulerTab(schedulerUrl);
   if (!resolved) return { outcome: { status: "no-tab" } };
-  const tabId = resolved.tabId;
+  const { tabId, origin, host } = resolved;
+  if (isCrmHost(host)) return { outcome: { status: "on-crm" } };
 
   // Per-origin grant for the scheduler origin ONLY (a provider wildcard when the
   // scheduler runs on a known shared provider). Never <all_urls>, never the active tab.
