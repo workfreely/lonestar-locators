@@ -174,7 +174,7 @@ const CSS = `
 .lbr-eyebrow{font-size:14.5px}
 .lbr-subcopy{font-size:18px}
 .lbr-recs-head p{font-size:17px}
-.lbr-pname{font-size:19px}
+.lbr-pname{font-size:21px}
 .lbr-addr{font-size:17px}
 .lbr-rating{font-size:16px}
 .lbr-rating-lbl{font-size:16px}
@@ -316,9 +316,9 @@ export default async function ClientRecommendationsPage({
         <section className="lbr-steps">
           <h2>Next Steps</h2>
           <ol>
-            <li><div className="lbr-n">1</div><div><b>Heart your top 2&ndash;3 favorites</b><span>Choose the properties you&rsquo;d most like to tour.</span></div></li>
-            <li><div className="lbr-n">2</div><div><b>I&rsquo;ll get your tour scheduled</b><span>I&rsquo;ll coordinate everything with the properties.</span></div></li>
-            <li><div className="lbr-n">3</div><div><b>List me as your Realtor or Locator when you apply</b><span>This helps protect your referral and any rebates, movers, or other incentives you may qualify for.</span></div></li>
+            <li><div className="lbr-n">1</div><div><b>Heart your top 2&ndash;3 favorites</b><span>Choose the properties you&rsquo;d like to tour.</span></div></li>
+            <li><div className="lbr-n">2</div><div><b>I&rsquo;ll get your tour scheduled</b><span>We coordinate everything for you.</span></div></li>
+            <li><div className="lbr-n">3</div><div><b>When you apply, list me as your Realtor or Locator</b><span>This helps ensure you receive any rebates, movers, or other incentives.</span></div></li>
           </ol>
           <p className="lbr-disclaimer">Pricing and availability can change daily. Specials may not be reflected in advertised base rent.</p>
         </section>
@@ -334,7 +334,7 @@ export default async function ClientRecommendationsPage({
           <div className="lbr-sig-name lbr-script-f">{agentName}</div>
           <div className="lbr-sig-role">{agentTitle}</div>
           {brokerage && <div className="lbr-sig-brok">{brokerage}</div>}
-          <div className="lbr-sig-tag lbr-script-f">Here to help you find home.</div>
+          <div className="lbr-sig-tag lbr-script-f">Here to help you find the perfect home.</div>
         </section>
 
         {/* FOOTER — legal/brokerage + subtle non-clickable "Powered by Locator Beast" */}
