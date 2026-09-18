@@ -97,6 +97,19 @@ function displayPropertyName(name: string): string {
   return cleaned
 }
 
+/**
+ * Display-only cleanup for the CARD ADDRESS ONLY. Strips a single trailing ", USA"
+ * (case-insensitive, tolerant of surrounding whitespace) so
+ * "…Dallas, TX 75235, USA" reads "…Dallas, TX 75235". Deliberately narrow: only a
+ * TRAILING ", USA" is removed — "USA" anywhere else in the address is left intact,
+ * and if stripping would leave nothing the original is returned. The RAW p.address is
+ * still used everywhere else (upstream snapshot, resolver, CRM, Companion, catalog).
+ */
+function displayCardAddress(address: string): string {
+  const cleaned = address.replace(/\s*,\s*USA\s*$/i, "").trim()
+  return cleaned || address
+}
+
 export default function RecommendationList({
   properties,
   token,
@@ -172,10 +185,14 @@ export default function RecommendationList({
             <div className="lbr-body">
               <h3 className="lbr-pname">{displayPropertyName(p.name)}</h3>
               {p.address && (
-                <div className="lbr-addr"><Pin /><span>{p.address}</span></div>
+                <div className="lbr-addr"><Pin /><span>{displayCardAddress(p.address)}</span></div>
               )}
               {hasRating && (
-                <div className="lbr-rating"><Star /><span>{(p.googleRating as number).toFixed(1)}</span></div>
+                <div className="lbr-rating">
+                  <Star />
+                  <span className="lbr-rating-val">{(p.googleRating as number).toFixed(1)}</span>
+                  <span className="lbr-rating-lbl">Google Rating</span>
+                </div>
               )}
               {reasons.length > 0 && (
                 <div className="lbr-why">

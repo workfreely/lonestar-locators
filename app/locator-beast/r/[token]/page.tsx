@@ -120,6 +120,8 @@ const CSS = `
 .lbr-addr svg{color:var(--faint);flex:none;margin-top:2px}
 .lbr-rating{display:flex;align-items:center;gap:6px;font-size:13.5px;color:var(--ink);margin-top:7px;font-weight:600}
 .lbr-rating svg{color:var(--gold)}
+.lbr-rating-val{font-weight:800;color:var(--navy)}
+.lbr-rating-lbl{font-weight:600;color:var(--muted);font-size:12.5px;margin-left:2px}
 .lbr-why{margin-top:13px}
 .lbr-why-lbl{font-size:13px;font-weight:700;color:var(--navy);margin:0 0 7px}
 .lbr-why ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
@@ -160,34 +162,38 @@ const CSS = `
 @media (max-width:640px){
 .lbr-shell{margin:0;border:none;border-radius:0;box-shadow:none}
 .lbr-intro{background:#fff}
-.lbr-sky{display:none}
-.lbr-intro-inner{padding:22px 18px 8px;max-width:none}
+/* Mobile hero: the same deliberately generic SKYLINE_PATH, heavily white-washed and
+   faded behind the personalized intro so the eyebrow/greeting/paragraph read as one
+   polished hero and stay highly legible. Subtle texture only — never a claimed city. */
+.lbr-sky{display:block;background-image:linear-gradient(180deg,rgba(255,255,255,.80) 0%,rgba(255,255,255,.9) 55%,rgba(255,255,255,.99) 100%),url('${SKYLINE_PATH}');background-position:center 20%}
+.lbr-intro-inner{padding:26px 18px 14px;max-width:none}
 /* Greeting + major headings stay ~where they are; increase the smaller supporting text. */
 .lbr-greet{font-size:29px;line-height:1.16;max-width:none}
 .lbr-recs-head h2{font-size:23px}
 .lbr-steps h2{font-size:22px}
 .lbr-eyebrow{font-size:14.5px}
-.lbr-subcopy{font-size:16px}
-.lbr-recs-head p{font-size:15.5px}
+.lbr-subcopy{font-size:18px}
+.lbr-recs-head p{font-size:17px}
 .lbr-pname{font-size:19px}
-.lbr-addr{font-size:15px}
-.lbr-rating{font-size:15px}
+.lbr-addr{font-size:17px}
+.lbr-rating{font-size:16px}
+.lbr-rating-lbl{font-size:16px}
 .lbr-why-lbl{font-size:14.5px}
-.lbr-why li{font-size:15.5px}
-.lbr-pl{font-size:13.5px}
+.lbr-why li{font-size:17px}
+.lbr-pl{font-size:16px}
 .lbr-pv{font-size:19px}
-.lbr-pmo{font-size:13px}
+.lbr-pmo{font-size:16px}
 .lbr-pill{font-size:13.5px}
 .lbr-view{font-size:14.5px}
-.lbr-steps span{font-size:15.5px}
-.lbr-disclaimer{font-size:14px}
-.lbr-sig-role{font-size:15px}
-.lbr-sig-brok{font-size:14px}
+.lbr-steps span{font-size:17px}
+.lbr-disclaimer{font-size:16px}
+.lbr-sig-role{font-size:17px}
+.lbr-sig-brok{font-size:16px}
 /* Heart — larger, unmistakable primary interaction (circle/position/behavior kept). */
 .lbr-heart{width:46px;height:46px}
 .lbr-heart svg{width:25px;height:25px}
 /* Footer/legal: keep secondary but comfortably legible (shared Footer forces 11px). */
-.lbr-legal .slf-compact a,.lbr-legal .slf-compact span{font-size:12.5px!important}
+.lbr-legal .slf-compact a,.lbr-legal .slf-compact span{font-size:13.5px!important}
 .lbr-recs{padding:20px 16px 8px}
 .lbr-grid{grid-template-columns:1fr;gap:16px}
 .lbr-ph{aspect-ratio:16/11}
