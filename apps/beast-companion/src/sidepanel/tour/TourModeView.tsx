@@ -224,9 +224,6 @@ export function TourModeView({
         >
           Save tour
         </button>
-        <p style={{ margin: "8px 2px 0", fontSize: 10.5, lineHeight: 1.4, color: "var(--lb-text-muted, #8b93a3)" }}>
-          After you book on the scheduler, set the date/time here. Save runs the existing tour workflow, then returns to Client.
-        </p>
       </div>
     </div>
   );
