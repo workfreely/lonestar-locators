@@ -451,7 +451,7 @@ export default async function ClientRecommendationsPage({
           <div className="lbr-sig-name lbr-script-f">{agentName}</div>
           <div className="lbr-sig-role">{agentTitle}</div>
           {brokerage && <div className="lbr-sig-brok">{brokerage}</div>}
-          <div className="lbr-sig-tag lbr-script-f">Here to help you find the perfect home.</div>
+          <div className="lbr-sig-tag lbr-script-f">Helping you find the perfect home.</div>
         </section>
 
         {/* FOOTER — legal/brokerage + subtle non-clickable "Powered by Locator Beast" */}
