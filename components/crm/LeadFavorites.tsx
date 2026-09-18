@@ -599,7 +599,13 @@ export default function LeadFavorites({
                           )}
                         </div>
                       ) : schedStep === "confirm" ? (
-                        <div className="flex flex-wrap items-center gap-2.5">
+                        // Attention glow while awaiting the locator's answer — reuses
+                        // the EXACT Lead Board active-card treatment (.kb-fresh → the
+                        // kb-pulse ::after, theme-aware via --kb-accent, same timing +
+                        // reduced-motion behavior). `relative` anchors that ::after. The
+                        // glow is scoped to this confirmation area and unmounts the moment
+                        // Yes / Not yet is chosen (this branch stops rendering).
+                        <div className="relative kb-fresh flex flex-wrap items-center gap-2.5">
                           <span className="text-[12px] text-[var(--crm-text-secondary)]">Did you schedule the tour?</span>
                           <button type="button" onClick={() => setSchedStep("datetime")} className="text-[11px] font-semibold text-[var(--crm-accent)] hover:underline">Yes</button>
                           <button type="button" onClick={() => { setSchedFavId(null); setSchedStep("confirm") }} className="text-[11px] font-semibold text-[var(--crm-text-muted)] hover:text-[var(--crm-text-secondary)]">Not yet</button>
