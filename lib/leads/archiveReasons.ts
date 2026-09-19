@@ -6,15 +6,17 @@ export const ARCHIVE_REASONS: { value: string; label: string }[] = [
   { value: "ghosted", label: "👻 Ghosted / No Response" },
   { value: "unqualified", label: "🚫 Unqualified" },
   { value: "rented_elsewhere", label: "🏠 Rented Elsewhere" },
-  { value: "moving_later", label: "📅 Moving Later" },
   { value: "spam", label: "🤖 Spam / Fake Lead" },
   { value: "other", label: "✏️ Other" },
 ]
 
-// Reasons retired from the dropdown (2026-07) but still present on leads that
-// were archived earlier — kept here only so their badges/labels keep rendering.
-// Not offered as new selections.
+// Reasons retired from the dropdown but still present on leads that were archived
+// earlier — kept here only so their badges/labels keep rendering. Not offered as
+// new selections. 'moving_later' was retired when the On Hold workflow shipped —
+// a temporarily-paused search now belongs under On Hold (with a follow-up date),
+// not Archive; leads archived earlier for that reason still render their label.
 const LEGACY_REASON_LABELS: Record<string, string> = {
+  moving_later: "📅 Moving Later",
   closed: "🏁 Closed",
   archived_by_user: "🗄️ Archived",
   deleted_by_user: "🗄️ Archived",

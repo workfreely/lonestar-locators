@@ -50,6 +50,7 @@ import InvoiceDetailsSection from "./InvoiceDetailsSection"
 import { autoInvoicePropertyName, formatInvoiceCurrency } from "@/lib/leads/invoiceFields"
 import { leaseFollowUpDueAt } from "@/lib/leads/leaseFollowUp"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
+import { buildHoldUpdate, buildResumeUpdate, buildRescheduleHoldUpdate } from "@/lib/leads/holdWorkflow"
 import ConfirmDialog from "./ConfirmDialog"
 import { isGuestCardTitle, createGuestCardForProperty } from "@/lib/leads/guestCardWorkflow"
 import {
@@ -645,6 +646,48 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     } catch {
       /* best-effort */
     }
+  }
+
+  // ── On Hold lifecycle ──────────────────────────────────────────────────────
+  // The ONE place hold state is mutated, so the board, Agenda and Companion all
+  // update together. Each does an optimistic local update + best-effort Supabase
+  // write + append-only timeline, and re-posts the Companion payload when the held
+  // lead is the active client. Deliberately never touches crm_status,
+  // next_action_date, or any lead_next_actions row — the workflow stays dormant
+  // and returns intact on Resume (the canonical suppression is in rankLeadActions).
+  async function handlePutOnHold(leadId: string | number, followUpDate: string) {
+    const target = localLeadsRef.current.find((l: any) => String(l.id) === String(leadId))
+    const updates = buildHoldUpdate(followUpDate)
+    setLocalLeads((prev) => prev.map((l: any) => (String(l.id) === String(leadId) ? { ...l, ...updates } : l)))
+    recordTimelineEvent({ leadId, type: "on_hold", metadata: { hold_follow_up_at: followUpDate, from_stage: target?.crm_status ?? null } })
+    if (!isDemoLeadId(String(leadId))) {
+      const { error } = await supabase.from("leads").update(updates).eq("id", leadId)
+      if (error) console.error("[hold] put on hold failed:", error.message)
+    }
+    if (target) postCompanionActiveClient({ ...target, ...updates }, localNextActionsRef.current)
+  }
+
+  async function handleResumeLead(leadId: string | number) {
+    const target = localLeadsRef.current.find((l: any) => String(l.id) === String(leadId))
+    const updates = buildResumeUpdate()
+    setLocalLeads((prev) => prev.map((l: any) => (String(l.id) === String(leadId) ? { ...l, ...updates } : l)))
+    recordTimelineEvent({ leadId, type: "resumed", metadata: { to_stage: target?.crm_status ?? null } })
+    if (!isDemoLeadId(String(leadId))) {
+      const { error } = await supabase.from("leads").update(updates).eq("id", leadId)
+      if (error) console.error("[hold] resume failed:", error.message)
+    }
+    if (target) postCompanionActiveClient({ ...target, ...updates }, localNextActionsRef.current)
+  }
+
+  async function handleRescheduleHold(leadId: string | number, followUpDate: string) {
+    const target = localLeadsRef.current.find((l: any) => String(l.id) === String(leadId))
+    const updates = buildRescheduleHoldUpdate(followUpDate)
+    setLocalLeads((prev) => prev.map((l: any) => (String(l.id) === String(leadId) ? { ...l, ...updates } : l)))
+    if (!isDemoLeadId(String(leadId))) {
+      const { error } = await supabase.from("leads").update(updates).eq("id", leadId)
+      if (error) console.error("[hold] reschedule failed:", error.message)
+    }
+    if (target) postCompanionActiveClient({ ...target, ...updates }, localNextActionsRef.current)
   }
 
   // ── Beast Companion: replay handshake (answer REQUEST_CURRENT_STATE) ─────────
@@ -3751,6 +3794,8 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
               onCollapse={toggleFollowUps}
               collapseToward={agendaSide}
               timeZone={timeZone}
+              onResumeLead={handleResumeLead}
+              onRescheduleHold={handleRescheduleHold}
             />
           </div>
         ) : (
@@ -3899,6 +3944,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
               router.push(`/admin/leads?id=${id}`)
             }}
             onWorkflowAction={handleWorkflowAction}
+            onPutOnHold={handlePutOnHold}
+            onResumeLead={handleResumeLead}
+            onRescheduleHold={handleRescheduleHold}
             onInitiateContact={(lead) => {
               // Drag New→Contacted: select the lead (so Companion loads it via the
               // Phase 2 active-client bridge) and open the CENTERED CRM MODAL where

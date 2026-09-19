@@ -49,6 +49,9 @@ export async function GET(request: Request) {
     .from("leads")
     .select("id")
     .eq("crm_status", "contacted")
+    // Never auto-archive a deliberately HELD lead — On Hold pauses the search on
+    // purpose, so the 7-day no-response rule must skip it (held_at is set).
+    .is("held_at", null)
     .not("first_text_sent_at", "is", null)
     .lte("first_text_sent_at", sevenDaysAgo)
 

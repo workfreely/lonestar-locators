@@ -25,6 +25,7 @@ export const DEMO_FIXTURES: DemoFixture[] = [
       phone: "(555) 010-4477",
       stage: "contacted",
       isArchived: false,
+      isOnHold: false,
       isClosed: false,
       searchCriteria: {
         city: "Sampleton",
@@ -71,6 +72,7 @@ export const DEMO_FIXTURES: DemoFixture[] = [
       phone: "(555) 010-8830",
       stage: "list_sent",
       isArchived: false,
+      isOnHold: false,
       isClosed: false,
       searchCriteria: {
         city: "Sampleton",
@@ -118,6 +120,7 @@ export const DEMO_FIXTURES: DemoFixture[] = [
       phone: "(555) 010-2299",
       stage: "closed",
       isArchived: false,
+      isOnHold: false,
       isClosed: true,
       searchCriteria: {
         city: "Sampleton",

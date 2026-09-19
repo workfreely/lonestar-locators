@@ -7,6 +7,7 @@ import { getNextAction } from "@/lib/nextAction"
 import { rankLeadActions } from "@/lib/nextActions"
 import { getSourceStyle } from "@/lib/leads/sourceStyles"
 import { getArchiveReasonLabel } from "@/lib/leads/archiveReasons"
+import { formatHoldFollowUp } from "@/lib/leads/holdWorkflow"
 
 // Phase 2 — active-client bridge payload (CRM page → content script → panel).
 //
@@ -291,6 +292,11 @@ export function buildActiveClientPayload(
     // renders this verbatim in its Archive Reason row (no duplicate label logic).
     archiveReasonLabel: getArchiveReasonLabel(str(lead.archive_reason)),
     isClosed: crmStatus === "closed",
+    // On Hold — separate from archived (crm_status is preserved). The panel
+    // suppresses the active Next Action and shows the hold follow-up date.
+    isOnHold: !!lead.held_at,
+    holdFollowUpAt: str(lead.hold_follow_up_at),
+    holdFollowUpLabel: lead.held_at ? formatHoldFollowUp(str(lead.hold_follow_up_at)) : null,
     searchCriteria: {
       city: str(lead.city),
       budgetText: budgetText(lead.desired_rent),

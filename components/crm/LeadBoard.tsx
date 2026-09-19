@@ -9,8 +9,10 @@ import {
   closestCorners,
 } from "@dnd-kit/core"
 import LeadColumn from "./LeadColumn"
+import InactiveColumn from "./InactiveColumn"
 import LeadCard from "./LeadCard"
-import ArchiveLeadDialog from "./ArchiveLeadDialog"
+import PauseOrArchiveDialog from "./PauseOrArchiveDialog"
+import { buildHoldClearedOnArchive, isOnHold } from "@/lib/leads/holdWorkflow"
 import { supabase } from "@/lib/supabase/client"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { autoDueInDays } from "@/lib/workflow/autoDueDate"
@@ -27,7 +29,10 @@ const ALL_COLUMNS = [
   { id: "done_touring", title: "🟡 Done Touring" },
   { id: "applied", title: "⚫ Applied" },
   { id: "closed", title: "🏁 Closed" },
-  { id: "archived", title: "⚪ Archived" },
+  // Final column: INACTIVE — a tabbed On Hold | Archived collection (rendered by
+  // InactiveColumn, not a plain LeadColumn). Its id stays "inactive"; the column
+  // is a droppable with id "archived" internally so drag-to-archive is unchanged.
+  { id: "inactive", title: "⚪ Inactive" },
 ]
 
 // detailed = current default (unchanged). compact = the existing Compact
@@ -79,6 +84,9 @@ export default function LeadBoard({
   onSelectLead,
   onWorkflowAction,
   onInitiateContact,
+  onPutOnHold,
+  onResumeLead,
+  onRescheduleHold,
   columns = ALL_COLUMNS,
   timeZone,
   focus = false,
@@ -121,6 +129,12 @@ export default function LeadBoard({
   // caller selects it as the active Companion client and initiates the canonical
   // Contact Lead flow in Companion (call/text chooser → result confirmation).
   onInitiateContact?: (lead: any) => void
+  // ── On Hold lifecycle (owned by DashboardClient so the board, Agenda and
+  //    Companion all update from one place). Put on Hold is chosen in the Pause or
+  //    Archive dialog; Resume/Reschedule live on the Inactive → On Hold card. ──
+  onPutOnHold?: (leadId: string | number, followUpDate: string) => void
+  onResumeLead?: (leadId: string | number) => void
+  onRescheduleHold?: (leadId: string | number, followUpDate: string) => void
   // Optional subset/override of the pipeline columns (defaults to all stages).
   // Used by the public marketing demo to show only New → Contacted; the CRM
   // never passes this, so its behavior is unchanged.
@@ -436,6 +450,9 @@ export default function LeadBoard({
       deleted_at: new Date().toISOString(),
       deleted_by: user?.email ?? null,
       pre_delete_status: target?.crm_status ?? null,
+      // Hold and Archive are mutually exclusive: archiving a held lead clears the
+      // hold columns (no-op for an active lead).
+      ...buildHoldClearedOnArchive(),
     }
 
     setLeads((currentLeads) =>
@@ -451,6 +468,17 @@ export default function LeadBoard({
 
     const { error } = await supabase.from("leads").update(updates).eq("id", leadId)
     if (error) console.error("[archive-lead] update failed:", error.message)
+  }
+
+  // Put on Hold chosen from the Pause or Archive dialog. The actual mutation
+  // (optimistic state + Supabase write + timeline + Companion re-post) lives in
+  // DashboardClient's onPutOnHold so every surface updates from one place; here we
+  // just close the dialog and forward the lead + required follow-up date.
+  function confirmPutOnHold(followUpDate: string) {
+    const leadId = pendingArchiveId
+    if (leadId == null) return
+    setPendingArchiveId(null)
+    onPutOnHold?.(leadId, followUpDate)
   }
 
   return (
@@ -641,7 +669,45 @@ export default function LeadBoard({
           </div>
         ) : (
         <div className="kb-board" data-density={view}>
-          {columns.map((col) => (
+          {columns.map((col) => {
+            // INACTIVE — a tabbed On Hold | Archived collection. Held leads keep
+            // their real crm_status but are shown here (not in their stage column);
+            // archived leads land here too. Only the selected tab renders.
+            if (col.id === "inactive") {
+              const heldLeads = leads
+                .filter((lead) => isOnHold(lead) && lead.crm_status !== "archived" && matchesSearch(lead, searchQuery))
+                .sort((a, b) => {
+                  // Soonest follow-up reminder first; undated sink to the bottom.
+                  const aD = a.hold_follow_up_at ? new Date(a.hold_follow_up_at).getTime() : Infinity
+                  const bD = b.hold_follow_up_at ? new Date(b.hold_follow_up_at).getTime() : Infinity
+                  return aD - bD
+                })
+              const archivedLeads = leads
+                .filter((lead) => lead.crm_status === "archived" && matchesSearch(lead, searchQuery))
+                .sort((a, b) => {
+                  // Most recently archived first (deleted_at, else updated/created).
+                  const t = (l: any) => new Date(l.deleted_at || l.updated_at || l.created_at || 0).getTime()
+                  return t(b) - t(a)
+                })
+              return (
+                <InactiveColumn
+                  key="inactive"
+                  heldLeads={heldLeads}
+                  archivedLeads={archivedLeads}
+                  view={view}
+                  nextActions={nextActions}
+                  favorites={favorites}
+                  selectedLeadId={selectedLeadId}
+                  activeCompanionLeadId={activeCompanionLeadId}
+                  onSelectLead={onSelectLead}
+                  onArchiveLead={handleArchive}
+                  onResumeLead={onResumeLead}
+                  onRescheduleHold={onRescheduleHold}
+                  searching={!!searchQuery.trim()}
+                />
+              )
+            }
+            return (
             <LeadColumn
               key={col.id}
               id={col.id}
@@ -651,7 +717,9 @@ export default function LeadBoard({
               favorites={favorites}
               emptyMessage={searchQuery.trim() ? "No matching leads found." : "No leads"}
               leads={leads
-                .filter((lead) => lead.crm_status === col.id && matchesSearch(lead, searchQuery))
+                // Held leads are hidden from their preserved stage column and shown
+                // only under Inactive → On Hold.
+                .filter((lead) => lead.crm_status === col.id && !isOnHold(lead) && matchesSearch(lead, searchQuery))
                 .sort((a, b) => {
                   // _justDropped / _isNew always pins to top regardless of column
                   const aTop = a._justDropped || a._isNew ? 1 : 0
@@ -687,7 +755,8 @@ export default function LeadBoard({
               onSelectLead={onSelectLead}
               onArchiveLead={handleArchive}
             />
-          ))}
+            )
+          })}
         </div>
         )}
       </div>
@@ -721,11 +790,12 @@ export default function LeadBoard({
         document.body
       )}
 
-      <ArchiveLeadDialog
+      <PauseOrArchiveDialog
         open={pendingArchiveId != null}
         leadName={pendingArchiveName}
         onCancel={() => setPendingArchiveId(null)}
-        onConfirm={confirmArchive}
+        onPutOnHold={confirmPutOnHold}
+        onArchive={confirmArchive}
       />
 
     </DndContext>

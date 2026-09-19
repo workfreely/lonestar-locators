@@ -6,6 +6,8 @@ import { getNextAction } from "@/lib/nextAction"
 import { formatWorkflowActionLabel } from "@/lib/leads/workflowActionLabels"
 import { resolveGuestCardPrimary } from "@/lib/leads/guestCardAggregate"
 import { getActionIcon, formatDueDateTime } from "@/lib/actionDisplay"
+import { isOnHold, holdReminderUrgency, formatHoldFollowUp } from "@/lib/leads/holdWorkflow"
+import HoldControls from "./HoldControls"
 import { formatPersonName } from "@bc/companion-shared"
 
 // The Agenda no longer keeps its own label switch. Its automatic Next Action is
@@ -30,6 +32,8 @@ export default function FollowUpRow({
   // direction so it always points at the nearest app edge. Mirrors agendaSide.
   collapseToward = "left",
   timeZone,
+  onResumeLead,
+  onRescheduleHold,
 }: {
   leads: any[]
   nextActions: any[]
@@ -46,42 +50,68 @@ export default function FollowUpRow({
   collapseToward?: "left" | "right"
   // Saved locator IANA timezone — Agenda due times render in this zone.
   timeZone?: string | null
+  // On Hold reminder actions (Resume / Reschedule) — same canonical handlers the
+  // board's Inactive → On Hold card uses.
+  onResumeLead?: (leadId: string | number) => void
+  onRescheduleHold?: (leadId: string | number, followUpDate: string) => void
 }) {
   const [activeFilter, setActiveFilter] = useState<FilterType | null>(null)
 
-  // Rank every lead's automatic action against its open manual actions —
-  // same ranking LeadPanel uses. Closed / archived leads stay excluded.
-  const ranked = leads
-    .filter((lead) => lead.crm_status !== "closed" && lead.crm_status !== "archived")
+  // An Agenda entry is either a NORMAL ranked Next Action or a HOLD reminder. Both
+  // carry an urgency + dueAt so they queue and sort together in one list.
+  type Entry = {
+    lead: any
+    kind: "normal" | "hold"
+    urgency: "overdue" | "today" | "upcoming" | "none"
+    dueAt: string | null
+    primary?: ReturnType<typeof rankLeadActions>["primary"]
+  }
+
+  // NORMAL — same ranking LeadPanel/board use. Closed, archived AND held leads are
+  // excluded (held leads surface via the hold reminder below, not their dormant
+  // Next Action; rankLeadActions already returns an inert sentinel for them).
+  const normalEntries: Entry[] = leads
+    .filter((lead) => !isOnHold(lead) && lead.crm_status !== "closed" && lead.crm_status !== "archived")
+    .map((lead) => {
+      const { primary } = rankLeadActions(lead, nextActions, getNextAction(lead))
+      return { lead, kind: "normal" as const, urgency: primary.urgency, dueAt: primary.dueAt, primary }
+    })
+    .filter(
+      (e) =>
+        // "Next Action" is the generic no-real-step sentinel — never surface it.
+        e.primary!.title !== "Next Action" && (e.urgency === "overdue" || e.urgency === "today"),
+    )
+
+  // HOLD — a held lead surfaces a "Follow Up · Lead On Hold" reminder on its
+  // hold_follow_up_at (today/overdue). A reminder only; it never resumes the lead.
+  const holdEntries: Entry[] = leads
+    .filter((lead) => isOnHold(lead) && lead.crm_status !== "archived")
     .map((lead) => ({
       lead,
-      ...rankLeadActions(lead, nextActions, getNextAction(lead)),
+      kind: "hold" as const,
+      urgency: holdReminderUrgency(lead.hold_follow_up_at),
+      dueAt: lead.hold_follow_up_at ?? null,
     }))
+    .filter((e) => e.urgency === "overdue" || e.urgency === "today")
 
-  const dueLeads = ranked.filter(
-    ({ primary }) =>
-      // "Next Action" is the generic no-real-step sentinel (e.g. a List Sent
-      // client whose Final Follow-Up is done) — never surface it in the Agenda.
-      primary.title !== "Next Action" &&
-      (primary.urgency === "overdue" || primary.urgency === "today")
-  )
+  const dueEntries: Entry[] = [...normalEntries, ...holdEntries]
 
-  const filterMatch = ({ primary }: (typeof ranked)[number]): boolean => {
+  const filterMatch = (e: Entry): boolean => {
     if (!activeFilter) return true
-    if (activeFilter === "overdue") return primary.urgency === "overdue"
-    if (activeFilter === "today") return primary.urgency === "today"
-    return true
+    return e.urgency === activeFilter
   }
 
   // Overdue first, then today's; within each bucket, earliest due first.
-  const visibleLeads = dueLeads.filter(filterMatch).sort((a, b) => {
+  const visibleLeads = dueEntries.filter(filterMatch).sort((a, b) => {
     const urgencyRank = (u: string) => (u === "overdue" ? 0 : 1)
-    const diff = urgencyRank(a.primary.urgency) - urgencyRank(b.primary.urgency)
+    const diff = urgencyRank(a.urgency) - urgencyRank(b.urgency)
     if (diff !== 0) return diff
-    const aTime = a.primary.dueAt ? new Date(a.primary.dueAt).getTime() : 0
-    const bTime = b.primary.dueAt ? new Date(b.primary.dueAt).getTime() : 0
+    const aTime = a.dueAt ? new Date(a.dueAt).getTime() : 0
+    const bTime = b.dueAt ? new Date(b.dueAt).getTime() : 0
     return aTime - bTime
   })
+
+  const dueLeads = dueEntries
 
   function toggleFilter(f: FilterType) {
     setActiveFilter((prev) => (prev === f ? null : f))
@@ -130,14 +160,42 @@ export default function FollowUpRow({
           </div>
         )}
 
-        {visibleLeads.map(({ lead, primary }) => {
+        {visibleLeads.map((entry) => {
+          const { lead, kind } = entry
           // Highlight the current client on the SAME identity the Lead Board card
           // uses: the CRM selection (selectedLeadId) OR the active client
           // (activeLeadId). Keeps the Agenda item and the board card in sync.
           const isSelected =
             (selectedLeadId != null && String(selectedLeadId) === String(lead.id)) ||
             (activeLeadId != null && String(activeLeadId) === String(lead.id))
-          const urg = primary.urgency === "overdue" ? "crit" : "warn"
+          const urg = entry.urgency === "overdue" ? "crit" : "warn"
+
+          // HOLD reminder — "Follow Up / Lead On Hold" on hold_follow_up_at. A
+          // reminder only: it offers Resume / Reschedule but never auto-resumes.
+          if (kind === "hold") {
+            return (
+              <div
+                key={lead.id}
+                onClick={() => onSelectLead?.(lead.id)}
+                className={`ag-card${isSelected ? " ag-card--selected" : ""}`}
+              >
+                <span className={`ag-strip ag-strip--${urg}`} />
+                <p className="ag-name">{formatPersonName(`${lead.first_name ?? ""} ${lead.last_name ?? ""}`)}</p>
+                <p className="ag-action">{getActionIcon("Follow Up")} Follow Up</p>
+                <p className="ag-action" style={{ opacity: 0.7, marginTop: -2 }}>Lead On Hold</p>
+                <p className={`ag-due ag-due--${urg}`}>{formatHoldFollowUp(entry.dueAt)}</p>
+                <HoldControls
+                  leadId={lead.id}
+                  followUpAt={entry.dueAt}
+                  onResume={onResumeLead}
+                  onReschedule={onRescheduleHold}
+                  size="xs"
+                />
+              </div>
+            )
+          }
+
+          const primary = entry.primary!
           // Canonical Guest Card Primary Next Action presentation (shared helper):
           // 2+ outstanding genuine-Favorite Guest Cards → "Send Guest Cards · N
           // properties"; 1 → "Send Guest Card · {Property}". Non-guest-card → normal.

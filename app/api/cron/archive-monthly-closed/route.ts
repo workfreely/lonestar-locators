@@ -38,6 +38,9 @@ export async function GET(request: Request) {
     .from("leads")
     .select("id")
     .eq("crm_status", "closed")
+    // Never auto-archive a deliberately HELD lead (held_at set) — Hold is an
+    // intentional pause and must survive the monthly closed-lead sweep.
+    .is("held_at", null)
     .not("closed_at", "is", null)
     .lt("closed_at", startOfMonth)
 

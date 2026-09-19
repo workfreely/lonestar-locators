@@ -394,7 +394,23 @@ export function LeadPanelBody({
             />
           </>
         )}
-        {lead.isArchived ? (
+        {lead.isOnHold ? (
+          /* On Hold — the search is paused (crm_status preserved). Like archived,
+             the active Next Action is suppressed; instead we show the hold state +
+             follow-up date. Distinct from archived: this is temporary and the lead
+             resumes to its stage. Presentation only — no workflow data is mutated;
+             Resume/Reschedule happen in the CRM (board Inactive → On Hold / Agenda). */
+          <>
+            <div className="lp-card-cols">
+              <span className="lp-eyebrow">On Hold</span>
+            </div>
+            <div style={{ marginTop: 15 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--lb-text, #e6ebf5)" }}>
+                {lead.holdFollowUpLabel ? `Follow up · ${lead.holdFollowUpLabel}` : "Paused"}
+              </div>
+            </div>
+          </>
+        ) : lead.isArchived ? (
           /* Archived leads intentionally have no active Next Action. Replace the
              Next Action / Status / due area with the canonical Archive Reason
              (DTO-provided label from lib/leads/archiveReasons), and render no

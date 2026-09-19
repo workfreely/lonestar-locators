@@ -1,4 +1,5 @@
 import { actionRelevanceRank, RELEVANCE_FOREGROUND, type RelevanceRank } from "@/lib/leads/actionRelevance"
+import { isOnHold } from "@/lib/leads/holdWorkflow"
 
 // Unified Next Action ranking (CRM v1.1.0 Phase 1).
 //
@@ -125,12 +126,16 @@ export function rankLeadActions(
   manualActions: ManualNextAction[],
   automaticLabel: string
 ): { primary: RankedAction; others: RankedAction[] } {
-  // Archived leads are out of the active workflow entirely — neither the
-  // automatic stage action nor any open manual action should ever surface
-  // as due/overdue while archived. Nothing is deleted here (the lead's
-  // next_action_date and its lead_next_actions rows are untouched), so
-  // restoring the lead to an active stage resumes ranking normally.
-  if (lead.crm_status === "archived") {
+  // Archived AND On Hold leads are out of the active workflow — neither the
+  // automatic stage action nor any open manual action should ever surface as
+  // due/overdue. Nothing is deleted here (the lead's next_action_date and its
+  // lead_next_actions rows are untouched), so restoring/resuming the lead
+  // resumes ranking normally. A held lead keeps its real crm_status; this is the
+  // ONE canonical suppression chokepoint every surface (board card, Agenda,
+  // Companion) shares. The returned sentinel is "none" urgency, so a held/
+  // archived lead never lands in the Agenda's due queue — the hold reminder is
+  // surfaced separately from hold_follow_up_at.
+  if (lead.crm_status === "archived" || isOnHold(lead)) {
     return {
       primary: {
         kind: "automatic",

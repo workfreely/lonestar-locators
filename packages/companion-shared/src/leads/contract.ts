@@ -142,6 +142,16 @@ export const leadSummarySchema = z.object({
    *  reason labels. Null for active leads / unmapped reasons. */
   archiveReasonLabel: z.string().nullish(),
   isClosed: z.boolean().default(false),
+  /** On Hold — the search is paused (leads.held_at set). Distinct from archived:
+   *  crm_status is preserved and the lead resumes to its stage. While held the
+   *  Companion suppresses the active Next Action and shows the hold state. */
+  isOnHold: z.boolean().default(false),
+  /** The hold follow-up/reminder date (leads.hold_follow_up_at, YYYY-MM-DD). Null
+   *  when not held. Display only. */
+  holdFollowUpAt: z.string().nullish(),
+  /** Pre-formatted compact hold date (e.g. "Sep 30"), computed CRM-side via the
+   *  ONE canonical formatter so the Companion renders it verbatim. Null when not held. */
+  holdFollowUpLabel: z.string().nullish(),
   searchCriteria: searchCriteriaSchema,
   creditScreening: creditScreeningSchema,
   workflow: workflowStateSchema,

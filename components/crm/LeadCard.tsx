@@ -9,6 +9,8 @@ import { useState, useRef, useLayoutEffect } from "react"
 import { formatPhone } from "@/lib/utils/formatPhone"
 import LeadSourceBadge from "./LeadSourceBadge"
 import { getArchiveReasonBadgeLabel } from "@/lib/leads/archiveReasons"
+import { isOnHold as leadIsOnHold, formatHoldFollowUpNumeric } from "@/lib/leads/holdWorkflow"
+import HoldControls from "./HoldControls"
 import { formatPersonName } from "@bc/companion-shared"
 
 // Canonical, shared person-name display formatter — the Agenda, Lead Card, Lead
@@ -67,16 +69,28 @@ export default function LeadCard({
   isActiveClient,
   onSelect,
   onArchive,
+  // On Hold (Inactive → On Hold tab): Resume / Reschedule handlers. When present
+  // the card shows the hold state + controls in place of the Next Action pill.
+  onResumeHold,
+  onRescheduleHold,
+  // Held cards are non-draggable in v1 (no drag-to-resume). Defaults to draggable.
+  draggable = true,
   view = "detailed",
 }: any) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: String(lead.id),
+    disabled: !draggable,
   })
 
   // Original card is hidden while dragging — the DragOverlay renders the copy.
   const style: React.CSSProperties = {
     opacity: transform ? 0 : undefined,
   }
+
+  // On Hold: crm_status is preserved, so the card is identified by held_at, not a
+  // stage. While held (like archived) the normal Next Action is suppressed — the
+  // pill shows the useful hold state instead (see cardBody).
+  const onHold = leadIsOnHold(lead)
 
   const [copied, setCopied] = useState(false)
 
@@ -356,8 +370,28 @@ export default function LeadCard({
         </div>
         <div className="kb-badges" data-fit="0" ref={badgesRef}>
           <span className={`kb-pill ${approvalClass}`}>{approvalLabel}</span>
-          <span className={`kb-pill kb-pill--push ${nextClass}`} title={nextText}>{nextText}</span>
+          {/* Next Action pill — occupies the same slot in all three states:
+              • On Hold  → the useful hold state ("Follow Up · 10/05/2026"), not an action.
+              • Archived → nothing (an archived lead has no active action expected —
+                the archive reason already shows on its own line above).
+              • Active   → the canonical ranked Next Action, as before. */}
+          {onHold ? (
+            <span className="kb-pill kb-pill--push kb-pill--neutral" title={`Follow Up · ${formatHoldFollowUpNumeric(lead.hold_follow_up_at)}`}>
+              Follow Up{lead.hold_follow_up_at ? ` · ${formatHoldFollowUpNumeric(lead.hold_follow_up_at)}` : ""}
+            </span>
+          ) : lead.crm_status === "archived" ? null : (
+            <span className={`kb-pill kb-pill--push ${nextClass}`} title={nextText}>{nextText}</span>
+          )}
         </div>
+        {/* Resume / Reschedule for a held card (Inactive → On Hold tab only). */}
+        {onHold && (onResumeHold || onRescheduleHold) && (
+          <HoldControls
+            leadId={lead.id}
+            followUpAt={lead.hold_follow_up_at}
+            onResume={onResumeHold}
+            onReschedule={onRescheduleHold}
+          />
+        )}
       </>
     )
   }
@@ -374,7 +408,7 @@ export default function LeadCard({
 
   return (
     <article ref={setNodeRef} {...attributes} style={style} onClick={() => onSelect?.(lead.id)} className={cardClass}>
-      {dragHandle}
+      {draggable && dragHandle}
       <div className="kb-card-pad">{cardBody(view)}</div>
     </article>
   )

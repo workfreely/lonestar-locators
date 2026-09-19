@@ -50,6 +50,10 @@ export interface LeadRow {
   deleted_at: string | null;
   deleted_by: string | null;
   pre_delete_status: LeadStage | null;
+  // On Hold state (see 20260920000000_add_hold_to_leads). held_at non-null ⇒ the
+  // lead is paused; crm_status is preserved. hold_follow_up_at is the reminder date.
+  held_at: string | null;
+  hold_follow_up_at: string | null;
   closed_at: string | null;
   created_at: string | null;
   updated_at: string | null;
