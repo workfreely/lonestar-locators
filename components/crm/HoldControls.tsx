@@ -29,9 +29,12 @@ export default function HoldControls({
   if (editing) {
     return (
       <div className="kb-hold-controls" onClick={stop}>
+        {/* crm-native-date: same opt-out as the Pause/Archive dialog — without it
+            the global calendar-picker-indicator rule stretches to a giant overlay
+            that intercepts clicks (see globals.css:288 / PauseOrArchiveDialog). */}
         <input
           type="date"
-          className="kb-hold-date"
+          className="crm-native-date kb-hold-date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
           autoFocus

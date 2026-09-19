@@ -38,11 +38,15 @@ export default function PauseOrArchiveDialog({
 
   if (!open) return null
 
+  const firstName = leadName ? leadName.split(" ")[0] || leadName : "this lead"
   const nameEl = leadName ? (
-    <span className="font-semibold text-[var(--crm-text-primary)]">{leadName.split(" ")[0] || leadName}</span>
+    <span className="font-semibold text-[var(--crm-text-primary)]">{firstName}</span>
   ) : (
     "this lead"
   )
+  // The Put on Hold state names the lead in the HEADING ("Pause or Archive Keyonta?");
+  // the choice + archive states keep the generic title.
+  const heading = mode === "hold" ? `Pause or Archive ${firstName}?` : "Pause or Archive Lead"
 
   const choiceBtn =
     "w-full flex flex-col items-start gap-0.5 text-left px-3.5 py-3 rounded-xl border transition-colors border-[var(--crm-border)] bg-[var(--crm-inset)] hover:bg-[var(--crm-card)] hover:border-[var(--kb-accent)]"
@@ -56,7 +60,7 @@ export default function PauseOrArchiveDialog({
         className="w-full max-w-sm bg-[var(--crm-panel)] rounded-2xl shadow-2xl p-6"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg font-bold text-[var(--crm-text-primary)]">Pause or Archive Lead</h3>
+        <h3 className="text-lg font-bold text-[var(--crm-text-primary)]">{heading}</h3>
 
         {mode === "choose" && (
           <>
@@ -85,18 +89,24 @@ export default function PauseOrArchiveDialog({
         {mode === "hold" && (
           <>
             <p className="text-sm text-[var(--crm-text-secondary)] mt-1">
-              Pause {nameEl}&apos;s search. Their stage and workflow are preserved.
+              Your current stage and workflow will be preserved.
             </p>
             <label className="block mt-4">
               <span className="text-[11px] uppercase tracking-wide font-semibold text-[var(--crm-text-muted)]">
                 Follow Up Date
               </span>
+              {/* crm-native-date opts OUT of the marketing-site rule that stretches
+                  the calendar-picker-indicator to fill the field (globals.css:288) —
+                  without it the indicator, being position:absolute inset:0 on a
+                  static input, resolves against the fixed modal backdrop and covers
+                  the whole modal, painting a giant black square AND intercepting the
+                  Back / Put on Hold clicks. */}
               <input
                 type="date"
                 value={followUpDate}
                 onChange={(e) => setFollowUpDate(e.target.value)}
                 autoFocus
-                className="mt-1 w-full text-[14px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] text-[var(--crm-text-primary)] px-3 py-2"
+                className="crm-native-date mt-1 w-full text-[14px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] text-[var(--crm-text-primary)] px-3 py-2"
               />
             </label>
             <div className="flex justify-between gap-3 mt-5">
