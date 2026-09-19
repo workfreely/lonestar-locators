@@ -39,13 +39,15 @@ export default function PauseOrArchiveDialog({
   if (!open) return null
 
   const firstName = leadName ? leadName.split(" ")[0] || leadName : "this lead"
-  const nameEl = leadName ? (
-    <span className="font-semibold text-[var(--crm-text-primary)]">{firstName}</span>
-  ) : (
-    "this lead"
-  )
-  // The modal heading names the lead in every state ("Pause or Archive Jerry?").
-  const heading = `Pause or Archive ${firstName}?`
+  // The heading is the modal's only question — it changes per step so no redundant
+  // subtitle is needed: the choice asks Pause-or-Archive, then each branch restates
+  // the specific decision (Put on Hold / archiving).
+  const heading =
+    mode === "hold"
+      ? `Put ${firstName} on Hold?`
+      : mode === "archive"
+        ? `Why are you archiving ${firstName}?`
+        : `Pause or Archive ${firstName}?`
 
   const choiceBtn =
     "w-full flex flex-col items-start gap-0.5 text-left px-3.5 py-3 rounded-xl border transition-colors border-[var(--crm-border)] bg-[var(--crm-inset)] hover:bg-[var(--crm-card)] hover:border-[var(--kb-accent)]"
@@ -132,7 +134,8 @@ export default function PauseOrArchiveDialog({
 
         {mode === "archive" && (
           <>
-            <p className="text-sm text-[var(--crm-text-secondary)] mt-1">Why are you archiving {nameEl}?</p>
+            {/* The heading ("Why are you archiving {FirstName}?") is the only prompt —
+                no subtitle. Reasons follow immediately. */}
             <div className="mt-4 space-y-1.5">
               {ARCHIVE_REASONS.map((r) => {
                 const active = reason === r.value

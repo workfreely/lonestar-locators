@@ -2046,6 +2046,11 @@ body.jaybot-open {
 .kb-hold-controls { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:8px; }
 .kb-hold-controls--xs { margin-top:6px; }
 .kb-hold-btn { font:inherit; font-size:11.5px; font-weight:650; color:var(--kb-ink-soft); border:1px solid var(--kb-border-strong); background:transparent; padding:4px 10px; border-radius:8px; cursor:pointer; transition:color .2s, background .2s, border-color .2s; }
+/* Resume Search | Reschedule — equal width + height so neither dominates. Same
+   padding/height from .kb-hold-btn; flex:1 splits the row evenly (wraps to two
+   equal full-width rows only if the card is too narrow). Scoped to the action row
+   so the reschedule editor's date input + Save/Cancel are unaffected. */
+.kb-hold-actions .kb-hold-btn { flex:1 1 0; min-width:0; text-align:center; white-space:nowrap; }
 .kb-hold-btn:hover { color:var(--kb-ink); background:color-mix(in srgb, var(--kb-ink) 8%, transparent); }
 .kb-hold-btn--primary { color:#fff; background:var(--kb-accent, #6366f1); border-color:transparent; }
 .kb-hold-btn--primary:hover { filter:brightness(1.06); background:var(--kb-accent, #6366f1); color:#fff; }
