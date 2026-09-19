@@ -327,7 +327,7 @@ function LegalFooter({ config }: { config: unknown }) {
   const footerConfig = { ...merged, copy: { ...merged.copy, brokerageName: "" } }
   return (
     <div className="lbr-legal">
-      <Footer config={footerConfig} compact />
+      <Footer config={footerConfig} compact equalHousingText />
     </div>
   )
 }

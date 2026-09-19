@@ -62,6 +62,7 @@ const TX_CPN_LABEL = "Consumer Protection Notice"
 export default function Footer({
   config,
   compact = false,
+  equalHousingText = false,
 }: {
   config: SmartLeadFormConfig
   /**
@@ -71,6 +72,14 @@ export default function Footer({
    * The LINKS and their behaviour are unchanged — only type scale and padding.
    */
   compact?: boolean
+  /**
+   * Opt-in visible "Equal Housing" label beside the icon in the identity row —
+   * used ONLY by the client-facing Thank You + Recommendations footers, so the
+   * bottom row reads "⌂ Equal Housing · Powered by Locator Beast". Additive and
+   * defaulted off; every other surface (Smart Lead Form, join page) is unchanged
+   * and keeps the icon-only treatment.
+   */
+  equalHousingText?: boolean
 }) {
   const { footerBrokerageWebsite, footerOfficePhone } = config.sections.visibility
   const { brokerageWebsiteUrl, officePhone, iabsUrl, consumerProtectionNoticeUrl } = config.footer
@@ -125,8 +134,18 @@ export default function Footer({
   const hasDisclosures = disclosureNodes.length > 0
 
   // ── Identity row: Equal Housing icon · [Brokerage] · Powered by Locator Beast. ──
+  // On the client-facing pages (equalHousingText) the icon carries a visible
+  // "Equal Housing" label as one atomic unit, so the trailing dot stays after the
+  // label: "⌂ Equal Housing · …". Elsewhere the icon stands alone (icon-only).
   const identityNodes: ReactNode[] = [
-    <EhoIcon key="eho" />,
+    equalHousingText ? (
+      <span key="eho" className="inline-flex items-center gap-1.5 whitespace-nowrap">
+        <EhoIcon />
+        Equal Housing
+      </span>
+    ) : (
+      <EhoIcon key="eho" />
+    ),
     ...(showBrokerage ? [<span key="brokerage" className="break-words">{brokerageName}</span>] : []),
     <span key="powered" className="whitespace-nowrap">
       Powered by{" "}

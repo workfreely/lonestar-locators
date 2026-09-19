@@ -279,7 +279,7 @@ export default async function SmartLeadFormThankYouPage({
 
           {/* ── FOOTER — reused client-facing legal/identity treatment from /r ── */}
           <div className="ty-legal">
-            <Footer config={footerConfig} compact />
+            <Footer config={footerConfig} compact equalHousingText />
           </div>
         </div>
       </div>

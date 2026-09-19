@@ -56,13 +56,19 @@ export type DemoHistoryItem = {
   captionVariation: string
   onVideoText: string
   reuseCount: number
-  hue: number
+  hue: number // deterministic placeholder-thumbnail color (no real media in demo rows)
+  /** The published/rendered video artifact for this publication. Kept `null` for demo rows (Social
+   *  Beast has no sample media). When real History lands it will carry the PUBLISHED/RENDERED
+   *  derivative URL (never a mutable source clip) — the History thumbnail then shows a real poster
+   *  frame and the shared preview lightbox plays it. This keeps a clean path to the future
+   *  `social_publications` model without implementing it here. */
+  previewUrl: string | null
 }
 
 export const DEMO_HISTORY: DemoHistoryItem[] = [
-  { id: "h1", propertyName: "Alta Westover Hills", market: "San Antonio", platform: "Instagram", publishedAt: "2026-09-05T07:42:00Z", captionVariation: "Free-rent hook", onVideoText: "1 month free", reuseCount: 3, hue: 262 },
-  { id: "h2", propertyName: "The M9", market: "Austin", platform: "TikTok", publishedAt: "2026-09-04T18:15:00Z", captionVariation: "Amenity tour", onVideoText: "Rooftop pool", reuseCount: 2, hue: 200 },
-  { id: "h3", propertyName: "Knox", market: "Dallas", platform: "YouTube", publishedAt: "2026-09-02T21:05:00Z", captionVariation: "Walkthrough", onVideoText: "$1,450/mo", reuseCount: 1, hue: 12 },
+  { id: "h1", propertyName: "Alta Westover Hills", market: "San Antonio", platform: "Instagram", publishedAt: "2026-09-05T07:42:00Z", captionVariation: "Free-rent hook", onVideoText: "1 month free", reuseCount: 3, hue: 262, previewUrl: null },
+  { id: "h2", propertyName: "The M9", market: "Austin", platform: "TikTok", publishedAt: "2026-09-04T18:15:00Z", captionVariation: "Amenity tour", onVideoText: "Rooftop pool", reuseCount: 2, hue: 200, previewUrl: null },
+  { id: "h3", propertyName: "Knox", market: "Dallas", platform: "YouTube", publishedAt: "2026-09-02T21:05:00Z", captionVariation: "Walkthrough", onVideoText: "$1,450/mo", reuseCount: 1, hue: 12, previewUrl: null },
 ]
 
 // Distinct markets present in the demo library (for the market filter preview).
