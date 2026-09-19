@@ -50,7 +50,9 @@ export type DemoHistoryItem = {
   propertyName: string
   market: string
   platform: "Instagram" | "TikTok" | "YouTube"
-  publishedLabel: string
+  /** ISO publication instant — the canonical `published_at` semantics (never scheduled_at).
+   *  Rendered via formatPublishedAt as "Sep 5, 2026 · 2:42 AM". */
+  publishedAt: string
   captionVariation: string
   onVideoText: string
   reuseCount: number
@@ -58,9 +60,9 @@ export type DemoHistoryItem = {
 }
 
 export const DEMO_HISTORY: DemoHistoryItem[] = [
-  { id: "h1", propertyName: "Alta Westover Hills", market: "San Antonio", platform: "Instagram", publishedLabel: "Sep 5, 2026", captionVariation: "Free-rent hook", onVideoText: "1 month free", reuseCount: 3, hue: 262 },
-  { id: "h2", propertyName: "The M9", market: "Austin", platform: "TikTok", publishedLabel: "Sep 4, 2026", captionVariation: "Amenity tour", onVideoText: "Rooftop pool", reuseCount: 2, hue: 200 },
-  { id: "h3", propertyName: "Knox", market: "Dallas", platform: "YouTube", publishedLabel: "Sep 2, 2026", captionVariation: "Walkthrough", onVideoText: "$1,450/mo", reuseCount: 1, hue: 12 },
+  { id: "h1", propertyName: "Alta Westover Hills", market: "San Antonio", platform: "Instagram", publishedAt: "2026-09-05T07:42:00Z", captionVariation: "Free-rent hook", onVideoText: "1 month free", reuseCount: 3, hue: 262 },
+  { id: "h2", propertyName: "The M9", market: "Austin", platform: "TikTok", publishedAt: "2026-09-04T18:15:00Z", captionVariation: "Amenity tour", onVideoText: "Rooftop pool", reuseCount: 2, hue: 200 },
+  { id: "h3", propertyName: "Knox", market: "Dallas", platform: "YouTube", publishedAt: "2026-09-02T21:05:00Z", captionVariation: "Walkthrough", onVideoText: "$1,450/mo", reuseCount: 1, hue: 12 },
 ]
 
 // Distinct markets present in the demo library (for the market filter preview).

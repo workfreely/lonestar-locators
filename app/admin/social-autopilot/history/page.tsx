@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { ensurePlatformAdminPage } from "@/lib/auth/ensurePlatformAdminPage"
 import { DEMO_HISTORY } from "@/components/crm/social/demoFixtures"
+import { formatPublishedAt } from "@/lib/social/formatPublishedAt"
 
 // Social Autopilot → History (visual shell). A published-post history table via
 // isolated UI-only demo rows (never DB). Shows the reuse model: one source video →
@@ -36,7 +37,7 @@ export default async function SocialAutopilotHistoryPage() {
                   {h.propertyName}
                   <div className="text-[11px] font-normal text-[var(--crm-text-muted)]">{h.market}</div>
                 </td>
-                <td className="px-3 py-2.5 text-[var(--crm-text-secondary)] whitespace-nowrap">{h.publishedLabel}</td>
+                <td className="px-3 py-2.5 text-[var(--crm-text-secondary)] whitespace-nowrap">{formatPublishedAt(h.publishedAt)}</td>
                 <td className="px-3 py-2.5 text-[var(--crm-text-secondary)] whitespace-nowrap">{h.captionVariation}</td>
                 <td className="px-3 py-2.5 text-[var(--crm-text-secondary)] whitespace-nowrap">{h.onVideoText}</td>
                 <td className="px-3 py-2.5 text-[var(--crm-text-secondary)] text-right tabular-nums">×{h.reuseCount}</td>
