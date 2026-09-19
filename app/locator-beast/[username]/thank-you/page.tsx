@@ -1,12 +1,18 @@
 import type { ReactNode } from "react"
 import { notFound } from "next/navigation"
+import { Inter } from "next/font/google"
 import { createClient } from "@/lib/supabase/server"
 import { mergeSmartFormConfig } from "@/app/smart-lead-form/_lib/mergeConfig"
 import { youtubeEmbedUrl } from "@/lib/smartForm/thankYouVideo"
 import { buildThankYouSteps, buildThankYouIntro } from "@/lib/smartForm/thankYouSteps"
 import { serviceAreasLabelCanonical } from "@/lib/markets/catalog"
+import { SKYLINE_PATH } from "@/lib/clientShare/skyline"
 
 export const dynamic = "force-dynamic"
+
+// Same family as the client Recommendations page (/r/[token]): Inter, deep navy
+// typography, a treated skyline hero, rounded cards, restrained accents.
+const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], display: "swap" })
 
 type PublicForm = {
   agent_name: string
@@ -21,7 +27,7 @@ type PublicForm = {
 // Renders a step body, bolding known emphasis substrings (e.g. the action to
 // select + the agent/brokerage to list in the default apply step). Wraps each
 // (first, non-overlapping) match in a real element — no HTML injection from
-// config values, and never a link/color, just weight.
+// config values, and never a link/color, just weight. UNCHANGED from before.
 function renderBody(body: string, emphasis?: string[]) {
   const phrases = (emphasis ?? []).filter(Boolean)
   if (!phrases.length) return body
@@ -38,7 +44,7 @@ function renderBody(body: string, emphasis?: string[]) {
     if (start < cursor) continue // skip overlaps
     if (start > cursor) parts.push(body.slice(cursor, start))
     parts.push(
-      <strong key={key++} className="font-semibold text-[#111318]">
+      <strong key={key++} className="font-bold text-[#0e2545]">
         {body.slice(start, end)}
       </strong>,
     )
@@ -48,11 +54,17 @@ function renderBody(body: string, emphasis?: string[]) {
   return <>{parts}</>
 }
 
-// Post-submission confirmation for a per-agent Smart Lead Form, served at
-// locatorbeast.com/{username}/thank-you. Renter-facing service-value page with
-// an editable step flow, an optional portrait (9:16) intro video on the right,
-// and a compact agent signature at the bottom. All dynamic values resolve from
-// the current workspace; no acquisition/attribution data is shown.
+/**
+ * Post-submission confirmation for a per-agent Smart Lead Form, served at
+ * locatorbeast.com/{username}/thank-you.
+ *
+ * PRESENTATION redesign only — the data model is unchanged: the intro, steps
+ * 2/3/4 + application instructions, the optional reward step, and the optional
+ * intro video all still come from the locator's saved Smart Lead Form config
+ * (mergeSmartFormConfig + buildThankYouSteps/buildThankYouIntro). The number of
+ * visible steps is dynamic (reward adds one; nothing is padded). Submission,
+ * redirect, attribution and analytics are untouched — this page only renders.
+ */
 export default async function SmartLeadFormThankYouPage({
   params,
   searchParams,
@@ -72,9 +84,6 @@ export default async function SmartLeadFormThankYouPage({
   const where = (city ?? "").trim()
   const agentName = (form.agent_name ?? "").trim() || "Your local locator"
   const brokerage = (form.brokerage_name ?? "").trim()
-  const phone = (form.agent_phone ?? "").trim()
-  const email = (form.agent_email ?? "").trim()
-  const serving = serviceAreasLabelCanonical(form.service_areas).trim()
   const initials =
     agentName
       .split(/\s+/)
@@ -103,37 +112,45 @@ export default async function SmartLeadFormThankYouPage({
     incentive: config.thankYouIncentive,
   })
 
-  const StepList = () => (
-    <>
-      <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[#9098a8]">What happens next</h2>
-      <ol className="mt-4">
+  // Treated skyline hero — deliberately generic/non-market-specific, washed so the
+  // navy heading + configured intro stay highly legible (same asset as /r).
+  const heroStyle: React.CSSProperties = {
+    backgroundImage: `linear-gradient(180deg, rgba(244,247,252,0.68) 0%, rgba(244,247,252,0.84) 52%, rgba(245,247,251,0.99) 100%), url('${SKYLINE_PATH}')`,
+    backgroundSize: "cover",
+    backgroundPosition: "center 22%",
+  }
+
+  const Timeline = () => (
+    <div>
+      <h2 className="text-left text-[22px] font-extrabold tracking-[-0.01em] text-[#0e2545] sm:text-[24px]">What Happens Next</h2>
+      <ol className="mt-6">
         {steps.map((step, i) => {
           const isLast = i === steps.length - 1
           return (
-            <li key={i} className="relative flex gap-4 pb-6 last:pb-0 sm:gap-5">
+            <li key={i} className="relative flex gap-4 pb-7 last:pb-0 sm:gap-5">
               {!isLast && (
                 <span
-                  className={`absolute left-[20px] top-[46px] bottom-1 w-px ${step.done ? "bg-[#bfe6cf]" : "bg-[#e6e8ee]"}`}
+                  className={`absolute left-[21px] top-[48px] bottom-1 w-[2px] rounded ${step.done ? "bg-[#bfe6cf]" : "bg-[#e7ebf2]"}`}
                   aria-hidden
                 />
               )}
               {step.done ? (
-                <span className="relative z-10 flex h-[42px] w-[42px] flex-none items-center justify-center rounded-full bg-[#12a150] text-white shadow-sm">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <span className="relative z-10 flex h-[44px] w-[44px] flex-none items-center justify-center rounded-full bg-[#1f9d55] text-white shadow-[0_6px_16px_-6px_rgba(31,157,85,0.7)]">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                     <path d="M20 6 9 17l-5-5" />
                   </svg>
                 </span>
               ) : (
-                <span className="relative z-10 flex h-[42px] w-[42px] flex-none items-center justify-center rounded-full border border-[#e2e5ec] bg-white text-[16px] font-semibold text-[#111318]">
+                <span className="relative z-10 flex h-[44px] w-[44px] flex-none items-center justify-center rounded-full bg-[#0e2545] text-[16px] font-extrabold text-white">
                   {i + 1}
                 </span>
               )}
-              <div className="pt-1">
+              <div className="min-w-0 pt-1.5">
                 {step.done ? (
                   <div className="flex flex-wrap items-center gap-2.5">
-                    <p className="text-[17px] font-semibold text-[#9aa3b2] line-through">{step.title}</p>
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-[#12a150] px-3.5 py-1 text-[12.5px] font-bold uppercase tracking-wide text-white">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <p className="text-[17px] font-bold text-[#0e2545] line-through decoration-[#c3cbd8] sm:text-[18px]">{step.title}</p>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e4f6ec] px-3 py-[5px] text-[11.5px] font-extrabold uppercase tracking-wide text-[#136c3a]">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                         <path d="M20 6 9 17l-5-5" />
                       </svg>
                       Completed
@@ -141,8 +158,8 @@ export default async function SmartLeadFormThankYouPage({
                   </div>
                 ) : (
                   <>
-                    <p className="text-[17px] font-semibold leading-snug text-[#111318]">{step.title}</p>
-                    <p className="mt-1.5 text-[15px] leading-relaxed text-[#4b5162]">{renderBody(step.body, step.emphasis)}</p>
+                    <p className="text-[17px] font-bold leading-snug text-[#0e2545] sm:text-[18px]">{step.title}</p>
+                    <p className="mt-1.5 text-[15px] leading-relaxed text-[#4b5468] sm:text-[15.5px]">{renderBody(step.body, step.emphasis)}</p>
                   </>
                 )}
               </div>
@@ -150,19 +167,13 @@ export default async function SmartLeadFormThankYouPage({
           )
         })}
       </ol>
-    </>
+    </div>
   )
 
-  const ClosingLine = () => (
-    <p className="mt-4 text-[15.5px] leading-relaxed text-[#4b5162]">
-      Keep an eye on your texts and email for your personalized options.
-    </p>
-  )
-
-  // Portrait (9:16) intro video — a Shorts-style frame, capped so it never
-  // dominates the page; right column on desktop, centered on mobile.
+  // Optional 9:16 intro video — restyled to sit naturally in the composition.
+  // Collapses cleanly when absent (no empty column / placeholder).
   const Video = () => (
-    <div className="mx-auto w-full max-w-[280px] overflow-hidden rounded-2xl border border-[#e9ebf0] bg-black shadow-[0_1px_3px_rgba(16,19,24,0.08)]">
+    <div className="overflow-hidden rounded-[20px] border border-[#e7ebf2] bg-black shadow-[0_18px_40px_-24px_rgba(14,37,69,0.5)]">
       <div className="aspect-[9/16] w-full">
         <iframe
           src={embedUrl!}
@@ -176,87 +187,68 @@ export default async function SmartLeadFormThankYouPage({
     </div>
   )
 
-  return (
-    <main className="min-h-screen bg-[#fbfbfd] px-5 py-8 sm:py-11">
-      <div className="mx-auto w-full max-w-[1040px]">
-        {/* ── Intro ─────────────────────────────────────────────────────── */}
-        <header className="max-w-2xl">
-          <h1 className="text-[28px] font-bold leading-[1.12] tracking-[-0.02em] text-[#111318] sm:text-[36px]">
-            {name ? `Thanks, ${name}!` : "Thank you!"}
-          </h1>
-          <p className="mt-3 text-[16px] leading-relaxed text-[#4b5162]">{intro}</p>
-        </header>
+  const Closing = () => (
+    <div className="mt-9 rounded-[18px] border border-[#e7ebf2] bg-[#f7f9fc] px-5 py-4 sm:px-6 sm:py-5">
+      <p className="text-[15.5px] font-bold text-[#0e2545] sm:text-[16px]">Keep an eye on your texts and email</p>
+      <p className="mt-1 text-[14.5px] leading-relaxed text-[#6b7688] sm:text-[15px]">I&rsquo;ll reach out as soon as your recommendations are ready.</p>
+    </div>
+  )
 
-        {/* ── Main journey: steps + optional portrait video ────────────────
-            With a video, this is a row (steps left, 9:16 video right on desktop;
-            DOM order keeps mobile as intro -> video -> steps). No video => steps
-            expand, no empty column. */}
-        {embedUrl ? (
-          <div className="mt-6 md:mt-8 md:flex md:flex-row-reverse md:items-start md:gap-10">
-            <aside className="mb-7 w-full md:mb-0 md:w-[300px] md:flex-none">
-              <Video />
-            </aside>
-            {/* Closing line lives INSIDE the steps column so it follows Step 4
-                directly — it never waits for the taller video column, so there is
-                no empty gap under the steps when there is no reward step. */}
-            <section className="w-full md:flex-1">
-              <StepList />
-              <ClosingLine />
-            </section>
-          </div>
+  const LocatorIdentity = () => (
+    <div className="mt-8 flex items-center gap-4 border-t border-[#eef1f7] pt-7">
+      <div className="h-[64px] w-[64px] flex-none overflow-hidden rounded-full border-[3px] border-white bg-[#eaeef5] shadow-[0_10px_26px_-14px_rgba(14,37,69,0.55)]">
+        {form.photo_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={form.photo_url} alt={agentName} className="h-full w-full object-cover" />
         ) : (
-          <section className="mt-6 max-w-2xl md:mt-8">
-            <StepList />
-            <ClosingLine />
-          </section>
+          <div className="flex h-full w-full items-center justify-center text-[19px] font-bold text-[#7a869a]">{initials}</div>
         )}
+      </div>
+      <div className="min-w-0">
+        <p className="text-[16.5px] font-bold text-[#0e2545]">{agentName}</p>
+        <p className="mt-0.5 text-[13.5px] text-[#6b7688]">{title}</p>
+        {brokerage && <p className="text-[13.5px] text-[#6b7688]">{brokerage}</p>}
+      </div>
+    </div>
+  )
 
-        {/* ── Agent signature (bottom) — compact, horizontally efficient ── */}
-        <div className="mt-5 border-t border-[#eef0f5] pt-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
-            {/* photo + identity */}
-            <div className="flex flex-none items-center gap-4">
-              <div className="h-[72px] w-[72px] flex-none overflow-hidden rounded-full border border-[#e5e7ee] bg-[#f4f5f8] shadow-sm">
-                {form.photo_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={form.photo_url} alt={agentName} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-[20px] font-semibold text-[#9098a8]">
-                    {initials}
-                  </div>
-                )}
-              </div>
-              <div className="min-w-0">
-                <p className="text-[16px] font-semibold text-[#111318]">{agentName}</p>
-                <p className="mt-0.5 text-[13px] text-[#6b7280]">{title}</p>
-                {brokerage && <p className="text-[13px] text-[#6b7280]">{brokerage}</p>}
-              </div>
-            </div>
+  // Intentional composition: a focused, centered confirmation card when there's no
+  // video; a wider two-column layout when a video shares the row with the timeline.
+  const shellMax = embedUrl ? "max-w-[1040px]" : "max-w-[720px]"
 
-            {/* divider (desktop only) */}
-            {(phone || email || serving) && <div className="hidden h-14 w-px flex-none bg-[#eceef3] sm:block" />}
+  return (
+    <main className={`${inter.className} min-h-screen bg-[#f5f7fb] text-[#3a4658] antialiased`}>
+      <div className={`mx-auto w-full ${shellMax} sm:px-6 sm:py-10`}>
+        <div className="overflow-hidden bg-white sm:rounded-[26px] sm:border sm:border-[#e7ebf2] sm:shadow-[0_30px_80px_-50px_rgba(14,37,69,0.35)]">
+          {/* ── HERO — treated skyline, personalized, configured intro ── */}
+          <section className="relative px-6 pt-11 pb-9 sm:px-12 sm:pt-12 sm:pb-10" style={heroStyle}>
+            <h1 className="max-w-[16ch] text-left text-[30px] font-extrabold leading-[1.1] tracking-[-0.02em] text-[#0e2545] sm:text-[40px]">
+              {name ? `Thanks, ${name}!` : "Thank you!"}
+            </h1>
+            <p className="mt-3.5 max-w-xl text-[16px] leading-relaxed text-[#3a4658] sm:mt-4 sm:text-[17px]">{intro}</p>
+          </section>
 
-            {/* contact group */}
-            {(phone || email || serving) && (
-              <div className="min-w-0 text-[13.5px] leading-relaxed text-[#4b5162]">
-                {(phone || email) && (
-                  <p>
-                    {phone && (
-                      <a href={`tel:${phone.replace(/[^\d+]/g, "")}`} className="text-[#4b5162] no-underline hover:underline">
-                        {phone}
-                      </a>
-                    )}
-                    {phone && email && <span className="px-1.5 text-[#c7ccd6]">·</span>}
-                    {email && (
-                      <a href={`mailto:${email}`} className="break-all text-[#2f6bff] no-underline hover:underline">
-                        {email}
-                      </a>
-                    )}
-                  </p>
-                )}
-                {serving && <p className="mt-0.5 text-[12.5px] text-[#9098a8]">Serving {serving}</p>}
+          {/* ── BODY ── */}
+          <div className="px-6 pb-10 pt-8 sm:px-12 sm:pb-12 sm:pt-9">
+            {embedUrl ? (
+              <div className="lg:flex lg:items-start lg:gap-10">
+                <section className="lg:flex-1">
+                  <Timeline />
+                </section>
+                <aside className="mx-auto mt-8 w-full max-w-[300px] lg:mx-0 lg:mt-0 lg:w-[300px] lg:flex-none">
+                  <Video />
+                </aside>
               </div>
+            ) : (
+              <section className="max-w-2xl">
+                <Timeline />
+              </section>
             )}
+
+            <div className="max-w-2xl">
+              <Closing />
+              <LocatorIdentity />
+            </div>
           </div>
         </div>
       </div>
