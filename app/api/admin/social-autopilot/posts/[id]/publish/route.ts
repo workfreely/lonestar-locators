@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { instagramConfigured, createReelContainer } from "@/lib/social/instagram"
-import { composeFinalCaption, publishCaption } from "@/lib/social/composePost"
+import { buildInstagramCaptionPayload } from "@/lib/social/composePost"
 
 // POST /posts/[id]/publish — Instagram Reels publish PHASE 1 (single post → single selected
 // destination). This STARTS the async flow: it validates everything, retrieves the token
@@ -71,16 +71,16 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     const { data: signed, error: signErr } = await supabaseAdmin.storage.from("social-media").createSignedUrl(p.rendered_storage_path, 3600)
     if (signErr || !signed?.signedUrl) throw new Error("signed url failed")
 
-    // Canonicalize the caption at publish time: a GENERATOR-OWNED stored caption is regenerated
-    // from the source metadata in the current format (fixes older stored captions automatically,
-    // no row mutation); a MANUAL caption is published verbatim. Then append the hashtag block.
-    const src = (Array.isArray(p.source) ? p.source[0] : p.source) ?? null
-    const captionBody = publishCaption(
-      p.caption,
-      { market: src?.market ?? null, propertyType: src?.property_type ?? null, special: src?.special ?? null, socialSpecial: p.social_special ?? null, budgetRange: src?.budget_range ?? null, amenities: src?.amenities ?? null },
-      p.source_content_id ?? undefined,
-    )
-    const caption = composeFinalCaption(captionBody, Array.isArray(p.hashtags) ? p.hashtags : [])
+    // The EXACT outgoing caption payload — built by the SINGLE shared source of truth
+    // (buildInstagramCaptionPayload), identical to what the dry-run preview reports, so the two
+    // can never drift. Canonicalizes a generator-owned caption + appends hashtags.
+    const caption = buildInstagramCaptionPayload({
+      caption: p.caption,
+      hashtags: p.hashtags,
+      socialSpecial: p.social_special,
+      sourceContentId: p.source_content_id,
+      source: Array.isArray(p.source) ? p.source[0] : p.source,
+    })
     const containerId = await createReelContainer(dest.external_account_id, signed.signedUrl, caption, dest.token)
 
     await supabase

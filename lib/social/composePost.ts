@@ -401,3 +401,27 @@ export function composeFinalCaption(caption: string, hashtags: string[]): string
   const tags = (hashtags ?? []).filter(Boolean)
   return tags.length ? `${caption}\n\n${tags.join(" ")}` : caption
 }
+
+/** THE single source of truth for the EXACT outgoing Instagram caption text (caption body +
+ *  hashtag block), built from a post + its source row. Used identically by the real publish path
+ *  AND the dry-run preview so the two can never drift: it maps the DB row to SourceMeta,
+ *  canonicalizes a generator-owned caption (publishCaption), then appends the hashtags
+ *  (composeFinalCaption). Pure — no DB, no side effects, no publishing. */
+export function buildInstagramCaptionPayload(input: {
+  caption: string | null | undefined
+  hashtags: string[] | null | undefined
+  socialSpecial: string | null | undefined
+  sourceContentId: string | null | undefined
+  source: { market: string | null; property_type: string | null; special: string | null; budget_range: string | null; amenities: string | null } | null | undefined
+}): string {
+  const s = input.source ?? null
+  const meta: SourceMeta = {
+    market: s?.market ?? null,
+    propertyType: s?.property_type ?? null,
+    special: s?.special ?? null,
+    socialSpecial: input.socialSpecial ?? null,
+    budgetRange: s?.budget_range ?? null,
+    amenities: s?.amenities ?? null,
+  }
+  return composeFinalCaption(publishCaption(input.caption, meta, input.sourceContentId ?? undefined), (input.hashtags ?? []).filter(Boolean))
+}
