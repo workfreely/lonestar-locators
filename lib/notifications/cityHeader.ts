@@ -1,5 +1,5 @@
-import { MARKETS } from "@/lib/markets/catalog"
-import { themeImageUrl, AVAILABLE_THEMES } from "@/lib/themes/config"
+import { cityToThemeSlug } from "@/lib/markets/cityTheme"
+import { themeImageUrl } from "@/lib/themes/config"
 import { absoluteUrl } from "./branding"
 
 // Resolve a lead's submitted city/market to an ABSOLUTE, email-usable skyline
@@ -28,25 +28,10 @@ export type CitySkyline = { label: string | null; imageUrl: string | null }
 export function resolveCitySkyline(city: string | null | undefined): CitySkyline {
   const raw = (city ?? "").trim()
   if (!raw) return { label: null, imageUrl: null }
-  const norm = raw.toLowerCase()
 
-  // 1) Per-agent Smart Form submits the market NAME as `city` (e.g. "Houston",
-  //    "Dallas", "Fort Worth" — Dallas/Fort Worth and Miami/Fort Lauderdale are
-  //    separate markets). Match a market by name/slug.
-  let themeSlug: string | null = null
-  const market =
-    MARKETS.find((m) => m.name.toLowerCase() === norm) ??
-    MARKETS.find((m) => m.slug.toLowerCase() === norm)
-  if (market) themeSlug = market.defaultTheme
-
-  // 2) Otherwise a free-text city may directly be a theme label/slug ("Austin").
-  if (!themeSlug) {
-    const theme = AVAILABLE_THEMES.find(
-      (t) => t.label.toLowerCase() === norm || t.slug.toLowerCase() === norm,
-    )
-    if (theme) themeSlug = theme.slug
-  }
-
+  // Canonical city → theme-slug resolution (shared with the client-facing hero
+  // helper via lib/markets/cityTheme). No city/theme mapping is duplicated here.
+  const themeSlug = cityToThemeSlug(raw)
   if (!themeSlug) return { label: raw, imageUrl: null }
 
   const rel = themeImageUrl(themeSlug) // "/themes/{state}/{slug}.webp" | null

@@ -6,7 +6,7 @@ import { mergeSmartFormConfig } from "@/app/smart-lead-form/_lib/mergeConfig"
 import Footer from "@/app/smart-lead-form/_components/form/sections/Footer"
 import RecommendationList, { type ClientProperty } from "./RecommendationList"
 import type { TourType, TourWindow } from "@bc/companion-shared"
-import { SKYLINE_PATH } from "@/lib/clientShare/skyline"
+import { clientHeroImage } from "@/lib/clientShare/heroImage"
 
 export const dynamic = "force-dynamic"
 
@@ -27,11 +27,12 @@ const caveat = Caveat({ subsets: ["latin"], weight: ["600", "700"], variable: "-
  * facts (price/special/rating/reasons) are whatever was FROZEN into the snapshot at send
  * time; the page omits any that are absent.
  *
- * HERO IMAGE: SKYLINE_PATH is a deliberately GENERIC, non-market-specific city skyline
- * (see lib/clientShare/skyline.ts) — the safe neutral backdrop. The resolver does not
- * expose the client's market, so the page never claims a specific city and never infers
- * one from property data. If a per-market image is wanted later, the market would first
- * have to be surfaced by the resolver + backed by per-market assets.
+ * HERO IMAGE: the backdrop is the CLIENT's submitted SEARCH-city skyline, resolved by
+ * clientHeroImage() ONLY through the canonical market/theme catalog (never inferred from
+ * property data, never an arbitrary path). The city is surfaced presentation-only by the
+ * resolver as `client_city` (the lead's city, which the resolver already has in scope) —
+ * it does NOT touch the immutable property snapshot. Unknown or imageless cities fall
+ * back to the generic SKYLINE_PATH, so the hero is never broken/empty.
  */
 
 const CANONICAL_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL || "https://locatorbeast.com"
@@ -89,6 +90,9 @@ type Resolved = {
   agent_brokerage: string | null
   smart_form_config: unknown
   client_first_name: string | null
+  // Presentation-only: the client's submitted search city (lead.city), used only
+  // to pick the hero skyline. Not part of the immutable recommendation snapshot.
+  client_city: string | null
   properties: ClientProperty[] | null
 }
 
@@ -101,7 +105,7 @@ const CSS = `
 .lbr-shell{max-width:1160px;margin:26px auto 40px;background:#fff;border:1px solid var(--line);border-radius:22px;overflow:hidden;box-shadow:0 30px 80px -50px rgba(14,37,69,.35)}
 /* INTRO — no header, no agent */
 .lbr-intro{position:relative;overflow:hidden;background:linear-gradient(180deg,#f7f9fc,#eef2f8)}
-.lbr-sky{position:absolute;inset:0;background-image:linear-gradient(90deg,rgba(9,25,48,.97) 0%,rgba(10,28,52,.90) 30%,rgba(12,32,60,.58) 56%,rgba(14,37,69,.16) 80%,rgba(14,37,69,0) 92%),url('${SKYLINE_PATH}');background-size:cover;background-position:right 42%}
+.lbr-sky{position:absolute;inset:0;background-image:linear-gradient(90deg,rgba(9,25,48,.97) 0%,rgba(10,28,52,.90) 30%,rgba(12,32,60,.58) 56%,rgba(14,37,69,.16) 80%,rgba(14,37,69,0) 92%),var(--hero-img);background-size:cover;background-position:right 42%}
 .lbr-intro-inner{position:relative;padding:40px 44px 42px;max-width:640px}
 .lbr-eyebrow{font-size:13px;color:rgba(255,255,255,.82);font-weight:500;margin:0 0 14px}
 .lbr-eyebrow b{color:#fff}
@@ -249,10 +253,11 @@ const CSS = `
 @media (max-width:640px){
 .lbr-shell{margin:0;border:none;border-radius:0;box-shadow:none}
 .lbr-intro{background:#fff}
-/* Mobile hero: the same deliberately generic SKYLINE_PATH, heavily white-washed and
-   faded behind the personalized intro so the eyebrow/greeting/paragraph read as one
-   polished hero and stay highly legible. Subtle texture only — never a claimed city. */
-.lbr-sky{display:block;background-image:linear-gradient(155deg,rgba(9,25,48,.97) 0%,rgba(10,28,52,.90) 40%,rgba(12,32,60,.60) 72%,rgba(14,37,69,.22) 100%),url('${SKYLINE_PATH}');background-position:center 28%}
+/* Mobile hero: the same per-request city photograph (--hero-img), under the approved
+   dark-navy diagonal so the top stays dark for white-text legibility while the lower
+   image keeps real skyline richness. Adapted for the stacked composition, not the
+   desktop percentages. */
+.lbr-sky{display:block;background-image:linear-gradient(155deg,rgba(9,25,48,.97) 0%,rgba(10,28,52,.90) 40%,rgba(12,32,60,.60) 72%,rgba(14,37,69,.22) 100%),var(--hero-img);background-position:center 28%}
 .lbr-intro-inner{padding:26px 18px 14px;max-width:none}
 /* Greeting + major headings stay ~where they are; increase the smaller supporting text. */
 .lbr-greet{font-size:29px;line-height:1.16;max-width:none}
@@ -379,6 +384,10 @@ export default async function ClientRecommendationsPage({
   const availability = tourState?.availability ?? null
 
   const firstName = share.client_first_name?.trim() || null
+  // Hero photograph = the CLIENT's submitted search city, resolved only through the
+  // canonical market/theme catalog (never an arbitrary path), generic SKYLINE_PATH
+  // fallback for unknown/imageless cities. Presentation-only; snapshot is untouched.
+  const heroImg = clientHeroImage(share.client_city)
   const agentName = share.agent_name?.trim() || "Your locator"
   const agentFirst = agentName.split(/\s+/)[0]
   const agentTitle = share.agent_title?.trim() || "Apartment Locator"
@@ -420,7 +429,7 @@ export default async function ClientRecommendationsPage({
 
         {/* INTRO — one clean composition, no header logo, no agent card */}
         <section className="lbr-intro">
-          <div className="lbr-sky" aria-hidden />
+          <div className="lbr-sky" aria-hidden style={{ ["--hero-img" as string]: `url('${heroImg}')` }} />
           <div className="lbr-intro-inner">
             <p className="lbr-eyebrow">{curated}<span className="lbr-rule" /></p>
             <h1 className="lbr-greet">{greeting}</h1>

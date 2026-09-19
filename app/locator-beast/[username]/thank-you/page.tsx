@@ -6,7 +6,7 @@ import { mergeSmartFormConfig } from "@/app/smart-lead-form/_lib/mergeConfig"
 import { youtubeEmbedUrl } from "@/lib/smartForm/thankYouVideo"
 import { buildThankYouSteps, buildThankYouIntro } from "@/lib/smartForm/thankYouSteps"
 import { serviceAreasLabelCanonical } from "@/lib/markets/catalog"
-import { SKYLINE_PATH } from "@/lib/clientShare/skyline"
+import { clientHeroImage } from "@/lib/clientShare/heroImage"
 import Footer from "@/app/smart-lead-form/_components/form/sections/Footer"
 
 // Client-facing legal/identity footer treatment, reused verbatim from the
@@ -15,14 +15,17 @@ import Footer from "@/app/smart-lead-form/_components/form/sections/Footer"
 // client footer intentionally), and the two TREC disclosures wrap cleanly with no
 // dangling separator on mobile. Mirrors the `.lbr-legal` rules on /r.
 const TY_CSS = `
-/* HERO — intentional horizontal directional treatment (shared with /r): a strong light
-   wash behind the left/text side that smoothly reduces so the right/image side keeps
-   substantially more of the skyline's contrast. Not a uniform fog. */
-.ty-hero{background-image:linear-gradient(90deg,rgba(9,25,48,.97) 0%,rgba(10,28,52,.90) 30%,rgba(12,32,60,.58) 56%,rgba(14,37,69,.16) 80%,rgba(14,37,69,0) 92%),url('${SKYLINE_PATH}');background-size:cover;background-position:right 42%}
+/* HERO — approved dark-navy directional treatment (shared with /r). The city
+   PHOTOGRAPH is injected per-request via the --hero-img custom property (the
+   client's SEARCH-city theme skyline, resolved by clientHeroImage), so the exact
+   same navy gradient + fade wraps whichever city image resolves. A strong navy
+   wash behind the left/text side smoothly reduces so the right/image side keeps
+   the skyline's contrast. Not a uniform fog. */
+.ty-hero{background-image:linear-gradient(90deg,rgba(9,25,48,.97) 0%,rgba(10,28,52,.90) 30%,rgba(12,32,60,.58) 56%,rgba(14,37,69,.16) 80%,rgba(14,37,69,0) 92%),var(--hero-img);background-size:cover;background-position:right 42%}
 /* Mobile: adapt to the stacked composition — a diagonal so the top-left (heading) stays
    dark for white-text legibility while the lower-right keeps real skyline richness. */
 @media (max-width:640px){
-.ty-hero{background-image:linear-gradient(155deg,rgba(9,25,48,.97) 0%,rgba(10,28,52,.90) 40%,rgba(12,32,60,.60) 72%,rgba(14,37,69,.22) 100%),url('${SKYLINE_PATH}');background-position:center 28%}
+.ty-hero{background-image:linear-gradient(155deg,rgba(9,25,48,.97) 0%,rgba(10,28,52,.90) 40%,rgba(12,32,60,.60) 72%,rgba(14,37,69,.22) 100%),var(--hero-img);background-position:center 28%}
 }
 .ty-legal{padding:22px 26px 26px;margin-top:8px;border-top:1px solid #eef1f7}
 .ty-legal a[href="https://locatorbeast.com"]{pointer-events:none;color:inherit;text-decoration:none;cursor:default}
@@ -109,6 +112,10 @@ export default async function SmartLeadFormThankYouPage({
 
   const name = (firstName ?? "").trim()
   const where = (city ?? "").trim()
+  // Hero photograph = the CLIENT's submitted search city, resolved only through
+  // the canonical market/theme catalog (never an arbitrary path), with the
+  // generic SKYLINE_PATH as the guaranteed fallback for unknown/imageless cities.
+  const heroImg = clientHeroImage(where)
   const agentName = (form.agent_name ?? "").trim() || "Your local locator"
   const brokerage = (form.brokerage_name ?? "").trim()
   const initials =
@@ -248,7 +255,10 @@ export default async function SmartLeadFormThankYouPage({
       <div className={`mx-auto w-full ${shellMax} sm:px-6 sm:py-10`}>
         <div className="overflow-hidden bg-white sm:rounded-[26px] sm:border sm:border-[#e7ebf2] sm:shadow-[0_30px_80px_-50px_rgba(14,37,69,0.35)]">
           {/* ── HERO — treated skyline, personalized, configured intro ── */}
-          <section className="ty-hero relative px-6 pt-11 pb-9 sm:px-12 sm:pt-12 sm:pb-10">
+          <section
+            className="ty-hero relative px-6 pt-11 pb-9 sm:px-12 sm:pt-12 sm:pb-10"
+            style={{ ["--hero-img" as string]: `url('${heroImg}')` }}
+          >
             <h1 className="max-w-[16ch] text-left text-[30px] font-extrabold leading-[1.1] tracking-[-0.02em] text-white sm:text-[40px]">
               {name ? `Thanks, ${name}!` : "Thank you!"}
             </h1>
