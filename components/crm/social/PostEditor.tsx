@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
-import { POST_TYPE_LABEL, previewAspectClass } from "@/lib/social/postTypes"
+import { previewAspectClass } from "@/lib/social/postTypes"
+import { SiInstagram, SiTiktok, SiYoutube } from "react-icons/si"
+import type { IconType } from "react-icons"
 import { buildHashtags, normalizeHashtag } from "@/lib/social/hashtags"
 import { buildCaption, specialDisplay, buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, DEFAULT_OVERLAY_TEMPLATE, type OverlayTemplate, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags, type SourceMeta } from "@/lib/social/composePost"
 import SpecialSelect from "@/components/crm/social/SpecialSelect"
@@ -62,6 +64,19 @@ type Post = {
 
 const MAX_HASHTAGS = 7 // Instagram limit enforced in the editor (approved bank/logic unchanged)
 
+// Publishing destinations shown in the editor's "Post to" selector (icon + name buttons). Instagram
+// is the connected, publish-capable platform today; TikTok/YouTube are shown as real destinations to
+// prepare the multi-platform workflow / TikTok review UI, but are NOT yet connected and make NO
+// external API call when selected. Selection is modeled as a SET (multi-select, not a radio) so the
+// eventual social_publications model (one execution record per selected platform) fits with no
+// restructuring. This selector is UI-only here — it does not change post.platform, publishing,
+// scheduling, or any persisted data.
+const PLATFORM_OPTIONS: { id: string; label: string; Icon: IconType }[] = [
+  { id: "instagram", label: "Instagram", Icon: SiInstagram },
+  { id: "tiktok", label: "TikTok", Icon: SiTiktok },
+  { id: "youtube", label: "YouTube", Icon: SiYoutube },
+]
+
 const AUDIO_OPTIONS: { key: string; label: string; disabled?: boolean; note?: string }[] = [
   { key: "original", label: "Original Audio" },
   { key: "none", label: "No Music" },
@@ -108,6 +123,16 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // social_posts (public post) fields
   const [postName, setPostName] = useState("") // INTERNAL — kept, not shown as a field
   const [postType, setPostType] = useState("reel")
+  // Selected publishing destinations (multi-select set; Instagram default so existing Instagram
+  // posts/workflow are unchanged). UI-only — not wired to publishing/persistence in this task.
+  const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(() => new Set(["instagram"]))
+  const togglePlatform = (id: string) =>
+    setSelectedPlatforms((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   const [headline, setHeadline] = useState("")
   const [overlayMode, setOverlayMode] = useState<"generate" | "existing">("generate")
   const [overlayTemplate, setOverlayTemplate] = useState<OverlayTemplate>(DEFAULT_OVERLAY_TEMPLATE)
@@ -161,6 +186,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       setPost(p)
       setPostName(p.postName ?? "")
       setPostType(p.postType || "reel")
+      setSelectedPlatforms(new Set([p.platform || "instagram"])) // reflect the post's platform (Instagram today)
       setOverlayMode(p.overlayMode === "existing" ? "existing" : "generate")
       const tpl = (OVERLAY_TEMPLATES as readonly string[]).includes(p.overlayTemplate ?? "") ? (p.overlayTemplate as OverlayTemplate) : DEFAULT_OVERLAY_TEMPLATE
       setOverlayTemplate(tpl)
@@ -522,9 +548,9 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   }
   if (!post) return <div className="text-[13px] text-[var(--crm-text-secondary)] py-10 text-center">Loading…</div>
 
-  // This workflow is VIDEO-only: offer Reel + Story. Feed Post stays valid in the API/data for
-  // legacy records but is intentionally not offered here.
-  const types = ["reel", "story"]
+  // Instagram publishing stays Reel-based: postType defaults to 'reel' and drives the preview
+  // aspect + publish behavior internally. The visible Reel/Story format selector was removed from
+  // this editor per the platform-selector redesign; the underlying postType logic is unchanged.
   const aspect = previewAspectClass(post.platform, postType)
   const rendered = post.renderStatus === "ready" && !!post.renderedPreviewUrl
   const previewSrc = rendered ? post.renderedPreviewUrl : post.previewUrl // source for the enlarge modal
@@ -534,21 +560,11 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
 
   return (
     <div>
+      {/* Upper row: only navigation + status. The platform selector moved beneath the video player
+          (see the "Post to" buttons in the left column). */}
       <div className="mb-3 flex items-center gap-2.5 flex-wrap">
         <button type="button" className={btn} onClick={() => router.push(back.path)}>{back.label}</button>
         <span className="text-[11.5px] font-semibold px-2.5 py-1 rounded-full bg-[var(--crm-card)] text-[var(--crm-text-secondary)]">{POST_STATUS_LABEL[post.status] ?? post.status}</span>
-        {/* Instagram post type (Reel/Story) stays in the status area. Audio moved beneath the
-            video preview (left column). */}
-        <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--crm-border)] pl-2.5 pr-1 py-0.5">
-          <span className="text-[11px] font-semibold text-[var(--crm-text-secondary)]">Instagram</span>
-          <div className="inline-flex items-center gap-0.5">
-            {types.map((t) => (
-              <button key={t} type="button" onClick={() => setPostType(t)} className={"text-[11px] font-semibold px-2 py-0.5 rounded-full transition-colors " + (postType === t ? "bg-[var(--crm-text-primary)] text-[var(--crm-panel)]" : "text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]")}>
-                {POST_TYPE_LABEL[t] ?? t}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
 
       {(error || notice) && (
@@ -590,8 +606,41 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             )}
           </div>
 
-          {/* The left column contains only the video preview. Rendering happens internally as part
-              of Publish/Schedule — no manual Prepare step. */}
+          {/* ── POST TO — publishing destinations. Three platform buttons on ONE row (icon + name),
+              multi-select by design (a Set) so Instagram + TikTok + YouTube can eventually be selected
+              together. Instagram is the connected/publishing platform today; selecting TikTok/YouTube
+              is UI-only preparation for the multi-platform workflow / TikTok review demo and makes NO
+              external API call, connection, or publish. Instagram Reel publishing behavior + default
+              are preserved internally (postType stays 'reel'); the format selector is intentionally
+              not shown here. ── */}
+          <div className="mt-3">
+            <span className={fieldLabel}>Post to</span>
+            <div className="mt-1 flex items-stretch gap-1 flex-nowrap">
+              {PLATFORM_OPTIONS.map(({ id, label, Icon }) => {
+                const on = selectedPlatforms.has(id)
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={on}
+                    title={`Post to ${label}`}
+                    onClick={() => togglePlatform(id)}
+                    className={
+                      "flex-1 min-w-0 inline-flex items-center justify-center gap-1 text-[11.5px] font-semibold px-1.5 py-2 rounded-lg border whitespace-nowrap transition-colors " +
+                      (on
+                        ? "border-[var(--crm-accent)] bg-[var(--crm-accent)] text-white"
+                        : "border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-secondary)] hover:border-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]")
+                    }
+                  >
+                    <Icon className="shrink-0" size={14} aria-hidden />
+                    <span className="truncate">{label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Rendering happens internally as part of Publish/Schedule — no manual Prepare step. */}
         </div>
 
         {/* Fields column — compact paired rows. Swaps to the Schedule workspace on demand; the
