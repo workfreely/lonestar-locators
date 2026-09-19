@@ -170,7 +170,7 @@
   flex: none;
   width: 120px;
   margin-right: 10px;
-  text-align: left;
+  text-align: center;
 }
 .lp-action-row {
   margin-top: 15px; /* below the NEXT ACTION / STATUS heading row, before its control/value */
@@ -312,12 +312,13 @@
 .lp-status {
   font-size: 13px;
   font-weight: 600;
-  /* Same column geometry as the STATUS heading above → shared left edge. Left-
-     aligned; long statuses extend right (nowrap) instead of wrapping. */
+  /* Same column geometry as the STATUS heading above (shared 120px column) — both are
+     center-aligned so every status value sits centered directly beneath the STATUS
+     heading. nowrap keeps long statuses on one line. */
   flex: none;
   width: 120px;
   margin-right: 10px;
-  text-align: left;
+  text-align: center;
   white-space: nowrap;
 }
 .lp-status.tone-muted { color: var(--lb-text-primary); }
