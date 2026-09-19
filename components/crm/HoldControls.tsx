@@ -29,14 +29,16 @@ export default function HoldControls({
   if (editing) {
     return (
       <div className="kb-hold-controls" onClick={stop}>
-        {/* crm-native-date: same opt-out as the Pause/Archive dialog — without it
-            the global calendar-picker-indicator rule stretches to a giant overlay
-            that intercepts clicks (see globals.css:288 / PauseOrArchiveDialog). */}
+        {/* Same date affordance as the Pause/Archive dialog: lb-date-native gives a
+            normal visible calendar icon (no giant overlay, not collapsed to 0),
+            [color-scheme:dark] makes the icon/picker visible on the dark card, and
+            onClick→showPicker opens Chrome's native picker from a click anywhere. */}
         <input
           type="date"
-          className="crm-native-date kb-hold-date"
+          className="lb-date-native [color-scheme:dark] kb-hold-date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
+          onClick={(e) => { try { (e.currentTarget as HTMLInputElement).showPicker?.() } catch { /* not supported / already open */ } }}
           autoFocus
         />
         <button

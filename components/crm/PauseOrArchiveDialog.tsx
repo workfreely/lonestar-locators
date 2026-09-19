@@ -44,9 +44,8 @@ export default function PauseOrArchiveDialog({
   ) : (
     "this lead"
   )
-  // The Put on Hold state names the lead in the HEADING ("Pause or Archive Keyonta?");
-  // the choice + archive states keep the generic title.
-  const heading = mode === "hold" ? `Pause or Archive ${firstName}?` : "Pause or Archive Lead"
+  // The modal heading names the lead in every state ("Pause or Archive Jerry?").
+  const heading = `Pause or Archive ${firstName}?`
 
   const choiceBtn =
     "w-full flex flex-col items-start gap-0.5 text-left px-3.5 py-3 rounded-xl border transition-colors border-[var(--crm-border)] bg-[var(--crm-inset)] hover:bg-[var(--crm-card)] hover:border-[var(--kb-accent)]"
@@ -64,7 +63,6 @@ export default function PauseOrArchiveDialog({
 
         {mode === "choose" && (
           <>
-            <p className="text-sm text-[var(--crm-text-secondary)] mt-1">What would you like to do with {nameEl}?</p>
             <div className="mt-4 space-y-2">
               <button type="button" className={choiceBtn} onClick={() => setMode("hold")}>
                 <span className="text-[14px] font-semibold text-[var(--crm-text-primary)]">⏸ Put on Hold</span>
@@ -95,18 +93,23 @@ export default function PauseOrArchiveDialog({
               <span className="text-[11px] uppercase tracking-wide font-semibold text-[var(--crm-text-muted)]">
                 Follow Up Date
               </span>
-              {/* crm-native-date opts OUT of the marketing-site rule that stretches
-                  the calendar-picker-indicator to fill the field (globals.css:288) —
-                  without it the indicator, being position:absolute inset:0 on a
-                  static input, resolves against the fixed modal backdrop and covers
-                  the whole modal, painting a giant black square AND intercepting the
-                  Back / Put on Hold clicks. */}
+              {/* Date field affordance (see globals.css .lb-date-native):
+                  • lb-date-native replaces the marketing rule's full-field indicator
+                    (which, on a static input, escaped to the fixed modal backdrop and
+                    painted a giant click-blocking overlay) with a normal small trailing
+                    calendar icon at an EXPLICIT size — crm-native-date's width:auto
+                    collapsed it to ~0 (an invisible icon = "nothing there").
+                  • [color-scheme:dark] renders the native icon + picker for the dark
+                    modal so the glyph is light/visible.
+                  • onClick → showPicker() opens Chrome's native picker on a click
+                    ANYWHERE in the field, not only the trailing icon. */}
               <input
                 type="date"
                 value={followUpDate}
                 onChange={(e) => setFollowUpDate(e.target.value)}
+                onClick={(e) => { try { (e.currentTarget as HTMLInputElement).showPicker?.() } catch { /* not supported / already open */ } }}
                 autoFocus
-                className="crm-native-date mt-1 w-full text-[14px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] text-[var(--crm-text-primary)] px-3 py-2"
+                className="lb-date-native [color-scheme:dark] mt-1 w-full text-[14px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] text-[var(--crm-text-primary)] px-3 py-2"
               />
             </label>
             <div className="flex justify-between gap-3 mt-5">

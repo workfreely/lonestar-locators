@@ -310,6 +310,27 @@ input[type="date"].crm-native-date:hover::-webkit-calendar-picker-indicator {
   opacity: 0.85;
 }
 
+/* Locator Beast modal date fields (Pause/Archive, Reschedule): a NORMAL, VISIBLE,
+   clickable native calendar icon. The marketing base rule above stretches the
+   indicator to fill the field (giant overlay); crm-native-date's width/height:auto
+   collapses it to ~0 (an invisible icon). This restores an explicit small trailing
+   icon that opens Chrome's native picker on click. Pair with [color-scheme:dark] on
+   the input so the glyph renders light on the dark field. */
+input[type="date"].lb-date-native::-webkit-calendar-picker-indicator {
+  position: static;
+  inset: auto;
+  width: 1.15em;
+  height: 1.15em;
+  padding: 0;
+  margin: 0;
+  opacity: 0.85;
+  cursor: pointer;
+  z-index: auto;
+}
+input[type="date"].lb-date-native:hover::-webkit-calendar-picker-indicator {
+  opacity: 1;
+}
+
 input:focus,
 select:focus,
 textarea:focus {
