@@ -151,7 +151,7 @@ export function fitDetailPx(text: string, maxPx: number, minPx: number, availPx 
 const CENTER_HOOK_DETAIL_MIN = 30
 // Detail max per template — reduced so the detail clearly supports (not competes with) the hook:
 // T5 Upgrade 38, T8 POV+Price 40 (price stays strong but secondary). Still coupled ≤ hook − 2.
-const CENTER_HOOK_DETAIL_TARGET: Record<string, number> = { upgrade: 38, pov_price: 40 }
+const CENTER_HOOK_DETAIL_TARGET: Record<string, number> = { upgrade: 38, apartment_standards: 38, pov_price: 40 }
 function centerHookDetailMaxPx(template: string, hookPx: number): number {
   const target = CENTER_HOOK_DETAIL_TARGET[template] ?? CENTER_HOOK.detailFontPx
   return Math.min(target, Math.max(CENTER_HOOK_DETAIL_MIN, hookPx - 2)) // never larger than hook − 2
@@ -227,8 +227,9 @@ export const MARKET_TYPE_DETAIL_PX = 52
 
 export function templateFamily(template: string): LayoutFamily {
   if (template === "your_sign" || template === "next_property" || template === "pov_upgrade" || template === "affordable_luxury") return "center_hook"
-  if (template === "upgrade" || template === "pov_price") return "center_hook_detail"
-  return "hero" // market_type, special_feature, unknown → hero
+  // apartment_standards is an EXACT Upgrade variant → same center-hook+detail geometry.
+  if (template === "upgrade" || template === "apartment_standards" || template === "pov_price") return "center_hook_detail"
+  return "hero" // market_type, market_type_centered (vertically centered in the hero branch), special_feature, unknown → hero
 }
 
 export type OverlayBlock = { lines: string[]; fontPx: number; topPx: number; uppercase: boolean; sideMarginPx: number; lineSpacing: number }
@@ -243,14 +244,25 @@ export function computeOverlayLayout(template: string, headlineText: string, det
 
   if (family === "hero") {
     const fit = headlineFit(headlineText)
-    const headTop = OVERLAY_SPEC.headline.yFrac * H
+    // market_type_centered = T1 typography (same headline/detail size, gap, shadow, fit-to-width),
+    // but the WHOLE group is vertically centered rather than anchored near the top (yFrac). It
+    // reuses T1's Market+Type detail sizing/gap so only the vertical position differs.
+    const centered = template === "market_type_centered"
+    const usesMarketDetail = template === "market_type" || template === "market_type_centered"
+    const hasDetail = detail.length > 0
+    const headBlockH = headlineBlockPx(Math.max(1, fit.lines.length), fit.fontPx)
+    const heroGapPx = template === "special_feature" ? SPECIAL_FEATURE_GAP_PX : usesMarketDetail ? MARKET_TYPE_GAP_PX : OVERLAY_SPEC.sub.gapPx
+    const detailPx = usesMarketDetail ? MARKET_TYPE_DETAIL_PX : OVERLAY_SPEC.sub.fontPx // T1/T2 price is larger; T3 keeps the shared size
+    const detailLines = hasDetail ? wrapSub(detail) : []
+    const detailBlockH = hasDetail ? detailLines.length * detailPx + Math.max(0, detailLines.length - 1) * OVERLAY_SPEC.sub.lineSpacing : 0
+    const gap = hasDetail ? heroGapPx : 0
+    const totalH = headBlockH + gap + detailBlockH
+    // Anchor: near-top (yFrac) for T1; vertical center of the group for the Centered variant.
+    const headTop = centered ? (H - totalH) / 2 : OVERLAY_SPEC.headline.yFrac * H
     const headline: OverlayBlock = { lines: fit.lines, fontPx: fit.fontPx, topPx: headTop, uppercase: true, sideMarginPx: OVERLAY_SPEC.headline.sideMarginPx, lineSpacing: OVERLAY_SPEC.headline.lineSpacing }
     let detailBlock: OverlayBlock | null = null
-    if (detail) {
-      const heroGapPx = template === "special_feature" ? SPECIAL_FEATURE_GAP_PX : template === "market_type" ? MARKET_TYPE_GAP_PX : OVERLAY_SPEC.sub.gapPx
-      const detailTop = headTop + headlineBlockPx(Math.max(1, fit.lines.length), fit.fontPx) + heroGapPx
-      const detailPx = template === "market_type" ? MARKET_TYPE_DETAIL_PX : OVERLAY_SPEC.sub.fontPx // T1 price is larger; T3 keeps the shared size
-      detailBlock = { lines: wrapSub(detail), fontPx: detailPx, topPx: detailTop, uppercase: false, sideMarginPx: OVERLAY_SPEC.sub.sideMarginPx, lineSpacing: OVERLAY_SPEC.sub.lineSpacing }
+    if (hasDetail) {
+      detailBlock = { lines: detailLines, fontPx: detailPx, topPx: headTop + headBlockH + gap, uppercase: false, sideMarginPx: OVERLAY_SPEC.sub.sideMarginPx, lineSpacing: OVERLAY_SPEC.sub.lineSpacing }
     }
     return { family, headline, detail: detailBlock }
   }
@@ -270,7 +282,7 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   const detailPx = hasDetail ? fitDetailPx(detail, centerHookDetailMaxPx(template, hookPx), CENTER_HOOK_DETAIL_MIN) : CENTER_HOOK.detailFontPx
   const detailLines = hasDetail ? [detail] : []
   const detailBlockH = hasDetail ? detailPx : 0 // one line
-  const gap = hasDetail ? (template === "upgrade" ? UPGRADE_DETAIL_GAP_PX : CENTER_HOOK_DETAIL_GAP_PX) : 0 // T5 a touch looser; T8 stays 16
+  const gap = hasDetail ? (template === "upgrade" || template === "apartment_standards" ? UPGRADE_DETAIL_GAP_PX : CENTER_HOOK_DETAIL_GAP_PX) : 0 // Upgrade + its variant a touch looser; T8 stays 16
   const totalH = headBlockH + gap + detailBlockH
   const groupTop = (H - totalH) / 2
   const headline: OverlayBlock = { lines, fontPx: hookPx, topPx: groupTop, uppercase: false, sideMarginPx: OVERLAY_SPEC.headline.sideMarginPx, lineSpacing: CENTER_HOOK.lineSpacing }

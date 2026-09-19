@@ -207,24 +207,29 @@ export function joinDetailParts(parts: (string | null | undefined)[]): string {
 }
 
 // ── Overlay TEMPLATES (per-post choice of the on-video overlay copy) ──────────────────────────
-// Seven templates, three layout families (geometry lives in overlaySpec):
-//   1 market_type      — HERO           — {CITY} {TYPE_PLURAL} / "Starting at $X/mo"
-//   2 your_sign        — CENTER HOOK    — "Your sign to get that {type} in {city}" / no detail
-//   3 special_feature  — HERO           — {CITY} {TYPE_PLURAL} / "{special} · {feature}"
-//   4 next_property    — CENTER HOOK    — "What your next {type} could look like" / no detail
-//   5 upgrade          — CENTER HOOK+D  — "What life looks like when you upgrade" / "{special} · Starting at $X/mo"
-//   6 pov_upgrade      — CENTER HOOK    — "POV: You upgraded …" (explicit per-type mapping) / no detail
-//   7 affordable_luxury— CENTER HOOK    — "Luxury doesn't have to be expensive" (fixed) / no detail
-//   8 pov_price        — CENTER HOOK+D  — same POV per-type headline / "Starting at $X/mo" (or none)
-export const OVERLAY_TEMPLATES = ["market_type", "your_sign", "special_feature", "next_property", "upgrade", "pov_upgrade", "affordable_luxury", "pov_price"] as const
+// Ten templates, four layout arrangements (geometry lives in overlaySpec):
+//    1 market_type          — HERO           — {CITY} {TYPE_PLURAL} / "Starting at $X/mo"
+//    2 market_type_centered — HERO CENTERED  — SAME as T1 (headline/detail/type/size/shadow), the
+//                                              whole group VERTICALLY CENTERED (only positioning differs)
+//    3 your_sign            — CENTER HOOK    — "Your sign to get that {type} in {city}" / no detail
+//    4 special_feature      — HERO           — {CITY} {TYPE_PLURAL} / "{special} · {feature}"
+//    5 next_property        — CENTER HOOK    — "What your next {type} could look like" / no detail
+//    6 upgrade              — CENTER HOOK+D  — "What life looks like when you upgrade" / "{special} · Starting at $X/mo"
+//    7 apartment_standards  — CENTER HOOK+D  — SAME as Upgrade, headline "Your apartment standards went up" / same detail
+//    8 pov_upgrade          — CENTER HOOK    — "POV: You upgraded …" (explicit per-type mapping) / no detail
+//    9 affordable_luxury    — CENTER HOOK    — "Luxury doesn't have to be expensive" (fixed) / no detail
+//   10 pov_price            — CENTER HOOK+D  — same POV per-type headline / "Starting at $X/mo" (or none)
+export const OVERLAY_TEMPLATES = ["market_type", "market_type_centered", "your_sign", "special_feature", "next_property", "upgrade", "apartment_standards", "pov_upgrade", "affordable_luxury", "pov_price"] as const
 export type OverlayTemplate = (typeof OVERLAY_TEMPLATES)[number]
 export const DEFAULT_OVERLAY_TEMPLATE: OverlayTemplate = "market_type"
 export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
   market_type: "Market + Type",
+  market_type_centered: "Market + Type (Centered)",
   your_sign: "Your Sign",
   special_feature: "Special + Feature",
   next_property: "Next Property",
   upgrade: "Upgrade",
+  apartment_standards: "Your Apartment Standards",
   pov_upgrade: "POV Upgrade",
   affordable_luxury: "Affordable Luxury",
   pov_price: "POV + Price",
@@ -261,6 +266,7 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
   const noun = canonicalType ? propertyNoun(canonicalType) : "" // "high-rise" | "townhome" | …
   switch (template) {
     case "market_type":
+    case "market_type_centered": // same Market + Type headline as T1; only the layout is centered
     case "special_feature":
       return buildOverlayHeadline(src) // "SAN ANTONIO HIGH-RISES" (or market/generic fallback)
     case "your_sign":
@@ -270,6 +276,8 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
       return `What your next ${noun || "home"} could look like`
     case "upgrade":
       return "What life looks like when you upgrade"
+    case "apartment_standards": // Upgrade variant — same center-hook typography, fixed headline
+      return "Your apartment standards went up"
     case "pov_upgrade":
     case "pov_price":
       return (canonicalType && POV_UPGRADE_HEADLINE[canonicalType]) || POV_UPGRADE_FALLBACK
@@ -286,6 +294,7 @@ export function buildTemplateDetail(template: OverlayTemplate, src: SourceMeta):
   const feature = firstFeature(src.amenities)
   switch (template) {
     case "market_type":
+    case "market_type_centered": // same "Starting at $X/mo" detail as T1
     case "pov_price":
       return price // "Starting at $X/mo" or "" (T8 shows the POV headline + this price line)
     case "your_sign":
@@ -296,6 +305,7 @@ export function buildTemplateDetail(template: OverlayTemplate, src: SourceMeta):
     case "special_feature":
       return joinDetailParts([special, feature]) // special+feature / special / feature / none
     case "upgrade":
+    case "apartment_standards": // same shared special+price detail as Upgrade
       return joinDetailParts([special, price]) // special+price / special / price / none
   }
 }
