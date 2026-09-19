@@ -51,9 +51,12 @@ begin
     (owner_user_id, provider, external_account_id, username, account_type, status, scopes, token_secret_id, token_expires_at, updated_at)
   values
     (v_uid, 'tiktok', p_open_id, p_username, null, 'connected', p_scopes, v_secret, p_expires_at, now())
-  on conflict (owner_user_id, provider) do update
-    set external_account_id = excluded.external_account_id,
-        username            = excluded.username,
+  -- Conflict target must match the live UNIQUE constraint on social_connections,
+  -- which is (owner_user_id, provider, external_account_id) — the table is
+  -- multi-account. open_id is the stable per-app external id, so reconnecting the
+  -- SAME TikTok account upserts in place. (A 2-col target raises 42P10.)
+  on conflict (owner_user_id, provider, external_account_id) do update
+    set username            = excluded.username,
         status              = 'connected',
         scopes              = excluded.scopes,
         token_secret_id     = excluded.token_secret_id,
