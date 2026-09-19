@@ -118,8 +118,8 @@ export function PanelStateView({
           title="Select a client to start a session"
           body={
             <>
-              <strong>Refresh Lead Board</strong> screen, then select client to display
-              their details here.
+              <strong>Refresh</strong> <strong>Lead Board</strong> screen, then select a
+              client to display their details here.
             </>
           }
         />
