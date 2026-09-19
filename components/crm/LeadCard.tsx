@@ -369,7 +369,12 @@ export default function LeadCard({
           )}
         </div>
         <div className={`kb-badges${onHold ? " kb-badges--hold" : ""}`} data-fit="0" ref={badgesRef}>
-          <span className={`kb-pill ${approvalClass}`}>{approvalLabel}</span>
+          {/* Overview is intentionally narrow: a held card drops the Approval badge
+              there (Follow Up stays) so the two actions fit side-by-side cleanly.
+              Detailed/Compact and all non-held cards keep Approval. */}
+          {onHold && view === "overview" ? null : (
+            <span className={`kb-pill ${approvalClass}`}>{approvalLabel}</span>
+          )}
           {/* Next Action pill — occupies the same slot in all three states:
               • On Hold  → the useful hold state ("Follow Up · 10/05/2026"), not an action.
               • Archived → nothing (an archived lead has no active action expected —

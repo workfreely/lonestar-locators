@@ -2050,7 +2050,8 @@ body.jaybot-open {
 /* Overview columns are only 166px wide (~80px per tab). The whole mode already
    renders tighter; match it here so both labels + counts stay on ONE line at 50/50
    without clipping — a density-scoped tightening, not a global font shrink. */
-[data-density="overview"] .kb-subtabs { gap:4px; padding:6px 6px 0; }
+/* Small breathing room below the Overview tabs so the first card doesn't crowd them. */
+[data-density="overview"] .kb-subtabs { gap:4px; padding:6px 6px 8px; }
 [data-density="overview"] .kb-subtabs button { font-size:11px; padding:5px 4px; gap:3px; }
 [data-density="overview"] .kb-subtab-count { font-size:10px; min-width:14px; height:14px; padding:0 3px; }
 
@@ -2071,8 +2072,11 @@ body.jaybot-open {
    below): the cleanest layout that keeps both fully inside the card, no clipping. */
 [data-density="compact"] .kb-hold-actions { gap:4px; }
 [data-density="compact"] .kb-hold-actions .kb-hold-btn { font-size:10.5px; padding:3px 5px; }
-[data-density="overview"] .kb-hold-actions { flex-direction:column; align-items:stretch; gap:4px; }
-[data-density="overview"] .kb-hold-actions .kb-hold-btn { flex:0 0 auto; width:100%; font-size:11px; padding:5px 8px; }
+/* Overview: a compact side-by-side pair (Approval badge is hidden here, so the row
+   has room). Small Overview-specific type/padding so "Resume Search" fits inside the
+   166px column — Reschedule (secondary) left, Resume Search (primary) right. */
+[data-density="overview"] .kb-hold-actions { gap:2px; }
+[data-density="overview"] .kb-hold-actions .kb-hold-btn { font-size:8px; padding:3px 2px; letter-spacing:-0.01em; }
 .kb-hold-btn:hover { color:var(--kb-ink); background:color-mix(in srgb, var(--kb-ink) 8%, transparent); }
 .kb-hold-btn--primary { color:#fff; background:var(--kb-accent, #6366f1); border-color:transparent; }
 .kb-hold-btn--primary:hover { filter:brightness(1.06); background:var(--kb-accent, #6366f1); color:#fff; }
@@ -2241,11 +2245,9 @@ body.jaybot-open {
 [data-density="overview"] .kb-k { font-size:8.5px; }
 [data-density="overview"] .kb-v { font-size:9.5px; }
 [data-density="overview"] .kb-badges { margin-top:4px; gap:4px; }
-/* Held card at Overview (166px): Approval + "Follow Up · MM/DD/YYYY" can exceed one
-   line, so let the held badge row wrap (Follow Up drops to its own line) instead of
-   overflowing the column. Scoped to held cards, so normal cards' single-line badge
-   fit behaviour is unchanged. */
-[data-density="overview"] .kb-badges--hold { flex-wrap:wrap; row-gap:4px; }
+/* Held card at Overview (166px): the Approval badge is hidden (see LeadCard), so
+   only "Follow Up · MM/DD/YYYY" remains — left-align it (drop the push) so it reads
+   from the card's left edge. Scoped to held cards; normal cards unchanged. */
 [data-density="overview"] .kb-badges--hold .kb-pill--push { margin-left:0; }
 [data-density="overview"] .kb-pill { --ppx0:6px; --pfs0:8.5px; --ppy0:1px; }
 [data-density="overview"] .kb-archive-line { margin-top:3px; }
