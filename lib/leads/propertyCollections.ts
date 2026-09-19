@@ -101,23 +101,3 @@ export function favoriteMoveBlock(input: {
 
   return { reason: null }
 }
-
-/**
- * Canonical collection policy for the "+ Recommend"/"+ Favorite" verbs.
- *
- * Recommendations and Favorites are INDEPENDENT collections: the same property may
- * exist in BOTH for one lead. Therefore the "+ Recommend" action (`add-recommendation`)
- * is NON-DESTRUCTIVE — it creates the recommendation (or no-ops if one already exists)
- * and NEVER moves, converts, deletes, or otherwise mutates an existing Favorite (and so
- * never touches the favorite's live references: Guest Card actions, tours, Top Pick,
- * application state).
- *
- * The explicit relocation verbs keep their prior semantics: `move-to-recommendation`
- * (the × on a Favorite) still runs the favoriteMoveBlock/convert-or-move path, and the
- * favorite-dest verbs (`add-favorite` / `move-to-favorite`) still relocate a matching
- * recommendation. Returns true when the verb is allowed to mutate the opposite
- * (source) collection; false ONLY for `add-recommendation`.
- */
-export function recommendationAddMutatesOpposite(verb: string): boolean {
-  return verb !== "add-recommendation"
-}
