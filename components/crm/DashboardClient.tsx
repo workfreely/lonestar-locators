@@ -243,8 +243,10 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // The message a client receives — a short intro plus the stable /r/<token> link. Kept
   // minimal and inline (no shared-package/template-editor change); the link is the point.
   function recommendationTextBody(firstName: string, url: string) {
-    const hi = firstName ? `Hi ${firstName}, ` : "Hi, "
-    return `${hi}here are the rental options I put together for you: ${url}`
+    const hi = firstName ? `Hey ${firstName}, ` : "Hey, "
+    // Blank line before the URL so the rich link preview has breathing room and does
+    // not visually run into the intro sentence. Link/preview behavior is unchanged.
+    return `${hi}here are the rental options I put together for you:\n\n${url}`
   }
 
   // Record the send through the canonical Companion path (workflow-verb → the existing

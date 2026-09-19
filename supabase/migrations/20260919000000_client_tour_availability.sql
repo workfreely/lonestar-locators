@@ -125,15 +125,29 @@ begin
   --     (application -> favorite, same id); an existing favorite is never demoted or
   --     deleted. Ownership stamped explicitly (set_workspace_ownership keys off
   --     auth.uid(), which is null under this anon-invoked definer RPC).
+  --
+  --     Identity carrier is resolved in strict priority, using ONLY existing canonical
+  --     identity rules (no name/address/fuzzy matching):
+  --       1. snapshot place_id                                 -> pid:<id>
+  --       2. snapshot property_website_url                     -> url:<...>
+  --       3. FALLBACK: the exact SOURCE recommendation's place_id (via
+  --          source_recommendation_id), when the immutable snapshot carried neither.
+  --          Only a Google place_id embedded in the source's property_url counts as a
+  --          "safely resolvable identity" here; a bare source URL is NOT used. This
+  --          reads the source recommendation but never mutates/backfills the snapshot.
+  --       else -> NULL -> the item is skipped (unchanged behavior).
   with src as (
     select
-      case
-        when nullif(btrim(i.place_id), '') is not null
-          then 'https://www.google.com/maps/place/?q=place_id:' || btrim(i.place_id)
-        else nullif(btrim(i.property_website_url), '')
-      end as prop_url,
+      coalesce(
+        case when nullif(btrim(i.place_id), '') is not null
+             then 'https://www.google.com/maps/place/?q=place_id:' || btrim(i.place_id) end,
+        nullif(btrim(i.property_website_url), ''),
+        case when nullif(btrim(substring(r.property_url from '[?&]q=place_id:([^&]+)')), '') is not null
+             then 'https://www.google.com/maps/place/?q=place_id:' || btrim(substring(r.property_url from '[?&]q=place_id:([^&]+)')) end
+      ) as prop_url,
       i.property_name, i.property_address, i.property_image_url
     from public.client_recommendation_share_items i
+    left join public.lead_recommendations r on r.id = i.source_recommendation_id
     where i.share_id = v_share.id
       and i.favorited_at is not null
   ), ins as (

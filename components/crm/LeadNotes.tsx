@@ -1,8 +1,57 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase/client"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
+import { TOUR_TYPE_LABELS, TOUR_WINDOW_LABELS, type TourType, type TourWindow } from "@bc/companion-shared"
 import { CollapsibleNotes } from "./LeadPanelSections"
+
+// Operational (not a history log): the client's CURRENT submitted tour availability,
+// read from the existing client_tour_availability store via the lead's shares. Shown
+// only when availability exists. It never writes into the free-form Locator Notes.
+type ClientAvailability = { tour_type: TourType | null; dates: { date: string; windows: TourWindow[] }[] }
+
+function TourAvailabilitySection({ leadId }: { leadId: number | string }) {
+  const [av, setAv] = useState<ClientAvailability | null>(null)
+  useEffect(() => {
+    if (isDemoLeadId(leadId)) return
+    let cancelled = false
+    ;(async () => {
+      // Latest availability across this lead's shares (RLS-scoped to the workspace).
+      const { data } = await supabase
+        .from("client_tour_availability")
+        .select("tour_type, dates, updated_at, client_recommendation_shares!inner(lead_id)")
+        .eq("client_recommendation_shares.lead_id", leadId)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+      if (cancelled) return
+      const row = (Array.isArray(data) ? data[0] : null) as { tour_type: TourType | null; dates: unknown } | null
+      if (row) setAv({ tour_type: row.tour_type, dates: Array.isArray(row.dates) ? (row.dates as ClientAvailability["dates"]) : [] })
+    })()
+    return () => { cancelled = true }
+  }, [leadId])
+
+  if (!av || av.dates.length === 0) return null // no submission → no section
+
+  const fmtDate = (d: string) =>
+    new Date(`${d}T00:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+
+  return (
+    <CollapsibleNotes title="Tour Availability" defaultOpen storageKey="tour-availability">
+      <div className="text-[12.5px] leading-relaxed text-[var(--crm-text-primary)]">
+        {av.tour_type && <div className="font-semibold mb-1">{TOUR_TYPE_LABELS[av.tour_type]}</div>}
+        <div className="space-y-0.5">
+          {av.dates.map((d) => (
+            <div key={d.date} className="flex items-baseline justify-between gap-3">
+              <span>{fmtDate(d.date)}</span>
+              <span className="text-[var(--crm-text-muted)]">{d.windows.map((w) => TOUR_WINDOW_LABELS[w]).join(" · ")}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </CollapsibleNotes>
+  )
+}
 
 // Client Notes (read-only, submitted by the client) + Locator Notes (the
 // locator's own editable notes). Moved into the right workspace panel so the
@@ -36,6 +85,10 @@ export default function LeadNotes({
           />
         </CollapsibleNotes>
       )}
+
+      {/* Operational Tour Availability — directly above Locator Notes; separate from
+          the editable Locator Notes text. Renders nothing when no availability exists. */}
+      <TourAvailabilitySection leadId={lead.id} />
 
       <CollapsibleNotes title="Locator Notes" defaultOpen={!!(lead.locator_notes && lead.locator_notes.trim())} storageKey="locator-notes">
         <textarea

@@ -42,31 +42,40 @@ export async function generateMetadata({
 }: {
   params: Promise<{ token: string }>
 }) {
+  // Generic fallback title (no client info). Rendered server-side so link-preview
+  // crawlers get it without running client JS.
+  const genericTitle = "Your Custom Property List"
   const base = {
     metadataBase: new URL(CANONICAL_ORIGIN),
-    title: "Your Apartment Recommendations",
+    title: genericTitle,
     robots: { index: false, follow: false },
   }
   const { token } = await params
   if (!looksLikeShareToken(token)) return base
   let agentName: string | null = null
+  let firstName: string | null = null
   try {
     const supabase = await createClient()
     const { data } = await supabase.rpc("lb_resolve_client_recommendations", { p_token_hash: hashShareToken(token) })
-    const share = (Array.isArray(data) ? data[0] : data) as { agent_name?: string | null } | undefined
+    const share = (Array.isArray(data) ? data[0] : data) as { agent_name?: string | null; client_first_name?: string | null } | undefined
     agentName = share?.agent_name?.trim() || null
+    firstName = share?.client_first_name?.trim() || null
   } catch {
     /* preview metadata must never fail the page */
   }
+  // Rich-preview / OG title. FIRST NAME ONLY — never last name, lead/list/property ids,
+  // email, phone, or any other client data. The OG image artwork is unchanged.
+  const title = firstName ? `${firstName}’s Custom Property List` : genericTitle
   const description = agentName ? `Personalized for you by ${agentName}` : "Personalized apartment recommendations"
   return {
     ...base,
+    title,
     description,
     openGraph: {
-      title: base.title, description, type: "website" as const, siteName: "Locator Beast",
+      title, description, type: "website" as const, siteName: "Locator Beast",
       images: [{ url: OG_IMAGE_PATH, width: 1200, height: 630, alt: "Your Apartment Recommendations — Locator Beast" }],
     },
-    twitter: { card: "summary_large_image" as const, title: base.title, description, images: [OG_IMAGE_PATH] },
+    twitter: { card: "summary_large_image" as const, title, description, images: [OG_IMAGE_PATH] },
   }
 }
 
@@ -197,6 +206,10 @@ const CSS = `
 .lbr-ta-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px}
 .lbr-ta-dow span{text-align:center;font-size:11px;font-weight:700;color:var(--faint)}
 .lbr-ta-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+/* touch-action:manipulation removes iOS Safari's ~300ms double-tap-zoom disambiguation
+   delay so a date/window/type tap registers immediately (the render itself is already
+   instant). No behavior/layout change. */
+.lbr-ta-cell,.lbr-ta-chip,.lbr-ta-segbtn,.lbr-ta-nav,.lbr-ta-send,.lbr-modal-x{touch-action:manipulation}
 .lbr-ta-cell{appearance:none;border:none;background:transparent;color:var(--ink);font-family:inherit;font-size:14px;aspect-ratio:1;border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .lbr-ta-cell:not(.is-blank):not(:disabled):hover{background:var(--line-soft)}
 .lbr-ta-cell:disabled{color:#c7cede;cursor:default}
@@ -435,7 +448,7 @@ export default async function ClientRecommendationsPage({
           <ol>
             <li><div className="lbr-n">1</div><div><b>Heart your top 2&ndash;3 favorites</b><span>Choose the properties you&rsquo;d like to tour.</span></div></li>
             <li><div className="lbr-n">2</div><div><b>I&rsquo;ll get your tour scheduled</b><span>We coordinate everything for you.</span></div></li>
-            <li><div className="lbr-n">3</div><div><b>When you apply, list me as your Realtor or Locator</b><span>This helps ensure you receive any rebates, movers, or other incentives.</span></div></li>
+            <li><div className="lbr-n">3</div><div><b>List Me as Your Realtor or Locator</b><span>When you apply, list me on your application to receive any rebates, movers, or other incentives.</span></div></li>
           </ol>
           <p className="lbr-disclaimer">Pricing and availability can change daily. Specials may not be reflected in advertised base rent.</p>
         </section>

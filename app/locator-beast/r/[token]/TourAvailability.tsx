@@ -2,13 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
-  TOUR_TYPES,
   TOUR_TYPE_LABELS,
   TOUR_WINDOWS,
   TOUR_WINDOW_LABELS,
   type TourType,
   type TourWindow,
 } from "@bc/companion-shared"
+
+// The tour types offered in the modal. "either" is intentionally NOT offered anymore
+// (In Person is the default), but it remains a valid stored/label value so previously
+// submitted availability records that used "either" stay readable/backward-compatible.
+const SELECTABLE_TOUR_TYPES: TourType[] = ["in_person", "virtual"]
 
 /**
  * "Let's Schedule Your Tours" — the client's GENERAL availability, opened as a modal
@@ -48,7 +52,10 @@ export default function TourAvailabilityModal({
   }, [])
   const todayStr = ymd(today)
 
-  const [tourType, setTourType] = useState<TourType>(initial?.tourType ?? "either")
+  // In Person is the default for a new submission. An existing "either" record maps to
+  // In Person in the editor (a safe interpretation); the stored value is only changed
+  // if the client actually resubmits.
+  const [tourType, setTourType] = useState<TourType>(initial?.tourType === "virtual" ? "virtual" : "in_person")
   const [selected, setSelected] = useState<Map<string, Set<TourWindow>>>(() => {
     const m = new Map<string, Set<TourWindow>>()
     initial?.dates.forEach((d) => m.set(d.date, new Set(d.windows)))
@@ -89,10 +96,20 @@ export default function TourAvailabilityModal({
   function toggleWindow(dateStr: string, w: TourWindow) {
     setSelected((prev) => {
       const next = new Map(prev)
-      const set = new Set(next.get(dateStr) ?? [])
-      if (set.has(w)) {
-        if (set.size > 1) set.delete(w) // keep at least one window
-      } else set.add(w)
+      let set = new Set(next.get(dateStr) ?? [])
+      if (w === "flexible") {
+        // Flexible is mutually exclusive: selecting it clears Morning/Afternoon/Evening.
+        set = new Set<TourWindow>(["flexible"])
+      } else {
+        // Selecting a specific window clears Flexible; Morning/Afternoon/Evening combine.
+        set.delete("flexible")
+        if (set.has(w)) {
+          if (set.size > 1) set.delete(w) // keep at least one window
+        } else {
+          set.add(w)
+        }
+        if (set.size === 0) set = new Set<TourWindow>([w])
+      }
       next.set(dateStr, set)
       return next
     })
@@ -153,7 +170,7 @@ export default function TourAvailabilityModal({
           <div className="lbr-ta-field">
             <p className="lbr-ta-lbl">How would you like to tour?</p>
             <div className="lbr-ta-seg" role="radiogroup" aria-label="Tour type">
-              {TOUR_TYPES.map((t) => (
+              {SELECTABLE_TOUR_TYPES.map((t) => (
                 <button
                   key={t}
                   type="button"
