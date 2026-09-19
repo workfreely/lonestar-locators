@@ -39,6 +39,15 @@ export type PendingInvite = {
 const MANAGE = "/api/admin/social-autopilot/destinations/manage"
 const INVITES = "/api/admin/social-autopilot/destinations/invitations"
 const CONNECT = "/api/admin/social-autopilot/accounts/instagram/connect"
+const TT_CONNECT = "/api/integrations/tiktok/connect"
+const TT_DISCONNECT = "/api/integrations/tiktok/disconnect"
+
+// A single TikTok connection for the current admin (identity/status only — never tokens).
+export type TikTokConnection = {
+  username: string | null
+  expired: boolean
+  addedAt: string | null
+}
 
 function fmtDate(iso: string): string {
   const d = new Date(iso)
@@ -49,13 +58,20 @@ export default function PublishingDestinations({
   configured,
   destinations,
   pendingInvites,
+  tiktokConfigured = false,
+  tiktok = null,
 }: {
   configured: boolean
   destinations: Destination[]
   pendingInvites: PendingInvite[]
+  /** Whether TikTok OAuth credentials (client key + secret) are present server-side. */
+  tiktokConfigured?: boolean
+  /** The admin's TikTok connection, or null when not connected. */
+  tiktok?: TikTokConnection | null
 }) {
   const router = useRouter()
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [ttBusy, setTtBusy] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState("")
 
@@ -102,6 +118,18 @@ export default function PublishingDestinations({
     const who = d.label || (d.username ? `@${d.username}` : "this destination")
     if (!confirm(`Disconnect ${who}? This revokes its Instagram authorization. Scheduled posts stay in the Queue; nothing in your Library is deleted.`)) return
     void manage(d.id, { action: "disconnect" })
+  }
+
+  const tiktokDisconnect = async () => {
+    const who = tiktok?.username ? `@${tiktok.username}` : "TikTok"
+    if (!confirm(`Disconnect ${who}? This revokes its TikTok authorization. Nothing in your Library is deleted.`)) return
+    setTtBusy(true)
+    try {
+      const res = await fetch(TT_DISCONNECT, { method: "POST" })
+      if (res.ok) router.refresh()
+    } finally {
+      setTtBusy(false)
+    }
   }
 
   const saveRename = async (id: string) => {
@@ -377,8 +405,45 @@ export default function PublishingDestinations({
         </section>
       )}
 
-      {/* TikTok / YouTube stay out of scope for now. */}
-      <div className="text-[11px] text-[var(--crm-text-muted)]">TikTok and YouTube destinations are coming later.</div>
+      {/* ── TikTok (Sandbox) ────────────────────────────────────────────────── */}
+      <section className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="text-[14px] font-bold text-[var(--crm-text-primary)]">TikTok</h2>
+            <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">Connect a TikTok account to publish to. Sandbox connection for testing.</p>
+          </div>
+          {tiktokConfigured && !tiktok && (
+            <a href={TT_CONNECT} className={btnPrimary}>Connect TikTok</a>
+          )}
+        </div>
+
+        {!tiktokConfigured ? (
+          <div className="mt-3 text-[11.5px] text-[var(--crm-text-muted)]">TikTok isn&apos;t configured yet.</div>
+        ) : !tiktok ? (
+          <div className="mt-3 text-[12.5px] text-[var(--crm-text-muted)] py-2">No TikTok account connected yet.</div>
+        ) : (
+          <div className="mt-3 rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2.5 flex items-center justify-between gap-3 flex-wrap">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[13.5px] font-semibold text-[var(--crm-text-primary)] truncate">{tiktok.username ? `@${tiktok.username}` : "TikTok account"}</span>
+                {tiktok.expired ? (
+                  <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-amber-600 dark:text-amber-400">{dot("bg-amber-500")} Reconnect needed</span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-emerald-600 dark:text-emerald-400">{dot("bg-emerald-500")} Connected</span>
+                )}
+              </div>
+              {tiktok.addedAt && <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">Added {fmtDate(tiktok.addedAt)}</div>}
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {tiktok.expired && <a href={TT_CONNECT} className={btn}>Reconnect</a>}
+              <button type="button" className={btn} disabled={ttBusy} onClick={() => void tiktokDisconnect()}>Disconnect</button>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* YouTube stays out of scope for now. */}
+      <div className="text-[11px] text-[var(--crm-text-muted)]">YouTube destinations are coming later.</div>
     </div>
   )
 }

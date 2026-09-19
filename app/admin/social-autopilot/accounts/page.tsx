@@ -3,7 +3,8 @@ export const dynamic = "force-dynamic"
 import { ensurePlatformAdminPage } from "@/lib/auth/ensurePlatformAdminPage"
 import { createClient } from "@/lib/supabase/server"
 import { instagramConfigured } from "@/lib/social/instagram"
-import PublishingDestinations, { type Destination, type PendingInvite } from "@/components/crm/social/PublishingDestinations"
+import { tiktokConfigured } from "@/lib/social/tiktok"
+import PublishingDestinations, { type Destination, type PendingInvite, type TikTokConnection } from "@/components/crm/social/PublishingDestinations"
 
 // Social Autopilot → Accounts. Manages N Instagram Publishing Destinations for the current
 // platform-admin owner (was single-connection). Platform-admin gated. Tokens live in Vault and are
@@ -14,6 +15,7 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
   const sp = await searchParams
 
   const configured = instagramConfigured()
+  const ttConfigured = tiktokConfigured()
   const supabase = await createClient()
 
   // ALL Instagram destinations for this owner (RLS-scoped). NEVER selects token_secret_id /
@@ -24,6 +26,22 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
     .select("id, username, status, label, posting_paused, posts_per_day, token_expires_at, created_at, agent_user_id")
     .eq("provider", "instagram")
     .order("created_at", { ascending: true })
+
+  // The admin's single TikTok connection (RLS-scoped). Safe display fields ONLY — never
+  // token_secret_id / external_account_id (open_id) / owner_user_id.
+  const { data: ttRow } = await supabase
+    .from("social_connections")
+    .select("username, status, token_expires_at, created_at")
+    .eq("provider", "tiktok")
+    .maybeSingle()
+
+  const tiktok: TikTokConnection | null = ttRow
+    ? {
+        username: ttRow.username,
+        expired: !!ttRow.token_expires_at && new Date(ttRow.token_expires_at).getTime() < Date.now(),
+        addedAt: ttRow.created_at,
+      }
+    : null
 
   // Active (unused, unrevoked, unexpired) invitations — the safe list; the raw token is NEVER
   // stored or shown again after creation.
@@ -85,22 +103,23 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
     }
   })
 
-  // Flash from the direct admin-connect callback (?connected / ?error).
-  const connected = sp.connected === "instagram"
+  // Flash from the direct admin-connect callback (?connected / ?error). Provider-aware so both
+  // the Instagram and TikTok connect flows land here with the right copy.
+  const connectedProvider = sp.connected === "tiktok" ? "TikTok" : sp.connected === "instagram" ? "Instagram" : null
   const errorCode = typeof sp.error === "string" ? sp.error : null
   const errorText: Record<string, string> = {
-    denied: "Instagram authorization was cancelled.",
+    denied: "Authorization was cancelled.",
     state: "Couldn't verify the request (state mismatch). Please try connecting again.",
-    exchange: "Instagram sign-in failed. Please try again.",
-    store: "Connected to Instagram but couldn't save the connection. Please try again.",
-    not_configured: "Instagram isn't configured yet.",
+    exchange: "Sign-in failed. Please try again.",
+    store: "Connected but couldn't save the connection. Please try again.",
+    not_configured: "This integration isn't configured yet.",
   }
 
   return (
     <div>
-      {connected && (
+      {connectedProvider && (
         <div className="mb-3 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] px-4 py-2.5 text-[13px] text-[var(--crm-text-primary)]">
-          Instagram connected.
+          {connectedProvider} connected.
         </div>
       )}
       {errorCode && (
@@ -109,7 +128,13 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
         </div>
       )}
 
-      <PublishingDestinations configured={configured} destinations={destinations} pendingInvites={pendingInvites} />
+      <PublishingDestinations
+        configured={configured}
+        destinations={destinations}
+        pendingInvites={pendingInvites}
+        tiktokConfigured={ttConfigured}
+        tiktok={tiktok}
+      />
     </div>
   )
 }
