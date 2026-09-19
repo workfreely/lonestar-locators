@@ -118,8 +118,8 @@ export function PanelStateView({
           title="Select a client to start a session"
           body={
             <>
-              Select a client in your <strong>Lead Board</strong>, then hit{" "}
-              <strong>Refresh</strong> to load their details here.
+              <strong>Refresh</strong> the screen, then select a client in your{" "}
+              <strong>Lead Board</strong> to load their details here.
             </>
           }
         />
