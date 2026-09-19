@@ -28,7 +28,7 @@ export const THANKYOU_DEFAULTS = {
     "You're one step closer to finding the perfect home. I'm already working on your best list of options and will be in touch soon.",
   step1Title: "Tell us what you're looking for",
   step1Body: "Your search details are in.",
-  step2Title: "Get your personalized apartment list",
+  step2Title: "Get your custom apartment list",
   step2Body:
     "We'll narrow down the best options based on your budget, move date, preferred areas, current pricing, specials, and what fits your search.",
   step3Title: "Tour your favorites",

@@ -101,7 +101,7 @@ const CSS = `
 .lbr-shell{max-width:1160px;margin:26px auto 40px;background:#fff;border:1px solid var(--line);border-radius:22px;overflow:hidden;box-shadow:0 30px 80px -50px rgba(14,37,69,.35)}
 /* INTRO — no header, no agent */
 .lbr-intro{position:relative;overflow:hidden;background:linear-gradient(180deg,#f7f9fc,#eef2f8)}
-.lbr-sky{position:absolute;inset:0;background-image:linear-gradient(90deg,rgba(247,249,252,.99) 0%,rgba(247,249,252,.9) 34%,rgba(247,249,252,.55) 66%,rgba(247,249,252,.28) 100%),url('${SKYLINE_PATH}');background-size:cover;background-position:right 38%}
+.lbr-sky{position:absolute;inset:0;background-image:linear-gradient(90deg,rgba(247,249,252,.97) 0%,rgba(247,249,252,.85) 34%,rgba(247,249,252,.48) 66%,rgba(247,249,252,.14) 100%),url('${SKYLINE_PATH}');background-size:cover;background-position:right 38%}
 .lbr-intro-inner{position:relative;padding:40px 44px 42px;max-width:640px}
 .lbr-eyebrow{font-size:13px;color:var(--muted);font-weight:500;margin:0 0 14px}
 .lbr-eyebrow b{color:var(--navy)}
@@ -252,7 +252,7 @@ const CSS = `
 /* Mobile hero: the same deliberately generic SKYLINE_PATH, heavily white-washed and
    faded behind the personalized intro so the eyebrow/greeting/paragraph read as one
    polished hero and stay highly legible. Subtle texture only — never a claimed city. */
-.lbr-sky{display:block;background-image:linear-gradient(180deg,rgba(255,255,255,.80) 0%,rgba(255,255,255,.9) 55%,rgba(255,255,255,.99) 100%),url('${SKYLINE_PATH}');background-position:center 20%}
+.lbr-sky{display:block;background-image:linear-gradient(122deg,rgba(247,249,252,.94) 0%,rgba(247,249,252,.86) 42%,rgba(247,249,252,.55) 76%,rgba(247,249,252,.28) 100%),url('${SKYLINE_PATH}');background-position:center 22%}
 .lbr-intro-inner{padding:26px 18px 14px;max-width:none}
 /* Greeting + major headings stay ~where they are; increase the smaller supporting text. */
 .lbr-greet{font-size:29px;line-height:1.16;max-width:none}

@@ -7,6 +7,33 @@ import { youtubeEmbedUrl } from "@/lib/smartForm/thankYouVideo"
 import { buildThankYouSteps, buildThankYouIntro } from "@/lib/smartForm/thankYouSteps"
 import { serviceAreasLabelCanonical } from "@/lib/markets/catalog"
 import { SKYLINE_PATH } from "@/lib/clientShare/skyline"
+import Footer from "@/app/smart-lead-form/_components/form/sections/Footer"
+
+// Client-facing legal/identity footer treatment, reused verbatim from the
+// Recommendations page (/r/[token]): the shared Footer in `compact` mode, scoped so
+// "Powered by Locator Beast" is non-clickable, Privacy/Terms are hidden (kept off the
+// client footer intentionally), and the two TREC disclosures wrap cleanly with no
+// dangling separator on mobile. Mirrors the `.lbr-legal` rules on /r.
+const TY_CSS = `
+/* HERO — intentional horizontal directional treatment (shared with /r): a strong light
+   wash behind the left/text side that smoothly reduces so the right/image side keeps
+   substantially more of the skyline's contrast. Not a uniform fog. */
+.ty-hero{background-image:linear-gradient(90deg,rgba(247,249,252,.97) 0%,rgba(247,249,252,.85) 34%,rgba(247,249,252,.48) 66%,rgba(247,249,252,.14) 100%),url('${SKYLINE_PATH}');background-size:cover;background-position:right 38%}
+/* Mobile: adapt to the stacked composition — a diagonal so the top-left (heading) stays
+   highly legible while the lower-right keeps real skyline richness. */
+@media (max-width:640px){
+.ty-hero{background-image:linear-gradient(122deg,rgba(247,249,252,.94) 0%,rgba(247,249,252,.86) 42%,rgba(247,249,252,.55) 76%,rgba(247,249,252,.28) 100%),url('${SKYLINE_PATH}');background-position:center 22%}
+}
+.ty-legal{padding:22px 26px 26px;margin-top:8px;border-top:1px solid #eef1f7}
+.ty-legal a[href="https://locatorbeast.com"]{pointer-events:none;color:inherit;text-decoration:none;cursor:default}
+.ty-legal span:has(> a[href="/privacy"]),.ty-legal span:has(> a[href="/terms"]){display:none}
+.ty-legal span.basis-full{display:none}
+.ty-legal .slf-compact a,.ty-legal .slf-compact span{font-size:13.5px!important}
+@media (max-width:640px){
+.ty-legal{padding:20px 16px 26px}
+.ty-legal span:has(> a[target="_blank"]) > span[aria-hidden="true"]{display:none}
+}
+`
 
 export const dynamic = "force-dynamic"
 
@@ -112,14 +139,6 @@ export default async function SmartLeadFormThankYouPage({
     incentive: config.thankYouIncentive,
   })
 
-  // Treated skyline hero — deliberately generic/non-market-specific, washed so the
-  // navy heading + configured intro stay highly legible (same asset as /r).
-  const heroStyle: React.CSSProperties = {
-    backgroundImage: `linear-gradient(180deg, rgba(244,247,252,0.68) 0%, rgba(244,247,252,0.84) 52%, rgba(245,247,251,0.99) 100%), url('${SKYLINE_PATH}')`,
-    backgroundSize: "cover",
-    backgroundPosition: "center 22%",
-  }
-
   const Timeline = () => (
     <div>
       <h2 className="text-left text-[22px] font-extrabold tracking-[-0.01em] text-[#0e2545] sm:text-[24px]">What Happens Next</h2>
@@ -148,7 +167,7 @@ export default async function SmartLeadFormThankYouPage({
               <div className="min-w-0 pt-1.5">
                 {step.done ? (
                   <div className="flex flex-wrap items-center gap-2.5">
-                    <p className="text-[17px] font-bold text-[#0e2545] line-through decoration-[#c3cbd8] sm:text-[18px]">{step.title}</p>
+                    <p className="text-[17px] font-bold text-[#0e2545] line-through decoration-2 decoration-[#6b7688] sm:text-[18px]">{step.title}</p>
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e4f6ec] px-3 py-[5px] text-[11.5px] font-extrabold uppercase tracking-wide text-[#136c3a]">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                         <path d="M20 6 9 17l-5-5" />
@@ -187,41 +206,49 @@ export default async function SmartLeadFormThankYouPage({
     </div>
   )
 
-  const Closing = () => (
-    <div className="mt-9 rounded-[18px] border border-[#e7ebf2] bg-[#f7f9fc] px-5 py-4 sm:px-6 sm:py-5">
-      <p className="text-[15.5px] font-bold text-[#0e2545] sm:text-[16px]">Keep an eye on your texts and email</p>
-      <p className="mt-1 text-[14.5px] leading-relaxed text-[#6b7688] sm:text-[15px]">I&rsquo;ll reach out as soon as your recommendations are ready.</p>
-    </div>
-  )
-
-  const LocatorIdentity = () => (
-    <div className="mt-8 flex items-center gap-4 border-t border-[#eef1f7] pt-7">
-      <div className="h-[64px] w-[64px] flex-none overflow-hidden rounded-full border-[3px] border-white bg-[#eaeef5] shadow-[0_10px_26px_-14px_rgba(14,37,69,0.55)]">
-        {form.photo_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={form.photo_url} alt={agentName} className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-[19px] font-bold text-[#7a869a]">{initials}</div>
-        )}
+  // One intentional closing composition: the final client message + the dynamic
+  // locator identity in a single polished card. No contact buttons.
+  const ClosingCard = () => (
+    <section className="mt-9 rounded-[20px] border border-[#e7ebf2] bg-[#f7f9fc] px-5 py-6 sm:px-7 sm:py-7">
+      <h2 className="text-left text-[20px] font-extrabold tracking-[-0.01em] text-[#0e2545] sm:text-[22px]">
+        {name ? `You're all set, ${name}!` : "You're all set!"}
+      </h2>
+      <p className="mt-2 text-[15px] leading-relaxed text-[#4b5468] sm:text-[15.5px]">
+        Keep an eye on your texts and email. I&rsquo;ll reach out as soon as your recommendations are ready.
+      </p>
+      <div className="mt-6 flex items-center gap-4 border-t border-[#e3e8f1] pt-6">
+        <div className="h-[60px] w-[60px] flex-none overflow-hidden rounded-full border-[3px] border-white bg-[#eaeef5] shadow-[0_10px_26px_-14px_rgba(14,37,69,0.55)]">
+          {form.photo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={form.photo_url} alt={agentName} className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-[18px] font-bold text-[#7a869a]">{initials}</div>
+          )}
+        </div>
+        <div className="min-w-0">
+          <p className="text-[16px] font-bold text-[#0e2545]">{agentName}</p>
+          <p className="mt-0.5 text-[13.5px] text-[#6b7688]">{title}</p>
+          {brokerage && <p className="text-[13.5px] text-[#6b7688]">{brokerage}</p>}
+        </div>
       </div>
-      <div className="min-w-0">
-        <p className="text-[16.5px] font-bold text-[#0e2545]">{agentName}</p>
-        <p className="mt-0.5 text-[13.5px] text-[#6b7688]">{title}</p>
-        {brokerage && <p className="text-[13.5px] text-[#6b7688]">{brokerage}</p>}
-      </div>
-    </div>
+    </section>
   )
 
   // Intentional composition: a focused, centered confirmation card when there's no
   // video; a wider two-column layout when a video shares the row with the timeline.
   const shellMax = embedUrl ? "max-w-[1040px]" : "max-w-[720px]"
 
+  // Brokerage flows into the shared Footer's identity row (Equal Housing · {brokerage}
+  // · Powered by Locator Beast), same as /r.
+  const withBrokerage = brokerage ? { ...config, copy: { ...config.copy, brokerageName: brokerage } } : config
+
   return (
     <main className={`${inter.className} min-h-screen bg-[#f5f7fb] text-[#3a4658] antialiased`}>
+      <style dangerouslySetInnerHTML={{ __html: TY_CSS }} />
       <div className={`mx-auto w-full ${shellMax} sm:px-6 sm:py-10`}>
         <div className="overflow-hidden bg-white sm:rounded-[26px] sm:border sm:border-[#e7ebf2] sm:shadow-[0_30px_80px_-50px_rgba(14,37,69,0.35)]">
           {/* ── HERO — treated skyline, personalized, configured intro ── */}
-          <section className="relative px-6 pt-11 pb-9 sm:px-12 sm:pt-12 sm:pb-10" style={heroStyle}>
+          <section className="ty-hero relative px-6 pt-11 pb-9 sm:px-12 sm:pt-12 sm:pb-10">
             <h1 className="max-w-[16ch] text-left text-[30px] font-extrabold leading-[1.1] tracking-[-0.02em] text-[#0e2545] sm:text-[40px]">
               {name ? `Thanks, ${name}!` : "Thank you!"}
             </h1>
@@ -235,7 +262,7 @@ export default async function SmartLeadFormThankYouPage({
                 <section className="lg:flex-1">
                   <Timeline />
                 </section>
-                <aside className="mx-auto mt-8 w-full max-w-[300px] lg:mx-0 lg:mt-0 lg:w-[300px] lg:flex-none">
+                <aside className="mx-auto mt-8 w-[84%] max-w-[300px] lg:mx-0 lg:mt-0 lg:w-[300px] lg:max-w-none lg:flex-none">
                   <Video />
                 </aside>
               </div>
@@ -246,9 +273,13 @@ export default async function SmartLeadFormThankYouPage({
             )}
 
             <div className="max-w-2xl">
-              <Closing />
-              <LocatorIdentity />
+              <ClosingCard />
             </div>
+          </div>
+
+          {/* ── FOOTER — reused client-facing legal/identity treatment from /r ── */}
+          <div className="ty-legal">
+            <Footer config={withBrokerage} compact />
           </div>
         </div>
       </div>
