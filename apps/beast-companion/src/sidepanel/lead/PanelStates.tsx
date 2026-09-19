@@ -117,11 +117,9 @@ export function PanelStateView({
           icon="🔌"
           title="Select a client to start a session"
           body={
-            // A non-breaking space binds the last two words ("details here.") so
-            // "here." can never wrap alone onto its own line at narrow widths.
             <>
-              <strong>Refresh</strong> your <strong>Lead Board</strong> screen, then
-              select a client to display their details{" "}here.
+              <strong>Refresh Lead Board</strong> screen, then select client to display
+              their details here.
             </>
           }
         />
