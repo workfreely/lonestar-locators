@@ -2063,6 +2063,16 @@ body.jaybot-open {
    equal full-width rows only if the card is too narrow). Scoped to the action row
    so the reschedule editor's date input + Save/Cancel are unaffected. */
 .kb-hold-actions .kb-hold-btn { flex:1 1 0; min-width:0; text-align:center; white-space:nowrap; }
+/* Density-aware sizing — a Detailed-width 50/50 pair does NOT fit "Resume Search"
+   in the narrower columns, so it clipped/spilled. Detailed keeps the base 50/50.
+   Compact tightens type + padding so both labels still fit side-by-side. Overview
+   (166px column, ~134px row) genuinely can't fit two full labels side-by-side, so
+   the buttons STACK full-width (Reschedule above, Resume Search — still primary —
+   below): the cleanest layout that keeps both fully inside the card, no clipping. */
+[data-density="compact"] .kb-hold-actions { gap:4px; }
+[data-density="compact"] .kb-hold-actions .kb-hold-btn { font-size:10.5px; padding:3px 5px; }
+[data-density="overview"] .kb-hold-actions { flex-direction:column; align-items:stretch; gap:4px; }
+[data-density="overview"] .kb-hold-actions .kb-hold-btn { flex:0 0 auto; width:100%; font-size:11px; padding:5px 8px; }
 .kb-hold-btn:hover { color:var(--kb-ink); background:color-mix(in srgb, var(--kb-ink) 8%, transparent); }
 .kb-hold-btn--primary { color:#fff; background:var(--kb-accent, #6366f1); border-color:transparent; }
 .kb-hold-btn--primary:hover { filter:brightness(1.06); background:var(--kb-accent, #6366f1); color:#fff; }
@@ -2231,6 +2241,12 @@ body.jaybot-open {
 [data-density="overview"] .kb-k { font-size:8.5px; }
 [data-density="overview"] .kb-v { font-size:9.5px; }
 [data-density="overview"] .kb-badges { margin-top:4px; gap:4px; }
+/* Held card at Overview (166px): Approval + "Follow Up · MM/DD/YYYY" can exceed one
+   line, so let the held badge row wrap (Follow Up drops to its own line) instead of
+   overflowing the column. Scoped to held cards, so normal cards' single-line badge
+   fit behaviour is unchanged. */
+[data-density="overview"] .kb-badges--hold { flex-wrap:wrap; row-gap:4px; }
+[data-density="overview"] .kb-badges--hold .kb-pill--push { margin-left:0; }
 [data-density="overview"] .kb-pill { --ppx0:6px; --pfs0:8.5px; --ppy0:1px; }
 [data-density="overview"] .kb-archive-line { margin-top:3px; }
 [data-density="overview"] .kb-fresh::after { border-radius:9px; }

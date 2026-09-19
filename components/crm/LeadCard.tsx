@@ -368,7 +368,7 @@ export default function LeadCard({
             </div>
           )}
         </div>
-        <div className="kb-badges" data-fit="0" ref={badgesRef}>
+        <div className={`kb-badges${onHold ? " kb-badges--hold" : ""}`} data-fit="0" ref={badgesRef}>
           <span className={`kb-pill ${approvalClass}`}>{approvalLabel}</span>
           {/* Next Action pill — occupies the same slot in all three states:
               • On Hold  → the useful hold state ("Follow Up · 10/05/2026"), not an action.
