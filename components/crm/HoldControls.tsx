@@ -63,11 +63,12 @@ export default function HoldControls({
     // kb-hold-actions makes the two buttons equal-width side-by-side (see globals.css)
     // so Resume Search no longer visually dominates Reschedule.
     <div className={`kb-hold-controls kb-hold-actions${size === "xs" ? " kb-hold-controls--xs" : ""}`} onClick={stop}>
-      <button type="button" className="kb-hold-btn kb-hold-btn--primary" onClick={() => onResume?.(leadId)}>
-        Resume Search
-      </button>
+      {/* Reschedule (secondary) LEFT · Resume Search (primary) RIGHT — equal size. */}
       <button type="button" className="kb-hold-btn" onClick={() => setEditing(true)}>
         Reschedule
+      </button>
+      <button type="button" className="kb-hold-btn kb-hold-btn--primary" onClick={() => onResume?.(leadId)}>
+        Resume Search
       </button>
     </div>
   )

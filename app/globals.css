@@ -2036,11 +2036,23 @@ body.jaybot-open {
 [data-density="compact"] .kb-col-body { gap:10px; padding:10px; }
 
 /* Inactive column: On Hold | Archived sub-tabs (per-tab counts, no combined count). */
-.kb-subtabs { display:flex; gap:2px; padding:8px 10px 0; }
-.kb-subtabs button { flex:1; display:inline-flex; align-items:center; justify-content:center; gap:6px; font:inherit; font-size:12px; font-weight:650; color:var(--kb-ink-muted); border:1px solid var(--kb-border); background:transparent; padding:6px 8px; border-radius:9px; cursor:pointer; transition:color .2s, background .2s, border-color .2s; }
+/* Inactive → On Hold | Archived: a strict 50/50 segmented control. Two equal
+   grid tracks (minmax(0,1fr) so each is EXACTLY half regardless of label/count
+   width — never content-sized), and the buttons never wrap (white-space:nowrap +
+   min-width:0 so they shrink into their half instead of pushing wider). The count
+   badge is flex:none so it stays inline and never squeezes the label onto a second
+   line. */
+.kb-subtabs { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:6px; padding:8px 8px 0; }
+.kb-subtabs button { min-width:0; display:inline-flex; align-items:center; justify-content:center; gap:5px; white-space:nowrap; font:inherit; font-size:12px; font-weight:650; color:var(--kb-ink-muted); border:1px solid var(--kb-border); background:transparent; padding:6px 6px; border-radius:9px; cursor:pointer; transition:color .2s, background .2s, border-color .2s; }
 .kb-subtabs button[aria-pressed="true"] { color:var(--kb-ink); background:color-mix(in srgb, var(--kb-ink) 10%, transparent); border-color:var(--kb-border-strong); }
-.kb-subtab-count { font-size:11px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--kb-ink-muted); background:color-mix(in srgb, var(--kb-ink) 8%, transparent); min-width:18px; height:16px; padding:0 5px; border-radius:999px; display:inline-grid; place-items:center; }
+.kb-subtab-count { flex:none; font-size:11px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--kb-ink-muted); background:color-mix(in srgb, var(--kb-ink) 8%, transparent); min-width:16px; height:15px; padding:0 4px; border-radius:999px; display:inline-grid; place-items:center; }
 .kb-subtabs button[aria-pressed="true"] .kb-subtab-count { color:var(--kb-ink); }
+/* Overview columns are only 166px wide (~80px per tab). The whole mode already
+   renders tighter; match it here so both labels + counts stay on ONE line at 50/50
+   without clipping — a density-scoped tightening, not a global font shrink. */
+[data-density="overview"] .kb-subtabs { gap:4px; padding:6px 6px 0; }
+[data-density="overview"] .kb-subtabs button { font-size:11px; padding:5px 4px; gap:3px; }
+[data-density="overview"] .kb-subtab-count { font-size:10px; min-width:14px; height:14px; padding:0 3px; }
 
 /* Held-lead Resume / Reschedule controls (board card + Agenda reminder). */
 .kb-hold-controls { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:8px; }
