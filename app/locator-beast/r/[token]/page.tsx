@@ -3,6 +3,7 @@ import { Inter, Caveat } from "next/font/google"
 import { createClient } from "@/lib/supabase/server"
 import { hashShareToken, looksLikeShareToken } from "@/lib/clientShare/token"
 import { mergeSmartFormConfig } from "@/app/smart-lead-form/_lib/mergeConfig"
+import AgentSignature from "@/components/clientShare/AgentSignature"
 import Footer from "@/app/smart-lead-form/_components/form/sections/Footer"
 import RecommendationList, { type ClientProperty } from "./RecommendationList"
 import type { TourType, TourWindow } from "@bc/companion-shared"
@@ -156,13 +157,8 @@ const CSS = `
 .lbr-steps span{display:block;font-size:14px;color:var(--muted);margin-top:2px;line-height:1.4}
 .lbr-disclaimer{margin:16px 0 0;border-top:1px solid var(--line-soft);padding-top:14px;font-size:13px;color:var(--faint);line-height:1.5}
 /* AGENT SIGNATURE (once, no buttons) */
+/* Outer spacing for the shared <AgentSignature> block (its inner typography is self-contained). */
 .lbr-sig{margin:26px 40px 0;text-align:center;padding:8px 20px 4px}
-.lbr-sig-photo{width:104px;height:104px;border-radius:50%;object-fit:cover;margin:0 auto;border:5px solid #fff;box-shadow:0 14px 34px -18px rgba(14,37,69,.5);background:#dbe3ee}
-.lbr-sig-fallback{width:104px;height:104px;border-radius:50%;margin:0 auto;border:5px solid #fff;display:flex;align-items:center;justify-content:center;font-size:40px;font-weight:800;color:#fff;background:linear-gradient(135deg,#22406e,#16305a);box-shadow:0 14px 34px -18px rgba(14,37,69,.5)}
-.lbr-sig-name{font-size:34px;color:var(--navy);line-height:.9;margin-top:12px}
-.lbr-sig-role{font-size:13.5px;color:var(--ink);font-weight:600;margin-top:6px}
-.lbr-sig-brok{font-size:13px;color:var(--muted);margin-top:2px}
-.lbr-sig-tag{font-size:22px;color:var(--navy);margin-top:8px;opacity:.9}
 /* FOOTER (legal + Powered by Locator Beast) */
 .lbr-legal{padding:22px 26px 26px;margin-top:8px;border-top:1px solid var(--line-soft)}
 /* "Powered by Locator Beast" — subtle, NON-clickable text on this client page (the
@@ -279,8 +275,6 @@ const CSS = `
 .lbr-view{font-size:14.5px}
 .lbr-steps span{font-size:17px}
 .lbr-disclaimer{font-size:16px}
-.lbr-sig-role{font-size:17px}
-.lbr-sig-brok{font-size:16px}
 /* Heart — larger, unmistakable primary interaction (circle/position/behavior kept). */
 .lbr-heart{width:46px;height:46px}
 .lbr-heart svg{width:25px;height:25px}
@@ -326,12 +320,14 @@ const CSS = `
 /** The agent's OWN configured legal block (TREC presets + custom disclosures) + the
  *  subtle non-clickable "Powered by Locator Beast" line — rendered by the SAME component
  *  the public Smart Lead Form uses. */
-function LegalFooter({ config, brokerage }: { config: unknown; brokerage: string | null }) {
+function LegalFooter({ config }: { config: unknown }) {
   const merged = mergeSmartFormConfig(config ?? {})
-  const withBrokerage = brokerage ? { ...merged, copy: { ...merged.copy, brokerageName: brokerage } } : merged
+  // Brokerage is shown ONCE in the agent signature above; blank it in the footer so the legal
+  // identity row reads "Equal Housing · Powered by Locator Beast" (no duplicate brokerage).
+  const footerConfig = { ...merged, copy: { ...merged.copy, brokerageName: "" } }
   return (
     <div className="lbr-legal">
-      <Footer config={withBrokerage} compact />
+      <Footer config={footerConfig} compact />
     </div>
   )
 }
@@ -349,7 +345,7 @@ function NoticeScreen({
             <p>{body}</p>
           </div>
         </div>
-        <LegalFooter config={config} brokerage={brokerage} />
+        <LegalFooter config={config} />
       </div></div>
     </div>
   )
@@ -393,7 +389,8 @@ export default async function ClientRecommendationsPage({
   const agentTitle = share.agent_title?.trim() || "Apartment Locator"
   const brokerage = share.agent_brokerage?.trim() || null
   const photo = share.agent_photo_url?.trim() || null
-  const initial = agentName.slice(0, 1).toUpperCase()
+  // The locator's configured service markets (public marketing info) for the canonical signature.
+  const serviceAreas = mergeSmartFormConfig(share.smart_form_config).copy?.serviceAreas ?? null
 
   if (share.status === "disabled") {
     return (
@@ -462,22 +459,13 @@ export default async function ClientRecommendationsPage({
           <p className="lbr-disclaimer">Pricing and availability can change daily. Specials may not be reflected in advertised base rent.</p>
         </section>
 
-        {/* AGENT SIGNATURE — once, no contact buttons */}
-        <section className="lbr-sig">
-          {photo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img className="lbr-sig-photo" src={photo} alt={agentName} />
-          ) : (
-            <div className="lbr-sig-fallback" aria-hidden>{initial}</div>
-          )}
-          <div className="lbr-sig-name lbr-script-f">{agentName}</div>
-          <div className="lbr-sig-role">{agentTitle}</div>
-          {brokerage && <div className="lbr-sig-brok">{brokerage}</div>}
-          <div className="lbr-sig-tag lbr-script-f">Helping you find the perfect home.</div>
-        </section>
+        {/* AGENT SIGNATURE — canonical shared component (identical on the Thank You page). */}
+        <div className="lbr-sig">
+          <AgentSignature name={agentName} photoUrl={photo} title={agentTitle} brokerage={brokerage} serviceAreas={serviceAreas} />
+        </div>
 
         {/* FOOTER — legal/brokerage + subtle non-clickable "Powered by Locator Beast" */}
-        <LegalFooter config={share.smart_form_config} brokerage={brokerage} />
+        <LegalFooter config={share.smart_form_config} />
       </div></div>
     </div>
   )

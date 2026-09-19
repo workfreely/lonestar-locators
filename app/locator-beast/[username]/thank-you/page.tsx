@@ -8,6 +8,7 @@ import { buildThankYouSteps, buildThankYouIntro } from "@/lib/smartForm/thankYou
 import { serviceAreasLabelCanonical } from "@/lib/markets/catalog"
 import { clientHeroImage } from "@/lib/clientShare/heroImage"
 import Footer from "@/app/smart-lead-form/_components/form/sections/Footer"
+import AgentSignature from "@/components/clientShare/AgentSignature"
 
 // Client-facing legal/identity footer treatment, reused verbatim from the
 // Recommendations page (/r/[token]): the shared Footer in `compact` mode, scoped so
@@ -124,14 +125,6 @@ export default async function SmartLeadFormThankYouPage({
   const heroImg = clientHeroImage(where)
   const agentName = (form.agent_name ?? "").trim() || "Your local locator"
   const brokerage = (form.brokerage_name ?? "").trim()
-  const initials =
-    agentName
-      .split(/\s+/)
-      .map((n) => n[0])
-      .filter(Boolean)
-      .slice(0, 2)
-      .join("")
-      .toUpperCase() || "•"
 
   const config = mergeSmartFormConfig(form.form_config)
   const embedUrl = youtubeEmbedUrl(config.thankYouVideoUrl)
@@ -229,20 +222,9 @@ export default async function SmartLeadFormThankYouPage({
       <p className="mt-2 text-[15px] leading-relaxed text-[#4b5468] sm:text-[15.5px]">
         Keep an eye on your texts and email. I&rsquo;ll reach out as soon as your recommendations are ready.
       </p>
-      <div className="mt-6 flex items-center gap-4 border-t border-[#e3e8f1] pt-6">
-        <div className="h-[60px] w-[60px] flex-none overflow-hidden rounded-full border-[3px] border-white bg-[#eaeef5] shadow-[0_10px_26px_-14px_rgba(14,37,69,0.55)]">
-          {form.photo_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={form.photo_url} alt={agentName} className="h-full w-full object-cover" />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-[18px] font-bold text-[#7a869a]">{initials}</div>
-          )}
-        </div>
-        <div className="min-w-0">
-          <p className="text-[16px] font-bold text-[#0e2545]">{agentName}</p>
-          <p className="mt-0.5 text-[13.5px] text-[#6b7688]">{title}</p>
-          {brokerage && <p className="text-[13.5px] text-[#6b7688]">{brokerage}</p>}
-        </div>
+      {/* Canonical shared agent signature (identical to the Recommendations page). */}
+      <div className="mt-6 border-t border-[#e3e8f1] pt-6">
+        <AgentSignature name={agentName} photoUrl={form.photo_url} title={title} brokerage={brokerage} serviceAreas={config.copy?.serviceAreas ?? null} />
       </div>
     </section>
   )
@@ -253,7 +235,9 @@ export default async function SmartLeadFormThankYouPage({
 
   // Brokerage flows into the shared Footer's identity row (Equal Housing · {brokerage}
   // · Powered by Locator Beast), same as /r.
-  const withBrokerage = brokerage ? { ...config, copy: { ...config.copy, brokerageName: brokerage } } : config
+  // Brokerage is shown ONCE in the agent signature above; blank it in the footer so the legal
+  // identity row reads "Equal Housing · Powered by Locator Beast" (no duplicate brokerage).
+  const footerConfig = { ...config, copy: { ...config.copy, brokerageName: "" } }
 
   return (
     <main className={`${inter.className} min-h-screen bg-[#f5f7fb] text-[#3a4658] antialiased`}>
@@ -295,7 +279,7 @@ export default async function SmartLeadFormThankYouPage({
 
           {/* ── FOOTER — reused client-facing legal/identity treatment from /r ── */}
           <div className="ty-legal">
-            <Footer config={withBrokerage} compact />
+            <Footer config={footerConfig} compact />
           </div>
         </div>
       </div>
