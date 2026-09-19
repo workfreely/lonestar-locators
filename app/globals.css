@@ -2057,25 +2057,28 @@ body.jaybot-open {
 
 /* Held-lead Resume / Reschedule controls (board card + Agenda reminder). */
 .kb-hold-controls { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:8px; }
-.kb-hold-controls--xs { margin-top:6px; }
+.kb-hold-controls--xs { margin-top:6px; gap:4px; }
+/* Agenda held reminder: the card is narrow (~194px), so the two equal buttons use
+   smaller type/padding than the board so "Resume Search" fits its half without
+   clipping — compact + consistent with the Agenda card, still equal 50/50. */
+.kb-hold-controls--xs .kb-hold-btn { font-size:9px; padding:3px 4px; }
 .kb-hold-btn { font:inherit; font-size:11.5px; font-weight:650; color:var(--kb-ink-soft); border:1px solid var(--kb-border-strong); background:transparent; padding:4px 10px; border-radius:8px; cursor:pointer; transition:color .2s, background .2s, border-color .2s; }
 /* Resume Search | Reschedule — equal width + height so neither dominates. Same
    padding/height from .kb-hold-btn; flex:1 splits the row evenly (wraps to two
    equal full-width rows only if the card is too narrow). Scoped to the action row
    so the reschedule editor's date input + Save/Cancel are unaffected. */
 .kb-hold-actions .kb-hold-btn { flex:1 1 0; min-width:0; text-align:center; white-space:nowrap; }
-/* Density-aware sizing — a Detailed-width 50/50 pair does NOT fit "Resume Search"
-   in the narrower columns, so it clipped/spilled. Detailed keeps the base 50/50.
-   Compact tightens type + padding so both labels still fit side-by-side. Overview
-   (166px column, ~134px row) genuinely can't fit two full labels side-by-side, so
-   the buttons STACK full-width (Reschedule above, Resume Search — still primary —
-   below): the cleanest layout that keeps both fully inside the card, no clipping. */
+/* Density-aware sizing — the SAME base rule (flex:1 1 0; equal 50/50 columns)
+   applies at every density; only type/padding shrink per column so both boxes stay
+   mathematically equal (never independently sized). Detailed keeps the base. Compact
+   tightens type + padding. Overview (Approval hidden, so the row has room) uses the
+   smallest type/padding so "Resume Search" fits its equal half of the 166px column. */
 [data-density="compact"] .kb-hold-actions { gap:4px; }
 [data-density="compact"] .kb-hold-actions .kb-hold-btn { font-size:10.5px; padding:3px 5px; }
 /* Overview: a compact side-by-side pair (Approval badge is hidden here, so the row
    has room). Small Overview-specific type/padding so "Resume Search" fits inside the
    166px column — Reschedule (secondary) left, Resume Search (primary) right. */
-[data-density="overview"] .kb-hold-actions { gap:2px; }
+[data-density="overview"] .kb-hold-actions { gap:2px; margin-top:10px; }
 [data-density="overview"] .kb-hold-actions .kb-hold-btn { font-size:8px; padding:3px 2px; letter-spacing:-0.01em; }
 .kb-hold-btn:hover { color:var(--kb-ink); background:color-mix(in srgb, var(--kb-ink) 8%, transparent); }
 .kb-hold-btn--primary { color:#fff; background:var(--kb-accent, #6366f1); border-color:transparent; }

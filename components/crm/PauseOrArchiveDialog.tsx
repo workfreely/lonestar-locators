@@ -89,7 +89,7 @@ export default function PauseOrArchiveDialog({
         {mode === "hold" && (
           <>
             <p className="text-sm text-[var(--crm-text-secondary)] mt-1">
-              Your current stage and workflow will be preserved.
+              Your client&apos;s current stage will be preserved.
             </p>
             <label className="block mt-4">
               <span className="text-[11px] uppercase tracking-wide font-semibold text-[var(--crm-text-muted)]">

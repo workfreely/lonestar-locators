@@ -6,6 +6,8 @@
 // Action is suppressed at the ONE ranking chokepoint (lib/nextActions.ts) via
 // isOnHold below; nothing is completed/deleted, so Resume is a pure restore.
 
+import { autoDueOnDate } from "@/lib/workflow/autoDueDate"
+
 /** True when the lead is paused. The single, canonical hold predicate. */
 export function isOnHold(lead: { held_at?: string | null } | null | undefined): boolean {
   return !!lead?.held_at
@@ -80,6 +82,27 @@ export function formatHoldFollowUpNumeric(holdFollowUpAt: string | null | undefi
   const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(holdFollowUpAt)
   if (isNaN(d.getTime())) return ""
   return d.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })
+}
+
+/**
+ * The hold follow-up as a real INSTANT: 9:00 AM local on hold_follow_up_at, via the
+ * same canonical 9 AM convention as automatic workflow actions (autoDueOnDate). The
+ * column stays a plain `date`; this derives the timestamp at read time so the Agenda
+ * can order, classify overdue/today, and display "· 9:00 AM" from actual scheduling
+ * data — and a date-only value (including every existing held lead) is handled with
+ * no migration. Returns null when there's no hold date. Parsed as a LOCAL calendar
+ * date so it never drifts a day. Does NOT touch the lead's dormant Next Action.
+ */
+export function holdFollowUpInstant(
+  holdFollowUpAt: string | null | undefined,
+  timeZone?: string | null,
+): string | null {
+  if (!holdFollowUpAt) return null
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(holdFollowUpAt)
+  if (!m) return null
+  const base = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  if (isNaN(base.getTime())) return null
+  return autoDueOnDate(base, 0, timeZone ?? null)
 }
 
 export type HoldUrgency = "overdue" | "today" | "upcoming" | "none"

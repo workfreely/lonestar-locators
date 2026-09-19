@@ -11,6 +11,7 @@ import {
   holdReminderUrgency,
   formatHoldFollowUp,
   formatHoldFollowUpNumeric,
+  holdFollowUpInstant,
 } from "@/lib/leads/holdWorkflow"
 import { rankLeadActions, type ManualNextAction } from "@/lib/nextActions"
 import { ARCHIVE_REASONS, getArchiveReasonLabel } from "@/lib/leads/archiveReasons"
@@ -58,6 +59,17 @@ console.log("\nCard-only numeric date (MM/DD/YYYY, four-digit year, no time):")
 ok("'2026-10-05' ⇒ '10/05/2026'", formatHoldFollowUpNumeric("2026-10-05") === "10/05/2026")
 ok("'2027-01-05' ⇒ '01/05/2027'", formatHoldFollowUpNumeric("2027-01-05") === "01/05/2027")
 ok("null ⇒ empty string", formatHoldFollowUpNumeric(null) === "")
+
+console.log("\nHold follow-up 9:00 AM instant (derived from the date; column stays date-only):")
+{
+  const iso = holdFollowUpInstant("2026-09-18")
+  const d = iso ? new Date(iso) : null
+  ok("date-only value yields an instant (not null)", !!iso)
+  ok("instant is 9:00 AM local", !!d && d.getHours() === 9 && d.getMinutes() === 0)
+  ok("instant is on the selected calendar day", !!d && d.getFullYear() === 2026 && d.getMonth() === 8 && d.getDate() === 18)
+  ok("full ISO input still resolves to that day's 9 AM (defensive)", (() => { const x = holdFollowUpInstant("2026-09-18T14:00:00.000Z"); return !!x && new Date(x).getHours() === 9 })())
+  ok("null date ⇒ null instant (existing/no hold safe)", holdFollowUpInstant(null) === null)
+}
 
 console.log("\nCanonical Next Action suppression — held behaves like archived, inert, nothing mutated:")
 {

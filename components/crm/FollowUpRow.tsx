@@ -6,7 +6,7 @@ import { getNextAction } from "@/lib/nextAction"
 import { formatWorkflowActionLabel } from "@/lib/leads/workflowActionLabels"
 import { resolveGuestCardPrimary } from "@/lib/leads/guestCardAggregate"
 import { getActionIcon, formatDueDateTime } from "@/lib/actionDisplay"
-import { isOnHold, holdReminderUrgency, formatHoldFollowUp } from "@/lib/leads/holdWorkflow"
+import { isOnHold, holdReminderUrgency, holdFollowUpInstant } from "@/lib/leads/holdWorkflow"
 import HoldControls from "./HoldControls"
 import { formatPersonName } from "@bc/companion-shared"
 
@@ -82,15 +82,18 @@ export default function FollowUpRow({
         e.primary!.title !== "Next Action" && (e.urgency === "overdue" || e.urgency === "today"),
     )
 
-  // HOLD — a held lead surfaces a "Follow Up · Lead On Hold" reminder on its
+  // HOLD — a held lead surfaces a "Follow Up · On Hold" reminder on its
   // hold_follow_up_at (today/overdue). A reminder only; it never resumes the lead.
+  // dueAt is the 9:00 AM local INSTANT derived from the date (holdFollowUpInstant),
+  // so ordering + the "· 9:00 AM" display use real scheduling data; urgency stays
+  // date-based (day-granularity) — the same overdue/today the card + tab use.
   const holdEntries: Entry[] = leads
     .filter((lead) => isOnHold(lead) && lead.crm_status !== "archived")
     .map((lead) => ({
       lead,
       kind: "hold" as const,
       urgency: holdReminderUrgency(lead.hold_follow_up_at),
-      dueAt: lead.hold_follow_up_at ?? null,
+      dueAt: holdFollowUpInstant(lead.hold_follow_up_at, timeZone),
     }))
     .filter((e) => e.urgency === "overdue" || e.urgency === "today")
 
@@ -180,13 +183,16 @@ export default function FollowUpRow({
                 className={`ag-card${isSelected ? " ag-card--selected" : ""}`}
               >
                 <span className={`ag-strip ag-strip--${urg}`} />
+                {/* Same hierarchy as a normal Agenda card: name → action → date. The
+                    action line carries the hold context inline ("Follow Up · On Hold")
+                    so there's no extra standalone line; the dormant Next Action is not
+                    shown while held. */}
                 <p className="ag-name">{formatPersonName(`${lead.first_name ?? ""} ${lead.last_name ?? ""}`)}</p>
-                <p className="ag-action">{getActionIcon("Follow Up")} Follow Up</p>
-                <p className="ag-action" style={{ opacity: 0.7, marginTop: -2 }}>Lead On Hold</p>
-                <p className={`ag-due ag-due--${urg}`}>{formatHoldFollowUp(entry.dueAt)}</p>
+                <p className="ag-action">📌 Follow Up · On Hold</p>
+                <p className={`ag-due ag-due--${urg}`}>{entry.dueAt ? formatDueDateTime(entry.dueAt, { timeZone: timeZone ?? undefined }) : ""}</p>
                 <HoldControls
                   leadId={lead.id}
-                  followUpAt={entry.dueAt}
+                  followUpAt={lead.hold_follow_up_at}
                   onResume={onResumeLead}
                   onReschedule={onRescheduleHold}
                   size="xs"
