@@ -38,7 +38,9 @@ function Centered({
 }: {
   icon: ReactNode;
   title: string;
-  body: string;
+  // ReactNode (not just string) so a body can bold key words (e.g. the empty-state
+  // naming "Lead Board" / "Refresh"). Existing string bodies remain valid.
+  body: ReactNode;
   action?: { label: string; onClick?: () => void };
   tone?: "muted" | "danger" | "warning";
 }) {
@@ -114,7 +116,12 @@ export function PanelStateView({
         <Centered
           icon="🔌"
           title="Select a client to start a session"
-          body="Select a client in your Lead Board to load their details here."
+          body={
+            <>
+              Select a client in your <strong>Lead Board</strong>, then hit{" "}
+              <strong>Refresh</strong> to load their details here.
+            </>
+          }
         />
       );
     case "unauthorized":
