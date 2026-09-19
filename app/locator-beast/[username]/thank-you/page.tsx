@@ -18,11 +18,11 @@ const TY_CSS = `
 /* HERO — intentional horizontal directional treatment (shared with /r): a strong light
    wash behind the left/text side that smoothly reduces so the right/image side keeps
    substantially more of the skyline's contrast. Not a uniform fog. */
-.ty-hero{background-image:linear-gradient(90deg,rgba(247,249,252,.97) 0%,rgba(247,249,252,.85) 34%,rgba(247,249,252,.48) 66%,rgba(247,249,252,.14) 100%),url('${SKYLINE_PATH}');background-size:cover;background-position:right 38%}
+.ty-hero{background-image:linear-gradient(90deg,rgba(9,25,48,.97) 0%,rgba(10,28,52,.90) 30%,rgba(12,32,60,.58) 56%,rgba(14,37,69,.16) 80%,rgba(14,37,69,0) 92%),url('${SKYLINE_PATH}');background-size:cover;background-position:right 42%}
 /* Mobile: adapt to the stacked composition — a diagonal so the top-left (heading) stays
-   highly legible while the lower-right keeps real skyline richness. */
+   dark for white-text legibility while the lower-right keeps real skyline richness. */
 @media (max-width:640px){
-.ty-hero{background-image:linear-gradient(122deg,rgba(247,249,252,.94) 0%,rgba(247,249,252,.86) 42%,rgba(247,249,252,.55) 76%,rgba(247,249,252,.28) 100%),url('${SKYLINE_PATH}');background-position:center 22%}
+.ty-hero{background-image:linear-gradient(155deg,rgba(9,25,48,.97) 0%,rgba(10,28,52,.90) 40%,rgba(12,32,60,.60) 72%,rgba(14,37,69,.22) 100%),url('${SKYLINE_PATH}');background-position:center 28%}
 }
 .ty-legal{padding:22px 26px 26px;margin-top:8px;border-top:1px solid #eef1f7}
 .ty-legal a[href="https://locatorbeast.com"]{pointer-events:none;color:inherit;text-decoration:none;cursor:default}
@@ -249,10 +249,10 @@ export default async function SmartLeadFormThankYouPage({
         <div className="overflow-hidden bg-white sm:rounded-[26px] sm:border sm:border-[#e7ebf2] sm:shadow-[0_30px_80px_-50px_rgba(14,37,69,0.35)]">
           {/* ── HERO — treated skyline, personalized, configured intro ── */}
           <section className="ty-hero relative px-6 pt-11 pb-9 sm:px-12 sm:pt-12 sm:pb-10">
-            <h1 className="max-w-[16ch] text-left text-[30px] font-extrabold leading-[1.1] tracking-[-0.02em] text-[#0e2545] sm:text-[40px]">
+            <h1 className="max-w-[16ch] text-left text-[30px] font-extrabold leading-[1.1] tracking-[-0.02em] text-white sm:text-[40px]">
               {name ? `Thanks, ${name}!` : "Thank you!"}
             </h1>
-            <p className="mt-3.5 max-w-xl text-[16px] leading-relaxed text-[#3a4658] sm:mt-4 sm:text-[17px]">{intro}</p>
+            <p className="mt-3.5 max-w-xl text-[16px] leading-relaxed text-white/90 sm:mt-4 sm:text-[17px]">{intro}</p>
           </section>
 
           {/* ── BODY ── */}
