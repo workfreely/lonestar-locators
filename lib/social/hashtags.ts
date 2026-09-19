@@ -168,6 +168,29 @@ export function buildHashtags(market: string | null | undefined, target = 7, pro
   return chosen.slice(0, cap)
 }
 
+// ── PLATFORM-AWARE EDITOR CAPS ────────────────────────────────────────────────────────────────
+// Social Beast PRODUCT limits for how many hashtags the composer allows per publishing destination —
+// deliberately NOT platform API hard caps: Instagram 7, TikTok 5, YouTube 7. These bound the EDITOR
+// (add-cap, count label, publish-validity warning) only; the Instagram 7-hashtag GENERATION bank
+// (buildHashtags) is unchanged and still composes up to 7.
+export const PLATFORM_HASHTAG_LIMIT: Record<string, number> = { instagram: 7, tiktok: 5, youtube: 7 }
+
+/**
+ * The editor hashtag cap for a set of selected destinations: the STRICTEST (smallest) limit among
+ * them, so any selection that includes TikTok caps at 5 while Instagram and/or YouTube alone allow 7.
+ * Unknown platform ids are ignored; an empty/all-unknown selection falls back to `fallback` (the
+ * Instagram baseline, 7). Pure and deterministic — existing tags over the cap are the caller's concern
+ * (they are kept and flagged, never trimmed here).
+ */
+export function hashtagLimitFor(selected: Iterable<string>, fallback = 7): number {
+  const limits: number[] = []
+  for (const id of selected) {
+    const n = PLATFORM_HASHTAG_LIMIT[id]
+    if (typeof n === "number") limits.push(n)
+  }
+  return limits.length ? Math.min(...limits) : fallback
+}
+
 /** Normalize a user-entered tag to a single #token (letters/digits/underscore). */
 export function normalizeHashtag(raw: string): string {
   const t = (raw || "").trim().replace(/^#+/, "").replace(/[^\p{L}\p{N}_]/gu, "")

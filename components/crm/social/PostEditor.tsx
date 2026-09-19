@@ -6,7 +6,7 @@ import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
 import { previewAspectClass } from "@/lib/social/postTypes"
 import { SiInstagram, SiTiktok, SiYoutube } from "react-icons/si"
 import type { IconType } from "react-icons"
-import { buildHashtags, normalizeHashtag } from "@/lib/social/hashtags"
+import { buildHashtags, normalizeHashtag, hashtagLimitFor } from "@/lib/social/hashtags"
 import { buildCaption, specialDisplay, buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, DEFAULT_OVERLAY_TEMPLATE, type OverlayTemplate, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags, type SourceMeta } from "@/lib/social/composePost"
 import SpecialSelect from "@/components/crm/social/SpecialSelect"
 import { computeOverlayLayout } from "@/lib/social/overlaySpec"
@@ -62,7 +62,7 @@ type Post = {
   renderedPreviewUrl: string | null
 }
 
-const MAX_HASHTAGS = 7 // Instagram limit enforced in the editor (approved bank/logic unchanged)
+const MAX_HASHTAGS = 7 // Instagram generation count (approved bank/logic unchanged)
 
 // Publishing destinations shown in the editor's "Post to" selector (icon + name buttons). Instagram
 // is the connected, publish-capable platform today; TikTok/YouTube are shown as real destinations to
@@ -133,6 +133,11 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       else next.add(id)
       return next
     })
+  // Platform-aware editor cap: the strictest (smallest) limit among the selected destinations (any
+  // selection including TikTok → 5; Instagram and/or YouTube alone → 7), falling back to the Instagram
+  // baseline (MAX_HASHTAGS) when nothing is selected. Existing tags above this cap are kept, not
+  // removed — they are flagged publish-invalid via the count/help text below.
+  const hashtagLimit = hashtagLimitFor(selectedPlatforms, MAX_HASHTAGS)
   const [headline, setHeadline] = useState("")
   const [overlayMode, setOverlayMode] = useState<"generate" | "existing">("generate")
   const [overlayTemplate, setOverlayTemplate] = useState<OverlayTemplate>(DEFAULT_OVERLAY_TEMPLATE)
@@ -492,7 +497,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const addTag = (raw: string) => {
     const t = normalizeHashtag(raw)
     if (!t) return
-    setHashtags((prev) => (prev.length >= MAX_HASHTAGS || prev.some((x) => x.toLowerCase() === t.toLowerCase()) ? prev : [...prev, t]))
+    setHashtags((prev) => (prev.length >= hashtagLimit || prev.some((x) => x.toLowerCase() === t.toLowerCase()) ? prev : [...prev, t]))
     setHashtagsDirty(true) // manual edit
     setTagInput("")
   }
@@ -791,7 +796,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             </label>
             <div className="block">
               <div className="flex items-center justify-between">
-                <span className={fieldLabel}>Hashtags <span className={"normal-case " + (hashtags.length > MAX_HASHTAGS ? "text-amber-600 dark:text-amber-400" : "text-[var(--crm-text-muted)]")}>{hashtags.length > MAX_HASHTAGS ? `(${hashtags.length} · max ${MAX_HASHTAGS})` : `(${hashtags.length}/${MAX_HASHTAGS})`}</span></span>
+                <span className={fieldLabel}>Hashtags <span className={"normal-case " + (hashtags.length > hashtagLimit ? "text-amber-600 dark:text-amber-400" : "text-[var(--crm-text-muted)]")}>{hashtags.length > hashtagLimit ? `(${hashtags.length} · max ${hashtagLimit})` : `(${hashtags.length}/${hashtagLimit})`}</span></span>
                 <button type="button" className="text-[11px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]" onClick={suggestTags}>Suggest from market</button>
               </div>
               <div className="mt-1 flex flex-wrap gap-1.5 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] p-2 min-h-[76px] content-start">
@@ -801,7 +806,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                     <button type="button" aria-label={`Remove ${t}`} className="text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]" onClick={() => removeTag(i)}>×</button>
                   </span>
                 ))}
-                {hashtags.length < MAX_HASHTAGS && (
+                {hashtags.length < hashtagLimit && (
                   <input
                     className="flex-1 min-w-[110px] bg-transparent text-[12.5px] text-[var(--crm-text-primary)] outline-none"
                     value={tagInput}
@@ -812,7 +817,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                   />
                 )}
               </div>
-              <span className="text-[10.5px] text-[var(--crm-text-muted)]">{hashtags.length > MAX_HASHTAGS ? `Over the ${MAX_HASHTAGS}-tag Instagram limit — remove ${hashtags.length - MAX_HASHTAGS} before publishing.` : hashtags.length === MAX_HASHTAGS ? `Instagram limit of ${MAX_HASHTAGS} reached — remove one to add another.` : "Added to the caption when published (kept separate here)."}</span>
+              <span className="text-[10.5px] text-[var(--crm-text-muted)]">{hashtags.length > hashtagLimit ? `Over the ${hashtagLimit}-tag limit for the selected platforms — remove ${hashtags.length - hashtagLimit} before publishing.` : hashtags.length === hashtagLimit ? `${hashtagLimit}-tag limit for the selected platforms reached — remove one to add another.` : "Added to the caption when published (kept separate here)."}</span>
 
               {/* Audio sits under Hashtags in the right column — same select styling/behavior as
                   before, width matching the right-column field (not the page). */}
