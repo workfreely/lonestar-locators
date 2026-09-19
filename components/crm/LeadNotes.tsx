@@ -34,7 +34,15 @@ function TourAvailabilitySection({ leadId }: { leadId: number | string }) {
   if (!av || av.dates.length === 0) return null // no submission → no section
 
   const fmtDate = (d: string) =>
-    new Date(`${d}T00:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+    new Date(`${d}T00:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })
+
+  // Display formatting only: specific time window(s) first, "Flexible" last; if
+  // Flexible is the only value, just "Flexible". Stored data/selection is unchanged.
+  const fmtWindows = (ws: TourWindow[]) => {
+    const specific = ws.filter((w) => w !== "flexible")
+    const ordered = ws.includes("flexible") ? [...specific, "flexible" as TourWindow] : specific
+    return ordered.map((w) => TOUR_WINDOW_LABELS[w]).join(" · ")
+  }
 
   return (
     <CollapsibleNotes title="Tour Availability" defaultOpen storageKey="tour-availability">
@@ -44,7 +52,7 @@ function TourAvailabilitySection({ leadId }: { leadId: number | string }) {
           {av.dates.map((d) => (
             <div key={d.date} className="flex items-baseline justify-between gap-3">
               <span>{fmtDate(d.date)}</span>
-              <span className="text-[var(--crm-text-muted)]">{d.windows.map((w) => TOUR_WINDOW_LABELS[w]).join(" · ")}</span>
+              <span className="text-[var(--crm-text-muted)]">{fmtWindows(d.windows)}</span>
             </div>
           ))}
         </div>
