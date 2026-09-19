@@ -13,6 +13,7 @@ import { boundsForMarket, getMarketBySlug, isInsideMarket, isInsideState, isMark
 import { resolveDesiredAreaCenters, searchAreas, mergeDedupeByPlaceId, type AreaCenter } from "@/lib/propertyExplorer/multiArea"
 import { selectInMarketMatch, decideNameSearch, normalizePlace, shouldFetchSuggestions, computeVisible, nameSearchTextQuery, nameMatchesQuery, type NameSearchDecision } from "@/lib/propertyExplorer/nameSearch"
 import { StarRating } from "@/components/crm/StarRating"
+import { canonicalPropertyKey } from "@bc/companion-shared"
 import { createPortal } from "react-dom"
 
 /**
@@ -925,7 +926,13 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     onMatchCount?.(status === "ready" ? visible.length : null)
   }, [status, visible.length, onMatchCount])
 
-  const recommended = useMemo(() => new Set(recommendedUrls), [recommendedUrls])
+  // Dedupe by CANONICAL property identity (matches the DB canonical_property_key), not
+  // raw URL string, so a SAD `url:` and a `?q=place_id:` form of the same property don't
+  // produce contradictory "✓ Recommended" states.
+  const recommended = useMemo(
+    () => new Set(recommendedUrls.map((u) => canonicalPropertyKey(u)).filter((k): k is string => !!k)),
+    [recommendedUrls],
+  )
   // Map-local only. Recomputed from the loaded results; nothing is persisted, and
   // no recommendation is written without the agent clicking.
   const suggestions = useMemo(() => computeSuggestions(results, activeClient), [results, activeClient])
@@ -1350,7 +1357,7 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
                 <p className="text-[11.5px] leading-snug text-[#6b7280]">
                   Select a client to recommend this property
                 </p>
-              ) : recommended.has(card.propertyUrl) ? (
+              ) : recommended.has(canonicalPropertyKey(card.propertyUrl) ?? " ") ? (
                 <span className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-2 text-[12.5px] font-semibold text-emerald-700">
                   ✓ Recommended
                 </span>

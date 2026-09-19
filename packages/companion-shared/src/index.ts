@@ -132,7 +132,7 @@ export { starFillPercent, formatRating } from "./format/rating";
 // Display-only address formatting — drop trailing ", USA"/", United States"
 // (shared by the CRM property card + Companion Current Property)
 export { displayAddress } from "./format/address";
-export { propertyWebsiteHref } from "./format/url";
+export { propertyWebsiteHref, canonicalPropertyKey } from "./format/url";
 
 // Date display formatting (timezone-safe, MM/DD/YYYY)
 export { formatDateDisplay } from "./format/date";

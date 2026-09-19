@@ -1,7 +1,7 @@
 "use client"
 import { useEffect, useRef, useState, useCallback } from "react"
 import BeastPropertyExplorer from "@/components/crm/explorer/BeastPropertyExplorer"
-import { favoriteMoveBlock, visibleRecommendations } from "@/lib/leads/propertyCollections"
+import { favoriteMoveBlock, visibleRecommendations, recommendationAddMutatesOpposite } from "@/lib/leads/propertyCollections"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import FollowUpRow from "./FollowUpRow"
@@ -2961,11 +2961,17 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         const isFav = payload.verb === "add-favorite" || payload.verb === "move-to-favorite"
         const currentList = isFav ? localFavoritesRef.current : localRecommendationsRef.current
         const sourceList = isFav ? localRecommendationsRef.current : localFavoritesRef.current
-        // The SAME property in the opposite collection — Recommendation and Favorite are
-        // two states of one progression, so this row is MOVED, never duplicated.
+        // The SAME property in the opposite collection. For the relocation verbs this row
+        // is MOVED/converted (see mutateOpposite below); it is still read here for name/
+        // address/image fallback on a bare move payload regardless.
         const sourceRow = sourceList.find(
           (r: any) => String(r.lead_id) === String(lead.id) && String(r.property_url ?? "") === propertyUrl
         )
+        // CANONICAL POLICY: Recommendations and Favorites are INDEPENDENT collections —
+        // "+ Recommend" (add-recommendation) NEVER moves/converts/mutates an existing
+        // Favorite (leaving its Guest Card actions / tours / Top Pick / application state
+        // untouched). Only the relocation verbs act on the opposite collection.
+        const mutateOpposite = recommendationAddMutatesOpposite(payload.verb)
         // A MOVE from a saved row (the ♡/＋ on a Recommendation/Favorite) posts only the
         // property URL — its name/address live on the SOURCE row. An ADD from Current
         // Property carries them in the payload. Take the name from whichever exists; a
@@ -2983,7 +2989,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         // it leaves Favorites, every FK/history is preserved, and NO Recommendation is
         // created. Only a genuinely unreferenced Favorite falls through to the normal
         // Favorite → Recommendation move below.
-        if (!isFav && sourceRow) {
+        if (!isFav && sourceRow && mutateOpposite) {
           const src = sourceRow
           const liveRef = !!favoriteMoveBlock({
             favorite: src,
@@ -3038,8 +3044,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             }
           }
           // Already at the destination. If a legacy duplicate still sits in the source
-          // collection, this deliberate action resolves it through the normal path.
-          if (sourceRow) removeSourceRow(sourceRow, isFav, lead)
+          // collection, a relocation verb resolves it through the normal path — but
+          // add-recommendation leaves the Favorite completely intact (mutateOpposite).
+          if (sourceRow && mutateOpposite) removeSourceRow(sourceRow, isFav, lead)
           else postCompanionActiveClient({ ...lead }, localNextActionsRef.current) // re-sync control state
           return
         }
@@ -3122,8 +3129,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           }
           // DESTINATION FIRST: the source is only removed once the destination row
           // exists. If the insert failed we never get here, so the source is untouched
-          // and the property is never lost between the two collections.
-          if (sourceRow) removeSourceRow(sourceRow, isFav, lead)
+          // and the property is never lost between the two collections. add-recommendation
+          // (mutateOpposite=false) never removes the Favorite — the two collections coexist.
+          if (sourceRow && mutateOpposite) removeSourceRow(sourceRow, isFav, lead)
           else postCompanionActiveClient({ ...lead }, localNextActionsRef.current)
         }
         // SAD (or any non-place_id) row → resolve its Google place_id in the

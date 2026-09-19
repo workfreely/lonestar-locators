@@ -8,6 +8,29 @@
  * Mirror of lib/propertyExplorer/propertyWebsiteHref on the CRM side; kept in the
  * shared package so the Companion applies the exact same guard.
  */
+/**
+ * Canonical property identity for a property URL — a stable dedupe key shared by the
+ * CRM and the Companion so a SAD ViewProperty link and a `?q=place_id:` map link for
+ * the SAME property compare equal, and two different properties never collide.
+ *
+ * MIRRORS EXACTLY the `canonical_property_key` generated column on both
+ * `lead_recommendations` and `lead_favorites`:
+ *   coalesce('pid:' || <place_id captured from the URL>, 'url:' || lower(btrim(url)))
+ * The place_id branch is case-sensitive (place ids are); the url fallback is trimmed +
+ * lowercased. Returns null only when the URL is empty (matches the null key case).
+ *
+ * Use this for UI "already recommended/favorited" button state instead of raw
+ * property_url string equality. It does NOT redesign identity — it reuses the same
+ * expression the database already stores.
+ */
+export function canonicalPropertyKey(url: string | null | undefined): string | null {
+  const raw = (url ?? "").trim();
+  if (!raw) return null;
+  const m = /[?&]q=place_id:([^&]+)/.exec(raw);
+  if (m && m[1]) return `pid:${m[1]}`;
+  return `url:${raw.toLowerCase()}`;
+}
+
 export function propertyWebsiteHref(url: string | null | undefined): string | null {
   const u = (url ?? "").trim();
   if (!/^https?:\/\//i.test(u)) return null;

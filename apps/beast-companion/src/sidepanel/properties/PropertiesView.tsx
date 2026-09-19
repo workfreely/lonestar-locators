@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { SectionCard } from "../lead/primitives";
 import { PropertyThumb } from "./PropertyThumb";
-import { resolveClientContext, evaluateLocationFit, evaluateApproval, evaluateAmenities, evaluateSpecials, evaluateBudget, evaluateMatchScore, matchScoreTone, normalizeMustHaveAmenities, resolveClientBudget, formatRent, cityMismatch, starFillPercent, formatRating, displayAddress, propertyWebsiteHref } from "@bc/companion-shared";
+import { resolveClientContext, evaluateLocationFit, evaluateApproval, evaluateAmenities, evaluateSpecials, evaluateBudget, evaluateMatchScore, matchScoreTone, normalizeMustHaveAmenities, resolveClientBudget, formatRent, cityMismatch, starFillPercent, formatRating, displayAddress, propertyWebsiteHref, canonicalPropertyKey } from "@bc/companion-shared";
 import type { FavoriteDTO, RecommendationDTO, LeadSummaryDTO } from "@bc/companion-shared";
 import type { CurrentProperty } from "@/types";
 
@@ -236,8 +236,12 @@ export function PropertiesView({
   // SINGLE control — a property enters the progression as a Recommendation and is only
   // promoted to a Favorite from its Recommendations row, so it can never be favorited
   // directly from here.
-  const cpUrl = currentProperty?.propertyUrl ?? "";
-  const isRecommended = !!cpUrl && recommendations.some((r) => (r.propertyUrl ?? "") === cpUrl);
+  // "Already recommended" is decided by CANONICAL property identity (matches the DB
+  // canonical_property_key), not raw URL equality, so a SAD `url:` and a `?q=place_id:`
+  // form of the same property don't disagree. Favorite membership is intentionally NOT
+  // consulted — Recommendations and Favorites are independent collections.
+  const cpKey = canonicalPropertyKey(currentProperty?.propertyUrl ?? "");
+  const isRecommended = !!cpKey && recommendations.some((r) => canonicalPropertyKey(r.propertyUrl ?? "") === cpKey);
 
   // Auto-expand Favorite Properties the first time a genuinely NEW favorite appears
   // for the active client, so a hearted/moved property is immediately visible even
