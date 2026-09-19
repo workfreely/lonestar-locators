@@ -149,9 +149,12 @@ export const leadSummarySchema = z.object({
   /** The hold follow-up/reminder date (leads.hold_follow_up_at, YYYY-MM-DD). Null
    *  when not held. Display only. */
   holdFollowUpAt: z.string().nullish(),
-  /** Pre-formatted compact hold date (e.g. "Sep 30"), computed CRM-side via the
-   *  ONE canonical formatter so the Companion renders it verbatim. Null when not held. */
-  holdFollowUpLabel: z.string().nullish(),
+  /** The hold follow-up as a real INSTANT (ISO): 9:00 AM local on hold_follow_up_at,
+   *  computed CRM-side via the SAME canonical helper the Agenda uses
+   *  (lib/leads/holdWorkflow.holdFollowUpInstant). The panel renders it through the
+   *  shared due-date formatter (formatDueDateTime), exactly like the Next Action due,
+   *  so the held follow-up date reads identically to the Agenda. Null when not held. */
+  holdFollowUpDueAt: z.string().nullish(),
   searchCriteria: searchCriteriaSchema,
   creditScreening: creditScreeningSchema,
   workflow: workflowStateSchema,

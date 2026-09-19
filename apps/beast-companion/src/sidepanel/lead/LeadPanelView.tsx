@@ -406,7 +406,7 @@ export function LeadPanelBody({
             </div>
             <div style={{ marginTop: 15 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: "var(--lb-text, #e6ebf5)" }}>
-                {lead.holdFollowUpLabel ? `Follow up · ${lead.holdFollowUpLabel}` : "Paused"}
+                {lead.holdFollowUpDueAt ? `Follow up · ${fmtDue(lead.holdFollowUpDueAt, tz)}` : "Paused"}
               </div>
             </div>
           </>

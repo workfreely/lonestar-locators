@@ -156,6 +156,59 @@ export const DEMO_FIXTURES: DemoFixture[] = [
       },
     ],
   },
+  {
+    key: "on_hold",
+    label: "On Hold · follow-up date",
+    lead: {
+      id: "demo-onhold",
+      firstName: "Casey",
+      lastName: "Sample",
+      phone: "(555) 010-3388",
+      // crm_status is PRESERVED while held (stays "searching"); the panel shows the
+      // On Hold block instead of the dormant Next Action below.
+      stage: "searching",
+      isArchived: false,
+      isOnHold: true,
+      isClosed: false,
+      holdFollowUpAt: "2026-09-30",
+      // 9:00 AM local (America/Chicago preview zone) on the follow-up date — the
+      // SAME instant treatment as the Agenda. Renders "· 9:00 AM" via formatDueDateTime.
+      holdFollowUpDueAt: "2026-09-30T14:00:00.000Z",
+      searchCriteria: {
+        city: "Sampleton",
+        budgetText: "$1,300 – $1,700",
+        propertyType: "Apartment",
+        beds: "1-2",
+        baths: "1",
+        moveDate: "2026-11-01",
+        desiredAreas: "Demo Heights",
+        source: "demo",
+      },
+      creditScreening: {
+        creditScore: "700+",
+        creditHistory: "Good",
+        criminalBackground: "None",
+      },
+      workflow: {
+        followUpCount: 2,
+        nextActionDate: "2026-08-08T14:00:00.000Z",
+        firstContactAt: "2026-08-01T15:00:00.000Z",
+      },
+      clientNotes: "Paused the search for a few weeks — check back at the end of September. (demo)",
+    },
+    // An OPEN action is present but must be SUPPRESSED while held (the On Hold block
+    // replaces the Next Action area) — proves the dormant Next Action stays hidden.
+    nextActions: [
+      {
+        id: "demo-act-4",
+        leadId: "demo-onhold",
+        title: "Follow Up",
+        dueAt: "2026-08-08T14:00:00.000Z",
+        priority: "medium",
+        completed: false,
+      },
+    ],
+  },
 ];
 
 export const DEFAULT_FIXTURE_KEY = DEMO_FIXTURES[0].key;

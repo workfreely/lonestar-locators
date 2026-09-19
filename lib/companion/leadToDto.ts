@@ -7,7 +7,7 @@ import { getNextAction } from "@/lib/nextAction"
 import { rankLeadActions } from "@/lib/nextActions"
 import { getSourceStyle } from "@/lib/leads/sourceStyles"
 import { getArchiveReasonLabel } from "@/lib/leads/archiveReasons"
-import { formatHoldFollowUp } from "@/lib/leads/holdWorkflow"
+import { holdFollowUpInstant } from "@/lib/leads/holdWorkflow"
 
 // Phase 2 — active-client bridge payload (CRM page → content script → panel).
 //
@@ -296,7 +296,11 @@ export function buildActiveClientPayload(
     // suppresses the active Next Action and shows the hold follow-up date.
     isOnHold: !!lead.held_at,
     holdFollowUpAt: str(lead.hold_follow_up_at),
-    holdFollowUpLabel: lead.held_at ? formatHoldFollowUp(str(lead.hold_follow_up_at)) : null,
+    // The 9:00 AM local INSTANT for the hold follow-up, via the SAME helper the
+    // Agenda uses (holdFollowUpInstant) — the panel formats it with the shared
+    // due-date formatter so the held date reads identically to the Agenda. One
+    // source of truth; no second date treatment.
+    holdFollowUpDueAt: lead.held_at ? holdFollowUpInstant(str(lead.hold_follow_up_at), timeZone) : null,
     searchCriteria: {
       city: str(lead.city),
       budgetText: budgetText(lead.desired_rent),

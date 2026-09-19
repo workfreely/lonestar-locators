@@ -15,6 +15,7 @@ import {
 } from "@/lib/leads/holdWorkflow"
 import { rankLeadActions, type ManualNextAction } from "@/lib/nextActions"
 import { ARCHIVE_REASONS, getArchiveReasonLabel } from "@/lib/leads/archiveReasons"
+import { formatDueDateTime } from "@/lib/actionDisplay"
 
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
@@ -98,6 +99,27 @@ console.log("\nArchive reasons — Moving Later removed from the picker but stil
 ok("ARCHIVE_REASONS no longer offers moving_later", !ARCHIVE_REASONS.some((r) => r.value === "moving_later"))
 ok("ARCHIVE_REASONS still has the other five", ["ghosted", "unqualified", "rented_elsewhere", "spam", "other"].every((v) => ARCHIVE_REASONS.some((r) => r.value === v)))
 ok("a lead archived earlier as moving_later still gets its label", getArchiveReasonLabel("moving_later") === "📅 Moving Later")
+
+console.log("\nCompanion ↔ Agenda hold follow-up date PARITY (same instant + same formatter):")
+{
+  const tz = "America/Chicago"
+  const date = "2026-09-30"
+  // What the Agenda renders for a held reminder: formatDueDateTime(9AM instant).
+  const agenda = formatDueDateTime(holdFollowUpInstant(date, tz)!, { timeZone: tz, now: NOW })
+  // What Companion now renders: the DTO carries holdFollowUpDueAt = holdFollowUpInstant(...)
+  // and the panel formats it with the SAME formatDueDateTime (fmtDue) → identical string.
+  const companionDueAt = holdFollowUpInstant(date, tz) // DTO field
+  const companion = formatDueDateTime(companionDueAt!, { timeZone: tz, now: NOW }) // panel fmtDue
+  ok("Companion hold date === Agenda hold date (byte-for-byte parity)", companion === agenda)
+  ok("presentation is the Agenda treatment, not the bare compact date", companion !== formatHoldFollowUp(date, NOW) && companion.includes("9:00 AM") && companion.includes("•"))
+  ok("shows the correct hold_follow_up_at day", companion.includes("Sep 30"))
+  // Relative-day semantics parity: a follow-up dated today reads "Today • 9:00 AM".
+  const todayStr = "2026-09-20"
+  const todayCompanion = formatDueDateTime(holdFollowUpInstant(todayStr, tz)!, { timeZone: tz, now: NOW })
+  ok("today's follow-up uses Agenda relative-day semantics ('Today • …')", todayCompanion.startsWith("Today •"))
+  // Not-held ⇒ no instant ⇒ panel shows "Paused" (null field), never a date.
+  ok("non-held ⇒ holdFollowUpInstant(null) is null (panel falls back to 'Paused')", holdFollowUpInstant(null, tz) === null)
+}
 
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail > 0) process.exit(1)
