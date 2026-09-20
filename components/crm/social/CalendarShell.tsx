@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
+import { platformMeta } from "@/lib/social/platformMeta"
 // Shared calendar data + formatting — the SAME source of truth the Post Editor's scheduling
 // workspace uses, so the two views never disagree about what is scheduled.
 import { type CalPost, MONTH_CELL_MAX, WEEKDAYS, addDays, sameDay, dateKey, timeLabel, marketAbbr, shortLabel, calLabel as label, groupByDay } from "@/lib/social/calendar"
@@ -33,14 +34,11 @@ const STATUS_DOT: Record<PostStatus, string> = {
   published: "bg-[var(--crm-text-muted)]",
 }
 
-function InstagramIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <rect x="2.5" y="2.5" width="19" height="19" rx="5" />
-      <circle cx="12" cy="12" r="4.4" />
-      <circle cx="17.6" cy="6.4" r="1.3" fill="currentColor" stroke="none" />
-    </svg>
-  )
+// Compact platform mark for calendar events — reuses the shared Queue/History icon set, driven by
+// the post's ACTUAL persisted platform (never hard-coded Instagram). Space-constrained, so no label.
+function PlatformIcon({ platform, className }: { platform: string; className?: string }) {
+  const { Icon } = platformMeta(platform)
+  return <Icon className={className} aria-hidden />
 }
 
 function Thumb({ p, className }: { p: CalPost; className?: string }) {
@@ -165,11 +163,11 @@ function CellPost({ p, onOpenPost }: { p: CalPost; onOpenPost: (id: string) => v
         onOpenPost(p.id)
       }}
       onDoubleClick={stop}
-      title={`${label(p)} · Instagram · ${timeLabel(p.scheduledAt)}`}
+      title={`${label(p)} · ${platformMeta(p.platform).label} · ${timeLabel(p.scheduledAt)}`}
       className="w-full flex items-center gap-1 rounded px-1 py-0.5 text-left bg-[var(--crm-card)] hover:bg-[var(--crm-border)] transition-colors"
     >
       <Thumb p={p} className="h-4 w-3 flex-none rounded-[2px]" />
-      <InstagramIcon className="h-2.5 w-2.5 flex-none text-[var(--crm-text-muted)]" />
+      <PlatformIcon platform={p.platform} className="h-3.5 w-3.5 flex-none text-[var(--crm-text-muted)]" />
       <span className="text-[10px] font-semibold text-[var(--crm-text-secondary)] tabular-nums flex-none">{timeLabel(p.scheduledAt)}</span>
       {p.recurring && <span title="Recurring" aria-label="Recurring" className="flex-none text-[10px] text-[var(--crm-text-muted)] leading-none">↻</span>}
       <span className="text-[10px] text-[var(--crm-text-muted)] truncate">{label(p)}</span>
@@ -187,9 +185,10 @@ function MonthEntry({ p, onOpenPost }: { p: CalPost; onOpenPost: (id: string) =>
       type="button"
       onClick={(e) => { stop(e); onOpenPost(p.id) }}
       onDoubleClick={stop}
-      title={`${label(p)} · Instagram · ${timeLabel(p.scheduledAt)}`}
-      className="w-full flex items-baseline gap-1 rounded px-1 py-0.5 text-left hover:bg-[var(--crm-card)] transition-colors leading-tight"
+      title={`${label(p)} · ${platformMeta(p.platform).label} · ${timeLabel(p.scheduledAt)}`}
+      className="w-full flex items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-[var(--crm-card)] transition-colors leading-tight"
     >
+      <PlatformIcon platform={p.platform} className="h-3.5 w-3.5 flex-none text-[var(--crm-text-muted)]" />
       <span className="text-[10px] font-semibold text-[var(--crm-text-secondary)] tabular-nums flex-none">{t}</span>
       {p.recurring && <span title="Recurring" aria-label="Recurring" className="flex-none text-[10px] text-[var(--crm-text-muted)] leading-none">↻</span>}
       <span className="text-[10px] text-[var(--crm-text-muted)] truncate">{mkt ? `· ${mkt} ` : ""}· {shortLabel(p)}</span>
@@ -356,7 +355,7 @@ function ListView({ cursor, today, byDay, onOpenPost }: GridProps) {
                     <button key={p.id} type="button" onClick={() => onOpenPost(p.id)} className="flex items-center gap-2 text-left rounded px-2 py-1 hover:bg-[var(--crm-card)] transition-colors">
                       <span className={"h-1.5 w-1.5 rounded-full flex-none " + (STATUS_DOT[p.status] ?? "bg-[var(--crm-text-muted)]")} />
                       <span className="text-[12.5px] text-[var(--crm-text-primary)] font-semibold tabular-nums">{timeLabel(p.scheduledAt)}</span>
-                      <InstagramIcon className="h-3 w-3 flex-none text-[var(--crm-text-muted)]" />
+                      <PlatformIcon platform={p.platform} className="h-4 w-4 flex-none text-[var(--crm-text-muted)]" />
                       <span className="text-[12.5px] text-[var(--crm-text-secondary)] truncate">{label(p)}</span>
                     </button>
                   ))}
@@ -491,7 +490,7 @@ function DayDetail({
                     <Thumb p={p} className="w-10 h-[57px] flex-none rounded-md" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
-                        <InstagramIcon className="h-3 w-3 flex-none text-[var(--crm-text-muted)]" />
+                        <PlatformIcon platform={p.platform} className="h-4 w-4 flex-none text-[var(--crm-text-muted)]" />
                         <span className="text-[12px] font-semibold text-[var(--crm-text-primary)] tabular-nums">{timeLabel(p.scheduledAt)}</span>
                         <span className="ml-auto flex items-center gap-1 text-[10.5px] font-semibold text-[var(--crm-text-secondary)]">
                           <span className={"h-1.5 w-1.5 rounded-full " + (STATUS_DOT[p.status] ?? "bg-[var(--crm-text-muted)]")} />
@@ -514,7 +513,7 @@ function DayDetail({
                 <>
                   <div className="text-[12px] font-semibold text-[var(--crm-text-primary)] truncate">{label(active)}</div>
                   <div className="flex items-center gap-1.5 text-[11.5px] text-[var(--crm-text-secondary)]">
-                    <InstagramIcon className="h-3 w-3 flex-none text-[var(--crm-text-muted)]" />
+                    <PlatformIcon platform={active.platform} className="h-4 w-4 flex-none text-[var(--crm-text-muted)]" />
                     <span className="tabular-nums">{timeLabel(active.scheduledAt)}</span>
                     <span className="ml-1">· {POST_STATUS_LABEL[active.status] ?? active.status}</span>
                   </div>

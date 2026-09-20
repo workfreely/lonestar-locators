@@ -3,6 +3,7 @@
 import { useState } from "react"
 import VideoLightbox from "@/components/crm/social/VideoLightbox"
 import { formatPublishedAt } from "@/lib/social/formatPublishedAt"
+import { platformMeta } from "@/lib/social/platformMeta"
 import type { DemoHistoryItem } from "@/components/crm/social/demoFixtures"
 
 // Social Autopilot → History table (client). Same columns/layout as before — only the first column
@@ -70,7 +71,9 @@ export default function HistoryTable({ items }: { items: DemoHistoryItem[] }) {
             </tr>
           </thead>
           <tbody>
-            {items.map((h) => (
+            {items.map((h) => {
+              const pm = platformMeta(h.platform)
+              return (
               <tr key={h.id} className="border-t border-[var(--crm-border)]">
                 <td className="px-3 py-2.5">
                   {h.previewUrl ? (
@@ -89,7 +92,13 @@ export default function HistoryTable({ items }: { items: DemoHistoryItem[] }) {
                     </div>
                   )}
                 </td>
-                <td className="px-3 py-2.5 text-[var(--crm-text-secondary)] whitespace-nowrap">{h.platform}</td>
+                <td className="px-3 py-2.5 text-[var(--crm-text-secondary)] whitespace-nowrap">
+                  {/* Same platform-icon treatment as Queue: small mark + name, from the persisted platform. */}
+                  <span className="inline-flex items-center gap-1.5">
+                    <pm.Icon className="flex-none" size={13} aria-hidden />
+                    <span>{pm.label}</span>
+                  </span>
+                </td>
                 <td className="px-3 py-2.5 font-semibold text-[var(--crm-text-primary)] whitespace-nowrap">
                   {h.propertyName}
                   <div className="text-[11px] font-normal text-[var(--crm-text-muted)]">{h.market}</div>
@@ -102,7 +111,8 @@ export default function HistoryTable({ items }: { items: DemoHistoryItem[] }) {
                   <span className="text-[12px] font-semibold text-[var(--crm-text-muted)]">View post ↗</span>
                 </td>
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
       </div>

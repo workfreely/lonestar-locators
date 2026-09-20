@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { SiInstagram, SiTiktok, SiYoutube } from "react-icons/si"
-import type { IconType } from "react-icons"
+import { platformMeta } from "@/lib/social/platformMeta"
 import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
 
 // Social Autopilot → Queue (REAL post model). Shows this admin's posts that have not yet
@@ -41,14 +40,8 @@ const STATUS_STYLE: Record<PostStatus, string> = {
   published: "text-[var(--crm-text-muted)] bg-[var(--crm-card)]",
 }
 
-// Platform label + icon, from the post's ACTUAL persisted platform (no hardcoded "Instagram").
-const PLATFORM_META: Record<string, { label: string; Icon: IconType }> = {
-  instagram: { label: "Instagram", Icon: SiInstagram },
-  tiktok: { label: "TikTok", Icon: SiTiktok },
-  youtube: { label: "YouTube", Icon: SiYoutube },
-}
-const platformMeta = (p: string | null | undefined) =>
-  PLATFORM_META[(p ?? "").toLowerCase()] ?? { label: p ? p.charAt(0).toUpperCase() + p.slice(1) : "Instagram", Icon: SiInstagram }
+// Platform label + icon come from the shared source of truth (lib/social/platformMeta), driven
+// by the post's ACTUAL persisted platform (no hardcoded "Instagram"). History + Calendar reuse it.
 
 const fmtWhen = (iso: string | null) => {
   if (!iso) return "Not scheduled"
