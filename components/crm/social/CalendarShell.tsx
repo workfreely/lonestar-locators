@@ -44,7 +44,10 @@ const STATUS_DOT: Record<PostStatus, string> = {
 // intentionally independent of the workspace accent; size comes from the caller's className.
 function PlatformIcon({ platform, className }: { platform: string; className?: string }) {
   const { Icon, color } = platformMeta(platform)
-  return <Icon className={className} style={{ color }} aria-hidden />
+  // Simple Icons fill their 0 0 24 24 viewBox edge-to-edge, and an <svg>'s default `overflow:hidden`
+  // shaves the boundary at small sizes (the glyph's bottom edge looked clipped in the compact Month
+  // event). `overflow-visible` lets the whole glyph render without enlarging the box or the row.
+  return <Icon className={"overflow-visible " + (className ?? "")} style={{ color }} aria-hidden />
 }
 
 function Thumb({ p, className }: { p: CalPost; className?: string }) {
