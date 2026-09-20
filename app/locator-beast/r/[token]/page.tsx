@@ -156,6 +156,16 @@ const CSS = `
 .lbr-steps b{display:block;color:var(--navy);font-size:16px;font-weight:700;line-height:1.3}
 .lbr-steps span{display:block;font-size:14px;color:var(--muted);margin-top:2px;line-height:1.4}
 .lbr-disclaimer{margin:16px 0 0;border-top:1px solid var(--line-soft);padding-top:14px;font-size:13px;color:var(--faint);line-height:1.5}
+/* Next Steps as a compact roadmap ABOVE the property cards — reuses the .lbr-steps content,
+   navy circles and typography, just laid out lighter. Desktop: one horizontal 1→2→3 row so it
+   reads as a lightweight roadmap and doesn't push the recommendations down. */
+.lbr-steps--roadmap{margin:0 0 24px;padding:20px 24px;box-shadow:none;border-radius:14px}
+.lbr-steps--roadmap h2{font-size:15px;margin:0 0 15px}
+.lbr-steps--roadmap ol{flex-direction:row;gap:24px}
+.lbr-steps--roadmap li{flex:1;min-width:0;gap:16px;align-items:center}
+.lbr-steps--roadmap .lbr-n{width:52px;height:52px;font-size:22px}
+.lbr-steps--roadmap b{font-size:16px;line-height:1.25}
+.lbr-steps--roadmap span{font-size:13px}
 /* AGENT SIGNATURE (once, no buttons) */
 /* Outer spacing for the shared <AgentSignature> block (its inner typography is self-contained). */
 .lbr-sig{margin:26px 40px 0;text-align:center;padding:8px 20px 4px}
@@ -290,6 +300,14 @@ const CSS = `
 .lbr-grid{grid-template-columns:1fr;gap:16px}
 .lbr-ph{aspect-ratio:16/11}
 .lbr-steps{margin:22px 16px 0;padding:22px 20px}
+/* Mobile roadmap: vertical 1/2/3, more compact than the old large bottom card. */
+.lbr-steps--roadmap{margin:0 0 16px;padding:15px 16px}
+.lbr-steps--roadmap h2{font-size:16px;margin:0 0 10px}
+.lbr-steps--roadmap ol{flex-direction:column;gap:12px}
+.lbr-steps--roadmap li{flex:none;gap:12px;align-items:flex-start}
+.lbr-steps--roadmap .lbr-n{width:28px;height:28px;font-size:14px}
+.lbr-steps--roadmap b{font-size:15px}
+.lbr-steps--roadmap span{font-size:14px}
 /* Done CTA: full-width, prominent, ~54px; count/copy sized for phone legibility. */
 .lbr-done-count{font-size:15.5px}
 .lbr-done-btn{width:100%;min-height:54px;font-size:17px}
@@ -421,7 +439,7 @@ export default async function ClientRecommendationsPage({
   }
 
   const curated = firstName ? `Custom List for ${firstName} · by ${agentName}` : `Custom List by ${agentName}`
-  const countLine = `${properties.length} ${properties.length === 1 ? "property" : "properties"} recommended for you · Tap the heart on any property you'd like to tour.`
+  const countLine = `${properties.length} ${properties.length === 1 ? "property" : "properties"} recommended for you`
   const greeting = firstName ? `${firstName}, I found some great options for you!` : "I found some great options for you!"
 
   return (
@@ -445,23 +463,25 @@ export default async function ClientRecommendationsPage({
             <h2>Your Recommendations</h2>
             <p>{countLine}</p>
           </div>
+
+          {/* NEXT STEPS — same content/circles, now a compact roadmap ABOVE the cards so the
+              client knows to heart their favorites before interacting. Horizontal 1→2→3 on
+              desktop, vertical on mobile (see .lbr-steps--roadmap). */}
+          <section className="lbr-steps lbr-steps--roadmap">
+            <h2>Next Steps</h2>
+            <ol>
+              <li><div className="lbr-n">1</div><div><b>Heart your top 2&ndash;3 favorites</b><span>Choose the properties you&rsquo;d like to tour.</span></div></li>
+              <li><div className="lbr-n">2</div><div><b>I&rsquo;ll get your tour scheduled</b><span>We coordinate everything for you.</span></div></li>
+              <li><div className="lbr-n">3</div><div><b>List Me as Your Realtor/Locator</b><span>When you apply, list me to receive any rebates, movers, or incentives.</span></div></li>
+            </ol>
+          </section>
+
           <RecommendationList
             properties={properties}
             token={token}
             initialDoneSelecting={doneSelecting}
             initialAvailability={availability}
           />
-        </section>
-
-        {/* NEXT STEPS — navy circles */}
-        <section className="lbr-steps">
-          <h2>Next Steps</h2>
-          <ol>
-            <li><div className="lbr-n">1</div><div><b>Heart your top 2&ndash;3 favorites</b><span>Choose the properties you&rsquo;d like to tour.</span></div></li>
-            <li><div className="lbr-n">2</div><div><b>I&rsquo;ll get your tour scheduled</b><span>We coordinate everything for you.</span></div></li>
-            <li><div className="lbr-n">3</div><div><b>List Me as Your Realtor or Locator</b><span>When you apply, list me on your application to receive any rebates, movers, or other incentives.</span></div></li>
-          </ol>
-          <p className="lbr-disclaimer">Pricing and availability can change daily. Specials may not be reflected in advertised base rent.</p>
         </section>
 
         {/* AGENT SIGNATURE — canonical shared component (identical on the Thank You page). */}
