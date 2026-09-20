@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import { rankLeadActions } from "@/lib/nextActions"
 import { getNextAction } from "@/lib/nextAction"
 import { formatWorkflowActionLabel } from "@/lib/leads/workflowActionLabels"
@@ -17,8 +16,6 @@ import { formatPersonName } from "@bc/companion-shared"
 // stays aligned everywhere and can't drift. Raw titles are still passed to
 // rankLeadActions/getActionIcon so ranking, suppression, and the existing emoji
 // lookup keep matching on stable identity.
-
-type FilterType = "overdue" | "today"
 
 export default function FollowUpRow({
   leads,
@@ -55,8 +52,6 @@ export default function FollowUpRow({
   onResumeLead?: (leadId: string | number) => void
   onRescheduleHold?: (leadId: string | number, followUpDate: string) => void
 }) {
-  const [activeFilter, setActiveFilter] = useState<FilterType | null>(null)
-
   // An Agenda entry is either a NORMAL ranked Next Action or a HOLD reminder. Both
   // carry an urgency + dueAt so they queue and sort together in one list.
   type Entry = {
@@ -99,39 +94,72 @@ export default function FollowUpRow({
 
   const dueEntries: Entry[] = [...normalEntries, ...holdEntries]
 
-  const filterMatch = (e: Entry): boolean => {
-    if (!activeFilter) return true
-    return e.urgency === activeFilter
+  // Split the SAME canonical due entries into the two ALWAYS-rendered sections. There is no
+  // filter-selection state any more: Today and Overdue are derived and shown together on every
+  // render (initial load, refresh, remount, selection change, collapse/expand), so there is
+  // nothing to restore and no "neither selected" ambiguity. Within each section the previous
+  // ordering is preserved — earliest due first. Which action represents a lead (its PRIMARY) and
+  // its urgency are chosen upstream by rankLeadActions; the UI invents no second priority.
+  const byDueAsc = (a: Entry, b: Entry) =>
+    (a.dueAt ? new Date(a.dueAt).getTime() : 0) - (b.dueAt ? new Date(b.dueAt).getTime() : 0)
+  const todayEntries = dueEntries.filter((e) => e.urgency === "today").sort(byDueAsc)
+  const overdueEntries = dueEntries.filter((e) => e.urgency === "overdue").sort(byDueAsc)
+  // Red badge = actionable Today + Overdue (dueEntries already holds ONLY those two urgencies).
+  const badgeCount = todayEntries.length + overdueEntries.length
+
+  // One Agenda card (hold reminder OR normal ranked Next Action). Shared by both sections so the
+  // presentation can never drift between Today and Overdue.
+  const renderEntry = (entry: Entry) => {
+    const { lead, kind } = entry
+    // Highlight the current client on the SAME identity the Lead Board card uses: the CRM
+    // selection (selectedLeadId) OR the active client (activeLeadId) — keeps them in sync.
+    const isSelected =
+      (selectedLeadId != null && String(selectedLeadId) === String(lead.id)) ||
+      (activeLeadId != null && String(activeLeadId) === String(lead.id))
+    const urg = entry.urgency === "overdue" ? "crit" : "warn"
+
+    // HOLD reminder — "Follow Up / Lead On Hold" on hold_follow_up_at. A reminder only: it
+    // offers Resume / Reschedule but never auto-resumes.
+    if (kind === "hold") {
+      return (
+        <div key={lead.id} onClick={() => onSelectLead?.(lead.id)} className={`ag-card${isSelected ? " ag-card--selected" : ""}`}>
+          <span className={`ag-strip ag-strip--${urg}`} />
+          {/* Same hierarchy as a normal card: name → action → date; hold context inline. */}
+          <p className="ag-name">{formatPersonName(`${lead.first_name ?? ""} ${lead.last_name ?? ""}`)}</p>
+          <p className="ag-action">📌 Follow Up · On Hold</p>
+          <p className={`ag-due ag-due--${urg}`}>{entry.dueAt ? formatDueDateTime(entry.dueAt, { timeZone: timeZone ?? undefined }) : ""}</p>
+          <HoldControls leadId={lead.id} followUpAt={lead.hold_follow_up_at} onResume={onResumeLead} onReschedule={onRescheduleHold} size="xs" />
+        </div>
+      )
+    }
+
+    const primary = entry.primary!
+    // Canonical Guest Card Primary presentation (shared helper): 2+ outstanding genuine-Favorite
+    // Guest Cards → "Send Guest Cards · N properties"; 1 → "Send Guest Card · {Property}".
+    const gcPrimary = primary.manualAction
+      ? resolveGuestCardPrimary(lead.id, primary.manualAction, nextActions, favorites)
+      : null
+    return (
+      <div key={lead.id} onClick={() => onSelectLead?.(lead.id)} className={`ag-card${isSelected ? " ag-card--selected" : ""}`}>
+        <span className={`ag-strip ag-strip--${urg}`} />
+        {/* Who */}
+        <p className="ag-name">{formatPersonName(`${lead.first_name ?? ""} ${lead.last_name ?? ""}`)}</p>
+        {/* What */}
+        <p className="ag-action">{getActionIcon(primary.title)} {gcPrimary ? gcPrimary.title : formatWorkflowActionLabel(primary.title)}</p>
+        {gcPrimary && <p className="ag-action" style={{ opacity: 0.7, marginTop: -2 }}>{gcPrimary.detail}</p>}
+        {/* When */}
+        <p className={`ag-due ag-due--${urg}`}>{primary.dueAt ? formatDueDateTime(primary.dueAt, { timeZone: timeZone ?? undefined }) : ""}</p>
+      </div>
+    )
   }
-
-  // Overdue first, then today's; within each bucket, earliest due first.
-  const visibleLeads = dueEntries.filter(filterMatch).sort((a, b) => {
-    const urgencyRank = (u: string) => (u === "overdue" ? 0 : 1)
-    const diff = urgencyRank(a.urgency) - urgencyRank(b.urgency)
-    if (diff !== 0) return diff
-    const aTime = a.dueAt ? new Date(a.dueAt).getTime() : 0
-    const bTime = b.dueAt ? new Date(b.dueAt).getTime() : 0
-    return aTime - bTime
-  })
-
-  const dueLeads = dueEntries
-
-  function toggleFilter(f: FilterType) {
-    setActiveFilter((prev) => (prev === f ? null : f))
-  }
-
-  const filterTabs: { key: FilterType; label: string }[] = [
-    { key: "today", label: "Today" },
-    { key: "overdue", label: "Overdue" },
-  ]
 
   return (
     <div className="ag-root">
-      {/* Header — the day's work queue */}
+      {/* Header — the day's work queue. Badge = Today + Overdue. */}
       <div className="ag-head">
         <h2 className="ag-title">Agenda</h2>
         <div className="ag-head-right">
-          {dueLeads.length > 0 && <span className="ag-count">{dueLeads.length}</span>}
+          {badgeCount > 0 && <span className="ag-count">{badgeCount}</span>}
           {onCollapse && (
             <button onClick={onCollapse} className="ag-collapse" aria-label="Collapse Agenda" title="Collapse Agenda">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -142,95 +170,21 @@ export default function FollowUpRow({
         </div>
       </div>
 
-      {/* Segmented filter */}
-      <div className="ag-filter" role="group" aria-label="Agenda filter">
-        {filterTabs.map(({ key, label }) => (
-          <button key={key} type="button" aria-pressed={activeFilter === key} onClick={() => toggleFilter(key)}>
-            {label}
-          </button>
-        ))}
-      </div>
-
+      {/* Two ALWAYS-present sections, stacked: Today then Overdue. No filter controls, no All tab. */}
       <div className="ag-list">
-        {visibleLeads.length === 0 && (
-          <div className="ag-empty">
-            <div className="ag-empty-ic">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M2 7l3.5 3.5L12 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
-            <p>{activeFilter === "overdue" ? "Nothing overdue." : activeFilter === "today" ? "Nothing due." : "Nothing due today."}</p>
-          </div>
-        )}
+        <section className="ag-section" aria-label="Due today">
+          <div className="ag-section-head">Today{todayEntries.length > 0 ? ` · ${todayEntries.length}` : ""}</div>
+          {todayEntries.length === 0
+            ? <p className="ag-section-empty">Nothing due today.</p>
+            : todayEntries.map(renderEntry)}
+        </section>
 
-        {visibleLeads.map((entry) => {
-          const { lead, kind } = entry
-          // Highlight the current client on the SAME identity the Lead Board card
-          // uses: the CRM selection (selectedLeadId) OR the active client
-          // (activeLeadId). Keeps the Agenda item and the board card in sync.
-          const isSelected =
-            (selectedLeadId != null && String(selectedLeadId) === String(lead.id)) ||
-            (activeLeadId != null && String(activeLeadId) === String(lead.id))
-          const urg = entry.urgency === "overdue" ? "crit" : "warn"
-
-          // HOLD reminder — "Follow Up / Lead On Hold" on hold_follow_up_at. A
-          // reminder only: it offers Resume / Reschedule but never auto-resumes.
-          if (kind === "hold") {
-            return (
-              <div
-                key={lead.id}
-                onClick={() => onSelectLead?.(lead.id)}
-                className={`ag-card${isSelected ? " ag-card--selected" : ""}`}
-              >
-                <span className={`ag-strip ag-strip--${urg}`} />
-                {/* Same hierarchy as a normal Agenda card: name → action → date. The
-                    action line carries the hold context inline ("Follow Up · On Hold")
-                    so there's no extra standalone line; the dormant Next Action is not
-                    shown while held. */}
-                <p className="ag-name">{formatPersonName(`${lead.first_name ?? ""} ${lead.last_name ?? ""}`)}</p>
-                <p className="ag-action">📌 Follow Up · On Hold</p>
-                <p className={`ag-due ag-due--${urg}`}>{entry.dueAt ? formatDueDateTime(entry.dueAt, { timeZone: timeZone ?? undefined }) : ""}</p>
-                <HoldControls
-                  leadId={lead.id}
-                  followUpAt={lead.hold_follow_up_at}
-                  onResume={onResumeLead}
-                  onReschedule={onRescheduleHold}
-                  size="xs"
-                />
-              </div>
-            )
-          }
-
-          const primary = entry.primary!
-          // Canonical Guest Card Primary Next Action presentation (shared helper):
-          // 2+ outstanding genuine-Favorite Guest Cards → "Send Guest Cards · N
-          // properties"; 1 → "Send Guest Card · {Property}". Non-guest-card → normal.
-          const gcPrimary = primary.manualAction
-            ? resolveGuestCardPrimary(lead.id, primary.manualAction, nextActions, favorites)
-            : null
-          return (
-            <div
-              key={lead.id}
-              onClick={() => onSelectLead?.(lead.id)}
-              className={`ag-card${isSelected ? " ag-card--selected" : ""}`}
-            >
-              <span className={`ag-strip ag-strip--${urg}`} />
-              {/* Who */}
-              <p className="ag-name">
-                {formatPersonName(`${lead.first_name ?? ""} ${lead.last_name ?? ""}`)}
-              </p>
-              {/* What */}
-              <p className="ag-action">
-                {getActionIcon(primary.title)} {gcPrimary ? gcPrimary.title : formatWorkflowActionLabel(primary.title)}
-              </p>
-              {gcPrimary && (
-                <p className="ag-action" style={{ opacity: 0.7, marginTop: -2 }}>{gcPrimary.detail}</p>
-              )}
-              {/* When */}
-              <p className={`ag-due ag-due--${urg}`}>{primary.dueAt ? formatDueDateTime(primary.dueAt, { timeZone: timeZone ?? undefined }) : ""}</p>
-            </div>
-          )
-        })}
+        <section className="ag-section" aria-label="Overdue">
+          <div className="ag-section-head">Overdue{overdueEntries.length > 0 ? ` · ${overdueEntries.length}` : ""}</div>
+          {overdueEntries.length === 0
+            ? <p className="ag-section-empty">Nothing overdue.</p>
+            : overdueEntries.map(renderEntry)}
+        </section>
       </div>
     </div>
   )

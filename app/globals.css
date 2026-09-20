@@ -2325,11 +2325,12 @@ body.jaybot-open {
 .ag-collapse:hover { color:var(--kb-ink); background:color-mix(in srgb, var(--kb-ink) 8%, transparent); }
 .ag-collapse svg { width:13px; height:13px; }
 
-.ag-filter { flex:none; display:flex; padding:3px; gap:2px; margin:8px 12px 4px; border-radius:10px; border:1px solid var(--kb-border); background:color-mix(in srgb, var(--kb-ink) 5%, transparent); }
-.ag-filter button { flex:1; font:inherit; font-size:10.5px; font-weight:700; letter-spacing:0.02em; color:var(--kb-ink-muted); border:0; background:transparent; padding:5px 0; border-radius:7px; cursor:pointer; transition:color .2s, background .2s; }
-.ag-filter button[aria-pressed="true"] { color:var(--kb-ink); background:color-mix(in srgb, var(--kb-ink) 12%, transparent); }
-
-.ag-list { flex:1 1 auto; min-height:0; overflow-y:auto; padding:8px 12px 12px; display:flex; flex-direction:column; gap:8px; }
+/* Two stacked, always-present Agenda sections (Today / Overdue) — replaces the old
+   Today|Overdue segmented filter. Restrained heading + inline count; compact empty line. */
+.ag-list { flex:1 1 auto; min-height:0; overflow-y:auto; padding:8px 12px 12px; display:flex; flex-direction:column; gap:12px; }
+.ag-section { display:flex; flex-direction:column; gap:8px; }
+.ag-section-head { font-size:10px; font-weight:700; letter-spacing:0.11em; text-transform:uppercase; color:var(--kb-ink-muted); font-variant-numeric:tabular-nums; padding:0 2px; }
+.ag-section-empty { margin:0; padding:1px 2px 2px; font-size:11.5px; color:var(--kb-ink-muted); }
 
 .ag-card { position:relative; flex:none; background:var(--kb-card); border:1px solid var(--kb-card-border); border-radius:12px; box-shadow:var(--kb-card-shadow); padding:8px 11px 8px 16px; cursor:pointer; transition:transform .25s cubic-bezier(.16,1,.3,1), box-shadow .25s cubic-bezier(.16,1,.3,1); }
 .ag-card:hover { transform:translateY(-1px); box-shadow:var(--kb-card-shadow-hover); }
@@ -2346,9 +2347,6 @@ body.jaybot-open {
 .ag-due--crit { color:var(--kb-crit-f); }
 .ag-due--warn { color:var(--kb-warn-f); }
 
-.ag-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; padding:36px 10px; text-align:center; }
-.ag-empty-ic { width:30px; height:30px; border-radius:999px; background:color-mix(in srgb, var(--kb-ink) 8%, transparent); display:grid; place-items:center; color:var(--kb-ink-muted); }
-.ag-empty p { margin:0; font-size:11.5px; color:var(--kb-ink-muted); line-height:1.4; }
 @media (prefers-reduced-motion: reduce) { .ag-card { transition-duration:.001ms; } }
 
 /* Demo workspace entrance — the board and welcome banner fade/rise in so the
