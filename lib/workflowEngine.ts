@@ -68,10 +68,11 @@ export function getStageWorkflowAction(
   switch (newStage) {
     case "new":
       // Actionable IMMEDIATELY — the moment a lead lands, Contact Lead is the Next
-      // Action and is clickable right away. The due date is a BACKSTOP, not a
-      // "start now" value: 9:00 AM the next calendar day (autoDueInDays(1)), so it
-      // reads Pending on creation and only goes Overdue after that deadline passes.
-      return { title: "Contact Lead", dueAt: autoDueInDays(1, timeZone), actionKey: "contact_lead" }
+      // Action and is clickable right away. A brand-new lead is a highest-priority
+      // Contact Lead due the CREATION calendar day (autoDueInDays(0) → 9:00 AM local
+      // today), so it appears in Agenda → Today the moment it lands and only flips to
+      // Overdue once the local day advances (day-level urgency in lib/nextActions).
+      return { title: "Contact Lead", dueAt: autoDueInDays(0, timeZone), actionKey: "contact_lead" }
 
     case "contacted":
       // After first contact, the canonical next step is building the client's
@@ -185,6 +186,26 @@ export async function createWorkflowActionIfNeeded(
 
   if (existing && existing.length > 0) return null // active equivalent action already exists — do nothing
 
+  // Resolve ownership from the PARENT LEAD so the row is RLS-visible to the lead's
+  // workspace regardless of which client inserts it. Server/service-role ingestion
+  // (e.g. the Lone Star bridge / Smart Form / Meta intake in app/api/leads/submit)
+  // has no auth.uid(), and the set_workspace_ownership() trigger cannot derive a
+  // workspace in a multi-workspace DB — so without this the row lands with a NULL
+  // workspace_id and RLS hides it from the Agenda. The lead already carries the
+  // authoritative workspace_id + owner_user_id; deriving from it (never from
+  // auth.uid()) works identically for service-role and authenticated CRM paths and
+  // does not weaken RLS (the trigger's guards leave provided non-null values intact).
+  const { data: leadRow, error: leadError } = await client
+    .from("leads")
+    .select("workspace_id, owner_user_id")
+    .eq("id", leadId)
+    .single()
+  if (leadError) {
+    // Don't drop the action: fall back to letting the trigger resolve ownership
+    // (works in authenticated contexts). Logged so a service-role miss is visible.
+    console.error("[workflow-engine] lead ownership lookup failed:", leadError)
+  }
+
   const { data: created, error: insertError } = await client
     .from("lead_next_actions")
     .insert([{
@@ -192,6 +213,9 @@ export async function createWorkflowActionIfNeeded(
       title: action.title,
       due_at: action.dueAt,
       priority: "medium",
+      // Explicit parent-lead ownership (see above) — makes the row RLS-visible.
+      workspace_id: leadRow?.workspace_id ?? null,
+      owner_user_id: leadRow?.owner_user_id ?? null,
       // Canonical workflow identity — every engine-emitted row is tagged
       // explicitly (no reliance on column defaults, which are manual/custom).
       action_key: action.actionKey,
