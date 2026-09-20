@@ -67,7 +67,7 @@ export default function Footer() {
           <div className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={EQUAL_HOUSING_LOGO} alt="Equal Housing Opportunity" style={{ height: 26, width: "auto" }} />
-            {/* Copyright + Beast Security mark. flex-wrap so the security mark drops
+            {/* Copyright + Security Beast mark. flex-wrap so the security mark drops
                 cleanly below the copyright on narrow widths instead of compressing. */}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <p>&copy; {year} Locator Beast. All rights reserved.</p>
@@ -95,7 +95,7 @@ export default function Footer() {
                     strokeLinejoin="round"
                   />
                 </svg>
-                <span>Protected by Beast Security&trade;</span>
+                <span>Protected by Security Beast&trade;</span>
               </span>
             </div>
           </div>

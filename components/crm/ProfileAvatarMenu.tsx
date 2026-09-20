@@ -270,6 +270,9 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
                   /admin/social-autopilot layout, pages, APIs, RLS, and bucket all enforce
                   is_platform_admin() server-side. */}
               <Link href="/admin/social-autopilot" onClick={() => setOpen(false)} className={linkCls}>Social Beast</Link>
+              {/* Security Beast — platform-admin-only. V1 is a visual/architecture admin surface;
+                  the /admin/security page enforces is_platform_admin() server-side like the others. */}
+              <Link href="/admin/security" onClick={() => setOpen(false)} className={linkCls}>Security Beast</Link>
               {/* Beast Referral Network — kept under ADMIN for now (not yet rolled out to agents).
                   showNetwork is always true for the owner; route/permissions unchanged. */}
               {showNetwork && (
