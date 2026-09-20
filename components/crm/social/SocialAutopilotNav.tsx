@@ -18,8 +18,29 @@ const TABS: { label: string; href: string }[] = [
   { label: "Analytics", href: `${BASE}/analytics` },
 ]
 
-export default function SocialAutopilotNav() {
+export default function SocialAutopilotNav({
+  focus = false,
+  onToggleFocus,
+}: {
+  // Focus is a workspace-level presentation mode owned by SocialAutopilotShell. The control only
+  // renders when `onToggleFocus` is supplied; the CRM board's Focus treatment is reused here (the
+  // ⛶ glyph + "Focus" / "Exit Focus" label + a restrained pill) but with theme-aware --crm-* tokens.
+  focus?: boolean
+  onToggleFocus?: () => void
+} = {}) {
   const pathname = usePathname() || BASE
+
+  const focusControl = onToggleFocus ? (
+    <button
+      type="button"
+      onClick={onToggleFocus}
+      aria-pressed={focus}
+      className="flex-none inline-flex items-center gap-1.5 text-[12.5px] font-semibold px-3 py-2 rounded-xl border border-[var(--crm-border)] text-[var(--crm-text-secondary)] bg-[var(--crm-card)] hover:text-[var(--crm-text-primary)] hover:bg-[var(--crm-border)] transition-colors"
+    >
+      <span aria-hidden>⛶</span>
+      {focus ? "Exit Focus" : "Focus"}
+    </button>
+  ) : null
 
   return (
     // At `lg`+ the container is a 3-column grid [1fr | auto | 1fr]: the title/badge sit
@@ -39,8 +60,10 @@ export default function SocialAutopilotNav() {
           line even in the reduced main-app width when Beast Companion is open — the
           adjacent "Admin Beta" pill (which had consumed that space and forced a wrap)
           has been removed. No title/label shrinking, no compressed spacing. */}
-      <div className="flex items-center gap-2.5 lg:self-center lg:pb-2">
+      <div className="flex items-center justify-between gap-2.5 lg:block lg:self-center lg:pb-2">
         <h1 className="m-0 whitespace-nowrap text-left text-[20px] font-bold leading-none text-[var(--crm-text-primary)]">Social Beast</h1>
+        {/* Mobile placement: right of the title (the lg grid uses the dedicated right column below). */}
+        <div className="lg:hidden">{focusControl}</div>
       </div>
 
       <nav className="mt-4 flex items-center gap-1 border-b border-[var(--crm-border)] lg:mt-0 lg:border-b-0 lg:justify-self-center">
@@ -62,6 +85,9 @@ export default function SocialAutopilotNav() {
           )
         })}
       </nav>
+
+      {/* Desktop placement: the balancing right column of the lg grid, aligned to the far right. */}
+      {focusControl && <div className="hidden lg:flex justify-self-end self-center pb-2">{focusControl}</div>}
     </div>
   )
 }
