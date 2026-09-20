@@ -648,11 +648,13 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               any post. Does NOT touch Instagram/scheduling/rendering. */}
           {selectedPlatforms.has("tiktok") && (
             <div className="mt-3">
+              {/* Always clickable so the click never silently no-ops. The confirmation modal's
+                  dry-run authoritatively reports readiness (a post with no current render shows a
+                  clear message and NO Post button), so a non-ready post still cannot be posted. */}
               <button
                 type="button"
-                disabled={post.renderStatus !== "ready"}
                 onClick={() => setTtConfirmOpen(true)}
-                className="w-full inline-flex items-center justify-center gap-1.5 text-[12px] font-semibold px-3 py-2 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] hover:border-[var(--crm-text-muted)] transition-colors disabled:opacity-50"
+                className="w-full inline-flex items-center justify-center gap-1.5 text-[12px] font-semibold px-3 py-2 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] hover:border-[var(--crm-text-muted)] transition-colors"
               >
                 <SiTiktok size={14} aria-hidden /> Post to TikTok (Sandbox)
               </button>
