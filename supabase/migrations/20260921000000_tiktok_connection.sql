@@ -25,6 +25,11 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+-- external_account_id is both a RETURNS TABLE OUT column and a table column; without
+-- this directive the ON CONFLICT (…, external_account_id) target is ambiguous (42702).
+-- use_column resolves the bare name to the table column. Every other OUT-name reference
+-- here is already table-qualified (sc.*) or in an unambiguous INSERT/SET context.
+#variable_conflict use_column
 declare
   v_uid        uuid := auth.uid();
   v_secret     uuid;
