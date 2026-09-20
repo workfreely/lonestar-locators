@@ -18,7 +18,7 @@ const HOURS = [8, 10, 12, 14, 16, 18] // representative 2-hour buckets for Week 
 // Primary selector exposes Month | Week | Day. "List" is no longer offered in the selector but is
 // intentionally KEPT (type + render branch + component) as a still-usable week-list rendering.
 type View = "Month" | "Week" | "Day" | "List"
-const SELECTOR_VIEWS: View[] = ["Month", "Week", "Day"]
+const SELECTOR_VIEWS: View[] = ["Day", "Week", "Month"] // display order only; Month stays the default view
 const MONTH_CELL_VISIBLE = 4 // one-line month-cell entries before "+N more" (local; keeps shared MONTH_CELL_MAX untouched)
 
 const startOfWeek = (d: Date) => {
