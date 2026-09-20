@@ -656,7 +656,7 @@ export default function SocialAutopilotClient() {
              width (auto-fill) rather than viewport breakpoints — so it steps 5→4→3→2 as the
              content area narrows, INCLUDING when Beast Companion consumes width. ~210px min
              avoids cramping; min(…,45%) keeps 2-up on phones. 9:16 ratio + typography kept. */
-          className="grid gap-3"
+          className="grid gap-3 sa-library-grid"
           style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(210px, 45%), 1fr))" }}
         >
           {cards.map((c) => {

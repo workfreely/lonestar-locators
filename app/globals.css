@@ -2423,3 +2423,15 @@ body.jaybot-open {
 }
 .kb-focus:hover { color: var(--kb-ink); background: color-mix(in srgb, var(--kb-ink) 10%, transparent); }
 .kb-focus[aria-pressed="true"] { color: var(--kb-ink); background: color-mix(in srgb, var(--kb-ink) 12%, transparent); }
+
+/* Social Beast Focus Mode — Video Library density. In Focus the workspace widens (max-w 1600),
+   which gives the library room for 7 columns instead of the normal ~5. Only applied when Focus is
+   active (.sa-focus on the workspace root) AND there is genuinely enough desktop width (≥1536px);
+   below that the component's own fluid auto-fill grid is preserved unchanged. The !important is
+   required to win over the grid's inline gridTemplateColumns (normal mode keeps that inline value).
+   Full inventory still renders — extra videos simply wrap onto the next 7-wide row. */
+@media (min-width: 1536px) {
+  .sa-focus .sa-library-grid {
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+  }
+}

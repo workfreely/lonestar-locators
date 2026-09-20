@@ -53,7 +53,7 @@ export default function SocialAutopilotShell({ children }: { children: React.Rea
   }, [focus, setFocus])
 
   return (
-    <div className="sa-scope relative h-full w-full flex flex-col bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]">
+    <div className={"sa-scope relative h-full w-full flex flex-col bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]" + (focus ? " sa-focus" : "")}>
       {/* Global Locator Beast chrome — hidden in Focus Mode so the workspace reclaims the space. */}
       {!focus && (
         <AppHeader variant="dark" fullBleed>
