@@ -474,6 +474,13 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   //                  Edit form is open it saves the edits to the existing rule instead.
   const publish = async () => {
     if (busy || publishing) return
+    // Publish/autoschedule is the INSTAGRAM scheduler. If TikTok is selected there is no TikTok
+    // scheduler — publishing would silently schedule an Instagram post. Block it (the button is
+    // also disabled); TikTok's action is "Post to TikTok (Sandbox)".
+    if (selectedPlatforms.has("tiktok")) {
+      setError("TikTok is selected. Use “Post to TikTok (Sandbox)” to post to TikTok, or deselect TikTok to schedule Instagram.")
+      return
+    }
     setPublishing(true)
     try {
       if (editingRule && rule) { await saveRuleEdit(); return }
@@ -966,8 +973,14 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 {post.status === "scheduled" && <button type="button" className={`${btn} mr-auto`} disabled={busy || publishing} onClick={() => void backToDraft()}>Move back to Draft</button>}
                 <button type="button" className={actionSecondary} disabled={busy || publishing} onClick={() => void clonePost()}>Create Variation</button>
                 <button type="button" className={actionSecondary} disabled={busy || publishing} onClick={() => void saveDraft()}>{busy ? "Saving…" : "Save Draft"}</button>
-                <button type="button" className={actionGreen} disabled={busy || publishing} onClick={() => void publish()}>{publishing ? "Publishing…" : "Publish"}</button>
+                <button type="button" className={actionGreen} disabled={busy || publishing || selectedPlatforms.has("tiktok")} onClick={() => void publish()}>{publishing ? "Publishing…" : "Publish"}</button>
               </div>
+              {/* Publish/autoschedule is the Instagram scheduler; there is no TikTok scheduler yet.
+                  When TikTok is selected, Publish is disabled to prevent an accidental Instagram
+                  schedule — TikTok's action is "Post to TikTok (Sandbox)". */}
+              {selectedPlatforms.has("tiktok") && (
+                <p className="mt-1.5 text-right text-[10.5px] text-[var(--crm-text-muted)]">Publish schedules Instagram only. TikTok is selected — post it with “Post to TikTok (Sandbox),” or deselect TikTok to schedule Instagram.</p>
+              )}
             </div>
           </div>
           </>
