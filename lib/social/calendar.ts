@@ -34,7 +34,7 @@ export const timeLabel = (iso: string | null) => {
 }
 
 // Market → abbreviation for compact entries. Unknown markets fall back to their first 3 letters.
-const MARKET_ABBR: Record<string, string> = { "San Antonio": "SA", Dallas: "DAL", DFW: "DFW", Houston: "HOU", Austin: "ATX" }
+const MARKET_ABBR: Record<string, string> = { "San Antonio": "SA", Dallas: "DAL", DFW: "DAL", Houston: "HOU", Austin: "AUS" }
 export const marketAbbr = (m: string | null | undefined) => (m ? MARKET_ABBR[m] ?? m.replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase() : "")
 
 /** Full recognizable label (Day Detail / titles): property name → display name → post name. */

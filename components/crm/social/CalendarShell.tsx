@@ -6,7 +6,7 @@ import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
 import { platformMeta } from "@/lib/social/platformMeta"
 // Shared calendar data + formatting — the SAME source of truth the Post Editor's scheduling
 // workspace uses, so the two views never disagree about what is scheduled.
-import { type CalPost, MONTH_CELL_MAX, WEEKDAYS, addDays, sameDay, dateKey, timeLabel, marketAbbr, shortLabel, calLabel as label, groupByDay } from "@/lib/social/calendar"
+import { type CalPost, WEEKDAYS, addDays, sameDay, dateKey, timeLabel, marketAbbr, shortLabel, calLabel as label, groupByDay } from "@/lib/social/calendar"
 
 // Beast Social → Calendar. Month | Week | List over REAL scheduled posts
 // (social_posts, status='scheduled'). Interactive: single-click selects a day (theme-aware
@@ -15,7 +15,11 @@ import { type CalPost, MONTH_CELL_MAX, WEEKDAYS, addDays, sameDay, dateKey, time
 // the editor. Tiny cell previews → medium Day Detail list → large editor preview. Read-only
 // placement (no drag-reschedule); no external publishing; scheduled ≠ published.
 const HOURS = [8, 10, 12, 14, 16, 18] // representative 2-hour buckets for Week view
-type View = "Month" | "Week" | "List"
+// Primary selector exposes Month | Week | Day. "List" is no longer offered in the selector but is
+// intentionally KEPT (type + render branch + component) as a still-usable week-list rendering.
+type View = "Month" | "Week" | "Day" | "List"
+const SELECTOR_VIEWS: View[] = ["Month", "Week", "Day"]
+const MONTH_CELL_VISIBLE = 4 // one-line month-cell entries before "+N more" (local; keeps shared MONTH_CELL_MAX untouched)
 
 const startOfWeek = (d: Date) => {
   const s = new Date(d)
@@ -34,11 +38,13 @@ const STATUS_DOT: Record<PostStatus, string> = {
   published: "bg-[var(--crm-text-muted)]",
 }
 
-// Compact platform mark for calendar events — reuses the shared Queue/History icon set, driven by
-// the post's ACTUAL persisted platform (never hard-coded Instagram). Space-constrained, so no label.
+// Platform mark for calendar events — reuses the shared Queue/History icon set, driven by the
+// post's ACTUAL persisted platform (never hard-coded Instagram). On the Calendar we render it in
+// the platform's recognizable BRAND color (inline style → the svg's currentColor fill), which is
+// intentionally independent of the workspace accent; size comes from the caller's className.
 function PlatformIcon({ platform, className }: { platform: string; className?: string }) {
-  const { Icon } = platformMeta(platform)
-  return <Icon className={className} aria-hidden />
+  const { Icon, color } = platformMeta(platform)
+  return <Icon className={className} style={{ color }} aria-hidden />
 }
 
 function Thumb({ p, className }: { p: CalPost; className?: string }) {
@@ -82,6 +88,7 @@ export default function CalendarShell() {
 
   const shift = (dir: number) => {
     if (view === "Month") setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + dir, 1))
+    else if (view === "Day") setCursor(addDays(cursor, dir))
     else setCursor(addDays(cursor, dir * 7))
   }
   const goToday = () => setCursor(new Date())
@@ -89,6 +96,8 @@ export default function CalendarShell() {
   const rangeLabel =
     view === "Month"
       ? cursor.toLocaleDateString("en-US", { month: "long", year: "numeric" })
+      : view === "Day"
+      ? cursor.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
       : (() => {
           const s = startOfWeek(cursor)
           const e = addDays(s, 6)
@@ -103,25 +112,41 @@ export default function CalendarShell() {
     "text-[12.5px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors " +
     (active ? "bg-[var(--crm-text-primary)] text-[var(--crm-panel)]" : "text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]")
 
+  // Header pieces — defined once, placed into both the desktop (single balanced row) and mobile
+  // (stacked) layouts so the controls live INSIDE the calendar header without duplicating markup.
+  const navGroup = (
+    <div className="flex items-center gap-1.5">
+      <button type="button" className={navBtn} onClick={() => shift(-1)} aria-label="Previous">‹</button>
+      <button type="button" className={navBtn} onClick={goToday}>Today</button>
+      <button type="button" className={navBtn} onClick={() => shift(1)} aria-label="Next">›</button>
+    </div>
+  )
+  const monthLabel = (
+    <div className="text-[18px] font-bold text-[var(--crm-text-primary)] text-center whitespace-nowrap">{rangeLabel}</div>
+  )
+  const viewToggle = (
+    <div className="flex items-center gap-1 rounded-lg border border-[var(--crm-border)] p-0.5 bg-[var(--crm-card)]">
+      {SELECTOR_VIEWS.map((v) => (
+        <button key={v} type="button" className={tab(view === v)} onClick={() => setView(v)}>{v}</button>
+      ))}
+    </div>
+  )
+
   return (
     <div>
-      <div className="mb-3 flex justify-end">
-        <div className="flex items-center gap-1 rounded-lg border border-[var(--crm-border)] p-0.5 bg-[var(--crm-panel)]">
-          {(["Month", "Week", "List"] as View[]).map((v) => (
-            <button key={v} type="button" className={tab(view === v)} onClick={() => setView(v)}>{v}</button>
-          ))}
-        </div>
-      </div>
-
       <div className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--crm-border)]">
-          <div className="flex items-center gap-1.5">
-            <button type="button" className={navBtn} onClick={() => shift(-1)} aria-label="Previous">‹</button>
-            <button type="button" className={navBtn} onClick={goToday}>Today</button>
-            <button type="button" className={navBtn} onClick={() => shift(1)} aria-label="Next">›</button>
+        <div className="px-4 py-3 border-b border-[var(--crm-border)]">
+          {/* Desktop: ← Today → (left) · Month/Year (center) · Month|Week|Day (right), balanced. */}
+          <div className="hidden sm:grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+            <div className="justify-self-start">{navGroup}</div>
+            <div className="justify-self-center">{monthLabel}</div>
+            <div className="justify-self-end">{viewToggle}</div>
           </div>
-          <div className="text-[14px] font-bold text-[var(--crm-text-primary)]">{rangeLabel}</div>
-          <div className="w-[92px]" />
+          {/* Mobile: month/year on top, nav + toggle share the next row — never overflows. */}
+          <div className="sm:hidden flex flex-col gap-2">
+            <div className="flex justify-center">{monthLabel}</div>
+            <div className="flex items-center justify-between gap-2">{navGroup}{viewToggle}</div>
+          </div>
         </div>
 
         {view === "Month" && (
@@ -136,6 +161,15 @@ export default function CalendarShell() {
           />
         )}
         {view === "Week" && <WeekGrid cursor={cursor} today={today} byDay={byDay} onOpenPost={openPost} />}
+        {view === "Day" && (
+          <DayView
+            cursor={cursor}
+            byDay={byDay}
+            onOpenPost={openPost}
+            onCreate={(d) => router.push(`/admin/social-autopilot?scheduleDate=${dateKey(d)}`)}
+          />
+        )}
+        {/* "List" is not in the selector, but the branch + component are preserved and still valid. */}
         {view === "List" && <ListView cursor={cursor} today={today} byDay={byDay} onOpenPost={openPost} />}
       </div>
 
@@ -167,7 +201,7 @@ function CellPost({ p, onOpenPost }: { p: CalPost; onOpenPost: (id: string) => v
       className="w-full flex items-center gap-1 rounded px-1 py-0.5 text-left bg-[var(--crm-card)] hover:bg-[var(--crm-border)] transition-colors"
     >
       <Thumb p={p} className="h-4 w-3 flex-none rounded-[2px]" />
-      <PlatformIcon platform={p.platform} className="h-3.5 w-3.5 flex-none text-[var(--crm-text-muted)]" />
+      <PlatformIcon platform={p.platform} className="h-4 w-4 flex-none" />
       <span className="text-[10px] font-semibold text-[var(--crm-text-secondary)] tabular-nums flex-none">{timeLabel(p.scheduledAt)}</span>
       {p.recurring && <span title="Recurring" aria-label="Recurring" className="flex-none text-[10px] text-[var(--crm-text-muted)] leading-none">↻</span>}
       <span className="text-[10px] text-[var(--crm-text-muted)] truncate">{label(p)}</span>
@@ -175,23 +209,27 @@ function CellPost({ p, onOpenPost }: { p: CalPost; onOpenPost: (id: string) => v
   )
 }
 
-// Month-cell entry: compact TEXT (no thumbnail) — "8:30 · SA · Botanica".
+// Month-cell entry — ONE line, scannable hierarchy: "[COLOR ICON] 8:31 PM · SA · Botanica…".
+// Icon, time and CITY are flex-none (always visible); only the property name truncates when the
+// cell runs out of room. Uses the post's persisted platform + market (never hard-coded). Compact
+// enough that ≥4 one-line events fit a day cell without growing its height.
 function MonthEntry({ p, onOpenPost }: { p: CalPost; onOpenPost: (id: string) => void }) {
   const stop = (e: React.SyntheticEvent) => e.stopPropagation()
-  const t = timeLabel(p.scheduledAt) // includes AM/PM, e.g. "8:30 AM"
+  const t = timeLabel(p.scheduledAt) // includes AM/PM, e.g. "8:31 PM"
   const mkt = marketAbbr(p.source?.market)
   return (
     <button
       type="button"
       onClick={(e) => { stop(e); onOpenPost(p.id) }}
       onDoubleClick={stop}
-      title={`${label(p)} · ${platformMeta(p.platform).label} · ${timeLabel(p.scheduledAt)}`}
+      title={`${platformMeta(p.platform).label} · ${t}${mkt ? ` · ${mkt}` : ""} · ${label(p)}`}
       className="w-full flex items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-[var(--crm-card)] transition-colors leading-tight"
     >
-      <PlatformIcon platform={p.platform} className="h-3.5 w-3.5 flex-none text-[var(--crm-text-muted)]" />
-      <span className="text-[10px] font-semibold text-[var(--crm-text-secondary)] tabular-nums flex-none">{t}</span>
+      <PlatformIcon platform={p.platform} className="h-3.5 w-3.5 flex-none" />
+      <span className="text-[10.5px] font-semibold text-[var(--crm-text-secondary)] tabular-nums flex-none">{t}</span>
       {p.recurring && <span title="Recurring" aria-label="Recurring" className="flex-none text-[10px] text-[var(--crm-text-muted)] leading-none">↻</span>}
-      <span className="text-[10px] text-[var(--crm-text-muted)] truncate">{mkt ? `· ${mkt} ` : ""}· {shortLabel(p)}</span>
+      {mkt && <span className="text-[10.5px] font-semibold text-[var(--crm-text-secondary)] flex-none">· {mkt}</span>}
+      <span className="min-w-0 flex-1 truncate text-[10.5px] text-[var(--crm-text-muted)]">· {shortLabel(p)}</span>
     </button>
   )
 }
@@ -245,7 +283,7 @@ function MonthGrid({ cursor, today, byDay, onOpenPost, selected, onSelectDate, o
                   : undefined
               }
               className={
-                "relative min-h-[92px] border-b border-r border-[var(--crm-border)] p-1.5 align-top outline-none " +
+                "relative min-h-[132px] border-b border-r border-[var(--crm-border)] p-1.5 align-top outline-none " +
                 ((i + 1) % 7 === 0 ? "border-r-0 " : "") +
                 (d == null ? "bg-[var(--crm-card)]/30 " : "cursor-pointer focus-visible:ring-1 focus-visible:ring-[var(--kb-accent,var(--crm-accent))] ") +
                 (isSelected ? "sa-cal-day--selected" : "")
@@ -269,9 +307,9 @@ function MonthGrid({ cursor, today, byDay, onOpenPost, selected, onSelectDate, o
                       </button>
                     )}
                   </div>
-                  <div className="mt-1 flex flex-col gap-0.5">
-                    {dayPosts.slice(0, MONTH_CELL_MAX).map((p) => <MonthEntry key={p.id} p={p} onOpenPost={onOpenPost} />)}
-                    {dayPosts.length > MONTH_CELL_MAX && (
+                  <div className="mt-1 flex flex-col gap-1">
+                    {dayPosts.slice(0, MONTH_CELL_VISIBLE).map((p) => <MonthEntry key={p.id} p={p} onOpenPost={onOpenPost} />)}
+                    {dayPosts.length > MONTH_CELL_VISIBLE && (
                       <button
                         type="button"
                         onClick={(e) => {
@@ -280,7 +318,7 @@ function MonthGrid({ cursor, today, byDay, onOpenPost, selected, onSelectDate, o
                         }}
                         className="text-[10px] text-[var(--crm-text-muted)] pl-1 text-left hover:text-[var(--crm-text-secondary)]"
                       >
-                        +{dayPosts.length - MONTH_CELL_MAX} more
+                        +{dayPosts.length - MONTH_CELL_VISIBLE} more
                       </button>
                     )}
                   </div>
@@ -365,6 +403,76 @@ function ListView({ cursor, today, byDay, onOpenPost }: GridProps) {
           </div>
         )
       })}
+    </div>
+  )
+}
+
+// ── Day view — the selected (cursor) day's scheduled posts as a clear single-column list ──
+// A real Day view built from the SAME calendar data (byDay) + components (Thumb, PlatformIcon,
+// status), not a renamed List. Read-only placement; opening a post goes to the editor. Changes
+// no scheduling/recurrence semantics.
+function DayView({
+  cursor,
+  byDay,
+  onOpenPost,
+  onCreate,
+}: {
+  cursor: Date
+  byDay: Map<string, CalPost[]>
+  onOpenPost: (id: string) => void
+  onCreate: (d: Date) => void
+}) {
+  const posts = byDay.get(dateKey(cursor)) ?? []
+  return (
+    <div className="p-4">
+      {posts.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-[var(--crm-border)] bg-[var(--crm-card)]/40 px-6 py-14 text-center">
+          <div className="text-[13px] text-[var(--crm-text-secondary)]">No posts scheduled for this day.</div>
+          <button
+            type="button"
+            onClick={() => onCreate(cursor)}
+            className="mt-3 text-[12.5px] font-semibold px-3.5 py-2 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)]"
+          >
+            + Create Post
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {posts.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => onOpenPost(p.id)}
+              className="flex items-stretch gap-3 text-left rounded-xl border border-[var(--crm-border)] p-2.5 hover:bg-[var(--crm-card)] transition-colors"
+            >
+              <Thumb p={p} className="w-12 h-[68px] flex-none rounded-md" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <PlatformIcon platform={p.platform} className="h-4 w-4 flex-none" />
+                  <span className="text-[12px] font-semibold text-[var(--crm-text-primary)] tabular-nums">
+                    {platformMeta(p.platform).label} · {timeLabel(p.scheduledAt)}
+                  </span>
+                  {p.recurring && <span title="Recurring" aria-label="Recurring" className="text-[11px] text-[var(--crm-text-muted)]">↻</span>}
+                  <span className="ml-auto flex items-center gap-1 text-[10.5px] font-semibold text-[var(--crm-text-secondary)]">
+                    <span className={"h-1.5 w-1.5 rounded-full " + (STATUS_DOT[p.status] ?? "bg-[var(--crm-text-muted)]")} />
+                    {POST_STATUS_LABEL[p.status] ?? p.status}
+                  </span>
+                </div>
+                <div className="text-[13px] font-semibold text-[var(--crm-text-primary)] truncate mt-0.5">{label(p)}</div>
+                {p.source?.market && <div className="text-[11px] text-[var(--crm-text-muted)] mt-0.5">{p.source.market}</div>}
+                {p.caption && <div className="text-[11.5px] text-[var(--crm-text-muted)] line-clamp-2 mt-0.5">{p.caption}</div>}
+              </div>
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => onCreate(cursor)}
+            className="mt-1 self-start text-[12.5px] font-semibold px-3 py-2 rounded-lg border border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] transition-colors"
+          >
+            + Create Post
+          </button>
+        </div>
+      )}
     </div>
   )
 }
