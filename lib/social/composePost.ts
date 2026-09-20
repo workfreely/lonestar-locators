@@ -435,3 +435,33 @@ export function buildInstagramCaptionPayload(input: {
   }
   return composeFinalCaption(publishCaption(input.caption, meta, input.sourceContentId ?? undefined), (input.hashtags ?? []).filter(Boolean))
 }
+
+// Social Beast product limit for TikTok hashtags (Instagram stays at MAX_HASHTAGS = 7).
+export const TIKTOK_MAX_HASHTAGS = 5
+
+/** THE single source of truth for the EXACT outgoing TikTok caption text. Mirrors the Instagram
+ *  payload's CAPTION BODY exactly — same hook / blank line / "🏡 Amenities" bullets / blank line /
+ *  service CTA / blank line / form CTA structure, and the same generated-vs-manual semantics
+ *  (publishCaption preserves a user-written caption and regenerates a generator-owned one) — but
+ *  the hashtags are generated SEPARATELY for TikTok (buildHashtags) and capped at
+ *  TIKTOK_MAX_HASHTAGS (5), independent of Instagram's stored 7-hashtag set. Pure. */
+export function buildTikTokCaptionPayload(input: {
+  caption: string | null | undefined
+  socialSpecial: string | null | undefined
+  sourceContentId: string | null | undefined
+  source: { market: string | null; property_type: string | null; special: string | null; budget_range: string | null; amenities: string | null } | null | undefined
+}): string {
+  const s = input.source ?? null
+  const meta: SourceMeta = {
+    market: s?.market ?? null,
+    propertyType: s?.property_type ?? null,
+    special: s?.special ?? null,
+    socialSpecial: input.socialSpecial ?? null,
+    budgetRange: s?.budget_range ?? null,
+    amenities: s?.amenities ?? null,
+  }
+  const body = publishCaption(input.caption, meta, input.sourceContentId ?? undefined)
+  // TikTok hashtags computed independently from Instagram's, limited to 5.
+  const tags = buildHashtags(meta.market, TIKTOK_MAX_HASHTAGS, meta.propertyType)
+  return composeFinalCaption(body, tags)
+}

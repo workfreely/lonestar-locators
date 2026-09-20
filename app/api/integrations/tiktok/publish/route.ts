@@ -3,7 +3,7 @@ export const runtime = "nodejs"
 import { NextResponse, type NextRequest } from "next/server"
 import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin"
 import { supabaseAdmin } from "@/lib/supabase/admin"
-import { buildInstagramCaptionPayload } from "@/lib/social/composePost"
+import { buildTikTokCaptionPayload } from "@/lib/social/composePost"
 import { getValidTikTokAccessToken } from "@/lib/social/tiktokServer"
 import {
   fetchTikTokCreatorInfo,
@@ -15,9 +15,9 @@ import {
   type TikTokPrivacyLevel,
 } from "@/lib/social/tiktokPublish"
 
-// TikTok's Direct Post title limit (UTF-16 runes). We reuse the SAME Social Beast caption that is
-// published to Instagram (buildInstagramCaptionPayload — the one canonical caption source) as the
-// TikTok title, truncated to this limit. No new caption generation.
+// TikTok's Direct Post title limit (UTF-16 runes). The TikTok title is the Social Beast caption
+// BODY (same structure/spacing as Instagram, manual edits preserved) plus TikTok-specific hashtags
+// (generated separately, capped at 5) — buildTikTokCaptionPayload. Truncated to this limit.
 const TIKTOK_TITLE_MAX = 2200
 
 // Unaudited Sandbox client: TikTok only accepts SELF_ONLY (private). Kept as a constant so the one
@@ -83,10 +83,10 @@ export async function POST(req: NextRequest) {
       { unaudited: UNAUDITED },
     )
 
-    // The exact caption Social Beast publishes (same builder as Instagram), as the TikTok title.
-    const fullCaption = buildInstagramCaptionPayload({
+    // The TikTok caption: same Social Beast body (manual edits preserved) + TikTok hashtags (≤5,
+    // generated separately from Instagram). NOT the Instagram payload.
+    const fullCaption = buildTikTokCaptionPayload({
       caption: p.caption,
-      hashtags: p.hashtags,
       socialSpecial: p.social_special,
       sourceContentId: p.source_content_id,
       source: Array.isArray(p.source) ? p.source[0] : p.source,

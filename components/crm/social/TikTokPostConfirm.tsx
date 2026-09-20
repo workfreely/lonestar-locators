@@ -52,9 +52,11 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
   const [data, setData] = useState<DryRun | null>(null)
 
   const [privacy, setPrivacy] = useState<string>("SELF_ONLY")
-  const [allowComment, setAllowComment] = useState(true)
-  const [allowDuet, setAllowDuet] = useState(true)
-  const [allowStitch, setAllowStitch] = useState(true)
+  // Interaction toggles start OFF (unchecked). Creator Info can only further RESTRICT them
+  // (a creator-disabled interaction is not offered at all); it never turns one on by default.
+  const [allowComment, setAllowComment] = useState(false)
+  const [allowDuet, setAllowDuet] = useState(false)
+  const [allowStitch, setAllowStitch] = useState(false)
 
   const [posting, setPosting] = useState(false)
   const [result, setResult] = useState<{ publishId: string; status: string; failReason: string | null } | null>(null)
@@ -80,12 +82,12 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
       }
       const d = json as DryRun
       setData(d)
-      // Initialize selectors from Creator Info: default SELF_ONLY (only value allowed while
-      // unaudited); interaction toggles default ON unless the creator disabled them.
+      // Initialize privacy from Creator Info: default SELF_ONLY (only value allowed while unaudited).
       setPrivacy(d.capabilities.privacyLevelOptions.includes("SELF_ONLY") ? "SELF_ONLY" : d.capabilities.privacyLevelOptions[0] ?? "SELF_ONLY")
-      setAllowComment(!d.capabilities.commentDisabled)
-      setAllowDuet(!d.capabilities.duetDisabled)
-      setAllowStitch(!d.capabilities.stitchDisabled)
+      // Default all interactions OFF; a creator-disabled one is never offered (stays off).
+      setAllowComment(false)
+      setAllowDuet(false)
+      setAllowStitch(false)
     } catch {
       setError("Couldn't reach TikTok.")
     } finally {
