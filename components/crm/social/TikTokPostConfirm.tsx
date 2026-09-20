@@ -36,6 +36,9 @@ const PRIVACY_LABEL: Record<string, string> = {
 
 const PUBLISH = "/api/integrations/tiktok/publish"
 const STATUS = "/api/integrations/tiktok/publish/status"
+// Existing SAFE render-only action: produces the 9:16 derivative (render_status→ready),
+// leaves the post's lifecycle status unchanged, and does NOT publish to Instagram.
+const RENDER = (postId: string) => `/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}/render`
 
 function fmtBytes(n: number): string {
   if (n < 1024) return `${n} B`
@@ -56,9 +59,11 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
   const [posting, setPosting] = useState(false)
   const [result, setResult] = useState<{ publishId: string; status: string; failReason: string | null } | null>(null)
   const [statusBusy, setStatusBusy] = useState(false)
+  const [needsRender, setNeedsRender] = useState(false) // post has no current render → offer Render now
+  const [rendering, setRendering] = useState(false)
 
   const load = useCallback(async () => {
-    setLoading(true); setError(null); setData(null); setResult(null)
+    setLoading(true); setError(null); setData(null); setResult(null); setNeedsRender(false)
     try {
       // Single dry-run: resolves token + Creator Info + caption + video size WITHOUT posting.
       const res = await fetch(PUBLISH, {
@@ -68,7 +73,9 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
       })
       const json = await res.json().catch(() => null)
       if (!res.ok || !json?.ready) {
-        setError(json?.error === "not_connected" ? "TikTok isn't connected." : json?.error === "not_ready" ? "This post has no current render yet." : "Couldn't prepare the TikTok post.")
+        // A post with no current render isn't an error — offer the safe render-only action.
+        if (json?.error === "not_ready") { setNeedsRender(true); return }
+        setError(json?.error === "not_connected" ? "TikTok isn't connected." : "Couldn't prepare the TikTok post.")
         return
       }
       const d = json as DryRun
@@ -87,6 +94,22 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
   }, [postId])
 
   useEffect(() => { if (open) void load() }, [open, load])
+
+  // Render the draft's current derivative via the existing safe render route (no Instagram
+  // publish; status stays a draft), then reload the dry-run so the video shows as ready.
+  const doRender = async () => {
+    setRendering(true); setError(null)
+    try {
+      const res = await fetch(RENDER(postId), { method: "POST" })
+      if (!res.ok) { setError("Couldn't render this post. Please try again."); return }
+      setNeedsRender(false)
+      await load()
+    } catch {
+      setError("Couldn't render this post.")
+    } finally {
+      setRendering(false)
+    }
+  }
 
   const doPost = async () => {
     if (!data) return
@@ -141,8 +164,19 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
           <button type="button" aria-label="Close" className="ml-auto text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]" onClick={onClose}>×</button>
         </div>
 
-        {loading && <div className="mt-4 text-[12.5px] text-[var(--crm-text-muted)]">Loading TikTok account…</div>}
+        {loading && <div className="mt-4 text-[12.5px] text-[var(--crm-text-muted)]">{rendering ? "Rendering video…" : "Loading TikTok account…"}</div>}
         {error && <div className="mt-3 text-[12.5px] text-amber-600 dark:text-amber-400">{error}</div>}
+
+        {/* No current render → offer the safe render-only action (does NOT post to Instagram). */}
+        {needsRender && !data && !loading && (
+          <div className="mt-4 space-y-3">
+            <div className="text-[12.5px] text-[var(--crm-text-secondary)]">This post hasn&apos;t been rendered yet. Render its video now to prepare the TikTok post — this only creates the video and does <span className="font-semibold">not</span> post to Instagram.</div>
+            <div className="flex items-center justify-end gap-2">
+              <button type="button" className={btn} disabled={rendering} onClick={onClose}>Cancel</button>
+              <button type="button" className={btnPrimary} disabled={rendering} onClick={() => void doRender()}>{rendering ? "Rendering…" : "Render video"}</button>
+            </div>
+          </div>
+        )}
 
         {data && !result && (
           <div className="mt-3 space-y-3">
