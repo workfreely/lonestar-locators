@@ -12,6 +12,7 @@ import SpecialSelect from "@/components/crm/social/SpecialSelect"
 import { computeOverlayLayout } from "@/lib/social/overlaySpec"
 import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
 import VideoLightbox from "@/components/crm/social/VideoLightbox"
+import TikTokPostConfirm from "@/components/crm/social/TikTokPostConfirm"
 import AmenitySelect from "@/components/crm/social/AmenitySelect"
 import { parseAmenities, serializeAmenities } from "@/lib/social/amenities"
 import { SOCIAL_MARKETS } from "@/lib/social/markets"
@@ -168,6 +169,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [ruleMenuOpen, setRuleMenuOpen] = useState(false) // ⋯ overflow (contains Stop Repeat)
   const [publishing, setPublishing] = useState(false) // Publish (hand-off to Social Beast scheduling) in progress
   const [lightbox, setLightbox] = useState<string | null>(null) // enlarged 9:16 video preview (src or null)
+  const [ttConfirmOpen, setTtConfirmOpen] = useState(false) // TikTok Direct Post confirmation modal (Sandbox MVP)
 
   // social_content (source) public-safe fields — edited here, written back to the source row.
   const [sourceContentId, setSourceContentId] = useState<string | null>(null)
@@ -639,6 +641,29 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               })}
             </div>
           </div>
+
+          {/* TikTok Direct Post (Sandbox MVP) — appears when TikTok is selected in "Post to". Reuses
+              the CURRENT rendered video + caption; enabled only when a current render exists. Opens a
+              small confirmation (account, caption, Creator-Info-driven privacy/interactions) before
+              any post. Does NOT touch Instagram/scheduling/rendering. */}
+          {selectedPlatforms.has("tiktok") && (
+            <div className="mt-3">
+              <button
+                type="button"
+                disabled={post.renderStatus !== "ready"}
+                onClick={() => setTtConfirmOpen(true)}
+                className="w-full inline-flex items-center justify-center gap-1.5 text-[12px] font-semibold px-3 py-2 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] hover:border-[var(--crm-text-muted)] transition-colors disabled:opacity-50"
+              >
+                <SiTiktok size={14} aria-hidden /> Post to TikTok (Sandbox)
+              </button>
+              <p className="text-[10.5px] text-[var(--crm-text-muted)] mt-1">
+                {post.renderStatus === "ready"
+                  ? "Direct Post the current render to TikTok. Sandbox posts are private (SELF_ONLY)."
+                  : "Render this post first (via Schedule/Publish) to enable TikTok Direct Post."}
+              </p>
+              <TikTokPostConfirm postId={post.id} open={ttConfirmOpen} onClose={() => setTtConfirmOpen(false)} />
+            </div>
+          )}
 
           {/* Rendering happens internally as part of Publish/Schedule — no manual Prepare step. */}
         </div>
