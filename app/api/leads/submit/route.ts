@@ -38,6 +38,7 @@ import { getOAuthClientForUser } from "@/lib/google/getOAuthClientForUser"
 import { findDuplicateMatch, type LeadIdentity } from "@/lib/leads/duplicateDetection"
 import { getStageWorkflowAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
 import { resolveUserTimeZone } from "@/lib/timezone/server"
+import { requireWorkspaceMember } from "@/lib/auth/requireWorkspaceMember"
 import { sendNotification, newLeadEmail, leadConfirmationEmail, absoluteUrl } from "@/lib/notifications"
 import { resolveAgentIdentityForOwner } from "@/lib/notifications/agentSignature"
 import { resolveClientType } from "@/lib/leads/leadClassification"
@@ -326,6 +327,17 @@ export async function POST(request: Request) {
   const suppressCustomerConfirmation = body?.suppressCustomerConfirmation === true
   let attributedOwnerId: string | null = null
   let attributedWorkspaceId: string | null = null
+  // Manual "Add Lead" (authenticated CRM). Resolve ownership from the SESSION via the canonical
+  // guard — never from the body — so the lead lands in the caller's active workspace. Fixes manual
+  // leads previously inserted with a null owner/workspace. Public/formUsername paths are untouched.
+  let manualOwnerId: string | null = null
+  let manualWorkspaceId: string | null = null
+  if (body?.manualEntry === true) {
+    const guard = await requireWorkspaceMember()
+    if (!guard.ok) return guard.response
+    manualOwnerId = guard.userId
+    manualWorkspaceId = guard.workspaceId
+  }
   if (formUsername) {
     const { data: resolved } = await supabaseAdmin.rpc("lb_resolve_public_form", {
       p_username: formUsername,
@@ -429,9 +441,21 @@ export async function POST(request: Request) {
     } else {
       // Stamp attribution (server-resolved) on new public-form leads so the
       // ownership trigger routes them to the right agent/workspace.
-      const basePayload = attributedWorkspaceId
-        ? { ...result.payload, owner_user_id: attributedOwnerId, workspace_id: attributedWorkspaceId }
-        : result.payload
+      // Ownership always comes from the server-resolved identity (public formUsername OR the
+      // authenticated manual guard above), never the body. For public/Lone Star this is identical
+      // to before; it additionally repairs manual Add Lead, which otherwise inserts a null
+      // owner/workspace (service-role insert → set_workspace_ownership() can't resolve auth.uid()
+      // on a multi-workspace DB).
+      const ownerId = attributedOwnerId ?? manualOwnerId
+      const wsId = attributedWorkspaceId ?? manualWorkspaceId
+      const basePayload =
+        ownerId || wsId
+          ? {
+              ...result.payload,
+              ...(ownerId ? { owner_user_id: ownerId } : {}),
+              ...(wsId ? { workspace_id: wsId } : {}),
+            }
+          : result.payload
       const insertPayload =
         match.confidence === "possible" && match.matchedLead
           ? { ...basePayload, possible_duplicate_of: (match.matchedLead as any).id }
