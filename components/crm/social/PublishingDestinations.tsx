@@ -44,12 +44,14 @@ const TT_DISCONNECT = "/api/integrations/tiktok/disconnect"
 
 // A single TikTok connection for the current admin (identity/status only — never tokens).
 export type TikTokConnection = {
+  // The stored TikTok identity (display_name). Shown on the secondary line; NOT a real @handle.
   username: string | null
-  // The connected account's TikTok avatar. NOT persisted today (the connect flow fetches
-  // avatar_url via user.info.basic but discards it, and there is no avatar column), so this
-  // is currently always null and the card falls back to an initial. Wired here so a future
-  // (separately-approved) storage change can light up the real photo with no UI change.
+  // The connected account's real TikTok avatar (persisted via user.info.basic on connect).
   avatarUrl?: string | null
+  // The owner (this platform admin) shown as the row's primary name, matching the Instagram
+  // row's "agent name" model so both platforms present one consistent identity format.
+  ownerName?: string | null
+  ownerPhotoUrl?: string | null
   expired: boolean
   addedAt: string | null
 }
@@ -306,10 +308,6 @@ export default function PublishingDestinations({
           </button>
         </div>
 
-        {!configured && (
-          <div className="mt-3 text-[11.5px] text-[var(--crm-text-muted)]">Instagram isn&apos;t configured yet.</div>
-        )}
-
         {/* Add flow — mint a single-use invitation link (shown once). */}
         {adding && (
           <div className="mt-3 rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] p-3">
@@ -355,64 +353,111 @@ export default function PublishingDestinations({
           </div>
         )}
 
-        {/* Destination list. */}
-        <div className="mt-3 space-y-2">
-          {destinations.length === 0 ? (
-            <div className="text-[12.5px] text-[var(--crm-text-muted)] py-2">No destinations connected yet.</div>
-          ) : (
-            destinations.map((d) => (
-              <div key={d.id} className="rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2.5 flex items-center justify-between gap-3 flex-wrap">
-                <div className="min-w-0 flex items-center gap-2.5">
-                  {d.agentName && avatar(d.agentName, d.agentPhotoUrl, 32)}
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <PlatformIcon platform="instagram" />
-                      <span className="text-[13.5px] font-semibold text-[var(--crm-text-primary)] truncate">{d.agentName || `@${d.username ?? "instagram"}`}</span>
-                      {!d.agentName && d.label && <span className="text-[11.5px] text-[var(--crm-text-secondary)] rounded-full border border-[var(--crm-border)] px-2 py-0.5">{d.label}</span>}
-                      {statusPill(d)}
-                      {d.postsPerDay != null && (
-                        <span className="text-[11px] text-[var(--crm-text-muted)]" title="Scheduling automation is coming later — this is a saved preference only.">
-                          {d.postsPerDay} posts/day · scheduling coming soon
-                        </span>
-                      )}
+        {/* ── Instagram subsection ────────────────────────────────────── */}
+        <div className="mt-4">
+          <h3 className="text-[13px] font-bold text-[var(--crm-text-primary)]">Instagram</h3>
+          <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">Connect an Instagram account to publish to.</p>
+          <div className="mt-2 space-y-2">
+            {!configured ? (
+              <div className="text-[12.5px] text-[var(--crm-text-muted)] py-2">Instagram isn&apos;t configured yet.</div>
+            ) : destinations.length === 0 ? (
+              <div className="text-[12.5px] text-[var(--crm-text-muted)] py-2">No Instagram account connected yet.</div>
+            ) : (
+              destinations.map((d) => (
+                <div key={d.id} className="rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2.5 flex items-center justify-between gap-3 flex-wrap">
+                  <div className="min-w-0 flex items-center gap-2.5">
+                    {avatar(d.agentName || (d.username ?? "instagram"), d.agentPhotoUrl, 32)}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[13.5px] font-semibold text-[var(--crm-text-primary)] truncate">{d.agentName || `@${d.username ?? "instagram"}`}</span>
+                        <PlatformIcon platform="instagram" />
+                        {!d.agentName && d.label && <span className="text-[11.5px] text-[var(--crm-text-secondary)] rounded-full border border-[var(--crm-border)] px-2 py-0.5">{d.label}</span>}
+                        {statusPill(d)}
+                        {d.postsPerDay != null && (
+                          <span className="text-[11px] text-[var(--crm-text-muted)]" title="Scheduling automation is coming later — this is a saved preference only.">
+                            {d.postsPerDay} posts/day · scheduling coming soon
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">
+                        {d.agentName && <span className="text-[var(--crm-text-secondary)]">@{d.username ?? "instagram"} · </span>}
+                        Added {fmtDate(d.addedAt)}
+                      </div>
                     </div>
-                    <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">
-                      {d.agentName && <span className="text-[var(--crm-text-secondary)]">@{d.username ?? "instagram"} · </span>}
-                      Added {fmtDate(d.addedAt)}
-                    </div>
+                    {renamingId === d.id && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <input autoFocus className={`${control} max-w-[240px]`} value={renameValue} onChange={(e) => setRenameValue(e.target.value)} placeholder="Friendly label" onKeyDown={(e) => { if (e.key === "Enter") void saveRename(d.id); if (e.key === "Escape") setRenamingId(null) }} />
+                        <button type="button" className={btnPrimary} disabled={busyId === d.id} onClick={() => void saveRename(d.id)}>Save</button>
+                        <button type="button" className={btn} onClick={() => setRenamingId(null)}>Cancel</button>
+                      </div>
+                    )}
                   </div>
-                  {renamingId === d.id && (
-                    <div className="mt-2 flex items-center gap-2">
-                      <input autoFocus className={`${control} max-w-[240px]`} value={renameValue} onChange={(e) => setRenameValue(e.target.value)} placeholder="Friendly label" onKeyDown={(e) => { if (e.key === "Enter") void saveRename(d.id); if (e.key === "Escape") setRenamingId(null) }} />
-                      <button type="button" className={btnPrimary} disabled={busyId === d.id} onClick={() => void saveRename(d.id)}>Save</button>
-                      <button type="button" className={btn} onClick={() => setRenamingId(null)}>Cancel</button>
+
+                  {renamingId !== d.id && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {(d.status === "error" || d.expired) && <a href={CONNECT} className={btn}>Reconnect</a>}
+                      {d.paused ? (
+                        <button type="button" className={btn} disabled={busyId === d.id} onClick={() => void manage(d.id, { action: "resume" })}>Resume</button>
+                      ) : (
+                        <button type="button" className={btn} disabled={busyId === d.id} onClick={() => void manage(d.id, { action: "pause" })}>Pause</button>
+                      )}
+                      <button type="button" className={btn} disabled={busyId === d.id} onClick={() => { setRenamingId(d.id); setRenameValue(d.label ?? "") }}>Rename</button>
+                      <button type="button" className={btn} disabled={busyId === d.id} onClick={() => disconnect(d)}>Disconnect</button>
                     </div>
                   )}
                 </div>
-
-                {renamingId !== d.id && (
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {(d.status === "error" || d.expired) && <a href={CONNECT} className={btn}>Reconnect</a>}
-                    {d.paused ? (
-                      <button type="button" className={btn} disabled={busyId === d.id} onClick={() => void manage(d.id, { action: "resume" })}>Resume</button>
-                    ) : (
-                      <button type="button" className={btn} disabled={busyId === d.id} onClick={() => void manage(d.id, { action: "pause" })}>Pause</button>
-                    )}
-                    <button type="button" className={btn} disabled={busyId === d.id} onClick={() => { setRenamingId(d.id); setRenameValue(d.label ?? "") }}>Rename</button>
-                    <button type="button" className={btn} disabled={busyId === d.id} onClick={() => disconnect(d)}>Disconnect</button>
-                  </div>
-                )}
-              </div>
-            ))
+              ))
+            )}
+          </div>
+          {configured && (
+            <div className="mt-2">
+              <a href={CONNECT} className="text-[11.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]">Connect my own Instagram directly →</a>
+            </div>
           )}
         </div>
 
-        {/* Secondary: connect the admin's OWN Instagram directly (existing flow, still available). */}
-        {configured && (
-          <div className="mt-3">
-            <a href={CONNECT} className="text-[11.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]">Connect my own Instagram directly →</a>
+        {/* ── TikTok subsection (subtle divider; same row format as Instagram) ── */}
+        <div className="mt-4 pt-4 border-t border-[var(--crm-border)]">
+          <h3 className="text-[13px] font-bold text-[var(--crm-text-primary)]">TikTok</h3>
+          <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">Connect a TikTok account to publish to.</p>
+          <div className="mt-2 space-y-2">
+            {!tiktokConfigured ? (
+              <div className="text-[12.5px] text-[var(--crm-text-muted)] py-2">TikTok isn&apos;t configured yet.</div>
+            ) : !tiktok ? (
+              <div className="text-[12.5px] text-[var(--crm-text-muted)] py-2">No TikTok account connected yet.</div>
+            ) : (
+              <div className="rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2.5 flex items-center justify-between gap-3 flex-wrap">
+                <div className="min-w-0 flex items-center gap-2.5">
+                  {avatar(tiktok.ownerName ?? tiktok.username, tiktok.avatarUrl ?? tiktok.ownerPhotoUrl ?? null, 32)}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[13.5px] font-semibold text-[var(--crm-text-primary)] truncate">{tiktok.ownerName ?? tiktok.username ?? "TikTok account"}</span>
+                      <PlatformIcon platform="tiktok" />
+                      {tiktok.expired ? (
+                        <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-amber-600 dark:text-amber-400">{dot("bg-amber-500")} Reconnect needed</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-emerald-600 dark:text-emerald-400">{dot("bg-emerald-500")} Connected</span>
+                      )}
+                    </div>
+                    <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">
+                      {tiktok.ownerName && tiktok.username && <span className="text-[var(--crm-text-secondary)]">{tiktok.username} · </span>}
+                      Added {tiktok.addedAt ? fmtDate(tiktok.addedAt) : "—"}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {tiktok.expired && <a href={TT_CONNECT} className={btn}>Reconnect</a>}
+                  <button type="button" className={btn} disabled={ttBusy} onClick={() => void tiktokDisconnect()}>Disconnect</button>
+                </div>
+              </div>
+            )}
           </div>
-        )}
+          {tiktokConfigured && !tiktok && (
+            <div className="mt-2">
+              <a href={TT_CONNECT} className="text-[11.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]">Connect TikTok directly →</a>
+            </div>
+          )}
+        </div>
       </section>
 
       {/* ── Pending Invitations ─────────────────────────────────────────────── */}
@@ -438,47 +483,6 @@ export default function PublishingDestinations({
           </div>
         </section>
       )}
-
-      {/* ── TikTok (Sandbox) ────────────────────────────────────────────────── */}
-      <section className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <h2 className="text-[14px] font-bold text-[var(--crm-text-primary)]">TikTok</h2>
-            <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">Connect a TikTok account to publish to. Sandbox connection for testing.</p>
-          </div>
-          {tiktokConfigured && !tiktok && (
-            <a href={TT_CONNECT} className={btnPrimary}>Connect TikTok</a>
-          )}
-        </div>
-
-        {!tiktokConfigured ? (
-          <div className="mt-3 text-[11.5px] text-[var(--crm-text-muted)]">TikTok isn&apos;t configured yet.</div>
-        ) : !tiktok ? (
-          <div className="mt-3 text-[12.5px] text-[var(--crm-text-muted)] py-2">No TikTok account connected yet.</div>
-        ) : (
-          <div className="mt-3 rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2.5 flex items-center justify-between gap-3 flex-wrap">
-            <div className="min-w-0 flex items-center gap-2.5">
-              {avatar(tiktok.username, tiktok.avatarUrl ?? null, 32)}
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <PlatformIcon platform="tiktok" />
-                  <span className="text-[13.5px] font-semibold text-[var(--crm-text-primary)] truncate">{tiktok.username ? `@${tiktok.username}` : "TikTok account"}</span>
-                  {tiktok.expired ? (
-                    <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-amber-600 dark:text-amber-400">{dot("bg-amber-500")} Reconnect needed</span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-emerald-600 dark:text-emerald-400">{dot("bg-emerald-500")} Connected</span>
-                  )}
-                </div>
-                {tiktok.addedAt && <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">Added {fmtDate(tiktok.addedAt)}</div>}
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {tiktok.expired && <a href={TT_CONNECT} className={btn}>Reconnect</a>}
-              <button type="button" className={btn} disabled={ttBusy} onClick={() => void tiktokDisconnect()}>Disconnect</button>
-            </div>
-          </div>
-        )}
-      </section>
 
       {/* YouTube stays out of scope for now. */}
       <div className="text-[11px] text-[var(--crm-text-muted)]">YouTube destinations are coming later.</div>

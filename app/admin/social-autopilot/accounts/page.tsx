@@ -35,10 +35,30 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
     .eq("provider", "tiktok")
     .maybeSingle()
 
+  // Owner (this platform admin) display identity — used as the TikTok row's primary name so it
+  // matches the Instagram row's "agent name" model. Read-only own-profile fetch (presentation
+  // only; RLS allows reading one's own profile). Same name/photo resolution as sa_agents_by_ids.
+  let ownerName: string | null = null
+  let ownerPhotoUrl: string | null = null
+  const { data: { user: me } } = await supabase.auth.getUser()
+  if (me) {
+    const { data: myProfile } = await supabase
+      .from("profiles")
+      .select("first_name, last_name, preferred_name, profile_photo_url")
+      .eq("id", me.id)
+      .maybeSingle()
+    if (myProfile) {
+      ownerName = [myProfile.first_name, myProfile.last_name].filter(Boolean).join(" ").trim() || myProfile.preferred_name || null
+      ownerPhotoUrl = myProfile.profile_photo_url ?? null
+    }
+  }
+
   const tiktok: TikTokConnection | null = ttRow
     ? {
         username: ttRow.username,
         avatarUrl: ttRow.avatar_url ?? null,
+        ownerName,
+        ownerPhotoUrl,
         expired: !!ttRow.token_expires_at && new Date(ttRow.token_expires_at).getTime() < Date.now(),
         addedAt: ttRow.created_at,
       }
