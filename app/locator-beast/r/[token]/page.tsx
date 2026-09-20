@@ -233,13 +233,13 @@ const CSS = `
 /* MODAL (desktop: centered; mobile: bottom-sheet — see media query). */
 .lbr-modal-overlay{position:fixed;inset:0;z-index:50;background:rgba(14,37,69,.5);display:flex;align-items:center;justify-content:center;padding:24px}
 .lbr-modal{background:#fff;border-radius:20px;width:100%;max-width:520px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 40px 90px -30px rgba(14,37,69,.6);outline:none}
-.lbr-modal-head{position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 22px 14px;border-bottom:1px solid var(--line-soft)}
+.lbr-modal-head{position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 22px 12px;border-bottom:1px solid var(--line-soft)}
 .lbr-modal-grab{display:none}
 .lbr-modal-title{font-size:22px;font-weight:800;color:var(--navy);letter-spacing:-.01em;margin:0}
 .lbr-modal-x{flex:none;appearance:none;border:1px solid var(--line);background:#fff;color:var(--navy);width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .lbr-modal-x:active{transform:scale(.94)}
 .lbr-modal-body{overflow-y:auto;padding:16px 22px 10px;-webkit-overflow-scrolling:touch}
-.lbr-modal-body .lbr-ta-field:first-of-type{margin-top:14px}
+.lbr-modal-body .lbr-ta-field:first-of-type{margin-top:6px}
 .lbr-modal-foot{padding:14px 22px 18px;border-top:1px solid var(--line-soft);background:#fff}
 .lbr-modal-foot .lbr-ta-send{margin-top:0}
 /* Compact completed state on the page after availability is submitted. */
@@ -298,14 +298,19 @@ const CSS = `
 .lbr-modal-overlay{align-items:flex-end;padding:0}
 .lbr-modal{max-width:none;max-height:92vh;border-radius:22px 22px 0 0}
 .lbr-modal-grab{display:block;position:absolute;top:8px;left:50%;transform:translateX(-50%);width:40px;height:4px;border-radius:2px;background:var(--line)}
-.lbr-modal-head{padding-top:22px}
+.lbr-modal-head{padding-top:16px}
 .lbr-modal-title{font-size:21px}
-.lbr-modal-body{padding-left:18px;padding-right:18px}
+.lbr-modal-body{padding-left:18px;padding-right:18px;padding-top:10px}
+.lbr-modal-body .lbr-ta-field:first-of-type{margin-top:4px}
+.lbr-ta-field{margin-top:14px}
+.lbr-ta-cal{padding:10px}
+.lbr-ta-calhead{margin-bottom:6px}
+.lbr-ta-dow{margin-bottom:2px}
 .lbr-modal-foot{padding-left:18px;padding-right:18px}
 .lbr-avsent-msg{font-size:15px}
 .lbr-ta-h{font-size:22px}
 .lbr-ta-sub{font-size:15px}
-.lbr-ta-lbl{font-size:14.5px}
+.lbr-ta-lbl{font-size:14.5px;margin-bottom:6px}
 .lbr-ta-segbtn{font-size:15px;padding:13px 8px}
 .lbr-ta-cell{font-size:15px}
 .lbr-ta-chip{font-size:14px}

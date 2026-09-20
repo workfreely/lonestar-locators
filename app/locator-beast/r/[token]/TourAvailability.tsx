@@ -165,8 +165,6 @@ export default function TourAvailabilityModal({
         </div>
 
         <div className="lbr-modal-body">
-          <p className="lbr-ta-sub">Tell me when you&rsquo;re available and I&rsquo;ll coordinate the tour times for you.</p>
-
           <div className="lbr-ta-field">
             <p className="lbr-ta-lbl">How would you like to tour?</p>
             <div className="lbr-ta-seg" role="radiogroup" aria-label="Tour type">
