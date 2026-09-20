@@ -45,6 +45,11 @@ const TT_DISCONNECT = "/api/integrations/tiktok/disconnect"
 // A single TikTok connection for the current admin (identity/status only — never tokens).
 export type TikTokConnection = {
   username: string | null
+  // The connected account's TikTok avatar. NOT persisted today (the connect flow fetches
+  // avatar_url via user.info.basic but discards it, and there is no avatar column), so this
+  // is currently always null and the card falls back to an initial. Wired here so a future
+  // (separately-approved) storage change can light up the real photo with no UI change.
+  avatarUrl?: string | null
   expired: boolean
   addedAt: string | null
 }
@@ -52,6 +57,34 @@ export type TikTokConnection = {
 function fmtDate(iso: string): string {
   const d = new Date(iso)
   return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+}
+
+// Subtle, ~15px monochrome platform glyphs (shape only — no large badge/label). Same visual
+// treatment for both platforms so a connected/pending row reads its platform at a glance.
+function InstagramGlyph() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <rect x="2" y="2" width="20" height="20" rx="5.5" />
+      <circle cx="12" cy="12" r="4.4" />
+      <circle cx="17.6" cy="6.4" r="1.1" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+function TikTokGlyph() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M16.6 3c.3 2.03 1.63 3.6 3.4 3.86V9.3c-1.28 0-2.47-.4-3.44-1.07v6.09c0 3.07-2.49 5.56-5.56 5.56S5.44 17.4 5.44 14.32c0-2.97 2.32-5.4 5.24-5.55v2.5c-.2-.04-.4-.06-.6-.06-1.71 0-3.1 1.39-3.1 3.11 0 1.72 1.39 3.11 3.1 3.11 1.72 0 3.11-1.39 3.11-3.11V3h3.41z" />
+    </svg>
+  )
+}
+// Consistent wrapper: subtle muted tint, non-interactive, accessible platform name.
+function PlatformIcon({ platform }: { platform: "instagram" | "tiktok" }) {
+  const name = platform === "tiktok" ? "TikTok" : "Instagram"
+  return (
+    <span className="inline-flex flex-none items-center justify-center text-[var(--crm-text-muted)]" title={name} aria-label={name} role="img">
+      {platform === "tiktok" ? <TikTokGlyph /> : <InstagramGlyph />}
+    </span>
+  )
 }
 
 export default function PublishingDestinations({
@@ -266,7 +299,7 @@ export default function PublishingDestinations({
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h2 className="text-[14px] font-bold text-[var(--crm-text-primary)]">Publishing Destinations</h2>
-            <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">Instagram accounts you publish to. Add one by sending a private authorization link.</p>
+            <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">Accounts you publish to. Add one by sending a private authorization link.</p>
           </div>
           <button type="button" className={btnPrimary} disabled={!configured} onClick={openAdd}>
             + Add Publishing Destination
@@ -333,6 +366,7 @@ export default function PublishingDestinations({
                   {d.agentName && avatar(d.agentName, d.agentPhotoUrl, 32)}
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
+                      <PlatformIcon platform="instagram" />
                       <span className="text-[13.5px] font-semibold text-[var(--crm-text-primary)] truncate">{d.agentName || `@${d.username ?? "instagram"}`}</span>
                       {!d.agentName && d.label && <span className="text-[11.5px] text-[var(--crm-text-secondary)] rounded-full border border-[var(--crm-border)] px-2 py-0.5">{d.label}</span>}
                       {statusPill(d)}
@@ -390,9 +424,9 @@ export default function PublishingDestinations({
             {pendingInvites.map((inv) => (
               <div key={inv.id} className="rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2.5 flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-2 flex-wrap text-[12.5px]">
-                  {inv.agentName && avatar(inv.agentName, inv.agentPhotoUrl, 22)}
+                  {inv.agentName && avatar(inv.agentName, inv.agentPhotoUrl, 32)}
                   <span className="font-semibold text-[var(--crm-text-primary)]">{inv.agentName || inv.label || "Untitled invitation"}</span>
-                  <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-[var(--crm-text-secondary)]">{dot("bg-sky-500")} Awaiting authorization</span>
+                  <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-[var(--crm-text-secondary)]"><PlatformIcon platform="instagram" /> {dot("bg-sky-500")} Awaiting authorization</span>
                   <span className="text-[11px] text-[var(--crm-text-muted)]">Created {fmtDate(inv.createdAt)} · Expires {fmtDate(inv.expiresAt)}</span>
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -423,16 +457,20 @@ export default function PublishingDestinations({
           <div className="mt-3 text-[12.5px] text-[var(--crm-text-muted)] py-2">No TikTok account connected yet.</div>
         ) : (
           <div className="mt-3 rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2.5 flex items-center justify-between gap-3 flex-wrap">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[13.5px] font-semibold text-[var(--crm-text-primary)] truncate">{tiktok.username ? `@${tiktok.username}` : "TikTok account"}</span>
-                {tiktok.expired ? (
-                  <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-amber-600 dark:text-amber-400">{dot("bg-amber-500")} Reconnect needed</span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-emerald-600 dark:text-emerald-400">{dot("bg-emerald-500")} Connected</span>
-                )}
+            <div className="min-w-0 flex items-center gap-2.5">
+              {avatar(tiktok.username, tiktok.avatarUrl ?? null, 32)}
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <PlatformIcon platform="tiktok" />
+                  <span className="text-[13.5px] font-semibold text-[var(--crm-text-primary)] truncate">{tiktok.username ? `@${tiktok.username}` : "TikTok account"}</span>
+                  {tiktok.expired ? (
+                    <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-amber-600 dark:text-amber-400">{dot("bg-amber-500")} Reconnect needed</span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-emerald-600 dark:text-emerald-400">{dot("bg-emerald-500")} Connected</span>
+                  )}
+                </div>
+                {tiktok.addedAt && <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">Added {fmtDate(tiktok.addedAt)}</div>}
               </div>
-              {tiktok.addedAt && <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">Added {fmtDate(tiktok.addedAt)}</div>}
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
               {tiktok.expired && <a href={TT_CONNECT} className={btn}>Reconnect</a>}

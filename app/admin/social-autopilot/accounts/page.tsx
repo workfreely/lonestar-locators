@@ -31,13 +31,14 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
   // token_secret_id / external_account_id (open_id) / owner_user_id.
   const { data: ttRow } = await supabase
     .from("social_connections")
-    .select("username, status, token_expires_at, created_at")
+    .select("username, status, token_expires_at, created_at, avatar_url")
     .eq("provider", "tiktok")
     .maybeSingle()
 
   const tiktok: TikTokConnection | null = ttRow
     ? {
         username: ttRow.username,
+        avatarUrl: ttRow.avatar_url ?? null,
         expired: !!ttRow.token_expires_at && new Date(ttRow.token_expires_at).getTime() < Date.now(),
         addedAt: ttRow.created_at,
       }

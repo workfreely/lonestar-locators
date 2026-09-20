@@ -56,6 +56,8 @@ export async function GET(request: Request) {
       p_scopes: scopes,
       p_token_bundle: buildTokenBundle(token),
       p_expires_at: expiryFromExpiresIn(token.expires_in),
+      // Already fetched in the same user.info.basic call above — no extra TikTok request.
+      p_avatar_url: user.avatar_url ?? null,
     })
     if (error) return NextResponse.redirect(`${accounts}?error=store`)
     return NextResponse.redirect(`${accounts}?connected=tiktok`)

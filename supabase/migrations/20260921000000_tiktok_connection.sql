@@ -7,19 +7,28 @@
 -- token expiry, for cheap "expired?" checks). Platform-admin only via the existing RLS
 -- policy + is_platform_admin(), owner-scoped. NO publishing here.
 --
--- No schema/table change — only TikTok-specific RPCs that mirror sa_connect_instagram etc.
+-- One additive column (generic, provider-agnostic): avatar_url — the connected account's
+-- profile image, displayed on the Accounts page. Nullable; no default; ignored by all
+-- existing code paths. Idempotent so re-applying this migration is safe.
+alter table public.social_connections add column if not exists avatar_url text;
 
 -- ── Connect: encrypt the TikTok token bundle into Vault + upsert the row ─────────────────
 -- The bundle arrives as an RPC BIND PARAMETER (never inlined SQL → stays out of statement
 -- logs); it goes straight to Vault and only the ciphertext + pointer persist. Runs as the
 -- authenticated admin (callback route); platform-admin enforced inside. Returns NON-SECRET
 -- identity fields only.
+--
+-- p_avatar_url is the profile image already fetched via user.info.basic during the connect
+-- flow (NO extra TikTok API call). The signature gained a trailing param, so we drop the
+-- prior 5-arg definition first (CREATE OR REPLACE cannot change a function's arg list).
+drop function if exists public.sa_connect_tiktok(text, text, text[], text, timestamptz);
 create or replace function public.sa_connect_tiktok(
   p_open_id      text,        -- TikTok open_id (the stable per-app user id)
   p_username     text,        -- display_name / handle for the UI (identity, non-secret)
   p_scopes       text[],
   p_token_bundle text,        -- JSON: {"access_token","refresh_token","refresh_expires_at"}
-  p_expires_at   timestamptz  -- access token expiry (now + expires_in)
+  p_expires_at   timestamptz, -- access token expiry (now + expires_in)
+  p_avatar_url   text default null  -- profile image (already fetched; no extra API call)
 ) returns table (id uuid, username text, status text, external_account_id text, token_expires_at timestamptz)
 language plpgsql
 security definer
@@ -53,15 +62,16 @@ begin
   );
 
   insert into public.social_connections
-    (owner_user_id, provider, external_account_id, username, account_type, status, scopes, token_secret_id, token_expires_at, updated_at)
+    (owner_user_id, provider, external_account_id, username, avatar_url, account_type, status, scopes, token_secret_id, token_expires_at, updated_at)
   values
-    (v_uid, 'tiktok', p_open_id, p_username, null, 'connected', p_scopes, v_secret, p_expires_at, now())
+    (v_uid, 'tiktok', p_open_id, p_username, p_avatar_url, null, 'connected', p_scopes, v_secret, p_expires_at, now())
   -- Conflict target must match the live UNIQUE constraint on social_connections,
   -- which is (owner_user_id, provider, external_account_id) — the table is
   -- multi-account. open_id is the stable per-app external id, so reconnecting the
   -- SAME TikTok account upserts in place. (A 2-col target raises 42P10.)
   on conflict (owner_user_id, provider, external_account_id) do update
     set username            = excluded.username,
+        avatar_url          = excluded.avatar_url,
         status              = 'connected',
         scopes              = excluded.scopes,
         token_secret_id     = excluded.token_secret_id,
@@ -78,7 +88,7 @@ begin
      where sc.owner_user_id = v_uid and sc.provider = 'tiktok';
 end $$;
 
-grant execute on function public.sa_connect_tiktok(text, text, text[], text, timestamptz) to authenticated;
+grant execute on function public.sa_connect_tiktok(text, text, text[], text, timestamptz, text) to authenticated;
 
 -- ── Disconnect: delete the Vault secret + the row (admin-scoped) ─────────────
 create or replace function public.sa_disconnect_tiktok()
