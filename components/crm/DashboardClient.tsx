@@ -3524,6 +3524,25 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     [selectWorkspace],
   )
 
+  // Return-to-context from Map/Unleash Beast when an ACTIVE CLIENT context exists.
+  // The agent just searched/recommended for that client, so the natural next step
+  // (review → Send Recommendations) lives in the client's OWN Workspace — returning
+  // to the whole Kanban here would drop that context mid-sequence. Reuses the
+  // EXISTING open-workspace mechanism: make the board the underlying surface
+  // (selectWorkspace("board") — so closing the client later returns to the board,
+  // and Companion switches to its Client tab via the map→board post), then open the
+  // client with the same setSelectedLeadId + canonical /admin/leads?id= push every
+  // other selection uses. No second navigation system, no duplicate client state.
+  // Callers fall back to onWorkspaceChange("board") when there is NO active client.
+  const handleReturnToClientWorkspace = useCallback(
+    (id: string | number) => {
+      selectWorkspace("board")
+      setSelectedLeadId(id)
+      router.push(`/admin/leads?id=${id}`)
+    },
+    [selectWorkspace, router],
+  )
+
   // Return-to-context: when the Lead Board becomes the visible surface again (e.g.
   // switching back from Map/Properties) AND Beast Companion already has an active
   // client, bring that client's EXISTING card into view within its own stage column.
@@ -3829,6 +3848,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             favorites={localFavorites}
             workspace={workspace}
             onWorkspaceChange={handleWorkspaceNav}
+            onReturnToClientWorkspace={handleReturnToClientWorkspace}
             mapSlot={(query, hosts, onMatchCount, submittedName, onResolveName) => (
               <BeastPropertyExplorer
                 query={query}

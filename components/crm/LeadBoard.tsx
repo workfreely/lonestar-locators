@@ -93,6 +93,7 @@ export default function LeadBoard({
   onToggleFocus,
   workspace = "board",
   onWorkspaceChange,
+  onReturnToClientWorkspace,
   mapSlot,
   voiceEnabled = false,
   onVoiceSelectClient,
@@ -161,6 +162,11 @@ export default function LeadBoard({
    *  Owned by the parent so the Explorer renders in the same workspace slot. */
   workspace?: "board" | "map"
   onWorkspaceChange?: (next: "board" | "map") => void
+  /** Return from Map/Unleash Beast INTO the active client's Workspace (opens the
+   *  board surface + that client) when an active client context exists. Used only
+   *  by the workspace toggle's return button in that case; with no active client the
+   *  button falls back to onWorkspaceChange("board"). */
+  onReturnToClientWorkspace?: (id: string | number) => void
   /** Rendered INSTEAD of the board grid when workspace === "map". Passed as a slot
    *  so the toolbar — and therefore the Board | Map toggle and Focus — stays put. */
   /** Receives the live search text and the toolbar node that Map-mode controls
@@ -504,9 +510,20 @@ export default function LeadBoard({
           <div className="kb-toolbar-left">
   {onWorkspaceChange && (
                 <div className="kb-density" role="group" aria-label="Workspace">
-                  <button type="button" aria-pressed={workspace === "board"} onClick={() => onWorkspaceChange("board")}>
-                    Lead Board
-                  </button>
+                  {/* In Map WITH an active client context, the left control returns
+                      to that client's OWN Workspace (← Back to Workspace) instead of
+                      the whole Lead Board — the agent just recommended for them and
+                      continues there. With no active client it stays the normal
+                      "Lead Board" toggle (existing global return). */}
+                  {workspace === "map" && activeCompanionLeadId != null && onReturnToClientWorkspace ? (
+                    <button type="button" aria-pressed={false} onClick={() => onReturnToClientWorkspace(activeCompanionLeadId)}>
+                      ← Back to Workspace
+                    </button>
+                  ) : (
+                    <button type="button" aria-pressed={workspace === "board"} onClick={() => onWorkspaceChange("board")}>
+                      Lead Board
+                    </button>
+                  )}
                   <button type="button" aria-pressed={workspace === "map"} onClick={() => onWorkspaceChange("map")}>
                     Map
                   </button>
