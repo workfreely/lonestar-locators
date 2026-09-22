@@ -57,6 +57,8 @@ export function CompanionMenu({
   aiVoiceScriptOn = false,
   onToggleTextTop3,
   onToggleAiVoiceScript,
+  automatedTexting,
+  onToggleAutomatedTexts,
 }: {
   onClose: () => void;
   theme: ThemeId;
@@ -78,6 +80,11 @@ export function CompanionMenu({
   aiVoiceScriptOn?: boolean;
   onToggleTextTop3?: () => void;
   onToggleAiVoiceScript?: () => void;
+  // Per-client Automated Texts (account authorization + this lead's enrollment).
+  // The row renders ONLY for an authorized account (private rollout). Toggling
+  // posts the "automated-texting" verb; the CRM is the authoritative writer.
+  automatedTexting?: { authorized: boolean; enrolled: boolean };
+  onToggleAutomatedTexts?: (enabled: boolean) => void;
 }) {
   const firstItemRef = useRef<HTMLButtonElement>(null);
 
@@ -132,6 +139,19 @@ export function CompanionMenu({
           <span className="bc-pop-label">Text Top 3</span>
           <PrefToggle on={textTop3On} onToggle={onToggleTextTop3} label="Text Top 3" />
         </div>
+        {/* Automated Texts — per-client On/Off, authorized accounts only. Sits
+            directly above Voicemail Script. Posts the "automated-texting" verb; the
+            CRM performs the authoritative enrollment flip. */}
+        {automatedTexting?.authorized && (
+          <div className="bc-pop-item bc-theme-row" role="menuitem">
+            <span className="bc-pop-label">Automated Texts</span>
+            <PrefToggle
+              on={automatedTexting.enrolled}
+              onToggle={() => onToggleAutomatedTexts?.(!automatedTexting.enrolled)}
+              label="Automated Texts"
+            />
+          </div>
+        )}
         <div className="bc-pop-item bc-theme-row" role="menuitem">
           <span className="bc-pop-label">Voicemail Script</span>
           <PrefToggle on={aiVoiceScriptOn} onToggle={onToggleAiVoiceScript} label="Voicemail Script" />

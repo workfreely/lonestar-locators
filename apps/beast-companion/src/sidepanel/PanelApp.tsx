@@ -420,8 +420,6 @@ export function PanelApp({
                 onSendRebate={onSendRebate}
                 onAddTask={onAddTask}
                 timeZone={timeZone}
-                automatedTexting={automatedTexting}
-                onToggleAutomatedTexts={onToggleAutomatedTexts}
               />
             ) : (
               <PropertiesView
@@ -457,6 +455,8 @@ export function PanelApp({
           aiVoiceScriptOn={aiVoiceScriptOn}
           onToggleTextTop3={onToggleTextTop3}
           onToggleAiVoiceScript={onToggleAiVoiceScript}
+          automatedTexting={automatedTexting}
+          onToggleAutomatedTexts={onToggleAutomatedTexts}
         />
       )}
 
