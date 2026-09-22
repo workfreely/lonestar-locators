@@ -94,7 +94,7 @@ export default function SendInvoiceModal({
         {/* Header */}
         <div className="flex items-start justify-between gap-3 border-b border-[var(--crm-border)] px-6 py-4">
           <div className="min-w-0">
-            <h3 className="truncate text-[16px] font-bold text-[var(--crm-text-primary)]">
+            <h3 className="truncate text-[18px] font-bold text-[var(--crm-text-primary)]">
               Send Invoice{propertyName ? ` · ${propertyName}` : ""}
             </h3>
             <p className="mt-0.5 text-[12.5px] text-[var(--crm-text-secondary)]">Review the email, then open it to send.</p>

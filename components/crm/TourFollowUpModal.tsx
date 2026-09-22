@@ -79,7 +79,7 @@ export default function TourFollowUpModal({
         <div className="flex items-start justify-between gap-3 border-b border-[var(--crm-border)] px-5 py-4">
           <div className="min-w-0">
             {/* Action · Property on ONE line, same size/weight (Last Action pattern). */}
-            <h3 className="truncate text-[16px] font-bold text-[var(--crm-text-primary)]">
+            <h3 className="truncate text-[18px] font-bold text-[var(--crm-text-primary)]">
               Tour Follow-Up{propertyName ? ` · ${propertyName}` : ""}
             </h3>
             {context && <p className="mt-0.5 text-[12px] text-[var(--crm-text-muted)]">{context}</p>}

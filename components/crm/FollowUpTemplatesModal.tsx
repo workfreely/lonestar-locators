@@ -155,7 +155,7 @@ export default function FollowUpTemplatesModal({
         {/* HEADER — title reuses the Guest Card modal heading typography exactly. */}
         <div className="sticky top-0 bg-[var(--crm-panel)] border-b border-[var(--crm-border)] px-6 py-5 z-20 flex items-center justify-between">
           <div>
-            <h3 className="text-[16px] font-bold text-[var(--crm-text-primary)]">Edit Follow-up Templates</h3>
+            <h3 className="text-[18px] font-bold text-[var(--crm-text-primary)]">Edit Follow-up Templates</h3>
             <div className="text-sm text-[var(--crm-text-secondary)] mt-1">Customize the messages used in your follow-up workflow.</div>
           </div>
           <button onClick={onClose} className="text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)] text-xl" aria-label="Close">✕</button>
