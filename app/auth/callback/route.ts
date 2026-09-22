@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { REFERRAL_COOKIE, referralCookieOptions } from "@/lib/network/referralCookie";
+import { recordSecurityEvent } from "@/lib/security/events";
 
 // Landing point for both Google OAuth and email-confirmation links — both
 // arrive with a `code` param that gets exchanged for a session here, then
@@ -14,8 +15,23 @@ export async function GET(request: NextRequest) {
 
   if (code) {
     const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { data: exchanged, error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      // Security Beast (best-effort): this callback is the server-side landing
+      // point for Google OAuth (the only configured provider; password resets go
+      // to /reset-password, not here), so record a 'login' event with the IP/UA
+      // this server request already carries. recordSecurityEvent never throws, so
+      // it can never interrupt sign-in.
+      const authedUserId = exchanged.session?.user?.id ?? exchanged.user?.id;
+      if (authedUserId) {
+        await recordSecurityEvent({
+          userId: authedUserId,
+          eventType: "login",
+          method: "google_oauth",
+          headers: request.headers,
+        });
+      }
+
       // Beast Network: preserve the referral relationship as soon as a session
       // exists. Best-effort — lb_claim_referral is a no-op on a missing/used/
       // self-referral token, so this can never block sign-in. Clear the cookie

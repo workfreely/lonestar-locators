@@ -29,6 +29,12 @@ export default function LoginPage() {
       return;
     }
 
+    // Security Beast (best-effort): record a server-observed 'login' event. The
+    // session cookie is already set by signInWithPassword, so this same-origin
+    // POST carries it and the server resolves identity + IP/UA itself. Fire-and-
+    // forget — it never blocks the redirect and a failure can never affect login.
+    void fetch("/api/security/auth-event", { method: "POST" }).catch(() => {});
+
     const { data: profile } = await supabase
       .from("profiles")
       .select("onboarding_completed")
