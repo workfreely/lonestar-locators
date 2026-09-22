@@ -34,6 +34,7 @@ export default async function ProfilePage() {
     | null = null
 
   let iabsWarning: string | null = null
+  let automatedTextingAuthorized = false
 
   if (user) {
     const { data } = await supabase
@@ -42,6 +43,12 @@ export default async function ProfilePage() {
       .eq("id", user.id)
       .single()
     profile = data
+
+    // Account-level Automated Texting authorization (private rollout). Resolved
+    // server-side via the canonical check; the Profile status card renders only
+    // when true, so unauthorized accounts never see the feature advertised.
+    const { data: autoTx } = await supabase.rpc("is_automated_texting_authorized", { p_user_id: user.id })
+    automatedTextingAuthorized = autoTx === true
 
     // Compliance fail-safe: a Texas agent with no IABS URL configured is warned
     // here rather than ever substituting another brokerage's form on client mail.
@@ -89,6 +96,7 @@ export default async function ProfilePage() {
         timeZone: (profile?.timezone ?? "").trim() || DEFAULT_TIMEZONE,
         workHoursStart: (profile?.work_hours_start ?? null) as number | null,
         workHoursEnd: (profile?.work_hours_end ?? null) as number | null,
+        automatedTextingAuthorized,
       }}
     />
     </>

@@ -179,13 +179,13 @@ async function getScheduledTours() {
 // first_name personalizes the demo welcome banner.
 type AgentProfile = { name: string; brokerage: string; phone: string; email: string }
 
-async function getProfileContext(): Promise<{ demoMode: boolean; firstName: string; googleConnected: boolean; agent: AgentProfile; signature: ResolvedAgentIdentity | null; avgCommission: number; projectionMethod: ProjectionMethod; timeZone: string; workHours: WorkHours; companionOwner: string; userId: string; serviceAreaSlugs: string[]; primaryMarket: string | null; licenseState: string | null; followUpTemplates: FollowUpOverrides }> {
+async function getProfileContext(): Promise<{ demoMode: boolean; firstName: string; googleConnected: boolean; agent: AgentProfile; signature: ResolvedAgentIdentity | null; avgCommission: number; projectionMethod: ProjectionMethod; timeZone: string; workHours: WorkHours; automatedTextingAuthorized: boolean; companionOwner: string; userId: string; serviceAreaSlugs: string[]; primaryMarket: string | null; licenseState: string | null; followUpTemplates: FollowUpOverrides }> {
   const emptyAgent: AgentProfile = { name: "", brokerage: "", phone: "", email: "" }
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) return { demoMode: false, firstName: "", googleConnected: false, agent: emptyAgent, signature: null, avgCommission: DEFAULT_AVG_COMMISSION, projectionMethod: DEFAULT_PROJECTION_METHOD, timeZone: DEFAULT_TIMEZONE, workHours: {}, companionOwner: "", userId: "", serviceAreaSlugs: [], primaryMarket: null, licenseState: null, followUpTemplates: {} }
+  if (!user) return { demoMode: false, firstName: "", googleConnected: false, agent: emptyAgent, signature: null, avgCommission: DEFAULT_AVG_COMMISSION, projectionMethod: DEFAULT_PROJECTION_METHOD, timeZone: DEFAULT_TIMEZONE, workHours: {}, automatedTextingAuthorized: false, companionOwner: "", userId: "", serviceAreaSlugs: [], primaryMarket: null, licenseState: null, followUpTemplates: {} }
   const { data: profile } = await supabase
     .from("profiles")
     .select("demo_mode, first_name, last_name, preferred_name, preferred_first_name, preferred_last_name, email, brokerage, phone_number, google_connected, avg_commission_per_lease, projection_method, license_state, work_hours_start, work_hours_end")
@@ -216,6 +216,10 @@ async function getProfileContext(): Promise<{ demoMode: boolean; firstName: stri
         .maybeSingle()
     : { data: null as { service_areas?: string[] | null; primary_market?: string | null; follow_up_templates?: unknown } | null }
   const timeZone = await resolveUserTimeZone(supabase, user.id, membership?.workspace_id ?? null)
+  // Account-level Automated Texting authorization (private rollout), resolved
+  // server-side. Passed down so the CRM only mounts the per-client control for an
+  // authorized account; unauthorized accounts never receive an operational control.
+  const { data: autoTxAuthorized } = await supabase.rpc("is_automated_texting_authorized", { p_user_id: user.id })
   // Preferred Name is the display name shown throughout Locator Beast; the
   // legal first/last name is the fallback when it isn't set.
   // ONE display rule, applied per part by the shared formatter: preferred first
@@ -254,6 +258,7 @@ async function getProfileContext(): Promise<{ demoMode: boolean; firstName: stri
     // Locator Working Hours (Profile setting) — clamps client-created + demo
     // scheduled Next Action due times to the locator window; {} → 9–21 default.
     workHours: resolveWorkHoursFromProfile(profile),
+    automatedTextingAuthorized: autoTxAuthorized === true,
     companionOwner,
     userId: user.id,
     serviceAreaSlugs: ws?.service_areas ?? [],
@@ -284,7 +289,7 @@ async function isPlatformAdmin(): Promise<boolean> {
 }
 
 export default async function Page() {
-  const { demoMode, firstName, googleConnected, agent, signature, avgCommission, projectionMethod, timeZone, workHours, companionOwner, userId, serviceAreaSlugs, primaryMarket, licenseState, followUpTemplates } = await getProfileContext()
+  const { demoMode, firstName, googleConnected, agent, signature, avgCommission, projectionMethod, timeZone, workHours, automatedTextingAuthorized, companionOwner, userId, serviceAreaSlugs, primaryMarket, licenseState, followUpTemplates } = await getProfileContext()
   const voiceEnabled = await isPlatformAdmin()
 
   if (demoMode) {
@@ -326,5 +331,5 @@ export default async function Page() {
     getSentGuestCards(),
   ])
 
-  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} recommendations={recommendations} outreach={outreach} tours={tours} sentGuestCards={sentGuestCards} agent={agent} signature={signature} avgCommission={avgCommission} projectionMethod={projectionMethod} timeZone={timeZone} workHours={workHours} voiceEnabled={voiceEnabled} companionOwner={companionOwner} userId={userId} serviceAreaSlugs={serviceAreaSlugs} primaryMarket={primaryMarket} licenseState={licenseState} followUpTemplates={followUpTemplates} />
+  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} recommendations={recommendations} outreach={outreach} tours={tours} sentGuestCards={sentGuestCards} agent={agent} signature={signature} avgCommission={avgCommission} projectionMethod={projectionMethod} timeZone={timeZone} workHours={workHours} automatedTextingAuthorized={automatedTextingAuthorized} voiceEnabled={voiceEnabled} companionOwner={companionOwner} userId={userId} serviceAreaSlugs={serviceAreaSlugs} primaryMarket={primaryMarket} licenseState={licenseState} followUpTemplates={followUpTemplates} />
 }

@@ -249,6 +249,8 @@ export function LeadPanelBody({
   onSendRebate,
   onAddTask,
   timeZone,
+  automatedTexting,
+  onToggleAutomatedTexts,
 }: {
   lead: LeadSummaryDTO;
   nextActions: NextActionDTO[];
@@ -299,6 +301,11 @@ export function LeadPanelBody({
   // "+ Add Task" — opens the custom-task sheet (title + date/time) for THIS
   // client. Omitted in fixtures, where the button falls back to the demo note.
   onAddTask?: () => void;
+  // Per-client Automated Texts (account authorization + this lead's enrollment).
+  // Absent / unauthorized → the control is not offered (private rollout). Toggling
+  // posts the "automated-texting" verb; the CRM is the authoritative writer.
+  automatedTexting?: { authorized: boolean; enrolled: boolean };
+  onToggleAutomatedTexts?: (enabled: boolean) => void;
 }) {
   const tz = timeZone ?? PREVIEW_TIME_ZONE;
   const openAction = nextActions.find((a) => !a.completed) ?? null;
@@ -688,6 +695,52 @@ export function LeadPanelBody({
             { label: "Notes", value: lead.invoice.notes },
           ]}
         />
+      )}
+
+      {/* ── Automated Texts (authorized accounts only) ── compact per-client
+          On/Off. Rendered ONLY when the caller's account is authorized; toggling
+          posts the "automated-texting" verb so the CRM flips enrollment
+          server-side. Exposes no timing/sequence/authorization internals. */}
+      {automatedTexting?.authorized && (
+        <SectionCard title="Automated Texts" defaultOpen>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <span style={{ fontSize: 12, color: "var(--lb-text-muted, #9aa4b2)" }}>
+              {automatedTexting.enrolled
+                ? "On — approved follow-ups are automated for this client."
+                : "Off — no automated texts for this client."}
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={automatedTexting.enrolled}
+              onClick={() => onToggleAutomatedTexts?.(!automatedTexting.enrolled)}
+              style={{
+                position: "relative",
+                flex: "none",
+                width: 40,
+                height: 22,
+                borderRadius: 999,
+                border: "none",
+                cursor: "pointer",
+                transition: "background-color 120ms ease",
+                background: automatedTexting.enrolled ? "#10b981" : "var(--lb-border, rgba(255,255,255,0.18))",
+              }}
+            >
+              <span
+                style={{
+                  position: "absolute",
+                  top: 2,
+                  left: automatedTexting.enrolled ? 20 : 2,
+                  width: 18,
+                  height: 18,
+                  borderRadius: "50%",
+                  background: "#fff",
+                  transition: "left 120ms ease",
+                }}
+              />
+            </button>
+          </div>
+        </SectionCard>
       )}
 
     </div>

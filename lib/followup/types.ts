@@ -42,6 +42,7 @@ export type FollowUpReason =
   | "stale"
   | "outside_window"
   | "quiet_hours"
+  | "not_authorized"
   | "not_enrolled"
   | "future_move_wait"
   | "no_move_date"
@@ -67,6 +68,13 @@ export type LeadSnapshot = {
   moveMonthLabel: string | null // e.g. "October" or null
   crmStatus: string | null
   smsOptIn: boolean
+  // ACCOUNT-level authorization: the controlling locator's Locator Beast account is
+  // present in automated_texting_accounts (resolved live at evaluation time, never
+  // stored on the lead). Default false. Combined with followupOptIn this is the
+  // dual gate — a send requires BOTH. Because it's resolved live, REVOKING an
+  // account's authorization instantly makes every one of its enrolled leads
+  // ineligible with no per-lead rewrite. Keyed to auth.users.id, never phone.
+  accountAuthorized: boolean
   // HARD per-lead automation enrollment (leads.followup_opt_in). Default false for
   // EVERY lead: a non-enrolled lead can never produce an automated intent. Bound to
   // the canonical lead_id (the column lives on leads), never phone/email.

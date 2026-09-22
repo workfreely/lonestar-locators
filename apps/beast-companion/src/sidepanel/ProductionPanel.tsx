@@ -53,6 +53,9 @@ type ActiveClientPayload = {
   // Saved locator IANA timezone — Companion formats Due/Completed times in this
   // zone so it matches the CRM regardless of the device's zone.
   timeZone?: string | null;
+  // Per-client Automated Texts: account authorization + this lead's enrollment.
+  // Absent/unauthorized → the Companion offers no control (private rollout).
+  automatedTexting?: { authorized: boolean; enrolled: boolean };
 };
 
 import {
@@ -555,6 +558,26 @@ export function ProductionPanel() {
         "lb-workflow-verb": {
           nonce: `${Date.now()}-${Math.random()}`,
           verb: "edit-templates",
+        },
+      });
+    }
+  };
+
+  // Automated Texts On/Off for the ACTIVE client (Client tab). LAUNCHER only:
+  // posts the lead-scoped "automated-texting" verb so the CRM performs the
+  // authoritative enrollment flip (service-role write, dual gate). Companion never
+  // writes; it optimistically reflects the new state and re-syncs on the next push.
+  const onToggleAutomatedTexts = (enabled: boolean) => {
+    const leadId = active?.lead?.id ?? null;
+    if (leadId == null) return;
+    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
+    if (store) {
+      store.set({
+        "lb-workflow-verb": {
+          nonce: `${Date.now()}-${Math.random()}`,
+          verb: "automated-texting",
+          leadId,
+          enabled,
         },
       });
     }
@@ -1546,6 +1569,8 @@ export function ProductionPanel() {
         onAddTask={onAddTask}
         onBackToCrm={onBackToCrm}
         timeZone={active?.timeZone ?? null}
+        automatedTexting={active?.automatedTexting}
+        onToggleAutomatedTexts={onToggleAutomatedTexts}
       />
 
       {companionMayConfirm("contact_outcome") && pendingContact && (

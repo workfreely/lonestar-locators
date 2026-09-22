@@ -45,10 +45,14 @@ export function evaluateSend(
   const step = getStep(run.sequenceKey, run.stepKey)
   if (!step) return { action: "cancel", reason: "stale" }
 
-  // 0) HARD per-lead enrollment gate. Default OFF for every lead — a non-enrolled
-  //    lead can NEVER produce an automated outbound intent (defense in depth: the
-  //    dispatcher also won't create a run for one). Hold, never cancel, so a lead
-  //    enrolled later resumes cleanly.
+  // 0) HARD DUAL GATE — a send requires BOTH account authorization AND per-lead
+  //    enrollment. Checked FIRST, before anything else.
+  //    0a) ACCOUNT authorization: the controlling locator's account must be present
+  //        in automated_texting_accounts (resolved live). Revoking it here makes
+  //        every enrolled lead of that account ineligible with no per-lead rewrite.
+  //    0b) PER-LEAD enrollment (leads.followup_opt_in): default OFF for every lead.
+  //    Both HOLD (never cancel) so a lead resumes cleanly once authorized/enrolled.
+  if (!lead.accountAuthorized) return { action: "hold", reason: "not_authorized" }
   if (!lead.followupOptIn) return { action: "hold", reason: "not_enrolled" }
 
   // 1) Global automation control.

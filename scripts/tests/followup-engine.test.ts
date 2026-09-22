@@ -55,6 +55,7 @@ function lead(over: Partial<LeadSnapshot> = {}): LeadSnapshot {
     moveMonthLabel: "October",
     crmStatus: "New",
     smsOptIn: true,
+    accountAuthorized: true, // tests exercise an AUTHORIZED account unless overridden
     followupOptIn: true, // tests exercise an ENROLLED lead unless overridden
     appliedAt: null,
     timeZone: TZ,
@@ -131,6 +132,15 @@ ok(futureMoveReactivationDate(null) === null, "no move date → no reactivation 
 console.log("GATE — per-lead enrollment (hard, default OFF)")
 ok(evaluateSend(MORNING, lead({ followupOptIn: false }), conv(), share({ sentAt: "x" }), run({ sequenceKey: "list_sent", stepKey: "fu1" })).reason === "not_enrolled", "non-enrolled lead → hold(not_enrolled), never sends")
 ok(evaluateSend(MORNING, lead({ followupOptIn: false }), conv(), share(), run()).action === "hold", "non-enrolled lead is held, not canceled")
+
+// DUAL GATE — a send requires BOTH account authorization AND per-lead enrollment.
+ok(evaluateSend(MORNING, lead({ accountAuthorized: false }), conv(), share(), run()).reason === "not_authorized", "unauthorized account → hold(not_authorized)")
+ok(evaluateSend(MORNING, lead({ accountAuthorized: false }), conv(), share(), run()).action === "hold", "unauthorized account is held, not canceled")
+// The critical revocation invariant: an enrolled lead (opt_in=true) whose account
+// authorization was revoked is INELIGIBLE — no per-lead rewrite needed.
+ok(evaluateSend(MORNING, lead({ accountAuthorized: false, followupOptIn: true }), conv(), share({ sentAt: "x" }), run({ sequenceKey: "list_sent", stepKey: "fu1" })).reason === "not_authorized", "revoked account → enrolled lead (opt_in=true) is STILL ineligible")
+// Account authorization is checked BEFORE enrollment (order of the dual gate).
+ok(evaluateSend(MORNING, lead({ accountAuthorized: false, followupOptIn: false }), conv(), share(), run()).reason === "not_authorized", "both missing → not_authorized wins (checked first)")
 
 console.log("GATE — global mode + consent")
 ok(evaluateSend(MORNING, lead(), conv(), share(), run({ mode: "paused" })).action === "hold", "paused → hold")

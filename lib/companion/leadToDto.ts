@@ -65,6 +65,10 @@ export type CompanionActiveClientPayload = {
    *  workflow times in THIS zone (via formatDueDateTime's timeZone), so display
    *  matches the CRM regardless of the device's zone. */
   timeZone?: string | null
+  /** Per-client Automated Texts: the caller's account authorization + THIS lead's
+   *  enrollment. Absent / unauthorized → the Companion offers no control (private
+   *  rollout). Server-resolved by the CRM; the Companion never decides authorization. */
+  automatedTexting?: { authorized: boolean; enrolled: boolean }
 }
 
 // The lead's most recent NON-successful outreach (a No-Answer call or a sent
@@ -235,6 +239,9 @@ export function buildActiveClientPayload(
   // The signed-in locator's contact identity (Schedule Tour autofill → message
   // field only). Resolved CRM-side from ResolvedAgentIdentity; null when unknown.
   locator: CompanionLocator | null = null,
+  // Per-client Automated Texts: the caller's account authorization + THIS lead's
+  // enrollment. Null → the Companion offers no control (unauthorized / not passed).
+  automatedTexting: { authorized: boolean; enrolled: boolean } | null = null,
 ): CompanionActiveClientPayload {
   const crmStatus = str(lead.crm_status) ?? "new"
   const historyLower = String(lead.credit_history || "").toLowerCase()
@@ -545,5 +552,5 @@ export function buildActiveClientPayload(
       googleRating: typeof r.google_rating === "number" ? r.google_rating : null,
     }))
 
-  return { owner, lead: dto, nextActions: actions, favorites: favoriteDtos, recommendations: recommendationDtos, agentName: str(agentName), locator, agentAvatarUrl: str(agentAvatarUrl), followUpTemplates, timeZone: str(timeZone) }
+  return { owner, lead: dto, nextActions: actions, favorites: favoriteDtos, recommendations: recommendationDtos, agentName: str(agentName), locator, agentAvatarUrl: str(agentAvatarUrl), followUpTemplates, timeZone: str(timeZone), automatedTexting: automatedTexting ?? undefined }
 }

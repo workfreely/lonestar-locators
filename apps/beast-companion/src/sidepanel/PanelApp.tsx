@@ -121,6 +121,8 @@ export function PanelApp({
   onAddTask,
   onBackToCrm,
   timeZone,
+  automatedTexting,
+  onToggleAutomatedTexts,
 }: {
   state?: PanelState;
   lead?: LeadSummaryDTO | null;
@@ -217,6 +219,10 @@ export function PanelApp({
   // Saved locator IANA timezone for Due/Completed formatting (falls back inside
   // LeadPanelBody to the workspace default when absent).
   timeZone?: string | null;
+  // Per-client Automated Texts (account authorization + this lead's enrollment),
+  // rendered as a compact On/Off in the Client tab for authorized accounts only.
+  automatedTexting?: { authorized: boolean; enrolled: boolean };
+  onToggleAutomatedTexts?: (enabled: boolean) => void;
 }) {
   const [menu, setMenu] = useState<MenuMode>("closed");
   // Top-level Companion view. Client is the default and shows the existing,
@@ -414,6 +420,8 @@ export function PanelApp({
                 onSendRebate={onSendRebate}
                 onAddTask={onAddTask}
                 timeZone={timeZone}
+                automatedTexting={automatedTexting}
+                onToggleAutomatedTexts={onToggleAutomatedTexts}
               />
             ) : (
               <PropertiesView

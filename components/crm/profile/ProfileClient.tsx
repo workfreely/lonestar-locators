@@ -28,6 +28,7 @@ import {
 const MIN_MARKETS_MESSAGE = "Select at least one market."
 import TimezoneSetting from "./TimezoneSetting"
 import WorkingHoursSetting from "./WorkingHoursSetting"
+import AutomatedTextingStatus from "./AutomatedTextingStatus"
 import {
   toRpcFailure,
   userMessageForServiceAreaError,
@@ -66,6 +67,7 @@ type ProfileInitial = {
   timeZone: string
   workHoursStart: number | null
   workHoursEnd: number | null
+  automatedTextingAuthorized: boolean
 }
 
 // Progressive US phone formatting for the input — shows "(210) 555-1234" as the
@@ -786,6 +788,10 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
           Action reminders. Saves through its own /api/admin/profile/work-hours
           route (independent of Save Changes below). */}
       <WorkingHoursSetting initialStart={initial.workHoursStart} initialEnd={initial.workHoursEnd} />
+
+      {/* Automated Texting availability (read-only) — renders ONLY for authorized
+          accounts; unauthorized accounts see nothing (private rollout). */}
+      <AutomatedTextingStatus authorized={initial.automatedTextingAuthorized} />
 
       {/* Account security — its own section directly after Time Zone rather than
           buried under the identity card above. Functionality unchanged. */}

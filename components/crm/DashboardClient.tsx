@@ -47,6 +47,7 @@ import CheckApplicationModal from "./CheckApplicationModal"
 import GetInvoiceDetailsModal from "./GetInvoiceDetailsModal"
 import SendInvoiceModal from "./SendInvoiceModal"
 import InvoiceDetailsSection from "./InvoiceDetailsSection"
+import AutomatedTextsToggle from "./AutomatedTextsToggle"
 import { autoInvoicePropertyName, formatInvoiceCurrency } from "@/lib/leads/invoiceFields"
 import { leaseFollowUpDueAt } from "@/lib/leads/leaseFollowUp"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
@@ -109,7 +110,7 @@ function toCompanionLocator(signature: ResolvedAgentIdentity | null, agentName?:
   }
 }
 
-export default function DashboardClient({ leads, nextActions, favorites, recommendations = [], outreach = [], tours = [], sentGuestCards = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, projectionMethod = DEFAULT_PROJECTION_METHOD, timeZone = DEFAULT_TIMEZONE, workHours = {}, voiceEnabled = false, companionOwner = "", userId = "", serviceAreaSlugs = [], primaryMarket = null, licenseState = null, followUpTemplates = {} }: { leads: any[]; nextActions: any[]; favorites: any[]; recommendations?: any[]; outreach?: any[]; tours?: any[]; sentGuestCards?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; projectionMethod?: ProjectionMethod; timeZone?: string; /** Locator Working Hours (Profile setting); {} → 9–21 default window. */ workHours?: WorkHours; /** Beast Voice alpha — true only for a platform admin, resolved server-side. */ voiceEnabled?: boolean;
+export default function DashboardClient({ leads, nextActions, favorites, recommendations = [], outreach = [], tours = [], sentGuestCards = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, projectionMethod = DEFAULT_PROJECTION_METHOD, timeZone = DEFAULT_TIMEZONE, workHours = {}, automatedTextingAuthorized = false, voiceEnabled = false, companionOwner = "", userId = "", serviceAreaSlugs = [], primaryMarket = null, licenseState = null, followUpTemplates = {} }: { leads: any[]; nextActions: any[]; favorites: any[]; recommendations?: any[]; outreach?: any[]; tours?: any[]; sentGuestCards?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; projectionMethod?: ProjectionMethod; timeZone?: string; /** Locator Working Hours (Profile setting); {} → 9–21 default window. */ workHours?: WorkHours; /** Account-level Automated Texting authorization (private rollout), server-resolved. Gates the per-client control. */ automatedTextingAuthorized?: boolean; /** Beast Voice alpha — true only for a platform admin, resolved server-side. */ voiceEnabled?: boolean;
   /** Opaque "<userId>:<workspaceId>" for the signed-in locator. Beast Companion
    *  binds every stored client record to it so a different account on the same
    *  browser can never see this locator's client. Server-derived. */
@@ -587,7 +588,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     if (!selectedLead) return
     if (typeof window === "undefined") return
     try {
-      const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites, localTours, localRecommendations, insightsFor(selectedLead.id), companionOwner, signature?.photoUrl ?? null, localFollowUpTemplates, toCompanionLocator(signature, agent?.name))
+      const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites, localTours, localRecommendations, insightsFor(selectedLead.id), companionOwner, signature?.photoUrl ?? null, localFollowUpTemplates, toCompanionLocator(signature, agent?.name), { authorized: automatedTextingAuthorized, enrolled: !!(selectedLead as any).followup_opt_in })
       companionLeadIdRef.current = selectedLead.id // this lead is now what Companion shows
       setCompanionLeadId(selectedLead.id) // …and the Map resolves its market from it
       window.postMessage(
@@ -638,7 +639,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     if (typeof window === "undefined" || !lead) return
     if (String(lead.id) !== String(companionLeadIdRef.current)) return
     try {
-      const payload = buildActiveClientPayload(lead, nextActionsForLead, agent?.name, outreachFor(lead.id), timeZone, localFavoritesRef.current, localToursRef.current, localRecommendationsRef.current, insightsFor(lead.id), companionOwner, signature?.photoUrl ?? null, localFollowUpTemplates, toCompanionLocator(signature, agent?.name))
+      const payload = buildActiveClientPayload(lead, nextActionsForLead, agent?.name, outreachFor(lead.id), timeZone, localFavoritesRef.current, localToursRef.current, localRecommendationsRef.current, insightsFor(lead.id), companionOwner, signature?.photoUrl ?? null, localFollowUpTemplates, toCompanionLocator(signature, agent?.name), { authorized: automatedTextingAuthorized, enrolled: !!(lead as any).followup_opt_in })
       window.postMessage(
         { source: COMPANION_MSG_SOURCE, type: "active-client", payload },
         window.location.origin
@@ -706,7 +707,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     if (typeof window === "undefined") return
     if (selectedLead) {
       try {
-        const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites, localTours, localRecommendations, insightsFor(selectedLead.id), companionOwner, signature?.photoUrl ?? null, localFollowUpTemplates, toCompanionLocator(signature, agent?.name))
+        const payload = buildActiveClientPayload(selectedLead, localNextActions, agent?.name, outreachFor(selectedLead.id), timeZone, localFavorites, localTours, localRecommendations, insightsFor(selectedLead.id), companionOwner, signature?.photoUrl ?? null, localFollowUpTemplates, toCompanionLocator(signature, agent?.name), { authorized: automatedTextingAuthorized, enrolled: !!(selectedLead as any).followup_opt_in })
         companionLeadIdRef.current = selectedLead.id
         window.postMessage({ source: COMPANION_MSG_SOURCE, type: "active-client", payload }, window.location.origin)
       } catch {
@@ -2358,6 +2359,31 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       // payload.leadId and this assignment writes the value it already holds.
       companionLeadIdRef.current = lead.id
       setCompanionLeadId(lead.id)
+
+      // Automated Texts On/Off (Companion Client tab). The Companion is a launcher:
+      // it posts the verb, the CRM performs the authoritative flip through the same
+      // server enrollment route the Client Workspace uses (service-role write, dual
+      // gate). Only reachable when the account is authorized (the Companion hides
+      // the control otherwise). Updates local state so the CRM + Companion stay in
+      // sync. Inert — enrollment only, never a send.
+      if (payload.verb === "automated-texting") {
+        const enabled = (payload as { enabled?: unknown }).enabled === true
+        void (async () => {
+          try {
+            const res = await fetch(`/api/leads/${lead.id}/automated-texting`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ enabled }),
+            })
+            if (res.ok) {
+              setLocalLeads((prev) => prev.map((l: any) => (String(l.id) === String(lead.id) ? { ...l, followup_opt_in: enabled } : l)))
+            }
+          } catch {
+            /* leave prior state on failure */
+          }
+        })()
+        return
+      }
 
       // Edit Client (Companion hamburger). Open the shared LeadFormModal in edit
       // mode, pre-populated from THIS lead. The modal saves via a direct UPDATE by
@@ -4203,6 +4229,19 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                       lead={selectedLead}
                       onUpdateLead={(updatedLead) =>
                         setLocalLeads((prev) => prev.map((l) => (l.id === updatedLead.id ? updatedLead : l)))
+                      }
+                    />
+                  )}
+                  {/* Automated Texts (authorized accounts only) — per-client On/Off.
+                      Keyed by lead so it re-inits when the selected client changes.
+                      Renders nothing for an unauthorized account (private rollout). */}
+                  {automatedTextingAuthorized && (
+                    <AutomatedTextsToggle
+                      key={`autotx-${selectedLead.id}`}
+                      leadId={selectedLead.id ?? null}
+                      initialEnrolled={!!(selectedLead as any).followup_opt_in}
+                      onEnrolledChange={(enabled) =>
+                        setLocalLeads((prev) => prev.map((l: any) => (String(l.id) === String(selectedLead.id) ? { ...l, followup_opt_in: enabled } : l)))
                       }
                     />
                   )}
