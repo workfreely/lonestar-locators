@@ -42,7 +42,24 @@ export type FollowUpTemplateKey =
   | "final_follow_up"
   | "contact_follow_up_1"
   | "contact_follow_up_2"
-  | "contact_follow_up_3";
+  | "contact_follow_up_3"
+  // ── Follow-Up Agent Phase-1 canonical client-facing templates ──────────────
+  // Additive keys (backward-compatible): legacy keys above are unchanged and stay
+  // honored by their current consumers. These are the NEW canonical messages the
+  // Follow-Up Agent + editor use. `new_lead_text1` carries a `{search_tail}`
+  // SYSTEM token (engine-composed, gracefully omitted) — see lib/followup/copy.ts.
+  | "new_lead_text1"
+  | "new_lead_text2"
+  | "list_fu3_favorites"
+  | "list_fu3_no_favorites"
+  | "list_final"
+  | "ds_availability_submitted"
+  | "ds_needs_availability"
+  | "ds_tour_now_or_wait"
+  | "future_move_wait_ack"
+  | "future_move_reactivate"
+  | "post_tour"
+  | "application_status";
 
 /**
  * The canonical DEFAULT wording. Each value is the EXACT current text with the
@@ -77,6 +94,30 @@ export const DEFAULT_FOLLOW_UP_TEMPLATES: Record<FollowUpTemplateKey, string> = 
   contact_follow_up_2: "Did you see any properties on my page you'd like more info on?",
   contact_follow_up_3:
     "I'll go ahead and pause your search for now. Please let me know if you'd like help finding a place!",
+  // ── Follow-Up Agent Phase-1 canonical templates (approved/LOCKED copy) ──────
+  // new_lead_text1: {search_tail} is engine-composed — " for a 1 bedroom move in
+  // October." with data, or "!" when none — so the search clause is gracefully
+  // omitted and never renders "a  move".
+  new_lead_text1: "Hey {first_name} it's {agent_first_name}! I got your form{search_tail}",
+  new_lead_text2: "Are you trying to stay near a specific address or side of town?",
+  list_fu3_favorites:
+    "I'm calling the communities you were interested in to get updated pricing and specials. Are you still looking to move?",
+  list_fu3_no_favorites:
+    "I'm calling communities on your list to get updated pricing and specials. Are you still looking to move?",
+  list_final:
+    "I haven't heard back so I'll pause your search for now. No rush, just let me know when you'd like me to pick it back up.",
+  ds_availability_submitted:
+    "Those are excellent options! I noted those as your favorites. I'll get back to you once I have the tour confirmations.",
+  ds_needs_availability:
+    "Those are excellent options! I noted those as your favorites. When you get a chance, can you select your availability to tour on the recommendations page?",
+  ds_tour_now_or_wait:
+    "Those are excellent options! I noted those as your favorites. Would you like me to set up a tour now or wait until you're closer to your move date?",
+  future_move_wait_ack:
+    "Perfect! Let's keep in touch. I'll reach back out about 90 days before your move date so we can get everything set up.",
+  future_move_reactivate:
+    "Hey {first_name}! Hope you're doing well. We're getting closer to your move date. When would you like me to get the tours set up for your favorites?",
+  post_tour: "How did the tour go? Hopefully everything went well",
+  application_status: "Have you heard anything back on your application yet?",
 };
 
 /**
@@ -95,6 +136,19 @@ export const TEMPLATE_TOKENS: Record<FollowUpTemplateKey, readonly string[]> = {
   contact_follow_up_1: ["first_name"],
   contact_follow_up_2: [],
   contact_follow_up_3: [],
+  // Follow-Up Agent Phase-1 canonical templates.
+  new_lead_text1: ["first_name", "agent_first_name", "search_tail"],
+  new_lead_text2: [],
+  list_fu3_favorites: [],
+  list_fu3_no_favorites: [],
+  list_final: [],
+  ds_availability_submitted: [],
+  ds_needs_availability: [],
+  ds_tour_now_or_wait: [],
+  future_move_wait_ack: [],
+  future_move_reactivate: ["first_name"],
+  post_tour: [],
+  application_status: [],
 };
 
 /**
@@ -117,7 +171,7 @@ export const AGENT_TEMPLATE_VARIABLES: ReadonlyArray<{ token: string; label: str
  * variable menu. `property_list` is Text Top 3's dynamic property block;
  * `beds_phrase`/`move_suffix` carry the intro default's legacy presentation.
  */
-export const SYSTEM_TEMPLATE_TOKENS: readonly string[] = ["property_list", "beds_phrase", "move_suffix"];
+export const SYSTEM_TEMPLATE_TOKENS: readonly string[] = ["property_list", "beds_phrase", "move_suffix", "search_tail"];
 
 /** Human-readable token catalog (labels for a later editing UI). */
 export const FOLLOW_UP_TOKEN_LABELS: Record<string, string> = {
@@ -131,6 +185,7 @@ export const FOLLOW_UP_TOKEN_LABELS: Record<string, string> = {
   property_list: "Top 3 properties with links (inserted automatically)",
   beds_phrase: "Beds/property-type phrase (system; default intro only)",
   move_suffix: "Move-month connective (system; default intro only)",
+  search_tail: "Search context (system; e.g. \" for a 1 bedroom move in October.\", gracefully omitted when unknown)",
 };
 
 /**
@@ -153,6 +208,19 @@ export const TEMPLATE_CHAR_LIMITS: Record<FollowUpTemplateKey, number> = {
   contact_follow_up_1: 180,
   contact_follow_up_2: 140,
   contact_follow_up_3: 180,
+  // Follow-Up Agent Phase-1 canonical templates.
+  new_lead_text1: 180,
+  new_lead_text2: 140,
+  list_fu3_favorites: 200,
+  list_fu3_no_favorites: 200,
+  list_final: 200,
+  ds_availability_submitted: 200,
+  ds_needs_availability: 220,
+  ds_tour_now_or_wait: 220,
+  future_move_wait_ack: 200,
+  future_move_reactivate: 220,
+  post_tour: 140,
+  application_status: 140,
 };
 
 /**

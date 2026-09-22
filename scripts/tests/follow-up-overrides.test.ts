@@ -25,7 +25,14 @@ const eq = (a: unknown, b: unknown, name: string) => {
 const ok = (c: boolean, name: string) => { if (c) pass++; else { fail++; console.error("✗", name) } }
 
 // ── Content keys ─────────────────────────────────────────────────────────────
-eq([...FOLLOW_UP_TEMPLATE_KEYS].sort(), ["final_follow_up", "follow_up_1", "follow_up_2", "follow_up_3", "intro", "text_top_3"], "6 content keys")
+eq([...FOLLOW_UP_TEMPLATE_KEYS].sort(), [
+  "application_status", "contact_follow_up_1", "contact_follow_up_2", "contact_follow_up_3",
+  "ds_availability_submitted", "ds_needs_availability", "ds_tour_now_or_wait",
+  "final_follow_up", "follow_up_1", "follow_up_2", "follow_up_3",
+  "future_move_reactivate", "future_move_wait_ack", "intro", "list_final",
+  "list_fu3_favorites", "list_fu3_no_favorites", "new_lead_text1", "new_lead_text2",
+  "post_tour", "text_top_3",
+], "21 content keys (legacy + Follow-Up Agent Phase-1)")
 ok(isFollowUpTemplateKey("intro") && !isFollowUpTemplateKey("follow_up_4"), "isFollowUpTemplateKey guards the set")
 
 // ── sanitize: keeps only genuine, valid, in-range customizations ─────────────
@@ -86,15 +93,16 @@ eq(mergeFollowUpTemplates({ follow_up_1: "  " }).follow_up_1, DEFAULT_FOLLOW_UP_
 // The RPC hardcodes per-key limits; they MUST equal the in-code TEMPLATE_CHAR_LIMITS.
 {
   const here = dirname(fileURLToPath(import.meta.url))
-  const sql = readFileSync(join(here, "../../supabase/migrations/20260902000000_follow_up_templates.sql"), "utf8")
+  // The authoritative RPC is the LATEST migration that re-declares it.
+  const sql = readFileSync(join(here, "../../supabase/migrations/20260922000004_follow_up_templates_keys.sql"), "utf8")
   for (const key of FOLLOW_UP_TEMPLATE_KEYS) {
     const m = sql.match(new RegExp(`when '${key}'\\s+then\\s+(\\d+)`))
     ok(!!m, `SQL declares a limit for '${key}'`)
     if (m) eq(Number(m[1]), TEMPLATE_CHAR_LIMITS[key], `SQL limit for '${key}' matches code (${TEMPLATE_CHAR_LIMITS[key]})`)
   }
-  // And the RPC allows exactly the 6 content keys (no stray key).
+  // And the RPC allows EXACTLY the content-key set (no stray key, no missing key).
   const declaredInSql = Array.from(sql.matchAll(/when '(\w+)'\s+then\s+\d+/g)).map((m) => m[1]).sort()
-  eq(declaredInSql, [...FOLLOW_UP_TEMPLATE_KEYS].sort(), "SQL allows exactly the 6 content keys")
+  eq(declaredInSql, [...FOLLOW_UP_TEMPLATE_KEYS].sort(), "SQL allows exactly the content-key set")
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

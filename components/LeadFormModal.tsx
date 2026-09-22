@@ -359,9 +359,9 @@ export default function LeadFormModal({
         {/* HEADER */}
         <div className="sticky top-0 bg-[var(--crm-panel)] border-b border-[var(--crm-border)] px-6 py-5 z-20 flex items-center justify-between">
           <div>
-            <div className="text-2xl font-black tracking-tight text-[var(--crm-text-primary)]">
+            <h3 className="text-[16px] font-bold text-[var(--crm-text-primary)]">
               {isEdit ? `Edit ${[lead?.first_name, lead?.last_name].filter(Boolean).join(" ") || "Client"}` : "Add Lead"}
-            </div>
+            </h3>
 
             <div className="text-sm text-[var(--crm-text-secondary)] mt-1">
               {isEdit ? "Update this client's information." : "Create a new lead manually"}

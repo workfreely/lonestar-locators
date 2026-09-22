@@ -11,21 +11,71 @@ import {
 } from "@bc/companion-shared"
 import { saveFollowUpTemplateOverrides } from "@/lib/followUpTemplates"
 
-// Fixed heading + helper note per editable template. Order matches the workflow
-// reading order but is display-only — this editor never exposes timing, sequence,
-// stages, Next Actions, or automation.
-const FIELDS: { key: FollowUpTemplateKey; name: string; note?: string }[] = [
-  { key: "intro", name: "Intro Text", note: "The first text sent to a new lead." },
-  { key: "text_top_3", name: "Text Top 3", note: "Keep {property_list} — your Top 3 properties and links are inserted there automatically." },
-  { key: "follow_up_1", name: "1st Follow-Up" },
-  { key: "follow_up_2", name: "2nd Follow-Up" },
-  { key: "follow_up_3", name: "3rd Follow-Up" },
-  { key: "final_follow_up", name: "Final Follow-Up" },
+// The Follow-Up Agent's canonical client-facing messages, grouped by lifecycle.
+// Content only — this editor never exposes timing, sequences, the grace period,
+// branching thresholds, reactivation timing, send authorization, pacing, stop/
+// supersede rules, internal keys, or classifier prompts. Defaults come from the
+// single canonical source (DEFAULT_FOLLOW_UP_TEMPLATES) — never re-typed here.
+//
+// Legacy keys (intro, text_top_3, follow_up_3, final_follow_up) are intentionally
+// NOT shown: they are superseded by the canonical templates below, but remain
+// stored + honored by the current manual Companion flow. Any existing override on
+// them is PRESERVED (seeded and re-saved untouched), never dropped.
+type Field = { key: FollowUpTemplateKey; name: string; note?: string }
+const GROUPS: { label: string; fields: Field[] }[] = [
+  {
+    label: "New Lead",
+    fields: [
+      {
+        key: "new_lead_text1",
+        name: "Initial Text 1",
+        note: 'Keep {search_tail} — the client’s search context (“ for a 1 bedroom move in October.”) is composed there automatically, and left out gracefully when unknown (“…I got your form!”).',
+      },
+      { key: "new_lead_text2", name: "Initial Text 2" },
+      { key: "contact_follow_up_1", name: "New-Lead Follow-Up 1" },
+      { key: "contact_follow_up_2", name: "New-Lead Follow-Up 2" },
+      { key: "contact_follow_up_3", name: "New-Lead Final Follow-Up" },
+    ],
+  },
+  {
+    label: "List Sent",
+    fields: [
+      { key: "follow_up_1", name: "Follow-Up 1" },
+      { key: "follow_up_2", name: "Follow-Up 2" },
+      { key: "list_fu3_favorites", name: "Follow-Up 3 — Favorites" },
+      { key: "list_fu3_no_favorites", name: "Follow-Up 3 — No Favorites" },
+      { key: "list_final", name: "Final Follow-Up" },
+    ],
+  },
+  {
+    label: "Favorites & Tours",
+    fields: [
+      { key: "ds_needs_availability", name: "Favorites / availability needed" },
+      { key: "ds_availability_submitted", name: "Favorites + availability submitted" },
+      { key: "ds_tour_now_or_wait", name: "Future Move — Tour Now or Wait" },
+      { key: "future_move_wait_ack", name: "Future Move — Wait acknowledgment" },
+      { key: "future_move_reactivate", name: "Future Move — 90-day reactivation" },
+      { key: "post_tour", name: "Post-Tour Follow-Up" },
+    ],
+  },
+  {
+    label: "Application",
+    fields: [{ key: "application_status", name: "Application Status Follow-Up" }],
+  },
 ]
+const ALL_FIELDS: Field[] = GROUPS.flatMap((g) => g.fields)
+const TALL_KEYS = new Set<FollowUpTemplateKey>([
+  "new_lead_text1",
+  "list_fu3_favorites",
+  "list_fu3_no_favorites",
+  "list_final",
+  "ds_needs_availability",
+  "ds_availability_submitted",
+  "ds_tour_now_or_wait",
+  "future_move_wait_ack",
+  "future_move_reactivate",
+])
 
-// Uses the SAME slideover shell as Add Lead / Edit Client (LeadFormModal): same
-// overlay, 700px right panel, sticky header title/subtitle, scroll behavior, and
-// the lower-right Cancel / Save Changes footer. Only the body fields differ.
 export default function FollowUpTemplatesModal({
   open,
   onClose,
@@ -34,25 +84,19 @@ export default function FollowUpTemplatesModal({
 }: {
   open: boolean
   onClose: () => void
-  /** Current workspace overrides (already sanitized upstream). */
   initialOverrides?: FollowUpOverrides
-  /** Called with the new sanitized overrides after a successful save. */
   onSaved?: (overrides: FollowUpOverrides) => void
 }) {
-  // Editable text per template: the saved override if present, else the default.
   const [values, setValues] = useState<Record<FollowUpTemplateKey, string>>(() => seed(initialOverrides))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const refs = useRef<Partial<Record<FollowUpTemplateKey, HTMLTextAreaElement | null>>>({})
 
-  // Re-seed whenever the editor opens (picks up the latest saved overrides).
   useEffect(() => {
     if (open) { setValues(seed(initialOverrides)); setError(null) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
-  // Let global surfaces (Ask Beast AI) step aside while this slideover is up —
-  // the SAME event the lead modal uses, so the behavior is identical.
   useEffect(() => {
     if (typeof window === "undefined") return
     window.dispatchEvent(new CustomEvent("lb:lead-modal", { detail: { open } }))
@@ -64,21 +108,20 @@ export default function FollowUpTemplatesModal({
   if (!open) return null
 
   const overFor = (k: FollowUpTemplateKey) => values[k].length > TEMPLATE_CHAR_LIMITS[k]
-  // Protect Text Top 3's property list: a customized Text Top 3 must keep the
-  // {property_list} token, or the properties/links would drop from the message.
-  const missingList = values.text_top_3.trim() !== "" && !values.text_top_3.includes("{property_list}")
-  const anyOver = FIELDS.some((f) => overFor(f.key))
-  const canSave = !saving && !anyOver && !missingList
+  const anyOver = ALL_FIELDS.some((f) => overFor(f.key))
+  // Soft warning only (never blocks): Text 1 without {search_tail} loses the
+  // gracefully-composed search clause + ending punctuation.
+  const missingSearchTail = values.new_lead_text1.trim() !== "" && !values.new_lead_text1.includes("{search_tail}")
+  const canSave = !saving && !anyOver
 
   function insertToken(key: FollowUpTemplateKey, token: string) {
     const el = refs.current[key]
-    const insert = `{${token}}` // bare token only — no surrounding spaces
+    const insert = `{${token}}`
     setValues((prev) => {
       const cur = prev[key]
       const start = el?.selectionStart ?? cur.length
       const end = el?.selectionEnd ?? cur.length
       const next = cur.slice(0, start) + insert + cur.slice(end)
-      // Restore focus + caret just after the inserted token.
       requestAnimationFrame(() => {
         const node = refs.current[key]
         if (node) { node.focus(); const pos = start + insert.length; node.setSelectionRange(pos, pos) }
@@ -92,6 +135,9 @@ export default function FollowUpTemplatesModal({
     setSaving(true)
     setError(null)
     try {
+      // Send the FULL value map (all keys, incl. unshown legacy ones seeded from
+      // existing overrides). The sanitizer drops any key equal to its default, so
+      // stored overrides = exactly the customized ones — nothing is lost.
       await saveFollowUpTemplateOverrides(values)
       onSaved?.(sanitizeFollowUpOverrides(values).overrides)
       onClose()
@@ -105,84 +151,89 @@ export default function FollowUpTemplatesModal({
 
   return (
     <div className="fixed inset-0 z-[10001] bg-black/40 backdrop-blur-sm flex justify-end">
-      {/* PANEL */}
       <div className="w-full max-w-[700px] h-full bg-[var(--crm-panel)] shadow-2xl overflow-y-auto">
-        {/* HEADER */}
+        {/* HEADER — title reuses the Guest Card modal heading typography exactly. */}
         <div className="sticky top-0 bg-[var(--crm-panel)] border-b border-[var(--crm-border)] px-6 py-5 z-20 flex items-center justify-between">
           <div>
-            <div className="text-2xl font-black tracking-tight text-[var(--crm-text-primary)]">Edit Follow-up Templates</div>
+            <h3 className="text-[16px] font-bold text-[var(--crm-text-primary)]">Edit Follow-up Templates</h3>
             <div className="text-sm text-[var(--crm-text-secondary)] mt-1">Customize the messages used in your follow-up workflow.</div>
           </div>
           <button onClick={onClose} className="text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)] text-xl" aria-label="Close">✕</button>
         </div>
 
-        {/* BODY */}
-        <div className="p-6 space-y-6">
-          {FIELDS.map((f) => {
-            const val = values[f.key]
-            const limit = TEMPLATE_CHAR_LIMITS[f.key]
-            const over = val.length > limit
-            const near = !over && val.length >= Math.floor(limit * 0.9)
-            const isDefault = val === DEFAULT_FOLLOW_UP_TEMPLATES[f.key]
-            return (
-              <div key={f.key}>
-                <div className="flex items-baseline justify-between mb-1.5">
-                  <label className="text-sm font-semibold text-[var(--crm-text-primary)]">{f.name}</label>
-                  <button
-                    type="button"
-                    onClick={() => setValues((p) => ({ ...p, [f.key]: DEFAULT_FOLLOW_UP_TEMPLATES[f.key] }))}
-                    disabled={isDefault}
-                    className="text-xs font-medium text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)] disabled:opacity-40 disabled:cursor-default"
-                  >
-                    Reset to Default
-                  </button>
-                </div>
-
-                {f.note && <p className="text-xs text-[var(--crm-text-muted)] mb-2">{f.note}</p>}
-
-                <textarea
-                  ref={(el) => { refs.current[f.key] = el }}
-                  value={val}
-                  onChange={(e) => setValues((p) => ({ ...p, [f.key]: e.target.value }))}
-                  rows={f.key === "text_top_3" || f.key === "intro" || f.key === "final_follow_up" ? 4 : 3}
-                  className="w-full border border-[var(--crm-border)] rounded-lg px-3 py-2 text-sm text-[var(--crm-text-primary)] bg-[var(--crm-inset)] placeholder-[var(--crm-text-muted)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                />
-
-                {/* Variable buttons — insert a bare token at the cursor. */}
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  <span className="text-[11px] text-[var(--crm-text-muted)] mr-0.5">Insert:</span>
-                  {AGENT_TEMPLATE_VARIABLES.map((v) => (
-                    <button
-                      key={v.token}
-                      type="button"
-                      onClick={() => insertToken(f.key, v.token)}
-                      className="rounded-full border border-[var(--crm-border)] bg-[var(--crm-inset)] px-2.5 py-1 text-[11px] font-medium text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)] hover:border-[var(--crm-text-muted)] transition-colors"
-                      title={`Insert {${v.token}}`}
-                    >
-                      {v.label}
-                    </button>
-                  ))}
-                  <span
-                    className={`ml-auto text-[11px] font-medium tabular-nums ${
-                      over ? "text-red-500" : near ? "text-amber-500" : "text-[var(--crm-text-muted)]"
-                    }`}
-                  >
-                    {val.length} / {limit}
-                  </span>
-                </div>
-
-                {f.key === "text_top_3" && missingList && (
-                  <p className="mt-1 text-[11px] font-medium text-red-500">Add {"{property_list}"} back so your Top 3 properties are included.</p>
-                )}
-                {over && (
-                  <p className="mt-1 text-[11px] font-medium text-red-500">Over the {limit}-character limit — shorten to save.</p>
-                )}
+        {/* BODY — grouped by lifecycle. */}
+        <div className="p-6 space-y-8">
+          {GROUPS.map((group) => (
+            <section key={group.label} className="space-y-6">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--crm-text-muted)] border-b border-[var(--crm-border)] pb-1.5">
+                {group.label}
               </div>
-            )
-          })}
+              {group.fields.map((f) => {
+                const val = values[f.key]
+                const limit = TEMPLATE_CHAR_LIMITS[f.key]
+                const over = val.length > limit
+                const near = !over && val.length >= Math.floor(limit * 0.9)
+                const isDefault = val === DEFAULT_FOLLOW_UP_TEMPLATES[f.key]
+                return (
+                  <div key={f.key}>
+                    <div className="flex items-baseline justify-between mb-1.5">
+                      <label className="text-sm font-semibold text-[var(--crm-text-primary)]">{f.name}</label>
+                      <button
+                        type="button"
+                        onClick={() => setValues((p) => ({ ...p, [f.key]: DEFAULT_FOLLOW_UP_TEMPLATES[f.key] }))}
+                        disabled={isDefault}
+                        className="text-xs font-medium text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)] disabled:opacity-40 disabled:cursor-default"
+                      >
+                        Reset to Default
+                      </button>
+                    </div>
+
+                    {f.note && <p className="text-xs text-[var(--crm-text-muted)] mb-2">{f.note}</p>}
+
+                    <textarea
+                      ref={(el) => { refs.current[f.key] = el }}
+                      value={val}
+                      onChange={(e) => setValues((p) => ({ ...p, [f.key]: e.target.value }))}
+                      rows={TALL_KEYS.has(f.key) ? 4 : 3}
+                      className="w-full border border-[var(--crm-border)] rounded-lg px-3 py-2 text-sm text-[var(--crm-text-primary)] bg-[var(--crm-inset)] placeholder-[var(--crm-text-muted)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    />
+
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <span className="text-[11px] text-[var(--crm-text-muted)] mr-0.5">Insert:</span>
+                      {AGENT_TEMPLATE_VARIABLES.map((v) => (
+                        <button
+                          key={v.token}
+                          type="button"
+                          onClick={() => insertToken(f.key, v.token)}
+                          className="rounded-full border border-[var(--crm-border)] bg-[var(--crm-inset)] px-2.5 py-1 text-[11px] font-medium text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)] hover:border-[var(--crm-text-muted)] transition-colors"
+                          title={`Insert {${v.token}}`}
+                        >
+                          {v.label}
+                        </button>
+                      ))}
+                      <span
+                        className={`ml-auto text-[11px] font-medium tabular-nums ${
+                          over ? "text-red-500" : near ? "text-amber-500" : "text-[var(--crm-text-muted)]"
+                        }`}
+                      >
+                        {val.length} / {limit}
+                      </span>
+                    </div>
+
+                    {f.key === "new_lead_text1" && missingSearchTail && (
+                      <p className="mt-1 text-[11px] font-medium text-amber-500">Tip: keep {"{search_tail}"} so the search context and ending punctuation are added automatically.</p>
+                    )}
+                    {over && (
+                      <p className="mt-1 text-[11px] font-medium text-red-500">Over the {limit}-character limit — shorten to save.</p>
+                    )}
+                  </div>
+                )
+              })}
+            </section>
+          ))}
         </div>
 
-        {/* FOOTER — lower-right Cancel / Save Changes, same as the lead modal. */}
+        {/* FOOTER */}
         <div className="border-t border-[var(--crm-border)] px-6 pt-5 pb-6 flex flex-col items-end gap-2">
           {error && <p className="text-[12px] font-medium text-red-500 self-start">{error}</p>}
           <div className="flex justify-end gap-3">
@@ -199,7 +250,9 @@ export default function FollowUpTemplatesModal({
   )
 }
 
-// Seed the editable text per template: saved override if present, else default.
+// Seed the editable text for EVERY canonical key: saved override if present, else
+// default. Includes unshown legacy keys so their overrides ride through save
+// untouched (the RPC does a full replace; the sanitizer keeps only non-defaults).
 function seed(overrides: FollowUpOverrides): Record<FollowUpTemplateKey, string> {
   const clean = sanitizeFollowUpOverrides(overrides).overrides
   const out = {} as Record<FollowUpTemplateKey, string>

@@ -36,8 +36,18 @@ function seed(overrides: FollowUpOverrides): Record<FollowUpTemplateKey, string>
   return out
 }
 
-// ── Editor fields = the six content keys ─────────────────────────────────────
-eq([...KEYS].sort(), ["final_follow_up", "follow_up_1", "follow_up_2", "follow_up_3", "intro", "text_top_3"], "editor covers exactly the six templates")
+// ── Editor fields = the grouped Follow-Up Agent canonical templates ──────────
+// The modal shows a SUBSET of the content keys (legacy intro/text_top_3/
+// follow_up_3/final_follow_up are seeded + preserved but not shown). Must match
+// FollowUpTemplatesModal GROUPS.
+const EDITOR_FIELDS = [
+  "new_lead_text1", "new_lead_text2", "contact_follow_up_1", "contact_follow_up_2", "contact_follow_up_3",
+  "follow_up_1", "follow_up_2", "list_fu3_favorites", "list_fu3_no_favorites", "list_final",
+  "ds_needs_availability", "ds_availability_submitted", "ds_tour_now_or_wait",
+  "future_move_wait_ack", "future_move_reactivate", "post_tour", "application_status",
+]
+ok(EDITOR_FIELDS.every((k) => k in DEFAULT_FOLLOW_UP_TEMPLATES), "every editor field is a canonical content key")
+eq(EDITOR_FIELDS.length, 17, "editor shows the 17 grouped Follow-Up Agent templates")
 eq(AGENT_TEMPLATE_VARIABLES.length, 6, "editor offers the six approved variables")
 
 // ── Seed = override ?? default ───────────────────────────────────────────────

@@ -1,29 +1,23 @@
-// Follow-Up Agent — Phase 1 APPROVED COPY (content only; no timing/logic).
+// Follow-Up Agent — Phase 1 APPROVED COPY accessors (content only; no timing).
 //
-// PROVENANCE:
-//  - EXISTING approved defaults are re-used from companion-shared
-//    (DEFAULT_FOLLOW_UP_TEMPLATES) — never re-typed here, so the one canonical
-//    home stays authoritative.
-//  - NEW / LOCKED strings the locator explicitly approved in this checkpoint are
-//    defined here verbatim. LOCKED / PROVEN COPY must NOT be reworded.
-//
-// A later checkpoint may migrate the NEW strings into companion-shared with editor
-// + override support; kept here for now to keep Phase 1 self-contained.
+// SINGLE SOURCE OF TRUTH: every default string lives in companion-shared
+// (DEFAULT_FOLLOW_UP_TEMPLATES) so the editor, the override system and the engine
+// all read the same canonical, editable text. This module only re-exports those
+// under the engine's stable names and owns the ONE piece of rendering logic that
+// is not a flat template: New-Lead Text 1's graceful search-context composition.
 
-import { DEFAULT_FOLLOW_UP_TEMPLATES } from "@bc/companion-shared"
+import { DEFAULT_FOLLOW_UP_TEMPLATES, renderTemplate } from "@bc/companion-shared"
 import type { LeadSnapshot } from "./types"
 
-// ── NEW-LEAD initial double-text (split from the existing single `intro`) ──────
+// ── NEW-LEAD initial double-text ──────────────────────────────────────────────
 //
-// Text 1 re-uses the existing form-context greeting concept but WITHOUT the
-// location question. Rendered robustly so missing beds/type/move never produces
-// awkward output ("a  move", double spaces) — a rendering-robustness fix, not a
-// wording change. Text 2 is the location question, verbatim from the existing
-// intro's tail.
+// Text 1 is an editable template `new_lead_text1` that carries a SYSTEM token
+// {search_tail}. The locator edits the greeting / "I got your form" wording; the
+// engine composes {search_tail} — the conditional search clause AND its ending
+// punctuation — so the search context is gracefully OMITTED when unknown and can
+// never render "a  move". This is the only place that logic lives.
 
-/** Derive the beds/type phrase the existing intro used ("1 bedroom" / "studio" /
- *  "high-rise"), or "" when unknown — mirrors the legacy conflation but omitted
- *  cleanly when absent. */
+/** Beds/property-type phrase ("1 bedroom" / "studio" / "high-rise"), or "". */
 function bedsPhrase(lead: LeadSnapshot): string {
   const t = (lead.propertyType || "").toLowerCase()
   if (t === "high-rise") return "high-rise"
@@ -33,69 +27,68 @@ function bedsPhrase(lead: LeadSnapshot): string {
   return `${b} bedroom`
 }
 
-/** Text 1 — greeting + form context, gracefully omitting unknown pieces. */
-export function renderNewLeadText1(lead: LeadSnapshot): string {
-  const first = (lead.firstName || "").trim()
-  const agent = (lead.agentFirstName || "").trim()
-  const hi = first ? `Hey ${first}` : "Hey"
-  const intro = agent ? `${hi} it's ${agent}!` : `${hi}!`
+/** The engine-composed {search_tail}: " for a <phrase> move[ in <Month>]." with any
+ *  known search info, or "!" when neither beds/type nor move month is known. */
+function computeSearchTail(lead: LeadSnapshot): string {
   const phrase = bedsPhrase(lead)
   const month = (lead.moveMonthLabel || "").trim()
-  // Build the "I got your form for a <phrase> move[ in <Month>]" tail, dropping
-  // any unknown component so there is never an empty slot or double space.
-  const moveBits = [phrase, "move"].filter(Boolean).join(" ")
-  const monthSuffix = month ? ` in ${month}` : ""
-  const tail = phrase || month ? ` I got your form for a ${moveBits}${monthSuffix}.` : ` I got your form!`
-  return `${intro}${tail}`
+  if (!phrase && !month) return "!"
+  const noun = phrase ? (month ? `${phrase} move in ${month}` : `${phrase} move`) : `move in ${month}`
+  return ` for a ${noun}.`
 }
 
-/** Text 2 — the location question (LOCKED). Sent ~30–45s after Text 1. */
-export const NEW_LEAD_TEXT2 =
-  "Are you trying to stay near a specific address or side of town?"
+/**
+ * Render New-Lead Text 1 from the canonical (or overridden) template, filling the
+ * name tokens and the engine-composed {search_tail}. Default output:
+ *   full:  "Hey Sarah it's Jay! I got your form for a 1 bedroom move in October."
+ *   none:  "Hey Sarah it's Jay! I got your form!"
+ */
+export function renderNewLeadText1(lead: LeadSnapshot, override?: string | null): string {
+  const tpl = override ?? DEFAULT_FOLLOW_UP_TEMPLATES.new_lead_text1
+  const rendered = renderTemplate(tpl, {
+    first_name: (lead.firstName || "").trim(),
+    agent_first_name: (lead.agentFirstName || "").trim(),
+    search_tail: computeSearchTail(lead),
+  })
+  // Graceful greeting cleanup for a missing name (production always supplies both,
+  // but a name-less lead/agent must never leave "  it's !" artifacts): drop the
+  // "it's" clause when the agent name is empty, then collapse any double space.
+  return rendered
+    .replace(/\s+it's\s+!/g, "!") // agent name empty → "Hey Sarah!" / "Hey!"
+    .replace(/\s{2,}/g, " ") // first name empty → single space
+    .trim()
+}
 
-// ── NEW-LEAD contact-chase (EXISTING approved copy, re-used verbatim) ─────────
+// ── Canonical strings re-exported under the engine's stable names ─────────────
+export const NEW_LEAD_TEXT2 = DEFAULT_FOLLOW_UP_TEMPLATES.new_lead_text2
+
+// EXISTING approved copy re-used verbatim (unchanged legacy keys).
 export const CONTACT_FOLLOW_UP_1 = DEFAULT_FOLLOW_UP_TEMPLATES.contact_follow_up_1 // uses {first_name}
 export const CONTACT_FOLLOW_UP_2 = DEFAULT_FOLLOW_UP_TEMPLATES.contact_follow_up_2
 export const CONTACT_FOLLOW_UP_3 = DEFAULT_FOLLOW_UP_TEMPLATES.contact_follow_up_3
-
-// ── LIST-SENT ladder (EXISTING FU1/FU2 re-used; FU3 + final are LOCKED here) ───
 export const LIST_FU1 = DEFAULT_FOLLOW_UP_TEMPLATES.follow_up_1
 export const LIST_FU2 = DEFAULT_FOLLOW_UP_TEMPLATES.follow_up_2
 
-// LOCKED / PROVEN re-engagement copy — do NOT optimize. Conditional on favorites.
-export const LIST_FU3_WITH_FAVORITES =
-  "I'm calling the communities you were interested in to get updated pricing and specials. Are you still looking to move?"
-export const LIST_FU3_NO_FAVORITES =
-  "I'm calling communities on your list to get updated pricing and specials. Are you still looking to move?"
+// LOCKED / PROVEN copy — now canonical in companion-shared.
+export const LIST_FU3_WITH_FAVORITES = DEFAULT_FOLLOW_UP_TEMPLATES.list_fu3_favorites
+export const LIST_FU3_NO_FAVORITES = DEFAULT_FOLLOW_UP_TEMPLATES.list_fu3_no_favorites
 
 /** Pick the LOCKED FU3 variant from CURRENT favorites (checked at send time). */
 export function listFu3(favoritedCount: number): string {
   return favoritedCount > 0 ? LIST_FU3_WITH_FAVORITES : LIST_FU3_NO_FAVORITES
 }
 
-// LOCKED final/pause language (no client name), shared by appropriate endings.
-export const FINAL_PAUSE =
-  "I haven't heard back so I'll pause your search for now. No rush, just let me know when you'd like me to pick it back up."
+export const FINAL_PAUSE = DEFAULT_FOLLOW_UP_TEMPLATES.list_final
 
-// ── DONE-SELECTING branches (LOCKED, after the 10-min grace + final state check) ─
-export const DONE_SELECTING_A_AVAILABILITY_SUBMITTED =
-  "Those are excellent options! I noted those as your favorites. I'll get back to you once I have the tour confirmations."
-export const DONE_SELECTING_B_NEEDS_AVAILABILITY =
-  "Those are excellent options! I noted those as your favorites. When you get a chance, can you select your availability to tour on the recommendations page?"
-export const DONE_SELECTING_C_FAR_OUT =
-  "Those are excellent options! I noted those as your favorites. Would you like me to set up a tour now or wait until you're closer to your move date?"
-// Sent only after the client (in Branch C) chooses to WAIT.
-export const FUTURE_MOVE_WAIT_CONFIRM =
-  "Perfect! Let's keep in touch. I'll reach back out about 90 days before your move date so we can get everything set up."
+// DONE-SELECTING branches (LOCKED).
+export const DONE_SELECTING_A_AVAILABILITY_SUBMITTED = DEFAULT_FOLLOW_UP_TEMPLATES.ds_availability_submitted
+export const DONE_SELECTING_B_NEEDS_AVAILABILITY = DEFAULT_FOLLOW_UP_TEMPLATES.ds_needs_availability
+export const DONE_SELECTING_C_FAR_OUT = DEFAULT_FOLLOW_UP_TEMPLATES.ds_tour_now_or_wait
 
-// The reactivation message sent at the reactivation date (default move − 90 days,
-// or the client's explicit instruction). LOCKED. Uses {first_name} deliberately —
-// the conversation may have been inactive for months, so re-identifying is natural.
-export const FUTURE_MOVE_REACTIVATE =
-  "Hey {first_name}! Hope you're doing well. We're getting closer to your move date. When would you like me to get the tours set up for your favorites?"
+// FUTURE-MOVE (LOCKED): the wait acknowledgment and the 90-day reactivation.
+export const FUTURE_MOVE_WAIT_CONFIRM = DEFAULT_FOLLOW_UP_TEMPLATES.future_move_wait_ack
+export const FUTURE_MOVE_REACTIVATE = DEFAULT_FOLLOW_UP_TEMPLATES.future_move_reactivate // uses {first_name}
 
-// ── POST-TOUR (LOCKED) ────────────────────────────────────────────────────────
-export const POST_TOUR = "How did the tour go? Hopefully everything went well"
-
-// ── APPLICATION-STATUS (approved) ─────────────────────────────────────────────
-export const APPLICATION_STATUS = "Have you heard anything back on your application yet?"
+// POST-TOUR + APPLICATION (approved).
+export const POST_TOUR = DEFAULT_FOLLOW_UP_TEMPLATES.post_tour
+export const APPLICATION_STATUS = DEFAULT_FOLLOW_UP_TEMPLATES.application_status
