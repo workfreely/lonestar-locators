@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
+import { cookies } from "next/headers"
 import { createClient } from "@/lib/supabase/server"
 import { recordSecurityEvent } from "@/lib/security/events"
+import { DEVICE_COOKIE, deviceCookieOptions, recognizeOrEnrollDevice } from "@/lib/security/trustedDevice"
 
 // Security Beast — server-side hook for the EMAIL/PASSWORD login, which happens
 // entirely client-side (supabase.auth.signInWithPassword) and so has no server
@@ -25,11 +27,27 @@ export async function POST(req: Request) {
     } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ ok: false }, { status: 401 })
 
+    // Trusted-device recognition (best-effort). Read the presented device cookie,
+    // recognize it for THIS user or enroll a new one, and — when new — write the
+    // fresh raw credential back as an httpOnly cookie. Never blocks login.
+    const cookieStore = await cookies()
+    const presented = cookieStore.get(DEVICE_COOKIE)?.value
+    const device = await recognizeOrEnrollDevice({
+      userId: user.id,
+      presentedCookie: presented,
+      headers: req.headers,
+    })
+    if (device.newCookieValue) {
+      cookieStore.set(DEVICE_COOKIE, device.newCookieValue, deviceCookieOptions())
+    }
+
     await recordSecurityEvent({
       userId: user.id,
       eventType: "login",
       method: "password",
       headers: req.headers,
+      // Non-secret device context only — status + the row id, never the credential.
+      metadata: { device: device.status, trusted_device_id: device.deviceId },
     })
   } catch {
     // Fail-open — never let a telemetry error affect the client.

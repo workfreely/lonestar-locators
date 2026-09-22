@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { REFERRAL_COOKIE, referralCookieOptions } from "@/lib/network/referralCookie";
 import { recordSecurityEvent } from "@/lib/security/events";
+import { DEVICE_COOKIE, deviceCookieOptions, recognizeOrEnrollDevice } from "@/lib/security/trustedDevice";
 
 // Landing point for both Google OAuth and email-confirmation links — both
 // arrive with a `code` param that gets exchanged for a session here, then
@@ -24,11 +25,34 @@ export async function GET(request: NextRequest) {
       // it can never interrupt sign-in.
       const authedUserId = exchanged.session?.user?.id ?? exchanged.user?.id;
       if (authedUserId) {
+        // Trusted-device recognition (best-effort) — recognize this browser for
+        // the user or enroll it, and set the httpOnly device cookie when new. On
+        // this GET-redirect route, cookies().set() attaches Set-Cookie to the
+        // redirect response (same mechanism the referral clear below uses).
+        let device: Awaited<ReturnType<typeof recognizeOrEnrollDevice>> = {
+          status: "unavailable",
+          deviceId: null,
+        };
+        try {
+          const cookieStore = await cookies();
+          const presented = cookieStore.get(DEVICE_COOKIE)?.value;
+          device = await recognizeOrEnrollDevice({
+            userId: authedUserId,
+            presentedCookie: presented,
+            headers: request.headers,
+          });
+          if (device.newCookieValue) {
+            cookieStore.set(DEVICE_COOKIE, device.newCookieValue, deviceCookieOptions());
+          }
+        } catch {
+          // Never let device recognition interrupt sign-in.
+        }
         await recordSecurityEvent({
           userId: authedUserId,
           eventType: "login",
           method: "google_oauth",
           headers: request.headers,
+          metadata: { device: device.status, trusted_device_id: device.deviceId },
         });
       }
 
