@@ -2,7 +2,7 @@ import { supabase } from "@/lib/supabase/client"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { emitWorkflowActionCreated } from "@/lib/workflowToast"
-import { autoDueInDays } from "@/lib/workflow/autoDueDate"
+import { autoDueInDays, type WorkHours } from "@/lib/workflow/autoDueDate"
 
 /**
  * CANONICAL "Send List complete" workflow — the mirror of buildListWorkflow's
@@ -25,10 +25,12 @@ export async function completeSendList(opts: {
   // matches the FU1 row the update-stage route creates (also zone-aware server-
   // side). Omitted → runtime-local (unchanged).
   timeZone?: string | null
+  // Optional locator Working Hours (Profile setting). Omitted/empty → 9–21 default.
+  workHours?: WorkHours
   onOptimistic?: (updatedLead: any) => void
   onWorkflowAction?: (action: any) => void
 }): Promise<void> {
-  const { lead, sendRow, timeZone, onOptimistic, onWorkflowAction } = opts
+  const { lead, sendRow, timeZone, workHours, onOptimistic, onWorkflowAction } = opts
 
   // Complete the persisted send_list row (real leads) so Last Action derives
   // "Sent List". Demo leads never hit the DB — the caller synthesizes the local
@@ -55,7 +57,7 @@ export async function completeSendList(opts: {
       follow_up_count: 0,
       // FU1 is due next calendar day at 9:00 AM in the saved locator zone — mirror
       // that on the lead's cache column so the Kanban/Agenda date matches the row.
-      next_action_date: autoDueInDays(1, timeZone ?? DEFAULT_TIMEZONE),
+      next_action_date: autoDueInDays(1, timeZone ?? DEFAULT_TIMEZONE, workHours),
     }),
   })
     .then((res) => res.json())

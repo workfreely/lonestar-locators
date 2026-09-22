@@ -1,4 +1,4 @@
-import { autoDueInDays } from "./autoDueDate"
+import { autoDueInDays, type WorkHours } from "./autoDueDate"
 
 /**
  * Move-date-aware follow-up cadence.
@@ -48,12 +48,16 @@ export function followUpSuccessorDueAt(
   // this zone (stored UTC). Omitted → runtime-local (unchanged). The fallback is
   // already computed by the caller in the same zone, so it stays authoritative.
   timeZone: string,
+  // Optional locator Working Hours (Profile setting). Omitted/empty → 9–21
+  // default window. The caller-provided fallbackDueAt should already reflect the
+  // same window, so it remains authoritative for the unapproved cases.
+  workHours?: WorkHours,
 ): string {
   void completedTitle
   const days = daysUntilMove(lead.move_date)
   if (days == null) return fallbackDueAt // missing / invalid move date
   if (days < 0) return fallbackDueAt // past move date — never treat as ≤60
-  if (days <= 60) return autoDueInDays(1, timeZone) // aggressive: +1 day
-  if (days <= 120) return autoDueInDays(3, timeZone) // less aggressive: +3 days
+  if (days <= 60) return autoDueInDays(1, timeZone, workHours) // aggressive: +1 day
+  if (days <= 120) return autoDueInDays(3, timeZone, workHours) // less aggressive: +3 days
   return fallbackDueAt // 120+ days — unapproved, preserve existing timing
 }

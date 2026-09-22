@@ -16,7 +16,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { CURRENT_WORKFLOW_VERSION, type WorkflowActionKey } from "@bc/companion-shared"
-import { autoDueInDays, autoDueOnDate } from "./workflow/autoDueDate"
+import { autoDueInDays, autoDueOnDate, type WorkHours } from "./workflow/autoDueDate"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 
 export type WorkflowActionSpec = {
@@ -63,7 +63,10 @@ export function getStageWorkflowAction(
   lead: { follow_up_count?: number | null; move_date?: string | null },
   // Saved locator IANA timezone. When provided, every 9:00 AM deadline below is
   // computed in that zone (stored UTC). Omitted → runtime-local (unchanged).
-  timeZone: string
+  timeZone: string,
+  // Optional locator Working Hours (Profile setting). Omitted/empty → 9–21
+  // default window. Threaded into every scheduled autoDue* below.
+  workHours?: WorkHours,
 ): WorkflowActionSpec | null {
   switch (newStage) {
     case "new":
@@ -72,7 +75,7 @@ export function getStageWorkflowAction(
       // Contact Lead due the CREATION calendar day (autoDueInDays(0) → 9:00 AM local
       // today), so it appears in Agenda → Today the moment it lands and only flips to
       // Overdue once the local day advances (day-level urgency in lib/nextActions).
-      return { title: "Contact Lead", dueAt: autoDueInDays(0, timeZone), actionKey: "contact_lead" }
+      return { title: "Contact Lead", dueAt: autoDueInDays(0, timeZone, workHours), actionKey: "contact_lead" }
 
     case "contacted":
       // After first contact, the canonical next step is building the client's
@@ -83,14 +86,14 @@ export function getStageWorkflowAction(
       // canonical build_list key so a repeated contact never doubles it.
       if ((lead.follow_up_count ?? 0) > 0) return null
       // Actionable immediately; due is a backstop — 9:00 AM the next calendar day.
-      return { title: "Build List", dueAt: autoDueInDays(1, timeZone), actionKey: "build_list" }
+      return { title: "Build List", dueAt: autoDueInDays(1, timeZone, workHours), actionKey: "build_list" }
 
     case "searching":
       // Actionable immediately; due is a backstop — 9:00 AM the next calendar day.
-      return { title: "Send List", dueAt: autoDueInDays(1, timeZone), actionKey: "send_list" }
+      return { title: "Send List", dueAt: autoDueInDays(1, timeZone, workHours), actionKey: "send_list" }
 
     case "list_sent":
-      return { title: "FU1", dueAt: autoDueInDays(1, timeZone), actionKey: "follow_up_1", sequence: 1 }
+      return { title: "FU1", dueAt: autoDueInDays(1, timeZone, workHours), actionKey: "follow_up_1", sequence: 1 }
 
     case "ready_to_tour": {
       const moveDate = lead.move_date ? new Date(lead.move_date) : null
@@ -101,16 +104,16 @@ export function getStageWorkflowAction(
       }
       const daysUntilMove = Math.ceil((moveDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
       if (daysUntilMove > 90) {
-        return { title: "Reconnect Client", dueAt: autoDueOnDate(moveDate, -90, timeZone), actionKey: "reconnect_client" }
+        return { title: "Reconnect Client", dueAt: autoDueOnDate(moveDate, -90, timeZone, workHours), actionKey: "reconnect_client" }
       }
       return { title: "Setup Tour", dueAt: immediateNow(), actionKey: "setup_tour" }
     }
 
     case "applied":
-      return { title: "Check App", dueAt: autoDueInDays(3, timeZone), actionKey: "check_application" }
+      return { title: "Check App", dueAt: autoDueInDays(3, timeZone, workHours), actionKey: "check_application" }
 
     case "closed":
-      return { title: "Get Invoice Details", dueAt: autoDueOnDate(new Date(), 0, timeZone), actionKey: "get_invoice_details" }
+      return { title: "Get Invoice Details", dueAt: autoDueOnDate(new Date(), 0, timeZone, workHours), actionKey: "get_invoice_details" }
 
     // "archived": no automatic actions (explicit).
     // "done_touring": Tour Management ("Tour Scheduled") isn't implemented
@@ -125,11 +128,11 @@ export function getStageWorkflowAction(
  * FU1 -> FU2 -> FU3 -> Final. Only ever the ONE next step, triggered by
  * completing the previous step — never the whole sequence at once.
  */
-export function getNextFollowUpAction(completedTitle: string, timeZone: string): WorkflowActionSpec | null {
+export function getNextFollowUpAction(completedTitle: string, timeZone: string, workHours?: WorkHours): WorkflowActionSpec | null {
   switch (completedTitle) {
-    case "FU1": return { title: "FU2", dueAt: autoDueInDays(2, timeZone), actionKey: "follow_up_2", sequence: 2 }
-    case "FU2": return { title: "FU3", dueAt: autoDueInDays(3, timeZone), actionKey: "follow_up_3", sequence: 3 }
-    case "FU3": return { title: "Final", dueAt: autoDueInDays(7, timeZone), actionKey: "final_follow_up", sequence: 4 }
+    case "FU1": return { title: "FU2", dueAt: autoDueInDays(2, timeZone, workHours), actionKey: "follow_up_2", sequence: 2 }
+    case "FU2": return { title: "FU3", dueAt: autoDueInDays(3, timeZone, workHours), actionKey: "follow_up_3", sequence: 3 }
+    case "FU3": return { title: "Final", dueAt: autoDueInDays(7, timeZone, workHours), actionKey: "final_follow_up", sequence: 4 }
     default: return null
   }
 }
@@ -141,10 +144,10 @@ export function getNextFollowUpAction(completedTitle: string, timeZone: string):
  * cadence the post-list sequence uses). Only ever the ONE next step, created on
  * completion of the previous one — never the whole chain in advance.
  */
-export function getNextContactFollowUpAction(completedTitle: string, timeZone: string): WorkflowActionSpec | null {
+export function getNextContactFollowUpAction(completedTitle: string, timeZone: string, workHours?: WorkHours): WorkflowActionSpec | null {
   switch ((completedTitle || "").trim()) {
-    case "Contact FU1": return { title: "Contact FU2", dueAt: autoDueInDays(2, timeZone), actionKey: "contact_follow_up_2", sequence: 2 }
-    case "Contact FU2": return { title: "Contact FU3", dueAt: autoDueInDays(2, timeZone), actionKey: "contact_follow_up_3", sequence: 3 }
+    case "Contact FU1": return { title: "Contact FU2", dueAt: autoDueInDays(2, timeZone, workHours), actionKey: "contact_follow_up_2", sequence: 2 }
+    case "Contact FU2": return { title: "Contact FU3", dueAt: autoDueInDays(2, timeZone, workHours), actionKey: "contact_follow_up_3", sequence: 3 }
     // Contact FU3 is terminal — no successor, and (per this checkpoint) no archive.
     default: return null
   }

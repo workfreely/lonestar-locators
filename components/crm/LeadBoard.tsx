@@ -16,7 +16,7 @@ import PauseOrArchiveDialog from "./PauseOrArchiveDialog"
 import { buildHoldClearedOnArchive, isOnHold } from "@/lib/leads/holdWorkflow"
 import { supabase } from "@/lib/supabase/client"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
-import { autoDueInDays } from "@/lib/workflow/autoDueDate"
+import { autoDueInDays, type WorkHours } from "@/lib/workflow/autoDueDate"
 import { readKanbanDensity, writeKanbanDensity, DEFAULT_KANBAN_DENSITY } from "@/lib/preferences"
 import BeastVoiceMic from "./voice/BeastVoiceMic"
 import AddPropertyModal from "./AddPropertyModal"
@@ -90,6 +90,7 @@ export default function LeadBoard({
   onRescheduleHold,
   columns = ALL_COLUMNS,
   timeZone,
+  workHours,
   focus = false,
   onToggleFocus,
   workspace = "board",
@@ -144,6 +145,9 @@ export default function LeadBoard({
   // Saved locator IANA timezone — the drag-set follow-up cache date is computed
   // in it so it matches the server-created action (no zone disagreement).
   timeZone?: string | null
+  // Locator Working Hours (Profile setting) — clamps the drag-set date to the
+  // locator window; omitted/empty → 9–21 default. Matches the server engine.
+  workHours?: WorkHours
   // ── Focus (optional) ─────────────────────────────────────────────────────
   // Focus is an APP-LEVEL layout mode: the Kanban takes over the Locator Beast
   // tab by hiding the dashboard chrome around it. It is NOT the browser
@@ -341,7 +345,7 @@ export default function LeadBoard({
     ) {
       // Automatic follow-up: tomorrow at 9:00 AM (not the current clock time),
       // so the dashboard shows a clean morning workload.
-      nextDate = autoDueInDays(1, timeZone ?? DEFAULT_TIMEZONE)
+      nextDate = autoDueInDays(1, timeZone ?? DEFAULT_TIMEZONE, workHours)
     } else if (newStage === "archived") {
       // Archiving pauses the workflow, it doesn't erase it — preserve
       // whatever due date the lead already had so restoring it resumes

@@ -38,6 +38,7 @@ import { getOAuthClientForUser } from "@/lib/google/getOAuthClientForUser"
 import { findDuplicateMatch, type LeadIdentity } from "@/lib/leads/duplicateDetection"
 import { getStageWorkflowAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
 import { resolveUserTimeZone } from "@/lib/timezone/server"
+import { resolveWorkHoursFromProfile } from "@/lib/workflow/autoDueDate"
 import { requireWorkspaceMember } from "@/lib/auth/requireWorkspaceMember"
 import { sendNotification, newLeadEmail, leadConfirmationEmail, absoluteUrl } from "@/lib/notifications"
 import { resolveAgentIdentityForOwner } from "@/lib/notifications/agentSignature"
@@ -602,7 +603,19 @@ export async function POST(request: Request) {
               data.owner_user_id ?? null,
               data.workspace_id ?? null,
             )
-            const spec = getStageWorkflowAction("new", data, timeZone)
+            // Owning locator's Working Hours (Profile setting) — clamps Contact
+            // Lead's due time to their window; NULL/unconfigured or no owner → the
+            // 9–21 default (resolveWorkHoursFromProfile handles a null row).
+            let workHours = undefined as ReturnType<typeof resolveWorkHoursFromProfile> | undefined
+            if (data.owner_user_id) {
+              const { data: whProfile } = await supabaseAdmin
+                .from("profiles")
+                .select("work_hours_start, work_hours_end")
+                .eq("id", data.owner_user_id)
+                .maybeSingle()
+              workHours = resolveWorkHoursFromProfile(whProfile)
+            }
+            const spec = getStageWorkflowAction("new", data, timeZone, workHours)
             if (spec) await createWorkflowActionIfNeeded(supabaseAdmin, data.id, spec)
           } catch (err) {
             console.error("[api/leads/submit] Workflow Engine action failed:", err)

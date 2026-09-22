@@ -27,6 +27,7 @@ import {
 // card and the Save handler. Kept as one constant so both read identically.
 const MIN_MARKETS_MESSAGE = "Select at least one market."
 import TimezoneSetting from "./TimezoneSetting"
+import WorkingHoursSetting from "./WorkingHoursSetting"
 import {
   toRpcFailure,
   userMessageForServiceAreaError,
@@ -63,6 +64,8 @@ type ProfileInitial = {
   clientContactEmail: string
   photoUrl: string | null
   timeZone: string
+  workHoursStart: number | null
+  workHoursEnd: number | null
 }
 
 // Progressive US phone formatting for the input — shows "(210) 555-1234" as the
@@ -778,6 +781,11 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
           TimezoneSetting control + persistence route; independent of the Save
           Changes button below (it saves through its own timezone route). */}
       <TimezoneSetting initialTimeZone={initial.timeZone} />
+
+      {/* Working Hours — the locator-local window for automatic scheduled Next
+          Action reminders. Saves through its own /api/admin/profile/work-hours
+          route (independent of Save Changes below). */}
+      <WorkingHoursSetting initialStart={initial.workHoursStart} initialEnd={initial.workHoursEnd} />
 
       {/* Account security — its own section directly after Time Zone rather than
           buried under the identity card above. Functionality unchanged. */}

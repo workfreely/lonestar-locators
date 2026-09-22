@@ -1,4 +1,4 @@
-import { autoDueOnDate } from "@/lib/workflow/autoDueDate"
+import { autoDueOnDate, type WorkHours } from "@/lib/workflow/autoDueDate"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 
 // Future Lease Follow-Up scheduling — the client-retention action created once a
@@ -55,9 +55,9 @@ export function estimateLeaseEndDate(startDate: unknown, term: unknown): Date | 
 /** Future Lease Follow-Up due instant = estimated lease end − 90 days, at 9:00 AM
  *  local (timezone-safe via the existing autoDueOnDate convention). Null when the
  *  lease end can't be derived — the caller must not fabricate a date. */
-export function leaseFollowUpDueAt(startDate: unknown, term: unknown, timeZone?: string | null): string | null {
+export function leaseFollowUpDueAt(startDate: unknown, term: unknown, timeZone?: string | null, workHours?: WorkHours): string | null {
   const end = estimateLeaseEndDate(startDate, term)
   if (!end) return null
   const due = new Date(end.getTime() - LEASE_FOLLOW_UP_LEAD_DAYS * 24 * 60 * 60 * 1000)
-  return autoDueOnDate(due, 0, timeZone ?? DEFAULT_TIMEZONE)
+  return autoDueOnDate(due, 0, timeZone ?? DEFAULT_TIMEZONE, workHours)
 }

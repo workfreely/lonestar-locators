@@ -71,7 +71,7 @@ import type { TourOutcome, ApplicationStatus } from "@bc/companion-shared"
 import { supabase } from "@/lib/supabase/client"
 import { getNextFollowUpAction } from "@/lib/workflowEngine"
 import { followUpSuccessorDueAt } from "@/lib/workflow/moveDateCadence"
-import { autoDueInDays } from "@/lib/workflow/autoDueDate"
+import { autoDueInDays, type WorkHours } from "@/lib/workflow/autoDueDate"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { dialUrl, launchExternalProtocol } from "@/lib/leads/launchCommunication"
 import { formatPersonName, greetingName, buildIntroSmsBody, type FollowUpOverrides,
@@ -109,7 +109,7 @@ function toCompanionLocator(signature: ResolvedAgentIdentity | null, agentName?:
   }
 }
 
-export default function DashboardClient({ leads, nextActions, favorites, recommendations = [], outreach = [], tours = [], sentGuestCards = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, projectionMethod = DEFAULT_PROJECTION_METHOD, timeZone = DEFAULT_TIMEZONE, voiceEnabled = false, companionOwner = "", userId = "", serviceAreaSlugs = [], primaryMarket = null, licenseState = null, followUpTemplates = {} }: { leads: any[]; nextActions: any[]; favorites: any[]; recommendations?: any[]; outreach?: any[]; tours?: any[]; sentGuestCards?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; projectionMethod?: ProjectionMethod; timeZone?: string; /** Beast Voice alpha — true only for a platform admin, resolved server-side. */ voiceEnabled?: boolean;
+export default function DashboardClient({ leads, nextActions, favorites, recommendations = [], outreach = [], tours = [], sentGuestCards = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, projectionMethod = DEFAULT_PROJECTION_METHOD, timeZone = DEFAULT_TIMEZONE, workHours = {}, voiceEnabled = false, companionOwner = "", userId = "", serviceAreaSlugs = [], primaryMarket = null, licenseState = null, followUpTemplates = {} }: { leads: any[]; nextActions: any[]; favorites: any[]; recommendations?: any[]; outreach?: any[]; tours?: any[]; sentGuestCards?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; projectionMethod?: ProjectionMethod; timeZone?: string; /** Locator Working Hours (Profile setting); {} → 9–21 default window. */ workHours?: WorkHours; /** Beast Voice alpha — true only for a platform admin, resolved server-side. */ voiceEnabled?: boolean;
   /** Opaque "<userId>:<workspaceId>" for the signed-in locator. Beast Companion
    *  binds every stored client record to it so a different account on the same
    *  browser can never see this locator's client. Server-derived. */
@@ -1178,7 +1178,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       if (error) console.error("[apply] advance to applied failed:", error)
       checkApp = await createWorkflowActionIfNeeded(supabase, lead.id, {
         title: "Check App",
-        dueAt: autoDueInDays(3, timeZone),
+        dueAt: autoDueInDays(3, timeZone, workHours),
         actionKey: "check_application",
         // D5 — stamp the Top Pick property so the Check Application row is
         // property-scoped identically for real and demo (start_application carries
@@ -1195,7 +1195,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         action_key: "check_application",
         property_id: action.property_id ?? null,
         property_name: action.property_name ?? null,
-        due_at: autoDueInDays(3, timeZone),
+        due_at: autoDueInDays(3, timeZone, workHours),
         priority: "medium",
         completed: false,
         status: "open",
@@ -1463,7 +1463,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     if (isDemoLeadId(lead.id)) {
       const demo = {
         id: `demo-act-checkapp-${Date.now()}`, lead_id: lead.id, title: "Check App", action_key: "check_application",
-        property_id: favId, property_name: favName || null, due_at: autoDueInDays(3, timeZone),
+        property_id: favId, property_name: favName || null, due_at: autoDueInDays(3, timeZone, workHours),
         priority: "medium", completed: false, status: "open",
       }
       setLocalNextActions((prev: any) => [...prev, demo])
@@ -1472,7 +1472,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     }
     const created = await createWorkflowActionIfNeeded(supabase, lead.id, {
       title: "Check App",
-      dueAt: autoDueInDays(3, timeZone),
+      dueAt: autoDueInDays(3, timeZone, workHours),
       actionKey: "check_application",
       propertyId: favId,
       propertyName: favName || null,
@@ -1991,7 +1991,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     const propertyId = action?.property_id ?? lead.top_pick_favorite_id ?? null
     const propFav = localFavoritesRef.current.find((f: any) => String(f.id) === String(propertyId))
     const propertyName = action?.property_name ?? propFav?.property_name ?? null
-    const derived = leaseFollowUpDueAt(lead.invoice_lease_start_date, lead.invoice_lease_term, timeZone)
+    const derived = leaseFollowUpDueAt(lead.invoice_lease_start_date, lead.invoice_lease_term, timeZone, workHours)
     const dueAt = derived ?? new Date().toISOString()
     let lfAction: any = null
     if (demo) {
@@ -2152,6 +2152,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       lead,
       method,
       timeZone,
+      workHours,
       onOptimistic: (updated) => {
         setLocalLeads((prev) =>
           prev.map((l) =>
@@ -2203,6 +2204,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       method,
       outcome,
       timeZone,
+      workHours,
       onOptimistic: (updated) => {
         // New → Contacted advance (only fires when the lead was New). Merge the
         // stage so the Kanban card moves to Contacted immediately, mirroring
@@ -2405,7 +2407,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
               // Backstop due — 9:00 AM next calendar day (mirrors the real Build
               // List row created by getStageWorkflowAction), so it reads Pending,
               // not instantly Overdue.
-              due_at: autoDueInDays(1, timeZone),
+              due_at: autoDueInDays(1, timeZone, workHours),
               priority: "medium",
               completed: false,
               status: "open",
@@ -2492,7 +2494,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
               action_key: "send_list",
               // Backstop due — 9:00 AM next calendar day (mirrors the real Send List
               // row from getStageWorkflowAction), so it reads Pending, not Overdue.
-              due_at: autoDueInDays(1, timeZone),
+              due_at: autoDueInDays(1, timeZone, workHours),
               priority: "medium",
               completed: false,
             }
@@ -2593,7 +2595,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
               lead_id: lead.id,
               title: "FU1",
               action_key: "follow_up_1",
-              due_at: autoDueInDays(1, timeZone),
+              due_at: autoDueInDays(1, timeZone, workHours),
               priority: "medium",
               completed: false,
               sequence: 1,
@@ -2609,6 +2611,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           lead,
           sendRow: sendRow ? { id: sendRow.id } : null,
           timeZone,
+          workHours,
           onOptimistic: (updated) => {
             setLocalLeads((prev) =>
               prev.map((l) =>
@@ -2732,7 +2735,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
 
         // Demo successor (real leads get theirs from completeFollowUp) — identity
         // from the engine, due date from the approved move-date cadence.
-        const succSpec = getNextFollowUpAction(completedTitle, timeZone)
+        const succSpec = getNextFollowUpAction(completedTitle, timeZone, workHours)
         const demoSuccessor: any =
           isDemoLeadId(lead.id) && succSpec
             ? {
@@ -2740,7 +2743,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                 lead_id: lead.id,
                 title: succSpec.title,
                 action_key: succSpec.actionKey,
-                due_at: followUpSuccessorDueAt(completedTitle, lead, succSpec.dueAt, timeZone),
+                due_at: followUpSuccessorDueAt(completedTitle, lead, succSpec.dueAt, timeZone, workHours),
                 priority: "medium",
                 completed: false,
                 sequence: succSpec.sequence ?? null,
@@ -3994,6 +3997,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
               })
             }}
             timeZone={timeZone}
+            workHours={workHours}
             focus={focusMode}
             onToggleFocus={() => setFocus(!focusMode)}
             voiceEnabled={voiceEnabled}
@@ -4323,6 +4327,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         propertyName={tourFollowUp?.favorite?.property_name ?? tourFollowUp?.tour?.property_name ?? null}
         scheduledAt={tourFollowUp?.tour?.scheduled_at ?? null}
         timeZone={timeZone}
+        workHours={workHours}
         onSubmit={handleTourFollowUpOutcome}
       />
 
@@ -4334,6 +4339,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         onClose={() => setCheckApplication(null)}
         propertyName={checkApplication?.property?.property_name ?? checkApplication?.action?.property_name ?? null}
         timeZone={timeZone}
+        workHours={workHours}
         onSubmit={handleCheckApplicationOutcome}
       />
 

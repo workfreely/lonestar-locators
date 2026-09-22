@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { APPLICATION_OUTCOMES, APPLICATION_OUTCOME_LABELS, type ApplicationStatus } from "@bc/companion-shared"
-import { autoDueInDays } from "@/lib/workflow/autoDueDate"
+import { autoDueInDays, type WorkHours } from "@/lib/workflow/autoDueDate"
 import { localTourToUtc } from "@/lib/leads/tourFollowUp"
 import DateTimePicker from "./DateTimePicker"
 
@@ -22,12 +22,14 @@ export default function CheckApplicationModal({
   onClose,
   propertyName,
   timeZone,
+  workHours,
   onSubmit,
 }: {
   open: boolean
   onClose: () => void
   propertyName: string | null
   timeZone?: string | null
+  workHours?: WorkHours
   onSubmit: (status: ApplicationStatus, extras: { followUpDueAt?: string | null; note?: string | null }) => void
 }) {
   // "status" step → optional "followup" step (Still Pending / Other).
@@ -124,9 +126,9 @@ export default function CheckApplicationModal({
             )}
             <p className="text-[12.5px] font-semibold uppercase tracking-[0.1em] text-[var(--crm-text-secondary)]">{dateHeading}</p>
             <div className="flex gap-2">
-              <button type="button" className={quickBtn} onClick={() => submitFollowUp(autoDueInDays(1, tz ?? DEFAULT_TIMEZONE))}>Tomorrow</button>
-              <button type="button" className={quickBtn} onClick={() => submitFollowUp(autoDueInDays(2, tz ?? DEFAULT_TIMEZONE))}>2 Days</button>
-              <button type="button" className={quickBtn} onClick={() => submitFollowUp(autoDueInDays(3, tz ?? DEFAULT_TIMEZONE))}>3 Days</button>
+              <button type="button" className={quickBtn} onClick={() => submitFollowUp(autoDueInDays(1, tz ?? DEFAULT_TIMEZONE, workHours))}>Tomorrow</button>
+              <button type="button" className={quickBtn} onClick={() => submitFollowUp(autoDueInDays(2, tz ?? DEFAULT_TIMEZONE, workHours))}>2 Days</button>
+              <button type="button" className={quickBtn} onClick={() => submitFollowUp(autoDueInDays(3, tz ?? DEFAULT_TIMEZONE, workHours))}>3 Days</button>
             </div>
             <div>
               <button

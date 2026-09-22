@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server"
 import { resolveAgentIdentityForOwner, type ResolvedAgentIdentity } from "@/lib/notifications/agentSignature"
 import { resolveUserTimeZone } from "@/lib/timezone/server"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
+import { resolveWorkHoursFromProfile, type WorkHours } from "@/lib/workflow/autoDueDate"
 import { greetingName, displayFullName, sanitizeFollowUpOverrides, type FollowUpOverrides } from "@bc/companion-shared"
 import { reconcilePrimaryMarket } from "@/lib/markets/catalog"
 import { attachCatalogRatings } from "@/lib/propertyExplorer/catalog"
@@ -178,16 +179,16 @@ async function getScheduledTours() {
 // first_name personalizes the demo welcome banner.
 type AgentProfile = { name: string; brokerage: string; phone: string; email: string }
 
-async function getProfileContext(): Promise<{ demoMode: boolean; firstName: string; googleConnected: boolean; agent: AgentProfile; signature: ResolvedAgentIdentity | null; avgCommission: number; projectionMethod: ProjectionMethod; timeZone: string; companionOwner: string; userId: string; serviceAreaSlugs: string[]; primaryMarket: string | null; licenseState: string | null; followUpTemplates: FollowUpOverrides }> {
+async function getProfileContext(): Promise<{ demoMode: boolean; firstName: string; googleConnected: boolean; agent: AgentProfile; signature: ResolvedAgentIdentity | null; avgCommission: number; projectionMethod: ProjectionMethod; timeZone: string; workHours: WorkHours; companionOwner: string; userId: string; serviceAreaSlugs: string[]; primaryMarket: string | null; licenseState: string | null; followUpTemplates: FollowUpOverrides }> {
   const emptyAgent: AgentProfile = { name: "", brokerage: "", phone: "", email: "" }
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) return { demoMode: false, firstName: "", googleConnected: false, agent: emptyAgent, signature: null, avgCommission: DEFAULT_AVG_COMMISSION, projectionMethod: DEFAULT_PROJECTION_METHOD, timeZone: DEFAULT_TIMEZONE, companionOwner: "", userId: "", serviceAreaSlugs: [], primaryMarket: null, licenseState: null, followUpTemplates: {} }
+  if (!user) return { demoMode: false, firstName: "", googleConnected: false, agent: emptyAgent, signature: null, avgCommission: DEFAULT_AVG_COMMISSION, projectionMethod: DEFAULT_PROJECTION_METHOD, timeZone: DEFAULT_TIMEZONE, workHours: {}, companionOwner: "", userId: "", serviceAreaSlugs: [], primaryMarket: null, licenseState: null, followUpTemplates: {} }
   const { data: profile } = await supabase
     .from("profiles")
-    .select("demo_mode, first_name, last_name, preferred_name, preferred_first_name, preferred_last_name, email, brokerage, phone_number, google_connected, avg_commission_per_lease, projection_method, license_state")
+    .select("demo_mode, first_name, last_name, preferred_name, preferred_first_name, preferred_last_name, email, brokerage, phone_number, google_connected, avg_commission_per_lease, projection_method, license_state, work_hours_start, work_hours_end")
     .eq("id", user.id)
     .single()
 
@@ -250,6 +251,9 @@ async function getProfileContext(): Promise<{ demoMode: boolean; firstName: stri
     avgCommission: Number(profile?.avg_commission_per_lease) || DEFAULT_AVG_COMMISSION,
     projectionMethod: (profile?.projection_method as ProjectionMethod) ?? DEFAULT_PROJECTION_METHOD,
     timeZone,
+    // Locator Working Hours (Profile setting) — clamps client-created + demo
+    // scheduled Next Action due times to the locator window; {} → 9–21 default.
+    workHours: resolveWorkHoursFromProfile(profile),
     companionOwner,
     userId: user.id,
     serviceAreaSlugs: ws?.service_areas ?? [],
@@ -280,7 +284,7 @@ async function isPlatformAdmin(): Promise<boolean> {
 }
 
 export default async function Page() {
-  const { demoMode, firstName, googleConnected, agent, signature, avgCommission, projectionMethod, timeZone, companionOwner, userId, serviceAreaSlugs, primaryMarket, licenseState, followUpTemplates } = await getProfileContext()
+  const { demoMode, firstName, googleConnected, agent, signature, avgCommission, projectionMethod, timeZone, workHours, companionOwner, userId, serviceAreaSlugs, primaryMarket, licenseState, followUpTemplates } = await getProfileContext()
   const voiceEnabled = await isPlatformAdmin()
 
   if (demoMode) {
@@ -302,6 +306,7 @@ export default async function Page() {
         avgCommission={DEFAULT_AVG_COMMISSION_PER_LEASE}
         projectionMethod={DEFAULT_PROJECTION_METHOD}
         timeZone={timeZone}
+        workHours={workHours}
         voiceEnabled={voiceEnabled}
         companionOwner={companionOwner}
         userId={userId}
@@ -321,5 +326,5 @@ export default async function Page() {
     getSentGuestCards(),
   ])
 
-  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} recommendations={recommendations} outreach={outreach} tours={tours} sentGuestCards={sentGuestCards} agent={agent} signature={signature} avgCommission={avgCommission} projectionMethod={projectionMethod} timeZone={timeZone} voiceEnabled={voiceEnabled} companionOwner={companionOwner} userId={userId} serviceAreaSlugs={serviceAreaSlugs} primaryMarket={primaryMarket} licenseState={licenseState} followUpTemplates={followUpTemplates} />
+  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} recommendations={recommendations} outreach={outreach} tours={tours} sentGuestCards={sentGuestCards} agent={agent} signature={signature} avgCommission={avgCommission} projectionMethod={projectionMethod} timeZone={timeZone} workHours={workHours} voiceEnabled={voiceEnabled} companionOwner={companionOwner} userId={userId} serviceAreaSlugs={serviceAreaSlugs} primaryMarket={primaryMarket} licenseState={licenseState} followUpTemplates={followUpTemplates} />
 }

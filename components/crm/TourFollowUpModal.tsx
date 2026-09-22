@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { TOUR_OUTCOMES, TOUR_OUTCOME_LABELS, type TourOutcome } from "@bc/companion-shared"
 import { formatDueDateTime } from "@/lib/actionDisplay"
-import { autoDueInDays } from "@/lib/workflow/autoDueDate"
+import { autoDueInDays, type WorkHours } from "@/lib/workflow/autoDueDate"
 import { localTourToUtc } from "@/lib/leads/tourFollowUp"
 import DateTimePicker from "./DateTimePicker"
 
@@ -22,6 +22,7 @@ export default function TourFollowUpModal({
   propertyName,
   scheduledAt,
   timeZone,
+  workHours,
   onSubmit,
 }: {
   open: boolean
@@ -29,6 +30,7 @@ export default function TourFollowUpModal({
   propertyName: string | null
   scheduledAt: string | null
   timeZone?: string | null
+  workHours?: WorkHours
   onSubmit: (outcome: TourOutcome, extras: { followUpDueAt?: string | null; note?: string | null }) => void
 }) {
   // "outcome" step → optional "followup" step (Still Deciding / Other).
@@ -124,9 +126,9 @@ export default function TourFollowUpModal({
             )}
             <p className="text-[12.5px] font-semibold uppercase tracking-[0.1em] text-[var(--crm-text-secondary)]">When should we follow up?</p>
             <div className="flex gap-2">
-              <button type="button" className={quickBtn} onClick={() => submitFollowUp(autoDueInDays(1, tz ?? DEFAULT_TIMEZONE))}>Tomorrow</button>
-              <button type="button" className={quickBtn} onClick={() => submitFollowUp(autoDueInDays(2, tz ?? DEFAULT_TIMEZONE))}>2 Days</button>
-              <button type="button" className={quickBtn} onClick={() => submitFollowUp(autoDueInDays(3, tz ?? DEFAULT_TIMEZONE))}>3 Days</button>
+              <button type="button" className={quickBtn} onClick={() => submitFollowUp(autoDueInDays(1, tz ?? DEFAULT_TIMEZONE, workHours))}>Tomorrow</button>
+              <button type="button" className={quickBtn} onClick={() => submitFollowUp(autoDueInDays(2, tz ?? DEFAULT_TIMEZONE, workHours))}>2 Days</button>
+              <button type="button" className={quickBtn} onClick={() => submitFollowUp(autoDueInDays(3, tz ?? DEFAULT_TIMEZONE, workHours))}>3 Days</button>
             </div>
             <div>
               <button

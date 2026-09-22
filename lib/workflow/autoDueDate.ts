@@ -23,10 +23,42 @@ import { atHourInZone } from "@/lib/timezone"
 export const AUTO_ACTION_HOUR = 9
 
 // The locator-local working window for SCHEDULED system-generated Next Actions.
-// Parameterized so a future workspaces.work_hours_* setting can replace the
-// defaults without touching any workflow.
+// These are the DEFAULT / fallback bounds used whenever a locator has NOT
+// configured custom Working Hours (profiles.work_hours_* is NULL).
 export const WORK_WINDOW_START_HOUR = 9 // 09:00 — first allowed hour
 export const WORK_WINDOW_END_HOUR = 21 // 21:00 — first DISALLOWED hour (at/after = out of window)
+
+/**
+ * A locator's configured Working Hours (Profile setting). Both hours optional:
+ * an absent bound falls back to the 9/21 default inside normalizeToWorkingWindow.
+ * `startHour` is the first allowed hour; `endHour` is the first DISALLOWED hour
+ * (at/after = out of window). This is the ONE shape threaded alongside `timeZone`
+ * through every system-generated scheduled Next Action path.
+ */
+export type WorkHours = { startHour?: number; endHour?: number }
+
+/**
+ * Resolve a locator's Working Hours from a profile row (profiles.work_hours_start
+ * / work_hours_end). Pure + defensive: returns {} (→ 9/21 fallback) unless BOTH
+ * columns are present, integral, in range (start 0–23, end 1–24), and start<end.
+ * A half-configured or invalid row NEVER produces a partial/overnight window — it
+ * degrades cleanly to the default. This is the single translation from the stored
+ * columns to the WorkHours the workflow paths pass around.
+ */
+export function resolveWorkHoursFromProfile(
+  profile: { work_hours_start?: number | null; work_hours_end?: number | null } | null | undefined,
+): WorkHours {
+  const start = profile?.work_hours_start
+  const end = profile?.work_hours_end
+  if (
+    typeof start === "number" && Number.isInteger(start) &&
+    typeof end === "number" && Number.isInteger(end) &&
+    start >= 0 && start <= 23 && end >= 1 && end <= 24 && start < end
+  ) {
+    return { startHour: start, endHour: end }
+  }
+  return {}
+}
 
 /** The hour-of-day (0–23) of an instant, in the given IANA zone. */
 function localHourInZone(iso: string, timeZone: string): number {
@@ -58,15 +90,19 @@ export function normalizeToWorkingWindow(
 }
 
 // 9:00 AM `days` calendar days from now, in the locator zone, clamped to the
-// working window. `timeZone` is REQUIRED (a resolved IANA id).
-export function autoDueInDays(days: number, timeZone: string): string {
+// working window. `timeZone` is REQUIRED (a resolved IANA id). Optional
+// `workHours` (the locator's Profile setting) overrides the 9/21 default window;
+// omitted/empty → the default. The 9 AM target itself is unchanged — only the
+// clamp bounds shift, so a custom start later than 9 AM still lands at that start.
+export function autoDueInDays(days: number, timeZone: string, workHours?: WorkHours): string {
   const at9 = atHourInZone(new Date(), days, AUTO_ACTION_HOUR, timeZone).toISOString()
-  return normalizeToWorkingWindow(at9, timeZone)
+  return normalizeToWorkingWindow(at9, timeZone, workHours)
 }
 
 // 9:00 AM on `base` (plus an optional day offset), in the locator zone, clamped
-// to the working window. `timeZone` is REQUIRED.
-export function autoDueOnDate(base: Date, dayOffset = 0, timeZone: string): string {
+// to the working window. `timeZone` is REQUIRED. Optional `workHours` overrides
+// the 9/21 default window (see autoDueInDays).
+export function autoDueOnDate(base: Date, dayOffset = 0, timeZone: string, workHours?: WorkHours): string {
   const at9 = atHourInZone(base, dayOffset, AUTO_ACTION_HOUR, timeZone).toISOString()
-  return normalizeToWorkingWindow(at9, timeZone)
+  return normalizeToWorkingWindow(at9, timeZone, workHours)
 }

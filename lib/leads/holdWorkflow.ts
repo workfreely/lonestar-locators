@@ -6,7 +6,7 @@
 // Action is suppressed at the ONE ranking chokepoint (lib/nextActions.ts) via
 // isOnHold below; nothing is completed/deleted, so Resume is a pure restore.
 
-import { autoDueOnDate } from "@/lib/workflow/autoDueDate"
+import { autoDueOnDate, type WorkHours } from "@/lib/workflow/autoDueDate"
 
 /** True when the lead is paused. The single, canonical hold predicate. */
 export function isOnHold(lead: { held_at?: string | null } | null | undefined): boolean {
@@ -96,13 +96,15 @@ export function formatHoldFollowUpNumeric(holdFollowUpAt: string | null | undefi
 export function holdFollowUpInstant(
   holdFollowUpAt: string | null | undefined,
   timeZone: string,
+  // Optional locator Working Hours (Profile setting). Omitted/empty → 9–21 default.
+  workHours?: WorkHours,
 ): string | null {
   if (!holdFollowUpAt) return null
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(holdFollowUpAt)
   if (!m) return null
   const base = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
   if (isNaN(base.getTime())) return null
-  return autoDueOnDate(base, 0, timeZone)
+  return autoDueOnDate(base, 0, timeZone, workHours)
 }
 
 export type HoldUrgency = "overdue" | "today" | "upcoming" | "none"

@@ -4,7 +4,7 @@ import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
 import { emitWorkflowActionCreated } from "@/lib/workflowToast"
 import { createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
-import { autoDueInDays } from "@/lib/workflow/autoDueDate"
+import { autoDueInDays, type WorkHours } from "@/lib/workflow/autoDueDate"
 
 /**
  * CANONICAL successful-contact cascade — the single source of truth for "this lead
@@ -44,10 +44,12 @@ export function recordFirstContact(opts: {
   // Saved locator IANA timezone — the reached-during-chase Build List's 9:00 AM
   // backstop is resolved in this zone (stored UTC). Omitted → runtime-local.
   timeZone?: string | null
+  // Optional locator Working Hours (Profile setting). Omitted/empty → 9–21 default.
+  workHours?: WorkHours
   onOptimistic?: (updatedLead: any) => void
   onWorkflowAction?: (action: any) => void
 }): void {
-  const { lead, method, timeZone, onOptimistic, onWorkflowAction } = opts
+  const { lead, method, timeZone, workHours, onOptimistic, onWorkflowAction } = opts
 
   const shouldAdvanceStage = lead.crm_status === "new"
   // Reached-during-chase: an already-Contacted lead is successfully reached while a
@@ -118,7 +120,7 @@ export function recordFirstContact(opts: {
 
       const created = await createWorkflowActionIfNeeded(supabase, lead.id, {
         title: "Build List",
-        dueAt: autoDueInDays(1, timeZone ?? DEFAULT_TIMEZONE),
+        dueAt: autoDueInDays(1, timeZone ?? DEFAULT_TIMEZONE, workHours),
         actionKey: "build_list",
       })
       if (created) {

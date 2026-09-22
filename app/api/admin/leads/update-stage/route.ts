@@ -10,6 +10,7 @@ import { getOAuthClient } from "@/lib/google/getOAuthClient"
 import { createListSentCalendarEvent } from "@/lib/google/createCalendarEvent"
 import { getStageWorkflowAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
 import { resolveUserTimeZone } from "@/lib/timezone/server"
+import { resolveWorkHoursFromProfile } from "@/lib/workflow/autoDueDate"
 import {
   resolveClosedCommissionSnapshot,
   DEFAULT_PROJECTION_METHOD,
@@ -118,6 +119,16 @@ export async function POST(request: Request) {
     // the workflow successor's 9:00 AM deadline is computed in the locator's saved
     // zone, not the production server zone. Reuses the resolve_timezone DB fn.
     const timeZone = await resolveUserTimeZone(supabase, userId, workspaceId)
+
+    // Locator Working Hours (Profile setting) — clamps the scheduled action's due
+    // time to the locator's window; NULL/unconfigured → the 9–21 default. Resolved
+    // from the caller's own profile and threaded alongside timeZone into the engine.
+    const { data: whProfile } = await supabase
+      .from("profiles")
+      .select("work_hours_start, work_hours_end")
+      .eq("id", userId)
+      .maybeSingle()
+    const workHours = resolveWorkHoursFromProfile(whProfile)
 
     const body = await request.json()
 
@@ -253,7 +264,7 @@ export async function POST(request: Request) {
     // the Build List START move (Contacted → Searching) so build_list stays the
     // open action and Send List is created only on explicit "Mark List Built".
     if (oldStage !== crm_status && !skipWorkflowAction) {
-      const spec = getStageWorkflowAction(crm_status, lead, timeZone)
+      const spec = getStageWorkflowAction(crm_status, lead, timeZone, workHours)
       if (spec) {
         workflowAction = await createWorkflowActionIfNeeded(supabaseAdmin, leadId, spec)
       }

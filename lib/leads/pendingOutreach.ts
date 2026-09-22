@@ -3,7 +3,7 @@ import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
 import { createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
-import { autoDueInDays } from "@/lib/workflow/autoDueDate"
+import { autoDueInDays, type WorkHours } from "@/lib/workflow/autoDueDate"
 import { emitWorkflowActionCreated } from "@/lib/workflowToast"
 
 /**
@@ -53,6 +53,8 @@ export async function recordPendingOutreach(opts: {
   // Saved locator IANA timezone — the Follow Up's 9:00 AM deadline is resolved in
   // this zone (stored UTC). Omitted → runtime-local (unchanged).
   timeZone?: string | null
+  // Optional locator Working Hours (Profile setting). Omitted/empty → 9–21 default.
+  workHours?: WorkHours
   // Called with the freshly-created Follow Up row (lead_next_actions) so the
   // caller can merge it into local state and re-broadcast. Not called when an
   // open Follow Up already exists (dedup) or for demo/non-New leads.
@@ -62,7 +64,7 @@ export async function recordPendingOutreach(opts: {
   // write lands). Mirrors recordFirstContact's onOptimistic.
   onOptimistic?: (updatedLead: any) => void
 }): Promise<void> {
-  const { lead, method, outcome, timeZone, onFollowUpAction, onOptimistic } = opts
+  const { lead, method, outcome, timeZone, workHours, onFollowUpAction, onOptimistic } = opts
   const occurredAt = new Date().toISOString()
 
   // 1) Immutable history event. Fire-and-forget (never blocks the workflow), and
@@ -132,7 +134,7 @@ export async function recordPendingOutreach(opts: {
 
   const created = await createWorkflowActionIfNeeded(supabase, lead.id, {
     title: "Contact FU1",
-    dueAt: autoDueInDays(2, timeZone ?? DEFAULT_TIMEZONE),
+    dueAt: autoDueInDays(2, timeZone ?? DEFAULT_TIMEZONE, workHours),
     actionKey: "contact_follow_up_1",
     sequence: 1,
   })
