@@ -4,7 +4,15 @@
 // determines the exact instant. The final gate decides whether it sends at all.
 // Scheduled times are ELIGIBILITY times, not guaranteed send timestamps.
 
-// Routine follow-up morning window, client-local.
+// HARD global quiet-hours invariant (client-local): NO automated SMS may be
+// transmitted before 09:00 or at/after 21:00, for EVERY sequence family including
+// event-driven messages. Allowed window is [09:00, 21:00). This is stricter than,
+// and independent of, the routine morning window below.
+export const ALLOWED_START_MIN = 9 * 60 // 09:00 — first allowed minute
+export const ALLOWED_END_MIN = 21 * 60 // 21:00 — first DISALLOWED minute (at/after = quiet)
+
+// Routine follow-up morning window, client-local (a NARROWER preferred band that
+// already sits inside the allowed hours above).
 export const MORNING_START_MIN = 9 * 60 // 09:00
 export const MORNING_END_MIN = 10 * 60 + 30 // 10:30
 
@@ -62,6 +70,35 @@ function localParts(date: Date, timeZone: string): { minuteOfDay: number; weekda
 export function withinMorningWindow(date: Date, timeZone: string): boolean {
   const { minuteOfDay } = localParts(date, timeZone)
   return minuteOfDay >= MORNING_START_MIN && minuteOfDay <= MORNING_END_MIN
+}
+
+/**
+ * HARD quiet-hours check (client-local): true only inside [09:00, 21:00). This is
+ * the universal invariant — before 09:00 and at/after 21:00 are QUIET for every
+ * family, including event-driven messages. Time is evaluated in the CLIENT's zone
+ * (`timeZone`), never server or locator device time.
+ */
+export function withinAllowedHours(date: Date, timeZone: string): boolean {
+  const { minuteOfDay } = localParts(date, timeZone)
+  return minuteOfDay >= ALLOWED_START_MIN && minuteOfDay < ALLOWED_END_MIN
+}
+
+/**
+ * The next client-local instant at which sending is allowed, at/after `from`:
+ *   • already allowed → `from`;
+ *   • before 09:00 → today 09:00;
+ *   • at/after 21:00 → tomorrow 09:00.
+ * An event-triggered message that becomes eligible during quiet hours is deferred
+ * to this instant, where the FULL deterministic state/conversation check runs
+ * again — never a blind overnight release.
+ */
+export function nextAllowedTime(from: Date, timeZone: string): string {
+  if (withinAllowedHours(from, timeZone)) return from.toISOString()
+  const { minuteOfDay } = localParts(from, timeZone)
+  if (minuteOfDay < ALLOWED_START_MIN) return atLocalMinute(from, ALLOWED_START_MIN, timeZone)
+  const next = new Date(from)
+  next.setUTCDate(next.getUTCDate() + 1)
+  return atLocalMinute(next, ALLOWED_START_MIN, timeZone)
 }
 
 /** Is `date` on a weekend in the client's local zone? */

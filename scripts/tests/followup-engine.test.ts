@@ -23,6 +23,8 @@ import {
   addBusinessDays,
   doubleTextSpacingMs,
   nextMorningEligible,
+  withinAllowedHours,
+  nextAllowedTime,
 } from "../../lib/followup/pacing"
 import { applicableSequence, resolveDoneSelectingBody, daysUntilMove, resolveStepBody, futureMoveReactivationDate } from "../../lib/followup/sequences"
 import { FUTURE_MOVE_WAIT_CONFIRM, FUTURE_MOVE_REACTIVATE } from "../../lib/followup/copy"
@@ -53,6 +55,7 @@ function lead(over: Partial<LeadSnapshot> = {}): LeadSnapshot {
     moveMonthLabel: "October",
     crmStatus: "New",
     smsOptIn: true,
+    followupOptIn: true, // tests exercise an ENROLLED lead unless overridden
     appliedAt: null,
     timeZone: TZ,
     ...over,
@@ -125,6 +128,10 @@ ok(futureMoveReactivationDate("2026-12-01") === "2026-09-02", "reactivation date
 ok(futureMoveReactivationDate("2026-12-01", 60) === "2026-10-02", "explicit client instruction overrides default (e.g. 60 days)")
 ok(futureMoveReactivationDate(null) === null, "no move date → no reactivation date")
 
+console.log("GATE — per-lead enrollment (hard, default OFF)")
+ok(evaluateSend(MORNING, lead({ followupOptIn: false }), conv(), share({ sentAt: "x" }), run({ sequenceKey: "list_sent", stepKey: "fu1" })).reason === "not_enrolled", "non-enrolled lead → hold(not_enrolled), never sends")
+ok(evaluateSend(MORNING, lead({ followupOptIn: false }), conv(), share(), run()).action === "hold", "non-enrolled lead is held, not canceled")
+
 console.log("GATE — global mode + consent")
 ok(evaluateSend(MORNING, lead(), conv(), share(), run({ mode: "paused" })).action === "hold", "paused → hold")
 ok(evaluateSend(MORNING, lead(), conv(), share(), run({ mode: "stopped" })).reason === "stopped", "stopped → cancel(stopped)")
@@ -153,6 +160,39 @@ ok(sendDec.action === "send" && sendDec.action === "send" && sendDec.body.length
 // manual locator text after baseline → reschedule.
 const manual = conv({ lastManualOutboundAt: "2026-09-23T13:00:00Z" })
 ok(evaluateSend(MORNING, lead(), manual, share({ sentAt: "x" }), run({ sequenceKey: "list_sent", stepKey: "fu1", baselineInboundAt: "2026-09-23T00:00:00Z" })).reason === "manual_conversation", "manual outbound forces reschedule")
+
+console.log("QUIET HOURS — boundaries (client America/Chicago), DST + cross-TZ")
+const at = (iso: string) => new Date(iso)
+const localHour = (iso: string, tz: string) =>
+  parseInt(new Intl.DateTimeFormat("en-US", { timeZone: tz, hour12: false, hour: "2-digit" }).format(new Date(iso)).replace("24", "0"), 10)
+// CDT (UTC-5) boundaries on 2026-09-23.
+ok(withinAllowedHours(at("2026-09-23T13:59:00Z"), TZ) === false, "8:59 AM CDT → quiet")
+ok(withinAllowedHours(at("2026-09-23T14:00:00Z"), TZ) === true, "9:00 AM CDT → allowed")
+ok(withinAllowedHours(at("2026-09-24T01:59:00Z"), TZ) === true, "8:59 PM CDT → allowed")
+ok(withinAllowedHours(at("2026-09-24T02:00:00Z"), TZ) === false, "9:00 PM CDT → quiet")
+ok(withinAllowedHours(at("2026-09-23T05:00:00Z"), TZ) === false, "midnight CDT → quiet")
+// DST correctness: winter CST is UTC-6, so 9:00 AM CST = 15:00 UTC (not 14:00).
+ok(withinAllowedHours(at("2026-01-15T14:59:00Z"), TZ) === false, "8:59 AM CST (winter/DST) → quiet")
+ok(withinAllowedHours(at("2026-01-15T15:00:00Z"), TZ) === true, "9:00 AM CST (winter/DST) → allowed")
+// Client in a DIFFERENT zone than the locator: same instant is 9:30 PM ET (quiet)
+// but 8:30 PM CT (allowed) → proves evaluation uses the CLIENT zone.
+const cross = at("2026-09-24T01:30:00Z")
+ok(withinAllowedHours(cross, "America/New_York") === false, "9:30 PM ET → quiet in client's zone")
+ok(withinAllowedHours(cross, "America/Chicago") === true, "same instant 8:30 PM CT → allowed (client-TZ, not locator-TZ)")
+// Deferral targets.
+ok(localHour(nextAllowedTime(at("2026-09-23T13:59:00Z"), TZ), TZ) === 9, "before 9AM → defers to today 09:00")
+ok(nextAllowedTime(at("2026-09-23T15:00:00Z"), TZ) === "2026-09-23T15:00:00.000Z", "inside allowed → unchanged")
+{
+  const deferred = nextAllowedTime(at("2026-09-24T03:00:00Z"), TZ) // 10 PM CDT
+  ok(withinAllowedHours(new Date(deferred), TZ) && localHour(deferred, TZ) === 9, "at/after 9PM → defers to next 09:00")
+}
+
+console.log("QUIET HOURS — gate integration (ALL families incl. event-driven)")
+const nlT1 = run({ sequenceKey: "new_lead", stepKey: "t1" })
+ok(evaluateSend(at("2026-09-24T02:00:00Z"), lead(), conv(), share(), nlT1).reason === "quiet_hours", "New-Lead Text 1 at 9PM defers (quiet_hours, incl. event-driven opening)")
+ok(evaluateSend(at("2026-09-23T15:00:00Z"), lead(), conv(), share(), nlT1).action === "send", "New-Lead Text 1 at 10AM sends")
+const lFu1 = run({ sequenceKey: "list_sent", stepKey: "fu1", baselineInboundAt: "2026-09-23T00:00:00Z" })
+ok(evaluateSend(at("2026-09-23T13:00:00Z"), lead(), conv(), share({ sentAt: "x" }), lFu1).reason === "quiet_hours", "routine step at 8AM → quiet_hours (before allowed hours)")
 
 console.log("RECONCILE")
 ok(inboundStopsRun(run({ stepKey: "t2" })).stop === false, "inbound does NOT stop consent_only Text2")

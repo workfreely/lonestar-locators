@@ -12,7 +12,7 @@ import type {
   ShareSnapshot,
 } from "./types"
 import { applicableSequence, getStep, resolveStepBody } from "./sequences"
-import { nextMorningEligible, withinMorningWindow } from "./pacing"
+import { nextAllowedTime, nextMorningEligible, withinAllowedHours, withinMorningWindow } from "./pacing"
 
 // Sequences whose routine steps must land in the client-local morning window.
 // New-Lead t1/t2 (immediate opening), Done-Selecting (event-relative, 10-min
@@ -44,6 +44,12 @@ export function evaluateSend(
 ): SendDecision {
   const step = getStep(run.sequenceKey, run.stepKey)
   if (!step) return { action: "cancel", reason: "stale" }
+
+  // 0) HARD per-lead enrollment gate. Default OFF for every lead — a non-enrolled
+  //    lead can NEVER produce an automated outbound intent (defense in depth: the
+  //    dispatcher also won't create a run for one). Hold, never cancel, so a lead
+  //    enrolled later resumes cleanly.
+  if (!lead.followupOptIn) return { action: "hold", reason: "not_enrolled" }
 
   // 1) Global automation control.
   if (run.mode === "stopped") return { action: "cancel", reason: "stopped" }
@@ -85,7 +91,16 @@ export function evaluateSend(
   const objective = objectiveSatisfied(run.sequenceKey, run.stepKey, share)
   if (objective) return { action: "cancel", reason: objective }
 
-  // 8) Communication window (routine morning-gated steps only).
+  // 8) HARD quiet-hours invariant — applies to EVERY family, including event-driven
+  //    (post-tour, done-selecting, the New-Lead double-text, reactivation). Never
+  //    send before 09:00 or at/after 21:00 client-local. Defer to the next allowed
+  //    period; this whole gate re-runs then, so an overnight message is never
+  //    blindly released. Evaluated in the CLIENT's zone, not server/locator time.
+  if (!withinAllowedHours(now, lead.timeZone)) {
+    return { action: "reschedule", nextEligibleAt: nextAllowedTime(now, lead.timeZone), reason: "quiet_hours" }
+  }
+
+  // 9) Routine morning window (the narrower 09:00–10:30 band) for routine steps.
   if (isMorningGated(run.sequenceKey, run.stepKey) && !withinMorningWindow(now, lead.timeZone)) {
     return { action: "reschedule", nextEligibleAt: nextMorningEligible(now, lead.timeZone), reason: "outside_window" }
   }

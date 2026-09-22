@@ -41,6 +41,8 @@ export type FollowUpReason =
   | "stopped"
   | "stale"
   | "outside_window"
+  | "quiet_hours"
+  | "not_enrolled"
   | "future_move_wait"
   | "no_move_date"
   | "not_eligible_yet"
@@ -65,6 +67,10 @@ export type LeadSnapshot = {
   moveMonthLabel: string | null // e.g. "October" or null
   crmStatus: string | null
   smsOptIn: boolean
+  // HARD per-lead automation enrollment (leads.followup_opt_in). Default false for
+  // EVERY lead: a non-enrolled lead can never produce an automated intent. Bound to
+  // the canonical lead_id (the column lives on leads), never phone/email.
+  followupOptIn: boolean
   appliedAt: string | null // ISO — real application date (leads.applied_at)
   timeZone: string // IANA, e.g. "America/Chicago"
 }
