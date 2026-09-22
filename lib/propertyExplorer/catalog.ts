@@ -32,6 +32,15 @@ export type CatalogRecord = {
   availabilityUrl: string | null
 }
 
+// Catalog access goes through the ID-scoped SECURITY DEFINER RPC
+// lb_property_catalog_by_ids (never a direct table SELECT — the broad
+// authenticated read policy was removed to close bulk enumeration). The RPC
+// hard-rejects >60 unique ids, which is the ceiling of the only legitimate
+// browser Map operation; larger LEGITIMATE server sets (the /admin/leads
+// workspace enrichment) are chunked here into ≤60-id batches so they still
+// resolve without any privileged higher-cap path.
+const CATALOG_ID_BATCH = 60
+
 export async function fetchCatalog(
   placeIds: string[],
   supabase: SupabaseClient,
@@ -39,26 +48,31 @@ export async function fetchCatalog(
   const out = new Map<string, CatalogRecord>()
   const ids = [...new Set(placeIds)].filter(Boolean)
   if (ids.length === 0) return out
-  const { data, error } = await supabase
-    .from("property_catalog")
-    .select("place_id, neighborhood, location, location_keywords, zip, website_url, google_rating, property_image_url, tour_url, apply_url, availability_url")
-    .in("place_id", ids)
-  // A lookup failure must never break the search — fall back to unenriched.
-  if (error || !data) return out
+
   const s = (v: unknown): string | null => (typeof v === "string" && v ? v : null)
-  for (const r of data as Array<Record<string, unknown>>) {
-    out.set(String(r.place_id), {
-      neighborhood: (r.neighborhood as string) ?? null,
-      location: (r.location as string) ?? null,
-      locationKeywords: Array.isArray(r.location_keywords) ? (r.location_keywords as string[]) : [],
-      zip: (r.zip as string) ?? null,
-      websiteUrl: (r.website_url as string) ?? null,
-      googleRating: r.google_rating == null ? null : Number(r.google_rating),
-      imageUrl: s(r.property_image_url),
-      tourUrl: s(r.tour_url),
-      applyUrl: s(r.apply_url),
-      availabilityUrl: s(r.availability_url),
+
+  // One RPC call per ≤60-id batch; a failure of any batch is swallowed (the
+  // search/enrichment must never break — unenriched rows keep their behavior).
+  for (let i = 0; i < ids.length; i += CATALOG_ID_BATCH) {
+    const batch = ids.slice(i, i + CATALOG_ID_BATCH)
+    const { data, error } = await supabase.rpc("lb_property_catalog_by_ids", {
+      p_place_ids: batch,
     })
+    if (error || !data) continue
+    for (const r of data as Array<Record<string, unknown>>) {
+      out.set(String(r.place_id), {
+        neighborhood: (r.neighborhood as string) ?? null,
+        location: (r.location as string) ?? null,
+        locationKeywords: Array.isArray(r.location_keywords) ? (r.location_keywords as string[]) : [],
+        zip: (r.zip as string) ?? null,
+        websiteUrl: (r.website_url as string) ?? null,
+        googleRating: r.google_rating == null ? null : Number(r.google_rating),
+        imageUrl: s(r.property_image_url),
+        tourUrl: s(r.tour_url),
+        applyUrl: s(r.apply_url),
+        availabilityUrl: s(r.availability_url),
+      })
+    }
   }
   return out
 }
