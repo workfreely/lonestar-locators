@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { TOUR_OUTCOMES, TOUR_OUTCOME_LABELS, type TourOutcome } from "@bc/companion-shared"
 import { formatDueDateTime } from "@/lib/actionDisplay"
 import { autoDueInDays } from "@/lib/workflow/autoDueDate"
@@ -123,9 +124,9 @@ export default function TourFollowUpModal({
             )}
             <p className="text-[12.5px] font-semibold uppercase tracking-[0.1em] text-[var(--crm-text-secondary)]">When should we follow up?</p>
             <div className="flex gap-2">
-              <button type="button" className={quickBtn} onClick={() => submitFollowUp(autoDueInDays(1, tz))}>Tomorrow</button>
-              <button type="button" className={quickBtn} onClick={() => submitFollowUp(autoDueInDays(2, tz))}>2 Days</button>
-              <button type="button" className={quickBtn} onClick={() => submitFollowUp(autoDueInDays(3, tz))}>3 Days</button>
+              <button type="button" className={quickBtn} onClick={() => submitFollowUp(autoDueInDays(1, tz ?? DEFAULT_TIMEZONE))}>Tomorrow</button>
+              <button type="button" className={quickBtn} onClick={() => submitFollowUp(autoDueInDays(2, tz ?? DEFAULT_TIMEZONE))}>2 Days</button>
+              <button type="button" className={quickBtn} onClick={() => submitFollowUp(autoDueInDays(3, tz ?? DEFAULT_TIMEZONE))}>3 Days</button>
             </div>
             <div>
               <button

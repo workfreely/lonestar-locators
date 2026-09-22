@@ -1,4 +1,5 @@
 import { autoDueOnDate } from "@/lib/workflow/autoDueDate"
+import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 
 // Future Lease Follow-Up scheduling — the client-retention action created once a
 // lease's closing obligations are done. It is due ~90 days before the ESTIMATED
@@ -58,5 +59,5 @@ export function leaseFollowUpDueAt(startDate: unknown, term: unknown, timeZone?:
   const end = estimateLeaseEndDate(startDate, term)
   if (!end) return null
   const due = new Date(end.getTime() - LEASE_FOLLOW_UP_LEAD_DAYS * 24 * 60 * 60 * 1000)
-  return autoDueOnDate(due, 0, timeZone)
+  return autoDueOnDate(due, 0, timeZone ?? DEFAULT_TIMEZONE)
 }

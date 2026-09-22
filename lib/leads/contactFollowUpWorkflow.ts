@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase/client"
+import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
 import { getNextContactFollowUpAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
@@ -47,7 +48,7 @@ export async function completeContactFollowUp(opts: {
 }): Promise<void> {
   const { lead, followRow, completedTitle, now, timeZone, onOptimistic, onWorkflowAction } = opts
 
-  const succ = getNextContactFollowUpAction(completedTitle, timeZone) // FU2/FU3, or null after FU3
+  const succ = getNextContactFollowUpAction(completedTitle, timeZone ?? DEFAULT_TIMEZONE) // FU2/FU3, or null after FU3
 
   // SUPERSESSION — determined BEFORE the optimistic update so a terminal FU3 can
   // decide whether to archive. The chase lives in {new, contacted}; a build_list

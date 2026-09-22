@@ -47,7 +47,7 @@ export function followUpSuccessorDueAt(
   // Saved locator IANA timezone — the +1/+3 day 9:00 AM deadline is resolved in
   // this zone (stored UTC). Omitted → runtime-local (unchanged). The fallback is
   // already computed by the caller in the same zone, so it stays authoritative.
-  timeZone?: string | null,
+  timeZone: string,
 ): string {
   void completedTitle
   const days = daysUntilMove(lead.move_date)

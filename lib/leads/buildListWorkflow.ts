@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase/client"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { emitWorkflowActionCreated } from "@/lib/workflowToast"
 import { getStageWorkflowAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
+import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 
 /**
  * CANONICAL "Build List" workflow — shared by the CRM Lead Panel and Beast
@@ -101,10 +102,11 @@ export function startBuildList(opts: {
 export async function completeBuildList(opts: {
   lead: any
   buildRow?: { id: number | string } | null
+  timeZone?: string | null
   onOptimistic?: (updatedLead: any) => void
   onWorkflowAction?: (action: any) => void
 }): Promise<void> {
-  const { lead, buildRow, onOptimistic, onWorkflowAction } = opts
+  const { lead, buildRow, timeZone, onOptimistic, onWorkflowAction } = opts
 
   if (!isDemoLeadId(lead.id) && buildRow?.id != null) {
     const { error } = await supabase
@@ -120,7 +122,7 @@ export async function completeBuildList(opts: {
 
   if (isDemoLeadId(lead.id)) return
 
-  const spec = getStageWorkflowAction("searching", lead)
+  const spec = getStageWorkflowAction("searching", lead, timeZone ?? DEFAULT_TIMEZONE)
   if (spec) {
     const created = await createWorkflowActionIfNeeded(supabase, lead.id, spec)
     if (created) {

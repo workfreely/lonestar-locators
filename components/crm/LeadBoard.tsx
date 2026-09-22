@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { createPortal } from "react-dom"
 import {
   DndContext,
@@ -340,7 +341,7 @@ export default function LeadBoard({
     ) {
       // Automatic follow-up: tomorrow at 9:00 AM (not the current clock time),
       // so the dashboard shows a clean morning workload.
-      nextDate = autoDueInDays(1, timeZone)
+      nextDate = autoDueInDays(1, timeZone ?? DEFAULT_TIMEZONE)
     } else if (newStage === "archived") {
       // Archiving pauses the workflow, it doesn't erase it — preserve
       // whatever due date the lead already had so restoring it resumes

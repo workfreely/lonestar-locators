@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase/client"
+import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
 import { getNextFollowUpAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
@@ -52,8 +53,8 @@ export async function completeFollowUp(opts: {
   // against the matching open successor. Identity/due come from the same engine +
   // move-date cadence the successor row uses, so the automatic and the row match.
   const newCount = (Number(lead.follow_up_count) || 0) + 1
-  const succ = getNextFollowUpAction(completedTitle, timeZone)
-  const successorDue = succ ? followUpSuccessorDueAt(completedTitle, lead, succ.dueAt, timeZone) : null
+  const succ = getNextFollowUpAction(completedTitle, timeZone ?? DEFAULT_TIMEZONE)
+  const successorDue = succ ? followUpSuccessorDueAt(completedTitle, lead, succ.dueAt, timeZone ?? DEFAULT_TIMEZONE) : null
 
   // Terminal transition: completing the FINAL follow-up (a follow-up title with
   // no successor) ends the List Sent sequence with no reply. Move the lead to

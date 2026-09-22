@@ -95,14 +95,14 @@ export function formatHoldFollowUpNumeric(holdFollowUpAt: string | null | undefi
  */
 export function holdFollowUpInstant(
   holdFollowUpAt: string | null | undefined,
-  timeZone?: string | null,
+  timeZone: string,
 ): string | null {
   if (!holdFollowUpAt) return null
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(holdFollowUpAt)
   if (!m) return null
   const base = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
   if (isNaN(base.getTime())) return null
-  return autoDueOnDate(base, 0, timeZone ?? null)
+  return autoDueOnDate(base, 0, timeZone)
 }
 
 export type HoldUrgency = "overdue" | "today" | "upcoming" | "none"

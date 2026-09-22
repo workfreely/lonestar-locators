@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase/client"
+import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { emitWorkflowActionCreated } from "@/lib/workflowToast"
 import { autoDueInDays } from "@/lib/workflow/autoDueDate"
@@ -54,7 +55,7 @@ export async function completeSendList(opts: {
       follow_up_count: 0,
       // FU1 is due next calendar day at 9:00 AM in the saved locator zone — mirror
       // that on the lead's cache column so the Kanban/Agenda date matches the row.
-      next_action_date: autoDueInDays(1, timeZone),
+      next_action_date: autoDueInDays(1, timeZone ?? DEFAULT_TIMEZONE),
     }),
   })
     .then((res) => res.json())

@@ -1,6 +1,7 @@
 "use client"
 
 import { rankLeadActions } from "@/lib/nextActions"
+import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { getNextAction } from "@/lib/nextAction"
 import { formatWorkflowActionLabel } from "@/lib/leads/workflowActionLabels"
 import { resolveGuestCardPrimary } from "@/lib/leads/guestCardAggregate"
@@ -88,7 +89,7 @@ export default function FollowUpRow({
       lead,
       kind: "hold" as const,
       urgency: holdReminderUrgency(lead.hold_follow_up_at),
-      dueAt: holdFollowUpInstant(lead.hold_follow_up_at, timeZone),
+      dueAt: holdFollowUpInstant(lead.hold_follow_up_at, timeZone ?? DEFAULT_TIMEZONE),
     }))
     .filter((e) => e.urgency === "overdue" || e.urgency === "today")
 

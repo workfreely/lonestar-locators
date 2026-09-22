@@ -2500,6 +2500,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
 
         completeBuildList({
           lead,
+          timeZone,
           buildRow: buildRow ? { id: buildRow.id } : null,
           onOptimistic: (updated) => {
             setLocalLeads((prev) =>

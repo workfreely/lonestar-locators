@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase/client"
+import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
 import { createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
@@ -131,7 +132,7 @@ export async function recordPendingOutreach(opts: {
 
   const created = await createWorkflowActionIfNeeded(supabase, lead.id, {
     title: "Contact FU1",
-    dueAt: autoDueInDays(2, timeZone),
+    dueAt: autoDueInDays(2, timeZone ?? DEFAULT_TIMEZONE),
     actionKey: "contact_follow_up_1",
     sequence: 1,
   })

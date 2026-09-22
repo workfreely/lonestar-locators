@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase/client"
+import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
 import { emitWorkflowActionCreated } from "@/lib/workflowToast"
@@ -117,7 +118,7 @@ export function recordFirstContact(opts: {
 
       const created = await createWorkflowActionIfNeeded(supabase, lead.id, {
         title: "Build List",
-        dueAt: autoDueInDays(1, timeZone),
+        dueAt: autoDueInDays(1, timeZone ?? DEFAULT_TIMEZONE),
         actionKey: "build_list",
       })
       if (created) {

@@ -1,4 +1,5 @@
 import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO, RecommendationDTO, FollowUpOverrides } from "@bc/companion-shared"
+import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { visibleRecommendations, favoriteMoveBlock } from "@/lib/leads/propertyCollections"
 import { isClientFavorite } from "@/lib/leads/favoriteOrigin"
 import { resolveGuestCardPrimary } from "@/lib/leads/guestCardAggregate"
@@ -300,7 +301,7 @@ export function buildActiveClientPayload(
     // Agenda uses (holdFollowUpInstant) — the panel formats it with the shared
     // due-date formatter so the held date reads identically to the Agenda. One
     // source of truth; no second date treatment.
-    holdFollowUpDueAt: lead.held_at ? holdFollowUpInstant(str(lead.hold_follow_up_at), timeZone) : null,
+    holdFollowUpDueAt: lead.held_at ? holdFollowUpInstant(str(lead.hold_follow_up_at), timeZone ?? DEFAULT_TIMEZONE) : null,
     searchCriteria: {
       city: str(lead.city),
       budgetText: budgetText(lead.desired_rent),

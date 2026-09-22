@@ -63,7 +63,7 @@ export function getStageWorkflowAction(
   lead: { follow_up_count?: number | null; move_date?: string | null },
   // Saved locator IANA timezone. When provided, every 9:00 AM deadline below is
   // computed in that zone (stored UTC). Omitted → runtime-local (unchanged).
-  timeZone?: string | null
+  timeZone: string
 ): WorkflowActionSpec | null {
   switch (newStage) {
     case "new":
@@ -125,7 +125,7 @@ export function getStageWorkflowAction(
  * FU1 -> FU2 -> FU3 -> Final. Only ever the ONE next step, triggered by
  * completing the previous step — never the whole sequence at once.
  */
-export function getNextFollowUpAction(completedTitle: string, timeZone?: string | null): WorkflowActionSpec | null {
+export function getNextFollowUpAction(completedTitle: string, timeZone: string): WorkflowActionSpec | null {
   switch (completedTitle) {
     case "FU1": return { title: "FU2", dueAt: autoDueInDays(2, timeZone), actionKey: "follow_up_2", sequence: 2 }
     case "FU2": return { title: "FU3", dueAt: autoDueInDays(3, timeZone), actionKey: "follow_up_3", sequence: 3 }
@@ -141,7 +141,7 @@ export function getNextFollowUpAction(completedTitle: string, timeZone?: string 
  * cadence the post-list sequence uses). Only ever the ONE next step, created on
  * completion of the previous one — never the whole chain in advance.
  */
-export function getNextContactFollowUpAction(completedTitle: string, timeZone?: string | null): WorkflowActionSpec | null {
+export function getNextContactFollowUpAction(completedTitle: string, timeZone: string): WorkflowActionSpec | null {
   switch ((completedTitle || "").trim()) {
     case "Contact FU1": return { title: "Contact FU2", dueAt: autoDueInDays(2, timeZone), actionKey: "contact_follow_up_2", sequence: 2 }
     case "Contact FU2": return { title: "Contact FU3", dueAt: autoDueInDays(2, timeZone), actionKey: "contact_follow_up_3", sequence: 3 }
