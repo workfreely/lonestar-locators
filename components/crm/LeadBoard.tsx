@@ -683,9 +683,15 @@ export default function LeadBoard({
           />
         )}
 
-        {workspace === "map" ? (
+        {workspace === "map" && selectedLeadId == null ? (
           /* Beast Property Explorer fills the same flex slot the board occupies, so
-             it grows and shrinks with whatever Agenda and Companion leave behind. */
+             it grows and shrinks with whatever Agenda and Companion leave behind.
+             Gated on `selectedLeadId == null`: when a client workspace is open it
+             veils only part of the centre pane, so a still-mounted map would bleed
+             through at the top/bottom. Unmounting it here enforces the invariant the
+             rest of this file assumes — the map is never live behind a client — and
+             covers every open path (Agenda, Voice, action toast, and deep-link loads
+             where the persisted workspace is Map). */
           <div className="kb-board" style={{ display: "block", padding: 0, overflow: "hidden" }}>
             {mapSlot?.(searchQuery, { actions: mapActionsHost, market: mapMarketHost, search: searchBoxHost }, setMatchCount, submittedQuery, setSearchQuery)}
           </div>

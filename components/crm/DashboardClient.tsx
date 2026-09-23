@@ -3837,6 +3837,12 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
               // (kb-card--active-client), so the Agenda item stays in sync.
               activeLeadId={companionLeadId}
               onSelectLead={(id) => {
+                // The Agenda is visible in BOTH board and map modes, so a selection
+                // can arrive while the map workspace is mounted. Make the board the
+                // underlying surface first (same as handleReturnToClientWorkspace) so
+                // the map fully unmounts — otherwise the live map bleeds through the
+                // top/bottom of the client-workspace veil. Then open the client.
+                selectWorkspace("board")
                 setSelectedLeadId(id)
                 router.push(`/admin/leads?id=${id}`)
               }}
@@ -4030,6 +4036,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             // ── Beast Voice V1 — each forward is an EXISTING setter/handler, so
             //    Voice invokes the identical behavior of the manual control. ──
             onVoiceSelectClient={(lead) => {
+              // Match the Agenda select path: force the board underneath so a
+              // still-mounted map workspace can't bleed through the client veil.
+              selectWorkspace("board")
               setSelectedLeadId(lead.id)
               router.push(`/admin/leads?id=${lead.id}`)
             }}
@@ -4317,6 +4326,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           setLocalNextActions((prev) => prev.filter((a) => a.id !== actionId))
         }}
         onEdit={(action) => {
+          // The action toast is global (visible in map mode too); force the board
+          // underneath so the map can't bleed behind the client workspace.
+          selectWorkspace("board")
           setSelectedLeadId(action.lead_id)
           router.push(`/admin/leads?id=${action.lead_id}`)
           setPendingEditActionId(action.id)
