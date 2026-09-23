@@ -279,8 +279,8 @@ export type { PropertyAmenities, MustHaveAmenityValue } from "./amenities";
 // specials/base-rent selectors are not confirmed yet, so nothing feeds it in the panel)
 export { evaluateSpecials, selectRentConcession, formatSpecialText, formatRent, computeAvgRent, isQualifiedSpecial, normalizeShortSpecial, isSpecialCurrent } from "./specials";
 export type { SpecialInput, SpecialsResult, RentConcession } from "./specials";
-export { formatLocatorCommission } from "./commission";
-export type { LocatorCommission } from "./commission";
+export { formatLocatorCommission, evaluateLocatorCommission } from "./commission";
+export type { LocatorCommission, CommissionStatus } from "./commission";
 
 // Budget V1 — client working budget vs the property's the external site rent range, evidence-only
 export { evaluateBudget, resolveClientBudget, parseMoneyRange, budgetTolerance, BUDGET_TOLERANCE } from "./budget";

@@ -130,7 +130,7 @@ const CSS = `
 .lbr-ph-fallback{position:absolute;inset:0;background:linear-gradient(135deg,#c7d2e0,#9fb2c8)}
 .lbr-heart{position:absolute;top:12px;right:12px;width:40px;height:40px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(14,37,69,.28);cursor:pointer;border:none;padding:0}
 .lbr-heart:active{transform:scale(.9)}
-.lbr-pill{position:absolute;left:12px;bottom:12px;background:#e8f0fe;color:#1c3f75;font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:999px;box-shadow:0 4px 10px rgba(14,37,69,.14)}
+.lbr-pill{position:absolute;left:12px;bottom:12px;background:rgba(232,240,254,.85);color:#1c3f75;font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:999px;box-shadow:0 4px 10px rgba(14,37,69,.14);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
 .lbr-body{padding:16px 17px 17px;display:flex;flex-direction:column;flex:1}
 .lbr-pname{font-size:18px;font-weight:800;color:var(--navy);letter-spacing:-.01em;margin:0}
 /* Name is a link to the verified property website — inherits the heading style, underline on hover. */

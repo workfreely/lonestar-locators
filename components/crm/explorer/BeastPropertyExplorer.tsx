@@ -13,7 +13,7 @@ import { boundsForMarket, getMarketBySlug, isInsideMarket, isInsideState, isMark
 import { resolveDesiredAreaCenters, searchAreas, mergeDedupeByPlaceId, type AreaCenter } from "@/lib/propertyExplorer/multiArea"
 import { selectInMarketMatch, decideNameSearch, normalizePlace, shouldFetchSuggestions, computeVisible, nameSearchTextQuery, nameMatchesQuery, type NameSearchDecision } from "@/lib/propertyExplorer/nameSearch"
 import { StarRating } from "@/components/crm/StarRating"
-import { canonicalPropertyKey, selectMatchReasonLines, matchScoreTone, normalizeShortSpecial, isSpecialCurrent, formatLocatorCommission } from "@bc/companion-shared"
+import { canonicalPropertyKey, selectMatchReasonLines, matchScoreTone, normalizeShortSpecial, isSpecialCurrent, evaluateLocatorCommission } from "@bc/companion-shared"
 import { createPortal } from "react-dom"
 
 /**
@@ -1032,10 +1032,11 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   // the freshness window) — never stale/Unknown/raw long text. Null → no badge.
   const shortSpecial =
     card && isSpecialCurrent(card.verifiedAt) ? normalizeShortSpecial(card.currentSpecial) : null
-  // Locator-facing commission (Send / Escort / Bonus), verbatim from trusted-master
-  // property_catalog columns. Locator surface only; never on the client /r page.
-  const commissionLine = card
-    ? formatLocatorCommission({
+  // Locator-facing commission STATUS (paying / not_paying / unverified), from trusted-
+  // master property_catalog columns. Locator surface only; never on the client /r page.
+  // Unknown ≠ No: blank/Unknown is "unverified", never assumed not-paying.
+  const commissionStatus = card
+    ? evaluateLocatorCommission({
         sendCommission: card.sendCommission,
         escortCommission: card.escortCommission,
         bonusFlat: card.bonusFlat,
@@ -1314,7 +1315,7 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
                     clear of the top-right ✕. Normalized short form only; hidden
                     when absent/stale/unverified. */}
                 {shortSpecial && (
-                  <span className="pointer-events-none absolute bottom-2 left-2 z-[1] rounded-full bg-[#e8f0fe] px-2.5 py-[3px] text-[11px] font-semibold leading-none text-[#1c3f75] shadow-sm">
+                  <span className="pointer-events-none absolute bottom-2 left-2 z-[1] rounded-full bg-[#e8f0fe]/85 px-2.5 py-[3px] text-[11.5px] font-semibold leading-none text-[#1c3f75] shadow-sm backdrop-blur-sm">
                     {shortSpecial}
                   </span>
                 )}
@@ -1364,11 +1365,24 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
           {/* Locator commission (Send / Escort / Bonus) — operational locator info
               from trusted-master canonical data, compact. Locator surface only;
               this NEVER appears on the client /r recommendation page. */}
-          {commissionLine && (
+          {commissionStatus && (
             <p className="mt-2">
-              <span className="inline-block rounded-md bg-[#dff5e6] px-2 py-0.5 text-[12px] font-medium leading-tight text-[#136c3a]">
-                <span className="font-semibold">Commission:</span> {commissionLine}
-              </span>
+              {commissionStatus.state === "paying" ? (
+                // Verified paying → light-green money pill (same family as the blue special).
+                <span className="inline-block rounded-full bg-[#dff5e6] px-2.5 py-[3px] text-[11.5px] font-medium leading-none text-[#136c3a]">
+                  <span className="font-semibold">Commission:</span> {commissionStatus.text}
+                </span>
+              ) : commissionStatus.state === "not_paying" ? (
+                // Explicitly verified not paying → red pill.
+                <span className="inline-block rounded-full bg-[#fdeaea] px-2.5 py-[3px] text-[11.5px] font-semibold leading-none text-[#b42318]">
+                  Not Paying Locators
+                </span>
+              ) : (
+                // Blank / Unknown → neutral pill (Unknown ≠ No; never assume no-pay).
+                <span className="inline-block rounded-full bg-[#eef1f5] px-2.5 py-[3px] text-[11.5px] font-medium leading-none text-[#5a6b86]">
+                  Commission Not Verified
+                </span>
+              )}
             </p>
           )}
           {/* Match Score — the REAL client-fit percentage only (card.matchScore),

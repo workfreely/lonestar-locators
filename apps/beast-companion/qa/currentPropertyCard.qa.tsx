@@ -88,9 +88,9 @@ const floodgate = {
 } as any;
 
 const CASES: { note: string; property: any }[] = [
-  { note: "① primary photo loads · special '2 Months Free' · commission 100/100", property: preserve },
-  { note: "② primary BROKEN → backup photo loads · special '1 Month Free' · 125/125", property: canyon },
-  { note: "③ no special → chip hidden · commission 50/75", property: floodgate },
+  { note: "① Preserve — special '2 Months Free' (blue) · commission 'Send 100% · Escort 100%' (green)", property: preserve },
+  { note: "② Canyon Point — special '1 Month Free' (blue) · commission 'Send 125% · Escort 125%' (green)", property: canyon },
+  { note: "③ The Floodgate — no special · commission 'Send 50% · Escort 75%' (green)", property: floodgate },
 ];
 
 function Card({ note, property }: { note: string; property: any }) {

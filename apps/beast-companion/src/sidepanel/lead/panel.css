@@ -824,15 +824,25 @@
    normalized short). Same green treatment as the Map card's image-overlay badge and the /r
    pill; here it's an inline chip because the Companion card uses a compact thumbnail, not a
    hero image. Hidden entirely when the special is absent/stale/unverified. */
+/* Full-width status row beneath the top identity row — Special + Commission pills
+   start at the card's left content edge (using the space under the thumbnail), sit
+   side-by-side when they fit, and wrap to their own line when they don't. */
+.bc-cp-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 8px;
+}
+/* Special + commission are ONE component family — same radius, padding, font-size,
+   visual weight; only the semantic color differs (special blue, commission green). */
 .bc-cp-special {
   display: inline-block;
-  align-self: flex-start;
-  margin-top: 4px;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 999px;
   background: #e8f0fe;
   color: #1c3f75;
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 600;
   line-height: 1.3;
 }
@@ -840,18 +850,29 @@
    light-green money-style highlight (matches the Map card). Locator surface only; never on /r. */
 .bc-cp-commission {
   display: inline-block;
-  align-self: flex-start;
-  margin-top: 4px;
-  padding: 2px 8px;
-  border-radius: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
   background: #dff5e6;
   color: #136c3a;
   font-size: 11.5px;
   font-weight: 500;
+  line-height: 1.3;
 }
 .bc-cp-commission-label {
   color: #136c3a;
   font-weight: 600;
+}
+/* Explicitly verified NOT paying → red highlight. */
+.bc-cp-commission--nopay {
+  background: #fdeaea;
+  color: #b42318;
+  font-weight: 600;
+}
+/* Blank / Unknown → neutral (Unknown ≠ No; never assume no-pay). */
+.bc-cp-commission--unverified {
+  background: #eef1f5;
+  color: #5a6b86;
+  font-weight: 500;
 }
 
 /* Overall Match % beside the CURRENT PROPERTY heading. Sits in SectionCard's existing

@@ -41,3 +41,55 @@ export function formatLocatorCommission(c?: LocatorCommission | null): string | 
   if (bonus) parts.push(`Bonus ${formatBonus(bonus)}`);
   return parts.length ? parts.join(" · ") : null;
 }
+
+/**
+ * The commission STATUS a locator card shows. `Unknown ≠ No`: a blank/Unknown value
+ * is NEVER treated as "does not pay" — it is `unverified`.
+ *   • paying     — at least one real positive value; `text` is the compact line.
+ *   • not_paying — an EXPLICIT negative was recorded (e.g. "No", "0%", "$0",
+ *                  "Not Paying"); shown as a red "Not Paying Locators".
+ *   • unverified — blank / Unknown / N/A / TBD / "None"; shown neutral as
+ *                  "Commission Not Verified" (we do NOT assume no-pay).
+ */
+export type CommissionStatus =
+  | { state: "paying"; text: string }
+  | { state: "not_paying" }
+  | { state: "unverified" };
+
+// Classify a single commission field:
+//   "zero"    = a VERIFIED zero ("0", "0%", "$0") — a real value we DISPLAY as "0%"
+//   "value"   = a real non-zero commission ("125%", "$500")
+//   "nopay"   = an explicit "does not pay locators" marker ("No", "Not Paying", …)
+//   "unknown" = blank / Unknown / N/A / TBD / None — NOT verified, NOT no-pay
+// A verified zero is DISTINCT from unknown (shown as "0%") and from an explicit
+// not-paying marker (red status). Ambiguous words ("none", "n/a") stay UNKNOWN.
+function classifyCommissionField(v?: string | null): "zero" | "value" | "nopay" | "unknown" {
+  const s = (v ?? "").trim().toLowerCase();
+  if (!s) return "unknown";
+  if (/^(unknown|n\/?a|tbd|none|null|-{1,2}|—|\?+)$/.test(s)) return "unknown";
+  if (/^(no|not\s*paying|does\s*not\s*pay|non[-\s]?paying|no\s*commission|none\s*paying)$/.test(s)) return "nopay";
+  if (/^\$?0(?:\.0+)?%?$/.test(s)) return "zero";
+  return "value";
+}
+
+export function evaluateLocatorCommission(c?: LocatorCommission | null): CommissionStatus {
+  if (!c) return { state: "unverified" };
+  const send = classifyCommissionField(c.sendCommission);
+  const escort = classifyCommissionField(c.escortCommission);
+  const bonus = classifyCommissionField(c.bonusFlat);
+  // Explicit "not paying locators" verification wins over everything.
+  if (send === "nopay" || escort === "nopay" || bonus === "nopay") return { state: "not_paying" };
+  const verified = (x: "zero" | "value" | "nopay" | "unknown") => x === "zero" || x === "value";
+  // Any VERIFIED commission (a value OR an explicit 0%) → paying. Send + Escort are
+  // ALWAYS shown when verified, with "0%" spelled out — never dropped merely for being
+  // zero. Bonus appended only when it is a real non-zero amount.
+  if (verified(send) || verified(escort) || verified(bonus)) {
+    const parts: string[] = [];
+    if (verified(send)) parts.push(`Send ${send === "zero" ? "0%" : (c.sendCommission ?? "").trim()}`);
+    if (verified(escort)) parts.push(`Escort ${escort === "zero" ? "0%" : (c.escortCommission ?? "").trim()}`);
+    if (bonus === "value") parts.push(`Bonus ${formatBonus((c.bonusFlat ?? "").trim())}`);
+    return { state: "paying", text: parts.join(" · ") };
+  }
+  // No verified value and no explicit no-pay marker → unverified (Unknown ≠ No).
+  return { state: "unverified" };
+}

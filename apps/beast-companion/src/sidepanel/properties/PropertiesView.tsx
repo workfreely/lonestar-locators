@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { SectionCard } from "../lead/primitives";
 import { PropertyThumb } from "./PropertyThumb";
-import { resolveClientContext, evaluateLocationFit, evaluateApproval, evaluateAmenities, evaluateBudget, evaluateMatchScore, matchScoreTone, normalizeMustHaveAmenities, cityMismatch, starFillPercent, formatRating, displayAddress, propertyWebsiteHref, canonicalPropertyKey, selectMatchReasonLines, normalizeShortSpecial, isSpecialCurrent, formatLocatorCommission, FEATURE_SEPARATOR } from "@bc/companion-shared";
+import { resolveClientContext, evaluateLocationFit, evaluateApproval, evaluateAmenities, evaluateBudget, evaluateMatchScore, matchScoreTone, normalizeMustHaveAmenities, cityMismatch, starFillPercent, formatRating, displayAddress, propertyWebsiteHref, canonicalPropertyKey, selectMatchReasonLines, normalizeShortSpecial, isSpecialCurrent, evaluateLocatorCommission, FEATURE_SEPARATOR } from "@bc/companion-shared";
 import type { FavoriteDTO, RecommendationDTO, LeadSummaryDTO } from "@bc/companion-shared";
 import type { CurrentProperty } from "@/types";
 
@@ -352,10 +352,11 @@ export function PropertiesView({
     currentProperty && isSpecialCurrent(currentProperty.catalogVerifiedAt)
       ? normalizeShortSpecial(currentProperty.propertyCurrentSpecial)
       : null;
-  // Locator commission (Send / Escort / Bonus) — verbatim trusted-master canonical
-  // data, compact. Locator surface only; never shown to the client.
-  const commissionLine = currentProperty
-    ? formatLocatorCommission({
+  // Locator commission STATUS (paying / not_paying / unverified) — trusted-master
+  // canonical data. Locator surface only; never shown to the client. Unknown ≠ No:
+  // blank/Unknown is "unverified", never assumed not-paying.
+  const commissionStatus = currentProperty
+    ? evaluateLocatorCommission({
         sendCommission: currentProperty.sendCommission,
         escortCommission: currentProperty.escortCommission,
         bonusFlat: currentProperty.bonusFlat,
@@ -455,22 +456,30 @@ export function PropertiesView({
                     <span className="bc-cp-rating-label">Google Rating</span>
                   </div>
                 )}
-                {/* Verified current special — compact GREEN chip (normalized short
-                    form; hidden when absent/stale/unverified). The Companion card
-                    uses a compact thumbnail rather than a hero image, so the special
-                    is a header chip here, not an image overlay (same green treatment
-                    and same canonical source as the Map card's overlay badge). */}
-                {shortSpecial && <div className="bc-cp-special">{shortSpecial}</div>}
-                {/* Locator commission (Send / Escort / Bonus) — operational locator
-                    info from trusted-master canonical data. Locator surface only;
-                    NEVER shown on the client /r recommendation page. */}
-                {commissionLine && (
-                  <div className="bc-cp-commission">
-                    <span className="bc-cp-commission-label">Commission:</span> {commissionLine}
-                  </div>
-                )}
               </div>
             </div>
+
+            {/* Full-width STATUS ROW beneath the top row — Special (blue) + Commission
+                (green) pills start at the card's LEFT content edge, using the space
+                under the thumbnail instead of the narrow text column. Side-by-side
+                when they fit; a long commission wraps to its own full-width line
+                rather than squeezing/wrapping inside the right column. */}
+            {(shortSpecial || commissionStatus) && (
+              <div className="bc-cp-status">
+                {shortSpecial && <span className="bc-cp-special">{shortSpecial}</span>}
+                {commissionStatus && (
+                  commissionStatus.state === "paying" ? (
+                    <span className="bc-cp-commission">
+                      <span className="bc-cp-commission-label">Commission:</span> {commissionStatus.text}
+                    </span>
+                  ) : commissionStatus.state === "not_paying" ? (
+                    <span className="bc-cp-commission bc-cp-commission--nopay">Not Paying Locators</span>
+                  ) : (
+                    <span className="bc-cp-commission bc-cp-commission--unverified">Commission Not Verified</span>
+                  )
+                )}
+              </div>
+            )}
 
             {/* "Why I chose this for you" — up to 3 short personalized reason lines,
                 the SAME shared selector + decision language as the Map property card.
