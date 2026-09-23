@@ -80,7 +80,6 @@ function PropertyRow({
           {sub ? <span className="bc-prop-sub">{sub}</span> : null}
           {typeof rating === "number" && (
             <div className="bc-cp-rating">
-              <span className="bc-cp-rating-label">Google Rating:</span>
               <span className="bc-cp-rating-num">{formatRating(rating)}</span>
               <span
                 className="bc-cp-stars"
@@ -96,6 +95,7 @@ function PropertyRow({
                   ★★★★★
                 </span>
               </span>
+              <span className="bc-cp-rating-label">Google Rating</span>
             </div>
           )}
         </div>
@@ -437,7 +437,6 @@ export function PropertiesView({
                     otherwise. No review count, never fabricated. */}
                 {typeof currentProperty.googleRating === "number" && (
                   <div className="bc-cp-rating">
-                    <span className="bc-cp-rating-label">Google Rating:</span>
                     <span className="bc-cp-rating-num">{formatRating(currentProperty.googleRating)}</span>
                     <span
                       className="bc-cp-stars"
@@ -453,6 +452,7 @@ export function PropertiesView({
                         ★★★★★
                       </span>
                     </span>
+                    <span className="bc-cp-rating-label">Google Rating</span>
                   </div>
                 )}
                 {/* Verified current special — compact GREEN chip (normalized short

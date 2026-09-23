@@ -60,9 +60,9 @@ export default function BestMatches({
                 const recHref = propertyWebsiteHref((r as { website_url?: string | null }).website_url)
                 const rating = typeof r.google_rating === "number" && (
                   <div className="mt-0.5 flex items-center gap-1.5">
-                    <span className="text-[11px] text-[var(--crm-text-muted)]">Google Rating:</span>
                     <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(r.google_rating)}</span>
                     <StarRating value={r.google_rating} />
+                    <span className="text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
                   </div>
                 )
                 return recHref ? (

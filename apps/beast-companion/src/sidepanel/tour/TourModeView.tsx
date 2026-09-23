@@ -140,11 +140,11 @@ export function TourModeView({
           {address && <div style={{ fontSize: 11.5, color: "var(--lb-text-muted, #8b93a3)", marginTop: 1 }}>{displayAddress(address)}</div>}
           {rating != null && (
             <div style={{ marginTop: 3, fontSize: 11 }}>
-              {/* Source label so it reads as the Google rating, not an internal score. */}
-              <span style={{ color: "var(--lb-text-muted, #8b93a3)" }}>Google Rating: </span>
+              {/* Source label AFTER the value/stars so it reads as the Google rating, not an internal score. */}
               <span style={{ color: "#f5b301" }}>
                 {formatRating(rating)} <span aria-hidden="true">★★★★★</span>
-              </span>
+              </span>{" "}
+              <span style={{ color: "var(--lb-text-muted, #8b93a3)" }}>Google Rating</span>
             </div>
           )}
         </div>

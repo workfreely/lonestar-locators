@@ -1354,11 +1354,11 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
           )}
           {typeof card.googleRating === "number" && (
             <div className="mt-1 flex items-center gap-1.5">
-              <span className="text-[12.5px] text-[#6b7280]">Google Rating:</span>
               <span className="text-[12.5px] font-semibold tabular-nums text-[#111318]">
                 {card.googleRating.toFixed(1)}
               </span>
               <StarRating value={card.googleRating} />
+              <span className="text-[12.5px] text-[#6b7280]">Google Rating</span>
             </div>
           )}
           {/* Locator commission (Send / Escort / Bonus) — operational locator info

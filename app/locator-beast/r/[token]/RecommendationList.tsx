@@ -295,8 +295,8 @@ export default function RecommendationList({
               )}
               {hasRating && (
                 <div className="lbr-rating">
-                  <Star />
                   <span className="lbr-rating-val">{(p.googleRating as number).toFixed(1)}</span>
+                  <Star />
                   <span className="lbr-rating-lbl">Google Rating</span>
                 </div>
               )}
