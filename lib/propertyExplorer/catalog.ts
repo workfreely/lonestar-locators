@@ -111,7 +111,7 @@ export async function fetchCatalog(
 export async function attachCatalogRatings<T extends { property_url?: string | null; property_image_url?: string | null }>(
   rows: T[],
   supabase: SupabaseClient,
-): Promise<(T & { google_rating: number | null; property_image_url: string | null; website_url: string | null; tour_url: string | null; apply_url: string | null; availability_url: string | null })[]> {
+): Promise<(T & { google_rating: number | null; property_image_url: string | null; website_url: string | null; tour_url: string | null; apply_url: string | null; availability_url: string | null; current_special: string | null; send_commission: string | null; escort_commission: string | null; bonus_flat: string | null; verified_at: string | null })[]> {
   const placeIds = rows.map((r) => placeIdFromPropertyUrl(r.property_url))
   const catalog = await fetchCatalog(
     placeIds.filter((v): v is string => !!v),
@@ -136,6 +136,14 @@ export async function attachCatalogRatings<T extends { property_url?: string | n
       tour_url: rec?.tourUrl ?? null,
       apply_url: rec?.applyUrl ?? null,
       availability_url: rec?.availabilityUrl ?? null,
+      // Locator-facing canonical status fields (property_catalog), read-side — the
+      // Recommended Property row renders the special (blue) + commission (green) pills.
+      // Verbatim master text; the row normalizes/classifies them for display.
+      current_special: rec?.currentSpecial ?? null,
+      send_commission: rec?.sendCommission ?? null,
+      escort_commission: rec?.escortCommission ?? null,
+      bonus_flat: rec?.bonusFlat ?? null,
+      verified_at: rec?.verifiedAt ?? null,
     }
   })
 }

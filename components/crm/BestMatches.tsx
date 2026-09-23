@@ -2,7 +2,7 @@
 
 import { SectionCard } from "./LeadPanelSections"
 import PropertyThumb from "./PropertyThumb"
-import { displayAddress, formatRating } from "@bc/companion-shared"
+import { displayAddress, formatRating, normalizeShortSpecial, isSpecialCurrent, evaluateLocatorCommission } from "@bc/companion-shared"
 import { StarRating } from "./StarRating"
 import { propertyWebsiteHref } from "@/lib/propertyExplorer/types"
 
@@ -49,7 +49,7 @@ export default function BestMatches({
           {leadRecommendations.map((r) => (
             <div
               key={r.id}
-              className="flex items-center gap-2.5 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] px-3 py-2"
+              className="flex items-start gap-2.5 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] px-3 py-2"
             >
               <PropertyThumb src={r.property_image_url} alt={r.property_name} />
               {(() => {
@@ -58,28 +58,49 @@ export default function BestMatches({
                 // Maps). No valid website → a plain, non-clickable name. Mirrors the
                 // Favorite Property name-link behavior exactly.
                 const recHref = propertyWebsiteHref((r as { website_url?: string | null }).website_url)
-                const rating = typeof r.google_rating === "number" && (
-                  <div className="mt-0.5 flex items-center gap-1.5">
-                    <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(r.google_rating)}</span>
-                    <StarRating value={r.google_rating} />
-                    <span className="-ml-[3px] text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
-                  </div>
-                )
-                return recHref ? (
-                  <a href={recHref} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1">
-                    <p className="truncate text-[12.5px] font-semibold text-[var(--crm-accent)] hover:underline">{r.property_name}</p>
-                    {r.property_address && (
-                      <p className="truncate text-[11px] text-[var(--crm-text-muted)]">{displayAddress(r.property_address)}</p>
-                    )}
-                    {rating}
-                  </a>
-                ) : (
+                // Locator-facing status pills — Special (blue, normalized short, fresh
+                // only) + Commission (green/red/neutral) — rendered BELOW the rating,
+                // aligned under the property text (never in the ✕/♡ action area). The
+                // commission always shows a state; the special only when verified/current.
+                const shortSpecial = isSpecialCurrent(r.verified_at) ? normalizeShortSpecial(r.current_special) : null
+                const commission = evaluateLocatorCommission({
+                  sendCommission: r.send_commission,
+                  escortCommission: r.escort_commission,
+                  bonusFlat: r.bonus_flat,
+                })
+                return (
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{r.property_name}</p>
+                    {recHref ? (
+                      <a href={recHref} target="_blank" rel="noopener noreferrer" className="block truncate text-[12.5px] font-semibold text-[var(--crm-accent)] hover:underline">{r.property_name}</a>
+                    ) : (
+                      <p className="truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{r.property_name}</p>
+                    )}
                     {r.property_address && (
                       <p className="truncate text-[11px] text-[var(--crm-text-muted)]">{displayAddress(r.property_address)}</p>
                     )}
-                    {rating}
+                    {typeof r.google_rating === "number" && (
+                      <div className="mt-0.5 flex items-center gap-1.5">
+                        <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(r.google_rating)}</span>
+                        <StarRating value={r.google_rating} />
+                        <span className="-ml-[3px] text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
+                      </div>
+                    )}
+                    {/* Status row — Special (blue) + Commission (green/red/neutral) pills,
+                        same family as Map/Companion; wraps to a second line if needed. */}
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      {shortSpecial && (
+                        <span className="rounded-lg border border-[#8fb6ea] bg-[#e8f0fe] px-2.5 py-[3px] text-[11px] font-semibold leading-none text-[#1c3f75]">{shortSpecial}</span>
+                      )}
+                      {commission.state === "paying" ? (
+                        <span className="rounded-lg border border-[#8ecaa6] bg-[#dff5e6] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#136c3a]">
+                          <span className="font-semibold">Commission:</span> {commission.text}
+                        </span>
+                      ) : commission.state === "not_paying" ? (
+                        <span className="rounded-lg border border-[#eaa9a5] bg-[#fdeaea] px-2.5 py-[3px] text-[11px] font-semibold leading-none text-[#b42318]">Not Paying Locators</span>
+                      ) : (
+                        <span className="rounded-lg border border-[#cbd4e0] bg-[#eef1f5] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#5a6b86]">Commission Not Verified</span>
+                      )}
+                    </div>
                   </div>
                 )
               })()}

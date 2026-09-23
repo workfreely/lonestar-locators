@@ -838,8 +838,9 @@
    visual weight; only the semantic color differs (special blue, commission green). */
 .bc-cp-special {
   display: inline-block;
-  padding: 3px 10px;
-  border-radius: 999px;
+  padding: 3px 9px;
+  border-radius: 8px;
+  border: 1px solid #8fb6ea;
   background: #e8f0fe;
   color: #1c3f75;
   font-size: 11.5px;
@@ -850,8 +851,9 @@
    light-green money-style highlight (matches the Map card). Locator surface only; never on /r. */
 .bc-cp-commission {
   display: inline-block;
-  padding: 3px 10px;
-  border-radius: 999px;
+  padding: 3px 9px;
+  border-radius: 8px;
+  border: 1px solid #8ecaa6;
   background: #dff5e6;
   color: #136c3a;
   font-size: 11.5px;
@@ -862,15 +864,17 @@
   color: #136c3a;
   font-weight: 600;
 }
-/* Explicitly verified NOT paying → red highlight. */
+/* Explicitly verified NOT paying → red chip (light red fill, red border/text). */
 .bc-cp-commission--nopay {
   background: #fdeaea;
+  border-color: #eaa9a5;
   color: #b42318;
   font-weight: 600;
 }
-/* Blank / Unknown → neutral (Unknown ≠ No; never assume no-pay). */
+/* Blank / Unknown → neutral gray (Unknown ≠ No; never assume no-pay). */
 .bc-cp-commission--unverified {
   background: #eef1f5;
+  border-color: #cbd4e0;
   color: #5a6b86;
   font-weight: 500;
 }
