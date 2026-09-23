@@ -338,22 +338,16 @@ function imgGalleryCandidates(html: string, out: ImageCandidate[]): void {
   }
 }
 
-export function extractPropertyMetadata(html: string): DetectedMetadata {
-  let name: string | null = null
-  let address: string | null = null
+// Collect ALL image candidates from a page (JSON-LD image/photo, og:image,
+// twitter:image, gallery/hero <img>), unscored and unfiltered. Shared by
+// extractPropertyMetadata (which picks the single best) and rankPropertyImages
+// (which ranks them for primary + backup) so both read the SAME candidate pool.
+export function collectImageCandidates(html: string): ImageCandidate[] {
   const candidates: ImageCandidate[] = []
-
   for (const block of extractJsonLdBlocks(html)) {
-    if (!name && typeof block?.name === "string") name = decodeHtmlEntities(block.name)
-    if (!address) address = formatAddress(block?.address)
     jsonLdImageCandidates(block?.image, STRUCTURED_BOOST, candidates)
     jsonLdImageCandidates(block?.photo, STRUCTURED_BOOST, candidates)
   }
-
-  if (!name) name = extractMetaContent(html, "og:title")
-  if (!name) name = extractMetaContent(html, "og:site_name")
-  if (!name) name = extractTitle(html)
-
   // Social cards participate too, but at the lowest boost AND still subject to
   // the photo/logo filter — so a logo og:image is rejected while a structured
   // gallery photo (or a genuine hero og:image) wins.
@@ -361,12 +355,80 @@ export function extractPropertyMetadata(html: string): DetectedMetadata {
   if (og) candidates.push({ url: og, boost: SOCIAL_BOOST })
   const tw = extractMetaContent(html, "twitter:image")
   if (tw) candidates.push({ url: tw, boost: SOCIAL_BOOST })
-
   // Gallery/hero <img> photos — the scene ranker + rejection gate decide whether
   // any of them beat the structured/social candidates.
   imgGalleryCandidates(html, candidates)
+  return candidates
+}
 
-  const image = selectBestImage(candidates)
+export function extractPropertyMetadata(html: string): DetectedMetadata {
+  let name: string | null = null
+  let address: string | null = null
+
+  for (const block of extractJsonLdBlocks(html)) {
+    if (!name && typeof block?.name === "string") name = decodeHtmlEntities(block.name)
+    if (!address) address = formatAddress(block?.address)
+  }
+
+  if (!name) name = extractMetaContent(html, "og:title")
+  if (!name) name = extractMetaContent(html, "og:site_name")
+  if (!name) name = extractTitle(html)
+
+  const image = selectBestImage(collectImageCandidates(html))
 
   return { name, address, image }
+}
+
+// ── Pipeline: ranked PRIMARY + BACKUP selection ─────────────────────────────
+// extractPropertyMetadata returns only the single best image. The image-
+// enrichment pipeline needs the top TWO distinct trustworthy photos so the card
+// (Map / Companion / /r) can fall back to #2 when #1 fails to load. This reuses
+// the identical collection + scoring: candidates that scorePropertyImage rejects
+// (logos, floor plans, stock, badges, share-cards, svg, tiny) return null and
+// are dropped; survivors below TRUST_FLOOR (demoted graphics) are also dropped so
+// a backup is never a logo/branded card. Result is de-duplicated by resolved URL
+// and sorted best-first. `sourceUrl` resolves relative image paths to absolute.
+export type RankedImage = { url: string; score: number; context?: string }
+
+function absolutize(url: string, sourceUrl?: string): string {
+  const u = (url ?? "").trim()
+  if (!u || !sourceUrl) return u
+  try { return new URL(u, sourceUrl).href } catch { return u }
+}
+
+// Collapse the many CDN variants of ONE underlying photo to a single identity, so
+// a PRIMARY and its own 2048px re-crop aren't chosen as primary+backup (they're
+// the same picture). Handles: Uploadcare/myrazz `/uc-image/<uuid>/…` (uuid is the
+// asset), otherwise the last path segment with the cache-bust hash, size tokens,
+// and `-scaled` stripped — so `pool-047-<hash>-1920x1280.jpg` and
+// `pool-047-<hash>--scaled.jpg` collapse, while `pool-108-…` stays distinct.
+export function imageIdentity(url: string): string {
+  try {
+    const u = new URL(url)
+    const uc = u.pathname.match(/\/uc-image\/([0-9a-f-]{36})\//i)
+    if (uc) return `uc:${uc[1].toLowerCase()}`
+    let seg = (u.pathname.split("/").filter(Boolean).pop() || u.pathname).toLowerCase()
+    seg = seg.replace(/\.(jpe?g|png|webp|gif|avif)(\..*)?$/, "")
+    seg = seg.replace(/[-_]?\d{2,5}x\d{2,5}/g, "")
+    seg = seg.replace(/[-_]scaled$/, "")
+    seg = seg.replace(/-[0-9a-f]{8,}$/, "")
+    return `${u.host}${u.pathname.replace(/[^/]+$/, "")}${seg}`
+  } catch {
+    return url
+  }
+}
+
+export function rankPropertyImages(html: string, sourceUrl?: string): RankedImage[] {
+  // Keep the highest-scoring variant PER photo identity (not per URL), so
+  // primary/backup are always different pictures rather than two crops of one.
+  const bestByIdentity = new Map<string, RankedImage>()
+  for (const c of collectImageCandidates(html)) {
+    const score = scorePropertyImage(c.url, c.boost, c.context ?? "")
+    if (score === null || score < TRUST_FLOOR) continue // rejected or demoted graphic
+    const url = absolutize(c.url, sourceUrl)
+    const id = imageIdentity(url)
+    const prev = bestByIdentity.get(id)
+    if (!prev || score > prev.score) bestByIdentity.set(id, { url, score, context: c.context })
+  }
+  return [...bestByIdentity.values()].sort((a, b) => b.score - a.score)
 }
