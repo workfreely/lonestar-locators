@@ -16,14 +16,14 @@ export default function AutomatedTextingStatus({ authorized }: { authorized: boo
   return (
     <SettingsCard
       title="Automated Texting"
-      description="Automatic follow-up texts on your approved clients, sent inside your Working Hours."
+      description="Automated follow-up texts on approved clients sent during Working Hours."
     >
       <div className="flex items-center gap-2">
         <span className="h-2.5 w-2.5 flex-none rounded-full bg-emerald-500" aria-hidden />
         <span className="text-[14px] font-medium text-[#111318]">Available on your account</span>
       </div>
       <p className="mt-2 text-[12.5px] leading-relaxed text-[#6b7280]">
-        Turn Automated Texts on per client from that client&apos;s workspace. Every client stays Off until you enable it.
+        Enable or disable Automated Texts from Beast Companion.
       </p>
     </SettingsCard>
   )
