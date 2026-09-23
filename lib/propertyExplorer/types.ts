@@ -205,6 +205,17 @@ export function toCompanionProperty(p: ExplorerProperty) {
     // Property's name/thumbnail may open — never propertyUrl (the Google Maps place
     // link). Null → non-clickable name (no substitution).
     websiteUrl: p.websiteUrl ?? null,
+    // Canonical property_catalog card fields — carried so a MAP-PICKED property shows
+    // the same backup image / special / commission as the Map card and the SAD-enriched
+    // Companion property (map-pick has a placeId, so it never triggers the enrichment
+    // round-trip — these must ride along on the payload). LOCATOR-facing; the /r client
+    // page never receives these. Names match the Companion CurrentProperty type.
+    propertyImageUrlBackup: p.imageUrlBackup ?? null,
+    propertyCurrentSpecial: p.currentSpecial ?? null,
+    sendCommission: p.sendCommission ?? null,
+    escortCommission: p.escortCommission ?? null,
+    bonusFlat: p.bonusFlat ?? null,
+    catalogVerifiedAt: p.verifiedAt ?? null,
   }
 }
 

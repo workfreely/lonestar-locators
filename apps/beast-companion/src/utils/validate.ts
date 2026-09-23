@@ -160,6 +160,15 @@ export function isValidCurrentPropertyPayload(
       p.googleRating > 5)
   )
     return false;
+  // Canonical property_catalog card fields carried on a MAP-PICKED property (parity
+  // with the SAD-enriched path). All optional nullable bounded strings; absent is
+  // the normal case for a property with no canonical enrichment.
+  if (!textOk(p.propertyImageUrlBackup)) return false;
+  if (!textOk(p.propertyCurrentSpecial)) return false;
+  if (!textOk(p.sendCommission)) return false;
+  if (!textOk(p.escortCommission)) return false;
+  if (!textOk(p.bonusFlat)) return false;
+  if (!textOk(p.catalogVerifiedAt)) return false;
 
   return isWithinSizeLimit(payload);
 }
