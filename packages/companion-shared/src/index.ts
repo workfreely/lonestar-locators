@@ -295,6 +295,11 @@ export type { MatchScoreInput, AmenityCoverage } from "./matchScore";
 export { matchScoreTone } from "./matchScoreTone";
 export type { MatchScoreTone } from "./matchScoreTone";
 
+// Shared compact "Why I chose this for you" reason-line contract (Map card +
+// Companion Current Property). Presentation only — derives from existing data.
+export { selectMatchReasonLines, MAX_FEATURE_ITEMS, MAX_REASON_LINES, FEATURE_SEPARATOR } from "./matchReasons";
+export type { MatchReasonInput } from "./matchReasons";
+
 // Theme registry (all CRM themes, semantic tokens, safe Midnight fallback)
 export {
   THEME_IDS,

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { loadGoogleMaps, MapsConfigError } from "@/lib/propertyExplorer/loadMaps"
-import { hasCoordinates, placeUrl, displayAddress, formatCommission, propertyWebsiteHref, type ExplorerProperty } from "@/lib/propertyExplorer/types"
+import { hasCoordinates, placeUrl, displayAddress, propertyWebsiteHref, type ExplorerProperty } from "@/lib/propertyExplorer/types"
 import PropertyThumb from "@/components/crm/PropertyThumb"
 import { assessLocationFit, type ClientLocationContext } from "@/lib/propertyExplorer/locationFit"
 import { computeSuggestions } from "@/lib/propertyExplorer/suggestions"
@@ -13,7 +13,7 @@ import { boundsForMarket, getMarketBySlug, isInsideMarket, isInsideState, isMark
 import { resolveDesiredAreaCenters, searchAreas, mergeDedupeByPlaceId, type AreaCenter } from "@/lib/propertyExplorer/multiArea"
 import { selectInMarketMatch, decideNameSearch, normalizePlace, shouldFetchSuggestions, computeVisible, nameSearchTextQuery, nameMatchesQuery, type NameSearchDecision } from "@/lib/propertyExplorer/nameSearch"
 import { StarRating } from "@/components/crm/StarRating"
-import { canonicalPropertyKey } from "@bc/companion-shared"
+import { canonicalPropertyKey, selectMatchReasonLines, matchScoreTone } from "@bc/companion-shared"
 import { createPortal } from "react-dom"
 
 /**
@@ -1004,6 +1004,22 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
 
   const card = selected ?? hovered
   const fit = card ? assessLocationFit(card, activeClient) : null
+  // Compact "Why I chose this for you" reason lines (shared contract with the
+  // Beast Companion Current Property card). HONEST to the data the Map has today:
+  // a Google-catalogued property carries geography + a current special, but no
+  // per-property rent / approval / amenities / commute — those arrive with
+  // Property Intelligence, at which point commute/approval/features light up here
+  // with NO card change. So the Map supplies only what it can ground now:
+  //   • location  — assessLocationFit's positive tier (never the "outside" label)
+  //   • special   — the property's current concession
+  // matchScore stays the real client-fit value (card.matchScore) and is shown ONLY
+  // when populated — never inferred from location fit (that was the old fake 100%).
+  const reasonLines = card
+    ? selectMatchReasonLines({
+        location: fit && fit.tone !== "outside" ? fit.label : null,
+        special: card.currentSpecial?.trim() || null,
+      })
+    : []
   // The ONLY link target for the card's thumbnail / name / Visit Website: the real
   // property website. Never the Google Maps place URL (card.propertyUrl). Null when
   // there is no valid website → those elements are non-clickable, no substitution.
@@ -1236,111 +1252,117 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
               rating. Compact, NOT a hero photo; a missing/broken image falls back to
               the building icon in the same spot. The gray match section, the full-width
               Recommend button and the lower-right Visit Website link follow below. */}
-          <div className="flex items-start gap-2.5">
-            {/* Thumbnail links to the property's OWN website (same URL as Visit
-                Website), new tab; stopPropagation so it never selects/closes the
-                pinned card. Plain thumbnail when no website is known. */}
-            {siteHref ? (
-              <a
-                href={siteHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="flex-none"
-                aria-label={`Visit ${card.propertyName} website`}
-              >
-                <PropertyThumb src={card.imageUrl} alt={card.propertyName} size={48} />
-              </a>
-            ) : (
-              <PropertyThumb src={card.imageUrl} alt={card.propertyName} size={48} />
-            )}
-            <div className="min-w-0 flex-1">
-              {/* Name links to the property website (new tab). pr-6 leaves room for the
-                  absolute ✕ (moved out of flow below) so the tight name → address →
-                  rating stack matches Current Property with no gap from the close button. */}
-              {siteHref ? (
-                <a
-                  href={siteHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="block pr-6 text-[14px] font-semibold leading-tight text-[#111318] hover:underline"
-                >
-                  {card.propertyName}
-                </a>
-              ) : (
-                <p className="pr-6 text-[14px] font-semibold leading-tight text-[#111318]">{card.propertyName}</p>
-              )}
-              {card.propertyAddress && (
-                <p className="mt-0.5 text-[12.5px] leading-tight text-[#4b5162]">{displayAddress(card.propertyAddress)}</p>
-              )}
-              {/* Rating directly under the address — compact stack. Real catalogued
-                  value only; never fabricated, never affects ranking. */}
-              {typeof card.googleRating === "number" && (
-                <div className="mt-0.5 flex items-center gap-1.5">
-                  <span className="text-[12.5px] text-[#6b7280]">Google Rating:</span>
-                  <span className="text-[12.5px] font-semibold tabular-nums text-[#111318]">
-                    {card.googleRating.toFixed(1)}
-                  </span>
-                  <StarRating value={card.googleRating} />
-                </div>
-              )}
-            </div>
-          </div>
-          {/* Close ✕ — absolute top-right, OUT of the name row so it never inflates the
-              name → address spacing. Only when the card is pinned (selected). */}
+          {/* Close ✕ — absolute top-right, over the photo. Only when pinned (selected). */}
           {selected && (
             <button
               type="button"
               onClick={() => setSelected(null)}
               aria-label="Close property card"
-              className="absolute right-2.5 top-2.5 rounded p-1 text-[#9098a8] hover:text-[#111318]"
+              className="absolute right-2 top-2 z-10 rounded bg-white/85 p-1 text-[#6b7280] hover:text-[#111318]"
             >
               ✕
             </button>
           )}
-          {/* Future-ready fields — each renders ONLY when a real value is present
-              on the in-memory property, and is omitted entirely otherwise. No
-              fetch, no fabrication. Order: Match %, Commission, Current Special. */}
-          {typeof card.matchScore === "number" && (
-            <p className="mt-2 text-[12.5px] font-semibold text-[#111318]">
-              Match: {Math.round(card.matchScore)}%
-            </p>
-          )}
-          {formatCommission(card.commission) && (
-            <p className="mt-1 text-[12.5px] text-[#4b5162]">
-              <span className="font-semibold text-[#111318]">Commission:</span> {formatCommission(card.commission)}
-            </p>
-          )}
-          {card.currentSpecial && card.currentSpecial.trim() && (
-            <p className="mt-1 text-[12.5px] text-emerald-700">
-              <span className="font-semibold">Special:</span> {card.currentSpecial.trim()}
-            </p>
-          )}
-          {/* Gray match-intelligence section — the property's fit at a glance, drawn
-              from the EXISTING assessLocationFit result (fit.label / fit.tone). A match
-              reads "100% Match"; an in-market property reads "Within Preferred Area".
-              The redundant one-line reason sentence is intentionally omitted, and there
-              is NO separate Location: row — this section IS the location-fit read. Tone
-              colours the label; the box stays light gray. assessLocationFit unchanged. */}
-          {fit && (
-            <div className="mt-3 rounded-lg bg-[#f1f3f8] px-3 py-2.5">
-              <p
-                className={
-                  fit.tone === "match"
-                    ? // "100% Match" mirrors the Beast Companion Current Property score
-                      // (.bc-match-score.tone-good in apps/beast-companion/src/sidepanel/
-                      // lead/panel.css): 11px / 700 / --lb-success. green-500 IS that exact
-                      // token value (#22c55e) in this app's default Tailwind palette, so the
-                      // green is reused, not eyeballed. Non-match labels keep 12.5px/600.
-                      "text-[11px] font-bold text-green-500"
-                    : fit.tone === "outside"
-                    ? "text-[12.5px] font-semibold text-amber-700"
-                    : "text-[12.5px] font-semibold text-[#111318]"
-                }
+          {/* Larger property photo — a prominent banner (still compact, not a hero).
+              Links to the property's OWN website (new tab, stopPropagation so it never
+              selects/closes the pinned card). A missing/broken image reveals the shared
+              building placeholder behind it in the same frame — never fabricated. */}
+          {(() => {
+            const banner = (
+              <div className="relative mb-3 h-32 w-full overflow-hidden rounded-lg bg-[#f1f3f8]">
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <PropertyThumb src={null} alt="" size={44} />
+                </div>
+                {card.imageUrl && (
+                  <img
+                    src={card.imageUrl}
+                    alt={card.propertyName}
+                    className="relative h-full w-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none"
+                    }}
+                  />
+                )}
+              </div>
+            )
+            return siteHref ? (
+              <a
+                href={siteHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                aria-label={`Visit ${card.propertyName} website`}
+                className="block"
               >
-                {fit.tone === "match" ? "100% Match" : fit.label}
-              </p>
+                {banner}
+              </a>
+            ) : (
+              banner
+            )
+          })()}
+          {/* Name → address → Google rating. Name links to the property's own website. */}
+          {siteHref ? (
+            <a
+              href={siteHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="block pr-6 text-[15px] font-semibold leading-tight text-[#111318] hover:underline"
+            >
+              {card.propertyName}
+            </a>
+          ) : (
+            <p className="pr-6 text-[15px] font-semibold leading-tight text-[#111318]">{card.propertyName}</p>
+          )}
+          {card.propertyAddress && (
+            <p className="mt-0.5 text-[12.5px] leading-tight text-[#4b5162]">{displayAddress(card.propertyAddress)}</p>
+          )}
+          {typeof card.googleRating === "number" && (
+            <div className="mt-1 flex items-center gap-1.5">
+              <span className="text-[12.5px] text-[#6b7280]">Google Rating:</span>
+              <span className="text-[12.5px] font-semibold tabular-nums text-[#111318]">
+                {card.googleRating.toFixed(1)}
+              </span>
+              <StarRating value={card.googleRating} />
+            </div>
+          )}
+          {/* Match Score — the REAL client-fit percentage only (card.matchScore),
+              shown when the client-fit engine has populated it, toned like the
+              Companion score. NEVER inferred from location fit (no fabricated "100%").
+              Absent today until Property Intelligence supplies the per-property inputs. */}
+          {typeof card.matchScore === "number" && (
+            <p
+              className={
+                "mt-2.5 text-[15px] font-bold " +
+                (matchScoreTone(card.matchScore) === "good"
+                  ? "text-emerald-600"
+                  : matchScoreTone(card.matchScore) === "moderate"
+                  ? "text-amber-600"
+                  : "text-[#6b7280]")
+              }
+            >
+              {Math.round(card.matchScore)}% Match
+            </p>
+          )}
+          {/* Up to 3 short personalized "why I chose this for you" lines — the strongest
+              reasons for THIS client (shared selectMatchReasonLines). Only meaningful
+              categories appear (none are forced). The Map grounds location + special
+              today; commute / approval / features light up here, with no card change,
+              once Property Intelligence provides them. First line is emphasized. */}
+          {reasonLines.length > 0 && (
+            <div className="mt-2 space-y-0.5">
+              {reasonLines.map((line, i) => (
+                <p
+                  key={i}
+                  className={
+                    i === 0
+                      ? "text-[12.5px] font-semibold leading-snug text-[#111318]"
+                      : "text-[12.5px] leading-snug text-[#4b5162]"
+                  }
+                >
+                  {line}
+                </p>
+              ))}
             </div>
           )}
 
