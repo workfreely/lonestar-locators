@@ -1314,7 +1314,7 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
                     clear of the top-right ✕. Normalized short form only; hidden
                     when absent/stale/unverified. */}
                 {shortSpecial && (
-                  <span className="pointer-events-none absolute bottom-2 left-2 z-[1] rounded-md bg-[#136c3a] px-2 py-[3px] text-[11px] font-semibold leading-none text-white shadow-sm">
+                  <span className="pointer-events-none absolute bottom-2 left-2 z-[1] rounded-full bg-[#e8f0fe] px-2.5 py-[3px] text-[11px] font-semibold leading-none text-[#1c3f75] shadow-sm">
                     {shortSpecial}
                   </span>
                 )}
@@ -1365,8 +1365,10 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
               from trusted-master canonical data, compact. Locator surface only;
               this NEVER appears on the client /r recommendation page. */}
           {commissionLine && (
-            <p className="mt-1 text-[12px] font-medium leading-tight text-[#3a4658]">
-              <span className="text-[#6b7280]">Commission:</span> {commissionLine}
+            <p className="mt-2">
+              <span className="inline-block rounded-md bg-[#dff5e6] px-2 py-0.5 text-[12px] font-medium leading-tight text-[#136c3a]">
+                <span className="font-semibold">Commission:</span> {commissionLine}
+              </span>
             </p>
           )}
           {/* Match Score — the REAL client-fit percentage only (card.matchScore),
@@ -1414,7 +1416,7 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
               Property Explorer never shows or writes a Favorite. Appears once a marker
               is clicked (card pinned), not merely hovered. */}
           {selected && (
-            <div className="mt-3">
+            <div className="mt-4">
               {!activeClient ? (
                 // Plain muted helper text in the recommendation/action area — clean
                 // guidance, not an unavailable control: no bubble, border, or

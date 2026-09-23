@@ -130,7 +130,7 @@ const CSS = `
 .lbr-ph-fallback{position:absolute;inset:0;background:linear-gradient(135deg,#c7d2e0,#9fb2c8)}
 .lbr-heart{position:absolute;top:12px;right:12px;width:40px;height:40px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(14,37,69,.28);cursor:pointer;border:none;padding:0}
 .lbr-heart:active{transform:scale(.9)}
-.lbr-pill{position:absolute;left:12px;bottom:12px;background:var(--pill-bg);color:var(--pill-tx);font-size:12.5px;font-weight:700;padding:6px 12px;border-radius:999px;box-shadow:0 4px 10px rgba(14,37,69,.14)}
+.lbr-pill{position:absolute;left:12px;bottom:12px;background:#e8f0fe;color:#1c3f75;font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:999px;box-shadow:0 4px 10px rgba(14,37,69,.14)}
 .lbr-body{padding:16px 17px 17px;display:flex;flex-direction:column;flex:1}
 .lbr-pname{font-size:18px;font-weight:800;color:var(--navy);letter-spacing:-.01em;margin:0}
 /* Name is a link to the verified property website — inherits the heading style, underline on hover. */
@@ -139,7 +139,9 @@ const CSS = `
 .lbr-addr{display:flex;align-items:flex-start;gap:6px;font-size:13px;color:var(--muted);margin-top:5px;line-height:1.35}
 .lbr-addr svg{color:var(--faint);flex:none;margin-top:2px}
 .lbr-rating{display:flex;align-items:center;gap:6px;font-size:13.5px;color:var(--ink);margin-top:7px;font-weight:600}
-.lbr-rating svg{color:var(--gold)}
+.lbr-stars{position:relative;display:inline-block;line-height:1;white-space:nowrap}
+.lbr-stars-base{display:block;font-size:14px;letter-spacing:1px;color:#cfd6e0}
+.lbr-stars-fill{position:absolute;top:0;left:0;overflow:hidden;white-space:nowrap;font-size:14px;letter-spacing:1px;color:var(--gold)}
 .lbr-rating-val{font-weight:800;color:var(--navy)}
 .lbr-rating-lbl{font-weight:600;color:var(--muted);font-size:12.5px;margin-left:-3px}
 .lbr-why{margin-top:13px}

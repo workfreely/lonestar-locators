@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { TOUR_TYPE_LABELS, TOUR_WINDOW_LABELS, normalizeShortSpecial } from "@bc/companion-shared"
+import { TOUR_TYPE_LABELS, TOUR_WINDOW_LABELS, normalizeShortSpecial, starFillPercent } from "@bc/companion-shared"
 import TourAvailabilityModal, { type Availability, type InitialAvailability } from "./TourAvailability"
 
 /**
@@ -67,11 +67,15 @@ function Pin() {
     </svg>
   )
 }
-function Star() {
+// Five-star rating — the SAME base-plus-gold-fill treatment as the Map card and the
+// Beast Companion (shared starFillPercent math), so the rating reads identically
+// everywhere. Never a single star.
+function Stars({ value }: { value: number }) {
   return (
-    <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden fill="currentColor">
-      <path d="M12 2l2.9 6.3 6.9.7-5.1 4.6 1.4 6.8L12 17.8 6 20.4l1.4-6.8L2.3 9l6.9-.7z" />
-    </svg>
+    <span className="lbr-stars" aria-hidden>
+      <span className="lbr-stars-base">★★★★★</span>
+      <span className="lbr-stars-fill" style={{ width: `${starFillPercent(value)}%` }}>★★★★★</span>
+    </span>
   )
 }
 function Arrow() {
@@ -296,7 +300,7 @@ export default function RecommendationList({
               {hasRating && (
                 <div className="lbr-rating">
                   <span className="lbr-rating-val">{(p.googleRating as number).toFixed(1)}</span>
-                  <Star />
+                  <Stars value={p.googleRating as number} />
                   <span className="lbr-rating-lbl">Google Rating</span>
                 </div>
               )}
