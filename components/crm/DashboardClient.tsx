@@ -47,7 +47,6 @@ import CheckApplicationModal from "./CheckApplicationModal"
 import GetInvoiceDetailsModal from "./GetInvoiceDetailsModal"
 import SendInvoiceModal from "./SendInvoiceModal"
 import InvoiceDetailsSection from "./InvoiceDetailsSection"
-import AutomatedTextsToggle from "./AutomatedTextsToggle"
 import { autoInvoicePropertyName, formatInvoiceCurrency } from "@/lib/leads/invoiceFields"
 import { leaseFollowUpDueAt } from "@/lib/leads/leaseFollowUp"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
@@ -4241,19 +4240,10 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                       }
                     />
                   )}
-                  {/* Automated Texts (authorized accounts only) — per-client On/Off.
-                      Keyed by lead so it re-inits when the selected client changes.
-                      Renders nothing for an unauthorized account (private rollout). */}
-                  {automatedTextingAuthorized && (
-                    <AutomatedTextsToggle
-                      key={`autotx-${selectedLead.id}`}
-                      leadId={selectedLead.id ?? null}
-                      initialEnrolled={!!(selectedLead as any).followup_opt_in}
-                      onEnrolledChange={(enabled) =>
-                        setLocalLeads((prev) => prev.map((l: any) => (String(l.id) === String(selectedLead.id) ? { ...l, followup_opt_in: enabled } : l)))
-                      }
-                    />
-                  )}
+                  {/* Automated Texts card removed from the Client Workspace — the
+                      per-client On/Off control lives in the Beast Companion hamburger
+                      menu. Account-level capability/config belongs in Integrations.
+                      (automatedTextingAuthorized still gates the Companion payload.) */}
                   </>}
                   rightColumn={<>
                   <LeadNotes

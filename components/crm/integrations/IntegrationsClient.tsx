@@ -22,7 +22,7 @@ const INTEGRATIONS: { name: string; description: string; google?: boolean }[] = 
 // (re)connect without being bounced through onboarding. No OAuth logic here.
 const GOOGLE_CONNECT_URL = "/api/google/auth?next=/admin/integrations"
 
-export default function IntegrationsClient({ googleConnected }: { googleConnected: boolean }) {
+export default function IntegrationsClient({ googleConnected, automatedTextingAuthorized = false }: { googleConnected: boolean; automatedTextingAuthorized?: boolean }) {
   return (
     <SettingsShell title="Integrations">
       {/* Locator Beast's own tools appear first (Beast Companion, then Beast Sync),
@@ -36,7 +36,7 @@ export default function IntegrationsClient({ googleConnected }: { googleConnecte
           (Beast Sync for macOS + iPhone Messages) and "Windows + Android"
           (Beast Sync for Windows + Google Messages). Presentation only — Beast
           Sync's download/pending behaviour is byte-preserved. */}
-      <DeviceEcosystemSection />
+      <DeviceEcosystemSection automatedTextingAuthorized={automatedTextingAuthorized} />
 
       {/* Third-party integrations — below Locator Beast's own tools. */}
       <SettingsCard>

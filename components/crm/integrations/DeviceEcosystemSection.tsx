@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react"
 import { supabase } from "@/lib/supabase/client"
-import { FaAndroid } from "react-icons/fa6"
+import { FaAndroid, FaCommentDots } from "react-icons/fa6"
 import { SettingsCard } from "@/components/crm/settings/SettingsShell"
 import { AppleIcon, WindowsIcon } from "@/components/icons/PlatformIcons"
 
@@ -40,6 +40,12 @@ const ComingSoonPill = (
 const ConnectedPill = (
   <span className="rounded-full bg-[#e7f6ee] px-2 py-0.5 text-[11px] font-semibold text-[#16794c]">Connected</span>
 )
+// Account-level Automated Texting capability status. Shown only for an authorized
+// account (the row itself is authorization-gated). Status/capability only — this is
+// NOT a per-client enrollment control (that stays in the Beast Companion menu).
+const EnabledPill = (
+  <span className="rounded-full bg-[#e7f6ee] px-2 py-0.5 text-[11px] font-semibold text-[#16794c]">Enabled</span>
+)
 
 // One shared row primitive so every row — Beast Sync and messaging, Mac and
 // Windows — has identical height, spacing, icon alignment, and typography.
@@ -69,7 +75,7 @@ function Row({
   )
 }
 
-export default function DeviceEcosystemSection() {
+export default function DeviceEcosystemSection({ automatedTextingAuthorized = false }: { automatedTextingAuthorized?: boolean }) {
   // macOS connection summary — same query as the previous Beast Sync card (any
   // active, non-revoked, non-reset device is a Mac today).
   const [macConnected, setMacConnected] = useState(false)
@@ -135,6 +141,19 @@ export default function DeviceEcosystemSection() {
               </a>
             }
           />
+          {/* Automated Texting (authorization-gated, account-level capability/status).
+              Renders ONLY for an account authorized for unattended Automated Texting —
+              an unauthorized account never receives the flag. Account-level ONLY: the
+              per-client on/off enrollment control lives in the Beast Companion
+              hamburger menu, not here. Inert safety + authorization behaviour unchanged. */}
+          {automatedTextingAuthorized && (
+            <Row
+              icon={<FaCommentDots className="h-[18px] w-auto" />}
+              name="Automated Texting"
+              descriptor="Automated follow-up through Beast Sync"
+              actions={EnabledPill}
+            />
+          )}
         </div>
       </SettingsCard>
 
