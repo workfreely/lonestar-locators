@@ -106,7 +106,7 @@ const CSS = `
 .lbr-shell{max-width:1160px;margin:26px auto 40px;background:#fff;border:1px solid var(--line);border-radius:22px;overflow:hidden;box-shadow:0 30px 80px -50px rgba(14,37,69,.35)}
 /* INTRO — no header, no agent */
 .lbr-intro{position:relative;overflow:hidden;background:linear-gradient(180deg,#f7f9fc,#eef2f8)}
-.lbr-sky{position:absolute;inset:0;background-image:linear-gradient(90deg,rgba(9,25,48,.97) 0%,rgba(10,28,52,.90) 30%,rgba(12,32,60,.58) 56%,rgba(14,37,69,.16) 80%,rgba(14,37,69,0) 92%),var(--hero-img);background-size:cover;background-position:right 42%}
+.lbr-sky{position:absolute;inset:0;background-image:linear-gradient(90deg,rgba(6,18,38,.99) 0%,rgba(7,20,42,.95) 32%,rgba(10,28,52,.68) 58%,rgba(14,37,69,.20) 80%,rgba(14,37,69,0) 92%),var(--hero-img);background-size:cover;background-position:right 42%}
 .lbr-intro-inner{position:relative;padding:40px 44px 42px;max-width:640px}
 .lbr-eyebrow{font-size:13px;color:rgba(255,255,255,.82);font-weight:500;margin:0 0 14px}
 .lbr-eyebrow b{color:#fff}
@@ -263,7 +263,7 @@ const CSS = `
    dark-navy diagonal so the top stays dark for white-text legibility while the lower
    image keeps real skyline richness. Adapted for the stacked composition, not the
    desktop percentages. */
-.lbr-sky{display:block;background-image:linear-gradient(155deg,rgba(9,25,48,.97) 0%,rgba(10,28,52,.90) 40%,rgba(12,32,60,.60) 72%,rgba(14,37,69,.22) 100%),var(--hero-img);background-position:center 28%}
+.lbr-sky{display:block;background-image:linear-gradient(155deg,rgba(6,18,38,.99) 0%,rgba(7,20,42,.95) 45%,rgba(10,28,52,.70) 75%,rgba(14,37,69,.28) 100%),var(--hero-img);background-position:center 28%}
 .lbr-intro-inner{padding:26px 18px 14px;max-width:none}
 /* Greeting + major headings stay ~where they are; increase the smaller supporting text. */
 .lbr-greet{font-size:29px;line-height:1.16;max-width:none}

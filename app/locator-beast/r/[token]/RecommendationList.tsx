@@ -207,7 +207,17 @@ export default function RecommendationList({
             <div className="lbr-ph">
               {p.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={p.imageUrl} alt={p.name} loading="lazy" />
+                <img
+                  src={p.imageUrl}
+                  alt={p.name}
+                  loading="lazy"
+                  // If a populated image URL fails to load, hide the broken <img> so the
+                  // .lbr-ph container's gradient (identical to .lbr-ph-fallback) shows
+                  // instead of a broken-image icon. No fake/placeholder photo is added.
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none"
+                  }}
+                />
               ) : (
                 <div className="lbr-ph-fallback" aria-hidden />
               )}
