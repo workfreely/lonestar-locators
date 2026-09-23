@@ -497,7 +497,7 @@ export default function LeadFavorites({
                           <div className="mt-0.5 flex items-center gap-1.5">
                             <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(fav.google_rating)}</span>
                             <StarRating value={fav.google_rating} />
-                            <span className="text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
+                            <span className="-ml-[3px] text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
                           </div>
                         )}
                       </a>
@@ -511,7 +511,7 @@ export default function LeadFavorites({
                           <div className="mt-0.5 flex items-center gap-1.5">
                             <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(fav.google_rating)}</span>
                             <StarRating value={fav.google_rating} />
-                            <span className="text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
+                            <span className="-ml-[3px] text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
                           </div>
                         )}
                       </div>

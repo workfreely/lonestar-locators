@@ -141,7 +141,7 @@ const CSS = `
 .lbr-rating{display:flex;align-items:center;gap:6px;font-size:13.5px;color:var(--ink);margin-top:7px;font-weight:600}
 .lbr-rating svg{color:var(--gold)}
 .lbr-rating-val{font-weight:800;color:var(--navy)}
-.lbr-rating-lbl{font-weight:600;color:var(--muted);font-size:12.5px;margin-left:2px}
+.lbr-rating-lbl{font-weight:600;color:var(--muted);font-size:12.5px;margin-left:-3px}
 .lbr-why{margin-top:13px}
 .lbr-why-lbl{font-size:13px;font-weight:700;color:var(--navy);margin:0 0 7px}
 .lbr-why ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}

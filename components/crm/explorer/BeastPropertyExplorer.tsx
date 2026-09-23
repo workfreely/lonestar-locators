@@ -1358,7 +1358,7 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
                 {card.googleRating.toFixed(1)}
               </span>
               <StarRating value={card.googleRating} />
-              <span className="text-[12.5px] text-[#6b7280]">Google Rating</span>
+              <span className="-ml-[3px] text-[12.5px] text-[#6b7280]">Google Rating</span>
             </div>
           )}
           {/* Locator commission (Send / Escort / Bonus) — operational locator info
