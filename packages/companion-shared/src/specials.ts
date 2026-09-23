@@ -164,6 +164,57 @@ export function isQualifiedSpecial(text?: string | null): boolean {
   return QUALIFIED.test((text ?? "").trim());
 }
 
+/** Thousands separators for a whole-dollar integer: 1000 → "1,000". */
+function withCommas(n: number): string {
+  return Math.round(n).toLocaleString("en-US");
+}
+
+/**
+ * PROPERTY-CARD BADGE form: the shortest truthful label for a verified special,
+ * in Title Case, for the compact green overlay on Map / Companion / /r cards —
+ * NEVER the long raw master concession text. Extraction order (first match wins):
+ *   1. free period ("100% off rent for 2 month(s)…" or "8 weeks free") → "2 Months Free" / "8 Weeks Free"
+ *   2. dollars off ("$1,000 off") → "$1,000 Off"
+ *   3. gift card ("$200 Gift Card") → "$200 Gift Card"
+ *   4. rent credit ("$1,500 credit") → "$1,500 Credit"
+ * Returns null for empty / "None" / "Unknown" / unrecognized text — the caller
+ * then HIDES the badge rather than showing stale or long raw language. The badge
+ * states the GUARANTEED short form (no "Up to" ceiling wording): a "100% off rent
+ * for N month(s)" clause is a guaranteed concession, and free-rent teaser badges
+ * are shown in their headline form — the qualified/ceiling nuance belongs to the
+ * detailed Specials row (selectRentConcession), not this compact overlay.
+ */
+export function normalizeShortSpecial(raw?: string | null): string | null {
+  const s = (raw ?? "").replace(/\s+/g, " ").trim();
+  if (!s || NO_SPECIAL.test(s) || /^\s*unknown\s*$/i.test(s)) return null;
+  const free = freePeriod(s);
+  if (free) {
+    const noun = free.unit === "weeks" ? "Week" : "Month";
+    return `${free.amount} ${noun}${free.amount === 1 ? "" : "s"} Free`;
+  }
+  const off = s.match(/\$\s*([\d,]+(?:\.\d+)?)\s*off\b/i);
+  if (off) return `$${withCommas(Number(off[1].replace(/,/g, "")))} Off`;
+  const gift = s.match(/\$\s*([\d,]+)\s*gift\s*card/i);
+  if (gift) return `$${withCommas(Number(gift[1].replace(/,/g, "")))} Gift Card`;
+  const credit = s.match(/\$\s*([\d,]+)\s*credit/i);
+  if (credit) return `$${withCommas(Number(credit[1].replace(/,/g, "")))} Credit`;
+  return null;
+}
+
+/**
+ * Specials expire — a verified special is shown only while its source record is
+ * still fresh. `verifiedAt` is the canonical `property_catalog.verified_at`.
+ * Null/absent/unparseable or older than `maxAgeDays` (default 45) → not current,
+ * so the caller hides the badge (the "stale / unverified" gate). Kept
+ * intentionally strict: a missing timestamp is treated as unverified.
+ */
+export function isSpecialCurrent(verifiedAt?: string | Date | null, maxAgeDays = 45): boolean {
+  if (!verifiedAt) return false;
+  const t = verifiedAt instanceof Date ? verifiedAt.getTime() : Date.parse(verifiedAt);
+  if (!Number.isFinite(t)) return false;
+  return Date.now() - t <= maxAgeDays * 86_400_000;
+}
+
 /** Free MONTHS a concession guarantees, or null when it guarantees nothing specific. */
 function guaranteedFreeMonths(text: string): number | null {
   if (isQualifiedSpecial(text)) return null; // a ceiling/condition, not a guarantee

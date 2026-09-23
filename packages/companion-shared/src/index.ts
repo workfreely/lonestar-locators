@@ -277,7 +277,7 @@ export type { PropertyAmenities, MustHaveAmenityValue } from "./amenities";
 
 // Specials V1 — concession + rent DISPLAY normalization (interpretation only; the the external site
 // specials/base-rent selectors are not confirmed yet, so nothing feeds it in the panel)
-export { evaluateSpecials, selectRentConcession, formatSpecialText, formatRent, computeAvgRent, isQualifiedSpecial } from "./specials";
+export { evaluateSpecials, selectRentConcession, formatSpecialText, formatRent, computeAvgRent, isQualifiedSpecial, normalizeShortSpecial, isSpecialCurrent } from "./specials";
 export type { SpecialInput, SpecialsResult, RentConcession } from "./specials";
 
 // Budget V1 — client working budget vs the property's the external site rent range, evidence-only

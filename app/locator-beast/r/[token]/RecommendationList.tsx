@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { TOUR_TYPE_LABELS, TOUR_WINDOW_LABELS } from "@bc/companion-shared"
+import { TOUR_TYPE_LABELS, TOUR_WINDOW_LABELS, normalizeShortSpecial } from "@bc/companion-shared"
 import TourAvailabilityModal, { type Availability, type InitialAvailability } from "./TourAvailability"
 
 /**
@@ -21,6 +21,9 @@ export type ClientProperty = {
   name: string
   address: string | null
   imageUrl: string | null
+  /** Canonical backup photo — tried only if the primary fails to LOAD, before the
+   *  neutral gradient (snapshot → canonical primary → canonical backup → fallback). */
+  backupImageUrl?: string | null
   websiteUrl: string | null
   reasons: string[]
   /** Frozen at snapshot time (Phase 1); null on an un-enriched list. */
@@ -29,6 +32,15 @@ export type ClientProperty = {
   googleRating: number | null
   index: number
   favorited: boolean
+}
+
+// Only a real http(s) URL becomes a clickable website target — per the approved
+// rule, if there is no VERIFIED website we leave the image + name non-clickable
+// rather than linking somewhere uncertain. Sourced from the canonical verified
+// website_url (snapshot-first, catalog fallback) via the resolver.
+function websiteHref(url: string | null | undefined): string | null {
+  const u = (url ?? "").trim()
+  return /^https?:\/\/[^\s]+$/i.test(u) ? u : null
 }
 
 function Heart({ filled }: { filled: boolean }) {
@@ -201,26 +213,55 @@ export default function RecommendationList({
         const hasPrice = typeof p.startingPrice === "number" && Number.isFinite(p.startingPrice)
         const hasRating = typeof p.googleRating === "number" && Number.isFinite(p.googleRating)
         const reasons = (p.reasons ?? []).filter((r) => (r ?? "").trim().length > 0).slice(0, 3)
-        const showFoot = hasPrice || !!p.websiteUrl
+        // Verified website target; null → image + name stay non-clickable.
+        const siteHref = websiteHref(p.websiteUrl)
+        const showFoot = hasPrice || !!siteHref
         return (
           <article className="lbr-card" key={p.index}>
             <div className="lbr-ph">
-              {p.imageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={p.imageUrl}
-                  alt={p.name}
-                  loading="lazy"
-                  // If a populated image URL fails to load, hide the broken <img> so the
-                  // .lbr-ph container's gradient (identical to .lbr-ph-fallback) shows
-                  // instead of a broken-image icon. No fake/placeholder photo is added.
-                  onError={(e) => {
-                    e.currentTarget.style.display = "none"
-                  }}
-                />
-              ) : (
-                <div className="lbr-ph-fallback" aria-hidden />
-              )}
+              {(() => {
+                const media = p.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={p.imageUrl}
+                    alt={p.name}
+                    loading="lazy"
+                    data-backup={p.backupImageUrl ?? ""}
+                    // primary → backup → neutral: if the primary fails to load, try the
+                    // canonical backup once; if that also fails (or none), hide the broken
+                    // <img> so the .lbr-ph gradient (identical to .lbr-ph-fallback) shows.
+                    // No fake/placeholder photo is ever added.
+                    onError={(e) => {
+                      const img = e.currentTarget
+                      const backup = img.getAttribute("data-backup")
+                      if (backup && img.dataset.triedBackup !== "1") {
+                        img.dataset.triedBackup = "1"
+                        img.src = backup
+                      } else {
+                        img.style.display = "none"
+                      }
+                    }}
+                  />
+                ) : (
+                  <div className="lbr-ph-fallback" aria-hidden />
+                )
+                // Clicking the property IMAGE opens the verified website in a new tab;
+                // non-clickable when there is no verified website. The heart + special
+                // pill stay OUTSIDE this link (siblings), so they remain independent.
+                return siteHref ? (
+                  <a
+                    className="lbr-ph-link"
+                    href={siteHref}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                    aria-label={`Visit ${p.name} website`}
+                  >
+                    {media}
+                  </a>
+                ) : (
+                  media
+                )
+              })()}
               <button
                 type="button"
                 className="lbr-heart"
@@ -231,10 +272,24 @@ export default function RecommendationList({
               >
                 <Heart filled={isFav} />
               </button>
-              {p.currentSpecial && <div className="lbr-pill">{p.currentSpecial}</div>}
+              {(() => {
+                // Normalized SHORT special only (e.g. "1 Month Free", "$200 Gift Card") —
+                // never the raw long snapshot text; hidden when it doesn't normalize.
+                const shortSpecial = normalizeShortSpecial(p.currentSpecial)
+                return shortSpecial ? <div className="lbr-pill">{shortSpecial}</div> : null
+              })()}
             </div>
             <div className="lbr-body">
-              <h3 className="lbr-pname">{displayPropertyName(p.name)}</h3>
+              <h3 className="lbr-pname">
+                {siteHref ? (
+                  // Clicking the property NAME opens the verified website in a new tab.
+                  <a className="lbr-pname-link" href={siteHref} target="_blank" rel="noopener noreferrer nofollow">
+                    {displayPropertyName(p.name)}
+                  </a>
+                ) : (
+                  displayPropertyName(p.name)
+                )}
+              </h3>
               {p.address && (
                 <div className="lbr-addr"><Pin /><span>{displayCardAddress(p.address)}</span></div>
               )}
