@@ -1,5 +1,5 @@
-// Pure Smart Apartment Data amenity-value parser — NO DOM / chrome / window, so it is
-// unit-testable in isolation. On a SAD property-detail page each amenity CATEGORY's
+// Pure the external property site amenity-value parser — NO DOM / chrome / window, so it is
+// unit-testable in isolation. On a the external site property-detail page each amenity CATEGORY's
 // values live in one span whose id carries the "_Amenities_" marker, verbatim:
 //
 //   <span id="ctl00_ContentPlaceHolder_Amenities_sports" class="textSmall">
@@ -11,8 +11,8 @@
 // are NOT in these spans — they are separate `td.subtitleBlue2` cells — so parsing the
 // value spans alone can never mistake a heading for an amenity.
 //
-// Business rule: capture SAD's amenity text essentially VERBATIM. We only split on
-// <br>, decode the handful of HTML entities SAD emits, collapse the indent whitespace,
+// Business rule: capture the external site's amenity text essentially VERBATIM. We only split on
+// <br>, decode the handful of HTML entities the external site emits, collapse the indent whitespace,
 // and drop empties/exact duplicates. We never re-word, re-case, expand, translate, or
 // infer an amenity, and we never split a single value on "/" ("Black/Stainless
 // Appliances" and "Dog/Walk Trail" stay one value each).
@@ -34,7 +34,7 @@ function decodeEntities(s: string): string {
 }
 
 /**
- * The amenity values inside ONE SAD category span, given its innerHTML. Splits on
+ * The amenity values inside ONE the external site category span, given its innerHTML. Splits on
  * <br>, strips any residual markup, decodes entities, normalizes the &nbsp; indent to
  * ordinary spaces, and drops empties + exact duplicates (order preserved). Anything
  * without recognizable values yields [].
@@ -55,7 +55,7 @@ export function parseAmenityValues(innerHTML: string | null | undefined): string
 }
 
 /** Merge several category spans' values into ONE section list, de-duplicating exact
- *  repeats across categories (SAD can list the same value under two headings). */
+ *  repeats across categories (the external site can list the same value under two headings). */
 export function mergeAmenityValues(perSpan: string[][]): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -81,7 +81,7 @@ const SECTION_COMMUNITY = /^property amenities$/i;
 const SECTION_UNIT = /^unit features$/i;
 
 /**
- * Split the container's nodes into SAD's two sections by DOCUMENT ORDER: every value
+ * Split the container's nodes into the external site's two sections by DOCUMENT ORDER: every value
  * span belongs to the most recent preceding section heading. This is the relationship
  * the live DOM actually has — the value spans are NOT confined to a single sibling
  * element of the heading, so any position-based binding (heading → nextElementSibling)

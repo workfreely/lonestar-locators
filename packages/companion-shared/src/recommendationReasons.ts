@@ -2,7 +2,7 @@
 //
 // This is a COLLECTOR/RANKER only: it consumes the fragments the existing evidence-
 // gated evaluators already produce (evaluateAmenities / evaluateLocationFit /
-// evaluateBudget / evaluateApproval / evaluateSpecials on the SAD path; assessLocationFit
+// evaluateBudget / evaluateApproval / evaluateSpecials on the the external site path; assessLocationFit
 // on the Map path). It NEVER invents a reason, runs no LLM, and does not change any
 // evaluator's scoring — a fragment appears only when its evaluator supplied real evidence.
 //
@@ -13,7 +13,7 @@
 export type ReasonEvidence = {
   /** evaluateAmenities output — the client's OWN must-haves the property confirms. */
   amenities?: string[] | null
-  /** evaluateLocationFit verdict === "good" (SAD) or assessLocationFit tone === "match" (Map). */
+  /** evaluateLocationFit verdict === "good" (the external site) or assessLocationFit tone === "match" (Map). */
   locationMatch?: boolean | null
   /** evaluateBudget output string ("Within budget" / "Options within budget" / …). */
   budget?: string | null

@@ -10,7 +10,7 @@
  */
 /**
  * Canonical property identity for a property URL — a stable dedupe key shared by the
- * CRM and the Companion so a SAD ViewProperty link and a `?q=place_id:` map link for
+ * CRM and the Companion so a the external site ViewProperty link and a `?q=place_id:` map link for
  * the SAME property compare equal, and two different properties never collide.
  *
  * MIRRORS EXACTLY the `canonical_property_key` generated column on both

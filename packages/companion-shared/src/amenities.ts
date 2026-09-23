@@ -4,7 +4,7 @@
 //
 // There is deliberately NO verdict word here (no Good/Partial/Unverified): the useful
 // information IS the matched amenity itself. The row lists ONLY the client's own
-// requirements that SAD's own amenity text CONFIRMS, so every piece shown is a fact
+// requirements that the external site's own amenity text CONFIRMS, so every piece shown is a fact
 // about this property that this client actually asked for. Nothing else is displayed —
 // we never dump the property's full amenity list.
 //
@@ -13,8 +13,8 @@
 // per client) — no AI call, no per-property model, no second client-context system.
 //
 // CONSERVATIVE MATCHING — confirmed evidence is POSITIVE evidence; silence is UNKNOWN:
-//   • Not found in SAD = unknown, NOT absent. A property is never penalized, flagged,
-//     or annotated for an amenity SAD simply didn't mention — unconfirmed requirements
+//   • Not found in the external site = unknown, NOT absent. A property is never penalized, flagged,
+//     or annotated for an amenity the external site simply didn't mention — unconfirmed requirements
 //     are omitted entirely (no "Yard unverified" filler).
 //   • A broad feature never satisfies a specific one, so an amenity is shown only when
 //     the evidence supports it at the REQUIRED specificity:
@@ -96,7 +96,7 @@ export function normalizeMustHaveAmenities(values?: readonly string[] | null): M
   return out;
 }
 
-/** SAD's two amenity sections, kept separate (see `scope`). */
+/** the external site's two amenity sections, kept separate (see `scope`). */
 export type PropertyAmenities = {
   community?: string[] | null;
   unit?: string[] | null;
@@ -112,7 +112,7 @@ type Requirement = {
   label: string;
   /** Does the CLIENT want this? Tested against their own free text. */
   want: RegExp;
-  /** Does SAD explicitly state it, at this specificity? Tested per amenity value. */
+  /** Does the external site explicitly state it, at this specificity? Tested per amenity value. */
   evidence: RegExp;
   /** Amenity values that must NEVER count as evidence (near-miss guards). */
   exclude?: RegExp;
@@ -232,7 +232,7 @@ const REQUIREMENTS: Requirement[] = [
     key: "gated_access",
     label: "Gated Access",
     want: /\bgated\b|gate[^.]{0,10}access|controlled access/i,
-    // SAD writes "Access Gates" (plural) — confirmed live wording, same specificity.
+    // the external site writes "Access Gates" (plural) — confirmed live wording, same specificity.
     evidence: /\bgated\b|controlled access|\bgates?\b/i,
   },
   {
@@ -251,7 +251,7 @@ const REQUIREMENTS: Requirement[] = [
   {
     key: "dog_park",
     label: "Dog Park",
-    // Strictly "dog park" — SAD's "Dog/Walk Trail" is a trail, not a dog park.
+    // Strictly "dog park" — the external site's "Dog/Walk Trail" is a trail, not a dog park.
     want: /dog\s*park|bark\s*park/i,
     evidence: /dog\s*park|bark\s*park/i,
   },
@@ -286,9 +286,9 @@ function isConfirmed(req: Requirement, amenities: PropertyAmenities): boolean {
  * hidden form field, manually-created lead, or they skipped the optional question — we
  * fall back to the free-text requirement matching so nothing regresses.
  *
- * Either way only requirements SAD positively CONFIRMS are returned: the row never
+ * Either way only requirements the external site positively CONFIRMS are returned: the row never
  * shows an unconfirmed must-have, and never shows an amenity the client didn't ask for
- * just because the property has it. Missing SAD evidence is unknown, not absent, so an
+ * just because the property has it. Missing the external site evidence is unknown, not absent, so an
  * empty array means "nothing to say" and the caller hides the row.
  */
 export function evaluateAmenities(ctx: ClientContext, amenities?: PropertyAmenities | null): string[] {

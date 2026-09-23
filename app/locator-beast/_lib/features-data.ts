@@ -87,6 +87,6 @@ export const COMING_SOON_FEATURES = [
   { title: "Call Recording", body: "Every conversation captured, automatically." },
   { title: "AI Call Summaries", body: "Know what was said without replaying the call." },
   { title: "Voicemail Drops", body: "Leave a follow-up voicemail without dialing." },
-  { title: "Smart Apartment Data Integration", body: "Live property data, connected directly." },
+  { title: "Property Data Integration", body: "Live property data, connected directly." },
   { title: "Additional AI Features", body: "Every future AI feature, included automatically." },
 ] as const;

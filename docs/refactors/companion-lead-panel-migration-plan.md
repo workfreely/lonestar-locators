@@ -109,7 +109,7 @@ No realtime exists today. Add two layers, Supabase remaining source of truth:
 - **(b) Durable/cross-tab:** add Supabase Realtime (`postgres_changes` on `leads` + `lead_next_actions`, filtered by `workspace_id`) to `DashboardClient`, so changes from Companion, other devices, or cron all reflect. Recommend (a) now, (b) for durability.
 
 ### D.3 Extension auth model (decision to confirm)
-The side panel is `chrome-extension://` origin — it can't use the app's cookie session, and it must work while the active tab is SAD/Google/property sites. **Recommended: short-lived scoped session token.**
+The side panel is `chrome-extension://` origin — it can't use the app's cookie session, and it must work while the active tab is the external site/Google/property sites. **Recommended: short-lived scoped session token.**
 - LB-admin content script (has cookies) calls `POST /api/companion/session` (guarded by `requireWorkspaceMember`) → returns a short-lived token scoped to `{workspace_id, user_id}`.
 - Content script → background → side panel holds the token in memory (or `chrome.storage.session` at most). Side panel calls Companion APIs with `Authorization: Bearer <token>`; each request re-validates membership + entitlement server-side and scopes to that workspace. Token refreshes whenever an LB tab is present; expires quickly.
 - **Requires:** a CORS/host allowance for the LB API origin from the extension, and the new `/session` endpoint. Keeps the extension credential-light: no cookies, no long-lived token, **no client PII persisted**.
@@ -122,10 +122,10 @@ Architecture requirements satisfied: Supabase stays source of truth (D.1); no wo
 ## E. Active-client bridge (design before implementation)
 1. **Selection source:** Kanban card click already sets `selectedLeadId` + `?id=` URL in `DashboardClient` (`LeadCard onClick → onSelect(lead.id)`). Add an emitter: on selection, the LB-admin content script forwards **only the authorized lead id** (+ a minimal display hint: name/stage) to the window-global Companion via background messaging. The `?id=` round-trip is the existing hook.
 2. **Profile load:** Companion loads the **full authorized profile from LB** via `GET /api/companion/leads/:id` — it does **not** trust client fields from the page/transport beyond the id.
-3. **Persistence across tabs:** the active-client **id** is cached in side-panel memory (+ `chrome.storage.session` for the id only) so switching to SAD/Google/property tabs preserves it. **Never** persist the full client record.
+3. **Persistence across tabs:** the active-client **id** is cached in side-panel memory (+ `chrome.storage.session` for the id only) so switching to the external site/Google/property tabs preserves it. **Never** persist the full client record.
 4. **Visibility:** Companion header always shows the active client (name + stage badge).
 5. **Switcher:** an in-Companion client search/switcher (`GET /api/companion/leads?query=`, workspace-scoped).
-6. **Guardrail:** property actions (SAD capture → Best Match/Favorite/Tour/Not a Fit) are **disabled when no active client is selected** (ties to the SAD spec's manual-confirmation rules).
+6. **Guardrail:** property actions (the external site capture → Best Match/Favorite/Tour/Not a Fit) are **disabled when no active client is selected** (ties to the the external site spec's manual-confirmation rules).
 
 ---
 
@@ -146,7 +146,7 @@ Architecture requirements satisfied: Supabase stays source of truth (D.1); no wo
 7. Call/Text behavior (first-contact via API, no auto-complete).
 8. Next Action + task mutations (create/update/complete + FU chain, server-side).
 9. Realtime CRM sync (D.2a then D.2b).
-10. P0 SAD property preview (from the SAD spec).
+10. P0 the external site property preview (from the the external site spec).
 11. Property actions with active-client context (the four buckets).
 12. Feature-parity testing.
 13. Expand the central workspace into the freed area.

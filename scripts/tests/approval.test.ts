@@ -74,7 +74,7 @@ const ok = (c: boolean, name: string) => {
   ok(samples.every((m) => evaluateApproval({ propertyManagement: m }).risk !== "High"), "V1 never produces High")
 }
 
-// ── Case-insensitive substring match against the SAD text ─────────────────────
+// ── Case-insensitive substring match against the the external site text ─────────────────────
 {
   const r = evaluateApproval({ propertyManagement: "  ABBEY residential communities  " })
   eq(r.risk, "Moderate", "match is case-insensitive + trims whitespace")

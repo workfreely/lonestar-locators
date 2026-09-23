@@ -11,7 +11,7 @@ import type { PageContext, SiteId } from "@/types";
 export function detectSite(host: string): SiteId {
   const h = host.toLowerCase();
   if (h === "locatorbeast.com" || h === "www.locatorbeast.com") return "locator-beast";
-  if (h.endsWith("smartapartmentdata.com")) return "smart-apartment-data";
+  if (h.endsWith("smartapartmentdata.com")) return "external-property-site";
   return "unknown";
 }
 

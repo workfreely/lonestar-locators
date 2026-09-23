@@ -444,7 +444,7 @@ export function LeadPanelBody({
                 <Button
                   variant="solid"
                   onClick={() => onBuildList()}
-                  title="Choose how to build the list — Smart Apartment Data or Locator Beast"
+                  title="Choose how to build the list — Property Site or Locator Beast"
                 >
                   {formatWorkflowActionLabel(openAction.title)}
                 </Button>

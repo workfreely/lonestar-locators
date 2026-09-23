@@ -183,7 +183,7 @@ export const DEMO_LEADS: any[] = [
     id: "demo-12", is_demo: true, crm_status: "ready_to_tour", lead_type: "renter",
     first_name: "Carlos", last_name: "Mendez", phone: "5125550188", email: "carlos.m@example.com",
     city: "Austin", neighborhoods: "East Austin", desired_rent: "$1,600-$1,800",
-    // Demo only — three must-haves the SAD test property positively confirms
+    // Demo only — three must-haves the the external site test property positively confirms
     // ("Swimming Pool", "Fitness Center", "Access Gates"), so the Companion's
     // Amenities row is visually verifiable end to end.
     must_have_amenities: "pool, fitness_center, gated_access",

@@ -29,11 +29,11 @@ eq(formatSpecialText("$1,000 off first month"), "$1K off first month", "comma fo
 eq(formatSpecialText("  4   weeks   free  "), "4 weeks free", "whitespace collapsed")
 eq(formatSpecialText("Look and lease: 8 weeks free on select units"), "Look and lease: 8 weeks free on select units", "conditions preserved verbatim")
 
-// ── Absent concession → "None" (both SAD placeholder forms) ───────────────────
+// ── Absent concession → "None" (both the external site placeholder forms) ───────────────────
 eq(formatSpecialText(null), "None", "null → None")
 eq(formatSpecialText(""), "None", "empty → None")
-eq(formatSpecialText("---"), "None", "SAD list placeholder '---' → None")
-eq(formatSpecialText("No ongoing concessions at this time"), "None", "SAD detail placeholder → None")
+eq(formatSpecialText("---"), "None", "the external site list placeholder '---' → None")
+eq(formatSpecialText("No ongoing concessions at this time"), "None", "the external site detail placeholder → None")
 eq(formatSpecialText("N/A"), "None", "N/A → None")
 
 // ── Rent formatting ───────────────────────────────────────────────────────────
@@ -89,7 +89,7 @@ eq(computeAvgRent({}), null, "nothing known → null")
 }
 
 
-// ── LIVE SAD specials block (#ctl00_ContentPlaceHolder_SpecialsBit1_specials) ──
+// ── LIVE the external site specials block (#ctl00_ContentPlaceHolder_SpecialsBit1_specials) ──
 // The confirmed markup mixes a gift card, a fee waiver, TWO rent concessions, a bonus
 // and a footnote. Only a RENT concession may reach the row.
 const LIVE_SPECIALS = [
@@ -107,7 +107,7 @@ const LIVE_SPECIALS = [
   eq(c.qualified, false, "winner is not a qualified offer")
   eq(c.termMonths, 12, "'on a 12 mo lease' preserved internally for later rent math")
   eq(c.free?.amount, 2, "free amount parsed")
-  eq(c.free?.unit, "months", "SAD's own unit kept (never converted to weeks)")
+  eq(c.free?.unit, "months", "the external site's own unit kept (never converted to weeks)")
 }
 {
   const r = evaluateSpecials({ lines: LIVE_SPECIALS })
@@ -135,7 +135,7 @@ eq(selectRentConcession(null), null, "no block → null")
 // ── Qualifiers are preserved when the qualified offer is the only one ─────────
 {
   const c = selectRentConcession(["Other Concessions: Up to 8 Weeks Free Base Rent"])!
-  eq(c.display, "Up to 8 weeks free", "'Up to' preserved; SAD's label prefix dropped")
+  eq(c.display, "Up to 8 weeks free", "'Up to' preserved; the external site's label prefix dropped")
   eq(c.qualified, true, "marked qualified")
   eq(c.termMonths, null, "no lease term stated")
 }

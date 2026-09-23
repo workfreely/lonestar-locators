@@ -99,7 +99,7 @@ export async function attachCatalogRatings<T extends { property_url?: string | n
     const pid = placeIds[i]
     const rec = pid ? catalog.get(pid) : undefined
     // Image resolution mirrors the rating: read-side from property_catalog. A row's
-    // OWN image (a pasted Favorite / SAD-detected one) takes precedence; otherwise
+    // OWN image (a pasted Favorite / external-site-detected one) takes precedence; otherwise
     // the catalog's selected image fills in. Null → PropertyThumb's building icon.
     const ownImage = typeof r.property_image_url === "string" && r.property_image_url ? r.property_image_url : null
     return {

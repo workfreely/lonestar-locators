@@ -56,7 +56,7 @@ function IntelRow({
 }
 
 /**
- * Management company — DISPLAY casing ONLY. SAD renders some management names in all
+ * Management company — DISPLAY casing ONLY. the external site renders some management names in all
  * caps ("AVENUE5", "WILLOW BRIDGE"); the panel shows normal brand capitalization
  * ("Avenue5", "Willow Bridge"). Applied only when the value has NO lowercase letter,
  * so a deliberately-cased name (Approval's own "Mgmt Support", or a real "LaSalle")
@@ -70,7 +70,7 @@ function displayMgmt(name: string): string {
 
 
 // The property name — a link opening the property in a normal browser tab when a
-// canonical propertyUrl exists (SAD ViewProperty URL for detected properties), or
+// canonical propertyUrl exists (the external site ViewProperty URL for detected properties), or
 // plain text otherwise (never a broken/empty link). The stored URL is never changed.
 function PropertyName({ name, url, className }: { name: string; url?: string | null; className: string }) {
   if (url) {
@@ -232,12 +232,12 @@ export function PropertiesView({
 }) {
   // Button state comes from the ACTIVE client's real collections (not local button
   // state): the Current Property is "already in" a collection when a row shares its
-  // SAD ViewProperty URL (which embeds the stable propertyID). Current Property has a
+  // the external site ViewProperty URL (which embeds the stable propertyID). Current Property has a
   // SINGLE control — a property enters the progression as a Recommendation and is only
   // promoted to a Favorite from its Recommendations row, so it can never be favorited
   // directly from here.
   // "Already recommended" is decided by CANONICAL property identity (matches the DB
-  // canonical_property_key), not raw URL equality, so a SAD `url:` and a `?q=place_id:`
+  // canonical_property_key), not raw URL equality, so a the external site `url:` and a `?q=place_id:`
   // form of the same property don't disagree. Favorite membership is intentionally NOT
   // consulted — Recommendations and Favorites are independent collections.
   const cpKey = canonicalPropertyKey(currentProperty?.propertyUrl ?? "");
@@ -294,10 +294,10 @@ export function PropertiesView({
   );
 
   // Deterministic, read-only intelligence for the property currently on screen.
-  // Location: client context vs submarket/name/address. Approval: SAD management vs
+  // Location: client context vs submarket/name/address. Approval: the external site management vs
   // the locator-supplied intelligence table. Both recomputed cheaply per render.
   const location = currentProperty ? evaluateLocationFit(ctx, currentProperty) : null;
-  // Budget: the client's working budget vs SAD's property-wide rent range. Null when
+  // Budget: the client's working budget vs the external site's property-wide rent range. Null when
   // either side is unknown — the row then hides rather than implying a comparison.
   // The property's own Specials lines feed the matching TOLERANCE (a concession widens
   // how far over budget is still worth surfacing). Same parsed intelligence the Specials
@@ -307,12 +307,12 @@ export function PropertiesView({
     : null;
 
   const approval = currentProperty ? evaluateApproval(currentProperty) : null;
-  // Amenities: the client's OWN requirements that SAD confirms, at the required
+  // Amenities: the client's OWN requirements that the external site confirms, at the required
   // specificity. No verdict word — the matched amenity IS the intelligence. Empty when
   // nothing client-relevant is confirmed, and the row then hides entirely.
   const amenities = currentProperty ? evaluateAmenities(ctx, currentProperty.propertyAmenities) : [];
-  // Specials: the best RENT concession in SAD's specials block (gift cards, fee waivers
-  // and footnotes are never shown as rent). Null when SAD rendered no specials element
+  // Specials: the best RENT concession in the external site's specials block (gift cards, fee waivers
+  // and footnotes are never shown as rent). Null when the external site rendered no specials element
   // (unknown) or the block states no rent concession — the row then hides. Base Rent /
   // Avg Rent stay omitted until an exact rent can be bound to the qualifying term.
   const specials =
@@ -386,7 +386,7 @@ export function PropertiesView({
 
   return (
     <div className="bc-props">
-      {/* Current Property — the Smart Apartment Data property currently being viewed
+      {/* Current Property — the the external property site property currently being viewed
           (page context, read-only). Thumbnail + name + address, with compact
           state-aware add action. Clears to the placeholder off a property page. */}
       <SectionCard
@@ -475,7 +475,7 @@ export function PropertiesView({
               {approval?.mgmt && <IntelRow category="Mgmt" facts={[displayMgmt(approval.mgmt)]} />}
               <IntelRow category="Amenities" facts={amenities} />
               {/* Specials: [special] · Base Rent: [$] · Avg Rent: [$]. V1 shows the rent
-                  concession only — SAD's factsBar carries a property-wide rent RANGE and a
+                  concession only — the external site's factsBar carries a property-wide rent RANGE and a
                   minimum lease, which cannot bind an exact base rent to this concession's
                   qualifying term, so Base Rent / Avg Rent are omitted rather than guessed. */}
               {specials && (specials.hasRentConcession || specials.baseRent) && (

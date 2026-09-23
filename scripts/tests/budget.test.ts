@@ -1,5 +1,5 @@
 /**
- * Budget V1 — client working budget vs SAD's property-wide rent range. Pure, no DB/DOM:
+ * Budget V1 — client working budget vs the external site's property-wide rent range. Pure, no DB/DOM:
  *   npx tsx scripts/tests/budget.test.ts
  *
  * Row contract: Budget: Within budget | Options within budget | $125 over budget
@@ -27,8 +27,8 @@ const eqRange = (a: { min: number; max: number } | null, b: { min: number; max: 
   }
 }
 
-// ── Range parsing — SAD's confirmed price-chip text ──────────────────────────
-eqRange(parseMoneyRange("$925 - $1,199"), { min: 925, max: 1199 }, "live SAD chip → structured range")
+// ── Range parsing — the external site's confirmed price-chip text ──────────────────────────
+eqRange(parseMoneyRange("$925 - $1,199"), { min: 925, max: 1199 }, "live the external site chip → structured range")
 eqRange(parseMoneyRange("$1,600–$1,700"), { min: 1600, max: 1700 }, "en-dash range (Smart Form format)")
 eqRange(parseMoneyRange("1600 to 1700"), { min: 1600, max: 1700 }, "bare 'to' range")
 eqRange(parseMoneyRange("$1,200"), { min: 1200, max: 1200 }, "single amount → zero-width range")

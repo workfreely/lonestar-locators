@@ -5,28 +5,31 @@ import {
   writeSensitive,
 } from "@/utils/sensitiveStore";
 import { log } from "@/utils/log";
-import { isSmartApartmentDataHost, parseSadPropertyId, stripSiteSuffix, looksLikeAddress } from "./sadUrl";
-import { parseCopyEmails } from "./sadEmail";
-import { parseAmenityValues, groupAmenitySections, type AmenityNode } from "./sadAmenities";
+import { isSupportedPropertyHost, parseExternalPropertyId, stripSiteSuffix, looksLikeAddress } from "./externalPropertyUrl";
+import { parseCopyEmails } from "./externalPropertyEmail";
+import { parseAmenityValues, groupAmenitySections, type AmenityNode } from "./externalPropertyAmenities";
 // Imported from the MODULE, not the "@bc/companion-shared" barrel: the barrel
 // re-exports the whole package (zod contract schemas, bridge messages, tokens, themes),
 // and pulling it into a content script ballooned content.js ~12.5 KB → 89 KB on every
-// SAD page. `budget` depends only on `specials`, so this keeps the injected bundle small.
+// external property-site page. `budget` depends only on `specials`, so this keeps the
+// injected bundle small.
 import { parseMoneyRange, type MoneyRange } from "@bc/budget";
 
 /**
- * Current Property bridge (Smart Apartment Data → panel).
+ * Current Property bridge (supported external property site → panel).
  *
- * Detection is PRIMARILY URL-based and therefore stable: a SAD property-detail
- * page is `/Restricted/Locator/ViewProperty.aspx?propertyID=<id>` (verified prior
- * structure). The `propertyID` query param is the canonical property identity; we
- * never rely on visible text to decide WHICH property is open. Name/address are
- * read read-only from the detail DOM via a resilient cascade (never fabricated).
+ * Detection is PRIMARILY URL-based and therefore stable: the external site's
+ * property-detail page is `/Restricted/Locator/ViewProperty.aspx?propertyID=<id>`
+ * (verified prior structure). The `propertyID` query param is the external site's
+ * own page identity, used only to decide WHICH page is open — it is NEVER Locator
+ * Beast's property identity, dedup key, or storage key. Name/address are read
+ * read-only from the detail DOM via a resilient cascade (never fabricated).
  *
- * SAD's own Previous/Next changes the URL (sometimes to a `//Restricted/…` double-
- * slash form); the existing content-script URL watcher fires on that change and
- * parseSadPropertyId() slash-normalizes before matching, so navigation is handled by
- * the simple known-good path — no MutationObserver / MAIN-world hook needed.
+ * The external site's own Previous/Next changes the URL (sometimes to a
+ * `//Restricted/…` double-slash form); the existing content-script URL watcher
+ * fires on that change and parseExternalPropertyId() slash-normalizes before
+ * matching, so navigation is handled by the simple known-good path — no
+ * MutationObserver / MAIN-world hook needed.
  *
  * It writes chrome.storage.local["lb-current-property"] — a SEPARATE key from
  * "lb-active-client", so Current Property follows the webpage being viewed, not
@@ -37,10 +40,11 @@ import { parseMoneyRange, type MoneyRange } from "@bc/budget";
 
 
 
-/** SAD property identity from the CURRENT URL (primary signal), or null when not
- *  on a property-detail page. Independent of any visible text. */
+/** External property-page id from the CURRENT URL (primary signal), or null when
+ *  not on a property-detail page. Independent of any visible text. View-detection
+ *  only — never Locator Beast identity. */
 function detectPropertyIdFromUrl(): string | null {
-  return parseSadPropertyId(location.href);
+  return parseExternalPropertyId(location.href);
 }
 
 function clean(s: string | null | undefined): string {
@@ -48,24 +52,24 @@ function clean(s: string | null | undefined): string {
 }
 
 const NAME_HEADING_SELECTORS = ".vp-modern h1, .factsBar h1, h1, .vp-modern h2, h2";
-// Confirmed stable SAD detail-page element IDs (from real inspected HTML on
+// Confirmed stable external-site detail-page element IDs (from real inspected HTML on
 // ViewProperty.aspx). These are the PRIMARY sources; the generic cascades below
 // remain as resilience fallbacks.
 const NAME_SELECTOR = "#ctl00_ContentPlaceHolder_PropertyHeader1_propertyNameLink";
 const ADDRESS_SELECTOR = "#ctl00_ContentPlaceHolder_PropertyHeader1_address";
 const SUBMARKET_SELECTOR = "#ctl00_ContentPlaceHolder_PropertyHeader1_submarket";
-// Management company — confirmed SAD detail-page element. Supplemental; read-only
+// Management company — confirmed the external site's detail-page element. Supplemental; read-only
 // evidence consumed by Approval intelligence in the panel.
 const MGMT_SELECTOR = "#ctl00_ContentPlaceHolder_mgmtCo";
 // Property email — OPERATIONAL data (background-only; future Guest Card / Invoice
-// recipient prefill). The value lives in a SAD "copy email" affordance:
+// recipient prefill). The value lives in a the external site's "copy email" affordance:
 // <… class="email-copy" onclick="copyTextToClipboard('a@x.com,b@y.com', this)">.
 // We read the addresses from that onclick (see readPropertyEmails); the visible
 // ".email-text" ("2 emails") is a count and is never used.
 const EMAIL_COPY_SELECTOR = ".email-copy";
 
 /**
- * Property NAME — confirmed SAD header link first, then a resilient cascade
+ * Property NAME — confirmed the external site's header link first, then a resilient cascade
  * (og:title → prominent headings → cleaned document.title). Returns "" when
  * nothing is available yet (caller retries for late DOM).
  */
@@ -83,13 +87,13 @@ function readPropertyName(): string {
 
 /**
  * Property ADDRESS — uses the stable DOM RELATIONSHIP the address is known to have
- * (rendered directly beneath the property-name heading on the SAD detail page),
+ * (rendered directly beneath the property-name heading on the the external site's detail page),
  * plus standard structured sources. Never fabricated: a candidate is only accepted
  * if it looks like a real street address (looksLikeAddress). Whitespace-normalized
  * only — no parsing/splitting/geocoding. Null (omitted) when nothing qualifies.
  */
 function readPropertyAddress(name: string): string | null {
-  // 0) Confirmed SAD header address element (authoritative — trusted as-is,
+  // 0) Confirmed the external site's header address element (authoritative — trusted as-is,
   //    whitespace-normalized only; no looksLikeAddress gate needed here).
   const primary = clean(document.querySelector<HTMLElement>(ADDRESS_SELECTOR)?.textContent);
   if (primary) return primary;
@@ -133,14 +137,14 @@ function readPropertyImageUrl(): string | null {
   return og || null;
 }
 
-/** SAD submarket (neighborhood/area) from the confirmed header element. Null when
+/** the external site's submarket (neighborhood/area) from the confirmed header element. Null when
  *  absent. Supplemental — never blocks detection; consumed by Location Fit. */
 function readPropertySubmarket(): string | null {
   const t = clean(document.querySelector<HTMLElement>(SUBMARKET_SELECTOR)?.textContent);
   return t || null;
 }
 
-/** Management company from the confirmed SAD element. Null when absent. Supplemental
+/** Management company from the confirmed the external site's element. Null when absent. Supplemental
  *  — never blocks detection; read-only evidence for Approval intelligence. */
 function readPropertyManagement(): string | null {
   const t = clean(document.querySelector<HTMLElement>(MGMT_SELECTOR)?.textContent);
@@ -148,7 +152,7 @@ function readPropertyManagement(): string | null {
 }
 
 /**
- * Verified property EMAILS from the SAD detail page (operational — background-only,
+ * Verified property EMAILS from the the external site's detail page (operational — background-only,
  * future Guest Card / Invoice recipient prefill). Read from the "copy email"
  * affordance's onclick (copyTextToClipboard('…', this)) — NOT the visible
  * ".email-text" count. Returns ALL addresses (retain every one, deduped). Scoping is
@@ -164,7 +168,7 @@ function readPropertyEmails(): string[] {
 }
 
 /**
- * Property AMENITIES from the SAD detail page (supplemental, read-only evidence for the
+ * Property AMENITIES from the the external site's detail page (supplemental, read-only evidence for the
  * Amenities intelligence row). Confirmed against the LIVE DOM:
  *
  *   #ctl00_ContentPlaceHolder_AmenitiesPage            ← the whole amenities region
@@ -191,7 +195,7 @@ const AMENITY_PAGE_SELECTOR = "#ctl00_ContentPlaceHolder_AmenitiesPage";
 const AMENITY_NODE_SELECTOR = 'span.amen-sec, span[id*="_Amenities_"]';
 
 function readPropertyAmenities(): { community: string[]; unit: string[] } {
-  // Scope to the confirmed container; fall back to the document only when SAD renders a
+  // Scope to the confirmed container; fall back to the document only when the external property site renders a
   // page variant without it (the selectors are amenity-specific either way).
   const scope: ParentNode = document.querySelector(AMENITY_PAGE_SELECTOR) ?? document;
   const nodes: AmenityNode[] = Array.from(scope.querySelectorAll<HTMLElement>(AMENITY_NODE_SELECTOR)).map((el) =>
@@ -203,7 +207,7 @@ function readPropertyAmenities(): { community: string[]; unit: string[] } {
 }
 
 /**
- * Property SPECIALS from the SAD detail page (supplemental, read-only). Confirmed live
+ * Property SPECIALS from the the external site's detail page (supplemental, read-only). Confirmed live
  * element — the whole concessions block sits in ONE span, one offer per <br> line:
  *
  *   <span id="ctl00_ContentPlaceHolder_SpecialsBit1_specials" class="textSmall">
@@ -230,7 +234,7 @@ function readPropertySpecials(): string[] | undefined {
 }
 
 /**
- * Property RENT RANGE from the SAD detail page (supplemental, read-only). Confirmed
+ * Property RENT RANGE from the the external site's detail page (supplemental, read-only). Confirmed
  * live element — the facts bar's price chip:
  *
  *   <div class="vp-modern factsBar"> … <span class="vp-chip vp-chip-price">$925 - $1,199</span> … </div>
@@ -303,11 +307,11 @@ let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
  * True while a detail page still looks INCOMPLETE. The identity (name) can resolve
- * before SAD has rendered the supplemental blocks, and the old retry stopped the moment
+ * before the external property site has rendered the supplemental blocks, and the old retry stopped the moment
  * the name appeared — so a late-rendering Amenities/Specials block was read once, came
  * back empty, and was never re-read for that page view. Treating "identity resolved but
  * supplemental blocks still absent" as incomplete lets the SAME bounded retry pick them
- * up. `propertySpecials === undefined` means SAD rendered no specials element at all
+ * up. `propertySpecials === undefined` means the external property site rendered no specials element at all
  * (unknown); an empty amenities pair likewise means "nothing found YET".
  */
 function isIncomplete(cp: CurrentProperty | null): boolean {
@@ -324,10 +328,10 @@ function isIncomplete(cp: CurrentProperty | null): boolean {
  * a few times briefly, then stops.
  */
 export function syncCurrentProperty(): void {
-  // ONLY Smart Apartment Data tabs own this key. The content script also runs on
+  // ONLY the external property site tabs own this key. The content script also runs on
   // the CRM tab (locatorbeast.com/admin); it must NOT write/clear here, or it would
-  // clobber the property a separate SAD tab detected. Non-SAD tabs are a no-op.
-  if (!isSmartApartmentDataHost(location.host)) return;
+  // clobber the property a separate the external property site tab detected. Non-the external property site tabs are a no-op.
+  if (!isSupportedPropertyHost(location.host)) return;
 
   if (retryTimer != null) {
     clearTimeout(retryTimer);
@@ -354,7 +358,7 @@ export function syncCurrentProperty(): void {
   }
 }
 
-/** Start on SAD/any page: detect now + re-detect once the page finishes loading
+/** Start on the external property site/any page: detect now + re-detect once the page finishes loading
  *  (the DOM isn't ready at document_start). Navigation updates are driven by the
  *  content-script URL watcher, which also calls syncCurrentProperty(). */
 export function startCurrentPropertyBridge(): void {

@@ -68,7 +68,7 @@ import {
   unwrapEnvelope,
 } from "@/utils/sensitiveStore";
 // Separate from the active client on purpose: Current Property follows the webpage
-// the locator is viewing (Smart Apartment Data), NOT the selected CRM client.
+// the locator is viewing (the external property site), NOT the selected CRM client.
 
 function isActivePayload(v: unknown): v is ActiveClientPayload {
   const p = v as ActiveClientPayload | null | undefined;
@@ -101,14 +101,14 @@ function isCurrentProperty(v: unknown): v is CurrentProperty {
 }
 
 // A Current Property needs catalog enrichment when it has no Google Place ID and no
-// rating yet — i.e. a SAD-detected property (a Map property already carries both).
+// rating yet — i.e. a external-site-detected property (a Map property already carries both).
 // A name is required to resolve. Pure; module-scope so effects need no extra deps.
-function needsSadEnrich(cp: CurrentProperty | null): cp is CurrentProperty {
+function needsExternalEnrich(cp: CurrentProperty | null): cp is CurrentProperty {
   return !!cp && !cp.placeId && cp.googleRating == null && !!(cp.propertyName ?? "").trim();
 }
 
-// Stable per-property cache key: SAD's own id when present, else name|address.
-function sadEnrichKey(cp: CurrentProperty): string {
+// Stable per-property cache key: the external site's own id when present, else name|address.
+function externalEnrichKey(cp: CurrentProperty): string {
   return cp.propertyId
     ? `id:${cp.propertyId}`
     : `na:${(cp.propertyName ?? "").trim()}|${(cp.propertyAddress ?? "").trim()}`;
@@ -122,18 +122,18 @@ const PREF_VOICE_SCRIPT_KEY = "lb-pref-ai-voice-script";
 export function ProductionPanel() {
   const [connection, setConnection] = useState<CompanionConnection>(DISCONNECTED);
   const [active, setActive] = useState<ActiveClientPayload | null>(null);
-  // The Smart Apartment Data property currently being viewed (page context, not a
+  // The the external property site property currently being viewed (page context, not a
   // saved collection). Independent of `active` so switching clients never clears it.
   const [currentProperty, setCurrentProperty] = useState<CurrentProperty | null>(null);
 
-  // ── SAD Current Property catalog enrichment (parity with Map properties) ─────
-  // A SAD property arrives with name + address but no Google Place ID / rating. We
+  // ── the external site Current Property catalog enrichment (parity with Map properties) ─────
+  // A the external site property arrives with name + address but no Google Place ID / rating. We
   // ask the open CRM tab to resolve its place_id (browser Google Places) and look
   // up property_catalog, then merge the catalog-only answer (rating / website /
-  // image) into what we display. Cached per property so the same SAD property never
+  // image) into what we display. Cached per property so the same the external site property never
   // re-triggers a Places resolution (debounce); in-flight guard prevents duplicates.
-  type SadEnrich = { placeId: string | null; googleRating: number | null; propertyImageUrl: string | null; websiteUrl: string | null };
-  const enrichCacheRef = useRef<Map<string, SadEnrich>>(new Map());
+  type ExternalEnrich = { placeId: string | null; googleRating: number | null; propertyImageUrl: string | null; websiteUrl: string | null };
+  const enrichCacheRef = useRef<Map<string, ExternalEnrich>>(new Map());
   const enrichInflightRef = useRef<Set<string>>(new Set());
   const enrichPendingRef = useRef<Map<string, string>>(new Map()); // nonce → cache key
   const [enrichTick, setEnrichTick] = useState(0);
@@ -356,7 +356,7 @@ export function ProductionPanel() {
     return () => sc?.removeListener(onChanged);
   }, []);
 
-  // Receive SAD enrichment results (the enrichment bridge writes them to LOCAL
+  // Receive the external site enrichment results (the enrichment bridge writes them to LOCAL
   // storage, separate from the sensitive session store above). Match the nonce we
   // sent, cache by property key, and re-render.
   useEffect(() => {
@@ -410,11 +410,11 @@ export function ProductionPanel() {
     return () => store.onChanged.removeListener(onLocal);
   }, []);
 
-  // Request enrichment for a SAD Current Property — ONCE per property (cache +
+  // Request enrichment for a the external site Current Property — ONCE per property (cache +
   // in-flight guard debounce a repeatedly-detected property so Places isn't spammed).
   useEffect(() => {
-    if (!needsSadEnrich(currentProperty)) return;
-    const key = sadEnrichKey(currentProperty);
+    if (!needsExternalEnrich(currentProperty)) return;
+    const key = externalEnrichKey(currentProperty);
     if (enrichCacheRef.current.has(key) || enrichInflightRef.current.has(key)) return;
     const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
     if (!store?.set) return;
@@ -426,19 +426,19 @@ export function ProductionPanel() {
         nonce,
         name: (currentProperty.propertyName ?? "").trim(),
         address: currentProperty.propertyAddress ?? null,
-        sadId: currentProperty.propertyId ?? null,
+        externalPropertyId: currentProperty.propertyId ?? null,
       },
     });
   }, [currentProperty]);
 
-  // The Current Property AS DISPLAYED: a SAD property merged with its cached catalog
+  // The Current Property AS DISPLAYED: a the external site property merged with its cached catalog
   // enrichment (rating / website / catalog image). Map or already-enriched
-  // properties pass through unchanged. Catalog image wins, else the SAD og:image,
-  // else the building icon (PropertyThumb). The SAD intelligence rows are untouched.
+  // properties pass through unchanged. Catalog image wins, else the the external site og:image,
+  // else the building icon (PropertyThumb). The the external site intelligence rows are untouched.
   const displayCurrentProperty = useMemo<CurrentProperty | null>(() => {
     if (!currentProperty) return null;
-    if (!needsSadEnrich(currentProperty)) return currentProperty;
-    const e = enrichCacheRef.current.get(sadEnrichKey(currentProperty));
+    if (!needsExternalEnrich(currentProperty)) return currentProperty;
+    const e = enrichCacheRef.current.get(externalEnrichKey(currentProperty));
     if (!e) return currentProperty;
     return {
       ...currentProperty,
@@ -719,7 +719,7 @@ export function ProductionPanel() {
   };
 
   // Build List (the "Build List" click) now opens a small chooser FIRST — "How do
-  // you want to build {name}'s list?" — with two options: Smart Apartment Data and
+  // you want to build {name}'s list?" — with two options: the external property site and
   // Locator Beast. This is only a routing layer in front of the existing Build
   // List action; nothing launches until the agent picks a tool. Captures the lead
   // identity now so the choice resolves against THIS lead.
@@ -748,17 +748,17 @@ export function ProductionPanel() {
     });
   };
 
-  // Smart Apartment Data choice — the EXACT existing Build List behavior,
-  // unchanged. (1) open/focus SAD, and (2) advance the workflow Contacted →
+  // the external property site choice — the EXACT existing Build List behavior,
+  // unchanged. (1) open/focus the external site, and (2) advance the workflow Contacted →
   // Searching on the authenticated CRM (start-build-list; build_list stays the
-  // open Next Action). Prefer an existing SAD tab (host access via the manifest
+  // open Next Action). Prefer an existing the external site tab (host access via the manifest
   // content-script match lets tabs.query filter by URL — no new permission);
   // otherwise open a new one. Like the Locator Beast choice, this also moves the
   // Companion to Properties, since the agent is now building the client's list.
   const chooseSad = () => {
     setBuildListChoice(null);
     // The agent is now building the list → show Properties (consistent with the
-    // Locator Beast choice). SAD/matching/stage logic below is untouched.
+    // Locator Beast choice). the external site/matching/stage logic below is untouched.
     switchCompanionToProperties();
     // (2) Advance Contacted → Searching (build_list stays open, no Send List yet).
     const startLead = active?.lead;
@@ -773,12 +773,12 @@ export function ProductionPanel() {
       });
     }
 
-    // (1) Open/focus SAD.
-    const SAD_URL = "https://app.smartapartmentdata.com/";
+    // (1) Open/focus the external site.
+    const EXTERNAL_PROPERTY_SITE_URL = "https://app.smartapartmentdata.com/";
     const tabs = (globalThis as unknown as { chrome?: any }).chrome?.tabs;
     const windows = (globalThis as unknown as { chrome?: any }).chrome?.windows;
     if (!tabs?.query) {
-      window.open(SAD_URL, "_blank");
+      window.open(EXTERNAL_PROPERTY_SITE_URL, "_blank");
       return;
     }
     tabs.query(
@@ -789,7 +789,7 @@ export function ProductionPanel() {
           tabs.update(existing.id, { active: true });
           if (existing.windowId != null && windows?.update) windows.update(existing.windowId, { focused: true });
         } else {
-          tabs.create({ url: SAD_URL });
+          tabs.create({ url: EXTERNAL_PROPERTY_SITE_URL });
         }
       }
     );
@@ -798,10 +798,10 @@ export function ProductionPanel() {
   // Locator Beast choice — build the list with the CRM's own property workflow
   // (property-name search / Map / Unleash Beast / recommendations). ONE verb does
   // it all on the authenticated CRM: "open-locator-beast" runs the SAME Contacted
-  // → Searching advance as the SAD path AND switches the CRM into the Map
+  // → Searching advance as the the external site path AND switches the CRM into the Map
   // workspace, which (via the existing workspace-mode bridge) moves this Companion
   // to Properties. We also bring the CRM tab forward so the agent lands on the
-  // Map. No SAD/matching/map/Unleash Beast/recommendation logic is touched.
+  // Map. No the external site/matching/map/Unleash Beast/recommendation logic is touched.
   const chooseLocatorBeast = () => {
     setBuildListChoice(null);
     const lead = active?.lead;
@@ -816,7 +816,7 @@ export function ProductionPanel() {
       });
     }
     // Bring the Locator Beast CRM tab forward so the agent sees the Map/property
-    // workflow (mirrors how the SAD choice focuses its tab). The Companion's own
+    // workflow (mirrors how the the external site choice focuses its tab). The Companion's own
     // switch to Properties is handled by the CRM's workspace-mode broadcast.
     focusExistingCrmTab();
   };
@@ -1455,9 +1455,9 @@ export function ProductionPanel() {
           nonce: `${Date.now()}-${Math.random()}`,
           leadId: lead.id,
           verb,
-          // Send the ENRICHED property: a resolved SAD property carries its catalog
+          // Send the ENRICHED property: a resolved the external site property carries its catalog
           // placeId (so the CRM adopts the ?q=place_id:<id> identity carrier at once)
-          // and catalog image. If enrichment hasn't landed yet, this is the raw SAD
+          // and catalog image. If enrichment hasn't landed yet, this is the raw the external site
           // property and the CRM resolves the place_id in the background instead.
           property: displayCurrentProperty ?? currentProperty,
         },
@@ -1468,7 +1468,7 @@ export function ProductionPanel() {
   const onAddFavorite = () => addCurrentPropertyToCollection("add-favorite");
 
   // Move a SAVED row between the two collections without the property being open in
-  // SAD. Reuses the same verb bridge and the same CRM handler as the buttons above —
+  // the external site. Reuses the same verb bridge and the same CRM handler as the buttons above —
   // only the identity source differs (a stored row's URL rather than Current Property).
   const moveSavedProperty = (verb: "move-to-favorite" | "move-to-recommendation", propertyUrl?: string | null) => {
     const lead = active?.lead;
@@ -1667,7 +1667,7 @@ export function ProductionPanel() {
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <button type="button" onClick={chooseSad} style={SHEET_PRIMARY_BTN}>
-                Smart Apartment Data
+                Property Site
               </button>
               <button type="button" onClick={chooseLocatorBeast} style={SHEET_PRIMARY_BTN}>
                 Locator Beast

@@ -2,7 +2,7 @@
 //
 //   Approval: [Risk] · [Mgmt] · [Key reason]
 //
-// V1 evidence is ONLY the SAD management company (confirmed selector, read into
+// V1 evidence is ONLY the the external site management company (confirmed selector, read into
 // CurrentProperty.propertyManagement) matched against a small, LOCATOR-SUPPLIED
 // management-intelligence table. It is deliberately narrow and conservative:
 //
@@ -13,7 +13,7 @@
 //     "Guaranteed Approval".
 //   • Unknown management → Unverified (NOT High). Unknown does NOT mean strict.
 //   • No credit-score thresholds; no generalizing a property-specific policy to a
-//     whole company; SAD's "No Credit Check" is ignored as evidence (unreliable).
+//     whole company; the external site's "No Credit Check" is ignored as evidence (unreliable).
 //   • Missing management evidence must NEVER negatively exclude a property — it is
 //     simply Unverified with no risk inference.
 //
@@ -30,7 +30,7 @@ export type ApprovalResult = {
 };
 
 // LOCATOR-SUPPLIED management intelligence — the ONLY entries we treat as evidence.
-// `match` is a normalized substring tested against the SAD management text. Display
+// `match` is a normalized substring tested against the the external site management text. Display
 // names are compact (Companion shows "Mgmt Support", not "Management Support").
 const MGMT_INTEL: { match: string; display: string; risk: ApprovalRisk; reason: string }[] = [
   { match: "management support", display: "Mgmt Support", risk: "Low", reason: "Second chance" },

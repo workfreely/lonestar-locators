@@ -145,7 +145,7 @@ export function isValidCurrentPropertyPayload(
   if (
     p.source !== undefined &&
     p.source !== "google_places" &&
-    p.source !== "smart_apartment_data"
+    p.source !== "external_property_platform"
   )
     return false;
   // Google rating is optional; when present it must be a finite number on the
@@ -165,7 +165,7 @@ export function isValidCurrentPropertyPayload(
 }
 
 /**
- * Enrichment-result payload — the CRM's catalog lookup answer for a SAD Current
+ * Enrichment-result payload — the CRM's catalog lookup answer for a the external site Current
  * Property (place_id resolution → property_catalog). Carries NO client data: a
  * request nonce plus catalog-derived, display-only fields. `placeId` and the three
  * enrichment fields are each present-and-bounded or explicitly null (unknown stays

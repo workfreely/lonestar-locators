@@ -3,7 +3,7 @@
  *   npx tsx scripts/tests/current-property-actions.test.ts
  *
  * Verifies the write/dedup/scoping/state logic behind the Companion "+ Recommendation"
- * / "♡ Favorite" actions: dedup on (lead_id, property_url) — the SAD ViewProperty URL
+ * / "♡ Favorite" actions: dedup on (lead_id, property_url) — the the external site ViewProperty URL
  * embeds the stable propertyID; per-client scoping through the active-client payload
  * (no leakage); button state derived from the active client's REAL collections; and
  * Favorites/Recommendations independent (a property may be in both).

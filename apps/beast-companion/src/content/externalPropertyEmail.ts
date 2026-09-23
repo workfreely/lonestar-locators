@@ -1,11 +1,11 @@
-// Pure Smart Apartment Data property-email helper — NO DOM / chrome / window, so it
-// is unit-testable in isolation. On a SAD property-detail page the property/leasing
+// Pure the external property site property-email helper — NO DOM / chrome / window, so it
+// is unit-testable in isolation. On a the external site property-detail page the property/leasing
 // email lives inside a "copy email" affordance whose onclick is, verbatim:
 //   copyTextToClipboard('pm.x@y.com,x@y.com', this)
 // The VISIBLE ".email-text" is only a COUNT ("2 emails") and must NEVER be used as the
 // value. The authoritative address(es) are the FIRST quoted argument of that call.
 //
-// Business rule: SAD may supply multiple property emails and Locator Beast retains
+// Business rule: the external site may supply multiple property emails and Locator Beast retains
 // ALL of them — never rank, select a primary, or discard any. We parse the attribute
 // as DATA only (no eval/Function/execution): extract the first quoted arg, split on
 // commas, trim, drop empties, de-duplicate EXACT duplicates (order preserved). We do

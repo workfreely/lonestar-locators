@@ -12,7 +12,7 @@
  */
 
 export type SiteAdapter = {
-  /** Stable id, e.g. "smart-apartment-data". */
+  /** Stable id, e.g. "external-property-site". */
   id: string;
   /** Host suffix this adapter applies to, e.g. "smartapartmentdata.com". */
   hostSuffix: string;

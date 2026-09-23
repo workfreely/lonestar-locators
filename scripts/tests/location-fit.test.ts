@@ -150,8 +150,8 @@ const fitFor = (client: any, property: any) => evaluateLocationFit(resolveClient
   eq(r.detail, "Austin", "detail shows the city")
 }
 
-// ── SUPERSEDED: a sub-city difference IS a mismatch once SAD gives a usable location ─
-// Previously this could never be Bad without a parseable city on either side. SAD's
+// ── SUPERSEDED: a sub-city difference IS a mismatch once the external site gives a usable location ─
+// Previously this could never be Bad without a parseable city on either side. the external site's
 // Location/Submarket is now the primary property-side signal, so a client who asked for
 // "The Pearl" looking at a "Northwest" property is explicitly outside their area — no
 // city parsing, and no proximity reasoning, required.
@@ -160,7 +160,7 @@ const fitFor = (client: any, property: any) => evaluateLocationFit(resolveClient
     { desiredAreas: "The Pearl" },
     { propertyName: "Rosemont at Highland Park", propertySubmarket: "Northwest", propertyAddress: "" },
   )
-  ok(r.verdict === "bad", "a usable SAD location that matches no desired area → Outside desired area")
+  ok(r.verdict === "bad", "a usable the external site location that matches no desired area → Outside desired area")
   eq(r.detail, "Outside desired area", "…and says so plainly")
 }
 
@@ -252,10 +252,10 @@ const fitFor = (client: any, property: any) => evaluateLocationFit(resolveClient
   // Insufficient evidence → EXCLUDED, never guessed. A bare "Downtown" submarket with
   // no city could be any city's downtown.
   const client = resolveClientContext({ city: "Austin", desiredAreas: "Downtown Austin" })
-  // True insufficiency = no SAD location AND no parseable city.
+  // True insufficiency = no the external site location AND no parseable city.
   const prop = { propertyAddress: "700 River St", propertySubmarket: null }
   const r = evaluateLocationFit(client, prop as any)
-  eq(r.verdict, "unknown", "no SAD location and no city → Location excluded, not guessed")
+  eq(r.verdict, "unknown", "no the external site location and no city → Location excluded, not guessed")
   eq(cityMismatch(client, prop as any), false, "…and never converted into a mismatch")
 }
 {
@@ -265,7 +265,7 @@ const fitFor = (client: any, property: any) => evaluateLocationFit(resolveClient
 }
 
 
-// ── V1: SAD's Location/Submarket is the PRIMARY property-side location signal ─
+// ── V1: the external site's Location/Submarket is the PRIMARY property-side location signal ─
 // It is structured intelligence, so it decides the area relationship rather than a
 // street address we would have to infer from. Textual normalization only — no
 // proximity, distance, coordinates or metro-area reasoning.
@@ -273,30 +273,30 @@ const fitFor = (client: any, property: any) => evaluateLocationFit(resolveClient
   const emily = resolveClientContext({ city: "Austin", desiredAreas: "Downtown Austin" })
   const sad = (submarket: string | null, address: string) => ({ propertySubmarket: submarket, propertyAddress: address, propertyName: null }) as any
 
-  // Desired area → full credit, row names SAD's own label
+  // Desired area → full credit, row names the external site's own label
   const a = evaluateLocationFit(emily, sad("Downtown Austin", "700 River St, Austin, TX 78701"))
-  eq(a.verdict, "good", "SAD 'Downtown Austin' matches 'Downtown Austin' → Desired area")
-  eq(a.detail, "Downtown Austin", "…row shows SAD's location label")
+  eq(a.verdict, "good", "the external site 'Downtown Austin' matches 'Downtown Austin' → Desired area")
+  eq(a.detail, "Downtown Austin", "…row shows the external site's location label")
 
   // "Downtown" ↔ "Downtown Austin" normalization
   const b = evaluateLocationFit(emily, sad("Downtown", "700 River St, Austin, TX 78701"))
-  eq(b.verdict, "good", "SAD 'Downtown' normalizes to 'Downtown Austin' → Desired area")
+  eq(b.verdict, "good", "the external site 'Downtown' normalizes to 'Downtown Austin' → Desired area")
 
   // Explicit mismatches score zero — NOT unknown
   eq(evaluateLocationFit(emily, sad("Georgetown", "30800 Ronald Reagan Blvd, Georgetown, TX 78633")).verdict, "bad",
-     "SAD 'Georgetown' vs 'Downtown Austin' → Outside desired area")
+     "the external site 'Georgetown' vs 'Downtown Austin' → Outside desired area")
   eq(evaluateLocationFit(emily, sad("Cedar Park", "1200 Cypress Creek Rd, Cedar Park, TX 78613")).verdict, "bad",
-     "SAD 'Cedar Park' vs 'Downtown Austin' → Outside desired area, never a match")
+     "the external site 'Cedar Park' vs 'Downtown Austin' → Outside desired area, never a match")
 
   // The SUBMARKET wins over the address city — the reason this rule exists
   const c2 = evaluateLocationFit(emily, sad("Cedar Park", "1200 Cypress Creek Rd, Austin, TX 78613"))
-  eq(c2.verdict, "bad", "SAD 'Cedar Park' outranks an Austin address → Outside desired area")
+  eq(c2.verdict, "bad", "the external site 'Cedar Park' outranks an Austin address → Outside desired area")
   eq(c2.detail, "Outside desired area", "…and says so plainly")
 
   // A specific desired area outranks the broad city: an Austin address alone is NOT
   // full credit for someone who asked for Downtown Austin.
   eq(evaluateLocationFit(emily, sad(null, "700 River St, Austin, TX 78701")).verdict, "unknown",
-     "no SAD location + specific desired area → excluded, not full credit")
+     "no the external site location + specific desired area → excluded, not full credit")
   eq(evaluateLocationFit(emily, sad(null, "700 River St")).verdict, "unknown",
      "no location evidence at all → excluded")
 }

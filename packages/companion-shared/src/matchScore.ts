@@ -6,7 +6,7 @@
 //
 // (The CRM's own scorers cannot be reused here: calculateMatchScore and runLocationFilter
 // read a `properties`-table row — city_slug, credit_min, price_value, beds, felony_ok —
-// and a SAD CurrentProperty has none of those columns. finalRankingEngine is still
+// and a the external site CurrentProperty has none of those columns. finalRankingEngine is still
 // documented as inert and unwired.)
 //
 // COVERAGE, NOT PENALTY. A dimension counts only when the client has a criterion AND the

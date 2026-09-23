@@ -9,7 +9,7 @@
 
 import { isClientFavorite } from "@/lib/leads/favoriteOrigin"
 
-/** The stable identity of a saved property inside one client's collections. The SAD
+/** The stable identity of a saved property inside one client's collections. The the external site
  *  ViewProperty URL embeds the propertyID, so it is the same key both tables dedupe on. */
 export function propertyKey(row: { property_url?: string | null } | null | undefined): string {
   return String(row?.property_url ?? "").trim()

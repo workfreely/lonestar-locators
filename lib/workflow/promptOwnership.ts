@@ -25,14 +25,14 @@ export type PromptSurface = "companion" | "crm"
  * mapped to its single owning surface.
  *
  * COMPANION owns the "traveling" workflow confirmations — the ones that make sense
- * while the agent works anywhere on the web (Google, Smart Apartment Data, property
+ * while the agent works anywhere on the web (Google, the external property site, property
  * sites). CRM owns contextual / heavy / destructive operations that need richer
  * workspace context, typed input, or larger forms.
  */
 export const WORKFLOW_PROMPT_OWNER = {
   // ── Companion-owned (traveling confirmations) ──────────────────────────────
   contact_outcome: "companion", // call/text chooser → reached / no-answer / text-sent
-  build_list_choice: "companion", // "How do you want to build …?" (SAD / Locator Beast)
+  build_list_choice: "companion", // "How do you want to build …?" (the external site / Locator Beast)
   list_built: "companion", // "Ready to send {name}'s list?" (build_list completion)
   send_list: "companion", // Preview / Copy Link + "Did you send {name}'s list?"
   contact_follow_up: "companion", // Contact FU1 / FU2 / FU3 send-confirmation

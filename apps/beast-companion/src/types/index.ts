@@ -12,7 +12,7 @@
 export type PanelSide = "left" | "right";
 
 /** Which supported site a page belongs to. */
-export type SiteId = "smart-apartment-data" | "locator-beast" | "unknown";
+export type SiteId = "external-property-site" | "locator-beast" | "unknown";
 
 /** Lightweight page context reported by the content script (no client data). */
 export type PageContext = {
@@ -24,14 +24,14 @@ export type PageContext = {
 };
 
 /**
- * The property page the locator is CURRENTLY viewing (Smart Apartment Data
+ * The property page the locator is CURRENTLY viewing (the external property site
  * detail page). This is page context, NOT a saved Favorite/Recommendation and NOT
  * tied to the active client — it follows the webpage, not the CRM selection. Never
- * persisted to Supabase. `propertyId` is SAD's stable `propertyID` (primary
+ * persisted to Supabase. `propertyId` is the external site's stable `propertyID` (primary
  * identity); `name`/`address` are read-only from the detail page.
  */
 export type CurrentProperty = {
-  /** Smart Apartment Data's stable propertyID (external property identity). */
+  /** the external property site's stable propertyID (external property identity). */
   propertyId: string;
   /** Field names deliberately mirror FavoriteDTO/RecommendationDTO so a detected
    *  Current Property is directly compatible when it later becomes a saved
@@ -41,39 +41,39 @@ export type CurrentProperty = {
   propertyAddress?: string | null;
   /** Google Places star rating (0.0–5.0), carried from the CRM Map via the
    *  map→Companion bridge (Google Places data). Supplemental; ABSENT for
-   *  SAD-detected properties and never fabricated. The card shows it only when
+   *  external-site-detected properties and never fabricated. The card shows it only when
    *  present and omits it entirely when null. Display-only. */
   googleRating?: number | null;
-  /** SAD submarket (neighborhood/area label) from the property header — the most
+  /** the external site submarket (neighborhood/area label) from the property header — the most
    *  reliable structured location signal on the detail page. Supplemental; null
    *  when absent. Used by Location Fit alongside the address. */
   propertySubmarket?: string | null;
-  /** Management company from the SAD detail page — read-only evidence for Approval
+  /** Management company from the the external site detail page — read-only evidence for Approval
    *  intelligence. Supplemental; null when absent. Never a guarantee of approval. */
   propertyManagement?: string | null;
-  /** Verified property EMAILS from the SAD detail page — OPERATIONAL data (not
+  /** Verified property EMAILS from the the external site detail page — OPERATIONAL data (not
    *  intelligence): retained at capture so later workflows can prefill the Guest
-   *  Card and Invoice recipients without the agent returning to SAD to copy them.
-   *  SAD may supply MULTIPLE addresses and we retain ALL of them (never rank, select
+   *  Card and Invoice recipients without the agent returning to the external site to copy them.
+   *  the external site may supply MULTIPLE addresses and we retain ALL of them (never rank, select
    *  a primary, or discard) — one may be stale and we can't know which is current.
    *  `[]` when none/unavailable; never guessed/fabricated. Supplemental (never blocks
    *  detection). No invoice/guest-card automation is built on it yet. */
   propertyEmails?: string[];
-  /** SAD amenity text, captured verbatim and de-duplicated, kept in SAD's own two
+  /** the external site amenity text, captured verbatim and de-duplicated, kept in the external site's own two
    *  sections: "Property Amenities" → community, "Unit Features" → unit. Missing
    *  section → []. Supplemental read-only evidence for the Amenities row; nothing is
    *  inferred and the two lists are never flattened together. */
   propertyAmenities?: { community: string[]; unit: string[] };
-  /** SAD's specials/concessions block, one VERBATIM line per offer (gift cards, fee
+  /** the external site's specials/concessions block, one VERBATIM line per offer (gift cards, fee
    *  waivers, rent concessions and footnotes all mixed together — interpretation happens
-   *  in the evaluator, never here). Undefined when SAD renders no specials element at
+   *  in the evaluator, never here). Undefined when the external site renders no specials element at
    *  all, which means UNKNOWN — distinct from a present block stating no concession. */
   propertySpecials?: string[];
-  /** SAD's property-wide rent RANGE from the facts-bar price chip, parsed at extraction
+  /** the external site's property-wide rent RANGE from the facts-bar price chip, parsed at extraction
    *  ("$925 - $1,199" → { min: 925, max: 1199 }). Not a selected unit's rent. Null when
    *  the chip is absent or carries no figure — unknown, never $0. */
   propertyRent?: { min: number; max: number } | null;
-  /** The canonical property URL. SAD's ViewProperty.aspx?propertyID=... for a
+  /** The canonical property URL. the external site's ViewProperty.aspx?propertyID=... for a
    *  detected property; the Google Maps place URL for one picked on the map. */
   propertyUrl: string;
   propertyImageUrl?: string | null;
@@ -84,12 +84,12 @@ export type CurrentProperty = {
 
   // ── Geographic / provenance metadata ──────────────────────────────────────
   // Added for Beast Property Explorer, which knows a property's real coordinates
-  // at selection time. Every field is OPTIONAL so a SAD-detected property — which
+  // at selection time. Every field is OPTIONAL so a external-site-detected property — which
   // exposes none of them — remains valid and unchanged; absent means unknown.
   //
   // These live on the SHARED type rather than in a map-specific property model:
   // a property picked on the map must be the same kind of thing as one detected
-  // on SAD, or the Recommendation/Favorite workflow would need a second path.
+  // on the external site, or the Recommendation/Favorite workflow would need a second path.
 
   /** Real latitude, or null/absent when unknown. NEVER estimated or derived. */
   lat?: number | null;
@@ -97,9 +97,9 @@ export type CurrentProperty = {
   lng?: number | null;
   /** Provider's stable place identity (Google Place ID) when the source has one. */
   placeId?: string | null;
-  /** Which provider this came from. Absent on SAD-detected properties, which
-   *  predate the field and are implicitly Smart Apartment Data. */
-  source?: "google_places" | "smart_apartment_data";
+  /** Which provider this came from. Absent on external-site-detected properties, which
+   *  predate the field and are implicitly the external property site. */
+  source?: "google_places" | "external_property_platform";
   /** Catalog slug for the market the property was found in, when known. */
   marketSlug?: string | null;
 };

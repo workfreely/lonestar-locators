@@ -2,9 +2,9 @@ import { FaChrome } from "react-icons/fa6"
 import { SettingsCard } from "@/components/crm/settings/SettingsShell"
 
 // Beast Companion — the upcoming AI-powered browser companion (Chrome
-// extension) that brings Locator Beast into Smart Apartment Data. Placeholder
-// only: no functionality yet. Mirrors the Beast Sync card's exact layout,
-// spacing, typography, "Coming Soon" pill, and disabled button styling.
+// extension) that brings Locator Beast into the property search site the locator
+// works in. Placeholder only: no functionality yet. Mirrors the Beast Sync card's
+// exact layout, spacing, typography, "Coming Soon" pill, and disabled button styling.
 
 // Same disabled button style as the other integrations' "Coming Soon" control.
 const disabledBtn =
@@ -14,7 +14,7 @@ export default function BeastCompanionExtensionSection() {
   return (
     <SettingsCard
       title="Beast Companion"
-      description="Bring Locator Beast directly into Smart Apartment Data with an AI-powered browser companion."
+      description="Bring Locator Beast directly into your property search site with an AI-powered browser companion."
     >
       <div className="divide-y divide-[#eceef3]">
         <div className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">

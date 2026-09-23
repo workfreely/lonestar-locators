@@ -29,7 +29,7 @@ import type { GuestCardAgent } from "@/lib/leads/guestCard"
 import { buildActiveClientPayload, COMPANION_MSG_SOURCE, type LatestOutreach, type CompanionLocator } from "@/lib/companion/leadToDto"
 import { toCompanionProperty, placeUrl, placeIdFromPropertyUrl } from "@/lib/propertyExplorer/types"
 import { attachCatalogRatings } from "@/lib/propertyExplorer/catalog"
-import { resolveSadCatalog } from "@/lib/propertyExplorer/resolveSadCatalog"
+import { resolveExternalCatalog } from "@/lib/propertyExplorer/resolveExternalCatalog"
 import { recordFirstContact } from "@/lib/leads/contactWorkflow"
 import { recordPendingOutreach } from "@/lib/leads/pendingOutreach"
 import { completeBuildList, startBuildList } from "@/lib/leads/buildListWorkflow"
@@ -736,8 +736,8 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     return () => window.removeEventListener("message", onReplayRequest)
   }, [])
 
-  // ── SAD Current Property enrichment (Companion → CRM → Companion) ────────────
-  // A SAD-detected Current Property has a name + address but no Google Place ID, so
+  // ── the external site Current Property enrichment (Companion → CRM → Companion) ────────────
+  // A external-site-detected Current Property has a name + address but no Google Place ID, so
   // the Companion can't enrich it. It relays {nonce, name, address} here; we resolve
   // the place_id with the ALREADY-loaded browser Google Places library and look up
   // OUR property_catalog, returning ONLY catalog-derived fields (never the live
@@ -763,7 +763,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         websiteUrl: string | null
       } = { nonce, placeId: null, googleRating: null, propertyImageUrl: null, websiteUrl: null }
       try {
-        const enrichment = await resolveSadCatalog(name, address, supabase)
+        const enrichment = await resolveExternalCatalog(name, address, supabase)
         if (enrichment) {
           result = {
             nonce,
@@ -774,7 +774,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           }
         }
       } catch (err) {
-        if (process.env.NODE_ENV !== "production") console.error("[sad-enrich] resolve failed:", err)
+        if (process.env.NODE_ENV !== "production") console.error("[external-enrich] resolve failed:", err)
       }
       window.postMessage(
         { source: COMPANION_MSG_SOURCE, type: "enrich-property-result", payload: result },
@@ -2346,10 +2346,10 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       // shown-lead identity before any handler runs.
       //
       // Without this, the post-write re-broadcast below could not fire from the
-      // Smart Apartment Data path. companionLeadIdRef is otherwise set only when
+      // the external property site path. companionLeadIdRef is otherwise set only when
       // the CRM ITSELF selects a lead, but Companion restores its last client
       // from chrome.storage and survives a CRM reload — so an agent working on a
-      // SAD tab could hold a client the CRM page had never selected. The ref was
+      // the external site tab could hold a client the CRM page had never selected. The ref was
       // then null, postCompanionActiveClient's identity guard rejected the
       // refresh, and "+ Recommendation" wrote the row yet never became
       // "✓ Recommended" because Companion was never told.
@@ -2403,12 +2403,12 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       // Companion/Kanban/Agenda/Lead Panel refresh.
       //
       // Both tools share this exact stage advancement: "start-build-list" is the
-      // Smart Apartment Data choice, and "open-locator-beast" is the Locator Beast
+      // the external property site choice, and "open-locator-beast" is the Locator Beast
       // choice — identical Build List action, only the surface differs. For the
       // Locator Beast choice we ALSO switch this CRM into the Map/property
       // workspace (property-name search / Map / Unleash Beast / recommendations)
       // and tell the Companion to move to Properties, reusing the existing
-      // workspace-mode → lb-map-entered bridge. Nothing about SAD, matching, map,
+      // workspace-mode → lb-map-entered bridge. Nothing about the external site, matching, map,
       // Unleash Beast or recommendation/favorite logic changes.
       if (payload.verb === "start-build-list" || payload.verb === "open-locator-beast") {
         // Demo/virtual leads have no persisted build_list row, so once the stage
@@ -3011,7 +3011,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       // detected Current Property to the ACTIVE client's canonical collection
       // (lead_recommendations / lead_favorites). Same write the Workspace uses; the
       // property comes from the payload (already detected — never re-scraped here).
-      // Deduped on (lead_id, property_url) — the SAD ViewProperty URL embeds the
+      // Deduped on (lead_id, property_url) — the the external site ViewProperty URL embeds the
       // stable propertyID, so a repeat click is a no-op. Re-posts the active client
       // so both the Companion and the Workspace reflect it with no refresh.
       if (
@@ -3023,10 +3023,10 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         const p = payload.property as
           | { propertyName?: string; propertyAddress?: string | null; propertyUrl?: string; propertyImageUrl?: string | null; placeId?: string | null }
           | undefined
-        // A resolved SAD property (or any Map property) carries a Google placeId → use
+        // A resolved the external site property (or any Map property) carries a Google placeId → use
         // the canonical ?q=place_id:<id> identity carrier so read-side enrichment works
         // immediately and no background resolve is needed. Otherwise keep the raw URL
-        // (SAD ViewProperty link); backfillSadIdentity upgrades it later if it resolves.
+        // (the external site ViewProperty link); backfillExternalIdentity upgrades it later if it resolves.
         const propertyUrl = p?.placeId
           ? placeUrl(String(p.placeId))
           : String(p?.propertyUrl ?? "").trim()
@@ -3126,7 +3126,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         }
 
         // Phase 2A — capture grounded price / special / reasons AT ADD TIME from the
-        // data the Companion (SAD CurrentProperty) or Explorer/Map (ExplorerProperty)
+        // data the Companion (the external site CurrentProperty) or Explorer/Map (ExplorerProperty)
         // already provide, using the EXISTING evaluators (no new scoring, no LLM, never
         // fabricated). Recommendations only; only when the payload actually carries
         // property data (a bare move leaves them null). lb_create_client_share (Phase 1)
@@ -3137,12 +3137,12 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         let recRentMax: number | null = null
         let recSpecial: string | null = null
         let recReasons: string[] = []
-        // The verb payload is dynamically shaped (a rich SAD CurrentProperty or a Map
+        // The verb payload is dynamically shaped (a rich the external site CurrentProperty or a Map
         // ExplorerProperty), so read it untyped here.
         const pp: any = p
-        const hasSadData = !!(pp && (pp.propertyRent || pp.propertyAmenities || pp.propertySpecials || pp.propertyManagement))
+        const hasExternalData = !!(pp && (pp.propertyRent || pp.propertyAmenities || pp.propertySpecials || pp.propertyManagement))
         const hasMapData = !!(pp && (pp.neighborhood || pp.location || pp.currentSpecial || pp.locationKeywords))
-        if (!isFav && (hasSadData || hasMapData)) {
+        if (!isFav && (hasExternalData || hasMapData)) {
           const ctx = resolveClientContext({
             city: lead?.city ?? null,
             budgetText: lead?.desired_rent ?? null,
@@ -3151,7 +3151,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             locatorNotes: lead?.locator_notes ?? null,
             mustHaveAmenities: String(lead?.must_have_amenities ?? "").split(",").map((s: string) => s.trim()).filter(Boolean),
           })
-          if (hasSadData) {
+          if (hasExternalData) {
             const location = evaluateLocationFit(ctx, pp)
             const budget = evaluateBudget(ctx, pp.propertyRent, pp.propertySpecials)
             const approval = evaluateApproval(pp)
@@ -3199,24 +3199,24 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           if (sourceRow) removeSourceRow(sourceRow, isFav, lead)
           else postCompanionActiveClient({ ...lead }, localNextActionsRef.current)
         }
-        // SAD (or any non-place_id) row → resolve its Google place_id in the
+        // the external site (or any non-place_id) row → resolve its Google place_id in the
         // BACKGROUND (the optimistic add already applied). If a confident match
         // resolves, rewrite the stored identity to the canonical ?q=place_id:<id>
         // carrier — exactly what Map recs use — so the EXISTING read-side
         // attachCatalogRatings populates rating / website / image everywhere with no
-        // schema change. No place_id → the original SAD URL stays, unenriched. Never
+        // schema change. No place_id → the original the external site URL stays, unenriched. Never
         // invents data. A row already carrying a place_id (a Map property) is skipped.
-        const backfillSadIdentity = (savedRow: any) => {
+        const backfillExternalIdentity = (savedRow: any) => {
           const url = String(savedRow?.property_url ?? "")
           const name = String(savedRow?.property_name ?? "")
           if (!name || placeIdFromPropertyUrl(url)) return
           void (async () => {
             let placeId: string | null = null
             try {
-              const r = await resolveSadCatalog(name, savedRow.property_address ?? null, supabase)
+              const r = await resolveExternalCatalog(name, savedRow.property_address ?? null, supabase)
               placeId = r?.placeId ?? null
             } catch {
-              /* resolution failed — keep the SAD URL, unenriched */
+              /* resolution failed — keep the the external site URL, unenriched */
             }
             if (!placeId) return
             const newUrl = placeUrl(placeId)
@@ -3227,7 +3227,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                 .eq("id", savedRow.id)
               if (error) {
                 // 23505: rewriting to the canonical place_id identity collided with a
-                // row this lead already has — the SAD row resolved onto an already-saved
+                // row this lead already has — the the external site row resolved onto an already-saved
                 // property (the "same property via two URL representations" case).
                 // Collapse into the canonical row: drop this now-redundant row and
                 // reconcile local state so it shows exactly once. Recommendations are
@@ -3245,7 +3245,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                   postCompanionActiveClient({ ...lead }, localNextActionsRef.current)
                   return
                 }
-                console.error(`[sad-enrich] ${isFav ? "favorite" : "recommendation"} identity rewrite failed:`, error.message)
+                console.error(`[external-enrich] ${isFav ? "favorite" : "recommendation"} identity rewrite failed:`, error.message)
                 return
               }
             }
@@ -3268,7 +3268,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           const demoRow = { id: `demo-${isFav ? "fav" : "rec"}-${Date.now()}`, ...rowBase }
           void attachCatalogRatings([demoRow], supabase).then(([enriched]) => {
             applyLocal(enriched)
-            backfillSadIdentity(enriched)
+            backfillExternalIdentity(enriched)
           })
           return
         }
@@ -3306,7 +3306,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           // source of truth — nothing rating-related is stored on the row.
           const [enriched] = await attachCatalogRatings([row], supabase)
           applyLocal(enriched)
-          backfillSadIdentity(enriched)
+          backfillExternalIdentity(enriched)
         }
         if (isFav) {
           supabase.from("lead_favorites").insert([rowBase]).select("*").maybeSingle().then(settleAdd)
@@ -3933,7 +3933,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                   // The board wrapper is `hidden` while a lead is selected, so the
                   // map is only ever visible when selectedLead is null — meaning
                   // this guard rejected every click the agent could actually make
-                  // and the verb was never dispatched. Same root cause as the SAD
+                  // and the verb was never dispatched. Same root cause as the the external site
                   // recommendation bug: the map asked "who is selected?" when the
                   // question is "who is this session on?".
                   if (!sessionClientLead) return

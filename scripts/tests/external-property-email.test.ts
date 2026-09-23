@@ -1,14 +1,14 @@
 /**
- * SAD property-email parser — parseCopyEmails reads the authoritative address(es)
+ * the external site property-email parser — parseCopyEmails reads the authoritative address(es)
  * from a "copy email" affordance's onclick, as DATA (never executed). Pure, no DB/DOM:
- *   npx tsx scripts/tests/sad-email.test.ts
+ *   npx tsx scripts/tests/external-property-email.test.ts
  *
  * Rules: retain ALL addresses (no ranking/selection/discard), trim, drop empties,
  * de-duplicate EXACT duplicates (order preserved), never rewrite/correct addresses,
  * never use the visible ".email-text" count, and return [] on anything not matching
  * the confirmed copyTextToClipboard('…') shape.
  */
-import { parseCopyEmails } from "../../apps/beast-companion/src/content/sadEmail"
+import { parseCopyEmails } from "../../apps/beast-companion/src/content/externalPropertyEmail"
 
 let pass = 0,
   fail = 0

@@ -10,7 +10,7 @@ a full-height panel and gently pushes the host page aside (inspired by Apollo.io
 
 ## Status
 
-**Phase 1 — foundation only.** No AI, no CRM auth, no Smart Apartment Data, no
+**Phase 1 — foundation only.** No AI, no CRM auth, no the external property site, no
 scraping, no backend calls. Just the extension shell: docked tab, expand/collapse,
 page-shift, Shadow-DOM-isolated UI, and a placeholder panel.
 

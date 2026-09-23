@@ -2,7 +2,7 @@
 // projection of the active client's confirmed location/requirements that EVERY
 // property-intelligence evaluator consumes (Location today; Approval/Amenities/
 // Specials as they land). Resolved ONCE per client and reused across every property,
-// so evaluating 50–100 SAD properties never re-reads the conversation per property.
+// so evaluating 50–100 the external site properties never re-reads the conversation per property.
 //
 // Layering (Option A — deterministic, no AI, no intent-guessing):
 //   • baseline  = Smart Form / Search Criteria (structured, authoritative defaults)

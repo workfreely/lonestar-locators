@@ -4,14 +4,14 @@
 //
 // This module is the INTERPRETATION half only: it normalizes an already-extracted
 // concession string and rent figures into the row's exact display forms. It performs
-// NO extraction and touches no DOM — the SAD reader feeds it (see the note in
+// NO extraction and touches no DOM — the the external site reader feeds it (see the note in
 // currentPropertyBridge about the still-missing specials/rent selectors).
 //
 // Display rules (verbatim from the approved contract):
 //   • Natural wording, correctly singular/plural: "2 months free", "1 month free",
 //     "8 weeks free"; qualifiers are PRESERVED ("Up to 8 weeks free")
 //   • Base Rent: $1,725 — commas, no "/mo", no decimals
-//   • No special → "None" (SAD renders "---" on the list and a "No ongoing
+//   • No special → "None" (the external site renders "---" on the list and a "No ongoing
 //     concessions…" placeholder on the detail page; both mean the same thing)
 //
 // AVG RENT IS NEVER MANUFACTURED. It is the effective rent after a concession, so it
@@ -20,9 +20,9 @@
 // "call for details") states a ceiling or a condition, NOT a guaranteed term — those
 // yield null and the row simply shows the special and Base Rent.
 
-/** A concession as extracted from SAD, plus what we know about how it applies. */
+/** A concession as extracted from the external site, plus what we know about how it applies. */
 export type SpecialInput = {
-  /** SAD's specials block, one verbatim line per concession (the confirmed
+  /** the external site's specials block, one verbatim line per concession (the confirmed
    *  `#ctl00_ContentPlaceHolder_SpecialsBit1_specials` element). Preferred when present:
    *  the block mixes rent concessions with gift cards, fee waivers and disclaimers, so
    *  the RENT concession is selected from it (see selectRentConcession). */
@@ -57,7 +57,7 @@ const NO_SPECIAL = /^\s*(-{2,}|—|n\/?a|none|no\s+(ongoing\s+)?(concession|spec
 const QUALIFIED =
   /\b(up\s+to|as\s+much\s+as|select\s+(units|homes|floor\s?plans)|certain\s+units|call\s+for|inquire|varies|depend|restrictions|o\.?a\.?c\.?|on\s+approved)\b/i;
 
-// SAD's specials block mixes several offer TYPES on separate lines, e.g.
+// the external site's specials block mixes several offer TYPES on separate lines, e.g.
 //   Gift Card: $500 Gift Card ends 11/13/2026
 //   App Fee Waived
 //   100% off rent for 2 month(s) on a 12 mo lease
@@ -70,7 +70,7 @@ const QUALIFIED =
 /** Lines that are NOT a rent concession (gift cards, fee waivers, bonuses, footnotes). */
 const NON_RENT_LINE =
   /^\s*\*|gift\s*card|app(lication)?\s*fee|admin(istration|istrative)?\s*fee|deposit|\bbonus\b|referral|terms?\s+apply|minimum\s+term\s+required/i;
-/** A leading SAD label ("Other Concessions:") that is not part of the offer itself. */
+/** A leading the external site label ("Other Concessions:") that is not part of the offer itself. */
 const LINE_LABEL = /^\s*(other\s+concessions?|concessions?|specials?|current\s+specials?)\s*:\s*/i;
 
 export type RentConcession = {
@@ -80,13 +80,13 @@ export type RentConcession = {
   source: string;
   /** True when the offer states a ceiling/condition ("Up to", "select units"). */
   qualified: boolean;
-  /** Free period in the unit SAD used — never converted between weeks and months. */
+  /** Free period in the unit the external site used — never converted between weeks and months. */
   free: { amount: number; unit: "weeks" | "months" } | null;
   /** Lease term the line explicitly names ("on a 12 mo lease" → 12), else null. */
   termMonths: number | null;
 };
 
-/** Free period stated by a line, in SAD's own unit. Handles both "N weeks/months free"
+/** Free period stated by a line, in the external site's own unit. Handles both "N weeks/months free"
  *  and "100% off rent for N month(s)" (identical meaning, not an inference). */
 function freePeriod(line: string): { amount: number; unit: "weeks" | "months" } | null {
   const pct = line.match(/100\s*%\s*off\s*rent\s*for\s*(\d+(?:\.\d+)?)\s*(month|week)/i);
@@ -112,7 +112,7 @@ function statedTermMonths(line: string): number | null {
 }
 
 /**
- * The single best RENT concession in SAD's specials block, or null when the block
+ * The single best RENT concession in the external site's specials block, or null when the block
  * states none. Ranking is by RELIABILITY first — an unqualified offer beats an "Up to"
  * ceiling — then by size. Qualifiers are always preserved in the display text.
  */
@@ -126,7 +126,7 @@ export function selectRentConcession(lines?: string[] | null): RentConcession | 
     const dollarsOff = /\$\s*[\d,]+\s*off/i.test(offer);
     if (!free && !dollarsOff && !/free\s+rent/i.test(offer)) continue; // not a rent concession
     const qualified = isQualifiedSpecial(offer);
-    // Canonical compact form when we parsed a free period — same unit SAD used, with
+    // Canonical compact form when we parsed a free period — same unit the external site used, with
     // the qualifier kept. Otherwise the normalized line stands as written.
     const display = free ? `${qualified ? "Up to " : ""}${freeLabel(free)}` : formatSpecialText(offer);
     candidates.push({ display, source: line, qualified, free, termMonths: statedTermMonths(offer) });
@@ -146,7 +146,7 @@ export function formatRent(amount?: number | null): string | null {
 }
 
 /**
- * Normalize SAD's concession text for the row: "$1000 off" → "$1K off", whitespace
+ * Normalize the external site's concession text for the row: "$1000 off" → "$1K off", whitespace
  * collapsed. Wording stays NATURAL ("8 weeks free", never "8 WKS free") and qualifiers
  * and every other word are PRESERVED — we never rewrite the offer or drop a condition.
  */
@@ -190,7 +190,7 @@ export function computeAvgRent(input: SpecialInput): number | null {
 }
 
 /**
- * The ≤3 pieces of the Specials row, already formatted. When `lines` (SAD's specials
+ * The ≤3 pieces of the Specials row, already formatted. When `lines` (the external site's specials
  * block) is supplied it is the source of truth and the best RENT concession is chosen
  * from it; otherwise a directly-supplied `text` is normalized.
  *

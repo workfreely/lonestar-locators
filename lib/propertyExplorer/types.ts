@@ -28,7 +28,7 @@
  * second provider normalizes INTO this shape instead of growing a parallel one.
  * Adding a member is all a new provider should need on the type side.
  */
-export type PropertySource = "google_places" | "smart_apartment_data"
+export type PropertySource = "google_places" | "external_property_platform"
 
 export type ExplorerProperty = {
   /** Google Place ID — stable external identity for the place. */
@@ -49,7 +49,7 @@ export type ExplorerProperty = {
   lat: number | null
   /** Real longitude, or null when the provider exposes none. NEVER estimated. */
   lng: number | null
-  /** Where this came from. Lets a future SAD-sourced property coexist. */
+  /** Where this came from. Lets a future the external site-sourced property coexist. */
   source: PropertySource
   /** The market context the search ran in, when known (catalog slug). */
   marketSlug: string | null
@@ -228,7 +228,7 @@ export function propertyWebsiteHref(url: string | null | undefined): string | nu
  * property_url is the established primary identity for a recommendation/favorite
  * (lead_recommendations/lead_favorites store no place_id column), and a
  * map-sourced property's URL is exactly `…?q=place_id:<id>`. Returns null for a
- * non-Google URL (e.g. a pasted SAD/RentCafe link) — those simply have no
+ * non-Google URL (e.g. a pasted the external site/RentCafe link) — those simply have no
  * catalog rating to resolve. Never fabricates an ID.
  */
 export function placeIdFromPropertyUrl(url: string | null | undefined): string | null {

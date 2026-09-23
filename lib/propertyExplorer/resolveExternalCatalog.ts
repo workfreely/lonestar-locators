@@ -13,29 +13,29 @@ import type { ExplorerProperty } from "./types"
  * result. Browser-only: `loadGoogleMaps` needs `window`, so this runs in the CRM
  * client (DashboardClient), never on the server.
  *
- * Confidence gate: the resolved place's NAME must match the SAD name (every ≥4-char
+ * Confidence gate: the resolved place's NAME must match the the external site name (every ≥4-char
  * token present, the same `nameMatchesQuery` the name-search uses). An ambiguous or
  * low-confidence hit resolves nothing, so we never enrich the wrong property.
  *
  * Returns:
- *   • `null` when no confident place matches (keep the SAD identity, unenriched);
+ *   • `null` when no confident place matches (keep the the external site identity, unenriched);
  *   • `{ placeId, googleRating, propertyImageUrl, websiteUrl }` when a place matches
  *     — the three catalog fields are `null` when the resolved place_id has no
  *     `property_catalog` row (unknown stays unknown; the place_id is still returned
  *     so callers can adopt the canonical identity carrier).
  */
-export type SadCatalogEnrichment = {
+export type ExternalCatalogEnrichment = {
   placeId: string
   googleRating: number | null
   propertyImageUrl: string | null
   websiteUrl: string | null
 }
 
-export async function resolveSadCatalog(
+export async function resolveExternalCatalog(
   name: string,
   address: string | null | undefined,
   supabase: SupabaseClient,
-): Promise<SadCatalogEnrichment | null> {
+): Promise<ExternalCatalogEnrichment | null> {
   const cleanName = (name ?? "").trim()
   if (!cleanName) return null
   // Name + full address makes the Places match precise; the confidence gate below

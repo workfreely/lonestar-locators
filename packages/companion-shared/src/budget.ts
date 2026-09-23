@@ -4,7 +4,7 @@
 //
 // Two inputs, both structured before they get here: the client's working budget
 // (resolved from the SAME ClientContext every other evaluator uses) and the property's
-// rent RANGE (parsed at extraction from SAD's confirmed price chip, never re-parsed
+// rent RANGE (parsed at extraction from the external site's confirmed price chip, never re-parsed
 // from display text in the UI).
 //
 // The property figure is a PROPERTY-WIDE RANGE, not a selected unit's rent, so the

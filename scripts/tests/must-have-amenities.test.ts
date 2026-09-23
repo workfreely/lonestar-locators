@@ -43,7 +43,7 @@ const ok = (c: boolean, name: string) => {
   }
 }
 
-/** The real SAD test property (Atlantic Grand Oaks). */
+/** The real the external site test property (Atlantic Grand Oaks). */
 const LIVE: PropertyAmenities = {
   community: [
     "Doorman", "Locker System", "Outdoor Kitchen", "Package Services", "Recycling", "Ride Sharing Lounge", "Wifi Access",
@@ -118,7 +118,7 @@ eqArr(
 )
 eqArr(evaluateAmenities(client(["pool", "dog_park"]), LIVE), ["Pool"], "unconfirmed Dog Park omitted, not marked unverified")
 eqArr(evaluateAmenities(client(["golf_simulator"]), LIVE), [], "nothing confirmed → [] so the row hides")
-eqArr(evaluateAmenities(client(["pool"]), { community: [], unit: [] }), [], "no SAD evidence → unknown, never 'absent'")
+eqArr(evaluateAmenities(client(["pool"]), { community: [], unit: [] }), [], "no the external site evidence → unknown, never 'absent'")
 
 // ── The row never fills with amenities the client did not ask for ─────────────
 {
@@ -147,7 +147,7 @@ eqArr(evaluateAmenities(client(["dog_park"]), LIVE), [], "'Dog/Walk Trail' does 
 eqArr(evaluateAmenities(client(["floor_to_ceiling_windows"]), { community: [], unit: ["Large Windows", "High Ceilings"] }), [], "generic windows do NOT satisfy Floor-to-Ceiling Windows")
 eqArr(evaluateAmenities(client(["pool"]), { community: ["Pool Table"], unit: [] }), [], "Pool Table does NOT satisfy Pool")
 
-// ── Confirmed SAD wording accepted for Gated Access ───────────────────────────
+// ── Confirmed the external site wording accepted for Gated Access ───────────────────────────
 eqArr(evaluateAmenities(client(["gated_access"]), { community: ["Access Gates"], unit: [] }), ["Gated Access"], "'Access Gates' IS evidence for Gated Access")
 eqArr(evaluateAmenities(client(["walk_in_shower"]), LIVE), ["Walk-In Shower"], "the live property's unit list DOES confirm Walk-in Shower")
 eqArr(evaluateAmenities(client(["walk_in_shower"]), { community: [], unit: ["Walk-in Shower"] }), ["Walk-In Shower"], "Walk-In Shower confirmed")

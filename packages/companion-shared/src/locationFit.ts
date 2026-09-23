@@ -1,7 +1,7 @@
 // Location Fit V1 — the first property-intelligence dimension (no %, no budget,
 // no beds, no Maps/coordinates, no AI call). A small CONSERVATIVE, DETERMINISTIC,
 // MARKET-AGNOSTIC evaluator: it compares the resolved Current Client Context
-// (see resolveClientContext) against the SAD property's submarket / name / address
+// (see resolveClientContext) against the the external site property's submarket / name / address
 // and returns one of three fits plus terse pieces for the compact row:
 //
 //   Location: [Fit] · [Area] · [Proximity]
@@ -197,9 +197,9 @@ export function evaluateLocationFit(ctx: ClientContext, property: PropertyLocati
     if (!cityChanged) return make("bad", "Wrong city");
   }
 
-  // 2) SAD's Location/Submarket is the PRIMARY property-side location signal — it is
+  // 2) the external site's Location/Submarket is the PRIMARY property-side location signal — it is
   //    structured intelligence, unlike a street address we would have to infer from.
-  //    A MATCH here decides immediately and the row shows SAD's own label.
+  //    A MATCH here decides immediately and the row shows the external site's own label.
   const specificAreas = clientAreaPhrases(ctx, true);
   const submarketNorm = norm(property.propertySubmarket);
   const submarketUsable = submarketNorm.length >= 4 && !STOP_AREA.has(submarketNorm);
@@ -221,7 +221,7 @@ export function evaluateLocationFit(ctx: ClientContext, property: PropertyLocati
   const areaHit = areaPhrases.find((c) => propBlob.includes(c)) ?? propPhrases.find((p) => newerText.includes(p)) ?? null;
   if (areaHit) return make("good", titleCase(areaHit));
 
-  // 3b) The client named SPECIFIC areas and SAD gives a usable location that matched
+  // 3b) The client named SPECIFIC areas and the external site gives a usable location that matched
   //     none of them (nor the name/override evidence above) → an explicit MISMATCH.
   //     A more precise desired area outranks the broad city, so an address in the right
   //     city cannot rescue it. Textual comparison only — never proximity.

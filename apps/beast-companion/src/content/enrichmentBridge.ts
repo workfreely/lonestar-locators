@@ -2,11 +2,11 @@ import { log, warn } from "@/utils/log";
 import { isTrustedMessageEvent, isKnownEnvelope, isValidEnrichResultPayload } from "@/utils/validate";
 
 /**
- * SAD property enrichment bridge — the CRM-PAGE end of a request/response round trip
- * that gives a Smart Apartment Data Current Property the SAME catalog enrichment a
+ * the external site property enrichment bridge — the CRM-PAGE end of a request/response round trip
+ * that gives a the external property site Current Property the SAME catalog enrichment a
  * Map property gets, without any server-side Google key.
  *
- *   • REQUEST  (Companion → CRM): the side panel writes {nonce, name, address, sadId}
+ *   • REQUEST  (Companion → CRM): the side panel writes {nonce, name, address, externalPropertyId}
  *     to chrome.storage.local["lb-enrich-request"]; this content script relays it
  *     into the page so DashboardClient can resolve the place_id with the ALREADY
  *     loaded browser Google Places library and look up property_catalog.

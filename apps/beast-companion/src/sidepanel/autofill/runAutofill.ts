@@ -37,7 +37,7 @@ export type AutofillOutcome =
   | { status: "unsupported" }
   | { status: "error"; message: string };
 
-// The locator's own surfaces (CRM + Smart Apartment Data) — NEVER an autofill
+// The locator's own surfaces (CRM + the external property site) — NEVER an autofill
 // target; the tour/contact form always lives on an external property/scheduler
 // site. Reading the active tab's host requires the "tabs" permission (metadata
 // only — no host script access), which is what lets us learn the origin so we can
@@ -57,7 +57,7 @@ function chromeApis(): boolean {
 }
 
 // The current active tab IF it is an external page the Autofill action applies to
-// (an http(s) page that is not the CRM/SAD). Null otherwise. The panel uses this to
+// (an http(s) page that is not the CRM/the external site). Null otherwise. The panel uses this to
 // SHOW the Autofill action only when the locator is on a tour/scheduler tab —
 // matching the expected "open tour page → Companion shows Autofill" behavior.
 export async function getActiveTourTab(): Promise<{ host: string; url: string } | null> {
@@ -244,7 +244,7 @@ export async function runAutofillForScheduler(
 ): Promise<{ outcome: AutofillOutcome; tabId?: number; host?: string }> {
   if (!chromeApis()) return { outcome: { status: "unsupported" } };
   // Validate the stored scheduler URL; the scheduler is always an external property
-  // site, never the locator's own CRM/SAD.
+  // site, never the locator's own CRM/the external site.
   try {
     const u = new URL(schedulerUrl);
     if (u.protocol !== "https:" && u.protocol !== "http:") return { outcome: { status: "unsupported" } };

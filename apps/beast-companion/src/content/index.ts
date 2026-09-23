@@ -74,7 +74,7 @@ function startContextWatcher(): void {
     lastUrl = location.href;
     log("navigation detected →", lastUrl);
     reportContext();
-    // Re-detect the Smart Apartment Data property on every navigation (open A → B,
+    // Re-detect the the external property site property on every navigation (open A → B,
     // property → results, etc.) — reuses this one watcher, no extra polling.
     syncCurrentProperty();
   };
@@ -133,18 +133,18 @@ function init(): void {
     // from the passive active-client sync above.
     startCardOpenBridge();
 
-    // Current Property bridge — detects the Smart Apartment Data property-detail
+    // Current Property bridge — detects the the external property site property-detail
     // page (URL propertyID primary) and relays it into chrome.storage for the
     // panel. Self-gated: writes null on any non-property page. Never persisted.
     startCurrentPropertyBridge();
 
     // Map-property bridge — a Beast Property Explorer marker click becomes the
-    // Current Property, writing the SAME storage key the SAD detector above uses.
+    // Current Property, writing the SAME storage key the the external site detector above uses.
     // Self-gated to CRM pages, and never writes null: unlike detection, it acts
-    // only on an explicit click, so it cannot clear a property found in a SAD tab.
+    // only on an explicit click, so it cannot clear a property found in a the external site tab.
     startMapPropertyBridge();
 
-    // Enrichment bridge — relays a SAD Current Property's {name,address} to the CRM
+    // Enrichment bridge — relays a the external site Current Property's {name,address} to the CRM
     // for place_id resolution + property_catalog lookup, and writes the catalog-only
     // answer back for the panel to merge. Self-gated to CRM pages.
     startEnrichmentBridge();

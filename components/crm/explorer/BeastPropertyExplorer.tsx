@@ -927,7 +927,7 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   }, [status, visible.length, onMatchCount])
 
   // Dedupe by CANONICAL property identity (matches the DB canonical_property_key), not
-  // raw URL string, so a SAD `url:` and a `?q=place_id:` form of the same property don't
+  // raw URL string, so a the external site `url:` and a `?q=place_id:` form of the same property don't
   // produce contradictory "✓ Recommended" states.
   const recommended = useMemo(
     () => new Set(recommendedUrls.map((u) => canonicalPropertyKey(u)).filter((k): k is string => !!k)),

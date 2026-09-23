@@ -30,19 +30,19 @@ import {
  *
  * Separate file because the two SOURCES are genuinely different.
  * currentPropertyBridge is a passive DOM/URL detector that deliberately refuses
- * to write from a non-SAD tab — it would otherwise write null on every CRM page
+ * to write from a non-external-site tab — it would otherwise write null on every CRM page
  * and clobber a property detected in another tab. That guard is correct and is
  * left exactly as it is. This bridge is not detection: it fires only on an
  * explicit marker click, writes only a property, and never writes null. Folding
  * it into the detector would have meant weakening the detector's guard.
  *
  * CONSEQUENCE WORTH KNOWING: because both write one key, selecting a property on
- * the map replaces a SAD-detected one, and vice versa. That is what "one Current
+ * the map replaces a external-site-detected one, and vice versa. That is what "one Current
  * Property" means; it is not a race between two systems.
  *
  * The owner is taken from the SESSION, never from the message. A page-supplied
  * owner would let anything running in the page attribute a record to someone
- * else; getSessionOwner() is the same source the SAD detector uses.
+ * else; getSessionOwner() is the same source the the external site detector uses.
  *
  * Nothing here reaches Supabase, and nothing here calls Google. The payload is
  * data the map already loaded, so a selection costs no request and writes no row.

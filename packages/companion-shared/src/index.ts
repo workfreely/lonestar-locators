@@ -262,7 +262,7 @@ export type { LocationFitVerdict, LocationFit, LocationFitResult, PropertyLocati
 export { evaluateApproval } from "./approval";
 export type { ApprovalRisk, ApprovalResult } from "./approval";
 
-// Amenities V1 — client amenity requirements vs SAD's own amenity text, evidence-only
+// Amenities V1 — client amenity requirements vs the external site's own amenity text, evidence-only
 export {
   evaluateAmenities,
   MAX_AMENITIES,
@@ -275,12 +275,12 @@ export {
 } from "./amenities";
 export type { PropertyAmenities, MustHaveAmenityValue } from "./amenities";
 
-// Specials V1 — concession + rent DISPLAY normalization (interpretation only; the SAD
+// Specials V1 — concession + rent DISPLAY normalization (interpretation only; the the external site
 // specials/base-rent selectors are not confirmed yet, so nothing feeds it in the panel)
 export { evaluateSpecials, selectRentConcession, formatSpecialText, formatRent, computeAvgRent, isQualifiedSpecial } from "./specials";
 export type { SpecialInput, SpecialsResult, RentConcession } from "./specials";
 
-// Budget V1 — client working budget vs the property's SAD rent range, evidence-only
+// Budget V1 — client working budget vs the property's the external site rent range, evidence-only
 export { evaluateBudget, resolveClientBudget, parseMoneyRange, budgetTolerance, BUDGET_TOLERANCE } from "./budget";
 export type { MoneyRange } from "./budget";
 

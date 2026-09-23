@@ -1,15 +1,15 @@
 /**
- * SAD amenity-value parser — parseAmenityValues/mergeAmenityValues read the verbatim
- * amenity text out of a SAD category span's innerHTML. Pure, no DB/DOM:
- *   npx tsx scripts/tests/sad-amenities.test.ts
+ * the external site amenity-value parser — parseAmenityValues/mergeAmenityValues read the verbatim
+ * amenity text out of a the external site category span's innerHTML. Pure, no DB/DOM:
+ *   npx tsx scripts/tests/external-property-amenities.test.ts
  *
- * Fixtures below are the REAL innerHTML captured from a live SAD ViewProperty page.
- * Rules under test: split on <br>, decode SAD's entities, collapse the &nbsp; indent,
+ * Fixtures below are the REAL innerHTML captured from a live the external site ViewProperty page.
+ * Rules under test: split on <br>, decode the external site's entities, collapse the &nbsp; indent,
  * drop empties + exact duplicates (order preserved), never split a value on "/", and
  * never alter wording/casing.
  */
-import { parseAmenityValues, mergeAmenityValues, groupAmenitySections } from "../../apps/beast-companion/src/content/sadAmenities"
-import type { AmenityNode } from "../../apps/beast-companion/src/content/sadAmenities"
+import { parseAmenityValues, mergeAmenityValues, groupAmenitySections } from "../../apps/beast-companion/src/content/externalPropertyAmenities"
+import type { AmenityNode } from "../../apps/beast-companion/src/content/externalPropertyAmenities"
 
 let pass = 0,
   fail = 0

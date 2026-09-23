@@ -9,14 +9,14 @@ import { DEFAULT_TIMEZONE } from "@/lib/timezone"
  * Companion (and later Beast Voice) so all interfaces run the SAME thing.
  *
  * APPROVED two-step model (companion):
- *   1. Build List (start)  →  open SAD AND advance Contacted → Searching, but
+ *   1. Build List (start)  →  open the external site AND advance Contacted → Searching, but
  *      LEAVE build_list open and DO NOT create Send List yet (startBuildList).
  *   2. Mark List Built     →  complete the open build_list row (Last Action
  *      becomes "Built List") and create the Send List successor exactly once,
  *      staying in Searching, never advancing to List Sent (completeBuildList).
  *
  * The CRM Lead Panel still completes Build List in a single step (it has no
- * SAD-open intermediate): advanceBuildListToSearching with the default successor.
+ * the external site-open intermediate): advanceBuildListToSearching with the default successor.
  * No duplicated workflow logic — the stage move reuses the same /update-stage
  * route the Kanban drag + first-contact cascade already use.
  */
@@ -76,7 +76,7 @@ export function advanceBuildListToSearching(opts: {
  * creating the Send List successor and WITHOUT completing the build_list row —
  * build_list stays the open Next Action and the companion control flips to
  * "Mark List Built". Send List is created only on explicit completion
- * (completeBuildList). Opening SAD is the caller's job; this is the stage move.
+ * (completeBuildList). Opening the external site is the caller's job; this is the stage move.
  */
 export function startBuildList(opts: {
   lead: any

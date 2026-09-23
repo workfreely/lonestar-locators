@@ -5,7 +5,7 @@ import { LeadIdentityHeader, LeadPanelBody } from "./lead/LeadPanelView";
 import { PanelStateView, type PanelState } from "./lead/PanelStates";
 import { ClientPropertiesNav, type CompanionView } from "./ClientPropertiesNav";
 import { ModeHeader } from "./ModeHeader";
-import { useActiveSadTab } from "./useActiveSadTab";
+import { useActiveExternalPropertyTab } from "./useActiveExternalPropertyTab";
 import { PropertiesView } from "./properties/PropertiesView";
 import type { AutofillOutcome } from "./autofill/runAutofill";
 import { TourModeView } from "./tour/TourModeView";
@@ -133,7 +133,7 @@ export function PanelApp({
   // THIS active client's canonical Recommended Properties (lead_recommendations),
   // in the active-client payload. Read-only; rendered in the Properties view.
   recommendations?: RecommendationDTO[];
-  // The Smart Apartment Data property currently being viewed (page context, from a
+  // The the external property site property currently being viewed (page context, from a
   // separate storage key). Independent of the active client. Null when not on a
   // property-detail page. Read-only display in the Properties view.
   currentProperty?: CurrentProperty | null;
@@ -183,7 +183,7 @@ export function PanelApp({
   // Phase 3 — the Contact Lead Next Action opens the call/text method chooser
   // (same bottom sheet, "choose-method" phase).
   onContactLead?: () => void;
-  // Clicking the "Build List" Next Action opens the SAD/Locator Beast tool chooser.
+  // Clicking the "Build List" Next Action opens the the external site/Locator Beast tool chooser.
   onBuildList?: () => void;
   // Reports the active tab ("client" | "properties") up to the container so it can
   // gate its bottom-sheet confirmations to the Client view.
@@ -232,8 +232,8 @@ export function PanelApp({
   // Search Mode is driven by whether the ACTIVE browser tab is a Smart Apartment
   // Data page (search / results / property detail) — never by the lead's stage or
   // "Build List launched". The banner below appears/disappears as the agent moves
-  // to and from SAD tabs.
-  const isSadActive = useActiveSadTab();
+  // to and from the external site tabs.
+  const isExternalPropertyActive = useActiveExternalPropertyTab();
 
   // ── Main CRM view ⇄ this panel's tab (both directions) ────────────────────
   // Map is a property-research context (→ Properties); Board/Workspace already
@@ -345,12 +345,12 @@ export function PanelApp({
       </header>
 
       {/* Search Mode banner — shown ABOVE the normal tabs while the active tab is a
-          Smart Apartment Data page. Unlike Tour Mode it does NOT replace the tabs:
-          Client / Properties stay directly underneath and fully usable, so the agent
-          keeps access to Search Criteria, Credit Screening, Notes and Properties
-          while searching. "← Back to CRM" focuses the existing CRM tab. Hidden in
-          Tour Mode (that focused flow takes precedence). */}
-      {isLoaded && !tourMode && isSadActive && onBackToCrm && (
+          supported external property-site page. Unlike Tour Mode it does NOT replace
+          the tabs: Client / Properties stay directly underneath and fully usable, so
+          the agent keeps access to Search Criteria, Credit Screening, Notes and
+          Properties while searching. "← Back to CRM" focuses the existing CRM tab.
+          Hidden in Tour Mode (that focused flow takes precedence). */}
+      {isLoaded && !tourMode && isExternalPropertyActive && onBackToCrm && (
         <ModeHeader label="SEARCH MODE" backLabel="← Back to CRM" onBack={onBackToCrm} ariaLabel="Search Mode" />
       )}
 

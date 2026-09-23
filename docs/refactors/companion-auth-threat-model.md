@@ -7,7 +7,7 @@ and the threats it must resist. No auth code exists yet.
 ## 1. Trust boundaries & actors
 - **Locator Beast web app** (`locatorbeast.com`) — first-party, cookie session (Supabase). Source of truth.
 - **LB content script** — injected by the extension on `locatorbeast.com/admin/*`. Runs in the page's origin, **can** read the LB session cookie context indirectly (same-origin fetches with credentials), but is still *extension-controlled code*.
-- **SAD / Google / property content scripts** — run on third-party origins. **No LB cookies available here.** Untrusted page DOM.
+- **the external site / Google / property content scripts** — run on third-party origins. **No LB cookies available here.** Untrusted page DOM.
 - **Extension background service worker** — extension origin; no cookies for LB.
 - **Side panel** (`chrome-extension://…`) — extension origin; renders the lead UI; must call LB APIs cross-origin.
 - **Locator Beast API** — verifies every request server-side (workspace membership, billing entitlement, ownership).
@@ -61,7 +61,7 @@ Lead profiles, notes, credit information, or any client PII. Only: the short-liv
 | Cross-workspace access | Token scoped to one `workspaceId`; every API re-checks membership + ownership |
 | Token replay from a non-LB tab | Bearer works from the extension origin, but every request is authorized server-side; no ambient cookie authority is trusted |
 | Billing/entitlement bypass | `requireWorkspaceMember`-equivalent + `lb_workspace_has_access` re-checked per request; fails closed |
-| Lost/again-needed session on SAD/Google tabs | Panel uses the bearer token (not cookies); refresh happens whenever an LB tab is present |
+| Lost/again-needed session on the external site/Google tabs | Panel uses the bearer token (not cookies); refresh happens whenever an LB tab is present |
 
 ## 7. Server-side validation (every Companion API request)
 1. Verify access-token signature + expiry.

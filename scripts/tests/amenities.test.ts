@@ -1,5 +1,5 @@
 /**
- * Amenities V1 — the ≤3 client-relevant amenities SAD CONFIRMS. Pure, no DB:
+ * Amenities V1 — the ≤3 client-relevant amenities the external site CONFIRMS. Pure, no DB:
  *   npx tsx scripts/tests/amenities.test.ts
  *
  * Row contract: Amenities: [amenity] · [amenity] · [amenity]   (no verdict word)
@@ -53,7 +53,7 @@ const LIVE: PropertyAmenities = {
 // ── Row hides when there is nothing client-relevant to confirm ────────────────
 eqArr(evaluateAmenities(client("Move by the 1st. Budget 1800."), LIVE), [], "no amenity requirement → [] (row hides)")
 eqArr(evaluateAmenities(resolveClientContext({}), LIVE), [], "no client text → []")
-eqArr(evaluateAmenities(client("Must have high ceilings."), LIVE), [], "requirement SAD can't confirm → [] (never 'Unverified')")
+eqArr(evaluateAmenities(client("Must have high ceilings."), LIVE), [], "requirement the external site can't confirm → [] (never 'Unverified')")
 
 // ── The matched amenity IS the intelligence ───────────────────────────────────
 eqArr(evaluateAmenities(client("Wants a pool and a gym."), LIVE), ["Gym", "Pool"], "confirmed pool + gym listed by name")
@@ -129,9 +129,9 @@ eqArr(
 )
 eqArr(evaluateAmenities(client("Wants a yard."), { community: ["Courtyard"], unit: [] }), [], "Courtyard ≠ Yard")
 eqArr(evaluateAmenities(client("Wants a pool."), { community: ["Pool Table"], unit: [] }), [], "Pool Table ≠ Pool")
-eqArr(evaluateAmenities(client("Needs a dog park."), LIVE), [], "SAD's 'Dog/Walk Trail' ≠ Dog Park")
+eqArr(evaluateAmenities(client("Needs a dog park."), LIVE), [], "the external site's 'Dog/Walk Trail' ≠ Dog Park")
 
-// ── A property is never penalized for SAD's silence ───────────────────────────
+// ── A property is never penalized for the external site's silence ───────────────────────────
 eqArr(evaluateAmenities(client("Wants a pool."), { community: [], unit: [] }), [], "empty amenity lists → [], no negative signal")
 eqArr(evaluateAmenities(client("Wants a pool."), null), [], "missing amenities entirely → [], no negative signal")
 
@@ -165,7 +165,7 @@ eqArr(evaluateAmenities(client("Needs a dog park."), LIVE), [], "'Dog/Walk Trail
 eqArr(evaluateAmenities(client("Wants a garage."), LIVE), [], "no garage in the real set → omitted, not penalized")
 eqArr(evaluateAmenities(client("Needs a washer dryer in the unit."), LIVE), [], "no W/D stated → omitted")
 eqArr(evaluateAmenities(client("Wants a pool and a gym."), LIVE), ["Gym", "Pool"], "real set confirms Fitness Center + Swimming Pool")
-// RESOLVED: SAD's confirmed "Access Gates" (plural) is now accepted evidence for a
+// RESOLVED: the external site's confirmed "Access Gates" (plural) is now accepted evidence for a
 // Gated Access requirement — approved as same-specificity wording, not a loosening.
 eqArr(evaluateAmenities(client("Wants gated access."), LIVE), ["Gated Access"], "'Access Gates' confirms Gated Access")
 
