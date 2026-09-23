@@ -1,73 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { SectionCard } from "../lead/primitives";
 import { PropertyThumb } from "./PropertyThumb";
-import { resolveClientContext, evaluateLocationFit, evaluateApproval, evaluateAmenities, evaluateSpecials, evaluateBudget, evaluateMatchScore, matchScoreTone, normalizeMustHaveAmenities, resolveClientBudget, formatRent, cityMismatch, starFillPercent, formatRating, displayAddress, propertyWebsiteHref, canonicalPropertyKey } from "@bc/companion-shared";
+import { resolveClientContext, evaluateLocationFit, evaluateApproval, evaluateAmenities, evaluateSpecials, evaluateBudget, evaluateMatchScore, matchScoreTone, normalizeMustHaveAmenities, cityMismatch, starFillPercent, formatRating, displayAddress, propertyWebsiteHref, canonicalPropertyKey, selectMatchReasonLines } from "@bc/companion-shared";
 import type { FavoriteDTO, RecommendationDTO, LeadSummaryDTO } from "@bc/companion-shared";
 import type { CurrentProperty } from "@/types";
-
-// Current Property Intelligence (V1) — the four compact rows shown ONLY under the
-// Current Property (never on Recommendations/Favorites). Each is ONE line:
-//   Category: [lead] · [fact] · [fact]   (≤3 pieces after the label; 3 is a MAX)
-// The lead word carries the colored state; facts are terse fragments. Deterministic
-// — no %, no Maps, no AI call. All four rows populate in V1; each self-hides when it
-// has nothing reliable to say (no noisy filler).
-type IntelTone = "good" | "bad" | "unknown" | "moderate" | "none";
-
-// A fact is either a bare fragment ("Second chance") or a LABELLED pair rendered as
-// "Mgmt: Avenue5" — the label carries the same bold treatment as the row category so
-// the row reads as bold labels + regular values throughout.
-type IntelFact = string | { label: string; value: string };
-
-function IntelRow({
-  category,
-  lead,
-  tone = "none",
-  facts = [],
-  rowClass,
-}: {
-  category: string;
-  lead?: string | null;
-  tone?: IntelTone;
-  facts?: (IntelFact | null | undefined)[];
-  /** Optional modifier on the row itself (Specials uses it to tint its concession). */
-  rowClass?: string;
-}) {
-  const clean = facts.filter((f): f is IntelFact => !!f);
-  if (!lead && clean.length === 0) return null; // no reliable data → render nothing
-  return (
-    <div className={`bc-intel-row${rowClass ? ` ${rowClass}` : ""}`}>
-      <span className="bc-intel-cat">{category}:</span>
-      {lead ? <span className={`bc-intel-lead tone-${tone}`}>{lead}</span> : null}
-      {clean.map((f, i) => (
-        <span key={i} className="bc-intel-fact">
-          {lead || i > 0 ? " · " : null}
-          {typeof f === "string" ? (
-            f
-          ) : (
-            <>
-              <span className="bc-intel-fact-label">{f.label}:</span>
-              {f.value}
-            </>
-          )}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-/**
- * Management company — DISPLAY casing ONLY. the external site renders some management names in all
- * caps ("AVENUE5", "WILLOW BRIDGE"); the panel shows normal brand capitalization
- * ("Avenue5", "Willow Bridge"). Applied only when the value has NO lowercase letter,
- * so a deliberately-cased name (Approval's own "Mgmt Support", or a real "LaSalle")
- * passes through untouched. The raw extracted value on CurrentProperty and the
- * Approval evaluator are never modified — this is presentation at the last step.
- */
-function displayMgmt(name: string): string {
-  if (/[a-z]/.test(name)) return name; // already mixed-case → trust it as authored
-  return name.replace(/[A-Z][A-Z0-9'&.-]*/g, (w) => w.charAt(0) + w.slice(1).toLowerCase());
-}
-
 
 // The property name — a link opening the property in a normal browser tab when a
 // canonical propertyUrl exists (the external site ViewProperty URL for detected properties), or
@@ -209,6 +145,7 @@ export function PropertiesView({
   recommendations,
   currentProperty,
   onAddRecommendation,
+  onAddFavorite,
   onMoveToFavorite,
   onMoveToRecommendation,
   onRemoveRecommendation,
@@ -310,7 +247,10 @@ export function PropertiesView({
   // Amenities: the client's OWN requirements that the external site confirms, at the required
   // specificity. No verdict word — the matched amenity IS the intelligence. Empty when
   // nothing client-relevant is confirmed, and the row then hides entirely.
-  const amenities = currentProperty ? evaluateAmenities(ctx, currentProperty.propertyAmenities) : [];
+  // Full labels ("Floor-to-Ceiling Windows", never "FTC Windows") for the reason
+  // line. The match-score amenity COUNT is label-agnostic, so this one call serves
+  // both the feature reason line and the score's confirmed-amenity count.
+  const amenities = currentProperty ? evaluateAmenities(ctx, currentProperty.propertyAmenities, { fullLabels: true }) : [];
   // Specials: the best RENT concession in the external site's specials block (gift cards, fee waivers
   // and footnotes are never shown as rent). Null when the external site rendered no specials element
   // (unknown) or the block states no rent concession — the row then hides. Base Rent /
@@ -348,41 +288,29 @@ export function PropertiesView({
   // evaluateLocationFit explicitly cannot verify proximity without map data — so a
   // drive time is NEVER manufactured. A client's own stated proximity phrase is
   // preserved verbatim.
-  const locationRelation = (() => {
-    if (!location) return null;
-    if (location.verdict === "good") return "Within Preferred Area";
-    if (location.verdict === "bad") return "Outside Preferred Area";
-    if (location.detail === "No location set") return "Area not provided";
-    if (location.detail === "Area not confirmed") return location.detail;
-    return location.detail; // the client's own proximity words, e.g. "Near the Domain"
-  })();
-  /**
-   * Budget DISPLAY copy — presentation only; the evaluator is untouched.
-   *
-   * The "Budget:" label already supplies the context, so the value stays terse and the
-   * client's actual figure carries the detail. "Options within budget" collapses to
-   * "Within budget", and the gap amount drops out of "$125 over budget" so the row is
-   * not two competing money figures.
-   */
-  const budgetCopy = (verdict: string): string => {
-    if (verdict === "Options within budget") return "Within budget";
-    if (/over budget$/.test(verdict)) return "Over budget";
-    return verdict; // "Within budget", "Near budget"
-  };
-
-  // Budget evidence: the verdict is backed by the client's ACTUAL working budget —
-  // the resolved figure (so a confirmed later override is reflected, not just the Smart
-  // Form baseline). A single-value budget prints as one amount, not a range of itself.
-  const clientBudget = resolveClientBudget(ctx);
-  const clientBudgetText = clientBudget
-    ? clientBudget.min === clientBudget.max
-      ? formatRent(clientBudget.max)
-      : `${formatRent(clientBudget.min)} – ${formatRent(clientBudget.max)}`
-    : null;
-
   // Approval: the KEY REASON is the evidence ("Second chance", "1099 friendly").
   // The risk grade itself is folded into the Match %, so it is no longer printed.
   const approvalReason = approval?.reason ?? null;
+
+  // ── "Why I chose this for you" — MIRRORS the Map property card ──────────────
+  // Same shared selector, same decision language, same ≤3 cap. The Companion is
+  // the compact ACTION surface, not a richer profile: it shows the same core data
+  // and reasons as the Map, differing only in the actions below. Budget and Mgmt
+  // are intentionally NOT rendered as lines — Budget still feeds the Match Score,
+  // and Mgmt is property metadata, not a "why this client" reason. Honest to the
+  // data: commute is omitted (no drive-time is ever computed).
+  const reasonLines = currentProperty
+    ? selectMatchReasonLines({
+        location: location?.verdict === "good" ? "Within Preferred Area" : null,
+        approval: approvalReason,
+        features: amenities, // full labels, ≤3 items, collapsed to one line by the selector
+        special: specials?.hasRentConcession ? specials.special : null,
+      })
+    : [];
+
+  // Is the current property already in THIS client's Favorites? Drives the header
+  // heart's filled/active state (mirrors isRecommended's read of recommendations).
+  const isFavorited = !!cpKey && favorites.some((f) => canonicalPropertyKey(f.propertyUrl ?? "") === cpKey);
 
   return (
     <div className="bc-props">
@@ -405,6 +333,24 @@ export function PropertiesView({
             {/* Manual dismiss — clears ONLY the transient Current Property (same
                 storage clear path as a market switch). Quiet at rest, clear on
                 hover; upper-right of the card. */}
+            {/* Favorite — the SAME compact heart control used on Recommendation rows
+                (.bc-prop-move--heart): empty ♡ at rest, red on hover, filled ♥ once in
+                Favorites. An ICON, not a labeled button, so the card stays compact and
+                + Recommend remains the single primary action. Sits in the header just
+                left of the ✕. Reuses the already-wired add-favorite verb — no new path. */}
+            {onAddFavorite && (
+              <button
+                type="button"
+                className={`bc-cp-fav bc-prop-move bc-prop-move--heart${isFavorited ? " is-on" : ""}`}
+                aria-label={isFavorited ? "In this client's Favorites" : "Add to this client's Favorites"}
+                aria-pressed={isFavorited}
+                title={isFavorited ? "In Favorites" : "Add to Favorites"}
+                onClick={() => !isFavorited && onAddFavorite?.()}
+                disabled={isFavorited}
+              >
+                {isFavorited ? "♥" : "♡"}
+              </button>
+            )}
             {onClearCurrentProperty && (
               <button
                 type="button"
@@ -458,40 +404,21 @@ export function PropertiesView({
               </div>
             </div>
 
-            {/* Beast intelligence — four compact rows (~7px below the address). Only
-                rows with reliable evidence render. */}
-            <div className="bc-cp-intel">
-              {/* Location — the match verdict only (Within/Outside Preferred Area);
-                  no city/neighborhood suffix (that is shown elsewhere on the card). */}
-              <IntelRow
-                category="Location"
-                facts={[outsideArea ? "Outside Preferred Area" : locationRelation]}
-              />
-              {budget && <IntelRow category="Budget" facts={[budgetCopy(budget), clientBudgetText]} />}
-              {/* Approval — the key reason, not the grade. */}
-              {approvalReason && <IntelRow category="Approval" facts={[approvalReason]} />}
-              {/* Mgmt — its OWN full-width line, so a long management company is never
-                  squeezed onto the Approval row. */}
-              {approval?.mgmt && <IntelRow category="Mgmt" facts={[displayMgmt(approval.mgmt)]} />}
-              <IntelRow category="Amenities" facts={amenities} />
-              {/* Specials: [special] · Base Rent: [$] · Avg Rent: [$]. V1 shows the rent
-                  concession only — the external site's factsBar carries a property-wide rent RANGE and a
-                  minimum lease, which cannot bind an exact base rent to this concession's
-                  qualifying term, so Base Rent / Avg Rent are omitted rather than guessed. */}
-              {specials && (specials.hasRentConcession || specials.baseRent) && (
-                <IntelRow
-                  category="Specials"
-                  // Amber ONLY when there is an actual concession — a "None" value or a
-                  // bare Base Rent row stays the normal fact colour.
-                  rowClass={specials.hasRentConcession ? "bc-intel-specials" : undefined}
-                  facts={[
-                    specials.special,
-                    specials.baseRent ? { label: "Base Rent", value: specials.baseRent } : null,
-                    specials.avgRent ? { label: "Avg Rent", value: specials.avgRent } : null,
-                  ]}
-                />
-              )}
-            </div>
+            {/* "Why I chose this for you" — up to 3 short personalized reason lines,
+                the SAME shared selector + decision language as the Map property card.
+                Strongest-first (location → commute → approval → features → special);
+                the feature line spells out full labels (e.g. "Floor-to-Ceiling
+                Windows") joined by " · ". Only meaningful reasons appear — never a
+                property-data dump. The first line is emphasized. */}
+            {reasonLines.length > 0 && (
+              <div className="bc-cp-reasons">
+                {reasonLines.map((line, i) => (
+                  <p key={i} className={`bc-cp-reason${i === 0 ? " is-lead" : ""}`}>
+                    {line}
+                  </p>
+                ))}
+              </div>
+            )}
             <div className="bc-current-prop-actions">
               <button
                 type="button"

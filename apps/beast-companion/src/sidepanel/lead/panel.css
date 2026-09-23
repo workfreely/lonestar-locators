@@ -687,6 +687,28 @@
   border-color: color-mix(in srgb, var(--lb-danger, #ef4444) 60%, var(--lb-border));
   background: color-mix(in srgb, var(--lb-danger, #ef4444) 10%, var(--lb-surface-elevated));
 }
+/* Current Property Favorite heart — the SAME .bc-prop-move--heart control the
+   Recommendation rows use, positioned in the card header just LEFT of the ✕ (which
+   is at right:-2px, 22px wide). An icon, never a labeled button. */
+.bc-cp-fav {
+  position: absolute;
+  top: -2px;
+  right: 22px;
+  z-index: 1;
+}
+/* Already a Favorite: filled red heart, calm and non-interactive (mirrors the
+   Recommend action's "on" state). */
+.bc-cp-fav.is-on {
+  color: var(--lb-danger, #ef4444);
+  border-color: color-mix(in srgb, var(--lb-danger, #ef4444) 45%, var(--lb-border));
+  background: color-mix(in srgb, var(--lb-danger, #ef4444) 10%, var(--lb-surface-elevated));
+  cursor: default;
+}
+.bc-cp-fav.is-on:hover {
+  /* stay filled/red — no hover affordance change once it's already a Favorite */
+  color: var(--lb-danger, #ef4444);
+}
+
 /* Why a Favorite can't move back — one terse line, only when blocked. */
 .bc-prop-blocked {
   font-size: 11px;
@@ -867,6 +889,26 @@
 .bc-intel-lead.tone-moderate { color: var(--lb-warning, #f59e0b); }
 .bc-intel-lead.tone-unknown { color: var(--lb-text-secondary); }
 .bc-intel-lead.tone-none { color: var(--lb-text-primary); }
+
+/* "Why I chose this for you" reason lines (Current Property) — mirrors the Map
+   property card: up to 3 short personalized lines, first line emphasized, the rest
+   muted. Same token treatment as the intel rows they replace. */
+.bc-cp-reasons {
+  margin-top: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bc-cp-reason {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--lb-text-secondary);
+  overflow-wrap: break-word;
+}
+.bc-cp-reason.is-lead {
+  font-weight: 600;
+  color: var(--lb-text-primary);
+}
 
 /* Compact add-to-collection actions under the Current Property. */
 .bc-current-prop-actions {

@@ -291,8 +291,17 @@ function isConfirmed(req: Requirement, amenities: PropertyAmenities): boolean {
  * just because the property has it. Missing the external site evidence is unknown, not absent, so an
  * empty array means "nothing to say" and the caller hides the row.
  */
-export function evaluateAmenities(ctx: ClientContext, amenities?: PropertyAmenities | null): string[] {
+export function evaluateAmenities(
+  ctx: ClientContext,
+  amenities?: PropertyAmenities | null,
+  // `fullLabels` returns the full client-facing wording ("Floor-to-Ceiling Windows")
+  // instead of the compact row label ("FTC Windows"). Default (false) preserves the
+  // existing compact IntelRow behaviour; the reason-line cards opt in for spelled-out
+  // labels. Never changes WHICH amenities match — only how they are worded.
+  opts?: { fullLabels?: boolean },
+): string[] {
   const evidence = amenities ?? {};
+  const structuredLabel = opts?.fullLabels ? mustHaveAmenityLabel : mustHaveAmenityShortLabel;
 
   // ── Structured must-haves (primary) ────────────────────────────────────────
   const mustHaves = normalizeMustHaveAmenities(ctx.mustHaveAmenities);
@@ -303,7 +312,7 @@ export function evaluateAmenities(ctx: ClientContext, amenities?: PropertyAmenit
         return req ? isConfirmed(req, evidence) : false; // no rule → cannot confirm
       })
       .slice(0, MAX_AMENITIES)
-      .map(mustHaveAmenityShortLabel);
+      .map(structuredLabel);
   }
 
   // ── Free-text fallback (client stated requirements only in their notes) ─────
@@ -317,5 +326,5 @@ export function evaluateAmenities(ctx: ClientContext, amenities?: PropertyAmenit
   return relevant
     .filter((r) => isConfirmed(r, evidence))
     .slice(0, MAX_AMENITIES)
-    .map((r) => r.label);
+    .map((r) => (opts?.fullLabels && isMustHaveAmenity(r.key) ? mustHaveAmenityLabel(r.key) : r.label));
 }
