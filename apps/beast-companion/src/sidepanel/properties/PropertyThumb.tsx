@@ -1,35 +1,43 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 // Shared Companion property thumbnail — the ONE treatment for Current Property
 // (and, later, Recommendation/Favorite rows). Mirrors the Workspace PropertyThumb
 // (components/crm/PropertyThumb.tsx) building placeholder so the Companion and the
 // CRM show the same fallback; it's re-implemented here (not imported) only because
 // the CRM component uses --crm-* tokens and can't cross the extension build.
-// A missing src OR a load error both fall back to the same clean building
+// Image chain: primary → backup → building placeholder. A missing src, or a load
+// error with no (or an exhausted) backup, falls back to the clean building
 // placeholder — never a broken-image glyph.
 export function PropertyThumb({
   src,
+  backupSrc,
   alt = "",
   size = 46,
 }: {
   src?: string | null;
+  /** Second-ranked photo; tried once if the primary fails to load, before the placeholder. */
+  backupSrc?: string | null;
   alt?: string;
   size?: number;
 }) {
-  const [errored, setErrored] = useState(false);
-  const showImage = !!src && !errored;
+  // 0 = primary, 1 = backup, 2 = failed (placeholder). Reset when the property changes.
+  const [stage, setStage] = useState<0 | 1 | 2>(0);
+  useEffect(() => {
+    setStage(0);
+  }, [src, backupSrc]);
+  const active = stage === 0 ? src || null : stage === 1 ? backupSrc || null : null;
   const dim = { width: size, height: size } as const;
 
-  if (showImage) {
+  if (active) {
     return (
       <div className="bc-prop-thumb" style={dim}>
         <img
-          src={src as string}
+          src={active}
           alt={alt}
           width={size}
           height={size}
           loading="lazy"
-          onError={() => setErrored(true)}
+          onError={() => setStage((s) => (s === 0 && backupSrc ? 1 : 2))}
         />
       </div>
     );

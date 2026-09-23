@@ -24,6 +24,21 @@ export type CatalogRecord = {
    *  when enriched. Display-only; drives the shared PropertyThumb, falls back to the
    *  building icon when null or broken. NEVER stored on lead rows — resolved here. */
   imageUrl: string | null
+  /** Second-ranked verified first-party photo (property_catalog.property_image_url_backup);
+   *  the card tries this if the primary fails to load, before the neutral fallback. */
+  imageUrlBackup: string | null
+  /** Verified current special, VERBATIM master text (property_catalog.current_special).
+   *  Cards normalize it to a short badge via normalizeShortSpecial; never shown raw. */
+  currentSpecial: string | null
+  /** Locator commission, verbatim trusted-master text (never web-inferred). Shown only
+   *  on locator surfaces (Map + Companion), NEVER on the client /r page. */
+  sendCommission: string | null
+  escortCommission: string | null
+  bonusFlat: string | null
+  /** Google review count (property_catalog.google_review_count); display-only, null until populated. */
+  googleReviewCount: number | null
+  /** Record verification time (property_catalog.verified_at) — the special-freshness gate. */
+  verifiedAt: string | null
   // Tour Assist URLs (property_catalog) for the FUTURE Schedule Tour autofill —
   // carried through the read path so the workflow can use them later. Market-agnostic
   // (per place_id); no UI reads them yet. Null until populated.
@@ -68,6 +83,13 @@ export async function fetchCatalog(
         websiteUrl: (r.website_url as string) ?? null,
         googleRating: r.google_rating == null ? null : Number(r.google_rating),
         imageUrl: s(r.property_image_url),
+        imageUrlBackup: s(r.property_image_url_backup),
+        currentSpecial: s(r.current_special),
+        sendCommission: s(r.send_commission),
+        escortCommission: s(r.escort_commission),
+        bonusFlat: s(r.bonus_flat),
+        googleReviewCount: r.google_review_count == null ? null : Number(r.google_review_count),
+        verifiedAt: s(r.verified_at),
         tourUrl: s(r.tour_url),
         applyUrl: s(r.apply_url),
         availabilityUrl: s(r.availability_url),
@@ -127,7 +149,7 @@ export function enrichProperties(
   return properties.map((p) => {
     const c = catalog.get(p.placeId)
     return c
-      ? { ...p, neighborhood: c.neighborhood, location: c.location, locationKeywords: c.locationKeywords, zip: c.zip, websiteUrl: c.websiteUrl, googleRating: c.googleRating, imageUrl: c.imageUrl, tourUrl: c.tourUrl, applyUrl: c.applyUrl, availabilityUrl: c.availabilityUrl }
+      ? { ...p, neighborhood: c.neighborhood, location: c.location, locationKeywords: c.locationKeywords, zip: c.zip, websiteUrl: c.websiteUrl, googleRating: c.googleRating, imageUrl: c.imageUrl, imageUrlBackup: c.imageUrlBackup, currentSpecial: c.currentSpecial, sendCommission: c.sendCommission, escortCommission: c.escortCommission, bonusFlat: c.bonusFlat, googleReviewCount: c.googleReviewCount, verifiedAt: c.verifiedAt, tourUrl: c.tourUrl, applyUrl: c.applyUrl, availabilityUrl: c.availabilityUrl }
       : p
   })
 }

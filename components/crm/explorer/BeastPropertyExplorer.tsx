@@ -13,7 +13,7 @@ import { boundsForMarket, getMarketBySlug, isInsideMarket, isInsideState, isMark
 import { resolveDesiredAreaCenters, searchAreas, mergeDedupeByPlaceId, type AreaCenter } from "@/lib/propertyExplorer/multiArea"
 import { selectInMarketMatch, decideNameSearch, normalizePlace, shouldFetchSuggestions, computeVisible, nameSearchTextQuery, nameMatchesQuery, type NameSearchDecision } from "@/lib/propertyExplorer/nameSearch"
 import { StarRating } from "@/components/crm/StarRating"
-import { canonicalPropertyKey, selectMatchReasonLines, matchScoreTone } from "@bc/companion-shared"
+import { canonicalPropertyKey, selectMatchReasonLines, matchScoreTone, normalizeShortSpecial, isSpecialCurrent, formatLocatorCommission } from "@bc/companion-shared"
 import { createPortal } from "react-dom"
 
 /**
@@ -1014,16 +1014,33 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   //   • special   — the property's current concession
   // matchScore stays the real client-fit value (card.matchScore) and is shown ONLY
   // when populated — never inferred from location fit (that was the old fake 100%).
+  // The current special is NOT a reason line: it is a per-property offer, not a
+  // client-specific reason, so it lives in the green overlay badge on the image
+  // (shortSpecial below), not here — avoiding a duplicate of the badge.
   const reasonLines = card
     ? selectMatchReasonLines({
         location: fit && fit.tone !== "outside" ? fit.label : null,
-        special: card.currentSpecial?.trim() || null,
       })
     : []
   // The ONLY link target for the card's thumbnail / name / Visit Website: the real
   // property website. Never the Google Maps place URL (card.propertyUrl). Null when
   // there is no valid website → those elements are non-clickable, no substitution.
   const siteHref = card ? propertyWebsiteHref(card.websiteUrl) : null
+  // Compact GREEN overlay badge: the normalized SHORT special (e.g. "1 Month Free",
+  // "$200 Gift Card"), from canonical property_catalog.current_special. Shown ONLY
+  // when it normalizes to a short form AND the record is fresh (verified_at within
+  // the freshness window) — never stale/Unknown/raw long text. Null → no badge.
+  const shortSpecial =
+    card && isSpecialCurrent(card.verifiedAt) ? normalizeShortSpecial(card.currentSpecial) : null
+  // Locator-facing commission (Send / Escort / Bonus), verbatim from trusted-master
+  // property_catalog columns. Locator surface only; never on the client /r page.
+  const commissionLine = card
+    ? formatLocatorCommission({
+        sendCommission: card.sendCommission,
+        escortCommission: card.escortCommission,
+        bonusFlat: card.bonusFlat,
+      })
+    : null
 
   if (status === "unconfigured") {
     return (
@@ -1278,10 +1295,28 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
                     src={card.imageUrl}
                     alt={card.propertyName}
                     className="relative h-full w-full object-cover"
+                    data-backup={card.imageUrlBackup ?? ""}
                     onError={(e) => {
-                      e.currentTarget.style.display = "none"
+                      // primary → backup → neutral: try the backup photo once, then
+                      // hide so the building-icon placeholder behind shows. No broken icon.
+                      const img = e.currentTarget
+                      const backup = img.getAttribute("data-backup")
+                      if (backup && img.dataset.triedBackup !== "1") {
+                        img.dataset.triedBackup = "1"
+                        img.src = backup
+                      } else {
+                        img.style.display = "none"
+                      }
                     }}
                   />
+                )}
+                {/* Verified current special — compact green overlay, bottom-left,
+                    clear of the top-right ✕. Normalized short form only; hidden
+                    when absent/stale/unverified. */}
+                {shortSpecial && (
+                  <span className="pointer-events-none absolute bottom-2 left-2 z-[1] rounded-md bg-[#136c3a] px-2 py-[3px] text-[11px] font-semibold leading-none text-white shadow-sm">
+                    {shortSpecial}
+                  </span>
                 )}
               </div>
             )
@@ -1325,6 +1360,14 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
               </span>
               <StarRating value={card.googleRating} />
             </div>
+          )}
+          {/* Locator commission (Send / Escort / Bonus) — operational locator info
+              from trusted-master canonical data, compact. Locator surface only;
+              this NEVER appears on the client /r recommendation page. */}
+          {commissionLine && (
+            <p className="mt-1 text-[12px] font-medium leading-tight text-[#3a4658]">
+              <span className="text-[#6b7280]">Commission:</span> {commissionLine}
+            </p>
           )}
           {/* Match Score — the REAL client-fit percentage only (card.matchScore),
               shown when the client-fit engine has populated it, toned like the

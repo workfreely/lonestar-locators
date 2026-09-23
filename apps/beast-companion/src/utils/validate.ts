@@ -178,14 +178,28 @@ export function isValidEnrichResultPayload(
   placeId: string | null
   googleRating: number | null
   propertyImageUrl: string | null
+  propertyImageUrlBackup: string | null
   websiteUrl: string | null
+  currentSpecial: string | null
+  sendCommission: string | null
+  escortCommission: string | null
+  bonusFlat: string | null
+  verifiedAt: string | null
 } {
   if (!payload || typeof payload !== "object") return false;
   const p = payload as Record<string, unknown>;
   if (!idOk(p.nonce, 128)) return false;
   if (p.placeId !== null && !idOk(p.placeId)) return false;
   if (p.propertyImageUrl !== null && !idOk(p.propertyImageUrl, MAX_TEXT)) return false;
+  if (p.propertyImageUrlBackup !== null && p.propertyImageUrlBackup !== undefined && !idOk(p.propertyImageUrlBackup, MAX_TEXT)) return false;
   if (p.websiteUrl !== null && !idOk(p.websiteUrl, MAX_TEXT)) return false;
+  // Canonical card fields (present-and-bounded or null/undefined). currentSpecial is
+  // verbatim master text (can be long) → MAX_TEXT; commission + verifiedAt are short.
+  if (p.currentSpecial !== null && p.currentSpecial !== undefined && !idOk(p.currentSpecial, MAX_TEXT)) return false;
+  if (p.sendCommission !== null && p.sendCommission !== undefined && !idOk(p.sendCommission)) return false;
+  if (p.escortCommission !== null && p.escortCommission !== undefined && !idOk(p.escortCommission)) return false;
+  if (p.bonusFlat !== null && p.bonusFlat !== undefined && !idOk(p.bonusFlat)) return false;
+  if (p.verifiedAt !== null && p.verifiedAt !== undefined && !idOk(p.verifiedAt)) return false;
   if (
     p.googleRating !== null &&
     (typeof p.googleRating !== "number" ||

@@ -132,7 +132,18 @@ export function ProductionPanel() {
   // up property_catalog, then merge the catalog-only answer (rating / website /
   // image) into what we display. Cached per property so the same the external site property never
   // re-triggers a Places resolution (debounce); in-flight guard prevents duplicates.
-  type ExternalEnrich = { placeId: string | null; googleRating: number | null; propertyImageUrl: string | null; websiteUrl: string | null };
+  type ExternalEnrich = {
+    placeId: string | null;
+    googleRating: number | null;
+    propertyImageUrl: string | null;
+    propertyImageUrlBackup: string | null;
+    websiteUrl: string | null;
+    currentSpecial: string | null;
+    sendCommission: string | null;
+    escortCommission: string | null;
+    bonusFlat: string | null;
+    verifiedAt: string | null;
+  };
   const enrichCacheRef = useRef<Map<string, ExternalEnrich>>(new Map());
   const enrichInflightRef = useRef<Set<string>>(new Set());
   const enrichPendingRef = useRef<Map<string, string>>(new Map()); // nonce → cache key
@@ -370,11 +381,18 @@ export function ProductionPanel() {
       if (!key) return; // stale or not ours
       enrichPendingRef.current.delete(res.nonce);
       enrichInflightRef.current.delete(key);
+      const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
       enrichCacheRef.current.set(key, {
         placeId: typeof res.placeId === "string" ? res.placeId : null,
         googleRating: typeof res.googleRating === "number" ? res.googleRating : null,
-        propertyImageUrl: typeof res.propertyImageUrl === "string" ? res.propertyImageUrl : null,
-        websiteUrl: typeof res.websiteUrl === "string" ? res.websiteUrl : null,
+        propertyImageUrl: str(res.propertyImageUrl),
+        propertyImageUrlBackup: str(res.propertyImageUrlBackup),
+        websiteUrl: str(res.websiteUrl),
+        currentSpecial: str(res.currentSpecial),
+        sendCommission: str(res.sendCommission),
+        escortCommission: str(res.escortCommission),
+        bonusFlat: str(res.bonusFlat),
+        verifiedAt: str(res.verifiedAt),
       });
       setEnrichTick((t) => t + 1);
     };
@@ -446,6 +464,14 @@ export function ProductionPanel() {
       googleRating: e.googleRating ?? currentProperty.googleRating ?? null,
       websiteUrl: e.websiteUrl ?? currentProperty.websiteUrl ?? null,
       propertyImageUrl: e.propertyImageUrl ?? currentProperty.propertyImageUrl ?? null,
+      // Canonical card fields (Step 6) — backup photo, verified special, and locator
+      // commission from property_catalog. Locator surface only; never client-facing.
+      propertyImageUrlBackup: e.propertyImageUrlBackup ?? currentProperty.propertyImageUrlBackup ?? null,
+      propertyCurrentSpecial: e.currentSpecial ?? currentProperty.propertyCurrentSpecial ?? null,
+      sendCommission: e.sendCommission ?? currentProperty.sendCommission ?? null,
+      escortCommission: e.escortCommission ?? currentProperty.escortCommission ?? null,
+      bonusFlat: e.bonusFlat ?? currentProperty.bonusFlat ?? null,
+      catalogVerifiedAt: e.verifiedAt ?? currentProperty.catalogVerifiedAt ?? null,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- enrichTick forces recompute after an async result fills the ref cache
   }, [currentProperty, enrichTick]);

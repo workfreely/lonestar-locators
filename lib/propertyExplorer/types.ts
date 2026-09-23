@@ -81,6 +81,10 @@ export type ExplorerProperty = {
    *  by Place ID. Drives the shared PropertyThumb on the map card + Current Property;
    *  ABSENT/broken → building icon. Display-only — never affects ranking or search. */
   imageUrl?: string | null
+  /** Second-ranked verified first-party photo, from property_catalog.property_image_url_backup.
+   *  The card tries this if the primary fails to load, BEFORE the neutral building-icon
+   *  fallback (primary → backup → fallback). Display-only. */
+  imageUrlBackup?: string | null
   // Tour Assist URLs (property_catalog), by Place ID — carried for the FUTURE Beast
   // Companion Schedule Tour autofill. OPTIONAL/ADDITIVE; no UI reads them yet, and
   // they never affect ranking, search, or the Recommendation/Favorite workflow.
@@ -99,8 +103,20 @@ export type ExplorerProperty = {
   /** Locator commission, when known. Structured so it can later carry a percent
    *  and/or flat/bonus dollars without committing to one display format now. */
   commission?: PropertyCommission | null
-  /** A current concession/special (e.g. "1 month free"), when known. */
+  /** Locator commission, VERBATIM trusted-master text from property_catalog
+   *  (send_commission / escort_commission / bonus_flat). Shown only on locator
+   *  surfaces (Map + Companion), NEVER on the client /r page. Never web-inferred.
+   *  Formatted for display via formatLocatorCommission (@bc/companion-shared). */
+  sendCommission?: string | null
+  escortCommission?: string | null
+  bonusFlat?: string | null
+  /** A current concession/special, VERBATIM master text (property_catalog.current_special).
+   *  Rendered as a compact short badge via normalizeShortSpecial; never shown raw. */
   currentSpecial?: string | null
+  /** Record verification time (property_catalog.verified_at) — the special-freshness gate. */
+  verifiedAt?: string | null
+  /** Google review count (property_catalog.google_review_count); display-only, when catalogued. */
+  googleReviewCount?: number | null
 }
 
 /**

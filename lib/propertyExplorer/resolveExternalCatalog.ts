@@ -28,7 +28,17 @@ export type ExternalCatalogEnrichment = {
   placeId: string
   googleRating: number | null
   propertyImageUrl: string | null
+  /** Canonical backup photo — the Companion card tries this if the primary fails to load. */
+  propertyImageUrlBackup: string | null
   websiteUrl: string | null
+  /** Verified current special, VERBATIM master text; the card normalizes it to a short badge. */
+  currentSpecial: string | null
+  /** Locator commission, verbatim trusted-master text (never web-inferred). Locator surface only. */
+  sendCommission: string | null
+  escortCommission: string | null
+  bonusFlat: string | null
+  /** property_catalog.verified_at — the special-freshness gate. */
+  verifiedAt: string | null
 }
 
 export async function resolveExternalCatalog(
@@ -65,6 +75,12 @@ export async function resolveExternalCatalog(
     placeId: match.placeId,
     googleRating: rec?.googleRating ?? null,
     propertyImageUrl: rec?.imageUrl ?? null,
+    propertyImageUrlBackup: rec?.imageUrlBackup ?? null,
     websiteUrl: rec?.websiteUrl ?? null,
+    currentSpecial: rec?.currentSpecial ?? null,
+    sendCommission: rec?.sendCommission ?? null,
+    escortCommission: rec?.escortCommission ?? null,
+    bonusFlat: rec?.bonusFlat ?? null,
+    verifiedAt: rec?.verifiedAt ?? null,
   }
 }

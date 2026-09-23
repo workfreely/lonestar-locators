@@ -759,8 +759,18 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         placeId: string | null
         googleRating: number | null
         propertyImageUrl: string | null
+        propertyImageUrlBackup: string | null
         websiteUrl: string | null
-      } = { nonce, placeId: null, googleRating: null, propertyImageUrl: null, websiteUrl: null }
+        currentSpecial: string | null
+        sendCommission: string | null
+        escortCommission: string | null
+        bonusFlat: string | null
+        verifiedAt: string | null
+      } = {
+        nonce, placeId: null, googleRating: null, propertyImageUrl: null,
+        propertyImageUrlBackup: null, websiteUrl: null, currentSpecial: null,
+        sendCommission: null, escortCommission: null, bonusFlat: null, verifiedAt: null,
+      }
       try {
         const enrichment = await resolveExternalCatalog(name, address, supabase)
         if (enrichment) {
@@ -769,7 +779,13 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             placeId: enrichment.placeId,
             googleRating: enrichment.googleRating,
             propertyImageUrl: enrichment.propertyImageUrl,
+            propertyImageUrlBackup: enrichment.propertyImageUrlBackup,
             websiteUrl: enrichment.websiteUrl,
+            currentSpecial: enrichment.currentSpecial,
+            sendCommission: enrichment.sendCommission,
+            escortCommission: enrichment.escortCommission,
+            bonusFlat: enrichment.bonusFlat,
+            verifiedAt: enrichment.verifiedAt,
           }
         }
       } catch (err) {

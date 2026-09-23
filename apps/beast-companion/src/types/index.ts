@@ -102,6 +102,23 @@ export type CurrentProperty = {
   source?: "google_places" | "external_property_platform";
   /** Catalog slug for the market the property was found in, when known. */
   marketSlug?: string | null;
+
+  // ── Canonical property_catalog card fields (Step 6 wiring) ─────────────────
+  // Filled by the CRM enrichment round-trip (place_id → property_catalog). OPTIONAL;
+  // absent until enrichment resolves. LOCATOR-facing card only — never sent to /r.
+  /** Second-ranked verified first-party photo; the card tries it if the primary fails
+   *  to load, before the building-icon fallback (primary → backup → fallback). */
+  propertyImageUrlBackup?: string | null;
+  /** Verified current special, VERBATIM master text (property_catalog.current_special).
+   *  Rendered as a compact short badge via normalizeShortSpecial; never shown raw.
+   *  Distinct from `propertySpecials` (raw scraped specials block from the site DOM). */
+  propertyCurrentSpecial?: string | null;
+  /** Locator commission, verbatim trusted-master text (never web-inferred). */
+  sendCommission?: string | null;
+  escortCommission?: string | null;
+  bonusFlat?: string | null;
+  /** property_catalog.verified_at — the special-freshness gate. */
+  catalogVerifiedAt?: string | null;
 };
 
 /** Content → Background: open the global native side panel for the sender's window. */

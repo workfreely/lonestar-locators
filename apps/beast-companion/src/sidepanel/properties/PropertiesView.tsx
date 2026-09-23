@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { SectionCard } from "../lead/primitives";
 import { PropertyThumb } from "./PropertyThumb";
-import { resolveClientContext, evaluateLocationFit, evaluateApproval, evaluateAmenities, evaluateSpecials, evaluateBudget, evaluateMatchScore, matchScoreTone, normalizeMustHaveAmenities, cityMismatch, starFillPercent, formatRating, displayAddress, propertyWebsiteHref, canonicalPropertyKey, selectMatchReasonLines, FEATURE_SEPARATOR } from "@bc/companion-shared";
+import { resolveClientContext, evaluateLocationFit, evaluateApproval, evaluateAmenities, evaluateBudget, evaluateMatchScore, matchScoreTone, normalizeMustHaveAmenities, cityMismatch, starFillPercent, formatRating, displayAddress, propertyWebsiteHref, canonicalPropertyKey, selectMatchReasonLines, normalizeShortSpecial, isSpecialCurrent, formatLocatorCommission, FEATURE_SEPARATOR } from "@bc/companion-shared";
 import type { FavoriteDTO, RecommendationDTO, LeadSummaryDTO } from "@bc/companion-shared";
 import type { CurrentProperty } from "@/types";
 
@@ -251,14 +251,10 @@ export function PropertiesView({
   // line. The match-score amenity COUNT is label-agnostic, so this one call serves
   // both the feature reason line and the score's confirmed-amenity count.
   const amenities = currentProperty ? evaluateAmenities(ctx, currentProperty.propertyAmenities, { fullLabels: true }) : [];
-  // Specials: the best RENT concession in the external site's specials block (gift cards, fee waivers
-  // and footnotes are never shown as rent). Null when the external site rendered no specials element
-  // (unknown) or the block states no rent concession — the row then hides. Base Rent /
-  // Avg Rent stay omitted until an exact rent can be bound to the qualifying term.
-  const specials =
-    currentProperty?.propertySpecials != null
-      ? evaluateSpecials({ lines: currentProperty.propertySpecials })
-      : null;
+  // The current special is now shown as the canonical GREEN badge (shortSpecial,
+  // above) sourced from property_catalog.current_special — not from the raw scraped
+  // specials block, and not as a reason line. The scraped specials still feed the
+  // budget TOLERANCE below (evaluateBudget reads propertySpecials directly).
 
   // The property sits outside the client's stated location criteria. This scores the
   // LOCATION dimension poorly — it is NOT an overall disqualifier, because apartment
@@ -336,14 +332,35 @@ export function PropertiesView({
   // are intentionally NOT rendered as lines — Budget still feeds the Match Score,
   // and Mgmt is property metadata, not a "why this client" reason. Honest to the
   // data: commute is omitted (no drive-time is ever computed).
+  // The special is NOT a reason line: it is a per-property offer, not a client-
+  // specific reason. It renders as the compact GREEN badge below (shortSpecial),
+  // mirroring the Map card — so it is dropped from these reasons to avoid a duplicate.
   const reasonLines = currentProperty
     ? selectMatchReasonLines({
         location: location?.verdict === "good" ? "Within Preferred Area" : null,
         approval: approvalReason,
         features: featureLabels, // full labels; fit-checked to 3 or 2 (never wraps)
-        special: specials?.hasRentConcession ? specials.special : null,
       })
     : [];
+
+  // Canonical verified current special → normalized SHORT badge (e.g. "1 Month Free",
+  // "$200 Gift Card"), from property_catalog.current_special via the enrichment
+  // round-trip. Shown ONLY when it normalizes AND the record is fresh (verified_at
+  // within the window) — never stale/Unknown/raw long text. Distinct from the raw
+  // scraped `propertySpecials` block. Null → no badge.
+  const shortSpecial =
+    currentProperty && isSpecialCurrent(currentProperty.catalogVerifiedAt)
+      ? normalizeShortSpecial(currentProperty.propertyCurrentSpecial)
+      : null;
+  // Locator commission (Send / Escort / Bonus) — verbatim trusted-master canonical
+  // data, compact. Locator surface only; never shown to the client.
+  const commissionLine = currentProperty
+    ? formatLocatorCommission({
+        sendCommission: currentProperty.sendCommission,
+        escortCommission: currentProperty.escortCommission,
+        bonusFlat: currentProperty.bonusFlat,
+      })
+    : null;
 
   // Is the current property already in THIS client's Favorites? Drives the header
   // heart's filled/active state (mirrors isRecommended's read of recommendations).
@@ -403,7 +420,7 @@ export function PropertiesView({
                 immediately below. The intelligence rows sit outside this block so
                 the thumbnail never centers against the whole analysis area. */}
             <div className="bc-current-prop">
-              <PropertyThumb src={currentProperty.propertyImageUrl} alt={currentProperty.propertyName} size={48} />
+              <PropertyThumb src={currentProperty.propertyImageUrl} backupSrc={currentProperty.propertyImageUrlBackup} alt={currentProperty.propertyName} size={48} />
               <div className="bc-current-prop-body">
                 <PropertyName
                   name={currentProperty.propertyName}
@@ -436,6 +453,20 @@ export function PropertiesView({
                         ★★★★★
                       </span>
                     </span>
+                  </div>
+                )}
+                {/* Verified current special — compact GREEN chip (normalized short
+                    form; hidden when absent/stale/unverified). The Companion card
+                    uses a compact thumbnail rather than a hero image, so the special
+                    is a header chip here, not an image overlay (same green treatment
+                    and same canonical source as the Map card's overlay badge). */}
+                {shortSpecial && <div className="bc-cp-special">{shortSpecial}</div>}
+                {/* Locator commission (Send / Escort / Bonus) — operational locator
+                    info from trusted-master canonical data. Locator surface only;
+                    NEVER shown on the client /r recommendation page. */}
+                {commissionLine && (
+                  <div className="bc-cp-commission">
+                    <span className="bc-cp-commission-label">Commission:</span> {commissionLine}
                   </div>
                 )}
               </div>
