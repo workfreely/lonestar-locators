@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Beast Companion — Current Property QA (dev only)</title>
+    <style>
+      html, body { margin: 0; }
+      /* Sit the card on the panel surface so the render matches the shipped panel. */
+      body {
+        background: var(--lb-surface, #0f1420);
+        min-height: 100vh;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./currentPropertyCard.qa.tsx"></script>
+  </body>
+</html>

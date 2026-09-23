@@ -900,6 +900,7 @@
   gap: 2px;
 }
 .bc-cp-reason {
+  margin: 0; /* reset the UA <p> margin so the reason lines stay tight (gap-controlled) */
   font-size: 12px;
   line-height: 1.35;
   color: var(--lb-text-secondary);
@@ -908,6 +909,20 @@
 .bc-cp-reason.is-lead {
   font-weight: 600;
   color: var(--lb-text-primary);
+}
+/* Feature reason line — COMPANION ONLY (the Map card is untouched). It must ALWAYS
+   be one clean line: never wrap, never split a feature name, never abbreviate. To
+   fit up to 3 full labels in the narrow side panel we shrink ONLY this line (not the
+   card): a slightly smaller font, a hair of negative letter-spacing, and tighter
+   spaces around the " · " separators (negative word-spacing, so the separator string
+   is unchanged and shared with the Map). If 3 still don't fit at the supported
+   minimum width, the card drops to the 2 strongest features rather than wrapping. */
+.bc-cp-reason--features {
+  white-space: nowrap;
+  overflow: hidden;
+  font-size: 11px;
+  letter-spacing: -0.01em;
+  word-spacing: -1.5px;
 }
 
 /* Compact add-to-collection actions under the Current Property. */

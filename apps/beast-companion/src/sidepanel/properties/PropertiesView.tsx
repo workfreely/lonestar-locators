@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { SectionCard } from "../lead/primitives";
 import { PropertyThumb } from "./PropertyThumb";
-import { resolveClientContext, evaluateLocationFit, evaluateApproval, evaluateAmenities, evaluateSpecials, evaluateBudget, evaluateMatchScore, matchScoreTone, normalizeMustHaveAmenities, cityMismatch, starFillPercent, formatRating, displayAddress, propertyWebsiteHref, canonicalPropertyKey, selectMatchReasonLines } from "@bc/companion-shared";
+import { resolveClientContext, evaluateLocationFit, evaluateApproval, evaluateAmenities, evaluateSpecials, evaluateBudget, evaluateMatchScore, matchScoreTone, normalizeMustHaveAmenities, cityMismatch, starFillPercent, formatRating, displayAddress, propertyWebsiteHref, canonicalPropertyKey, selectMatchReasonLines, FEATURE_SEPARATOR } from "@bc/companion-shared";
 import type { FavoriteDTO, RecommendationDTO, LeadSummaryDTO } from "@bc/companion-shared";
 import type { CurrentProperty } from "@/types";
 
@@ -292,6 +292,43 @@ export function PropertiesView({
   // The risk grade itself is folded into the Match %, so it is no longer printed.
   const approvalReason = approval?.reason ?? null;
 
+  // Feature line fit (Companion narrow side panel). The feature line must ALWAYS be
+  // one clean line — never wrap, split a label, or abbreviate. We keep up to 3 full
+  // labels, but when 3 don't fit on one line at the current panel width (e.g. the
+  // long "Floor-to-Ceiling Windows" combo), we drop to the 2 STRONGEST features
+  // rather than wrapping. `featureCount` is decided by an actual measurement below
+  // (self-calibrating to whatever width the panel is), so shorter combos keep all 3.
+  const reasonsRef = useRef<HTMLDivElement | null>(null);
+  const featureMeasureRef = useRef<HTMLSpanElement | null>(null);
+  const allFeatures = amenities.slice(0, 3);
+  const fullFeatureText = allFeatures.join(FEATURE_SEPARATOR);
+  const [featureCount, setFeatureCount] = useState(3);
+  useLayoutEffect(() => {
+    if (allFeatures.length < 3) {
+      setFeatureCount(allFeatures.length);
+      return;
+    }
+    const measure = () => {
+      const container = reasonsRef.current;
+      const probe = featureMeasureRef.current;
+      if (!container || !probe) return;
+      // The hidden probe holds the full 3-feature line with the SAME styling. Require
+      // it to fit with BREATHING ROOM (≤ 90% of the line width) — an edge-to-edge fit
+      // reads as cramped, so that counts as "doesn't fit cleanly" and we drop to the
+      // 2 strongest features. Result: genuinely narrow panels show 2, roomier panels
+      // show all 3 — never a wrap, split, or abbreviation.
+      const CLEAN_FILL = 0.9;
+      setFeatureCount(probe.getBoundingClientRect().width <= container.clientWidth * CLEAN_FILL ? 3 : 2);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (reasonsRef.current) ro.observe(reasonsRef.current);
+    return () => ro.disconnect();
+  }, [fullFeatureText, allFeatures.length]);
+
+  const featureLabels = amenities.slice(0, Math.min(featureCount, 3));
+  const featureLineText = featureLabels.length ? featureLabels.join(FEATURE_SEPARATOR) : null;
+
   // ── "Why I chose this for you" — MIRRORS the Map property card ──────────────
   // Same shared selector, same decision language, same ≤3 cap. The Companion is
   // the compact ACTION surface, not a richer profile: it shows the same core data
@@ -303,7 +340,7 @@ export function PropertiesView({
     ? selectMatchReasonLines({
         location: location?.verdict === "good" ? "Within Preferred Area" : null,
         approval: approvalReason,
-        features: amenities, // full labels, ≤3 items, collapsed to one line by the selector
+        features: featureLabels, // full labels; fit-checked to 3 or 2 (never wraps)
         special: specials?.hasRentConcession ? specials.special : null,
       })
     : [];
@@ -411,12 +448,30 @@ export function PropertiesView({
                 Windows") joined by " · ". Only meaningful reasons appear — never a
                 property-data dump. The first line is emphasized. */}
             {reasonLines.length > 0 && (
-              <div className="bc-cp-reasons">
+              <div className="bc-cp-reasons" ref={reasonsRef}>
                 {reasonLines.map((line, i) => (
-                  <p key={i} className={`bc-cp-reason${i === 0 ? " is-lead" : ""}`}>
+                  <p
+                    key={i}
+                    className={
+                      `bc-cp-reason${i === 0 ? " is-lead" : ""}` +
+                      (featureLineText && line === featureLineText ? " bc-cp-reason--features" : "")
+                    }
+                  >
                     {line}
                   </p>
                 ))}
+                {/* Hidden probe — the full 3-feature line, same styling, used only to
+                    measure whether 3 fit on one line at the current width. */}
+                {allFeatures.length >= 3 && (
+                  <span
+                    ref={featureMeasureRef}
+                    className="bc-cp-reason--features"
+                    aria-hidden
+                    style={{ position: "absolute", visibility: "hidden", pointerEvents: "none", left: -9999, top: 0 }}
+                  >
+                    {fullFeatureText}
+                  </span>
+                )}
               </div>
             )}
             <div className="bc-current-prop-actions">
