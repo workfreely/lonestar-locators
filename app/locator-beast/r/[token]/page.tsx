@@ -305,7 +305,7 @@ const CSS = `
 .lbr-heart{width:46px;height:46px}
 .lbr-heart svg{width:25px;height:25px}
 /* Footer/legal: keep secondary but comfortably legible (shared Footer forces 11px). */
-.lbr-legal .slf-compact a,.lbr-legal .slf-compact span{font-size:13.5px!important}
+.lbr-legal .slf-compact a,.lbr-legal .slf-compact span{font-size:19px!important}
 /* Disclosure links wrap to separate rows on mobile at the approved size — drop the
    trailing separator dot so no dangling "·" hangs after Information About Brokerage
    Services. Targets only the dot that trails a disclosure link (an external
@@ -330,12 +330,12 @@ const CSS = `
 .lbr-steps--roadmap{margin:0 0 16px;padding:15px 16px}
 /* Next Steps mobile sizes live on the --roadmap selectors (the ones that WIN over the
    generic .lbr-steps mobile rules), so the intended sizes actually apply. */
-.lbr-steps--roadmap h2{font-size:22px;margin:0 0 12px}
-.lbr-steps--roadmap ol{flex-direction:column;gap:12px}
-.lbr-steps--roadmap li{flex:none;gap:12px;align-items:flex-start}
-.lbr-steps--roadmap .lbr-n{width:34px;height:34px;font-size:16px}
-.lbr-steps--roadmap b{font-size:18px}
-.lbr-steps--roadmap span{font-size:16px}
+.lbr-steps--roadmap h2{font-size:26px;margin:0 0 14px}
+.lbr-steps--roadmap ol{flex-direction:column;gap:14px}
+.lbr-steps--roadmap li{flex:none;gap:14px;align-items:flex-start}
+.lbr-steps--roadmap .lbr-n{width:38px;height:38px;font-size:18px}
+.lbr-steps--roadmap b{font-size:20px}
+.lbr-steps--roadmap span{font-size:18px}
 /* Done CTA: full-width, prominent, ~54px; count/copy sized for phone legibility. */
 .lbr-done-count{font-size:15.5px}
 .lbr-done-btn{width:100%;min-height:54px;font-size:18px}

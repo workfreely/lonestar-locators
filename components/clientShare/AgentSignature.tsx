@@ -45,30 +45,30 @@ export default function AgentSignature({
         <img
           src={photoUrl}
           alt={name}
-          className="mx-auto h-[104px] w-[104px] rounded-full border-[5px] border-white bg-[#dbe3ee] object-cover shadow-[0_14px_34px_-18px_rgba(14,37,69,0.5)]"
+          className="mx-auto h-[140px] w-[140px] rounded-full border-[5px] border-white bg-[#dbe3ee] object-cover shadow-[0_14px_34px_-18px_rgba(14,37,69,0.5)] sm:h-[104px] sm:w-[104px]"
         />
       ) : (
         <div
           aria-hidden
-          className="mx-auto flex h-[104px] w-[104px] items-center justify-center rounded-full border-[5px] border-white text-[40px] font-extrabold text-white shadow-[0_14px_34px_-18px_rgba(14,37,69,0.5)]"
+          className="mx-auto flex h-[140px] w-[140px] items-center justify-center rounded-full border-[5px] border-white text-[54px] font-extrabold text-white shadow-[0_14px_34px_-18px_rgba(14,37,69,0.5)] sm:h-[104px] sm:w-[104px] sm:text-[40px]"
           style={{ background: "linear-gradient(135deg,#22406e,#16305a)" }}
         >
           {initial}
         </div>
       )}
-      <div className={`${caveat.className} mt-3 text-[34px] leading-[0.9] text-[#0e2545]`}>{name}</div>
-      {title ? <div className="mt-1.5 text-[13.5px] font-semibold text-[#3a4658] sm:text-[17px]">{title}</div> : null}
-      {brokerage ? <div className="mt-0.5 text-[13px] text-[#7a869a] sm:text-[16px]">{brokerage}</div> : null}
+      <div className={`${caveat.className} mt-3 text-[50px] leading-[0.9] text-[#0e2545] sm:text-[34px]`}>{name}</div>
+      {title ? <div className="mt-1.5 text-[20px] font-semibold text-[#3a4658] sm:text-[17px]">{title}</div> : null}
+      {brokerage ? <div className="mt-0.5 text-[19px] text-[#7a869a] sm:text-[16px]">{brokerage}</div> : null}
       {markets.length > 0 ? (
         // Subordinate profile info — small + muted, sized to fit the configured markets on ONE
         // centered line at normal mobile widths (full names + · separators preserved, never
         // abbreviated). It wraps rather than scrolling if a very long market list can't fit.
-        <div className="-mx-4 mt-1.5 text-[11px] leading-snug text-[#7a869a] sm:mx-0 sm:text-[12px]">
+        <div className="-mx-4 mt-1.5 text-[16px] leading-snug text-[#7a869a] sm:mx-0 sm:text-[12px]">
           Serving {markets.join(" · ")}
         </div>
       ) : null}
       {/* Intentional breathing room before the handwritten tagline (the final identity element). */}
-      <div className={`${caveat.className} mt-5 text-[22px] text-[#0e2545] opacity-90`}>{tagline}</div>
+      <div className={`${caveat.className} mt-5 text-[24px] text-[#0e2545] opacity-90 sm:text-[22px]`}>{tagline}</div>
     </div>
   )
 }

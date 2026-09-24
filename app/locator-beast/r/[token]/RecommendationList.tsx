@@ -360,7 +360,7 @@ export default function RecommendationList({
 
     {/* Pricing/availability qualifier — belongs with the property recommendations it qualifies,
         so it sits immediately after the grid and before the availability CTA. Subtle + secondary. */}
-    <p className="lbr-disclaimer">Pricing and availability can change daily. Specials may not be reflected in advertised base rent.</p>
+    <p className="lbr-disclaimer">Pricing and availability subject to change. Specials may not be reflected in advertised rent.</p>
 
     {/* Done Selecting Favorites — the primary conversion CTA. Hidden at 0 favorites;
         NOT sticky. On success the Tour Availability modal opens immediately. */}
@@ -398,7 +398,6 @@ export default function RecommendationList({
     {done && !modalOpen && !availability && (
       <div className="lbr-done">
         <button type="button" className="lbr-done-btn" onClick={() => setModalOpen(true)}>Choose Tour Availability</button>
-        <p className="lbr-done-copy">Let me know when you&rsquo;re generally free and I&rsquo;ll coordinate the tours.</p>
       </div>
     )}
 
