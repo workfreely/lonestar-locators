@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { hashShareToken, looksLikeShareToken } from "@/lib/clientShare/token"
 import { mergeSmartFormConfig } from "@/app/smart-lead-form/_lib/mergeConfig"
 import AgentSignature from "@/components/clientShare/AgentSignature"
+import PausedResumeCard from "./PausedResumeCard"
 import Footer from "@/app/smart-lead-form/_components/form/sections/Footer"
 import RecommendationList, { type ClientProperty } from "./RecommendationList"
 import type { TourType, TourWindow } from "@bc/companion-shared"
@@ -205,7 +206,10 @@ const CSS = `
    radius). Sits where the recommendations normally appear. Mobile sizes bump below. */
 .lbr-paused{max-width:520px;margin:6px auto 0;background:#fff;border:1px solid var(--line);border-radius:18px;padding:30px 28px;text-align:center;box-shadow:0 20px 60px -44px rgba(14,37,69,.4)}
 .lbr-paused-body{font-size:15px;color:var(--muted);margin:0 auto;max-width:390px;line-height:1.6}
-.lbr-paused-btn{display:inline-flex;align-items:center;justify-content:center;min-height:48px;margin-top:20px;background:var(--navy);color:#fff;font-weight:700;font-size:15px;text-decoration:none;padding:12px 24px;border-radius:12px}
+.lbr-paused-btn{display:inline-flex;align-items:center;justify-content:center;min-height:48px;margin-top:20px;background:var(--navy);color:#fff;font-weight:700;font-size:15px;text-decoration:none;padding:12px 24px;border-radius:12px;appearance:none;border:none;cursor:pointer;font-family:inherit}
+.lbr-paused-btn:disabled{opacity:.6;cursor:default}
+.lbr-paused-title{font-size:19px;font-weight:800;color:var(--navy);margin:0 0 8px}
+.lbr-paused-err{font-size:13.5px;color:#c0264b;margin:14px 0 0}
 /* DONE SELECTING FAVORITES — primary conversion CTA (theme token, never hard-coded). */
 .lbr-done{margin:22px 0 0;text-align:center}
 .lbr-done-count{font-size:14px;font-weight:700;color:var(--navy);margin:0 0 10px}
@@ -420,8 +424,9 @@ function LegalFooter({ config }: { config: unknown }) {
 // property data is present here (the resolver returns none when disabled). Reversible: the
 // same link returns to the active experience the moment the locator re-activates.
 function PausedScreen({
-  heroImg, agentName, agentFirst, agentTitle, brokerage, photo, serviceAreas, phone, email, config,
+  token, heroImg, agentName, agentFirst, agentTitle, brokerage, photo, serviceAreas, phone, config,
 }: {
+  token: string
   heroImg: string
   agentName: string
   agentFirst: string
@@ -430,13 +435,8 @@ function PausedScreen({
   photo: string | null
   serviceAreas: string | null
   phone: string | null
-  email: string | null
   config: unknown
 }) {
-  // Contact action = the existing client-facing behavior: the agent's phone as a tel: link
-  // (same as the signature), with a mailto: fallback. No new communication system.
-  const tel = (phone ?? "").replace(/[^0-9+]/g, "")
-  const contactHref = tel ? `tel:${tel}` : email ? `mailto:${email.trim()}` : null
   return (
     <div className={`${inter.variable} ${caveat.variable} lbr-root`}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
@@ -449,16 +449,10 @@ function PausedScreen({
           </div>
         </section>
 
-        {/* Single paused-state card where the recommendations normally appear. */}
+        {/* Single paused-state card — body + "Resume Your Search" CTA (client-side; swaps to
+            the resumed confirmation on success). Reactivates the LEAD, never the list. */}
         <section className="lbr-recs">
-          <div className="lbr-paused">
-            <p className="lbr-paused-body">
-              This property list is no longer active. If you&rsquo;re still looking, contact {agentFirst} to continue your search.
-            </p>
-            {contactHref ? (
-              <a className="lbr-paused-btn" href={contactHref}>Contact {agentFirst}</a>
-            ) : null}
-          </div>
+          <PausedResumeCard token={token} agentFirst={agentFirst} />
         </section>
 
         {/* AGENT SIGNATURE — the SAME canonical shared component as the active page. */}
@@ -538,6 +532,7 @@ export default async function ClientRecommendationsPage({
     // personalized paused state — same shell/hero/signature/footer as the active page.
     return (
       <PausedScreen
+        token={token}
         heroImg={heroImg}
         agentName={agentName}
         agentFirst={agentFirst}
@@ -546,7 +541,6 @@ export default async function ClientRecommendationsPage({
         photo={photo}
         serviceAreas={serviceAreas}
         phone={share.agent_phone}
-        email={share.agent_email}
         config={share.smart_form_config}
       />
     )
