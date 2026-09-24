@@ -230,7 +230,7 @@ export default async function SmartLeadFormThankYouPage({
       </p>
       {/* Canonical shared agent signature (identical to the Recommendations page). */}
       <div className="mt-6 border-t border-[#e3e8f1] pt-6">
-        <AgentSignature name={agentName} photoUrl={form.photo_url} title={title} brokerage={brokerage} serviceAreas={config.copy?.serviceAreas ?? null} />
+        <AgentSignature name={agentName} photoUrl={form.photo_url} title={title} brokerage={brokerage} phone={form.agent_phone} serviceAreas={config.copy?.serviceAreas ?? null} />
       </div>
     </section>
   )

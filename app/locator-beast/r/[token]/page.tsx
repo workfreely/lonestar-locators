@@ -545,7 +545,7 @@ export default async function ClientRecommendationsPage({
 
         {/* AGENT SIGNATURE — canonical shared component (identical on the Thank You page). */}
         <div className="lbr-sig">
-          <AgentSignature name={agentName} photoUrl={photo} title={agentTitle} brokerage={brokerage} serviceAreas={serviceAreas} />
+          <AgentSignature name={agentName} photoUrl={photo} title={agentTitle} brokerage={brokerage} phone={share.agent_phone} serviceAreas={serviceAreas} />
         </div>
 
         {/* FOOTER — legal/brokerage + subtle non-clickable "Powered by Locator Beast" */}

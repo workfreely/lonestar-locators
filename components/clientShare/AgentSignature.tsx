@@ -18,6 +18,7 @@ export default function AgentSignature({
   photoUrl,
   title,
   brokerage,
+  phone,
   serviceAreas,
   tagline = "Helping you find the perfect home.",
 }: {
@@ -25,12 +26,19 @@ export default function AgentSignature({
   photoUrl?: string | null
   title?: string | null
   brokerage?: string | null
+  /** The locator's public contact phone (profile phone) — rendered as a centered, tappable
+   *  tel: link directly below the brokerage. Supporting text (stronger than the service-area
+   *  line, quieter than the title). Hidden entirely when empty; never a Call button/icon. */
+  phone?: string | null
   /** The locator's configured service-market label (e.g. "Austin, Dallas, Houston") — rendered as a
    *  centered, dot-separated, naturally-wrapping "Serving …" line. Hidden entirely when empty. */
   serviceAreas?: string | null
   tagline?: string
 }) {
   const initial = (name?.trim().charAt(0) || "•").toUpperCase()
+  // Public contact phone: shown as-is; the tel: href keeps only dialable characters.
+  const phoneDisplay = (phone ?? "").trim()
+  const telHref = phoneDisplay.replace(/[^0-9+]/g, "")
   // Split the configured label on commas (or existing dots) into canonical market names, then join
   // with centered dots. Names have no commas, so this is safe; empty ⇒ the whole line is omitted.
   const markets = (serviceAreas ?? "")
@@ -59,6 +67,14 @@ export default function AgentSignature({
       <div className={`${caveat.className} mt-3 text-[50px] leading-[0.9] text-[#0e2545] sm:text-[34px]`}>{name}</div>
       {title ? <div className="mt-1.5 text-[20px] font-semibold text-[#3a4658] sm:text-[17px]">{title}</div> : null}
       {brokerage ? <div className="mt-0.5 text-[19px] text-[#7a869a] sm:text-[16px]">{brokerage}</div> : null}
+      {phoneDisplay && telHref ? (
+        // Supporting contact line — sits between brokerage and the "Serving …" markets:
+        // a touch stronger than the service-area text, clearly quieter than the title.
+        // Tappable tel: link on mobile + desktop; no Call button or icon.
+        <div className="mt-1.5 text-[15px] font-medium leading-snug sm:text-[13.5px]">
+          <a href={`tel:${telHref}`} className="text-[#55617a] no-underline">{phoneDisplay}</a>
+        </div>
+      ) : null}
       {markets.length > 0 ? (
         // Subordinate profile info — small + muted, sized to fit the configured markets on ONE
         // centered line at normal mobile widths (full names + · separators preserved, never
