@@ -274,30 +274,32 @@ const CSS = `
 .lbr-sky{display:block;background-image:linear-gradient(155deg,rgba(6,18,38,.99) 0%,rgba(7,20,42,.95) 45%,rgba(10,28,52,.70) 75%,rgba(14,37,69,.28) 100%),var(--hero-img);background-position:center 28%}
 .lbr-intro-inner{padding:26px 18px 14px;max-width:none}
 /* Greeting + major headings stay ~where they are; increase the smaller supporting text. */
-.lbr-greet{font-size:29px;line-height:1.16;max-width:none}
-.lbr-recs-head h2{font-size:23px}
-.lbr-steps h2{font-size:22px}
+.lbr-greet{font-size:34px;line-height:1.16;max-width:none}
+.lbr-recs-head h2{font-size:28px}
 .lbr-eyebrow{font-size:14.5px}
-.lbr-subcopy{font-size:18px}
-.lbr-recs-head p{font-size:17px}
-.lbr-pname{font-size:21px}
+.lbr-recs-head p{font-size:19px}
+.lbr-pname{font-size:25px}
 /* Two-line address on mobile: street line readable, city/state/ZIP slightly muted.
    Desktop single-line (.lbr-addr-full) is unchanged. */
-.lbr-addr{font-size:16.5px;line-height:1.3}
+.lbr-addr{font-size:18px;line-height:1.3;gap:0;margin-top:6px}
+/* Remove the location pin on mobile so name / street / city-state-ZIP / rating all
+   sit on the exact same left edge. */
+.lbr-addr svg{display:none}
 .lbr-addr-full{display:none}
 .lbr-addr-stacked{display:flex;flex-direction:column;gap:2px}
-.lbr-addr-street{color:var(--ink);font-weight:600}
-.lbr-addr-locality{color:var(--muted)}
-.lbr-rating{font-size:16px}
-.lbr-rating-lbl{font-size:16px}
-.lbr-why-lbl{font-size:14.5px}
-.lbr-why li{font-size:17px}
+.lbr-addr-street{color:var(--ink);font-weight:600;font-size:18px}
+.lbr-addr-locality{color:var(--muted);font-size:17px}
+.lbr-rating{font-size:18px}
+.lbr-rating-lbl{font-size:18px}
+/* Mobile star-size override (base is 14px; scale up with the rating text). */
+.lbr-stars-base,.lbr-stars-fill{font-size:17px}
+.lbr-why-lbl{font-size:17px}
+.lbr-why li{font-size:18px}
 .lbr-pl{font-size:16px}
 .lbr-pv{font-size:19px}
 .lbr-pmo{font-size:16px}
 .lbr-pill{font-size:13.5px}
-.lbr-view{font-size:14.5px}
-.lbr-steps span{font-size:17px}
+.lbr-view{font-size:17px}
 .lbr-disclaimer{font-size:16px}
 /* Heart — larger, unmistakable primary interaction (circle/position/behavior kept). */
 .lbr-heart{width:46px;height:46px}
@@ -326,15 +328,17 @@ const CSS = `
 .lbr-steps{margin:22px 16px 0;padding:22px 20px}
 /* Mobile roadmap: vertical 1/2/3, more compact than the old large bottom card. */
 .lbr-steps--roadmap{margin:0 0 16px;padding:15px 16px}
-.lbr-steps--roadmap h2{font-size:16px;margin:0 0 10px}
+/* Next Steps mobile sizes live on the --roadmap selectors (the ones that WIN over the
+   generic .lbr-steps mobile rules), so the intended sizes actually apply. */
+.lbr-steps--roadmap h2{font-size:22px;margin:0 0 12px}
 .lbr-steps--roadmap ol{flex-direction:column;gap:12px}
 .lbr-steps--roadmap li{flex:none;gap:12px;align-items:flex-start}
-.lbr-steps--roadmap .lbr-n{width:28px;height:28px;font-size:14px}
-.lbr-steps--roadmap b{font-size:15px}
-.lbr-steps--roadmap span{font-size:14px}
+.lbr-steps--roadmap .lbr-n{width:34px;height:34px;font-size:16px}
+.lbr-steps--roadmap b{font-size:18px}
+.lbr-steps--roadmap span{font-size:16px}
 /* Done CTA: full-width, prominent, ~54px; count/copy sized for phone legibility. */
 .lbr-done-count{font-size:15.5px}
-.lbr-done-btn{width:100%;min-height:54px;font-size:17px}
+.lbr-done-btn{width:100%;min-height:54px;font-size:18px}
 .lbr-done-copy{font-size:14.5px}
 /* Tour Availability modal → bottom-sheet on mobile; larger supporting text. */
 .lbr-modal-overlay{align-items:flex-end;padding:0}
@@ -350,14 +354,14 @@ const CSS = `
 .lbr-ta-dow{margin-bottom:2px}
 .lbr-modal-foot{padding-left:18px;padding-right:18px}
 .lbr-avsent-msg{font-size:15px}
-.lbr-ta-h{font-size:22px}
-.lbr-ta-sub{font-size:15px}
-.lbr-ta-lbl{font-size:14.5px;margin-bottom:6px}
-.lbr-ta-segbtn{font-size:15px;padding:13px 8px}
-.lbr-ta-cell{font-size:15px}
-.lbr-ta-chip{font-size:14px}
-.lbr-ta-dayname{font-size:14.5px}
-.lbr-ta-send{font-size:17px}
+.lbr-ta-h{font-size:26px}
+.lbr-ta-sub{font-size:16px}
+.lbr-ta-lbl{font-size:16px;margin-bottom:6px}
+.lbr-ta-segbtn{font-size:16px;padding:13px 8px}
+.lbr-ta-cell{font-size:16px}
+.lbr-ta-chip{font-size:16px}
+.lbr-ta-dayname{font-size:16px}
+.lbr-ta-send{font-size:18px}
 .lbr-ta-srow,.lbr-ta-summary-lead{font-size:15px}
 .lbr-sig{margin:24px 16px 0}
 .lbr-legal{padding:20px 16px 26px}
