@@ -77,50 +77,50 @@ export async function renderPreviewImage(opts: {
         <img src={bg} width={PREVIEW_SIZE.width} height={PREVIEW_SIZE.height} style={{ position: "absolute", inset: 0, objectFit: "cover" }} alt="" />
         {/* Uniform darkening across the whole theme image, then a stronger left-weighted
             scrim where the headshot + text sit — so both stand out more. */}
-        <div style={{ position: "absolute", inset: 0, display: "flex", background: "rgba(6,12,22,0.42)" }} />
+        <div style={{ position: "absolute", inset: 0, display: "flex", background: "rgba(6,12,22,0.52)" }} />
         <div
           style={{
             position: "absolute",
             inset: 0,
             display: "flex",
             background:
-              "linear-gradient(90deg, rgba(6,12,22,0.97) 0%, rgba(6,12,22,0.88) 45%, rgba(6,12,22,0.55) 75%, rgba(6,12,22,0.20) 100%)",
+              "linear-gradient(90deg, rgba(6,12,22,0.98) 0%, rgba(6,12,22,0.92) 45%, rgba(6,12,22,0.64) 75%, rgba(6,12,22,0.30) 100%)",
           }}
         />
-        {/* Foreground: far-left circular headshot + text block. */}
-        <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 44, padding: "0 84px", height: "100%" }}>
-          {headshot ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={headshot} width={168} height={168} style={{ borderRadius: 168, border: "6px solid rgba(255,255,255,0.92)" }} alt="" />
-          ) : (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 168,
-                height: 168,
-                borderRadius: 168,
-                border: "6px solid rgba(255,255,255,0.92)",
-                background: "linear-gradient(135deg,#22406e,#16305a)",
-                color: "#fff",
-                fontSize: 76,
-                fontWeight: 800,
-              }}
-            >
-              {initial}
+        {/* Foreground: left column = circular headshot with the agent identity beneath it;
+            the headline sits to the right, vertically centered against that column. */}
+        <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 48, padding: "0 64px", height: "100%" }}>
+          <div style={{ display: "flex", flexShrink: 0, flexDirection: "column", alignItems: "center" }}>
+            {headshot ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={headshot} width={168} height={168} style={{ borderRadius: 168, border: "6px solid rgba(255,255,255,0.92)" }} alt="" />
+            ) : (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 168,
+                  height: 168,
+                  borderRadius: 168,
+                  border: "6px solid rgba(255,255,255,0.92)",
+                  background: "linear-gradient(135deg,#22406e,#16305a)",
+                  color: "#fff",
+                  fontSize: 76,
+                  fontWeight: 800,
+                }}
+              >
+                {initial}
+              </div>
+            )}
+            {/* Agent identity — under the profile image. */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 16 }}>
+              <div style={{ display: "flex", whiteSpace: "nowrap", fontSize: 28, fontWeight: 600, color: "#ffffff" }}>{opts.agentName}</div>
+              <div style={{ display: "flex", whiteSpace: "nowrap", marginTop: 2, fontSize: 19, fontWeight: 500, color: "rgba(255,255,255,0.82)" }}>{opts.agentTitle}</div>
             </div>
-          )}
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <div style={{ display: "flex", whiteSpace: "nowrap", fontSize: 54, fontWeight: 800, color: "#ffffff", letterSpacing: -1, lineHeight: 1.05 }}>
-              {opts.headline}
-            </div>
-            <div style={{ display: "flex", marginTop: 16, fontSize: 34, fontWeight: 600, color: "#ffffff" }}>
-              {opts.agentName}
-            </div>
-            <div style={{ display: "flex", marginTop: 3, fontSize: 24, fontWeight: 500, color: "rgba(255,255,255,0.82)" }}>
-              {opts.agentTitle}
-            </div>
+          </div>
+          <div style={{ display: "flex", whiteSpace: "nowrap", fontSize: 52, fontWeight: 800, color: "#ffffff", letterSpacing: -1, lineHeight: 1.05 }}>
+            {opts.headline}
           </div>
         </div>
         {/* Subtle branding. */}
