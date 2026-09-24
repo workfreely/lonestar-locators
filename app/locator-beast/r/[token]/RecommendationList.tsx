@@ -128,6 +128,16 @@ function displayCardAddress(address: string): string {
   return cleaned || address
 }
 
+/** MOBILE two-line address: street on line 1, "City, State ZIP" on line 2 (split at
+ *  the first comma). Desktop keeps the single-line displayCardAddress; both are
+ *  rendered and CSS toggles which shows, so desktop formatting is unchanged. */
+function splitCardAddress(address: string): { street: string; locality: string } {
+  const cleaned = address.replace(/\s*,\s*USA\s*$/i, "").trim()
+  const i = cleaned.indexOf(",")
+  if (i === -1) return { street: cleaned, locality: "" }
+  return { street: cleaned.slice(0, i).trim(), locality: cleaned.slice(i + 1).trim() }
+}
+
 export default function RecommendationList({
   properties,
   token,
@@ -294,9 +304,20 @@ export default function RecommendationList({
                   displayPropertyName(p.name)
                 )}
               </h3>
-              {p.address && (
-                <div className="lbr-addr"><Pin /><span>{displayCardAddress(p.address)}</span></div>
-              )}
+              {p.address && (() => {
+                const { street, locality } = splitCardAddress(p.address)
+                return (
+                  <div className="lbr-addr">
+                    <Pin />
+                    {/* Desktop: single line (unchanged). Mobile: stacked street / city-state-zip. */}
+                    <span className="lbr-addr-full">{displayCardAddress(p.address)}</span>
+                    <span className="lbr-addr-stacked">
+                      <span className="lbr-addr-street">{street}</span>
+                      {locality && <span className="lbr-addr-locality">{locality}</span>}
+                    </span>
+                  </div>
+                )
+              })()}
               {hasRating && (
                 <div className="lbr-rating">
                   <span className="lbr-rating-val">{(p.googleRating as number).toFixed(1)}</span>

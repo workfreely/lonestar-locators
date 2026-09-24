@@ -138,6 +138,7 @@ const CSS = `
 .lbr-pname-link:hover{text-decoration:underline}
 .lbr-addr{display:flex;align-items:flex-start;gap:6px;font-size:13px;color:var(--muted);margin-top:5px;line-height:1.35}
 .lbr-addr svg{color:var(--faint);flex:none;margin-top:2px}
+.lbr-addr-stacked{display:none}
 .lbr-rating{display:flex;align-items:center;gap:6px;font-size:13.5px;color:var(--ink);margin-top:7px;font-weight:600}
 .lbr-stars{position:relative;display:inline-block;line-height:1;white-space:nowrap}
 .lbr-stars-base{display:block;font-size:14px;letter-spacing:1px;color:#cfd6e0}
@@ -280,7 +281,13 @@ const CSS = `
 .lbr-subcopy{font-size:18px}
 .lbr-recs-head p{font-size:17px}
 .lbr-pname{font-size:21px}
-.lbr-addr{font-size:17px}
+/* Two-line address on mobile: street line readable, city/state/ZIP slightly muted.
+   Desktop single-line (.lbr-addr-full) is unchanged. */
+.lbr-addr{font-size:16.5px;line-height:1.3}
+.lbr-addr-full{display:none}
+.lbr-addr-stacked{display:flex;flex-direction:column;gap:2px}
+.lbr-addr-street{color:var(--ink);font-weight:600}
+.lbr-addr-locality{color:var(--muted)}
 .lbr-rating{font-size:16px}
 .lbr-rating-lbl{font-size:16px}
 .lbr-why-lbl{font-size:14.5px}
@@ -304,8 +311,18 @@ const CSS = `
    untouched. Mobile-only (inside this media query); shared Footer not modified. */
 .lbr-legal span:has(> a[target="_blank"]) > span[aria-hidden="true"]{display:none}
 .lbr-recs{padding:20px 16px 8px}
-.lbr-grid{grid-template-columns:1fr;gap:16px}
+.lbr-grid{grid-template-columns:1fr;gap:20px}
 .lbr-ph{aspect-ratio:16/11}
+/* Mobile breathing room (spacing only — card structure unchanged). */
+.lbr-body{padding-top:18px}
+.lbr-rating{margin-top:10px}
+.lbr-why{margin-top:16px}
+.lbr-why li + li{margin-top:9px}
+.lbr-cardfoot{margin-top:18px}
+/* Touch targets ≥ ~44px (tap area only). */
+.lbr-view{min-height:44px;padding:11px 16px;box-sizing:border-box}
+.lbr-ta-cell{min-height:44px}
+.lbr-ta-chip{min-height:44px;padding:10px 16px;box-sizing:border-box}
 .lbr-steps{margin:22px 16px 0;padding:22px 20px}
 /* Mobile roadmap: vertical 1/2/3, more compact than the old large bottom card. */
 .lbr-steps--roadmap{margin:0 0 16px;padding:15px 16px}
@@ -327,7 +344,7 @@ const CSS = `
 .lbr-modal-title{font-size:21px}
 .lbr-modal-body{padding-left:18px;padding-right:18px;padding-top:10px}
 .lbr-modal-body .lbr-ta-field:first-of-type{margin-top:4px}
-.lbr-ta-field{margin-top:14px}
+.lbr-ta-field{margin-top:18px}
 .lbr-ta-cal{padding:10px}
 .lbr-ta-calhead{margin-bottom:6px}
 .lbr-ta-dow{margin-bottom:2px}
@@ -460,7 +477,7 @@ export default async function ClientRecommendationsPage({
           <div className="lbr-intro-inner">
             <p className="lbr-eyebrow">{curated}<span className="lbr-rule" /></p>
             <h1 className="lbr-greet">{greeting}</h1>
-            <p className="lbr-subcopy">These apartments match what you&rsquo;re looking for. Favorite the ones you like and I&rsquo;ll take care of the next steps.</p>
+            <p className="lbr-subcopy">Favorite the ones you like and I&rsquo;ll take care of the next steps.</p>
           </div>
         </section>
 
