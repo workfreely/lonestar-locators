@@ -493,6 +493,37 @@ export default function LeadFavorites({
               ) : (
                 <span className="rounded-lg border border-[#cbd4e0] bg-[#eef1f5] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#5a6b86]">Commission Not Verified</span>
               )
+              // Top-right controls (✕ back to Recommendations / Edit Property) — placed on
+              // the property-name row, matching Recommended's controls placement.
+              const favControls = (
+                <div className="flex flex-none items-center gap-2.5">
+                  {onMoveToRecommendation && (() => {
+                    // ✕ moves the Favorite BACK to Recommendations (never a delete). Blocked
+                    // while a scheduled tour / Top Pick / open property-scoped action still
+                    // depends on it — disabled with the reason, matching the Companion.
+                    const block = favoriteMoveBlock({ favorite: fav, lead, tours: leadTours, nextActions }).reason
+                    return (
+                      <button
+                        type="button"
+                        aria-label={block ? `Can't move back — ${block}` : "Move to recommendations"}
+                        title={block ? `Can't move back — ${block}` : "Move to recommendations"}
+                        disabled={!!block}
+                        onClick={() => !block && onMoveToRecommendation(fav.property_url)}
+                        className="flex h-6 w-6 items-center justify-center rounded-full text-[13px] leading-none text-[var(--crm-text-muted)] transition-colors hover:bg-[var(--crm-card)] hover:text-[var(--crm-text-primary)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                      >
+                        ✕
+                      </button>
+                    )
+                  })()}
+                  <button
+                    type="button"
+                    onClick={() => openEditFavorite(fav)}
+                    className="text-[10.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]"
+                  >
+                    Edit Property
+                  </button>
+                </div>
+              )
               return (
                 <div
                   key={fav.id}
@@ -505,82 +536,52 @@ export default function LeadFavorites({
                         placeholder — never a broken image. */}
                     <PropertyThumb src={fav.property_image_url} alt={fav.property_name || ""} />
                     {(() => {
-                    // The name links ONLY to the real property website (resolved
-                    // read-side from property_catalog.website_url), never the placeUrl
-                    // (Google Maps). No valid website → a plain, non-clickable name.
+                    // The name links ONLY to the real property website (resolved read-side
+                    // from property_catalog.website_url), never the placeUrl (Google Maps).
                     const favHref = propertyWebsiteHref((fav as { website_url?: string | null }).website_url)
-                    return favHref ? (
-                      <a href={favHref} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1">
-                        <p className="truncate text-[12.5px] font-semibold text-[var(--crm-accent)] hover:underline">
-                          {fav.property_name || "Property"}
-                        </p>
-                        {fav.property_address && (
-                          <p className="text-[11px] text-[var(--crm-text-muted)] truncate">{displayAddress(fav.property_address)}</p>
-                        )}
-                        {typeof fav.google_rating === "number" && (
-                          <div className="mt-0.5 flex items-center gap-1.5">
-                            <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(fav.google_rating)}</span>
-                            <StarRating value={fav.google_rating} />
-                            <span className="-ml-[3px] text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
+                    const nameEl = favHref ? (
+                      <a href={favHref} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate text-[12.5px] font-semibold text-[var(--crm-accent)] hover:underline">{fav.property_name || "Property"}</a>
+                    ) : (
+                      <p className="min-w-0 truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{fav.property_name}</p>
+                    )
+                    return (
+                      <div className="min-w-0 flex-1">
+                        {/* Name row — property name (typography unchanged) + top-right controls. */}
+                        <div className="flex items-center justify-between gap-2">
+                          {nameEl}
+                          {favControls}
+                        </div>
+                        {/* Address row — address left, Special (compact, current/verified
+                            only) on the far right. */}
+                        {(fav.property_address || favShortSpecial) && (
+                          <div className="mt-[1px] flex items-center justify-between gap-2">
+                            <p className="min-w-0 truncate text-[11px] text-[var(--crm-text-muted)]">{fav.property_address ? displayAddress(fav.property_address) : ""}</p>
+                            {favShortSpecial && (
+                              <span className="flex-none rounded-md border border-[#8fb6ea] bg-[#e8f0fe] px-1 py-[1px] text-[9px] font-semibold leading-none text-[#1c3f75]">{favShortSpecial}</span>
+                            )}
                           </div>
                         )}
-                      </a>
-                    ) : (
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{fav.property_name}</p>
-                        {fav.property_address && (
-                          <p className="text-[11px] text-[var(--crm-text-muted)] truncate">{displayAddress(fav.property_address)}</p>
-                        )}
-                        {typeof fav.google_rating === "number" && (
-                          <div className="mt-0.5 flex items-center gap-1.5">
-                            <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(fav.google_rating)}</span>
-                            <StarRating value={fav.google_rating} />
-                            <span className="-ml-[3px] text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
+                        {/* Rating row — Google rating left, genuine Match % on the far right
+                            (only when a real score exists). */}
+                        {(typeof fav.google_rating === "number" || favShowMatch) && (
+                          <div className="mt-0.5 flex items-center justify-between gap-2">
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              {typeof fav.google_rating === "number" && (
+                                <>
+                                  <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(fav.google_rating)}</span>
+                                  <StarRating value={fav.google_rating} />
+                                  <span className="-ml-[3px] text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
+                                </>
+                              )}
+                            </div>
+                            {favShowMatch && (
+                              <span className="flex-none rounded-md border border-[var(--crm-border)] px-1.5 py-[1px] text-[10px] font-semibold leading-none text-[var(--crm-text-secondary)]">{favMatchScore}% <span className="font-medium text-[var(--crm-text-muted)]">Match</span></span>
+                            )}
                           </div>
                         )}
                       </div>
                     )
                     })()}
-                    {/* Right-side stack — top controls (✕ back / Edit Property) aligned with
-                        the property-name row, then a small vertical status stack beneath:
-                        Special, then Match (genuine score only). Commission stays on the
-                        bottom-right operational row. */}
-                    <div className="flex flex-none flex-col items-end gap-1.5">
-                    <div className="flex items-center gap-2.5">
-                      {onMoveToRecommendation && (() => {
-                        // ✕ moves the Favorite BACK to Recommendations (never a
-                        // delete). Blocked while a scheduled tour / Top Pick / open
-                        // property-scoped action still depends on it — disabled with
-                        // the reason, matching the Companion.
-                        const block = favoriteMoveBlock({ favorite: fav, lead, tours: leadTours, nextActions }).reason
-                        return (
-                          <button
-                            type="button"
-                            aria-label={block ? `Can't move back — ${block}` : "Move to recommendations"}
-                            title={block ? `Can't move back — ${block}` : "Move to recommendations"}
-                            disabled={!!block}
-                            onClick={() => !block && onMoveToRecommendation(fav.property_url)}
-                            className="flex h-6 w-6 items-center justify-center rounded-full text-[13px] leading-none text-[var(--crm-text-muted)] transition-colors hover:bg-[var(--crm-card)] hover:text-[var(--crm-text-primary)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
-                          >
-                            ✕
-                          </button>
-                        )
-                      })()}
-                      <button
-                        type="button"
-                        onClick={() => openEditFavorite(fav)}
-                        className="text-[10.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]"
-                      >
-                        Edit Property
-                      </button>
-                    </div>
-                    {favShortSpecial && (
-                      <span className="rounded-md border border-[#8fb6ea] bg-[#e8f0fe] px-1 py-[1px] text-[9px] font-semibold leading-none text-[#1c3f75]">{favShortSpecial}</span>
-                    )}
-                    {favShowMatch && (
-                      <span className="rounded-md border border-[var(--crm-border)] px-1.5 py-[1px] text-[10px] font-semibold leading-none text-[var(--crm-text-secondary)]">{favMatchScore}% <span className="font-medium text-[var(--crm-text-muted)]">Match</span></span>
-                    )}
-                    </div>
                   </div>
 
                   {/* Scheduled-tour metadata — mirrors the Lead Panel "Next Action

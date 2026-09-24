@@ -70,77 +70,75 @@ export default function BestMatches({
               <PropertyThumb src={r.property_image_url} alt={r.property_name} />
               {(() => {
                 // The name links ONLY to the real property website (resolved read-side
-                // from property_catalog.website_url), never the property_url (Google
-                // Maps). No valid website → a plain, non-clickable name. Mirrors the
-                // Favorite Property name-link behavior exactly.
+                // from property_catalog.website_url), never the property_url (Google Maps).
                 const recHref = propertyWebsiteHref((r as { website_url?: string | null }).website_url)
                 return (
                   <div className="min-w-0 flex-1">
-                    {/* Property-name typography unchanged. Special + Match now live in the
-                        right-side status stack (below), not beside the name/rating. */}
-                    {recHref ? (
-                      <a href={recHref} target="_blank" rel="noopener noreferrer" className="block truncate text-[12.5px] font-semibold text-[var(--crm-accent)] hover:underline">{r.property_name}</a>
-                    ) : (
-                      <p className="truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{r.property_name}</p>
+                    {/* Name row — property name (typography unchanged) + top-right controls. */}
+                    <div className="flex items-center justify-between gap-2">
+                      {recHref ? (
+                        <a href={recHref} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate text-[12.5px] font-semibold text-[var(--crm-accent)] hover:underline">{r.property_name}</a>
+                      ) : (
+                        <p className="min-w-0 truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{r.property_name}</p>
+                      )}
+                      {(onRemoveRecommendation || onMoveToFavorite) && (
+                        <div className="flex flex-none items-center gap-1.5">
+                          {onRemoveRecommendation && (
+                            <button
+                              type="button"
+                              aria-label="Remove recommendation"
+                              title="Remove recommendation"
+                              onClick={() => onRemoveRecommendation(r.property_url)}
+                              className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-md text-[12px] leading-none text-[var(--crm-text-muted)] transition-colors duration-[120ms] hover:text-red-500"
+                            >
+                              ✕
+                            </button>
+                          )}
+                          {onMoveToFavorite && (
+                            <button
+                              type="button"
+                              aria-label="Move to favorites"
+                              title="Move to favorites"
+                              onClick={() => onMoveToFavorite(r.property_url)}
+                              className="crm-rec-heart"
+                            >
+                              ♡
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {/* Address row — address left, Special (compact, current/verified only)
+                        on the far right. */}
+                    {(r.property_address || shortSpecial) && (
+                      <div className="mt-[1px] flex items-center justify-between gap-2">
+                        <p className="min-w-0 truncate text-[11px] text-[var(--crm-text-muted)]">{r.property_address ? displayAddress(r.property_address) : ""}</p>
+                        {shortSpecial && (
+                          <span className="flex-none rounded-md border border-[#8fb6ea] bg-[#e8f0fe] px-1 py-[1px] text-[9px] font-semibold leading-none text-[#1c3f75]">{shortSpecial}</span>
+                        )}
+                      </div>
                     )}
-                    {r.property_address && (
-                      <p className="truncate text-[11px] text-[var(--crm-text-muted)]">{displayAddress(r.property_address)}</p>
-                    )}
-                    {typeof r.google_rating === "number" && (
-                      <div className="mt-0.5 flex items-center gap-1.5">
-                        <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(r.google_rating)}</span>
-                        <StarRating value={r.google_rating} />
-                        <span className="-ml-[3px] text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
+                    {/* Rating row — Google rating left, genuine Match % on the far right
+                        (only when a real score exists). */}
+                    {(typeof r.google_rating === "number" || showMatch) && (
+                      <div className="mt-0.5 flex items-center justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          {typeof r.google_rating === "number" && (
+                            <>
+                              <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(r.google_rating)}</span>
+                              <StarRating value={r.google_rating} />
+                              <span className="-ml-[3px] text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
+                            </>
+                          )}
+                        </div>
+                        {showMatch && (
+                          <span className="flex-none rounded-md border border-[var(--crm-border)] px-1.5 py-[1px] text-[10px] font-semibold leading-none text-[var(--crm-text-secondary)]">{matchScore}% <span className="font-medium text-[var(--crm-text-muted)]">Match</span></span>
+                        )}
                       </div>
                     )}
                   </div>
                 )
               })()}
-              {/* Action area — ✕ (remove) on the LEFT, ♡ (move to Favorites) on the
-                  RIGHT. Both dispatch the shared synced verbs. The heart is styled to
-                  MATCH the Beast Companion Recommendation heart (bc-prop-move--heart):
-                  22px control, 6px radius, 1px border + elevated bg, empty ♡ at
-                  15px/600, neutral at rest, soft red glow (glyph + border + tint) on
-                  hover, 120ms transition. The ✕ is deliberately quieter (borderless,
-                  muted, smaller) so the heart stays the primary action. */}
-              {/* Right-side stack — top controls (✕ remove / ♡ move to Favorites) aligned
-                  with the property-name row, then a small vertical status stack beneath them:
-                  Special, then Match (genuine score only). Commission stays on the bottom-
-                  right operational row. */}
-              <div className="flex flex-none flex-col items-end gap-1.5">
-                {(onRemoveRecommendation || onMoveToFavorite) && (
-                  <div className="flex items-center gap-1.5">
-                    {onRemoveRecommendation && (
-                      <button
-                        type="button"
-                        aria-label="Remove recommendation"
-                        title="Remove recommendation"
-                        onClick={() => onRemoveRecommendation(r.property_url)}
-                        className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-md text-[12px] leading-none text-[var(--crm-text-muted)] transition-colors duration-[120ms] hover:text-red-500"
-                      >
-                        ✕
-                      </button>
-                    )}
-                    {onMoveToFavorite && (
-                      <button
-                        type="button"
-                        aria-label="Move to favorites"
-                        title="Move to favorites"
-                        onClick={() => onMoveToFavorite(r.property_url)}
-                        className="crm-rec-heart"
-                      >
-                        ♡
-                      </button>
-                    )}
-                  </div>
-                )}
-                {shortSpecial && (
-                  <span className="rounded-md border border-[#8fb6ea] bg-[#e8f0fe] px-1 py-[1px] text-[9px] font-semibold leading-none text-[#1c3f75]">{shortSpecial}</span>
-                )}
-                {showMatch && (
-                  <span className="rounded-md border border-[var(--crm-border)] px-1.5 py-[1px] text-[10px] font-semibold leading-none text-[var(--crm-text-secondary)]">{matchScore}% <span className="font-medium text-[var(--crm-text-muted)]">Match</span></span>
-                )}
-              </div>
               </div>
               {/* Operational row — Recommended has no Guest Card / Schedule Tour actions,
                   so Commission aligns to the bottom-right of the card. Present whenever
