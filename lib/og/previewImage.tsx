@@ -122,7 +122,7 @@ export async function renderPreviewImage(opts: {
               <div style={{ display: "flex", whiteSpace: "nowrap", marginTop: 2, fontSize: 19, fontWeight: 500, color: "rgba(255,255,255,0.82)" }}>{opts.agentTitle}</div>
             </div>
           </div>
-          <div style={{ display: "flex", whiteSpace: "nowrap", fontSize: 52, fontWeight: 800, color: "#ffffff", letterSpacing: -1, lineHeight: 1.05 }}>
+          <div style={{ display: "flex", whiteSpace: "nowrap", fontSize: 60, fontWeight: 800, color: "#ffffff", letterSpacing: -1.5, lineHeight: 1.04 }}>
             {opts.headline}
           </div>
         </div>
