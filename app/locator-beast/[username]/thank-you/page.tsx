@@ -41,6 +41,9 @@ const TY_CSS = `
 .ty-legal .slf-compact a,.ty-legal .slf-compact span{font-size:13.5px!important}
 @media (max-width:640px){
 .ty-legal{padding:20px 16px 26px}
+/* Match the /r mobile agent-signature card: same subtle soft shadow on the already-bordered
+   closing container so the shared signature reads consistently across both client surfaces. */
+.ty-close{box-shadow:0 6px 20px -12px rgba(14,37,69,.28)}
 .ty-legal span:has(> a[target="_blank"]) > span[aria-hidden="true"]{display:none}
 /* Match the /r mobile legal size (base 13.5 → 19 on phones) so the shared footer reads
    consistently with the enlarged mobile agent signature. Desktop unchanged. */

@@ -265,7 +265,7 @@ const CSS = `
 .lbr-avsent-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .lbr-avsent-msg{font-size:14px;color:var(--ink);margin:12px 0 0;line-height:1.5}
 @media (max-width:640px){
-.lbr-shell{margin:0;border:none;border-radius:0;box-shadow:none}
+.lbr-shell{margin:0;border:none;border-radius:0;box-shadow:none;background:var(--bg)}
 .lbr-intro{background:#fff}
 /* Mobile hero: the same per-request city photograph (--hero-img), under the approved
    dark-navy diagonal so the top stays dark for white-text legibility while the lower
@@ -321,13 +321,18 @@ const CSS = `
 .lbr-why{margin-top:16px}
 .lbr-why li + li{margin-top:9px}
 .lbr-cardfoot{margin-top:18px}
+/* Mobile surface definition — one shared soft shadow so the white cards lift off the
+   faint page background (subtle/premium). Also applied to Next Steps + the agent
+   signature card below. Property-card structure/radius unchanged. */
+.lbr-card{box-shadow:0 6px 20px -12px rgba(14,37,69,.28)}
+.lbr-avsent{box-shadow:0 6px 20px -12px rgba(14,37,69,.28)}
 /* Touch targets ≥ ~44px (tap area only). */
 .lbr-view{min-height:44px;padding:11px 16px;box-sizing:border-box}
 .lbr-ta-cell{min-height:44px}
 .lbr-ta-chip{min-height:44px;padding:10px 16px;box-sizing:border-box}
 .lbr-steps{margin:22px 16px 0;padding:22px 20px}
 /* Mobile roadmap: vertical 1/2/3, more compact than the old large bottom card. */
-.lbr-steps--roadmap{margin:0 0 16px;padding:15px 16px}
+.lbr-steps--roadmap{margin:0 0 16px;padding:15px 16px;border-radius:16px;box-shadow:0 6px 20px -12px rgba(14,37,69,.28)}
 /* Next Steps mobile sizes live on the --roadmap selectors (the ones that WIN over the
    generic .lbr-steps mobile rules), so the intended sizes actually apply. */
 .lbr-steps--roadmap h2{font-size:26px;margin:0 0 14px}
@@ -363,7 +368,7 @@ const CSS = `
 .lbr-ta-dayname{font-size:16px}
 .lbr-ta-send{font-size:18px}
 .lbr-ta-srow,.lbr-ta-summary-lead{font-size:15px}
-.lbr-sig{margin:24px 16px 0}
+.lbr-sig{margin:24px 16px 0;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 6px 20px -12px rgba(14,37,69,.28);padding:24px 18px}
 .lbr-legal{padding:20px 16px 26px}
 }
 `
@@ -498,7 +503,7 @@ export default async function ClientRecommendationsPage({
             <h2>Next Steps</h2>
             <ol>
               <li><div className="lbr-n">1</div><div><b>Heart your top 2&ndash;3 favorites</b><span>Choose the ones you&rsquo;d like to tour.</span></div></li>
-              <li><div className="lbr-n">2</div><div><b>I&rsquo;ll Get Your Tour Scheduled</b><span>We coordinate everything for you.</span></div></li>
+              <li><div className="lbr-n">2</div><div><b>I&rsquo;ll get your tours scheduled</b><span>We coordinate everything for you.</span></div></li>
               <li><div className="lbr-n">3</div><div><b>List Me as Your Realtor/Locator</b><span>List me on your application for cash rebates, free movers or incentives.</span></div></li>
             </ol>
           </section>
