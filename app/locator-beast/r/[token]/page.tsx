@@ -103,7 +103,7 @@ const CSS = `
 .lbr-root *{box-sizing:border-box}
 .lbr-script-f{font-family:var(--lbr-script),'Segoe Script',cursive}
 .lbr-page{background:var(--bg);min-height:100vh}
-.lbr-shell{max-width:1160px;margin:26px auto 40px;background:#fff;border:1px solid var(--line);border-radius:22px;overflow:hidden;box-shadow:0 30px 80px -50px rgba(14,37,69,.35)}
+.lbr-shell{max-width:1300px;margin:26px auto 40px;background:#fff;border:1px solid var(--line);border-radius:22px;overflow:hidden;box-shadow:0 30px 80px -50px rgba(14,37,69,.35)}
 /* INTRO — no header, no agent */
 .lbr-intro{position:relative;overflow:hidden;background:linear-gradient(180deg,#f7f9fc,#eef2f8)}
 .lbr-sky{position:absolute;inset:0;background-image:linear-gradient(90deg,rgba(6,18,38,.99) 0%,rgba(7,20,42,.95) 32%,rgba(10,28,52,.68) 58%,rgba(14,37,69,.20) 80%,rgba(14,37,69,0) 92%),var(--hero-img);background-size:cover;background-position:right 42%}
