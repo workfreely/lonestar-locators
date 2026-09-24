@@ -87,10 +87,12 @@ export async function renderPreviewImage(opts: {
               "linear-gradient(90deg, rgba(6,12,22,0.98) 0%, rgba(6,12,22,0.92) 45%, rgba(6,12,22,0.64) 75%, rgba(6,12,22,0.30) 100%)",
           }}
         />
-        {/* Foreground: left column = circular headshot with the agent identity beneath it;
-            the headline sits to the right, vertically centered against that column. */}
+        {/* Foreground: the headshot + headline read as ONE horizontal row — the headline is
+            centered against the MIDDLE of the photo (the row aligns to the fixed-height
+            headshot wrapper). The agent identity is stacked directly UNDER the photo via
+            absolute positioning, so it never shifts the headline's vertical alignment. */}
         <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 48, padding: "0 64px", height: "100%" }}>
-          <div style={{ display: "flex", flexShrink: 0, flexDirection: "column", alignItems: "center" }}>
+          <div style={{ position: "relative", display: "flex", flexShrink: 0, width: 168, height: 168 }}>
             {headshot ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={headshot} width={168} height={168} style={{ borderRadius: 168, border: "6px solid rgba(255,255,255,0.92)" }} alt="" />
@@ -113,8 +115,9 @@ export async function renderPreviewImage(opts: {
                 {initial}
               </div>
             )}
-            {/* Agent identity — under the profile image. */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 16 }}>
+            {/* Agent identity — centered directly under the profile image (absolute, so it
+                does not change where the headline centers). */}
+            <div style={{ position: "absolute", top: 184, left: -60, width: 288, display: "flex", flexDirection: "column", alignItems: "center" }}>
               <div style={{ display: "flex", whiteSpace: "nowrap", fontSize: 28, fontWeight: 600, color: "#ffffff" }}>{opts.agentName}</div>
               <div style={{ display: "flex", whiteSpace: "nowrap", marginTop: 2, fontSize: 19, fontWeight: 500, color: "rgba(255,255,255,0.82)" }}>{opts.agentTitle}</div>
             </div>
