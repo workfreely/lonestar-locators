@@ -22,7 +22,7 @@
 // background, eviction/broken-lease history, approval profile, or any client/
 // locator notes — those stay internal to Locator Beast.
 
-import { formatDateDisplay, formatDueDateTime } from "@bc/companion-shared"
+import { evaluateLocatorCommission, formatDateDisplay, formatDueDateTime } from "@bc/companion-shared"
 
 export type GuestCardLead = {
   first_name?: string | null
@@ -48,6 +48,15 @@ export type GuestCardProperty = {
   // guest card can state the exact tour date/time to the leasing office.
   tourAt?: string | null
   timeZone?: string | null
+  // Canonical locator commission Locator Beast has on file for this property,
+  // resolved read-side from property_catalog (attachCatalogRatings) onto the
+  // Favorite row before it reaches the composer. VERBATIM trusted-master text —
+  // never web-inferred. Snapshotted into the email body so the sent guest card is
+  // a historical record of what was on file at generation time. Absent/unknown ⇒
+  // "Not verified" (never fabricated).
+  send_commission?: string | null
+  escort_commission?: string | null
+  bonus_flat?: string | null
 }
 
 export type GuestCardAgent = {
@@ -96,6 +105,10 @@ export type GuestCardFields = {
   brokerage: string
   agentPhone: string
   agentEmail: string
+  // One-line commission on file, rendered directly under the confirmation question
+  // in the body. "Commission: Send X% · Escort Y%" (· Bonus $Z only when present),
+  // or "Commission on file: Not verified" when nothing is verified. Never blank.
+  commissionLine: string
 }
 
 // Kept for defensive use by the PDF/body renderers: any stray blank OR legacy
@@ -219,6 +232,22 @@ function tourTimeCompactLabel(iso: string, tz?: string | null): string {
   return tourTimeLabel(iso, tz).replace(/:00(\s[AP]M)$/, "$1")
 }
 
+// The commission line shown under the confirmation question. Uses the canonical
+// locator-commission evaluator (Unknown ≠ No-pay): a verified commission renders
+// "Commission: Send X% · Escort Y%" with an explicit 0% preserved and "· Bonus $Z"
+// appended only when a real non-zero bonus exists; an explicit not-paying marker
+// reads "Not paying locators"; blank/Unknown reads "Not verified". Never inferred.
+function commissionLineLabel(property: GuestCardProperty): string {
+  const status = evaluateLocatorCommission({
+    sendCommission: property.send_commission,
+    escortCommission: property.escort_commission,
+    bonusFlat: property.bonus_flat,
+  })
+  if (status.state === "paying") return `Commission: ${status.text}`
+  if (status.state === "not_paying") return "Commission on file: Not paying locators"
+  return "Commission on file: Not verified"
+}
+
 export function buildGuestCardFields(
   lead: GuestCardLead,
   property: GuestCardProperty,
@@ -260,6 +289,7 @@ export function buildGuestCardFields(
     brokerage: (agent.brokerage || "").trim(),
     agentPhone: digitsToPhone(agent.phone),
     agentEmail: (agent.email || "").trim(),
+    commissionLine: commissionLineLabel(property),
   }
 }
 
@@ -350,7 +380,9 @@ export function buildGuestCardBody(
     "Hello,",
     intro,
     "If you have any other available floor plans or units that you think would be a good fit based on their preferences, I'd love your recommendations.",
-    "Could you also please confirm the current locator commission for this property?",
+    // Confirmation question + the commission Locator Beast has on file, snapshotted
+    // directly beneath it (single line break, so they read as one block).
+    `Could you please confirm the current locator commission for this property?\n${f.commissionLine}`,
     context,
     clientDetails,
     "Thank you!",
