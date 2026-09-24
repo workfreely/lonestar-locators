@@ -201,6 +201,11 @@ const CSS = `
 .lbr-notice-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:30px 26px;text-align:center;box-shadow:0 20px 60px -44px rgba(14,37,69,.4)}
 .lbr-notice-card h1{font-size:20px;font-weight:800;color:var(--navy);margin:0}
 .lbr-notice-card p{font-size:14.5px;color:var(--muted);margin:10px auto 0;max-width:330px;line-height:1.5}
+/* PAUSED STATE — reuses the /r card language (white, light border, subtle shadow, same
+   radius). Sits where the recommendations normally appear. Mobile sizes bump below. */
+.lbr-paused{max-width:520px;margin:6px auto 0;background:#fff;border:1px solid var(--line);border-radius:18px;padding:30px 28px;text-align:center;box-shadow:0 20px 60px -44px rgba(14,37,69,.4)}
+.lbr-paused-body{font-size:15px;color:var(--muted);margin:0 auto;max-width:390px;line-height:1.6}
+.lbr-paused-btn{display:inline-flex;align-items:center;justify-content:center;min-height:48px;margin-top:20px;background:var(--navy);color:#fff;font-weight:700;font-size:15px;text-decoration:none;padding:12px 24px;border-radius:12px}
 /* DONE SELECTING FAVORITES — primary conversion CTA (theme token, never hard-coded). */
 .lbr-done{margin:22px 0 0;text-align:center}
 .lbr-done-count{font-size:14px;font-weight:700;color:var(--navy);margin:0 0 10px}
@@ -409,6 +414,65 @@ function LegalFooter({ config }: { config: unknown }) {
   )
 }
 
+// Client-facing PAUSED state — shown when the locator disables (pauses) this list.
+// Reuses the SAME /r shell, city-skyline hero, card language, agent signature, and legal
+// footer as the active page, so it reads as the same personalized page — just paused. NO
+// property data is present here (the resolver returns none when disabled). Reversible: the
+// same link returns to the active experience the moment the locator re-activates.
+function PausedScreen({
+  heroImg, agentName, agentFirst, agentTitle, brokerage, photo, serviceAreas, phone, email, config,
+}: {
+  heroImg: string
+  agentName: string
+  agentFirst: string
+  agentTitle: string
+  brokerage: string | null
+  photo: string | null
+  serviceAreas: string | null
+  phone: string | null
+  email: string | null
+  config: unknown
+}) {
+  // Contact action = the existing client-facing behavior: the agent's phone as a tel: link
+  // (same as the signature), with a mailto: fallback. No new communication system.
+  const tel = (phone ?? "").replace(/[^0-9+]/g, "")
+  const contactHref = tel ? `tel:${tel}` : email ? `mailto:${email.trim()}` : null
+  return (
+    <div className={`${inter.variable} ${caveat.variable} lbr-root`}>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <div className="lbr-page"><div className="lbr-shell">
+        {/* HERO — same city-skyline treatment; the greeting is replaced by the paused line. */}
+        <section className="lbr-intro">
+          <div className="lbr-sky" aria-hidden style={{ ["--hero-img" as string]: `url('${heroImg}')` }} />
+          <div className="lbr-intro-inner">
+            <h1 className="lbr-greet">Your apartment search is currently paused.</h1>
+          </div>
+        </section>
+
+        {/* Single paused-state card where the recommendations normally appear. */}
+        <section className="lbr-recs">
+          <div className="lbr-paused">
+            <p className="lbr-paused-body">
+              This property list is no longer active. If you&rsquo;re still looking, contact {agentFirst} to continue your search.
+            </p>
+            {contactHref ? (
+              <a className="lbr-paused-btn" href={contactHref}>Contact {agentFirst}</a>
+            ) : null}
+          </div>
+        </section>
+
+        {/* AGENT SIGNATURE — the SAME canonical shared component as the active page. */}
+        <div className="lbr-sig">
+          <AgentSignature name={agentName} photoUrl={photo} title={agentTitle} brokerage={brokerage} phone={phone} serviceAreas={serviceAreas} />
+        </div>
+
+        {/* FOOTER — the SAME legal/brokerage footer as the active page. */}
+        <LegalFooter config={config} />
+      </div></div>
+    </div>
+  )
+}
+
 function NoticeScreen({
   title, body, config, brokerage,
 }: { title: string; body: string; config: unknown; brokerage: string | null }) {
@@ -470,12 +534,20 @@ export default async function ClientRecommendationsPage({
   const serviceAreas = mergeSmartFormConfig(share.smart_form_config).copy?.serviceAreas ?? null
 
   if (share.status === "disabled") {
+    // Paused/disabled: NO property data is present (the resolver returns none). Render the
+    // personalized paused state — same shell/hero/signature/footer as the active page.
     return (
-      <NoticeScreen
-        title="This list isn't available right now"
-        body="Please reach out to your locator for access, or when you're ready to continue your apartment search."
-        config={share.smart_form_config}
+      <PausedScreen
+        heroImg={heroImg}
+        agentName={agentName}
+        agentFirst={agentFirst}
+        agentTitle={agentTitle}
         brokerage={brokerage}
+        photo={photo}
+        serviceAreas={serviceAreas}
+        phone={share.agent_phone}
+        email={share.agent_email}
+        config={share.smart_form_config}
       />
     )
   }
