@@ -136,8 +136,8 @@ const CSS = `
    React side adds .is-popping only when favoriting and clears it on animationend, so the
    pop replays every time. Works identically on iOS Safari / Android Chrome (plain CSS
    keyframes + transform, no prefixes/platform APIs). */
-@keyframes lbr-heart-pop{0%{transform:scale(1)}45%{transform:scale(1.14)}100%{transform:scale(1)}}
-.lbr-heart.is-popping{animation:lbr-heart-pop 240ms ease-out}
+@keyframes lbr-heart-pop{0%{transform:scale(1)}55%{transform:scale(1.30)}100%{transform:scale(1)}}
+.lbr-heart.is-popping{animation:lbr-heart-pop 300ms ease-out}
 @media (prefers-reduced-motion:reduce){.lbr-heart.is-popping{animation:none}}
 .lbr-pill{position:absolute;left:12px;bottom:12px;background:#e8f0fe;color:#1c3f75;font-size:12.5px;font-weight:600;padding:5px 11px;border:1px solid #8fb6ea;border-radius:8px;box-shadow:0 4px 10px rgba(14,37,69,.14)}
 .lbr-body{padding:16px 17px 17px;display:flex;flex-direction:column;flex:1}
