@@ -229,10 +229,10 @@ export default function SentListsPanel({
                           "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11.5px] font-semibold " +
                           (r.status === "active"
                             ? "text-emerald-700 bg-emerald-500/12 dark:text-emerald-400"
-                            : "text-[var(--crm-text-muted)] bg-[var(--crm-card)]")
+                            : "text-red-700 bg-red-500/12 dark:text-red-400")
                         }
                       >
-                        <span className={"h-1.5 w-1.5 rounded-full " + (r.status === "active" ? "bg-emerald-500" : "bg-[var(--crm-text-muted)]")} />
+                        <span className={"h-1.5 w-1.5 rounded-full " + (r.status === "active" ? "bg-emerald-500" : "bg-red-500")} />
                         {r.status === "active" ? "Active" : "Disabled"}
                       </span>
                     </td>
