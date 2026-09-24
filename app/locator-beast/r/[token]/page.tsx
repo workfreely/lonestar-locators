@@ -37,7 +37,6 @@ const caveat = Caveat({ subsets: ["latin"], weight: ["600", "700"], variable: "-
  */
 
 const CANONICAL_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL || "https://locatorbeast.com"
-const OG_IMAGE_PATH = "/locator-beast/r/og-recommendations.jpg"
 
 export async function generateMetadata({
   params,
@@ -45,7 +44,9 @@ export async function generateMetadata({
   params: Promise<{ token: string }>
 }) {
   // Generic fallback title (no client info). Rendered server-side so link-preview
-  // crawlers get it without running client JS.
+  // crawlers get it without running client JS. The visual is the per-share
+  // opengraph-image.tsx (Next wires og:image/twitter:image from it automatically),
+  // family-consistent with the Smart Form preview.
   const genericTitle = "Your Custom Property List"
   const base = {
     metadataBase: new URL(CANONICAL_ORIGIN),
@@ -55,29 +56,22 @@ export async function generateMetadata({
   const { token } = await params
   if (!looksLikeShareToken(token)) return base
   let agentName: string | null = null
-  let firstName: string | null = null
   try {
     const supabase = await createClient()
     const { data } = await supabase.rpc("lb_resolve_client_recommendations", { p_token_hash: hashShareToken(token) })
-    const share = (Array.isArray(data) ? data[0] : data) as { agent_name?: string | null; client_first_name?: string | null } | undefined
+    const share = (Array.isArray(data) ? data[0] : data) as { agent_name?: string | null } | undefined
     agentName = share?.agent_name?.trim() || null
-    firstName = share?.client_first_name?.trim() || null
   } catch {
     /* preview metadata must never fail the page */
   }
-  // Rich-preview / OG title. FIRST NAME ONLY — never last name, lead/list/property ids,
-  // email, phone, or any other client data. The OG image artwork is unchanged.
-  const title = firstName ? `${firstName}’s Custom Property List` : genericTitle
-  const description = agentName ? `Personalized for you by ${agentName}` : "Personalized apartment recommendations"
+  // Locator-branded, image-first preview. NO description (the image carries the
+  // message). NEVER any client data in the title.
+  const title = agentName ? `${agentName} | Your Custom Property List` : genericTitle
   return {
     ...base,
     title,
-    description,
-    openGraph: {
-      title, description, type: "website" as const, siteName: "Locator Beast",
-      images: [{ url: OG_IMAGE_PATH, width: 1200, height: 630, alt: "Your Apartment Recommendations — Locator Beast" }],
-    },
-    twitter: { card: "summary_large_image" as const, title, description, images: [OG_IMAGE_PATH] },
+    openGraph: { title, type: "website" as const, siteName: "Locator Beast" },
+    twitter: { card: "summary_large_image" as const, title },
   }
 }
 
