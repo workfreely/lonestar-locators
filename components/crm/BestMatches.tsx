@@ -47,15 +47,20 @@ export default function BestMatches({
       ) : (
         <div className="space-y-1.5">
           {leadRecommendations.map((r) => {
-            // Locator-facing status — Special (blue, normalized short, fresh only) +
-            // Commission (green/red/neutral). Computed here so the dedicated metadata row
-            // below the header places Special left / Commission right (10px below rating).
+            // Locator-facing status — Special (blue, compact, beside the name) +
+            // Commission (green/red/neutral, on the bottom-right operational row).
             const shortSpecial = isSpecialCurrent(r.verified_at) ? normalizeShortSpecial(r.current_special) : null
             const commission = evaluateLocatorCommission({
               sendCommission: r.send_commission,
               escortCommission: r.escort_commission,
               bonusFlat: r.bonus_flat,
             })
+            // Genuine Match % (same 0–100 scale as Map / Beast Companion) — rendered ONLY
+            // when a real score is present (> 0). These list rows do not carry a score yet,
+            // so `matchScore` is null and nothing renders — never a placeholder, default,
+            // or 0%. Wiring the real source later populates this without a card redesign.
+            const matchScore = typeof (r as { match_score?: unknown }).match_score === "number" ? (r as { match_score: number }).match_score : null
+            const showMatch = matchScore !== null && Number.isFinite(matchScore) && matchScore > 0
             return (
             <div
               key={r.id}
@@ -71,19 +76,37 @@ export default function BestMatches({
                 const recHref = propertyWebsiteHref((r as { website_url?: string | null }).website_url)
                 return (
                   <div className="min-w-0 flex-1">
-                    {recHref ? (
-                      <a href={recHref} target="_blank" rel="noopener noreferrer" className="block truncate text-[12.5px] font-semibold text-[var(--crm-accent)] hover:underline">{r.property_name}</a>
-                    ) : (
-                      <p className="truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{r.property_name}</p>
-                    )}
+                    {/* Name row — property name with the compact Special badge beside it
+                        (blue, current/verified only; sized so it never overpowers the name). */}
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      {recHref ? (
+                        <a href={recHref} target="_blank" rel="noopener noreferrer" className="truncate text-[12.5px] font-semibold text-[var(--crm-accent)] hover:underline">{r.property_name}</a>
+                      ) : (
+                        <p className="truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{r.property_name}</p>
+                      )}
+                      {shortSpecial && (
+                        <span className="flex-none rounded-md border border-[#8fb6ea] bg-[#e8f0fe] px-1.5 py-[1px] text-[10px] font-semibold leading-none text-[#1c3f75]">{shortSpecial}</span>
+                      )}
+                    </div>
                     {r.property_address && (
                       <p className="truncate text-[11px] text-[var(--crm-text-muted)]">{displayAddress(r.property_address)}</p>
                     )}
-                    {typeof r.google_rating === "number" && (
-                      <div className="mt-0.5 flex items-center gap-1.5">
-                        <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(r.google_rating)}</span>
-                        <StarRating value={r.google_rating} />
-                        <span className="-ml-[3px] text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
+                    {/* Rating row — Google rating (left, unchanged) · genuine Match % on
+                        the right (compact/secondary), shown only when a real score exists. */}
+                    {(typeof r.google_rating === "number" || showMatch) && (
+                      <div className="mt-0.5 flex items-center justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          {typeof r.google_rating === "number" && (
+                            <>
+                              <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(r.google_rating)}</span>
+                              <StarRating value={r.google_rating} />
+                              <span className="-ml-[3px] text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
+                            </>
+                          )}
+                        </div>
+                        {showMatch && (
+                          <span className="flex-none rounded-md border border-[var(--crm-border)] px-1.5 py-[1px] text-[10px] font-semibold leading-none text-[var(--crm-text-secondary)]">{matchScore}% <span className="font-medium text-[var(--crm-text-muted)]">Match</span></span>
+                        )}
                       </div>
                     )}
                   </div>
@@ -123,26 +146,19 @@ export default function BestMatches({
                 </div>
               )}
               </div>
-              {/* Dedicated metadata row — Special (left) · Commission (right), 10px below
-                  the header so it no longer crowds the rating. Present whenever there is a
-                  commission state (always ≥ "Not Verified"); Special only when current. */}
-              <div className="mt-2.5 flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  {shortSpecial && (
-                    <span className="rounded-lg border border-[#8fb6ea] bg-[#e8f0fe] px-2.5 py-[3px] text-[11px] font-semibold leading-none text-[#1c3f75]">{shortSpecial}</span>
-                  )}
-                </div>
-                <div className="flex-none">
-                  {commission.state === "paying" ? (
-                    <span className="rounded-lg border border-[#8ecaa6] bg-[#dff5e6] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#136c3a]">
-                      <span className="font-semibold">Commission:</span> {commission.text}
-                    </span>
-                  ) : commission.state === "not_paying" ? (
-                    <span className="rounded-lg border border-[#eaa9a5] bg-[#fdeaea] px-2.5 py-[3px] text-[11px] font-semibold leading-none text-[#b42318]">Not Paying Locators</span>
-                  ) : (
-                    <span className="rounded-lg border border-[#cbd4e0] bg-[#eef1f5] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#5a6b86]">Commission Not Verified</span>
-                  )}
-                </div>
+              {/* Operational row — Recommended has no Guest Card / Schedule Tour actions,
+                  so Commission aligns to the bottom-right of the card. Present whenever
+                  there is a commission state (always ≥ "Not Verified"). */}
+              <div className="mt-2 flex items-center justify-end">
+                {commission.state === "paying" ? (
+                  <span className="rounded-lg border border-[#8ecaa6] bg-[#dff5e6] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#136c3a]">
+                    <span className="font-semibold">Commission:</span> {commission.text}
+                  </span>
+                ) : commission.state === "not_paying" ? (
+                  <span className="rounded-lg border border-[#eaa9a5] bg-[#fdeaea] px-2.5 py-[3px] text-[11px] font-semibold leading-none text-[#b42318]">Not Paying Locators</span>
+                ) : (
+                  <span className="rounded-lg border border-[#cbd4e0] bg-[#eef1f5] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#5a6b86]">Commission Not Verified</span>
+                )}
               </div>
             </div>
             )

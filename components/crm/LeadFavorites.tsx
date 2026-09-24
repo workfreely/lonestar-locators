@@ -469,15 +469,30 @@ export default function LeadFavorites({
                 commissionPaid,
                 rebateSent,
               })
-              // Locator-facing status for the metadata row — Special (blue, normalized
-              // short, fresh only) + Commission (green/red/neutral). fav carries the
-              // canonical property_catalog fields via attachCatalogRatings.
+              // Locator-facing status — Special (blue, compact, beside the name) +
+              // Commission (green/red/neutral, on the far right of the actions row). fav
+              // carries the canonical property_catalog fields via attachCatalogRatings.
               const favShortSpecial = isSpecialCurrent(fav.verified_at) ? normalizeShortSpecial(fav.current_special) : null
               const favCommission = evaluateLocatorCommission({
                 sendCommission: fav.send_commission,
                 escortCommission: fav.escort_commission,
                 bonusFlat: fav.bonus_flat,
               })
+              // Genuine Match % (same 0–100 scale as Map / Beast Companion) — rendered ONLY
+              // when a real score is present (> 0). These rows carry no score yet, so it
+              // renders nothing today — never a placeholder, default, or 0%.
+              const favMatchScore = typeof (fav as { match_score?: unknown }).match_score === "number" ? (fav as { match_score: number }).match_score : null
+              const favShowMatch = favMatchScore !== null && Number.isFinite(favMatchScore) && favMatchScore > 0
+              // Commission pill (shared across the operational row + fallback).
+              const favCommissionPill = favCommission.state === "paying" ? (
+                <span className="rounded-lg border border-[#8ecaa6] bg-[#dff5e6] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#136c3a]">
+                  <span className="font-semibold">Commission:</span> {favCommission.text}
+                </span>
+              ) : favCommission.state === "not_paying" ? (
+                <span className="rounded-lg border border-[#eaa9a5] bg-[#fdeaea] px-2.5 py-[3px] text-[11px] font-semibold leading-none text-[#b42318]">Not Paying Locators</span>
+              ) : (
+                <span className="rounded-lg border border-[#cbd4e0] bg-[#eef1f5] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#5a6b86]">Commission Not Verified</span>
+              )
               return (
                 <div
                   key={fav.id}
@@ -496,31 +511,59 @@ export default function LeadFavorites({
                     const favHref = propertyWebsiteHref((fav as { website_url?: string | null }).website_url)
                     return favHref ? (
                       <a href={favHref} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1">
-                        <p className="text-[12.5px] font-semibold text-[var(--crm-accent)] hover:underline truncate">
-                          {fav.property_name || "Property"}
-                        </p>
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <p className="truncate text-[12.5px] font-semibold text-[var(--crm-accent)] hover:underline">
+                            {fav.property_name || "Property"}
+                          </p>
+                          {favShortSpecial && (
+                            <span className="flex-none rounded-md border border-[#8fb6ea] bg-[#e8f0fe] px-1.5 py-[1px] text-[10px] font-semibold leading-none text-[#1c3f75]">{favShortSpecial}</span>
+                          )}
+                        </div>
                         {fav.property_address && (
                           <p className="text-[11px] text-[var(--crm-text-muted)] truncate">{displayAddress(fav.property_address)}</p>
                         )}
-                        {typeof fav.google_rating === "number" && (
-                          <div className="mt-0.5 flex items-center gap-1.5">
-                            <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(fav.google_rating)}</span>
-                            <StarRating value={fav.google_rating} />
-                            <span className="-ml-[3px] text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
+                        {(typeof fav.google_rating === "number" || favShowMatch) && (
+                          <div className="mt-0.5 flex items-center justify-between gap-2">
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              {typeof fav.google_rating === "number" && (
+                                <>
+                                  <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(fav.google_rating)}</span>
+                                  <StarRating value={fav.google_rating} />
+                                  <span className="-ml-[3px] text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
+                                </>
+                              )}
+                            </div>
+                            {favShowMatch && (
+                              <span className="flex-none rounded-md border border-[var(--crm-border)] px-1.5 py-[1px] text-[10px] font-semibold leading-none text-[var(--crm-text-secondary)]">{favMatchScore}% <span className="font-medium text-[var(--crm-text-muted)]">Match</span></span>
+                            )}
                           </div>
                         )}
                       </a>
                     ) : (
                       <div className="min-w-0 flex-1">
-                        <p className="text-[12.5px] font-semibold text-[var(--crm-text-primary)] truncate">{fav.property_name}</p>
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <p className="truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{fav.property_name}</p>
+                          {favShortSpecial && (
+                            <span className="flex-none rounded-md border border-[#8fb6ea] bg-[#e8f0fe] px-1.5 py-[1px] text-[10px] font-semibold leading-none text-[#1c3f75]">{favShortSpecial}</span>
+                          )}
+                        </div>
                         {fav.property_address && (
                           <p className="text-[11px] text-[var(--crm-text-muted)] truncate">{displayAddress(fav.property_address)}</p>
                         )}
-                        {typeof fav.google_rating === "number" && (
-                          <div className="mt-0.5 flex items-center gap-1.5">
-                            <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(fav.google_rating)}</span>
-                            <StarRating value={fav.google_rating} />
-                            <span className="-ml-[3px] text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
+                        {(typeof fav.google_rating === "number" || favShowMatch) && (
+                          <div className="mt-0.5 flex items-center justify-between gap-2">
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              {typeof fav.google_rating === "number" && (
+                                <>
+                                  <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(fav.google_rating)}</span>
+                                  <StarRating value={fav.google_rating} />
+                                  <span className="-ml-[3px] text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
+                                </>
+                              )}
+                            </div>
+                            {favShowMatch && (
+                              <span className="flex-none rounded-md border border-[var(--crm-border)] px-1.5 py-[1px] text-[10px] font-semibold leading-none text-[var(--crm-text-secondary)]">{favMatchScore}% <span className="font-medium text-[var(--crm-text-muted)]">Match</span></span>
+                            )}
                           </div>
                         )}
                       </div>
@@ -556,29 +599,6 @@ export default function LeadFavorites({
                     </div>
                   </div>
 
-                  {/* Dedicated metadata row — Special (left) · Commission (right), 10px
-                      below the header. Present whenever there is a commission state
-                      (always ≥ "Not Verified"); Special only when current. Kept ABOVE and
-                      SEPARATE from the Send Guest Card | Schedule Tour action row. */}
-                  <div className="mt-2.5 flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      {favShortSpecial && (
-                        <span className="rounded-lg border border-[#8fb6ea] bg-[#e8f0fe] px-2.5 py-[3px] text-[11px] font-semibold leading-none text-[#1c3f75]">{favShortSpecial}</span>
-                      )}
-                    </div>
-                    <div className="flex-none">
-                      {favCommission.state === "paying" ? (
-                        <span className="rounded-lg border border-[#8ecaa6] bg-[#dff5e6] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#136c3a]">
-                          <span className="font-semibold">Commission:</span> {favCommission.text}
-                        </span>
-                      ) : favCommission.state === "not_paying" ? (
-                        <span className="rounded-lg border border-[#eaa9a5] bg-[#fdeaea] px-2.5 py-[3px] text-[11px] font-semibold leading-none text-[#b42318]">Not Paying Locators</span>
-                      ) : (
-                        <span className="rounded-lg border border-[#cbd4e0] bg-[#eef1f5] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#5a6b86]">Commission Not Verified</span>
-                      )}
-                    </div>
-                  </div>
-
                   {/* Scheduled-tour metadata — mirrors the Lead Panel "Next Action
                       → Due" treatment (muted uppercase label + muted value line,
                       same canonical formatDueDateTime). Edit / Cancel Tour sit to
@@ -592,10 +612,11 @@ export default function LeadFavorites({
                   {(onSendGuestCard || (onScheduleTour && schedTarget)) && (
                     <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
                       {schedFavId !== fav.id ? (
-                        /* Compact, LEFT-aligned action group (not space-between):
-                           [✉ Send Guest Card] | [▣ Schedule Tour]. gap-x-5 (~20px)
-                           gives the divider its breathing room; icons are small and
-                           secondary; the existing accent/hover treatment is preserved. */
+                        /* Operational row — existing action group on the LEFT (unchanged),
+                           Commission far RIGHT. [✉ Send Guest Card] | [▣ Schedule Tour].
+                           gap-x-5 (~20px) gives the divider its breathing room; icons stay
+                           small/secondary; the existing accent/hover treatment is preserved. */
+                        <div className="flex items-center justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] font-semibold">
                           {/* Send Guest Card / ✓ Guest Card Sent (completed = not clickable). */}
                           {gcSent ? (
@@ -634,6 +655,8 @@ export default function LeadFavorites({
                             </button>
                           )}
                         </div>
+                        <div className="flex-none">{favCommissionPill}</div>
+                        </div>
                       ) : schedStep === "confirm" ? (
                         // Attention glow while awaiting the locator's answer — reuses
                         // the EXACT Lead Board active-card treatment (.kb-fresh → the
@@ -668,6 +691,14 @@ export default function LeadFavorites({
                           </div>
                         </div>
                       )}
+                    </div>
+                  )}
+                  {/* Fallback — if the Guest Card / Schedule Tour actions row is not shown,
+                      Commission still appears on its own bottom-right operational row so a
+                      commission state is never hidden. */}
+                  {!(onSendGuestCard || (onScheduleTour && schedTarget)) && (
+                    <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)] flex items-center justify-end">
+                      {favCommissionPill}
                     </div>
                   )}
                   {tour && (
