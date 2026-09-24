@@ -101,14 +101,16 @@ export default async function OgImage({ params }: { params: Promise<{ username: 
       <div style={{ position: "relative", display: "flex", width: "100%", height: "100%" }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={bg} width={size.width} height={size.height} style={{ position: "absolute", inset: 0, objectFit: "cover" }} alt="" />
-        {/* Readability scrim — strongest on the left where the content sits. */}
+        {/* Uniform darkening across the whole theme image, then a stronger left-weighted
+            scrim where the headshot + text sit — so both stand out more. */}
+        <div style={{ position: "absolute", inset: 0, display: "flex", background: "rgba(6,12,22,0.32)" }} />
         <div
           style={{
             position: "absolute",
             inset: 0,
             display: "flex",
             background:
-              "linear-gradient(90deg, rgba(8,15,26,0.90) 0%, rgba(8,15,26,0.66) 42%, rgba(8,15,26,0.20) 72%, rgba(8,15,26,0.0) 100%)",
+              "linear-gradient(90deg, rgba(6,12,22,0.94) 0%, rgba(6,12,22,0.78) 45%, rgba(6,12,22,0.40) 75%, rgba(6,12,22,0.12) 100%)",
           }}
         />
         {/* Foreground: far-left circular headshot + text block. */}
@@ -136,7 +138,7 @@ export default async function OgImage({ params }: { params: Promise<{ username: 
             </div>
           )}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <div style={{ display: "flex", fontSize: 74, fontWeight: 800, color: "#ffffff", letterSpacing: -1.5, lineHeight: 1.05, maxWidth: 720 }}>
+            <div style={{ display: "flex", whiteSpace: "nowrap", fontSize: 54, fontWeight: 800, color: "#ffffff", letterSpacing: -1, lineHeight: 1.05 }}>
               Start Your Apartment Search
             </div>
             <div style={{ display: "flex", marginTop: 18, fontSize: 38, fontWeight: 500, color: "rgba(255,255,255,0.92)" }}>
