@@ -7,6 +7,32 @@ import type { SmartLeadFormConfig } from "@/app/smart-lead-form/_lib/types"
 
 export const dynamic = "force-dynamic"
 
+const CANONICAL_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL || "https://locatorbeast.com"
+
+// Minimal, image-first link preview. The visual is the per-agent opengraph-image.tsx
+// (Next wires og:image + twitter:image from it automatically, as an absolute URL via
+// metadataBase). Title is locator-specific; NO description (summary_large_image renders
+// image-first, and long marketing copy is intentionally avoided).
+export async function generateMetadata({ params }: { params: Promise<{ username: string }> }) {
+  const { username } = await params
+  let agentName: string | null = null
+  try {
+    const supabase = await createClient()
+    const { data } = await supabase.rpc("lb_resolve_public_form", { p_username: username })
+    const form = (Array.isArray(data) ? data[0] : data) as { agent_name?: string | null } | undefined
+    agentName = form?.agent_name?.trim() || null
+  } catch {
+    /* preview metadata must never fail the page */
+  }
+  const title = agentName ? `${agentName} | Apartment Search` : "Apartment Search"
+  return {
+    metadataBase: new URL(CANONICAL_ORIGIN),
+    title,
+    openGraph: { title, type: "website" as const, siteName: "Locator Beast" },
+    twitter: { card: "summary_large_image" as const, title },
+  }
+}
+
 type PublicForm = {
   workspace_id: string
   owner_user_id: string
