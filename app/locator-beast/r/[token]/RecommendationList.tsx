@@ -160,6 +160,10 @@ export default function RecommendationList({
   const [doneError, setDoneError] = useState<string | null>(null)
   const [availability, setAvailability] = useState<InitialAvailability>(initialAvailability)
   const [modalOpen, setModalOpen] = useState(false)
+  // Index of the heart currently playing its favorite "pop" (only one at a time — the
+  // one just tapped). Set when favoriting, cleared on animationend so the pop replays
+  // on every favorite. Unfavoriting never sets it (no reverse animation).
+  const [popIndex, setPopIndex] = useState<number | null>(null)
 
   async function markDone() {
     setDoneBusy(true)
@@ -188,6 +192,7 @@ export default function RecommendationList({
 
   async function toggle(index: number) {
     const next = !favorites.has(index)
+    if (next) setPopIndex(index) // pop only on favorite; unfavorite just returns to outline
     setFavorites((prev) => {
       const s = new Set(prev)
       next ? s.add(index) : s.delete(index)
@@ -278,8 +283,9 @@ export default function RecommendationList({
               })()}
               <button
                 type="button"
-                className="lbr-heart"
+                className={`lbr-heart${popIndex === p.index ? " is-popping" : ""}`}
                 onClick={() => toggle(p.index)}
+                onAnimationEnd={() => setPopIndex((cur) => (cur === p.index ? null : cur))}
                 aria-pressed={isFav}
                 aria-busy={isPending}
                 aria-label={isFav ? `Remove ${p.name} from your favorites` : `Save ${p.name} to your favorites`}

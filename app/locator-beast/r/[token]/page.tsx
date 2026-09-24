@@ -130,6 +130,15 @@ const CSS = `
 .lbr-ph-fallback{position:absolute;inset:0;background:linear-gradient(135deg,#c7d2e0,#9fb2c8)}
 .lbr-heart{position:absolute;top:12px;right:12px;width:40px;height:40px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(14,37,69,.28);cursor:pointer;border:none;padding:0}
 .lbr-heart:active{transform:scale(.9)}
+/* Favorite pop: on favoriting, the heart quickly scales up and settles back (~240ms).
+   Transform-only (no layout movement; heart is absolutely positioned, so nothing shifts).
+   Unfavoriting has no reverse animation — it just returns to the outline state. The
+   React side adds .is-popping only when favoriting and clears it on animationend, so the
+   pop replays every time. Works identically on iOS Safari / Android Chrome (plain CSS
+   keyframes + transform, no prefixes/platform APIs). */
+@keyframes lbr-heart-pop{0%{transform:scale(1)}45%{transform:scale(1.14)}100%{transform:scale(1)}}
+.lbr-heart.is-popping{animation:lbr-heart-pop 240ms ease-out}
+@media (prefers-reduced-motion:reduce){.lbr-heart.is-popping{animation:none}}
 .lbr-pill{position:absolute;left:12px;bottom:12px;background:#e8f0fe;color:#1c3f75;font-size:12.5px;font-weight:600;padding:5px 11px;border:1px solid #8fb6ea;border-radius:8px;box-shadow:0 4px 10px rgba(14,37,69,.14)}
 .lbr-body{padding:16px 17px 17px;display:flex;flex-direction:column;flex:1}
 .lbr-pname{font-size:18px;font-weight:800;color:var(--navy);letter-spacing:-.01em;margin:0}
