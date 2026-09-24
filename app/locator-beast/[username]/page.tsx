@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
   } catch {
     /* preview metadata must never fail the page */
   }
-  const title = agentName ? `${agentName} | Apartment Search` : "Apartment Search"
+  const title = agentName ? `${agentName} | Free Apartment Search` : "Free Apartment Search"
   return {
     metadataBase: new URL(CANONICAL_ORIGIN),
     title,
