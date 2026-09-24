@@ -79,7 +79,7 @@ export default function AgentSignature({
         // Subordinate profile info — small + muted, sized to fit the configured markets on ONE
         // centered line at normal mobile widths (full names + · separators preserved, never
         // abbreviated). It wraps rather than scrolling if a very long market list can't fit.
-        <div className="-mx-4 mt-1.5 text-[13px] leading-snug text-[#7a869a] sm:mx-0 sm:text-[12px]">
+        <div className="-mx-4 mt-6 text-[13px] leading-snug text-[#7a869a] sm:mx-0 sm:mt-1.5 sm:text-[12px]">
           Serving {markets.join(" · ")}
         </div>
       ) : null}
