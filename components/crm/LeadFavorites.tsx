@@ -13,7 +13,7 @@ import { favoriteMoveBlock } from "@/lib/leads/propertyCollections"
 import { isClientFavorite } from "@/lib/leads/favoriteOrigin"
 import { HiOutlineEnvelope, HiOutlineCalendarDays, HiCheck } from "react-icons/hi2"
 import { propertyWebsiteHref } from "@/lib/propertyExplorer/types"
-import { displayAddress, formatRating } from "@bc/companion-shared"
+import { displayAddress, formatRating, normalizeShortSpecial, isSpecialCurrent, evaluateLocatorCommission } from "@bc/companion-shared"
 import { StarRating } from "./StarRating"
 import { attachCatalogRatings } from "@/lib/propertyExplorer/catalog"
 import { utcToLocalTourValue, favoriteTourStateLabel } from "@/lib/leads/tourFollowUp"
@@ -469,6 +469,15 @@ export default function LeadFavorites({
                 commissionPaid,
                 rebateSent,
               })
+              // Locator-facing status for the metadata row — Special (blue, normalized
+              // short, fresh only) + Commission (green/red/neutral). fav carries the
+              // canonical property_catalog fields via attachCatalogRatings.
+              const favShortSpecial = isSpecialCurrent(fav.verified_at) ? normalizeShortSpecial(fav.current_special) : null
+              const favCommission = evaluateLocatorCommission({
+                sendCommission: fav.send_commission,
+                escortCommission: fav.escort_commission,
+                bonusFlat: fav.bonus_flat,
+              })
               return (
                 <div
                   key={fav.id}
@@ -544,6 +553,29 @@ export default function LeadFavorites({
                       >
                         Edit Property
                       </button>
+                    </div>
+                  </div>
+
+                  {/* Dedicated metadata row — Special (left) · Commission (right), 10px
+                      below the header. Present whenever there is a commission state
+                      (always ≥ "Not Verified"); Special only when current. Kept ABOVE and
+                      SEPARATE from the Send Guest Card | Schedule Tour action row. */}
+                  <div className="mt-2.5 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      {favShortSpecial && (
+                        <span className="rounded-lg border border-[#8fb6ea] bg-[#e8f0fe] px-2.5 py-[3px] text-[11px] font-semibold leading-none text-[#1c3f75]">{favShortSpecial}</span>
+                      )}
+                    </div>
+                    <div className="flex-none">
+                      {favCommission.state === "paying" ? (
+                        <span className="rounded-lg border border-[#8ecaa6] bg-[#dff5e6] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#136c3a]">
+                          <span className="font-semibold">Commission:</span> {favCommission.text}
+                        </span>
+                      ) : favCommission.state === "not_paying" ? (
+                        <span className="rounded-lg border border-[#eaa9a5] bg-[#fdeaea] px-2.5 py-[3px] text-[11px] font-semibold leading-none text-[#b42318]">Not Paying Locators</span>
+                      ) : (
+                        <span className="rounded-lg border border-[#cbd4e0] bg-[#eef1f5] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#5a6b86]">Commission Not Verified</span>
+                      )}
                     </div>
                   </div>
 

@@ -46,11 +46,22 @@ export default function BestMatches({
         <p className="text-[11px] text-[var(--crm-text-muted)]">No recommendations yet.</p>
       ) : (
         <div className="space-y-1.5">
-          {leadRecommendations.map((r) => (
+          {leadRecommendations.map((r) => {
+            // Locator-facing status — Special (blue, normalized short, fresh only) +
+            // Commission (green/red/neutral). Computed here so the dedicated metadata row
+            // below the header places Special left / Commission right (10px below rating).
+            const shortSpecial = isSpecialCurrent(r.verified_at) ? normalizeShortSpecial(r.current_special) : null
+            const commission = evaluateLocatorCommission({
+              sendCommission: r.send_commission,
+              escortCommission: r.escort_commission,
+              bonusFlat: r.bonus_flat,
+            })
+            return (
             <div
               key={r.id}
-              className="flex items-start gap-2.5 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] px-3 py-2"
+              className="rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] px-3 py-2"
             >
+              <div className="flex items-start gap-2.5">
               <PropertyThumb src={r.property_image_url} alt={r.property_name} />
               {(() => {
                 // The name links ONLY to the real property website (resolved read-side
@@ -58,16 +69,6 @@ export default function BestMatches({
                 // Maps). No valid website → a plain, non-clickable name. Mirrors the
                 // Favorite Property name-link behavior exactly.
                 const recHref = propertyWebsiteHref((r as { website_url?: string | null }).website_url)
-                // Locator-facing status pills — Special (blue, normalized short, fresh
-                // only) + Commission (green/red/neutral) — rendered BELOW the rating,
-                // aligned under the property text (never in the ✕/♡ action area). The
-                // commission always shows a state; the special only when verified/current.
-                const shortSpecial = isSpecialCurrent(r.verified_at) ? normalizeShortSpecial(r.current_special) : null
-                const commission = evaluateLocatorCommission({
-                  sendCommission: r.send_commission,
-                  escortCommission: r.escort_commission,
-                  bonusFlat: r.bonus_flat,
-                })
                 return (
                   <div className="min-w-0 flex-1">
                     {recHref ? (
@@ -85,22 +86,6 @@ export default function BestMatches({
                         <span className="-ml-[3px] text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
                       </div>
                     )}
-                    {/* Status row — Special (blue) + Commission (green/red/neutral) pills,
-                        same family as Map/Companion; wraps to a second line if needed. */}
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                      {shortSpecial && (
-                        <span className="rounded-lg border border-[#8fb6ea] bg-[#e8f0fe] px-2.5 py-[3px] text-[11px] font-semibold leading-none text-[#1c3f75]">{shortSpecial}</span>
-                      )}
-                      {commission.state === "paying" ? (
-                        <span className="rounded-lg border border-[#8ecaa6] bg-[#dff5e6] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#136c3a]">
-                          <span className="font-semibold">Commission:</span> {commission.text}
-                        </span>
-                      ) : commission.state === "not_paying" ? (
-                        <span className="rounded-lg border border-[#eaa9a5] bg-[#fdeaea] px-2.5 py-[3px] text-[11px] font-semibold leading-none text-[#b42318]">Not Paying Locators</span>
-                      ) : (
-                        <span className="rounded-lg border border-[#cbd4e0] bg-[#eef1f5] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#5a6b86]">Commission Not Verified</span>
-                      )}
-                    </div>
                   </div>
                 )
               })()}
@@ -137,8 +122,31 @@ export default function BestMatches({
                   )}
                 </div>
               )}
+              </div>
+              {/* Dedicated metadata row — Special (left) · Commission (right), 10px below
+                  the header so it no longer crowds the rating. Present whenever there is a
+                  commission state (always ≥ "Not Verified"); Special only when current. */}
+              <div className="mt-2.5 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  {shortSpecial && (
+                    <span className="rounded-lg border border-[#8fb6ea] bg-[#e8f0fe] px-2.5 py-[3px] text-[11px] font-semibold leading-none text-[#1c3f75]">{shortSpecial}</span>
+                  )}
+                </div>
+                <div className="flex-none">
+                  {commission.state === "paying" ? (
+                    <span className="rounded-lg border border-[#8ecaa6] bg-[#dff5e6] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#136c3a]">
+                      <span className="font-semibold">Commission:</span> {commission.text}
+                    </span>
+                  ) : commission.state === "not_paying" ? (
+                    <span className="rounded-lg border border-[#eaa9a5] bg-[#fdeaea] px-2.5 py-[3px] text-[11px] font-semibold leading-none text-[#b42318]">Not Paying Locators</span>
+                  ) : (
+                    <span className="rounded-lg border border-[#cbd4e0] bg-[#eef1f5] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#5a6b86]">Commission Not Verified</span>
+                  )}
+                </div>
+              </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
