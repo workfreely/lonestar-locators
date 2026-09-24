@@ -1369,17 +1369,17 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
             <p className="mt-2">
               {commissionStatus.state === "paying" ? (
                 // Verified paying → light-green money pill (same family as the blue special).
-                <span className="inline-block rounded-lg border border-[#8ecaa6] bg-[#dff5e6] px-2.5 py-[3px] text-[11.5px] font-medium leading-none text-[#136c3a]">
+                <span className="inline-block rounded-md border border-[#8ecaa6] bg-[#dff5e6] px-2.5 py-[3px] text-[11.5px] font-medium leading-none text-[#136c3a]">
                   <span className="font-semibold">Commission:</span> {commissionStatus.text}
                 </span>
               ) : commissionStatus.state === "not_paying" ? (
                 // Explicitly verified not paying → red pill.
-                <span className="inline-block rounded-lg border border-[#eaa9a5] bg-[#fdeaea] px-2.5 py-[3px] text-[11.5px] font-semibold leading-none text-[#b42318]">
+                <span className="inline-block rounded-md border border-[#eaa9a5] bg-[#fdeaea] px-2.5 py-[3px] text-[11.5px] font-semibold leading-none text-[#b42318]">
                   Not Paying Locators
                 </span>
               ) : (
                 // Blank / Unknown → neutral pill (Unknown ≠ No; never assume no-pay).
-                <span className="inline-block rounded-lg border border-[#cbd4e0] bg-[#eef1f5] px-2.5 py-[3px] text-[11.5px] font-medium leading-none text-[#5a6b86]">
+                <span className="inline-block rounded-md border border-[#cbd4e0] bg-[#eef1f5] px-2.5 py-[3px] text-[11.5px] font-medium leading-none text-[#5a6b86]">
                   Commission Not Verified
                 </span>
               )}
