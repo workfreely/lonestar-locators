@@ -498,7 +498,7 @@ export default function LeadFavorites({
                   key={fav.id}
                   className="bg-[var(--crm-inset)] border border-[var(--crm-border)] rounded-lg px-3 py-2"
                 >
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-start gap-2.5">
                     {/* Shared property thumbnail (same treatment as Recommended
                         Properties). property_image_url carries the resolved image
                         once persisted; until then PropertyThumb shows the clean
@@ -511,65 +511,42 @@ export default function LeadFavorites({
                     const favHref = propertyWebsiteHref((fav as { website_url?: string | null }).website_url)
                     return favHref ? (
                       <a href={favHref} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1">
-                        <div className="flex min-w-0 items-center gap-1.5">
-                          <p className="truncate text-[12.5px] font-semibold text-[var(--crm-accent)] hover:underline">
-                            {fav.property_name || "Property"}
-                          </p>
-                          {favShortSpecial && (
-                            <span className="flex-none rounded-md border border-[#8fb6ea] bg-[#e8f0fe] px-1 py-[1px] text-[9px] font-semibold leading-none text-[#1c3f75]">{favShortSpecial}</span>
-                          )}
-                        </div>
+                        <p className="truncate text-[12.5px] font-semibold text-[var(--crm-accent)] hover:underline">
+                          {fav.property_name || "Property"}
+                        </p>
                         {fav.property_address && (
                           <p className="text-[11px] text-[var(--crm-text-muted)] truncate">{displayAddress(fav.property_address)}</p>
                         )}
-                        {(typeof fav.google_rating === "number" || favShowMatch) && (
-                          <div className="mt-0.5 flex items-center justify-between gap-2">
-                            <div className="flex min-w-0 items-center gap-1.5">
-                              {typeof fav.google_rating === "number" && (
-                                <>
-                                  <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(fav.google_rating)}</span>
-                                  <StarRating value={fav.google_rating} />
-                                  <span className="-ml-[3px] text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
-                                </>
-                              )}
-                            </div>
-                            {favShowMatch && (
-                              <span className="flex-none rounded-md border border-[var(--crm-border)] px-1.5 py-[1px] text-[10px] font-semibold leading-none text-[var(--crm-text-secondary)]">{favMatchScore}% <span className="font-medium text-[var(--crm-text-muted)]">Match</span></span>
-                            )}
+                        {typeof fav.google_rating === "number" && (
+                          <div className="mt-0.5 flex items-center gap-1.5">
+                            <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(fav.google_rating)}</span>
+                            <StarRating value={fav.google_rating} />
+                            <span className="-ml-[3px] text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
                           </div>
                         )}
                       </a>
                     ) : (
                       <div className="min-w-0 flex-1">
-                        <div className="flex min-w-0 items-center gap-1.5">
-                          <p className="truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{fav.property_name}</p>
-                          {favShortSpecial && (
-                            <span className="flex-none rounded-md border border-[#8fb6ea] bg-[#e8f0fe] px-1 py-[1px] text-[9px] font-semibold leading-none text-[#1c3f75]">{favShortSpecial}</span>
-                          )}
-                        </div>
+                        <p className="truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{fav.property_name}</p>
                         {fav.property_address && (
                           <p className="text-[11px] text-[var(--crm-text-muted)] truncate">{displayAddress(fav.property_address)}</p>
                         )}
-                        {(typeof fav.google_rating === "number" || favShowMatch) && (
-                          <div className="mt-0.5 flex items-center justify-between gap-2">
-                            <div className="flex min-w-0 items-center gap-1.5">
-                              {typeof fav.google_rating === "number" && (
-                                <>
-                                  <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(fav.google_rating)}</span>
-                                  <StarRating value={fav.google_rating} />
-                                  <span className="-ml-[3px] text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
-                                </>
-                              )}
-                            </div>
-                            {favShowMatch && (
-                              <span className="flex-none rounded-md border border-[var(--crm-border)] px-1.5 py-[1px] text-[10px] font-semibold leading-none text-[var(--crm-text-secondary)]">{favMatchScore}% <span className="font-medium text-[var(--crm-text-muted)]">Match</span></span>
-                            )}
+                        {typeof fav.google_rating === "number" && (
+                          <div className="mt-0.5 flex items-center gap-1.5">
+                            <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(fav.google_rating)}</span>
+                            <StarRating value={fav.google_rating} />
+                            <span className="-ml-[3px] text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
                           </div>
                         )}
                       </div>
                     )
                     })()}
-                    <div className="flex-none flex items-center gap-2.5">
+                    {/* Right-side stack — top controls (✕ back / Edit Property) aligned with
+                        the property-name row, then a small vertical status stack beneath:
+                        Special, then Match (genuine score only). Commission stays on the
+                        bottom-right operational row. */}
+                    <div className="flex flex-none flex-col items-end gap-1.5">
+                    <div className="flex items-center gap-2.5">
                       {onMoveToRecommendation && (() => {
                         // ✕ moves the Favorite BACK to Recommendations (never a
                         // delete). Blocked while a scheduled tour / Top Pick / open
@@ -596,6 +573,13 @@ export default function LeadFavorites({
                       >
                         Edit Property
                       </button>
+                    </div>
+                    {favShortSpecial && (
+                      <span className="rounded-md border border-[#8fb6ea] bg-[#e8f0fe] px-1 py-[1px] text-[9px] font-semibold leading-none text-[#1c3f75]">{favShortSpecial}</span>
+                    )}
+                    {favShowMatch && (
+                      <span className="rounded-md border border-[var(--crm-border)] px-1.5 py-[1px] text-[10px] font-semibold leading-none text-[var(--crm-text-secondary)]">{favMatchScore}% <span className="font-medium text-[var(--crm-text-muted)]">Match</span></span>
+                    )}
                     </div>
                   </div>
 

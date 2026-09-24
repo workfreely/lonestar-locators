@@ -76,37 +76,21 @@ export default function BestMatches({
                 const recHref = propertyWebsiteHref((r as { website_url?: string | null }).website_url)
                 return (
                   <div className="min-w-0 flex-1">
-                    {/* Name row — property name with the compact Special badge beside it
-                        (blue, current/verified only; sized so it never overpowers the name). */}
-                    <div className="flex min-w-0 items-center gap-1.5">
-                      {recHref ? (
-                        <a href={recHref} target="_blank" rel="noopener noreferrer" className="truncate text-[12.5px] font-semibold text-[var(--crm-accent)] hover:underline">{r.property_name}</a>
-                      ) : (
-                        <p className="truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{r.property_name}</p>
-                      )}
-                      {shortSpecial && (
-                        <span className="flex-none rounded-md border border-[#8fb6ea] bg-[#e8f0fe] px-1 py-[1px] text-[9px] font-semibold leading-none text-[#1c3f75]">{shortSpecial}</span>
-                      )}
-                    </div>
+                    {/* Property-name typography unchanged. Special + Match now live in the
+                        right-side status stack (below), not beside the name/rating. */}
+                    {recHref ? (
+                      <a href={recHref} target="_blank" rel="noopener noreferrer" className="block truncate text-[12.5px] font-semibold text-[var(--crm-accent)] hover:underline">{r.property_name}</a>
+                    ) : (
+                      <p className="truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{r.property_name}</p>
+                    )}
                     {r.property_address && (
                       <p className="truncate text-[11px] text-[var(--crm-text-muted)]">{displayAddress(r.property_address)}</p>
                     )}
-                    {/* Rating row — Google rating (left, unchanged) · genuine Match % on
-                        the right (compact/secondary), shown only when a real score exists. */}
-                    {(typeof r.google_rating === "number" || showMatch) && (
-                      <div className="mt-0.5 flex items-center justify-between gap-2">
-                        <div className="flex min-w-0 items-center gap-1.5">
-                          {typeof r.google_rating === "number" && (
-                            <>
-                              <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(r.google_rating)}</span>
-                              <StarRating value={r.google_rating} />
-                              <span className="-ml-[3px] text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
-                            </>
-                          )}
-                        </div>
-                        {showMatch && (
-                          <span className="flex-none rounded-md border border-[var(--crm-border)] px-1.5 py-[1px] text-[10px] font-semibold leading-none text-[var(--crm-text-secondary)]">{matchScore}% <span className="font-medium text-[var(--crm-text-muted)]">Match</span></span>
-                        )}
+                    {typeof r.google_rating === "number" && (
+                      <div className="mt-0.5 flex items-center gap-1.5">
+                        <span className="text-[11px] font-semibold tabular-nums text-[var(--crm-text-secondary)]">{formatRating(r.google_rating)}</span>
+                        <StarRating value={r.google_rating} />
+                        <span className="-ml-[3px] text-[11px] text-[var(--crm-text-muted)]">Google Rating</span>
                       </div>
                     )}
                   </div>
@@ -119,32 +103,44 @@ export default function BestMatches({
                   15px/600, neutral at rest, soft red glow (glyph + border + tint) on
                   hover, 120ms transition. The ✕ is deliberately quieter (borderless,
                   muted, smaller) so the heart stays the primary action. */}
-              {(onRemoveRecommendation || onMoveToFavorite) && (
-                <div className="flex flex-none items-center gap-1.5">
-                  {onRemoveRecommendation && (
-                    <button
-                      type="button"
-                      aria-label="Remove recommendation"
-                      title="Remove recommendation"
-                      onClick={() => onRemoveRecommendation(r.property_url)}
-                      className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-md text-[12px] leading-none text-[var(--crm-text-muted)] transition-colors duration-[120ms] hover:text-red-500"
-                    >
-                      ✕
-                    </button>
-                  )}
-                  {onMoveToFavorite && (
-                    <button
-                      type="button"
-                      aria-label="Move to favorites"
-                      title="Move to favorites"
-                      onClick={() => onMoveToFavorite(r.property_url)}
-                      className="crm-rec-heart"
-                    >
-                      ♡
-                    </button>
-                  )}
-                </div>
-              )}
+              {/* Right-side stack — top controls (✕ remove / ♡ move to Favorites) aligned
+                  with the property-name row, then a small vertical status stack beneath them:
+                  Special, then Match (genuine score only). Commission stays on the bottom-
+                  right operational row. */}
+              <div className="flex flex-none flex-col items-end gap-1.5">
+                {(onRemoveRecommendation || onMoveToFavorite) && (
+                  <div className="flex items-center gap-1.5">
+                    {onRemoveRecommendation && (
+                      <button
+                        type="button"
+                        aria-label="Remove recommendation"
+                        title="Remove recommendation"
+                        onClick={() => onRemoveRecommendation(r.property_url)}
+                        className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-md text-[12px] leading-none text-[var(--crm-text-muted)] transition-colors duration-[120ms] hover:text-red-500"
+                      >
+                        ✕
+                      </button>
+                    )}
+                    {onMoveToFavorite && (
+                      <button
+                        type="button"
+                        aria-label="Move to favorites"
+                        title="Move to favorites"
+                        onClick={() => onMoveToFavorite(r.property_url)}
+                        className="crm-rec-heart"
+                      >
+                        ♡
+                      </button>
+                    )}
+                  </div>
+                )}
+                {shortSpecial && (
+                  <span className="rounded-md border border-[#8fb6ea] bg-[#e8f0fe] px-1 py-[1px] text-[9px] font-semibold leading-none text-[#1c3f75]">{shortSpecial}</span>
+                )}
+                {showMatch && (
+                  <span className="rounded-md border border-[var(--crm-border)] px-1.5 py-[1px] text-[10px] font-semibold leading-none text-[var(--crm-text-secondary)]">{matchScore}% <span className="font-medium text-[var(--crm-text-muted)]">Match</span></span>
+                )}
+              </div>
               </div>
               {/* Operational row — Recommended has no Guest Card / Schedule Tour actions,
                   so Commission aligns to the bottom-right of the card. Present whenever
