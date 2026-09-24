@@ -552,9 +552,10 @@ export default function LeadFavorites({
                           {favControls}
                         </div>
                         {/* Address row — address left, Special (compact, current/verified
-                            only) on the far right. */}
+                            only) on the far right. mt-[7px] gives clear separation below the
+                            top-right controls so the Special never reads as attached to Edit. */}
                         {(fav.property_address || favShortSpecial) && (
-                          <div className="mt-[1px] flex items-center justify-between gap-2">
+                          <div className="mt-[7px] flex items-center justify-between gap-2">
                             <p className="min-w-0 truncate text-[11px] text-[var(--crm-text-muted)]">{fav.property_address ? displayAddress(fav.property_address) : ""}</p>
                             {favShortSpecial && (
                               <span className="flex-none rounded-md border border-[#8fb6ea] bg-[#e8f0fe] px-1 py-[1px] text-[9px] font-semibold leading-none text-[#1c3f75]">{favShortSpecial}</span>
