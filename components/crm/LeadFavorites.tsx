@@ -516,7 +516,7 @@ export default function LeadFavorites({
                             {fav.property_name || "Property"}
                           </p>
                           {favShortSpecial && (
-                            <span className="flex-none rounded-md border border-[#8fb6ea] bg-[#e8f0fe] px-1.5 py-[1px] text-[10px] font-semibold leading-none text-[#1c3f75]">{favShortSpecial}</span>
+                            <span className="flex-none rounded-md border border-[#8fb6ea] bg-[#e8f0fe] px-1 py-[1px] text-[9px] font-semibold leading-none text-[#1c3f75]">{favShortSpecial}</span>
                           )}
                         </div>
                         {fav.property_address && (
@@ -544,7 +544,7 @@ export default function LeadFavorites({
                         <div className="flex min-w-0 items-center gap-1.5">
                           <p className="truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{fav.property_name}</p>
                           {favShortSpecial && (
-                            <span className="flex-none rounded-md border border-[#8fb6ea] bg-[#e8f0fe] px-1.5 py-[1px] text-[10px] font-semibold leading-none text-[#1c3f75]">{favShortSpecial}</span>
+                            <span className="flex-none rounded-md border border-[#8fb6ea] bg-[#e8f0fe] px-1 py-[1px] text-[9px] font-semibold leading-none text-[#1c3f75]">{favShortSpecial}</span>
                           )}
                         </div>
                         {fav.property_address && (

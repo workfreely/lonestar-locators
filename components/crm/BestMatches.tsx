@@ -85,7 +85,7 @@ export default function BestMatches({
                         <p className="truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{r.property_name}</p>
                       )}
                       {shortSpecial && (
-                        <span className="flex-none rounded-md border border-[#8fb6ea] bg-[#e8f0fe] px-1.5 py-[1px] text-[10px] font-semibold leading-none text-[#1c3f75]">{shortSpecial}</span>
+                        <span className="flex-none rounded-md border border-[#8fb6ea] bg-[#e8f0fe] px-1 py-[1px] text-[9px] font-semibold leading-none text-[#1c3f75]">{shortSpecial}</span>
                       )}
                     </div>
                     {r.property_address && (
