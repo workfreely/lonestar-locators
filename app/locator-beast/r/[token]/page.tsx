@@ -477,7 +477,6 @@ export default async function ClientRecommendationsPage({
           <div className="lbr-intro-inner">
             <p className="lbr-eyebrow">{curated}<span className="lbr-rule" /></p>
             <h1 className="lbr-greet">{greeting}</h1>
-            <p className="lbr-subcopy">Favorite the ones you like and I&rsquo;ll take care of the next steps.</p>
           </div>
         </section>
 
