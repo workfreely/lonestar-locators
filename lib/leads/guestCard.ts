@@ -381,8 +381,9 @@ export function buildGuestCardBody(
     intro,
     "If you have any other available floor plans or units that you think would be a good fit based on their preferences, I'd love your recommendations.",
     // Confirmation question + the commission Locator Beast has on file, snapshotted
-    // directly beneath it (single line break, so they read as one block).
-    `Could you please confirm the current locator commission for this property?\n${f.commissionLine}`,
+    // beneath it with one blank line between (the commission line keeps its own inline
+    // format, incl. "· Bonus $X" when present).
+    `Could you please confirm the current locator commission for this property?\n\n${f.commissionLine}`,
     context,
     clientDetails,
     "Thank you!",
