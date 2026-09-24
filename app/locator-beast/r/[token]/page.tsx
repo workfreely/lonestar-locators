@@ -265,7 +265,7 @@ const CSS = `
 .lbr-modal-title{font-size:22px;font-weight:800;color:var(--navy);letter-spacing:-.01em;margin:0}
 .lbr-modal-x{flex:none;appearance:none;border:1px solid var(--line);background:#fff;color:var(--navy);width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .lbr-modal-x:active{transform:scale(.94)}
-.lbr-modal-body{overflow-y:auto;padding:16px 22px 10px;-webkit-overflow-scrolling:touch}
+.lbr-modal-body{overflow-y:auto;padding:16px 22px 10px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 .lbr-modal-body .lbr-ta-field:first-of-type{margin-top:6px}
 .lbr-modal-foot{padding:14px 22px 18px;border-top:1px solid var(--line-soft);background:#fff}
 .lbr-modal-foot .lbr-ta-send{margin-top:0}
@@ -356,7 +356,11 @@ const CSS = `
 .lbr-done-copy{font-size:14.5px}
 /* Tour Availability modal → bottom-sheet on mobile; larger supporting text. */
 .lbr-modal-overlay{align-items:flex-end;padding:0}
-.lbr-modal{max-width:none;max-height:92vh;border-radius:22px 22px 0 0}
+/* iOS Safari: size the bottom-sheet to the DYNAMIC (visible) viewport, not the large
+   vh viewport. With the URL bar showing, 92vh is taller than what's on screen, so a
+   bottom-anchored sheet pushes its header up behind the browser chrome. dvh tracks the
+   visible height so the fixed header stays on screen; vh is the fallback for old engines. */
+.lbr-modal{max-width:none;max-height:92vh;max-height:92dvh;border-radius:22px 22px 0 0}
 .lbr-modal-grab{display:block;position:absolute;top:8px;left:50%;transform:translateX(-50%);width:40px;height:4px;border-radius:2px;background:var(--line)}
 /* Bottom-sheet: pin the header (title + X) and the footer (Send CTA); only the middle
    scheduling content scrolls. flex:none keeps head/foot from compressing; the body becomes
@@ -373,7 +377,7 @@ const CSS = `
 .lbr-ta-cal{padding:10px}
 .lbr-ta-calhead{margin-bottom:6px}
 .lbr-ta-dow{margin-bottom:2px}
-.lbr-modal-foot{padding-left:18px;padding-right:18px;flex:none}
+.lbr-modal-foot{padding-left:18px;padding-right:18px;padding-bottom:calc(18px + env(safe-area-inset-bottom));flex:none}
 .lbr-avsent-msg{font-size:15px}
 .lbr-ta-h{font-size:26px}
 .lbr-ta-sub{font-size:16px}
