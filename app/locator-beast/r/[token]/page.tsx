@@ -497,9 +497,9 @@ export default async function ClientRecommendationsPage({
           <section className="lbr-steps lbr-steps--roadmap">
             <h2>Next Steps</h2>
             <ol>
-              <li><div className="lbr-n">1</div><div><b>Heart your top 2&ndash;3 favorites</b><span>Choose the properties you&rsquo;d like to tour.</span></div></li>
+              <li><div className="lbr-n">1</div><div><b>Heart your top 2&ndash;3 favorites</b><span>Choose the ones you&rsquo;d like to tour.</span></div></li>
               <li><div className="lbr-n">2</div><div><b>I&rsquo;ll get your tour scheduled</b><span>We coordinate everything for you.</span></div></li>
-              <li><div className="lbr-n">3</div><div><b>List Me as Your Realtor/Locator</b><span>When you apply, list me to receive any rebates, movers, or incentives.</span></div></li>
+              <li><div className="lbr-n">3</div><div><b>List Me as Your Realtor/Locator</b><span>List me on your application for cash rebates, free movers or incentives.</span></div></li>
             </ol>
           </section>
 
