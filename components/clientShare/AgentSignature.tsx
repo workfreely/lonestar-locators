@@ -68,7 +68,7 @@ export default function AgentSignature({
         </div>
       ) : null}
       {/* Intentional breathing room before the handwritten tagline (the final identity element). */}
-      <div className={`${caveat.className} mt-5 text-[33px] text-[#0e2545] opacity-90 sm:text-[22px]`}>{tagline}</div>
+      <div className={`${caveat.className} -mx-4 mt-5 text-[28px] leading-tight text-[#0e2545] opacity-90 sm:mx-0 sm:text-[22px]`}>{tagline}</div>
     </div>
   )
 }

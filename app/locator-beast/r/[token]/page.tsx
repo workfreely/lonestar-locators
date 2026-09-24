@@ -305,7 +305,7 @@ const CSS = `
 .lbr-heart{width:46px;height:46px}
 .lbr-heart svg{width:25px;height:25px}
 /* Footer/legal: keep secondary but comfortably legible (shared Footer forces 11px). */
-.lbr-legal .slf-compact a,.lbr-legal .slf-compact span{font-size:19px!important}
+.lbr-legal .slf-compact a,.lbr-legal .slf-compact span{font-size:15px!important}
 /* Disclosure links wrap to separate rows on mobile at the approved size — drop the
    trailing separator dot so no dangling "·" hangs after Information About Brokerage
    Services. Targets only the dot that trails a disclosure link (an external
@@ -498,7 +498,7 @@ export default async function ClientRecommendationsPage({
             <h2>Next Steps</h2>
             <ol>
               <li><div className="lbr-n">1</div><div><b>Heart your top 2&ndash;3 favorites</b><span>Choose the ones you&rsquo;d like to tour.</span></div></li>
-              <li><div className="lbr-n">2</div><div><b>I&rsquo;ll get your tour scheduled</b><span>We coordinate everything for you.</span></div></li>
+              <li><div className="lbr-n">2</div><div><b>I&rsquo;ll Get Your Tour Scheduled</b><span>We coordinate everything for you.</span></div></li>
               <li><div className="lbr-n">3</div><div><b>List Me as Your Realtor/Locator</b><span>List me on your application for cash rebates, free movers or incentives.</span></div></li>
             </ol>
           </section>

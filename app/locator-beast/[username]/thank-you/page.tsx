@@ -44,7 +44,7 @@ const TY_CSS = `
 .ty-legal span:has(> a[target="_blank"]) > span[aria-hidden="true"]{display:none}
 /* Match the /r mobile legal size (base 13.5 → 19 on phones) so the shared footer reads
    consistently with the enlarged mobile agent signature. Desktop unchanged. */
-.ty-legal .slf-compact a,.ty-legal .slf-compact span{font-size:19px!important}
+.ty-legal .slf-compact a,.ty-legal .slf-compact span{font-size:15px!important}
 }
 `
 
