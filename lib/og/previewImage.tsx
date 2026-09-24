@@ -77,14 +77,19 @@ export async function renderPreviewImage(opts: {
         <img src={bg} width={PREVIEW_SIZE.width} height={PREVIEW_SIZE.height} style={{ position: "absolute", inset: 0, objectFit: "cover" }} alt="" />
         {/* Uniform darkening across the whole theme image, then a stronger left-weighted
             scrim where the headshot + text sit — so both stand out more. */}
-        <div style={{ position: "absolute", inset: 0, display: "flex", background: "rgba(6,12,22,0.52)" }} />
+        {/* NOTE: Satori does not apply the `inset` shorthand — overlays MUST be sized with
+            explicit width/height (top/left), or they render zero-sized and never darken. */}
+        <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", display: "flex", background: "rgba(6,12,22,0.55)" }} />
         <div
           style={{
             position: "absolute",
-            inset: 0,
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
             display: "flex",
             background:
-              "linear-gradient(90deg, rgba(6,12,22,0.98) 0%, rgba(6,12,22,0.92) 45%, rgba(6,12,22,0.64) 75%, rgba(6,12,22,0.30) 100%)",
+              "linear-gradient(90deg, rgba(6,12,22,0.92) 0%, rgba(6,12,22,0.82) 45%, rgba(6,12,22,0.55) 75%, rgba(6,12,22,0.28) 100%)",
           }}
         />
         {/* Foreground: the headshot + headline read as ONE horizontal row — the headline is

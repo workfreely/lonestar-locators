@@ -13,6 +13,9 @@ import { PREVIEW_CONTENT_TYPE, PREVIEW_SIZE, renderPreviewImage } from "@/lib/og
 // and the agent's identity. Unknown/imageless cities fall back to the safe theme asset.
 
 export const runtime = "nodejs"
+// Regenerate per request so the preview reflects the current share (agent photo/name/
+// title, client city) and any scrim/layout updates rather than a stale cached image.
+export const dynamic = "force-dynamic"
 export const size = PREVIEW_SIZE
 export const contentType = PREVIEW_CONTENT_TYPE
 export const alt = "Your Custom Property List"

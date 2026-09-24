@@ -10,6 +10,9 @@ import { PREVIEW_CONTENT_TYPE, PREVIEW_SIZE, renderPreviewImage } from "@/lib/og
 // Node runtime because the shared renderer uses sharp to decode the theme .webp.
 
 export const runtime = "nodejs"
+// Regenerate per request so the preview reflects the agent's current theme, photo,
+// and title (and any scrim/layout updates) rather than a stale cached image.
+export const dynamic = "force-dynamic"
 export const size = PREVIEW_SIZE
 export const contentType = PREVIEW_CONTENT_TYPE
 export const alt = "Start Your Apartment Search"
