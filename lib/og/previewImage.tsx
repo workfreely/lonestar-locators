@@ -81,42 +81,38 @@ export async function renderPreviewImage(opts: {
             NOTE: Satori does not apply the `inset` shorthand — the overlay MUST be sized
             with explicit width/height (top/left) or it renders zero-sized and never darkens. */}
         <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", display: "flex", background: "rgba(0,0,0,0.35)" }} />
-        {/* Foreground: the headshot + headline read as ONE horizontal row — the headline is
-            centered against the MIDDLE of the photo (the row aligns to the fixed-height
-            headshot wrapper). The agent identity is stacked directly UNDER the photo via
-            absolute positioning, so it never shifts the headline's vertical alignment. */}
-        <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 48, padding: "0 64px", height: "100%" }}>
-          <div style={{ position: "relative", display: "flex", flexShrink: 0, width: 168, height: 168 }}>
-            {headshot ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={headshot} width={168} height={168} style={{ borderRadius: 168, border: "6px solid rgba(255,255,255,0.92)" }} alt="" />
-            ) : (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: 168,
-                  height: 168,
-                  borderRadius: 168,
-                  border: "6px solid rgba(255,255,255,0.92)",
-                  background: "linear-gradient(135deg,#22406e,#16305a)",
-                  color: "#fff",
-                  fontSize: 76,
-                  fontWeight: 800,
-                }}
-              >
-                {initial}
-              </div>
-            )}
-            {/* Agent identity — centered directly under the profile image (absolute, so it
-                does not change where the headline centers). */}
-            <div style={{ position: "absolute", top: 184, left: -60, width: 288, display: "flex", flexDirection: "column", alignItems: "center" }}>
-              <div style={{ display: "flex", whiteSpace: "nowrap", fontSize: 28, fontWeight: 600, color: "#ffffff" }}>{opts.agentName}</div>
-              <div style={{ display: "flex", whiteSpace: "nowrap", marginTop: 2, fontSize: 19, fontWeight: 500, color: "rgba(255,255,255,0.82)" }}>{opts.agentTitle}</div>
+        {/* Foreground — CENTERED, client-focused composition: a medium agent headshot at the
+            upper-middle, the agent identity (name + title) directly beneath it as the
+            SECONDARY element, breathing room, then the large personalized headline as the
+            dominant focal point. */}
+        <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: "100%", height: "100%", padding: "0 80px" }}>
+          {headshot ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={headshot} width={132} height={132} style={{ borderRadius: 132, border: "5px solid rgba(255,255,255,0.92)" }} alt="" />
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 132,
+                height: 132,
+                borderRadius: 132,
+                border: "5px solid rgba(255,255,255,0.92)",
+                background: "linear-gradient(135deg,#22406e,#16305a)",
+                color: "#fff",
+                fontSize: 60,
+                fontWeight: 800,
+              }}
+            >
+              {initial}
             </div>
-          </div>
-          <div style={{ display: "flex", whiteSpace: "nowrap", fontSize: 60, fontWeight: 800, color: "#ffffff", letterSpacing: -1.5, lineHeight: 1.04 }}>
+          )}
+          {/* Agent identity — secondary. */}
+          <div style={{ display: "flex", whiteSpace: "nowrap", marginTop: 16, fontSize: 27, fontWeight: 600, color: "#ffffff" }}>{opts.agentName}</div>
+          <div style={{ display: "flex", whiteSpace: "nowrap", marginTop: 2, fontSize: 19, fontWeight: 500, color: "rgba(255,255,255,0.82)" }}>{opts.agentTitle}</div>
+          {/* Personalized headline — the largest, most prominent element (with breathing room). */}
+          <div style={{ display: "flex", whiteSpace: "nowrap", marginTop: 44, fontSize: 62, fontWeight: 800, color: "#ffffff", letterSpacing: -1.5, lineHeight: 1.04 }}>
             {opts.headline}
           </div>
         </div>

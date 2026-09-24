@@ -27,17 +27,20 @@ export default async function OgImage({ params }: { params: Promise<{ token: str
   let agentTitle = "Licensed Apartment Locator"
   let photoUrl: string | null = null
   let backgroundUrl: string | null = null
+  let clientFirst: string | null = null
   if (looksLikeShareToken(token)) {
     try {
       const supabase = await createClient()
       const { data } = await supabase.rpc("lb_resolve_client_recommendations", { p_token_hash: hashShareToken(token) })
       const share = (Array.isArray(data) ? data[0] : data) as
-        | { agent_name?: string | null; agent_photo_url?: string | null; agent_title?: string | null; client_city?: string | null }
+        | { agent_name?: string | null; agent_photo_url?: string | null; agent_title?: string | null; client_city?: string | null; client_first_name?: string | null }
         | undefined
       if (share) {
         agentName = share.agent_name?.trim() || agentName
         agentTitle = share.agent_title?.trim() || agentTitle
         photoUrl = share.agent_photo_url?.trim() || null
+        // FIRST NAME ONLY (never any other client data) — personalizes the headline.
+        clientFirst = share.client_first_name?.trim() || null
         // Same hero the /r page renders: the client's SEARCH-city skyline via the
         // canonical resolver (generic SKYLINE_PATH fallback — never an arbitrary path).
         backgroundUrl = clientHeroImage(share.client_city)
@@ -47,5 +50,7 @@ export default async function OgImage({ params }: { params: Promise<{ token: str
     }
   }
 
-  return renderPreviewImage({ headline: "Your Custom Property List", agentName, agentTitle, backgroundUrl, photoUrl })
+  // Client-focused headline, personalized by first name; generic fallback when absent.
+  const headline = clientFirst ? `${clientFirst}’s Custom Property List` : "Your Custom Property List"
+  return renderPreviewImage({ headline, agentName, agentTitle, backgroundUrl, photoUrl })
 }
