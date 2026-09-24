@@ -350,7 +350,11 @@ const CSS = `
 .lbr-modal{max-width:none;max-height:92vh;border-radius:22px 22px 0 0}
 .lbr-modal-grab{display:block;position:absolute;top:8px;left:50%;transform:translateX(-50%);width:40px;height:4px;border-radius:2px;background:var(--line)}
 .lbr-modal-head{padding-top:16px}
-.lbr-modal-title{font-size:21px}
+.lbr-modal-title{font-size:23px}
+/* Close/X control: enlarge on mobile so it clears the 44px touch-target min (kept top-right,
+   same circle/border/background). Icon bump overrides the inline svg width/height attrs. */
+.lbr-modal-x{width:52px;height:52px}
+.lbr-modal-x svg{width:24px;height:24px}
 .lbr-modal-body{padding-left:18px;padding-right:18px;padding-top:10px}
 .lbr-modal-body .lbr-ta-field:first-of-type{margin-top:4px}
 .lbr-ta-field{margin-top:18px}
@@ -361,12 +365,14 @@ const CSS = `
 .lbr-avsent-msg{font-size:15px}
 .lbr-ta-h{font-size:26px}
 .lbr-ta-sub{font-size:16px}
-.lbr-ta-lbl{font-size:16px;margin-bottom:6px}
-.lbr-ta-segbtn{font-size:16px;padding:13px 8px}
-.lbr-ta-cell{font-size:16px}
-.lbr-ta-chip{font-size:16px}
-.lbr-ta-dayname{font-size:16px}
-.lbr-ta-send{font-size:18px}
+.lbr-ta-lbl{font-size:18px;margin-bottom:6px}
+.lbr-ta-segbtn{font-size:17px;padding:13px 8px}
+.lbr-ta-month{font-size:17px}
+.lbr-ta-dow span{font-size:13px}
+.lbr-ta-cell{font-size:17px}
+.lbr-ta-chip{font-size:17px}
+.lbr-ta-dayname{font-size:17px}
+.lbr-ta-send{font-size:19px}
 .lbr-ta-srow,.lbr-ta-summary-lead{font-size:15px}
 .lbr-sig{margin:24px 16px 0;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 6px 20px -12px rgba(14,37,69,.28);padding:24px 18px}
 .lbr-legal{padding:20px 16px 26px}
