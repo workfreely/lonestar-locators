@@ -6,14 +6,14 @@
 
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { ENRICHMENT_WRITABLE_FIELDS, IMAGE_FIELDS, COMMISSION_FIELDS } from "../policy"
-import type { EnrichmentStore } from "../store"
-import type { EnrichmentEvent, FieldProvenance, ImageSelectionState, PropertySnapshot, SourceType, VerificationStatus } from "../types"
+import type { AttributeRow, AttributeStore, EnrichmentStore } from "../store"
+import type { EnrichmentEvent, FieldProvenance, ImageSelectionState, PropertySnapshot, SourceType, StoredAttribute, VerificationStatus } from "../types"
 
 const READ_COLUMNS = Array.from(
   new Set(["place_id", "updated_at", "image_selection_state", ...ENRICHMENT_WRITABLE_FIELDS, ...IMAGE_FIELDS, ...COMMISSION_FIELDS]),
 ).join(", ")
 
-export class SupabaseEnrichmentStore implements EnrichmentStore {
+export class SupabaseEnrichmentStore implements EnrichmentStore, AttributeStore {
   async loadProperty(placeId: string): Promise<PropertySnapshot | null> {
     const { data } = await supabaseAdmin.from("property_catalog").select(READ_COLUMNS).eq("place_id", placeId).maybeSingle()
     if (!data) return null
@@ -64,6 +64,58 @@ export class SupabaseEnrichmentStore implements EnrichmentStore {
       return false
     }
     return (data?.length ?? 0) > 0
+  }
+
+  // ── AttributeStore surface (property_attributes EAV) ──
+  async loadAttributeKeys(): Promise<Record<string, { category: string; valueKind: "tristate" | "text" }>> {
+    const { data } = await supabaseAdmin.from("property_attribute_keys").select("attribute_key, category, value_kind")
+    const out: Record<string, { category: string; valueKind: "tristate" | "text" }> = {}
+    for (const r of data ?? []) {
+      out[r.attribute_key as string] = {
+        category: r.category as string,
+        valueKind: (r.value_kind as "tristate" | "text") ?? "tristate",
+      }
+    }
+    return out
+  }
+
+  async loadAttributes(placeId: string): Promise<Record<string, StoredAttribute>> {
+    const { data } = await supabaseAdmin
+      .from("property_attributes")
+      .select("attribute_key, value, value_text, floorplan_specific, source_type, verification_status, checked_at")
+      .eq("place_id", placeId)
+    const out: Record<string, StoredAttribute> = {}
+    for (const r of data ?? []) {
+      out[r.attribute_key as string] = {
+        value: (r.value as string | null) ?? null,
+        valueText: (r.value_text as string | null) ?? null,
+        floorplanSpecific: r.floorplan_specific === true,
+        sourceType: (r.source_type as SourceType | null) ?? null,
+        verificationStatus: (r.verification_status as VerificationStatus | null) ?? null,
+        checkedAt: (r.checked_at as string | null) ?? null,
+      }
+    }
+    return out
+  }
+
+  async applyAttributes(placeId: string, rows: AttributeRow[]): Promise<void> {
+    if (rows.length === 0) return
+    const payload = rows.map((r) => ({
+      place_id: r.placeId,
+      attribute_key: r.attributeKey,
+      value: r.value,
+      value_text: r.valueText,
+      floorplan_specific: r.floorplanSpecific,
+      source_type: r.sourceType,
+      source_reference: r.sourceReference,
+      verification_status: r.verificationStatus,
+      checked_at: r.checkedAt,
+      merge_run_id: r.mergeRunId,
+    }))
+    const { error } = await supabaseAdmin
+      .from("property_attributes")
+      .upsert(payload, { onConflict: "place_id,attribute_key" })
+    if (error) console.error("[propertyEnrichment] applyAttributes failed:", error.message)
   }
 
   async recordEvents(events: EnrichmentEvent[]): Promise<void> {

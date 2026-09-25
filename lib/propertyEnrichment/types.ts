@@ -75,6 +75,43 @@ export type FieldProvenance = {
   value: string | null
 }
 
+// ── Structured attribute (EAV) candidates + results (property_attributes) ──
+export type AttributeCandidate = {
+  attributeKey: string
+  value?: "yes" | "no" | "unknown" | null // for tristate keys
+  valueText?: string | null // for text keys (building_style, ceiling_height, color_scheme)
+  floorplanSpecific?: boolean
+  sourceType: SourceType
+  sourceReference?: string | null
+  verificationStatus: VerificationStatus
+  checkedAt?: string | null
+}
+
+export type AttributeInput = {
+  placeId: string
+  jobId: string
+  attributes: AttributeCandidate[]
+  dryRun?: boolean
+}
+
+export type AttributeResult = {
+  placeId: string
+  jobId: string
+  dryRun: boolean
+  applied: boolean
+  results: { attributeKey: string; outcome: Outcome; reason: string }[]
+}
+
+// Current stored attribute (from property_attributes).
+export type StoredAttribute = {
+  value: string | null // yes|no|unknown for tristate keys
+  valueText: string | null
+  floorplanSpecific: boolean
+  sourceType: SourceType | null
+  verificationStatus: VerificationStatus | null
+  checkedAt: string | null
+}
+
 // One row appended to property_enrichment_events.
 export type EnrichmentEvent = {
   jobId: string

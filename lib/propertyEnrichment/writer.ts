@@ -88,6 +88,20 @@ export async function enrichProperty(store: EnrichmentStore, input: EnrichmentIn
     return { placeId: input.placeId, jobId: input.jobId, dryRun: true, applied: false, results }
   }
 
+  // Writer-derived metadata (NOT candidate fields, so not gated by the allowlist):
+  //  • a fresh current_special write couples its freshness stamp (checked_at + source),
+  //    so a future Specials Refresh can reason about staleness WITHOUT touching stable
+  //    attributes;
+  //  • any successful patch stamps intel_enriched_at as the last-pass marker.
+  if (Object.prototype.hasOwnProperty.call(patch, "current_special")) {
+    const specialCand = input.fields.find((f) => f.field === "current_special")
+    patch.current_special_checked_at = specialCand?.checkedAt ?? new Date().toISOString()
+    patch.current_special_source = specialCand?.sourceReference ?? specialCand?.sourceType ?? null
+  }
+  if (Object.keys(patch).length > 0) {
+    patch.intel_enriched_at = new Date().toISOString()
+  }
+
   // Nothing to write → still record the audit trail (skips/rejects), no patch.
   const hasWrites = Object.keys(patch).length > 0
   let applied = true

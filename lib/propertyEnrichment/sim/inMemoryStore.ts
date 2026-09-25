@@ -3,13 +3,14 @@
 // Implements the same EnrichmentStore the production writer uses, so tests exercise
 // the real writer logic with no DB. No network, no Supabase — cannot touch prod.
 
-import type { EnrichmentStore } from "../store"
+import type { AttributeRow, AttributeStore, EnrichmentStore } from "../store"
 import type {
   EnrichmentEvent,
   FieldProvenance,
   ImageSelectionState,
   PropertySnapshot,
   SourceType,
+  StoredAttribute,
   VerificationStatus,
 } from "../types"
 
@@ -19,13 +20,17 @@ type Row = {
   imageSelectionState: ImageSelectionState
 }
 
-export class InMemoryEnrichmentStore implements EnrichmentStore {
+export class InMemoryEnrichmentStore implements EnrichmentStore, AttributeStore {
   private rows = new Map<string, Row>()
   events: EnrichmentEvent[] = []
   applyPatchCalls = 0
   private tokenSeq = 1
   // Optional forced concurrency conflict for the next applyPatch (test hook).
   failNextApplyPatch = false
+  // Attribute state (EAV).
+  private attributeKeys: Record<string, { category: string; valueKind: "tristate" | "text" }> = {}
+  private attributes = new Map<string, Map<string, StoredAttribute>>()
+  applyAttributesCalls = 0
 
   seedProperty(placeId: string, values: Record<string, unknown>, imageSelectionState: ImageSelectionState = "missing") {
     this.rows.set(placeId, { values: { ...values }, updatedAt: `v${this.tokenSeq++}`, imageSelectionState })
@@ -94,5 +99,41 @@ export class InMemoryEnrichmentStore implements EnrichmentStore {
 
   async recordEvents(events: EnrichmentEvent[]): Promise<void> {
     this.events.push(...events)
+  }
+
+  // ── AttributeStore surface + test hooks ──
+  seedAttributeKeys(keys: Record<string, { category: string; valueKind: "tristate" | "text" }>) {
+    this.attributeKeys = { ...keys }
+  }
+  seedAttribute(placeId: string, attributeKey: string, attr: StoredAttribute) {
+    if (!this.attributes.has(placeId)) this.attributes.set(placeId, new Map())
+    this.attributes.get(placeId)!.set(attributeKey, attr)
+  }
+  getAttribute(placeId: string, attributeKey: string): StoredAttribute | undefined {
+    return this.attributes.get(placeId)?.get(attributeKey)
+  }
+
+  async loadAttributeKeys(): Promise<Record<string, { category: string; valueKind: "tristate" | "text" }>> {
+    return { ...this.attributeKeys }
+  }
+  async loadAttributes(placeId: string): Promise<Record<string, StoredAttribute>> {
+    const m = this.attributes.get(placeId)
+    if (!m) return {}
+    return Object.fromEntries(m.entries())
+  }
+  async applyAttributes(placeId: string, rows: AttributeRow[]): Promise<void> {
+    this.applyAttributesCalls++
+    if (!this.attributes.has(placeId)) this.attributes.set(placeId, new Map())
+    const m = this.attributes.get(placeId)!
+    for (const r of rows) {
+      m.set(r.attributeKey, {
+        value: r.value,
+        valueText: r.valueText,
+        floorplanSpecific: r.floorplanSpecific,
+        sourceType: r.sourceType,
+        verificationStatus: r.verificationStatus,
+        checkedAt: r.checkedAt,
+      })
+    }
   }
 }
