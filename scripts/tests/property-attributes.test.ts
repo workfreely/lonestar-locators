@@ -64,21 +64,21 @@ async function run() {
   // 6) never downgrade known → unknown (Unknown != No)
   {
     const s = store()
-    s.seedAttribute("P1", "views:skyline", { value: "yes", valueText: null, floorplanSpecific: false, sourceType: "manual_verified", verificationStatus: "verified", checkedAt: null })
+    s.seedAttribute("P1", "views:skyline", { value: "yes", valueText: null, floorplanSpecific: false, applicability: null, sourceType: "manual_verified", verificationStatus: "verified", checkedAt: null })
     const r = await writeAttributes(s, { placeId: "P1", jobId: "j", attributes: [src({ value: "unknown" })] })
     ok(r.results[0].outcome === "skipped" && r.results[0].reason === "preserve_known", "known not downgraded to unknown")
   }
   // 7) upgrade unknown → known
   {
     const s = store()
-    s.seedAttribute("P1", "views:skyline", { value: "unknown", valueText: null, floorplanSpecific: false, sourceType: "official_property_site", verificationStatus: "verified", checkedAt: null })
+    s.seedAttribute("P1", "views:skyline", { value: "unknown", valueText: null, floorplanSpecific: false, applicability: null, sourceType: "official_property_site", verificationStatus: "verified", checkedAt: null })
     const r = await writeAttributes(s, { placeId: "P1", jobId: "j", attributes: [src({ value: "yes" })] })
     ok(r.results[0].outcome === "written" && r.results[0].reason === "upgrade_from_unknown", "unknown upgraded to known")
   }
   // 8) verified conflict surfaced, not overwritten
   {
     const s = store()
-    s.seedAttribute("P1", "views:skyline", { value: "no", valueText: null, floorplanSpecific: false, sourceType: "manual_verified", verificationStatus: "verified", checkedAt: null })
+    s.seedAttribute("P1", "views:skyline", { value: "no", valueText: null, floorplanSpecific: false, applicability: null, sourceType: "manual_verified", verificationStatus: "verified", checkedAt: null })
     const r = await writeAttributes(s, { placeId: "P1", jobId: "j", attributes: [src({ value: "yes" })] })
     ok(r.results[0].outcome === "skipped" && r.results[0].reason === "conflict_verified", "verified disagreement → conflict")
     ok(s.getAttribute("P1", "views:skyline")?.value === "no", "verified value preserved on conflict")
@@ -86,16 +86,16 @@ async function run() {
   // 9) floorplan-specific → universal promotion guarded (same value yes, existing fp-specific, candidate universal but only inferred)
   {
     const s = store()
-    s.seedAttribute("P1", "residential_type:townhome", { value: "yes", valueText: null, floorplanSpecific: true, sourceType: "manual_verified", verificationStatus: "verified", checkedAt: null })
-    const r = await writeAttributes(s, { placeId: "P1", jobId: "j", attributes: [{ attributeKey: "residential_type:townhome", value: "yes", floorplanSpecific: false, sourceType: "official_property_site", verificationStatus: "inferred" }] })
+    s.seedAttribute("P1", "residential_type:townhome", { value: "yes", valueText: null, floorplanSpecific: true, applicability: "specific_floor_plans", sourceType: "manual_verified", verificationStatus: "verified", checkedAt: null })
+    const r = await writeAttributes(s, { placeId: "P1", jobId: "j", attributes: [{ attributeKey: "residential_type:townhome", value: "yes", floorplanSpecific: false, applicability: null, sourceType: "official_property_site", verificationStatus: "inferred" }] })
     ok(r.results[0].outcome === "skipped" && r.results[0].reason === "preserve_floorplan_scope", "fp-specific→universal promotion blocked (not verified)")
     ok(s.getAttribute("P1", "residential_type:townhome")?.floorplanSpecific === true, "floorplan scope preserved")
   }
   // 10) narrowing universal → floorplan-specific allowed
   {
     const s = store()
-    s.seedAttribute("P1", "residential_type:townhome", { value: "yes", valueText: null, floorplanSpecific: false, sourceType: "official_property_site", verificationStatus: "verified", checkedAt: null })
-    const r = await writeAttributes(s, { placeId: "P1", jobId: "j", attributes: [{ attributeKey: "residential_type:townhome", value: "yes", floorplanSpecific: true, sourceType: "official_property_site", verificationStatus: "verified" }] })
+    s.seedAttribute("P1", "residential_type:townhome", { value: "yes", valueText: null, floorplanSpecific: false, applicability: null, sourceType: "official_property_site", verificationStatus: "verified", checkedAt: null })
+    const r = await writeAttributes(s, { placeId: "P1", jobId: "j", attributes: [{ attributeKey: "residential_type:townhome", value: "yes", floorplanSpecific: true, applicability: "specific_floor_plans", sourceType: "official_property_site", verificationStatus: "verified" }] })
     ok(r.results[0].outcome === "written" && r.results[0].reason === "narrow_to_floorplan_specific", "universal→fp-specific narrowing allowed")
   }
   // 11) text key fill + conflict

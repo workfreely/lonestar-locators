@@ -76,11 +76,19 @@ export type FieldProvenance = {
 }
 
 // ── Structured attribute (EAV) candidates + results (property_attributes) ──
+export type Applicability =
+  | "property_wide"
+  | "select_units"
+  | "specific_floor_plans"
+  | "penthouses"
+  | "unknown"
+
 export type AttributeCandidate = {
   attributeKey: string
   value?: "yes" | "no" | "unknown" | null // for tristate keys
   valueText?: string | null // for text keys (building_style, ceiling_height, color_scheme)
   floorplanSpecific?: boolean
+  applicability?: Applicability | null // richer scope; when set, floorplanSpecific is derived from it
   sourceType: SourceType
   sourceReference?: string | null
   verificationStatus: VerificationStatus
@@ -107,6 +115,7 @@ export type StoredAttribute = {
   value: string | null // yes|no|unknown for tristate keys
   valueText: string | null
   floorplanSpecific: boolean
+  applicability: string | null
   sourceType: SourceType | null
   verificationStatus: VerificationStatus | null
   checkedAt: string | null

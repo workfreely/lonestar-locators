@@ -183,12 +183,19 @@ export async function writeAttributes(store: AttributeStore, input: AttributeInp
     }
 
     if (decision === "write" && meta) {
+      // applicability (when supplied) is the source of truth for scope; floorplanSpecific
+      // is derived so "select units / specific floor plans / penthouses" is never a
+      // property-wide Yes.
+      const applicability = cand.applicability ?? null
+      const fpFromApplicability =
+        applicability != null && applicability !== "property_wide" && applicability !== "unknown"
       toUpsert.push({
         placeId: input.placeId,
         attributeKey: cand.attributeKey,
         value: meta.valueKind === "tristate" ? (cand.value ?? "").trim().toLowerCase() : null,
         valueText: meta.valueKind === "text" ? (cand.valueText ?? "").trim() : null,
-        floorplanSpecific: cand.floorplanSpecific === true,
+        floorplanSpecific: applicability != null ? fpFromApplicability : cand.floorplanSpecific === true,
+        applicability,
         sourceType: cand.sourceType,
         sourceReference: cand.sourceReference ?? null,
         verificationStatus: cand.verificationStatus,

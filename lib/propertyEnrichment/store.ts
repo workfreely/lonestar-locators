@@ -38,6 +38,7 @@ export type AttributeRow = {
   value: string | null
   valueText: string | null
   floorplanSpecific: boolean
+  applicability: string | null
   sourceType: SourceType
   sourceReference: string | null
   verificationStatus: VerificationStatus

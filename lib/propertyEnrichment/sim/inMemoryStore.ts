@@ -130,6 +130,7 @@ export class InMemoryEnrichmentStore implements EnrichmentStore, AttributeStore 
         value: r.value,
         valueText: r.valueText,
         floorplanSpecific: r.floorplanSpecific,
+        applicability: r.applicability,
         sourceType: r.sourceType,
         verificationStatus: r.verificationStatus,
         checkedAt: r.checkedAt,

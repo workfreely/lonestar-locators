@@ -58,6 +58,40 @@ export const ENRICHMENT_WRITABLE_FIELDS = new Set([
   "current_special",
 ])
 
+// Canonical scalar fields added by the ~380-field reconciliation (migration
+// 20260925000008). All enrichment-writable (subject to preserve-by-default); commission
+// and image columns remain excluded. Arrays (text[]) and jsonb pass through as raw values.
+export const CANONICAL_SCALAR_FIELDS = [
+  "year_built", "year_renovated", "amenities_url", "floor_plans_url", "tour_scheduling_url",
+  "management_company_id", "locator_status_detail", "beds_min", "beds_max", "baths_min", "baths_max",
+  "sqft_min", "sqft_max", "rent_min", "rent_max", "studio_starting_rent", "onebr_starting_rent",
+  "twobr_starting_rent", "threebr_starting_rent", "fourbr_starting_rent", "fivebr_plus_starting_rent",
+  "townhome_starting_rent", "penthouse_starting_rent", "loft_starting_rent", "has_live_pricing",
+  "pricing_last_verified", "inventory_type", "classification_tags", "structural_scale", "property_grade",
+  "loft_type", "townhome_overlap", "rental_home_candidate", "dwelling_attachment", "stories",
+  "penthouse_available", "deposit_amount", "deposit_range", "flexible_deposit_option",
+  "deposit_alternative_provider", "deposit_alternative_notes", "application_fee", "admin_fee",
+  "holding_fee", "short_term_lease_available", "minimum_lease_term", "maximum_lease_term",
+  "available_lease_terms", "month_to_month_available", "lease_term_notes",
+  "airbnb_short_term_rental_allowed", "subletting_allowed", "short_term_rental_notes", "pets_allowed",
+  "breed_restrictions", "restricted_breeds_notes", "pet_weight_limit", "pet_weight_limit_per_pet",
+  "number_of_pets_allowed", "pet_deposit", "pet_fee", "monthly_pet_rent", "pet_policy_notes",
+  "pet_policy_last_verified", "all_bills_paid", "water_included", "electric_included", "gas_included",
+  "trash_included", "sewer_included", "cable_included", "utility_package_flat_fee", "utility_notes",
+  "internet_included", "internet_provider", "fiber_available", "internet_package_required",
+  "internet_fee", "internet_notes", "internet_last_verified", "leasing_hours", "tour_hours_notes",
+  "hours_last_verified", "furnished_units_available", "furniture_package_available",
+  "corporate_housing_available", "corporate_lease_allowed", "washer_dryer_included",
+  "washer_dryer_connections", "affordable_program", "affordable_income_cap", "affordable_rent_limitation",
+  "affordable_program_eligibility", "affordable_program_notes", "affordable_program_last_verified",
+  "escort_required", "tour_requirement_status", "escort_notes", "escort_requirement_last_verified",
+  "submarket", "cross_streets", "nearby_freeways", "nearby_landmark_1", "nearby_landmark_1_type",
+  "nearby_landmark_2", "nearby_landmark_2_type", "nearby_landmark_3", "nearby_landmark_3_type",
+  "source_type", "confidence_status", "verification_notes", "classification_status",
+  "management_company_website_url",
+] as const
+for (const f of CANONICAL_SCALAR_FIELDS) ENRICHMENT_WRITABLE_FIELDS.add(f)
+
 // Field-aware source authority (foundation, not a ranking engine). Trusted internal
 // sources are authoritative for any non-commission field; public sources are
 // authoritative only for the fields they legitimately own.
