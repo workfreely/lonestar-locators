@@ -27,11 +27,15 @@ struct EngineStatus: Equatable {
 final class SyncEngine {
     private let sources: [MessageSource]
     private var state: SyncState
+    private var outbox: OutboxState
     private let backend = BackendClient()
+    private let iso = ISO8601DateFormatter()
 
     private var syncTimer: Timer?
     private var heartbeatTimer: Timer?
+    private var outboundTimer: Timer?
     private var isRunning = false
+    private var outboundRunning = false
 
     private(set) var status = EngineStatus()
     var onChange: (() -> Void)?
@@ -39,6 +43,7 @@ final class SyncEngine {
     init(sources: [MessageSource]) {
         self.sources = sources
         self.state = SyncState.load()
+        self.outbox = OutboxState.load()
         self.status.lastSyncAt = state.lastSyncAt
     }
 
@@ -50,6 +55,9 @@ final class SyncEngine {
         }
         heartbeatTimer = Timer.scheduledTimer(withTimeInterval: Config.entitlementInterval, repeats: true) { [weak self] _ in
             Task { await self?.heartbeat() }
+        }
+        outboundTimer = Timer.scheduledTimer(withTimeInterval: Config.outboundPollInterval, repeats: true) { [weak self] _ in
+            Task { await self?.runOutboundCycle() }
         }
         Task { await heartbeat(); await runSyncCycle(force: true) }
     }
@@ -139,6 +147,84 @@ final class SyncEngine {
         case .notEntitled(let r): enterPaused(reason: r)
         case .paused(let r): setPhase(.paused(reason: r))
         case .offline, .rateLimited, .failure: break // keep prior phase
+        }
+    }
+
+    // ── Outbound (claim → send via Apple Messages → ack) ─────────────────────
+    // Serial and reconnect-safe. Local idempotency (OutboxState) guarantees a job
+    // is never handed to Messages twice, and pending acks are retried until the
+    // server confirms — so a network drop after a real send never resends and
+    // never loses the "sent" fact. Nothing here decides eligibility: the server
+    // re-validated every returned job at claim time.
+    private func runOutboundCycle() async {
+        guard isPaired, !outboundRunning, !isBlockedPhase else { return }
+        guard let token = Keychain.loadToken() else { return }
+        outboundRunning = true
+        defer { outboundRunning = false }
+
+        // 1) Retry any acks the server hasn't confirmed yet (survives reconnects).
+        await retryPendingAcks(token: token)
+
+        // 2) Claim approved jobs and send them one at a time.
+        switch await backend.claimOutbound(token: token) {
+        case .ok(let jobs):
+            for job in jobs { await handleJob(job, token: token) }
+        case .notEntitled(let reason): enterPaused(reason: reason)
+        case .paused(let reason): setPhase(.paused(reason: reason))
+        case .maintenance: setPhase(.maintenance)
+        case .updateRequired: setPhase(.needsUpdate)
+        case .unpaired, .revoked: Keychain.clearToken(); setPhase(.disconnected)
+        case .reset: Keychain.clearToken(); setPhase(.pairingReset)
+        case .offline, .rateLimited, .failure: break // keep prior phase; retry next tick
+        }
+    }
+
+    private func handleJob(_ job: OutboundJob, token: String) async {
+        // Local idempotency: if this device already sent this key, never resend —
+        // only ensure the server ack is (re)delivered.
+        if outbox.hasSent(job.idempotencyKey) {
+            let existing = outbox.pendingAcks.first { $0.intentId == job.intentId }
+            let ack = existing ?? PendingAck(intentId: job.intentId, idempotencyKey: job.idempotencyKey,
+                                             status: "sent", localSentAt: iso.string(from: Date()), error: nil)
+            outbox.enqueueAck(ack); outbox.save()
+            await confirmAck(ack, token: token)
+            return
+        }
+
+        let result = await AppleMessagesSender.send(to: job.toPhone, body: job.body)
+        let now = iso.string(from: Date())
+        switch result {
+        case .success:
+            // Commit the send fact LOCALLY before acking, so a crash before the ack
+            // cannot cause a resend (next cycle re-acks instead).
+            outbox.markSentLocally(job.idempotencyKey)
+            let ack = PendingAck(intentId: job.intentId, idempotencyKey: job.idempotencyKey,
+                                 status: "sent", localSentAt: now, error: nil)
+            outbox.enqueueAck(ack); outbox.save()
+            await confirmAck(ack, token: token)
+        case .failure(let msg):
+            AppLog.error("Outbound send failed (\(job.stepKey)): \(msg)")
+            let ack = PendingAck(intentId: job.intentId, idempotencyKey: job.idempotencyKey,
+                                 status: "failed", localSentAt: now, error: msg)
+            outbox.enqueueAck(ack); outbox.save()
+            await confirmAck(ack, token: token)
+        }
+    }
+
+    private func retryPendingAcks(token: String) async {
+        for ack in outbox.pendingAcks { await confirmAck(ack, token: token) }
+    }
+
+    /// Deliver one ack; on server confirmation, drop it from the local ledger.
+    private func confirmAck(_ ack: PendingAck, token: String) async {
+        let res = await backend.ackOutbound(
+            intentId: ack.intentId, idempotencyKey: ack.idempotencyKey,
+            status: ack.status, localSentAt: ack.localSentAt, error: ack.error, token: token)
+        switch res {
+        case .ok:
+            outbox.removeAck(intentId: ack.intentId); outbox.save()
+        default:
+            break // leave it queued; retried next cycle
         }
     }
 

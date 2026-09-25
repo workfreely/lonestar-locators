@@ -19,6 +19,17 @@ enum BackendResult<T> {
 
 struct IngestOutcome { let accepted: Int; let syncEnabled: Bool }
 
+// One approved outbound job the server handed this device to send.
+struct OutboundJob {
+    let intentId: String
+    let idempotencyKey: String
+    let leadId: Int
+    let toPhone: String
+    let body: String
+    let sequenceKey: String
+    let stepKey: String
+}
+
 // Full server-authoritative heartbeat state.
 struct StatusOutcome {
     let entitled: Bool
@@ -82,6 +93,46 @@ final class BackendClient {
                     syncEnabled: (json["syncEnabled"] as? Bool) ?? false
                 )
             }
+        } catch { return .offline }
+    }
+
+    // GET /api/companion/outbound — claim approved, re-validated jobs for this
+    // device. The server re-runs the send gate at claim; anything stale is dropped
+    // there, so a returned job is safe to send now (subject to local idempotency).
+    func claimOutbound(token: String) async -> BackendResult<[OutboundJob]> {
+        do {
+            let (data, resp) = try await session.data(for: authorized(Config.outboundURL, method: "GET", body: nil, token: token))
+            return map(data, resp) { json in
+                let raw = (json["jobs"] as? [[String: Any]]) ?? []
+                return raw.compactMap { j -> OutboundJob? in
+                    guard let intentId = j["intentId"] as? String,
+                          let key = j["idempotencyKey"] as? String,
+                          let toPhone = j["toPhone"] as? String,
+                          let body = j["body"] as? String else { return nil }
+                    return OutboundJob(
+                        intentId: intentId,
+                        idempotencyKey: key,
+                        leadId: (j["leadId"] as? Int) ?? 0,
+                        toPhone: toPhone,
+                        body: body,
+                        sequenceKey: (j["sequenceKey"] as? String) ?? "",
+                        stepKey: (j["stepKey"] as? String) ?? ""
+                    )
+                }
+            }
+        } catch { return .offline }
+    }
+
+    // POST /api/companion/outbound/ack — report a send result. Idempotent
+    // server-side: a duplicate "sent" ack (retry) never re-advances the run.
+    func ackOutbound(intentId: String, idempotencyKey: String, status: String, localSentAt: String, error: String?, token: String) async -> BackendResult<Bool> {
+        struct Wire: Encodable { let intentId: String; let idempotencyKey: String; let status: String; let localSentAt: String; let error: String? }
+        guard let body = try? JSONEncoder().encode(Wire(intentId: intentId, idempotencyKey: idempotencyKey, status: status, localSentAt: localSentAt, error: error)) else {
+            return .failure("encode failed")
+        }
+        do {
+            let (data, resp) = try await session.data(for: authorized(Config.outboundAckURL, method: "POST", body: body, token: token))
+            return map(data, resp) { json in (json["ok"] as? Bool) ?? false }
         } catch { return .offline }
     }
 
