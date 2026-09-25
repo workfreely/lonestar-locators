@@ -5,6 +5,10 @@
 // the canary). Run: npx tsx scripts/propertyIntel/enrich_job.ts [--batch=40] [--ceiling=35] [--concurrency=5] [--resume=<jobId>]
 import fs from "node:fs"; import path from "node:path"
 ;(() => { const p = path.join(process.cwd(), ".env.local"); for (const line of fs.readFileSync(p, "utf8").split("\n")) { const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/); if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "") } })()
+// A stray stream/decode rejection (e.g. a site with a broken content-encoding) must not
+// crash the whole durable job — log and continue; per-item try/catch handles the rest.
+process.on("unhandledRejection", (e) => console.error("[unhandledRejection]", String(e).slice(0, 140)))
+process.on("uncaughtException", (e) => console.error("[uncaughtException]", String(e).slice(0, 140)))
 const arg = (k: string, d: number) => Number((process.argv.find((a) => a.startsWith(`--${k}=`))?.split("=")[1]) ?? d)
 const BATCH = arg("batch", 40), CEILING = arg("ceiling", 35), CONC = arg("concurrency", 5), MAX = arg("max", 0)
 const RESUME = process.argv.find((a) => a.startsWith("--resume="))?.split("=")[1]
@@ -16,10 +20,27 @@ const cost = { googleCalls: 0, claudeCalls: 0, inTok: 0, outTok: 0, fetches: 0 }
 const usd = () => (cost.inTok / 1e6) * IN_PER_M + (cost.outTok / 1e6) * OUT_PER_M
 const PER_ITEM_CALL_CAP = 6 // anomaly guard
 
+// Robust JSON extraction — Haiku sometimes wraps JSON in fences or appends a note.
+// Slice the outermost array/object and parse; return null on failure (→ limitation, not
+// a hard failure that discards the whole property's stage).
+function safeParse(text: string, kind: "object" | "array"): unknown | null {
+  if (!text) return null
+  const t = text.replace(/```json/gi, "").replace(/```/g, "").trim()
+  const open = kind === "array" ? "[" : "{"
+  const close = kind === "array" ? "]" : "}"
+  const s = t.indexOf(open), e = t.lastIndexOf(close)
+  const slice = s >= 0 && e > s ? t.slice(s, e + 1) : t
+  try { return JSON.parse(slice) } catch { try { return JSON.parse(t) } catch { return null } }
+}
+
 async function fetchText(url: string): Promise<string> {
   try { cost.fetches++; const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 15000)
-    const r = await fetch(url, { signal: ctrl.signal, headers: { "User-Agent": "Mozilla/5.0 LocatorBeastBot" } }); clearTimeout(t)
-    if (!r.ok) return ""; const h = await r.text()
+    // Accept-Encoding: identity avoids undici's brotli/gzip decompression path, which can
+    // throw an off-thread TransformError on malformed encodings and crash the process.
+    const r = await fetch(url, { signal: ctrl.signal, headers: { "User-Agent": "Mozilla/5.0 LocatorBeastBot", "Accept-Encoding": "identity" } }); clearTimeout(t)
+    if (!r.ok) return ""
+    let h = ""
+    try { h = await r.text() } catch { return "" }
     return h.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim().slice(0, 12000)
   } catch { return "" }
 }
@@ -112,16 +133,18 @@ Shape: {"features":[...],"current_special":"","amenity_keywords":[],"location_ke
         const msg = await anthropic.messages.create({ model: MODEL, max_tokens: 2500, system: SYS, messages: [{ role: "user", content: `Property: ${led?.name} (${led?.market}). Text:\n${text}` }] })
         cost.inTok += msg.usage?.input_tokens ?? 0; cost.outTok += msg.usage?.output_tokens ?? 0
         const b = msg.content.find((x: { type: string }) => x.type === "text") as { text: string } | undefined
-        const ex = JSON.parse((b?.text ?? "{}").replace(/```json/g, "").replace(/```/g, "").trim())
-        const attrs = (ex.features ?? []).filter((f: Record<string, unknown>) => KEYS.includes(f.key as string)).map((f: Record<string, unknown>) => ({ attributeKey: f.key, value: f.value === "no" ? "no" : "yes", applicability: f.applicability ?? "property_wide", sourceType: "official_property_site" as const, sourceReference: site, verificationStatus: "verified" as const, checkedAt: now() }))
-        if (attrs.length) { const ar = await writeAttributes(store, { placeId, jobId: jobId!, attributes: attrs }); for (const r of ar.results) { if (r.outcome === "written") m.attrs++; if (r.reason.startsWith("conflict")) m.conflicts++ } }
-        if (ex.current_special) { const sr = await writeWideRow("property_specials", placeId, { raw_special_text: { value: ex.current_special, sourceType: "official_property_site", sourceReference: site, verificationStatus: "verified", checkedAt: now() }, special_active: { value: true, sourceType: "official_property_site", sourceReference: site, verificationStatus: "verified", checkedAt: now() }, special_source: { value: site, sourceType: "official_property_site", sourceReference: site, verificationStatus: "verified", checkedAt: now() }, special_last_verified: { value: now().slice(0, 10), sourceType: "official_property_site", sourceReference: site, verificationStatus: "verified", checkedAt: now() } }, { jobId: jobId!, eventPrefix: "special" }); if (sr.written.length) m.specials++ }
-        const kw: { field: string; value: unknown }[] = []
-        const cur = (await supabaseAdmin.from("property_catalog").select("amenity_keywords,location_keywords").eq("place_id", placeId).maybeSingle()).data
-        if ((!cur?.amenity_keywords || (cur.amenity_keywords as unknown[]).length < 3) && ex.amenity_keywords?.length) kw.push({ field: "amenity_keywords", value: (ex.amenity_keywords as string[]).slice(0, 3) })
-        if ((!cur?.location_keywords || (cur.location_keywords as unknown[]).length < 3) && ex.location_keywords?.length) kw.push({ field: "location_keywords", value: (ex.location_keywords as string[]).slice(0, 3) })
-        if (kw.length) await enrichProperty(store, { placeId, jobId: jobId!, fields: kw.map((k) => ({ ...k, sourceType: "official_property_site" as const, sourceReference: site, verificationStatus: "verified" as const, checkedAt: now() })) })
-      }
+        const ex = safeParse(b?.text ?? "", "object") as { features?: Record<string, unknown>[]; current_special?: string; amenity_keywords?: string[]; location_keywords?: string[] } | null
+        if (!ex) { m.limitations.push("feature_json_unparseable") }
+        else {
+          const attrs = (ex.features ?? []).filter((f: Record<string, unknown>) => KEYS.includes(f.key as string)).map((f: Record<string, unknown>) => ({ attributeKey: f.key, value: f.value === "no" ? "no" : "yes", applicability: f.applicability ?? "property_wide", sourceType: "official_property_site" as const, sourceReference: site, verificationStatus: "verified" as const, checkedAt: now() }))
+          if (attrs.length) { const ar = await writeAttributes(store, { placeId, jobId: jobId!, attributes: attrs }); for (const r of ar.results) { if (r.outcome === "written") m.attrs++; if (r.reason.startsWith("conflict")) m.conflicts++ } }
+          if (ex.current_special) { const sr = await writeWideRow("property_specials", placeId, { raw_special_text: { value: ex.current_special, sourceType: "official_property_site", sourceReference: site, verificationStatus: "verified", checkedAt: now() }, special_active: { value: true, sourceType: "official_property_site", sourceReference: site, verificationStatus: "verified", checkedAt: now() }, special_source: { value: site, sourceType: "official_property_site", sourceReference: site, verificationStatus: "verified", checkedAt: now() }, special_last_verified: { value: now().slice(0, 10), sourceType: "official_property_site", sourceReference: site, verificationStatus: "verified", checkedAt: now() } }, { jobId: jobId!, eventPrefix: "special" }); if (sr.written.length) m.specials++ }
+          const kw: { field: string; value: unknown }[] = []
+          const cur = (await supabaseAdmin.from("property_catalog").select("amenity_keywords,location_keywords").eq("place_id", placeId).maybeSingle()).data
+          if ((!cur?.amenity_keywords || (cur.amenity_keywords as unknown[]).length < 3) && ex.amenity_keywords?.length) kw.push({ field: "amenity_keywords", value: (ex.amenity_keywords as string[]).slice(0, 3) })
+          if ((!cur?.location_keywords || (cur.location_keywords as unknown[]).length < 3) && ex.location_keywords?.length) kw.push({ field: "location_keywords", value: (ex.location_keywords as string[]).slice(0, 3) })
+          if (kw.length) await enrichProperty(store, { placeId, jobId: jobId!, fields: kw.map((k) => ({ ...k, sourceType: "official_property_site" as const, sourceReference: site, verificationStatus: "verified" as const, checkedAt: now() })) })
+        }
     } catch (e) { m.failures.push({ stage: "website_extract", error: (e as Error).message.slice(0, 120), retryable: true }) }
 
     // 4) Floorplan page (Haiku)
@@ -134,7 +157,8 @@ Shape: {"features":[...],"current_special":"","amenity_keywords":[],"location_ke
         const msg = await anthropic.messages.create({ model: MODEL, max_tokens: 3000, system: FSYS, messages: [{ role: "user", content: `Property: ${led?.name}. Floor-plan text:\n${ftext}` }] })
         cost.inTok += msg.usage?.input_tokens ?? 0; cost.outTok += msg.usage?.output_tokens ?? 0
         const b = msg.content.find((x: { type: string }) => x.type === "text") as { text: string } | undefined
-        const plans = JSON.parse((b?.text ?? "[]").replace(/```json/g, "").replace(/```/g, "").trim())
+        const plans = safeParse(b?.text ?? "", "array")
+        if (!Array.isArray(plans)) m.limitations.push("floorplan_json_unparseable")
         for (const fp of (Array.isArray(plans) ? plans : []).slice(0, 25)) { if (!fp.name) continue; const ok = await insertFloorPlan(placeId, { name: String(fp.name).slice(0, 120), beds: fp.beds ?? null, baths: fp.baths ?? null, sqft_min: fp.sqft_min ?? null, sqft_max: fp.sqft_max ?? null, starting_rent: fp.starting_rent ?? null, is_townhome: fp.is_townhome ?? null, is_split_level: fp.is_split_level ?? null, is_loft: fp.is_loft ?? null, is_penthouse: fp.is_penthouse ?? null, ceiling_height_ft: fp.ceiling_height_ft ?? null, source_type: "official_property_site", source_reference: site, verification_status: "verified", checked_at: now() }); if (ok) m.floorplans++ }
       } else if (!ftext) m.limitations.push("no_floorplan_page")
     } catch (e) { m.failures.push({ stage: "floorplan", error: (e as Error).message.slice(0, 120), retryable: true }) }
