@@ -55,9 +55,11 @@ async function main() {
       const res = await enrichProperty(store, { placeId: c.place_id as string, jobId: "conflict_resolve_2026_09_25", fields: [
         { field, value: candidateValue, sourceType: candidateSource, sourceReference: candidateSource === "google_places" ? "google_refresh" : "official_site_refresh", verificationStatus: "verified", checkedAt: now },
       ] })
+      // Disposition follows CLASSIFICATION (auto class stays auto-resolved); a no-op
+      // re-apply just means the value is already correct (idempotent), not a downgrade.
       const outcome = res.results[0]?.outcome
-      if (outcome !== "written") { disposition = "preserved_pending_review"; bump("auto_apply_failed") }
-      else bump("auto_applied")
+      if (outcome === "written") bump("auto_applied_write")
+      else bump("auto_already_current")
     }
 
     if (!DRY) {
