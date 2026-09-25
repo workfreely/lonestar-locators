@@ -207,6 +207,21 @@ export function decideFieldWrite(args: {
   // Idempotent: identical value → no-op.
   if (currentText === candidateText) return { outcome: "skip", reason: "unchanged" }
 
+  // Numeric-equal → no-op. Uses a tight RELATIVE epsilon so last-ULP float noise
+  // (e.g. lat/long 29.6601004 vs 29.660100399999997 from two Google responses, or 4 vs
+  // 4.0) is treated as identical, while a genuine change (rating 4.4→4.3, a price delta)
+  // still writes. 1e-9 relative catches representation noise only (~1e-15 relative).
+  {
+    const cn = Number(currentText)
+    const kn = Number(candidateText)
+    if (
+      Number.isFinite(cn) && Number.isFinite(kn) &&
+      Math.abs(cn - kn) <= 1e-9 * Math.max(Math.abs(cn), Math.abs(kn), 1)
+    ) {
+      return { outcome: "skip", reason: "unchanged" }
+    }
+  }
+
   // OWNERSHIP-AWARE REFRESH (targeted; does NOT weaken preserve-by-default for stable
   // curated data). Two narrow cases where a newer authoritative value legitimately wins:
   //   1) Google-owned data (rating, reviews, geo, canonical address) refreshed from
