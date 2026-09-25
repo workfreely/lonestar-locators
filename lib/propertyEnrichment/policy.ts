@@ -4,6 +4,7 @@
 // fields, field-aware source authority, and the per-field write decision. No I/O.
 // The writer (writer.ts) enforces these; nothing else may write property_catalog.
 
+import { fieldOwnership, isMalformedValue } from "./ownership"
 import type { FieldProvenance, SourceType, VerificationStatus } from "./types"
 
 // ── Commission is NEVER writable by this enrichment path (this checkpoint) ──
@@ -205,6 +206,28 @@ export function decideFieldWrite(args: {
 
   // Idempotent: identical value → no-op.
   if (currentText === candidateText) return { outcome: "skip", reason: "unchanged" }
+
+  // OWNERSHIP-AWARE REFRESH (targeted; does NOT weaken preserve-by-default for stable
+  // curated data). Two narrow cases where a newer authoritative value legitimately wins:
+  //   1) Google-owned data (rating, reviews, geo, canonical address) refreshed from
+  //      google_places — Google owns it, so a newer verified value supersedes a stale one.
+  //   2) A demonstrably MALFORMED existing value (e.g. location_keywords ["svg",...]) may
+  //      be replaced by a verified authoritative candidate — invalid data is not curated
+  //      intelligence worth protecting.
+  if (
+    fieldOwnership(field) === "google_owned" &&
+    candidateSourceType === "google_places" &&
+    candidateVerification === "verified"
+  ) {
+    return { outcome: "write", reason: "refresh_google_owned" }
+  }
+  if (
+    isMalformedValue(field, currentText) &&
+    candidateVerification === "verified" &&
+    isAuthoritative(field, candidateSourceType)
+  ) {
+    return { outcome: "write", reason: "replace_malformed" }
+  }
 
   // POPULATED → preserve by default. Classify the existing value for the reason:
   //   legacy   = no field-level provenance (e.g. pre-provenance pilot rows)

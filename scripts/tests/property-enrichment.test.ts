@@ -294,6 +294,33 @@ async function main() {
     ok(s.get(PID)!.values.market === "San Antonio", "unrelated field still enriched")
   }
 
+  // Ownership-aware refresh + malformed replacement (post-canary cleanup policy).
+  section("29. Google-owned data refreshes from google_places; curated stays preserved")
+  {
+    const s = store({ google_rating: 4.4 })
+    const res = await enrichProperty(s, { placeId: PID, jobId: "j29", fields: [cand("google_rating", 4.3, "google_places", "verified", PID)] })
+    ok(r(res, "google_rating").outcome === "written" && r(res, "google_rating").reason === "refresh_google_owned", "stale google_rating refreshed from google_places")
+    ok(s.get(PID)!.values.google_rating === 4.3, "refreshed value persisted")
+  }
+  {
+    // A populated google_rating must NOT be refreshed by a non-Google source.
+    const s = store({ google_rating: 4.4 })
+    const res = await enrichProperty(s, { placeId: PID, jobId: "j29b", fields: [cand("google_rating", 4.3, "official_property_site", "verified", "https://x.com")] })
+    ok(r(res, "google_rating").outcome === "skipped", "google_rating NOT refreshed by non-Google source")
+  }
+  section("30. malformed existing value replaced by verified authoritative; valid curated preserved")
+  {
+    const s = store({ location_keywords: JSON.stringify(["svg", "Houston"]) })
+    const res = await enrichProperty(s, { placeId: PID, jobId: "j30", fields: [cand("location_keywords", ["Texas Medical Center", "Rice Village"], "official_property_site", "verified", "https://x.com")] })
+    ok(r(res, "location_keywords").outcome === "written" && r(res, "location_keywords").reason === "replace_malformed", "malformed [svg,...] location_keywords replaced")
+  }
+  {
+    // A VALID (even if sparse) curated keyword set is preserved, not replaced.
+    const s = store({ location_keywords: JSON.stringify(["Uptown Dallas"]) })
+    const res = await enrichProperty(s, { placeId: PID, jobId: "j30b", fields: [cand("location_keywords", ["Legacy West", "Katy Trail", "Topgolf"], "official_property_site", "verified", "https://x.com")] })
+    ok(r(res, "location_keywords").outcome === "skipped" && r(res, "location_keywords").reason.startsWith("conflict"), "valid sparse curated location_keywords preserved (conflict surfaced)")
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`)
   if (fail > 0) process.exit(1)
 }
