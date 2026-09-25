@@ -92,3 +92,8 @@ export const FUTURE_MOVE_REACTIVATE = DEFAULT_FOLLOW_UP_TEMPLATES.future_move_re
 // POST-TOUR + APPLICATION (approved).
 export const POST_TOUR = DEFAULT_FOLLOW_UP_TEMPLATES.post_tour
 export const APPLICATION_STATUS = DEFAULT_FOLLOW_UP_TEMPLATES.application_status
+
+// RESUME SEARCH (event-triggered). Uses {first_name}. NOTE: no dispatcher sends
+// this yet — the wording lives here so the registered sequence can resolve a body
+// once a real automated sender exists.
+export const RESUME_SEARCH = DEFAULT_FOLLOW_UP_TEMPLATES.resume_search // uses {first_name}

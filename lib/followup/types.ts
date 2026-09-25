@@ -21,6 +21,10 @@ export type SequenceKey =
   | "post_tour"
   | "application_status"
   | "future_move"
+  // Event-triggered (NOT part of the New Lead chronological sequence). Fires from
+  // the client-driven "Resume Your Search" event on a paused /r page. Registered
+  // here so the architecture is ready; no dispatcher/transport sends it yet.
+  | "resume_search"
 
 // A step's exposure to "conversation overrides automation":
 //  - consent_only: fires on its timer; only a hard opt-out / global stop blocks it.

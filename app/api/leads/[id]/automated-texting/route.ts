@@ -48,9 +48,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!lead) return NextResponse.json({ error: "not_found" }, { status: 404 })
 
   // Flip via the service role (followup_opt_in UPDATE is revoked from clients).
+  // Stamp followup_enrolled_at when turning ON so the dispatcher can anchor a
+  // New-Lead run's Text 1 to a real enrollment moment; clear it on OFF.
   const { error } = await supabaseAdmin
     .from("leads")
-    .update({ followup_opt_in: enabled })
+    .update({ followup_opt_in: enabled, followup_enrolled_at: enabled ? new Date().toISOString() : null })
     .eq("id", id)
     .eq("workspace_id", workspaceId)
   if (error) {

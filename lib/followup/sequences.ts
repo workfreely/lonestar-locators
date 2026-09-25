@@ -69,6 +69,16 @@ export const SEQUENCES: Record<SequenceKey, SequenceDef> = {
   // TOUR itself is a Next-Action handoff (Schedule Tours), not a client-texting
   // sequence in Phase 1 — represented for completeness, no steps.
   tour: { key: "tour", steps: [] },
+  // RESUME SEARCH — an EVENT-TRIGGERED sequence, deliberately OUTSIDE the New-Lead
+  // chronological chain. It is entered only by the client-driven "Resume Your
+  // Search" event on a paused /r page (never by a lifecycle-stage timer), which is
+  // why applicableSequence() below never returns it. Single terminal step; full
+  // conversation-gated. Registered so the architecture is ready — nothing schedules
+  // or sends it yet (today Resume still surfaces via the one-tap Agenda action).
+  resume_search: {
+    key: "resume_search",
+    steps: [{ key: "resume", gate: "full", templateKey: "resume_search", terminal: true }],
+  },
 }
 
 export function getSequence(key: SequenceKey): SequenceDef {
@@ -128,6 +138,7 @@ export function resolveStepBody(
   }
   if (seq === "post_tour" && stepKey === "ask") return C.POST_TOUR
   if (seq === "application_status" && stepKey === "ask") return C.APPLICATION_STATUS
+  if (seq === "resume_search" && stepKey === "resume") return renderTemplate(C.RESUME_SEARCH, vars) // uses {first_name}
   if (seq === "future_move") {
     if (stepKey === "wait_ack") return C.FUTURE_MOVE_WAIT_CONFIRM // LOCKED acknowledgment
     if (stepKey === "reactivate") return renderTemplate(C.FUTURE_MOVE_REACTIVATE, vars) // LOCKED, uses {first_name}

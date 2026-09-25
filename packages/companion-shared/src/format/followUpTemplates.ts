@@ -59,7 +59,12 @@ export type FollowUpTemplateKey =
   | "future_move_wait_ack"
   | "future_move_reactivate"
   | "post_tour"
-  | "application_status";
+  | "application_status"
+  // ── Event-triggered (NOT part of the New Lead chronological sequence) ──────
+  // Fires from the client-driven "Resume Your Search" event on a paused /r page.
+  // Content-only key; the Resume event + its own registry sequence (resume_search)
+  // decide when/whether it is ever sent — this layer only owns the wording.
+  | "resume_search";
 
 /**
  * The canonical DEFAULT wording. Each value is the EXACT current text with the
@@ -118,6 +123,8 @@ export const DEFAULT_FOLLOW_UP_TEMPLATES: Record<FollowUpTemplateKey, string> = 
     "Hey {first_name}! Hope you're doing well. We're getting closer to your move date. When would you like me to get the tours set up for your favorites?",
   post_tour: "How did the tour go? Hopefully everything went well",
   application_status: "Have you heard anything back on your application yet?",
+  resume_search:
+    "Hey {first_name}! I got your request to continue your apartment search. Has anything changed since we last talked or would you like me to update your list?",
 };
 
 /**
@@ -149,6 +156,7 @@ export const TEMPLATE_TOKENS: Record<FollowUpTemplateKey, readonly string[]> = {
   future_move_reactivate: ["first_name"],
   post_tour: [],
   application_status: [],
+  resume_search: ["first_name"],
 };
 
 /**
@@ -221,6 +229,7 @@ export const TEMPLATE_CHAR_LIMITS: Record<FollowUpTemplateKey, number> = {
   future_move_reactivate: 220,
   post_tour: 140,
   application_status: 140,
+  resume_search: 200,
 };
 
 /**

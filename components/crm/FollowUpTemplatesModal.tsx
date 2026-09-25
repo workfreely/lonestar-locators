@@ -62,6 +62,16 @@ const GROUPS: { label: string; fields: Field[] }[] = [
     label: "Application",
     fields: [{ key: "application_status", name: "Application Status Follow-Up" }],
   },
+  {
+    label: "Resume Search",
+    fields: [
+      {
+        key: "resume_search",
+        name: "Resume Search",
+        note: "Sent when a client taps “Resume Your Search” on a paused list. This is an event-triggered message, separate from the New Lead sequence.",
+      },
+    ],
+  },
 ]
 const ALL_FIELDS: Field[] = GROUPS.flatMap((g) => g.fields)
 const TALL_KEYS = new Set<FollowUpTemplateKey>([
@@ -74,6 +84,7 @@ const TALL_KEYS = new Set<FollowUpTemplateKey>([
   "ds_tour_now_or_wait",
   "future_move_wait_ack",
   "future_move_reactivate",
+  "resume_search",
 ])
 
 export default function FollowUpTemplatesModal({
