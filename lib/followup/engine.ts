@@ -1,0 +1,419 @@
+// Follow-Up Agent — ENGINE CORE (store-injected orchestration).
+//
+// This is the SINGLE implementation of enroll / tick / claim / ack / run
+// advancement. Production calls it with a Supabase-backed store + real clock; the
+// dry-run simulator calls the exact same functions with an in-memory store +
+// virtual clock. All decisions come from the real pure logic (evaluateSend,
+// applicableSequence, nextStepEligibility, resolveStepBody, pacing) — nothing here
+// is a simplified re-implementation. The engine never sends: it only enqueues,
+// claims, and advances; the device (real Beast Sync, or the simulator playing its
+// role) is what turns a claimed job into a delivered message + an ack.
+
+import { evaluateSend } from "./gate"
+import { applicableSequence, resolveStepBody } from "./sequences"
+import { newLeadText1EligibleAt, nextStepEligibility, postTourEligibleAt } from "./cadence"
+import { interClientJitterMs, nextCrossClientSlotMs } from "./pacing"
+import { runSnapshotFromRow } from "./snapshot"
+import type { SequenceKey } from "./types"
+import type { FollowupStore, IntentRow, LeadRow, RunRow } from "./store"
+
+export const NEW_LEAD_ENROLL_WINDOW_MS = 6 * 60 * 60 * 1000
+export const TICK_BATCH = 100
+export const CLAIM_CAP = 5
+export const HOLD_BACKOFF_MS = 15 * 60 * 1000
+
+export type TickSummary = {
+  enrolled: number
+  evaluated: number
+  enqueued: number
+  rescheduled: number
+  canceled: number
+  held: number
+}
+
+export type ClaimJob = {
+  intentId: string
+  idempotencyKey: string
+  leadId: number
+  toPhone: string
+  body: string
+  sequenceKey: string
+  stepKey: string
+}
+
+// ── Enrollment ──────────────────────────────────────────────────────────────
+export async function enrollNewLeads(store: FollowupStore, now: Date): Promise<number> {
+  const since = new Date(now.getTime() - NEW_LEAD_ENROLL_WINDOW_MS).toISOString()
+  const leads = await store.enrollmentCandidates(since, TICK_BATCH)
+  let enrolled = 0
+  for (const row of leads) {
+    if (await store.hasActiveRun(row.id)) continue
+    const lead = await store.leadSnapshot(row)
+    if (!lead.accountAuthorized || !lead.followupOptIn) continue
+    const share = await store.share(row.id)
+    if (applicableSequence(lead, share) !== "new_lead") continue
+    const conv = await store.conversation(row.id)
+    const eligibleAt = newLeadText1EligibleAt(row.created_at ?? now.toISOString())
+    const ok = await store.insertRun({
+      lead_id: row.id,
+      workspace_id: row.workspace_id,
+      owner_user_id: row.owner_user_id,
+      mode: "auto",
+      sequence_key: "new_lead",
+      step_key: "t1",
+      step_index: 0,
+      status: "waiting",
+      next_eligible_at: eligibleAt,
+      baseline_inbound_at: conv.lastInboundAt,
+      sequence_version: 1,
+    })
+    if (ok) enrolled++
+  }
+  return enrolled
+}
+
+// ── Post Tour enrollment (event-triggered, one run per tour session) ──────────
+// For each enrolled+authorized lead with confirmed tours, ensure EXACTLY ONE
+// post_tour run anchored to MAX(ends_at) + 2h — the whole day's tours are one
+// session, never one message per property. Reschedules repoint the same run; a
+// canceled/sent session is not recreated (dedup by anchor). Creating the run also
+// stands down the manual tour_follow_up (enrollment-gated handoff). Quiet hours +
+// conversation-cancel are enforced later by the gate, unchanged.
+export async function enrollPostTourRuns(store: FollowupStore, now: Date): Promise<number> {
+  const leads = await store.enrolledLeadsWithActiveTours(TICK_BATCH)
+  let created = 0
+  for (const row of leads) {
+    const lead = await store.leadSnapshot(row)
+    if (!lead.accountAuthorized || !lead.followupOptIn) continue
+    const tours = await store.activeToursForLead(row.id)
+    if (tours.length === 0) continue
+
+    // Group confirmed tours by the CLIENT-LOCAL calendar date. Each distinct tour
+    // day is its own independent Post Tour session — a later day never changes or
+    // suppresses an earlier day's run. Timezone falls back to America/Chicago when
+    // the lead has none (empty/unset), so Intl never throws on an invalid zone.
+    const tz = lead.timeZone || "America/Chicago"
+    const dayFmt = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" })
+    const byDate = new Map<string, { scheduledAt: string; endsAt: string }[]>()
+    for (const t of tours) {
+      const day = dayFmt.format(new Date(t.scheduledAt)) // YYYY-MM-DD in the client's zone
+      const arr = byDate.get(day) ?? []
+      arr.push(t)
+      byDate.set(day, arr)
+    }
+
+    for (const [sessionDate, group] of byDate) {
+      const lastEndMs = Math.max(...group.map((t) => new Date(t.endsAt).getTime()))
+      const anchor = postTourEligibleAt(new Date(lastEndMs).toISOString())
+      const count = group.length
+
+      const active = await store.activePostTourRunForDate(row.id, sessionDate)
+      if (active) {
+        // Reschedule within THIS date → repoint only this date's run.
+        if (active.next_eligible_at !== anchor || active.session_tour_count !== count) {
+          await store.updateRun(active.id, { next_eligible_at: anchor, session_tour_count: count, last_evaluated_at: now.toISOString() })
+        }
+        continue
+      }
+      if (await store.postTourRunExistsForDate(row.id, sessionDate)) continue // this day already sent/canceled
+
+      const conv = await store.conversation(row.id)
+      const ok = await store.insertRun({
+        lead_id: row.id,
+        workspace_id: row.workspace_id,
+        owner_user_id: row.owner_user_id,
+        mode: "auto",
+        sequence_key: "post_tour",
+        step_key: "ask",
+        step_index: 0,
+        status: "waiting",
+        next_eligible_at: anchor,
+        baseline_inbound_at: conv.lastInboundAt,
+        sequence_version: 1,
+        session_date: sessionDate,
+        session_tour_count: count,
+      })
+      if (ok) {
+        created++
+        await store.suppressManualTourFollowUp(row.id) // automation owns the handoff
+      }
+    }
+  }
+  return created
+}
+
+// ── Dispatcher tick ───────────────────────────────────────────────────────────
+export async function tick(store: FollowupStore, now: Date): Promise<TickSummary> {
+  const summary: TickSummary = {
+    enrolled: (await enrollNewLeads(store, now)) + (await enrollPostTourRuns(store, now)),
+    evaluated: 0,
+    enqueued: 0,
+    rescheduled: 0,
+    canceled: 0,
+    held: 0,
+  }
+
+  const runs = await store.dueWaitingRuns(now.toISOString(), TICK_BATCH)
+  for (const run of runs) {
+    summary.evaluated++
+    const leadRow = await store.leadRow(run.lead_id)
+    if (!leadRow) {
+      await standDown(store, run.id, "stale")
+      summary.canceled++
+      continue
+    }
+    const lead = await store.leadSnapshot(leadRow)
+    const conv = await store.conversation(run.lead_id)
+    const share = await store.share(run.lead_id)
+    const decision = evaluateSend(now, lead, conv, share, runSnapshotFromRow(run))
+
+    if (decision.action === "send") {
+      const enq = await enqueueIntent(store, now, run, lead, decision.templateKey, decision.body)
+      if (enq) summary.enqueued++
+    } else if (decision.action === "reschedule") {
+      await store.updateRun(run.id, { next_eligible_at: decision.nextEligibleAt, last_evaluated_at: now.toISOString() })
+      summary.rescheduled++
+    } else if (decision.action === "cancel") {
+      await standDown(store, run.id, decision.reason)
+      summary.canceled++
+    } else {
+      await store.updateRun(run.id, { last_evaluated_at: now.toISOString() })
+      summary.held++
+    }
+  }
+  return summary
+}
+
+async function standDown(store: FollowupStore, runId: string, reason: string): Promise<void> {
+  const status = reason === "sequence_superseded" ? "superseded" : "canceled"
+  await store.updateRun(runId, { status, stop_reason: reason, last_evaluated_at: new Date().toISOString() })
+}
+
+async function enqueueIntent(
+  store: FollowupStore,
+  now: Date,
+  run: RunRow,
+  lead: Awaited<ReturnType<FollowupStore["leadSnapshot"]>>,
+  templateKey: string,
+  body: string,
+): Promise<boolean> {
+  // Cross-client stagger: place this send a 3–7 min gap after the workspace's
+  // latest already-scheduled send, so several clients never become claimable at
+  // the same instant. First send in a quiet workspace goes immediately.
+  const latest = await store.latestPendingSendAt(run.workspace_id)
+  const sendNotBefore = new Date(
+    nextCrossClientSlotMs(latest ? new Date(latest).getTime() : 0, now.getTime()),
+  ).toISOString()
+
+  const idempotencyKey = `${run.id}:${run.step_key}`
+  const res = await store.insertIntent({
+    run_id: run.id,
+    lead_id: run.lead_id,
+    workspace_id: run.workspace_id,
+    owner_user_id: run.owner_user_id,
+    sequence_key: run.sequence_key,
+    step_key: run.step_key,
+    template_key: templateKey,
+    rendered_body: body,
+    decision: "send",
+    decision_reason: "send",
+    evaluated_state: {
+      crmStatus: lead.crmStatus,
+      smsOptIn: lead.smsOptIn,
+      accountAuthorized: lead.accountAuthorized,
+      followupOptIn: lead.followupOptIn,
+      at: now.toISOString(),
+    },
+    dispatch_status: "pending",
+    idempotency_key: idempotencyKey,
+    send_not_before: sendNotBefore,
+  })
+  await store.updateRun(run.id, { status: "due", last_evaluated_at: new Date().toISOString() })
+  return res === "ok"
+}
+
+// ── Claim (device pulls approved jobs; re-validated here) ──────────────────────
+export async function runClaim(
+  store: FollowupStore,
+  now: Date,
+  deviceId: string,
+  workspaceId: string,
+): Promise<ClaimJob[]> {
+  const intents = await store.pendingIntents(workspaceId, CLAIM_CAP * 8)
+  const jobs: ClaimJob[] = []
+
+  // Anti-burst: hand out at most ONE routine (cross-client) send per claim. Any
+  // further routine job that is also due right now (e.g. a reconnect backlog whose
+  // staggered slots all elapsed while offline) is RE-SPACED into a fresh 3–7 min
+  // catch-up schedule and left pending — it becomes claimable only when its new
+  // slot arrives. The same-client Text 2 pair is time-critical and exempt.
+  let routineReleased = false
+  let respaceCursorMs = now.getTime()
+
+  for (const intent of intents) {
+    if (jobs.length >= CLAIM_CAP) break
+    if (!intent.run_id) {
+      await supersedeIntent(store, intent.id, "stale")
+      continue
+    }
+    const run = await store.runById(intent.run_id)
+    const leadRow = await store.leadRow(intent.lead_id)
+    if (!run || !leadRow) {
+      await supersedeIntent(store, intent.id, "stale")
+      continue
+    }
+    const lead = await store.leadSnapshot(leadRow)
+    const conv = await store.conversation(run.lead_id)
+    const share = await store.share(run.lead_id)
+    const decision = evaluateSend(now, lead, conv, share, runSnapshotFromRow(run))
+
+    if (decision.action === "send") {
+      const toPhone = (leadRow.phone ?? "").trim()
+      if (!toPhone) {
+        await supersedeIntent(store, intent.id, "stale")
+        continue
+      }
+      // Dispatch pacing: only genuinely-due work is exposed.
+      const notBeforeMs = intent.send_not_before ? new Date(intent.send_not_before).getTime() : new Date(intent.created_at).getTime()
+      if (notBeforeMs > now.getTime()) continue // not due at the pacing layer — leave pending
+
+      const isPair = intent.step_key === "t2" // same-client Text 2 — exempt from throttle
+      if (!isPair && routineReleased) {
+        // Overdue extra routine send → re-space instead of bursting.
+        respaceCursorMs += interClientJitterMs()
+        await store.updateIntent(intent.id, { send_not_before: new Date(respaceCursorMs).toISOString() })
+        continue
+      }
+
+      await store.updateIntent(intent.id, {
+        dispatch_status: "claimed",
+        gateway_device_id: deviceId,
+        claimed_at: now.toISOString(),
+        rendered_body: decision.body,
+      })
+      jobs.push({
+        intentId: intent.id,
+        idempotencyKey: intent.idempotency_key ?? "",
+        leadId: run.lead_id,
+        toPhone,
+        body: decision.body,
+        sequenceKey: run.sequence_key,
+        stepKey: run.step_key,
+      })
+      if (!isPair) routineReleased = true
+    } else if (decision.action === "cancel") {
+      await supersedeIntent(store, intent.id, decision.reason)
+      const status = decision.reason === "sequence_superseded" ? "superseded" : "canceled"
+      await store.updateRun(run.id, { status, stop_reason: decision.reason, last_evaluated_at: now.toISOString() })
+    } else if (decision.action === "reschedule") {
+      await supersedeIntent(store, intent.id, decision.reason)
+      await store.updateRun(run.id, { status: "waiting", next_eligible_at: decision.nextEligibleAt, last_evaluated_at: now.toISOString() })
+    } else if (decision.reason === "not_eligible_yet") {
+      continue // leave pending — claimed when actually due (e.g. the +30s Text 2)
+    } else {
+      await supersedeIntent(store, intent.id, decision.reason)
+      await store.updateRun(run.id, {
+        status: "waiting",
+        next_eligible_at: new Date(now.getTime() + HOLD_BACKOFF_MS).toISOString(),
+        last_evaluated_at: now.toISOString(),
+      })
+    }
+  }
+  return jobs
+}
+
+async function supersedeIntent(store: FollowupStore, intentId: string, reason: string): Promise<void> {
+  await store.updateIntent(intentId, { dispatch_status: "superseded", error: reason })
+}
+
+// ── Ack (device confirms a send; run advances only on confirm) ─────────────────
+export type AckInput = {
+  intentId: string
+  workspaceId: string
+  deviceId: string
+  status: "sent" | "failed"
+  localSentAt: string
+  error?: string | null
+}
+export type AckResult = { ok: boolean; status?: string; already?: boolean; error?: string; code?: number }
+
+export async function runAck(store: FollowupStore, input: AckInput): Promise<AckResult> {
+  const intent = await store.intentById(input.intentId)
+  if (!intent || intent.workspace_id !== input.workspaceId) return { ok: false, error: "not_found", code: 404 }
+  if (intent.gateway_device_id && intent.gateway_device_id !== input.deviceId) return { ok: false, error: "wrong_device", code: 409 }
+  if (intent.dispatch_status === "sent") return { ok: true, already: true }
+
+  if (input.status === "failed") {
+    await store.updateIntent(input.intentId, {
+      dispatch_status: "failed",
+      error: input.error ?? null,
+      local_sent_at: input.localSentAt,
+      idempotency_key: null,
+    })
+    if (intent.run_id) await store.updateRun(intent.run_id, { status: "waiting", last_evaluated_at: new Date().toISOString() })
+    return { ok: true, status: "failed" }
+  }
+
+  await store.updateIntent(input.intentId, {
+    dispatch_status: "sent",
+    sent_at: new Date().toISOString(),
+    local_sent_at: input.localSentAt,
+  })
+  if (intent.run_id) await advanceRun(store, intent.run_id, input.localSentAt)
+  return { ok: true, status: "sent" }
+}
+
+async function advanceRun(store: FollowupStore, runId: string, sentAtIso: string): Promise<void> {
+  const run = await store.runById(runId)
+  if (!run) return
+  const seq = run.sequence_key as SequenceKey
+  const justSent = run.step_key
+  const next = nextStepEligibility(seq, justSent, sentAtIso)
+  if (!next) {
+    await store.updateRun(runId, { status: "completed", last_evaluated_at: new Date().toISOString() })
+    return
+  }
+
+  const conv = await store.conversation(run.lead_id)
+
+  // Pre-enqueue Text 2 for the New-Lead opening pair so the exact +30s does not
+  // depend on the next dispatcher tick; claim-time revalidation still applies.
+  let preEnqueued = false
+  if (seq === "new_lead" && justSent === "t1") {
+    const leadRow = await store.leadRow(run.lead_id)
+    if (leadRow) {
+      const lead = await store.leadSnapshot(leadRow)
+      const share = await store.share(run.lead_id)
+      const body = resolveStepBody(seq, next.nextStepKey, lead, share)
+      if (body) {
+        const res = await store.insertIntent({
+          run_id: run.id,
+          lead_id: run.lead_id,
+          workspace_id: run.workspace_id,
+          owner_user_id: run.owner_user_id,
+          sequence_key: seq,
+          step_key: next.nextStepKey,
+          template_key: next.nextStepKey,
+          rendered_body: body,
+          decision: "send",
+          decision_reason: "scheduled_pair",
+          evaluated_state: { pairAnchor: sentAtIso, at: new Date().toISOString() },
+          dispatch_status: "pending",
+          idempotency_key: `${run.id}:${next.nextStepKey}`,
+          // Same-client pair: exact +30s, NOT the cross-client 3–7 min stagger.
+          send_not_before: next.nextEligibleAt,
+        })
+        preEnqueued = res === "ok" || res === "duplicate"
+      }
+    }
+  }
+
+  await store.updateRun(runId, {
+    step_key: next.nextStepKey,
+    step_index: run.step_index + 1,
+    status: preEnqueued ? "due" : "waiting",
+    next_eligible_at: next.nextEligibleAt,
+    baseline_inbound_at: conv.lastInboundAt,
+    last_evaluated_at: new Date().toISOString(),
+  })
+}

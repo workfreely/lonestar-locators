@@ -168,6 +168,8 @@ export type RunRow = {
   next_eligible_at: string | null
   baseline_inbound_at: string | null
   sequence_version: number
+  session_date: string | null
+  session_tour_count: number | null
 }
 
 export function runSnapshotFromRow(run: RunRow): RunSnapshot {
@@ -179,5 +181,6 @@ export function runSnapshotFromRow(run: RunRow): RunSnapshot {
     mode: run.mode as RunSnapshot["mode"],
     baselineInboundAt: run.baseline_inbound_at,
     nextEligibleAt: run.next_eligible_at,
+    sessionTourCount: run.session_tour_count,
   }
 }

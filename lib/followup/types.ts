@@ -110,4 +110,7 @@ export type RunSnapshot = {
   mode: FollowUpMode
   baselineInboundAt: string | null // last inbound seen when the step was scheduled
   nextEligibleAt: string | null // when the step became/should become eligible
+  // Post Tour: confirmed tours on this run's session_date, for singular/plural copy.
+  // Undefined for sequences that don't use it.
+  sessionTourCount?: number | null
 }

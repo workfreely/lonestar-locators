@@ -59,6 +59,7 @@ export type FollowUpTemplateKey =
   | "future_move_wait_ack"
   | "future_move_reactivate"
   | "post_tour"
+  | "post_tour_multi"
   | "application_status"
   // ── Event-triggered (NOT part of the New Lead chronological sequence) ──────
   // Fires from the client-driven "Resume Your Search" event on a paused /r page.
@@ -121,7 +122,10 @@ export const DEFAULT_FOLLOW_UP_TEMPLATES: Record<FollowUpTemplateKey, string> = 
     "Perfect! Let's keep in touch. I'll reach back out about 90 days before your move date so we can get everything set up.",
   future_move_reactivate:
     "Hey {first_name}! Hope you're doing well. We're getting closer to your move date. When would you like me to get the tours set up for your favorites?",
-  post_tour: "How did the tour go? Hopefully everything went well",
+  post_tour: "How did the tour go? Hopefully everything went well!",
+  // Multiple confirmed tours the same day are ONE tour session → one Post-Tour
+  // message anchored to the last tour, using the plural copy.
+  post_tour_multi: "How did the tours go? Hopefully everything went well!",
   application_status: "Have you heard anything back on your application yet?",
   resume_search:
     "Hey {first_name}! I got your request to continue your apartment search. Has anything changed since we last talked or would you like me to update your list?",
@@ -155,6 +159,7 @@ export const TEMPLATE_TOKENS: Record<FollowUpTemplateKey, readonly string[]> = {
   future_move_wait_ack: [],
   future_move_reactivate: ["first_name"],
   post_tour: [],
+  post_tour_multi: [],
   application_status: [],
   resume_search: ["first_name"],
 };
@@ -228,6 +233,7 @@ export const TEMPLATE_CHAR_LIMITS: Record<FollowUpTemplateKey, number> = {
   future_move_wait_ack: 200,
   future_move_reactivate: 220,
   post_tour: 140,
+  post_tour_multi: 140,
   application_status: 140,
   resume_search: 200,
 };

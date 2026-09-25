@@ -16,6 +16,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu = MenuBarController(engine: engine)
         engine.start()
 
+        // Read-only: record which iMessage service the outbound path will use (and
+        // surface the Automation prompt) BEFORE any real send. Sends nothing.
+        Task { await AppleMessagesSender.recordSenderIdentity() }
+
         AppLog.info("Locator Beast Companion \(Config.appVersion) started.")
     }
 }

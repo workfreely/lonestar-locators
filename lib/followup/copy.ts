@@ -89,8 +89,10 @@ export const DONE_SELECTING_C_FAR_OUT = DEFAULT_FOLLOW_UP_TEMPLATES.ds_tour_now_
 export const FUTURE_MOVE_WAIT_CONFIRM = DEFAULT_FOLLOW_UP_TEMPLATES.future_move_wait_ack
 export const FUTURE_MOVE_REACTIVATE = DEFAULT_FOLLOW_UP_TEMPLATES.future_move_reactivate // uses {first_name}
 
-// POST-TOUR + APPLICATION (approved).
-export const POST_TOUR = DEFAULT_FOLLOW_UP_TEMPLATES.post_tour
+// POST-TOUR + APPLICATION (approved). One Post-Tour message per tour DAY: the
+// single-tour vs multiple-tour copy is chosen at send time from the day's count.
+export const POST_TOUR = DEFAULT_FOLLOW_UP_TEMPLATES.post_tour // single tour
+export const POST_TOUR_MULTI = DEFAULT_FOLLOW_UP_TEMPLATES.post_tour_multi // 2+ tours same day
 export const APPLICATION_STATUS = DEFAULT_FOLLOW_UP_TEMPLATES.application_status
 
 // RESUME SEARCH (event-triggered). Uses {first_name}. NOTE: no dispatcher sends

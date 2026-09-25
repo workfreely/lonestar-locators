@@ -20,6 +20,19 @@ export type SequenceDef = {
   steps: StepDef[]
 }
 
+// Sequences DERIVED from lead lifecycle state (what applicableSequence() can
+// return). Only these are subject to the gate's "a newer applicable sequence
+// wins" supersede check. EVENT-TRIGGERED sequences (future_move, post_tour, tour,
+// resume_search) are created by an explicit event and are NOT lifecycle-derivable,
+// so applicableSequence() never returns them — they must remain authoritative
+// rather than being auto-superseded. See gate.ts step 3.
+export const LIFECYCLE_SEQUENCES = new Set<SequenceKey>([
+  "new_lead",
+  "list_sent",
+  "application_status",
+  "done_selecting",
+])
+
 // Only the New-Lead OPENING pair is consent_only (fires on its timer; ordinary
 // replies don't cancel it). Everything after is full conversation-gated.
 export const SEQUENCES: Record<SequenceKey, SequenceDef> = {
@@ -103,6 +116,8 @@ export function resolveStepBody(
   stepKey: string,
   lead: LeadSnapshot,
   share: ShareSnapshot,
+  // Post Tour: confirmed tours on this run's session date (for singular vs plural).
+  sessionTourCount?: number | null,
 ): string | null {
   const first = (lead.firstName || "").trim()
   const vars = { first_name: first, agent_first_name: (lead.agentFirstName || "").trim() }
@@ -136,7 +151,7 @@ export function resolveStepBody(
   if (seq === "done_selecting" && stepKey === "evaluate") {
     return resolveDoneSelectingBody(lead, share)
   }
-  if (seq === "post_tour" && stepKey === "ask") return C.POST_TOUR
+  if (seq === "post_tour" && stepKey === "ask") return (sessionTourCount ?? 1) > 1 ? C.POST_TOUR_MULTI : C.POST_TOUR
   if (seq === "application_status" && stepKey === "ask") return C.APPLICATION_STATUS
   if (seq === "resume_search" && stepKey === "resume") return renderTemplate(C.RESUME_SEARCH, vars) // uses {first_name}
   if (seq === "future_move") {

@@ -32,11 +32,29 @@ export const LIST_FINAL_DELAY_DAYS = 7 // Final +7 days after FU3
 // Application Status
 export const APPLICATION_STATUS_DELAY_CAL_DAYS = 3 // +3 calendar days after applied_at
 
+// Post Tour — one message per tour DAY (multiple same-day tours = one session),
+// anchored to the END of the LAST confirmed tour that day, +2 hours. Quiet hours
+// still apply downstream (the gate reschedules a too-late slot to the next 09:00),
+// and any meaningful client reply cancels it (post_tour is conversation-gated).
+export const POST_TOUR_DELAY_MS = 2 * 60 * 60 * 1000
+
 /** Text 1 eligibility: lead creation + 5 minutes. */
 export function newLeadText1EligibleAt(createdAtIso: string): string {
   const base = new Date(createdAtIso)
   const t = isNaN(base.getTime()) ? Date.now() : base.getTime()
   return new Date(t + NEW_LEAD_TEXT1_DELAY_MS).toISOString()
+}
+
+/**
+ * Post-Tour eligibility: the END of the LAST confirmed tour that day + 2 hours.
+ * Pass the latest confirmed-tour end for the session; whoever creates the
+ * post_tour run stamps this as next_eligible_at. Quiet-hours deferral is applied
+ * later by the gate (a 2h-after-last-tour instant past 21:00 waits for 09:00).
+ */
+export function postTourEligibleAt(lastTourEndIso: string): string {
+  const end = new Date(lastTourEndIso)
+  const t = isNaN(end.getTime()) ? Date.now() : end.getTime()
+  return new Date(t + POST_TOUR_DELAY_MS).toISOString()
 }
 
 /**

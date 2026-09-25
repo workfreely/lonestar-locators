@@ -55,7 +55,12 @@ const GROUPS: { label: string; fields: Field[] }[] = [
       { key: "ds_tour_now_or_wait", name: "Future Move — Tour Now or Wait" },
       { key: "future_move_wait_ack", name: "Future Move — Wait acknowledgment" },
       { key: "future_move_reactivate", name: "Future Move — 90-day reactivation" },
-      { key: "post_tour", name: "Post-Tour Follow-Up" },
+      {
+        key: "post_tour",
+        name: "Post-Tour Follow-Up (one tour)",
+        note: "Sent 2 hours after the end of the client's last confirmed tour that day. Multiple same-day tours count as one session and use the plural version below.",
+      },
+      { key: "post_tour_multi", name: "Post-Tour Follow-Up (multiple tours)" },
     ],
   },
   {

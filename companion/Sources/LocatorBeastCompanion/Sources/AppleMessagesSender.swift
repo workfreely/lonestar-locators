@@ -15,6 +15,17 @@ enum AppleMessagesSendResult {
     case failure(String)
 }
 
+// Read-only identity diagnostic: which iMessage service(s) exist on this Mac, and
+// which one the send path ("1st service whose service type = iMessage") resolves
+// to. Sends NOTHING. Written to Application Support so it can be verified before
+// any real send; also the first Apple Event that surfaces the Automation prompt.
+struct MessagesIdentity: Codable {
+    var services: [String] = []   // "name || type" per service
+    var chosenIMessage: String?   // the exact service the send path will use
+    var error: String?
+    var recordedAt: String = ""
+}
+
 enum AppleMessagesSender {
     // AppleScript: send to the number over iMessage. `on run argv` keeps the phone
     // and body as data arguments (injection-safe).
@@ -37,6 +48,65 @@ enum AppleMessagesSender {
                 continuation.resume(returning: runOsascript(phone: phone, body: body))
             }
         }
+    }
+
+    // ── Read-only sender-identity diagnostic ────────────────────────────────
+    private static let identityScript: [String] = [
+        "with timeout of 25 seconds",
+        "  tell application \"Messages\"",
+        "    set outp to \"\"",
+        "    repeat with s in services",
+        "      set outp to outp & (name of s) & \" || \" & (service type of s as text) & linefeed",
+        "    end repeat",
+        "    set chosen to \"\"",
+        "    try",
+        "      set chosen to name of (1st service whose service type = iMessage)",
+        "    end try",
+        "    return outp & \"CHOSEN::\" & chosen",
+        "  end tell",
+        "end timeout",
+    ]
+
+    /// Enumerate services and record the resolved sender identity to Application
+    /// Support (messages-identity.json). Read-only; sends nothing. Runs off-main.
+    static func recordSenderIdentity() async {
+        let result: MessagesIdentity = await withCheckedContinuation { cont in
+            DispatchQueue.global(qos: .utility).async {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+                var args: [String] = []
+                for line in identityScript { args.append("-e"); args.append(line) }
+                process.arguments = args
+                let out = Pipe(); let err = Pipe()
+                process.standardOutput = out; process.standardError = err
+                let iso = ISO8601DateFormatter().string(from: Date())
+                do { try process.run() } catch {
+                    cont.resume(returning: MessagesIdentity(error: "launch failed: \(error.localizedDescription)", recordedAt: iso)); return
+                }
+                process.waitUntilExit()
+                if process.terminationStatus != 0 {
+                    let e = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "osascript exit \(process.terminationStatus)"
+                    cont.resume(returning: MessagesIdentity(error: e.trimmingCharacters(in: .whitespacesAndNewlines), recordedAt: iso)); return
+                }
+                let text = String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+                var services: [String] = []; var chosen: String?
+                for line in text.split(separator: "\n") {
+                    let s = line.trimmingCharacters(in: .whitespaces)
+                    if s.hasPrefix("CHOSEN::") { chosen = String(s.dropFirst("CHOSEN::".count)).trimmingCharacters(in: .whitespaces) }
+                    else if !s.isEmpty { services.append(s) }
+                }
+                cont.resume(returning: MessagesIdentity(services: services, chosenIMessage: (chosen?.isEmpty == false) ? chosen : nil, recordedAt: iso))
+            }
+        }
+        if let data = try? JSONEncoder().encode(result) { try? data.write(to: identityFileURL, options: .atomic) }
+        AppLog.info("Messages identity — services=\(result.services); chosen=\(result.chosenIMessage ?? "none"); error=\(result.error ?? "none")")
+    }
+
+    static var identityFileURL: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("LocatorBeastCompanion", isDirectory: true)
+        try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        return base.appendingPathComponent("messages-identity.json")
     }
 
     private static func runOsascript(phone: String, body: String) -> AppleMessagesSendResult {

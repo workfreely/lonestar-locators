@@ -11,7 +11,7 @@ import type {
   SendDecision,
   ShareSnapshot,
 } from "./types"
-import { applicableSequence, getStep, resolveStepBody } from "./sequences"
+import { LIFECYCLE_SEQUENCES, applicableSequence, getStep, resolveStepBody } from "./sequences"
 import { nextAllowedTime, nextMorningEligible, withinAllowedHours, withinMorningWindow } from "./pacing"
 
 // Sequences whose routine steps must land in the client-local morning window.
@@ -64,10 +64,21 @@ export function evaluateSend(
   //    even for the consent_only opening pair).
   if (!lead.smsOptIn) return { action: "cancel", reason: "opt_out" }
 
-  // 3) Lifecycle still matches this sequence? A newer applicable sequence wins.
+  // 3) Supersession. LIFECYCLE-derived sequences (new_lead/list_sent/
+  //    application_status/done_selecting) yield to whatever sequence the current
+  //    lifecycle makes applicable. EVENT-TRIGGERED sequences (resume_search,
+  //    future_move, post_tour, tour) are created by an explicit event and are not
+  //    lifecycle-derivable, so they stay authoritative — but are still stood down
+  //    when the lead is closed/archived (applicable === null), never texting a
+  //    finished lead. All other invalidation (opt-out, pause/stop, conversation
+  //    override, enrollment/authorization) is handled by the surrounding steps.
   const applicable = applicableSequence(lead, share)
-  if (applicable !== run.sequenceKey) {
-    return { action: "cancel", reason: applicable ? "sequence_superseded" : "stage_changed" }
+  if (LIFECYCLE_SEQUENCES.has(run.sequenceKey)) {
+    if (applicable !== run.sequenceKey) {
+      return { action: "cancel", reason: applicable ? "sequence_superseded" : "stage_changed" }
+    }
+  } else if (applicable === null) {
+    return { action: "cancel", reason: "stage_changed" } // closed/archived → stand down
   }
 
   // 4) Eligibility time reached?
@@ -110,7 +121,7 @@ export function evaluateSend(
   }
 
   // 9) Resolve the APPROVED body from CURRENT state.
-  const body = resolveStepBody(run.sequenceKey, run.stepKey, lead, share)
+  const body = resolveStepBody(run.sequenceKey, run.stepKey, lead, share, run.sessionTourCount)
   if (!body) return { action: "cancel", reason: "objective_completed" } // nothing meaningful to say (e.g. 0 favorites)
 
   return { action: "send", stepKey: run.stepKey, templateKey: step.templateKey, body }

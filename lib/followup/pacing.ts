@@ -41,6 +41,17 @@ export function interClientJitterMs(): number {
   return randBetween(INTER_CLIENT_MIN_MS, INTER_CLIENT_MAX_MS)
 }
 
+/**
+ * Cross-client send stagger: the next dispatch slot at/after `nowMs`, placed a
+ * 3–7 min gap beyond the previously-scheduled send (`afterMs`, 0 = none). Keeps
+ * different clients from becoming claimable at the same instant. NOT used for the
+ * same-client New-Lead Text 1 → Text 2 pair (that is an exact 30s, set directly).
+ */
+export function nextCrossClientSlotMs(afterMs: number, nowMs: number): number {
+  if (!afterMs) return nowMs // first send goes immediately
+  return Math.max(nowMs, afterMs + interClientJitterMs())
+}
+
 // ── Local wall-clock helpers (timezone-correct without extra deps) ────────────
 // Uses Intl to read the wall-clock minute-of-day and weekday in the lead's tz.
 
