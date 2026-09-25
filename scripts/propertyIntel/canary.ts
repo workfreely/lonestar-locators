@@ -56,12 +56,13 @@ async function claudeExtract(name: string, market: string, keys: string[], text:
 Only assert a feature if the text clearly supports it. If not stated, OMIT it (do not guess; unknown is fine).
 Allowed feature keys (use these EXACT keys, omit any not supported): ${keys.join(", ")}.
 For each feature give value ("yes"|"no") and applicability ("property_wide"|"select_units"|"specific_floor_plans"|"penthouses"). Use "select_units"/"specific_floor_plans" when the text says "select units"/"in select homes"/"in penthouses" etc — never a blanket property_wide unless it clearly applies to all.
+Return at most 30 of the MOST clearly-supported features (skip weak/implied ones). Keep "evidence" under 8 words.
 Also extract current_special (verbatim text if any) and up to 3 amenity keywords + 3 location/neighborhood keywords that genuinely distinguish this property.
 JSON shape: {"features":[{"key","value","applicability","evidence"}],"current_special":"","amenity_keywords":[],"location_keywords":[]}`
   try {
     cost.claudeCalls++
     const msg = await client.messages.create({
-      model: "claude-opus-4-8", max_tokens: 1500, system: SYSTEM,
+      model: "claude-opus-4-8", max_tokens: 4000, system: SYSTEM,
       messages: [{ role: "user", content: `Property: ${name} (${market}). Website text:\n${text}` }],
     })
     cost.claudeInTok += msg.usage?.input_tokens ?? 0; cost.claudeOutTok += msg.usage?.output_tokens ?? 0
@@ -92,9 +93,10 @@ async function main() {
   }
 
   // Representative selection: spread across markets + inventory types + website presence.
+  // The 710 curated-matched properties are exactly those with inventory_type populated.
   const { data: pool } = await supabaseAdmin.from("property_catalog")
     .select("place_id, market, inventory_type, structural_scale, website_url, penthouse_available")
-    .in("place_id", Object.keys(ledger))
+    .not("inventory_type", "is", null)
   const chosen: string[] = []
   const perMarket: Record<string, number> = {}
   const sortKey = (r: Record<string, unknown>) => `${r.market}|${r.inventory_type ?? "z"}`

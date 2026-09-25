@@ -168,11 +168,17 @@ export async function writeAttributes(store: AttributeStore, input: AttributeInp
         decision = "reject"
         reason = "value_kind_mismatch"
       } else {
+        // Effective scope: applicability (when supplied) is authoritative; else the raw
+        // floorplanSpecific flag. Must match what gets stored, or re-applying an
+        // applicability-scoped value would look like a promotion (non-idempotent).
+        const appl = cand.applicability ?? null
+        const effectiveFp =
+          appl != null ? appl !== "property_wide" && appl !== "unknown" : cand.floorplanSpecific === true
         const d = decideAttributeWrite({
           attributeKey: cand.attributeKey,
           valueKind,
           candidateFact: cv,
-          candidateFloorplanSpecific: cand.floorplanSpecific === true,
+          candidateFloorplanSpecific: effectiveFp,
           candidateSourceType: cand.sourceType,
           candidateVerification: cand.verificationStatus,
           existing: prior,
