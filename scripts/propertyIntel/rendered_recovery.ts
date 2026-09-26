@@ -11,6 +11,7 @@ import fs from "node:fs"; import path from "node:path"
 ;(() => { const p = path.join(process.cwd(), ".env.local"); for (const l of fs.readFileSync(p, "utf8").split("\n")) { const m = l.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/); if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "") } })()
 import { chromium, type Page } from "playwright"
 import { classifyPropertyImage } from "./visual_gate"
+import { ALGO_VERSION, classifyScene, inferPropertyType, familyRank, metadataReject, assetIdentity, type PropertyType } from "./imageEngine"
 const S = "/private/tmp/claude-501/-Users-jaymorris-Desktop-lonestar-locators-app/30160563-4dba-40ec-bd16-aeca0a940f8b/scratchpad"
 const CONFIRM = process.argv.includes("--confirm")
 const SHEET = process.argv.includes("--sheet")
@@ -34,44 +35,8 @@ const PROVIDER_CDN: [string, RegExp][] = [
 ]
 function detectProvider(urls: string[]): string { for (const [name, re] of PROVIDER_CDN) if (urls.some((u) => re.test(u))) return name; return "other/custom" }
 
-// ── cheap metadata rejects (before validation + vision) ──
-const ENTRATA_BRANDING = /\/MLv3\/9\/36\//i
-const TITLECARD_FILE = /screen_title|%5Bscreen_title%5D|site_title|separator/i
-const LOGO_FILE = /logo|wordmark|brandmark|\bbadge\b|\bseal\b|favicon|\bicon\b|\bemblem\b|monogram|\bbco\b|-special\b|promo|coming-?soon/i
-function metadataReject(url: string, alt: string): string | null {
-  const u = url.toLowerCase(), a = alt.toLowerCase()
-  if (/\.svg(\?|#|$)/.test(u)) return "svg"
-  if (ENTRATA_BRANDING.test(url)) return "entrata_branding_path"
-  if (TITLECARD_FILE.test(url)) return "titlecard_filename"
-  if (LOGO_FILE.test(u)) return "logo_filename"
-  if (/\blogo\b|wordmark|\bbadge\b/.test(a)) return "logo_alt"
-  return null
-}
-
-const SCENE: { fam: string; label: string; re: RegExp }[] = [
-  { fam: "exterior", label: "Building/Exterior", re: /\bexterior\b|\bfacade\b|\bentrance\b|\baerial\b|two.?story home|home exterior|\bhigh.?rise\b|\btower\b|\bbuilding\b/i },
-  { fam: "rooftop_view", label: "Rooftop/Skyline/View", re: /rooftop|skyline|cityscape/i },
-  { fam: "pool", label: "Pool", re: /\bpool\b|poolside|swimming|infinity/i },
-  { fam: "kitchen", label: "Kitchen", re: /\bkitchen\b/i },
-  { fam: "living", label: "Living/Interior/Model", re: /living|\bmodel\b|\binterior\b|open.?concept|\blobby\b|dining|bedroom/i },
-  { fam: "amenity_strong", label: "Amenity (clubhouse/lounge/rooftop)", re: /clubhouse|club house|\blounge\b|courtyard|cabana/i },
-  { fam: "amenity_weak", label: "Amenity (secondary)", re: /fitness|\bgym\b|\bgrill\b|\bbbq\b|dog park|business center|mail|package|game room/i },
-]
-function classify(text: string): { fam: string; label: string } {
-  for (const s of SCENE) if (s.re.test(text)) return { fam: s.fam, label: s.label }
-  return { fam: "unknown", label: "Property photo" }
-}
-function inferType(name: string, hints: string): string {
-  const b = `${name} ${hints}`.toLowerCase()
-  if (/homes for rent|two.?story home|home exterior|attached.*garage|fenced (front )?yard|rental home|build.to.rent|townhome/.test(b)) return "BTR/Rental Homes"
-  if (/\btower\b|high.?rise|floor.?to.?ceiling|rooftop|uptown|downtown|skyline/.test(b)) return "High-Rise/Mid-Rise"
-  return "Garden/Conventional"
-}
-const PRIORITY: Record<string, string[]> = {
-  "High-Rise/Mid-Rise": ["exterior", "rooftop_view", "pool", "kitchen", "living", "amenity_strong", "amenity_weak", "unknown"],
-  "Garden/Conventional": ["pool", "exterior", "kitchen", "living", "amenity_strong", "rooftop_view", "amenity_weak", "unknown"],
-  "BTR/Rental Homes": ["exterior", "kitchen", "living", "pool", "amenity_strong", "rooftop_view", "amenity_weak", "unknown"],
-}
+// Scene classification, property-type ranking, metadata rejects + version come from the shared
+// canonical engine (imageEngine.ts) — do NOT duplicate that logic here.
 
 async function validate(url: string): Promise<{ ok: boolean; w?: number; h?: number; mime?: string; reason?: string }> {
   const sharp = (await import("sharp")).default
@@ -91,7 +56,6 @@ async function validate(url: string): Promise<{ ok: boolean; w?: number; h?: num
 }
 
 type Cand = { url: string; alt: string; fam: string; label: string; ident: string }
-function ident(u: string) { try { const x = new URL(u); return `${x.host}${x.pathname.split("/").pop()?.replace(/[-_]?\d{2,5}x\d{2,5}/, "").replace(/\.(jpe?g|png|webp)$/, "") ?? x.pathname}` } catch { return u } }
 
 async function autoScroll(page: Page) {
   try { await page.evaluate(async () => { await new Promise<void>((res) => { let y = 0; const i = setInterval(() => { window.scrollBy(0, 900); y += 900; if (y > document.body.scrollHeight + 2000) { clearInterval(i); res() } }, 120) }) }); await page.waitForTimeout(700) } catch { /**/ }
@@ -167,7 +131,7 @@ async function main() {
     const needFallback = row.image_backup_state === "missing" && !row.property_image_url_backup
     if (!needPrimary && !needFallback) { ledger[pid] = { status: "skipped_locked", reason: "both slots locked" }; skipped++; continue }
     const site = row.website_url || tgt.url
-    const type = inferType(row.property_name || tgt.name || "", `${row.property_type ?? ""} ${row.inventory_type ?? ""}`)
+    const type: PropertyType = inferPropertyType(row.property_name || tgt.name || "", `${row.property_type ?? ""} ${row.inventory_type ?? ""}`)
     const page = await ctx.newPage()
     try {
       const gal = await extractGallery(page, site)
@@ -179,12 +143,11 @@ async function main() {
       for (const c of gal.candidates) {
         const mr = metadataReject(c.url, c.alt); if (mr) { bump(mr); continue }
         if (c.alt) altUsed++
-        const sc = classify(`${c.alt} ${c.url}`)
-        survivors.push({ url: c.url, alt: c.alt, fam: sc.fam, label: sc.label, ident: ident(c.url) })
+        const sc = classifyScene(`${c.alt} ${c.url}`)
+        survivors.push({ url: c.url, alt: c.alt, fam: sc.fam, label: sc.label, ident: assetIdentity(c.url) })
       }
       // type-aware ordering (scene family priority; unknown last)
-      const prio = PRIORITY[type]
-      survivors.sort((a, b) => prio.indexOf(a.fam) - prio.indexOf(b.fam))
+      survivors.sort((a, b) => familyRank(type, a.fam as any) - familyRank(type, b.fam as any))
       // pick Primary: first survivor that validates AND passes the visual gate
       async function pick(exclude?: Cand): Promise<(Cand & { w: number; h: number }) | null> {
         for (const c of survivors) {
@@ -200,7 +163,7 @@ async function main() {
       }
       const primary = needPrimary ? await pick() : null
       // fallback: different scene, also gated. (fill fallback whenever the slot is missing)
-      const fbExclude = primary ?? (row.property_image_url ? ({ ident: ident(row.property_image_url), url: row.property_image_url, fam: "unknown", alt: "", label: "" } as Cand) : undefined)
+      const fbExclude = primary ?? (row.property_image_url ? ({ ident: assetIdentity(row.property_image_url), url: row.property_image_url, fam: "unknown", alt: "", label: "" } as Cand) : undefined)
       const fallback = needFallback ? await pick(fbExclude ?? undefined) : null
 
       const fields: { field: string; value: unknown; sourceType: "official_property_site"; sourceReference: string; verificationStatus: "verified"; checkedAt: string }[] = []
@@ -208,7 +171,7 @@ async function main() {
       if (primary && needPrimary) fields.push(
         { field: "property_image_url", value: primary.url, ...prov },
         { field: "property_image_source", value: `website:gallery:${gal.provider}`, ...prov },
-        { field: "property_image_source_detail", value: `primary=${primary.label}`, ...prov },
+        { field: "property_image_source_detail", value: `primary=${primary.label}; algo=${ALGO_VERSION}`, ...prov },
         { field: "property_image_status", value: "valid", ...prov },
         { field: "property_image_verified_at", value: now(), ...prov },
         { field: "property_image_checked_at", value: now(), ...prov },
@@ -216,7 +179,7 @@ async function main() {
       if (fallback && needFallback) fields.push(
         { field: "property_image_url_backup", value: fallback.url, ...prov },
         { field: "property_image_backup_source", value: `website:gallery:${gal.provider}`, ...prov },
-        { field: "property_image_backup_source_detail", value: `fallback=${fallback.label}`, ...prov },
+        { field: "property_image_backup_source_detail", value: `fallback=${fallback.label}; algo=${ALGO_VERSION}`, ...prov },
         { field: "property_image_backup_status", value: "valid", ...prov },
         { field: "property_image_backup_verified_at", value: now(), ...prov },
         { field: "property_image_backup_checked_at", value: now(), ...prov },
