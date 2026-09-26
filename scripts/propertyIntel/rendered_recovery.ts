@@ -15,6 +15,11 @@ import { ALGO_VERSION, classifyScene, inferPropertyType, familyRank, metadataRej
 const S = "/private/tmp/claude-501/-Users-jaymorris-Desktop-lonestar-locators-app/30160563-4dba-40ec-bd16-aeca0a940f8b/scratchpad"
 const CONFIRM = process.argv.includes("--confirm")
 const SHEET = process.argv.includes("--sheet")
+// --replace = authorized PRIMARY replacement for a queued (audit-flagged) property: uses the safe
+// change_requested path (set immediately before the write, reverted if nothing better is found), never
+// touches the Fallback, and never selects the current image again. Only properties in the cohort file
+// are processed, so GOOD/brand_card/unqueued Primaries are never affected.
+const REPLACE = process.argv.includes("--replace")
 const COHORT = process.argv.find((a) => a.startsWith("--cohort="))?.split("=")[1]!
 const LIMIT = Number(process.argv.find((a) => a.startsWith("--limit="))?.split("=")[1] ?? 0)
 const LEDGER = process.argv.find((a) => a.startsWith("--ledger="))?.split("=")[1] ?? `${S}/rendered_ledger.json`
@@ -117,7 +122,7 @@ async function main() {
   const { SupabaseEnrichmentStore } = await import("@/lib/propertyEnrichment/stores/supabaseStore")
   const { supabaseAdmin } = await import("@/lib/supabase/admin")
   const store = new SupabaseEnrichmentStore()
-  const cohort: { place_id: string; name?: string; market?: string; url: string; slot?: string }[] = JSON.parse(fs.readFileSync(COHORT, "utf8"))
+  const cohort: { place_id: string; name?: string; market?: string; url: string; slot?: string; q?: string }[] = JSON.parse(fs.readFileSync(COHORT, "utf8"))
   const targets = LIMIT ? cohort.slice(0, LIMIT) : cohort
   const ledger: Record<string, unknown> = fs.existsSync(LEDGER) ? JSON.parse(fs.readFileSync(LEDGER, "utf8")) : {}
   const sheet: Record<string, unknown>[] = []
@@ -125,6 +130,7 @@ async function main() {
   const rej: Record<string, number> = {}; const bump = (k: string) => { rej[k] = (rej[k] ?? 0) + 1 }
   const primScenes: Record<string, number> = {}, fbScenes: Record<string, number> = {}, providers: Record<string, number> = {}
   let done = 0, skipped = 0, failed = 0, mreview = 0, wroteP = 0, wroteF = 0, altUsed = 0, candTot = 0
+  const outcomes: Record<string, number> = {}; const outc = (k: string) => { outcomes[k] = (outcomes[k] ?? 0) + 1 }
 
   console.log(`RENDERED recovery — cohort ${targets.length} · mode ${CONFIRM ? "CONFIRM(writes)" : "DRY"}`)
   const browser = await chromium.launch({ headless: true })
@@ -134,11 +140,14 @@ async function main() {
     const pid = tgt.place_id
     if ((ledger[pid] as { status?: string })?.status === "done" || (ledger[pid] as { status?: string })?.status === "skipped_locked") { skipped++; continue }
     // Gap-fill guard: read live slot states.
-    const { data: row } = await supabaseAdmin.from("property_catalog").select("image_selection_state, image_backup_state, property_image_url, property_image_url_backup, website_url, property_name, property_type, inventory_type").eq("place_id", pid).single()
+    const { data: row } = await supabaseAdmin.from("property_catalog").select("image_selection_state, image_backup_state, property_image_url, property_image_url_backup, property_image_source_detail, website_url, property_name, property_type, inventory_type").eq("place_id", pid).single()
     if (!row) { ledger[pid] = { status: "failed", reason: "not_found" }; failed++; continue }
-    const needPrimary = row.image_selection_state === "missing" && !row.property_image_url
-    const needFallback = row.image_backup_state === "missing" && !row.property_image_url_backup
-    if (!needPrimary && !needFallback) { ledger[pid] = { status: "skipped_locked", reason: "both slots locked" }; skipped++; continue }
+    // A queued (authorized) replacement target: currently GOOD/populated + keep-locked. We only ever
+    // reach here for place_ids explicitly in the cohort file.
+    const isReplaceTarget = REPLACE && !!row.property_image_url && row.image_selection_state === "keep"
+    const needPrimary = (row.image_selection_state === "missing" && !row.property_image_url) || isReplaceTarget
+    const needFallback = REPLACE ? false : (row.image_backup_state === "missing" && !row.property_image_url_backup)
+    if (!needPrimary && !needFallback) { ledger[pid] = { status: "skipped_locked", reason: `state=${row.image_selection_state}` }; skipped++; continue }
     const site = row.website_url || tgt.url
     const type: PropertyType = inferPropertyType(row.property_name || tgt.name || "", `${row.property_type ?? ""} ${row.inventory_type ?? ""}`)
     const page = await ctx.newPage()
@@ -170,7 +179,12 @@ async function main() {
         }
         return null
       }
-      const primary = needPrimary ? await pick() : null
+      // In replace mode, exclude the CURRENT primary image so a replacement is never the same photo
+      // (and thus always genuinely resolves the flagged deficiency; ≥800×450 is guaranteed by validate()).
+      const curPriIdent = row.property_image_url ? assetIdentity(row.property_image_url) : null
+      const primary = needPrimary
+        ? await pick(isReplaceTarget && curPriIdent ? ({ ident: curPriIdent, url: row.property_image_url ?? "", fam: "unknown", alt: "", label: "" } as Cand) : undefined)
+        : null
       // FALLBACK: prefer a strong DIFFERENT scene from the existing Primary, but quality > forced
       // diversity — if no different-scene candidate passes v1.0, accept a strong SAME-scene one,
       // always excluding the Primary's exact image (assetIdentity) so it is never a near-duplicate.
@@ -208,16 +222,35 @@ async function main() {
         { field: "property_image_backup_verified_at", value: now(), ...prov },
         { field: "property_image_backup_checked_at", value: now(), ...prov },
       )
-      if (!fields.length) { ledger[pid] = { status: "needs_manual_review", reason: "no_gated_candidate", provider: gal.provider }; mreview++; continue }
+      // No qualifying candidate: for a replace target NO state change was ever made, so the original
+      // Primary is preserved untouched → PRESERVED_NO_BETTER_IMAGE.
+      if (!fields.length) {
+        if (isReplaceTarget) { ledger[pid] = { status: "preserved", reason: "no_better_image", provider: gal.provider, outcome: "PRESERVED_NO_BETTER_IMAGE", oldPrimary: row.property_image_url }; outc("PRESERVED_NO_BETTER_IMAGE"); mreview++ }
+        else { ledger[pid] = { status: "needs_manual_review", reason: "no_gated_candidate", provider: gal.provider, outcome: "MANUAL_REVIEW" }; outc("MANUAL_REVIEW"); mreview++ }
+        continue
+      }
+      let outcome = isReplaceTarget ? "UPGRADED" : "RECOVERED_MISSING"
       if (CONFIRM) {
-        const res = await enrichProperty(store, { placeId: pid, jobId: "image_recovery_rendered", fields })
-        if (res.results.find((r) => r.field === "property_image_url")?.outcome === "written") wroteP++
+        if (isReplaceTarget) {
+          // Authorize replacement for THIS slot ONLY, immediately before the write (guarded on keep).
+          const { data: auth } = await supabaseAdmin.from("property_catalog").update({ image_selection_state: "change_requested" }).eq("place_id", pid).eq("image_selection_state", "keep").select("place_id")
+          if (!auth || !auth.length) { ledger[pid] = { status: "failed", reason: "authorize_conflict", outcome: "ERROR" }; outc("ERROR"); failed++; continue }
+        }
+        const res = await enrichProperty(store, { placeId: pid, jobId: isReplaceTarget ? "image_primary_replacement" : "image_recovery_rendered", fields })
+        const wrotePri = res.results.find((r) => r.field === "property_image_url")?.outcome === "written"
+        if (wrotePri) wroteP++
         if (res.results.find((r) => r.field === "property_image_url_backup")?.outcome === "written") wroteF++
+        if (isReplaceTarget && !wrotePri) {
+          // Write didn't land (e.g., concurrency) → revert to keep, preserve the original Primary.
+          await supabaseAdmin.from("property_catalog").update({ image_selection_state: "keep" }).eq("place_id", pid).eq("image_selection_state", "change_requested").select("place_id")
+          ledger[pid] = { status: "preserved", reason: "write_reverted", provider: gal.provider, outcome: "PRESERVED_NO_BETTER_IMAGE", oldPrimary: row.property_image_url }; outc("PRESERVED_NO_BETTER_IMAGE"); mreview++; continue
+        }
       }
       if (primary) primScenes[primary.label] = (primScenes[primary.label] ?? 0) + 1
       if (fallback) fbScenes[fallback.label] = (fbScenes[fallback.label] ?? 0) + 1
-      ledger[pid] = { status: "done", provider: gal.provider, type, primary: primary?.url, primaryScene: primary?.label, fallback: fallback?.url, fallbackScene: fallback?.label }
-      sheet.push({ pid, name: row.property_name, market: tgt.market, type, provider: gal.provider,
+      outc(outcome)
+      ledger[pid] = { status: "done", outcome, queue: tgt.q ?? null, provider: gal.provider, type, oldPrimary: isReplaceTarget ? row.property_image_url : undefined, primary: primary?.url, primaryScene: primary?.label, primaryDims: primary ? `${primary.w}x${primary.h}` : undefined, fallback: fallback?.url, fallbackScene: fallback?.label }
+      sheet.push({ pid, name: row.property_name, market: tgt.market, type, provider: gal.provider, queue: tgt.q ?? null,
         existingPrimary: row.property_image_url ?? null, existingPrimaryScene: primaryFam,
         primary: primary ? { url: primary.url, scene: primary.label, dims: `${primary.w}x${primary.h}` } : null,
         fallback: fallback ? { url: fallback.url, scene: fallback.label, fam: fallback.fam, dims: `${fallback.w}x${fallback.h}` } : null })
@@ -230,6 +263,6 @@ async function main() {
   fs.writeFileSync(LEDGER, JSON.stringify(ledger, null, 1)) // final persist (covers continue-branch statuses)
   if (SHEET) fs.writeFileSync(`${S}/rendered_sheet.json`, JSON.stringify(sheet, null, 1))
   console.log(JSON.stringify({ cohort: targets.length, done, skipped, failed, needs_manual_review: mreview, wrotePrimary: wroteP, wroteFallback: wroteF,
-    providers, primaryScenes: primScenes, fallbackScenes: fbScenes, altAvailability: `${altUsed}/${candTot}`, rejections: rej }, null, 1))
+    providers, outcomes, primaryScenes: primScenes, fallbackScenes: fbScenes, altAvailability: `${altUsed}/${candTot}`, rejections: rej }, null, 1))
 }
 main().catch((e) => { console.error(e); process.exit(1) })
