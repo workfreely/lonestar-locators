@@ -210,6 +210,10 @@ const CSS = `
 .lbr-paused-btn:disabled{opacity:.6;cursor:default}
 .lbr-paused-title{font-size:19px;font-weight:800;color:var(--navy);margin:0 0 8px}
 .lbr-paused-err{font-size:13.5px;color:#c0264b;margin:14px 0 0}
+/* PAUSED container only: the legal footer is intentionally omitted here, so add comfortable
+   bottom breathing room inside the white rounded shell beneath the agent signature/tagline.
+   Scoped to .lbr-shell--paused — the active list + NoticeScreen shells are untouched. */
+.lbr-shell--paused{padding-bottom:36px}
 /* DONE SELECTING FAVORITES — primary conversion CTA (theme token, never hard-coded). */
 .lbr-done{margin:22px 0 0;text-align:center}
 .lbr-done-count{font-size:14px;font-weight:700;color:var(--navy);margin:0 0 10px}
@@ -400,6 +404,9 @@ const CSS = `
 .lbr-ta-srow{font-size:16px}
 .lbr-sig{margin:24px 16px 0;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 6px 20px -12px rgba(14,37,69,.28);padding:24px 18px}
 .lbr-legal{padding:20px 16px 26px}
+/* Mobile paused container: slightly less than desktop (the sig is a card here with its own
+   padding), still comfortable space below the tagline before the page bottom. */
+.lbr-shell--paused{padding-bottom:28px}
 }
 `
 
@@ -439,7 +446,7 @@ function PausedScreen({
   return (
     <div className={`${inter.variable} ${caveat.variable} lbr-root`}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <div className="lbr-page"><div className="lbr-shell">
+      <div className="lbr-page"><div className="lbr-shell lbr-shell--paused">
         {/* HERO — same city-skyline treatment; the greeting is replaced by the paused line. */}
         <section className="lbr-intro">
           <div className="lbr-sky" aria-hidden style={{ ["--hero-img" as string]: `url('${heroImg}')` }} />
