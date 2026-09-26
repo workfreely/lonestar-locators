@@ -36,11 +36,7 @@ export default function PausedResumeCard({ token, agentFirst }: { token: string;
 
   return (
     <div className="lbr-paused">
-      <p className="lbr-paused-body">
-        This property list is no longer active.
-        <br />
-        Tap Resume Search to pick up where we left off.
-      </p>
+      <p className="lbr-paused-body">Tap Resume Search to pick up where we left off.</p>
       <button type="button" className="lbr-paused-btn" onClick={resume} disabled={state === "busy"} aria-busy={state === "busy"}>
         {state === "busy" ? "Resuming…" : "Resume Search"}
       </button>

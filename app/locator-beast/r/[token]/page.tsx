@@ -204,7 +204,7 @@ const CSS = `
 .lbr-notice-card p{font-size:14.5px;color:var(--muted);margin:10px auto 0;max-width:330px;line-height:1.5}
 /* PAUSED STATE — reuses the /r card language (white, light border, subtle shadow, same
    radius). Sits where the recommendations normally appear. Mobile sizes bump below. */
-.lbr-paused{max-width:520px;margin:6px auto 0;background:#fff;border:1px solid var(--line);border-radius:18px;padding:30px 28px;text-align:center;box-shadow:0 20px 60px -44px rgba(14,37,69,.4)}
+.lbr-paused{max-width:520px;margin:6px auto 0;background:#fff;border:1px solid var(--line);border-radius:18px;padding:24px 28px;text-align:center;box-shadow:0 20px 60px -44px rgba(14,37,69,.4)}
 .lbr-paused-body{font-size:15px;color:var(--muted);margin:0 auto;max-width:390px;line-height:1.6}
 .lbr-paused-btn{display:inline-flex;align-items:center;justify-content:center;min-height:48px;margin-top:20px;background:var(--navy);color:#fff;font-weight:700;font-size:15px;text-decoration:none;padding:12px 24px;border-radius:12px;appearance:none;border:none;cursor:pointer;font-family:inherit}
 .lbr-paused-btn:disabled{opacity:.6;cursor:default}
