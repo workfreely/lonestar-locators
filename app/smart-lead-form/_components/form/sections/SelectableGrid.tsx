@@ -40,8 +40,12 @@ export default function SelectableGrid({
         return (
           <label
             key={o.value}
-            className={`flex min-w-0 items-center gap-2 rounded-xl border border-[#e2e4ea] bg-white px-3 py-2.5 text-[14px] text-[#111318] transition-colors ${
-              disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:border-[#c7ccd6]"
+            className={`flex min-w-0 items-center gap-2 rounded-xl border px-3 py-2.5 text-[16px] text-[#111318] transition-colors ${
+              disabled
+                ? "cursor-not-allowed border-[#e2e4ea] bg-white opacity-50"
+                : checked
+                  ? "cursor-pointer border-[#2f6bff] bg-[#eef3ff]"
+                  : "cursor-pointer border-[#e2e4ea] bg-white hover:border-[#c7ccd6]"
             }`}
           >
             <input
@@ -51,7 +55,7 @@ export default function SelectableGrid({
               checked={checked}
               disabled={disabled}
               onChange={(e) => onToggle(e.target.checked, o.value)}
-              className="h-4 w-4 shrink-0"
+              className="h-4 w-4 shrink-0 accent-[#2f6bff]"
             />
             <span className="min-w-0 break-words">{o.label}</span>
           </label>

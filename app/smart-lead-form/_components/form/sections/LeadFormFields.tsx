@@ -50,9 +50,9 @@ function neighborhoodOptions(cityName: string): string[] {
 // iOS from zooming the page on focus (the "intermediate bubble"). White fields on
 // the off-white form surface, with a stronger #cbd0da border for separation.
 const inputClass =
-  "w-full rounded-xl border border-[#cbd0da] bg-white px-4 py-3.5 text-[17px] text-[#111318] outline-none transition-colors focus:border-[#2f6bff]"
-const labelClass = "text-[14px] font-semibold text-[#374151]"
-const noteClass = "mt-1.5 text-[15px] leading-relaxed text-[#4b5563]"
+  "w-full rounded-xl border border-[#b6bcc9] bg-white px-4 py-3.5 text-[17px] text-[#111318] outline-none transition-colors focus:border-[#2f6bff] focus:ring-2 focus:ring-[#2f6bff]/20"
+const labelClass = "text-[16px] font-semibold text-[#374151]"
+const noteClass = "mt-1.5 text-[16px] leading-relaxed text-[#4b5563]"
 // Yellow informational box shared by the Rental Background and Criminal
 // Background explanations (single source so the two never visually drift).
 const infoBoxClass = "mt-1 rounded-lg border border-[#f0d98a] bg-[#fff8e1] p-3 text-[13px] leading-relaxed text-[#6b5b2e]"
@@ -386,7 +386,7 @@ export default function LeadFormFields({
     <section className="px-5 py-8 sm:px-8" id="smart-lead-form">
       <form
         onSubmit={handleSubmit}
-        className="mx-auto flex max-w-lg flex-col gap-4 rounded-2xl border border-[#e6e8ee] bg-[#f8f9fb] p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] sm:p-7"
+        className="mx-auto flex max-w-lg flex-col gap-4 rounded-2xl border border-[#d7dbe4] bg-[#f8f9fb] p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] sm:p-7"
       >
         {/* First / Last name */}
         <div className="flex flex-col gap-1.5">
@@ -768,7 +768,7 @@ export default function LeadFormFields({
           width: 100%;
           box-sizing: border-box;
           border-radius: 0.75rem;
-          border: 1px solid #cbd0da;
+          border: 1px solid #b6bcc9;
           background: #ffffff;
           padding: 0.875rem 1rem;
           font-size: 17px;
@@ -781,7 +781,7 @@ export default function LeadFormFields({
         .slf-datepicker .react-datepicker__input-container input:focus {
           outline: none;
           border-color: #2f6bff;
-          box-shadow: none;
+          box-shadow: 0 0 0 2px rgba(47, 107, 255, 0.2);
         }
         /* Keep the calendar popover above the form and legible on the light card. */
         .react-datepicker-popper { z-index: 60; }
