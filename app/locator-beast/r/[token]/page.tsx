@@ -210,10 +210,13 @@ const CSS = `
 .lbr-paused-btn:disabled{opacity:.6;cursor:default}
 .lbr-paused-title{font-size:19px;font-weight:800;color:var(--navy);margin:0 0 8px}
 .lbr-paused-err{font-size:13.5px;color:#c0264b;margin:14px 0 0}
-/* PAUSED container only: the legal footer is intentionally omitted here, so add comfortable
-   bottom breathing room inside the white rounded shell beneath the agent signature/tagline.
-   Scoped to .lbr-shell--paused — the active list + NoticeScreen shells are untouched. */
-.lbr-shell--paused{padding-bottom:36px}
+/* PAUSED footer = SIMPLIFIED: keep only the identity row (Equal Housing · Powered by
+   Locator Beast). Hide the legal-links row (the two TREC disclosures — Information About
+   Brokerage Services, Consumer Protection Notice — plus the already-hidden Privacy/Terms)
+   by hiding the row that contains the Privacy link. Scoped to .lbr-shell--paused so the
+   active list + NoticeScreen footers keep their full disclosures. The shared Footer
+   component is not modified. */
+.lbr-shell--paused .lbr-legal div:has(> span > a[href="/privacy"]){display:none}
 /* DONE SELECTING FAVORITES — primary conversion CTA (theme token, never hard-coded). */
 .lbr-done{margin:22px 0 0;text-align:center}
 .lbr-done-count{font-size:14px;font-weight:700;color:var(--navy);margin:0 0 10px}
@@ -404,9 +407,6 @@ const CSS = `
 .lbr-ta-srow{font-size:16px}
 .lbr-sig{margin:24px 16px 0;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 6px 20px -12px rgba(14,37,69,.28);padding:24px 18px}
 .lbr-legal{padding:20px 16px 26px}
-/* Mobile paused container: slightly less than desktop (the sig is a card here with its own
-   padding), still comfortable space below the tagline before the page bottom. */
-.lbr-shell--paused{padding-bottom:28px}
 }
 `
 
@@ -431,7 +431,7 @@ function LegalFooter({ config }: { config: unknown }) {
 // property data is present here (the resolver returns none when disabled). Reversible: the
 // same link returns to the active experience the moment the locator re-activates.
 function PausedScreen({
-  token, heroImg, agentName, agentFirst, agentTitle, brokerage, photo, serviceAreas, phone,
+  token, heroImg, agentName, agentFirst, agentTitle, brokerage, photo, serviceAreas, phone, config,
 }: {
   token: string
   heroImg: string
@@ -442,6 +442,7 @@ function PausedScreen({
   photo: string | null
   serviceAreas: string | null
   phone: string | null
+  config: unknown
 }) {
   return (
     <div className={`${inter.variable} ${caveat.variable} lbr-root`}>
@@ -466,9 +467,10 @@ function PausedScreen({
           <AgentSignature name={agentName} photoUrl={photo} title={agentTitle} brokerage={brokerage} phone={phone} serviceAreas={serviceAreas} />
         </div>
 
-        {/* FOOTER intentionally OMITTED on the paused state only (legal disclosures +
-            "Powered by Locator Beast"). The active list, Smart Lead Form, and every other
-            page keep the shared footer unchanged. */}
+        {/* FOOTER — SIMPLIFIED on the paused state: the shared legal footer renders, but the
+            legal-links row (TREC disclosures) is hidden via scoped CSS (.lbr-shell--paused),
+            leaving only "Equal Housing · Powered by Locator Beast". */}
+        <LegalFooter config={config} />
       </div></div>
     </div>
   )
@@ -548,6 +550,7 @@ export default async function ClientRecommendationsPage({
         photo={photo}
         serviceAreas={serviceAreas}
         phone={share.agent_phone}
+        config={share.smart_form_config}
       />
     )
   }
