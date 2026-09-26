@@ -86,7 +86,11 @@ function formatAddress(address: any): string | null {
 // alt / class / title, or nearby caption text) — scene ranking and rejection both
 // read the URL *and* the context, so "Pool at sunset" alt on an opaque filename
 // still ranks as a pool, and an alt of "Floor Plan" is rejected.
-type ImageCandidate = { url: string; boost: number; context?: string }
+// Which first-party surface a candidate came from — carried through so a producer
+// can record provenance (property_image_source = website:<source>) and Batch-0
+// characterization can report a source breakdown. Additive; scoring ignores it.
+export type ImageSource = "gallery" | "jsonld" | "og" | "twitter"
+type ImageCandidate = { url: string; boost: number; context?: string; source?: ImageSource }
 
 // Source boosts — structured/gallery property images are preferred over social.
 // These are TIEBREAKERS ONLY: the scene tier (below) dominates the score, so a
@@ -294,12 +298,12 @@ function jsonLdImageCandidates(value: unknown, boost: number, out: ImageCandidat
   if (!value) return
   if (typeof value === "string") {
     const u = value.trim()
-    if (u) out.push({ url: u, boost })
+    if (u) out.push({ url: u, boost, source: "jsonld" })
   } else if (Array.isArray(value)) {
     for (const item of value) jsonLdImageCandidates(item, GALLERY_BOOST, out)
   } else if (typeof value === "object" && typeof (value as { url?: unknown }).url === "string") {
     const u = ((value as { url: string }).url).trim()
-    if (u) out.push({ url: u, boost })
+    if (u) out.push({ url: u, boost, source: "jsonld" })
   }
 }
 
@@ -333,7 +337,7 @@ function imgGalleryCandidates(html: string, out: ImageCandidate[]): void {
     const alt = /\balt=["']([^"']*)["']/i.exec(tag)?.[1] ?? ""
     const cls = /\bclass=["']([^"']*)["']/i.exec(tag)?.[1] ?? ""
     const title = /\btitle=["']([^"']*)["']/i.exec(tag)?.[1] ?? ""
-    out.push({ url: src.trim(), boost: IMG_BOOST, context: `${alt} ${cls} ${title}` })
+    out.push({ url: src.trim(), boost: IMG_BOOST, context: `${alt} ${cls} ${title}`, source: "gallery" })
     seen++
   }
 }
@@ -352,9 +356,9 @@ export function collectImageCandidates(html: string): ImageCandidate[] {
   // the photo/logo filter — so a logo og:image is rejected while a structured
   // gallery photo (or a genuine hero og:image) wins.
   const og = extractMetaContent(html, "og:image")
-  if (og) candidates.push({ url: og, boost: SOCIAL_BOOST })
+  if (og) candidates.push({ url: og, boost: SOCIAL_BOOST, source: "og" })
   const tw = extractMetaContent(html, "twitter:image")
-  if (tw) candidates.push({ url: tw, boost: SOCIAL_BOOST })
+  if (tw) candidates.push({ url: tw, boost: SOCIAL_BOOST, source: "twitter" })
   // Gallery/hero <img> photos — the scene ranker + rejection gate decide whether
   // any of them beat the structured/social candidates.
   imgGalleryCandidates(html, candidates)
@@ -388,7 +392,7 @@ export function extractPropertyMetadata(html: string): DetectedMetadata {
 // are dropped; survivors below TRUST_FLOOR (demoted graphics) are also dropped so
 // a backup is never a logo/branded card. Result is de-duplicated by resolved URL
 // and sorted best-first. `sourceUrl` resolves relative image paths to absolute.
-export type RankedImage = { url: string; score: number; context?: string }
+export type RankedImage = { url: string; score: number; context?: string; source?: ImageSource }
 
 function absolutize(url: string, sourceUrl?: string): string {
   const u = (url ?? "").trim()
@@ -428,7 +432,7 @@ export function rankPropertyImages(html: string, sourceUrl?: string): RankedImag
     const url = absolutize(c.url, sourceUrl)
     const id = imageIdentity(url)
     const prev = bestByIdentity.get(id)
-    if (!prev || score > prev.score) bestByIdentity.set(id, { url, score, context: c.context })
+    if (!prev || score > prev.score) bestByIdentity.set(id, { url, score, context: c.context, source: c.source })
   }
   return [...bestByIdentity.values()].sort((a, b) => b.score - a.score)
 }
