@@ -221,6 +221,7 @@ Shape: {"features":[],"current_special":"","amenity_keywords":[],"location_keywo
             for (const r of cr.results) { if (r.outcome === "written") m.fields++; if (r.reason.startsWith("conflict")) m.conflicts++ }
           }
         }
+      }
     } catch (e) { m.failures.push({ stage: "website_extract", error: (e as Error).message.slice(0, 120), retryable: true }) }
 
     // 4) Floorplan page (Haiku)
