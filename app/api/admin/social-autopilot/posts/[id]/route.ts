@@ -10,7 +10,7 @@ import { normalizeHashtag } from "@/lib/social/hashtags"
 // overlay text or audio choice invalidates any existing render (render_status → 'none').
 const SELECT =
   "id, platform, post_type, post_name, caption, social_special, on_video_text, on_video_config, " +
-  "overlay_headline, overlay_subheadline, overlay_mode, overlay_template, hashtags, audio_choice, audio_track_id, rendered_storage_path, render_status, render_error, render_version, " +
+  "overlay_headline, overlay_subheadline, overlay_mode, overlay_template, hashtags, audio_choice, audio_track_id, voice_hook_id, voice_cta_id, rendered_storage_path, render_status, render_error, render_version, " +
   "status, scheduled_at, published_at, external_post_url, created_at, updated_at, source_content_id, " +
   "source:source_content_id(display_name, property_name, property_type, place_id, market, special, budget_range, amenities, storage_path, original_filename, kind, overlay_mode)"
 const SIGNED_URL_TTL = 60 * 30
@@ -55,6 +55,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     hashtags: Array.isArray(r.hashtags) ? r.hashtags : [],
     audioChoice: (r.audio_choice as string) || "original",
     audioTrackId: r.audio_track_id,
+    voiceHookId: r.voice_hook_id,
+    voiceCtaId: r.voice_cta_id,
     renderStatus: (r.render_status as string) || "none",
     renderError: r.render_error,
     renderVersion: r.render_version,
@@ -118,6 +120,10 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if ("overlayMode" in body && (body.overlayMode === "generate" || body.overlayMode === "existing")) { patch.overlay_mode = body.overlayMode; renderAffecting = true }
   if ("overlayTemplate" in body && typeof body.overlayTemplate === "string" && OVERLAY_TEMPLATE_SET.has(body.overlayTemplate)) { patch.overlay_template = body.overlayTemplate; renderAffecting = true }
   if ("audioChoice" in body && typeof body.audioChoice === "string" && AUDIO_CHOICES.has(body.audioChoice)) { patch.audio_choice = body.audioChoice; renderAffecting = true }
+  // Voice Clips (Hook = start, CTA = end). A uuid selects; null clears. Render-affecting.
+  const VOICE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if ("voiceHookId" in body && (body.voiceHookId === null || (typeof body.voiceHookId === "string" && VOICE_UUID.test(body.voiceHookId)))) { patch.voice_hook_id = body.voiceHookId; renderAffecting = true }
+  if ("voiceCtaId" in body && (body.voiceCtaId === null || (typeof body.voiceCtaId === "string" && VOICE_UUID.test(body.voiceCtaId)))) { patch.voice_cta_id = body.voiceCtaId; renderAffecting = true }
   if ("hashtags" in body && Array.isArray(body.hashtags)) {
     const seen = new Set<string>()
     const tags: string[] = []

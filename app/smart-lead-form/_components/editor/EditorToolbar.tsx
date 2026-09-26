@@ -30,7 +30,7 @@ export default function EditorToolbar({
           type="button"
           onClick={onSave}
           disabled={saving}
-          className="rounded-full bg-[#111318] px-5 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#2f6bff] disabled:opacity-60"
+          className="rounded-full bg-[#2f6bff] px-5 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#2559d6] disabled:opacity-60"
         >
           {saving ? "Saving…" : saved ? "Saved" : "Save Changes"}
         </button>

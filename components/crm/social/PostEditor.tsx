@@ -14,6 +14,7 @@ import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
 import VideoLightbox from "@/components/crm/social/VideoLightbox"
 import TikTokPostConfirm from "@/components/crm/social/TikTokPostConfirm"
 import AmenitySelect from "@/components/crm/social/AmenitySelect"
+import VoiceClipsControl from "@/components/crm/social/VoiceClipsControl"
 import { parseAmenities, serializeAmenities } from "@/lib/social/amenities"
 import { SOCIAL_MARKETS } from "@/lib/social/markets"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
@@ -54,6 +55,8 @@ type Post = {
   overlayTemplate?: string | null
   hashtags: string[]
   audioChoice: string
+  voiceHookId?: string | null
+  voiceCtaId?: string | null
   renderStatus: string
   renderError: string | null
   status: PostStatus
@@ -153,6 +156,8 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [hashtagsDirty, setHashtagsDirty] = useState(false)
   const [tagInput, setTagInput] = useState("")
   const [audioChoice, setAudioChoice] = useState("original")
+  const [voiceHookId, setVoiceHookId] = useState<string | null>(null)
+  const [voiceCtaId, setVoiceCtaId] = useState<string | null>(null)
   const [scheduleVal, setScheduleVal] = useState("") // local "YYYY-MM-DDTHH:mm"
   const [scheduling, setScheduling] = useState(false) // RIGHT column shows the Schedule workspace
   // Posting: Post Once (manual date/time) vs Repeat (recurring rule) — exposed inline in the editor.
@@ -199,6 +204,8 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       const tpl = (OVERLAY_TEMPLATES as readonly string[]).includes(p.overlayTemplate ?? "") ? (p.overlayTemplate as OverlayTemplate) : DEFAULT_OVERLAY_TEMPLATE
       setOverlayTemplate(tpl)
       setAudioChoice(p.audioChoice || "original")
+      setVoiceHookId(p.voiceHookId ?? null)
+      setVoiceCtaId(p.voiceCtaId ?? null)
       setScheduleVal(isoToLocalInput(p.scheduledAt))
       setSourceContentId(p.sourceContentId ?? null)
       setPropertyName(p.source?.propertyName ?? "")
@@ -267,9 +274,9 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       postName, postType, caption, socialSpecial: socialSpecial || null,
       overlayHeadline: headline,
       overlaySubheadline: overlayMode === "generate" ? buildTemplateDetail(overlayTemplate, { market, propertyType, special: special || null, socialSpecial: socialSpecial || null, budgetRange: priceRange || null, amenities: amenities || null }) : "",
-      overlayMode, overlayTemplate, hashtags, audioChoice,
+      overlayMode, overlayTemplate, hashtags, audioChoice, voiceHookId, voiceCtaId,
     }),
-    [postName, postType, caption, socialSpecial, headline, overlayMode, overlayTemplate, market, propertyType, special, priceRange, amenities, hashtags, audioChoice],
+    [postName, postType, caption, socialSpecial, headline, overlayMode, overlayTemplate, market, propertyType, special, priceRange, amenities, hashtags, audioChoice, voiceHookId, voiceCtaId],
   )
 
   // Persist the public-safe SOURCE facts to social_content (reuses the canonical content PATCH,
@@ -848,21 +855,35 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               </div>
               <span className="text-[10.5px] text-[var(--crm-text-muted)]">{hashtags.length > hashtagLimit ? `Over the ${hashtagLimit}-tag limit for the selected platforms — remove ${hashtags.length - hashtagLimit} before publishing.` : hashtags.length === hashtagLimit ? `${hashtagLimit}-tag limit for the selected platforms reached — remove one to add another.` : "Added to the caption when published (kept separate here)."}</span>
 
-              {/* Audio sits under Hashtags in the right column — same select styling/behavior as
-                  before, width matching the right-column field (not the page). */}
-              <label className="block mt-3">
-                <span className={fieldLabel}>Audio</span>
-                <select
-                  aria-label="Audio"
-                  value={audioChoice}
-                  onChange={(e) => e.target.value !== "lb_track" && setAudioChoice(e.target.value)}
-                  className={`${control} mt-1 cursor-pointer`}
-                >
-                  {AUDIO_OPTIONS.map((a) => (
-                    <option key={a.key} value={a.key} disabled={a.disabled}>{a.label}{a.note ? ` — ${a.note}` : ""}</option>
-                  ))}
-                </select>
-              </label>
+              {/* Music | Voice Clips — 50/50 on one row, equal height/width. Music keeps the
+                  existing audio behavior; Voice Clips selects reusable Hook (start) + CTA (end)
+                  overlays from the library. Both triggers use the same `control` styling. */}
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className={fieldLabel}>Music</span>
+                  <select
+                    aria-label="Music"
+                    value={audioChoice}
+                    onChange={(e) => e.target.value !== "lb_track" && setAudioChoice(e.target.value)}
+                    className={`${control} mt-1 cursor-pointer`}
+                  >
+                    {AUDIO_OPTIONS.map((a) => (
+                      <option key={a.key} value={a.key} disabled={a.disabled}>{a.label}{a.note ? ` — ${a.note}` : ""}</option>
+                    ))}
+                  </select>
+                </label>
+                <div className="block">
+                  <span className={fieldLabel}>Voice Clips</span>
+                  <div className="mt-1">
+                    <VoiceClipsControl
+                      triggerClassName={control}
+                      hookId={voiceHookId}
+                      ctaId={voiceCtaId}
+                      onChange={({ hookId, ctaId }) => { setVoiceHookId(hookId); setVoiceCtaId(ctaId) }}
+                    />
+                  </div>
+                </div>
+              </div>
 
               {/* Posting — Post Once (manual date/time) or Repeat (recurring), exposed INLINE (no need
                   to open the calendar first). Repeat reuses the existing recurrence backend. */}
