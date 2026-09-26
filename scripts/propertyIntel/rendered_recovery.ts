@@ -171,9 +171,24 @@ async function main() {
         return null
       }
       const primary = needPrimary ? await pick() : null
-      // fallback: different scene, also gated. (fill fallback whenever the slot is missing)
-      const fbExclude = primary ?? (row.property_image_url ? ({ ident: assetIdentity(row.property_image_url), url: row.property_image_url, fam: "unknown", alt: "", label: "" } as Cand) : undefined)
-      const fallback = needFallback ? await pick(fbExclude ?? undefined) : null
+      // FALLBACK: prefer a strong DIFFERENT scene from the existing Primary, but quality > forced
+      // diversity — if no different-scene candidate passes v1.0, accept a strong SAME-scene one,
+      // always excluding the Primary's exact image (assetIdentity) so it is never a near-duplicate.
+      // The Primary is read-only context only (Step 2): its scene is derived from stored provenance
+      // ("primary=<label>") or its URL via the existing classifyScene — no ranking/gate/threshold change.
+      const primaryIdent = row.property_image_url ? assetIdentity(row.property_image_url) : null
+      let primaryFam: string = "unknown"
+      if (primary) primaryFam = primary.fam
+      else if (primaryIdent) {
+        const dm = String(row.property_image_source_detail ?? "").match(/primary=([^;]+)/)
+        primaryFam = classifyScene(`${dm?.[1] ?? ""} ${row.property_image_url}`).fam
+      }
+      const fbPrimaryCtx: Cand | undefined = primaryIdent ? ({ ident: primaryIdent, url: row.property_image_url ?? "", fam: primaryFam, alt: "", label: "" } as Cand) : undefined
+      let fallback = needFallback ? await pick(fbPrimaryCtx) : null // pass 1: prefer a different scene
+      if (needFallback && !fallback && primaryIdent) {
+        // pass 2: accept a strong same-scene image (still not the Primary's exact photo).
+        fallback = await pick({ ident: primaryIdent, url: row.property_image_url ?? "", fam: "unknown", alt: "", label: "" } as Cand)
+      }
 
       const fields: { field: string; value: unknown; sourceType: "official_property_site"; sourceReference: string; verificationStatus: "verified"; checkedAt: string }[] = []
       const prov = { sourceType: "official_property_site" as const, sourceReference: site, verificationStatus: "verified" as const, checkedAt: now() }
@@ -202,7 +217,10 @@ async function main() {
       if (primary) primScenes[primary.label] = (primScenes[primary.label] ?? 0) + 1
       if (fallback) fbScenes[fallback.label] = (fbScenes[fallback.label] ?? 0) + 1
       ledger[pid] = { status: "done", provider: gal.provider, type, primary: primary?.url, primaryScene: primary?.label, fallback: fallback?.url, fallbackScene: fallback?.label }
-      sheet.push({ pid, name: row.property_name, market: tgt.market, type, provider: gal.provider, primary: primary ? { url: primary.url, scene: primary.label, dims: `${primary.w}x${primary.h}` } : null, fallback: fallback ? { url: fallback.url, scene: fallback.label, dims: `${fallback.w}x${fallback.h}` } : null })
+      sheet.push({ pid, name: row.property_name, market: tgt.market, type, provider: gal.provider,
+        existingPrimary: row.property_image_url ?? null, existingPrimaryScene: primaryFam,
+        primary: primary ? { url: primary.url, scene: primary.label, dims: `${primary.w}x${primary.h}` } : null,
+        fallback: fallback ? { url: fallback.url, scene: fallback.label, fam: fallback.fam, dims: `${fallback.w}x${fallback.h}` } : null })
       done++
     } catch (e) { ledger[pid] = { status: "failed", reason: `err:${(e as Error).name}:${(e as Error).message.slice(0, 50)}` }; failed++ }
     finally { await page.close().catch(() => {}) }
