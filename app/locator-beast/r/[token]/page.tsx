@@ -424,7 +424,7 @@ function LegalFooter({ config }: { config: unknown }) {
 // property data is present here (the resolver returns none when disabled). Reversible: the
 // same link returns to the active experience the moment the locator re-activates.
 function PausedScreen({
-  token, heroImg, agentName, agentFirst, agentTitle, brokerage, photo, serviceAreas, phone, config,
+  token, heroImg, agentName, agentFirst, agentTitle, brokerage, photo, serviceAreas, phone,
 }: {
   token: string
   heroImg: string
@@ -435,7 +435,6 @@ function PausedScreen({
   photo: string | null
   serviceAreas: string | null
   phone: string | null
-  config: unknown
 }) {
   return (
     <div className={`${inter.variable} ${caveat.variable} lbr-root`}>
@@ -455,13 +454,14 @@ function PausedScreen({
           <PausedResumeCard token={token} agentFirst={agentFirst} />
         </section>
 
-        {/* AGENT SIGNATURE — the SAME canonical shared component as the active page. */}
+        {/* AGENT SIGNATURE — the SAME canonical shared component as the active page. Kept. */}
         <div className="lbr-sig">
           <AgentSignature name={agentName} photoUrl={photo} title={agentTitle} brokerage={brokerage} phone={phone} serviceAreas={serviceAreas} />
         </div>
 
-        {/* FOOTER — the SAME legal/brokerage footer as the active page. */}
-        <LegalFooter config={config} />
+        {/* FOOTER intentionally OMITTED on the paused state only (legal disclosures +
+            "Powered by Locator Beast"). The active list, Smart Lead Form, and every other
+            page keep the shared footer unchanged. */}
       </div></div>
     </div>
   )
@@ -541,7 +541,6 @@ export default async function ClientRecommendationsPage({
         photo={photo}
         serviceAreas={serviceAreas}
         phone={share.agent_phone}
-        config={share.smart_form_config}
       />
     )
   }
