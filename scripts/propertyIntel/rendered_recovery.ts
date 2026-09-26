@@ -237,6 +237,7 @@ async function main() {
     fs.writeFileSync(LEDGER, JSON.stringify(ledger, null, 1))
   }
   await browser.close()
+  fs.writeFileSync(LEDGER, JSON.stringify(ledger, null, 1)) // final persist (covers continue-branch statuses)
   if (SHEET) fs.writeFileSync(`${S}/rendered_sheet.json`, JSON.stringify(sheet, null, 1))
   console.log(JSON.stringify({ cohort: targets.length, done, skipped, failed, needs_manual_review: mreview, wrotePrimary: wroteP, wroteFallback: wroteF,
     providers, primaryScenes: primScenes, fallbackScenes: fbScenes, altAvailability: `${altUsed}/${candTot}`, rejections: rej }, null, 1))
