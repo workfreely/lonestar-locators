@@ -20,16 +20,31 @@ export const PUBLIC_SOURCE_TYPES = new Set<SourceType>([
   "google_places",
 ])
 
-// ── Image columns are governed by image_selection_state, NOT the field allowlist ──
-export const IMAGE_FIELDS = new Set([
+// ── Image columns are governed by per-slot image state, NOT the field allowlist ──
+// TWO INDEPENDENT SLOTS, each with its own keep/change_requested/missing lock:
+//   • PRIMARY slot  — property_image_url + its provenance, gated by image_selection_state.
+//   • FALLBACK slot — property_image_url_backup + its provenance, gated by image_backup_state.
+// This lets an existing (locked) Primary coexist with a fillable Fallback WITHOUT ever making
+// the Primary writable, and vice-versa. Neither slot's populated URL can be replaced except via
+// that slot's explicit change_requested state.
+export const IMAGE_PRIMARY_FIELDS = new Set([
   "property_image_url",
-  "property_image_url_backup",
   "property_image_source",
   "property_image_source_detail",
   "property_image_status",
   "property_image_checked_at",
   "property_image_verified_at",
 ])
+export const IMAGE_BACKUP_FIELDS = new Set([
+  "property_image_url_backup",
+  "property_image_backup_source",
+  "property_image_backup_source_detail",
+  "property_image_backup_status",
+  "property_image_backup_checked_at",
+  "property_image_backup_verified_at",
+])
+// Union — used for "is this an image column?" and store read columns.
+export const IMAGE_FIELDS = new Set([...IMAGE_PRIMARY_FIELDS, ...IMAGE_BACKUP_FIELDS])
 
 // ── Enrichment-writable identity / geo / contact / intelligence fields ──
 // Commission + image + provenance columns are deliberately EXCLUDED.

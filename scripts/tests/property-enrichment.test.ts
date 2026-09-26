@@ -321,6 +321,80 @@ async function main() {
     ok(r(res, "location_keywords").outcome === "skipped" && r(res, "location_keywords").reason.startsWith("conflict"), "valid sparse curated location_keywords preserved (conflict surfaced)")
   }
 
+  // ── FALLBACK (backup) slot — independent gap-fill, never replacement (item 8) ──
+  const FB = "property_image_url_backup"
+  const imgCand = (field: string, url: string) => cand(field, url, "official_property_site", "verified", "https://site/gallery")
+
+  section("F1. Primary populated (keep) + Fallback empty → Fallback fills, Primary UNCHANGED")
+  {
+    const s = new InMemoryEnrichmentStore()
+    s.seedProperty(PID, { [IMG]: "https://existing-primary.jpg", [FB]: null }, "keep", "missing")
+    const res = await enrichProperty(s, { placeId: PID, jobId: "f1", fields: [imgCand(FB, "https://new-fallback.jpg")] })
+    ok(r(res, FB).outcome === "written", "Fallback written on keep-Primary row")
+    ok(s.get(PID)!.values[FB] === "https://new-fallback.jpg", "Fallback persisted")
+    ok(s.get(PID)!.values[IMG] === "https://existing-primary.jpg", "existing Primary UNCHANGED")
+    ok(s.get(PID)!.imageSelectionState === "keep", "Primary slot still keep")
+    ok(s.get(PID)!.imageBackupState === "keep", "Fallback slot locked to keep after fill")
+  }
+
+  section("F2. Primary populated + Fallback populated → BOTH rejected/locked")
+  {
+    const s = new InMemoryEnrichmentStore()
+    s.seedProperty(PID, { [IMG]: "https://p.jpg", [FB]: "https://f.jpg" }, "keep", "keep")
+    const res = await enrichProperty(s, { placeId: PID, jobId: "f2", fields: [imgCand(IMG, "https://p2.jpg"), imgCand(FB, "https://f2.jpg")] })
+    ok(r(res, IMG).outcome === "rejected" && r(res, IMG).reason === "image_locked_keep", "Primary rejected image_locked_keep")
+    ok(r(res, FB).outcome === "rejected" && r(res, FB).reason === "image_backup_locked_keep", "Fallback rejected image_backup_locked_keep")
+    ok(s.get(PID)!.values[IMG] === "https://p.jpg" && s.get(PID)!.values[FB] === "https://f.jpg", "both slots UNCHANGED")
+  }
+
+  section("F3. Primary empty + Fallback populated → Primary fills WITHOUT changing Fallback")
+  {
+    const s = new InMemoryEnrichmentStore()
+    s.seedProperty(PID, { [IMG]: null, [FB]: "https://existing-fallback.jpg" }, "missing", "keep")
+    const res = await enrichProperty(s, { placeId: PID, jobId: "f3", fields: [imgCand(IMG, "https://new-primary.jpg"), imgCand(FB, "https://should-not-write.jpg")] })
+    ok(r(res, IMG).outcome === "written" && s.get(PID)!.values[IMG] === "https://new-primary.jpg", "Primary filled")
+    ok(r(res, FB).outcome === "rejected" && r(res, FB).reason === "image_backup_locked_keep", "Fallback write rejected (locked)")
+    ok(s.get(PID)!.values[FB] === "https://existing-fallback.jpg", "existing Fallback UNCHANGED")
+    ok(s.get(PID)!.imageSelectionState === "keep" && s.get(PID)!.imageBackupState === "keep", "both slots keep")
+  }
+
+  section("F4. Both empty → Primary + Fallback may both be added")
+  {
+    const s = new InMemoryEnrichmentStore()
+    s.seedProperty(PID, { [IMG]: null, [FB]: null }, "missing", "missing")
+    const res = await enrichProperty(s, { placeId: PID, jobId: "f4", fields: [imgCand(IMG, "https://p.jpg"), imgCand(FB, "https://f.jpg")] })
+    ok(r(res, IMG).outcome === "written" && r(res, FB).outcome === "written", "both slots written")
+    ok(s.get(PID)!.values[IMG] === "https://p.jpg" && s.get(PID)!.values[FB] === "https://f.jpg", "both persisted")
+    ok(s.get(PID)!.imageSelectionState === "keep" && s.get(PID)!.imageBackupState === "keep", "both locked to keep")
+  }
+
+  section("F5. concurrent/stale write cannot overwrite either populated slot")
+  {
+    // keep+keep row: even a forced write attempt is rejected at the gate (no patch attempted).
+    const s = new InMemoryEnrichmentStore()
+    s.seedProperty(PID, { [IMG]: "https://p.jpg", [FB]: "https://f.jpg" }, "keep", "keep")
+    await enrichProperty(s, { placeId: PID, jobId: "f5a", fields: [imgCand(IMG, "https://x.jpg"), imgCand(FB, "https://y.jpg")] })
+    ok(s.applyPatchCalls === 0, "no patch attempted against locked slots")
+    // missing Fallback but a concurrent writer moved updated_at → optimistic conflict blocks the write.
+    const s2 = new InMemoryEnrichmentStore()
+    s2.seedProperty(PID, { [IMG]: "https://p.jpg", [FB]: null }, "keep", "missing")
+    s2.failNextApplyPatch = true // simulate stale updated_at / concurrent change
+    const res2 = await enrichProperty(s2, { placeId: PID, jobId: "f5b", fields: [imgCand(FB, "https://f-new.jpg")] })
+    ok(r(res2, FB).outcome === "skipped" && r(res2, FB).reason === "concurrency_conflict", "stale write downgraded to concurrency_conflict")
+    ok(s2.get(PID)!.values[FB] == null, "Fallback slot NOT written under conflict")
+  }
+
+  section("F6. change_requested remains the explicit replacement path (per slot)")
+  {
+    // Fallback change_requested → replacement allowed for THAT slot; Primary stays keep-locked.
+    const s = new InMemoryEnrichmentStore()
+    s.seedProperty(PID, { [IMG]: "https://p.jpg", [FB]: "https://old-f.jpg" }, "keep", "change_requested")
+    const res = await enrichProperty(s, { placeId: PID, jobId: "f6", fields: [imgCand(IMG, "https://p2.jpg"), imgCand(FB, "https://new-f.jpg")] })
+    ok(r(res, FB).outcome === "written" && s.get(PID)!.values[FB] === "https://new-f.jpg", "Fallback replaced via change_requested")
+    ok(r(res, IMG).outcome === "rejected" && s.get(PID)!.values[IMG] === "https://p.jpg", "Primary still keep-locked (not replaced)")
+    ok(s.get(PID)!.imageBackupState === "keep", "Fallback returns to keep after replacement")
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`)
   if (fail > 0) process.exit(1)
 }

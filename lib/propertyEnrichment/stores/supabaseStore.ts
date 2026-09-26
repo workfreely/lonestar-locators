@@ -10,7 +10,7 @@ import type { AttributeRow, AttributeStore, EnrichmentStore } from "../store"
 import type { EnrichmentEvent, FieldProvenance, ImageSelectionState, PropertySnapshot, SourceType, StoredAttribute, VerificationStatus } from "../types"
 
 const READ_COLUMNS = Array.from(
-  new Set(["place_id", "updated_at", "image_selection_state", ...ENRICHMENT_WRITABLE_FIELDS, ...IMAGE_FIELDS, ...COMMISSION_FIELDS]),
+  new Set(["place_id", "updated_at", "image_selection_state", "image_backup_state", ...ENRICHMENT_WRITABLE_FIELDS, ...IMAGE_FIELDS, ...COMMISSION_FIELDS]),
 ).join(", ")
 
 export class SupabaseEnrichmentStore implements EnrichmentStore, AttributeStore {
@@ -20,13 +20,14 @@ export class SupabaseEnrichmentStore implements EnrichmentStore, AttributeStore 
     const row = data as Record<string, unknown>
     const values: Record<string, unknown> = {}
     for (const k of Object.keys(row)) {
-      if (k === "place_id" || k === "updated_at" || k === "image_selection_state") continue
+      if (k === "place_id" || k === "updated_at" || k === "image_selection_state" || k === "image_backup_state") continue
       values[k] = row[k]
     }
     return {
       placeId,
       updatedAt: (row.updated_at as string | null) ?? null,
       imageSelectionState: ((row.image_selection_state as ImageSelectionState) ?? "missing"),
+      imageBackupState: ((row.image_backup_state as ImageSelectionState) ?? "missing"),
       values,
     }
   }
@@ -52,9 +53,11 @@ export class SupabaseEnrichmentStore implements EnrichmentStore, AttributeStore 
     patch: Record<string, unknown>,
     expectedUpdatedAt: string | null,
     imageState?: ImageSelectionState,
+    imageBackupState?: ImageSelectionState,
   ): Promise<boolean> {
     const update: Record<string, unknown> = { ...patch, updated_at: new Date().toISOString() }
     if (imageState) update.image_selection_state = imageState
+    if (imageBackupState) update.image_backup_state = imageBackupState
     let q = supabaseAdmin.from("property_catalog").update(update).eq("place_id", placeId)
     // Optimistic concurrency: only patch if updated_at still matches what we loaded.
     q = expectedUpdatedAt === null ? q.is("updated_at", null) : q.eq("updated_at", expectedUpdatedAt)

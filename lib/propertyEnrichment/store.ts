@@ -20,12 +20,14 @@ export interface EnrichmentStore {
   currentProvenance(placeId: string): Promise<Record<string, FieldProvenance>>
   // PATCH specific columns, guarded by the optimistic updatedAt token. Returns true
   // if the row was updated (token matched), false on a concurrency conflict.
-  // `imageState` (when provided) is written atomically with `patch`.
+  // `imageState` / `imageBackupState` (when provided) are written atomically with `patch`,
+  // each governing its own slot's lock.
   applyPatch(
     placeId: string,
     patch: Record<string, unknown>,
     expectedUpdatedAt: string | null,
     imageState?: ImageSelectionState,
+    imageBackupState?: ImageSelectionState,
   ): Promise<boolean>
   // Append audit/provenance events (written/skipped/rejected).
   recordEvents(events: EnrichmentEvent[]): Promise<void>

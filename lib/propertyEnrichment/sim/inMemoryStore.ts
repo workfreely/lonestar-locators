@@ -18,6 +18,7 @@ type Row = {
   values: Record<string, unknown>
   updatedAt: string | null
   imageSelectionState: ImageSelectionState
+  imageBackupState: ImageSelectionState
 }
 
 export class InMemoryEnrichmentStore implements EnrichmentStore, AttributeStore {
@@ -32,8 +33,8 @@ export class InMemoryEnrichmentStore implements EnrichmentStore, AttributeStore 
   private attributes = new Map<string, Map<string, StoredAttribute>>()
   applyAttributesCalls = 0
 
-  seedProperty(placeId: string, values: Record<string, unknown>, imageSelectionState: ImageSelectionState = "missing") {
-    this.rows.set(placeId, { values: { ...values }, updatedAt: `v${this.tokenSeq++}`, imageSelectionState })
+  seedProperty(placeId: string, values: Record<string, unknown>, imageSelectionState: ImageSelectionState = "missing", imageBackupState: ImageSelectionState = "missing") {
+    this.rows.set(placeId, { values: { ...values }, updatedAt: `v${this.tokenSeq++}`, imageSelectionState, imageBackupState })
   }
   // Seed an existing verified/inferred provenance for a field (a prior 'written' event).
   putProvenance(placeId: string, field: string, prov: { sourceType: SourceType; verificationStatus: VerificationStatus; value: string | null }) {
@@ -55,6 +56,10 @@ export class InMemoryEnrichmentStore implements EnrichmentStore, AttributeStore 
     const r = this.rows.get(placeId)
     if (r) r.imageSelectionState = state
   }
+  setImageBackupState(placeId: string, state: ImageSelectionState) {
+    const r = this.rows.get(placeId)
+    if (r) r.imageBackupState = state
+  }
   get(placeId: string): Row | undefined {
     return this.rows.get(placeId)
   }
@@ -65,7 +70,7 @@ export class InMemoryEnrichmentStore implements EnrichmentStore, AttributeStore 
   async loadProperty(placeId: string): Promise<PropertySnapshot | null> {
     const r = this.rows.get(placeId)
     if (!r) return null
-    return { placeId, updatedAt: r.updatedAt, imageSelectionState: r.imageSelectionState, values: { ...r.values } }
+    return { placeId, updatedAt: r.updatedAt, imageSelectionState: r.imageSelectionState, imageBackupState: r.imageBackupState, values: { ...r.values } }
   }
 
   async currentProvenance(placeId: string): Promise<Record<string, FieldProvenance>> {
@@ -82,6 +87,7 @@ export class InMemoryEnrichmentStore implements EnrichmentStore, AttributeStore 
     patch: Record<string, unknown>,
     expectedUpdatedAt: string | null,
     imageState?: ImageSelectionState,
+    imageBackupState?: ImageSelectionState,
   ): Promise<boolean> {
     this.applyPatchCalls++
     const r = this.rows.get(placeId)
@@ -93,6 +99,7 @@ export class InMemoryEnrichmentStore implements EnrichmentStore, AttributeStore 
     if (r.updatedAt !== expectedUpdatedAt) return false // optimistic concurrency conflict
     for (const k of Object.keys(patch)) r.values[k] = patch[k]
     if (imageState) r.imageSelectionState = imageState
+    if (imageBackupState) r.imageBackupState = imageBackupState
     r.updatedAt = `v${this.tokenSeq++}`
     return true
   }

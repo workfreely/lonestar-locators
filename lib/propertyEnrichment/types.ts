@@ -63,7 +63,8 @@ export type EnrichmentResult = {
 export type PropertySnapshot = {
   placeId: string
   updatedAt: string | null // optimistic-concurrency token
-  imageSelectionState: ImageSelectionState
+  imageSelectionState: ImageSelectionState // PRIMARY slot lock (property_image_url)
+  imageBackupState: ImageSelectionState // FALLBACK slot lock (property_image_url_backup)
   // Current column values (only the fields the writer may touch are needed).
   values: Record<string, unknown>
 }

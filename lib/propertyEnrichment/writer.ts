@@ -9,6 +9,7 @@ import {
   COMMISSION_FIELDS,
   ENRICHMENT_WRITABLE_FIELDS,
   IMAGE_FIELDS,
+  IMAGE_BACKUP_FIELDS,
   PUBLIC_SOURCE_TYPES,
   decideFieldWrite,
   isKnownSourceType,
@@ -26,9 +27,10 @@ import type {
   Outcome,
 } from "./types"
 
-// Which IMAGE_FIELDS represent the actual accepted image (vs. its provenance/health
-// metadata). Only the presence of a new primary URL flips state back to "keep".
+// Which IMAGE_FIELDS represent the actual accepted image URLs (vs. provenance/health
+// metadata). Only the presence of a new slot URL flips THAT slot's state back to "keep".
 const IMAGE_PRIMARY_FIELD = "property_image_url"
+const IMAGE_BACKUP_FIELD = "property_image_url_backup"
 
 export async function enrichProperty(store: EnrichmentStore, input: EnrichmentInput): Promise<EnrichmentResult> {
   const dryRun = input.dryRun === true
@@ -36,6 +38,7 @@ export async function enrichProperty(store: EnrichmentStore, input: EnrichmentIn
   const patch: Record<string, unknown> = {}
   const events: EnrichmentEvent[] = []
   let nextImageState: ImageSelectionState | undefined
+  let nextBackupState: ImageSelectionState | undefined
 
   const property = await store.loadProperty(input.placeId)
   if (!property) {
@@ -51,14 +54,17 @@ export async function enrichProperty(store: EnrichmentStore, input: EnrichmentIn
 
   // Whether ANY image field is being proposed (governs the image gate).
   const wantsImageWrite = input.fields.some((f) => IMAGE_FIELDS.has(f.field))
+  // Per-SLOT authorization — a slot is writable only while its own state is missing/change_requested.
   const imageAuthorized = property.imageSelectionState === "missing" || property.imageSelectionState === "change_requested"
+  const imageBackupAuthorized = property.imageBackupState === "missing" || property.imageBackupState === "change_requested"
 
   for (const cand of input.fields) {
-    const r = evaluate(cand, property, provenance, imageAuthorized)
+    const r = evaluate(cand, property, provenance, imageAuthorized, imageBackupAuthorized)
     // Track intended mutations for real (non-dry-run) application.
     if (r.decision === "write") {
       patch[cand.field] = cand.value
-      if (cand.field === IMAGE_PRIMARY_FIELD) nextImageState = "keep" // successful image → return to KEEP
+      if (cand.field === IMAGE_PRIMARY_FIELD) nextImageState = "keep" // successful PRIMARY → lock that slot to KEEP
+      if (cand.field === IMAGE_BACKUP_FIELD) nextBackupState = "keep" // successful FALLBACK → lock that slot to KEEP
     }
     results.push({
       field: cand.field,
@@ -106,7 +112,7 @@ export async function enrichProperty(store: EnrichmentStore, input: EnrichmentIn
   const hasWrites = Object.keys(patch).length > 0
   let applied = true
   if (hasWrites) {
-    applied = await store.applyPatch(input.placeId, patch, property.updatedAt, nextImageState)
+    applied = await store.applyPatch(input.placeId, patch, property.updatedAt, nextImageState, nextBackupState)
     if (!applied) {
       // Concurrency conflict: another job moved updatedAt. Do NOT overwrite; downgrade
       // every intended write to skipped, and record the conflict (no false provenance).
@@ -133,9 +139,10 @@ type Eval = { decision: "write" | "skip" | "reject"; reason: string; oldValue?: 
 
 function evaluate(
   cand: FieldCandidate,
-  property: { values: Record<string, unknown>; imageSelectionState: string },
+  property: { values: Record<string, unknown>; imageSelectionState: string; imageBackupState: string },
   provenance: Record<string, import("./types").FieldProvenance>,
   imageAuthorized: boolean,
+  imageBackupAuthorized: boolean,
 ): Eval {
   const currentText = toStoredText(property.values[cand.field])
 
@@ -154,18 +161,24 @@ function evaluate(
     return { decision: "reject", reason: "invalid_provenance", oldValue: currentText }
   }
 
-  // 3) IMAGE fields — governed by image_selection_state, not the field allowlist.
+  // 3) IMAGE fields — governed by PER-SLOT state, not the field allowlist. Each slot
+  //    (PRIMARY = property_image_url, FALLBACK = property_image_url_backup) is authorized
+  //    independently; a locked (keep) slot NEVER writes, so an existing accepted image of
+  //    either slot can only be replaced via that slot's explicit change_requested.
   if (IMAGE_FIELDS.has(cand.field)) {
-    if (!imageAuthorized) {
-      // KEEP: never search/rescore/replace during routine enrichment.
-      return { decision: "reject", reason: "image_locked_keep", oldValue: currentText }
+    const isBackup = IMAGE_BACKUP_FIELDS.has(cand.field)
+    const slotAuthorized = isBackup ? imageBackupAuthorized : imageAuthorized
+    const slotState = isBackup ? property.imageBackupState : property.imageSelectionState
+    if (!slotAuthorized) {
+      // KEEP: never search/rescore/replace this slot during routine enrichment.
+      return { decision: "reject", reason: isBackup ? "image_backup_locked_keep" : "image_locked_keep", oldValue: currentText }
     }
-    // MISSING or CHANGE_REQUESTED: a verified image write is authorized.
+    // MISSING or CHANGE_REQUESTED: a verified image write is authorized for THIS slot.
     if (toStoredText(cand.value) === null) return { decision: "skip", reason: "no_value", oldValue: currentText }
     if (cand.verificationStatus === "unverified" || cand.verificationStatus === "unknown") {
       return { decision: "skip", reason: "image_candidate_unverified", oldValue: currentText }
     }
-    return { decision: "write", reason: "image_" + property.imageSelectionState, oldValue: currentText }
+    return { decision: "write", reason: (isBackup ? "image_backup_" : "image_") + slotState, oldValue: currentText }
   }
 
   // 4) Allowlist.
