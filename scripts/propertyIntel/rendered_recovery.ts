@@ -62,6 +62,15 @@ async function autoScroll(page: Page) {
 }
 
 const PROVIDER_HOST = /entrata|rentcafe|cloudinary|myrazz|ucarecdn|apts247|website-files|cdn-website|myleasestar|swifty|multihub|scene7|cachefly|s3[.-]|blob\.core|cloudfront|googleusercontent/i
+// A self-hosted content photo (custom sites, Tier 3): a real gallery/upload path ending in a photo
+// extension. Quality is still enforced downstream by metadataReject + dimension validation + the
+// visual gate, so a broad collect here is safe — it only widens coverage for non-provider galleries.
+const CONTENT_PATH = /\/(?:uploads|images|image|media|gallery|photos|photogallery|assets|content|wp-content|files|img)\/[^"'\\ )]*\.(?:jpe?g|png|webp)(?:[?#]|$)/i
+function isCandidateUrl(src: string): boolean {
+  if (!src || src.startsWith("data:")) return false
+  if (PROVIDER_HOST.test(src)) return true
+  return CONTENT_PATH.test(src)
+}
 // Parse <img> tags out of an HTML string (server-rendered /photos/ page). srcset-aware; captures alt/title.
 function parseHtmlImgs(html: string): { url: string; alt: string }[] {
   const out: { url: string; alt: string }[] = []
@@ -72,7 +81,7 @@ function parseHtmlImgs(html: string): { url: string; alt: string }[] {
     if (srcset) { const e = srcset.split(/,\s+/).map((x) => x.trim().split(/\s+/)[0]).filter(Boolean); if (e.length) src = e[e.length - 1] }
     if (!src) src = /\b(?:data-src|data-lazy-src|data-original)=["']([^"']+)["']/i.exec(tag)?.[1] ?? ""
     if (!src) src = /\bsrc=["']([^"']+)["']/i.exec(tag)?.[1] ?? ""
-    if (!src || !PROVIDER_HOST.test(src)) continue
+    if (!isCandidateUrl(src)) continue
     const alt = (/\balt=["']([^"']*)["']/i.exec(tag)?.[1] ?? "").trim()
     const title = (/\btitle=["']([^"']*)["']/i.exec(tag)?.[1] ?? "").trim()
     out.push({ url: src, alt: `${alt} ${title}`.trim() })
@@ -97,8 +106,8 @@ async function extractGallery(page: Page, siteUrl: string): Promise<{ provider: 
   for (const o of parseHtmlImgs(photosHtml)) add(o.url, o.alt)
   // JSON/page-state provider URLs in the fetched HTML (galleries stored as data, e.g. Park at River Oaks)
   for (const mm of photosHtml.matchAll(/https:\/\/(?:medialibrarycfo\.entrata\.com|resource\.rentcafe\.com|[a-z0-9.-]*cloudinary[^"'\\ )]*\/uploads|images\.myrazz\.com)[^"'\\ )]+?\.(?:jpe?g|png|webp)/gi)) add(mm[0], "")
-  // homepage imgs as backup coverage
-  for (const o of homeImgs) if (PROVIDER_HOST.test(o.url)) add(o.url, o.alt)
+  // homepage imgs as backup coverage (provider CDN or self-hosted content photo)
+  for (const o of homeImgs) if (isCandidateUrl(o.url)) add(o.url, o.alt)
   const candidates = [...map.values()]
   return { provider: detectProvider(candidates.map((c) => c.url)), candidates, challenged: false }
 }
