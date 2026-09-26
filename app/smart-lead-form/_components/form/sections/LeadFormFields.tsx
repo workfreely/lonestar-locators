@@ -603,7 +603,7 @@ export default function LeadFormFields({
           <input type="number" name="creditScore" value={formData.creditScore} onChange={handleCreditScore}
             placeholder="Estimated Credit Score (300-850)" required min={300} max={850} step={1} inputMode="numeric" className={inputClass} />
           <div className={noteClass}>
-            You can check Credit Karma for free. Your exact score helps us match you with apartments that are more likely to approve you.
+            You can check Credit Karma for free. Your exact score helps us match you with apartments more likely to approve you.
           </div>
         </div>
         )}

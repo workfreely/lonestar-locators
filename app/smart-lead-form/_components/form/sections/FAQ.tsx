@@ -34,7 +34,7 @@ export default function FAQ({ config }: { config: SmartLeadFormConfig }) {
                   }
                   className="flex w-full min-w-0 items-center justify-between gap-4 py-4 text-left"
                 >
-                  <span className="min-w-0 break-words text-[17px] font-semibold text-[#111318]">{item.question}</span>
+                  <span className="min-w-0 break-words text-[18px] font-semibold text-[#111318]">{item.question}</span>
                   <HiOutlineChevronDown
                     className={`h-[18px] w-[18px] shrink-0 text-[#9098a8] transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`}
                   />
@@ -44,7 +44,7 @@ export default function FAQ({ config }: { config: SmartLeadFormConfig }) {
                   style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}
                 >
                   <div className="overflow-hidden">
-                    <p className="break-words pb-4 text-[16px] leading-relaxed text-[#6b7280]">{item.answer}</p>
+                    <p className="break-words pb-4 text-[17px] leading-relaxed text-[#6b7280]">{item.answer}</p>
                   </div>
                 </div>
               </div>
