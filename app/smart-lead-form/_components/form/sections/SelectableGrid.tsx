@@ -40,7 +40,7 @@ export default function SelectableGrid({
         return (
           <label
             key={o.value}
-            className={`flex min-w-0 items-center gap-2 rounded-xl border px-3 py-2.5 text-[15px] text-[#111318] transition-colors ${
+            className={`flex min-w-0 items-center gap-2 rounded-xl border px-3 py-2.5 text-[14px] text-[#111318] transition-colors ${
               disabled
                 ? "cursor-not-allowed border-[#e2e4ea] bg-white opacity-50"
                 : checked
