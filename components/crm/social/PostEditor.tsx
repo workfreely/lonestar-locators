@@ -574,13 +574,30 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // shared with the FFmpeg render. 'existing' mode draws no overlay.
   const overlayLayout = overlayMode === "existing" ? null : computeOverlayLayout(overlayTemplate, headline, overlayDetail)
 
+  // Posting mode toggle (Post Once / Recurring) — reused as-is in two positions: above the Repeat
+  // settings form, and inline in the compact Posting|Scheduled row. Same handler/state either way.
+  const postingToggle = (
+    <div className="inline-flex rounded-lg border border-[var(--crm-border)] p-0.5">
+      {([["once", "Post Once"], ["repeat", "Recurring"]] as const).map(([val, label]) => (
+        <button key={val} type="button" onClick={() => setPostingMode(val)} aria-pressed={postingMode === val}
+          className={"text-[12px] font-semibold px-3 py-1 rounded-md transition-colors " + (postingMode === val ? "bg-[var(--crm-text-primary)] text-[var(--crm-panel)]" : "text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]")}>
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+
   return (
     <div>
-      {/* Upper row: only navigation + status. The platform selector moved beneath the video player
-          (see the "Post to" buttons in the left column). */}
+      {/* Upper row: navigation + status. The platform selector moved beneath the video player (see
+          the "Post to" buttons in the left column). "Move back to Draft" lives here, next to the
+          status it acts on — it's post-status management, not one of the editor's three primary
+          completion actions (Create Variation / Save Draft / Publish) at the bottom. Same
+          backToDraft() handler as before; only its position moved. */}
       <div className="mb-3 flex items-center gap-2.5 flex-wrap">
         <button type="button" className={btn} onClick={() => router.push(back.path)}>{back.label}</button>
         <span className="text-[11.5px] font-semibold px-2.5 py-1 rounded-full bg-[var(--crm-card)] text-[var(--crm-text-secondary)]">{POST_STATUS_LABEL[post.status] ?? post.status}</span>
+        {post.status === "scheduled" && <button type="button" className={btn} disabled={busy || publishing} onClick={() => void backToDraft()}>Move back to Draft</button>}
       </div>
 
       {(error || notice) && (
@@ -778,9 +795,14 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               only removes its redundant on-screen echo to shorten the editor. */}
           {overlayMode === "generate" ? (
             /* COMPACT one-row overlay controls on desktop: Text Overlay mode | Overlay Template |
-               Overlay Headline. Wraps to 2 rows on tablet (sm) and stacks on mobile — same
-               fields/handlers/values as before, just regrouped. */
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[22fr_26fr_52fr] gap-3">
+               Overlay Headline. Proportions sized to actual content, not equal thirds: the toggle
+               only ever shows "Generate"/"Already has text" (narrowest); Overlay Template's longest
+               option ("7. Your Apartment Standards") needs real room (was cramped at 26%); Overlay
+               Headline text is intentionally short (per product), so it no longer needs the lion's
+               share (was 52%) — still the widest since it's the one free-text field, just less
+               dominant. Wraps to 2 rows on tablet (sm) and stacks on mobile — same
+               fields/handlers/values as before, just regrouped/rebalanced. */
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[20fr_34fr_46fr] gap-3">
               <div className="block min-w-0">
                 <span className={fieldLabel}>Text Overlay</span>
                 <div className="mt-1 inline-flex rounded-lg border border-[var(--crm-border)] p-0.5">
@@ -902,112 +924,115 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               </div>
 
               {/* Posting — Post Once (manual date/time) or Repeat (recurring), exposed INLINE (no need
-                  to open the calendar first). Repeat reuses the existing recurrence backend. */}
+                  to open the calendar first). Repeat reuses the existing recurrence backend. The
+                  common case (Post Once, not mid-edit) compacts Posting + Scheduled into one desktop
+                  row instead of a stacked toggle + a large standalone Scheduled card — same data
+                  (fmtSchedule(scheduleVal)), just laid out side by side with the label above each
+                  control; the "Social Beast selected the next open slot." sentence is dropped as
+                  redundant. The Recurring summary card and the Repeat settings form are unchanged. */}
               <div className="block mt-3">
-                <span className={`${fieldLabel} block mb-2`}>Posting</span>
-
                 {rule && !editingRule ? (
                   /* ── Active / Paused: collapsed summary (no toggle, no verbose copy) ── */
-                  <div className="rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] p-3 flex flex-col gap-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] uppercase tracking-wide font-semibold text-[var(--crm-text-secondary)]">{rule.state === "paused" ? "Recurring Paused" : "Recurring"}</span>
-                      <div className="relative">
-                        <button type="button" aria-label="More Repeat options" className="text-[15px] leading-none text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)] px-1.5" onClick={() => setRuleMenuOpen((o) => !o)}>⋯</button>
-                        {ruleMenuOpen && (
-                          <div className="absolute right-0 mt-1 z-20 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-panel)] shadow-lg py-1 min-w-[130px]">
-                            <button type="button" className="block w-full text-left text-[12.5px] px-3 py-1.5 text-red-600 dark:text-red-400 hover:bg-[var(--crm-card)]" disabled={busy} onClick={() => void setRuleState("stopped")}>Stop Recurring</button>
-                          </div>
-                        )}
+                  <>
+                    <span className={`${fieldLabel} block mb-2`}>Posting</span>
+                    <div className="rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] p-3 flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] uppercase tracking-wide font-semibold text-[var(--crm-text-secondary)]">{rule.state === "paused" ? "Recurring Paused" : "Recurring"}</span>
+                        <div className="relative">
+                          <button type="button" aria-label="More Repeat options" className="text-[15px] leading-none text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)] px-1.5" onClick={() => setRuleMenuOpen((o) => !o)}>⋯</button>
+                          {ruleMenuOpen && (
+                            <div className="absolute right-0 mt-1 z-20 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-panel)] shadow-lg py-1 min-w-[130px]">
+                              <button type="button" className="block w-full text-left text-[12.5px] px-3 py-1.5 text-red-600 dark:text-red-400 hover:bg-[var(--crm-card)]" disabled={busy} onClick={() => void setRuleState("stopped")}>Stop Recurring</button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-[13px] text-[var(--crm-text-primary)]">Every {rule.intervalDays} days · {PLACEMENT_SUMMARY[rule.placementPref] ?? PLACEMENT_SUMMARY.any}</div>
+                      {ruleNextAt && <div className="text-[11.5px] text-[var(--crm-text-muted)]">Next post: {fmtDateShort(ruleNextAt)}</div>}
+                      <div className="mt-1 flex items-center gap-2">
+                        <button type="button" className={btn} disabled={busy} onClick={openEditRepeat}>Edit</button>
+                        {rule.state === "paused"
+                          ? <button type="button" className={btn} disabled={busy} onClick={() => void setRuleState("active")}>Resume</button>
+                          : <button type="button" className={btn} disabled={busy} onClick={() => void setRuleState("paused")}>Pause</button>}
                       </div>
                     </div>
-                    <div className="text-[13px] text-[var(--crm-text-primary)]">Every {rule.intervalDays} days · {PLACEMENT_SUMMARY[rule.placementPref] ?? PLACEMENT_SUMMARY.any}</div>
-                    {ruleNextAt && <div className="text-[11.5px] text-[var(--crm-text-muted)]">Next post: {fmtDateShort(ruleNextAt)}</div>}
-                    <div className="mt-1 flex items-center gap-2">
-                      <button type="button" className={btn} disabled={busy} onClick={openEditRepeat}>Edit</button>
-                      {rule.state === "paused"
-                        ? <button type="button" className={btn} disabled={busy} onClick={() => void setRuleState("active")}>Resume</button>
-                        : <button type="button" className={btn} disabled={busy} onClick={() => void setRuleState("paused")}>Pause</button>}
+                  </>
+                ) : editingRule || postingMode === "repeat" ? (
+                  <>
+                    <span className={`${fieldLabel} block mb-2`}>Posting</span>
+                    {!editingRule && postingToggle}
+                    {/* Recurring settings — ONE compact horizontal row on desktop (Repeat Post |
+                        Duration | Posting time), stacking only on narrow screens. NO activation
+                        button — the green Publish (below) activates recurrence. */}
+                    <div className="mt-2 flex flex-col gap-2">
+                      {/* Three settings on ONE desktop row (stacks on narrow screens). Explicit
+                          proportional widths 30/29/41 — Posting time is the WIDEST (41%) so its
+                          longest value "Social Beast chooses" shows in full (verified at the
+                          1200px-capped desktop layout: ~132px text room vs ~120px text); Duration
+                          (29%) is narrower than Repeat Post but still fits "Until stopped". NOT
+                          max-content — that sized selects to their widest OPTION and starved
+                          Posting time in production. */}
+                      <div className="grid grid-cols-1 sm:grid-cols-[30fr_29fr_41fr] gap-2.5">
+                        <label className="block min-w-0">
+                          <span className="text-[11px] text-[var(--crm-text-muted)]">Repeat Post</span>
+                          <select className={`${controlCompact} mt-1 cursor-pointer`} value={repeatEvery} onChange={(e) => setRepeatEvery(Number(e.target.value))}>
+                            <option value={14}>Every 14 days</option><option value={30}>Every 30 days</option><option value={60}>Every 60 days</option>
+                          </select>
+                        </label>
+                        <label className="block min-w-0">
+                          <span className="text-[11px] text-[var(--crm-text-muted)]">Duration</span>
+                          <select className={`${controlCompact} mt-1 cursor-pointer`}
+                            value={durationMode === "days" ? `d${durationDays}` : durationMode === "date" ? "date" : "until"}
+                            onChange={(e) => { const v = e.target.value; if (v === "date") setDurationMode("date"); else if (v === "until") setDurationMode("until_stopped"); else { setDurationMode("days"); setDurationDays(Number(v.slice(1))) } }}>
+                            <option value="d30">30 days</option><option value="d60">60 days</option><option value="d90">90 days</option><option value="date">Custom date</option><option value="until">Until stopped</option>
+                          </select>
+                        </label>
+                        <label className="block min-w-0">
+                          <span className="text-[11px] text-[var(--crm-text-muted)]">Posting time</span>
+                          <select className={`${controlCompact} mt-1 cursor-pointer`} value={placement} onChange={(e) => setPlacement(e.target.value as "any" | "morning" | "midday" | "evening")}>
+                            <option value="any">Social Beast chooses</option><option value="morning">Morning</option><option value="midday">Afternoon</option><option value="evening">Evening</option>
+                          </select>
+                        </label>
+                      </div>
+                      {durationMode === "date" && <input type="date" className={`${control} sm:max-w-[220px]`} value={repeatEndDate} onChange={(e) => setRepeatEndDate(e.target.value)} />}
+                      <span className="text-[10.5px] text-[var(--crm-text-muted)]">Social Beast chooses the next open Morning, Afternoon, or Evening slot.</span>
+                      {editingRule && (
+                        <div className="flex items-center gap-2">
+                          <button type="button" className={actionLight} disabled={busy || (durationMode === "date" && !repeatEndDate)} onClick={() => void saveRuleEdit()}>{busy ? "Saving…" : "Save Changes"}</button>
+                          <button type="button" className={btn} disabled={busy} onClick={() => setEditingRule(false)}>Cancel</button>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  /* Post Once, not mid-edit: Posting (toggle) | Scheduled — one compact desktop row,
+                     each label above its control, stacking on mobile. */
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <span className={fieldLabel}>Posting</span>
+                      <div className="mt-1">{postingToggle}</div>
+                    </div>
+                    <div>
+                      <span className={fieldLabel}>Scheduled</span>
+                      {scheduleVal ? (
+                        // Read-only; any later override happens from the Calendar/Queue, not here.
+                        <div className="mt-1 text-[13px] text-[var(--crm-text-primary)]">{fmtSchedule(scheduleVal)}</div>
+                      ) : (
+                        // Not yet placed. Publish hands it to Social Beast, which picks the next open
+                        // slot — no date/time picker here.
+                        <div className="mt-1 text-[10.5px] text-[var(--crm-text-muted)]">Social Beast will add this to the next open posting slot.</div>
+                      )}
                     </div>
                   </div>
-                ) : (
-                  <>
-                    {!editingRule && (
-                      <div className="inline-flex rounded-lg border border-[var(--crm-border)] p-0.5">
-                        {([["once", "Post Once"], ["repeat", "Recurring"]] as const).map(([val, label]) => (
-                          <button key={val} type="button" onClick={() => setPostingMode(val)} aria-pressed={postingMode === val}
-                            className={"text-[12px] font-semibold px-3 py-1 rounded-md transition-colors " + (postingMode === val ? "bg-[var(--crm-text-primary)] text-[var(--crm-panel)]" : "text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]")}>
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    {editingRule || postingMode === "repeat" ? (
-                      /* Recurring settings — ONE compact horizontal row on desktop (Repeat Post |
-                         Duration | Posting time), stacking only on narrow screens. NO activation
-                         button — the green Publish (below) activates recurrence. */
-                      <div className="mt-2 flex flex-col gap-2">
-                        {/* Three settings on ONE desktop row (stacks on narrow screens). Explicit
-                            proportional widths 30/29/41 — Posting time is the WIDEST (41%) so its
-                            longest value "Social Beast chooses" shows in full (verified at the
-                            1200px-capped desktop layout: ~132px text room vs ~120px text); Duration
-                            (29%) is narrower than Repeat Post but still fits "Until stopped". NOT
-                            max-content — that sized selects to their widest OPTION and starved
-                            Posting time in production. */}
-                        <div className="grid grid-cols-1 sm:grid-cols-[30fr_29fr_41fr] gap-2.5">
-                          <label className="block min-w-0">
-                            <span className="text-[11px] text-[var(--crm-text-muted)]">Repeat Post</span>
-                            <select className={`${controlCompact} mt-1 cursor-pointer`} value={repeatEvery} onChange={(e) => setRepeatEvery(Number(e.target.value))}>
-                              <option value={14}>Every 14 days</option><option value={30}>Every 30 days</option><option value={60}>Every 60 days</option>
-                            </select>
-                          </label>
-                          <label className="block min-w-0">
-                            <span className="text-[11px] text-[var(--crm-text-muted)]">Duration</span>
-                            <select className={`${controlCompact} mt-1 cursor-pointer`}
-                              value={durationMode === "days" ? `d${durationDays}` : durationMode === "date" ? "date" : "until"}
-                              onChange={(e) => { const v = e.target.value; if (v === "date") setDurationMode("date"); else if (v === "until") setDurationMode("until_stopped"); else { setDurationMode("days"); setDurationDays(Number(v.slice(1))) } }}>
-                              <option value="d30">30 days</option><option value="d60">60 days</option><option value="d90">90 days</option><option value="date">Custom date</option><option value="until">Until stopped</option>
-                            </select>
-                          </label>
-                          <label className="block min-w-0">
-                            <span className="text-[11px] text-[var(--crm-text-muted)]">Posting time</span>
-                            <select className={`${controlCompact} mt-1 cursor-pointer`} value={placement} onChange={(e) => setPlacement(e.target.value as "any" | "morning" | "midday" | "evening")}>
-                              <option value="any">Social Beast chooses</option><option value="morning">Morning</option><option value="midday">Afternoon</option><option value="evening">Evening</option>
-                            </select>
-                          </label>
-                        </div>
-                        {durationMode === "date" && <input type="date" className={`${control} sm:max-w-[220px]`} value={repeatEndDate} onChange={(e) => setRepeatEndDate(e.target.value)} />}
-                        <span className="text-[10.5px] text-[var(--crm-text-muted)]">Social Beast chooses the next open Morning, Afternoon, or Evening slot.</span>
-                        {editingRule && (
-                          <div className="flex items-center gap-2">
-                            <button type="button" className={actionLight} disabled={busy || (durationMode === "date" && !repeatEndDate)} onClick={() => void saveRuleEdit()}>{busy ? "Saving…" : "Save Changes"}</button>
-                            <button type="button" className={btn} disabled={busy} onClick={() => setEditingRule(false)}>Cancel</button>
-                          </div>
-                        )}
-                      </div>
-                    ) : scheduleVal ? (
-                      /* SCHEDULED — Social Beast picked the slot. Read-only; any later override happens
-                         from the Calendar/Queue, not here. */
-                      <div className="mt-2 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] p-3 flex flex-col gap-1">
-                        <span className="text-[11px] uppercase tracking-wide font-semibold text-[var(--crm-text-secondary)]">Scheduled</span>
-                        <div className="text-[13px] text-[var(--crm-text-primary)]">{fmtSchedule(scheduleVal)}</div>
-                        <span className="text-[11.5px] text-[var(--crm-text-muted)]">Social Beast selected the next open slot.</span>
-                      </div>
-                    ) : (
-                      /* Post Once, not yet placed — plain muted helper text (same treatment as the
-                         Recurring helper below the controls; no box/border/card). Publish hands it
-                         to Social Beast, which picks the next open slot. No date/time picker. */
-                      <span className="mt-2 block text-[10.5px] text-[var(--crm-text-muted)]">Social Beast will add this to the next open posting slot.</span>
-                    )}
-                  </>
                 )}
               </div>
 
-              {/* Action row: Create Variation + Save Draft (secondary, equal weight), Publish
-                  (primary green — hands the post to Social Beast for automatic placement; NO
-                  Instagram publish). "Move back to Draft" sits left-aligned when scheduled. */}
+              {/* Action row: exactly the three primary editor-completion actions — Create Variation +
+                  Save Draft (secondary, equal weight), Publish (primary green — hands the post to
+                  Social Beast for automatic placement; NO Instagram publish). "Move back to Draft" is
+                  post-status management, not a completion action — it now lives next to the status
+                  pill at the top of the editor (same backToDraft() handler). */}
               <div className="mt-3 flex items-center justify-end gap-2 flex-wrap">
-                {post.status === "scheduled" && <button type="button" className={`${btn} mr-auto`} disabled={busy || publishing} onClick={() => void backToDraft()}>Move back to Draft</button>}
                 <button type="button" className={actionSecondary} disabled={busy || publishing} onClick={() => void clonePost()}>Create Variation</button>
                 <button type="button" className={actionSecondary} disabled={busy || publishing} onClick={() => void saveDraft()}>{busy ? "Saving…" : "Save Draft"}</button>
                 <button type="button" className={actionGreen} disabled={busy || publishing || selectedPlatforms.has("tiktok")} onClick={() => void publish()}>{publishing ? "Publishing…" : "Publish"}</button>
