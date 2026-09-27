@@ -294,6 +294,15 @@ const WANTED_LUXURY_HEADLINE = "You wanted luxury. You got it."
 function indefiniteArticle(word: string): string {
   return /^[aeiou]/i.test(word) ? "an" : "a"
 }
+
+/** Display-cased PLURAL of a canonical Property Type, for Template 15's generated copy only
+ *  ("High-Rise" → "High-Rises", "Rental Home" → "Rental Homes"). The pluralization itself comes from
+ *  the SHARED propertyNounPlural map — the same explicit per-type mapping Template 1 uses, so there is
+ *  no second mapping and no blind "+s" — and this only restores the title casing that helper's
+ *  lowercase output drops. DISPLAY ONLY: the stored/selected Property Type stays singular everywhere. */
+function propertyTypePluralDisplay(canonicalType: string): string {
+  return propertyNounPlural(canonicalType).replace(/(^|[\s-])([a-z])/g, (_m, sep: string, ch: string) => sep + ch.toUpperCase())
+}
 export function isOverlayTemplate(v: unknown): v is OverlayTemplate {
   return typeof v === "string" && (OVERLAY_TEMPLATES as readonly string[]).includes(v)
 }
@@ -351,8 +360,9 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
       // No type → drop the type word rather than fabricate one.
       return canonicalType ? `This is what real ${canonicalType} living looks like` : "This is what real living looks like"
     case "hits_different":
-      // No type → a grammatical generic subject, never a fabricated type.
-      return canonicalType ? `${canonicalType} just hits different` : "This just hits different"
+      // PLURAL display copy ("Penthouses just hit different") — display only; the Property Type value
+      // itself stays singular. No type → a grammatical generic plural subject, never a fabricated type.
+      return canonicalType ? `${propertyTypePluralDisplay(canonicalType)} just hit different` : "These just hit different"
   }
 }
 

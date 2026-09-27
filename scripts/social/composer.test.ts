@@ -4,6 +4,7 @@ import { buildHashtags, normalizeHashtag, HASHTAG_MARKETS } from "@/lib/social/h
 import { AMENITY_BANK, canonicalizeAmenity, parseAmenities, serializeAmenities, sanitizeCustomAmenity } from "@/lib/social/amenities"
 import { preparePost, buildCaption, buildOverlayHeadline, buildOverlaySubheadline, composeFinalCaption, startingPriceLabel, startingPriceAmount, buildOverlayDetail, joinDetailParts, specialDisplay, resolveSocialSpecial, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags } from "@/lib/social/composePost"
 import { SOCIAL_SPECIAL_OPTIONS, giftCardLabel, isGiftCardSpecial, sanitizeCustomSpecial } from "@/lib/social/socialSpecial"
+import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
 import { buildFfmpegArgs, buildVideoFilter } from "@/lib/social/renderVideo"
 import { wrapHeadline, wrapSub, overlayPreviewStyle, headlineFit, headlineTextWidthPx, computeOverlayLayout, templateFamily, OVERLAY_SPEC, OVERLAY_CANVAS, OVERLAY_TEXT, HEADLINE_TEXT_AVAIL_PX, HERO_MAX_PX, HERO_MIN_PX, HOOK_MAX_PX, HOOK_MIN_PX, detailTextWidthPx, DETAIL_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
 import { buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL } from "@/lib/social/composePost"
@@ -550,10 +551,23 @@ ok("T14 Townhome", buildTemplateHeadline("real_living", { propertyType: "Townhom
 ok("T14 no type → type word dropped, nothing fabricated", buildTemplateHeadline("real_living", {}) === "This is what real living looks like")
 ok("T14 optional price", buildTemplateDetail("real_living", { budgetRange: "2100" }) === "Starting at $2,100/mo" && buildTemplateDetail("real_living", {}) === "")
 
-console.log("\nTemplate 15 (Hits Different — dynamic Property Type + optional price):")
-ok("T15 Townhome", buildTemplateHeadline("hits_different", { propertyType: "Townhome" }) === "Townhome just hits different")
-ok("T15 Penthouse", buildTemplateHeadline("hits_different", { propertyType: "Penthouse" }) === "Penthouse just hits different")
-ok("T15 no type → generic subject, nothing fabricated", buildTemplateHeadline("hits_different", {}) === "This just hits different")
+console.log("\nTemplate 15 (Hits Different — PLURALIZED display copy + optional price):")
+// Display-only plural: every SUPPORTED Property Type value, incl. the two that a blind "+s" or a
+// naive first-letter capitalization would get wrong (High-Rises, Rental Homes).
+for (const [pt, expected] of [
+  ["Studio", "Studios just hit different"],
+  ["Apartment", "Apartments just hit different"],
+  ["High-Rise", "High-Rises just hit different"],
+  ["Townhome", "Townhomes just hit different"],
+  ["Rental Home", "Rental Homes just hit different"],
+  ["Penthouse", "Penthouses just hit different"],
+  ["Loft", "Lofts just hit different"],
+] as const) {
+  ok(`T15 ${pt} → "${expected}"`, buildTemplateHeadline("hits_different", { propertyType: pt }) === expected)
+}
+ok("T15 verb agrees with the plural subject (\"hit\", never \"hits\")", PROPERTY_TYPES.every((pt) => { const h = buildTemplateHeadline("hits_different", { propertyType: pt }); return h.endsWith(" just hit different") && !h.includes("just hits different") }))
+ok("T15 no type → generic plural subject, nothing fabricated", buildTemplateHeadline("hits_different", {}) === "These just hit different")
+ok("T15 legacy Mid-Rise still canonicalizes (High-Rise) before pluralizing", buildTemplateHeadline("hits_different", { propertyType: "Mid-Rise" }) === "High-Rises just hit different")
 ok("T15 optional price", buildTemplateDetail("hits_different", { budgetRange: "995" }) === "Starting at $995/mo" && buildTemplateDetail("hits_different", {}) === "")
 
 console.log("\nTemplates 12–15 reactivity (Property Type / Starting At recompute):")
@@ -589,10 +603,10 @@ ok("T16 has no detail line, like T11", buildTemplateDetail("what_mo_gets_you_top
 }
 
 console.log("\nManual-edit protection for the new templates (generated headlines re-sync, manual ones don't):")
-ok("T12/T14/T15 generated headlines recognized as generator-owned", isGeneratedHeadline("What life looks like when you trade in your apartment for a Townhome") && isGeneratedHeadline("This is what real High-Rise living looks like") && isGeneratedHeadline("Townhome just hits different"))
+ok("T12/T14/T15 generated headlines recognized as generator-owned", isGeneratedHeadline("What life looks like when you trade in your apartment for a Townhome") && isGeneratedHeadline("This is what real High-Rise living looks like") && isGeneratedHeadline("Townhomes just hit different") && isGeneratedHeadline("Rental Homes just hit different"))
 ok("T13 fixed headline recognized as generator-owned", isGeneratedHeadline("You wanted luxury. You got it."))
 ok("T16 generated headline recognized (shares T11's shape check)", isGeneratedHeadline("What $1,495/mo gets you in San Antonio"))
-ok("a genuinely MANUAL hook in these shapes is still protected", !isGeneratedHeadline("Townhome just hits way different") && !isGeneratedHeadline("You wanted luxury. You earned it."))
+ok("a genuinely MANUAL hook in these shapes is still protected", !isGeneratedHeadline("Townhomes just hit way different") && !isGeneratedHeadline("You wanted luxury. You earned it."))
 
 console.log("\nTemplates 1–11 unchanged by this addition:")
 ok("T1 hero headline + price detail unchanged", buildTemplateHeadline("market_type", { market: "San Antonio", propertyType: "High-Rise" }) === "SAN ANTONIO HIGH-RISES" && buildTemplateDetail("market_type", { budgetRange: "1600" }) === "Starting at $1,600/mo")
