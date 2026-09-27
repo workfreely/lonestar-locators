@@ -238,7 +238,18 @@ export function joinDetailParts(parts: (string | null | undefined)[]): string {
 //                                              both live) / no detail — same T7 (apartment_standards)
 //                                              center-hook typography; empty headline (never fabricated)
 //                                              if either value is missing
-export const OVERLAY_TEMPLATES = ["market_type", "market_type_centered", "your_sign", "special_feature", "next_property", "upgrade", "apartment_standards", "pov_upgrade", "affordable_luxury", "pov_price", "what_mo_gets_you"] as const
+//   12 trade_up             — CENTER HOOK+D  — "What life looks like when you trade in your apartment for
+//                                              a {TYPE}" / optional "Starting at $X/mo"
+//   13 wanted_luxury        — CENTER HOOK+D  — "You wanted luxury. You got it." (fixed) / optional price
+//   14 real_living          — CENTER HOOK+D  — "This is what real {TYPE} living looks like" / optional price
+//   15 hits_different       — CENTER HOOK+D  — "{TYPE} just hits different" / optional price
+//   16 what_mo_gets_you_top — CENTER HOOK    — IDENTICAL wording/values to T11, anchored at T1's TOP
+//                                              position instead of vertically centered (see
+//                                              templateFamily + the topAnchored branch in overlaySpec)
+// T12–T15 share one centered treatment (center_hook_detail = T11's centered composition plus an
+// OPTIONAL second line): when Starting At has no valid value the detail is "" and the group collapses
+// to a headline-only render, identical to T11. No per-template CSS anywhere.
+export const OVERLAY_TEMPLATES = ["market_type", "market_type_centered", "your_sign", "special_feature", "next_property", "upgrade", "apartment_standards", "pov_upgrade", "affordable_luxury", "pov_price", "what_mo_gets_you", "trade_up", "wanted_luxury", "real_living", "hits_different", "what_mo_gets_you_top"] as const
 export type OverlayTemplate = (typeof OVERLAY_TEMPLATES)[number]
 export const DEFAULT_OVERLAY_TEMPLATE: OverlayTemplate = "market_type"
 export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
@@ -253,6 +264,11 @@ export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
   affordable_luxury: "Affordable Luxury",
   pov_price: "POV + Price",
   what_mo_gets_you: "What $/mo Gets You",
+  trade_up: "Trade Up",
+  wanted_luxury: "You Wanted Luxury",
+  real_living: "Real [Property Type] Living",
+  hits_different: "Hits Different",
+  what_mo_gets_you_top: "What $/mo Gets You — Top",
 }
 
 // Template 6 (POV Upgrade) — EXPLICIT deterministic copy per canonical Property Type. The grammar
@@ -270,6 +286,14 @@ const POV_UPGRADE_HEADLINE: Record<string, string> = {
 const POV_UPGRADE_FALLBACK = "POV: You upgraded"
 // Template 7 (Affordable Luxury) — FIXED universal hook, no variables.
 const AFFORDABLE_LUXURY_HEADLINE = "Luxury doesn't have to be expensive"
+// Template 13 (You Wanted Luxury) — FIXED universal hook, no variables.
+const WANTED_LUXURY_HEADLINE = "You wanted luxury. You got it."
+
+/** "a" / "an" for a canonical property type ("an Apartment", "a Townhome"). Grammar only — NOT a
+ *  second property-type mapping; the type itself still comes from normalizeToCanonical. */
+function indefiniteArticle(word: string): string {
+  return /^[aeiou]/i.test(word) ? "an" : "a"
+}
 export function isOverlayTemplate(v: unknown): v is OverlayTemplate {
   return typeof v === "string" && (OVERLAY_TEMPLATES as readonly string[]).includes(v)
 }
@@ -303,7 +327,10 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
       return (canonicalType && POV_UPGRADE_HEADLINE[canonicalType]) || POV_UPGRADE_FALLBACK
     case "affordable_luxury":
       return AFFORDABLE_LUXURY_HEADLINE
-    case "what_mo_gets_you": {
+    // T16 is the SAME wording/values as T11 — only its vertical anchor differs (overlaySpec), so the
+    // two deliberately share one implementation here.
+    case "what_mo_gets_you":
+    case "what_mo_gets_you_top": {
       // Needs BOTH the price AND the city — unlike every other template's single-variable fallback,
       // there's no sensible generic sentence that keeps this one honest without either value, so
       // (matching startingPriceLabel/buildTemplateDetail's "no valid input -> ''" rule, applied here
@@ -312,6 +339,20 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
       const amount = startingPriceAmount(src.budgetRange)
       return city && amount ? `What ${amount}/mo gets you in ${city}` : ""
     }
+    case "trade_up": {
+      // Canonical display type ("Townhome", "High-Rise"); no type → the same generic "home" fallback
+      // Template 5 uses, never "undefined"/"null".
+      const subject = canonicalType ?? "home"
+      return `What life looks like when you trade in your apartment for ${indefiniteArticle(subject)} ${subject}`
+    }
+    case "wanted_luxury":
+      return WANTED_LUXURY_HEADLINE
+    case "real_living":
+      // No type → drop the type word rather than fabricate one.
+      return canonicalType ? `This is what real ${canonicalType} living looks like` : "This is what real living looks like"
+    case "hits_different":
+      // No type → a grammatical generic subject, never a fabricated type.
+      return canonicalType ? `${canonicalType} just hits different` : "This just hits different"
   }
 }
 
@@ -325,12 +366,21 @@ export function buildTemplateDetail(template: OverlayTemplate, src: SourceMeta):
     case "market_type":
     case "market_type_centered": // same "Starting at $X/mo" detail as T1
     case "pov_price":
+    // T12–T15 all take the SAME optional price line: "Starting at $X/mo" when Starting At holds a
+    // valid value, "" otherwise — startingPriceLabel already returns "" for missing/invalid input, so
+    // the line (and its gap) simply collapses. Never "Starting at", "$0", undefined, null or a blank
+    // second line.
+    case "trade_up":
+    case "wanted_luxury":
+    case "real_living":
+    case "hits_different":
       return price // "Starting at $X/mo" or "" (T8 shows the POV headline + this price line)
     case "your_sign":
     case "next_property":
     case "pov_upgrade":
     case "affordable_luxury":
     case "what_mo_gets_you": // the price+city sentence is the whole headline — no separate detail
+    case "what_mo_gets_you_top": // T16 = T11's copy, top-anchored; same "no detail"
       return "" // center-hook, no detail
     case "special_feature":
       return joinDetailParts([special, feature]) // special+feature / special / feature / none

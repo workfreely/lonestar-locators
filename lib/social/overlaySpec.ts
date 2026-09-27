@@ -73,7 +73,9 @@ function wrapWords(text: string | null | undefined, maxChars: number, maxLines: 
 }
 
 /** Headline wrapping — drives the sub position via line count (preview === render). */
-export function wrapHeadline(text: string | null | undefined, maxChars = OVERLAY_SPEC.headline.maxChars): string[] {
+// maxChars is annotated `number` (not inferred from the `as const` spec's literal 16) so callers can
+// pass a computed per-line budget — the center-hook overflow branch does. Default unchanged.
+export function wrapHeadline(text: string | null | undefined, maxChars: number = OVERLAY_SPEC.headline.maxChars): string[] {
   return wrapWords(text, maxChars, OVERLAY_SPEC.headline.maxLines)
 }
 
@@ -151,7 +153,9 @@ export function fitDetailPx(text: string, maxPx: number, minPx: number, availPx 
 const CENTER_HOOK_DETAIL_MIN = 30
 // Detail max per template — reduced so the detail clearly supports (not competes with) the hook:
 // T5 Upgrade 38, T8 POV+Price 40 (price stays strong but secondary). Still coupled ≤ hook − 2.
-const CENTER_HOOK_DETAIL_TARGET: Record<string, number> = { upgrade: 38, apartment_standards: 38, pov_price: 40 }
+// T12–T15 carry the SAME "Starting at $X/mo" line as T10 (pov_price), so they reuse its 40px price
+// size rather than falling through to the smaller shared default — one table entry each, no new CSS.
+const CENTER_HOOK_DETAIL_TARGET: Record<string, number> = { upgrade: 38, apartment_standards: 38, pov_price: 40, trade_up: 40, wanted_luxury: 40, real_living: 40, hits_different: 40 }
 function centerHookDetailMaxPx(template: string, hookPx: number): number {
   const target = CENTER_HOOK_DETAIL_TARGET[template] ?? CENTER_HOOK.detailFontPx
   return Math.min(target, Math.max(CENTER_HOOK_DETAIL_MIN, hookPx - 2)) // never larger than hook − 2
@@ -229,9 +233,14 @@ export function templateFamily(template: string): LayoutFamily {
   // what_mo_gets_you (Template 11) never has a detail line (the price+city sentence IS the whole
   // headline) — same bucket as the other no-detail center-hook templates, which shares the exact
   // hook sizing (CENTER_HOOK.maxPx/minPx/lineSpacing) Template 7 (apartment_standards) also uses.
-  if (template === "your_sign" || template === "next_property" || template === "pov_upgrade" || template === "affordable_luxury" || template === "what_mo_gets_you") return "center_hook"
-  // apartment_standards is an EXACT Upgrade variant → same center-hook+detail geometry.
-  if (template === "upgrade" || template === "apartment_standards" || template === "pov_price") return "center_hook_detail"
+  // what_mo_gets_you_top (T16) is that SAME center-hook treatment, only anchored at T1's top
+  // position instead of vertically centered — see the topAnchored branch in computeOverlayLayout.
+  if (template === "your_sign" || template === "next_property" || template === "pov_upgrade" || template === "affordable_luxury" || template === "what_mo_gets_you" || template === "what_mo_gets_you_top") return "center_hook"
+  // apartment_standards is an EXACT Upgrade variant → same center-hook+detail geometry. T12–T15 join
+  // them: T11's centered composition plus an OPTIONAL "Starting at $X/mo" line that collapses to a
+  // headline-only render when there is no valid price (hasDetail below is text-driven, not family-driven).
+  if (template === "upgrade" || template === "apartment_standards" || template === "pov_price"
+    || template === "trade_up" || template === "wanted_luxury" || template === "real_living" || template === "hits_different") return "center_hook_detail"
   return "hero" // market_type, market_type_centered (vertically centered in the hero branch), special_feature, unknown → hero
 }
 
@@ -273,9 +282,22 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   // Center hook (+ optional detail) — the hook is ONE line, FIT-TO-WIDTH per actual sentence (no
   // wrapping, no manual breaks). Vertically center the group.
   const oneLine = (headlineText ?? "").replace(/\s+/g, " ").trim()
-  const lines = oneLine ? [oneLine] : []
   const hookMaxPx = template === "next_property" ? NEXT_PROPERTY_MAX_PX : CENTER_HOOK.maxPx // T4 slightly smaller for side margin
-  const hookPx = oneLine ? fitHeadlinePx(oneLine, hookMaxPx, CENTER_HOOK.minPx) : hookMaxPx
+  let lines = oneLine ? [oneLine] : []
+  let hookPx = oneLine ? fitHeadlinePx(oneLine, hookMaxPx, CENTER_HOOK.minPx) : hookMaxPx
+  // ONE line, fit-to-width, is the rule — and it stays the rule for every template that has ever
+  // existed here: the longest of them (T2's "Your sign to get that rental home in San Antonio") fits
+  // exactly at CENTER_HOOK.minPx, so this branch is unreachable for T1–T11 (asserted in composer
+  // tests). It exists for copy that CANNOT fit one line even at the floor size — T12's "What life
+  // looks like when you trade in your apartment for a {TYPE}" needs ~25px — where the alternative is
+  // letting the text run off the canvas. The per-line budget is derived from the real measured width
+  // (no magic constant) and the block is sized to its longest line; the lines array, the multi-line
+  // block math below, and both renderers' "\n" join already support >1 line.
+  if (oneLine && headlineTextWidthPx(oneLine, CENTER_HOOK.minPx) > HEADLINE_TEXT_AVAIL_PX) {
+    const perLine = Math.max(8, Math.floor((oneLine.length * HEADLINE_TEXT_AVAIL_PX) / headlineTextWidthPx(oneLine, hookMaxPx)))
+    lines = wrapHeadline(oneLine, perLine)
+    hookPx = Math.min(...lines.map((l) => fitHeadlinePx(l, hookMaxPx, CENTER_HOOK.minPx)))
+  }
   const n = Math.max(1, lines.length)
   const headBlockH = n * hookPx + (n - 1) * CENTER_HOOK.lineSpacing
   const hasDetail = family === "center_hook_detail" && detail.length > 0
@@ -287,7 +309,11 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   const detailBlockH = hasDetail ? detailPx : 0 // one line
   const gap = hasDetail ? (template === "upgrade" || template === "apartment_standards" ? UPGRADE_DETAIL_GAP_PX : CENTER_HOOK_DETAIL_GAP_PX) : 0 // Upgrade + its variant a touch looser; T8 stays 16
   const totalH = headBlockH + gap + detailBlockH
-  const groupTop = (H - totalH) / 2
+  // T16 (what_mo_gets_you_top) is T11 anchored near the TOP instead of vertically centered — the
+  // mirror image of T2, which is T1's typography at a centered anchor. Only the anchor differs, and it
+  // reuses T1's own yFrac constant, so the hook typography/fit stays identical to T11's.
+  const topAnchored = template === "what_mo_gets_you_top"
+  const groupTop = topAnchored ? OVERLAY_SPEC.headline.yFrac * H : (H - totalH) / 2
   const headline: OverlayBlock = { lines, fontPx: hookPx, topPx: groupTop, uppercase: false, sideMarginPx: OVERLAY_SPEC.headline.sideMarginPx, lineSpacing: CENTER_HOOK.lineSpacing }
   const detailBlock: OverlayBlock | null = hasDetail
     ? { lines: detailLines, fontPx: detailPx, topPx: groupTop + headBlockH + gap, uppercase: false, sideMarginPx: OVERLAY_SPEC.sub.sideMarginPx, lineSpacing: OVERLAY_SPEC.sub.lineSpacing }
