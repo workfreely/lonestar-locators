@@ -8,6 +8,7 @@ import { usePathname } from "next/navigation"
 import type { ReactNode } from "react"
 import { fmtDate, timeAgo } from "@/lib/controlCenter/format"
 import { CC_BASE } from "@/lib/controlCenter/paths"
+import BackToDashboard from "@/components/crm/BackToDashboard"
 
 type NavItem = { label: string; href: string; kind: "internal" | "external"; tag?: string; icon: ReactNode; slug?: string }
 const ic = (d: string, extra?: ReactNode) => (
@@ -75,6 +76,7 @@ export default function Shell({ children, attention, running, generatedAt }: { c
           {attention === null ? <span className="pill faint">attention · not loaded</span> : <span className={`pill${attention > 0 ? " attn" : ""}`}><span className="dot" style={{ background: attention > 0 ? "var(--warn)" : "var(--good)" }} />{attention} need a human</span>}
           <span className="pill"><span className="dot" style={{ background: running ? "var(--accent)" : "var(--ink-3)" }} />{running ? `${running} job${running === 1 ? "" : "s"} running` : "no jobs running"}</span>
           <span className="pill faint" title={generatedAt ?? undefined}>Snapshot · {fmtDate(generatedAt)} · {timeAgo(generatedAt)}</span>
+          <BackToDashboard />
         </header>
         {children}
       </div>
