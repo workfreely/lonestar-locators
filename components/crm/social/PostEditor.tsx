@@ -768,33 +768,35 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             </label>
           </div>
 
-          {/* Text Overlay mode — directly above the overlay controls. 'Generate' shows the Template 1
-              controls + generated preview/render; 'Already has text' hides them and leaves the
-              uploaded video (with its own burned-in text) untouched. */}
-          <div className="flex items-center gap-3">
-            <span className={fieldLabel}>Text Overlay</span>
-            <div className="inline-flex rounded-lg border border-[var(--crm-border)] p-0.5">
-              {([["generate", "Generate with Social Beast"], ["existing", "Already has text"]] as const).map(([val, label]) => (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => setOverlayMode(val)}
-                  aria-pressed={overlayMode === val}
-                  className={"text-[12px] font-semibold px-2.5 py-1 rounded-md transition-colors " + (overlayMode === val ? "bg-[var(--crm-text-primary)] text-[var(--crm-panel)]" : "text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]")}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
+          {/* Text Overlay — the mode toggle now shares ONE row with Overlay Template/Headline on
+              desktop (was its own full-width row above them), each with its label above its control.
+              'Generate' shows the Template controls + generated preview/render; 'Already has text'
+              hides them and leaves the uploaded video (with its own burned-in text) untouched.
+              Overlay Detail's on-screen preview field is gone (it was a pure DERIVED read-only
+              display — see overlayDetail below, computed from the template + metadata, never
+              user-edited); generation/preview/persistence all still use it exactly as before, this
+              only removes its redundant on-screen echo to shorten the editor. */}
           {overlayMode === "generate" ? (
-            /* COMPACT one-row overlay controls on desktop, in decision order: Overlay Template (the
-               first choice; smallest) | Overlay Headline (follows from the template; editable = manual
-               override) | Overlay Detail (DERIVED, read-only; widest since values can be longer, e.g.
-               "8 Weeks Free · Starting at $1,900/mo"). Proportions 24/34/42. Wraps to 2 rows on tablet
-               (sm) and stacks on mobile — same fields/handlers/values. */
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[24fr_34fr_42fr] gap-3">
+            /* COMPACT one-row overlay controls on desktop: Text Overlay mode | Overlay Template |
+               Overlay Headline. Wraps to 2 rows on tablet (sm) and stacks on mobile — same
+               fields/handlers/values as before, just regrouped. */
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[22fr_26fr_52fr] gap-3">
+              <div className="block min-w-0">
+                <span className={fieldLabel}>Text Overlay</span>
+                <div className="mt-1 inline-flex rounded-lg border border-[var(--crm-border)] p-0.5">
+                  {([["generate", "Generate"], ["existing", "Already has text"]] as const).map(([val, label]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setOverlayMode(val)}
+                      aria-pressed={overlayMode === val}
+                      className={"text-[12px] font-semibold px-2.5 py-1 rounded-md transition-colors " + (overlayMode === val ? "bg-[var(--crm-text-primary)] text-[var(--crm-panel)]" : "text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]")}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <label className="block min-w-0">
                 <span className={fieldLabel}>Overlay Template</span>
                 <select className={`${control} mt-1 cursor-pointer`} value={overlayTemplate} onChange={(e) => changeTemplate(e.target.value as OverlayTemplate)}>
@@ -805,14 +807,28 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 <span className={fieldLabel}>Overlay Headline</span>
                 <input className={`${control} mt-1`} value={headline} onChange={(e) => { setHeadline(e.target.value); setHeadlineDirty(true) }} placeholder="Burned into the video" />
               </label>
-              <label className="block min-w-0">
-                <span className={fieldLabel}>Overlay Detail <span className="normal-case text-[var(--crm-text-muted)]">· auto from template</span></span>
-                <input readOnly className={`${control} mt-1 text-[var(--crm-text-muted)]`} value={overlayDetail} placeholder="—" />
-              </label>
             </div>
           ) : (
-            <div className="text-[11.5px] text-[var(--crm-text-muted)] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2">
-              Social Beast will keep the existing text in this video and won&apos;t add another overlay.
+            <div className="flex flex-col gap-2">
+              <div className="block min-w-0 max-w-[280px]">
+                <span className={fieldLabel}>Text Overlay</span>
+                <div className="mt-1 inline-flex rounded-lg border border-[var(--crm-border)] p-0.5">
+                  {([["generate", "Generate"], ["existing", "Already has text"]] as const).map(([val, label]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setOverlayMode(val)}
+                      aria-pressed={overlayMode === val}
+                      className={"text-[12px] font-semibold px-2.5 py-1 rounded-md transition-colors " + (overlayMode === val ? "bg-[var(--crm-text-primary)] text-[var(--crm-panel)]" : "text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]")}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="text-[11.5px] text-[var(--crm-text-muted)] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2">
+                Social Beast will keep the existing text in this video and won&apos;t add another overlay.
+              </div>
             </div>
           )}
 
