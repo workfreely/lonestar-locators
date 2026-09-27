@@ -21,6 +21,14 @@ image writes · `change_requested` 0/0 · Fallback 190 (0 v1.1). All agents/jobs
   `location_intelligence` (normalized landmark model), `image_fallback_slot`, `property_special_freshness`.
 - Project memory (decision log): Follow-Up, Next Action, Beast Sync/Companion, Security Beast, Meta Sales
   Analytics, Import/verified-overlay, recommendation architecture, Beast Network, dedicated-project/infra.
+- Social Beast: `lib/social/*` (25 modules — composePost, overlaySpec, hashtags, renderVideo, calendar,
+  recurrence, postStatus, propertyAutoMatch, tiktokPublish, instagram, destinationInvite, socialSpecial…),
+  `app/admin/social-autopilot/*` (posts · calendar · accounts · queue · history · analytics · post editor),
+  `app/api/admin/social-autopilot/*` (content, bulk, voice-clips, recurring, destinations, publish, render,
+  dry-run, autoschedule), migrations `social_content*`, `social_posts*`, `social_connections`,
+  `publishing_destinations_*`, `instagram_publish_phase1`, `social_special`, `tiktok_connection`,
+  `social_voice_clips`; `vercel.json` crons (none for social); memory `social-autopilot`,
+  `tiktok-sandbox-connection`.
 
 **Reconciliation note:** the August "Property Intelligence" algorithm doc is *historical foundation*. Where
 later implementation supersedes it (canonical ~380-field schema, per-slot image locks, v1.1 recovery,
@@ -67,6 +75,7 @@ without terminal reports.**
 | **Import / Export** | spreadsheet round-tripping through the safe writer |
 | **Analytics** | property/agent/search/business analytics + marketing attribution |
 | **Security Beast** | detection → enforcement → evidence for the private surfaces |
+| **Social Beast** | content creation → reusable hooks/CTAs/voice clips/music → scheduling → connected accounts → posting/execution → history/errors → attribution |
 | **System** | infrastructure, service health, cost, versions, backups |
 
 ---
@@ -99,7 +108,10 @@ schema; per-landmark columns → normalized `location_intelligence` model; manua
 ## 4. Control Center architecture (nav evaluation)
 
 Proposed nav — OVERVIEW · PROPERTY INTELLIGENCE · PROPERTY SEARCH · FOLLOW-UP · AGENTS · REVIEW CENTER ·
-IMPORT/EXPORT · ANALYTICS · SECURITY BEAST · SYSTEM — is **sound and scalable.** Recommendations:
+IMPORT/EXPORT · ANALYTICS · SECURITY BEAST · SYSTEM — is **sound and scalable**, with one required
+addition: **SOCIAL BEAST** as a first-class module. It is the content/marketing engine, it already has a
+working platform-admin surface at `/admin/social-autopilot`, and it sits on the marketing-launch critical
+path. Recommendations:
 
 - **Keep** all ten as top-level; they map to real subsystems (no redesign of the intelligence needed).
 - **Merge** Sources + History as in-context tabs (inside Property Intelligence + a global Recent-Changes
@@ -110,8 +122,10 @@ IMPORT/EXPORT · ANALYTICS · SECURITY BEAST · SYSTEM — is **sound and scalab
   AND appear as agents under Agents/Jobs (observe there, operate in their own module).
 - The shell must accept a **new agent/module by config**, not by re-architecting — a registry-driven nav.
 
-Recommended top nav (unchanged, ordered by V1 maturity): **Overview · Property Intelligence · Review
+Recommended top nav (ordered by V1 maturity): **Overview · Property Intelligence · Social Beast · Review
 Center · Agents/Jobs · Property Search · Follow-Up · Import/Export · Analytics · Security Beast · System.**
+Social Beast ranks high because it is the most complete *existing* admin UI in the system; the Control
+Center should **integrate** it (link/embed first, migrate progressively), never rebuild it.
 
 ---
 
@@ -122,8 +136,8 @@ Answer "what needs me right now?" in seconds. **Separate operational health from
 **Operational health (top):** active properties (4,202 + market split: Dallas 1,366 · Austin 920 ·
 Houston 866 · San Antonio 585 · no-market 465); Property Intelligence health (image coverage 91%, Missing
 370 / Bad ~299 / Uncertain 28); **data completeness by category** (not one score — see §6); open conflicts;
-review-queue size; agents running / failed jobs; follow-ups scheduled / messaging failures; Security Beast
-alerts; service/API health; AI/API cost (today + trend); recent changes; **items requiring human
+review-queue size; agents running / failed jobs; follow-ups scheduled / messaging failures; **scheduled
+social posts / posting failures / expiring platform tokens (Social Beast)**; Security Beast alerts; service/API health; AI/API cost (today + trend); recent changes; **items requiring human
 attention** (single number that expands to the Review Center).
 
 **Business analytics (separate panel or the Analytics module):** searches/recommendations, leads, tours,
@@ -229,6 +243,42 @@ and **why** each decision was made (which trigger/gate fired).
 
 ---
 
+## 9A. Social Beast
+
+**Status: PARTIAL overall — and the most complete existing admin UI in the system.** Internally "Social
+Autopilot" / "Beast Social": a platform-admin-gated internal beta at `/admin/social-autopilot` (tabs: Posts ·
+Calendar · Accounts · Queue · History · Analytics · Post editor). Memory: `social-autopilot`,
+`tiktok-sandbox-connection`. *(Distinct from **Beast Voice** — `lib/beastVoice`, the Companion voice-command
+system — which is not part of Social Beast.)*
+
+**Role:** the content/marketing engine that turns property intelligence into published social content and,
+eventually, into attributed leads. It is on the marketing-launch critical path.
+
+| Area | Status | What exists | What's missing |
+|---|---|---|---|
+| **Content creation / library** | BUILT | `social_content` (+naming, property_type, tags, area); multi-upload / batch / bulk (SA1 + SA1.1, shipped 2026-09-11); filename inference; **property auto-match / resolve** against the catalog; amenity/market/property-type helpers | — |
+| **Post composer** | BUILT | `social_posts` (+post_type, composer); overlays (headline/subheadline `overlaySpec`); captions + hashtags (Instagram-aligned); specials-in-posts (`socialSpecial`); `composePost`; duplicate; **dry-run** | — |
+| **Rendering** | PARTIAL | `renderVideo` + `/posts/[id]/render`; status `rendering` | a durable **render worker** (heavy video work → Mac Mini candidate) |
+| **Reusable hooks / CTAs / voice clips** | BUILT | `social_voice_clips` (hook = start, cta = end; per-user bank in the private `social-media` bucket; no property metadata, so a clip is recorded once and reused); `/voice-clips` API; "Music \| Voice Clips" row + library UI (29622ba) | — |
+| **Music** | DESIGNED | UI slot in the Music \| Voice Clips row | music library/table + licensing rules |
+| **Scheduling** | BUILT (logic) / PARTIAL (execution) | `calendar.ts` (Calendar tab and ScheduleWorkspace share one model), `recurrence` + `generateRecurrence` + `/recurring` APIs, `/autoschedule`; lifecycle `draft → rendering → ready → scheduled → publishing → needs_attention → published`; Queue vs History separation | **no scheduled-post dispatcher/worker** — `postStatus.ts` states rendering/publishing workers are not built; no social cron in `vercel.json` |
+| **Connected accounts / publishing destinations** | BUILT | `social_connections`; `publishing_destinations_foundation` + `_authorization`; destination **invitations** (issue/revoke); multi-account Publishing Destinations UI; **Instagram OAuth** (connection-only, `instagram_business_basic`, long-lived + refresh tokens, server-side only); **TikTok OAuth** (connect; `user.info.basic` + `video.publish`; shipped 55acdae) | Instagram publish scope (`instagram_business_content_publish`) |
+| **Posting / execution** | PARTIAL | `/posts/[id]/publish` + `/publish/status`; **TikTok Direct Post** Sandbox MVP (`tiktokPublish`: creator-info → init → FILE_UPLOAD → poll; token via Vault RPC, never logged) | Instagram publishing; automated dispatch of scheduled posts; retries |
+| **Posting history / errors** | PARTIAL | History tab; `published` lives in History; `needs_attention` state | per-post/per-platform error capture + surfacing |
+| **Mac Mini execution** | DESIGNED | — | render + publish workers as durable jobs (same model as `property_enrichment_jobs`) |
+| **Attribution (content → lead → tour/application → lease)** | FUTURE (paid side BUILT) | paid: `meta_publisher_platform` FB-vs-IG in Meta Sales Analytics + frozen closed-commission estimate | organic: per-post trackable link/UTM → Smart Lead Form lead-source → CRM → Search → Tour → Application → Lease |
+| **Customer-facing Social Beast** | FUTURE | admin-only internal beta | productization decision |
+
+**Safeguards (existing):** platform tokens server-side only (Vault RPC; never browser/URL/logs); private
+storage bucket with owner-folder policy + RLS; platform-admin gating; dry-run before publish.
+
+**Control Center needs:** content-library health · posts by status (queue) · calendar · connected accounts +
+destination health (token expiry) · publish results and **why** a post failed · recurring rules · later,
+attribution. Because a working admin UI already exists, the Control Center **integrates** it (link/embed →
+progressive migration) rather than rebuilding it.
+
+---
+
 ## 10. Agent architecture inventory
 
 Status: **BUILT** (works from backend) · **PARTIAL** · **DESIGNED** · **FUTURE**. "Table exists" ≠ BUILT.
@@ -248,6 +298,10 @@ Status: **BUILT** (works from backend) · **PARTIAL** · **DESIGNED** · **FUTUR
 | **Property Search / Matching** | PARTIAL | client↔property recommendation | app runtime | search inspector/debugger |
 | **Follow-Up Agent** | BUILT (delivery PARTIAL) | lifecycle messaging + Next Action | app + Mac Mini | activity + decision-why views |
 | **Security Beast** | PARTIAL | detect→enforce→evidence | primitives only | alerts + evidence UI |
+| **Social Beast — content ingest + property auto-match** | BUILT | match uploaded media to catalog properties; tag/name content | app routes (`/content`, `/content/bulk`) | content-library view |
+| **Social Beast — render worker** | PARTIAL | render overlay + voice-clip video | `/posts/[id]/render` route | job observability; Mac Mini candidate |
+| **Social Beast — scheduler / dispatcher** | DESIGNED | publish scheduled + recurring posts on time | not built (no worker, no cron) | Run/Pause; needs-attention queue |
+| **Social Beast — publisher (TikTok / Instagram)** | PARTIAL | direct-post to connected accounts | manual route; TikTok sandbox MVP; Instagram connect-only | publish results + errors per platform |
 | **Durable Job Runner** (`property_enrichment_jobs` model) | DESIGNED | always-on Mac Mini operator (Run/Pause/Resume/Stop, crash recovery, idempotency) | schema only | the Jobs module IS this UI |
 
 ---
@@ -299,10 +353,15 @@ Separate four planes (mark anything not previously discussed as *proposed*):
 - **Lead/Business analytics** — leads, response time, pipeline, tours, applications, leases,
   commission/revenue. **Meta Sales Analytics BUILT/shipped** (memory `meta-sales-analytics-phase2b`: frozen
   closed-estimate, Campaign→AdSet→Ad ROAS, FB vs IG); rest PARTIAL.
+- **Social / content analytics** — posts published, per-platform results, content reuse (which hooks/CTAs
+  perform), schedule adherence, posting failures. `/admin/social-autopilot/analytics` tab exists (organic
+  metrics PARTIAL); paid-side FB-vs-IG via `meta_publisher_platform` is BUILT. See §9A.
 
 **Marketing attribution chain** (preserve as the target; partially built via Meta pixel + lead source +
-frozen commission estimate): Content/Ad → Lead Source → Smart Lead Form → CRM → Property Search → Tour →
-Application → Lease.
+frozen commission estimate): **Content (Social Beast post) / Ad** → Lead Source → Smart Lead Form → CRM →
+Property Search → Tour → Application → Lease. Paid-ad attribution is BUILT (Meta Sales Analytics);
+**organic content → lead attribution is FUTURE** — it needs a per-post trackable link/UTM into the Smart
+Lead Form with lead-source capture (see §9A and Open Questions).
 
 ---
 
@@ -360,6 +419,12 @@ Every mutating UI action becomes an API call the backend validates and executes.
 the API; job *control* awaits the runner service. **Establish the whole Control Center information
 architecture first, then design modules into it** — don't build one isolated Property Intelligence app.
 
+**Social Beast is the exception to "design from scratch":** it already has a working, platform-admin-gated
+admin UI (`/admin/social-autopilot`: posts, calendar, accounts, queue, history, analytics). Fable should
+bring that surface into the Control Center shell and visual system as a module — **link/embed first,
+progressive migration later** — never redesign or rebuild it. Its render/publish workers, token handling,
+and storage stay backend.
+
 ---
 
 ## 17. Product status matrix
@@ -385,6 +450,12 @@ architecture first, then design modules into it** — don't build one isolated P
 | Analytics — Meta Sales | BUILT | shipped | — | Meta | Analytics | live |
 | Analytics — property/agent/search | PARTIAL/DESIGNED | job tallies | dashboards | data flow | Analytics | V2 |
 | Security Beast | PARTIAL | primitives | enforcement + evidence | Mac Mini | Security module | V2 |
+| Social Beast — content library + composer + render | BUILT / PARTIAL | library, auto-match, composer, overlays, hashtags, specials, dry-run, render route | durable render worker | `social-media` bucket | existing UI, integrated | V1 (integrate) |
+| Social Beast — hooks/CTAs voice clips · music | BUILT · DESIGNED | `social_voice_clips` + library UI; music UI slot | music library + licensing | — | existing UI | V1.5 (music) |
+| Social Beast — scheduling + recurrence | BUILT (logic) | calendar, recurrence, autoschedule, lifecycle | dispatcher/worker | job runner | queue + calendar | V1.5 |
+| Social Beast — connected accounts / destinations | BUILT | IG + TikTok OAuth, destinations, invitations | IG publish scope | platform APIs | account/destination health | V1 |
+| Social Beast — posting execution + history/errors | PARTIAL | TikTok direct-post MVP, publish/status routes, History tab | IG publish, automated dispatch, retries, error surfacing | workers (Mac Mini) | publish results + why-failed | V1.5 |
+| Social Beast — organic attribution | FUTURE | paid FB/IG attribution built | trackable links → lead source | Smart Lead Form | Analytics | V2 |
 | Control Center shell/UI | FUTURE | — | everything | thin API | the shell itself | V1 |
 
 ---
@@ -398,12 +469,16 @@ built incrementally** — none of it is on the launch critical path.
   (Catalog, Detail, Completeness, Images) · Review Center (conflicts + image review + qualification, using
   existing tables) · Jobs/Activity (read-only observability from ledgers/`property_enrichment_jobs`). Thin
   API + platform-admin gating. Resume the paused Primary-image recovery *from the terminal* independently
-  of the UI.
+  of the UI. **Social Beast** enters V1 by integrating the existing `/admin/social-autopilot` UI as a module
+  (link/embed — it is already live and carrying the marketing launch; no rebuild).
 - **V1.5:** Follow-Up module · Property Search inspector · Import/Export wizard (over the safe writer) ·
   New Property Discovery review + exclusion registry · durable job runner *control* (Run/Pause/Stop) ·
-  location resolver control · deep-domain enrichment runs.
-- **V2:** Full Analytics dashboards (property/agent/search) · Fallback image recovery · Security Beast
-  enforcement + evidence · marketing attribution end-to-end.
+  location resolver control · deep-domain enrichment runs · **Social Beast:** scheduled-post render/publish
+  **workers** (durable jobs; Mac Mini candidate), Instagram publish scope, posting history + why-failed
+  surfaced in the Control Center, music library.
+- **V2:** Full Analytics dashboards (property/agent/search/**social**) · Fallback image recovery · Security
+  Beast enforcement + evidence · marketing attribution end-to-end, including **organic content → lead →
+  tour/application → lease** (Social Beast).
 - **Future:** additional agents via the module registry; drive-time/Routes; content-protection.
 
 ---
@@ -435,9 +510,12 @@ breadth is added.
    sitting above Locator Beast; Supabase stays the source of truth.
 2. **What's inside?** §2 — ten modules.
 3. **Already built?** Safe writer, identity/geo/Google enrichment, Image Intelligence v1.0+v1.1, review-
-   queue tables, durable job model (schema), Follow-Up engine, Meta Sales Analytics, security primitives.
+   queue tables, durable job model (schema), Follow-Up engine, Meta Sales Analytics, security primitives,
+   **Social Beast** content library + composer/render + voice-clip (hook/CTA) library + scheduling/recurrence
+   + connected accounts (Instagram/TikTok OAuth, publishing destinations) + its admin UI.
 4. **Already designed?** Import/Export round-trip, New Property Discovery + exclusion registry, full
-   matching brain + client context, job-runner control, Security enforcement, location resolver/drive-time.
+   matching brain + client context, job-runner control, Security enforcement, location resolver/drive-time,
+   Social Beast render/publish workers + Instagram publishing + music library + organic attribution.
 5. **Remains to be built?** The entire Control Center UI + thin API; durable review/history stores' UIs;
    Import/Export pipeline; job-runner service; deep-domain data population.
 6. **How do they communicate?** Everything reads/writes Supabase through the safe writer + agents; the UI
@@ -467,6 +545,13 @@ breadth is added.
    so the matching brain has renter context?
 8. **Security Beast V1 approval:** approve the presentational V1 admin page, and decide the first real
    enforcement layer.
+9. **Social Beast execution host:** do the render and publish workers run on Vercel (route/cron) or on the
+   Mac Mini as durable jobs? Video rendering is heavy and publishing needs reliable retries — this also
+   decides whether scheduled posts can ever dispatch unattended.
+10. **First fully-automated posting channel:** TikTok (direct-post MVP exists, sandbox) or Instagram (needs
+    the `instagram_business_content_publish` scope added to today's connection-only integration)?
+11. **Organic attribution mechanism:** per-post trackable link/UTM captured as lead source on the Smart
+    Lead Form, or another approach — this is what unlocks content → lead → tour/application → lease.
 
 *(These are open. Already-settled decisions — commission firewall, per-slot image locks, preserve-by-
 default, Supabase-as-source-of-truth, v1.0 frozen, 195-GOOD immutable — are NOT reopened.)*
