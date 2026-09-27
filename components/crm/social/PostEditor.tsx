@@ -796,13 +796,13 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
           {overlayMode === "generate" ? (
             /* COMPACT one-row overlay controls on desktop: Text Overlay mode | Overlay Template |
                Overlay Headline. Proportions sized to actual content, not equal thirds: the toggle
-               only ever shows "Generate"/"Already has text" (narrowest); Overlay Template's longest
-               option ("7. Your Apartment Standards") needs real room (was cramped at 26%); Overlay
-               Headline text is intentionally short (per product), so it no longer needs the lion's
-               share (was 52%) — still the widest since it's the one free-text field, just less
-               dominant. Wraps to 2 rows on tablet (sm) and stacks on mobile — same
-               fields/handlers/values as before, just regrouped/rebalanced. */
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[20fr_34fr_46fr] gap-3">
+               only ever shows "Generate"/"Already has text" — needs 25% so "Already has text"
+               doesn't wrap; Overlay Template's longest option ("7. Your Apartment Standards") needs
+               real room (34%, unchanged); Overlay Headline text is intentionally short (per
+               product), so it gives up the 5% the toggle needed — still the widest since it's the
+               one free-text field, just less dominant. Wraps to 2 rows on tablet (sm) and stacks on
+               mobile — same fields/handlers/values as before, just regrouped/rebalanced. */
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[25fr_34fr_41fr] gap-3">
               <div className="block min-w-0">
                 <span className={fieldLabel}>Text Overlay</span>
                 <div className="mt-1 inline-flex rounded-lg border border-[var(--crm-border)] p-0.5">
