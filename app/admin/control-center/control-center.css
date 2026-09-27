@@ -1,0 +1,235 @@
+/* Locator Beast Control Center — approved V1 visual system, scoped under .cc so it never leaks into
+   the CRM (which owns --crm-* tokens). Ported from the approved concept: IBM Plex Sans/Mono, slate-biased
+   neutrals, one teal instrument accent, semantic good/warn/crit/info kept separate from the accent.
+   Light is the base token set; dark is a token override (not an inversion). */
+
+.cc{
+  --bg:#f3f5f8; --surface:#ffffff; --surface-2:#eaeef3; --line:#d5dce5; --line-2:#e6ebf1;
+  --ink:#10151c; --ink-2:#566273; --ink-3:#8492a3;
+  /* ACCENT INHERITS THE LOCATOR BEAST WORKSPACE THEME. lib/theme.ts applies data-theme (midnight |
+     obsidian | rose | evergreen | purple) on <html>, and globals.css defines --crm-accent /
+     --crm-accent-hover per theme. There is no second Control Center theme setting: the accent and every
+     navigation/emphasis treatment derived from it (active nav, module-nav underline, accent chips, bars,
+     focus ring, "more" links) read those tokens. The concept teal survives only as a fallback when no LB
+     theme is present. Neutrals, typography, cards and semantic status colors stay as approved. */
+  --accent:var(--crm-accent,#0f8fa3); --accent-ink:var(--crm-accent,#0b6f7f);
+  --accent-soft:color-mix(in srgb, var(--crm-accent,#0f8fa3) 12%, transparent);
+  --good:#1f8a4c; --good-soft:#e2f3e8; --warn:#b7791f; --warn-soft:#fbf0d9; --crit:#c0392b; --crit-soft:#fbe3df; --info:#3b6fd6; --info-soft:#e3ebfb;
+  --shadow:0 1px 2px rgba(16,21,28,.06), 0 4px 14px rgba(16,21,28,.05);
+  --radius:6px;
+  --sans:var(--font-cc-sans),"IBM Plex Sans",-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+  --mono:var(--font-cc-mono),"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  color-scheme:light dark;
+  height:100%;display:grid;grid-template-columns:240px 1fr;overflow:hidden;
+  background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans);-webkit-font-smoothing:antialiased;
+  text-align:left;
+}
+/* Dark token set. Locator Beast's themes are all dark-chrome and applyTheme() puts `.dark` on <html>
+   for every /admin page, so inside the app the Control Center follows the workspace theme (dark) rather
+   than the OS. The prefers-color-scheme block is the fallback for the same tokens when no LB theme
+   class is present. In dark, accent text uses --crm-accent-hover (the theme's lighter accent) for
+   legibility on dark surfaces; the soft tint is a translucent mix of the theme accent. */
+.dark .cc{
+  --bg:#0d1219; --surface:#141b24; --surface-2:#1b2430; --line:#263241; --line-2:#1f2a37;
+  --ink:#e8edf3; --ink-2:#9fb0c3; --ink-3:#6b7d91;
+  --accent:var(--crm-accent,#2ec4d8); --accent-ink:var(--crm-accent-hover,#7fdceb);
+  --accent-soft:color-mix(in srgb, var(--crm-accent,#2ec4d8) 18%, transparent);
+  --good:#3ccf7a; --good-soft:#123324; --warn:#e0a83a; --warn-soft:#3a2d12; --crit:#ef6b5e; --crit-soft:#3d1c19; --info:#6fa1ff; --info-soft:#17264a;
+  --shadow:0 1px 2px rgba(0,0,0,.35), 0 6px 18px rgba(0,0,0,.28);
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: dark){
+  .cc{
+    --bg:#0d1219; --surface:#141b24; --surface-2:#1b2430; --line:#263241; --line-2:#1f2a37;
+    --ink:#e8edf3; --ink-2:#9fb0c3; --ink-3:#6b7d91;
+    --accent:var(--crm-accent,#2ec4d8); --accent-ink:var(--crm-accent-hover,#7fdceb);
+    --accent-soft:color-mix(in srgb, var(--crm-accent,#2ec4d8) 18%, transparent);
+    --good:#3ccf7a; --good-soft:#123324; --warn:#e0a83a; --warn-soft:#3a2d12; --crit:#ef6b5e; --crit-soft:#3d1c19; --info:#6fa1ff; --info-soft:#17264a;
+    --shadow:0 1px 2px rgba(0,0,0,.35), 0 6px 18px rgba(0,0,0,.28);
+  }
+}
+.cc *{box-sizing:border-box}
+.cc a{color:inherit;text-decoration:none}
+.cc button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+.cc :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.cc .num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:500}
+.cc .eyebrow{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+/* Headings set their color explicitly: globals.css has a site-wide `h1 {…}` rule for the marketing pages
+   that would otherwise win over the .cc inherited text color and render titles near-black on dark. */
+.cc h1,.cc h2,.cc h3{margin:0;text-wrap:balance;font-family:var(--sans);color:var(--ink)}
+/* globals.css forces `header:not(.crm-header) h1/p { color:#111 !important }` for the marketing hero; the
+   Control Center topbar is a <header> too, so the page title went near-black on dark themes. Scoped,
+   equal-priority override — the marketing rule itself is left alone. */
+.cc header.topbar h1,.cc header.topbar p{color:var(--ink) !important}
+/* Inline links inside module content take the workspace accent (theme-inherited). Buttons, nav and
+   module tabs keep their own treatments. */
+.cc .content a:not(.btn):not(.modnav-item):not(.nav-item){color:var(--accent-ink)}
+.cc .content a:not(.btn):not(.modnav-item):not(.nav-item):hover{text-decoration:underline}
+.cc h1{font-size:20px;font-weight:600;letter-spacing:-.01em}
+.cc h2{font-size:16px;font-weight:600;letter-spacing:-.005em}
+.cc h3{font-size:13px;font-weight:600}
+.cc .muted{color:var(--ink-2)}
+.cc .faint{color:var(--ink-3)}
+.cc p{margin:0}
+@media (prefers-reduced-motion: reduce){.cc *{transition:none!important;animation:none!important}}
+
+/* percent glyph: same value, quieter symbol */
+.cc .sym{font-family:var(--sans);font-size:.58em;font-weight:500;color:var(--ink-3);margin-left:2px;letter-spacing:0}
+.cc .chip .sym{font-size:.85em;color:inherit;opacity:.7;margin-left:1px}
+
+/* ── shell ── */
+.cc .side{background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;height:100%;overflow:auto}
+.cc .brand{padding:18px 18px 14px;border-bottom:1px solid var(--line-2)}
+.cc .brand .name{font-weight:600;font-size:14px;letter-spacing:-.01em}
+.cc .brand .sub{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-ink);margin-top:2px;font-weight:600}
+.cc .env{display:flex;align-items:center;gap:8px;margin:12px 18px 4px;font-size:12px;color:var(--ink-2)}
+.cc .dot{width:8px;height:8px;border-radius:50%;background:var(--good);flex:none;display:inline-block}
+.cc .nav{padding:8px 10px;display:flex;flex-direction:column;gap:2px}
+.cc .nav-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--radius);width:100%;text-align:left;color:var(--ink-2)}
+.cc .nav-item .ic{width:16px;height:16px;flex:none;color:var(--ink-3)}
+.cc .nav-item .lbl{flex:1;font-weight:500}
+.cc .nav-item .tag{font-size:10px;font-weight:600;letter-spacing:.06em;padding:2px 6px;border-radius:4px;background:var(--surface-2);color:var(--ink-3);white-space:nowrap}
+.cc .nav-item[aria-current="page"]{background:var(--accent-soft);color:var(--ink)}
+.cc .nav-item[aria-current="page"] .ic{color:var(--accent)}
+.cc .nav-item:hover{background:var(--surface-2);color:var(--ink)}
+.cc .nav-item.ext .tag{background:var(--accent-soft);color:var(--accent-ink)}
+.cc .side-foot{margin-top:auto;padding:14px 18px;border-top:1px solid var(--line-2);font-size:12px;color:var(--ink-2);display:flex;flex-direction:column;gap:6px}
+.cc .freeze{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--warn);background:var(--warn-soft);padding:3px 8px;border-radius:4px;width:fit-content}
+.cc .back{display:block;padding:10px 18px 0;font-size:12px;color:var(--ink-3)}
+.cc .back:hover{color:var(--ink)}
+
+.cc .main{min-width:0;height:100%;overflow:auto}
+.cc .topbar{display:flex;align-items:center;gap:16px;padding:14px 28px;border-bottom:1px solid var(--line);background:var(--surface);position:sticky;top:0;z-index:2}
+.cc .crumb{font-size:12px;color:var(--ink-3)}
+.cc .crumb b{color:var(--ink-2);font-weight:500}
+.cc .topbar .spacer{flex:1}
+.cc .pill{display:inline-flex;align-items:center;gap:7px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);font-size:12px;font-weight:500;background:var(--surface);white-space:nowrap}
+.cc .pill .dot{width:7px;height:7px}
+.cc .pill.attn{border-color:var(--warn);color:var(--warn);background:var(--warn-soft)}
+.cc .content{padding:24px 28px 48px;display:flex;flex-direction:column;gap:26px;max-width:1360px}
+
+/* ── module nav (tools within one system) ── */
+.cc .modnav{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:-6px 0 0;overflow:auto}
+.cc .modnav-item{padding:10px 12px 9px;font-size:13px;font-weight:500;color:var(--ink-2);border-bottom:2px solid transparent;white-space:nowrap}
+.cc .modnav-item:hover{color:var(--ink)}
+.cc .modnav-item[aria-current="page"]{color:var(--accent-ink);border-bottom-color:var(--accent)}
+
+/* ── components ── */
+.cc .sec{display:flex;flex-direction:column;gap:12px}
+.cc .sec-head{display:flex;align-items:baseline;gap:12px}
+.cc .sec-head .eyebrow{flex:1}
+.cc .sec-head .note{font-size:12px;color:var(--ink-3)}
+.cc .grid{display:grid;gap:12px}
+.cc .g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.cc .g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.cc .g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.cc .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 18px;min-width:0}
+.cc .card.dim{opacity:.7;border-style:dashed;box-shadow:none}
+.cc .tile .k{font-size:12px;color:var(--ink-2);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.cc .tile .v{font-size:28px;line-height:1.1;margin:6px 0 4px;letter-spacing:-.02em}
+.cc .tile .s{font-size:12px;color:var(--ink-3)}
+.cc .glance{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.cc .glance .card{display:flex;flex-direction:column;gap:8px;border-top:2px solid var(--line)}
+.cc .glance .card.ok{border-top-color:var(--good)}
+.cc .glance .card.attn{border-top-color:var(--warn)}
+.cc .glance .card.busy{border-top-color:var(--accent)}
+.cc .glance .ans{font-size:18px;font-weight:600;letter-spacing:-.01em}
+.cc .glance .rows{margin-top:2px}
+.cc .glance .row{padding:7px 0}
+.cc .glance .row .t{font-size:13px}
+.cc .glance .row .d{font-size:11.5px}
+.cc .glance .row .r .num{font-size:15px}
+.cc .glance .seg{margin:0 0 4px;height:8px}
+.cc .more{font-size:12px;color:var(--accent-ink);font-weight:500;margin-top:auto;padding-top:8px;display:block}
+.cc .subnote{font-size:12px;color:var(--ink-3);margin:0}
+.cc .chip{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:4px;font-size:11.5px;font-weight:600;line-height:1.6;white-space:nowrap}
+.cc .chip.good{background:var(--good-soft);color:var(--good)}
+.cc .chip.warn{background:var(--warn-soft);color:var(--warn)}
+.cc .chip.crit{background:var(--crit-soft);color:var(--crit)}
+.cc .chip.info{background:var(--info-soft);color:var(--info)}
+.cc .chip.neutral{background:var(--surface-2);color:var(--ink-2)}
+.cc .chip.accent{background:var(--accent-soft);color:var(--accent-ink)}
+.cc .chip .dot{width:6px;height:6px;background:currentColor}
+.cc .seg{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--surface-2);margin-top:10px}
+.cc .seg span{display:block;height:100%}
+.cc .legend{display:flex;flex-wrap:wrap;gap:10px 16px;margin-top:10px;font-size:12px;color:var(--ink-2)}
+.cc .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.cc .cov{display:grid;grid-template-columns:150px 1fr 64px 150px;align-items:center;gap:12px;padding:8px 0;border-top:1px solid var(--line-2)}
+.cc .cov:first-of-type{border-top:0}
+.cc .cov .lbl{font-weight:500}
+.cc .cov .bar{height:8px;background:var(--surface-2);border-radius:4px;overflow:hidden}
+.cc .cov .bar span{display:block;height:100%;background:var(--accent);border-radius:4px}
+.cc .cov .bar span.low{background:var(--ink-3)}
+.cc .cov .pct{text-align:right;font-size:13px}
+.cc .cov .st{font-size:11.5px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cc .rows{display:flex;flex-direction:column}
+.cc .row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line-2)}
+.cc .row:first-child{border-top:0}
+.cc .row .t{font-weight:500}
+.cc .row .d{font-size:12px;color:var(--ink-3);margin-top:2px}
+.cc .row .r{display:flex;align-items:center;gap:10px}
+.cc .row .r .num{font-size:16px}
+.cc table{width:100%;border-collapse:collapse;font-size:13px}
+.cc th{text-align:left;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:600;padding:0 10px 8px 0;border-bottom:1px solid var(--line)}
+.cc td{padding:9px 10px 9px 0;border-bottom:1px solid var(--line-2);vertical-align:middle}
+.cc tr:last-child td{border-bottom:0}
+.cc td.r,.cc th.r{text-align:right;padding-right:0}
+.cc td .d{display:block;font-size:11.5px;color:var(--ink-3);margin-top:1px}
+.cc tr.link:hover td{background:var(--surface-2)}
+.cc .mk{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.cc .mk div{display:grid;grid-template-columns:86px 1fr 46px;align-items:center;gap:8px;font-size:12px;color:var(--ink-2)}
+.cc .mk .b{height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden}.cc .mk .b span{display:block;height:100%;background:var(--accent)}
+.cc .mk .n{text-align:right}
+.cc .inv{display:flex;flex-wrap:wrap;gap:8px}
+.cc .note{font-size:11.5px;color:var(--ink-3);line-height:1.5}
+.cc .note b{color:var(--warn)}
+.cc .empty{font-size:13px;color:var(--ink-3);padding:6px 0}
+.cc .nw{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px dashed var(--line);border-radius:var(--radius);font-size:12.5px;color:var(--ink-2)}
+.cc .nw .why{color:var(--ink-3);font-size:11.5px;margin-top:2px}
+
+/* ── working screens ── */
+.cc .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.cc .filters input,.cc .filters select{font:inherit;font-size:13px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:7px 10px;min-width:0}
+.cc .filters input{width:260px}
+.cc .filters button,.cc .btn{font:inherit;font-size:13px;font-weight:600;padding:7px 12px;border-radius:var(--radius);background:var(--accent-soft);color:var(--accent-ink);border:1px solid transparent}
+.cc .filters button:hover,.cc .btn:hover{border-color:var(--accent)}
+.cc .btn.ghost{background:transparent;color:var(--ink-2);border-color:var(--line)}
+.cc .thumb{width:56px;height:38px;object-fit:cover;border-radius:4px;background:var(--surface-2);border:1px solid var(--line-2);display:block}
+.cc .thumb.lg{width:100%;max-width:420px;height:auto;aspect-ratio:16/10;object-fit:cover}
+.cc .thumb.empty{display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--ink-3)}
+.cc .dots{display:inline-flex;gap:4px}
+.cc .dots i{width:8px;height:8px;border-radius:2px;background:var(--surface-2);border:1px solid var(--line)}
+.cc .dots i.on{background:var(--accent);border-color:var(--accent)}
+.cc .pager{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--ink-2)}
+.cc .pager a{padding:5px 10px;border:1px solid var(--line);border-radius:var(--radius)}
+.cc .pager a:hover{background:var(--surface-2)}
+.cc .kv{display:grid;grid-template-columns:200px 1fr auto;gap:8px 14px;align-items:baseline;font-size:13px}
+.cc .kv .k{color:var(--ink-2)}
+.cc .kv .v{min-width:0;overflow-wrap:anywhere}
+.cc .kv .meta{font-size:11px;color:var(--ink-3)}
+.cc .field{display:contents}
+.cc .sechead{display:flex;align-items:baseline;gap:10px;margin:0 0 10px}
+.cc .sechead h2{flex:1}
+.cc .sechead .note{font-size:12px;color:var(--ink-3)}
+.cc code{font-family:var(--mono);font-size:12px;background:var(--surface-2);padding:1px 5px;border-radius:3px}
+.cc details.sys{border:1px dashed var(--line);border-radius:var(--radius);padding:12px 16px;color:var(--ink-2);font-size:12.5px}
+.cc details.sys summary{cursor:pointer;font-weight:600;color:var(--ink)}
+
+@media (max-width: 980px){
+  .cc .g4,.cc .g3{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .cc .glance{grid-template-columns:1fr}
+  .cc .cov{grid-template-columns:120px 1fr 56px}.cc .cov .st{display:none}
+  .cc .kv{grid-template-columns:150px 1fr auto}
+}
+@media (max-width: 760px){
+  .cc{grid-template-columns:1fr;grid-template-rows:auto 1fr;overflow:auto}
+  .cc .side{height:auto;overflow:visible}
+  .cc .nav{flex-direction:row;flex-wrap:wrap;gap:4px}
+  .cc .side-foot{display:none}
+  .cc .topbar{flex-wrap:wrap;gap:10px;position:static}
+  .cc .topbar,.cc .content{padding-left:16px;padding-right:16px}
+  .cc .g2,.cc .g3,.cc .g4{grid-template-columns:1fr}
+  .cc .filters input{width:100%}
+  .cc .kv{grid-template-columns:1fr;gap:2px 0}
+  .cc .kv .k{font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-top:8px}
+}

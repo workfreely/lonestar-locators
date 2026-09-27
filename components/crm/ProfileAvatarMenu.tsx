@@ -273,6 +273,10 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
               {/* Security Beast — platform-admin-only. V1 is a visual/architecture admin surface;
                   the /admin/security page enforces is_platform_admin() server-side like the others. */}
               <Link href="/admin/security" onClick={() => setOpen(false)} className={linkCls}>Security Beast</Link>
+              {/* Property Intelligence — opens the Locator Beast Control Center (platform-admin only).
+                  UX shortcut only: the /admin/control-center layout and every page/API inside it enforce
+                  is_platform_admin() server-side; hiding this item is not the security boundary. */}
+              <Link href="/admin/control-center/property-intelligence" onClick={() => setOpen(false)} className={linkCls}>Property Intelligence</Link>
               {/* Beast Referral Network — kept under ADMIN for now (not yet rolled out to agents).
                   showNetwork is always true for the owner; route/permissions unchanged. */}
               {showNetwork && (
