@@ -2,10 +2,10 @@
 // Pure logic only — no network, no ffmpeg. Run: npx tsx scripts/social/composer.test.ts
 import { buildHashtags, normalizeHashtag, HASHTAG_MARKETS } from "@/lib/social/hashtags"
 import { AMENITY_BANK, canonicalizeAmenity, parseAmenities, serializeAmenities, sanitizeCustomAmenity } from "@/lib/social/amenities"
-import { preparePost, buildCaption, buildOverlayHeadline, buildOverlaySubheadline, composeFinalCaption, startingPriceLabel, buildOverlayDetail, joinDetailParts, specialDisplay, resolveSocialSpecial, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags } from "@/lib/social/composePost"
+import { preparePost, buildCaption, buildOverlayHeadline, buildOverlaySubheadline, composeFinalCaption, startingPriceLabel, startingPriceAmount, buildOverlayDetail, joinDetailParts, specialDisplay, resolveSocialSpecial, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags } from "@/lib/social/composePost"
 import { SOCIAL_SPECIAL_OPTIONS, giftCardLabel, isGiftCardSpecial, sanitizeCustomSpecial } from "@/lib/social/socialSpecial"
 import { buildFfmpegArgs, buildVideoFilter } from "@/lib/social/renderVideo"
-import { wrapHeadline, wrapSub, overlayPreviewStyle, headlineFit, headlineTextWidthPx, computeOverlayLayout, OVERLAY_SPEC, OVERLAY_TEXT, HEADLINE_TEXT_AVAIL_PX, HERO_MAX_PX, HERO_MIN_PX, HOOK_MAX_PX, HOOK_MIN_PX, detailTextWidthPx, DETAIL_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
+import { wrapHeadline, wrapSub, overlayPreviewStyle, headlineFit, headlineTextWidthPx, computeOverlayLayout, templateFamily, OVERLAY_SPEC, OVERLAY_TEXT, HEADLINE_TEXT_AVAIL_PX, HERO_MAX_PX, HERO_MIN_PX, HOOK_MAX_PX, HOOK_MIN_PX, detailTextWidthPx, DETAIL_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
 import { buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES } from "@/lib/social/composePost"
 
 let pass = 0, fail = 0
@@ -332,7 +332,7 @@ ok("render graph still outputs the [v] label", /\[v\]$/.test(hugFilt))
 
 console.log("Overlay TEMPLATES 1–5 (headline/detail generation + layout families):")
 const tMeta = { market: "San Antonio", propertyType: "High-Rise", socialSpecial: "8 Weeks Free", budgetRange: "1600", amenities: "Private Yards, Rooftop Pool" }
-ok("10 templates defined", OVERLAY_TEMPLATES.length === 10)
+ok("11 templates defined", OVERLAY_TEMPLATES.length === 11)
 // T1 Market + Type (HERO)
 ok("T1 headline = CITY TYPE_PLURAL", buildTemplateHeadline("market_type", tMeta) === "SAN ANTONIO HIGH-RISES")
 ok("T1 detail = Starting at price", buildTemplateDetail("market_type", tMeta) === "Starting at $1,600/mo")
@@ -415,7 +415,7 @@ ok("T6 generated strings recognized (so they re-sync on Property Type change)", 
 ok("T6 regenerates for the CURRENT type (Townhome vs Loft)", buildTemplateHeadline("pov_upgrade", { propertyType: "Townhome" }) === "POV: You upgraded to a townhome" && buildTemplateHeadline("pov_upgrade", { propertyType: "Loft" }) === "POV: You upgraded to a loft")
 ok("T7 fixed headline recognized as generated", isGeneratedHeadline("Luxury doesn't have to be expensive"))
 ok("a genuinely MANUAL hook is NOT treated as generated (override protected)", !isGeneratedHeadline("POV: You finally made it home"))
-ok("selector lists exactly 10 templates: T2 market_type_centered, T7 apartment_standards, ending pov_upgrade/affordable_luxury/pov_price", OVERLAY_TEMPLATES.length === 10 && OVERLAY_TEMPLATES[1] === "market_type_centered" && OVERLAY_TEMPLATES[5] === "upgrade" && OVERLAY_TEMPLATES[6] === "apartment_standards" && OVERLAY_TEMPLATES[7] === "pov_upgrade" && OVERLAY_TEMPLATES[8] === "affordable_luxury" && OVERLAY_TEMPLATES[9] === "pov_price")
+ok("selector lists exactly 11 templates: T2 market_type_centered, T7 apartment_standards, ending pov_upgrade/affordable_luxury/pov_price/what_mo_gets_you", OVERLAY_TEMPLATES.length === 11 && OVERLAY_TEMPLATES[1] === "market_type_centered" && OVERLAY_TEMPLATES[5] === "upgrade" && OVERLAY_TEMPLATES[6] === "apartment_standards" && OVERLAY_TEMPLATES[7] === "pov_upgrade" && OVERLAY_TEMPLATES[8] === "affordable_luxury" && OVERLAY_TEMPLATES[9] === "pov_price" && OVERLAY_TEMPLATES[10] === "what_mo_gets_you")
 
 console.log("Template 8 (POV + Price — CENTER HOOK + DETAIL):")
 // T8 headline = same explicit POV per-type mapping as T6.
@@ -493,6 +493,38 @@ const t8g = computeOverlayLayout("pov_price", "POV: You upgraded to a townhome",
 ok("T5 gap increased to 21px", (t5g.detail!.topPx - (t5g.headline.topPx + t5g.headline.fontPx)) === 21)
 ok("T8 gap stays 16px (unchanged)", (t8g.detail!.topPx - (t8g.headline.topPx + t8g.headline.fontPx)) === 16)
 ok("T5 detail stayed 38px", t5g.detail!.fontPx === 38)
+
+console.log("\nTemplate 11 (What $/mo Gets You — dynamic price+city, CENTER HOOK like T7):")
+// The two examples from the spec, exactly.
+ok('T11 "$1,495 + San Antonio" -> "What $1,495/mo gets you in San Antonio"', buildTemplateHeadline("what_mo_gets_you", { market: "San Antonio", budgetRange: "1495" }) === "What $1,495/mo gets you in San Antonio")
+ok('T11 "$1,800 + Houston" -> "What $1,800/mo gets you in Houston"', buildTemplateHeadline("what_mo_gets_you", { market: "Houston", budgetRange: "1800" }) === "What $1,800/mo gets you in Houston")
+ok('T11 "$2,250 + Austin" -> "What $2,250/mo gets you in Austin"', buildTemplateHeadline("what_mo_gets_you", { market: "Austin", budgetRange: "2250" }) === "What $2,250/mo gets you in Austin")
+ok("T11 changing price recomputes the headline", buildTemplateHeadline("what_mo_gets_you", { market: "Dallas", budgetRange: "1200" }) === "What $1,200/mo gets you in Dallas" && buildTemplateHeadline("what_mo_gets_you", { market: "Dallas", budgetRange: "1650" }) === "What $1,650/mo gets you in Dallas")
+ok("T11 changing market recomputes the headline", buildTemplateHeadline("what_mo_gets_you", { market: "Austin", budgetRange: "1495" }) === "What $1,495/mo gets you in Austin" && buildTemplateHeadline("what_mo_gets_you", { market: "Houston", budgetRange: "1495" }) === "What $1,495/mo gets you in Houston")
+ok("T11 no price -> '' (never $0/undefined/fabricated)", buildTemplateHeadline("what_mo_gets_you", { market: "San Antonio" }) === "")
+ok("T11 no market -> '' (never a fabricated city)", buildTemplateHeadline("what_mo_gets_you", { budgetRange: "1495" }) === "")
+ok("T11 neither value -> ''", buildTemplateHeadline("what_mo_gets_you", {}) === "")
+ok("T11 has no separate detail line (the sentence IS the whole headline)", buildTemplateDetail("what_mo_gets_you", { market: "San Antonio", budgetRange: "1495" }) === "")
+ok("T11 reuses T7's center-hook typography (same family, no detail either way)", templateFamily("what_mo_gets_you") === "center_hook" && templateFamily("apartment_standards") === "center_hook_detail")
+const t11 = computeOverlayLayout("what_mo_gets_you", "What $1,495/mo gets you in San Antonio", "")
+const t7cmp = computeOverlayLayout("apartment_standards", "Your apartment standards went up", "")
+ok("T11 headline sizes exactly like T7's hook (same CENTER_HOOK.maxPx ceiling, both one line)", t11.headline.lines.length === 1 && t7cmp.headline.lines.length === 1 && t11.detail === null)
+ok("T11 headline is ONE line (fit-to-width) within the safe box", headlineTextWidthPx(t11.headline.lines[0], t11.headline.fontPx) <= HEADLINE_TEXT_AVAIL_PX)
+// Reactivity: a freshly-generated T11 headline must be recognized as generator-owned (not frozen
+// as a manual override) on reload, for ANY price — this is the fix for the isGeneratedHeadline sweep,
+// which can't enumerate arbitrary prices the way it enumerates the small market/type enums.
+ok("T11 generated headline recognized regardless of the specific price (reload-safe)", isGeneratedHeadline("What $1,495/mo gets you in San Antonio") && isGeneratedHeadline("What $2,250/mo gets you in Austin") && isGeneratedHeadline("What $995/mo gets you in Dallas"))
+ok("T11 a genuinely manual headline in the same shape but a FAKE city is NOT treated as generated", !isGeneratedHeadline("What $1,495/mo gets you in Atlantis"))
+ok("T11 empty stays 'generated' (nothing typed, same as every other template)", isGeneratedHeadline(""))
+// startingPriceAmount — the plain $-amount helper T11 builds its sentence around.
+ok('startingPriceAmount "1495" -> "$1,495" (no "Starting at"/"/mo")', startingPriceAmount("1495") === "$1,495")
+ok('startingPriceAmount "$1,200–$1,800" -> lowest, "$1,200"', startingPriceAmount("$1,200-$1,800") === "$1,200")
+ok("startingPriceAmount missing -> '' (never $0)", startingPriceAmount(undefined) === "" && startingPriceAmount("") === "")
+ok("startingPriceLabel unchanged by the refactor (still 'Starting at $X/mo')", startingPriceLabel("1495") === "Starting at $1,495/mo")
+// Existing templates stay exactly as they were (T1–T10 untouched by adding T11).
+ok("T1 unchanged", buildTemplateHeadline("market_type", { market: "San Antonio", propertyType: "High-Rise" }) === "SAN ANTONIO HIGH-RISES")
+ok("T7 unchanged", buildTemplateHeadline("apartment_standards", {}) === "Your apartment standards went up")
+ok("T9 unchanged", buildTemplateHeadline("affordable_luxury", {}) === "Luxury doesn't have to be expensive")
 
 console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

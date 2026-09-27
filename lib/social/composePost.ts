@@ -82,16 +82,31 @@ export function resolveSocialSpecial(src: SourceMeta): string {
   return explicit || specialDisplay(src.special)
 }
 
+/** The LOWEST valid price found in the Price Range metadata, or null. Handles "$1,495–$2,100" → 1495,
+ *  "$1,895" → 1895, "$1,200+" → 1200. Shared by every overlay/caption helper that needs the price
+ *  number so the parsing rule lives in exactly one place. */
+function lowestPrice(range: string | null | undefined): number | null {
+  const tokens = (range ?? "").match(/\d[\d,]*/g)
+  if (!tokens) return null
+  const values = tokens.map((n) => parseInt(n.replace(/,/g, ""), 10)).filter((n) => Number.isFinite(n) && n > 0)
+  return values.length ? Math.min(...values) : null
+}
+
 /** Overlay price rule (Template 1): "Starting at {lowest}/mo" derived from the LOWEST valid price
  *  in the Price Range metadata. The full Price Range stays stored internally — this is only overlay
- *  presentation. Handles "$1,495–$2,100" → 1495, "$1,895" → 1895, "$1,200+" → 1200. No valid price
- *  → "" (the overlay omits the line; never fabricates or substitutes another message). */
+ *  presentation. No valid price → "" (the overlay omits the line; never fabricates or substitutes
+ *  another message). */
 export function startingPriceLabel(range: string | null | undefined): string {
-  const tokens = (range ?? "").match(/\d[\d,]*/g)
-  if (!tokens) return ""
-  const values = tokens.map((n) => parseInt(n.replace(/,/g, ""), 10)).filter((n) => Number.isFinite(n) && n > 0)
-  if (!values.length) return ""
-  return `Starting at $${Math.min(...values).toLocaleString("en-US")}/mo`
+  const n = lowestPrice(range)
+  return n === null ? "" : `Starting at $${n.toLocaleString("en-US")}/mo`
+}
+
+/** Just the formatted lowest price ("$1,495", $ + thousands separator, no "Starting at"/"/mo") — for
+ *  templates that build their own sentence around the number. No valid price → "" (never a
+ *  fabricated $0/placeholder). Same parsing rule as startingPriceLabel (shares lowestPrice). */
+export function startingPriceAmount(range: string | null | undefined): string {
+  const n = lowestPrice(range)
+  return n === null ? "" : `$${n.toLocaleString("en-US")}`
 }
 
 /** Headline = Market + Property Type ("SAN ANTONIO TOWNHOMES"), a generic, public-safe leasing
@@ -207,7 +222,7 @@ export function joinDetailParts(parts: (string | null | undefined)[]): string {
 }
 
 // ── Overlay TEMPLATES (per-post choice of the on-video overlay copy) ──────────────────────────
-// Ten templates, four layout arrangements (geometry lives in overlaySpec):
+// Eleven templates, four layout arrangements (geometry lives in overlaySpec):
 //    1 market_type          — HERO           — {CITY} {TYPE_PLURAL} / "Starting at $X/mo"
 //    2 market_type_centered — HERO CENTERED  — SAME as T1 (headline/detail/type/size/shadow), the
 //                                              whole group VERTICALLY CENTERED (only positioning differs)
@@ -219,7 +234,11 @@ export function joinDetailParts(parts: (string | null | undefined)[]): string {
 //    8 pov_upgrade          — CENTER HOOK    — "POV: You upgraded …" (explicit per-type mapping) / no detail
 //    9 affordable_luxury    — CENTER HOOK    — "Luxury doesn't have to be expensive" (fixed) / no detail
 //   10 pov_price            — CENTER HOOK+D  — same POV per-type headline / "Starting at $X/mo" (or none)
-export const OVERLAY_TEMPLATES = ["market_type", "market_type_centered", "your_sign", "special_feature", "next_property", "upgrade", "apartment_standards", "pov_upgrade", "affordable_luxury", "pov_price"] as const
+//   11 what_mo_gets_you     — CENTER HOOK    — "What {$price}/mo gets you in {city}" (Starting At + Market,
+//                                              both live) / no detail — same T7 (apartment_standards)
+//                                              center-hook typography; empty headline (never fabricated)
+//                                              if either value is missing
+export const OVERLAY_TEMPLATES = ["market_type", "market_type_centered", "your_sign", "special_feature", "next_property", "upgrade", "apartment_standards", "pov_upgrade", "affordable_luxury", "pov_price", "what_mo_gets_you"] as const
 export type OverlayTemplate = (typeof OVERLAY_TEMPLATES)[number]
 export const DEFAULT_OVERLAY_TEMPLATE: OverlayTemplate = "market_type"
 export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
@@ -233,6 +252,7 @@ export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
   pov_upgrade: "POV Upgrade",
   affordable_luxury: "Affordable Luxury",
   pov_price: "POV + Price",
+  what_mo_gets_you: "What $/mo Gets You",
 }
 
 // Template 6 (POV Upgrade) — EXPLICIT deterministic copy per canonical Property Type. The grammar
@@ -283,6 +303,15 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
       return (canonicalType && POV_UPGRADE_HEADLINE[canonicalType]) || POV_UPGRADE_FALLBACK
     case "affordable_luxury":
       return AFFORDABLE_LUXURY_HEADLINE
+    case "what_mo_gets_you": {
+      // Needs BOTH the price AND the city — unlike every other template's single-variable fallback,
+      // there's no sensible generic sentence that keeps this one honest without either value, so
+      // (matching startingPriceLabel/buildTemplateDetail's "no valid input -> ''" rule, applied here
+      // for the same reason: never fabricate) this is the one headline that can be empty.
+      const city = clean(normalizeSocialMarket(src.market))
+      const amount = startingPriceAmount(src.budgetRange)
+      return city && amount ? `What ${amount}/mo gets you in ${city}` : ""
+    }
   }
 }
 
@@ -301,6 +330,7 @@ export function buildTemplateDetail(template: OverlayTemplate, src: SourceMeta):
     case "next_property":
     case "pov_upgrade":
     case "affordable_luxury":
+    case "what_mo_gets_you": // the price+city sentence is the whole headline — no separate detail
       return "" // center-hook, no detail
     case "special_feature":
       return joinDetailParts([special, feature]) // special+feature / special / feature / none
@@ -334,6 +364,13 @@ const TYPES_WITH_NULL: (string | null)[] = [...PROPERTY_TYPES, null]
 export function isGeneratedHeadline(text: string | null | undefined): boolean {
   const t = (text ?? "").trim()
   if (!t) return true
+  // what_mo_gets_you embeds a live, user-edited PRICE (arbitrary digits, not a small enum like
+  // market/type) that the sweep below can't enumerate — it always calls buildTemplateHeadline
+  // without a budgetRange, so that template's own contribution to the sweep is always "". Recognize
+  // its exact shape for any REAL market instead, regardless of the specific price, so a value this
+  // template just generated is never mistaken for a manual override after a reload.
+  const whatMo = t.match(/^What \$[\d,]+\/mo gets you in (.+)$/)
+  if (whatMo && SOCIAL_MARKETS.includes(whatMo[1])) return true
   // Recognize a headline as generator-owned if it equals what ANY template would produce for SOME
   // market × property type. This covers the Hero forms AND every center-hook form (incl. Template 6's
   // per-type POV strings and Template 7's fixed hook), so a value left stale by a prior market/type

@@ -226,7 +226,10 @@ export const NEXT_PROPERTY_MAX_PX = 40
 export const MARKET_TYPE_DETAIL_PX = 52
 
 export function templateFamily(template: string): LayoutFamily {
-  if (template === "your_sign" || template === "next_property" || template === "pov_upgrade" || template === "affordable_luxury") return "center_hook"
+  // what_mo_gets_you (Template 11) never has a detail line (the price+city sentence IS the whole
+  // headline) — same bucket as the other no-detail center-hook templates, which shares the exact
+  // hook sizing (CENTER_HOOK.maxPx/minPx/lineSpacing) Template 7 (apartment_standards) also uses.
+  if (template === "your_sign" || template === "next_property" || template === "pov_upgrade" || template === "affordable_luxury" || template === "what_mo_gets_you") return "center_hook"
   // apartment_standards is an EXACT Upgrade variant → same center-hook+detail geometry.
   if (template === "upgrade" || template === "apartment_standards" || template === "pov_price") return "center_hook_detail"
   return "hero" // market_type, market_type_centered (vertically centered in the hero branch), special_feature, unknown → hero

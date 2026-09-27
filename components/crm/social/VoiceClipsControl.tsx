@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { supabase } from "@/lib/supabase/client"
 
 // Voice Clips control for the Social Beast post editor. Sits 50/50 beside Music. The
@@ -35,7 +36,41 @@ export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onC
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const wrapRef = useRef<HTMLDivElement>(null)
+  const wrapRef = useRef<HTMLDivElement>(null) // trigger button wrapper — also the position anchor
+  const popoverRef = useRef<HTMLDivElement>(null) // portaled panel — needed for outside-click detection
+  // Every admin page renders inside a `fixed inset-0 … overflow-hidden` shell (app/admin/layout.tsx),
+  // which clips any plain `position:absolute` descendant that would visually extend past it — the
+  // exact class of bug this popover had (appeared clipped/partial depending on where the trigger sat
+  // on the page). Portaling to document.body (the SAME pattern already used for LeadBoard's drag
+  // overlay, for this identical reason) escapes that ancestor entirely; `position: fixed` coordinates
+  // are computed from the trigger's own bounding rect below, with a flip-to-above fallback when there
+  // isn't enough room below in the viewport.
+  const [coords, setCoords] = useState<{ top?: number; bottom?: number; right: number } | null>(null)
+
+  const reposition = useCallback(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const POPOVER_MAX_H = 320 // keep in sync with the panel's max-h below
+    const GAP = 4
+    const spaceBelow = window.innerHeight - rect.bottom
+    const openAbove = spaceBelow < POPOVER_MAX_H + GAP && rect.top > spaceBelow
+    setCoords({
+      right: window.innerWidth - rect.right,
+      ...(openAbove ? { bottom: window.innerHeight - rect.top + GAP } : { top: rect.bottom + GAP }),
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    reposition()
+    window.addEventListener("resize", reposition)
+    window.addEventListener("scroll", reposition, true) // capture: catches any scrollable ancestor
+    return () => {
+      window.removeEventListener("resize", reposition)
+      window.removeEventListener("scroll", reposition, true)
+    }
+  }, [open, reposition])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -49,7 +84,13 @@ export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onC
   useEffect(() => { if (open) load() }, [open, load])
   useEffect(() => {
     if (!open) return
-    const onDoc = (e: MouseEvent) => { if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false) }
+    // The popover is portaled to document.body now, so it's no longer a DOM descendant of wrapRef —
+    // a click inside it must also count as "inside" or it would immediately close itself.
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (wrapRef.current?.contains(t) || popoverRef.current?.contains(t)) return
+      setOpen(false)
+    }
     document.addEventListener("mousedown", onDoc)
     return () => document.removeEventListener("mousedown", onDoc)
   }, [open])
@@ -136,14 +177,19 @@ export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onC
         <span className={summary === "Add Voice Clips" ? "text-[var(--crm-text-muted)]" : "text-[var(--crm-text-primary)]"}>{summary}</span>
         <span className="text-[var(--crm-text-muted)] ml-1">▾</span>
       </button>
-      {open && (
-        <div className="absolute z-30 mt-1 w-[min(320px,90vw)] right-0 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] shadow-lg p-2 max-h-[320px] overflow-auto">
+      {open && coords && createPortal(
+        <div
+          ref={popoverRef}
+          className="fixed z-50 w-[min(320px,90vw)] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] shadow-lg p-2 max-h-[320px] overflow-auto"
+          style={{ right: coords.right, top: coords.top, bottom: coords.bottom }}
+        >
           {section("Hooks", "hook", hooks, hookId, "start of video")}
           <div className="border-t border-[var(--crm-border)] my-1" />
           {section("CTAs", "cta", ctas, ctaId, "end of video")}
           {err && <p className="px-1 pt-1 text-[11.5px] text-red-500">{err}</p>}
           {busy && <p className="px-1 pt-1 text-[11.5px] text-[var(--crm-text-muted)]">Working…</p>}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
