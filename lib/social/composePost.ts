@@ -310,6 +310,19 @@ export function buildTemplateDetail(template: OverlayTemplate, src: SourceMeta):
   }
 }
 
+// ── Overlay-preview staleness (Post Editor) ──────────────────────────────────────────────────
+// A previously RENDERED post's burned-in MP4 only reflects whatever mode/template/headline were
+// current the last time it was rendered. Once the editor changes any of those, that MP4 no longer
+// represents the current configuration, so the editor should fall back to its live CSS overlay
+// preview instead of misleadingly presenting stale burned-in text as current. Pure/exported so the
+// exact rule is unit-testable without React.
+export type OverlayPreviewBaseline = { mode: "generate" | "existing"; template: OverlayTemplate; headline: string }
+
+export function isOverlayPreviewStale(baseline: OverlayPreviewBaseline | null, current: OverlayPreviewBaseline): boolean {
+  if (!baseline) return false // nothing loaded yet to compare against — never stale by default
+  return current.mode !== baseline.mode || current.template !== baseline.template || current.headline !== baseline.headline
+}
+
 // A field is AUTO-GENERATED (safe to keep in sync with metadata) when it equals what the generator
 // WOULD produce for SOME supported market × property type — market-agnostic, so a value left stale
 // by a prior market/type change (e.g. "SAN ANTONIO TOWNHOMES" while the market is now Dallas) is

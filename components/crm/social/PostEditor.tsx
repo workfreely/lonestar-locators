@@ -1,13 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
 import { previewAspectClass } from "@/lib/social/postTypes"
 import { SiInstagram, SiTiktok, SiYoutube } from "react-icons/si"
 import type { IconType } from "react-icons"
 import { buildHashtags, normalizeHashtag, hashtagLimitFor } from "@/lib/social/hashtags"
-import { buildCaption, specialDisplay, buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, DEFAULT_OVERLAY_TEMPLATE, type OverlayTemplate, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags, type SourceMeta } from "@/lib/social/composePost"
+import { buildCaption, specialDisplay, buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, DEFAULT_OVERLAY_TEMPLATE, type OverlayTemplate, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags, isOverlayPreviewStale, type OverlayPreviewBaseline, type SourceMeta } from "@/lib/social/composePost"
 import SpecialSelect from "@/components/crm/social/SpecialSelect"
 import { computeOverlayLayout } from "@/lib/social/overlaySpec"
 import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
@@ -174,6 +174,10 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [ruleMenuOpen, setRuleMenuOpen] = useState(false) // ⋯ overflow (contains Stop Repeat)
   const [publishing, setPublishing] = useState(false) // Publish (hand-off to Social Beast scheduling) in progress
   const [lightbox, setLightbox] = useState<string | null>(null) // enlarged 9:16 video preview (src or null)
+  // Snapshot of the overlay-affecting fields (mode/template/headline) as of the last load() — lets
+  // the preview tell "untouched since load" apart from "edited this session" without touching the
+  // render pipeline. Set once per load(), read-only elsewhere.
+  const overlayBaselineRef = useRef<OverlayPreviewBaseline | null>(null)
   const [ttConfirmOpen, setTtConfirmOpen] = useState(false) // TikTok Direct Post confirmation modal (Sandbox MVP)
 
   // social_content (source) public-safe fields — edited here, written back to the source row.
@@ -236,7 +240,11 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       // supported market/type Hero form; otherwise it is generated → re-sync to the template.
       const hDirty = !!storedHead && storedHead !== genHead && !isGeneratedHeadline(storedHead)
       setHeadlineDirty(hDirty)
-      setHeadline(hDirty ? storedHead : genHead)
+      const loadedHeadline = hDirty ? storedHead : genHead
+      setHeadline(loadedHeadline)
+      // Baseline for the "has the user touched an overlay-affecting field this session?" check
+      // below — exactly the values just set, so a fresh load never itself counts as edited.
+      overlayBaselineRef.current = { mode: p.overlayMode === "existing" ? "existing" : "generate", template: tpl, headline: loadedHeadline }
       const storedCap = p.caption ?? ""
       const cDirty = !isGeneratedCaption(storedCap, meta, seed)
       setCaptionDirty(cDirty)
@@ -568,7 +576,13 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // aspect + publish behavior internally. The visible Reel/Story format selector was removed from
   // this editor per the platform-selector redesign; the underlying postType logic is unchanged.
   const aspect = previewAspectClass(post.platform, postType)
-  const rendered = post.renderStatus === "ready" && !!post.renderedPreviewUrl
+  // Has the user changed an overlay-affecting field (mode/template/headline) since this post was
+  // loaded? If so the previously rendered MP4 no longer represents the current configuration, so
+  // the "faithful" preview below falls back to the live CSS approximation instead of misleadingly
+  // showing stale burned-in text. This never touches the render pipeline or the stored asset —
+  // load() resets the baseline (and picks up any newly rendered asset) on every reload.
+  const overlayEdited = isOverlayPreviewStale(overlayBaselineRef.current, { mode: overlayMode, template: overlayTemplate, headline })
+  const rendered = post.renderStatus === "ready" && !!post.renderedPreviewUrl && !overlayEdited
   const previewSrc = rendered ? post.renderedPreviewUrl : post.previewUrl // source for the enlarge modal
   // The chosen template's layout drives the preview (Hero / Center Hook / Center Hook + Detail),
   // shared with the FFmpeg render. 'existing' mode draws no overlay.
@@ -612,12 +626,16 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
           <div className={`relative ${aspect} rounded-2xl overflow-hidden border border-[var(--crm-border)] bg-black`}>
             {rendered ? (
               // FAITHFUL FINAL PREVIEW — the real rendered derivative (overlay burned in + audio).
+              // Only shown when nothing overlay-affecting has changed since load (see
+              // overlayEdited) — otherwise this MP4 would misleadingly look current when it isn't.
               <video src={post.renderedPreviewUrl!} controls controlsList="nofullscreen" disablePictureInPicture playsInline preload="metadata" className="w-full h-full object-cover" />
             ) : post.previewUrl ? (
               <>
                 <video src={post.previewUrl} controls controlsList="nofullscreen" disablePictureInPicture muted playsInline preload="metadata" className="w-full h-full object-cover" />
                 {/* Pre-render APPROXIMATION overlay (CSS) — SHARED with the enlarged lightbox so
-                    both previews render the exact same overlay. Replaced by the burned-in render. */}
+                    both previews render the exact same overlay. Live: reflects Template/Headline
+                    edits immediately; null (renders nothing) in 'Already has text' mode. Also the
+                    fallback once overlayEdited is true, even for an already-rendered post. */}
                 <PreviewOverlay layout={overlayLayout} />
               </>
             ) : (
@@ -831,25 +849,23 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               </label>
             </div>
           ) : (
-            <div className="flex flex-col gap-2">
-              <div className="block min-w-0 max-w-[280px]">
-                <span className={fieldLabel}>Text Overlay</span>
-                <div className="mt-1 inline-flex rounded-lg border border-[var(--crm-border)] p-0.5">
-                  {([["generate", "Generate"], ["existing", "Already has text"]] as const).map(([val, label]) => (
-                    <button
-                      key={val}
-                      type="button"
-                      onClick={() => setOverlayMode(val)}
-                      aria-pressed={overlayMode === val}
-                      className={"text-[12px] font-semibold px-2.5 py-1 rounded-md transition-colors " + (overlayMode === val ? "bg-[var(--crm-text-primary)] text-[var(--crm-panel)]" : "text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]")}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="text-[11.5px] text-[var(--crm-text-muted)] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2">
-                Social Beast will keep the existing text in this video and won&apos;t add another overlay.
+            // 'Already has text' — just the mode toggle. No informational bar; the toggle label
+            // itself ("Already has text") is self-explanatory. Behavior unchanged: overlayLayout
+            // is null in this mode, so no overlay is generated or drawn anywhere.
+            <div className="block min-w-0 max-w-[280px]">
+              <span className={fieldLabel}>Text Overlay</span>
+              <div className="mt-1 inline-flex rounded-lg border border-[var(--crm-border)] p-0.5">
+                {([["generate", "Generate"], ["existing", "Already has text"]] as const).map(([val, label]) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setOverlayMode(val)}
+                    aria-pressed={overlayMode === val}
+                    className={"text-[12px] font-semibold px-2.5 py-1 rounded-md transition-colors " + (overlayMode === val ? "bg-[var(--crm-text-primary)] text-[var(--crm-panel)]" : "text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]")}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
           )}
