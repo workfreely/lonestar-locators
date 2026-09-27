@@ -8,6 +8,7 @@ import { getValidTikTokAccessToken } from "@/lib/social/tiktokServer"
 import {
   fetchTikTokCreatorInfo,
   resolveDirectPostSelection,
+  resolveContentDisclosure,
   planSingleChunk,
   initTikTokDirectPost,
   uploadTikTokVideoSingleChunk,
@@ -42,6 +43,9 @@ export async function POST(req: NextRequest) {
     disableComment?: boolean
     disableDuet?: boolean
     disableStitch?: boolean
+    disclosureOn?: boolean
+    disclosureYourBrand?: boolean
+    disclosureBrandedContent?: boolean
     mode?: "dry_run" | "post"
   }
   try {
@@ -83,6 +87,14 @@ export async function POST(req: NextRequest) {
       { unaudited: UNAUDITED },
     )
 
+    // Commercial Content Disclosure (TikTok Content Sharing Guidelines): off by default; Branded
+    // Content is never allowed alongside SELF_ONLY. Server-side backstop behind the confirmation
+    // UI's own guard — resolved against the SAME creator-validated privacy above.
+    const disclosure = resolveContentDisclosure(
+      { on: !!body.disclosureOn, yourBrand: !!body.disclosureYourBrand, brandedContent: !!body.disclosureBrandedContent },
+      selection.privacyLevel,
+    )
+
     // The TikTok caption: same Social Beast body (manual edits preserved) + TikTok hashtags (≤5,
     // generated separately from Instagram). NOT the Instagram payload.
     const fullCaption = buildTikTokCaptionPayload({
@@ -121,6 +133,7 @@ export async function POST(req: NextRequest) {
         },
         unaudited: UNAUDITED,
         selection,
+        disclosure,
         title,
         titleLength: title.length,
         videoSize: bytes.byteLength,
@@ -135,6 +148,8 @@ export async function POST(req: NextRequest) {
       disableComment: selection.disableComment,
       disableDuet: selection.disableDuet,
       disableStitch: selection.disableStitch,
+      brandOrganicToggle: disclosure.brandOrganicToggle,
+      brandContentToggle: disclosure.brandContentToggle,
       videoSize: bytes.byteLength,
       chunkSize: chunk.chunkSize,
       totalChunkCount: chunk.totalChunkCount,

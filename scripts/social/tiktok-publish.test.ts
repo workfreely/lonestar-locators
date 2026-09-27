@@ -3,8 +3,11 @@
 // Run: `npx tsx scripts/social/tiktok-publish.test.ts`
 import {
   resolveDirectPostSelection,
+  resolveContentDisclosure,
+  tiktokConsentText,
   planSingleChunk,
   type TikTokCreatorInfo,
+  type TikTokPrivacyLevel,
 } from "@/lib/social/tiktokPublish"
 
 let pass = 0, fail = 0
@@ -36,6 +39,54 @@ console.log("Unaudited client → SELF_ONLY only:")
 console.log("\nPrivacy must be offered by Creator Info:")
 throws("privacy not in options is rejected", () =>
   resolveDirectPostSelection(info({ privacy_level_options: ["SELF_ONLY"] }), { privacyLevel: "PUBLIC_TO_EVERYONE" }, { unaudited: false }))
+
+console.log("\nNo default privacy value — an unselected privacy cannot pass validation:")
+throws("empty privacyLevel (nothing manually selected) is rejected", () =>
+  resolveDirectPostSelection(info(), { privacyLevel: "" as TikTokPrivacyLevel }, { unaudited: true }))
+
+console.log("\nCommercial Content Disclosure — off by default:")
+{
+  const off = resolveContentDisclosure({ on: false, yourBrand: true, brandedContent: true }, "SELF_ONLY")
+  ok("disclosure OFF → both API fields false regardless of checkbox state", off.brandOrganicToggle === false && off.brandContentToggle === false)
+}
+
+console.log("\nCommercial Content Disclosure — Your Brand:")
+{
+  const r = resolveContentDisclosure({ on: true, yourBrand: true, brandedContent: false }, "SELF_ONLY")
+  ok("Your Brand → brand_organic_toggle=true, brand_content_toggle=false", r.brandOrganicToggle === true && r.brandContentToggle === false)
+}
+
+console.log("\nCommercial Content Disclosure — Branded Content (privacy not SELF_ONLY):")
+{
+  const r = resolveContentDisclosure({ on: true, yourBrand: false, brandedContent: true }, "PUBLIC_TO_EVERYONE")
+  ok("Branded Content → brand_content_toggle=true", r.brandContentToggle === true && r.brandOrganicToggle === false)
+}
+
+console.log("\nCommercial Content Disclosure — both selected (TikTok specifies multi-select):")
+{
+  const r = resolveContentDisclosure({ on: true, yourBrand: true, brandedContent: true }, "PUBLIC_TO_EVERYONE")
+  ok("Your Brand + Branded Content can both be true", r.brandOrganicToggle === true && r.brandContentToggle === true)
+}
+
+console.log("\nCommercial Content Disclosure — ON with neither selected blocks posting:")
+throws("disclosure ON + neither option selected is rejected", () =>
+  resolveContentDisclosure({ on: true, yourBrand: false, brandedContent: false }, "SELF_ONLY"))
+
+console.log("\nCommercial Content Disclosure — Branded Content unavailable on SELF_ONLY:")
+throws("Branded Content rejected while privacy is SELF_ONLY", () =>
+  resolveContentDisclosure({ on: true, yourBrand: false, brandedContent: true }, "SELF_ONLY"))
+{
+  // Your Brand alone must remain available with SELF_ONLY (only Branded Content is blocked).
+  const r = resolveContentDisclosure({ on: true, yourBrand: true, brandedContent: false }, "SELF_ONLY")
+  ok("Your Brand alone still allowed with SELF_ONLY", r.brandOrganicToggle === true)
+}
+
+console.log("\nConsent declaration text matches the disclosure state:")
+{
+  ok("no disclosure → plain Music Usage Confirmation line", tiktokConsentText(false) === "By posting, you agree to TikTok's Music Usage Confirmation.")
+  ok("Your Brand only → still the plain line", tiktokConsentText(false) === "By posting, you agree to TikTok's Music Usage Confirmation.")
+  ok("Branded Content selected → Branded Content Policy + Music Usage Confirmation", tiktokConsentText(true) === "By posting, you agree to TikTok's Branded Content Policy and Music Usage Confirmation.")
+}
 
 console.log("\nInteraction toggles respect creator capabilities (can disable, cannot force-enable):")
 {

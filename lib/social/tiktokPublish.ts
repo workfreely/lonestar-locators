@@ -82,6 +82,8 @@ export type DirectPostInitParams = {
   disableComment: boolean
   disableDuet: boolean
   disableStitch: boolean
+  brandOrganicToggle: boolean
+  brandContentToggle: boolean
   videoSize: number
   chunkSize: number
   totalChunkCount: number
@@ -100,6 +102,8 @@ export async function initTikTokDirectPost(
       disable_comment: p.disableComment,
       disable_duet: p.disableDuet,
       disable_stitch: p.disableStitch,
+      brand_organic_toggle: p.brandOrganicToggle,
+      brand_content_toggle: p.brandContentToggle,
     },
     source_info: {
       source: "FILE_UPLOAD",
@@ -182,4 +186,36 @@ export function resolveDirectPostSelection(
   const disableDuet = info.duet_disabled ? true : !!requested.disableDuet
   const disableStitch = info.stitch_disabled ? true : !!requested.disableStitch
   return { privacyLevel: requested.privacyLevel, disableComment, disableDuet, disableStitch }
+}
+
+// TikTok Commercial Content Disclosure (Content Sharing Guidelines): off by default; turning it on
+// requires at least one of Your Brand / Branded Content (TikTok treats this as a multi-select, so
+// both may be true at once). Branded Content is never allowed on a SELF_ONLY (private) post — the
+// confirmation UI disables that checkbox while SELF_ONLY, this is the server-side backstop.
+export type ContentDisclosureSelection = { on: boolean; yourBrand: boolean; brandedContent: boolean }
+export type ResolvedContentDisclosure = { brandOrganicToggle: boolean; brandContentToggle: boolean }
+
+/** Validate & resolve the disclosure selection into the two TikTok API booleans. Pure so it can be
+ *  unit-tested without any network. */
+export function resolveContentDisclosure(
+  selection: ContentDisclosureSelection,
+  privacyLevel: TikTokPrivacyLevel,
+): ResolvedContentDisclosure {
+  if (!selection.on) return { brandOrganicToggle: false, brandContentToggle: false }
+  if (!selection.yourBrand && !selection.brandedContent) {
+    throw new Error("content_disclosure_requires_a_selection")
+  }
+  if (selection.brandedContent && privacyLevel === "SELF_ONLY") {
+    throw new Error("branded_content_not_allowed_with_self_only")
+  }
+  return { brandOrganicToggle: selection.yourBrand, brandContentToggle: selection.brandedContent }
+}
+
+/** The consent line shown immediately above the final Post button. Branded Content (alone or with
+ *  Your Brand) also references the Branded Content Policy; Your Brand alone (or no disclosure)
+ *  keeps the plain Music Usage Confirmation line. */
+export function tiktokConsentText(brandedContentSelected: boolean): string {
+  return brandedContentSelected
+    ? "By posting, you agree to TikTok's Branded Content Policy and Music Usage Confirmation."
+    : "By posting, you agree to TikTok's Music Usage Confirmation."
 }

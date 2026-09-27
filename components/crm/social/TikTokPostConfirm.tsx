@@ -5,9 +5,10 @@ import { SiTiktok } from "react-icons/si"
 
 // Minimal TikTok Direct Post confirmation (Sandbox MVP). Opens for a READY Social Beast post,
 // loads Creator Info + the exact caption/video via ONE server dry-run call, lets the admin confirm
-// privacy/interaction options populated ONLY from Creator Info, and — on explicit "Post to TikTok"
-// — fires the real Direct Post. Tokens never touch the client. Reuses CRM tokens/styles; not an
-// editor. While the app is unaudited, TikTok only accepts SELF_ONLY (private) — respected here.
+// privacy/interaction options populated ONLY from Creator Info plus TikTok's Commercial Content
+// Disclosure, and — on explicit "Post to TikTok" — fires the real Direct Post. Tokens never touch
+// the client. Reuses CRM tokens/styles; not an editor. While the app is unaudited, TikTok only
+// accepts SELF_ONLY (private) — respected here.
 
 type Capabilities = {
   privacyLevelOptions: string[]
@@ -51,12 +52,29 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<DryRun | null>(null)
 
-  const [privacy, setPrivacy] = useState<string>("SELF_ONLY")
+  // No default value — TikTok requires the user to manually pick a privacy level; the radios
+  // below render nothing checked until they do (in today's Sandbox, that means clicking the one
+  // enabled option, SELF_ONLY).
+  const [privacy, setPrivacy] = useState<string>("")
   // Interaction toggles start OFF (unchecked). Creator Info can only further RESTRICT them
   // (a creator-disabled interaction is not offered at all); it never turns one on by default.
   const [allowComment, setAllowComment] = useState(false)
   const [allowDuet, setAllowDuet] = useState(false)
   const [allowStitch, setAllowStitch] = useState(false)
+
+  // Commercial Content Disclosure (TikTok Content Sharing Guidelines) — off by default.
+  const [disclosureOn, setDisclosureOn] = useState(false)
+  const [yourBrand, setYourBrand] = useState(false)
+  const [brandedContent, setBrandedContent] = useState(false)
+  // TikTok never allows Branded Content on a SELF_ONLY (private) post.
+  const brandedContentBlocked = privacy === "SELF_ONLY"
+  // Keep state consistent if privacy resolves to SELF_ONLY after Branded Content was checked
+  // (not reachable today — only SELF_ONLY is ever selectable pre-audit — but safe once audited).
+  useEffect(() => {
+    if (brandedContentBlocked && brandedContent) setBrandedContent(false)
+  }, [brandedContentBlocked, brandedContent])
+  const disclosureIncomplete = disclosureOn && !yourBrand && !brandedContent
+  const postBlocked = disclosureIncomplete || !privacy
 
   const [posting, setPosting] = useState(false)
   const [result, setResult] = useState<{ publishId: string; status: string; failReason: string | null } | null>(null)
@@ -66,6 +84,7 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
 
   const load = useCallback(async () => {
     setLoading(true); setError(null); setData(null); setResult(null); setNeedsRender(false)
+    setPrivacy(""); setDisclosureOn(false); setYourBrand(false); setBrandedContent(false)
     try {
       // Single dry-run: resolves token + Creator Info + caption + video size WITHOUT posting.
       const res = await fetch(PUBLISH, {
@@ -82,8 +101,7 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
       }
       const d = json as DryRun
       setData(d)
-      // Initialize privacy from Creator Info: default SELF_ONLY (only value allowed while unaudited).
-      setPrivacy(d.capabilities.privacyLevelOptions.includes("SELF_ONLY") ? "SELF_ONLY" : d.capabilities.privacyLevelOptions[0] ?? "SELF_ONLY")
+      // Privacy stays unset — the user must manually pick one (below) before Post is enabled.
       // Default all interactions OFF; a creator-disabled one is never offered (stays off).
       setAllowComment(false)
       setAllowDuet(false)
@@ -124,6 +142,7 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
         body: JSON.stringify({
           postId, mode: "post", privacyLevel: privacy,
           disableComment: !allowComment, disableDuet: !allowDuet, disableStitch: !allowStitch,
+          disclosureOn, disclosureYourBrand: yourBrand, disclosureBrandedContent: brandedContent,
         }),
       })
       const json = await res.json().catch(() => null)
@@ -214,6 +233,48 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
                   )
                 })}
               </div>
+              {!privacy && <div className="mt-1 text-[10.5px] text-[var(--crm-text-muted)]">Select a privacy option.</div>}
+            </div>
+
+            {/* Content disclosure — TikTok's Commercial Content Disclosure, off by default. */}
+            <div className="flex flex-col gap-1.5">
+              <label className="flex items-center justify-between gap-3 text-[12.5px] text-[var(--crm-text-primary)]">
+                <span className="flex flex-col">
+                  <span className="text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]">Content disclosure</span>
+                  <span className="mt-0.5 text-[11.5px] text-[var(--crm-text-secondary)]">Let people know if this post promotes a brand, product, or service.</span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={disclosureOn}
+                  onChange={(e) => {
+                    const on = e.target.checked
+                    setDisclosureOn(on)
+                    if (!on) { setYourBrand(false); setBrandedContent(false) }
+                  }}
+                />
+              </label>
+
+              {disclosureOn && (
+                <div className="mt-1 flex flex-col gap-2 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] p-2.5">
+                  <label className="flex items-start gap-2 text-[12.5px] text-[var(--crm-text-primary)]">
+                    <input type="checkbox" className="mt-0.5" checked={yourBrand} onChange={(e) => setYourBrand(e.target.checked)} />
+                    <span>
+                      <span className="font-semibold">Your Brand</span>
+                      <span className="block text-[11.5px] text-[var(--crm-text-secondary)]">You&apos;re promoting yourself or your own business.</span>
+                      {yourBrand && <span className="block text-[10.5px] text-[var(--crm-text-muted)] mt-0.5">Your video will be labeled as &quot;Promotional content.&quot;</span>}
+                    </span>
+                  </label>
+                  <label className={`flex items-start gap-2 text-[12.5px] ${brandedContentBlocked ? "opacity-45" : "text-[var(--crm-text-primary)]"}`}>
+                    <input type="checkbox" className="mt-0.5" checked={brandedContent} disabled={brandedContentBlocked} onChange={(e) => setBrandedContent(e.target.checked)} />
+                    <span>
+                      <span className="font-semibold">Branded Content</span>
+                      <span className="block text-[11.5px] text-[var(--crm-text-secondary)]">You&apos;re promoting another brand or a third party.</span>
+                      {brandedContent && !brandedContentBlocked && <span className="block text-[10.5px] text-[var(--crm-text-muted)] mt-0.5">Your video will be labeled as &quot;Paid partnership.&quot;</span>}
+                      {brandedContentBlocked && <span className="block text-[10.5px] text-[var(--crm-text-muted)] mt-0.5">Branded content visibility cannot be set to private.</span>}
+                    </span>
+                  </label>
+                </div>
+              )}
             </div>
 
             {/* Interactions — only when the creator permits them */}
@@ -238,9 +299,23 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
 
             <div className="text-[11px] text-[var(--crm-text-muted)]">Video ready · {fmtBytes(data.videoSize)} · {data.transferMethod}</div>
 
+            {/* Consent declaration — immediately above the final Post button. */}
+            <div className="text-[10.5px] text-[var(--crm-text-muted)]">
+              {brandedContent
+                ? "By posting, you agree to TikTok's Branded Content Policy and Music Usage Confirmation."
+                : "By posting, you agree to TikTok's Music Usage Confirmation."}
+            </div>
+
+            {disclosureIncomplete && (
+              <div className="text-[11px] text-amber-600 dark:text-amber-400">You need to indicate if your content promotes yourself, a third party, or both.</div>
+            )}
+            {!disclosureIncomplete && !privacy && (
+              <div className="text-[11px] text-amber-600 dark:text-amber-400">Select a privacy option before posting.</div>
+            )}
+
             <div className="flex items-center justify-end gap-2 pt-1">
               <button type="button" className={btn} onClick={onClose}>Cancel</button>
-              <button type="button" className={btnPrimary} disabled={posting} onClick={() => void doPost()}>{posting ? "Posting…" : "Post to TikTok"}</button>
+              <button type="button" className={btnPrimary} disabled={posting || postBlocked} onClick={() => void doPost()}>{posting ? "Posting…" : "Post to TikTok"}</button>
             </div>
           </div>
         )}
