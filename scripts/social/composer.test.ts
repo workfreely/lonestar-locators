@@ -502,7 +502,7 @@ ok("T5 detail sits ~21px below the hook (breathing room, still a lockup)", !!t5L
 const t3gap = computeOverlayLayout("special_feature", "SAN ANTONIO TOWNHOMES", "8 Weeks Free · Private Yards")
 const t1gap = computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,900/mo")
 const t1GapPx = t1gap.detail!.topPx - (t1gap.headline.topPx + t1gap.headline.fontPx)
-ok("T1 gap reduced to 24px (tighter lockup, was 35)", t1GapPx === 24)
+ok("T1 headline→detail gap is 22px (tightened 2px from 24)", t1GapPx === 22)
 ok("T3 detail gap (18) is still TIGHTER than T1 (24)", (t3gap.detail!.topPx - (t3gap.headline.topPx + t3gap.headline.fontPx)) < t1GapPx)
 ok("T8 with no price → no detail block (omitted)", computeOverlayLayout("pov_price", "POV: You upgraded to a loft", "").detail === null)
 // Guardrails: Template 1 stays 52, Template 3 stays the shared sub size.
@@ -528,8 +528,21 @@ ok("T4 wording unchanged + one line", buildTemplateHeadline("next_property", { p
 // T5 gap 16 → 21; T8 gap stays 16.
 const t5g = computeOverlayLayout("upgrade", "What life looks like when you upgrade", "6 Weeks Free · Starting at $1,800/mo")
 const t8g = computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", "Starting at $1,800/mo")
-ok("T5 gap increased to 21px", (t5g.detail!.topPx - (t5g.headline.topPx + t5g.headline.fontPx)) === 21)
-ok("T8 gap stays 16px (unchanged)", (t8g.detail!.topPx - (t8g.headline.topPx + t8g.headline.fontPx)) === 16)
+// Both conversational gaps tightened by 4px (16->12, 21->17) once the supporting line reached 27px
+// against a 28px hook — at near-equal sizes the old gaps read as two elements, not one lockup. T6/T7
+// keep their 5px looser offset. The group is vertically centred, so this closes the internal spacing
+// WITHOUT moving the lockup (its centre stays at 960 — asserted below).
+ok("T6 gap tightened to 17px", (t5g.detail!.topPx - (t5g.headline.topPx + t5g.headline.fontPx)) === 17)
+ok("T10 gap tightened to 12px", (t8g.detail!.topPx - (t8g.headline.topPx + t8g.headline.fontPx)) === 12)
+ok("tightening the gap does NOT move the lockup — it stays centred on the canvas", (() => {
+  return (["hits_different", "real_living", "trade_up", "upgrade", "wanted_luxury"] as const).every((t) => {
+    const L = computeOverlayLayout(t, buildTemplateHeadline(t, { propertyType: "Rental Home", market: "San Antonio", budgetRange: "1500" }), "Starting at $1,500/mo")
+    const n = L.headline.lines.length
+    const bottom = L.detail!.topPx + L.detail!.fontPx
+    return Math.abs((L.headline.topPx + bottom) / 2 - OVERLAY_CANVAS.h / 2) < 0.51 &&
+      L.detail!.topPx > L.headline.topPx + n * L.headline.fontPx + (n - 1) * L.headline.lineSpacing // no collision
+  })
+})())
 ok("T6 detail is the flat conversational size", t5g.detail!.fontPx === Math.min(27, Math.max(20, t5g.headline.fontPx - 1)))
 
 console.log("\nTemplate 11 (What $/mo Gets You — dynamic price+city, CENTER HOOK like T7):")
@@ -697,6 +710,9 @@ console.log("\nHero freeze — T1/T2/T4 exact fitted geometry:")
     ok(`${tpl}: headline pinned at ${wantHead}px, one line`, L.headline.fontPx === wantHead && L.headline.lines.length === 1)
     ok(`${tpl}: detail pinned at ${wantDetail}px`, L.detail!.fontPx === wantDetail)
     ok(`${tpl}: hero family + uppercase headline`, templateFamily(tpl) === "hero" && L.headline.uppercase === true)
+    // Hero gaps tightened by 2px only (18->16 special_feature, 24->22 market_type) — a deliberately
+    // subtler move than the conversational 4px. Pinned so neither drifts into the other's value.
+    ok(`${tpl}: headline→detail gap pinned`, (L.detail!.topPx - (L.headline.topPx + L.headline.fontPx)) === (tpl === "special_feature" ? 16 : 22))
   }
   // Hero uses its OWN range and is untouched by the conversational target.
   ok("hero range still [47,66]", HERO_MIN_PX === 47 && HERO_MAX_PX === 66)

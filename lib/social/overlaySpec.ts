@@ -182,17 +182,28 @@ export function fitDetailPx(text: string, maxPx: number, minPx: number, availPx 
 }
 // (The old per-template center-hook detail table — a 38–40px target capped at hook − 2 — was replaced
 //  by the proportional hookDetailPxFor() below, which keeps one constant ratio at every hook size.)
-// Gap below the hook for center-hook + detail (T5/T8): tighter than the Hero sub gap so the two lines
-// read as ONE lockup instead of two separated elements.
-const CENTER_HOOK_DETAIL_GAP_PX = 16
-// Template 5 (Upgrade) ONLY — a slightly looser gap so the headline + special/price get a little
-// breathing room. Template 8 keeps CENTER_HOOK_DETAIL_GAP_PX (16).
-const UPGRADE_DETAIL_GAP_PX = 21
-// Hero gaps (per template): T3 Special + Feature hugs the headline; T1 Market + Type slightly reduced
-// from the old 35 so its price reads as one lockup with the headline (still a touch looser than T3
-// because T1's detail is larger at 52px). Other hero templates keep OVERLAY_SPEC.sub.gapPx.
-const SPECIAL_FEATURE_GAP_PX = 18
-const MARKET_TYPE_GAP_PX = 24
+// Gap below the hook for center-hook + detail: tighter than the Hero sub gap so the two lines read as
+// ONE lockup instead of two separated elements. Both tightened by 4px (16→12, 21→17) now that the
+// supporting line sits at 27px against a 28px hook — at near-equal sizes the old gaps read as two
+// separate elements rather than one lockup. Their 5px relative offset is preserved.
+//
+// The group is VERTICALLY CENTERED, so shrinking the gap does not move the lockup: its centre is
+// unchanged and only the internal spacing closes (headline +2px, detail −2px). Hero gaps
+// (SPECIAL_FEATURE_GAP_PX / MARKET_TYPE_GAP_PX / OVERLAY_SPEC.sub.gapPx) are NOT affected.
+const CENTER_HOOK_DETAIL_GAP_PX = 12
+// Upgrade (T6) and its Apartment Standards variant (T7) ONLY — a slightly looser gap so the headline
+// + special/price get a little breathing room. Every other center-hook keeps CENTER_HOOK_DETAIL_GAP_PX.
+const UPGRADE_DETAIL_GAP_PX = 17
+// Hero gaps (per template): T4 Special + Feature hugs the headline; T1/T2 Market + Type is a touch
+// looser because their detail is larger at 52px. Other hero templates keep OVERLAY_SPEC.sub.gapPx
+// (unreachable today — the hero family is exactly T1/T2/T4).
+//
+// Both tightened by 2px only (18→16, 24→22) — a deliberately subtler adjustment than the 4px applied
+// to the conversational gaps, because hero spacing was already close to right. T1/T4 are top-anchored
+// so their headline does not move at all and only the detail rises 2px; T2 is centred, so its lockup
+// centre is likewise unchanged. Hero FONT SIZES and fitting are untouched.
+const SPECIAL_FEATURE_GAP_PX = 16
+const MARKET_TYPE_GAP_PX = 22
 
 // Supported Hero vocabulary ({CITY} {TYPE_PLURAL}, uppercase) → renders one line (fit-to-width);
 // any headline NOT in this set (arbitrary/custom) falls back to the multi-line char-wrap.
