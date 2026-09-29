@@ -182,14 +182,17 @@ for (const t of COMPOUND_TYPES) {
   ok('T12 uses "an" before Industrial-Style', buildTemplateHeadline("trade_up", s).includes("an industrial-style loft"))
   ok('T12 uses "a" before Split-Level', buildTemplateHeadline("trade_up", meta("San Antonio", "Split-Level Loft", null)).includes("a split-level loft"))
   ok("T14 lowercases the WHOLE compound phrase", buildTemplateHeadline("real_living", s) === "This is what real industrial-style loft living looks like")
-  ok("T3 lowercases the whole compound phrase", buildTemplateHeadline("your_sign", s) === "Your sign to get that industrial-style loft")
+  ok("T3 lowercases the whole compound phrase after \"new\"", buildTemplateHeadline("your_sign", s) === "Your sign to get that new industrial-style loft")
   ok("T5 lowercases the whole compound phrase", buildTemplateHeadline("next_property", s) === "What your next industrial-style loft could look like")
   // SENTENCE case mid-sentence, not the dropdown's title case: the qualifier is a descriptive
   // adjective here, not a proper noun.
   ok("T11 sentence-cases the compound subject", buildTemplateHeadline("hits_different", s) === "Industrial-style lofts just hit different")
   ok("T11 sentence-cases Split-Level too", buildTemplateHeadline("hits_different", meta("San Antonio", "Split-Level Townhome", null)) === "Split-level townhomes just hit different")
   // ...but NON-compound types keep their existing title-cased copy exactly.
-  ok("T11 leaves multi-word NON-compound types title-cased", buildTemplateHeadline("hits_different", meta("San Antonio", "Rental Home", null)) === "Rental Homes just hit different")
+  // SENTENCE case now applies to EVERY type, not just the compounds — this is a sentence subject,
+  // not the dropdown label.
+  ok("T11 sentence-cases multi-word NON-compound types too", buildTemplateHeadline("hits_different", meta("San Antonio", "Rental Home", null)) === "Rental homes just hit different")
+  ok("T11 sentence-cases hyphenated NON-compound types too", buildTemplateHeadline("hits_different", meta("San Antonio", "High-Rise", null)) === "High-rises just hit different")
   ok("T11 leaves single-word NON-compound types unchanged", buildTemplateHeadline("hits_different", meta("San Antonio", "Townhome", null)) === "Townhomes just hit different")
   ok("T1 hero headline is {CITY} {QUALIFIER} {PLURAL}", buildTemplateHeadline("market_type", s) === "SAN ANTONIO INDUSTRIAL-STYLE LOFTS")
 }

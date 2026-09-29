@@ -367,7 +367,7 @@ ok("T1 headline = CITY TYPE_PLURAL", buildTemplateHeadline("market_type", tMeta)
 ok("T1 detail = Starting at price", buildTemplateDetail("market_type", tMeta) === "Starting at $1,600/month")
 ok("T1 detail omitted when no price", buildTemplateDetail("market_type", { market: "San Antonio", propertyType: "High-Rise" }) === "")
 // T2 Your Sign (CENTER HOOK, no detail)
-ok("T2 headline hook (Property Type only, no Market)", buildTemplateHeadline("your_sign", tMeta) === "Your sign to get that high-rise")
+ok("T2 headline hook (Property Type only, no Market, reads as an upgrade)", buildTemplateHeadline("your_sign", tMeta) === "Your sign to get that new high-rise")
 ok("T2 no detail", buildTemplateDetail("your_sign", tMeta) === "")
 // T3 Special + Feature (HERO)
 ok("T3 headline = CITY TYPE_PLURAL", buildTemplateHeadline("special_feature", tMeta) === "SAN ANTONIO HIGH-RISES")
@@ -523,14 +523,20 @@ ok("Template 3 detail UNCHANGED (shared sub size)", computeOverlayLayout("specia
 
 console.log("Final cleanup — T2 no Market, T4 smaller, T5 gap:")
 // T2 — Property Type only, Market removed, for EVERY type.
-const T2 = { Studio: "Your sign to get that studio", Apartment: "Your sign to get that apartment", "High-Rise": "Your sign to get that high-rise", Townhome: "Your sign to get that townhome", "Rental Home": "Your sign to get that rental home", Penthouse: "Your sign to get that penthouse", Loft: "Your sign to get that loft" }
+const T2 = { Studio: "Your sign to get that new studio", Apartment: "Your sign to get that new apartment", "High-Rise": "Your sign to get that new high-rise", Townhome: "Your sign to get that new townhome", "Rental Home": "Your sign to get that new rental home", Penthouse: "Your sign to get that new penthouse", Loft: "Your sign to get that new loft" }
 for (const [type, expected] of Object.entries(T2)) {
   ok(`T2 ${type} → "${expected}"`, buildTemplateHeadline("your_sign", { market: "San Antonio", propertyType: type }) === expected)
 }
 ok("T2 NO Market in copy (even when market set)", !buildTemplateHeadline("your_sign", { market: "San Antonio", propertyType: "Townhome" }).includes("San Antonio") && !buildTemplateHeadline("your_sign", { market: "San Antonio", propertyType: "Townhome" }).includes(" in "))
 ok("T2 no detail line", buildTemplateDetail("your_sign", { market: "San Antonio", propertyType: "Townhome" }) === "")
-ok("T2 generated forms recognized (re-sync on Property Type change)", isGeneratedHeadline("Your sign to get that townhome") && isGeneratedHeadline("Your sign to get that loft"))
+ok("T2 generated forms recognized (re-sync on Property Type change)", isGeneratedHeadline("Your sign to get that new townhome") && isGeneratedHeadline("Your sign to get that new loft"))
 ok("T2 manual override still protected", !isGeneratedHeadline("Your sign to get that dream home"))
+// LEGACY copy stays generator-owned (same rule as the legacy "/mo"): a draft written before "new"
+// was added, or before T11 was sentence-cased, must still re-sync on a Property Type change instead
+// of being frozen as a manual override.
+ok("legacy your_sign (pre-\"new\") still generator-owned", isGeneratedHeadline("Your sign to get that loft") && isGeneratedHeadline("Your sign to get that split-level loft"))
+ok("legacy title-cased hits_different still generator-owned", isGeneratedHeadline("High-Rises just hit different") && isGeneratedHeadline("Rental Homes just hit different") && isGeneratedHeadline("Split-Level Lofts just hit different"))
+ok("a genuinely manual headline is still NOT generator-owned", !isGeneratedHeadline("My own custom headline"))
 // T4 — smaller than the shared center-hook max (more side margin); T4 only.
 const t4 = computeOverlayLayout("next_property", "What your next townhome could look like", "").headline
 ok("T4 headline is capped smaller (≤40px) for side margin", t4.fontPx <= 40)
@@ -640,9 +646,9 @@ console.log("\nTemplate 15 (Hits Different — PLURALIZED display copy + optiona
 for (const [pt, expected] of [
   ["Studio", "Studios just hit different"],
   ["Apartment", "Apartments just hit different"],
-  ["High-Rise", "High-Rises just hit different"],
+  ["High-Rise", "High-rises just hit different"],
   ["Townhome", "Townhomes just hit different"],
-  ["Rental Home", "Rental Homes just hit different"],
+  ["Rental Home", "Rental homes just hit different"],
   ["Penthouse", "Penthouses just hit different"],
   ["Loft", "Lofts just hit different"],
 ] as const) {
@@ -650,7 +656,7 @@ for (const [pt, expected] of [
 }
 ok("T15 verb agrees with the plural subject (\"hit\", never \"hits\")", PROPERTY_TYPES.every((pt) => { const h = buildTemplateHeadline("hits_different", { propertyType: pt }); return h.endsWith(" just hit different") && !h.includes("just hits different") }))
 ok("T15 no type → generic plural subject, nothing fabricated", buildTemplateHeadline("hits_different", {}) === "These just hit different")
-ok("T15 legacy Mid-Rise still canonicalizes (High-Rise) before pluralizing", buildTemplateHeadline("hits_different", { propertyType: "Mid-Rise" }) === "High-Rises just hit different")
+ok("T15 legacy Mid-Rise still canonicalizes (High-Rise) before pluralizing", buildTemplateHeadline("hits_different", { propertyType: "Mid-Rise" }) === "High-rises just hit different")
 ok("T15 optional price", buildTemplateDetail("hits_different", { budgetRange: "995" }) === "Starting at $995/month" && buildTemplateDetail("hits_different", {}) === "")
 
 console.log("\nTemplates 12–15 reactivity (Property Type / Starting At recompute):")
@@ -686,7 +692,7 @@ ok("T16 has no detail line, like T11", buildTemplateDetail("what_mo_gets_you_top
 }
 
 console.log("\nManual-edit protection for the new templates (generated headlines re-sync, manual ones don't):")
-ok("T12/T14/T15 generated headlines recognized as generator-owned", isGeneratedHeadline("What life looks like when you trade in your apartment for a townhome") && isGeneratedHeadline("This is what real high-rise living looks like") && isGeneratedHeadline("Townhomes just hit different") && isGeneratedHeadline("Rental Homes just hit different"))
+ok("T12/T14/T15 generated headlines recognized as generator-owned", isGeneratedHeadline("What life looks like when you trade in your apartment for a townhome") && isGeneratedHeadline("This is what real high-rise living looks like") && isGeneratedHeadline("Townhomes just hit different") && isGeneratedHeadline("Rental homes just hit different"))
 // A T14 headline generated BEFORE the lowercase change no longer matches what any template produces,
 // so it is (correctly) treated as a manual override and left alone rather than silently rewritten.
 ok("pre-change capitalized T14 headline is no longer generator-owned", !isGeneratedHeadline("This is what real High-Rise living looks like"))
@@ -696,7 +702,7 @@ ok("a genuinely MANUAL hook in these shapes is still protected", !isGeneratedHea
 
 console.log("\nTemplates 1–11 unchanged by this addition:")
 ok("T1 hero headline + price detail unchanged", buildTemplateHeadline("market_type", { market: "San Antonio", propertyType: "High-Rise" }) === "SAN ANTONIO HIGH-RISES" && buildTemplateDetail("market_type", { budgetRange: "1600" }) === "Starting at $1,600/month")
-ok("T2/T5/T6/T7/T9/T10 headlines unchanged", buildTemplateHeadline("your_sign", { propertyType: "Townhome" }) === "Your sign to get that townhome" && buildTemplateHeadline("next_property", { propertyType: "Townhome" }) === "What your next townhome could look like" && buildTemplateHeadline("upgrade", {}) === "What life looks like when you upgrade" && buildTemplateHeadline("apartment_standards", {}) === "Your apartment standards went up" && buildTemplateHeadline("affordable_luxury", {}) === "Luxury doesn't have to be expensive" && buildTemplateHeadline("pov_price", { propertyType: "Loft" }) === "POV: You upgraded to a loft")
+ok("T2/T5/T6/T7/T9/T10 headlines unchanged", buildTemplateHeadline("your_sign", { propertyType: "Townhome" }) === "Your sign to get that new townhome" && buildTemplateHeadline("next_property", { propertyType: "Townhome" }) === "What your next townhome could look like" && buildTemplateHeadline("upgrade", {}) === "What life looks like when you upgrade" && buildTemplateHeadline("apartment_standards", {}) === "Your apartment standards went up" && buildTemplateHeadline("affordable_luxury", {}) === "Luxury doesn't have to be expensive" && buildTemplateHeadline("pov_price", { propertyType: "Loft" }) === "POV: You upgraded to a loft")
 ok("T6/T10 detail follows the flat 27px rule", (["upgrade","pov_price"] as const).every((t) => { const L = computeOverlayLayout(t, t === "upgrade" ? "What life looks like when you upgrade" : "POV: You upgraded to a loft", "Starting at $1,900/month"); return L.detail!.fontPx === Math.min(27, Math.max(20, L.headline.fontPx - 1)) }))
 ok("T1 stays HERO, T11 stays center_hook, T7 stays center_hook_detail", templateFamily("market_type") === "hero" && templateFamily("what_mo_gets_you") === "center_hook" && templateFamily("apartment_standards") === "center_hook_detail")
 // The one-line rule is untouched for every template that predates T12: the new wrap branch only
@@ -745,7 +751,7 @@ console.log("\nConversational target-width rule:")
   // Long copy pulls in to the target; short copy is untouched and stays at the max.
   const long = computeOverlayLayout("what_mo_gets_you", "What $1,600/month gets you in San Antonio", "")
   ok("T15 reference headline renders at the 28px scale, one line, well inside the box", long.headline.fontPx === 28 && long.headline.lines.length === 1 && headlineTextWidthPx(long.headline.lines[0], long.headline.fontPx) < HEADLINE_TEXT_AVAIL_PX * 0.8)
-  for (const [tpl, head] of [["your_sign", "Your sign to get that loft"], ["hits_different", "Penthouses just hit different"], ["wanted_luxury", "You wanted luxury. You got it."]] as [string, string][]) {
+  for (const [tpl, head] of [["your_sign", "Your sign to get that new loft"], ["hits_different", "Penthouses just hit different"], ["wanted_luxury", "You wanted luxury. You got it."]] as [string, string][]) {
     const L = computeOverlayLayout(tpl, head, "")
     ok(`${tpl}: renders at the ${HOOK_MAX_PX}px conversational scale`, L.headline.fontPx === HOOK_MAX_PX)
   }

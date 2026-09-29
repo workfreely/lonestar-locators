@@ -14,7 +14,7 @@
 import { buildHashtags, isCanonicalHashtag, MAX_HASHTAGS } from "@/lib/social/hashtags"
 import { parseAmenities } from "@/lib/social/amenities"
 import { normalizeSocialMarket, SOCIAL_MARKETS } from "@/lib/social/markets"
-import { propertyNoun, propertyNounPlural, normalizeToCanonical, PROPERTY_TYPES, COMPOUND_TYPE_QUALIFIERS } from "@/lib/social/propertyTypes"
+import { propertyNoun, propertyNounPlural, normalizeToCanonical, PROPERTY_TYPES } from "@/lib/social/propertyTypes"
 
 // Re-exported from lib/social/hashtags, which owns the canonical generation cap (5). Kept as a named
 // export here because callers already import it from this module.
@@ -231,7 +231,7 @@ export function joinDetailParts(parts: (string | null | undefined)[]): string {
 //    1 market_type          — HERO           — {CITY} {TYPE_PLURAL} / "Starting at $X/mo"
 //    2 market_type_centered — HERO CENTERED  — SAME as T1 (headline/detail/type/size/shadow), the
 //                                              whole group VERTICALLY CENTERED (only positioning differs)
-//    3 your_sign            — CENTER HOOK    — "Your sign to get that {type} in {city}" / no detail
+//    3 your_sign            — CENTER HOOK    — "Your sign to get that new {type}" / no detail
 //    4 special_feature      — HERO           — {CITY} {TYPE_PLURAL} / "{special} · {feature}"
 //    5 next_property        — CENTER HOOK    — "What your next {type} could look like" / no detail
 //    6 upgrade              — CENTER HOOK+D  — "What life looks like when you upgrade" / "{special} · Starting at $X/mo"
@@ -315,16 +315,12 @@ function indefiniteArticle(word: string): string {
  *  no second mapping and no blind "+s" — and this only restores the title casing that helper's
  *  lowercase output drops. DISPLAY ONLY: the stored/selected Property Type stays singular everywhere. */
 function propertyTypePluralDisplay(canonicalType: string): string {
-  // COMPOUND types (Split-Level, Industrial-Style) take SENTENCE case here, not title case: mid-
-  // sentence they are ordinary descriptive adjectives, so "Split-level townhomes just hit different"
-  // reads correctly while "Split-Level Townhomes just hit different" only echoes the dropdown label.
-  // Gated to compound types — every pre-existing type keeps its exact title-cased copy ("Rental Homes
-  // just hit different"), which sentence-casing would otherwise change to "Rental homes".
+  // SENTENCE case for EVERY type, not title case: this is a sentence subject, not the dropdown label,
+  // so only the first letter is capitalized — "High-rises just hit different", "Rental homes just hit
+  // different", "Split-level penthouses just hit different". (Compound types were sentence-cased
+  // first; this extends the same rule to the plain types for consistency.)
   const plural = propertyNounPlural(canonicalType)
-  if (COMPOUND_TYPE_QUALIFIERS.some((q) => canonicalType.startsWith(q))) {
-    return plural.charAt(0).toUpperCase() + plural.slice(1).toLowerCase()
-  }
-  return plural.replace(/(^|[\s-])([a-z])/g, (_m, sep: string, ch: string) => sep + ch.toUpperCase())
+  return plural.charAt(0).toUpperCase() + plural.slice(1).toLowerCase()
 }
 export function isOverlayTemplate(v: unknown): v is OverlayTemplate {
   return typeof v === "string" && (OVERLAY_TEMPLATES as readonly string[]).includes(v)
@@ -346,8 +342,10 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
     case "special_feature":
       return buildOverlayHeadline(src) // "SAN ANTONIO HIGH-RISES" (or market/generic fallback)
     case "your_sign":
-      // Property Type ONLY (Market removed) — shorter copy renders larger via fit-to-width.
-      return noun ? `Your sign to get that ${noun}` : "This is your sign"
+      // Property Type ONLY (Market removed) — shorter copy renders larger via fit-to-width. "new"
+      // reads as an upgrade rather than a specific listing; `noun` is already lowercase for every
+      // type, including the compounds ("new split-level loft").
+      return noun ? `Your sign to get that new ${noun}` : "This is your sign"
     case "next_property":
       return `What your next ${noun || "home"} could look like`
     case "upgrade":
@@ -474,6 +472,17 @@ export function isGeneratedHeadline(text: string | null | undefined): boolean {
     for (const tpl of OVERLAY_TEMPLATES) {
       if (buildTemplateHeadline(tpl, { market: m, propertyType: pt }) === t) return true
     }
+  }
+  // LEGACY generated forms, kept recognized for exactly the reason the legacy "/mo" is above: a
+  // headline produced before a COPY change must stay generator-owned, or an existing draft would be
+  // frozen as a "manual override" and would never re-sync when its Property Type changes.
+  //   • your_sign before "new" was added:        "Your sign to get that {noun}"
+  //   • hits_different before sentence casing:   "{Title Cased Plural} just hit different"
+  const legacySign = t.match(/^Your sign to get that (.+)$/)
+  const legacyHit = t.match(/^(.+) just hit different$/)
+  for (const pt of TYPES_WITH_NULL) {
+    if (legacySign && propertyNoun(pt) === legacySign[1]) return true
+    if (legacyHit && pt && propertyNounPlural(pt).replace(/(^|[\s-])([a-z])/g, (_x, sep: string, ch: string) => sep + ch.toUpperCase()) === legacyHit[1]) return true
   }
   return false
 }
