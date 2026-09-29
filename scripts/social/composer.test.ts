@@ -758,5 +758,28 @@ ok("center-hook detail is a flat 27px and always under the hook", (() => {
   })())
 }
 
+// ── FONT FACE MAPPING ─────────────────────────────────────────────────────────────────────────
+// Which bundled file each block renders in. The conversational DETAIL moved to the head face
+// (Libre Baskerville Bold) so the whole conversational lockup is one typeface; the HERO detail
+// deliberately stays on the Bodoni text cut. Pinned because a wrong face is invisible to every
+// size/position assertion — the layout numbers would all still pass.
+console.log("\nFont faces (preview and render both read block.face):")
+{
+  const conv = computeOverlayLayout("hits_different", "Penthouses just hit different", "Starting at $1,500/mo")
+  ok("conversational headline uses the HEAD face", conv.headline.face === "head")
+  ok("conversational detail uses the HEAD face (Libre Baskerville Bold)", conv.detail!.face === "head")
+  const hero = computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,600/mo")
+  ok("hero headline uses the HEAD face", hero.headline.face === "head")
+  ok("hero detail STAYS on the DETAIL face (Bodoni) — untouched this pass", hero.detail!.face === "detail")
+  // Every center-hook detail, not just the sampled one.
+  ok("every conversational detail is head-faced", (["upgrade", "apartment_standards", "pov_price", "trade_up", "wanted_luxury", "real_living", "hits_different"] as const)
+    .every((t) => computeOverlayLayout(t, buildTemplateHeadline(t, { propertyType: "High-Rise", market: "San Antonio", budgetRange: "1600" }), "Starting at $1,600/mo").detail!.face === "head"))
+  ok("every hero detail stays detail-faced", (["market_type", "market_type_centered", "special_feature"] as const)
+    .every((t) => computeOverlayLayout(t, "SAN ANTONIO LOFTS", "Starting at $1,200/mo").detail!.face === "detail"))
+  // A head-faced detail must be MEASURED with head metrics, or preview/render parity silently breaks.
+  const d = conv.detail!
+  ok("head-faced detail fits its sub box under HEAD metrics", headlineTextWidthPx(d.lines[0], d.fontPx) <= DETAIL_TEXT_AVAIL_PX)
+}
+
 console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

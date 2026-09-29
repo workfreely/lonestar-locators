@@ -268,10 +268,12 @@ export const CENTER_HOOK = { maxPx: HOOK_MAX_PX, minPx: HOOK_MIN_PX, lineSpacing
 // HERO templates (T1 / T2 / T4) do NOT use any of this — they have their own branch, their own
 // [HERO_MIN_PX, HERO_MAX_PX] range and their own detail sizing, all unchanged.
 const HOOK_FLOOR_PX = 22 // only reachable by copy too long for the box even at the ceiling
-/** Fit a conversational hook inside the safe box. Tests the floor itself (unlike fitHeadlinePx, which
- *  returns minPx untested) so the size returned is always one that was actually measured. */
-function fitHookPx(text: string, maxPx: number, minPx: number = HOOK_FLOOR_PX): number {
-  for (let px = maxPx; px >= minPx; px--) if (headlineTextWidthPx(text, px) <= HEADLINE_TEXT_AVAIL_PX) return px
+/** Fit conversational text inside a box, measured with the HEAD advance map. Tests the floor itself
+ *  (unlike fitHeadlinePx, which returns minPx untested) so the size returned is always one that was
+ *  actually measured. `availPx` lets the conversational DETAIL — which renders in the same head face —
+ *  be fitted to its own wider sub box rather than the headline's. */
+function fitHookPx(text: string, maxPx: number, minPx: number = HOOK_FLOOR_PX, availPx: number = HEADLINE_TEXT_AVAIL_PX): number {
+  for (let px = maxPx; px >= minPx; px--) if (headlineTextWidthPx(text, px) <= availPx) return px
   return minPx
 }
 
@@ -313,7 +315,12 @@ export function templateFamily(template: string): LayoutFamily {
   return "hero" // market_type, market_type_centered (vertically centered in the hero branch), special_feature, unknown → hero
 }
 
-export type OverlayBlock = { lines: string[]; fontPx: number; topPx: number; uppercase: boolean; sideMarginPx: number; lineSpacing: number }
+// `face` says WHICH bundled font a block renders in, so the CSS preview and the FFmpeg render pick the
+// same one. It is per-BLOCK, not per-element-role: the conversational detail renders in the HEAD face
+// (Libre Baskerville Bold) while the HERO detail stays on the Bodoni text cut. Anything measuring a
+// block's width must use the matching advance map — head face -> headlineTextWidthPx.
+export type OverlayFace = "head" | "detail"
+export type OverlayBlock = { lines: string[]; fontPx: number; topPx: number; uppercase: boolean; sideMarginPx: number; lineSpacing: number; face: OverlayFace }
 export type OverlayLayout = { family: LayoutFamily; headline: OverlayBlock; detail: OverlayBlock | null }
 
 /** Resolve the on-canvas (1080×1920) layout for a template + its already-computed headline/detail
@@ -348,10 +355,11 @@ export function computeOverlayLayout(template: string, headlineText: string, det
     const totalH = headBlockH + gap + detailBlockH
     // Anchor: near-top (yFrac) for T1; vertical center of the group for the Centered variant.
     const headTop = centered ? (H - totalH) / 2 : OVERLAY_SPEC.headline.yFrac * H
-    const headline: OverlayBlock = { lines: fit.lines, fontPx: fit.fontPx, topPx: headTop, uppercase: true, sideMarginPx: OVERLAY_SPEC.headline.sideMarginPx, lineSpacing: OVERLAY_SPEC.headline.lineSpacing }
+    const headline: OverlayBlock = { lines: fit.lines, fontPx: fit.fontPx, topPx: headTop, uppercase: true, sideMarginPx: OVERLAY_SPEC.headline.sideMarginPx, lineSpacing: OVERLAY_SPEC.headline.lineSpacing, face: "head" }
     let detailBlock: OverlayBlock | null = null
     if (hasDetail) {
-      detailBlock = { lines: detailLines, fontPx: detailPx, topPx: headTop + headBlockH + gap, uppercase: false, sideMarginPx: OVERLAY_SPEC.sub.sideMarginPx, lineSpacing: OVERLAY_SPEC.sub.lineSpacing }
+      // HERO detail deliberately stays on the Bodoni text cut — unchanged in this pass.
+      detailBlock = { lines: detailLines, fontPx: detailPx, topPx: headTop + headBlockH + gap, uppercase: false, sideMarginPx: OVERLAY_SPEC.sub.sideMarginPx, lineSpacing: OVERLAY_SPEC.sub.lineSpacing, face: "detail" }
     }
     return { family, headline, detail: detailBlock }
   }
@@ -398,7 +406,9 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   // Detail is ONE line, FIT-TO-WIDTH (Bodoni-Detail) at a larger price-detail size that stays below
   // the hook (see hookDetailPxFor) so it reads as a strong-but-secondary line. Shrinks only if
   // an unusually long detail needs it; never wraps/stacks.
-  const detailPx = hasDetail ? fitDetailPx(detail, hookDetailPxFor(hookPx), HOOK_DETAIL_MIN_PX) : CENTER_HOOK.detailFontPx
+  // Measured with HEADLINE metrics because it now RENDERS in the head face — using the Bodoni advance
+  // map here would under-measure it by ~13% and break preview/render parity. Size and box are unchanged.
+  const detailPx = hasDetail ? fitHookPx(detail, hookDetailPxFor(hookPx), HOOK_DETAIL_MIN_PX, DETAIL_TEXT_AVAIL_PX) : CENTER_HOOK.detailFontPx
   const detailLines = hasDetail ? [detail] : []
   const detailBlockH = hasDetail ? detailPx : 0 // one line
   const gap = hasDetail ? (template === "upgrade" || template === "apartment_standards" ? UPGRADE_DETAIL_GAP_PX : CENTER_HOOK_DETAIL_GAP_PX) : 0 // Upgrade + its variant a touch looser; T8 stays 16
@@ -408,9 +418,9 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   // reuses T1's own yFrac constant, so the hook typography/fit stays identical to T11's.
   const topAnchored = template === "what_mo_gets_you_top"
   const groupTop = topAnchored ? OVERLAY_SPEC.headline.yFrac * H : (H - totalH) / 2
-  const headline: OverlayBlock = { lines, fontPx: hookPx, topPx: groupTop, uppercase: false, sideMarginPx: OVERLAY_SPEC.headline.sideMarginPx, lineSpacing: CENTER_HOOK.lineSpacing }
+  const headline: OverlayBlock = { lines, fontPx: hookPx, topPx: groupTop, uppercase: false, sideMarginPx: OVERLAY_SPEC.headline.sideMarginPx, lineSpacing: CENTER_HOOK.lineSpacing, face: "head" }
   const detailBlock: OverlayBlock | null = hasDetail
-    ? { lines: detailLines, fontPx: detailPx, topPx: groupTop + headBlockH + gap, uppercase: false, sideMarginPx: OVERLAY_SPEC.sub.sideMarginPx, lineSpacing: OVERLAY_SPEC.sub.lineSpacing }
+    ? { lines: detailLines, fontPx: detailPx, topPx: groupTop + headBlockH + gap, uppercase: false, sideMarginPx: OVERLAY_SPEC.sub.sideMarginPx, lineSpacing: OVERLAY_SPEC.sub.lineSpacing, face: "head" }
     : null
   return { family, headline, detail: detailBlock }
 }

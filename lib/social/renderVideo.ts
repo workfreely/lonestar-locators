@@ -15,8 +15,8 @@ export type AudioChoice = "original" | "none" | "lb_track"
 export type RenderInput = {
   sourcePath: string // local path to the downloaded immutable source
   outputPath: string // local path to write the rendered derivative
-  fontPath: string // bundled TTF for HEADLINE drawtext (Bodoni-Head)
-  detailFontPath?: string // bundled TTF for DETAIL drawtext (Bodoni-Detail); falls back to fontPath
+  fontPath: string // bundled TTF for the HEAD face (Libre Baskerville Bold) — headlines + conversational detail
+  detailFontPath?: string // bundled TTF for the DETAIL face (Bodoni text cut) — HERO detail only; falls back to fontPath
   template?: string | null // overlay template (drives the layout family); defaults to market_type
   headline?: string | null
   subheadline?: string | null // the template's detail line
@@ -25,7 +25,7 @@ export type RenderInput = {
 }
 
 // One drawtext item: pre-wrapped text file + its font size, top Y (canvas px), line spacing, and an
-// OPTIONAL per-item font path (headline vs detail use different Bodoni cuts). Falls back to the
+// OPTIONAL per-item font path, chosen from the block's `face`. Falls back to the
 // buildVideoFilter fontPath when omitted.
 export type DrawItem = { file: string; fontPx: number; topPx: number; lineSpacing: number; font?: string }
 
@@ -87,7 +87,9 @@ export async function renderReel(ffmpegPath: string, input: RenderInput): Promis
   if (layout.detail && layout.detail.lines.length) {
     const subFile = path.join(input.workDir, "sub.txt")
     await fs.writeFile(subFile, layout.detail.lines.join("\n"), "utf8")
-    items.push({ file: subFile, fontPx: layout.detail.fontPx, topPx: layout.detail.topPx, lineSpacing: layout.detail.lineSpacing, font: detailFont })
+    // Face comes from the LAYOUT, not the element role: the conversational detail renders in the head
+    // face (Libre Baskerville Bold), the hero detail stays on the Bodoni text cut.
+    items.push({ file: subFile, fontPx: layout.detail.fontPx, topPx: layout.detail.topPx, lineSpacing: layout.detail.lineSpacing, font: layout.detail.face === "head" ? input.fontPath : detailFont })
   }
   const filter = buildVideoFilter(input.fontPath, items)
   const args = buildFfmpegArgs({ sourcePath: input.sourcePath, outputPath: input.outputPath, filter, audioChoice: input.audioChoice })

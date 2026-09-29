@@ -42,6 +42,11 @@ function blockStyle(b: OverlayBlock, weight: number, fontFamily: string): CSSPro
   }
 }
 
+// Weight + family come from the block's own `face`, so the preview loads exactly the file the FFmpeg
+// render draws with. The conversational detail carries face "head" (Libre Baskerville Bold) while the
+// HERO detail stays "detail" (Bodoni text cut) — one switch, both blocks, no per-template branching.
+const faceOf = (b: OverlayBlock): [number, string] => (b.face === "head" ? [650, FONT_HEAD] : [500, FONT_DETAIL])
+
 const blockText = (b: OverlayBlock) => (b.uppercase ? b.lines.join("\n").toUpperCase() : b.lines.join("\n"))
 
 export default function PreviewOverlay({ layout }: { layout: OverlayLayout | null }) {
@@ -50,8 +55,8 @@ export default function PreviewOverlay({ layout }: { layout: OverlayLayout | nul
     <div className="pointer-events-none absolute inset-0" aria-hidden style={{ containerType: "size" }}>
       {/* Each Bodoni cut is a single baked weight (headline w650, detail w500); the @font-face maps
           100–900 to it with no synthetic bolding. Headline uses the display cut, detail the text cut. */}
-      {layout.headline.lines.length > 0 && <div style={blockStyle(layout.headline, 650, FONT_HEAD)}>{blockText(layout.headline)}</div>}
-      {layout.detail && layout.detail.lines.length > 0 && <div style={blockStyle(layout.detail, 500, FONT_DETAIL)}>{blockText(layout.detail)}</div>}
+      {layout.headline.lines.length > 0 && <div style={blockStyle(layout.headline, ...faceOf(layout.headline))}>{blockText(layout.headline)}</div>}
+      {layout.detail && layout.detail.lines.length > 0 && <div style={blockStyle(layout.detail, ...faceOf(layout.detail))}>{blockText(layout.detail)}</div>}
     </div>
   )
 }
