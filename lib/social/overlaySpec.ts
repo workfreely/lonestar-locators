@@ -117,7 +117,10 @@ export const HEADLINE_TEXT_AVAIL_PX = OVERLAY_CANVAS.w - 2 * OVERLAY_SPEC.headli
 // Libre Baskerville's x-height is 53% of em vs Bodoni's 46%, so LB at 47px carries the same x-height
 // as Bodoni at ~54px.
 export const HERO_MAX_PX = 66, HERO_MIN_PX = 47
-export const HOOK_MAX_PX = 46, HOOK_MIN_PX = 37
+// Conversational ceiling. 46 -> 28: at 46 the short hooks (T11/T3/T13) dominated the frame; 28 is the
+// intended conversational scale, letting the footage stay dominant. HOOK_MIN_PX is kept only for the
+// exported range assertions — the live floor is HOOK_FLOOR_PX below.
+export const HOOK_MAX_PX = 28, HOOK_MIN_PX = 22
 
 // Per-character advance (px) at 100px in LibreBaskerville-Head.ttf (Libre Baskerville Bold, wght 700,
 // unitsPerEm 1000). Covers the full headline vocabulary (A–Z, a–z, space, hyphen, colon, apostrophe).
@@ -240,22 +243,23 @@ export type LayoutFamily = "hero" | "center_hook" | "center_hook_detail"
 export const CENTER_HOOK = { maxPx: HOOK_MAX_PX, minPx: HOOK_MIN_PX, lineSpacing: 8, detailFontPx: 30 } as const
 
 // ── Conversational (center-hook) scale ───────────────────────────────────────────────────────────
-// The 900px safe box is a BOUNDARY, not a target. Fitting long conversational copy to the full box
-// made it fill 93–99% of the frame, which reads as cramped next to professionally set Reel text. Hooks
-// now aim for HOOK_TARGET_W and only fall back to the box when a sentence cannot reach the target even
-// at the floor — so the box still guarantees nothing overflows, but it is no longer what copy grows
-// into. Short hooks (T3 Your Sign, T11 Hits Different, T13 You Wanted Luxury) already sit below the
-// target and keep their existing size: they cap at CENTER_HOOK.maxPx before the target ever binds.
+// ONE rule: the ceiling IS the conversational scale, and the 900px safe box is the only width
+// constraint. Copy renders at CENTER_HOOK.maxPx and shrinks only when a sentence genuinely cannot fit
+// the box — which, at this ceiling, only ever happens to T12 (and T12 wraps instead).
+//
+// There used to be a second rule here: a soft HOOK_TARGET_W = 780px that long copy was fitted into,
+// added when the ceiling was 46px and long sentences filled 93–99% of the frame. With the ceiling at
+// 28px that target is INERT — measured across all 608 conversational headline/market/type
+// combinations, the ONLY ones wider than 780px at 28px are the same 48 that also exceed the 900px box
+// (all T12, which wraps). Keeping it would be two rules fighting over the same decision, so it is
+// gone: negative space now comes from the ceiling itself, not from a competing width target.
 //
 // HERO templates (T1 / T2 / T4) do NOT use any of this — they have their own branch, their own
 // [HERO_MIN_PX, HERO_MAX_PX] range and their own detail sizing, all unchanged.
-export const HOOK_TARGET_W = 780 // ≈86.7% of the 900px box — intentional negative space
-const HOOK_FLOOR_PX = 34 // ≈12.3pt on a 390pt phone; below this long copy stops being comfortable
-/** Fit a conversational hook: aim for the target, never exceed the hard box. Tests the floor itself
- *  (unlike fitHeadlinePx, which returns minPx untested) so the returned size is always measured. */
+const HOOK_FLOOR_PX = 22 // only reachable by copy too long for the box even at the ceiling
+/** Fit a conversational hook inside the safe box. Tests the floor itself (unlike fitHeadlinePx, which
+ *  returns minPx untested) so the size returned is always one that was actually measured. */
 function fitHookPx(text: string, maxPx: number, minPx: number = HOOK_FLOOR_PX): number {
-  for (let px = maxPx; px >= minPx; px--) if (headlineTextWidthPx(text, px) <= HOOK_TARGET_W) return px
-  // Too long to reach the target even at the floor — fall back to the HARD boundary so it still fits.
   for (let px = maxPx; px >= minPx; px--) if (headlineTextWidthPx(text, px) <= HEADLINE_TEXT_AVAIL_PX) return px
   return minPx
 }
@@ -263,18 +267,16 @@ function fitHookPx(text: string, maxPx: number, minPx: number = HOOK_FLOOR_PX): 
 // Supporting/detail line for the center-hook family, PROPORTIONAL to the hook so the hierarchy holds
 // at every size. The old rule (a 38–40px per-template target capped at hook − 2) left the detail only
 // 2px below a shrunken headline — a 1.05 ratio, reading as two near-equal lines. A constant 0.75
-// keeps it clearly secondary (ratio ≈1.33) while the floor protects legibility on a phone.
+// keeps it clearly secondary (ratio ≈1.33). The floor dropped 26 → 20 with the ceiling: at a 28px
+// hook a 26px floor would have produced a 1.08 ratio, i.e. the exact near-equal look the ratio exists
+// to prevent. At 20 the floor only binds below a 27px hook, so 0.75 governs in practice.
 // Hero detail sizing (MARKET_TYPE_DETAIL_PX, OVERLAY_SPEC.sub.fontPx) is NOT affected.
 const HOOK_DETAIL_RATIO = 0.75
-const HOOK_DETAIL_MIN_PX = 26 // ≈9.4pt on a 390pt phone
+const HOOK_DETAIL_MIN_PX = 20
 const HOOK_DETAIL_MAX_PX = 40
 function hookDetailPxFor(hookPx: number): number {
   return Math.min(HOOK_DETAIL_MAX_PX, Math.max(HOOK_DETAIL_MIN_PX, Math.round(hookPx * HOOK_DETAIL_RATIO)))
 }
-// Template 4 (Next Property) ONLY — a smaller max than the shared center-hook cap so its headline
-// has more left/right breathing room (same wording, centered, still prominent). Other center-hook
-// templates (T2/T5/T6/T7/T8) keep CENTER_HOOK.maxPx.
-export const NEXT_PROPERTY_MAX_PX = 40
 
 // Template 1 (market_type) renders its "Starting at $X/mo" detail LARGER than the shared HERO detail
 // (OVERLAY_SPEC.sub.fontPx) so the price reads as a true secondary headline. ONLY Template 1 uses
@@ -342,27 +344,37 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   // Center hook (+ optional detail) — the hook is ONE line, FIT-TO-WIDTH per actual sentence (no
   // wrapping, no manual breaks). Vertically center the group.
   const oneLine = (headlineText ?? "").replace(/\s+/g, " ").trim()
-  const hookMaxPx = template === "next_property" ? NEXT_PROPERTY_MAX_PX : CENTER_HOOK.maxPx // T4 slightly smaller for side margin
+  // T5 (Next Property) used to take a smaller 40px max than the shared 46px cap for side-margin
+  // breathing room. At a 28px ceiling that exception is obsolete (40 > 28 would make T5 the LARGEST
+  // hook, inverting its intent), so every center-hook template now shares the one ceiling.
+  const hookMaxPx = CENTER_HOOK.maxPx
   // One shared floor (34) now covers every hook. It also subsumes T14's old per-template 35px floor:
   // a LOWER floor can only make one line easier to achieve, so "This is what real rental home living
   // looks like" stays single-line a fortiori (asserted in the composer tests).
   const hookMinPx = HOOK_FLOOR_PX
   let lines = oneLine ? [oneLine] : []
   let hookPx = oneLine ? fitHookPx(oneLine, hookMaxPx, hookMinPx) : hookMaxPx
-  // ONE line, fit-to-width, is the rule — and it stays the rule for every template that has ever
-  // existed here: the longest of them (T2's "Your sign to get that rental home in San Antonio") fits
-  // exactly at CENTER_HOOK.minPx, so this branch is unreachable for T1–T11 (asserted in composer
-  // tests). It exists for copy that CANNOT fit one line even at the floor size — T12's "What life
-  // looks like when you trade in your apartment for a {TYPE}" needs ~25px — where the alternative is
-  // letting the text run off the canvas. The per-line budget is derived from the real measured width
-  // (no magic constant) and the block is sized to its longest line; the lines array, the multi-line
-  // block math below, and both renderers' "\n" join already support >1 line.
-  if (oneLine && headlineTextWidthPx(oneLine, hookMinPx) > HEADLINE_TEXT_AVAIL_PX) {
-    const perLine = Math.max(8, Math.floor((oneLine.length * HEADLINE_TEXT_AVAIL_PX) / headlineTextWidthPx(oneLine, hookMaxPx)))
+  // Copy too wide for the box AT THE CEILING WRAPS rather than shrinking below the conversational
+  // scale. The trigger is deliberately the CEILING, not the floor: at the floor, T12's sentence does
+  // fit one line (837px at 22px) — but only by rendering ~5px smaller than every other template, which
+  // is exactly the "unnecessarily tiny" outcome the scale exists to avoid. Wrapping instead keeps T12
+  // at the same 28px as its siblings. Only T12 reaches this branch; every other hook fits one line at
+  // the ceiling. The per-line budget comes from the real measured width (no magic constant) and breaks
+  // the sentence into as FEW lines as possible, so T12 is two lines, never three.
+  if (oneLine && headlineTextWidthPx(oneLine, hookMaxPx) > HEADLINE_TEXT_AVAIL_PX) {
+    // BALANCED break. Packing each line to the box maximally left an orphan ("…for a" / "rental
+    // home" — 877px then 92px). Take the fewest lines the width actually requires, then use the
+    // SMALLEST character budget that still produces that many lines: an even split is the starting
+    // guess, and the budget grows until the greedy wrapper stops over-splitting (an even split alone
+    // pushed the short types to three lines). The result is the minimum line count with lines of
+    // near-equal length.
+    const needed = Math.max(2, Math.ceil(headlineTextWidthPx(oneLine, hookMaxPx) / HEADLINE_TEXT_AVAIL_PX))
+    let perLine = Math.max(8, Math.ceil(oneLine.length / needed))
     lines = wrapHeadline(oneLine, perLine)
-    // Per-line budget stays derived from the BOX (above) so the sentence breaks into as FEW lines as
-    // possible — T12 stays two lines, never three. Each resulting line is then fitted to the target,
-    // so the wrapped block gets the same negative space as a single-line hook.
+    while (lines.length > needed && perLine < oneLine.length) {
+      perLine++
+      lines = wrapHeadline(oneLine, perLine)
+    }
     hookPx = Math.min(...lines.map((l) => fitHookPx(l, hookMaxPx, hookMinPx)))
   }
   const n = Math.max(1, lines.length)

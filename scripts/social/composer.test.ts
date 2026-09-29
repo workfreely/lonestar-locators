@@ -6,7 +6,7 @@ import { preparePost, buildCaption, buildOverlayHeadline, buildOverlaySubheadlin
 import { SOCIAL_SPECIAL_OPTIONS, giftCardLabel, isGiftCardSpecial, sanitizeCustomSpecial } from "@/lib/social/socialSpecial"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
 import { buildFfmpegArgs, buildVideoFilter } from "@/lib/social/renderVideo"
-import { wrapHeadline, wrapSub, overlayPreviewStyle, headlineFit, headlineTextWidthPx, computeOverlayLayout, templateFamily, OVERLAY_SPEC, OVERLAY_CANVAS, OVERLAY_TEXT, HEADLINE_TEXT_AVAIL_PX, HERO_MAX_PX, HERO_MIN_PX, HOOK_MAX_PX, HOOK_MIN_PX, HOOK_TARGET_W, detailTextWidthPx, DETAIL_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
+import { wrapHeadline, wrapSub, overlayPreviewStyle, headlineFit, headlineTextWidthPx, computeOverlayLayout, templateFamily, OVERLAY_SPEC, OVERLAY_CANVAS, OVERLAY_TEXT, HEADLINE_TEXT_AVAIL_PX, HERO_MAX_PX, HERO_MIN_PX, HOOK_MAX_PX, HOOK_MIN_PX, detailTextWidthPx, DETAIL_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
 import { buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL } from "@/lib/social/composePost"
 
 let pass = 0, fail = 0
@@ -399,11 +399,12 @@ ok("center-hook headline never wraps or stacks (no manual breaks)", !hookL.headl
 // Center-hook fit-to-width: sizes land in [HOOK_MIN_PX, HOOK_MAX_PX]; both T2 hooks fit the 900px box.
 const t2Short = computeOverlayLayout("your_sign", buildTemplateHeadline("your_sign", { propertyType: "Loft" }), "").headline
 const t2Long = computeOverlayLayout("your_sign", buildTemplateHeadline("your_sign", { propertyType: "Rental Home" }), "").headline
-ok("center-hook fit range is 37–46px", HOOK_MIN_PX === 37 && HOOK_MAX_PX === 46)
+// The conversational ceiling IS the scale: 46 -> 28 so the footage stays dominant.
+ok("center-hook fit range is 22–28px", HOOK_MIN_PX === 22 && HOOK_MAX_PX === 28)
 ok("center-hook fitted size stays within [37,46]", t2Short.fontPx >= HOOK_MIN_PX && t2Short.fontPx <= HOOK_MAX_PX && t2Long.fontPx >= HOOK_MIN_PX && t2Long.fontPx <= HOOK_MAX_PX)
 // Short hook copy still caps at the max — the conversational TARGET only binds on longer sentences.
 ok("Your Sign (short copy) still renders at the center-hook max (46px)", t2Short.fontPx === HOOK_MAX_PX)
-ok("Your Sign (longest type) sits at or below the max and inside the target", t2Long.fontPx <= HOOK_MAX_PX && headlineTextWidthPx(t2Long.lines[0], t2Long.fontPx) <= HOOK_TARGET_W)
+ok("Your Sign (longest type) sits at the ceiling and inside the box", t2Long.fontPx === HOOK_MAX_PX && headlineTextWidthPx(t2Long.lines[0], t2Long.fontPx) <= HEADLINE_TEXT_AVAIL_PX)
 ok("T2 hook fits the 900px safe box at its fitted size", headlineTextWidthPx(t2Long.lines[0], t2Long.fontPx) <= HEADLINE_TEXT_AVAIL_PX)
 
 console.log("Templates 6 & 7 (POV Upgrade + Affordable Luxury — CENTER HOOK, no detail):")
@@ -480,14 +481,21 @@ console.log("Templates 5 & 8 detail hierarchy (supporting the hook — one line,
 const t5cases = ["8 Weeks Free · Starting at $1,900/mo", "Starting at $1,900/mo", "8 Weeks Free"]
 for (const d of t5cases) {
   const L = computeOverlayLayout("upgrade", "What life looks like when you upgrade", d)
-  ok(`T6 detail one line, proportional, secondary: "${d}" (${L.detail!.fontPx}px vs hook ${L.headline.fontPx})`, L.detail!.lines.length === 1 && L.detail!.fontPx === Math.min(40, Math.max(26, Math.round(L.headline.fontPx * 0.75))) && L.detail!.fontPx < L.headline.fontPx && detailTextWidthPx(d, L.detail!.fontPx) <= DETAIL_TEXT_AVAIL_PX)
+  ok(`T6 detail one line, proportional, secondary: "${d}" (${L.detail!.fontPx}px vs hook ${L.headline.fontPx})`, L.detail!.lines.length === 1 && L.detail!.fontPx === Math.min(40, Math.max(20, Math.round(L.headline.fontPx * 0.75))) && L.detail!.fontPx < L.headline.fontPx && detailTextWidthPx(d, L.detail!.fontPx) <= DETAIL_TEXT_AVAIL_PX)
 }
 // T8 POV + Price — price detail 40px (strong but below the POV headline), one line for all prices.
 for (const p of ["Starting at $995/mo", "Starting at $1,250/mo", "Starting at $1,900/mo", "Starting at $2,495/mo"]) {
   const L = computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", p)
-  ok(`T10 price one line, proportional, secondary: "${p}" (${L.detail!.fontPx}px vs hook ${L.headline.fontPx})`, L.detail!.lines.length === 1 && L.detail!.fontPx === Math.min(40, Math.max(26, Math.round(L.headline.fontPx * 0.75))) && L.detail!.fontPx < L.headline.fontPx && detailTextWidthPx(p, L.detail!.fontPx) <= DETAIL_TEXT_AVAIL_PX)
+  ok(`T10 price one line, proportional, secondary: "${p}" (${L.detail!.fontPx}px vs hook ${L.headline.fontPx})`, L.detail!.lines.length === 1 && L.detail!.fontPx === Math.min(40, Math.max(20, Math.round(L.headline.fontPx * 0.75))) && L.detail!.fontPx < L.headline.fontPx && detailTextWidthPx(p, L.detail!.fontPx) <= DETAIL_TEXT_AVAIL_PX)
 }
-ok("T8 price detail is larger than T5 detail (price stays strong)", computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", "Starting at $1,900/mo").detail!.fontPx > computeOverlayLayout("upgrade", "What life looks like when you upgrade", "Starting at $1,900/mo").detail!.fontPx)
+// Was "T10's price detail is LARGER than T6's" — a per-template size table that no longer exists.
+// Both now derive from the same 0.75 ratio off the same ceiling, so they are equal by construction
+// and each stays clearly secondary to its hook.
+ok("T6/T10 details are equal and both clearly secondary", (() => {
+  const a = computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", "Starting at $1,900/mo")
+  const b = computeOverlayLayout("upgrade", "What life looks like when you upgrade", "Starting at $1,900/mo")
+  return a.detail!.fontPx === b.detail!.fontPx && a.headline.fontPx / a.detail!.fontPx >= 1.3 && b.headline.fontPx / b.detail!.fontPx >= 1.3
+})())
 // Tighter gap: center-hook detail sits closer than the standard Hero sub gap; T3 gap tighter too.
 const t5L = computeOverlayLayout("upgrade", "What life looks like when you upgrade", "Starting at $1,900/mo")
 ok("T5 detail sits ~21px below the hook (breathing room, still a lockup)", !!t5L.detail && (t5L.detail.topPx - (t5L.headline.topPx + t5L.headline.fontPx)) <= 22)
@@ -514,14 +522,15 @@ ok("T2 manual override still protected", !isGeneratedHeadline("Your sign to get 
 // T4 — smaller than the shared center-hook max (more side margin); T4 only.
 const t4 = computeOverlayLayout("next_property", "What your next townhome could look like", "").headline
 ok("T4 headline is capped smaller (≤40px) for side margin", t4.fontPx <= 40)
-ok("T5's smaller max does NOT affect other center-hooks (short Your Sign stays 46)", computeOverlayLayout("your_sign", "Your sign to get that loft", "").headline.fontPx === 46)
+// T5's old 40px exception is retired — every center-hook shares the one 28px ceiling.
+ok("all center-hooks share the one ceiling", computeOverlayLayout("your_sign", "Your sign to get that loft", "").headline.fontPx === HOOK_MAX_PX && computeOverlayLayout("next_property", "What your next loft could look like", "").headline.fontPx === HOOK_MAX_PX)
 ok("T4 wording unchanged + one line", buildTemplateHeadline("next_property", { propertyType: "Townhome" }) === "What your next townhome could look like" && t4.lines.length === 1)
 // T5 gap 16 → 21; T8 gap stays 16.
 const t5g = computeOverlayLayout("upgrade", "What life looks like when you upgrade", "6 Weeks Free · Starting at $1,800/mo")
 const t8g = computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", "Starting at $1,800/mo")
 ok("T5 gap increased to 21px", (t5g.detail!.topPx - (t5g.headline.topPx + t5g.headline.fontPx)) === 21)
 ok("T8 gap stays 16px (unchanged)", (t8g.detail!.topPx - (t8g.headline.topPx + t8g.headline.fontPx)) === 16)
-ok("T6 detail is proportional to its hook", t5g.detail!.fontPx === Math.min(40, Math.max(26, Math.round(t5g.headline.fontPx * 0.75))))
+ok("T6 detail is proportional to its hook", t5g.detail!.fontPx === Math.min(40, Math.max(20, Math.round(t5g.headline.fontPx * 0.75))))
 
 console.log("\nTemplate 11 (What $/mo Gets You — dynamic price+city, CENTER HOOK like T7):")
 // The two examples from the spec, exactly.
@@ -663,7 +672,7 @@ ok("a genuinely MANUAL hook in these shapes is still protected", !isGeneratedHea
 console.log("\nTemplates 1–11 unchanged by this addition:")
 ok("T1 hero headline + price detail unchanged", buildTemplateHeadline("market_type", { market: "San Antonio", propertyType: "High-Rise" }) === "SAN ANTONIO HIGH-RISES" && buildTemplateDetail("market_type", { budgetRange: "1600" }) === "Starting at $1,600/mo")
 ok("T2/T5/T6/T7/T9/T10 headlines unchanged", buildTemplateHeadline("your_sign", { propertyType: "Townhome" }) === "Your sign to get that townhome" && buildTemplateHeadline("next_property", { propertyType: "Townhome" }) === "What your next townhome could look like" && buildTemplateHeadline("upgrade", {}) === "What life looks like when you upgrade" && buildTemplateHeadline("apartment_standards", {}) === "Your apartment standards went up" && buildTemplateHeadline("affordable_luxury", {}) === "Luxury doesn't have to be expensive" && buildTemplateHeadline("pov_price", { propertyType: "Loft" }) === "POV: You upgraded to a loft")
-ok("T6/T10 detail follows the 0.75 proportional rule", (["upgrade","pov_price"] as const).every((t) => { const L = computeOverlayLayout(t, t === "upgrade" ? "What life looks like when you upgrade" : "POV: You upgraded to a loft", "Starting at $1,900/mo"); return L.detail!.fontPx === Math.min(40, Math.max(26, Math.round(L.headline.fontPx * 0.75))) }))
+ok("T6/T10 detail follows the 0.75 proportional rule", (["upgrade","pov_price"] as const).every((t) => { const L = computeOverlayLayout(t, t === "upgrade" ? "What life looks like when you upgrade" : "POV: You upgraded to a loft", "Starting at $1,900/mo"); return L.detail!.fontPx === Math.min(40, Math.max(20, Math.round(L.headline.fontPx * 0.75))) }))
 ok("T1 stays HERO, T11 stays center_hook, T7 stays center_hook_detail", templateFamily("market_type") === "hero" && templateFamily("what_mo_gets_you") === "center_hook" && templateFamily("apartment_standards") === "center_hook_detail")
 // The one-line rule is untouched for every template that predates T12: the new wrap branch only
 // engages for copy that cannot fit even at CENTER_HOOK.minPx, which none of them hit.
@@ -696,19 +705,21 @@ console.log("\nHero freeze — T1/T2/T4 exact fitted geometry:")
     computeOverlayLayout("market_type_centered", "SAN ANTONIO LOFTS", "Starting at $1,200/mo").headline.topPx > 400)
   // Heroes are allowed to use the full box — the target is a CONVERSATIONAL rule only.
   const heroW = headlineTextWidthPx("SAN ANTONIO TOWNHOMES", computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "").headline.fontPx)
-  ok("hero still fills toward the box, NOT the conversational target", heroW > HOOK_TARGET_W && heroW <= HEADLINE_TEXT_AVAIL_PX)
+  ok("hero still fills toward the box and dwarfs the conversational ceiling", heroW > 800 && heroW <= HEADLINE_TEXT_AVAIL_PX && HERO_MAX_PX > HOOK_MAX_PX * 2)
 }
 
 // ── Conversational scale ──────────────────────────────────────────────────────────────────────
 console.log("\nConversational target-width rule:")
 {
-  ok("HOOK_TARGET_W is 780 (≈86.7% of the 900px box)", HOOK_TARGET_W === 780 && HOOK_TARGET_W < HEADLINE_TEXT_AVAIL_PX)
+  // ONE rule: the ceiling is the scale and the box is the only width constraint. The old 780px soft
+  // target was removed as inert at this ceiling (only T12 exceeded it, and T12 wraps regardless).
+  ok("conversational ceiling is 28px", HOOK_MAX_PX === 28)
   // Long copy pulls in to the target; short copy is untouched and stays at the max.
   const long = computeOverlayLayout("what_mo_gets_you", "What $1,600/mo gets you in San Antonio", "")
-  ok("T15 reference headline sits inside the target", headlineTextWidthPx(long.headline.lines[0], long.headline.fontPx) <= HOOK_TARGET_W)
-  for (const [tpl, head] of [["your_sign", "Your sign to get that loft"], ["hits_different", "Lofts just hit different"], ["wanted_luxury", "You wanted luxury. You got it."]] as [string, string][]) {
+  ok("T15 reference headline renders at the 28px scale, one line, well inside the box", long.headline.fontPx === 28 && long.headline.lines.length === 1 && headlineTextWidthPx(long.headline.lines[0], long.headline.fontPx) < HEADLINE_TEXT_AVAIL_PX * 0.8)
+  for (const [tpl, head] of [["your_sign", "Your sign to get that loft"], ["hits_different", "Penthouses just hit different"], ["wanted_luxury", "You wanted luxury. You got it."]] as [string, string][]) {
     const L = computeOverlayLayout(tpl, head, "")
-    ok(`${tpl}: short copy keeps the center-hook max (${HOOK_MAX_PX}px) — not shrunk for consistency`, L.headline.fontPx === HOOK_MAX_PX)
+    ok(`${tpl}: renders at the ${HOOK_MAX_PX}px conversational scale`, L.headline.fontPx === HOOK_MAX_PX)
   }
   // The box remains the hard boundary in every case.
   ok("T12 stays TWO lines and inside the box", (() => {
@@ -717,11 +728,11 @@ console.log("\nConversational target-width rule:")
   })())
   ok("T14 stays ONE line for every property type", [...PROPERTY_TYPES, null].every((pt) => computeOverlayLayout("real_living", buildTemplateHeadline("real_living", { propertyType: pt as any }), "Starting at $1,600/mo").headline.lines.length === 1))
   // Proportional detail keeps a clear hierarchy at every hook size.
-  ok("center-hook detail is round(hook × 0.75) clamped [26,40], never hook − 2", (() => {
+  ok("center-hook detail is round(hook × 0.75) clamped [20,40], never hook − 2", (() => {
     const tpls = ["upgrade", "apartment_standards", "pov_price", "trade_up", "wanted_luxury", "real_living", "hits_different"] as const
     return tpls.every((t) => {
       const L = computeOverlayLayout(t, buildTemplateHeadline(t, { propertyType: "High-Rise", market: "San Antonio", budgetRange: "1600" }), "Starting at $1,600/mo")
-      const want = Math.min(40, Math.max(26, Math.round(L.headline.fontPx * 0.75)))
+      const want = Math.min(40, Math.max(20, Math.round(L.headline.fontPx * 0.75)))
       return L.detail!.fontPx === want && L.headline.fontPx / L.detail!.fontPx >= 1.25
     })
   })())
