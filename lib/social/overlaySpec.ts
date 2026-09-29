@@ -177,19 +177,8 @@ export function fitDetailPx(text: string, maxPx: number, minPx: number, availPx 
   for (let px = maxPx; px > minPx; px--) if (detailTextWidthPx(text, px) <= availPx) return px
   return minPx
 }
-// Price-bearing center-hook detail (T5 Upgrade, T8 POV + Price): larger, fit-to-width, but COUPLED to
-// stay a couple px below the hook so it always reads as clearly secondary (the hook is also the
-// heavier wght-650 cut). Non-price center-hook detail keeps the small default.
-const CENTER_HOOK_DETAIL_MIN = 30
-// Detail max per template — reduced so the detail clearly supports (not competes with) the hook:
-// T5 Upgrade 38, T8 POV+Price 40 (price stays strong but secondary). Still coupled ≤ hook − 2.
-// T12–T15 carry the SAME "Starting at $X/mo" line as T10 (pov_price), so they reuse its 40px price
-// size rather than falling through to the smaller shared default — one table entry each, no new CSS.
-const CENTER_HOOK_DETAIL_TARGET: Record<string, number> = { upgrade: 38, apartment_standards: 38, pov_price: 40, trade_up: 40, wanted_luxury: 40, real_living: 40, hits_different: 40 }
-function centerHookDetailMaxPx(template: string, hookPx: number): number {
-  const target = CENTER_HOOK_DETAIL_TARGET[template] ?? CENTER_HOOK.detailFontPx
-  return Math.min(target, Math.max(CENTER_HOOK_DETAIL_MIN, hookPx - 2)) // never larger than hook − 2
-}
+// (The old per-template center-hook detail table — a 38–40px target capped at hook − 2 — was replaced
+//  by the proportional hookDetailPxFor() below, which keeps one constant ratio at every hook size.)
 // Gap below the hook for center-hook + detail (T5/T8): tighter than the Hero sub gap so the two lines
 // read as ONE lockup instead of two separated elements.
 const CENTER_HOOK_DETAIL_GAP_PX = 16
@@ -250,17 +239,37 @@ export type LayoutFamily = "hero" | "center_hook" | "center_hook_detail"
 // Shared by preview + render (parity).
 export const CENTER_HOOK = { maxPx: HOOK_MAX_PX, minPx: HOOK_MIN_PX, lineSpacing: 8, detailFontPx: 30 } as const
 
-// Template 14 (real_living) ONLY — "This is what real {TYPE} living looks like" must stay on ONE line.
-// Its two longest types wrap at the shared 37px floor in Libre Baskerville ("Townhome" and "Rental
-// Home" both strand "looks like" on a second line); "…Rental Home…" is the worst and fits one line at
-// 35px. This is a per-template floor, NOT a global reduction: every other center-hook template keeps
-// CENTER_HOOK.minPx, and T14's max stays CENTER_HOOK.maxPx so short types still render large (Loft 43,
-// no-type 46). The safe box, side margins and centered anchor are untouched — only how small this one
-// headline may go before the shared wrap fallback would fire.
-const REAL_LIVING_MIN_PX = 35
-/** Floor for the center-hook fit. Per-template so a single long sentence can shrink instead of wrap. */
-function hookMinPxFor(template: string): number {
-  return template === "real_living" ? REAL_LIVING_MIN_PX : CENTER_HOOK.minPx
+// ── Conversational (center-hook) scale ───────────────────────────────────────────────────────────
+// The 900px safe box is a BOUNDARY, not a target. Fitting long conversational copy to the full box
+// made it fill 93–99% of the frame, which reads as cramped next to professionally set Reel text. Hooks
+// now aim for HOOK_TARGET_W and only fall back to the box when a sentence cannot reach the target even
+// at the floor — so the box still guarantees nothing overflows, but it is no longer what copy grows
+// into. Short hooks (T3 Your Sign, T11 Hits Different, T13 You Wanted Luxury) already sit below the
+// target and keep their existing size: they cap at CENTER_HOOK.maxPx before the target ever binds.
+//
+// HERO templates (T1 / T2 / T4) do NOT use any of this — they have their own branch, their own
+// [HERO_MIN_PX, HERO_MAX_PX] range and their own detail sizing, all unchanged.
+export const HOOK_TARGET_W = 780 // ≈86.7% of the 900px box — intentional negative space
+const HOOK_FLOOR_PX = 34 // ≈12.3pt on a 390pt phone; below this long copy stops being comfortable
+/** Fit a conversational hook: aim for the target, never exceed the hard box. Tests the floor itself
+ *  (unlike fitHeadlinePx, which returns minPx untested) so the returned size is always measured. */
+function fitHookPx(text: string, maxPx: number, minPx: number = HOOK_FLOOR_PX): number {
+  for (let px = maxPx; px >= minPx; px--) if (headlineTextWidthPx(text, px) <= HOOK_TARGET_W) return px
+  // Too long to reach the target even at the floor — fall back to the HARD boundary so it still fits.
+  for (let px = maxPx; px >= minPx; px--) if (headlineTextWidthPx(text, px) <= HEADLINE_TEXT_AVAIL_PX) return px
+  return minPx
+}
+
+// Supporting/detail line for the center-hook family, PROPORTIONAL to the hook so the hierarchy holds
+// at every size. The old rule (a 38–40px per-template target capped at hook − 2) left the detail only
+// 2px below a shrunken headline — a 1.05 ratio, reading as two near-equal lines. A constant 0.75
+// keeps it clearly secondary (ratio ≈1.33) while the floor protects legibility on a phone.
+// Hero detail sizing (MARKET_TYPE_DETAIL_PX, OVERLAY_SPEC.sub.fontPx) is NOT affected.
+const HOOK_DETAIL_RATIO = 0.75
+const HOOK_DETAIL_MIN_PX = 26 // ≈9.4pt on a 390pt phone
+const HOOK_DETAIL_MAX_PX = 40
+function hookDetailPxFor(hookPx: number): number {
+  return Math.min(HOOK_DETAIL_MAX_PX, Math.max(HOOK_DETAIL_MIN_PX, Math.round(hookPx * HOOK_DETAIL_RATIO)))
 }
 // Template 4 (Next Property) ONLY — a smaller max than the shared center-hook cap so its headline
 // has more left/right breathing room (same wording, centered, still prominent). Other center-hook
@@ -308,7 +317,7 @@ export function computeOverlayLayout(template: string, headlineText: string, det
     const headBlockH = headlineBlockPx(Math.max(1, fit.lines.length), fit.fontPx)
     const heroGapPx = template === "special_feature" ? SPECIAL_FEATURE_GAP_PX : usesMarketDetail ? MARKET_TYPE_GAP_PX : OVERLAY_SPEC.sub.gapPx
     // T1/T2 price is larger; T3 keeps the shared size. The T1 price is COUPLED to stay at least 2px
-    // below the fitted headline — the same rule centerHookDetailMaxPx already applies to the
+    // below the fitted headline — the same idea hookDetailPxFor applies to the
     // center-hook detail. Without it the four longest Hero combos (SAN ANTONIO APARTMENTS /
     // TOWNHOMES / RENTAL HOMES / PENTHOUSES), which fit at 47–51px in the wider Libre Baskerville,
     // would render a 52px price line LARGER than the headline it supports, inverting the hierarchy.
@@ -334,9 +343,12 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   // wrapping, no manual breaks). Vertically center the group.
   const oneLine = (headlineText ?? "").replace(/\s+/g, " ").trim()
   const hookMaxPx = template === "next_property" ? NEXT_PROPERTY_MAX_PX : CENTER_HOOK.maxPx // T4 slightly smaller for side margin
-  const hookMinPx = hookMinPxFor(template) // per-template floor (T14 shrinks further rather than wrap)
+  // One shared floor (34) now covers every hook. It also subsumes T14's old per-template 35px floor:
+  // a LOWER floor can only make one line easier to achieve, so "This is what real rental home living
+  // looks like" stays single-line a fortiori (asserted in the composer tests).
+  const hookMinPx = HOOK_FLOOR_PX
   let lines = oneLine ? [oneLine] : []
-  let hookPx = oneLine ? fitHeadlinePx(oneLine, hookMaxPx, hookMinPx) : hookMaxPx
+  let hookPx = oneLine ? fitHookPx(oneLine, hookMaxPx, hookMinPx) : hookMaxPx
   // ONE line, fit-to-width, is the rule — and it stays the rule for every template that has ever
   // existed here: the longest of them (T2's "Your sign to get that rental home in San Antonio") fits
   // exactly at CENTER_HOOK.minPx, so this branch is unreachable for T1–T11 (asserted in composer
@@ -348,15 +360,18 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   if (oneLine && headlineTextWidthPx(oneLine, hookMinPx) > HEADLINE_TEXT_AVAIL_PX) {
     const perLine = Math.max(8, Math.floor((oneLine.length * HEADLINE_TEXT_AVAIL_PX) / headlineTextWidthPx(oneLine, hookMaxPx)))
     lines = wrapHeadline(oneLine, perLine)
-    hookPx = Math.min(...lines.map((l) => fitHeadlinePx(l, hookMaxPx, hookMinPx)))
+    // Per-line budget stays derived from the BOX (above) so the sentence breaks into as FEW lines as
+    // possible — T12 stays two lines, never three. Each resulting line is then fitted to the target,
+    // so the wrapped block gets the same negative space as a single-line hook.
+    hookPx = Math.min(...lines.map((l) => fitHookPx(l, hookMaxPx, hookMinPx)))
   }
   const n = Math.max(1, lines.length)
   const headBlockH = n * hookPx + (n - 1) * CENTER_HOOK.lineSpacing
   const hasDetail = family === "center_hook_detail" && detail.length > 0
   // Detail is ONE line, FIT-TO-WIDTH (Bodoni-Detail) at a larger price-detail size that stays below
-  // the hook (see centerHookDetailMaxPx) so it reads as a strong-but-secondary line. Shrinks only if
+  // the hook (see hookDetailPxFor) so it reads as a strong-but-secondary line. Shrinks only if
   // an unusually long detail needs it; never wraps/stacks.
-  const detailPx = hasDetail ? fitDetailPx(detail, centerHookDetailMaxPx(template, hookPx), CENTER_HOOK_DETAIL_MIN) : CENTER_HOOK.detailFontPx
+  const detailPx = hasDetail ? fitDetailPx(detail, hookDetailPxFor(hookPx), HOOK_DETAIL_MIN_PX) : CENTER_HOOK.detailFontPx
   const detailLines = hasDetail ? [detail] : []
   const detailBlockH = hasDetail ? detailPx : 0 // one line
   const gap = hasDetail ? (template === "upgrade" || template === "apartment_standards" ? UPGRADE_DETAIL_GAP_PX : CENTER_HOOK_DETAIL_GAP_PX) : 0 // Upgrade + its variant a touch looser; T8 stays 16

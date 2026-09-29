@@ -6,7 +6,7 @@ import { preparePost, buildCaption, buildOverlayHeadline, buildOverlaySubheadlin
 import { SOCIAL_SPECIAL_OPTIONS, giftCardLabel, isGiftCardSpecial, sanitizeCustomSpecial } from "@/lib/social/socialSpecial"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
 import { buildFfmpegArgs, buildVideoFilter } from "@/lib/social/renderVideo"
-import { wrapHeadline, wrapSub, overlayPreviewStyle, headlineFit, headlineTextWidthPx, computeOverlayLayout, templateFamily, OVERLAY_SPEC, OVERLAY_CANVAS, OVERLAY_TEXT, HEADLINE_TEXT_AVAIL_PX, HERO_MAX_PX, HERO_MIN_PX, HOOK_MAX_PX, HOOK_MIN_PX, detailTextWidthPx, DETAIL_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
+import { wrapHeadline, wrapSub, overlayPreviewStyle, headlineFit, headlineTextWidthPx, computeOverlayLayout, templateFamily, OVERLAY_SPEC, OVERLAY_CANVAS, OVERLAY_TEXT, HEADLINE_TEXT_AVAIL_PX, HERO_MAX_PX, HERO_MIN_PX, HOOK_MAX_PX, HOOK_MIN_PX, HOOK_TARGET_W, detailTextWidthPx, DETAIL_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
 import { buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL } from "@/lib/social/composePost"
 
 let pass = 0, fail = 0
@@ -401,7 +401,9 @@ const t2Short = computeOverlayLayout("your_sign", buildTemplateHeadline("your_si
 const t2Long = computeOverlayLayout("your_sign", buildTemplateHeadline("your_sign", { propertyType: "Rental Home" }), "").headline
 ok("center-hook fit range is 37–46px", HOOK_MIN_PX === 37 && HOOK_MAX_PX === 46)
 ok("center-hook fitted size stays within [37,46]", t2Short.fontPx >= HOOK_MIN_PX && t2Short.fontPx <= HOOK_MAX_PX && t2Long.fontPx >= HOOK_MIN_PX && t2Long.fontPx <= HOOK_MAX_PX)
-ok("T2 (Market removed) renders large — at the center-hook max (46px)", t2Short.fontPx === HOOK_MAX_PX && t2Long.fontPx === HOOK_MAX_PX)
+// Short hook copy still caps at the max — the conversational TARGET only binds on longer sentences.
+ok("Your Sign (short copy) still renders at the center-hook max (46px)", t2Short.fontPx === HOOK_MAX_PX)
+ok("Your Sign (longest type) sits at or below the max and inside the target", t2Long.fontPx <= HOOK_MAX_PX && headlineTextWidthPx(t2Long.lines[0], t2Long.fontPx) <= HOOK_TARGET_W)
 ok("T2 hook fits the 900px safe box at its fitted size", headlineTextWidthPx(t2Long.lines[0], t2Long.fontPx) <= HEADLINE_TEXT_AVAIL_PX)
 
 console.log("Templates 6 & 7 (POV Upgrade + Affordable Luxury — CENTER HOOK, no detail):")
@@ -478,12 +480,12 @@ console.log("Templates 5 & 8 detail hierarchy (supporting the hook — one line,
 const t5cases = ["8 Weeks Free · Starting at $1,900/mo", "Starting at $1,900/mo", "8 Weeks Free"]
 for (const d of t5cases) {
   const L = computeOverlayLayout("upgrade", "What life looks like when you upgrade", d)
-  ok(`T5 detail one line, 38px, secondary: "${d}" (${L.detail!.fontPx}px)`, L.detail!.lines.length === 1 && L.detail!.fontPx === 38 && L.detail!.fontPx < L.headline.fontPx && detailTextWidthPx(d, L.detail!.fontPx) <= DETAIL_TEXT_AVAIL_PX)
+  ok(`T6 detail one line, proportional, secondary: "${d}" (${L.detail!.fontPx}px vs hook ${L.headline.fontPx})`, L.detail!.lines.length === 1 && L.detail!.fontPx === Math.min(40, Math.max(26, Math.round(L.headline.fontPx * 0.75))) && L.detail!.fontPx < L.headline.fontPx && detailTextWidthPx(d, L.detail!.fontPx) <= DETAIL_TEXT_AVAIL_PX)
 }
 // T8 POV + Price — price detail 40px (strong but below the POV headline), one line for all prices.
 for (const p of ["Starting at $995/mo", "Starting at $1,250/mo", "Starting at $1,900/mo", "Starting at $2,495/mo"]) {
   const L = computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", p)
-  ok(`T8 price one line, 40px, secondary: "${p}" (${L.detail!.fontPx}px)`, L.detail!.lines.length === 1 && L.detail!.fontPx === 40 && L.detail!.fontPx < L.headline.fontPx && detailTextWidthPx(p, L.detail!.fontPx) <= DETAIL_TEXT_AVAIL_PX)
+  ok(`T10 price one line, proportional, secondary: "${p}" (${L.detail!.fontPx}px vs hook ${L.headline.fontPx})`, L.detail!.lines.length === 1 && L.detail!.fontPx === Math.min(40, Math.max(26, Math.round(L.headline.fontPx * 0.75))) && L.detail!.fontPx < L.headline.fontPx && detailTextWidthPx(p, L.detail!.fontPx) <= DETAIL_TEXT_AVAIL_PX)
 }
 ok("T8 price detail is larger than T5 detail (price stays strong)", computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", "Starting at $1,900/mo").detail!.fontPx > computeOverlayLayout("upgrade", "What life looks like when you upgrade", "Starting at $1,900/mo").detail!.fontPx)
 // Tighter gap: center-hook detail sits closer than the standard Hero sub gap; T3 gap tighter too.
@@ -512,14 +514,14 @@ ok("T2 manual override still protected", !isGeneratedHeadline("Your sign to get 
 // T4 — smaller than the shared center-hook max (more side margin); T4 only.
 const t4 = computeOverlayLayout("next_property", "What your next townhome could look like", "").headline
 ok("T4 headline is capped smaller (≤40px) for side margin", t4.fontPx <= 40)
-ok("T4 reduction does NOT affect other center-hooks (T2 stays 46)", computeOverlayLayout("your_sign", "Your sign to get that loft", "").headline.fontPx === 46 && computeOverlayLayout("upgrade", "What life looks like when you upgrade", "Starting at $1,900/mo").headline.fontPx > 40)
+ok("T5's smaller max does NOT affect other center-hooks (short Your Sign stays 46)", computeOverlayLayout("your_sign", "Your sign to get that loft", "").headline.fontPx === 46)
 ok("T4 wording unchanged + one line", buildTemplateHeadline("next_property", { propertyType: "Townhome" }) === "What your next townhome could look like" && t4.lines.length === 1)
 // T5 gap 16 → 21; T8 gap stays 16.
 const t5g = computeOverlayLayout("upgrade", "What life looks like when you upgrade", "6 Weeks Free · Starting at $1,800/mo")
 const t8g = computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", "Starting at $1,800/mo")
 ok("T5 gap increased to 21px", (t5g.detail!.topPx - (t5g.headline.topPx + t5g.headline.fontPx)) === 21)
 ok("T8 gap stays 16px (unchanged)", (t8g.detail!.topPx - (t8g.headline.topPx + t8g.headline.fontPx)) === 16)
-ok("T5 detail stayed 38px", t5g.detail!.fontPx === 38)
+ok("T6 detail is proportional to its hook", t5g.detail!.fontPx === Math.min(40, Math.max(26, Math.round(t5g.headline.fontPx * 0.75))))
 
 console.log("\nTemplate 11 (What $/mo Gets You — dynamic price+city, CENTER HOOK like T7):")
 // The two examples from the spec, exactly.
@@ -568,10 +570,12 @@ ok("picker positions: 11 = Hits Different, 15 = What $/mo Gets You, 16 = — Top
 ok("T12–T16 dropdown labels", OVERLAY_TEMPLATE_LABEL.trade_up === "Trade Up" && OVERLAY_TEMPLATE_LABEL.wanted_luxury === "You Wanted Luxury" && OVERLAY_TEMPLATE_LABEL.real_living === "Real [Property Type] Living" && OVERLAY_TEMPLATE_LABEL.hits_different === "Hits Different" && OVERLAY_TEMPLATE_LABEL.what_mo_gets_you_top === "What $/mo Gets You — Top")
 
 console.log("\nTemplate 12 (Trade Up — dynamic Property Type + optional price):")
-ok("T12 Townhome", buildTemplateHeadline("trade_up", { propertyType: "Townhome" }) === "What life looks like when you trade in your apartment for a Townhome")
-ok("T12 High-Rise", buildTemplateHeadline("trade_up", { propertyType: "High-Rise" }) === "What life looks like when you trade in your apartment for a High-Rise")
-ok("T12 Loft", buildTemplateHeadline("trade_up", { propertyType: "Loft" }) === "What life looks like when you trade in your apartment for a Loft")
-ok("T12 Apartment takes 'an' (grammar, not a second type map)", buildTemplateHeadline("trade_up", { propertyType: "Apartment" }) === "What life looks like when you trade in your apartment for an Apartment")
+// T12 lowercases the type for display, same reasoning as T14: it sits inside a sentence.
+ok("T12 Townhome → lowercase", buildTemplateHeadline("trade_up", { propertyType: "Townhome" }) === "What life looks like when you trade in your apartment for a townhome")
+ok("T12 High-Rise → lowercase", buildTemplateHeadline("trade_up", { propertyType: "High-Rise" }) === "What life looks like when you trade in your apartment for a high-rise")
+ok("T12 Loft → lowercase", buildTemplateHeadline("trade_up", { propertyType: "Loft" }) === "What life looks like when you trade in your apartment for a loft")
+// indefiniteArticle() is case-insensitive, so lowercasing cannot break the a/an grammar.
+ok("T12 Apartment still takes 'an' after lowercasing", buildTemplateHeadline("trade_up", { propertyType: "Apartment" }) === "What life looks like when you trade in your apartment for an apartment")
 ok("T12 no type → generic 'a home' (never undefined/null)", buildTemplateHeadline("trade_up", {}) === "What life looks like when you trade in your apartment for a home")
 ok("T12 price line present when Starting At is valid", buildTemplateDetail("trade_up", { propertyType: "Townhome", budgetRange: "1495" }) === "Starting at $1,495/mo")
 ok("T12 price line OMITTED when no Starting At", buildTemplateDetail("trade_up", { propertyType: "Townhome" }) === "")
@@ -588,9 +592,11 @@ console.log("\nTemplate 14 (Real [Property Type] Living — dynamic Property Typ
 ok("T14 High-Rise → lowercase", buildTemplateHeadline("real_living", { propertyType: "High-Rise" }) === "This is what real high-rise living looks like")
 ok("T14 Townhome → lowercase", buildTemplateHeadline("real_living", { propertyType: "Townhome" }) === "This is what real townhome living looks like")
 ok("T14 Rental Home → lowercase (two words)", buildTemplateHeadline("real_living", { propertyType: "Rental Home" }) === "This is what real rental home living looks like")
-ok("T14 lowercasing is template-scoped — other templates keep canonical case",
-  buildTemplateHeadline("trade_up", { propertyType: "Townhome" }).includes("a Townhome") &&
-  buildTemplateHeadline("hits_different", { propertyType: "Townhome" }) === "Townhomes just hit different")
+// Lowercasing is scoped to the two templates where the type sits INSIDE a sentence (T12, T14).
+// Everywhere title case is intentional it is untouched: T11's plural subject and T1's hero headline.
+ok("lowercasing is template-scoped — title case preserved where intentional",
+  buildTemplateHeadline("hits_different", { propertyType: "Townhome" }) === "Townhomes just hit different" &&
+  buildOverlayHeadline({ market: "San Antonio", propertyType: "Townhome" }) === "SAN ANTONIO TOWNHOMES")
 ok("T14 no type → type word dropped, nothing fabricated", buildTemplateHeadline("real_living", {}) === "This is what real living looks like")
 ok("T14 optional price", buildTemplateDetail("real_living", { budgetRange: "2100" }) === "Starting at $2,100/mo" && buildTemplateDetail("real_living", {}) === "")
 
@@ -646,7 +652,7 @@ ok("T16 has no detail line, like T11", buildTemplateDetail("what_mo_gets_you_top
 }
 
 console.log("\nManual-edit protection for the new templates (generated headlines re-sync, manual ones don't):")
-ok("T12/T14/T15 generated headlines recognized as generator-owned", isGeneratedHeadline("What life looks like when you trade in your apartment for a Townhome") && isGeneratedHeadline("This is what real high-rise living looks like") && isGeneratedHeadline("Townhomes just hit different") && isGeneratedHeadline("Rental Homes just hit different"))
+ok("T12/T14/T15 generated headlines recognized as generator-owned", isGeneratedHeadline("What life looks like when you trade in your apartment for a townhome") && isGeneratedHeadline("This is what real high-rise living looks like") && isGeneratedHeadline("Townhomes just hit different") && isGeneratedHeadline("Rental Homes just hit different"))
 // A T14 headline generated BEFORE the lowercase change no longer matches what any template produces,
 // so it is (correctly) treated as a manual override and left alone rather than silently rewritten.
 ok("pre-change capitalized T14 headline is no longer generator-owned", !isGeneratedHeadline("This is what real High-Rise living looks like"))
@@ -657,7 +663,7 @@ ok("a genuinely MANUAL hook in these shapes is still protected", !isGeneratedHea
 console.log("\nTemplates 1–11 unchanged by this addition:")
 ok("T1 hero headline + price detail unchanged", buildTemplateHeadline("market_type", { market: "San Antonio", propertyType: "High-Rise" }) === "SAN ANTONIO HIGH-RISES" && buildTemplateDetail("market_type", { budgetRange: "1600" }) === "Starting at $1,600/mo")
 ok("T2/T5/T6/T7/T9/T10 headlines unchanged", buildTemplateHeadline("your_sign", { propertyType: "Townhome" }) === "Your sign to get that townhome" && buildTemplateHeadline("next_property", { propertyType: "Townhome" }) === "What your next townhome could look like" && buildTemplateHeadline("upgrade", {}) === "What life looks like when you upgrade" && buildTemplateHeadline("apartment_standards", {}) === "Your apartment standards went up" && buildTemplateHeadline("affordable_luxury", {}) === "Luxury doesn't have to be expensive" && buildTemplateHeadline("pov_price", { propertyType: "Loft" }) === "POV: You upgraded to a loft")
-ok("T5/T8 detail sizes unchanged (38 / 40)", computeOverlayLayout("upgrade", "What life looks like when you upgrade", "Starting at $1,900/mo").detail!.fontPx === 38 && computeOverlayLayout("pov_price", "POV: You upgraded to a loft", "Starting at $1,900/mo").detail!.fontPx === 40)
+ok("T6/T10 detail follows the 0.75 proportional rule", (["upgrade","pov_price"] as const).every((t) => { const L = computeOverlayLayout(t, t === "upgrade" ? "What life looks like when you upgrade" : "POV: You upgraded to a loft", "Starting at $1,900/mo"); return L.detail!.fontPx === Math.min(40, Math.max(26, Math.round(L.headline.fontPx * 0.75))) }))
 ok("T1 stays HERO, T11 stays center_hook, T7 stays center_hook_detail", templateFamily("market_type") === "hero" && templateFamily("what_mo_gets_you") === "center_hook" && templateFamily("apartment_standards") === "center_hook_detail")
 // The one-line rule is untouched for every template that predates T12: the new wrap branch only
 // engages for copy that cannot fit even at CENTER_HOOK.minPx, which none of them hit.
@@ -665,6 +671,60 @@ for (const [t, pt] of [["your_sign", "Rental Home"], ["next_property", "Rental H
   const src = { market: "San Antonio", propertyType: pt, budgetRange: "1495" }
   const L = computeOverlayLayout(t, buildTemplateHeadline(t, src), buildTemplateDetail(t, src))
   ok(`${t} still renders ONE line (wrap branch unreachable)`, L.headline.lines.length === 1)
+}
+
+// ── HERO FREEZE (T1 / T2 / T4) ────────────────────────────────────────────────────────────────
+// The conversational target-width + proportional-detail rules apply ONLY to the center-hook branch.
+// These pin the hero branch's exact fitted output so a future hook change cannot silently move it.
+console.log("\nHero freeze — T1/T2/T4 exact fitted geometry:")
+{
+  const heroCases: [string, string, string, number, number][] = [
+    ["market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,600/mo", 52, 50],
+    ["market_type_centered", "SAN ANTONIO TOWNHOMES", "Starting at $1,600/mo", 52, 50],
+    ["special_feature", "SAN ANTONIO TOWNHOMES", "8 Weeks Free · Private Yards", 52, OVERLAY_SPEC.sub.fontPx],
+  ]
+  for (const [tpl, head, det, wantHead, wantDetail] of heroCases) {
+    const L = computeOverlayLayout(tpl, head, det)
+    ok(`${tpl}: headline pinned at ${wantHead}px, one line`, L.headline.fontPx === wantHead && L.headline.lines.length === 1)
+    ok(`${tpl}: detail pinned at ${wantDetail}px`, L.detail!.fontPx === wantDetail)
+    ok(`${tpl}: hero family + uppercase headline`, templateFamily(tpl) === "hero" && L.headline.uppercase === true)
+  }
+  // Hero uses its OWN range and is untouched by the conversational target.
+  ok("hero range still [47,66]", HERO_MIN_PX === 47 && HERO_MAX_PX === 66)
+  ok("T1 anchors at yFrac (near-top), T2 is the centered variant",
+    Math.round(computeOverlayLayout("market_type", "SAN ANTONIO LOFTS", "Starting at $1,200/mo").headline.topPx) === Math.round(OVERLAY_SPEC.headline.yFrac * OVERLAY_CANVAS.h) &&
+    computeOverlayLayout("market_type_centered", "SAN ANTONIO LOFTS", "Starting at $1,200/mo").headline.topPx > 400)
+  // Heroes are allowed to use the full box — the target is a CONVERSATIONAL rule only.
+  const heroW = headlineTextWidthPx("SAN ANTONIO TOWNHOMES", computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "").headline.fontPx)
+  ok("hero still fills toward the box, NOT the conversational target", heroW > HOOK_TARGET_W && heroW <= HEADLINE_TEXT_AVAIL_PX)
+}
+
+// ── Conversational scale ──────────────────────────────────────────────────────────────────────
+console.log("\nConversational target-width rule:")
+{
+  ok("HOOK_TARGET_W is 780 (≈86.7% of the 900px box)", HOOK_TARGET_W === 780 && HOOK_TARGET_W < HEADLINE_TEXT_AVAIL_PX)
+  // Long copy pulls in to the target; short copy is untouched and stays at the max.
+  const long = computeOverlayLayout("what_mo_gets_you", "What $1,600/mo gets you in San Antonio", "")
+  ok("T15 reference headline sits inside the target", headlineTextWidthPx(long.headline.lines[0], long.headline.fontPx) <= HOOK_TARGET_W)
+  for (const [tpl, head] of [["your_sign", "Your sign to get that loft"], ["hits_different", "Lofts just hit different"], ["wanted_luxury", "You wanted luxury. You got it."]] as [string, string][]) {
+    const L = computeOverlayLayout(tpl, head, "")
+    ok(`${tpl}: short copy keeps the center-hook max (${HOOK_MAX_PX}px) — not shrunk for consistency`, L.headline.fontPx === HOOK_MAX_PX)
+  }
+  // The box remains the hard boundary in every case.
+  ok("T12 stays TWO lines and inside the box", (() => {
+    const L = computeOverlayLayout("trade_up", buildTemplateHeadline("trade_up", { propertyType: "Rental Home" }), "Starting at $1,600/mo")
+    return L.headline.lines.length === 2 && L.headline.lines.every((l) => headlineTextWidthPx(l, L.headline.fontPx) <= HEADLINE_TEXT_AVAIL_PX)
+  })())
+  ok("T14 stays ONE line for every property type", [...PROPERTY_TYPES, null].every((pt) => computeOverlayLayout("real_living", buildTemplateHeadline("real_living", { propertyType: pt as any }), "Starting at $1,600/mo").headline.lines.length === 1))
+  // Proportional detail keeps a clear hierarchy at every hook size.
+  ok("center-hook detail is round(hook × 0.75) clamped [26,40], never hook − 2", (() => {
+    const tpls = ["upgrade", "apartment_standards", "pov_price", "trade_up", "wanted_luxury", "real_living", "hits_different"] as const
+    return tpls.every((t) => {
+      const L = computeOverlayLayout(t, buildTemplateHeadline(t, { propertyType: "High-Rise", market: "San Antonio", budgetRange: "1600" }), "Starting at $1,600/mo")
+      const want = Math.min(40, Math.max(26, Math.round(L.headline.fontPx * 0.75)))
+      return L.detail!.fontPx === want && L.headline.fontPx / L.detail!.fontPx >= 1.25
+    })
+  })())
 }
 
 console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)

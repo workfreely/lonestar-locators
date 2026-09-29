@@ -239,7 +239,7 @@ export function joinDetailParts(parts: (string | null | undefined)[]): string {
 //                                              a {TYPE}" / optional "Starting at $X/mo"
 //   13 wanted_luxury        — CENTER HOOK+D  — "You wanted luxury. You got it." (fixed) / optional price
 //   14 real_living          — CENTER HOOK+D  — "This is what real {TYPE} living looks like" / optional price
-//                                              ONE line always: a per-template floor (REAL_LIVING_MIN_PX
+//                                              ONE line always: the shared conversational floor (34px
 //                                              in overlaySpec) lets it shrink rather than strand
 //                                              "looks like" on a second line
 //   15 what_mo_gets_you     — CENTER HOOK    — "What {$price}/mo gets you in {city}" (Starting At + Market,
@@ -361,7 +361,11 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
       // Canonical display type ("Townhome", "High-Rise"); no type → the same generic "home" fallback
       // Template 5 uses, never "undefined"/"null".
       const subject = canonicalType ?? "home"
-      return `What life looks like when you trade in your apartment for ${indefiniteArticle(subject)} ${subject}`
+      // Lowercased for DISPLAY, same reasoning as T14: the type sits inside a sentence here, so title
+      // case reads as a label rather than prose. The canonical Property Type value is untouched, and
+      // indefiniteArticle() is case-insensitive so "a"/"an" is unaffected ("an Apartment" → "an
+      // apartment"). This block is uppercase:false, so the lowercase reaches preview and render alike.
+      return `What life looks like when you trade in your apartment for ${indefiniteArticle(subject)} ${subject.toLowerCase()}`
     }
     case "wanted_luxury":
       return WANTED_LUXURY_HEADLINE
