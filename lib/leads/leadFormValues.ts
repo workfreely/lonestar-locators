@@ -52,3 +52,42 @@ export function csvToArr(v: unknown): string[] {
 
 /** Join back with the SAME ", " the public form + submit route use. */
 export const arrToCsv = (a: string[]): string => a.join(", ")
+
+/**
+ * Editable lead columns that are NOT `text` in Postgres, so a blank value must be
+ * written as NULL rather than "".
+ *
+ * `leads.move_date` is a `date`. The Edit Client form is all-strings and uses ""
+ * as its empty value — which is correct AS FORM STATE (the DatePicker writes ""
+ * when cleared) but is not valid input for a date column: Postgres rejects it with
+ * `22007 invalid input syntax for type date: ""`, so the whole save failed and the
+ * modal reported "Could not save changes". The Add Lead path never hit this because
+ * it posts to /api/leads/submit, which skips empty values; Edit writes to Supabase
+ * directly with no such boundary, which is why the conversion belongs here.
+ *
+ * Every OTHER editable column is `text`, where "" is accepted — verified against the
+ * schema, including ones that merely look numeric (credit_score, income,
+ * desired_rent, beds, baths, broken_lease_amount, eviction_balance, felony_age,
+ * misdemeanor_age are all text). They are deliberately left alone.
+ *
+ * ADD TO THIS SET if a date / numeric / boolean column is ever made editable.
+ */
+export const NON_TEXT_EDITABLE_COLUMNS: ReadonlySet<string> = new Set(["move_date"])
+
+/**
+ * Build the Edit Client UPDATE patch from the form. Shape is unchanged — every
+ * requested column is present — but a blank value for a NON_TEXT_EDITABLE_COLUMNS
+ * member becomes `null` instead of "". Text columns pass through exactly as before.
+ */
+export function buildEditPatch(
+  form: Record<string, unknown>,
+  columns: readonly string[],
+): Record<string, unknown> {
+  return Object.fromEntries(
+    columns.map((k) => {
+      const v = form[k] ?? ""
+      const isBlank = typeof v === "string" && v.trim() === ""
+      return [k, NON_TEXT_EDITABLE_COLUMNS.has(k) && isBlank ? null : v]
+    }),
+  )
+}

@@ -5,6 +5,7 @@ import LeadFields from "./LeadFields"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { supabase } from "@/lib/supabase/client"
 import { isValidUsPhone } from "@/lib/utils/formatPhone"
+import { buildEditPatch } from "@/lib/leads/leadFormValues"
 
 // The lead columns Edit Client may change — client CRITERIA + contact + screening
 // only. Deliberately EXCLUDES pipeline/attribution fields (crm_status, priority,
@@ -148,7 +149,10 @@ export default function LeadFormModal({
     }
     try {
       setLoading(true)
-      const patch = Object.fromEntries(EDITABLE_COLUMNS.map((k) => [k, (form as any)[k] ?? ""]))
+      // Blank values for non-text columns become NULL at the DB boundary (today:
+      // move_date, a `date` — "" is invalid for it and failed the whole save).
+      // Text columns are untouched. See lib/leads/leadFormValues.
+      const patch = buildEditPatch(form as Record<string, unknown>, EDITABLE_COLUMNS)
       const { data, error } = await supabase
         .from("leads")
         .update(patch)
