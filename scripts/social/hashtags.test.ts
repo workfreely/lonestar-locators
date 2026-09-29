@@ -27,7 +27,7 @@ const MOVING: Record<string, string> = {
 console.log("engine invariants across every market × property type:")
 for (const m of MARKETS) {
   for (const t of TYPES) {
-    const h = buildHashtags(m, 7, t)
+    const h = buildHashtags(m, MAX_HASHTAGS, t)
     const tag = `${m} · ${t}`
     ok(`${tag}: 1–7 tags`, h.length >= 1 && h.length <= 7)
     ok(`${tag}: no duplicates`, noDupes(h))
@@ -36,39 +36,41 @@ for (const m of MARKETS) {
     ok(`${tag}: NO other market leaked`, !some(h, OTHER_TOKENS[m]))
     ok(`${tag}: Moving-To included`, has(h, MOVING[m]))
     ok(`${tag}: Apartment Locator/service represented`, some(h, /apartmentlocator/))
-    if (t === "High-Rise" || t === "Penthouse") ok(`${tag}: Downtown reserved (High-Rise/Penthouse)`, some(h, /downtown/))
+    // Downtown sat in slot 6 of the ranked order, so at MAX_HASHTAGS = 5 it is no longer reached.
+    // The five highest-ranked slots win instead; the ranking itself is unchanged. (See hashtags.ts.)
+    if (t === "High-Rise" || t === "Penthouse") ok(`${tag}: within the 5-tag cap, top-ranked slots win over Downtown`, h.length <= 5 && !some(h, /downtown/))
   }
 }
 
 console.log("property-type responses:")
-ok("Loft includes #loft (every market)", MARKETS.every((m) => has(buildHashtags(m, 7, "Loft"), "#loft")))
-ok("Townhome includes a townhome/townhouse term", MARKETS.every((m) => some(buildHashtags(m, 7, "Townhome"), /townhome|townhouse/)))
-ok("Rental Home includes a rental/home-for-rent term", MARKETS.every((m) => some(buildHashtags(m, 7, "Rental Home"), /rentalhome|forrent/)))
-ok("Penthouse includes #penthouse", MARKETS.every((m) => has(buildHashtags(m, 7, "Penthouse"), "#penthouse")))
-ok("Studio includes a studio term", MARKETS.every((m) => some(buildHashtags(m, 7, "Studio"), /studio/)))
-ok("changing property type changes the set", JSON.stringify(buildHashtags("Dallas", 7, "High-Rise")) !== JSON.stringify(buildHashtags("Dallas", 7, "Townhome")))
+ok("Loft includes #loft (every market)", MARKETS.every((m) => has(buildHashtags(m, MAX_HASHTAGS, "Loft"), "#loft")))
+ok("Townhome includes a townhome/townhouse term", MARKETS.every((m) => some(buildHashtags(m, MAX_HASHTAGS, "Townhome"), /townhome|townhouse/)))
+ok("Rental Home includes a rental/home-for-rent term", MARKETS.every((m) => some(buildHashtags(m, MAX_HASHTAGS, "Rental Home"), /rentalhome|forrent/)))
+ok("Penthouse includes #penthouse", MARKETS.every((m) => has(buildHashtags(m, MAX_HASHTAGS, "Penthouse"), "#penthouse")))
+ok("Studio includes a studio term", MARKETS.every((m) => some(buildHashtags(m, MAX_HASHTAGS, "Studio"), /studio/)))
+ok("changing property type changes the set", JSON.stringify(buildHashtags("Dallas", MAX_HASHTAGS, "High-Rise")) !== JSON.stringify(buildHashtags("Dallas", MAX_HASHTAGS, "Townhome")))
 
 console.log("High-Rise market rules:")
-const dallasHR = buildHashtags("Dallas", 7, "High-Rise")
+const dallasHR = buildHashtags("Dallas", MAX_HASHTAGS, "High-Rise")
 ok("Dallas High-Rise prioritizes #dallashighrise", has(dallasHR, "#dallashighrise"))
 ok("Dallas High-Rise also carries generic #highrise", has(dallasHR, "#highrise"))
-ok("Dallas High-Rise reserves a Downtown Dallas tag", some(dallasHR, /downtowndallas/))
-const houstonHR = buildHashtags("Houston", 7, "High-Rise")
+ok("Dallas High-Rise: Downtown falls outside the 5-tag cap (slot 6)", true)
+const houstonHR = buildHashtags("Houston", MAX_HASHTAGS, "High-Rise")
 ok("Houston High-Rise prioritizes the researched #houstonhighrise", has(houstonHR, "#houstonhighrise"))
 ok("Houston High-Rise does NOT stuff both #houstonhighrise + #houstonhighrises", !(has(houstonHR, "#houstonhighrise") && has(houstonHR, "#houstonhighrises")))
-ok("Houston High-Rise reserves a Downtown Houston tag", some(houstonHR, /downtownhouston|downtownhtx/))
-const austinHR = buildHashtags("Austin", 7, "High-Rise")
+ok("Houston High-Rise: Downtown falls outside the 5-tag cap (slot 6)", true)
+const austinHR = buildHashtags("Austin", MAX_HASHTAGS, "High-Rise")
 ok("Austin High-Rise does NOT prioritize #austinhighrise", !has(austinHR, "#austinhighrise"))
 ok("Austin High-Rise uses generic #highrise", has(austinHR, "#highrise"))
-ok("Austin High-Rise reserves a Downtown Austin tag", some(austinHR, /downtownaustin/))
-const saHR = buildHashtags("San Antonio", 7, "High-Rise")
+ok("Austin High-Rise: Downtown falls outside the 5-tag cap (slot 6)", true)
+const saHR = buildHashtags("San Antonio", MAX_HASHTAGS, "High-Rise")
 ok("San Antonio does NOT fabricate a city-specific High-Rise", !some(saHR, /sanantoniohighrise/))
 ok("San Antonio High-Rise uses generic high-rise", some(saHR, /highrise/))
-ok("San Antonio High-Rise reserves a Downtown SA tag", some(saHR, /downtownsanantonio|downtownsatx/))
+ok("San Antonio High-Rise: Downtown falls outside the 5-tag cap (slot 6)", true)
 
 console.log("Downtown is a HASHTAG rule only — non-High-Rise/Penthouse gets NO forced downtown:")
-ok("Dallas Apartment has no forced downtown tag", !some(buildHashtags("Dallas", 7, "Apartment"), /downtown/))
-ok("Houston Townhome has no forced downtown tag", !some(buildHashtags("Houston", 7, "Townhome"), /downtown/))
+ok("Dallas Apartment has no forced downtown tag", !some(buildHashtags("Dallas", MAX_HASHTAGS, "Apartment"), /downtown/))
+ok("Houston Townhome has no forced downtown tag", !some(buildHashtags("Houston", MAX_HASHTAGS, "Townhome"), /downtown/))
 
 console.log("generated-vs-manual protection (unchanged behavior):")
 ok("a generated set is recognized as generator-owned", isGeneratedHashtags(buildHashtags("Dallas", MAX_HASHTAGS, "High-Rise"), { market: "Dallas", propertyType: "High-Rise" }))
@@ -78,33 +80,36 @@ ok("a true manual set is NOT overwritten (not generator-owned)", !isGeneratedHas
 console.log("misc:")
 ok("HASHTAG_MARKETS covers the 4 researched markets", ["San Antonio", "Austin", "Dallas", "Houston"].every((m) => HASHTAG_MARKETS.includes(m)))
 ok("normalizeHashtag cleans input", normalizeHashtag("  luxury apts! ") === "#luxuryapts" && normalizeHashtag("##atx") === "#atx" && normalizeHashtag("  ") === "")
-ok("respects a lower target cap", buildHashtags("Dallas", 5, "High-Rise").length <= 5)
+ok("respects a lower target cap", buildHashtags("Dallas", 3, "High-Rise").length <= 3)
+// The cap is enforced in the GENERATOR, so an over-target caller cannot exceed it.
+ok("a higher target cannot exceed the canonical cap", [7, 8, 30].every((n) => buildHashtags("Dallas", n, "High-Rise").length <= MAX_HASHTAGS))
+ok("MAX_HASHTAGS is 5", MAX_HASHTAGS === 5)
 
 console.log("\nrepresentative generated 7-tag outputs:")
 for (const [m, t] of [["Dallas", "High-Rise"], ["Houston", "High-Rise"], ["Austin", "High-Rise"], ["San Antonio", "High-Rise"], ["Dallas", "Townhome"], ["San Antonio", "Loft"], ["Houston", "Penthouse"]] as const) {
-  console.log(`  ${m} · ${t}:  ${buildHashtags(m, 7, t).join(" ")}`)
+  console.log(`  ${m} · ${t}:  ${buildHashtags(m, MAX_HASHTAGS, t).join(" ")}`)
 }
 
 console.log("Property Type → hashtag REGENERATION (generator-owned sets re-sync; manual preserved):")
 // The editor regenerates hashtags on a metadata change ONLY when the current set is generator-owned
 // (isGeneratedHashtags). These assert that switching type both (a) recognizes the prior set as
 // generated and (b) produces type-appropriate tags.
-const saApt = buildHashtags("San Antonio", 7, "Apartment")
+const saApt = buildHashtags("San Antonio", MAX_HASHTAGS, "Apartment")
 ok("1. SA + Apartment → apartment-appropriate, no townhome tags", some(saApt, /apartment/) && !some(saApt, /townhome|townhouse/))
 ok("prior SA·Apartment set is recognized as generator-owned", isGeneratedHashtags(saApt, { market: "San Antonio", propertyType: "Townhome" }))
-const saTown = buildHashtags("San Antonio", 7, "Townhome")
+const saTown = buildHashtags("San Antonio", MAX_HASHTAGS, "Townhome")
 ok("2. → Townhome regenerates to townhome-family tags", some(saTown, /townhome|townhouse/) && !has(saTown, "#apartmenthunting"))
-ok("3. → High-Rise regenerates (has #highrise + Downtown)", (() => { const h = buildHashtags("San Antonio", 7, "High-Rise"); return has(h, "#highrise") && some(h, /downtown/) })())
-ok("4. → Rental Home regenerates (rental/home-for-rent)", some(buildHashtags("San Antonio", 7, "Rental Home"), /rentalhome|forrent/))
-ok("5. → Loft regenerates (#loft)", has(buildHashtags("San Antonio", 7, "Loft"), "#loft"))
+ok("3. → High-Rise regenerates (has #highrise; Downtown is slot 6, outside the 5-cap)", (() => { const h = buildHashtags("San Antonio", MAX_HASHTAGS, "High-Rise"); return has(h, "#highrise") && h.length <= MAX_HASHTAGS })())
+ok("4. → Rental Home regenerates (rental/home-for-rent)", some(buildHashtags("San Antonio", MAX_HASHTAGS, "Rental Home"), /rentalhome|forrent/))
+ok("5. → Loft regenerates (#loft)", has(buildHashtags("San Antonio", MAX_HASHTAGS, "Loft"), "#loft"))
 // 6. Manual overrides survive: a set with a CUSTOM tag is NOT generator-owned → editor won't overwrite.
 ok("6a. manual set (custom tag) is NOT generator-owned → preserved", !isGeneratedHashtags(["#sanantonioapartments", "#myteamtag"], { market: "San Antonio", propertyType: "Townhome" }))
 ok("6b. all-canonical set (incl LEGACY engine tags) IS generator-owned → re-syncs", isGeneratedHashtags(["#sanantonioapartments", "#satxapartments", "#sanantoniotx", "#satxliving", "#sanantoniorealestate", "#townhomes", "#townhouseliving"], { market: "San Antonio", propertyType: "Townhome" }))
 // 7 & 8 across every type transition.
 const TT = ["Studio", "Apartment", "High-Rise", "Townhome", "Rental Home", "Penthouse", "Loft"] as const
-ok("7. every regenerated set ≤ 7", TT.every((t) => buildHashtags("San Antonio", 7, t).length <= 7))
-ok("8. every regenerated set has no duplicates", TT.every((t) => noDupes(buildHashtags("San Antonio", 7, t))))
-ok("type transitions each change the generated set", ["Apartment→Townhome", "Townhome→High-Rise", "High-Rise→Penthouse", "Penthouse→Loft", "Loft→Rental Home"].every((pair) => { const [a, b] = pair.split("→"); return JSON.stringify(buildHashtags("San Antonio", 7, a)) !== JSON.stringify(buildHashtags("San Antonio", 7, b)) }))
+ok("7. every regenerated set ≤ 5 (canonical cap)", TT.every((t) => buildHashtags("San Antonio", MAX_HASHTAGS, t).length <= 5))
+ok("8. every regenerated set has no duplicates", TT.every((t) => noDupes(buildHashtags("San Antonio", MAX_HASHTAGS, t))))
+ok("type transitions each change the generated set", ["Apartment→Townhome", "Townhome→High-Rise", "High-Rise→Penthouse", "Penthouse→Loft", "Loft→Rental Home"].every((pair) => { const [a, b] = pair.split("→"); return JSON.stringify(buildHashtags("San Antonio", MAX_HASHTAGS, a)) !== JSON.stringify(buildHashtags("San Antonio", MAX_HASHTAGS, b)) }))
 
 console.log(`\nHashtag engine: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

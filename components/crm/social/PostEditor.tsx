@@ -6,7 +6,7 @@ import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
 import { previewAspectClass } from "@/lib/social/postTypes"
 import { SiInstagram, SiTiktok, SiYoutube } from "react-icons/si"
 import type { IconType } from "react-icons"
-import { buildHashtags, normalizeHashtag, hashtagLimitFor } from "@/lib/social/hashtags"
+import { buildHashtags, normalizeHashtag, hashtagLimitFor, MAX_HASHTAGS } from "@/lib/social/hashtags"
 import { buildCaption, specialDisplay, buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, DEFAULT_OVERLAY_TEMPLATE, type OverlayTemplate, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags, isOverlayPreviewStale, type OverlayPreviewBaseline, type SourceMeta } from "@/lib/social/composePost"
 import SpecialSelect from "@/components/crm/social/SpecialSelect"
 import { computeOverlayLayout } from "@/lib/social/overlaySpec"
@@ -67,7 +67,8 @@ type Post = {
   renderedPreviewUrl: string | null
 }
 
-const MAX_HASHTAGS = 7 // Instagram generation count (approved bank/logic unchanged)
+// Generation count now comes from the SHARED canonical constant (5) — this file used to declare its
+// own 7, a second source of truth that could drift from the generator.
 
 // Publishing destinations shown in the editor's "Post to" selector (icon + name buttons). Instagram
 // is the connected, publish-capable platform today; TikTok/YouTube are shown as real destinations to
@@ -142,7 +143,10 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // selection including TikTok → 5; Instagram and/or YouTube alone → 7), falling back to the Instagram
   // baseline (MAX_HASHTAGS) when nothing is selected. Existing tags above this cap are kept, not
   // removed — they are flagged publish-invalid via the count/help text below.
-  const hashtagLimit = hashtagLimitFor(selectedPlatforms, MAX_HASHTAGS)
+  // EDITOR cap (how many tags may be KEPT) — platform-driven, Instagram baseline. Distinct from the
+  // GENERATION cap (MAX_HASHTAGS = 5) used by the buildHashtags calls below, so a locator can still
+  // keep manually added tags above the generated five.
+  const hashtagLimit = hashtagLimitFor(selectedPlatforms)
   const [headline, setHeadline] = useState("")
   const [overlayMode, setOverlayMode] = useState<"generate" | "existing">("generate")
   const [overlayTemplate, setOverlayTemplate] = useState<OverlayTemplate>(DEFAULT_OVERLAY_TEMPLATE)

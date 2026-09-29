@@ -125,8 +125,15 @@ const concept = (t: string) => t.toLowerCase().replace(/^#+/, "").replace(/s$/, 
  *   Penthouse; otherwise another strong market term) · 7 additional ranked candidate. Remaining slots
  *   backfill from the pooled candidates. No duplicates; no singular/plural stuffing.
  */
-export function buildHashtags(market: string | null | undefined, target = 7, propertyType?: string | null): string[] {
-  const cap = Math.max(1, Math.min(7, target))
+/** Social Beast generates at most this many hashtags — the CANONICAL product rule, enforced HERE in
+ *  the generator rather than by trimming a longer set at the UI, so no path can exceed it whatever
+ *  target it passes. Lowered 7 -> 5: the ranked candidate order already puts the strongest market /
+ *  locator / property terms first, so capping at 5 keeps the five MOST RELEVANT rather than hiding
+ *  two. Defined here (not in composePost) because composePost imports this module, not the reverse. */
+export const MAX_HASHTAGS = 5
+
+export function buildHashtags(market: string | null | undefined, target = MAX_HASHTAGS, propertyType?: string | null): string[] {
+  const cap = Math.max(1, Math.min(MAX_HASHTAGS, target))
   const bank = MARKET_BANKS[normalizeSocialMarket(market)] as MarketBank | undefined
   const type = normalizeToCanonical(propertyType ?? null)
   const isHighRiseFamily = type === "High-Rise" || type === "Penthouse"
@@ -152,7 +159,10 @@ export function buildHashtags(market: string | null | undefined, target = 7, pro
   addFrom([...(bank?.movingTo ?? [])]) // 3 moving-to
   addFrom([...marketType, ...propGeneric]) // 4 primary property (market-specific High-Rise first)
   addFrom([...propGeneric, ...(bank?.general ?? [])]) // 5 secondary property / crossover
-  if (isHighRiseFamily) addFrom([...(bank?.downtown ?? [])]) // 6 DOWNTOWN — guaranteed for High-Rise/Penthouse
+  // Slots 6-7 are only reachable when the cap allows them. At MAX_HASHTAGS = 5 they are always cut by
+  // the slice below, so the Downtown tag is NO LONGER guaranteed for High-Rise/Penthouse — the five
+  // highest-ranked slots win instead. The ranking itself is deliberately unchanged.
+  if (isHighRiseFamily) addFrom([...(bank?.downtown ?? [])]) // 6 Downtown (High-Rise/Penthouse)
   else addFrom([...(bank?.general ?? []), ...(bank?.apartment ?? [])]) // 6 extra strong market term
   addFrom([...(bank?.general ?? []), ...propGeneric, ...marketType, ...(bank?.downtown ?? []), ...BASE]) // 7 additional
 

@@ -6,7 +6,7 @@ import { SOCIAL_MARKETS } from "@/lib/social/markets"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
 import { inferFromFilename, detectMarket, suggestArea, type FilenameInference } from "@/lib/social/filenameInference"
 import { resolvePropertyMatch } from "@/lib/social/resolveProperty"
-import { buildHashtags } from "@/lib/social/hashtags"
+import { buildHashtags, MAX_HASHTAGS } from "@/lib/social/hashtags"
 import { preparePost } from "@/lib/social/composePost"
 import { overlayPreviewStyle, wrapHeadline, wrapSub } from "@/lib/social/overlaySpec"
 import PropertySearchField, { type PropertyMatch } from "@/components/crm/social/PropertySearchField"
@@ -384,7 +384,8 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
                   const st = rowStatus(r)
                   const overlayOk = !!r.propertyName.trim()
                   const captionOk = !!(r.propertyName.trim() || r.market)
-                  const tags = buildHashtags(r.market, 8, r.propertyType).length
+                  // Row readiness indicator — count what generation would actually produce (shared cap), not 8.
+                  const tags = buildHashtags(r.market, MAX_HASHTAGS, r.propertyType).length
                   const sel = selected.has(r.uid)
                   return (
                     <tr key={r.uid} onClick={() => setActiveUid(r.uid)} className={"border-b border-[var(--crm-border)] cursor-pointer " + (activeUid === r.uid ? "bg-[var(--crm-card)]" : "hover:bg-[var(--crm-card)]/60")}>

@@ -6,7 +6,7 @@
 // mutates a set, so a >5 selection is NEVER silently trimmed by this logic.
 // Run: npx tsx scripts/social/hashtagLimits.test.ts
 import { readFileSync } from "node:fs"
-import { hashtagLimitFor, PLATFORM_HASHTAG_LIMIT } from "@/lib/social/hashtags"
+import { hashtagLimitFor, PLATFORM_HASHTAG_LIMIT, MAX_HASHTAGS } from "@/lib/social/hashtags"
 
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
@@ -32,7 +32,7 @@ ok("Instagram + TikTok + YouTube → 5", hashtagLimitFor(S("instagram", "tiktok"
 ok("TikTok listed first still → 5", hashtagLimitFor(S("tiktok", "instagram", "youtube")) === 5)
 
 console.log("\nEdge cases (fallback + unknown ids):")
-ok("empty selection → fallback 7", hashtagLimitFor(S()) === 7)
+ok("empty selection → fallback 7 (editor baseline, NOT the generation cap)", hashtagLimitFor(S()) === 7)
 ok("empty selection → explicit fallback honored", hashtagLimitFor(S(), 9) === 9)
 ok("unknown id only → fallback 7", hashtagLimitFor(S("facebook")) === 7)
 ok("unknown id ignored, TikTok still caps → 5", hashtagLimitFor(S("facebook", "tiktok")) === 5)
@@ -47,7 +47,8 @@ console.log("\n>5 existing-selection case — cap is computed, tags are NEVER tr
   ok("the 7 existing tags are OVER the cap (2 over)", existing.length - cap === 2)
   // hashtagLimitFor returns a number only — it cannot and does not mutate the caller's array.
   ok("hashtagLimitFor returns a number, not a list (no trimming)", typeof cap === "number")
-  ok("existing array is untouched by computing the cap", existing.length === 7)
+  // Still 7: a HISTORICAL post generated under the old cap is never trimmed or rewritten.
+  ok("existing 7-tag historical set is untouched by computing the cap", existing.length === 7)
 }
 
 console.log("\nSource guarantees (PostEditor uses the shared cap for the editor, MAX_HASHTAGS for generation):")
@@ -56,7 +57,10 @@ console.log("\nSource guarantees (PostEditor uses the shared cap for the editor,
   const noComments = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1")
   // Editor cap is derived from the shared helper over the selected platforms.
   ok("imports hashtagLimitFor", /import\s*\{[^}]*\bhashtagLimitFor\b[^}]*\}\s*from\s*["']@\/lib\/social\/hashtags["']/.test(noComments))
-  ok("derives hashtagLimit = hashtagLimitFor(selectedPlatforms, ...)", /const\s+hashtagLimit\s*=\s*hashtagLimitFor\(\s*selectedPlatforms\s*,/.test(noComments))
+  // The editor cap now uses the helper's own platform baseline; it no longer passes the GENERATION
+  // constant, so the two caps cannot drift into each other.
+  ok("derives hashtagLimit from hashtagLimitFor(selectedPlatforms)", /const\s+hashtagLimit\s*=\s*hashtagLimitFor\(\s*selectedPlatforms\s*\)/.test(noComments))
+  ok("editor cap no longer passes the generation constant", !/hashtagLimitFor\(\s*selectedPlatforms\s*,\s*MAX_HASHTAGS/.test(noComments))
   // The three editor-cap surfaces use hashtagLimit (add-cap, add-input visibility, help/label).
   ok("add-cap uses hashtagLimit (prevent adding past the cap)", /prev\.length\s*>=\s*hashtagLimit/.test(noComments))
   ok("add-input visibility uses hashtagLimit", /hashtags\.length\s*<\s*hashtagLimit/.test(noComments))
@@ -65,7 +69,9 @@ console.log("\nSource guarantees (PostEditor uses the shared cap for the editor,
   const genCalls = noComments.match(/buildHashtags\([^)]*\)/g) ?? []
   ok("buildHashtags is still called (generation present)", genCalls.length >= 2)
   ok("no buildHashtags call uses hashtagLimit (generation untouched)", genCalls.every((c) => !/hashtagLimit/.test(c)))
-  ok("MAX_HASHTAGS still defined as 7 (generation constant)", /const\s+MAX_HASHTAGS\s*=\s*7\b/.test(noComments))
+  // The generation constant now lives in lib/social/hashtags (one canonical source, value 5) and
+  // PostEditor imports it instead of declaring its own.
+  ok("PostEditor imports the shared MAX_HASHTAGS rather than declaring its own", /import\s*\{[^}]*MAX_HASHTAGS[^}]*\}\s*from\s*"@\/lib\/social\/hashtags"/.test(noComments) && !/const\s+MAX_HASHTAGS\s*=/.test(noComments))
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

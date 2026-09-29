@@ -12,14 +12,14 @@ import { buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
 
-console.log("hashtag engine (centralized, deterministic, max 7 — details in hashtags.test.ts):")
+console.log("hashtag engine (centralized, deterministic, max 5 — details in hashtags.test.ts):")
 ok("markets include Austin/Dallas/DFW/Houston/San Antonio", ["Austin","Dallas","Houston","San Antonio"].every((m) => HASHTAG_MARKETS.includes(m)))
-const dallas = buildHashtags("Dallas", 7, "Apartment")
+const dallas = buildHashtags("Dallas", 5, "Apartment")
 ok("Dallas has #dallasapartments", dallas.includes("#dallasapartments"))
 ok("capped at 7", dallas.length <= 7)
 ok("no duplicates", new Set(dallas.map((s) => s.toLowerCase())).size === dallas.length)
-ok("San Antonio market tags present", buildHashtags("San Antonio", 7, "Apartment").some((t) => /sanantonio|satx/.test(t)))
-ok("unknown market still yields a non-empty relevant set (property + base)", buildHashtags("Nowhere", 7, "Apartment").length >= 1)
+ok("San Antonio market tags present", buildHashtags("San Antonio", 5, "Apartment").some((t) => /sanantonio|satx/.test(t)))
+ok("unknown market still yields a non-empty relevant set (property + base)", buildHashtags("Nowhere", 5, "Apartment").length >= 1)
 
 console.log("normalizeHashtag:")
 ok("adds # and strips junk", normalizeHashtag("  luxury apts! ") === "#luxuryapts")
@@ -31,7 +31,7 @@ console.log("auto-prepare (PUBLIC-SAFE only — never the property name/area/not
 const src = { market: "San Antonio", propertyType: "Townhome", special: "1 Month Free", budgetRange: "$1,200–$1,600", amenities: "private yard, garage, pool" }
 const prep = preparePost(src, "seed-A")
 ok("headline = MARKET + TYPE (not property name)", prep.overlayHeadline === "SAN ANTONIO TOWNHOMES")
-ok("subheadline = Starting-at lowest price (Template 1)", prep.overlaySubheadline === "Starting at $1,200/mo")
+ok("subheadline = Starting-at lowest price (Template 1)", prep.overlaySubheadline === "Starting at $1,200/month")
 ok("caption includes special + bulleted amenities; NO price line (overlay-only)", prep.caption.includes("✨ 1 Month Free") && prep.caption.includes("🏡 Amenities\n• private yard\n• garage\n• pool") && !prep.caption.includes("💰"))
 ok("caption at most 7 hashtags prepared separately", prep.hashtags.length <= 7 && prep.hashtags.length >= 1)
 // Even if a property name were somehow supplied, the type-level SourceMeta drops it — verify no
@@ -111,13 +111,13 @@ ok("absent optional fields → no ✨/🏡/💰, clean spacing", !sparse.include
 // Intentional paragraph break BEFORE hashtags is preserved by composeFinalCaption (blank line).
 ok("paragraph break before hashtags preserved (\\n\\n)", composeFinalCaption(messy, ["#a", "#b"]).includes(messy + "\n\n#a #b"))
 
-console.log("Template 1 subheadline: 'Starting at {lowest}/mo' (or empty; special stays in caption):")
-ok("range → lowest price", startingPriceLabel("$1,495–$2,100") === "Starting at $1,495/mo")
-ok("single value → that price", startingPriceLabel("$1,895") === "Starting at $1,895/mo")
-ok("open-ended '$1,200+' → 1200", startingPriceLabel("$1,200+") === "Starting at $1,200/mo")
-ok("surrounding whitespace trimmed", startingPriceLabel("  $2,000 – $3,000  ") === "Starting at $2,000/mo")
+console.log("Template 1 subheadline: 'Starting at {lowest}/month' (or empty; special stays in caption):")
+ok("range → lowest price", startingPriceLabel("$1,495–$2,100") === "Starting at $1,495/month")
+ok("single value → that price", startingPriceLabel("$1,895") === "Starting at $1,895/month")
+ok("open-ended '$1,200+' → 1200", startingPriceLabel("$1,200+") === "Starting at $1,200/month")
+ok("surrounding whitespace trimmed", startingPriceLabel("  $2,000 – $3,000  ") === "Starting at $2,000/month")
 ok("no digits → empty (no fabrication)", startingPriceLabel("Call for pricing") === "" && startingPriceLabel("") === "" && startingPriceLabel(null) === "")
-ok("sub uses starting price from range", buildOverlaySubheadline({ market: "Dallas", budgetRange: "$1,495–$2,100" }) === "Starting at $1,495/mo")
+ok("sub uses starting price from range", buildOverlaySubheadline({ market: "Dallas", budgetRange: "$1,495–$2,100" }) === "Starting at $1,495/month")
 ok("sub omits when no price (special is NOT the overlay sub in Template 1)", buildOverlaySubheadline({ market: "Dallas", special: "1 Month Free", amenities: "pool, gym" }) === "")
 ok("sub empty when nothing", buildOverlaySubheadline({ market: "Austin" }) === "")
 
@@ -211,20 +211,20 @@ ok("custom manual headline NOT generated", !isGeneratedHeadline("MY CUSTOM TAGLI
 ok("generated caption recognized", isGeneratedCaption(buildCaption({ market: "Dallas", propertyType: "Townhome" }, "s1"), { market: "Dallas", propertyType: "Townhome" }, "s1"))
 ok("stale caption (wrong type) still recognized as generated", isGeneratedCaption("Need a new high-rise?\nMy apartment locating service is completely free!\nSubmit the form to get your free custom apartment list.", { market: "Dallas", propertyType: "Townhome" }, "s1"))
 ok("manual caption NOT generated", !isGeneratedCaption("Check out this amazing place!", { market: "Dallas", propertyType: "Townhome" }, "s1"))
-ok("generated hashtags recognized (Dallas)", isGeneratedHashtags(buildHashtags("Dallas", 7, "Townhome"), { market: "Dallas", propertyType: "Townhome" }))
-ok("stale San Antonio hashtags recognized as generated (any market)", isGeneratedHashtags(buildHashtags("San Antonio", 7, "Townhome"), { market: "Dallas", propertyType: "Townhome" }))
+ok("generated hashtags recognized (Dallas)", isGeneratedHashtags(buildHashtags("Dallas", 5, "Townhome"), { market: "Dallas", propertyType: "Townhome" }))
+ok("stale San Antonio hashtags recognized as generated (any market)", isGeneratedHashtags(buildHashtags("San Antonio", 5, "Townhome"), { market: "Dallas", propertyType: "Townhome" }))
 ok("custom hashtags NOT generated", !isGeneratedHashtags(["#mycustomtag", "#anothercustom"], { market: "Dallas" }))
 
 console.log("overlay detail (Template 1 formula) + CASE A/B sync:")
-ok("detail = Starting at price", buildOverlayDetail({ budgetRange: "1495" }) === "Starting at $1,495/mo")
+ok("detail = Starting at price", buildOverlayDetail({ budgetRange: "1495" }) === "Starting at $1,495/month")
 ok("detail empty when no price", buildOverlayDetail({}) === "")
 // CASE A: Dallas + Townhome + 1495
 ok("A overlay headline", buildOverlayHeadline({ market: "Dallas", propertyType: "Townhome" }) === "DALLAS TOWNHOMES")
-ok("A overlay detail", buildOverlayDetail({ budgetRange: "1495" }) === "Starting at $1,495/mo")
-ok("A hashtags are Dallas, max 7, ZERO San Antonio", (() => { const h = buildHashtags("Dallas", 7, "Townhome"); return h.length <= 7 && h.includes("#dallasapartments") && !h.some((t) => t.includes("sanantonio") || t.includes("satx")) })())
+ok("A overlay detail", buildOverlayDetail({ budgetRange: "1495" }) === "Starting at $1,495/month")
+ok("A hashtags are Dallas, max 5, ZERO San Antonio", (() => { const h = buildHashtags("Dallas", 5, "Townhome"); return h.length <= 5 && h.includes("#dallasapartments") && !h.some((t) => t.includes("sanantonio") || t.includes("satx")) })())
 // CASE B: Dallas + Loft + 1495
 ok("B overlay headline", buildOverlayHeadline({ market: "Dallas", propertyType: "Loft" }) === "DALLAS LOFTS")
-ok("B hashtags Dallas + loft, ZERO San Antonio", (() => { const h = buildHashtags("Dallas", 7, "Loft"); return h.length <= 7 && h.includes("#dallasapartments") && h.includes("#loft") && !h.some((t) => t.includes("sanantonio") || t.includes("satx")) })())
+ok("B hashtags Dallas + loft, ZERO San Antonio", (() => { const h = buildHashtags("Dallas", 5, "Loft"); return h.length <= 5 && h.includes("#dallasapartments") && h.includes("#loft") && !h.some((t) => t.includes("sanantonio") || t.includes("satx")) })())
 
 console.log("Current Special → concise social-display (deterministic; never fabricated):")
 ok("'8 weeks free' → '8 Weeks Free'", specialDisplay("8 weeks free") === "8 Weeks Free")
@@ -256,16 +256,16 @@ ok("bulleted amenities capped at 3, empties ignored", bulletCap.includes("🏡 A
 ok("no amenities → no '🏡 Amenities' heading at all", !buildCaption({ market: "Houston", propertyType: "Townhome" }, "s0").includes("🏡"))
 
 console.log("overlay detail one-line composition helper (· separator; future template rules):")
-ok("special + price → '8 Weeks Free · Starting at $1,495/mo'", joinDetailParts([specialDisplay("8 weeks free"), startingPriceLabel("1495")]) === "8 Weeks Free · Starting at $1,495/mo")
+ok("special + price → '8 Weeks Free · Starting at $1,495/month'", joinDetailParts([specialDisplay("8 weeks free"), startingPriceLabel("1495")]) === "8 Weeks Free · Starting at $1,495/month")
 ok("special only", joinDetailParts([specialDisplay("8 weeks free"), startingPriceLabel(null)]) === "8 Weeks Free")
-ok("price only", joinDetailParts([specialDisplay(null), startingPriceLabel("1495")]) === "Starting at $1,495/mo")
+ok("price only", joinDetailParts([specialDisplay(null), startingPriceLabel("1495")]) === "Starting at $1,495/month")
 ok("neither → empty (no detail)", joinDetailParts([specialDisplay(null), startingPriceLabel(null)]) === "")
 ok("uses centered-dot ' · ' separator, never comma/pipe", (() => { const d = joinDetailParts(["A", "B"]); return d === "A · B" && !d.includes(",") && !d.includes("|") })())
 
 console.log("CASE 14 — Houston + Townhome + 1495 (Template 1 is PRICE-ONLY; special stays in caption):")
 ok("Template 1 overlay headline", buildOverlayHeadline({ market: "Houston", propertyType: "Townhome" }) === "HOUSTON TOWNHOMES")
-ok("Template 1 overlay detail is price-only (does NOT add the special)", buildOverlayDetail({ market: "Houston", propertyType: "Townhome", special: "8 weeks free", budgetRange: "1495" }) === "Starting at $1,495/mo")
-ok("Houston hashtags: market bank, max 7, ZERO San Antonio / Dallas", (() => { const h = buildHashtags("Houston", 7, "Townhome"); return h.length <= 7 && h.includes("#houstonapartments") && !h.some((t) => /sanantonio|satx|dallas|dfw/.test(t)) })())
+ok("Template 1 overlay detail is price-only (does NOT add the special)", buildOverlayDetail({ market: "Houston", propertyType: "Townhome", special: "8 weeks free", budgetRange: "1495" }) === "Starting at $1,495/month")
+ok("Houston hashtags: market bank, max 5, ZERO San Antonio / Dallas", (() => { const h = buildHashtags("Houston", 5, "Townhome"); return h.length <= 5 && h.includes("#houstonapartments") && !h.some((t) => /sanantonio|satx|dallas|dfw/.test(t)) })())
 // Deterministic hook is preserved (not forced to Hook 4); whatever hook this seed selects is used.
 ok("caption hook resolves to CURRENT Houston/Townhome metadata (deterministic, not forced)", (() => {
   const first = houston.split("\n")[0]
@@ -323,7 +323,7 @@ ok("Free Movers renders verbatim in caption", buildCaption({ market: "Dallas", s
 const rawKept = { market: "Dallas", propertyType: "Townhome", special: "8 weeks free on select units", socialSpecial: "$500 Gift Card" }
 buildCaption(rawKept, "s0"); resolveSocialSpecial(rawKept)
 ok("raw Current Special metadata is never mutated by resolution", rawKept.special === "8 weeks free on select units")
-ok("Template 1 overlay detail stays PRICE-ONLY regardless of Social Special", buildOverlayDetail({ ...rawKept, budgetRange: "1495" }) === "Starting at $1,495/mo")
+ok("Template 1 overlay detail stays PRICE-ONLY regardless of Social Special", buildOverlayDetail({ ...rawKept, budgetRange: "1495" }) === "Starting at $1,495/month")
 ok("one primary Social Special (single value feeds caption)", (capExplicit.match(/✨/g) || []).length === 1)
 
 console.log("overlay typography = subtle tracking + localized drop shadow (NO band/box/scrim):")
@@ -338,12 +338,12 @@ ok("NO visible outline (edge alpha 0 — crisp solid white)", OVERLAY_TEXT.edgeA
 // equals what is rendered.
 ok("headline/detail tracking is 0 and never negative", OVERLAY_TEXT.trackingEm === 0)
 ok("measured width === rendered width (no phantom tracking budget)",
-  headlineTextWidthPx("What $1,500/mo gets you in San Antonio", 41) === headlineTextWidthPx("What $1,500/mo gets you in San Antonio", 41, 0) &&
-  detailTextWidthPx("Starting at $1,800/mo", 40) === detailTextWidthPx("Starting at $1,800/mo", 40, 0))
+  headlineTextWidthPx("What $1,500/month gets you in San Antonio", 41) === headlineTextWidthPx("What $1,500/month gets you in San Antonio", 41, 0) &&
+  detailTextWidthPx("Starting at $1,800/month", 40) === detailTextWidthPx("Starting at $1,800/month", 40, 0))
 // HEAD_ADV covers the full headline vocabulary — digits/$/,// were falling through to ADV_FALLBACK,
 // which mis-measured every price-bearing headline (T15/T16).
 ok("price headline is measured from real advances, not the fallback",
-  headlineTextWidthPx("$1,500/mo", 100) !== headlineTextWidthPx("@@@@@@@@@", 100))
+  headlineTextWidthPx("$1,500/month", 100) !== headlineTextWidthPx("@@@@@@@@@", 100))
 ok("drop-shadow is subtle / non-obvious (insurance for white footage)", OVERLAY_TEXT.shadowAlpha > 0 && OVERLAY_TEXT.shadowAlpha <= 0.6)
 ok("render graph still outputs the [v] label", /\[v\]$/.test(hugFilt))
 
@@ -352,7 +352,7 @@ const tMeta = { market: "San Antonio", propertyType: "High-Rise", socialSpecial:
 ok("16 templates defined", OVERLAY_TEMPLATES.length === 16)
 // T1 Market + Type (HERO)
 ok("T1 headline = CITY TYPE_PLURAL", buildTemplateHeadline("market_type", tMeta) === "SAN ANTONIO HIGH-RISES")
-ok("T1 detail = Starting at price", buildTemplateDetail("market_type", tMeta) === "Starting at $1,600/mo")
+ok("T1 detail = Starting at price", buildTemplateDetail("market_type", tMeta) === "Starting at $1,600/month")
 ok("T1 detail omitted when no price", buildTemplateDetail("market_type", { market: "San Antonio", propertyType: "High-Rise" }) === "")
 // T2 Your Sign (CENTER HOOK, no detail)
 ok("T2 headline hook (Property Type only, no Market)", buildTemplateHeadline("your_sign", tMeta) === "Your sign to get that high-rise")
@@ -368,13 +368,13 @@ ok("T4 headline hook", buildTemplateHeadline("next_property", tMeta) === "What y
 ok("T4 no detail", buildTemplateDetail("next_property", tMeta) === "")
 // T5 Upgrade (CENTER HOOK + DETAIL)
 ok("T5 headline fixed", buildTemplateHeadline("upgrade", tMeta) === "What life looks like when you upgrade")
-ok("T5 detail special + price", buildTemplateDetail("upgrade", tMeta) === "8 Weeks Free · Starting at $1,600/mo")
-ok("T5 detail price only", buildTemplateDetail("upgrade", { market: "San Antonio", propertyType: "High-Rise", budgetRange: "1600" }) === "Starting at $1,600/mo")
+ok("T5 detail special + price", buildTemplateDetail("upgrade", tMeta) === "8 Weeks Free · Starting at $1,600/month")
+ok("T5 detail price only", buildTemplateDetail("upgrade", { market: "San Antonio", propertyType: "High-Rise", budgetRange: "1600" }) === "Starting at $1,600/month")
 // Layout families
-ok("T1/T3 are HERO (headline near top, uppercase)", computeOverlayLayout("market_type", "SAN ANTONIO HIGH-RISES", "Starting at $1,600/mo").family === "hero" && computeOverlayLayout("special_feature", "X", "").family === "hero")
+ok("T1/T3 are HERO (headline near top, uppercase)", computeOverlayLayout("market_type", "SAN ANTONIO HIGH-RISES", "Starting at $1,600/month").family === "hero" && computeOverlayLayout("special_feature", "X", "").family === "hero")
 ok("T2/T4 are CENTER HOOK (no detail block)", computeOverlayLayout("your_sign", "Your sign to get that high-rise in San Antonio", "").family === "center_hook" && computeOverlayLayout("next_property", "What your next high-rise could look like", "").family === "center_hook")
-ok("T5 is CENTER HOOK + DETAIL", computeOverlayLayout("upgrade", "What life looks like when you upgrade", "8 Weeks Free · Starting at $1,600/mo").family === "center_hook_detail")
-const heroL = computeOverlayLayout("market_type", "SAN ANTONIO HIGH-RISES", "Starting at $1,600/mo")
+ok("T5 is CENTER HOOK + DETAIL", computeOverlayLayout("upgrade", "What life looks like when you upgrade", "8 Weeks Free · Starting at $1,600/month").family === "center_hook_detail")
+const heroL = computeOverlayLayout("market_type", "SAN ANTONIO HIGH-RISES", "Starting at $1,600/month")
 ok("HERO headline sits near the top; detail below it", heroL.headline.topPx < 400 && !!heroL.detail && heroL.detail.topPx > heroL.headline.topPx)
 ok("HERO headline is uppercase-flagged; center hook is not", heroL.headline.uppercase === true && computeOverlayLayout("your_sign", "Your sign", "").headline.uppercase === false)
 // The T2 headline the generator actually produces is Property Type ONLY — the market was removed from
@@ -385,7 +385,7 @@ ok("HERO headline is uppercase-flagged; center hook is not", heroL.headline.uppe
 const hookL = computeOverlayLayout("your_sign", buildTemplateHeadline("your_sign", { propertyType: "High-Rise" } as any), "")
 ok("CENTER HOOK is vertically centred (not near the top)", hookL.headline.topPx > 400 && hookL.headline.topPx < 1920 && hookL.detail === null)
 ok("CENTER HOOK uses a smaller size than the Hero headline (not forced giant)", hookL.headline.fontPx < heroL.headline.fontPx)
-const upL = computeOverlayLayout("upgrade", "What life looks like when you upgrade", "8 Weeks Free · Starting at $1,600/mo")
+const upL = computeOverlayLayout("upgrade", "What life looks like when you upgrade", "8 Weeks Free · Starting at $1,600/month")
 ok("CENTER HOOK + DETAIL centres the group; detail below headline", !!upL.detail && upL.detail.topPx > upL.headline.topPx)
 ok("CENTER HOOK + DETAIL hierarchy: detail is smaller than the hook", !!upL.detail && upL.detail.fontPx < upL.headline.fontPx)
 ok("HERO hierarchy: detail is smaller than the headline", !!heroL.detail && heroL.detail.fontPx < heroL.headline.fontPx)
@@ -448,10 +448,10 @@ for (const [type, expected] of Object.entries(POV)) {
   ok(`T8 headline ${type} → "${expected}"`, buildTemplateHeadline("pov_price", { market: "San Antonio", propertyType: type }) === expected)
 }
 ok("T8 no property type → 'POV: You upgraded'", buildTemplateHeadline("pov_price", {}) === "POV: You upgraded")
-ok("T8 detail = 'Starting at $X/mo' when a price exists", buildTemplateDetail("pov_price", { propertyType: "Townhome", budgetRange: "1800" }) === "Starting at $1,800/mo")
+ok("T8 detail = 'Starting at $X/month' when a price exists", buildTemplateDetail("pov_price", { propertyType: "Townhome", budgetRange: "1800" }) === "Starting at $1,800/month")
 ok("T8 detail omitted when NO price", buildTemplateDetail("pov_price", { propertyType: "Townhome" }) === "")
-ok("T8 detail ignores special/amenities (price only)", buildTemplateDetail("pov_price", { propertyType: "Loft", budgetRange: "1250", socialSpecial: "8 Weeks Free", amenities: "Rooftop Pool" }) === "Starting at $1,250/mo")
-const t8 = computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", "Starting at $1,800/mo")
+ok("T8 detail ignores special/amenities (price only)", buildTemplateDetail("pov_price", { propertyType: "Loft", budgetRange: "1250", socialSpecial: "8 Weeks Free", amenities: "Rooftop Pool" }) === "Starting at $1,250/month")
+const t8 = computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", "Starting at $1,800/month")
 ok("T8 is CENTER HOOK + DETAIL (headline + detail block)", t8.family === "center_hook_detail" && !!t8.detail && t8.detail.lines.length === 1)
 ok("T8 detail sits below the headline", !!t8.detail && t8.detail.topPx > t8.headline.topPx)
 ok("T8 hierarchy: detail smaller than the POV headline", !!t8.detail && t8.detail.fontPx < t8.headline.fontPx)
@@ -459,32 +459,32 @@ ok("T8 headline is ONE line (fit-to-width) within the safe box", t8.headline.lin
 const t8NoPrice = computeOverlayLayout("pov_price", "POV: You upgraded to a loft", "")
 ok("T8 with no price → headline only (no detail block)", t8NoPrice.detail === null)
 ok("T8 headline re-syncs with Property Type (generator-owned)", isGeneratedHeadline("POV: You upgraded to a townhome") && buildTemplateHeadline("pov_price", { propertyType: "Loft" }) === "POV: You upgraded to a loft")
-// /mo canonical output has NO space between "/" and "mo" (multiple prices).
-for (const [p, exp] of [["995", "Starting at $995/mo"], ["1250", "Starting at $1,250/mo"], ["1800", "Starting at $1,800/mo"], ["2495", "Starting at $2,495/mo"]] as const) {
+// /month canonical output has NO space between "/" and "mo" (multiple prices).
+for (const [p, exp] of [["995", "Starting at $995/month"], ["1250", "Starting at $1,250/month"], ["1800", "Starting at $1,800/month"], ["2495", "Starting at $2,495/month"]] as const) {
   ok(`price ${p} → "${exp}" (no '/ mo' space)`, startingPriceLabel(p) === exp && !startingPriceLabel(p).includes("/ mo"))
 }
 
 console.log("Template 1 detail size (larger price line; T1 only):")
-const t1d = computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,800/mo").detail
+const t1d = computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,800/month").detail
 // T1's price renders at its 52px target whenever the fitted headline leaves room, and is COUPLED to
 // headline − 2 otherwise so it can never out-size the headline it supports. "SAN ANTONIO TOWNHOMES"
 // fits at 51px in Libre Baskerville, so its price caps at 49; a shorter combo still gets the full 52.
 ok("T1 detail renders at 52px when the headline is large enough",
-  computeOverlayLayout("market_type", "DFW LOFTS", "Starting at $1,800/mo").detail!.fontPx === 52)
-ok("T1 detail is capped at headline − 2 when the headline fits small", !!t1d && t1d.fontPx === computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,800/mo").headline.fontPx - 2)
-ok("T1 detail stays ONE line for all test prices", ["Starting at $995/mo", "Starting at $1,250/mo", "Starting at $1,800/mo", "Starting at $2,495/mo"].every((p) => computeOverlayLayout("market_type", "SAN ANTONIO LOFTS", p).detail!.lines.length === 1))
+  computeOverlayLayout("market_type", "DFW LOFTS", "Starting at $1,800/month").detail!.fontPx === 52)
+ok("T1 detail is capped at headline − 2 when the headline fits small", !!t1d && t1d.fontPx === computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,800/month").headline.fontPx - 2)
+ok("T1 detail stays ONE line for all test prices", ["Starting at $995/month", "Starting at $1,250/month", "Starting at $1,800/month", "Starting at $2,495/month"].every((p) => computeOverlayLayout("market_type", "SAN ANTONIO LOFTS", p).detail!.lines.length === 1))
 ok("T3 (special_feature) detail UNCHANGED at the shared sub size", (computeOverlayLayout("special_feature", "SAN ANTONIO TOWNHOMES", "8 Weeks Free · Private Yards").detail!.fontPx) === OVERLAY_SPEC.sub.fontPx)
-ok("T1 detail still clearly secondary to the headline", !!t1d && t1d.fontPx < computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,800/mo").headline.fontPx)
+ok("T1 detail still clearly secondary to the headline", !!t1d && t1d.fontPx < computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,800/month").headline.fontPx)
 
 console.log("Templates 5 & 8 detail hierarchy (supporting the hook — one line, secondary, tight gap):")
 // T5 Upgrade — detail 38px (reduced to support, not compete), one line for every fallback.
-const t5cases = ["8 Weeks Free · Starting at $1,900/mo", "Starting at $1,900/mo", "8 Weeks Free"]
+const t5cases = ["8 Weeks Free · Starting at $1,900/month", "Starting at $1,900/month", "8 Weeks Free"]
 for (const d of t5cases) {
   const L = computeOverlayLayout("upgrade", "What life looks like when you upgrade", d)
   ok(`T6 detail one line at the flat conversational size: "${d}" (${L.detail!.fontPx}px vs hook ${L.headline.fontPx})`, L.detail!.lines.length === 1 && L.detail!.fontPx === Math.min(27, Math.max(20, L.headline.fontPx - 1)) && L.detail!.fontPx < L.headline.fontPx && detailTextWidthPx(d, L.detail!.fontPx) <= DETAIL_TEXT_AVAIL_PX)
 }
 // T8 POV + Price — price detail 40px (strong but below the POV headline), one line for all prices.
-for (const p of ["Starting at $995/mo", "Starting at $1,250/mo", "Starting at $1,900/mo", "Starting at $2,495/mo"]) {
+for (const p of ["Starting at $995/month", "Starting at $1,250/month", "Starting at $1,900/month", "Starting at $2,495/month"]) {
   const L = computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", p)
   ok(`T10 price one line at the flat conversational size: "${p}" (${L.detail!.fontPx}px vs hook ${L.headline.fontPx})`, L.detail!.lines.length === 1 && L.detail!.fontPx === Math.min(27, Math.max(20, L.headline.fontPx - 1)) && L.detail!.fontPx < L.headline.fontPx && detailTextWidthPx(p, L.detail!.fontPx) <= DETAIL_TEXT_AVAIL_PX)
 }
@@ -492,21 +492,21 @@ for (const p of ["Starting at $995/mo", "Starting at $1,250/mo", "Starting at $1
 // Both now derive from the same 0.75 ratio off the same ceiling, so they are equal by construction
 // and each stays clearly secondary to its hook.
 ok("T6/T10 details are equal and both clearly secondary", (() => {
-  const a = computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", "Starting at $1,900/mo")
-  const b = computeOverlayLayout("upgrade", "What life looks like when you upgrade", "Starting at $1,900/mo")
+  const a = computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", "Starting at $1,900/month")
+  const b = computeOverlayLayout("upgrade", "What life looks like when you upgrade", "Starting at $1,900/month")
   return a.detail!.fontPx === b.detail!.fontPx && a.detail!.fontPx < a.headline.fontPx && b.detail!.fontPx < b.headline.fontPx
 })())
 // Tighter gap: center-hook detail sits closer than the standard Hero sub gap; T3 gap tighter too.
-const t5L = computeOverlayLayout("upgrade", "What life looks like when you upgrade", "Starting at $1,900/mo")
+const t5L = computeOverlayLayout("upgrade", "What life looks like when you upgrade", "Starting at $1,900/month")
 ok("T5 detail sits ~21px below the hook (breathing room, still a lockup)", !!t5L.detail && (t5L.detail.topPx - (t5L.headline.topPx + t5L.headline.fontPx)) <= 22)
 const t3gap = computeOverlayLayout("special_feature", "SAN ANTONIO TOWNHOMES", "8 Weeks Free · Private Yards")
-const t1gap = computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,900/mo")
+const t1gap = computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,900/month")
 const t1GapPx = t1gap.detail!.topPx - (t1gap.headline.topPx + t1gap.headline.fontPx)
 ok("T1 headline→detail gap is 22px (tightened 2px from 24)", t1GapPx === 22)
 ok("T3 detail gap (18) is still TIGHTER than T1 (24)", (t3gap.detail!.topPx - (t3gap.headline.topPx + t3gap.headline.fontPx)) < t1GapPx)
 ok("T8 with no price → no detail block (omitted)", computeOverlayLayout("pov_price", "POV: You upgraded to a loft", "").detail === null)
 // Guardrails: Template 1 stays 52, Template 3 stays the shared sub size.
-ok("Template 1 detail STAYS 52px", computeOverlayLayout("market_type", "SAN ANTONIO LOFTS", "Starting at $1,900/mo").detail!.fontPx === 52)
+ok("Template 1 detail STAYS 52px", computeOverlayLayout("market_type", "SAN ANTONIO LOFTS", "Starting at $1,900/month").detail!.fontPx === 52)
 ok("Template 3 detail UNCHANGED (shared sub size)", computeOverlayLayout("special_feature", "SAN ANTONIO LOFTS", "8 Weeks Free · Private Yards").detail!.fontPx === OVERLAY_SPEC.sub.fontPx)
 
 console.log("Final cleanup — T2 no Market, T4 smaller, T5 gap:")
@@ -526,8 +526,8 @@ ok("T4 headline is capped smaller (≤40px) for side margin", t4.fontPx <= 40)
 ok("all center-hooks share the one ceiling", computeOverlayLayout("your_sign", "Your sign to get that loft", "").headline.fontPx === HOOK_MAX_PX && computeOverlayLayout("next_property", "What your next loft could look like", "").headline.fontPx === HOOK_MAX_PX)
 ok("T4 wording unchanged + one line", buildTemplateHeadline("next_property", { propertyType: "Townhome" }) === "What your next townhome could look like" && t4.lines.length === 1)
 // T5 gap 16 → 21; T8 gap stays 16.
-const t5g = computeOverlayLayout("upgrade", "What life looks like when you upgrade", "6 Weeks Free · Starting at $1,800/mo")
-const t8g = computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", "Starting at $1,800/mo")
+const t5g = computeOverlayLayout("upgrade", "What life looks like when you upgrade", "6 Weeks Free · Starting at $1,800/month")
+const t8g = computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", "Starting at $1,800/month")
 // Both conversational gaps tightened by 4px (16->12, 21->17) once the supporting line reached 27px
 // against a 28px hook — at near-equal sizes the old gaps read as two elements, not one lockup. T6/T7
 // keep their 5px looser offset. The group is vertically centred, so this closes the internal spacing
@@ -536,7 +536,7 @@ ok("T6 gap tightened to 17px", (t5g.detail!.topPx - (t5g.headline.topPx + t5g.he
 ok("T10 gap tightened to 12px", (t8g.detail!.topPx - (t8g.headline.topPx + t8g.headline.fontPx)) === 12)
 ok("tightening the gap does NOT move the lockup — it stays centred on the canvas", (() => {
   return (["hits_different", "real_living", "trade_up", "upgrade", "wanted_luxury"] as const).every((t) => {
-    const L = computeOverlayLayout(t, buildTemplateHeadline(t, { propertyType: "Rental Home", market: "San Antonio", budgetRange: "1500" }), "Starting at $1,500/mo")
+    const L = computeOverlayLayout(t, buildTemplateHeadline(t, { propertyType: "Rental Home", market: "San Antonio", budgetRange: "1500" }), "Starting at $1,500/month")
     const n = L.headline.lines.length
     const bottom = L.detail!.topPx + L.detail!.fontPx
     return Math.abs((L.headline.topPx + bottom) / 2 - OVERLAY_CANVAS.h / 2) < 0.51 &&
@@ -547,31 +547,31 @@ ok("T6 detail is the flat conversational size", t5g.detail!.fontPx === Math.min(
 
 console.log("\nTemplate 11 (What $/mo Gets You — dynamic price+city, CENTER HOOK like T7):")
 // The two examples from the spec, exactly.
-ok('T11 "$1,495 + San Antonio" -> "What $1,495/mo gets you in San Antonio"', buildTemplateHeadline("what_mo_gets_you", { market: "San Antonio", budgetRange: "1495" }) === "What $1,495/mo gets you in San Antonio")
-ok('T11 "$1,800 + Houston" -> "What $1,800/mo gets you in Houston"', buildTemplateHeadline("what_mo_gets_you", { market: "Houston", budgetRange: "1800" }) === "What $1,800/mo gets you in Houston")
-ok('T11 "$2,250 + Austin" -> "What $2,250/mo gets you in Austin"', buildTemplateHeadline("what_mo_gets_you", { market: "Austin", budgetRange: "2250" }) === "What $2,250/mo gets you in Austin")
-ok("T11 changing price recomputes the headline", buildTemplateHeadline("what_mo_gets_you", { market: "Dallas", budgetRange: "1200" }) === "What $1,200/mo gets you in Dallas" && buildTemplateHeadline("what_mo_gets_you", { market: "Dallas", budgetRange: "1650" }) === "What $1,650/mo gets you in Dallas")
-ok("T11 changing market recomputes the headline", buildTemplateHeadline("what_mo_gets_you", { market: "Austin", budgetRange: "1495" }) === "What $1,495/mo gets you in Austin" && buildTemplateHeadline("what_mo_gets_you", { market: "Houston", budgetRange: "1495" }) === "What $1,495/mo gets you in Houston")
+ok('T11 "$1,495 + San Antonio" -> "What $1,495/month gets you in San Antonio"', buildTemplateHeadline("what_mo_gets_you", { market: "San Antonio", budgetRange: "1495" }) === "What $1,495/month gets you in San Antonio")
+ok('T11 "$1,800 + Houston" -> "What $1,800/month gets you in Houston"', buildTemplateHeadline("what_mo_gets_you", { market: "Houston", budgetRange: "1800" }) === "What $1,800/month gets you in Houston")
+ok('T11 "$2,250 + Austin" -> "What $2,250/month gets you in Austin"', buildTemplateHeadline("what_mo_gets_you", { market: "Austin", budgetRange: "2250" }) === "What $2,250/month gets you in Austin")
+ok("T11 changing price recomputes the headline", buildTemplateHeadline("what_mo_gets_you", { market: "Dallas", budgetRange: "1200" }) === "What $1,200/month gets you in Dallas" && buildTemplateHeadline("what_mo_gets_you", { market: "Dallas", budgetRange: "1650" }) === "What $1,650/month gets you in Dallas")
+ok("T11 changing market recomputes the headline", buildTemplateHeadline("what_mo_gets_you", { market: "Austin", budgetRange: "1495" }) === "What $1,495/month gets you in Austin" && buildTemplateHeadline("what_mo_gets_you", { market: "Houston", budgetRange: "1495" }) === "What $1,495/month gets you in Houston")
 ok("T11 no price -> '' (never $0/undefined/fabricated)", buildTemplateHeadline("what_mo_gets_you", { market: "San Antonio" }) === "")
 ok("T11 no market -> '' (never a fabricated city)", buildTemplateHeadline("what_mo_gets_you", { budgetRange: "1495" }) === "")
 ok("T11 neither value -> ''", buildTemplateHeadline("what_mo_gets_you", {}) === "")
 ok("T11 has no separate detail line (the sentence IS the whole headline)", buildTemplateDetail("what_mo_gets_you", { market: "San Antonio", budgetRange: "1495" }) === "")
 ok("T11 reuses T7's center-hook typography (same family, no detail either way)", templateFamily("what_mo_gets_you") === "center_hook" && templateFamily("apartment_standards") === "center_hook_detail")
-const t11 = computeOverlayLayout("what_mo_gets_you", "What $1,495/mo gets you in San Antonio", "")
+const t11 = computeOverlayLayout("what_mo_gets_you", "What $1,495/month gets you in San Antonio", "")
 const t7cmp = computeOverlayLayout("apartment_standards", "Your apartment standards went up", "")
 ok("T11 headline sizes exactly like T7's hook (same CENTER_HOOK.maxPx ceiling, both one line)", t11.headline.lines.length === 1 && t7cmp.headline.lines.length === 1 && t11.detail === null)
 ok("T11 headline is ONE line (fit-to-width) within the safe box", headlineTextWidthPx(t11.headline.lines[0], t11.headline.fontPx) <= HEADLINE_TEXT_AVAIL_PX)
 // Reactivity: a freshly-generated T11 headline must be recognized as generator-owned (not frozen
 // as a manual override) on reload, for ANY price — this is the fix for the isGeneratedHeadline sweep,
 // which can't enumerate arbitrary prices the way it enumerates the small market/type enums.
-ok("T11 generated headline recognized regardless of the specific price (reload-safe)", isGeneratedHeadline("What $1,495/mo gets you in San Antonio") && isGeneratedHeadline("What $2,250/mo gets you in Austin") && isGeneratedHeadline("What $995/mo gets you in Dallas"))
-ok("T11 a genuinely manual headline in the same shape but a FAKE city is NOT treated as generated", !isGeneratedHeadline("What $1,495/mo gets you in Atlantis"))
+ok("T11 generated headline recognized regardless of the specific price (reload-safe)", isGeneratedHeadline("What $1,495/month gets you in San Antonio") && isGeneratedHeadline("What $2,250/month gets you in Austin") && isGeneratedHeadline("What $995/month gets you in Dallas"))
+ok("T11 a genuinely manual headline in the same shape but a FAKE city is NOT treated as generated", !isGeneratedHeadline("What $1,495/month gets you in Atlantis"))
 ok("T11 empty stays 'generated' (nothing typed, same as every other template)", isGeneratedHeadline(""))
 // startingPriceAmount — the plain $-amount helper T11 builds its sentence around.
-ok('startingPriceAmount "1495" -> "$1,495" (no "Starting at"/"/mo")', startingPriceAmount("1495") === "$1,495")
+ok('startingPriceAmount "1495" -> "$1,495" (no "Starting at"/"/month")', startingPriceAmount("1495") === "$1,495")
 ok('startingPriceAmount "$1,200–$1,800" -> lowest, "$1,200"', startingPriceAmount("$1,200-$1,800") === "$1,200")
 ok("startingPriceAmount missing -> '' (never $0)", startingPriceAmount(undefined) === "" && startingPriceAmount("") === "")
-ok("startingPriceLabel unchanged by the refactor (still 'Starting at $X/mo')", startingPriceLabel("1495") === "Starting at $1,495/mo")
+ok("startingPriceLabel unchanged by the refactor (still 'Starting at $X/month')", startingPriceLabel("1495") === "Starting at $1,495/month")
 // Existing templates stay exactly as they were (T1–T10 untouched by adding T11).
 ok("T1 unchanged", buildTemplateHeadline("market_type", { market: "San Antonio", propertyType: "High-Rise" }) === "SAN ANTONIO HIGH-RISES")
 ok("T7 unchanged", buildTemplateHeadline("apartment_standards", {}) === "Your apartment standards went up")
@@ -579,7 +579,7 @@ ok("T9 unchanged", buildTemplateHeadline("affordable_luxury", {}) === "Luxury do
 
 console.log("\nTemplates 12–16 (registry + dropdown order):")
 // Picker order after the 2026-09-29 swap: hits_different moved to 11 and what_mo_gets_you to 15, so
-// the two "$/mo Gets You" templates sit together at 15 and 16. Keys (identities) are unchanged.
+// the two "$/month Gets You" templates sit together at 15 and 16. Keys (identities) are unchanged.
 ok("T12–T16 registered in order after T11", OVERLAY_TEMPLATES[11] === "trade_up" && OVERLAY_TEMPLATES[12] === "wanted_luxury" && OVERLAY_TEMPLATES[13] === "real_living" && OVERLAY_TEMPLATES[14] === "what_mo_gets_you" && OVERLAY_TEMPLATES[15] === "what_mo_gets_you_top")
 // The swap is DISPLAY ONLY — every key still exists exactly once, so no saved post can change meaning.
 ok("swap preserved every template identity (no key added, removed or duplicated)",
@@ -599,12 +599,12 @@ ok("T12 Loft → lowercase", buildTemplateHeadline("trade_up", { propertyType: "
 // indefiniteArticle() is case-insensitive, so lowercasing cannot break the a/an grammar.
 ok("T12 Apartment still takes 'an' after lowercasing", buildTemplateHeadline("trade_up", { propertyType: "Apartment" }) === "What life looks like when you trade in your apartment for an apartment")
 ok("T12 no type → generic 'a home' (never undefined/null)", buildTemplateHeadline("trade_up", {}) === "What life looks like when you trade in your apartment for a home")
-ok("T12 price line present when Starting At is valid", buildTemplateDetail("trade_up", { propertyType: "Townhome", budgetRange: "1495" }) === "Starting at $1,495/mo")
+ok("T12 price line present when Starting At is valid", buildTemplateDetail("trade_up", { propertyType: "Townhome", budgetRange: "1495" }) === "Starting at $1,495/month")
 ok("T12 price line OMITTED when no Starting At", buildTemplateDetail("trade_up", { propertyType: "Townhome" }) === "")
 
 console.log("\nTemplate 13 (You Wanted Luxury — fixed hook + optional price):")
 ok("T13 fixed headline", buildTemplateHeadline("wanted_luxury", {}) === "You wanted luxury. You got it." && buildTemplateHeadline("wanted_luxury", { propertyType: "Loft", market: "Austin" }) === "You wanted luxury. You got it.")
-ok("T13 price line present when valid", buildTemplateDetail("wanted_luxury", { budgetRange: "1895" }) === "Starting at $1,895/mo")
+ok("T13 price line present when valid", buildTemplateDetail("wanted_luxury", { budgetRange: "1895" }) === "Starting at $1,895/month")
 ok("T13 price line omitted when missing", buildTemplateDetail("wanted_luxury", {}) === "")
 
 console.log("\nTemplate 14 (Real [Property Type] Living — dynamic Property Type + optional price):")
@@ -620,7 +620,7 @@ ok("lowercasing is template-scoped — title case preserved where intentional",
   buildTemplateHeadline("hits_different", { propertyType: "Townhome" }) === "Townhomes just hit different" &&
   buildOverlayHeadline({ market: "San Antonio", propertyType: "Townhome" }) === "SAN ANTONIO TOWNHOMES")
 ok("T14 no type → type word dropped, nothing fabricated", buildTemplateHeadline("real_living", {}) === "This is what real living looks like")
-ok("T14 optional price", buildTemplateDetail("real_living", { budgetRange: "2100" }) === "Starting at $2,100/mo" && buildTemplateDetail("real_living", {}) === "")
+ok("T14 optional price", buildTemplateDetail("real_living", { budgetRange: "2100" }) === "Starting at $2,100/month" && buildTemplateDetail("real_living", {}) === "")
 
 console.log("\nTemplate 15 (Hits Different — PLURALIZED display copy + optional price):")
 // Display-only plural: every SUPPORTED Property Type value, incl. the two that a blind "+s" or a
@@ -639,11 +639,11 @@ for (const [pt, expected] of [
 ok("T15 verb agrees with the plural subject (\"hit\", never \"hits\")", PROPERTY_TYPES.every((pt) => { const h = buildTemplateHeadline("hits_different", { propertyType: pt }); return h.endsWith(" just hit different") && !h.includes("just hits different") }))
 ok("T15 no type → generic plural subject, nothing fabricated", buildTemplateHeadline("hits_different", {}) === "These just hit different")
 ok("T15 legacy Mid-Rise still canonicalizes (High-Rise) before pluralizing", buildTemplateHeadline("hits_different", { propertyType: "Mid-Rise" }) === "High-Rises just hit different")
-ok("T15 optional price", buildTemplateDetail("hits_different", { budgetRange: "995" }) === "Starting at $995/mo" && buildTemplateDetail("hits_different", {}) === "")
+ok("T15 optional price", buildTemplateDetail("hits_different", { budgetRange: "995" }) === "Starting at $995/month" && buildTemplateDetail("hits_different", {}) === "")
 
 console.log("\nTemplates 12–15 reactivity (Property Type / Starting At recompute):")
 ok("changing Property Type recomputes T12/T14/T15", buildTemplateHeadline("trade_up", { propertyType: "Loft" }) !== buildTemplateHeadline("trade_up", { propertyType: "Penthouse" }) && buildTemplateHeadline("real_living", { propertyType: "Loft" }) !== buildTemplateHeadline("real_living", { propertyType: "Studio" }) && buildTemplateHeadline("hits_different", { propertyType: "Loft" }) !== buildTemplateHeadline("hits_different", { propertyType: "Studio" }))
-ok("changing Starting At recomputes the price line on all of T12–T15", (["trade_up", "wanted_luxury", "real_living", "hits_different"] as const).every((t) => buildTemplateDetail(t, { budgetRange: "1200" }) === "Starting at $1,200/mo" && buildTemplateDetail(t, { budgetRange: "1650" }) === "Starting at $1,650/mo"))
+ok("changing Starting At recomputes the price line on all of T12–T15", (["trade_up", "wanted_luxury", "real_living", "hits_different"] as const).every((t) => buildTemplateDetail(t, { budgetRange: "1200" }) === "Starting at $1,200/month" && buildTemplateDetail(t, { budgetRange: "1650" }) === "Starting at $1,650/month"))
 ok("no fabricated price anywhere in T12–T15 ($0/undefined/null/'Starting at' alone)", (["trade_up", "wanted_luxury", "real_living", "hits_different"] as const).every((t) => { const d = buildTemplateDetail(t, {}); return d === "" && !/\$0|undefined|null|Starting at/.test(d) }))
 
 console.log("\nTemplates 12–15 layout — same CENTERED treatment as T11, price line collapses:")
@@ -660,9 +660,9 @@ for (const t of ["trade_up", "wanted_luxury", "real_living", "hits_different"] a
 
 console.log("\nTemplate 16 (What $/mo Gets You — Top): same copy as T11, T1's TOP anchor:")
 const t16src = { market: "San Antonio", budgetRange: "1495" }
-ok("T16 headline identical to T11's for the same metadata", buildTemplateHeadline("what_mo_gets_you_top", t16src) === buildTemplateHeadline("what_mo_gets_you", t16src) && buildTemplateHeadline("what_mo_gets_you_top", t16src) === "What $1,495/mo gets you in San Antonio")
-ok("T16 dynamic Market", buildTemplateHeadline("what_mo_gets_you_top", { market: "Houston", budgetRange: "1800" }) === "What $1,800/mo gets you in Houston" && buildTemplateHeadline("what_mo_gets_you_top", { market: "Austin", budgetRange: "2250" }) === "What $2,250/mo gets you in Austin")
-ok("T16 dynamic Starting At", buildTemplateHeadline("what_mo_gets_you_top", { market: "Dallas", budgetRange: "1650" }) === "What $1,650/mo gets you in Dallas")
+ok("T16 headline identical to T11's for the same metadata", buildTemplateHeadline("what_mo_gets_you_top", t16src) === buildTemplateHeadline("what_mo_gets_you", t16src) && buildTemplateHeadline("what_mo_gets_you_top", t16src) === "What $1,495/month gets you in San Antonio")
+ok("T16 dynamic Market", buildTemplateHeadline("what_mo_gets_you_top", { market: "Houston", budgetRange: "1800" }) === "What $1,800/month gets you in Houston" && buildTemplateHeadline("what_mo_gets_you_top", { market: "Austin", budgetRange: "2250" }) === "What $2,250/month gets you in Austin")
+ok("T16 dynamic Starting At", buildTemplateHeadline("what_mo_gets_you_top", { market: "Dallas", budgetRange: "1650" }) === "What $1,650/month gets you in Dallas")
 ok("T16 missing price or market → '' (never fabricated)", buildTemplateHeadline("what_mo_gets_you_top", { market: "Austin" }) === "" && buildTemplateHeadline("what_mo_gets_you_top", { budgetRange: "1495" }) === "")
 ok("T16 has no detail line, like T11", buildTemplateDetail("what_mo_gets_you_top", t16src) === "")
 {
@@ -679,13 +679,13 @@ ok("T12/T14/T15 generated headlines recognized as generator-owned", isGeneratedH
 // so it is (correctly) treated as a manual override and left alone rather than silently rewritten.
 ok("pre-change capitalized T14 headline is no longer generator-owned", !isGeneratedHeadline("This is what real High-Rise living looks like"))
 ok("T13 fixed headline recognized as generator-owned", isGeneratedHeadline("You wanted luxury. You got it."))
-ok("T16 generated headline recognized (shares T11's shape check)", isGeneratedHeadline("What $1,495/mo gets you in San Antonio"))
+ok("T16 generated headline recognized (shares T11's shape check)", isGeneratedHeadline("What $1,495/month gets you in San Antonio"))
 ok("a genuinely MANUAL hook in these shapes is still protected", !isGeneratedHeadline("Townhomes just hit way different") && !isGeneratedHeadline("You wanted luxury. You earned it."))
 
 console.log("\nTemplates 1–11 unchanged by this addition:")
-ok("T1 hero headline + price detail unchanged", buildTemplateHeadline("market_type", { market: "San Antonio", propertyType: "High-Rise" }) === "SAN ANTONIO HIGH-RISES" && buildTemplateDetail("market_type", { budgetRange: "1600" }) === "Starting at $1,600/mo")
+ok("T1 hero headline + price detail unchanged", buildTemplateHeadline("market_type", { market: "San Antonio", propertyType: "High-Rise" }) === "SAN ANTONIO HIGH-RISES" && buildTemplateDetail("market_type", { budgetRange: "1600" }) === "Starting at $1,600/month")
 ok("T2/T5/T6/T7/T9/T10 headlines unchanged", buildTemplateHeadline("your_sign", { propertyType: "Townhome" }) === "Your sign to get that townhome" && buildTemplateHeadline("next_property", { propertyType: "Townhome" }) === "What your next townhome could look like" && buildTemplateHeadline("upgrade", {}) === "What life looks like when you upgrade" && buildTemplateHeadline("apartment_standards", {}) === "Your apartment standards went up" && buildTemplateHeadline("affordable_luxury", {}) === "Luxury doesn't have to be expensive" && buildTemplateHeadline("pov_price", { propertyType: "Loft" }) === "POV: You upgraded to a loft")
-ok("T6/T10 detail follows the flat 27px rule", (["upgrade","pov_price"] as const).every((t) => { const L = computeOverlayLayout(t, t === "upgrade" ? "What life looks like when you upgrade" : "POV: You upgraded to a loft", "Starting at $1,900/mo"); return L.detail!.fontPx === Math.min(27, Math.max(20, L.headline.fontPx - 1)) }))
+ok("T6/T10 detail follows the flat 27px rule", (["upgrade","pov_price"] as const).every((t) => { const L = computeOverlayLayout(t, t === "upgrade" ? "What life looks like when you upgrade" : "POV: You upgraded to a loft", "Starting at $1,900/month"); return L.detail!.fontPx === Math.min(27, Math.max(20, L.headline.fontPx - 1)) }))
 ok("T1 stays HERO, T11 stays center_hook, T7 stays center_hook_detail", templateFamily("market_type") === "hero" && templateFamily("what_mo_gets_you") === "center_hook" && templateFamily("apartment_standards") === "center_hook_detail")
 // The one-line rule is untouched for every template that predates T12: the new wrap branch only
 // engages for copy that cannot fit even at CENTER_HOOK.minPx, which none of them hit.
@@ -701,8 +701,8 @@ for (const [t, pt] of [["your_sign", "Rental Home"], ["next_property", "Rental H
 console.log("\nHero freeze — T1/T2/T4 exact fitted geometry:")
 {
   const heroCases: [string, string, string, number, number][] = [
-    ["market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,600/mo", 52, 50],
-    ["market_type_centered", "SAN ANTONIO TOWNHOMES", "Starting at $1,600/mo", 52, 50],
+    ["market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,600/month", 52, 50],
+    ["market_type_centered", "SAN ANTONIO TOWNHOMES", "Starting at $1,600/month", 52, 50],
     ["special_feature", "SAN ANTONIO TOWNHOMES", "8 Weeks Free · Private Yards", 52, OVERLAY_SPEC.sub.fontPx],
   ]
   for (const [tpl, head, det, wantHead, wantDetail] of heroCases) {
@@ -717,8 +717,8 @@ console.log("\nHero freeze — T1/T2/T4 exact fitted geometry:")
   // Hero uses its OWN range and is untouched by the conversational target.
   ok("hero range still [47,66]", HERO_MIN_PX === 47 && HERO_MAX_PX === 66)
   ok("T1 anchors at yFrac (near-top), T2 is the centered variant",
-    Math.round(computeOverlayLayout("market_type", "SAN ANTONIO LOFTS", "Starting at $1,200/mo").headline.topPx) === Math.round(OVERLAY_SPEC.headline.yFrac * OVERLAY_CANVAS.h) &&
-    computeOverlayLayout("market_type_centered", "SAN ANTONIO LOFTS", "Starting at $1,200/mo").headline.topPx > 400)
+    Math.round(computeOverlayLayout("market_type", "SAN ANTONIO LOFTS", "Starting at $1,200/month").headline.topPx) === Math.round(OVERLAY_SPEC.headline.yFrac * OVERLAY_CANVAS.h) &&
+    computeOverlayLayout("market_type_centered", "SAN ANTONIO LOFTS", "Starting at $1,200/month").headline.topPx > 400)
   // Heroes are allowed to use the full box — the target is a CONVERSATIONAL rule only.
   const heroW = headlineTextWidthPx("SAN ANTONIO TOWNHOMES", computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "").headline.fontPx)
   ok("hero still fills toward the box and dwarfs the conversational ceiling", heroW > 800 && heroW <= HEADLINE_TEXT_AVAIL_PX && HERO_MAX_PX > HOOK_MAX_PX * 2)
@@ -731,7 +731,7 @@ console.log("\nConversational target-width rule:")
   // target was removed as inert at this ceiling (only T12 exceeded it, and T12 wraps regardless).
   ok("conversational ceiling is 28px", HOOK_MAX_PX === 28)
   // Long copy pulls in to the target; short copy is untouched and stays at the max.
-  const long = computeOverlayLayout("what_mo_gets_you", "What $1,600/mo gets you in San Antonio", "")
+  const long = computeOverlayLayout("what_mo_gets_you", "What $1,600/month gets you in San Antonio", "")
   ok("T15 reference headline renders at the 28px scale, one line, well inside the box", long.headline.fontPx === 28 && long.headline.lines.length === 1 && headlineTextWidthPx(long.headline.lines[0], long.headline.fontPx) < HEADLINE_TEXT_AVAIL_PX * 0.8)
   for (const [tpl, head] of [["your_sign", "Your sign to get that loft"], ["hits_different", "Penthouses just hit different"], ["wanted_luxury", "You wanted luxury. You got it."]] as [string, string][]) {
     const L = computeOverlayLayout(tpl, head, "")
@@ -739,10 +739,10 @@ console.log("\nConversational target-width rule:")
   }
   // The box remains the hard boundary in every case.
   ok("T12 stays TWO lines and inside the box", (() => {
-    const L = computeOverlayLayout("trade_up", buildTemplateHeadline("trade_up", { propertyType: "Rental Home" }), "Starting at $1,600/mo")
+    const L = computeOverlayLayout("trade_up", buildTemplateHeadline("trade_up", { propertyType: "Rental Home" }), "Starting at $1,600/month")
     return L.headline.lines.length === 2 && L.headline.lines.every((l) => headlineTextWidthPx(l, L.headline.fontPx) <= HEADLINE_TEXT_AVAIL_PX)
   })())
-  ok("T14 stays ONE line for every property type", [...PROPERTY_TYPES, null].every((pt) => computeOverlayLayout("real_living", buildTemplateHeadline("real_living", { propertyType: pt as any }), "Starting at $1,600/mo").headline.lines.length === 1))
+  ok("T14 stays ONE line for every property type", [...PROPERTY_TYPES, null].every((pt) => computeOverlayLayout("real_living", buildTemplateHeadline("real_living", { propertyType: pt as any }), "Starting at $1,600/month").headline.lines.length === 1))
   // Proportional detail keeps a clear hierarchy at every hook size.
   // Detail is a FLAT 27px against a 28px hook. 28/27 is deliberate: the 0.75 ratio (21px) and then a
 // flat 24px both read too small on real mobile video, and the supporting line is already subordinate
@@ -751,7 +751,7 @@ console.log("\nConversational target-width rule:")
 ok("center-hook detail is a flat 27px and always under the hook", (() => {
     const tpls = ["upgrade", "apartment_standards", "pov_price", "trade_up", "wanted_luxury", "real_living", "hits_different"] as const
     return tpls.every((t) => {
-      const L = computeOverlayLayout(t, buildTemplateHeadline(t, { propertyType: "High-Rise", market: "San Antonio", budgetRange: "1600" }), "Starting at $1,600/mo")
+      const L = computeOverlayLayout(t, buildTemplateHeadline(t, { propertyType: "High-Rise", market: "San Antonio", budgetRange: "1600" }), "Starting at $1,600/month")
       const want = Math.min(27, Math.max(20, L.headline.fontPx - 1))
       return L.detail!.fontPx === want && L.detail!.fontPx === 27 && L.detail!.fontPx < L.headline.fontPx
     })
@@ -765,17 +765,17 @@ ok("center-hook detail is a flat 27px and always under the hook", (() => {
 // size/position assertion — the layout numbers would all still pass.
 console.log("\nFont faces (preview and render both read block.face):")
 {
-  const conv = computeOverlayLayout("hits_different", "Penthouses just hit different", "Starting at $1,500/mo")
+  const conv = computeOverlayLayout("hits_different", "Penthouses just hit different", "Starting at $1,500/month")
   ok("conversational headline uses the HEAD face", conv.headline.face === "head")
   ok("conversational detail uses the HEAD face (Libre Baskerville Bold)", conv.detail!.face === "head")
-  const hero = computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,600/mo")
+  const hero = computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,600/month")
   ok("hero headline uses the HEAD face", hero.headline.face === "head")
   ok("hero detail STAYS on the DETAIL face (Bodoni) — untouched this pass", hero.detail!.face === "detail")
   // Every center-hook detail, not just the sampled one.
   ok("every conversational detail is head-faced", (["upgrade", "apartment_standards", "pov_price", "trade_up", "wanted_luxury", "real_living", "hits_different"] as const)
-    .every((t) => computeOverlayLayout(t, buildTemplateHeadline(t, { propertyType: "High-Rise", market: "San Antonio", budgetRange: "1600" }), "Starting at $1,600/mo").detail!.face === "head"))
+    .every((t) => computeOverlayLayout(t, buildTemplateHeadline(t, { propertyType: "High-Rise", market: "San Antonio", budgetRange: "1600" }), "Starting at $1,600/month").detail!.face === "head"))
   ok("every hero detail stays detail-faced", (["market_type", "market_type_centered", "special_feature"] as const)
-    .every((t) => computeOverlayLayout(t, "SAN ANTONIO LOFTS", "Starting at $1,200/mo").detail!.face === "detail"))
+    .every((t) => computeOverlayLayout(t, "SAN ANTONIO LOFTS", "Starting at $1,200/month").detail!.face === "detail"))
   // A head-faced detail must be MEASURED with head metrics, or preview/render parity silently breaks.
   const d = conv.detail!
   ok("head-faced detail fits its sub box under HEAD metrics", headlineTextWidthPx(d.lines[0], d.fontPx) <= DETAIL_TEXT_AVAIL_PX)
@@ -816,13 +816,13 @@ console.log("\nSplit-Level property types — wording, plurals, casing, fit:")
       return hw <= HEADLINE_TEXT_AVAIL_PX && dw <= DETAIL_TEXT_AVAIL_PX
     })))
   // The long hero phrase uses the EXISTING unknown-headline stack — no constant was changed for it.
-  const heroSL = computeOverlayLayout("market_type", buildOverlayHeadline({ market: "San Antonio", propertyType: "Split-Level Townhome" }), "Starting at $1,600/mo")
+  const heroSL = computeOverlayLayout("market_type", buildOverlayHeadline({ market: "San Antonio", propertyType: "Split-Level Townhome" }), "Starting at $1,600/month")
   ok("long Split-Level hero stacks at the existing hero floor, losing no words",
     heroSL.headline.fontPx === HERO_MIN_PX && heroSL.headline.lines.join(" ") === "SAN ANTONIO SPLIT-LEVEL TOWNHOMES")
   // Adding these must not have moved an existing type.
   ok("existing types are untouched by the addition",
     buildOverlayHeadline({ market: "San Antonio", propertyType: "Townhome" }) === "SAN ANTONIO TOWNHOMES" &&
-    computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,600/mo").headline.fontPx === 52)
+    computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,600/month").headline.fontPx === 52)
 }
 
 console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)

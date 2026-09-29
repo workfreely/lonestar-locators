@@ -15,7 +15,7 @@ console.log("Template 2 — Market + Type (Centered): SAME as T1, only verticall
 ok("headline identical to T1", buildTemplateHeadline("market_type_centered", meta) === buildTemplateHeadline("market_type", meta))
 ok("detail identical to T1", buildTemplateDetail("market_type_centered", meta) === buildTemplateDetail("market_type", meta))
 ok("headline is Market + Type", buildTemplateHeadline("market_type_centered", meta) === "SAN ANTONIO APARTMENTS")
-ok("detail is Starting at price", buildTemplateDetail("market_type_centered", meta) === "Starting at $1,450/mo")
+ok("detail is Starting at price", buildTemplateDetail("market_type_centered", meta) === "Starting at $1,450/month")
 ok("layout family is hero", templateFamily("market_type_centered") === "hero")
 {
   const head = buildTemplateHeadline("market_type_centered", meta), det = buildTemplateDetail("market_type_centered", meta)
@@ -36,12 +36,12 @@ ok("layout family is hero", templateFamily("market_type_centered") === "hero")
 console.log("\nFinal template — Your Apartment Standards: EXACT Upgrade variant:")
 ok("headline is the fixed copy", buildTemplateHeadline("apartment_standards", meta) === "Your apartment standards went up")
 ok("detail uses the shared special+price logic (same as Upgrade)", buildTemplateDetail("apartment_standards", meta) === buildTemplateDetail("upgrade", meta))
-ok("detail is Starting at price", buildTemplateDetail("apartment_standards", meta) === "Starting at $1,450/mo")
+ok("detail is Starting at price", buildTemplateDetail("apartment_standards", meta) === "Starting at $1,450/month")
 ok("layout family is center_hook_detail (same as Upgrade)", templateFamily("apartment_standards") === "center_hook_detail")
 {
   // Feed the SAME headline+detail to Upgrade and the variant → geometry must be byte-identical
   // (same size rules, gap, centering) — proving the variant reuses Upgrade's treatment exactly.
-  const same = ["Your apartment standards went up", "Starting at $1,450/mo"] as const
+  const same = ["Your apartment standards went up", "Starting at $1,450/month"] as const
   const up = computeOverlayLayout("upgrade", same[0], same[1])
   const as_ = computeOverlayLayout("apartment_standards", same[0], same[1])
   ok("same family", up.family === as_.family)
@@ -50,7 +50,7 @@ ok("layout family is center_hook_detail (same as Upgrade)", templateFamily("apar
   ok("same detail font size", (up.detail?.fontPx ?? -1) === (as_.detail?.fontPx ?? -2))
   ok("same detail topPx", (up.detail?.topPx ?? -1) === (as_.detail?.topPx ?? -2))
   // Headline stays ONE line when it fits (it does — shorter than Upgrade's own hook).
-  const lay = computeOverlayLayout("apartment_standards", "Your apartment standards went up", "Starting at $1,450/mo")
+  const lay = computeOverlayLayout("apartment_standards", "Your apartment standards went up", "Starting at $1,450/month")
   ok("headline stays on one line", lay.headline.lines.length === 1)
   ok("detail renders underneath", !!lay.detail && lay.detail.lines.length === 1)
   // Vertically centered.

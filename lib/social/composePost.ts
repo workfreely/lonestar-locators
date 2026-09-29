@@ -11,13 +11,14 @@
 // SourceMeta, so they can never leak into public copy automatically. The operator may still type
 // any of those into the editable fields as an explicit creative decision.
 
-import { buildHashtags, isCanonicalHashtag } from "@/lib/social/hashtags"
+import { buildHashtags, isCanonicalHashtag, MAX_HASHTAGS } from "@/lib/social/hashtags"
 import { parseAmenities } from "@/lib/social/amenities"
 import { normalizeSocialMarket, SOCIAL_MARKETS } from "@/lib/social/markets"
 import { propertyNoun, propertyNounPlural, normalizeToCanonical, PROPERTY_TYPES } from "@/lib/social/propertyTypes"
 
-// Instagram's approved cap for a Beast Social caption's hashtag block.
-export const MAX_HASHTAGS = 7
+// Re-exported from lib/social/hashtags, which owns the canonical generation cap (5). Kept as a named
+// export here because callers already import it from this module.
+export { MAX_HASHTAGS }
 
 export type SourceMeta = {
   market?: string | null
@@ -96,9 +97,13 @@ function lowestPrice(range: string | null | undefined): number | null {
  *  in the Price Range metadata. The full Price Range stays stored internally — this is only overlay
  *  presentation. No valid price → "" (the overlay omits the line; never fabricates or substitutes
  *  another message). */
+// The ONE place the monthly-rent suffix is spelled, so every template that shows generated rent reads
+// the same string. DISPLAY ONLY — no stored price value changes. Was "/mo".
+export const PER_MONTH_SUFFIX = "/month"
+
 export function startingPriceLabel(range: string | null | undefined): string {
   const n = lowestPrice(range)
-  return n === null ? "" : `Starting at $${n.toLocaleString("en-US")}/mo`
+  return n === null ? "" : `Starting at $${n.toLocaleString("en-US")}${PER_MONTH_SUFFIX}`
 }
 
 /** Just the formatted lowest price ("$1,495", $ + thousands separator, no "Starting at"/"/mo") — for
@@ -355,7 +360,7 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
       // for the same reason: never fabricate) this is the one headline that can be empty.
       const city = clean(normalizeSocialMarket(src.market))
       const amount = startingPriceAmount(src.budgetRange)
-      return city && amount ? `What ${amount}/mo gets you in ${city}` : ""
+      return city && amount ? `What ${amount}${PER_MONTH_SUFFIX} gets you in ${city}` : ""
     }
     case "trade_up": {
       // Canonical display type ("Townhome", "High-Rise"); no type → the same generic "home" fallback
@@ -446,7 +451,9 @@ export function isGeneratedHeadline(text: string | null | undefined): boolean {
   // without a budgetRange, so that template's own contribution to the sweep is always "". Recognize
   // its exact shape for any REAL market instead, regardless of the specific price, so a value this
   // template just generated is never mistaken for a manual override after a reload.
-  const whatMo = t.match(/^What \$[\d,]+\/mo gets you in (.+)$/)
+  // Accepts the CURRENT "/month" and the legacy "/mo": a headline generated before the suffix changed
+  // must stay generator-owned, or it would be frozen as a "manual override" and never re-sync.
+  const whatMo = t.match(/^What \$[\d,]+\/(?:month|mo) gets you in (.+)$/)
   if (whatMo && SOCIAL_MARKETS.includes(whatMo[1])) return true
   // Recognize a headline as generator-owned if it equals what ANY template would produce for SOME
   // market × property type. This covers the Hero forms AND every center-hook form (incl. Template 6's
@@ -563,7 +570,8 @@ export function buildInstagramCaptionPayload(input: {
   return composeFinalCaption(publishCaption(input.caption, meta, input.sourceContentId ?? undefined), (input.hashtags ?? []).filter(Boolean))
 }
 
-// Social Beast product limit for TikTok hashtags (Instagram stays at MAX_HASHTAGS = 7).
+// TikTok's own product limit. It now COINCIDES with the shared MAX_HASHTAGS (both 5) but stays a
+// separate named constant so a future platform-specific change does not silently move the shared rule.
 export const TIKTOK_MAX_HASHTAGS = 5
 
 /** THE single source of truth for the EXACT outgoing TikTok caption text. Mirrors the Instagram
@@ -571,7 +579,7 @@ export const TIKTOK_MAX_HASHTAGS = 5
  *  service CTA / blank line / form CTA structure, and the same generated-vs-manual semantics
  *  (publishCaption preserves a user-written caption and regenerates a generator-owned one) — but
  *  the hashtags are generated SEPARATELY for TikTok (buildHashtags) and capped at
- *  TIKTOK_MAX_HASHTAGS (5), independent of Instagram's stored 7-hashtag set. Pure. */
+ *  TIKTOK_MAX_HASHTAGS (5), independent of the stored Instagram set. Pure. */
 export function buildTikTokCaptionPayload(input: {
   caption: string | null | undefined
   socialSpecial: string | null | undefined

@@ -30,9 +30,10 @@ console.log("TikTok caption BODY == Instagram caption body (generated), hashtags
   ok("blank-line section spacing preserved (\\n\\n between sections)", tt.includes("\n\n🏡 Amenities") && /\n\n#/.test(tt))
   ok(`TikTok hashtags ≤ ${TIKTOK_MAX_HASHTAGS}`, ttTags.length > 0 && ttTags.length <= TIKTOK_MAX_HASHTAGS)
   ok("TIKTOK_MAX_HASHTAGS is 5", TIKTOK_MAX_HASHTAGS === 5)
-  ok("Instagram limit remains 7", MAX_HASHTAGS === 7)
+  // Instagram and TikTok now share the SAME canonical generation cap of 5.
+ok("shared generation cap is 5", MAX_HASHTAGS === 5)
   ok("Instagram still emits its 7 stored hashtags (unchanged)", buildInstagramCaptionPayload({ caption: null, hashtags: igTags, socialSpecial: null, sourceContentId: "seed-1", source }).trim().endsWith(igTags.join(" ")))
-  ok("TikTok hashtags are generated separately (buildHashtags@5), not the IG 7", ttTags.length <= 5 && igTags.length === 7)
+  ok("TikTok hashtags are generated separately and both paths cap at 5", ttTags.length <= 5 && igTags.length <= 5)
 }
 
 console.log("\nStructure order: hook → 🏡 Amenities → service CTA → form CTA → hashtags:")
