@@ -487,19 +487,9 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   return { family, headline, detail: detailBlock }
 }
 
-/** Editing-preview helper: convert canvas px / fracs to % of the preview box (which is also
- *  9:16), so the CSS approximation lines up with where FFmpeg will draw. The sub position is a
- *  function of the headline's line count so the two never collide. The FINAL preview still plays
- *  the real rendered file — this is only for the pre-render editing view. */
-export function overlayPreviewStyle(headlineLineCount = 1, headlineFontPx: number = OVERLAY_SPEC.headline.fontPx) {
-  const subTopPx = OVERLAY_SPEC.headline.yFrac * OVERLAY_CANVAS.h + headlineBlockPx(headlineLineCount, headlineFontPx) + OVERLAY_SPEC.sub.gapPx
-  return {
-    headlineTopPct: OVERLAY_SPEC.headline.yFrac * 100,
-    headlineFontPct: (headlineFontPx / OVERLAY_CANVAS.h) * 100, // cqh (of preview box) — fit-to-width size
-    subTopPct: (subTopPx / OVERLAY_CANVAS.h) * 100,
-    subFontPct: (OVERLAY_SPEC.sub.fontPx / OVERLAY_CANVAS.h) * 100,
-    subLineHeight: (OVERLAY_SPEC.sub.fontPx + OVERLAY_SPEC.sub.lineSpacing) / OVERLAY_SPEC.sub.fontPx, // unitless
-    sideMarginPct: (OVERLAY_SPEC.headline.sideMarginPx / OVERLAY_CANVAS.w) * 100, // headline box (~800px)
-    subSideMarginPct: (OVERLAY_SPEC.sub.sideMarginPx / OVERLAY_CANVAS.w) * 100, // narrower sub box (~720px)
-  }
-}
+// REMOVED: overlayPreviewStyle(). It was the pre-template editing-preview helper, and by the end only
+// BulkReview still used it — hand-rolling its own overlay from wrapHeadline() + a FIXED 66px size,
+// which bypassed fit-to-width and rendered long headlines as stacked ≤16-char lines while the burn-in
+// drew one fitted line. Every overlay surface now goes through computeOverlayLayout + <PreviewOverlay>,
+// so there is exactly ONE geometry path and a preview cannot drift from the render. Do not reintroduce
+// a second px→% helper; add to computeOverlayLayout instead.

@@ -7,8 +7,9 @@ import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
 import { inferFromFilename, detectMarket, suggestArea, type FilenameInference } from "@/lib/social/filenameInference"
 import { resolvePropertyMatch } from "@/lib/social/resolveProperty"
 import { buildHashtags, MAX_HASHTAGS } from "@/lib/social/hashtags"
-import { preparePost } from "@/lib/social/composePost"
-import { overlayPreviewStyle, wrapHeadline, wrapSub } from "@/lib/social/overlaySpec"
+import { preparePost, DEFAULT_OVERLAY_TEMPLATE } from "@/lib/social/composePost"
+import { computeOverlayLayout } from "@/lib/social/overlaySpec"
+import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
 import PropertySearchField, { type PropertyMatch } from "@/components/crm/social/PropertySearchField"
 
 // Bulk Review / Intake — opens automatically for 2+ files. One compact row per source video,
@@ -282,9 +283,13 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
   // Property name / area are INTERNAL — the public preview uses only market + type (Bulk Review
   // rows don't capture special/price/amenities; those refine the preview later in Create Post).
   const activePrep = active ? preparePost({ market: active.market, propertyType: active.propertyType }, active.uid) : null
-  const headLines = wrapHeadline(activePrep?.overlayHeadline) // shared wrapping (preview === render)
-  const subLines = wrapSub(activePrep?.overlaySubheadline) // compact centered sub block (shared geometry)
-  const ov = overlayPreviewStyle(headLines.length || 1) // CSS overlay geometry shared with the Post Composer + FFmpeg burn-in
+  // The ONE shared layout engine — the same call the Post Composer and the FFmpeg render make. This
+  // used to hand-roll its own overlay from wrapHeadline() + overlayPreviewStyle(), which broke the
+  // headline into ≤16-char lines BEFORE measuring anything and then drew every line at a fixed 66px.
+  // That bypassed fit-to-width entirely, so "SAN ANTONIO SPLIT-LEVEL PENTHOUSES" rendered as three
+  // stacked lines here while the actual burn-in was one fitted line. Bulk Review rows have no
+  // per-row template (it is chosen later in Create Post), so the preview shows the default (T1).
+  const bulkLayout = activePrep ? computeOverlayLayout(DEFAULT_OVERLAY_TEMPLATE, activePrep.overlayHeadline, activePrep.overlaySubheadline) : null
   const activeConfirmed = !!(active && active.matched && active.placeId)
 
   return (
@@ -415,22 +420,11 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
                       NO FFmpeg here). */}
                   <div className="relative w-full aspect-[9/16] rounded-xl overflow-hidden border border-[var(--crm-border)] bg-black">
                     <video src={active.objectUrl} controls muted playsInline preload="metadata" className="w-full h-full object-cover" />
-                    {activePrep && (activePrep.overlayHeadline || activePrep.overlaySubheadline) && (
-                      // containerType:size → cqh font sizes scale on the same box-relative basis as
-                      // the top-%% positions, so the headline can't overlap the sub (was vh).
-                      <div className="pointer-events-none absolute inset-0" aria-hidden style={{ containerType: "size" }}>
-                        {activePrep.overlayHeadline && (
-                          <div style={{ position: "absolute", top: `${ov.headlineTopPct}%`, left: `${ov.sideMarginPct}%`, right: `${ov.sideMarginPct}%`, textAlign: "center", color: "white", fontWeight: 800, lineHeight: 1.05, fontSize: `${ov.headlineFontPct}cqh`, textShadow: "0 2px 8px rgba(0,0,0,.6)", whiteSpace: "pre-line", overflowWrap: "anywhere" }}>
-                            {headLines.join("\n").toUpperCase()}
-                          </div>
-                        )}
-                        {activePrep.overlaySubheadline && (
-                          <div style={{ position: "absolute", top: `${ov.subTopPct}%`, left: `${ov.subSideMarginPct}%`, right: `${ov.subSideMarginPct}%`, textAlign: "center", color: "white", fontWeight: 700, lineHeight: ov.subLineHeight, fontSize: `${ov.subFontPct}cqh`, textShadow: "0 2px 8px rgba(0,0,0,.6)", whiteSpace: "pre-line", overflowWrap: "anywhere" }}>
-                            {subLines.join("\n")}
-                          </div>
-                        )}
-                      </div>
-                    )}
+                    {/* The SAME component the Post Composer and its lightbox use, fed by the same
+                        computeOverlayLayout call, so this surface can no longer drift from the burn-in:
+                        fitted font size, the real Libre Baskerville face, and white-space:pre (the
+                        browser cannot re-wrap a fitted line). */}
+                    <PreviewOverlay layout={bulkLayout} />
                   </div>
 
                   {/* Prepared Post — what this source will publish as. Read-only preview. */}

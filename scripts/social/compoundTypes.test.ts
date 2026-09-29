@@ -9,6 +9,8 @@
 //      follow `headline − 2` down to COMPOUND_HERO_DETAIL_MIN_PX.
 // Both are gated on the compound qualifier, so pre-existing types are untouched — asserted below.
 // Run: npx tsx scripts/social/compoundTypes.test.ts
+import { readFileSync, readdirSync } from "node:fs"
+import path from "node:path"
 import {
   PROPERTY_TYPES, SOCIAL_ONLY_PROPERTY_TYPES, COMPOUND_TYPE_QUALIFIERS, propertyNoun, propertyNounPlural,
 } from "@/lib/social/propertyTypes"
@@ -158,6 +160,35 @@ for (const t of PROPERTY_TYPES) {
   }
 }
 ok(`all ${preExisting} pre-existing hero combos stay in [${HERO_MIN_PX}, ${HERO_MAX_PX}] with the 44px detail floor`, heroFitsInNormalRange === preExisting)
+
+// ONE geometry path. The compound hero fix was correct in computeOverlayLayout for a whole release
+// yet production still showed "SAN ANTONIO / SPLIT-LEVEL / PENTHOUSES", because BulkReview drew its
+// own overlay from wrapHeadline() (break-first, ≤16 chars) at a fixed 66px and never called the
+// layout engine at all. Any surface that re-implements geometry can silently disagree with the burn-in
+// again, so assert the invariant directly on the source.
+console.log("\nARCHITECTURE — every overlay surface goes through computeOverlayLayout:")
+{
+  const read = (p: string) => readFileSync(path.join(process.cwd(), p), "utf8")
+  const spec = read("lib/social/overlaySpec.ts")
+  ok("overlayPreviewStyle (the legacy px→% helper) no longer exists", !/export function overlayPreviewStyle/.test(spec))
+  // wrapHeadline/wrapSub stay, but ONLY as computeOverlayLayout's internal fallback. Strip comments
+  // first, so a file that merely EXPLAINS the old helpers (like BulkReview's fix note) isn't flagged.
+  const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1")
+  const walk = (d: string): string[] => readdirSync(d, { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? walk(path.join(d, e.name)) : /\.tsx?$/.test(e.name) ? [path.join(d, e.name)] : [])
+  const offenders = ["components", "app"]
+    .flatMap((root) => walk(path.join(process.cwd(), root)))
+    .filter((f) => /\bwrapHeadline\b|\bwrapSub\b|\boverlayPreviewStyle\b/.test(stripComments(readFileSync(f, "utf8"))))
+    .map((f) => path.relative(process.cwd(), f))
+  if (offenders.length) console.log("    offenders: " + offenders.join(", "))
+  ok("no UI component wraps or sizes overlay text itself", offenders.length === 0)
+  const bulk = read("components/crm/social/BulkReview.tsx")
+  ok("BulkReview renders the shared <PreviewOverlay> from computeOverlayLayout",
+    /computeOverlayLayout\(/.test(bulk) && /<PreviewOverlay\b/.test(bulk))
+  const preview = read("components/crm/social/PreviewOverlay.tsx")
+  ok("PreviewOverlay uses white-space:pre so a fitted line can never be re-wrapped by the browser",
+    /whiteSpace:\s*"pre"/.test(preview) && !/pre-line|overflowWrap/.test(preview))
+}
 
 console.log(`\nCompound property types: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

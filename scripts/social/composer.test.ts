@@ -6,7 +6,7 @@ import { preparePost, buildCaption, buildOverlayHeadline, buildOverlaySubheadlin
 import { SOCIAL_SPECIAL_OPTIONS, giftCardLabel, isGiftCardSpecial, sanitizeCustomSpecial } from "@/lib/social/socialSpecial"
 import { PROPERTY_TYPES, propertyNoun, propertyNounPlural } from "@/lib/social/propertyTypes"
 import { buildFfmpegArgs, buildVideoFilter } from "@/lib/social/renderVideo"
-import { wrapHeadline, wrapSub, overlayPreviewStyle, headlineFit, headlineTextWidthPx, computeOverlayLayout, templateFamily, OVERLAY_SPEC, OVERLAY_CANVAS, OVERLAY_TEXT, HEADLINE_TEXT_AVAIL_PX, HERO_MAX_PX, HERO_MIN_PX, HOOK_MAX_PX, HOOK_MIN_PX, detailTextWidthPx, DETAIL_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
+import { wrapHeadline, wrapSub, headlineFit, headlineTextWidthPx, computeOverlayLayout, templateFamily, OVERLAY_SPEC, OVERLAY_CANVAS, OVERLAY_TEXT, HEADLINE_TEXT_AVAIL_PX, HERO_MAX_PX, HERO_MIN_PX, HOOK_MAX_PX, HOOK_MIN_PX, detailTextWidthPx, DETAIL_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
 import { buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL } from "@/lib/social/composePost"
 
 let pass = 0, fail = 0
@@ -160,7 +160,14 @@ ok("unknown/custom headline char-wraps at the Hero minimum size", headlineFit("S
 
 console.log("Template 1 vertical lockup: tightened headline→sub gap:")
 ok("gap is 35px (tightened from 44)", OVERLAY_SPEC.sub.gapPx === 35)
-ok("a smaller (fit) headline font pulls the sub UP", overlayPreviewStyle(1, 71).subTopPct < overlayPreviewStyle(1, 94).subTopPct)
+// Asserted on the LIVE path (computeOverlayLayout) now that overlayPreviewStyle is gone: a headline
+// that fits smaller occupies a shorter block, so the detail beneath it moves UP.
+{
+  const big = computeOverlayLayout("market_type", "AUSTIN LOFTS", "Starting at $1,600/month")
+  const small = computeOverlayLayout("market_type", "SAN ANTONIO RENTAL HOMES", "Starting at $1,600/month")
+  ok("a smaller (fit) headline font pulls the sub UP",
+    small.headline.fontPx < big.headline.fontPx && small.detail!.topPx < big.detail!.topPx)
+}
 
 console.log("ffmpeg arg builder (Reel-safe encoders); buildVideoFilter draws layout items:")
 const headItem = { file: "/w/head.txt", fontPx: 78, topPx: 250, lineSpacing: 8 }
@@ -189,8 +196,13 @@ ok("long sub wraps to a multi-line block", wrapSub("PRIVATE YARDS + GARAGES + RE
 ok("sub is capped at maxLines (never runaway)", wrapSub("one two three four five six seven eight nine ten eleven twelve thirteen fourteen").length <= 4)
 
 console.log("Reels-safe boxes (generous margins; no-space text can't run off-screen):")
-ok("headline box keeps safe side margins (8.3% each; not edge-to-edge)", overlayPreviewStyle(1).sideMarginPct >= 8 && overlayPreviewStyle(1).sideMarginPct < 12)
-ok("sub box is wider than the headline box but still safely inset", overlayPreviewStyle(1).subSideMarginPct < overlayPreviewStyle(1).sideMarginPct && overlayPreviewStyle(1).subSideMarginPct >= 6)
+{
+  // Same two box invariants, read off the LIVE layout instead of the removed preview helper.
+  const L = computeOverlayLayout("market_type", "AUSTIN LOFTS", "Starting at $1,600/month")
+  const pct = (px: number) => (px / OVERLAY_CANVAS.w) * 100
+  ok("headline box keeps safe side margins (8.3% each; not edge-to-edge)", pct(L.headline.sideMarginPx) >= 8 && pct(L.headline.sideMarginPx) < 12)
+  ok("sub box is wider than the headline box but still safely inset", pct(L.detail!.sideMarginPx) < pct(L.headline.sideMarginPx) && pct(L.detail!.sideMarginPx) >= 6)
+}
 // Nonsense/no-space text must hard-break so no single line can overflow the box.
 const noSpaceH = wrapHeadline("X".repeat(60))
 ok("no-space headline hard-splits (every line ≤ maxChars)", noSpaceH.length > 0 && noSpaceH.every((l) => l.length <= 16))
