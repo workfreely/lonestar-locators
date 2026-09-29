@@ -19,7 +19,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   // Read the original under RLS (so only the caller's own post can be duplicated).
   const { data: orig, error: readErr } = await supabase
     .from("social_posts")
-    .select("source_content_id, platform, post_type, post_name, caption, on_video_text, on_video_config, overlay_mode, overlay_headline, overlay_subheadline, hashtags, social_special, audio_choice, audio_track_id")
+    .select("source_content_id, platform, post_type, post_name, caption, on_video_text, on_video_config, overlay_mode, overlay_headline, overlay_subheadline, hashtags, social_special, audio_choice, audio_track_id, voice_hook_id, voice_cta_id")
     .eq("id", id)
     .maybeSingle()
   if (readErr) return NextResponse.json({ error: "duplicate_failed" }, { status: 500 })
@@ -48,6 +48,11 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       social_special: o.social_special ?? null,
       audio_choice: o.audio_choice ?? "original",
       audio_track_id: o.audio_track_id ?? null,
+      // Voice Clip selections are render-affecting post configuration, exactly like the audio choice
+      // and the overlay copy, so a variation must inherit them. They were previously dropped, which
+      // silently produced a clone whose rendered video had no Hook/CTA.
+      voice_hook_id: o.voice_hook_id ?? null,
+      voice_cta_id: o.voice_cta_id ?? null,
       status: "draft", // always a fresh draft
       render_status: "none", // the clone must render itself — never reuse the original's derivative
       scheduled_at: null, // cleared

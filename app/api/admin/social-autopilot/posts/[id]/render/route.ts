@@ -30,7 +30,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
 
   const { data: post, error: readErr } = await supabase
     .from("social_posts")
-    .select("id, source_content_id, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, render_version, source:source_content_id(storage_path)")
+    .select("id, source_content_id, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, voice_hook_id, voice_cta_id, render_version, source:source_content_id(storage_path)")
     .eq("id", id)
     .maybeSingle()
   if (readErr) return NextResponse.json({ error: "render_failed" }, { status: 500 })
@@ -54,6 +54,28 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     const srcLocal = path.join(work, `source.${extOf(sourcePath)}`)
     await fs.writeFile(srcLocal, Buffer.from(await res.arrayBuffer()))
 
+    // VOICE CLIPS — resolve the selected Hook/CTA to their private storage paths and download them
+    // into the SAME work dir, using the same signed-URL pattern as the source. The renderer then adds
+    // them as extra ffmpeg inputs and ducks the music bed while each one plays. A selected clip that
+    // cannot be resolved or fetched FAILS the render: silently rendering without the locator's voice
+    // would ship a different video than they asked for.
+    const voiceLocal = async (clipId: string | null, role: "Hook" | "CTA"): Promise<string | null> => {
+      if (!clipId) return null
+      const { data: clip } = await supabase.from("social_voice_clips").select("storage_path").eq("id", clipId).maybeSingle()
+      const clipPath = (clip as { storage_path?: string } | null)?.storage_path
+      if (!clipPath) throw new Error(`voice clips: the selected ${role} clip no longer exists`)
+      const { data: clipSigned, error: clipErr } = await supabase.storage.from("social-media").createSignedUrl(clipPath, 600)
+      if (clipErr || !clipSigned?.signedUrl) throw new Error(`voice clips: could not read the selected ${role} clip`)
+      const clipRes = await fetch(clipSigned.signedUrl)
+      if (!clipRes.ok) throw new Error(`voice clips: the selected ${role} clip failed to download (${clipRes.status})`)
+      const local = path.join(work, `voice-${role.toLowerCase()}.${extOf(clipPath)}`)
+      await fs.writeFile(local, Buffer.from(await clipRes.arrayBuffer()))
+      return local
+    }
+    // 'existing' mode draws no overlay, but it is still the locator's post — voice clips apply there too.
+    const hookLocal = await voiceLocal((p.voice_hook_id as string | null) ?? null, "Hook")
+    const ctaLocal = await voiceLocal((p.voice_cta_id as string | null) ?? null, "CTA")
+
     const outLocal = path.join(work, "out.mp4")
     // 'existing' mode = the uploaded video already has burned-in text: draw NO Beast Social overlay
     // (empty headline/subheadline → no drawtext) and keep the original audio. 'generate' = the
@@ -69,6 +91,8 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       subheadline: existingText ? "" : ((p.overlay_subheadline as string | null) ?? ""),
       audioChoice: existingText ? "original" : (((p.audio_choice as string) || "original") as AudioChoice),
       workDir: work,
+      hookPath: hookLocal,
+      ctaPath: ctaLocal,
     })
 
     const nextVersion = (typeof p.render_version === "number" ? p.render_version : 0) + 1
