@@ -253,7 +253,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       const storedCap = p.caption ?? ""
       const cDirty = !isGeneratedCaption(storedCap, meta, seed)
       setCaptionDirty(cDirty)
-      setCaption(cDirty ? storedCap : buildCaption(meta, seed))
+      setCaption(cDirty ? storedCap : buildCaption(meta, seed, tpl))
       const storedTags = Array.isArray(p.hashtags) ? p.hashtags : []
       const tDirty = !isGeneratedHashtags(storedTags, meta)
       setHashtagsDirty(tDirty)
@@ -582,12 +582,20 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   })
   const syncGenerated = (meta: SourceMeta, tpl: OverlayTemplate = overlayTemplate) => {
     if (!headlineDirty) setHeadline(buildTemplateHeadline(tpl, meta))
-    if (!captionDirty) setCaption(buildCaption(meta, sourceContentId ?? undefined))
+    // `tpl`, not the overlayTemplate STATE: changeTemplate calls this before the state has settled,
+    // and the caption's opener is now template-aware.
+    if (!captionDirty) setCaption(buildCaption(meta, sourceContentId ?? undefined, tpl))
     if (!hashtagsDirty) setHashtags(buildHashtags(meta.market, MAX_HASHTAGS, meta.propertyType))
     // Overlay Detail is derived from the template + metadata — no state to set here.
   }
-  // Change the overlay template: regenerate the (non-manual) headline from the new template.
-  const changeTemplate = (tpl: OverlayTemplate) => { setOverlayTemplate(tpl); if (!headlineDirty) setHeadline(buildTemplateHeadline(tpl, metaOf())) }
+  // Change the overlay template: regenerate the (non-manual) headline AND caption from the new
+  // template — the caption's first line is template-aware, so it must move with the selection.
+  const changeTemplate = (tpl: OverlayTemplate) => {
+    setOverlayTemplate(tpl)
+    const meta = metaOf()
+    if (!headlineDirty) setHeadline(buildTemplateHeadline(tpl, meta))
+    if (!captionDirty) setCaption(buildCaption(meta, sourceContentId ?? undefined, tpl))
+  }
   // Overlay DETAIL — derived from the selected template + metadata (never manual).
   const overlayDetail = overlayMode === "generate" ? buildTemplateDetail(overlayTemplate, metaOf()) : ""
 

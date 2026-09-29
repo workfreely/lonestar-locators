@@ -165,6 +165,63 @@ function eligibleHooks(city: string, canonicalType: string | null): string[] {
   return hooks.filter((h) => h.ok).map((h) => h.text)
 }
 
+/** TEMPLATE-AWARE caption opener — the caption's FIRST LINE only. Everything below it (special,
+ *  amenities, and the two fixed CTA sentences) is unchanged and shared by every template.
+ *
+ *  Returns null when the opener cannot be fully resolved (no market, or no price/type where the line
+ *  needs one). The caller then falls back to the original seed-rotated hooks, which carry the same
+ *  guarantee — so an unresolved "{Market}" or "$/month" placeholder can never be emitted.
+ *
+ *  Property-type wording and the price string are NOT re-formatted here: templates 11, 15 and 16 reuse
+ *  buildTemplateHeadline verbatim, and the rest reuse propertyNoun / startingPriceAmount +
+ *  PER_MONTH_SUFFIX, so there is exactly one casing/pluralization/price formatter in the module. */
+export function captionOpener(template: OverlayTemplate, src: SourceMeta): string | null {
+  const city = clean(normalizeSocialMarket(src.market))
+  const canonicalType = normalizeToCanonical(clean(src.propertyType) || null)
+  const noun = canonicalType ? propertyNoun(canonicalType) : ""
+  const amount = startingPriceAmount(src.budgetRange)
+  const price = amount ? `${amount}${PER_MONTH_SUFFIX}` : ""
+  const moving = city ? `Moving to ${city}? ` : null
+
+  switch (template) {
+    case "market_type": return moving && `${moving}Check this out.`
+    case "market_type_centered": return moving && `${moving}You need to see this.`
+    // Approved wording, kept EXACTLY as it already reads.
+    case "your_sign": return moving && `${moving}This is your sign.`
+    case "special_feature": return moving && `${moving}This deal is hard to beat.`
+    case "next_property": return moving && noun ? `${moving}This could be your next ${noun}.` : null
+    case "upgrade": return moving && `${moving}Ready for an upgrade?`
+    case "apartment_standards": return moving && `${moving}Your standards just went up.`
+    case "pov_upgrade": return moving && `${moving}POV: you upgraded.`
+    case "affordable_luxury": return moving && `${moving}Luxury doesn't have to break the budget.`
+    case "pov_price": return city && price ? `POV: this is what ${price} gets you in ${city}.` : null
+    // Reuses the approved Template 11 property-language logic verbatim ("These apartments just hit
+    // different", "High-rises just hit different", …) rather than restating the rule here.
+    case "hits_different": return canonicalType ? `${buildTemplateHeadline("hits_different", src)}.` : null
+    case "trade_up": return moving && `${moving}It might be time to trade up.`
+    case "wanted_luxury": return moving && `${moving}You wanted luxury.`
+    case "real_living": return city && noun ? `This is real ${noun} living in ${city}.` : null
+    // Identical copy for both, and identical to the template's own headline + a full stop.
+    case "what_mo_gets_you":
+    case "what_mo_gets_you_top": return city && price ? `${buildTemplateHeadline("what_mo_gets_you", src)}.` : null
+  }
+  return null
+}
+
+/** The caption BODY below the opener — unchanged by the template-aware opener work. Split out so the
+ *  legacy-recognition pass can rebuild an older caption with its original rotating hook without
+ *  duplicating the section logic. */
+function captionSections(src: SourceMeta, opener: string | null): string {
+  const special = resolveSocialSpecial(src)
+  const feats = features(src.amenities).slice(0, 3)
+  const sections: string[] = []
+  if (opener) sections.push(opener)
+  if (special) sections.push(`✨ ${special}`)
+  if (feats.length) sections.push(`🏡 Amenities\n${feats.map((f) => `• ${f}`).join("\n")}`)
+  sections.push(CTA_LINES[0], CTA_LINES[1])
+  return sections.join("\n\n").slice(0, 1800)
+}
+
 /** Public Instagram caption in the APPROVED format:
  *    {rotating hook}
  *    ✨ {current special}      — only if present
@@ -176,37 +233,38 @@ function eligibleHooks(city: string, canonicalType: string | null): string[] {
  *  name, area/neighborhood, notes, place_id, or any internal/source-only metadata. Hashtags are
  *  handled separately and merged at publish (composeFinalCaption). `seed` is the source id, so a
  *  given source video deterministically gets the same eligible hook. */
-export function buildCaption(src: SourceMeta, seed?: string | number): string {
+export function buildCaption(src: SourceMeta, seed?: string | number, template?: OverlayTemplate | null): string {
   const city = clean(normalizeSocialMarket(src.market))
   // Trim/normalize whitespace on the raw property type BEFORE canonicalization — a padded value
   // ("  Townhome  ") is not a canonical match otherwise and would wrongly drop Hook 4.
   const canonicalType = normalizeToCanonical(clean(src.propertyType) || null) // null for missing/non-canonical
-  const special = resolveSocialSpecial(src) // explicit Social Special, else normalized raw special
-  const feats = features(src.amenities).slice(0, 3) // max 3, existing stored order, verbatim
 
   // Readable vertical spacing: each PRESENT section is separated from the next by ONE blank line
   // (sections are joined with "\n\n"). Absent sections produce no blank lines. The amenities section
   // renders as a "🏡 Amenities" heading with one "• " bullet per feature (max 3). The two fixed CTA
-  // sentences are their own sections, so a blank line falls between them too. This is the INSTAGRAM
-  // CAPTION layout only — on-video overlays use their own compact template formatting.
+  // sentences are their own sections, so a blank line falls between them too.
   //
   // PRICE: the caption does NOT carry a price line — the Starting At price lives in the on-video
-  // OVERLAY detail ("Starting at $X/mo"), not the caption. (Approved 2026-09-14.)
-  const sections: string[] = []
-  const hooks = eligibleHooks(city, canonicalType)
-  if (hooks.length) sections.push(hooks[hashSeed(seed) % hooks.length])
-  if (special) sections.push(`✨ ${special}`)
-  if (feats.length) sections.push(`🏡 Amenities\n${feats.map((f) => `• ${f}`).join("\n")}`)
-  sections.push(CTA_LINES[0], CTA_LINES[1])
-  return sections.join("\n\n").slice(0, 1800)
+  // OVERLAY detail ("Starting at $X/mo"), not the caption. (Approved 2026-09-14.) Templates 10/15/16
+  // do put the price in their OPENER, which is a deliberate part of those hooks.
+  //
+  // OPENER: template-aware (captionOpener). When the chosen template's opener cannot be fully
+  // resolved — or no template is supplied — it falls back to the original seed-rotated hooks, so the
+  // caption never loses its first line and never emits an unresolved placeholder.
+  const opener = (template ? captionOpener(template, src) : null) ?? (() => {
+    const hooks = eligibleHooks(city, canonicalType)
+    return hooks.length ? hooks[hashSeed(seed) % hooks.length] : null
+  })()
+  return captionSections(src, opener)
 }
 
 /** Prepare all suggested fields at once. `seed` (the source id) makes hook rotation deterministic. */
-export function preparePost(src: SourceMeta, seed?: string | number): PreparedPost {
+export function preparePost(src: SourceMeta, seed?: string | number, template?: OverlayTemplate | null): PreparedPost {
   return {
     overlayHeadline: buildOverlayHeadline(src),
     overlaySubheadline: buildOverlaySubheadline(src),
-    caption: buildCaption(src, seed),
+    // No template supplied (Bulk Review has no per-row template yet) ⇒ the original rotating hook.
+    caption: buildCaption(src, seed, template),
     hashtags: buildHashtags(src.market, MAX_HASHTAGS, src.propertyType),
   }
 }
@@ -535,7 +593,14 @@ export function isGeneratedCaption(text: string | null | undefined, src: SourceM
   const t = captionKey((text ?? "").trim())
   if (!t) return true
   for (const m of MARKETS_WITH_NULL) for (const pt of TYPES_WITH_NULL) {
-    if (captionKey(buildCaption({ ...src, market: m, propertyType: pt }, seed)) === t) return true
+    const s2 = { ...src, market: m, propertyType: pt }
+    // LEGACY (no template ⇒ the original seed-rotated hook). Kept first and kept forever: a caption
+    // written before openers became template-aware must stay generator-owned, or an existing draft
+    // would freeze as a "manual override" and never re-sync on a Market/Type change.
+    if (captionKey(buildCaption(s2, seed)) === t) return true
+    for (const tpl of OVERLAY_TEMPLATES) {
+      if (captionKey(buildCaption(s2, seed, tpl)) === t) return true
+    }
   }
   return false
 }
@@ -562,9 +627,9 @@ export function isGeneratedHashtags(tags: string[] | null | undefined, src: Sour
  *  saved by an older engine. A genuine MANUAL caption (not generator-owned) is returned verbatim.
  *  Pure: no DB, no mutation of the stored row — existing unpublished posts benefit automatically at
  *  publish without any migration. Callers still append hashtags via composeFinalCaption. */
-export function publishCaption(storedCaption: string | null | undefined, src: SourceMeta, seed?: string | number): string {
+export function publishCaption(storedCaption: string | null | undefined, src: SourceMeta, seed?: string | number, template?: OverlayTemplate | null): string {
   const stored = storedCaption ?? ""
-  return isGeneratedCaption(stored, src, seed) ? buildCaption(src, seed) : stored
+  return isGeneratedCaption(stored, src, seed) ? buildCaption(src, seed, template) : stored
 }
 
 /** Combine the approved caption + hashtags into the final publish text (composer keeps them
