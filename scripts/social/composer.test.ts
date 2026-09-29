@@ -481,12 +481,12 @@ console.log("Templates 5 & 8 detail hierarchy (supporting the hook — one line,
 const t5cases = ["8 Weeks Free · Starting at $1,900/mo", "Starting at $1,900/mo", "8 Weeks Free"]
 for (const d of t5cases) {
   const L = computeOverlayLayout("upgrade", "What life looks like when you upgrade", d)
-  ok(`T6 detail one line, proportional, secondary: "${d}" (${L.detail!.fontPx}px vs hook ${L.headline.fontPx})`, L.detail!.lines.length === 1 && L.detail!.fontPx === Math.min(40, Math.max(20, Math.round(L.headline.fontPx * 0.75))) && L.detail!.fontPx < L.headline.fontPx && detailTextWidthPx(d, L.detail!.fontPx) <= DETAIL_TEXT_AVAIL_PX)
+  ok(`T6 detail one line at the flat conversational size: "${d}" (${L.detail!.fontPx}px vs hook ${L.headline.fontPx})`, L.detail!.lines.length === 1 && L.detail!.fontPx === Math.min(24, Math.max(20, L.headline.fontPx - 2)) && L.detail!.fontPx < L.headline.fontPx && detailTextWidthPx(d, L.detail!.fontPx) <= DETAIL_TEXT_AVAIL_PX)
 }
 // T8 POV + Price — price detail 40px (strong but below the POV headline), one line for all prices.
 for (const p of ["Starting at $995/mo", "Starting at $1,250/mo", "Starting at $1,900/mo", "Starting at $2,495/mo"]) {
   const L = computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", p)
-  ok(`T10 price one line, proportional, secondary: "${p}" (${L.detail!.fontPx}px vs hook ${L.headline.fontPx})`, L.detail!.lines.length === 1 && L.detail!.fontPx === Math.min(40, Math.max(20, Math.round(L.headline.fontPx * 0.75))) && L.detail!.fontPx < L.headline.fontPx && detailTextWidthPx(p, L.detail!.fontPx) <= DETAIL_TEXT_AVAIL_PX)
+  ok(`T10 price one line at the flat conversational size: "${p}" (${L.detail!.fontPx}px vs hook ${L.headline.fontPx})`, L.detail!.lines.length === 1 && L.detail!.fontPx === Math.min(24, Math.max(20, L.headline.fontPx - 2)) && L.detail!.fontPx < L.headline.fontPx && detailTextWidthPx(p, L.detail!.fontPx) <= DETAIL_TEXT_AVAIL_PX)
 }
 // Was "T10's price detail is LARGER than T6's" — a per-template size table that no longer exists.
 // Both now derive from the same 0.75 ratio off the same ceiling, so they are equal by construction
@@ -494,7 +494,7 @@ for (const p of ["Starting at $995/mo", "Starting at $1,250/mo", "Starting at $1
 ok("T6/T10 details are equal and both clearly secondary", (() => {
   const a = computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", "Starting at $1,900/mo")
   const b = computeOverlayLayout("upgrade", "What life looks like when you upgrade", "Starting at $1,900/mo")
-  return a.detail!.fontPx === b.detail!.fontPx && a.headline.fontPx / a.detail!.fontPx >= 1.3 && b.headline.fontPx / b.detail!.fontPx >= 1.3
+  return a.detail!.fontPx === b.detail!.fontPx && a.detail!.fontPx < a.headline.fontPx && b.detail!.fontPx < b.headline.fontPx
 })())
 // Tighter gap: center-hook detail sits closer than the standard Hero sub gap; T3 gap tighter too.
 const t5L = computeOverlayLayout("upgrade", "What life looks like when you upgrade", "Starting at $1,900/mo")
@@ -530,7 +530,7 @@ const t5g = computeOverlayLayout("upgrade", "What life looks like when you upgra
 const t8g = computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", "Starting at $1,800/mo")
 ok("T5 gap increased to 21px", (t5g.detail!.topPx - (t5g.headline.topPx + t5g.headline.fontPx)) === 21)
 ok("T8 gap stays 16px (unchanged)", (t8g.detail!.topPx - (t8g.headline.topPx + t8g.headline.fontPx)) === 16)
-ok("T6 detail is proportional to its hook", t5g.detail!.fontPx === Math.min(40, Math.max(20, Math.round(t5g.headline.fontPx * 0.75))))
+ok("T6 detail is the flat conversational size", t5g.detail!.fontPx === Math.min(24, Math.max(20, t5g.headline.fontPx - 2)))
 
 console.log("\nTemplate 11 (What $/mo Gets You — dynamic price+city, CENTER HOOK like T7):")
 // The two examples from the spec, exactly.
@@ -672,7 +672,7 @@ ok("a genuinely MANUAL hook in these shapes is still protected", !isGeneratedHea
 console.log("\nTemplates 1–11 unchanged by this addition:")
 ok("T1 hero headline + price detail unchanged", buildTemplateHeadline("market_type", { market: "San Antonio", propertyType: "High-Rise" }) === "SAN ANTONIO HIGH-RISES" && buildTemplateDetail("market_type", { budgetRange: "1600" }) === "Starting at $1,600/mo")
 ok("T2/T5/T6/T7/T9/T10 headlines unchanged", buildTemplateHeadline("your_sign", { propertyType: "Townhome" }) === "Your sign to get that townhome" && buildTemplateHeadline("next_property", { propertyType: "Townhome" }) === "What your next townhome could look like" && buildTemplateHeadline("upgrade", {}) === "What life looks like when you upgrade" && buildTemplateHeadline("apartment_standards", {}) === "Your apartment standards went up" && buildTemplateHeadline("affordable_luxury", {}) === "Luxury doesn't have to be expensive" && buildTemplateHeadline("pov_price", { propertyType: "Loft" }) === "POV: You upgraded to a loft")
-ok("T6/T10 detail follows the 0.75 proportional rule", (["upgrade","pov_price"] as const).every((t) => { const L = computeOverlayLayout(t, t === "upgrade" ? "What life looks like when you upgrade" : "POV: You upgraded to a loft", "Starting at $1,900/mo"); return L.detail!.fontPx === Math.min(40, Math.max(20, Math.round(L.headline.fontPx * 0.75))) }))
+ok("T6/T10 detail follows the flat 24px rule", (["upgrade","pov_price"] as const).every((t) => { const L = computeOverlayLayout(t, t === "upgrade" ? "What life looks like when you upgrade" : "POV: You upgraded to a loft", "Starting at $1,900/mo"); return L.detail!.fontPx === Math.min(24, Math.max(20, L.headline.fontPx - 2)) }))
 ok("T1 stays HERO, T11 stays center_hook, T7 stays center_hook_detail", templateFamily("market_type") === "hero" && templateFamily("what_mo_gets_you") === "center_hook" && templateFamily("apartment_standards") === "center_hook_detail")
 // The one-line rule is untouched for every template that predates T12: the new wrap branch only
 // engages for copy that cannot fit even at CENTER_HOOK.minPx, which none of them hit.
@@ -728,12 +728,15 @@ console.log("\nConversational target-width rule:")
   })())
   ok("T14 stays ONE line for every property type", [...PROPERTY_TYPES, null].every((pt) => computeOverlayLayout("real_living", buildTemplateHeadline("real_living", { propertyType: pt as any }), "Starting at $1,600/mo").headline.lines.length === 1))
   // Proportional detail keeps a clear hierarchy at every hook size.
-  ok("center-hook detail is round(hook × 0.75) clamped [20,40], never hook − 2", (() => {
+  // Detail is a FLAT 24px (21px at the old 0.75 ratio tested too small on real footage). The hook is a
+// fixed 28px ceiling, so a ratio here would only ever compute a constant; the hook−2 clamp is a
+// safety rail for a hook that ever shrinks, not the rule.
+ok("center-hook detail is a flat 24px and always under the hook", (() => {
     const tpls = ["upgrade", "apartment_standards", "pov_price", "trade_up", "wanted_luxury", "real_living", "hits_different"] as const
     return tpls.every((t) => {
       const L = computeOverlayLayout(t, buildTemplateHeadline(t, { propertyType: "High-Rise", market: "San Antonio", budgetRange: "1600" }), "Starting at $1,600/mo")
-      const want = Math.min(40, Math.max(20, Math.round(L.headline.fontPx * 0.75)))
-      return L.detail!.fontPx === want && L.headline.fontPx / L.detail!.fontPx >= 1.25
+      const want = Math.min(24, Math.max(20, L.headline.fontPx - 2))
+      return L.detail!.fontPx === want && L.detail!.fontPx === 24 && L.detail!.fontPx < L.headline.fontPx
     })
   })())
 }

@@ -264,18 +264,22 @@ function fitHookPx(text: string, maxPx: number, minPx: number = HOOK_FLOOR_PX): 
   return minPx
 }
 
-// Supporting/detail line for the center-hook family, PROPORTIONAL to the hook so the hierarchy holds
-// at every size. The old rule (a 38–40px per-template target capped at hook − 2) left the detail only
-// 2px below a shrunken headline — a 1.05 ratio, reading as two near-equal lines. A constant 0.75
-// keeps it clearly secondary (ratio ≈1.33). The floor dropped 26 → 20 with the ceiling: at a 28px
-// hook a 26px floor would have produced a 1.08 ratio, i.e. the exact near-equal look the ratio exists
-// to prevent. At 20 the floor only binds below a 27px hook, so 0.75 governs in practice.
-// Hero detail sizing (MARKET_TYPE_DETAIL_PX, OVERLAY_SPEC.sub.fontPx) is NOT affected.
-const HOOK_DETAIL_RATIO = 0.75
+// Supporting/detail line for the center-hook family: a FLAT 24px.
+//
+// This was a 0.75 ratio off the hook, which produced 21px. Tested on real footage, 21px read as too
+// small for lines like "Starting at $1,500/mo". It is a flat constant rather than a re-tuned ratio
+// because the hook is now a fixed 28px ceiling that nothing in the sweep moves — a ratio here would
+// only ever be computing the same constant, with a magic 0.857 standing in for "24". Stating 24
+// directly is the honest version of the same result.
+//
+// The clamp is a safety rail, not the rule: if a hook ever does shrink below the ceiling (only
+// reachable by copy too long for the box even at 28px), the supporting line stays at least 2px under
+// it so it can never reach or pass the headline. Hero detail sizing (MARKET_TYPE_DETAIL_PX,
+// OVERLAY_SPEC.sub.fontPx) is NOT affected.
+const HOOK_DETAIL_PX = 24
 const HOOK_DETAIL_MIN_PX = 20
-const HOOK_DETAIL_MAX_PX = 40
 function hookDetailPxFor(hookPx: number): number {
-  return Math.min(HOOK_DETAIL_MAX_PX, Math.max(HOOK_DETAIL_MIN_PX, Math.round(hookPx * HOOK_DETAIL_RATIO)))
+  return Math.min(HOOK_DETAIL_PX, Math.max(HOOK_DETAIL_MIN_PX, hookPx - 2))
 }
 
 // Template 1 (market_type) renders its "Starting at $X/mo" detail LARGER than the shared HERO detail
