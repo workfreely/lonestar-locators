@@ -12,7 +12,11 @@
    preview vs the render. */
 @font-face {
   font-family: "OverlayHead";
-  src: url("/fonts/BodoniModa-Head.ttf") format("truetype");
+  /* Libre Baskerville Bold (OFL, Google Fonts static cut, wght 700). Headline face ONLY — the
+     detail/secondary face below is unchanged. Must stay byte-identical to the file the FFmpeg
+     renderer loads (assets/social/fonts/LibreBaskerville-Head.ttf) or preview and render would
+     measure differently. */
+  src: url("/fonts/LibreBaskerville-Head.ttf") format("truetype");
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;

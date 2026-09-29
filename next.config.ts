@@ -38,7 +38,11 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/admin/social-autopilot/posts/[id]/render": [
       "./node_modules/ffmpeg-static/ffmpeg",
-      "./assets/social/fonts/Overlay-Bold.ttf",
+      // The overlay faces the render route loads at runtime via path.join(process.cwd(), …), which
+      // Next cannot detect statically. This previously named Overlay-Bold.ttf, a file that no longer
+      // exists — corrected here to the fonts actually in use so both are traced into the function.
+      "./assets/social/fonts/LibreBaskerville-Head.ttf",
+      "./assets/social/fonts/BodoniModa-Detail.ttf",
     ],
   },
   images: {

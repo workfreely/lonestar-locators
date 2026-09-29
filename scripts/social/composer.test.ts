@@ -146,7 +146,11 @@ for (const c of CITIES) for (const t of TYPES) {
 }
 ok("EVERY supported city×type (incl Loft) headline stays ONE line (fit-to-width)", allOneLine)
 ok("EVERY supported combo's fitted size is within the Hero range [56,66]", allInRange)
-ok("Hero fit range is 56–66px", HERO_MIN_PX === 56 && HERO_MAX_PX === 66)
+// MAX is unchanged at 66 (every combo that already fit keeps its size). MIN dropped 56 → 47 when the
+// headline face became Libre Baskerville Bold (~12.9% wider than Bodoni): the longest combos need
+// down to 47px to stay inside the 900px safe box, and fitHeadlinePx returns minPx as an UNTESTED
+// fallback, so a higher floor would have rendered them past the safe margins.
+ok("Hero fit range is 47–66px", HERO_MIN_PX === 47 && HERO_MAX_PX === 66)
 ok("EVERY supported combo fits the 900px safe box at its fitted size", allFit)
 ok("shorter combo renders LARGER (SAN ANTONIO TOWNHOMES > SAN ANTONIO RENTAL HOMES)", headlineFit("SAN ANTONIO TOWNHOMES").fontPx > headlineFit("SAN ANTONIO RENTAL HOMES").fontPx)
 ok("widest combo SAN ANTONIO RENTAL HOMES still fits one line via fit-down", headlineFit("SAN ANTONIO RENTAL HOMES").lines.length === 1 && headlineTextWidthPx("SAN ANTONIO RENTAL HOMES", headlineFit("SAN ANTONIO RENTAL HOMES").fontPx) <= HEADLINE_TEXT_AVAIL_PX)
@@ -361,7 +365,12 @@ ok("T5 is CENTER HOOK + DETAIL", computeOverlayLayout("upgrade", "What life look
 const heroL = computeOverlayLayout("market_type", "SAN ANTONIO HIGH-RISES", "Starting at $1,600/mo")
 ok("HERO headline sits near the top; detail below it", heroL.headline.topPx < 400 && !!heroL.detail && heroL.detail.topPx > heroL.headline.topPx)
 ok("HERO headline is uppercase-flagged; center hook is not", heroL.headline.uppercase === true && computeOverlayLayout("your_sign", "Your sign", "").headline.uppercase === false)
-const hookL = computeOverlayLayout("your_sign", "Your sign to get that high-rise in San Antonio", "")
+// The T2 headline the generator actually produces is Property Type ONLY — the market was removed from
+// this template (see buildTemplateHeadline). The old fixture still carried "… in San Antonio", which
+// no template emits; in Libre Baskerville that legacy 46-char string wraps to two lines (810px + 312px,
+// both inside the box — the wrap system behaving correctly). Use the REAL generated headline so these
+// assertions test shipped behavior. The longest-T2/T4 assertions below already build theirs.
+const hookL = computeOverlayLayout("your_sign", buildTemplateHeadline("your_sign", { propertyType: "High-Rise" } as any), "")
 ok("CENTER HOOK is vertically centred (not near the top)", hookL.headline.topPx > 400 && hookL.headline.topPx < 1920 && hookL.detail === null)
 ok("CENTER HOOK uses a smaller size than the Hero headline (not forced giant)", hookL.headline.fontPx < heroL.headline.fontPx)
 const upL = computeOverlayLayout("upgrade", "What life looks like when you upgrade", "8 Weeks Free · Starting at $1,600/mo")
@@ -442,7 +451,12 @@ for (const [p, exp] of [["995", "Starting at $995/mo"], ["1250", "Starting at $1
 
 console.log("Template 1 detail size (larger price line; T1 only):")
 const t1d = computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,800/mo").detail
-ok("T1 detail renders at 52px (larger secondary line)", !!t1d && t1d.fontPx === 52)
+// T1's price renders at its 52px target whenever the fitted headline leaves room, and is COUPLED to
+// headline − 2 otherwise so it can never out-size the headline it supports. "SAN ANTONIO TOWNHOMES"
+// fits at 51px in Libre Baskerville, so its price caps at 49; a shorter combo still gets the full 52.
+ok("T1 detail renders at 52px when the headline is large enough",
+  computeOverlayLayout("market_type", "DFW LOFTS", "Starting at $1,800/mo").detail!.fontPx === 52)
+ok("T1 detail is capped at headline − 2 when the headline fits small", !!t1d && t1d.fontPx === computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,800/mo").headline.fontPx - 2)
 ok("T1 detail stays ONE line for all test prices", ["Starting at $995/mo", "Starting at $1,250/mo", "Starting at $1,800/mo", "Starting at $2,495/mo"].every((p) => computeOverlayLayout("market_type", "SAN ANTONIO LOFTS", p).detail!.lines.length === 1))
 ok("T3 (special_feature) detail UNCHANGED at the shared sub size", (computeOverlayLayout("special_feature", "SAN ANTONIO TOWNHOMES", "8 Weeks Free · Private Yards").detail!.fontPx) === OVERLAY_SPEC.sub.fontPx)
 ok("T1 detail still clearly secondary to the headline", !!t1d && t1d.fontPx < computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,800/mo").headline.fontPx)

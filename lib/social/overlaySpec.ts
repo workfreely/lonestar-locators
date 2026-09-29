@@ -88,7 +88,7 @@ export function wrapSub(text: string | null | undefined, maxChars = OVERLAY_SPEC
 // ── Headline sizing: deterministic FIT-TO-WIDTH (shared by preview + render) ──────────────────
 // Rather than lock every headline to the worst-case size, each ACTUAL generated headline starts
 // large and shrinks (by 1px) only until it fits one line inside the safe box. The width is computed
-// from a baked per-character ADVANCE map (advance px at 100px in BodoniModa-Head, wght 500) — summing
+// from a baked per-character ADVANCE map (advance px at 100px in LibreBaskerville-Head, wght 700) — summing
 // advances exactly equals FFmpeg drawtext's line width (drawtext applies no kerning), and adding the
 // same trackingEm the CSS preview uses makes the fit conservative for the browser too. So the SAME
 // pure function resolves the SAME px for a given (text) in both paths — no preview/render bait-and-
@@ -98,16 +98,33 @@ export function wrapSub(text: string | null | undefined, maxChars = OVERLAY_SPEC
 export const HEADLINE_TEXT_AVAIL_PX = OVERLAY_CANVAS.w - 2 * OVERLAY_SPEC.headline.sideMarginPx // 900 (90px margins)
 
 // Hero (T1/T3) fit range and Center-hook (T2/T4/T5) fit range, in canvas px.
-export const HERO_MAX_PX = 66, HERO_MIN_PX = 56
+// HERO_MAX_PX is UNCHANGED, so every headline that already fit keeps its exact size (21 of the 35
+// supported {city} {type} combos still render at 66). HERO_MIN_PX dropped 56 → 47 purely as headroom
+// for the fit-to-width system: Libre Baskerville Bold is ~12.9% wider than Bodoni, and six of the
+// longest combos ("SAN ANTONIO RENTAL HOMES" worst at 1058px) could no longer reach the 900px safe box
+// before hitting the old floor — fitHeadlinePx returns minPx as a FALLBACK without testing it, so they
+// would have rendered past the safe margins. This lets the existing responsive sizing keep them inside
+// the box instead of moving the overlay. It cannot shrink anything that already fit (fitHeadlinePx
+// returns the LARGEST px that fits, scanning down from max). Optically the drop is near-neutral:
+// Libre Baskerville's x-height is 53% of em vs Bodoni's 46%, so LB at 47px carries the same x-height
+// as Bodoni at ~54px.
+export const HERO_MAX_PX = 66, HERO_MIN_PX = 47
 export const HOOK_MAX_PX = 46, HOOK_MIN_PX = 37
 
-// Per-character advance (px) at 100px in BodoniModa-Head.ttf (wght 650). Covers the full headline
-// vocabulary (A–Z, a–z, space, hyphen, colon, apostrophe). Any other char falls back to a mid
-// advance (safe: slight over-estimate → shrinks a hair more, never clips).
+// Per-character advance (px) at 100px in LibreBaskerville-Head.ttf (Libre Baskerville Bold, wght 700,
+// unitsPerEm 1000). Covers the full headline vocabulary (A–Z, a–z, space, hyphen, colon, apostrophe).
+// Any other char falls back to a mid advance (safe: slight over-estimate → shrinks a hair more, never
+// clips).
+//
+// REGENERATED from the shipped font file, not adapted from Bodoni: Libre Baskerville Bold is ~12.9%
+// wider per character on average (min 0.80×, max 1.33×), so reusing Bodoni's advances would have
+// under-measured every headline and let text run past the safe box in BOTH paths. The generator
+// (advance_units / unitsPerEm × 100, rounded) was validated by reproducing the previous Bodoni map
+// exactly — 56/56 characters — before being run against Libre Baskerville.
 const HEAD_ADV: Record<string, number> = {
-  A: 77, B: 68, C: 69, D: 75, E: 62, F: 59, G: 75, H: 78, I: 41, J: 51, K: 75, L: 60, M: 87, N: 74, O: 75, P: 66, Q: 75, R: 73, S: 59, T: 67, U: 72, V: 77, W: 107, X: 78, Y: 73, Z: 60,
-  a: 57, b: 62, c: 52, d: 62, e: 53, f: 40, g: 62, h: 61, i: 31, j: 32, k: 63, l: 34, m: 87, n: 61, o: 56, p: 62, q: 62, r: 47, s: 45, t: 36, u: 61, v: 57, w: 82, x: 57, y: 59, z: 48,
-  " ": 25, "-": 36, ":": 25, "'": 25,
+  A: 81, B: 80, C: 82, D: 92, E: 76, F: 69, G: 88, H: 94, I: 43, J: 41, K: 82, L: 76, M: 114, N: 94, O: 94, P: 72, Q: 95, R: 82, S: 66, T: 83, U: 88, V: 80, W: 123, X: 85, Y: 76, Z: 80,
+  a: 57, b: 67, c: 56, d: 69, e: 58, f: 44, g: 61, h: 71, i: 36, j: 33, k: 66, l: 36, m: 111, n: 73, o: 66, p: 70, q: 67, r: 50, s: 47, t: 38, u: 71, v: 62, w: 89, x: 65, y: 65, z: 57,
+  " ": 27, "-": 46, ":": 28, "'": 21,
 }
 const ADV_FALLBACK = 55
 
@@ -264,7 +281,15 @@ export function computeOverlayLayout(template: string, headlineText: string, det
     const hasDetail = detail.length > 0
     const headBlockH = headlineBlockPx(Math.max(1, fit.lines.length), fit.fontPx)
     const heroGapPx = template === "special_feature" ? SPECIAL_FEATURE_GAP_PX : usesMarketDetail ? MARKET_TYPE_GAP_PX : OVERLAY_SPEC.sub.gapPx
-    const detailPx = usesMarketDetail ? MARKET_TYPE_DETAIL_PX : OVERLAY_SPEC.sub.fontPx // T1/T2 price is larger; T3 keeps the shared size
+    // T1/T2 price is larger; T3 keeps the shared size. The T1 price is COUPLED to stay at least 2px
+    // below the fitted headline — the same rule centerHookDetailMaxPx already applies to the
+    // center-hook detail. Without it the four longest Hero combos (SAN ANTONIO APARTMENTS /
+    // TOWNHOMES / RENTAL HOMES / PENTHOUSES), which fit at 47–51px in the wider Libre Baskerville,
+    // would render a 52px price line LARGER than the headline it supports, inverting the hierarchy.
+    // The detail FACE is unchanged (Bodoni Moda text cut) — only this size ceiling.
+    const detailPx = usesMarketDetail
+      ? Math.min(MARKET_TYPE_DETAIL_PX, Math.max(OVERLAY_SPEC.sub.fontPx, fit.fontPx - 2))
+      : OVERLAY_SPEC.sub.fontPx
     const detailLines = hasDetail ? wrapSub(detail) : []
     const detailBlockH = hasDetail ? detailLines.length * detailPx + Math.max(0, detailLines.length - 1) * OVERLAY_SPEC.sub.lineSpacing : 0
     const gap = hasDetail ? heroGapPx : 0
