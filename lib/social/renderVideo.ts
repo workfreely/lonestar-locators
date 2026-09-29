@@ -8,7 +8,7 @@ import { execFile } from "node:child_process"
 import { promises as fs } from "node:fs"
 import path from "node:path"
 import os from "node:os"
-import { OVERLAY_TEXT, computeOverlayLayout } from "@/lib/social/overlaySpec"
+import { OVERLAY_TEXT, computeOverlayLayout, type OverlayLayout, type OverlayFace } from "@/lib/social/overlaySpec"
 
 export type AudioChoice = "original" | "none" | "lb_track"
 
@@ -74,22 +74,46 @@ export function buildFfmpegArgs(input: { sourcePath: string; outputPath: string;
   return args
 }
 
+/** PURE layout → draw plan. Each entry is one drawtext: its TEXT (already cased), size, top-Y, and
+ *  face. Split out of renderReel so the per-line branch below is unit-testable without running ffmpeg
+ *  or touching the filesystem — it is the only place that decides how many drawtext calls a block
+ *  becomes, and a silent regression there is invisible in the preview. */
+export type DrawPlanItem = { name: string; text: string; fontPx: number; topPx: number; lineSpacing: number; face: OverlayFace }
+export function buildDrawPlan(layout: OverlayLayout): DrawPlanItem[] {
+  const plan: DrawPlanItem[] = []
+  const h = layout.headline
+  if (h.lines.length) {
+    const cased = (s: string) => (h.uppercase ? s.toUpperCase() : s)
+    if (h.linePx && h.lineTopPx) {
+      // COMPOUND two-line hero: each line carries its OWN size, so it needs its own drawtext at its
+      // own explicit y — a single multi-line text file cannot express two sizes. FFmpeg centres every
+      // item independently with x=(w-text_w)/2 (the canvas centre), so both lines land on the same
+      // axis with no padding, exactly as the CSS preview centres them.
+      h.lines.forEach((line, i) => plan.push({
+        name: `head_${i}`, text: cased(line), fontPx: h.linePx![i], topPx: h.lineTopPx![i], lineSpacing: h.lineSpacing, face: h.face,
+      }))
+    } else {
+      plan.push({ name: "head", text: cased(h.lines.join("\n")), fontPx: h.fontPx, topPx: h.topPx, lineSpacing: h.lineSpacing, face: h.face })
+    }
+  }
+  const d = layout.detail
+  if (d && d.lines.length) {
+    plan.push({ name: "sub", text: d.lines.join("\n"), fontPx: d.fontPx, topPx: d.topPx, lineSpacing: d.lineSpacing, face: d.face })
+  }
+  return plan
+}
+
 /** Compute the template layout, write each text block to a temp file, run ffmpeg. Throws on failure. */
 export async function renderReel(ffmpegPath: string, input: RenderInput): Promise<void> {
   const layout = computeOverlayLayout(input.template ?? "market_type", (input.headline ?? "").trim(), (input.subheadline ?? "").trim())
   const detailFont = input.detailFontPath ?? input.fontPath
   const items: DrawItem[] = []
-  if (layout.headline.lines.length) {
-    const headFile = path.join(input.workDir, "head.txt")
-    await fs.writeFile(headFile, (layout.headline.uppercase ? layout.headline.lines.join("\n").toUpperCase() : layout.headline.lines.join("\n")), "utf8")
-    items.push({ file: headFile, fontPx: layout.headline.fontPx, topPx: layout.headline.topPx, lineSpacing: layout.headline.lineSpacing, font: input.fontPath })
-  }
-  if (layout.detail && layout.detail.lines.length) {
-    const subFile = path.join(input.workDir, "sub.txt")
-    await fs.writeFile(subFile, layout.detail.lines.join("\n"), "utf8")
+  for (const it of buildDrawPlan(layout)) {
+    const file = path.join(input.workDir, `${it.name}.txt`)
+    await fs.writeFile(file, it.text, "utf8")
     // Face comes from the LAYOUT, not the element role: the conversational detail renders in the head
     // face (Libre Baskerville Bold), the hero detail stays on the Bodoni text cut.
-    items.push({ file: subFile, fontPx: layout.detail.fontPx, topPx: layout.detail.topPx, lineSpacing: layout.detail.lineSpacing, font: layout.detail.face === "head" ? input.fontPath : detailFont })
+    items.push({ file, fontPx: it.fontPx, topPx: it.topPx, lineSpacing: it.lineSpacing, font: it.face === "head" ? input.fontPath : detailFont })
   }
   const filter = buildVideoFilter(input.fontPath, items)
   const args = buildFfmpegArgs({ sourcePath: input.sourcePath, outputPath: input.outputPath, filter, audioChoice: input.audioChoice })

@@ -14,7 +14,7 @@
 import { buildHashtags, isCanonicalHashtag, MAX_HASHTAGS } from "@/lib/social/hashtags"
 import { parseAmenities } from "@/lib/social/amenities"
 import { normalizeSocialMarket, SOCIAL_MARKETS } from "@/lib/social/markets"
-import { propertyNoun, propertyNounPlural, normalizeToCanonical, PROPERTY_TYPES } from "@/lib/social/propertyTypes"
+import { propertyNoun, propertyNounPlural, normalizeToCanonical, PROPERTY_TYPES, COMPOUND_TYPE_QUALIFIERS } from "@/lib/social/propertyTypes"
 
 // Re-exported from lib/social/hashtags, which owns the canonical generation cap (5). Kept as a named
 // export here because callers already import it from this module.
@@ -315,7 +315,16 @@ function indefiniteArticle(word: string): string {
  *  no second mapping and no blind "+s" — and this only restores the title casing that helper's
  *  lowercase output drops. DISPLAY ONLY: the stored/selected Property Type stays singular everywhere. */
 function propertyTypePluralDisplay(canonicalType: string): string {
-  return propertyNounPlural(canonicalType).replace(/(^|[\s-])([a-z])/g, (_m, sep: string, ch: string) => sep + ch.toUpperCase())
+  // COMPOUND types (Split-Level, Industrial-Style) take SENTENCE case here, not title case: mid-
+  // sentence they are ordinary descriptive adjectives, so "Split-level townhomes just hit different"
+  // reads correctly while "Split-Level Townhomes just hit different" only echoes the dropdown label.
+  // Gated to compound types — every pre-existing type keeps its exact title-cased copy ("Rental Homes
+  // just hit different"), which sentence-casing would otherwise change to "Rental homes".
+  const plural = propertyNounPlural(canonicalType)
+  if (COMPOUND_TYPE_QUALIFIERS.some((q) => canonicalType.startsWith(q))) {
+    return plural.charAt(0).toUpperCase() + plural.slice(1).toLowerCase()
+  }
+  return plural.replace(/(^|[\s-])([a-z])/g, (_m, sep: string, ch: string) => sep + ch.toUpperCase())
 }
 export function isOverlayTemplate(v: unknown): v is OverlayTemplate {
   return typeof v === "string" && (OVERLAY_TEMPLATES as readonly string[]).includes(v)

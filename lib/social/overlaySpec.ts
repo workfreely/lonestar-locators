@@ -132,10 +132,8 @@ export const HERO_MAX_PX = 66, HERO_MIN_PX = 47
 // COMPOUND_HERO_MIN_PX 30: the measured worst case ("SAN ANTONIO INDUSTRIAL-STYLE APARTMENTS") needs
 // exactly 30px to fit 900px on one line. Below that the wrap fallback is still the safety net.
 export const COMPOUND_HERO_MIN_PX = 30
-// A fit-down compound headline can land far below the hero detail's normal 44px floor
-// (OVERLAY_SPEC.sub.fontPx), which would render the supporting line LARGER than the headline it
-// supports. For compound heroes only, the detail follows `headline − 2` down to this floor instead.
-export const COMPOUND_HERO_DETAIL_MIN_PX = 26
+// NOTE: COMPOUND_HERO_DETAIL_MIN_PX (26) was removed with the one-line compound hero. The two-line
+// title keeps every compound line in the normal 44–66 range, so the hero detail needs no exception.
 
 // Matches a compound qualifier anywhere in a headline, case-insensitively, tolerating the hyphen or a
 // space ("INDUSTRIAL-STYLE" / "Industrial Style"). Derived from COMPOUND_TYPE_QUALIFIERS so adding
@@ -264,7 +262,21 @@ export function trackedHeadlineWidthPx(text: string, fontPx = HERO_MAX_PX, track
   return SUPPORTED_HEADLINES.has(text.toUpperCase()) ? headlineTextWidthPx(text, fontPx, trackingEm) : NaN
 }
 
-export type HeadlineFit = { fontPx: number; lines: string[] }
+// `linePx` is set ONLY for the compound two-line hero, where each line carries its own size (line 1
+// the market at normal hero scale, line 2 the complete compound type, shrunk only if it must be).
+// When absent every line shares `fontPx` — the unchanged behaviour for all other headlines.
+export type HeadlineFit = { fontPx: number; lines: string[]; linePx?: number[] }
+
+/** Split "{MARKET} {QUALIFIER} {NOUN_PLURAL}" into [market, "QUALIFIER NOUN_PLURAL"] so the compound
+ *  descriptor and its head noun always stay together on line 2. Returns null when the headline has no
+ *  market prefix (the type alone), which then keeps the single-line treatment. */
+export function splitCompoundHeadline(text: string): [string, string] | null {
+  const m = COMPOUND_HEADLINE_RE.exec(text)
+  if (!m || m.index <= 0) return null
+  const market = text.slice(0, m.index).trim()
+  const type = text.slice(m.index).trim()
+  return market && type ? [market, type] : null
+}
 
 /** Hero (Template 1/3) headline sizing: FIT-TO-WIDTH per ACTUAL text. A supported {city} {type}
  *  combo renders ONE line at the largest size in [HERO_MIN_PX, HERO_MAX_PX] that fits the safe box
@@ -274,13 +286,24 @@ export function headlineFit(text: string | null | undefined): HeadlineFit {
   const t = (text ?? "").trim()
   if (!t) return { fontPx: HERO_MAX_PX, lines: [] }
   if (SUPPORTED_HEADLINES.has(t.toUpperCase())) return { fontPx: fitHeadlinePx(t, HERO_MAX_PX, HERO_MIN_PX), lines: [t] }
-  // COMPOUND Social-only types ("{CITY} SPLIT-LEVEL LOFTS", "{CITY} INDUSTRIAL-STYLE APARTMENTS") are
-  // too wide to reach the safe box above HERO_MIN_PX, but splitting the qualifier from its head noun
-  // across lines reads badly. Keep the complete headline on ONE line at the largest size that fits the
-  // SAME 900px safe box, scanning down to the compound-only floor. Unlike fitHeadlinePx (which returns
-  // minPx untested), the floor here is TESTED — if even COMPOUND_HERO_MIN_PX overflows we fall through
-  // to the char-wrap, so nothing can silently run past the margins.
+  // COMPOUND Social-only types ("{CITY} SPLIT-LEVEL LOFTS", "{CITY} INDUSTRIAL-STYLE APARTMENTS").
+  // Forcing the complete string onto ONE line fits, but only by dropping the hero to 30–36px, which
+  // is too small for a hero title. Instead build exactly TWO lines — market, then the COMPLETE
+  // compound type — and size each line independently: line 1 keeps the normal hero scale, line 2
+  // starts from that same scale and shrinks only if the compound type exceeds the safe width. The
+  // qualifier and its head noun are never separated, because the split point is the qualifier itself.
+  // Both lines centre on the canvas axis (equal side margins + centred text in the preview, and
+  // x=(w-text_w)/2 in FFmpeg), so no padding is ever applied to align them.
   if (isCompoundHeadline(t)) {
+    const parts = splitCompoundHeadline(t)
+    if (parts) {
+      const [l1, l2] = parts
+      const p1 = fitCompoundHeroPx(l1), p2 = fitCompoundHeroPx(l2)
+      // fontPx is the block's NOMINAL size (the smaller line), which is what the existing hero detail
+      // coupling reads — so the price line stays subordinate to the smallest title line.
+      if (p1 !== null && p2 !== null) return { fontPx: Math.min(p1, p2), lines: [l1, l2], linePx: [p1, p2] }
+    }
+    // No market prefix (the type alone): keep the single tested-floor fit rather than inventing a break.
     const onePx = fitCompoundHeroPx(t)
     if (onePx !== null) return { fontPx: onePx, lines: [t] }
   }
@@ -374,7 +397,12 @@ export function templateFamily(template: string): LayoutFamily {
 // (Libre Baskerville Bold) while the HERO detail stays on the Bodoni text cut. Anything measuring a
 // block's width must use the matching advance map — head face -> headlineTextWidthPx.
 export type OverlayFace = "head" | "detail"
-export type OverlayBlock = { lines: string[]; fontPx: number; topPx: number; uppercase: boolean; sideMarginPx: number; lineSpacing: number; face: OverlayFace }
+// PER-LINE geometry (`linePx` + `lineTopPx`, always the same length as `lines`) is present ONLY for
+// the compound two-line hero. When set, each line is drawn as its OWN unit — one FFmpeg drawtext and
+// one absolutely-positioned preview div at that exact top — which is what lets the two lines carry
+// different sizes and still land on identical baselines in both paths. When absent (every other
+// headline and every detail) the block behaves exactly as before: one unit, one size, `lineSpacing`.
+export type OverlayBlock = { lines: string[]; fontPx: number; topPx: number; uppercase: boolean; sideMarginPx: number; lineSpacing: number; face: OverlayFace; linePx?: number[]; lineTopPx?: number[] }
 export type OverlayLayout = { family: LayoutFamily; headline: OverlayBlock; detail: OverlayBlock | null }
 
 /** Resolve the on-canvas (1080×1920) layout for a template + its already-computed headline/detail
@@ -392,7 +420,10 @@ export function computeOverlayLayout(template: string, headlineText: string, det
     const centered = template === "market_type_centered"
     const usesMarketDetail = template === "market_type" || template === "market_type_centered"
     const hasDetail = detail.length > 0
-    const headBlockH = headlineBlockPx(Math.max(1, fit.lines.length), fit.fontPx)
+    // With per-line sizes the block height is the SUM of the line sizes, not lineCount × one size.
+    const headBlockH = fit.linePx
+      ? fit.linePx.reduce((a, b) => a + b, 0) + (fit.linePx.length - 1) * OVERLAY_SPEC.headline.lineSpacing
+      : headlineBlockPx(Math.max(1, fit.lines.length), fit.fontPx)
     const heroGapPx = template === "special_feature" ? SPECIAL_FEATURE_GAP_PX : usesMarketDetail ? MARKET_TYPE_GAP_PX : OVERLAY_SPEC.sub.gapPx
     // T1/T2 price is larger; T3 keeps the shared size. The T1 price is COUPLED to stay at least 2px
     // below the fitted headline — the same idea hookDetailPxFor applies to the
@@ -403,21 +434,27 @@ export function computeOverlayLayout(template: string, headlineText: string, det
     const baseDetailPx = usesMarketDetail
       ? Math.min(MARKET_TYPE_DETAIL_PX, Math.max(OVERLAY_SPEC.sub.fontPx, fit.fontPx - 2))
       : OVERLAY_SPEC.sub.fontPx
-    // COMPOUND-ONLY: both branches above have a 44px floor (OVERLAY_SPEC.sub.fontPx), which was safe
-    // while every hero headline sat at 47–66. A fit-down compound headline can reach 30px, and a 44px
-    // detail under a 30px headline inverts the hierarchy — so for compound heroes the detail follows
-    // `headline − 2` down to COMPOUND_HERO_DETAIL_MIN_PX. Non-compound heroes keep baseDetailPx
-    // exactly, so existing property types are byte-identical to the production baseline.
-    const detailPx = isCompoundHeadline(headlineText)
-      ? Math.min(baseDetailPx, Math.max(COMPOUND_HERO_DETAIL_MIN_PX, fit.fontPx - 2))
-      : baseDetailPx
+    // The compound-only detail override is GONE: the two-line hero puts every compound title line back
+    // in the normal 44–66 range, so the existing rule above needs no exception. It is fed the block's
+    // nominal size, which for a compound title is the SMALLER of the two lines, keeping the price
+    // subordinate to the smallest title line rather than only to the larger market line.
+    const detailPx = baseDetailPx
     const detailLines = hasDetail ? wrapSub(detail) : []
     const detailBlockH = hasDetail ? detailLines.length * detailPx + Math.max(0, detailLines.length - 1) * OVERLAY_SPEC.sub.lineSpacing : 0
     const gap = hasDetail ? heroGapPx : 0
     const totalH = headBlockH + gap + detailBlockH
     // Anchor: near-top (yFrac) for T1; vertical center of the group for the Centered variant.
     const headTop = centered ? (H - totalH) / 2 : OVERLAY_SPEC.headline.yFrac * H
-    const headline: OverlayBlock = { lines: fit.lines, fontPx: fit.fontPx, topPx: headTop, uppercase: true, sideMarginPx: OVERLAY_SPEC.headline.sideMarginPx, lineSpacing: OVERLAY_SPEC.headline.lineSpacing, face: "head" }
+    // Per-line tops for the compound two-line title: each line's top is the running sum of the
+    // PRECEDING line sizes, so a smaller line 2 sits directly under line 1 with the same gap the
+    // single-size path uses. Horizontal centring is not computed here — both lines inherit the same
+    // symmetric side margins and are centred by the renderer, so they share one centre axis.
+    let lineTopPx: number[] | undefined
+    if (fit.linePx) {
+      let y = headTop
+      lineTopPx = fit.linePx.map((px) => { const top = y; y += px + OVERLAY_SPEC.headline.lineSpacing; return top })
+    }
+    const headline: OverlayBlock = { lines: fit.lines, fontPx: fit.fontPx, topPx: headTop, uppercase: true, sideMarginPx: OVERLAY_SPEC.headline.sideMarginPx, lineSpacing: OVERLAY_SPEC.headline.lineSpacing, face: "head", linePx: fit.linePx, lineTopPx }
     let detailBlock: OverlayBlock | null = null
     if (hasDetail) {
       // HERO detail deliberately stays on the Bodoni text cut — unchanged in this pass.

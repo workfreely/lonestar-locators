@@ -49,13 +49,28 @@ const faceOf = (b: OverlayBlock): [number, string] => (b.face === "head" ? [650,
 
 const blockText = (b: OverlayBlock) => (b.uppercase ? b.lines.join("\n").toUpperCase() : b.lines.join("\n"))
 
+// COMPOUND two-line hero: the block carries a size AND a top per line, so each line is its own
+// absolutely-positioned div at that exact top. Both keep the block's symmetric side margins and
+// textAlign:center, so they centre on the SAME axis — the same axis FFmpeg's x=(w-text_w)/2 uses —
+// with no padding applied to either. Returns null when the block has no per-line geometry.
+function perLineBlocks(b: OverlayBlock): React.ReactElement[] | null {
+  if (!b.linePx || !b.lineTopPx) return null
+  const [weight, fontFamily] = faceOf(b)
+  return b.lines.map((line, i) => (
+    <div key={i} style={{
+      ...blockStyle({ ...b, fontPx: b.linePx![i], topPx: b.lineTopPx![i] }, weight, fontFamily),
+    }}>{b.uppercase ? line.toUpperCase() : line}</div>
+  ))
+}
+
 export default function PreviewOverlay({ layout }: { layout: OverlayLayout | null }) {
   if (!layout) return null
   return (
     <div className="pointer-events-none absolute inset-0" aria-hidden style={{ containerType: "size" }}>
       {/* Each Bodoni cut is a single baked weight (headline w650, detail w500); the @font-face maps
           100–900 to it with no synthetic bolding. Headline uses the display cut, detail the text cut. */}
-      {layout.headline.lines.length > 0 && <div style={blockStyle(layout.headline, ...faceOf(layout.headline))}>{blockText(layout.headline)}</div>}
+      {layout.headline.lines.length > 0 && (perLineBlocks(layout.headline)
+        ?? <div style={blockStyle(layout.headline, ...faceOf(layout.headline))}>{blockText(layout.headline)}</div>)}
       {layout.detail && layout.detail.lines.length > 0 && <div style={blockStyle(layout.detail, ...faceOf(layout.detail))}>{blockText(layout.detail)}</div>}
     </div>
   )

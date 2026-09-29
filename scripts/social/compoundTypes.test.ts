@@ -1,12 +1,12 @@
 // COMPOUND Social-only property types — "{QUALIFIER} {HEAD NOUN}" families (Split-Level,
 // Industrial-Style). Two things make them different from every pre-existing type:
-//   1. HERO fitting. "SAN ANTONIO INDUSTRIAL-STYLE APARTMENTS" is 39 chars vs the longest pre-existing
-//      combo's 24, so it cannot reach the 900px safe box above HERO_MIN_PX (47) and would take the
-//      multi-line char-wrap — splitting the qualifier off its head noun. A compound-only floor
-//      (COMPOUND_HERO_MIN_PX) keeps it on ONE line instead.
-//   2. HERO detail coupling. The normal hero detail has a 44px floor, which under a 30px fit-down
-//      compound headline would render the SUPPORTING line larger than the headline. Compound heroes
-//      follow `headline − 2` down to COMPOUND_HERO_DETAIL_MIN_PX.
+//   1. HERO structure. "SAN ANTONIO INDUSTRIAL-STYLE APARTMENTS" is 39 chars vs the longest
+//      pre-existing combo's 24. Forcing it onto ONE line fits only by dropping the hero to 30px, too
+//      small for a hero title; the plain char-wrap splits the qualifier off its head noun. So a
+//      compound hero is built as exactly TWO lines — market, then the COMPLETE compound type.
+//   2. PER-LINE sizing. Line 1 keeps the normal hero scale (66); line 2 starts there and shrinks only
+//      if the compound type exceeds the safe width. That needs per-line font sizes in one block,
+//      carried as OverlayBlock.linePx/lineTopPx and drawn as one unit per line in BOTH renderers.
 // Both are gated on the compound qualifier, so pre-existing types are untouched — asserted below.
 // Run: npx tsx scripts/social/compoundTypes.test.ts
 import { readFileSync, readdirSync } from "node:fs"
@@ -15,10 +15,11 @@ import {
   PROPERTY_TYPES, SOCIAL_ONLY_PROPERTY_TYPES, COMPOUND_TYPE_QUALIFIERS, propertyNoun, propertyNounPlural,
 } from "@/lib/social/propertyTypes"
 import { OVERLAY_TEMPLATES, buildTemplateHeadline, buildTemplateDetail, type SourceMeta } from "@/lib/social/composePost"
+import { buildDrawPlan } from "@/lib/social/renderVideo"
 import {
   computeOverlayLayout, templateFamily, headlineTextWidthPx, detailTextWidthPx, isCompoundHeadline,
   fitCompoundHeroPx, HEADLINE_TEXT_AVAIL_PX, DETAIL_TEXT_AVAIL_PX, HERO_MAX_PX, HERO_MIN_PX,
-  COMPOUND_HERO_MIN_PX, COMPOUND_HERO_DETAIL_MIN_PX, OVERLAY_CANVAS, OVERLAY_SPEC,
+  COMPOUND_HERO_MIN_PX, OVERLAY_CANVAS, OVERLAY_SPEC, splitCompoundHeadline, MARKET_TYPE_DETAIL_PX,
 } from "@/lib/social/overlaySpec"
 
 let pass = 0, fail = 0
@@ -62,25 +63,70 @@ console.log("\nglobal typography constants are UNCHANGED (compound support added
 ok("HERO_MAX_PX still 66", HERO_MAX_PX === 66)
 ok("HERO_MIN_PX still 47", HERO_MIN_PX === 47)
 ok("hero sub/detail base still 44", OVERLAY_SPEC.sub.fontPx === 44)
-ok("compound floors are SEPARATE, lower constants", COMPOUND_HERO_MIN_PX === 30 && COMPOUND_HERO_DETAIL_MIN_PX === 26 && COMPOUND_HERO_MIN_PX < HERO_MIN_PX)
+ok("compound floor is a SEPARATE, lower constant", COMPOUND_HERO_MIN_PX === 30 && COMPOUND_HERO_MIN_PX < HERO_MIN_PX)
+ok("headline line spacing unchanged (8)", OVERLAY_SPEC.headline.lineSpacing === 8)
 
-console.log("\nHERO (T1/T2/T4): compound headlines stay on ONE line, detail never outgrows them:")
-let heroChecked = 0
-for (const t of COMPOUND_TYPES) for (const m of MARKETS) for (const price of PRICES) {
-  for (const tpl of ["market_type", "market_type_centered", "special_feature"] as const) {
-    const s = meta(m, t, price)
-    const L = computeOverlayLayout(tpl, buildTemplateHeadline(tpl, s), buildTemplateDetail(tpl, s))
-    if (L.headline.lines.length !== 1) ok(`ONE line: ${t} / ${m} / ${tpl}`, false)
-    else if (L.detail && L.detail.fontPx > L.headline.fontPx) ok(`detail <= headline: ${t} / ${m} / ${tpl} (${L.detail.fontPx} > ${L.headline.fontPx})`, false)
-    else heroChecked++
-  }
+console.log("\nsplitCompoundHeadline keeps the qualifier WITH its head noun:")
+ok("market / complete compound type", JSON.stringify(splitCompoundHeadline("SAN ANTONIO INDUSTRIAL-STYLE APARTMENTS")) === JSON.stringify(["SAN ANTONIO", "INDUSTRIAL-STYLE APARTMENTS"]))
+ok("single-word market", JSON.stringify(splitCompoundHeadline("DFW SPLIT-LEVEL LOFTS")) === JSON.stringify(["DFW", "SPLIT-LEVEL LOFTS"]))
+ok("no market prefix → null (keeps the single-line fit)", splitCompoundHeadline("SPLIT-LEVEL LOFTS") === null)
+ok("non-compound → null", splitCompoundHeadline("SAN ANTONIO TOWNHOMES") === null)
+
+console.log("\nHERO (T1/T2/T4): compound titles are exactly TWO lines, market then complete type:")
+const HERO_TPLS = ["market_type", "market_type_centered", "special_feature"] as const
+let heroChecked = 0, twoLine = 0, line1Normal = 0, typeIntact = 0, detailOk = 0, stacked = 0
+for (const t of COMPOUND_TYPES) for (const m of MARKETS) for (const price of PRICES) for (const tpl of HERO_TPLS) {
+  heroChecked++
+  const s = meta(m, t, price)
+  const L = computeOverlayLayout(tpl, buildTemplateHeadline(tpl, s), buildTemplateDetail(tpl, s))
+  const h = L.headline
+  if (h.lines.length === 2 && h.linePx?.length === 2 && h.lineTopPx?.length === 2) twoLine++
+  // Line 1 is the market at the NORMAL hero scale; it must never be shrunk for line 2's sake.
+  if (h.linePx?.[0] === HERO_MAX_PX && h.lines[0] === m.toUpperCase()) line1Normal++
+  // Line 2 carries the COMPLETE compound type — qualifier and head noun together, never split.
+  const expected2 = propertyNounPlural(t).toUpperCase()
+  if (h.lines[1] === expected2 && (h.linePx?.[1] ?? 0) <= HERO_MAX_PX) typeIntact++
+  // The detail stays a separate third element below, on its existing rule (never hero typography).
+  if (!L.detail || (L.detail.fontPx <= MARKET_TYPE_DETAIL_PX && L.detail.face === "detail" && L.detail.fontPx <= Math.min(...(h.linePx ?? [h.fontPx])))) detailOk++
+  // Line 2 sits directly under line 1: top2 = top1 + size1 + lineSpacing, and the detail below both.
+  if (h.lineTopPx && Math.round(h.lineTopPx[1]) === Math.round(h.lineTopPx[0] + h.linePx![0] + h.lineSpacing)
+    && (!L.detail || L.detail.topPx >= h.lineTopPx[1] + h.linePx![1])) stacked++
 }
-ok(`all ${heroChecked} compound hero combos: one line AND detail <= headline`, heroChecked === COMPOUND_TYPES.length * MARKETS.length * PRICES.length * 3)
+ok(`all ${heroChecked} compound hero combos render exactly TWO lines with per-line geometry`, twoLine === heroChecked)
+ok(`line 1 is the market at the normal hero scale (${HERO_MAX_PX}px) in all ${heroChecked}`, line1Normal === heroChecked)
+ok(`line 2 is the COMPLETE compound type, never split, in all ${heroChecked}`, typeIntact === heroChecked)
+ok(`detail stays a separate subordinate element in all ${heroChecked}`, detailOk === heroChecked)
+ok(`lines stack correctly and the detail clears them in all ${heroChecked}`, stacked === heroChecked)
 {
-  // The inversion this guards against, stated concretely: worst-case compound headline at 30px.
-  const s = meta("San Antonio", "Industrial-Style Apartment", "$1,495 - $2,100")
+  // The two worst cases, stated concretely.
+  const cases: [string, number, number][] = [["Industrial-Style Apartment", 66, 44], ["Split-Level Penthouse", 66, 56]]
+  for (const [type, want1, want2] of cases) {
+    const s = meta("San Antonio", type, "$1,800 - $2,400")
+    const L = computeOverlayLayout("market_type", buildTemplateHeadline("market_type", s), buildTemplateDetail("market_type", s))
+    ok(`${type}: "SAN ANTONIO" ${want1}px over "${propertyNounPlural(type).toUpperCase()}" ${want2}px`,
+      JSON.stringify(L.headline.linePx) === JSON.stringify([want1, want2]))
+  }
+  // Only line 2 shrinks: a compound type that already fits keeps BOTH lines at the hero max.
+  const fits = meta("San Antonio", "Split-Level Loft", null)
+  const Lf = computeOverlayLayout("market_type", buildTemplateHeadline("market_type", fits), "")
+  ok("a compound type that already fits keeps BOTH lines at the hero max", JSON.stringify(Lf.headline.linePx) === JSON.stringify([HERO_MAX_PX, HERO_MAX_PX]))
+}
+
+console.log("\nCENTERING — both hero lines share ONE centre axis (no per-line padding):")
+{
+  const s = meta("San Antonio", "Industrial-Style Apartment", "$1,800 - $2,400")
   const L = computeOverlayLayout("market_type", buildTemplateHeadline("market_type", s), buildTemplateDetail("market_type", s))
-  ok("worst case renders 30px headline with a 28px price line (not the 44px floor)", L.headline.fontPx === 30 && L.detail?.fontPx === 28)
+  // Geometry carries ONE symmetric side margin for the whole block; each line is centred in that same
+  // box by the renderer (textAlign:center in CSS, x=(w-text_w)/2 in FFmpeg). There is deliberately no
+  // per-line x/offset field, so there is nothing that COULD shift one line relative to the other.
+  ok("the block has a single symmetric side margin, not per-line offsets",
+    L.headline.sideMarginPx === OVERLAY_SPEC.headline.sideMarginPx && !("lineXPx" in L.headline))
+  const centre = OVERLAY_CANVAS.w / 2
+  const centres = L.headline.lines.map((line, i) => {
+    const w = headlineTextWidthPx(line.toUpperCase(), L.headline.linePx![i])
+    return (OVERLAY_CANVAS.w - w) / 2 + w / 2 // FFmpeg's x=(w-text_w)/2 plus half the text width
+  })
+  ok("every line's rendered centre equals the canvas centre", centres.every((c) => Math.abs(c - centre) < 0.5))
 }
 
 console.log("\nGRAMMAR — the qualifier never splits from its head noun; only the noun pluralises:")
@@ -97,7 +143,13 @@ for (const t of COMPOUND_TYPES) {
   ok("T14 lowercases the WHOLE compound phrase", buildTemplateHeadline("real_living", s) === "This is what real industrial-style loft living looks like")
   ok("T3 lowercases the whole compound phrase", buildTemplateHeadline("your_sign", s) === "Your sign to get that industrial-style loft")
   ok("T5 lowercases the whole compound phrase", buildTemplateHeadline("next_property", s) === "What your next industrial-style loft could look like")
-  ok("T11 keeps the compound as a title-case sentence subject", buildTemplateHeadline("hits_different", s) === "Industrial-Style Lofts just hit different")
+  // SENTENCE case mid-sentence, not the dropdown's title case: the qualifier is a descriptive
+  // adjective here, not a proper noun.
+  ok("T11 sentence-cases the compound subject", buildTemplateHeadline("hits_different", s) === "Industrial-style lofts just hit different")
+  ok("T11 sentence-cases Split-Level too", buildTemplateHeadline("hits_different", meta("San Antonio", "Split-Level Townhome", null)) === "Split-level townhomes just hit different")
+  // ...but NON-compound types keep their existing title-cased copy exactly.
+  ok("T11 leaves multi-word NON-compound types title-cased", buildTemplateHeadline("hits_different", meta("San Antonio", "Rental Home", null)) === "Rental Homes just hit different")
+  ok("T11 leaves single-word NON-compound types unchanged", buildTemplateHeadline("hits_different", meta("San Antonio", "Townhome", null)) === "Townhomes just hit different")
   ok("T1 hero headline is {CITY} {QUALIFIER} {PLURAL}", buildTemplateHeadline("market_type", s) === "SAN ANTONIO INDUSTRIAL-STYLE LOFTS")
 }
 
@@ -113,15 +165,23 @@ for (const t of COMPOUND_TYPES) for (const m of MARKETS) for (const price of PRI
   for (const b of [L.headline, L.detail]) {
     if (!b) continue
     const avail = b === L.headline ? HEADLINE_TEXT_AVAIL_PX : DETAIL_TEXT_AVAIL_PX
-    for (const line of b.lines) {
+    b.lines.forEach((line, i) => {
       const txt = b.uppercase ? line.toUpperCase() : line
-      const w = b.face === "head" ? headlineTextWidthPx(txt, b.fontPx) : detailTextWidthPx(txt, b.fontPx)
-      if (w > avail + 0.5) { overflow++; console.log(`    overflow ${t}/${m}/${tpl}: ${Math.round(w)} > ${avail} "${txt}"`) }
-    }
+      // Measure at THIS line's own size. The compound hero's lines differ (66 over 44), and the
+      // block's nominal fontPx is the SMALLER one — measuring line 1 at 44 would under-report by a
+      // third and hide a real overflow.
+      const px = b.linePx?.[i] ?? b.fontPx
+      const w = b.face === "head" ? headlineTextWidthPx(txt, px) : detailTextWidthPx(txt, px)
+      if (w > avail + 0.5) { overflow++; console.log(`    overflow ${t}/${m}/${tpl}: ${Math.round(w)} > ${avail} @${px}px "${txt}"`) }
+    })
   }
   if (L.detail) {
-    const headBottom = L.headline.topPx + L.headline.lines.length * L.headline.fontPx + (L.headline.lines.length - 1) * L.headline.lineSpacing
-    if (L.detail.topPx < headBottom - 0.5) collision++
+    const h = L.headline
+    // Block height is the SUM of the per-line sizes when they differ, not lineCount × one size.
+    const headH = h.linePx
+      ? h.linePx.reduce((a, b2) => a + b2, 0) + (h.linePx.length - 1) * h.lineSpacing
+      : h.lines.length * h.fontPx + (h.lines.length - 1) * h.lineSpacing
+    if (L.detail.topPx < h.topPx + headH - 0.5) collision++
     if (L.detail.topPx + L.detail.lines.length * L.detail.fontPx > OVERLAY_CANVAS.h) offCanvas++
   }
   const all = `${head} || ${det}`
@@ -140,6 +200,43 @@ ok(`${combos} combos: nothing renders off-canvas`, offCanvas === 0)
 ok(`${combos} combos: "/month" intact, no stale "/mo"`, staleMo === 0)
 ok(`${combos} combos: qualifier never orphaned from its head noun`, orphaned === 0)
 ok(`${combos} combos: a/an always agrees`, badArticle === 0)
+
+console.log("\nRENDER PLAN — the FFmpeg path draws the two title lines as two sized drawtext calls:")
+{
+  const s = meta("San Antonio", "Industrial-Style Apartment", "$1,800 - $2,400")
+  const L = computeOverlayLayout("market_type", buildTemplateHeadline("market_type", s), buildTemplateDetail("market_type", s))
+  const plan = buildDrawPlan(L)
+  ok("compound hero becomes 2 title items + 1 detail item", plan.length === 3)
+  ok("title items carry the PER-LINE sizes, not the block's nominal size",
+    plan[0].fontPx === L.headline.linePx![0] && plan[1].fontPx === L.headline.linePx![1] && plan[0].fontPx !== plan[1].fontPx)
+  ok("title items carry the per-line tops", plan[0].topPx === L.headline.lineTopPx![0] && plan[1].topPx === L.headline.lineTopPx![1])
+  ok("each title item holds ONE line of text, already uppercased",
+    plan[0].text === "SAN ANTONIO" && plan[1].text === "INDUSTRIAL-STYLE APARTMENTS" && !plan[0].text.includes("\n") && !plan[1].text.includes("\n"))
+  ok("the detail is a separate item on the detail face", plan[2].face === "detail" && plan[2].fontPx === L.detail!.fontPx)
+  // A NON-compound hero must still be ONE item with the whole (possibly multi-line) text, unchanged.
+  const N = computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,800/month")
+  const nplan = buildDrawPlan(N)
+  ok("non-compound hero is still ONE title item", nplan.length === 2 && nplan[0].text === "SAN ANTONIO TOWNHOMES" && nplan[0].fontPx === N.headline.fontPx)
+}
+
+console.log("\nCONVERSATIONAL templates keep the approved 28px / 27px sizing:")
+{
+  const sizes = new Set<string>()
+  for (const t of COMPOUND_TYPES) for (const m of MARKETS) for (const tpl of OVERLAY_TEMPLATES) {
+    if (templateFamily(tpl) === "hero") continue
+    const s = meta(m, t, "$1,800 - $2,400")
+    const L = computeOverlayLayout(tpl, buildTemplateHeadline(tpl, s), buildTemplateDetail(tpl, s))
+    if (L.headline.lines.length) sizes.add(`head ${L.headline.fontPx}`)
+    if (L.detail) sizes.add(`detail ${L.detail.fontPx}`)
+  }
+  // Exactly two sizes may appear. The T11 sentence-case change swaps uppercase letters for narrower
+  // lowercase ones, so this also proves the new copy did not let any hook fit at a DIFFERENT size.
+  ok("every conversational compound render is 28px headline / 27px detail",
+    sizes.size === 2 && sizes.has("head 28") && sizes.has("detail 27"))
+  // The compound hero must NOT leak its per-line geometry into the conversational family.
+  const conv = computeOverlayLayout("hits_different", buildTemplateHeadline("hits_different", meta("San Antonio", "Industrial-Style Loft", "$1,800 - $2,400")), "Starting at $1,800/month")
+  ok("conversational blocks carry no per-line geometry", !conv.headline.linePx && !conv.headline.lineTopPx)
+}
 
 console.log("\nPRE-EXISTING types are UNAFFECTED (the compound branch cannot reach them):")
 let heroFitsInNormalRange = 0, preExisting = 0

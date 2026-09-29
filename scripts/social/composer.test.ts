@@ -810,7 +810,10 @@ console.log("\nSplit-Level property types — wording, plurals, casing, fit:")
   ok("hero headline is fully uppercase", buildOverlayHeadline({ market: "Austin", propertyType: "Split-Level Townhome" }) === "AUSTIN SPLIT-LEVEL TOWNHOMES")
   ok("T12 lowercases the whole phrase", buildTemplateHeadline("trade_up", { propertyType: "Split-Level Townhome" }) === "What life looks like when you trade in your apartment for a split-level townhome")
   ok("T14 lowercases the whole phrase", buildTemplateHeadline("real_living", { propertyType: "Split-Level Penthouse" }) === "This is what real split-level penthouse living looks like")
-  ok("T11 keeps Title Case across the hyphen", buildTemplateHeadline("hits_different", { propertyType: "Split-Level Loft" }) === "Split-Level Lofts just hit different")
+  // SUPERSEDED: T11 used to echo the dropdown's Title Case ("Split-Level Lofts just hit different").
+  // Mid-sentence the qualifier is a descriptive adjective, so compound types now take SENTENCE case.
+  // Non-compound copy is unchanged — asserted in compoundTypes.test.ts.
+  ok("T11 sentence-cases the compound subject", buildTemplateHeadline("hits_different", { propertyType: "Split-Level Loft" }) === "Split-level lofts just hit different")
   // Never the malformed shapes.
   ok("no malformed casing/plural anywhere in generated copy", SL.every((pt) =>
     OVERLAY_TEMPLATES.every((t) => {
@@ -827,14 +830,18 @@ console.log("\nSplit-Level property types — wording, plurals, casing, fit:")
       const dw = L.detail ? Math.max(...L.detail.lines.map((l) => (L.detail!.face === "head" ? headlineTextWidthPx : detailTextWidthPx)(l, L.detail!.fontPx))) : 0
       return hw <= HEADLINE_TEXT_AVAIL_PX && dw <= DETAIL_TEXT_AVAIL_PX
     })))
-  // SUPERSEDED: the long hero phrase used to STACK at the hero floor (HERO_MIN_PX), which split
-  // "SPLIT-LEVEL" off "TOWNHOMES". Compound types now get compound-only one-line fitting instead —
-  // see scripts/social/compoundTypes.test.ts. Still no GLOBAL constant changed for it.
+  // SUPERSEDED TWICE. This hero first STACKED at the hero floor (splitting "SPLIT-LEVEL" off
+  // "TOWNHOMES"), then fitted onto ONE line at 35px — correct but too small for a hero title. It is
+  // now a TWO-line title: market at the normal hero scale over the COMPLETE compound type, which
+  // shrinks only as far as the safe width requires. Full coverage in compoundTypes.test.ts.
   const heroSL = computeOverlayLayout("market_type", buildOverlayHeadline({ market: "San Antonio", propertyType: "Split-Level Townhome" }), "Starting at $1,600/month")
-  ok("long Split-Level hero fits ONE line below the hero floor, losing no words",
-    heroSL.headline.lines.length === 1 && heroSL.headline.fontPx < HERO_MIN_PX
-    && heroSL.headline.lines.join(" ") === "SAN ANTONIO SPLIT-LEVEL TOWNHOMES")
-  ok("its price line never outgrows the fit-down compound headline", (heroSL.detail?.fontPx ?? 0) <= heroSL.headline.fontPx)
+  ok("long Split-Level hero is TWO lines, losing no words",
+    heroSL.headline.lines.length === 2 && heroSL.headline.lines.join(" ") === "SAN ANTONIO SPLIT-LEVEL TOWNHOMES")
+  ok("line 1 keeps the normal hero scale, only line 2 shrinks",
+    heroSL.headline.linePx?.[0] === HERO_MAX_PX && (heroSL.headline.linePx?.[1] ?? 0) < HERO_MAX_PX
+    && (heroSL.headline.linePx?.[1] ?? 0) >= HERO_MIN_PX)
+  ok("the qualifier stays with its head noun on line 2", heroSL.headline.lines[1] === "SPLIT-LEVEL TOWNHOMES")
+  ok("its price line never outgrows the smallest title line", (heroSL.detail?.fontPx ?? 0) <= Math.min(...(heroSL.headline.linePx ?? [])))
   // Adding these must not have moved an existing type.
   ok("existing types are untouched by the addition",
     buildOverlayHeadline({ market: "San Antonio", propertyType: "Townhome" }) === "SAN ANTONIO TOWNHOMES" &&
