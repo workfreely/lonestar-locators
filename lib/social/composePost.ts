@@ -367,7 +367,11 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
       return WANTED_LUXURY_HEADLINE
     case "real_living":
       // No type → drop the type word rather than fabricate one.
-      return canonicalType ? `This is what real ${canonicalType} living looks like` : "This is what real living looks like"
+      // The type is LOWERCASED for display in this template only — it reads as prose here ("…real
+      // townhome living…"), not as a label. Display formatting ONLY: the canonical Property Type value
+      // is untouched, every other template still renders it in canonical case, and this block is
+      // uppercase:false so the lowercase survives to both the preview and the burned-in render.
+      return canonicalType ? `This is what real ${canonicalType.toLowerCase()} living looks like` : "This is what real living looks like"
     case "hits_different":
       // PLURAL display copy ("Penthouses just hit different") — display only; the Property Type value
       // itself stays singular. No type → a grammatical generic plural subject, never a fabricated type.

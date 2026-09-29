@@ -582,8 +582,15 @@ ok("T13 price line present when valid", buildTemplateDetail("wanted_luxury", { b
 ok("T13 price line omitted when missing", buildTemplateDetail("wanted_luxury", {}) === "")
 
 console.log("\nTemplate 14 (Real [Property Type] Living — dynamic Property Type + optional price):")
-ok("T14 High-Rise", buildTemplateHeadline("real_living", { propertyType: "High-Rise" }) === "This is what real High-Rise living looks like")
-ok("T14 Townhome", buildTemplateHeadline("real_living", { propertyType: "Townhome" }) === "This is what real Townhome living looks like")
+// T14 lowercases the property type for display — it reads as prose here, not as a label. DISPLAY ONLY:
+// the canonical value is untouched and every other template still renders it in canonical case
+// (asserted below). The block is uppercase:false, so the lowercase reaches preview and render alike.
+ok("T14 High-Rise → lowercase", buildTemplateHeadline("real_living", { propertyType: "High-Rise" }) === "This is what real high-rise living looks like")
+ok("T14 Townhome → lowercase", buildTemplateHeadline("real_living", { propertyType: "Townhome" }) === "This is what real townhome living looks like")
+ok("T14 Rental Home → lowercase (two words)", buildTemplateHeadline("real_living", { propertyType: "Rental Home" }) === "This is what real rental home living looks like")
+ok("T14 lowercasing is template-scoped — other templates keep canonical case",
+  buildTemplateHeadline("trade_up", { propertyType: "Townhome" }).includes("a Townhome") &&
+  buildTemplateHeadline("hits_different", { propertyType: "Townhome" }) === "Townhomes just hit different")
 ok("T14 no type → type word dropped, nothing fabricated", buildTemplateHeadline("real_living", {}) === "This is what real living looks like")
 ok("T14 optional price", buildTemplateDetail("real_living", { budgetRange: "2100" }) === "Starting at $2,100/mo" && buildTemplateDetail("real_living", {}) === "")
 
@@ -639,7 +646,10 @@ ok("T16 has no detail line, like T11", buildTemplateDetail("what_mo_gets_you_top
 }
 
 console.log("\nManual-edit protection for the new templates (generated headlines re-sync, manual ones don't):")
-ok("T12/T14/T15 generated headlines recognized as generator-owned", isGeneratedHeadline("What life looks like when you trade in your apartment for a Townhome") && isGeneratedHeadline("This is what real High-Rise living looks like") && isGeneratedHeadline("Townhomes just hit different") && isGeneratedHeadline("Rental Homes just hit different"))
+ok("T12/T14/T15 generated headlines recognized as generator-owned", isGeneratedHeadline("What life looks like when you trade in your apartment for a Townhome") && isGeneratedHeadline("This is what real high-rise living looks like") && isGeneratedHeadline("Townhomes just hit different") && isGeneratedHeadline("Rental Homes just hit different"))
+// A T14 headline generated BEFORE the lowercase change no longer matches what any template produces,
+// so it is (correctly) treated as a manual override and left alone rather than silently rewritten.
+ok("pre-change capitalized T14 headline is no longer generator-owned", !isGeneratedHeadline("This is what real High-Rise living looks like"))
 ok("T13 fixed headline recognized as generator-owned", isGeneratedHeadline("You wanted luxury. You got it."))
 ok("T16 generated headline recognized (shares T11's shape check)", isGeneratedHeadline("What $1,495/mo gets you in San Antonio"))
 ok("a genuinely MANUAL hook in these shapes is still protected", !isGeneratedHeadline("Townhomes just hit way different") && !isGeneratedHeadline("You wanted luxury. You earned it."))
