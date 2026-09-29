@@ -10,7 +10,7 @@
 // popularity numbers; the user's research decides what is approved and how it ranks.
 
 import { normalizeSocialMarket, SOCIAL_MARKETS } from "@/lib/social/markets"
-import { normalizeToCanonical } from "@/lib/social/propertyTypes"
+import { normalizeToCanonical, COMPOUND_TYPE_QUALIFIERS } from "@/lib/social/propertyTypes"
 
 /** Per-market candidate groups (canonical market label → ranked candidates). */
 type MarketBank = {
@@ -118,12 +118,15 @@ export const HASHTAG_MARKETS = Object.keys(MARKET_BANKS)
 const concept = (t: string) => t.toLowerCase().replace(/^#+/, "").replace(/s$/, "")
 
 /**
- * Build a BALANCED, deterministic set of up to `target` (max 7) hashtags for a market × property
- * type. Composition (each slot contributes the first still-unused, concept-unique candidate):
+ * Build a BALANCED, deterministic set of up to `target` (capped at MAX_HASHTAGS) hashtags for a
+ * market × property type. Composition (each slot contributes the first still-unused, concept-unique
+ * candidate):
  *   1 strong market/apartment · 2 locator/service · 3 moving-to · 4 primary property (market-specific
- *   High-Rise term first) · 5 secondary property/crossover · 6 DOWNTOWN (guaranteed for High-Rise/
- *   Penthouse; otherwise another strong market term) · 7 additional ranked candidate. Remaining slots
- *   backfill from the pooled candidates. No duplicates; no singular/plural stuffing.
+ *   High-Rise term first) · 5 DOWNTOWN for the High-Rise/Penthouse family, otherwise secondary
+ *   property/crossover · 6 the one the other branch took · 7 additional ranked candidate. Remaining
+ *   slots backfill from the pooled candidates. No duplicates; no singular/plural stuffing.
+ * Only the High-Rise/Penthouse family sees slots 5/6 swapped; every other type keeps its exact
+ * original order and output.
  */
 /** Social Beast generates at most this many hashtags — the CANONICAL product rule, enforced HERE in
  *  the generator rather than by trimming a longer set at the UI, so no path can exceed it whatever
@@ -132,10 +135,23 @@ const concept = (t: string) => t.toLowerCase().replace(/^#+/, "").replace(/s$/, 
  *  two. Defined here (not in composePost) because composePost imports this module, not the reverse. */
 export const MAX_HASHTAGS = 5
 
+/** The canonical type a property type CONTRIBUTES HASHTAGS AS. A compound Social-only type
+ *  ("{QUALIFIER} {HEAD NOUN}") contributes as its HEAD NOUN, so "Split-Level Penthouse" and
+ *  "Industrial-Style Penthouse" draw the Penthouse bank and the Penthouse/High-Rise Downtown
+ *  priority. Without this they matched no PROPERTY_BANKS key at all and silently produced NO
+ *  property-type hashtag — their slots 4/5 fell through to generic market terms. Display, overlay
+ *  and Property Intelligence logic are untouched: this mapping exists only for hashtag ranking. */
+export function hashtagPropertyType(propertyType: string | null | undefined): string | null {
+  const t = normalizeToCanonical(propertyType ?? null)
+  if (!t) return null
+  const qualifier = COMPOUND_TYPE_QUALIFIERS.find((q) => t.startsWith(`${q} `))
+  return qualifier ? t.slice(qualifier.length + 1) : t
+}
+
 export function buildHashtags(market: string | null | undefined, target = MAX_HASHTAGS, propertyType?: string | null): string[] {
   const cap = Math.max(1, Math.min(MAX_HASHTAGS, target))
   const bank = MARKET_BANKS[normalizeSocialMarket(market)] as MarketBank | undefined
-  const type = normalizeToCanonical(propertyType ?? null)
+  const type = hashtagPropertyType(propertyType)
   const isHighRiseFamily = type === "High-Rise" || type === "Penthouse"
   const propGeneric = (type && PROPERTY_BANKS[type]) || []
   const marketType = bank && isHighRiseFamily ? bank.highRise : []
@@ -158,12 +174,20 @@ export function buildHashtags(market: string | null | undefined, target = MAX_HA
   addFrom([...(bank?.locator ?? []), "#apartmentlocator"]) // 2 locator/service
   addFrom([...(bank?.movingTo ?? [])]) // 3 moving-to
   addFrom([...marketType, ...propGeneric]) // 4 primary property (market-specific High-Rise first)
-  addFrom([...propGeneric, ...(bank?.general ?? [])]) // 5 secondary property / crossover
-  // Slots 6-7 are only reachable when the cap allows them. At MAX_HASHTAGS = 5 they are always cut by
-  // the slice below, so the Downtown tag is NO LONGER guaranteed for High-Rise/Penthouse — the five
-  // highest-ranked slots win instead. The ranking itself is deliberately unchanged.
-  if (isHighRiseFamily) addFrom([...(bank?.downtown ?? [])]) // 6 Downtown (High-Rise/Penthouse)
-  else addFrom([...(bank?.general ?? []), ...(bank?.apartment ?? [])]) // 6 extra strong market term
+  if (isHighRiseFamily) {
+    // 5 DOWNTOWN — PROMOTED from slot 6 so it survives the 5-tag cap for High-Rise/Penthouse, which
+    // is where Downtown is the strongest discovery term. It displaces the old slot 5 (secondary
+    // property / crossover), which for this family resolved to a SECOND generic market term while
+    // slot 1 already carries one — so the set keeps market + locator + moving-to + property and
+    // trades a duplicate-intent market tag for Downtown. Promotion happens INSIDE the ranking; no
+    // tag is appended afterwards and MAX_HASHTAGS is never exceeded.
+    addFrom([...(bank?.downtown ?? [])])
+    addFrom([...propGeneric, ...(bank?.general ?? [])]) // 6 secondary property / crossover (was 5)
+  } else {
+    // Every other property type keeps the ORIGINAL slot order and therefore its exact current output.
+    addFrom([...propGeneric, ...(bank?.general ?? [])]) // 5 secondary property / crossover
+    addFrom([...(bank?.general ?? []), ...(bank?.apartment ?? [])]) // 6 extra strong market term
+  }
   addFrom([...(bank?.general ?? []), ...propGeneric, ...marketType, ...(bank?.downtown ?? []), ...BASE]) // 7 additional
 
   // Backfill any remaining slots from the full relevant pool (keeps sets full without stuffing).

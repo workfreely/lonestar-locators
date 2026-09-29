@@ -1,5 +1,5 @@
 // Deterministic tests for the centralized hashtag engine. No network. Run: npx tsx scripts/social/hashtags.test.ts
-import { buildHashtags, HASHTAG_MARKETS, normalizeHashtag } from "@/lib/social/hashtags"
+import { buildHashtags, HASHTAG_MARKETS, normalizeHashtag, hashtagPropertyType, isCanonicalHashtag } from "@/lib/social/hashtags"
 import { isGeneratedHashtags, MAX_HASHTAGS } from "@/lib/social/composePost"
 
 let pass = 0, fail = 0
@@ -36,9 +36,9 @@ for (const m of MARKETS) {
     ok(`${tag}: NO other market leaked`, !some(h, OTHER_TOKENS[m]))
     ok(`${tag}: Moving-To included`, has(h, MOVING[m]))
     ok(`${tag}: Apartment Locator/service represented`, some(h, /apartmentlocator/))
-    // Downtown sat in slot 6 of the ranked order, so at MAX_HASHTAGS = 5 it is no longer reached.
-    // The five highest-ranked slots win instead; the ranking itself is unchanged. (See hashtags.ts.)
-    if (t === "High-Rise" || t === "Penthouse") ok(`${tag}: within the 5-tag cap, top-ranked slots win over Downtown`, h.length <= 5 && !some(h, /downtown/))
+    // SUPERSEDED: Downtown used to sit at slot 6 and was cut by the 5-tag cap. It is now PROMOTED to
+    // slot 5 for this family (inside the ranking), so it must SURVIVE. (See hashtags.ts.)
+    if (t === "High-Rise" || t === "Penthouse") ok(`${tag}: Downtown survives within the 5-tag cap`, h.length <= 5 && some(h, /downtown/))
   }
 }
 
@@ -46,15 +46,23 @@ console.log("property-type responses:")
 ok("Loft includes #loft (every market)", MARKETS.every((m) => has(buildHashtags(m, MAX_HASHTAGS, "Loft"), "#loft")))
 ok("Townhome includes a townhome/townhouse term", MARKETS.every((m) => some(buildHashtags(m, MAX_HASHTAGS, "Townhome"), /townhome|townhouse/)))
 ok("Rental Home includes a rental/home-for-rent term", MARKETS.every((m) => some(buildHashtags(m, MAX_HASHTAGS, "Rental Home"), /rentalhome|forrent/)))
-ok("Penthouse includes #penthouse", MARKETS.every((m) => has(buildHashtags(m, MAX_HASHTAGS, "Penthouse"), "#penthouse")))
+// Penthouse keeps a PROPERTY-FAMILY term in every market, but which one depends on the market bank:
+// where a researched city High-Rise term exists (Dallas/DFW/Houston) it occupies the primary property
+// slot and Downtown displaces the generic #penthouse; elsewhere #penthouse itself survives.
+ok("Penthouse keeps a penthouse/high-rise property term in every market",
+  MARKETS.every((m) => some(buildHashtags(m, MAX_HASHTAGS, "Penthouse"), /penthouse|highrise/)))
+ok("Penthouse keeps generic #penthouse where the market has no city High-Rise term",
+  ["San Antonio", "Austin"].every((m) => has(buildHashtags(m, MAX_HASHTAGS, "Penthouse"), "#penthouse")))
 ok("Studio includes a studio term", MARKETS.every((m) => some(buildHashtags(m, MAX_HASHTAGS, "Studio"), /studio/)))
 ok("changing property type changes the set", JSON.stringify(buildHashtags("Dallas", MAX_HASHTAGS, "High-Rise")) !== JSON.stringify(buildHashtags("Dallas", MAX_HASHTAGS, "Townhome")))
 
 console.log("High-Rise market rules:")
 const dallasHR = buildHashtags("Dallas", MAX_HASHTAGS, "High-Rise")
 ok("Dallas High-Rise prioritizes #dallashighrise", has(dallasHR, "#dallashighrise"))
-ok("Dallas High-Rise also carries generic #highrise", has(dallasHR, "#highrise"))
-ok("Dallas High-Rise: Downtown falls outside the 5-tag cap (slot 6)", true)
+// SUPERSEDED: the generic #highrise was slot 5 and is now what Downtown displaces in Dallas — the
+// market-specific #dallashighrise (slot 4) is the stronger term and is what survives.
+ok("Dallas High-Rise drops generic #highrise in favour of Downtown", !has(dallasHR, "#highrise"))
+ok("Dallas High-Rise: Downtown is now INSIDE the 5-tag cap", has(dallasHR, "#downtowndallas"))
 const houstonHR = buildHashtags("Houston", MAX_HASHTAGS, "High-Rise")
 ok("Houston High-Rise prioritizes the researched #houstonhighrise", has(houstonHR, "#houstonhighrise"))
 ok("Houston High-Rise does NOT stuff both #houstonhighrise + #houstonhighrises", !(has(houstonHR, "#houstonhighrise") && has(houstonHR, "#houstonhighrises")))
@@ -110,6 +118,52 @@ const TT = ["Studio", "Apartment", "High-Rise", "Townhome", "Rental Home", "Pent
 ok("7. every regenerated set ≤ 5 (canonical cap)", TT.every((t) => buildHashtags("San Antonio", MAX_HASHTAGS, t).length <= 5))
 ok("8. every regenerated set has no duplicates", TT.every((t) => noDupes(buildHashtags("San Antonio", MAX_HASHTAGS, t))))
 ok("type transitions each change the generated set", ["Apartment→Townhome", "Townhome→High-Rise", "High-Rise→Penthouse", "Penthouse→Loft", "Loft→Rental Home"].every((pair) => { const [a, b] = pair.split("→"); return JSON.stringify(buildHashtags("San Antonio", MAX_HASHTAGS, a)) !== JSON.stringify(buildHashtags("San Antonio", MAX_HASHTAGS, b)) }))
+
+// ── DOWNTOWN PRIORITY (High-Rise / Penthouse family) ─────────────────────────────────────────
+// Downtown used to sit at slot 6 and was therefore always cut by the 5-tag cap. It is now PROMOTED
+// to slot 5 for this family — inside the ranking, not appended afterwards — so it survives.
+console.log("\nDowntown priority for the High-Rise/Penthouse family:")
+const ALL_MARKETS = ["San Antonio", "Austin", "Dallas", "DFW", "Houston"] as const
+const downtownIn = (h: string[]) => h.some((t) => t.toLowerCase().startsWith("#downtown"))
+// Compound Penthouse types must INHERIT the Penthouse behaviour via their head noun.
+const FAMILY = ["High-Rise", "Penthouse", "Split-Level Penthouse", "Industrial-Style Penthouse"] as const
+for (const t of FAMILY) {
+  ok(`${t}: Downtown survives the 5-tag cap in every market`,
+    ALL_MARKETS.every((m) => downtownIn(buildHashtags(m, MAX_HASHTAGS, t))))
+}
+ok("compound Penthouse sets EQUAL the plain Penthouse set (pure inheritance, no special-casing)",
+  ALL_MARKETS.every((m) => {
+    const base = JSON.stringify(buildHashtags(m, MAX_HASHTAGS, "Penthouse"))
+    return JSON.stringify(buildHashtags(m, MAX_HASHTAGS, "Split-Level Penthouse")) === base
+      && JSON.stringify(buildHashtags(m, MAX_HASHTAGS, "Industrial-Style Penthouse")) === base
+  }))
+ok("hashtagPropertyType maps a compound type to its HEAD NOUN",
+  hashtagPropertyType("Split-Level Penthouse") === "Penthouse"
+  && hashtagPropertyType("Industrial-Style Apartment") === "Apartment"
+  && hashtagPropertyType("Penthouse") === "Penthouse"
+  && hashtagPropertyType(null) === null)
+// Non-applicable types must NOT gain a Downtown tag, and must keep their exact existing output.
+const NON_FAMILY = ["Studio", "Apartment", "Townhome", "Rental Home", "Loft"] as const
+ok("non-applicable types never gain a Downtown tag",
+  NON_FAMILY.every((t) => ALL_MARKETS.every((m) => !downtownIn(buildHashtags(m, MAX_HASHTAGS, t)))))
+ok("no market/type set ever exceeds MAX_HASHTAGS",
+  [...FAMILY, ...NON_FAMILY].every((t) => ALL_MARKETS.every((m) => buildHashtags(m, MAX_HASHTAGS, t).length <= MAX_HASHTAGS))
+  && ALL_MARKETS.every((m) => buildHashtags(m, 99, "Penthouse").length <= MAX_HASHTAGS))
+ok("Downtown is earned INSIDE the ranking — a 4-tag cap still drops it (not appended after)",
+  ALL_MARKETS.every((m) => {
+    const four = buildHashtags(m, 4, "Penthouse")
+    return four.length === 4 && !downtownIn(four)
+  }))
+ok("the promoted sets keep market + locator + moving-to + a property/high-rise term",
+  ALL_MARKETS.every((m) => {
+    const h = buildHashtags(m, MAX_HASHTAGS, "Penthouse").map((x) => x.toLowerCase())
+    return h.length === 5 && h.some((x) => /locator/.test(x)) && h.some((x) => /^#movingto/.test(x))
+      && h.some((x) => /highrise|penthouse/.test(x)) && downtownIn(h)
+  }))
+ok("Downtown tags are canonical, so promoting one cannot make a set look MANUAL",
+  ALL_MARKETS.every((m) => buildHashtags(m, MAX_HASHTAGS, "Penthouse").every((t) => isCanonicalHashtag(t))))
+ok("a genuinely manual set is still preserved for an applicable type",
+  !isGeneratedHashtags(["#downtownsanantonio", "#myteamtag"], { market: "San Antonio", propertyType: "Penthouse" }))
 
 console.log(`\nHashtag engine: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)
