@@ -177,6 +177,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [editingRule, setEditingRule] = useState(false) // "Edit Repeat" reopens the settings form
   const [ruleMenuOpen, setRuleMenuOpen] = useState(false) // ⋯ overflow (contains Stop Repeat)
   const [publishing, setPublishing] = useState(false) // Publish (hand-off to Social Beast scheduling) in progress
+  const [previewing, setPreviewing] = useState(false) // Preview Video render in progress (blocks repeat clicks)
   const [lightbox, setLightbox] = useState<string | null>(null) // enlarged 9:16 video preview (src or null)
   // Snapshot of the overlay-affecting fields (mode/template/headline) as of the last load() — lets
   // the preview tell "untouched since load" apart from "edited this session" without touching the
@@ -512,10 +513,50 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       setPublishing(false)
     }
   }
-  // NOTE: FFmpeg render infrastructure (the /render route + renderVideo) and post-duplicate
-  // (/duplicate route) are intentionally KEPT. They are no longer surfaced as manual editor
-  // buttons — rendering will run internally as part of Publish/Schedule, and post variations may
-  // be exposed from the Library later.
+  // PREVIEW VIDEO — produce (or reuse) the REAL rendered MP4 so the locator can hear the finished
+  // mix (overlays + music choice + Hook + CTA + ducking) BEFORE publishing. It runs the SAME
+  // /render route and renderReel path Publish uses, so what plays here is the artifact Publish would
+  // send if nothing changes afterwards. It never publishes, schedules, or touches recurrence.
+  //
+  // Reuse: persistence happens first, and the PATCH route already sets render_status back to 'none'
+  // whenever a render-affecting field changed. So a freshly re-read post that still says 'ready'
+  // proves the existing derivative is current and is simply replayed — no second cache is invented.
+  const previewVideo = async () => {
+    setPreviewing(true); setError(null); setNotice(null)
+    try {
+      const okSource = await patchSource()
+      if (!okSource) { setError("Couldn't save before rendering."); return }
+      const saved = await fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(fieldsBody()),
+      })
+      if (!saved.ok) { setError("Couldn't save before rendering."); return }
+      // Re-read to see whether that save invalidated the previous render.
+      const fresh = await fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}`, { headers: { Accept: "application/json" } })
+      const freshPost = fresh.ok ? ((await fresh.json()) as Post) : null
+      const stillValid = freshPost?.renderStatus === "ready" && !!freshPost?.renderedPreviewUrl
+      if (!stillValid) {
+        const res = await fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}/render`, { method: "POST" })
+        if (!res.ok) {
+          const j = (await res.json().catch(() => ({}))) as { error?: string }
+          // The render route surfaces Voice Clip problems verbatim — show them rather than a generic
+          // failure, and leave every editor field untouched so nothing is lost.
+          setError(j.error && j.error !== "render_failed" ? `Couldn't render: ${j.error}` : "Couldn't render this post. Please try again.")
+          return
+        }
+      }
+      await load() // refreshes renderStatus + renderedPreviewUrl, which flips the left player over
+      setNotice(stillValid ? "Preview is up to date — press play to hear the final mix." : "Preview ready — press play to hear the final mix.")
+    } catch {
+      setError("Couldn't render this post. Please try again.")
+    } finally {
+      setPreviewing(false)
+    }
+  }
+
+  // NOTE: the /duplicate route and Create Variation are intentionally KEPT — variation is simply no
+  // longer one of the three primary editor-completion actions, because hearing the real render
+  // before publishing matters more at launch. It now sits as a small secondary link beside the post
+  // meta (see below), which is its ONLY entry point in the app today.
 
   const addTag = (raw: string) => {
     const t = normalizeHashtag(raw)
@@ -610,12 +651,17 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       {/* Upper row: navigation + status. The platform selector moved beneath the video player (see
           the "Post to" buttons in the left column). "Move back to Draft" lives here, next to the
           status it acts on — it's post-status management, not one of the editor's three primary
-          completion actions (Create Variation / Save Draft / Publish) at the bottom. Same
+          completion actions (Preview Video / Save Draft / Publish) at the bottom. Same
           backToDraft() handler as before; only its position moved. */}
       <div className="mb-3 flex items-center gap-2.5 flex-wrap">
         <button type="button" className={btn} onClick={() => router.push(back.path)}>{back.label}</button>
         <span className="text-[11.5px] font-semibold px-2.5 py-1 rounded-full bg-[var(--crm-card)] text-[var(--crm-text-secondary)]">{POST_STATUS_LABEL[post.status] ?? post.status}</span>
         {post.status === "scheduled" && <button type="button" className={btn} disabled={busy || publishing} onClick={() => void backToDraft()}>Move back to Draft</button>}
+        {/* Create Variation lives here now rather than in the primary action row — it is a
+            post-management action, not an editor-completion one, and Preview Video took its slot.
+            This is currently the ONLY entry point to the /duplicate route in the app, so it must
+            stay reachable; the natural longer-term home is a Library post-card action. */}
+        <button type="button" className={`${btn} ml-auto`} disabled={busy || publishing || previewing} onClick={() => void clonePost()}>Create Variation</button>
       </div>
 
       {(error || notice) && (
@@ -1047,15 +1093,19 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 )}
               </div>
 
-              {/* Action row: exactly the three primary editor-completion actions — Create Variation +
+              {/* Action row: exactly the three primary editor-completion actions — Preview Video +
                   Save Draft (secondary, equal weight), Publish (primary green — hands the post to
                   Social Beast for automatic placement; NO Instagram publish). "Move back to Draft" is
                   post-status management, not a completion action — it now lives next to the status
                   pill at the top of the editor (same backToDraft() handler). */}
               <div className="mt-3 flex items-center justify-end gap-2 flex-wrap">
-                <button type="button" className={actionSecondary} disabled={busy || publishing} onClick={() => void clonePost()}>Create Variation</button>
-                <button type="button" className={actionSecondary} disabled={busy || publishing} onClick={() => void saveDraft()}>{busy ? "Saving…" : "Save Draft"}</button>
-                <button type="button" className={actionGreen} disabled={busy || publishing || selectedPlatforms.has("tiktok")} onClick={() => void publish()}>{publishing ? "Publishing…" : "Publish"}</button>
+                {/* Preview Video replaces Create Variation in the primary row: hearing the real
+                    render (overlays + music choice + Hook + CTA + ducking) is the action a locator
+                    needs before publishing. It renders through the SAME route Publish uses and
+                    publishes/schedules nothing. Variation moved to a secondary link above. */}
+                <button type="button" className={actionSecondary} disabled={busy || publishing || previewing} onClick={() => void previewVideo()}>{previewing ? "Rendering…" : "Preview Video"}</button>
+                <button type="button" className={actionSecondary} disabled={busy || publishing || previewing} onClick={() => void saveDraft()}>{busy ? "Saving…" : "Save Draft"}</button>
+                <button type="button" className={actionGreen} disabled={busy || publishing || previewing || selectedPlatforms.has("tiktok")} onClick={() => void publish()}>{publishing ? "Publishing…" : "Publish"}</button>
               </div>
               {/* Publish/autoschedule is the Instagram scheduler; there is no TikTok scheduler yet.
                   When TikTok is selected, Publish is disabled to prevent an accidental Instagram
