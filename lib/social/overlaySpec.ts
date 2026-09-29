@@ -132,6 +132,19 @@ export const HERO_MAX_PX = 66, HERO_MIN_PX = 47
 // COMPOUND_HERO_MIN_PX 30: the measured worst case ("SAN ANTONIO INDUSTRIAL-STYLE APARTMENTS") needs
 // exactly 30px to fit 900px on one line. Below that the wrap fallback is still the safety net.
 export const COMPOUND_HERO_MIN_PX = 30
+
+// Compound two-line hero HIERARCHY. The compound property-type line is the fit driver (it is always
+// the wider of the two), and the market line sits ~18% above it, capped at the normal hero max. Equal
+// sizes read flat; market pinned at 66 read as headline + subtitle. 1.18 gives a subtle step:
+// property 44 → market 52, 55 → 65, 56 → 66 (capped), 66 → 66.
+export const COMPOUND_MARKET_SCALE = 1.18
+// The detail must stay visibly BELOW the property-type line. The normal hero rule floors at 44
+// (OVERLAY_SPEC.sub.fontPx), which at a 44px property line made the price exactly as large as the
+// title it supports. 0.85 keeps the step proportional at every size: property 44 → 37, 55 → 47,
+// 56 → 48, 66 → 52 (the existing 52 ceiling). It only ever REDUCES the existing rule's result, never
+// raises it, so a compound detail can never exceed what a non-compound one would be.
+export const COMPOUND_DETAIL_SCALE = 0.85
+export const COMPOUND_DETAIL_MIN_PX = 26
 // NOTE: COMPOUND_HERO_DETAIL_MIN_PX (26) was removed with the one-line compound hero. The two-line
 // title keeps every compound line in the normal 44–66 range, so the hero detail needs no exception.
 
@@ -299,16 +312,19 @@ export function headlineFit(text: string | null | undefined): HeadlineFit {
     if (parts) {
       const [l1, l2] = parts
       const p1 = fitCompoundHeroPx(l1), p2 = fitCompoundHeroPx(l2)
-      // ONE SHARED SIZE for both lines. These are two lines of the SAME title, not a headline and a
-      // subtitle — sizing them independently (66 over 44) read as a subheading. So take the largest
-      // size at which BOTH complete lines fit the safe width, and apply it to both.
+      // HIERARCHY: the compound property-type line (line 2) is the FIT DRIVER — it is the wider line,
+      // so its largest safe size sets the lockup. The market line then steps ~18% above it, capped at
+      // the normal hero max AND at the market's own safe fit (p1), so a hypothetical very long market
+      // can still only render at a size that fits. Both lines belong to one title; the step is subtle.
       if (p1 !== null && p2 !== null) {
-        const shared = Math.min(p1, p2, HERO_MAX_PX)
-        // linePx stays per-line (both entries equal) because the explicit per-line tops are what make
-        // the preview and FFmpeg agree exactly: FFmpeg's multi-line spacing derives from the font's
-        // own ascent/descent, not fontPx + lineSpacing, so a single multi-line draw would place line 2
-        // at a y neither path could predict from the geometry.
-        return { fontPx: shared, lines: [l1, l2], linePx: [shared, shared] }
+        const propertyPx = p2
+        const marketPx = Math.min(HERO_MAX_PX, p1, Math.round(propertyPx * COMPOUND_MARKET_SCALE))
+        // fontPx (the block's nominal size) is the PROPERTY line, because that is what the detail
+        // couples off. linePx stays explicit because the per-line tops are what make the preview and
+        // FFmpeg agree exactly: FFmpeg's multi-line spacing derives from the font's own ascent/descent,
+        // not fontPx + lineSpacing, so a single multi-line draw would place line 2 at a y neither path
+        // could predict from the geometry.
+        return { fontPx: propertyPx, lines: [l1, l2], linePx: [marketPx, propertyPx] }
       }
     }
     // No market prefix (the type alone): keep the single tested-floor fit rather than inventing a break.
@@ -442,11 +458,15 @@ export function computeOverlayLayout(template: string, headlineText: string, det
     const baseDetailPx = usesMarketDetail
       ? Math.min(MARKET_TYPE_DETAIL_PX, Math.max(OVERLAY_SPEC.sub.fontPx, fit.fontPx - 2))
       : OVERLAY_SPEC.sub.fontPx
-    // The compound-only detail override is GONE: the two-line hero puts every compound title line back
-    // in the normal 44–66 range, so the existing rule above needs no exception. It is fed the block's
-    // nominal size, which for a compound title is the SMALLER of the two lines, keeping the price
-    // subordinate to the smallest title line rather than only to the larger market line.
-    const detailPx = baseDetailPx
+    // COMPOUND-ONLY: keep the supporting line visibly BELOW the compound property-type line. The rule
+    // above floors at 44 (OVERLAY_SPEC.sub.fontPx), which at a 44px property line made the price
+    // exactly as large as the title it supports. Scale off the property line instead — fit.fontPx IS
+    // the property line for a compound title — and take the SMALLER of that and the normal result, so
+    // this can only ever reduce the detail, never raise it (T4's flat 44 base still caps T4). Applies
+    // to both branches above, so the Special Feature detail gets the same treatment as the price.
+    const detailPx = fit.linePx
+      ? Math.min(baseDetailPx, Math.max(COMPOUND_DETAIL_MIN_PX, Math.round(fit.fontPx * COMPOUND_DETAIL_SCALE)))
+      : baseDetailPx
     const detailLines = hasDetail ? wrapSub(detail) : []
     const detailBlockH = hasDetail ? detailLines.length * detailPx + Math.max(0, detailLines.length - 1) * OVERLAY_SPEC.sub.lineSpacing : 0
     const gap = hasDetail ? heroGapPx : 0

@@ -830,18 +830,19 @@ console.log("\nSplit-Level property types — wording, plurals, casing, fit:")
       const dw = L.detail ? Math.max(...L.detail.lines.map((l) => (L.detail!.face === "head" ? headlineTextWidthPx : detailTextWidthPx)(l, L.detail!.fontPx))) : 0
       return hw <= HEADLINE_TEXT_AVAIL_PX && dw <= DETAIL_TEXT_AVAIL_PX
     })))
-  // SUPERSEDED THREE TIMES. This hero first STACKED at the hero floor (splitting "SPLIT-LEVEL" off
-  // "TOWNHOMES"), then fitted onto ONE line at 35px (correct but too small for a hero), then took
-  // per-line sizes (66 over 55, which read as a headline + subtitle). It is now a TWO-line title with
-  // ONE SHARED size — the largest at which BOTH lines fit. Full coverage in compoundTypes.test.ts.
+  // SUPERSEDED REPEATEDLY, now settled. This hero first STACKED at the hero floor (splitting
+  // "SPLIT-LEVEL" off "TOWNHOMES"), then fitted onto ONE line at 35px (too small for a hero), then
+  // market-at-66 over a fitted type (read as headline + subtitle), then both lines at ONE size (too
+  // flat). It is now a TWO-line title with a SUBTLE step: the property-type line drives the fit and
+  // the market sits ~18% above it, capped at the hero max. Full coverage in compoundTypes.test.ts.
   const heroSL = computeOverlayLayout("market_type", buildOverlayHeadline({ market: "San Antonio", propertyType: "Split-Level Townhome" }), "Starting at $1,600/month")
   ok("long Split-Level hero is TWO lines, losing no words",
     heroSL.headline.lines.length === 2 && heroSL.headline.lines.join(" ") === "SAN ANTONIO SPLIT-LEVEL TOWNHOMES")
-  ok("both lines share ONE size, set by the wider line",
-    heroSL.headline.linePx?.[0] === heroSL.headline.linePx?.[1]
-    && (heroSL.headline.linePx?.[0] ?? 0) < HERO_MAX_PX && (heroSL.headline.linePx?.[0] ?? 0) >= HERO_MIN_PX)
+  ok("the market line steps above the property line, within the hero max",
+    (heroSL.headline.linePx?.[0] ?? 0) > (heroSL.headline.linePx?.[1] ?? 0)
+    && (heroSL.headline.linePx?.[0] ?? 0) <= HERO_MAX_PX && (heroSL.headline.linePx?.[1] ?? 0) >= HERO_MIN_PX)
   ok("the qualifier stays with its head noun on line 2", heroSL.headline.lines[1] === "SPLIT-LEVEL TOWNHOMES")
-  ok("its price line never outgrows the title", (heroSL.detail?.fontPx ?? 0) <= Math.min(...(heroSL.headline.linePx ?? [])))
+  ok("its price line stays visibly below the property-type line", (heroSL.detail?.fontPx ?? 0) < Math.min(...(heroSL.headline.linePx ?? [])))
   // Adding these must not have moved an existing type.
   ok("existing types are untouched by the addition",
     buildOverlayHeadline({ market: "San Antonio", propertyType: "Townhome" }) === "SAN ANTONIO TOWNHOMES" &&
