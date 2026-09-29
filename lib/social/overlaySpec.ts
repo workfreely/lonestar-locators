@@ -40,7 +40,15 @@ export const OVERLAY_SPEC = {
 // letter-spacing and NO shadow blur (verified), so the render uses a hard-offset shadow and omits
 // tracking; the CSS preview adds a tiny blur so the two read materially the same.
 export const OVERLAY_TEXT = {
-  trackingEm: 0.02, // subtle inter-character tracking (keeps the widest Hero combo one line in Bodoni)
+  // 0 = NO tracking. FFmpeg drawtext has no letter-spacing parameter, so the burned-in video has never
+  // had any; the old 0.02em (a Bodoni-era value) therefore existed only in the CSS preview AND as a
+  // phantom width budget in headlineTextWidthPx/detailTextWidthPx — the fitter measured text ~2% wider
+  // than FFmpeg draws it and paid for the difference by choosing a SMALLER font size. At 0 the
+  // measurement equals what is actually rendered, so preview width === render width for the first
+  // time, and each headline recovers the size the phantom budget was consuming. Deliberately NOT
+  // negative: the render ignores tracking, so a negative value would let the fitter over-size text
+  // until it ran past the 90px safe margins (verified: -0.01em overflowed all three test headlines).
+  trackingEm: 0,
   edgeAlpha: 0, //     NO visible outline (crisp solid white per the reference)
   edgeEm: 0, //        (border width irrelevant at alpha 0)
   shadowAlpha: 0.6, // SUBTLE, non-obvious drop shadow (nudged 0.5→0.6) — helps white text separate
@@ -121,10 +129,15 @@ export const HOOK_MAX_PX = 46, HOOK_MIN_PX = 37
 // under-measured every headline and let text run past the safe box in BOTH paths. The generator
 // (advance_units / unitsPerEm × 100, rounded) was validated by reproducing the previous Bodoni map
 // exactly — 56/56 characters — before being run against Libre Baskerville.
+// COMPLETE for the headline vocabulary — a sweep of every template × market × property type × price
+// emits exactly " $',-./0123456789:" plus letters, and all of it is covered below. Digits, "$", ","
+// and "/" were previously absent and fell through to ADV_FALLBACK (55) — badly wrong for the
+// price-bearing templates (T15/T16), where the true advances are 0:76, 1:44, $:64, ",":26, "/":48.
 const HEAD_ADV: Record<string, number> = {
   A: 81, B: 80, C: 82, D: 92, E: 76, F: 69, G: 88, H: 94, I: 43, J: 41, K: 82, L: 76, M: 114, N: 94, O: 94, P: 72, Q: 95, R: 82, S: 66, T: 83, U: 88, V: 80, W: 123, X: 85, Y: 76, Z: 80,
   a: 57, b: 67, c: 56, d: 69, e: 58, f: 44, g: 61, h: 71, i: 36, j: 33, k: 66, l: 36, m: 111, n: 73, o: 66, p: 70, q: 67, r: 50, s: 47, t: 38, u: 71, v: 62, w: 89, x: 65, y: 65, z: 57,
-  " ": 27, "-": 46, ":": 28, "'": 21,
+  "0": 76, "1": 44, "2": 65, "3": 64, "4": 66, "5": 60, "6": 67, "7": 52, "8": 64, "9": 67,
+  " ": 27, ".": 26, ",": 26, $: 64, "/": 48, "·": 28, ":": 28, "'": 21, "-": 46,
 }
 const ADV_FALLBACK = 55
 

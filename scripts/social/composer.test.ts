@@ -331,7 +331,19 @@ const hugFilt = buildVideoFilter("/f.ttf", [{ file: "/h.txt", fontPx: 78, topPx:
 ok("NO scrim/band/box in render (no geq/overlay/box)", !hugFilt.includes("geq=") && !hugFilt.includes("overlay=") && !hugFilt.includes("box=1"))
 ok("drawtext has a subtle drop shadow (offset)", hugFilt.includes("shadowcolor=black@") && hugFilt.includes("shadowy="))
 ok("NO visible outline (edge alpha 0 — crisp solid white)", OVERLAY_TEXT.edgeAlpha === 0)
-ok("tracking is subtle (Option A)", OVERLAY_TEXT.trackingEm > 0 && OVERLAY_TEXT.trackingEm <= 0.05)
+// Tracking is 0, and must NEVER go negative. FFmpeg drawtext has no letter-spacing, so any non-zero
+// value is a phantom width budget the render does not honor: positive shrinks headlines to pay for
+// spacing that is never drawn, negative lets the fitter over-size text until it runs past the safe
+// margins (-0.01em overflowed all three probe headlines). 0 is the only value where the measurement
+// equals what is rendered.
+ok("headline/detail tracking is 0 and never negative", OVERLAY_TEXT.trackingEm === 0)
+ok("measured width === rendered width (no phantom tracking budget)",
+  headlineTextWidthPx("What $1,500/mo gets you in San Antonio", 41) === headlineTextWidthPx("What $1,500/mo gets you in San Antonio", 41, 0) &&
+  detailTextWidthPx("Starting at $1,800/mo", 40) === detailTextWidthPx("Starting at $1,800/mo", 40, 0))
+// HEAD_ADV covers the full headline vocabulary — digits/$/,// were falling through to ADV_FALLBACK,
+// which mis-measured every price-bearing headline (T15/T16).
+ok("price headline is measured from real advances, not the fallback",
+  headlineTextWidthPx("$1,500/mo", 100) !== headlineTextWidthPx("@@@@@@@@@", 100))
 ok("drop-shadow is subtle / non-obvious (insurance for white footage)", OVERLAY_TEXT.shadowAlpha > 0 && OVERLAY_TEXT.shadowAlpha <= 0.6)
 ok("render graph still outputs the [v] label", /\[v\]$/.test(hugFilt))
 
