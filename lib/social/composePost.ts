@@ -314,6 +314,10 @@ function indefiniteArticle(word: string): string {
  *  the SHARED propertyNounPlural map — the same explicit per-type mapping Template 1 uses, so there is
  *  no second mapping and no blind "+s" — and this only restores the title casing that helper's
  *  lowercase output drops. DISPLAY ONLY: the stored/selected Property Type stays singular everywhere. */
+/** Template 11 only: the two GENERIC categories whose bare plural would read as a claim about the
+ *  whole market rather than about this video, so they take "These {plural}" instead. */
+const THESE_PLURAL_TYPES: ReadonlySet<string> = new Set(["Apartment", "Studio"])
+
 function propertyTypePluralDisplay(canonicalType: string): string {
   // SENTENCE case for EVERY type, not title case: this is a sentence subject, not the dropdown label,
   // so only the first letter is capitalized — "High-rises just hit different", "Rental homes just hit
@@ -391,7 +395,13 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
     case "hits_different":
       // PLURAL display copy ("Penthouses just hit different") — display only; the Property Type value
       // itself stays singular. No type → a grammatical generic plural subject, never a fabricated type.
-      return canonicalType ? `${propertyTypePluralDisplay(canonicalType)} just hit different` : "These just hit different"
+      if (!canonicalType) return "These just hit different"
+      // Apartment and Studio are the GENERIC categories, so the bare plural reads like a statement
+      // about the whole market ("Apartments just hit different"). Leading with "These" points the
+      // sentence back at the video. Every other type is specific enough to carry the bare plural, and
+      // is deliberately left alone.
+      if (THESE_PLURAL_TYPES.has(canonicalType)) return `These ${propertyNounPlural(canonicalType).toLowerCase()} just hit different`
+      return `${propertyTypePluralDisplay(canonicalType)} just hit different`
   }
 }
 

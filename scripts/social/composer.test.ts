@@ -536,6 +536,7 @@ ok("T2 manual override still protected", !isGeneratedHeadline("Your sign to get 
 // of being frozen as a manual override.
 ok("legacy your_sign (pre-\"new\") still generator-owned", isGeneratedHeadline("Your sign to get that loft") && isGeneratedHeadline("Your sign to get that split-level loft"))
 ok("legacy title-cased hits_different still generator-owned", isGeneratedHeadline("High-Rises just hit different") && isGeneratedHeadline("Rental Homes just hit different") && isGeneratedHeadline("Split-Level Lofts just hit different"))
+ok("pre-\"These\" Apartment/Studio copy still generator-owned", isGeneratedHeadline("Apartments just hit different") && isGeneratedHeadline("Studios just hit different"))
 ok("a genuinely manual headline is still NOT generator-owned", !isGeneratedHeadline("My own custom headline"))
 // T4 — smaller than the shared center-hook max (more side margin); T4 only.
 const t4 = computeOverlayLayout("next_property", "What your next townhome could look like", "").headline
@@ -644,8 +645,10 @@ console.log("\nTemplate 15 (Hits Different — PLURALIZED display copy + optiona
 // Display-only plural: every SUPPORTED Property Type value, incl. the two that a blind "+s" or a
 // naive first-letter capitalization would get wrong (High-Rises, Rental Homes).
 for (const [pt, expected] of [
-  ["Studio", "Studios just hit different"],
-  ["Apartment", "Apartments just hit different"],
+  // Apartment and Studio are the GENERIC categories: the bare plural reads as a claim about the
+  // whole market, so they lead with "These". Every other type keeps the bare plural.
+  ["Studio", "These studios just hit different"],
+  ["Apartment", "These apartments just hit different"],
   ["High-Rise", "High-rises just hit different"],
   ["Townhome", "Townhomes just hit different"],
   ["Rental Home", "Rental homes just hit different"],
