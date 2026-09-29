@@ -236,6 +236,19 @@ export type LayoutFamily = "hero" | "center_hook" | "center_hook_detail"
 // the detail uses `detailFontPx` (smaller than the hook, Bodoni-Detail) so the hook stays dominant.
 // Shared by preview + render (parity).
 export const CENTER_HOOK = { maxPx: HOOK_MAX_PX, minPx: HOOK_MIN_PX, lineSpacing: 8, detailFontPx: 30 } as const
+
+// Template 14 (real_living) ONLY — "This is what real {TYPE} living looks like" must stay on ONE line.
+// Its two longest types wrap at the shared 37px floor in Libre Baskerville ("Townhome" and "Rental
+// Home" both strand "looks like" on a second line); "…Rental Home…" is the worst and fits one line at
+// 35px. This is a per-template floor, NOT a global reduction: every other center-hook template keeps
+// CENTER_HOOK.minPx, and T14's max stays CENTER_HOOK.maxPx so short types still render large (Loft 43,
+// no-type 46). The safe box, side margins and centered anchor are untouched — only how small this one
+// headline may go before the shared wrap fallback would fire.
+const REAL_LIVING_MIN_PX = 35
+/** Floor for the center-hook fit. Per-template so a single long sentence can shrink instead of wrap. */
+function hookMinPxFor(template: string): number {
+  return template === "real_living" ? REAL_LIVING_MIN_PX : CENTER_HOOK.minPx
+}
 // Template 4 (Next Property) ONLY — a smaller max than the shared center-hook cap so its headline
 // has more left/right breathing room (same wording, centered, still prominent). Other center-hook
 // templates (T2/T5/T6/T7/T8) keep CENTER_HOOK.maxPx.
@@ -308,8 +321,9 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   // wrapping, no manual breaks). Vertically center the group.
   const oneLine = (headlineText ?? "").replace(/\s+/g, " ").trim()
   const hookMaxPx = template === "next_property" ? NEXT_PROPERTY_MAX_PX : CENTER_HOOK.maxPx // T4 slightly smaller for side margin
+  const hookMinPx = hookMinPxFor(template) // per-template floor (T14 shrinks further rather than wrap)
   let lines = oneLine ? [oneLine] : []
-  let hookPx = oneLine ? fitHeadlinePx(oneLine, hookMaxPx, CENTER_HOOK.minPx) : hookMaxPx
+  let hookPx = oneLine ? fitHeadlinePx(oneLine, hookMaxPx, hookMinPx) : hookMaxPx
   // ONE line, fit-to-width, is the rule — and it stays the rule for every template that has ever
   // existed here: the longest of them (T2's "Your sign to get that rental home in San Antonio") fits
   // exactly at CENTER_HOOK.minPx, so this branch is unreachable for T1–T11 (asserted in composer
@@ -318,10 +332,10 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   // letting the text run off the canvas. The per-line budget is derived from the real measured width
   // (no magic constant) and the block is sized to its longest line; the lines array, the multi-line
   // block math below, and both renderers' "\n" join already support >1 line.
-  if (oneLine && headlineTextWidthPx(oneLine, CENTER_HOOK.minPx) > HEADLINE_TEXT_AVAIL_PX) {
+  if (oneLine && headlineTextWidthPx(oneLine, hookMinPx) > HEADLINE_TEXT_AVAIL_PX) {
     const perLine = Math.max(8, Math.floor((oneLine.length * HEADLINE_TEXT_AVAIL_PX) / headlineTextWidthPx(oneLine, hookMaxPx)))
     lines = wrapHeadline(oneLine, perLine)
-    hookPx = Math.min(...lines.map((l) => fitHeadlinePx(l, hookMaxPx, CENTER_HOOK.minPx)))
+    hookPx = Math.min(...lines.map((l) => fitHeadlinePx(l, hookMaxPx, hookMinPx)))
   }
   const n = Math.max(1, lines.length)
   const headBlockH = n * hookPx + (n - 1) * CENTER_HOOK.lineSpacing

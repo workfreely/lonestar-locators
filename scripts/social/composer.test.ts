@@ -425,7 +425,7 @@ ok("T6 generated strings recognized (so they re-sync on Property Type change)", 
 ok("T6 regenerates for the CURRENT type (Townhome vs Loft)", buildTemplateHeadline("pov_upgrade", { propertyType: "Townhome" }) === "POV: You upgraded to a townhome" && buildTemplateHeadline("pov_upgrade", { propertyType: "Loft" }) === "POV: You upgraded to a loft")
 ok("T7 fixed headline recognized as generated", isGeneratedHeadline("Luxury doesn't have to be expensive"))
 ok("a genuinely MANUAL hook is NOT treated as generated (override protected)", !isGeneratedHeadline("POV: You finally made it home"))
-ok("selector lists exactly 16 templates: T2 market_type_centered, T7 apartment_standards, T8-T11 pov_upgrade/affordable_luxury/pov_price/what_mo_gets_you", OVERLAY_TEMPLATES.length === 16 && OVERLAY_TEMPLATES[1] === "market_type_centered" && OVERLAY_TEMPLATES[5] === "upgrade" && OVERLAY_TEMPLATES[6] === "apartment_standards" && OVERLAY_TEMPLATES[7] === "pov_upgrade" && OVERLAY_TEMPLATES[8] === "affordable_luxury" && OVERLAY_TEMPLATES[9] === "pov_price" && OVERLAY_TEMPLATES[10] === "what_mo_gets_you")
+ok("selector lists exactly 16 templates: T2 market_type_centered, T7 apartment_standards, T8-T11 pov_upgrade/affordable_luxury/pov_price/hits_different", OVERLAY_TEMPLATES.length === 16 && OVERLAY_TEMPLATES[1] === "market_type_centered" && OVERLAY_TEMPLATES[5] === "upgrade" && OVERLAY_TEMPLATES[6] === "apartment_standards" && OVERLAY_TEMPLATES[7] === "pov_upgrade" && OVERLAY_TEMPLATES[8] === "affordable_luxury" && OVERLAY_TEMPLATES[9] === "pov_price" && OVERLAY_TEMPLATES[10] === "hits_different")
 
 console.log("Template 8 (POV + Price — CENTER HOOK + DETAIL):")
 // T8 headline = same explicit POV per-type mapping as T6.
@@ -542,7 +542,17 @@ ok("T7 unchanged", buildTemplateHeadline("apartment_standards", {}) === "Your ap
 ok("T9 unchanged", buildTemplateHeadline("affordable_luxury", {}) === "Luxury doesn't have to be expensive")
 
 console.log("\nTemplates 12–16 (registry + dropdown order):")
-ok("T12–T16 registered in order after T11", OVERLAY_TEMPLATES[11] === "trade_up" && OVERLAY_TEMPLATES[12] === "wanted_luxury" && OVERLAY_TEMPLATES[13] === "real_living" && OVERLAY_TEMPLATES[14] === "hits_different" && OVERLAY_TEMPLATES[15] === "what_mo_gets_you_top")
+// Picker order after the 2026-09-29 swap: hits_different moved to 11 and what_mo_gets_you to 15, so
+// the two "$/mo Gets You" templates sit together at 15 and 16. Keys (identities) are unchanged.
+ok("T12–T16 registered in order after T11", OVERLAY_TEMPLATES[11] === "trade_up" && OVERLAY_TEMPLATES[12] === "wanted_luxury" && OVERLAY_TEMPLATES[13] === "real_living" && OVERLAY_TEMPLATES[14] === "what_mo_gets_you" && OVERLAY_TEMPLATES[15] === "what_mo_gets_you_top")
+// The swap is DISPLAY ONLY — every key still exists exactly once, so no saved post can change meaning.
+ok("swap preserved every template identity (no key added, removed or duplicated)",
+  new Set(OVERLAY_TEMPLATES).size === 16 &&
+  (["what_mo_gets_you", "hits_different"] as const).every((k) => (OVERLAY_TEMPLATES as readonly string[]).includes(k)))
+ok("picker positions: 11 = Hits Different, 15 = What $/mo Gets You, 16 = — Top",
+  OVERLAY_TEMPLATE_LABEL[OVERLAY_TEMPLATES[10]] === "Hits Different" &&
+  OVERLAY_TEMPLATE_LABEL[OVERLAY_TEMPLATES[14]] === "What $/mo Gets You" &&
+  OVERLAY_TEMPLATE_LABEL[OVERLAY_TEMPLATES[15]] === "What $/mo Gets You — Top")
 ok("T12–T16 dropdown labels", OVERLAY_TEMPLATE_LABEL.trade_up === "Trade Up" && OVERLAY_TEMPLATE_LABEL.wanted_luxury === "You Wanted Luxury" && OVERLAY_TEMPLATE_LABEL.real_living === "Real [Property Type] Living" && OVERLAY_TEMPLATE_LABEL.hits_different === "Hits Different" && OVERLAY_TEMPLATE_LABEL.what_mo_gets_you_top === "What $/mo Gets You — Top")
 
 console.log("\nTemplate 12 (Trade Up — dynamic Property Type + optional price):")

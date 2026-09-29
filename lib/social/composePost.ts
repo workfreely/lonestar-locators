@@ -234,22 +234,31 @@ export function joinDetailParts(parts: (string | null | undefined)[]): string {
 //    8 pov_upgrade          — CENTER HOOK    — "POV: You upgraded …" (explicit per-type mapping) / no detail
 //    9 affordable_luxury    — CENTER HOOK    — "Luxury doesn't have to be expensive" (fixed) / no detail
 //   10 pov_price            — CENTER HOOK+D  — same POV per-type headline / "Starting at $X/mo" (or none)
-//   11 what_mo_gets_you     — CENTER HOOK    — "What {$price}/mo gets you in {city}" (Starting At + Market,
-//                                              both live) / no detail — same T7 (apartment_standards)
-//                                              center-hook typography; empty headline (never fabricated)
-//                                              if either value is missing
+//   11 hits_different       — CENTER HOOK+D  — "{TYPE} just hits different" / optional price
 //   12 trade_up             — CENTER HOOK+D  — "What life looks like when you trade in your apartment for
 //                                              a {TYPE}" / optional "Starting at $X/mo"
 //   13 wanted_luxury        — CENTER HOOK+D  — "You wanted luxury. You got it." (fixed) / optional price
 //   14 real_living          — CENTER HOOK+D  — "This is what real {TYPE} living looks like" / optional price
-//   15 hits_different       — CENTER HOOK+D  — "{TYPE} just hits different" / optional price
-//   16 what_mo_gets_you_top — CENTER HOOK    — IDENTICAL wording/values to T11, anchored at T1's TOP
+//                                              ONE line always: a per-template floor (REAL_LIVING_MIN_PX
+//                                              in overlaySpec) lets it shrink rather than strand
+//                                              "looks like" on a second line
+//   15 what_mo_gets_you     — CENTER HOOK    — "What {$price}/mo gets you in {city}" (Starting At + Market,
+//                                              both live) / no detail — same T7 (apartment_standards)
+//                                              center-hook typography; empty headline (never fabricated)
+//                                              if either value is missing
+//   16 what_mo_gets_you_top — CENTER HOOK    — IDENTICAL wording/values to T15, anchored at T1's TOP
 //                                              position instead of vertically centered (see
 //                                              templateFamily + the topAnchored branch in overlaySpec)
-// T12–T15 share one centered treatment (center_hook_detail = T11's centered composition plus an
-// OPTIONAL second line): when Starting At has no valid value the detail is "" and the group collapses
-// to a headline-only render, identical to T11. No per-template CSS anywhere.
-export const OVERLAY_TEMPLATES = ["market_type", "market_type_centered", "your_sign", "special_feature", "next_property", "upgrade", "apartment_standards", "pov_upgrade", "affordable_luxury", "pov_price", "what_mo_gets_you", "trade_up", "wanted_luxury", "real_living", "hits_different", "what_mo_gets_you_top"] as const
+// T11–T14 share one centered treatment (center_hook_detail = the centered composition plus an OPTIONAL
+// second line): when Starting At has no valid value the detail is "" and the group collapses to a
+// headline-only render. No per-template CSS anywhere. NOTE: these numbers are PICKER POSITIONS, not
+// identities — the key strings are what get stored and matched.
+// ORDER = the picker's display order and its 1-based numbering ONLY (PostEditor renders `i + 1`).
+// The stable identity is the KEY string, which is what a post stores in overlayTemplate and what every
+// switch/lookup in this file and overlaySpec matches on — so reordering this array can never make a
+// saved post render as a different template. `hits_different` and `what_mo_gets_you` were swapped
+// (2026-09-29) purely so the two "$/mo Gets You" templates sit together at 15 and 16.
+export const OVERLAY_TEMPLATES = ["market_type", "market_type_centered", "your_sign", "special_feature", "next_property", "upgrade", "apartment_standards", "pov_upgrade", "affordable_luxury", "pov_price", "hits_different", "trade_up", "wanted_luxury", "real_living", "what_mo_gets_you", "what_mo_gets_you_top"] as const
 export type OverlayTemplate = (typeof OVERLAY_TEMPLATES)[number]
 export const DEFAULT_OVERLAY_TEMPLATE: OverlayTemplate = "market_type"
 export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
