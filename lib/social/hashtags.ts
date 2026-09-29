@@ -121,8 +121,9 @@ const concept = (t: string) => t.toLowerCase().replace(/^#+/, "").replace(/s$/, 
  * Build a BALANCED, deterministic set of up to `target` (capped at MAX_HASHTAGS) hashtags for a
  * market × property type. Composition (each slot contributes the first still-unused, concept-unique
  * candidate):
- *   1 strong market/apartment · 2 locator/service · 3 moving-to · 4 primary property (market-specific
- *   High-Rise term first) · 5 DOWNTOWN for the High-Rise/Penthouse family, otherwise secondary
+ *   1 strong market/apartment · 2 locator/service · 3 moving-to · 4 primary property (High-Rise leads
+ *   with the market-specific term, Penthouse leads with canonical #penthouse) · 5 DOWNTOWN for the
+ *   High-Rise/Penthouse family, otherwise secondary
  *   property/crossover · 6 the one the other branch took · 7 additional ranked candidate. Remaining
  *   slots backfill from the pooled candidates. No duplicates; no singular/plural stuffing.
  * Only the High-Rise/Penthouse family sees slots 5/6 swapped; every other type keeps its exact
@@ -173,7 +174,14 @@ export function buildHashtags(market: string | null | undefined, target = MAX_HA
   addFrom([...(bank?.apartment ?? []), ...(bank?.general ?? [])]) // 1 market/apartment
   addFrom([...(bank?.locator ?? []), "#apartmentlocator"]) // 2 locator/service
   addFrom([...(bank?.movingTo ?? [])]) // 3 moving-to
-  addFrom([...marketType, ...propGeneric]) // 4 primary property (market-specific High-Rise first)
+  // 4 primary property — the slot that carries WHAT IT IS. For HIGH-RISE the market-specific term
+  // (#dallashighrise) IS the strongest expression of that identity, so it leads. For PENTHOUSE it is
+  // not: the market High-Rise term is a crossover, and with Downtown holding slot 5 it would push the
+  // canonical #penthouse out of the five entirely — exactly what happened in Dallas/DFW/Houston. So
+  // Penthouse leads with its OWN canonical tag and keeps the market High-Rise term as the fallback
+  // (used only where the Penthouse bank is exhausted). Markets without a researched city High-Rise
+  // term (San Antonio, Austin) are unaffected either way, since marketType is empty there.
+  addFrom(type === "Penthouse" ? [...propGeneric, ...marketType] : [...marketType, ...propGeneric])
   if (isHighRiseFamily) {
     // 5 DOWNTOWN — PROMOTED from slot 6 so it survives the 5-tag cap for High-Rise/Penthouse, which
     // is where Downtown is the strongest discovery term. It displaces the old slot 5 (secondary

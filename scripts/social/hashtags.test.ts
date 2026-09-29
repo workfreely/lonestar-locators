@@ -46,21 +46,18 @@ console.log("property-type responses:")
 ok("Loft includes #loft (every market)", MARKETS.every((m) => has(buildHashtags(m, MAX_HASHTAGS, "Loft"), "#loft")))
 ok("Townhome includes a townhome/townhouse term", MARKETS.every((m) => some(buildHashtags(m, MAX_HASHTAGS, "Townhome"), /townhome|townhouse/)))
 ok("Rental Home includes a rental/home-for-rent term", MARKETS.every((m) => some(buildHashtags(m, MAX_HASHTAGS, "Rental Home"), /rentalhome|forrent/)))
-// Penthouse keeps a PROPERTY-FAMILY term in every market, but which one depends on the market bank:
-// where a researched city High-Rise term exists (Dallas/DFW/Houston) it occupies the primary property
-// slot and Downtown displaces the generic #penthouse; elsewhere #penthouse itself survives.
-ok("Penthouse keeps a penthouse/high-rise property term in every market",
-  MARKETS.every((m) => some(buildHashtags(m, MAX_HASHTAGS, "Penthouse"), /penthouse|highrise/)))
-ok("Penthouse keeps generic #penthouse where the market has no city High-Rise term",
-  ["San Antonio", "Austin"].every((m) => has(buildHashtags(m, MAX_HASHTAGS, "Penthouse"), "#penthouse")))
+// Penthouse leads slot 4 with its OWN canonical tag, so #penthouse survives in EVERY market — the
+// market High-Rise term is a crossover and must never displace the Penthouse identity.
+ok("Penthouse includes #penthouse in every market", MARKETS.every((m) => has(buildHashtags(m, MAX_HASHTAGS, "Penthouse"), "#penthouse")))
 ok("Studio includes a studio term", MARKETS.every((m) => some(buildHashtags(m, MAX_HASHTAGS, "Studio"), /studio/)))
 ok("changing property type changes the set", JSON.stringify(buildHashtags("Dallas", MAX_HASHTAGS, "High-Rise")) !== JSON.stringify(buildHashtags("Dallas", MAX_HASHTAGS, "Townhome")))
 
 console.log("High-Rise market rules:")
 const dallasHR = buildHashtags("Dallas", MAX_HASHTAGS, "High-Rise")
 ok("Dallas High-Rise prioritizes #dallashighrise", has(dallasHR, "#dallashighrise"))
-// SUPERSEDED: the generic #highrise was slot 5 and is now what Downtown displaces in Dallas — the
-// market-specific #dallashighrise (slot 4) is the stronger term and is what survives.
+// The generic #highrise was slot 5 and is what Downtown displaces for HIGH-RISE in Dallas — the
+// market-specific #dallashighrise (slot 4) is the stronger term and is what survives. (For PENTHOUSE
+// the market High-Rise term is only a crossover, so there #penthouse leads instead — asserted below.)
 ok("Dallas High-Rise drops generic #highrise in favour of Downtown", !has(dallasHR, "#highrise"))
 ok("Dallas High-Rise: Downtown is now INSIDE the 5-tag cap", has(dallasHR, "#downtowndallas"))
 const houstonHR = buildHashtags("Houston", MAX_HASHTAGS, "High-Rise")
@@ -164,6 +161,42 @@ ok("Downtown tags are canonical, so promoting one cannot make a set look MANUAL"
   ALL_MARKETS.every((m) => buildHashtags(m, MAX_HASHTAGS, "Penthouse").every((t) => isCanonicalHashtag(t))))
 ok("a genuinely manual set is still preserved for an applicable type",
   !isGeneratedHashtags(["#downtownsanantonio", "#myteamtag"], { market: "San Antonio", propertyType: "Penthouse" }))
+
+// ── WHERE IT IS + WHAT IT IS must BOTH survive the 5-tag cap ─────────────────────────────────
+// Three concepts are guaranteed for this family: city/market, Downtown, and the actual property
+// family. The Penthouse case is the one that regressed: with Downtown at slot 5, a market High-Rise
+// crossover term at slot 4 pushed #penthouse out of the five in Dallas/DFW/Houston.
+console.log("\nCity + Downtown + property identity all survive:")
+const cityTerm: Record<string, RegExp> = {
+  "San Antonio": /sanantonio|satx/, Austin: /austin|atx/, Dallas: /dallas/, DFW: /dfw|dallas/, Houston: /houston|htx/,
+}
+for (const t of ["High-Rise", "Penthouse", "Split-Level Penthouse", "Industrial-Style Penthouse"] as const) {
+  const identity = t === "High-Rise" ? /highrise/ : /penthouse/
+  ok(`${t}: city + Downtown + ${t === "High-Rise" ? "High-Rise" : "Penthouse"} identity in all 5 markets`,
+    ALL_MARKETS.every((m) => {
+      const h = buildHashtags(m, MAX_HASHTAGS, t)
+      return h.length === MAX_HASHTAGS && some(h, cityTerm[m]) && downtownIn(h) && some(h, identity)
+    }))
+}
+ok("a market High-Rise crossover NEVER displaces #penthouse (Dallas/DFW/Houston)",
+  ["Dallas", "DFW", "Houston"].every((m) => has(buildHashtags(m, MAX_HASHTAGS, "Penthouse"), "#penthouse")))
+ok("High-Rise still leads with the market-specific term where one exists",
+  ["Dallas", "DFW"].every((m) => has(buildHashtags(m, MAX_HASHTAGS, "High-Rise"), "#dallashighrise"))
+  && has(buildHashtags("Houston", MAX_HASHTAGS, "High-Rise"), "#houstonhighrise"))
+// Compound head-noun inheritance stays canonical for EVERY family, and Downtown stays tied to the
+// High-Rise/Penthouse families only — a Split-Level Townhome must not acquire a Downtown tag.
+const COMPOUND_FAMILY: [string, RegExp][] = [
+  ["Split-Level Townhome", /townhome|townhouse/], ["Industrial-Style Townhome", /townhome|townhouse/],
+  ["Split-Level Loft", /loft/], ["Industrial-Style Loft", /loft/],
+  ["Industrial-Style Apartment", /apartmenthunting|apartmentliving|luxuryapartments|apartmenttour/],
+]
+for (const [t, re] of COMPOUND_FAMILY) {
+  ok(`${t}: keeps head-noun inheritance and gains NO Downtown tag`,
+    ALL_MARKETS.every((m) => {
+      const h = buildHashtags(m, MAX_HASHTAGS, t)
+      return some(h, re) && !downtownIn(h) && h.length <= MAX_HASHTAGS
+    }))
+}
 
 console.log(`\nHashtag engine: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)
