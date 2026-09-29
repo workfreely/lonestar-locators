@@ -4,7 +4,7 @@ import { buildHashtags, normalizeHashtag, HASHTAG_MARKETS } from "@/lib/social/h
 import { AMENITY_BANK, canonicalizeAmenity, parseAmenities, serializeAmenities, sanitizeCustomAmenity } from "@/lib/social/amenities"
 import { preparePost, buildCaption, buildOverlayHeadline, buildOverlaySubheadline, composeFinalCaption, startingPriceLabel, startingPriceAmount, buildOverlayDetail, joinDetailParts, specialDisplay, resolveSocialSpecial, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags } from "@/lib/social/composePost"
 import { SOCIAL_SPECIAL_OPTIONS, giftCardLabel, isGiftCardSpecial, sanitizeCustomSpecial } from "@/lib/social/socialSpecial"
-import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
+import { PROPERTY_TYPES, propertyNoun, propertyNounPlural } from "@/lib/social/propertyTypes"
 import { buildFfmpegArgs, buildVideoFilter } from "@/lib/social/renderVideo"
 import { wrapHeadline, wrapSub, overlayPreviewStyle, headlineFit, headlineTextWidthPx, computeOverlayLayout, templateFamily, OVERLAY_SPEC, OVERLAY_CANVAS, OVERLAY_TEXT, HEADLINE_TEXT_AVAIL_PX, HERO_MAX_PX, HERO_MIN_PX, HOOK_MAX_PX, HOOK_MIN_PX, detailTextWidthPx, DETAIL_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
 import { buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL } from "@/lib/social/composePost"
@@ -779,6 +779,50 @@ console.log("\nFont faces (preview and render both read block.face):")
   // A head-faced detail must be MEASURED with head metrics, or preview/render parity silently breaks.
   const d = conv.detail!
   ok("head-faced detail fits its sub box under HEAD metrics", headlineTextWidthPx(d.lines[0], d.fontPx) <= DETAIL_TEXT_AVAIL_PX)
+}
+
+// ── SPLIT-LEVEL (Social-Beast-only content types) ─────────────────────────────────────────────
+console.log("\nSplit-Level property types — wording, plurals, casing, fit:")
+{
+  const SL = ["Split-Level Townhome", "Split-Level Penthouse", "Split-Level Loft"] as const
+  // Only the HEAD noun pluralises. Guard the exact malformations called out in review.
+  ok("plurals pluralise the HEAD noun only", SL.every((pt) => {
+    const p = propertyNounPlural(pt)
+    return !/split-levels/i.test(p) && !/[a-z]S\b/.test(p)
+  }))
+  ok("singular/plural forms", propertyNounPlural("Split-Level Townhome") === "split-level townhomes" &&
+    propertyNounPlural("Split-Level Penthouse") === "split-level penthouses" &&
+    propertyNounPlural("Split-Level Loft") === "split-level lofts" &&
+    propertyNoun("Split-Level Townhome") === "split-level townhome")
+  // Hero keeps UPPERCASE; sentence templates lowercase the WHOLE phrase; T11 keeps Title Case.
+  ok("hero headline is fully uppercase", buildOverlayHeadline({ market: "Austin", propertyType: "Split-Level Townhome" }) === "AUSTIN SPLIT-LEVEL TOWNHOMES")
+  ok("T12 lowercases the whole phrase", buildTemplateHeadline("trade_up", { propertyType: "Split-Level Townhome" }) === "What life looks like when you trade in your apartment for a split-level townhome")
+  ok("T14 lowercases the whole phrase", buildTemplateHeadline("real_living", { propertyType: "Split-Level Penthouse" }) === "This is what real split-level penthouse living looks like")
+  ok("T11 keeps Title Case across the hyphen", buildTemplateHeadline("hits_different", { propertyType: "Split-Level Loft" }) === "Split-Level Lofts just hit different")
+  // Never the malformed shapes.
+  ok("no malformed casing/plural anywhere in generated copy", SL.every((pt) =>
+    OVERLAY_TEMPLATES.every((t) => {
+      const h = buildTemplateHeadline(t, { market: "San Antonio", propertyType: pt, budgetRange: "1600" })
+      return !/Split-Levels/.test(h) && !/TownhomeS|PenthouseS|LoftS/.test(h) && !/\bsplit-level [A-Z]/.test(h)
+    })))
+  // Every template x type stays inside the safe box, measured with each block's own face.
+  ok("every Split-Level render fits its safe box", SL.every((pt) =>
+    OVERLAY_TEMPLATES.every((t) => {
+      const h = buildTemplateHeadline(t, { market: "San Antonio", propertyType: pt, budgetRange: "1600" })
+      if (!h) return true
+      const L = computeOverlayLayout(t, h, buildTemplateDetail(t, { market: "San Antonio", propertyType: pt, budgetRange: "1600" }))
+      const hw = Math.max(...L.headline.lines.map((l) => (L.headline.face === "head" ? headlineTextWidthPx : detailTextWidthPx)(l, L.headline.fontPx)))
+      const dw = L.detail ? Math.max(...L.detail.lines.map((l) => (L.detail!.face === "head" ? headlineTextWidthPx : detailTextWidthPx)(l, L.detail!.fontPx))) : 0
+      return hw <= HEADLINE_TEXT_AVAIL_PX && dw <= DETAIL_TEXT_AVAIL_PX
+    })))
+  // The long hero phrase uses the EXISTING unknown-headline stack — no constant was changed for it.
+  const heroSL = computeOverlayLayout("market_type", buildOverlayHeadline({ market: "San Antonio", propertyType: "Split-Level Townhome" }), "Starting at $1,600/mo")
+  ok("long Split-Level hero stacks at the existing hero floor, losing no words",
+    heroSL.headline.fontPx === HERO_MIN_PX && heroSL.headline.lines.join(" ") === "SAN ANTONIO SPLIT-LEVEL TOWNHOMES")
+  // Adding these must not have moved an existing type.
+  ok("existing types are untouched by the addition",
+    buildOverlayHeadline({ market: "San Antonio", propertyType: "Townhome" }) === "SAN ANTONIO TOWNHOMES" &&
+    computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,600/mo").headline.fontPx === 52)
 }
 
 console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)

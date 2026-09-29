@@ -53,7 +53,20 @@ ok("garden-style no longer a type", detectPropertyType("garden style villas") ==
 ok("noun townhome", propertyNoun("Townhome") === "townhome")
 ok("noun rental home", propertyNoun("Rental Home") === "rental home")
 ok("noun default apartment", propertyNoun(null) === "apartment")
-ok("6 SA property types (canonical minus 'Open to All')", PROPERTY_TYPES.length === 6)
+// 7 canonical (the CRM list minus the renter-preference "Open to All") + 3 Social-Beast-only
+// content types. The canonical taxonomy in lib/formOptions is NOT modified — the Split-Level values
+// describe what a VIDEO shows and exist only in the Social source.
+ok("10 SA property types (7 canonical minus 'Open to All', + 3 Social-only Split-Level)", PROPERTY_TYPES.length === 10)
+ok("canonical values come first, in their original order and spelling",
+  PROPERTY_TYPES.slice(0, 7).join("|") === "Studio|Apartment|High-Rise|Townhome|Rental Home|Penthouse|Loft")
+ok("Split-Level values are Social-only and appended last",
+  PROPERTY_TYPES.slice(7).join("|") === "Split-Level Townhome|Split-Level Penthouse|Split-Level Loft")
+// Filename inference must prefer the qualified type over the plain noun it contains.
+ok("split-level filenames beat the plain noun", detectPropertyType("split-level-townhome-austin.mp4") === "Split-Level Townhome" &&
+  detectPropertyType("Split Level Penthouse SA.mov") === "Split-Level Penthouse" &&
+  detectPropertyType("split level loft.mp4") === "Split-Level Loft")
+ok("plain nouns still infer the plain type", detectPropertyType("townhome-austin.mp4") === "Townhome" &&
+  detectPropertyType("penthouse.mov") === "Penthouse" && detectPropertyType("loft.mp4") === "Loft")
 ok("no SA-only values", !(PROPERTY_TYPES as readonly string[]).includes("Garden-Style") && !(PROPERTY_TYPES as readonly string[]).includes("Build-to-Rent"))
 ok("Open to All excluded from SA", !(PROPERTY_TYPES as readonly string[]).includes("Open to All"))
 ok("canonical members present", ["Studio","Apartment","High-Rise","Townhome","Rental Home","Penthouse"].every((t) => (PROPERTY_TYPES as readonly string[]).includes(t)))
