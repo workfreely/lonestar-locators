@@ -11,7 +11,15 @@ import { PROPERTY_TYPES as CANONICAL_PROPERTY_TYPES } from "@/lib/formOptions"
 // preference and not a Property Intelligence classification — so they live HERE and are deliberately
 // NOT added to lib/formOptions (the CRM/lead taxonomy) or to any PI schema/record. Appended after the
 // canonical values so existing saved posts keep their exact stored strings and dropdown ordering.
-export const SOCIAL_ONLY_PROPERTY_TYPES = ["Split-Level Townhome", "Split-Level Penthouse", "Split-Level Loft"] as const
+export const SOCIAL_ONLY_PROPERTY_TYPES = [
+  "Split-Level Townhome", "Split-Level Penthouse", "Split-Level Loft",
+  "Industrial-Style Apartment", "Industrial-Style Townhome", "Industrial-Style Penthouse", "Industrial-Style Loft",
+] as const
+
+/** The qualifier prefixes that make a Social-only type COMPOUND ("{QUALIFIER} {HEAD NOUN}"). Declared
+ *  here, beside the types themselves, so the overlay spec can recognise a compound HERO headline
+ *  without hard-coding city×type strings — adding another qualified family only touches this file. */
+export const COMPOUND_TYPE_QUALIFIERS = ["Split-Level", "Industrial-Style"] as const
 
 export const PROPERTY_TYPES = [
   ...CANONICAL_PROPERTY_TYPES.filter((t) => t !== "Open to All"), // Studio | Apartment | High-Rise | Townhome | Rental Home | Penthouse | Loft
@@ -26,11 +34,15 @@ export function isPropertyType(v: string | null | undefined): v is PropertyType 
 // Filename keyword variants → a CANONICAL value (order: more specific first). Only maps to
 // values that exist in the canonical list — an unrecognized/non-canonical hint yields null.
 const KEYWORDS: [RegExp, PropertyType][] = [
-  // Split-Level variants come FIRST: each contains a plain noun ("townhome", "penthouse", "loft")
-  // that would otherwise match on the more general rule below and lose the "Split-Level" qualifier.
+  // Qualified variants come FIRST: each contains a plain noun ("townhome", "penthouse", "loft",
+  // "apartment") that would otherwise match the more general rule below and lose the qualifier.
   [/\bsplit[\s-]?level[\s-]?(town\s?homes?|town\s?houses?)\b/i, "Split-Level Townhome"],
   [/\bsplit[\s-]?level[\s-]?(pent\s?houses?)\b/i, "Split-Level Penthouse"],
   [/\bsplit[\s-]?level[\s-]?(lofts?)\b/i, "Split-Level Loft"],
+  [/\bindustrial[\s-]?style[\s-]?(apartments?|apts?)\b/i, "Industrial-Style Apartment"],
+  [/\bindustrial[\s-]?style[\s-]?(town\s?homes?|town\s?houses?)\b/i, "Industrial-Style Townhome"],
+  [/\bindustrial[\s-]?style[\s-]?(pent\s?houses?)\b/i, "Industrial-Style Penthouse"],
+  [/\bindustrial[\s-]?style[\s-]?(lofts?)\b/i, "Industrial-Style Loft"],
   [/\b(studio)\b/i, "Studio"],
   [/\b(pent\s?house)\b/i, "Penthouse"],
   [/\b(high[\s-]?rise)\b/i, "High-Rise"],
@@ -66,6 +78,14 @@ export function propertyNoun(type: string | null | undefined): string {
       return "split-level penthouse"
     case "Split-Level Loft":
       return "split-level loft"
+    case "Industrial-Style Apartment":
+      return "industrial-style apartment"
+    case "Industrial-Style Townhome":
+      return "industrial-style townhome"
+    case "Industrial-Style Penthouse":
+      return "industrial-style penthouse"
+    case "Industrial-Style Loft":
+      return "industrial-style loft"
     default:
       return "apartment" // Apartment / Open to All / unknown
   }
@@ -94,6 +114,14 @@ export function propertyNounPlural(type: string | null | undefined): string {
       return "split-level penthouses"
     case "Split-Level Loft":
       return "split-level lofts"
+    case "Industrial-Style Apartment":
+      return "industrial-style apartments"
+    case "Industrial-Style Townhome":
+      return "industrial-style townhomes"
+    case "Industrial-Style Penthouse":
+      return "industrial-style penthouses"
+    case "Industrial-Style Loft":
+      return "industrial-style lofts"
     default:
       return "apartments"
   }

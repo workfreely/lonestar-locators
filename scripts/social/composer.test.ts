@@ -815,10 +815,14 @@ console.log("\nSplit-Level property types — wording, plurals, casing, fit:")
       const dw = L.detail ? Math.max(...L.detail.lines.map((l) => (L.detail!.face === "head" ? headlineTextWidthPx : detailTextWidthPx)(l, L.detail!.fontPx))) : 0
       return hw <= HEADLINE_TEXT_AVAIL_PX && dw <= DETAIL_TEXT_AVAIL_PX
     })))
-  // The long hero phrase uses the EXISTING unknown-headline stack — no constant was changed for it.
+  // SUPERSEDED: the long hero phrase used to STACK at the hero floor (HERO_MIN_PX), which split
+  // "SPLIT-LEVEL" off "TOWNHOMES". Compound types now get compound-only one-line fitting instead —
+  // see scripts/social/compoundTypes.test.ts. Still no GLOBAL constant changed for it.
   const heroSL = computeOverlayLayout("market_type", buildOverlayHeadline({ market: "San Antonio", propertyType: "Split-Level Townhome" }), "Starting at $1,600/month")
-  ok("long Split-Level hero stacks at the existing hero floor, losing no words",
-    heroSL.headline.fontPx === HERO_MIN_PX && heroSL.headline.lines.join(" ") === "SAN ANTONIO SPLIT-LEVEL TOWNHOMES")
+  ok("long Split-Level hero fits ONE line below the hero floor, losing no words",
+    heroSL.headline.lines.length === 1 && heroSL.headline.fontPx < HERO_MIN_PX
+    && heroSL.headline.lines.join(" ") === "SAN ANTONIO SPLIT-LEVEL TOWNHOMES")
+  ok("its price line never outgrows the fit-down compound headline", (heroSL.detail?.fontPx ?? 0) <= heroSL.headline.fontPx)
   // Adding these must not have moved an existing type.
   ok("existing types are untouched by the addition",
     buildOverlayHeadline({ market: "San Antonio", propertyType: "Townhome" }) === "SAN ANTONIO TOWNHOMES" &&

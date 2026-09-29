@@ -3,6 +3,8 @@
 // 1080×1920 (9:16) Reel canvas as fractions, plus font sizes in canvas pixels. Safe area keeps
 // text clear of the Reel UI (top actions, bottom caption/controls).
 
+import { COMPOUND_TYPE_QUALIFIERS } from "@/lib/social/propertyTypes"
+
 export const OVERLAY_CANVAS = { w: 1080, h: 1920 } as const
 
 // Reels-safe overlay geometry. Each text element has a CENTERED max-width box (never
@@ -117,6 +119,38 @@ export const HEADLINE_TEXT_AVAIL_PX = OVERLAY_CANVAS.w - 2 * OVERLAY_SPEC.headli
 // Libre Baskerville's x-height is 53% of em vs Bodoni's 46%, so LB at 47px carries the same x-height
 // as Bodoni at ~54px.
 export const HERO_MAX_PX = 66, HERO_MIN_PX = 47
+
+// ── COMPOUND Social-only types ("{QUALIFIER} {HEAD NOUN}": Split-Level / Industrial-Style) ─────────
+// A compound hero headline is "{CITY} {QUALIFIER} {TYPE_PLURAL}" — e.g. "SAN ANTONIO INDUSTRIAL-STYLE
+// APARTMENTS" (39 chars) vs the longest pre-existing combo "SAN ANTONIO RENTAL HOMES" (24). They are
+// 40–60% wider, so they cannot reach the 900px safe box before HERO_MIN_PX (47) and would otherwise
+// take the multi-line char-wrap fallback, splitting the qualifier from its noun. These two constants
+// apply ONLY when the headline carries a compound qualifier — every pre-existing headline still fits
+// in [HERO_MIN_PX, HERO_MAX_PX] with byte-identical output, because HERO_MIN_PX/HERO_MAX_PX are
+// untouched and the compound branch is gated on the qualifier marker.
+//
+// COMPOUND_HERO_MIN_PX 30: the measured worst case ("SAN ANTONIO INDUSTRIAL-STYLE APARTMENTS") needs
+// exactly 30px to fit 900px on one line. Below that the wrap fallback is still the safety net.
+export const COMPOUND_HERO_MIN_PX = 30
+// A fit-down compound headline can land far below the hero detail's normal 44px floor
+// (OVERLAY_SPEC.sub.fontPx), which would render the supporting line LARGER than the headline it
+// supports. For compound heroes only, the detail follows `headline − 2` down to this floor instead.
+export const COMPOUND_HERO_DETAIL_MIN_PX = 26
+
+// Matches a compound qualifier anywhere in a headline, case-insensitively, tolerating the hyphen or a
+// space ("INDUSTRIAL-STYLE" / "Industrial Style"). Derived from COMPOUND_TYPE_QUALIFIERS so adding
+// another qualified family in propertyTypes.ts needs no change here.
+const COMPOUND_HEADLINE_RE = new RegExp(
+  COMPOUND_TYPE_QUALIFIERS.map((q) => q.replace(/-/g, "[\\s-]?")).join("|"),
+  "i",
+)
+
+/** True when `text` is a COMPOUND-type headline (carries a Split-Level / Industrial-Style qualifier),
+ *  which unlocks the compound-only hero fitting + detail coupling. Non-compound text is never
+ *  affected, so pre-existing property types keep their exact production typography. */
+export function isCompoundHeadline(text: string | null | undefined): boolean {
+  return COMPOUND_HEADLINE_RE.test(text ?? "")
+}
 // Conversational ceiling. 46 -> 28: at 46 the short hooks (T11/T3/T13) dominated the frame; 28 is the
 // intended conversational scale, letting the footage stay dominant. HOOK_MIN_PX is kept only for the
 // exported range assertions — the live floor is HOOK_FLOOR_PX below.
@@ -215,6 +249,16 @@ const SUPPORTED_HEADLINES: ReadonlySet<string> = new Set([
   "SAN ANTONIO STUDIOS", "SAN ANTONIO APARTMENTS", "SAN ANTONIO HIGH-RISES", "SAN ANTONIO TOWNHOMES", "SAN ANTONIO RENTAL HOMES", "SAN ANTONIO PENTHOUSES", "SAN ANTONIO LOFTS",
 ])
 
+/** Largest size in [COMPOUND_HERO_MIN_PX, HERO_MAX_PX] at which a COMPOUND hero headline fits the
+ *  900px safe box on ONE line, or null when even the floor overflows (caller falls back to wrapping).
+ *  The floor is TESTED, so this never returns a size that runs past the safe margins. */
+export function fitCompoundHeroPx(text: string, availPx = HEADLINE_TEXT_AVAIL_PX): number | null {
+  for (let px = HERO_MAX_PX; px >= COMPOUND_HERO_MIN_PX; px--) {
+    if (headlineTextWidthPx(text, px) <= availPx) return px
+  }
+  return null
+}
+
 /** Back-compat helper (used in tests): width of a supported headline at a size WITH tracking. */
 export function trackedHeadlineWidthPx(text: string, fontPx = HERO_MAX_PX, trackingEm = OVERLAY_TEXT.trackingEm): number {
   return SUPPORTED_HEADLINES.has(text.toUpperCase()) ? headlineTextWidthPx(text, fontPx, trackingEm) : NaN
@@ -230,6 +274,16 @@ export function headlineFit(text: string | null | undefined): HeadlineFit {
   const t = (text ?? "").trim()
   if (!t) return { fontPx: HERO_MAX_PX, lines: [] }
   if (SUPPORTED_HEADLINES.has(t.toUpperCase())) return { fontPx: fitHeadlinePx(t, HERO_MAX_PX, HERO_MIN_PX), lines: [t] }
+  // COMPOUND Social-only types ("{CITY} SPLIT-LEVEL LOFTS", "{CITY} INDUSTRIAL-STYLE APARTMENTS") are
+  // too wide to reach the safe box above HERO_MIN_PX, but splitting the qualifier from its head noun
+  // across lines reads badly. Keep the complete headline on ONE line at the largest size that fits the
+  // SAME 900px safe box, scanning down to the compound-only floor. Unlike fitHeadlinePx (which returns
+  // minPx untested), the floor here is TESTED — if even COMPOUND_HERO_MIN_PX overflows we fall through
+  // to the char-wrap, so nothing can silently run past the margins.
+  if (isCompoundHeadline(t)) {
+    const onePx = fitCompoundHeroPx(t)
+    if (onePx !== null) return { fontPx: onePx, lines: [t] }
+  }
   return { fontPx: HERO_MIN_PX, lines: wrapHeadline(t) } // custom/unknown text → char-wrap fallback
 }
 
@@ -346,9 +400,17 @@ export function computeOverlayLayout(template: string, headlineText: string, det
     // TOWNHOMES / RENTAL HOMES / PENTHOUSES), which fit at 47–51px in the wider Libre Baskerville,
     // would render a 52px price line LARGER than the headline it supports, inverting the hierarchy.
     // The detail FACE is unchanged (Bodoni Moda text cut) — only this size ceiling.
-    const detailPx = usesMarketDetail
+    const baseDetailPx = usesMarketDetail
       ? Math.min(MARKET_TYPE_DETAIL_PX, Math.max(OVERLAY_SPEC.sub.fontPx, fit.fontPx - 2))
       : OVERLAY_SPEC.sub.fontPx
+    // COMPOUND-ONLY: both branches above have a 44px floor (OVERLAY_SPEC.sub.fontPx), which was safe
+    // while every hero headline sat at 47–66. A fit-down compound headline can reach 30px, and a 44px
+    // detail under a 30px headline inverts the hierarchy — so for compound heroes the detail follows
+    // `headline − 2` down to COMPOUND_HERO_DETAIL_MIN_PX. Non-compound heroes keep baseDetailPx
+    // exactly, so existing property types are byte-identical to the production baseline.
+    const detailPx = isCompoundHeadline(headlineText)
+      ? Math.min(baseDetailPx, Math.max(COMPOUND_HERO_DETAIL_MIN_PX, fit.fontPx - 2))
+      : baseDetailPx
     const detailLines = hasDetail ? wrapSub(detail) : []
     const detailBlockH = hasDetail ? detailLines.length * detailPx + Math.max(0, detailLines.length - 1) * OVERLAY_SPEC.sub.lineSpacing : 0
     const gap = hasDetail ? heroGapPx : 0
