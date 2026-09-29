@@ -165,6 +165,16 @@ function eligibleHooks(city: string, canonicalType: string | null): string[] {
   return hooks.filter((h) => h.ok).map((h) => h.text)
 }
 
+/** The three values every opener is built from, resolved ONCE through the canonical helpers:
+ *  the selected Social Beast market, the natural lowercase singular property noun, and the
+ *  "$X/month" price. No opener re-formats any of these itself. */
+function openerParts(src: SourceMeta): { city: string; noun: string; price: string } {
+  const city = clean(normalizeSocialMarket(src.market))
+  const canonicalType = normalizeToCanonical(clean(src.propertyType) || null)
+  const amount = startingPriceAmount(src.budgetRange)
+  return { city, noun: canonicalType ? propertyNoun(canonicalType) : "", price: amount ? `${amount}${PER_MONTH_SUFFIX}` : "" }
+}
+
 /** TEMPLATE-AWARE caption opener — the caption's FIRST LINE only. Everything below it (special,
  *  amenities, and the two fixed CTA sentences) is unchanged and shared by every template.
  *
@@ -176,36 +186,53 @@ function eligibleHooks(city: string, canonicalType: string | null): string[] {
  *  buildTemplateHeadline verbatim, and the rest reuse propertyNoun / startingPriceAmount +
  *  PER_MONTH_SUFFIX, so there is exactly one casing/pluralization/price formatter in the module. */
 export function captionOpener(template: OverlayTemplate, src: SourceMeta): string | null {
-  const city = clean(normalizeSocialMarket(src.market))
+  const { city, noun, price } = openerParts(src)
   const canonicalType = normalizeToCanonical(clean(src.propertyType) || null)
-  const noun = canonicalType ? propertyNoun(canonicalType) : ""
-  const amount = startingPriceAmount(src.budgetRange)
-  const price = amount ? `${amount}${PER_MONTH_SUFFIX}` : ""
   const moving = city ? `Moving to ${city}? ` : null
 
   switch (template) {
-    case "market_type": return moving && `${moving}Check this out.`
+    case "market_type": return moving && `${moving}I got you.`
     case "market_type_centered": return moving && `${moving}You need to see this.`
-    // Approved wording, kept EXACTLY as it already reads.
     case "your_sign": return moving && `${moving}This is your sign.`
-    case "special_feature": return moving && `${moving}This deal is hard to beat.`
-    case "next_property": return moving && noun ? `${moving}This could be your next ${noun}.` : null
+    case "special_feature": return moving && `${moving}This won't last long.`
+    case "next_property": return moving && `${moving}This could be home.`
     case "upgrade": return moving && `${moving}Ready for an upgrade?`
-    case "apartment_standards": return moving && `${moving}Your standards just went up.`
-    case "pov_upgrade": return moving && `${moving}POV: you upgraded.`
-    case "affordable_luxury": return moving && `${moving}Luxury doesn't have to break the budget.`
-    case "pov_price": return city && price ? `POV: this is what ${price} gets you in ${city}.` : null
-    // Reuses the approved Template 11 property-language logic verbatim ("These apartments just hit
+    // No market prefix — this one stands on its own, so it resolves even with no metadata at all.
+    case "apartment_standards": return "Your standards just went up."
+    // Needs only the TYPE (natural lowercase singular), not the market.
+    case "pov_upgrade": return noun ? `POV: you upgraded your ${noun}.` : null
+    case "affordable_luxury": return moving && `${moving}Luxury without breaking the bank.`
+    case "pov_price": return city && price ? `POV: ${price} in ${city}.` : null
+    // Reuses the approved Template 11 phrase generator verbatim ("These apartments just hit
     // different", "High-rises just hit different", …) rather than restating the rule here.
     case "hits_different": return canonicalType ? `${buildTemplateHeadline("hits_different", src)}.` : null
-    case "trade_up": return moving && `${moving}It might be time to trade up.`
+    case "trade_up": return moving && `${moving}It's time to trade up.`
     case "wanted_luxury": return moving && `${moving}You wanted luxury.`
-    case "real_living": return city && noun ? `This is real ${noun} living in ${city}.` : null
-    // Identical copy for both, and identical to the template's own headline + a full stop.
-    case "what_mo_gets_you":
+    case "real_living": return city && noun ? `Real ${noun} living in ${city}.` : null
+    case "what_mo_gets_you": return city && price ? `${price} in ${city}.` : null
+    // Identical to this template's own headline plus a full stop.
     case "what_mo_gets_you_top": return city && price ? `${buildTemplateHeadline("what_mo_gets_you", src)}.` : null
   }
   return null
+}
+
+/** SUPERSEDED opener wording, kept ONLY so isGeneratedCaption still recognizes a caption written
+ *  while it was live. Never generated. Same rule as the legacy "/mo" and pre-"new" headline forms: a
+ *  draft written before a copy change must stay generator-owned, or it would freeze as a "manual
+ *  override" and never re-sync on a Market/Type change.
+ *    • 1a0bc1a — the first template-aware openers, replaced by the mapping above. */
+function supersededOpeners(src: SourceMeta): string[] {
+  const { city, noun, price } = openerParts(src)
+  const moving = city ? `Moving to ${city}? ` : ""
+  const out: string[] = []
+  if (city) {
+    out.push(`${moving}Check this out.`, `${moving}This deal is hard to beat.`, `${moving}Your standards just went up.`,
+      `${moving}POV: you upgraded.`, `${moving}Luxury doesn't have to break the budget.`,
+      `${moving}It might be time to trade up.`)
+    if (noun) out.push(`${moving}This could be your next ${noun}.`, `Real ${noun} living in ${city}.`, `This is real ${noun} living in ${city}.`)
+    if (price) out.push(`POV: this is what ${price} gets you in ${city}.`, `What ${price} gets you in ${city}.`)
+  }
+  return out
 }
 
 /** The caption BODY below the opener — unchanged by the template-aware opener work. Split out so the
@@ -600,6 +627,11 @@ export function isGeneratedCaption(text: string | null | undefined, src: SourceM
     if (captionKey(buildCaption(s2, seed)) === t) return true
     for (const tpl of OVERLAY_TEMPLATES) {
       if (captionKey(buildCaption(s2, seed, tpl)) === t) return true
+    }
+    // ...and every SUPERSEDED opener wording, so a caption written under an earlier mapping is still
+    // generator-owned rather than frozen as a manual override.
+    for (const legacy of supersededOpeners(s2)) {
+      if (captionKey(captionSections(s2, legacy)) === t) return true
     }
   }
   return false
