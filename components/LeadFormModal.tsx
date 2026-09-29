@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import LeadFields from "./LeadFields"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { supabase } from "@/lib/supabase/client"
+import { isValidUsPhone } from "@/lib/utils/formatPhone"
 
 // The lead columns Edit Client may change — client CRITERIA + contact + screening
 // only. Deliberately EXCLUDES pipeline/attribution fields (crm_status, priority,
@@ -16,7 +17,7 @@ const EDITABLE_COLUMNS = [
   "credit_history", "credit_score", "broken_lease_age", "broken_lease_amount",
   "eviction_court", "eviction_age", "eviction_balance",
   "criminal_background", "criminal_charge", "felony_age", "misdemeanor_age",
-  "notes", "locator_notes",
+  "notes", "locator_notes", "referred_by",
 ] as const
 
 export default function LeadFormModal({
@@ -70,6 +71,9 @@ export default function LeadFormModal({
     criminal_background: "",
     notes: "",
     locator_notes: "",
+    // Shown only when source === "referral" (LeadFields); always present in state
+    // so the input stays controlled and the form type includes it.
+    referred_by: "",
 
     // defaults
     source: "",
@@ -101,6 +105,11 @@ export default function LeadFormModal({
     setForm((prev) => ({
       ...prev,
       ...Object.fromEntries(EDITABLE_COLUMNS.map((k) => [k, lead[k] ?? ""])),
+      // Read-ONLY seed. `source` is deliberately NOT in EDITABLE_COLUMNS, so
+      // handleSave never writes it back and attribution stays immutable; it is
+      // carried into form state purely so the Referral field knows whether to
+      // render for an existing referral lead.
+      source: lead.source ?? "",
     }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, isEdit, lead?.id])
@@ -127,6 +136,14 @@ export default function LeadFormModal({
     if (!lead?.id) return
     if (!form.city) {
       alert("Please select a city.")
+      return
+    }
+    // Edit has NO server route behind it (direct RLS update), so this is the
+    // ONLY phone gate on this path. Blank is allowed — existing leads
+    // legitimately have no phone — but a non-blank value must be a complete
+    // U.S. number.
+    if ((form.phone ?? "").trim() && !isValidUsPhone(form.phone)) {
+      alert("Please enter a complete 10-digit US phone number.")
       return
     }
     try {
@@ -168,6 +185,14 @@ export default function LeadFormModal({
       return
     }
 
+    // Phone is required on create (the server enforces this too) AND must be a
+    // complete U.S. number — checked here so the locator gets a specific message
+    // instead of the generic "Could not create lead".
+    if (!isValidUsPhone(form.phone ?? "")) {
+      alert("Please enter a complete 10-digit US phone number.")
+      return
+    }
+
     try {
       setLoading(true)
 
@@ -191,7 +216,14 @@ export default function LeadFormModal({
         year: "numeric",
         timeZone,
       })
-      const crmNote = `Lead added manually on ${addedOn}.`
+      // Referral context, captured ONCE at creation. This is historical record
+      // only — leads.referred_by is the authoritative current value, and editing
+      // it later deliberately does NOT rewrite this sentence (no sync machinery).
+      const referredBy = (form.referred_by ?? "").trim()
+      const crmNote =
+        form.source === "referral" && referredBy
+          ? `Lead added manually on ${addedOn}. Referred by ${referredBy}.`
+          : `Lead added manually on ${addedOn}.`
       const locatorNotes = form.locator_notes
         ? `${crmNote}\n${form.locator_notes}`
         : crmNote
@@ -272,6 +304,7 @@ export default function LeadFormModal({
       criminal_background: "",
       notes: "",
       locator_notes: "",
+      referred_by: "",
 
       source: "",
       crm_status: "new",

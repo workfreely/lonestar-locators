@@ -16,6 +16,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { RENT_RANGE_OPTIONS } from "@/lib/formOptions";
 import { parseUserAgent } from "@/lib/leads/parseUserAgent";
 import { fireMetaLead } from "@/lib/analytics/metaPixel";
+import { isValidUsPhone } from "@/lib/utils/formatPhone";
 
 interface ContactFormProps {
   mode?: "short" | "full";
@@ -231,6 +232,14 @@ useEffect(() => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+// ✅ Phone completeness — /api/leads/submit now rejects an incomplete U.S.
+// number, and this form reports any server 400 as a generic "Something went
+// wrong". Checking here gives the prospect the specific reason instead.
+if (!isValidUsPhone(formData.phone)) {
+  alert("Please enter a complete 10-digit US phone number.");
+  return;
+}
 
 if (!formData.moveDate) {
   alert("Please select your move date.");

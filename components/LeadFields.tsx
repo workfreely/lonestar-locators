@@ -31,6 +31,12 @@ const inputCls = [
 ].join(" ")
 
 const selectCls = inputCls + " cursor-pointer"
+// Textareas share inputCls's chrome but need real height. The notes boxes were
+// h-20 (80px ≈ 3 lines) with resize-none, while the columns behind them are
+// unbounded `text` and the public intake form gives CLIENTS four rows. Height
+// lives HERE, never on inputCls — that token is shared by ~20 single-line inputs
+// and selects which must not grow.
+const textareaCls = inputCls + " min-h-[140px] resize-y"
 const sectionLabelCls = "text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-2.5 block"
 
 // ─── Internal layout helpers ──────────────────────────────────────────────────
@@ -488,7 +494,7 @@ export default function LeadFields({
         <Full>
           <p className={sectionLabelCls}>Client Notes</p>
           <textarea
-            className={inputCls + " resize-none h-20"}
+            className={textareaCls}
             placeholder="Client notes..."
             value={form.notes || ""}
             onChange={e => updateField("notes", e.target.value)}
@@ -498,7 +504,7 @@ export default function LeadFields({
         <Full>
           <p className={sectionLabelCls}>Locator Notes</p>
           <textarea
-            className={inputCls + " resize-none h-20"}
+            className={textareaCls}
             placeholder="Internal notes (not visible to client)..."
             value={form.locator_notes || ""}
             onChange={e => updateField("locator_notes", e.target.value)}
@@ -526,6 +532,26 @@ export default function LeadFields({
             <option value="youtube">YouTube</option>
             <option value="referral">Referral</option>
           </select>
+        </Full>
+      </Group>
+      )}
+
+      {/* ── Referral — only when the source IS a referral. Rendered as its OWN
+             block rather than inside the Lead Source group above, so it also
+             appears in Edit Client, where the source select itself is hidden
+             (LeadFormModal seeds form.source read-only for exactly this).
+             `referred_by` is the authoritative value; the "Referred by …"
+             sentence Add Lead writes into locator_notes is a point-in-time
+             record and is deliberately NOT kept in sync with edits here. ── */}
+      {form.source === "referral" && (
+      <Group title="Referral">
+        <Full>
+          <input
+            className={inputCls}
+            placeholder="Referred by (name)"
+            value={form.referred_by || ""}
+            onChange={e => updateField("referred_by", e.target.value)}
+          />
         </Full>
       </Group>
       )}

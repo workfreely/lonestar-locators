@@ -45,6 +45,7 @@ import { resolveAgentIdentityForOwner } from "@/lib/notifications/agentSignature
 import { resolveClientType } from "@/lib/leads/leadClassification"
 import { shouldExitDemoOnLead, exitDemoModeForOwner } from "@/lib/demo/demoExit"
 import { resolveSupabaseProject } from "@/lib/supabase/projects"
+import { isValidUsPhone } from "@/lib/utils/formatPhone"
 
 // Server-only client — SUPABASE_SERVICE_ROLE_KEY has no NEXT_PUBLIC_
 // prefix, so it is never bundled into browser JS.
@@ -69,6 +70,10 @@ const STRING_FIELDS = [
   "notes", "website",
   "lead_type", "lead_category",
   "source", "landing_page", "referrer_url",
+  // Who referred this client (paired with source = "referral"). Like `source`,
+  // deliberately ABSENT from SCALAR_LABELS, so a resubmission can never
+  // overwrite a name the locator already typed.
+  "referred_by",
   "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "fbclid",
   // Stable Meta campaign/ad ids (canonical join to ad performance) + display-only name snapshots,
   // captured from the ad destination URL by the Smart Lead Form. Attribution → NOT in SCALAR_LABELS,
@@ -94,7 +99,7 @@ const MAX_LENGTH_SHORT = 120 // for fields that are realistically short (names, 
 
 const SHORT_FIELD_SET = new Set([
   "first_name", "last_name", "phone", "email", "credit_score",
-  "beds", "baths", "lead_type", "lead_category", "source",
+  "beds", "baths", "lead_type", "lead_category", "source", "referred_by",
   "device_type", "browser", "operating_system",
 ])
 
@@ -168,6 +173,19 @@ function validateAndBuildPayload(
 
   if (payload.email && typeof payload.email === "string" && !payload.email.includes("@")) {
     errors.push({ field: "email", message: "email is not valid" })
+  }
+
+  // Phone FORMAT. Presence is enforced by requiredFields above; this enforces
+  // that what arrived is a COMPLETE U.S. number. Previously phone was validated
+  // only for type and max length — the same loop that checks every string field
+  // — so a 9-digit number passed straight through and was stored verbatim.
+  // Locator Beast is U.S.-only for phone numbers: 10 digits, or 11 with the
+  // leading country code 1. Anything else is REJECTED, never truncated.
+  if (payload.phone && typeof payload.phone === "string" && !isValidUsPhone(payload.phone)) {
+    errors.push({
+      field: "phone",
+      message: "phone must be a complete 10-digit US number",
+    })
   }
 
   // lead_type describes the CLIENT, not the form. Locator Beast has ONE Smart

@@ -44,3 +44,25 @@ export function formatPhoneInput(raw: string): string {
 export function phoneDigitCount(raw: string): number {
   return (raw ?? "").replace(/\D/g, "").length
 }
+
+/**
+ * The ONE U.S. phone rule for the product. Locator Beast is U.S.-only for phone
+ * numbers: a valid value is exactly 10 significant digits, or 11 when the first
+ * is the U.S. country code 1.
+ *
+ * Everything else is REJECTED rather than coerced — an incomplete number and a
+ * non-U.S. number were both previously accepted and then silently mangled
+ * (formatPhoneInput strips "+" and slices to 10), producing stored numbers that
+ * can never be dialed and that disable duplicate detection (normalizeLead's
+ * normalizePhone returns null for anything that isn't 10 digits, so a short
+ * number can never match an existing lead).
+ *
+ * Blank is NOT handled here — callers decide whether a phone is required, so
+ * this stays a pure format check.
+ */
+export function isValidUsPhone(raw: string): boolean {
+  const digits = (raw ?? "").replace(/\D/g, "")
+  if (digits.length === 10) return true
+  if (digits.length === 11 && digits.startsWith("1")) return true
+  return false
+}

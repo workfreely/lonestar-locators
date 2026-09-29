@@ -5,6 +5,7 @@ import DatePicker from "react-datepicker"
 import "react-datepicker/dist/react-datepicker.css"
 import type { SmartLeadFormConfig } from "../../../_lib/types"
 import { collectLeadAttribution } from "@/lib/leads/attribution"
+import { isValidUsPhone } from "@/lib/utils/formatPhone"
 import { MARKETS, getMarketByName, marketsForSlugs } from "@/lib/markets/catalog"
 import SelectableGrid, { bulkButtonClass } from "./SelectableGrid"
 import { MUST_HAVE_AMENITIES, MAX_MUST_HAVE_AMENITIES } from "@bc/companion-shared"
@@ -269,6 +270,11 @@ export default function LeadFormFields({
 
     // ─── Validation — ported from LandingForm, gated by field visibility so a
     // hidden field can never block submission ───
+    // Phone is always collected and always required. The mask above keeps the
+    // shape valid; this catches an INCOMPLETE number, which the form previously
+    // accepted and posted.
+    if (!isValidUsPhone(formData.phone))
+      return alert("Please enter a complete 10-digit US phone number.")
     if (f.moveDate && !formData.moveDate) return alert("Please select your move date.")
     if (f.location && formData.neighborhoods.length + formData.submarkets.length === 0)
       return alert("Please select at least one preferred area.")
