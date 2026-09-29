@@ -299,9 +299,17 @@ export function headlineFit(text: string | null | undefined): HeadlineFit {
     if (parts) {
       const [l1, l2] = parts
       const p1 = fitCompoundHeroPx(l1), p2 = fitCompoundHeroPx(l2)
-      // fontPx is the block's NOMINAL size (the smaller line), which is what the existing hero detail
-      // coupling reads — so the price line stays subordinate to the smallest title line.
-      if (p1 !== null && p2 !== null) return { fontPx: Math.min(p1, p2), lines: [l1, l2], linePx: [p1, p2] }
+      // ONE SHARED SIZE for both lines. These are two lines of the SAME title, not a headline and a
+      // subtitle — sizing them independently (66 over 44) read as a subheading. So take the largest
+      // size at which BOTH complete lines fit the safe width, and apply it to both.
+      if (p1 !== null && p2 !== null) {
+        const shared = Math.min(p1, p2, HERO_MAX_PX)
+        // linePx stays per-line (both entries equal) because the explicit per-line tops are what make
+        // the preview and FFmpeg agree exactly: FFmpeg's multi-line spacing derives from the font's
+        // own ascent/descent, not fontPx + lineSpacing, so a single multi-line draw would place line 2
+        // at a y neither path could predict from the geometry.
+        return { fontPx: shared, lines: [l1, l2], linePx: [shared, shared] }
+      }
     }
     // No market prefix (the type alone): keep the single tested-floor fit rather than inventing a break.
     const onePx = fitCompoundHeroPx(t)

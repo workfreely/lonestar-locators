@@ -4,9 +4,12 @@
 //      pre-existing combo's 24. Forcing it onto ONE line fits only by dropping the hero to 30px, too
 //      small for a hero title; the plain char-wrap splits the qualifier off its head noun. So a
 //      compound hero is built as exactly TWO lines — market, then the COMPLETE compound type.
-//   2. PER-LINE sizing. Line 1 keeps the normal hero scale (66); line 2 starts there and shrinks only
-//      if the compound type exceeds the safe width. That needs per-line font sizes in one block,
-//      carried as OverlayBlock.linePx/lineTopPx and drawn as one unit per line in BOTH renderers.
+//   2. ONE SHARED size across both lines: the largest size at which BOTH complete lines fit the safe
+//      width (capped at the normal hero max). They are two lines of the SAME title, not a headline
+//      over a subtitle — sizing them independently (66 over 44) read as a subheading. The geometry is
+//      still carried per line (OverlayBlock.linePx/lineTopPx, both entries equal) and drawn as one
+//      unit per line in BOTH renderers, because explicit per-line tops are what make the CSS preview
+//      and FFmpeg agree exactly.
 // Both are gated on the compound qualifier, so pre-existing types are untouched — asserted below.
 // Run: npx tsx scripts/social/compoundTypes.test.ts
 import { readFileSync, readdirSync } from "node:fs"
@@ -74,15 +77,21 @@ ok("non-compound → null", splitCompoundHeadline("SAN ANTONIO TOWNHOMES") === n
 
 console.log("\nHERO (T1/T2/T4): compound titles are exactly TWO lines, market then complete type:")
 const HERO_TPLS = ["market_type", "market_type_centered", "special_feature"] as const
-let heroChecked = 0, twoLine = 0, line1Normal = 0, typeIntact = 0, detailOk = 0, stacked = 0
+let heroChecked = 0, twoLine = 0, sharedSize = 0, typeIntact = 0, detailOk = 0, stacked = 0, marketIndependent = 0
+const sizeByType = new Map<string, number>()
 for (const t of COMPOUND_TYPES) for (const m of MARKETS) for (const price of PRICES) for (const tpl of HERO_TPLS) {
   heroChecked++
   const s = meta(m, t, price)
   const L = computeOverlayLayout(tpl, buildTemplateHeadline(tpl, s), buildTemplateDetail(tpl, s))
   const h = L.headline
   if (h.lines.length === 2 && h.linePx?.length === 2 && h.lineTopPx?.length === 2) twoLine++
-  // Line 1 is the market at the NORMAL hero scale; it must never be shrunk for line 2's sake.
-  if (h.linePx?.[0] === HERO_MAX_PX && h.lines[0] === m.toUpperCase()) line1Normal++
+  // BOTH lines share ONE size, never exceeding the normal hero max — and line 1 is the market.
+  if (h.linePx?.[0] === h.linePx?.[1] && (h.linePx?.[0] ?? 0) <= HERO_MAX_PX && h.lines[0] === m.toUpperCase()) sharedSize++
+  // The shared size is set by whichever line is WIDER (in practice the compound type), so it must be
+  // the same for a given type regardless of market — a short market can't buy a bigger title.
+  const prev = sizeByType.get(t)
+  if (prev === undefined) sizeByType.set(t, h.linePx![0])
+  else if (prev === h.linePx![0]) marketIndependent++
   // Line 2 carries the COMPLETE compound type — qualifier and head noun together, never split.
   const expected2 = propertyNounPlural(t).toUpperCase()
   if (h.lines[1] === expected2 && (h.linePx?.[1] ?? 0) <= HERO_MAX_PX) typeIntact++
@@ -93,20 +102,22 @@ for (const t of COMPOUND_TYPES) for (const m of MARKETS) for (const price of PRI
     && (!L.detail || L.detail.topPx >= h.lineTopPx[1] + h.linePx![1])) stacked++
 }
 ok(`all ${heroChecked} compound hero combos render exactly TWO lines with per-line geometry`, twoLine === heroChecked)
-ok(`line 1 is the market at the normal hero scale (${HERO_MAX_PX}px) in all ${heroChecked}`, line1Normal === heroChecked)
+ok(`both title lines share ONE size (<= ${HERO_MAX_PX}px) in all ${heroChecked}`, sharedSize === heroChecked)
+ok("the shared size is driven by the widest line, not the market", marketIndependent === heroChecked - COMPOUND_TYPES.length)
 ok(`line 2 is the COMPLETE compound type, never split, in all ${heroChecked}`, typeIntact === heroChecked)
 ok(`detail stays a separate subordinate element in all ${heroChecked}`, detailOk === heroChecked)
 ok(`lines stack correctly and the detail clears them in all ${heroChecked}`, stacked === heroChecked)
 {
   // The two worst cases, stated concretely.
-  const cases: [string, number, number][] = [["Industrial-Style Apartment", 66, 44], ["Split-Level Penthouse", 66, 56]]
+  // Both lines at the size the WIDER line requires.
+  const cases: [string, number, number][] = [["Industrial-Style Apartment", 44, 44], ["Split-Level Penthouse", 56, 56]]
   for (const [type, want1, want2] of cases) {
     const s = meta("San Antonio", type, "$1,800 - $2,400")
     const L = computeOverlayLayout("market_type", buildTemplateHeadline("market_type", s), buildTemplateDetail("market_type", s))
-    ok(`${type}: "SAN ANTONIO" ${want1}px over "${propertyNounPlural(type).toUpperCase()}" ${want2}px`,
+    ok(`${type}: both lines at ${want1}px ("SAN ANTONIO" / "${propertyNounPlural(type).toUpperCase()}")`,
       JSON.stringify(L.headline.linePx) === JSON.stringify([want1, want2]))
   }
-  // Only line 2 shrinks: a compound type that already fits keeps BOTH lines at the hero max.
+  // A compound type that already fits keeps BOTH lines at the hero max.
   const fits = meta("San Antonio", "Split-Level Loft", null)
   const Lf = computeOverlayLayout("market_type", buildTemplateHeadline("market_type", fits), "")
   ok("a compound type that already fits keeps BOTH lines at the hero max", JSON.stringify(Lf.headline.linePx) === JSON.stringify([HERO_MAX_PX, HERO_MAX_PX]))
@@ -207,8 +218,8 @@ console.log("\nRENDER PLAN — the FFmpeg path draws the two title lines as two 
   const L = computeOverlayLayout("market_type", buildTemplateHeadline("market_type", s), buildTemplateDetail("market_type", s))
   const plan = buildDrawPlan(L)
   ok("compound hero becomes 2 title items + 1 detail item", plan.length === 3)
-  ok("title items carry the PER-LINE sizes, not the block's nominal size",
-    plan[0].fontPx === L.headline.linePx![0] && plan[1].fontPx === L.headline.linePx![1] && plan[0].fontPx !== plan[1].fontPx)
+  ok("both title items carry the SAME shared size",
+    plan[0].fontPx === L.headline.linePx![0] && plan[1].fontPx === L.headline.linePx![1] && plan[0].fontPx === plan[1].fontPx)
   ok("title items carry the per-line tops", plan[0].topPx === L.headline.lineTopPx![0] && plan[1].topPx === L.headline.lineTopPx![1])
   ok("each title item holds ONE line of text, already uppercased",
     plan[0].text === "SAN ANTONIO" && plan[1].text === "INDUSTRIAL-STYLE APARTMENTS" && !plan[0].text.includes("\n") && !plan[1].text.includes("\n"))
