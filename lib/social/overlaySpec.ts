@@ -264,22 +264,22 @@ function fitHookPx(text: string, maxPx: number, minPx: number = HOOK_FLOOR_PX): 
   return minPx
 }
 
-// Supporting/detail line for the center-hook family: a FLAT 24px.
+// Supporting/detail line for the center-hook family: a FLAT 27px, against a 28px hook.
 //
-// This was a 0.75 ratio off the hook, which produced 21px. Tested on real footage, 21px read as too
-// small for lines like "Starting at $1,500/mo". It is a flat constant rather than a re-tuned ratio
-// because the hook is now a fixed 28px ceiling that nothing in the sweep moves — a ratio here would
-// only ever be computing the same constant, with a magic 0.857 standing in for "24". Stating 24
-// directly is the honest version of the same result.
+// 28/27 is DELIBERATE and not an accident of some ratio. This started as a 0.75 ratio (21px), then a
+// flat 24px; both tested too small for lines like "Starting at $1,500/mo" on real mobile video.
+// Legibility on a phone outranks a numeric size hierarchy here — the supporting line is already
+// subordinate by placement (below the hook) and by content, so it does not need to be visibly smaller
+// to read as secondary. Do not "restore proportion" by shrinking this.
 //
-// The clamp is a safety rail, not the rule: if a hook ever does shrink below the ceiling (only
-// reachable by copy too long for the box even at 28px), the supporting line stays at least 2px under
-// it so it can never reach or pass the headline. Hero detail sizing (MARKET_TYPE_DETAIL_PX,
-// OVERLAY_SPEC.sub.fontPx) is NOT affected.
-const HOOK_DETAIL_PX = 24
+// The clamp is a safety rail, not the rule. It is hook − 1 rather than hook − 2 precisely so 27 is
+// reachable at the 28px ceiling, while still guaranteeing the supporting line stays STRICTLY under the
+// headline if a hook ever shrinks below the ceiling (only reachable by copy too long for the box even
+// at 28px). Hero detail sizing (MARKET_TYPE_DETAIL_PX, OVERLAY_SPEC.sub.fontPx) is NOT affected.
+const HOOK_DETAIL_PX = 27
 const HOOK_DETAIL_MIN_PX = 20
 function hookDetailPxFor(hookPx: number): number {
-  return Math.min(HOOK_DETAIL_PX, Math.max(HOOK_DETAIL_MIN_PX, hookPx - 2))
+  return Math.min(HOOK_DETAIL_PX, Math.max(HOOK_DETAIL_MIN_PX, hookPx - 1))
 }
 
 // Template 1 (market_type) renders its "Starting at $X/mo" detail LARGER than the shared HERO detail
