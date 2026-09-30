@@ -24,7 +24,10 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
   } catch {
     /* preview metadata must never fail the page */
   }
-  const title = agentName ? `${agentName} | Free Apartment Search` : "Free Apartment Search"
+  // Kept short deliberately: this is the line iMessage prints UNDER the image, where
+  // it is truncated with an ellipsis rather than wrapped. "Jay Morris | Free Search"
+  // is 24 characters and survives the narrowest preview width.
+  const title = agentName ? `${agentName} | Free Search` : "Free Search"
   return {
     metadataBase: new URL(CANONICAL_ORIGIN),
     title,

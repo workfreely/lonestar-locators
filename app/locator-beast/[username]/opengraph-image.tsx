@@ -15,7 +15,8 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 export const size = PREVIEW_SIZE
 export const contentType = PREVIEW_CONTENT_TYPE
-export const alt = "Start Your Apartment Search"
+const HEADLINE = "Start Your Apartment Search"
+export const alt = HEADLINE
 
 export default async function OgImage({ params }: { params: Promise<{ username: string }> }) {
   const { username } = await params
@@ -46,5 +47,27 @@ export default async function OgImage({ params }: { params: Promise<{ username: 
     /* preview must never throw — fall through to the safe fallback background */
   }
 
-  return renderPreviewImage({ headline: "Start Your Apartment Search", agentName, agentTitle, backgroundUrl, photoUrl })
+  return renderPreviewImage({
+    headline: HEADLINE,
+    agentName,
+    agentTitle,
+    backgroundUrl,
+    photoUrl,
+    // Same headline treatment as the recommendation preview, for the same reason:
+    // an iMessage bubble renders this image around 300px wide, a quarter scale at
+    // which the old 62px thin headline barely read. 74px + a 2px same-colour stroke
+    // is the pairing already proven there.
+    //
+    // The stroke is the only way to add weight: the bundled Satori face is
+    // noto-sans-v27-latin-REGULAR, its only weight, so fontWeight alone is inert.
+    //
+    // 74px measured through this renderer: "Start Your Apartment Search" occupies
+    // 950px of the 1040px budget (91%), so it stays on ONE line with 90px to spare.
+    // Deliberately NOT the /r size ladder — that is calibrated for "…'s Custom List"
+    // strings; this headline is fixed, so its size is measured once, here.
+    headlineSize: 74,
+    headlineStrokeWidth: 2,
+    // photoSize / agentNameSize / agentTitleSize deliberately omitted: the agent
+    // photo and identity are explicitly preserved at their current treatment.
+  })
 }
