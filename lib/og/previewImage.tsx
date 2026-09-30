@@ -60,15 +60,34 @@ async function headshotDataUrl(url: string | null): Promise<string | null> {
   }
 }
 
+// Default headline treatment = the Smart Form preview's existing one. Callers that
+// need more emphasis opt in; omitting these renders the identical tree as before.
+const HEADLINE_SIZE = 62
+const HEADLINE_STROKE = 0
+
 export async function renderPreviewImage(opts: {
   headline: string
   agentName: string
   agentTitle: string
   backgroundUrl: string | null
   photoUrl: string | null
+  /** Headline px. Caller's responsibility to pick one its longest headline fits at. */
+  headlineSize?: number
+  /**
+   * Faux-bold for the headline, in px of outline.
+   *
+   * The bundled Satori face is noto-sans-v27-latin-REGULAR — the only weight
+   * available — so `fontWeight` on these elements is inert: 800 and 900 render
+   * pixel-identical. A same-colour text stroke is therefore the only way to add
+   * weight without vendoring a second font file, and it is nearly free in a
+   * `nowrap` layout: measured at 74px, stroke 2 adds 36% ink for 2px of width.
+   */
+  headlineStrokeWidth?: number
 }): Promise<ImageResponse> {
   const [bg, headshot] = await Promise.all([bgDataUrl(opts.backgroundUrl), headshotDataUrl(opts.photoUrl)])
   const initial = (opts.agentName.trim().charAt(0) || "•").toUpperCase()
+  const headlineSize = opts.headlineSize ?? HEADLINE_SIZE
+  const headlineStroke = opts.headlineStrokeWidth ?? HEADLINE_STROKE
 
   return new ImageResponse(
     (
@@ -112,7 +131,21 @@ export async function renderPreviewImage(opts: {
           <div style={{ display: "flex", whiteSpace: "nowrap", marginTop: 16, fontSize: 27, fontWeight: 600, color: "#ffffff" }}>{opts.agentName}</div>
           <div style={{ display: "flex", whiteSpace: "nowrap", marginTop: 2, fontSize: 19, fontWeight: 500, color: "rgba(255,255,255,0.82)" }}>{opts.agentTitle}</div>
           {/* Personalized headline — the largest, most prominent element (with breathing room). */}
-          <div style={{ display: "flex", whiteSpace: "nowrap", marginTop: 44, fontSize: 62, fontWeight: 800, color: "#ffffff", letterSpacing: -1.5, lineHeight: 1.04 }}>
+          <div
+            style={{
+              display: "flex",
+              whiteSpace: "nowrap",
+              marginTop: 44,
+              fontSize: headlineSize,
+              fontWeight: 800,
+              color: "#ffffff",
+              letterSpacing: -1.5,
+              lineHeight: 1.04,
+              ...(headlineStroke > 0
+                ? { WebkitTextStrokeWidth: headlineStroke, WebkitTextStrokeColor: "#ffffff" }
+                : null),
+            }}
+          >
             {opts.headline}
           </div>
         </div>

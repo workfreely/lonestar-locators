@@ -18,7 +18,33 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 export const size = PREVIEW_SIZE
 export const contentType = PREVIEW_CONTENT_TYPE
-export const alt = "Your Custom Property List"
+export const alt = "Your Custom List"
+
+// The headline is `nowrap` inside a 1200px canvas with 80px of padding each side, so
+// 1040px is the hard budget and anything wider is CROPPED, not wrapped. These two
+// steps were measured by rendering through this same renderer and reading the ink
+// bounding box back out of the pixels — not estimated from character metrics:
+//
+//   26 chars  "Michelangelo’s Custom List"     74px →  898px (86%)
+//   25 chars  "Bartholomew’s Custom List"      74px →  904px (87%)
+//   29 chars  "Alexandria-Rose’s Custom List"  74px →  996px (96%) ← too tight
+//   29 chars  "Alexandria-Rose’s Custom List"  68px →  912px (88%)
+//
+// So 74px up to 26 characters, then step down. Both branches land near 87% of the
+// budget, leaving real headroom for a name the measurements never saw.
+const HEADLINE_PX = [
+  { maxChars: 26, size: 74 },
+  { maxChars: 30, size: 68 },
+  { maxChars: Infinity, size: 62 },
+]
+// Same-colour outline = faux-bold. The bundled Satori face is Noto Sans REGULAR, its
+// only weight, so `fontWeight` alone changes nothing (verified: 800 and 900 render
+// pixel-identical). 2px adds 36% ink for 2px of width.
+const HEADLINE_STROKE = 2
+
+export function headlineSizeFor(headline: string): number {
+  return (HEADLINE_PX.find((s) => headline.length <= s.maxChars) ?? HEADLINE_PX.at(-1)!).size
+}
 
 export default async function OgImage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
@@ -51,6 +77,16 @@ export default async function OgImage({ params }: { params: Promise<{ token: str
   }
 
   // Client-focused headline, personalized by first name; generic fallback when absent.
-  const headline = clientFirst ? `${clientFirst}’s Custom Property List` : "Your Custom Property List"
-  return renderPreviewImage({ headline, agentName, agentTitle, backgroundUrl, photoUrl })
+  // Shorter than "…Custom Property List" so the NAME — the part that has to land in a
+  // thumbnail-sized iMessage preview — gets the width, and can be set larger.
+  const headline = clientFirst ? `${clientFirst}’s Custom List` : "Your Custom List"
+  return renderPreviewImage({
+    headline,
+    agentName,
+    agentTitle,
+    backgroundUrl,
+    photoUrl,
+    headlineSize: headlineSizeFor(headline),
+    headlineStrokeWidth: HEADLINE_STROKE,
+  })
 }

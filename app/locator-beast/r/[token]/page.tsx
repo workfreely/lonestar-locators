@@ -48,7 +48,10 @@ export async function generateMetadata({
   // crawlers get it without running client JS. The visual is the per-share
   // opengraph-image.tsx (Next wires og:image/twitter:image from it automatically),
   // family-consistent with the Smart Form preview.
-  const genericTitle = "Your Custom Property List"
+  // Kept short deliberately: this is the line iMessage prints UNDER the image, where
+  // it is truncated with an ellipsis rather than wrapped. "Jay Morris | Your Custom
+  // List" is 31 characters and survives the narrowest preview width.
+  const genericTitle = "Your Custom List"
   const base = {
     metadataBase: new URL(CANONICAL_ORIGIN),
     title: genericTitle,
@@ -67,7 +70,7 @@ export async function generateMetadata({
   }
   // Locator-branded, image-first preview. NO description (the image carries the
   // message). NEVER any client data in the title.
-  const title = agentName ? `${agentName} | Your Custom Property List` : genericTitle
+  const title = agentName ? `${agentName} | ${genericTitle}` : genericTitle
   return {
     ...base,
     title,
