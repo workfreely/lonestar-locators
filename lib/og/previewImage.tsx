@@ -42,12 +42,12 @@ async function bgDataUrl(backgroundUrl: string | null): Promise<string> {
 }
 
 // Circle-cropped headshot → PNG data URL, or null (caller shows an initials circle).
-async function headshotDataUrl(url: string | null): Promise<string | null> {
+async function headshotDataUrl(url: string | null, decodePx: number): Promise<string | null> {
   if (!url) return null
   try {
     const r = await fetch(url)
     if (!r.ok) return null
-    const D = 260 // 2× the rendered 130px for crispness
+    const D = decodePx
     const circle = Buffer.from(`<svg width="${D}" height="${D}"><circle cx="${D / 2}" cy="${D / 2}" r="${D / 2}" fill="#fff"/></svg>`)
     const out = await sharp(Buffer.from(await r.arrayBuffer()))
       .resize(D, D, { fit: "cover" })
@@ -64,6 +64,16 @@ async function headshotDataUrl(url: string | null): Promise<string | null> {
 // need more emphasis opt in; omitting these renders the identical tree as before.
 const HEADLINE_SIZE = 62
 const HEADLINE_STROKE = 0
+const PHOTO_SIZE = 132
+const AGENT_NAME_SIZE = 27
+const AGENT_TITLE_SIZE = 19
+// The historical decode for the default photo. Left exactly as it was rather than
+// recomputed as 2×132: it would become 264, and a 4px change in the sharp resample
+// alters the rendered headshot's pixels (measured: 0.6% of the image, max channel
+// delta 22/255) — invisible, but it would still mean an untouched caller's preview
+// was no longer byte-identical. A caller that asks for a bigger photo gets a
+// correspondingly bigger decode instead of being upscaled from this one.
+const DEFAULT_HEADSHOT_DECODE = 260
 
 export async function renderPreviewImage(opts: {
   headline: string
@@ -83,11 +93,31 @@ export async function renderPreviewImage(opts: {
    * `nowrap` layout: measured at 74px, stroke 2 adds 36% ink for 2px of width.
    */
   headlineStrokeWidth?: number
+  /**
+   * Agent identity sizing — photo diameter, name px, title px.
+   *
+   * Separate knobs rather than one scale factor because they do NOT move
+   * together: at link-preview thumbnail size the title is the first thing to
+   * become unreadable, so it needs the largest multiplier, while the name is
+   * already legible and only needs enough growth to stay proportionate.
+   */
+  photoSize?: number
+  agentNameSize?: number
+  agentTitleSize?: number
 }): Promise<ImageResponse> {
-  const [bg, headshot] = await Promise.all([bgDataUrl(opts.backgroundUrl), headshotDataUrl(opts.photoUrl)])
+  const photoSize = opts.photoSize ?? PHOTO_SIZE
+  const agentNameSize = opts.agentNameSize ?? AGENT_NAME_SIZE
+  const agentTitleSize = opts.agentTitleSize ?? AGENT_TITLE_SIZE
+  const [bg, headshot] = await Promise.all([
+    bgDataUrl(opts.backgroundUrl),
+    headshotDataUrl(opts.photoUrl, opts.photoSize ? opts.photoSize * 2 : DEFAULT_HEADSHOT_DECODE),
+  ])
   const initial = (opts.agentName.trim().charAt(0) || "•").toUpperCase()
   const headlineSize = opts.headlineSize ?? HEADLINE_SIZE
   const headlineStroke = opts.headlineStrokeWidth ?? HEADLINE_STROKE
+  // The ring reads as a hairline if it stays 5px on a photo twice the size, so it
+  // scales with the diameter (132 → 5, keeping the default render identical).
+  const photoBorder = Math.max(5, Math.round(photoSize / 26.4))
 
   return new ImageResponse(
     (
@@ -107,20 +137,21 @@ export async function renderPreviewImage(opts: {
         <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: "100%", height: "100%", padding: "0 80px" }}>
           {headshot ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={headshot} width={132} height={132} style={{ borderRadius: 132, border: "5px solid rgba(255,255,255,0.92)" }} alt="" />
+            <img src={headshot} width={photoSize} height={photoSize} style={{ borderRadius: photoSize, border: `${photoBorder}px solid rgba(255,255,255,0.92)` }} alt="" />
           ) : (
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                width: 132,
-                height: 132,
-                borderRadius: 132,
-                border: "5px solid rgba(255,255,255,0.92)",
+                width: photoSize,
+                height: photoSize,
+                borderRadius: photoSize,
+                border: `${photoBorder}px solid rgba(255,255,255,0.92)`,
                 background: "linear-gradient(135deg,#22406e,#16305a)",
                 color: "#fff",
-                fontSize: 60,
+                // The initial keeps its proportion within the circle (132 → 60).
+                fontSize: Math.round(photoSize * (60 / 132)),
                 fontWeight: 800,
               }}
             >
@@ -128,8 +159,8 @@ export async function renderPreviewImage(opts: {
             </div>
           )}
           {/* Agent identity — secondary. */}
-          <div style={{ display: "flex", whiteSpace: "nowrap", marginTop: 16, fontSize: 27, fontWeight: 600, color: "#ffffff" }}>{opts.agentName}</div>
-          <div style={{ display: "flex", whiteSpace: "nowrap", marginTop: 2, fontSize: 19, fontWeight: 500, color: "rgba(255,255,255,0.82)" }}>{opts.agentTitle}</div>
+          <div style={{ display: "flex", whiteSpace: "nowrap", marginTop: 16, fontSize: agentNameSize, fontWeight: 600, color: "#ffffff" }}>{opts.agentName}</div>
+          <div style={{ display: "flex", whiteSpace: "nowrap", marginTop: 2, fontSize: agentTitleSize, fontWeight: 500, color: "rgba(255,255,255,0.82)" }}>{opts.agentTitle}</div>
           {/* Personalized headline — the largest, most prominent element (with breathing room). */}
           <div
             style={{
