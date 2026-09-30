@@ -17,6 +17,8 @@ export default function OnboardingWizard({
   initialStep,
   initialData,
   licenseVerifiedAt,
+  licenseRejectedAt,
+  licenseRejectionReason,
 }: {
   userId: string;
   initialStep: number;
@@ -25,6 +27,13 @@ export default function OnboardingWizard({
    *  purpose: finish() spreads that object into a profiles UPDATE, and only the
    *  owner-only RPC may ever set this column. */
   licenseVerifiedAt: string | null;
+  /** profiles.license_rejected_at / license_rejection_reason — READ-ONLY for the
+   *  same reason, and enforced server-side: lb_guard_verified_license raises
+   *  license_rejection_readonly on any user write to either column. The trigger
+   *  also CLEARS them when a corrected number is saved, so the wizard never has
+   *  to. */
+  licenseRejectedAt: string | null;
+  licenseRejectionReason: string | null;
 }) {
   const router = useRouter();
   const [step, setStep] = useState(() => Math.min(Math.max(initialStep, 1), TOTAL_STEPS));
@@ -171,7 +180,15 @@ export default function OnboardingWizard({
             everywhere else. */}
         <div className={`w-full ${step === 2 ? "max-w-5xl" : "max-w-xl"}`}>
           {step === 1 && <Step1Welcome {...stepProps} />}
-          {step === 2 && <StepBusinessProfile {...stepProps} userId={userId} licenseVerifiedAt={licenseVerifiedAt} />}
+          {step === 2 && (
+            <StepBusinessProfile
+              {...stepProps}
+              userId={userId}
+              licenseVerifiedAt={licenseVerifiedAt}
+              licenseRejectedAt={licenseRejectedAt}
+              licenseRejectionReason={licenseRejectionReason}
+            />
+          )}
           {step === 3 && <StepConnect {...stepProps} />}
           {step === 4 && <StepBusinessGoals {...stepProps} />}
           {step === 5 && <StepTools {...stepProps} />}

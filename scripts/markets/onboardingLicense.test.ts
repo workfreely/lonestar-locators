@@ -35,7 +35,9 @@ console.log("\nthe verification stamp can never be written by the wizard:")
 ok("finish() still spreads OnboardingData into a profiles update", /update\(\{\s*\.\.\.data,/.test(wizard))
 ok("license_verified_at is NOT in OnboardingData", !/license_verified_at\s*:/.test(types))
 ok("it travels as a separate read-only prop instead", /licenseVerifiedAt: string \| null/.test(wizard))
-ok("the wizard passes it to the step", /<StepBusinessProfile [^>]*licenseVerifiedAt=\{licenseVerifiedAt\}/.test(wizard))
+// Pass 4 split the JSX across lines to carry the rejection props, so this tolerates
+// newlines inside the tag rather than asserting a single-line element.
+ok("the wizard passes it to the step", /<StepBusinessProfile[\s\S]{0,300}?licenseVerifiedAt=\{licenseVerifiedAt\}/.test(wizard))
 ok("it is never merged into the patched data", !/license_verified_at/.test(wizard))
 
 console.log("\nreuse + pre-populate (never re-ask for what is already known):")
@@ -67,8 +69,13 @@ ok("it reuses the screen's own label/input classes, not new ones",
 ok("the market selector markup is unchanged", /{stateMarkets\.map\(\(m\) => \{/.test(step))
 
 console.log("\nstatus derivation — none / Pending / Verified:")
-ok("verified renders the Verified chip", /licenseVerified \? \([\s\S]{0,260}Verified/.test(step))
-ok("a number with no verification renders Pending verification", /licenseNumber\.trim\(\) \?[\s\S]{0,260}Pending verification/.test(step))
+// Pass 4 moved the literal strings into lib/license/status.ts and the step now renders
+// {licenseLabel}. The four-state behaviour is covered by licenseStatusUi.test.ts; these
+// keep asserting the Pass 3 intent: verified is the green branch, anything else muted,
+// and an empty field shows nothing.
+ok("verified renders the green chip", /licenseStatusValue === "verified" \?[\s\S]{0,300}#0f9d58/.test(step))
+ok("the chip text comes from the shared label map, not a literal",
+  /\{licenseLabel\}/.test(step) && !/>\s*Pending verification\s*</.test(step))
 ok("an empty field renders no status at all", /: null\}/.test(step))
 ok("Verified reuses the Profile page's green treatment", /#0f9d58/.test(step) && /#0f9d58/.test(read("components/crm/profile/ProfileClient.tsx")))
 

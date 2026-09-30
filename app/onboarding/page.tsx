@@ -69,6 +69,8 @@ export default async function OnboardingPage() {
       initialStep={profile?.onboarding_step ?? 1}
       initialData={initialData}
       licenseVerifiedAt={profile?.license_verified_at ?? null}
+      licenseRejectedAt={profile?.license_rejected_at ?? null}
+      licenseRejectionReason={profile?.license_rejection_reason ?? null}
     />
   );
 }

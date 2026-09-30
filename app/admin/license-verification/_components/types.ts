@@ -10,4 +10,8 @@ export type LicenseRow = {
   signed_up_at: string | null
   /** Display-only referral context; null for a direct signup. */
   sponsor_name: string | null
+  /** Set by lb_reject_license. Mutually exclusive with license_verified_at — the
+   *  profiles_license_status_exclusive CHECK makes a both-set row impossible. */
+  license_rejected_at: string | null
+  license_rejection_reason: string | null
 }

@@ -13,14 +13,19 @@ import {
   isSupportedState,
 } from "./licenseLookups"
 import type { LicenseRow } from "./types"
+import { licenseStatus, LICENSE_STATUS_LABEL } from "@/lib/license/status"
 
 // Owner-only license review. Verification is manual by design — the owner opens the
 // issuing state's own registry, confirms the number, and records the result here.
 // There is no scraping and no third-party verification service.
 //
-// This page adds no verification state of its own: both actions call the existing
-// lb_verify_license / lb_unverify_license RPCs, which write the one universal field
-// (profiles.license_verified_at) and raise for anyone who is not the platform owner.
+// This page adds no verification state of its own: every action calls an existing
+// owner-only RPC — lb_verify_license / lb_unverify_license / lb_reject_license — each
+// of which raises for anyone who is not the platform owner. Verify and Reject are
+// mutually exclusive in the DATABASE, not merely here: each RPC clears the other's
+// column, and profiles_license_status_exclusive makes a both-set row impossible.
+// Statuses are derived by lib/license/status.ts, the same module the agent's own
+// onboarding and Profile screens use.
 // Referral membership is not read, shown, or affected anywhere on this page.
 
 function formatDate(iso: string | null): string {
@@ -34,21 +39,33 @@ export default function LicensePanel({ rows }: { rows: LicenseRow[] }) {
   const router = useRouter()
   const [busyUser, setBusyUser] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // The row whose reason box is open, and its draft. One at a time: rejecting is a
+  // deliberate act, and a second open box invites sending the wrong reason.
+  const [rejecting, setRejecting] = useState<string | null>(null)
+  const [reason, setReason] = useState("")
 
-  async function run(rpc: "lb_verify_license" | "lb_unverify_license", userId: string) {
+  async function run(
+    rpc: "lb_verify_license" | "lb_unverify_license" | "lb_reject_license",
+    userId: string,
+    args: Record<string, unknown> = {},
+  ) {
     if (busyUser) return
     setBusyUser(userId)
     setError(null)
-    const { error } = await supabase.rpc(rpc, { p_user: userId })
+    const { error } = await supabase.rpc(rpc, { p_user: userId, ...args })
     setBusyUser(null)
     if (error) {
       setError(
         error.message?.includes("license_number_missing")
           ? "That agent hasn't entered a license number yet."
-          : error.message || "Could not update that license.",
+          : error.message?.includes("rejection_reason_required")
+            ? "Add a short reason so the agent knows what to fix."
+            : error.message || "Could not update that license.",
       )
       return
     }
+    setRejecting(null)
+    setReason("")
     router.refresh()
   }
 
@@ -93,15 +110,64 @@ export default function LicensePanel({ rows }: { rows: LicenseRow[] }) {
     }
     // Nothing to verify against yet — the RPC would refuse, so no action is offered.
     if (!row.license_number?.trim()) return null
+
+    // The reason box replaces the pair while open: the only two choices that make
+    // sense mid-rejection are send and cancel.
+    if (rejecting === row.user_id) {
+      return (
+        <div className="flex items-center gap-1.5">
+          <input
+            autoFocus
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && reason.trim()) run("lb_reject_license", row.user_id, { p_reason: reason.trim() })
+              if (e.key === "Escape") { setRejecting(null); setReason("") }
+            }}
+            placeholder="What needs fixing?"
+            maxLength={300}
+            className="w-52 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] px-2.5 py-1.5 text-[12px] text-[var(--crm-text-primary)] outline-none placeholder:text-[var(--crm-text-muted)] focus:border-[var(--crm-text-muted)]"
+          />
+          <button
+            type="button"
+            disabled={busyUser !== null || !reason.trim()}
+            onClick={() => run("lb_reject_license", row.user_id, { p_reason: reason.trim() })}
+            className={`${CRM_SECONDARY_BUTTON} !px-3 !py-1.5 !text-[12px] disabled:opacity-40`}
+          >
+            {busyUser === row.user_id ? "…" : "Send"}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setRejecting(null); setReason("") }}
+            className="px-1.5 text-[12px] font-medium text-[var(--crm-text-muted)] transition-colors hover:text-[var(--crm-text-primary)]"
+          >
+            Cancel
+          </button>
+        </div>
+      )
+    }
+
     return (
-      <button
-        type="button"
-        disabled={busyUser !== null}
-        onClick={() => run("lb_verify_license", row.user_id)}
-        className={`${CRM_SECONDARY_BUTTON} !px-3.5 !py-1.5 !text-[12px]`}
-      >
-        {busyUser === row.user_id ? "…" : "Verify License"}
-      </button>
+      <>
+        <button
+          type="button"
+          disabled={busyUser !== null}
+          onClick={() => run("lb_verify_license", row.user_id)}
+          className={`${CRM_SECONDARY_BUTTON} !px-3.5 !py-1.5 !text-[12px]`}
+        >
+          {busyUser === row.user_id ? "…" : "Verify License"}
+        </button>
+        {/* Rejecting always takes a reason, so this opens the box rather than acting.
+            A plain link, not a second button: verifying is the common outcome. */}
+        <button
+          type="button"
+          disabled={busyUser !== null}
+          onClick={() => { setRejecting(row.user_id); setReason(row.license_rejection_reason ?? "") }}
+          className="text-[12px] font-medium text-[var(--crm-text-secondary)] underline decoration-[var(--crm-border)] underline-offset-2 transition-colors hover:text-[var(--crm-text-primary)]"
+        >
+          Needs correction
+        </button>
+      </>
     )
   }
 
@@ -149,11 +215,24 @@ function Group({
               name={r.display_name}
               photoUrl={r.photo_url}
               joinedDate={r.signed_up_at}
-              status={r.license_verified_at ? "verified" : "unverified"}
+              // Derived by the SAME function the two agent-facing screens use, so the
+              // owner can never see a different status than the agent does.
+              status={licenseStatus(r)}
               subtitle={subtitleFor(r)}
-              // Referral context only when a sponsor exists — a direct signup
-              // gets no badge at all.
-              meta={<ReferredByPill sponsorName={r.sponsor_name} />}
+              meta={
+                <>
+                  {/* Referral context only when a sponsor exists — a direct signup
+                      gets no badge at all. */}
+                  <ReferredByPill sponsorName={r.sponsor_name} />
+                  {/* The reason already sent, so the owner can see what they asked
+                      for without reopening the box. */}
+                  {licenseStatus(r) === "rejected" && r.license_rejection_reason?.trim() && (
+                    <span className="text-[11px] font-medium text-[var(--crm-text-muted)]">
+                      {r.license_rejection_reason.trim()}
+                    </span>
+                  )}
+                </>
+              }
               action={
                 <div className="flex flex-wrap items-center justify-end gap-2.5">
                   {lookupLink(r)}

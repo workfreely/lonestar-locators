@@ -2,23 +2,31 @@
 // name, joined date, and status badge. Uses the CRM design tokens. No actions —
 // action buttons live in the admin panel.
 
-export type MemberStatus = "pending" | "active" | "inactive" | "verified" | "unverified"
+export type MemberStatus = "pending" | "active" | "inactive" | "verified" | "unverified" | "rejected"
 
-// `verified` / `unverified` are used by the owner-only License Verification page,
-// which reuses this same row. Purely additive — the three network statuses above
-// render exactly as before.
+// `verified` / `unverified` / `rejected` are used by the owner-only License
+// Verification page, which reuses this same row. Purely additive — the three network
+// statuses above render exactly as before.
 const STATUS_STYLES: Record<MemberStatus, string> = {
   active: "bg-emerald-500/15 text-emerald-400",
   pending: "bg-amber-500/15 text-amber-400",
   inactive: "bg-zinc-500/15 text-zinc-400",
   verified: "bg-emerald-500/15 text-emerald-400",
   unverified: "bg-zinc-500/15 text-zinc-400",
+  rejected: "bg-amber-500/15 text-amber-400",
+}
+
+// Only where capitalising the status is not the right words. The agent-facing wording
+// is "Needs correction" everywhere (lib/license/status.ts), so the owner sees the same
+// phrase the agent does rather than a harsher internal synonym.
+const STATUS_LABELS: Partial<Record<MemberStatus, string>> = {
+  rejected: "Needs correction",
 }
 
 export function StatusBadge({ status }: { status: string | null }) {
   const s = (status ?? "pending") as MemberStatus
   const cls = STATUS_STYLES[s] ?? STATUS_STYLES.pending
-  const label = s.charAt(0).toUpperCase() + s.slice(1)
+  const label = STATUS_LABELS[s] ?? s.charAt(0).toUpperCase() + s.slice(1)
   return (
     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${cls}`}>
       {label}

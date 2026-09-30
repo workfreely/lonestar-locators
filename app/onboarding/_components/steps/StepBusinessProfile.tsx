@@ -14,6 +14,13 @@ import {
   stateForMarkets,
   serviceAreasHelperText,
 } from "@/lib/markets/catalog";
+// Aliased: the component receives a `licenseRejectionReason` PROP, which would
+// otherwise shadow the derivation helper of the same name.
+import {
+  licenseStatus,
+  LICENSE_STATUS_LABEL,
+  licenseRejectionReason as rejectionReasonFor,
+} from "@/lib/license/status";
 import { formatPhoneInput } from "@/lib/utils/formatPhone";
 import { slugPreview } from "@/lib/slug/preview";
 import StepCard from "../StepCard";
@@ -42,7 +49,14 @@ export default function StepBusinessProfile({
   onBack,
   saving,
   licenseVerifiedAt,
-}: StepProps & { userId: string; licenseVerifiedAt: string | null }) {
+  licenseRejectedAt,
+  licenseRejectionReason,
+}: StepProps & {
+  userId: string;
+  licenseVerifiedAt: string | null;
+  licenseRejectedAt: string | null;
+  licenseRejectionReason: string | null;
+}) {
   const [firstName, setFirstName] = useState(data.first_name);
   const [lastName, setLastName] = useState(data.last_name);
   const [email, setEmail] = useState(data.email);
@@ -53,6 +67,23 @@ export default function StepBusinessProfile({
   const [licenseNumber, setLicenseNumber] = useState(data.license_number);
   // Verification is owner-granted and DB-protected; this screen only reflects it.
   const licenseVerified = !!licenseVerifiedAt;
+  // ONE derivation, shared with Profile and the owner panel (lib/license/status.ts),
+  // so the three surfaces can never disagree about what a row means.
+  //
+  // The rejection is dropped from the input once the agent edits the number, because
+  // lb_guard_verified_license clears those columns the moment a corrected number is
+  // saved. Showing "Pending verification" mid-correction is therefore not optimism —
+  // it is the state the write is guaranteed to land in.
+  const licenseCorrected = licenseNumber.trim() !== data.license_number.trim();
+  const licenseFields = {
+    license_number: licenseNumber,
+    license_verified_at: licenseVerifiedAt,
+    license_rejected_at: licenseCorrected ? null : licenseRejectedAt,
+    license_rejection_reason: licenseCorrected ? null : licenseRejectionReason,
+  };
+  const licenseStatusValue = licenseStatus(licenseFields);
+  const licenseLabel = LICENSE_STATUS_LABEL[licenseStatusValue];
+  const licenseReason = rejectionReasonFor(licenseFields);
   // Surfaced when the photo reached storage but its URL could not be saved to the
   // profile — the upload must NOT look successful in that case (requirement C9).
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -381,17 +412,25 @@ export default function StepBusinessProfile({
                 autoComplete="off"
                 className={`${inputClass}${licenseVerified ? " cursor-not-allowed opacity-70" : ""}`}
               />
-              {licenseVerified ? (
+              {/* Verified keeps its green treatment. Pending and Needs correction
+                  share the screen's existing muted chip — a rejection is a normal
+                  step in review, not an error state, so it gets no red. */}
+              {licenseStatusValue === "verified" ? (
                 <span className="inline-flex flex-none items-center gap-1 rounded-full border border-[#0f9d58]/30 bg-[#0f9d58]/10 px-2.5 py-1 text-[12px] font-semibold text-[#0f9d58]">
-                  Verified
+                  {licenseLabel}
                 </span>
-              ) : licenseNumber.trim() ? (
+              ) : licenseLabel ? (
                 <span className="inline-flex flex-none items-center rounded-full border border-[var(--beast-border)] px-2.5 py-1 text-[12px] font-semibold text-[var(--beast-ink-soft)]">
-                  Pending verification
+                  {licenseLabel}
                 </span>
               ) : null}
             </div>
-            {!licenseVerified && (
+            {/* The owner's reason, in the same muted helper style as the notice it
+                replaces — the agent needs to know what to fix, not two paragraphs. */}
+            {licenseReason && (
+              <p className="text-[12px] font-medium text-[var(--beast-ink-soft)]">{licenseReason}</p>
+            )}
+            {!licenseVerified && !licenseReason && (
               <p className="text-[12px] font-medium text-[var(--beast-ink-soft)]">
                 Licenses are verified within 3 business days and will not be displayed publicly by Locator Beast. Once verified, your license number cannot be changed.
               </p>

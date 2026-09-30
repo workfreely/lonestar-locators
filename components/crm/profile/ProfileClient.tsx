@@ -23,6 +23,12 @@ import {
   serviceAreasCountLabel,
   defaultThemeForMarkets,
 } from "@/lib/markets/catalog"
+// Aliased so the derivation helper cannot be shadowed by a local of the same name.
+import {
+  licenseStatus,
+  LICENSE_STATUS_LABEL,
+  licenseRejectionReason as rejectionReasonFor,
+} from "@/lib/license/status"
 
 // Shown wherever a workspace would be left serving no markets — the Service Areas
 // card and the Save handler. Kept as one constant so both read identically.
@@ -61,6 +67,10 @@ type ProfileInitial = {
   licenseState: string
   demoMode: boolean
   licenseVerifiedAt: string | null
+  /** Owner-granted, DB-protected. The trigger clears both when a corrected number
+   *  is saved, so this screen only ever reflects them. */
+  licenseRejectedAt: string | null
+  licenseRejectionReason: string | null
   phone: string
   email: string
   clientContactEmail: string
@@ -114,6 +124,24 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
   // Mutable: confirming a state change clears verification, and the UI must
   // immediately reflect that the new state needs verifying.
   const [licenseVerified, setLicenseVerified] = useState(!!initial.licenseVerifiedAt)
+  // Rejection is owner-granted and trigger-protected, exactly like verification.
+  // Mutable for the same reason: relicensing clears it server-side, and the UI must
+  // immediately stop claiming a correction is needed for a licence that is gone.
+  const [rejectedAt, setRejectedAt] = useState(initial.licenseRejectedAt)
+  const [rejectionReason, setRejectionReason] = useState(initial.licenseRejectionReason)
+  // ONE derivation, shared with onboarding and the owner panel (lib/license/status.ts).
+  // The rejection is dropped from the input once the number is edited, because
+  // lb_guard_verified_license clears those columns when a corrected number is saved —
+  // so "Pending verification" mid-correction is the state the write will land in.
+  const licenseCorrected = licenseNumber.trim() !== initial.licenseNumber.trim()
+  const licenseFields = {
+    license_number: licenseNumber,
+    license_verified_at: licenseVerified ? initial.licenseVerifiedAt : null,
+    license_rejected_at: licenseCorrected ? null : rejectedAt,
+    license_rejection_reason: licenseCorrected ? null : rejectionReason,
+  }
+  const licenseLabel = LICENSE_STATUS_LABEL[licenseStatus(licenseFields)]
+  const licenseReason = rejectionReasonFor(licenseFields)
   const [phone, setPhone] = useState(formatPhoneInput(initial.phone))
   const [email, setEmail] = useState(initial.email)
   const [clientContactEmail, setClientContactEmail] = useState(initial.clientContactEmail)
@@ -189,6 +217,13 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
       }
       setLicenseVerified(false)
       setLicenseNumber("")
+      // lb_change_license_state nulls the number and the stamp together, which is
+      // exactly the trigger's relicensing branch — and that branch also clears the
+      // rejection columns. A verified licence can never carry a rejection (the
+      // profiles_license_status_exclusive CHECK forbids it), so this is defensive:
+      // it keeps the UI honest if that invariant ever changes.
+      setRejectedAt(null)
+      setRejectionReason(null)
     }
 
     setServiceAreas((prev) => {
@@ -624,10 +659,14 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
           <div className="sm:col-span-12">
           <SettingsField
             label="License Number"
+            // The owner's reason replaces the generic notice: when there is something
+            // specific to fix, repeating the turnaround blurb underneath it is noise.
+            // Same muted hint style either way.
             hint={
-              licenseVerified
+              licenseReason ??
+              (licenseVerified
                 ? undefined
-                : "Licenses are verified within 3 business days and will not be displayed publicly by Locator Beast. Once verified, your license number cannot be changed."
+                : "Licenses are verified within 3 business days and will not be displayed publicly by Locator Beast. Once verified, your license number cannot be changed.")
             }
           >
             {licenseVerified ? (
@@ -640,15 +679,17 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
                 />
                 <span className="inline-flex flex-none items-center gap-1 rounded-full border border-[#0f9d58]/30 bg-[#0f9d58]/10 px-2.5 py-1 text-[12px] font-semibold text-[#0f9d58]">
                   <HiOutlineCheckBadge className="h-3.5 w-3.5" />
-                  Verified
+                  {licenseLabel}
                 </span>
               </div>
             ) : (
               <div className="flex items-center gap-2">
                 <input value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)} className={settingsInputCls} />
-                {licenseNumber.trim() && (
+                {/* Pending and Needs correction share this existing muted chip —
+                    a rejection is a step in review, not an error, so no red. */}
+                {licenseLabel && (
                   <span className="inline-flex flex-none items-center rounded-full border border-[#e5e7ee] bg-[#f4f5f8] px-2.5 py-1 text-[12px] font-semibold text-[#9098a8]">
-                    Pending verification
+                    {licenseLabel}
                   </span>
                 )}
               </div>
