@@ -320,6 +320,7 @@ const CSS = `
 .lbr-pill{font-size:13.5px}
 .lbr-view{font-size:17px}
 .lbr-disclaimer{font-size:16px}
+.lbr-disc-2{display:block}
 /* Heart — larger, unmistakable primary interaction (circle/position/behavior kept). */
 .lbr-heart{width:46px;height:46px}
 .lbr-heart svg{width:25px;height:25px}

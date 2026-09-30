@@ -390,7 +390,13 @@ export default function RecommendationList({
 
     {/* Pricing/availability qualifier — belongs with the property recommendations it qualifies,
         so it sits immediately after the grid and before the availability CTA. Subtle + secondary. */}
-    <p className="lbr-disclaimer">Pricing and availability subject to change. Specials may not be reflected in advertised rent.</p>
+    {/* Two spans, identical wording and spacing when inline. On mobile the second
+        becomes a block (.lbr-disc-2) so the sentences sit on their own lines; on
+        desktop it stays inline and the paragraph flows exactly as before. */}
+    <p className="lbr-disclaimer">
+      <span>Pricing and availability subject to change.</span>{" "}
+      <span className="lbr-disc-2">Specials may not be reflected in advertised rent.</span>
+    </p>
 
     {/* Done Selecting Favorites — the primary conversion CTA. Hidden at 0 favorites;
         NOT sticky. On success the Tour Availability modal opens immediately. */}
