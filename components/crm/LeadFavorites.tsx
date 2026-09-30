@@ -19,6 +19,7 @@ import { StarRating } from "./StarRating"
 import { attachCatalogRatings } from "@/lib/propertyExplorer/catalog"
 import { utcToLocalTourValue, favoriteTourStateLabel } from "@/lib/leads/tourFollowUp"
 import { formatDueDateTime } from "@/lib/actionDisplay"
+import { placeIdFromPropertyUrl } from "@/lib/propertyExplorer/types"
 
 // Human label for a picked "YYYY-MM-DDTHH:mm" wall-clock value (mirrors Add
 // Task's field label). The naive local string renders as-is — the same numbers
@@ -227,8 +228,25 @@ export default function LeadFavorites({
     // identity row, PROMOTE it in place to a genuine favorite (same id, all FKs
     // preserved); if it is already a genuine favorite, it is left as-is. Only entries
     // with no existing row are inserted.
-    const existingByUrl = (url: string) =>
-      favorites.find((f) => f.lead_id === lead.id && String(f.property_url ?? "") === String(url ?? "")) ?? null
+    // Matched on the CANONICAL KEY, not the raw URL string. lead_favorites has a
+    // unique index on (lead_id, canonical_property_key), and that column is
+    // GENERATED as 'pid:<place id>' when the URL carries one, else
+    // 'url:<lower(btrim(url))>'. Comparing raw URLs missed the case this pass
+    // creates: the same property added once from the property search (a
+    // '?q=place_id:' URL) and once from a pasted listing link resolve to the SAME
+    // place id, so a raw-string compare would have let both through and the insert
+    // would then fail on the index with a 23505 instead of deduping gracefully.
+    const canonicalKey = (url: string) => {
+      const u = String(url ?? "").trim()
+      if (!u) return ""
+      const pid = placeIdFromPropertyUrl(u)
+      return pid ? `pid:${pid}` : `url:${u.toLowerCase()}`
+    }
+    const existingByUrl = (url: string) => {
+      const key = canonicalKey(url)
+      if (!key) return null
+      return favorites.find((f) => f.lead_id === lead.id && canonicalKey(String(f.property_url ?? "")) === key) ?? null
+    }
     const toInsert = entries.filter((input) => !existingByUrl(input.propertyUrl || ""))
     const toPromote = entries
       .map((input) => existingByUrl(input.propertyUrl || ""))

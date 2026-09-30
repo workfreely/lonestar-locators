@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react"
 import { isValidUrl, normalizeUrl } from "@/lib/utils/isValidUrl"
+import PropertySearchField, { type PropertyMatch } from "@/components/crm/social/PropertySearchField"
+import { placeUrl } from "@/lib/propertyExplorer/types"
 
 export type FavoriteInput = {
   propertyName: string
@@ -24,9 +26,18 @@ type Slot = {
   // the edited favorite). Cleared when the URL is edited by hand so a stale image
   // never sticks to a new URL.
   image: string | null
+  /** What the locator is typing into the search box (not the saved name). */
+  query: string
+  /** Set once a canonical Google property is picked — the normal path. */
+  matched: boolean
+  /** Revealed by "Can't find it?" — the URL/manual path, for a property LB doesn't know. */
+  manual: boolean
 }
 
-const EMPTY_SLOT: Slot = { name: "", url: "", address: "", detection: "idle", image: null }
+const EMPTY_SLOT: Slot = {
+  name: "", url: "", address: "", detection: "idle", image: null,
+  query: "", matched: false, manual: false,
+}
 
 function isSlotEmpty(s: Slot) {
   return s.name.trim() === "" && s.url.trim() === ""
@@ -39,6 +50,9 @@ function isSlotEmpty(s: Slot) {
 // load-bearing here, not just decorative). A URL that's present but
 // malformed always blocks the slot, even if a name was also typed.
 function isSlotComplete(s: Slot) {
+  // A slot filled from the canonical property search is complete by construction:
+  // the name, address and place-id URL all came from the same Google record.
+  if (s.matched) return true
   const urlText = s.url.trim()
   if (urlText && !isValidUrl(urlText)) return false
   if (s.name.trim() !== "") return true
@@ -87,6 +101,11 @@ export default function FavoriteModal({
         // Carry the existing image so an edit that doesn't change the URL keeps it
         // (no re-fetch). Changing the URL clears it (see updateSlot) → re-detected.
         image: editing.property_image_url ?? null,
+        query: "",
+        // An existing favorite already resolved to a canonical place keeps its
+        // identity — don't force the locator to re-search to edit an address.
+        matched: /[?&]q=place_id:/.test(editing.property_url ?? ""),
+        manual: !/[?&]q=place_id:/.test(editing.property_url ?? ""),
       }])
     } else {
       setSlots(Array.from({ length: 3 }, () => ({ ...EMPTY_SLOT })))
@@ -106,6 +125,38 @@ export default function FavoriteModal({
       if (field === "url") return { ...s, url: value, detection: "idle", image: null }
       return { ...s, [field]: value }
     }))
+  }
+
+  /**
+   * A property picked from the canonical search — the NORMAL path.
+   *
+   * Everything Locator Beast already knows is filled in from the one Google
+   * record: name, address, and the canonical `?q=place_id:` URL, which is what
+   * lead_favorites.canonical_property_key is GENERATED from ('pid:<place id>').
+   * That single field is what later makes the catalog image, rating, website and
+   * commission resolve — and what dedupes the favorite against the same property
+   * added from anywhere else.
+   *
+   * No image is stored: property_catalog is the source of truth and
+   * attachCatalogRatings resolves it read-side on every render.
+   */
+  function selectMatch(index: number, m: PropertyMatch) {
+    setSlots((prev) => prev.map((s, i) => (i === index ? {
+      ...s,
+      name: m.name,
+      address: m.address ?? "",
+      url: placeUrl(m.placeId),
+      image: null,
+      detection: "idle" as DetectionState,
+      query: "",
+      matched: true,
+      manual: false,
+    } : s)))
+  }
+
+  /** Back to an empty search box — clears the whole resolved identity, never half. */
+  function clearMatch(index: number) {
+    setSlots((prev) => prev.map((s, i) => (i === index ? { ...EMPTY_SLOT } : s)))
   }
 
   async function runDetection(index: number, urlValue: string) {
@@ -199,57 +250,122 @@ export default function FavoriteModal({
               )}
 
               <div className="space-y-3">
-                <div>
-                  <label className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-1 block">
-                    Property URL
-                  </label>
-                  <input
-                    type="text"
-                    autoFocus={i === 0}
-                    value={slot.url}
-                    onChange={(e) => updateSlot(i, "url", e.target.value)}
-                    onBlur={(e) => runDetection(i, e.target.value)}
-                    onPaste={(e) => {
-                      const pasted = e.clipboardData.getData("text")
-                      if (isValidUrl(pasted)) setTimeout(() => runDetection(i, pasted), 0)
-                    }}
-                    placeholder="https://... (paste a listing link to auto-fill)"
-                    className="w-full text-[13px] border border-[var(--crm-border)] rounded-lg px-2.5 py-1.5 bg-[var(--crm-inset)] text-[var(--crm-text-primary)]"
-                  />
-                  {slot.detection === "detecting" && (
-                    <p className="text-[11px] text-[var(--crm-text-muted)] mt-1">Detecting property info…</p>
-                  )}
-                  {slot.detection === "success" && (
-                    <p className="text-[11px] text-emerald-600 font-medium mt-1">✓ Auto-filled from the property page</p>
-                  )}
-                  {slot.detection === "failed" && (
-                    <p className="text-[11px] text-amber-600 font-medium mt-1">Couldn't detect details — enter them manually</p>
-                  )}
-                </div>
+                {/* ── The NORMAL path: the SAME canonical property search the Map /
+                    Explorer, Guest Card guard and Social Autopilot already use. One
+                    implementation, not a second search system. Selecting a result
+                    fills everything Locator Beast already knows. ── */}
+                {!slot.manual && !slot.matched && (
+                  <div>
+                    <label className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-1 block">
+                      Search Property
+                    </label>
+                    <PropertySearchField
+                      value={slot.query}
+                      onChange={(v) => setSlots((prev) => prev.map((x, j) => (j === i ? { ...x, query: v } : x)))}
+                      onMatch={(m) => selectMatch(i, m)}
+                      placeholder="Start typing a property name…"
+                      inputClassName="w-full text-[13px] border border-[var(--crm-border)] rounded-lg px-2.5 py-1.5 bg-[var(--crm-inset)] text-[var(--crm-text-primary)]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setSlots((prev) => prev.map((x, j) => (j === i ? { ...x, manual: true } : x)))}
+                      className="mt-1.5 text-[11px] text-[var(--crm-text-muted)] underline decoration-[var(--crm-border)] underline-offset-2 hover:text-[var(--crm-text-primary)] transition-colors"
+                    >
+                      Can&apos;t find it? Add by URL instead
+                    </button>
+                  </div>
+                )}
 
-                <div>
-                  <label className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-1 block">
-                    Property Name
-                  </label>
-                  <input
-                    type="text"
-                    value={slot.name}
-                    onChange={(e) => updateSlot(i, "name", e.target.value)}
-                    className="w-full text-[13px] border border-[var(--crm-border)] rounded-lg px-2.5 py-1.5 bg-[var(--crm-inset)] text-[var(--crm-text-primary)]"
-                  />
-                </div>
+                {/* Resolved identity — shown, not re-typed. */}
+                {slot.matched && (
+                  <div className="rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] px-3 py-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 flex-none" />
+                          <span className="text-[13px] font-semibold text-[var(--crm-text-primary)] truncate">{slot.name}</span>
+                        </div>
+                        {slot.address && (
+                          <p className="text-[11.5px] text-[var(--crm-text-secondary)] mt-0.5 truncate">{slot.address}</p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => clearMatch(i)}
+                        className="flex-none text-[11px] text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)] transition-colors"
+                      >
+                        change
+                      </button>
+                    </div>
+                  </div>
+                )}
 
-                <div>
-                  <label className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-1 block">
-                    Property Address (optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={slot.address}
-                    onChange={(e) => updateSlot(i, "address", e.target.value)}
-                    className="w-full text-[13px] border border-[var(--crm-border)] rounded-lg px-2.5 py-1.5 bg-[var(--crm-inset)] text-[var(--crm-text-primary)]"
-                  />
-                </div>
+                {/* ── FALLBACK: a property Locator Beast genuinely does not know.
+                    Unchanged behaviour — paste a listing URL, auto-fill what can be
+                    determined, type the rest. ── */}
+                {slot.manual && (
+                  <>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest block">
+                          Property URL
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => clearMatch(i)}
+                          className="text-[11px] text-[var(--crm-text-muted)] underline decoration-[var(--crm-border)] underline-offset-2 hover:text-[var(--crm-text-primary)] transition-colors"
+                        >
+                          Search instead
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={slot.url}
+                        onChange={(e) => updateSlot(i, "url", e.target.value)}
+                        onBlur={(e) => runDetection(i, e.target.value)}
+                        onPaste={(e) => {
+                          const pasted = e.clipboardData.getData("text")
+                          if (isValidUrl(pasted)) setTimeout(() => runDetection(i, pasted), 0)
+                        }}
+                        placeholder="https://... (paste a listing link to auto-fill)"
+                        className="w-full text-[13px] border border-[var(--crm-border)] rounded-lg px-2.5 py-1.5 bg-[var(--crm-inset)] text-[var(--crm-text-primary)]"
+                      />
+                      {slot.detection === "detecting" && (
+                        <p className="text-[11px] text-[var(--crm-text-muted)] mt-1">Detecting property info…</p>
+                      )}
+                      {slot.detection === "success" && (
+                        <p className="text-[11px] text-emerald-600 font-medium mt-1">✓ Auto-filled from the property page</p>
+                      )}
+                      {slot.detection === "failed" && (
+                        <p className="text-[11px] text-amber-600 font-medium mt-1">Couldn&apos;t detect details — enter them manually</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-1 block">
+                        Property Name
+                      </label>
+                      <input
+                        type="text"
+                        value={slot.name}
+                        onChange={(e) => updateSlot(i, "name", e.target.value)}
+                        className="w-full text-[13px] border border-[var(--crm-border)] rounded-lg px-2.5 py-1.5 bg-[var(--crm-inset)] text-[var(--crm-text-primary)]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-1 block">
+                        Property Address (optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={slot.address}
+                        onChange={(e) => updateSlot(i, "address", e.target.value)}
+                        className="w-full text-[13px] border border-[var(--crm-border)] rounded-lg px-2.5 py-1.5 bg-[var(--crm-inset)] text-[var(--crm-text-primary)]"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
               {i < slots.length - 1 && <hr className="mt-4 border-[var(--crm-border-soft)]" />}
