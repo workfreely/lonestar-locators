@@ -523,6 +523,40 @@ export function isLaunchEnabledMarket(slug: string | null | undefined): boolean 
   return !!slug && LAUNCH_MARKET_SLUGS.has(slug)
 }
 
+// ── Launch-filtered views, for NORMAL LOCATOR-FACING surfaces ───────────────
+//
+// These are deliberately SEPARATE exports rather than a narrowing of
+// SUPPORTED_STATES / marketsForState / marketsForSlugs. Those three stay whole
+// because internal resolution depends on them: stateForMarkets backfills an
+// existing account's license_state from its saved markets, resolveMapMarket picks
+// the Explorer's opening market, and defaultThemeForMarkets derives a Smart Form's
+// hero image. Narrowing them would silently change all three for a legacy
+// non-Texas workspace, which is data behaviour, not display.
+//
+// So: user-facing pickers and public lists call the launch views below; internal
+// resolution and admin tooling keep reading the full registry.
+
+/** States offered to a normal locator at launch. Filtered SUPPORTED_STATES. */
+export const LAUNCH_SUPPORTED_STATES: SupportedState[] = SUPPORTED_STATES.filter((s) => isLaunchEnabledState(s.code))
+
+/** Markets offered for a state at launch — empty for a non-launch state. */
+export function launchMarketsForState(stateCode: string | null | undefined): Market[] {
+  return marketsForState(stateCode).filter((m) => isLaunchEnabledMarket(m.slug))
+}
+
+/**
+ * Resolve SAVED service-area slugs for DISPLAY, dropping anything not launch-enabled.
+ *
+ * This is what keeps a legacy stored value — the one workspace holding "chicago" —
+ * out of every locator- and client-facing surface WITHOUT touching the stored row.
+ * The row keeps its value; the product simply stops presenting it as an active
+ * market. Use this wherever saved areas are rendered; use marketsForSlugs when the
+ * caller needs the truth of what is stored.
+ */
+export function launchMarketsForSlugs(slugs: string[] | null | undefined): Market[] {
+  return marketsForSlugs(slugs).filter((m) => isLaunchEnabledMarket(m.slug))
+}
+
 /**
  * The single state a set of selected markets belongs to, or null when they span
  * several states or none are recognised.

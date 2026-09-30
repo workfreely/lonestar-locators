@@ -1,4 +1,4 @@
-import { SUPPORTED_MARKETS } from "@/lib/markets/catalog";
+import { LAUNCH_MARKETS } from "@/lib/markets/catalog";
 export const SITE_URL = "https://locatorbeast.com";
 export const SITE_NAME = "Locator Beast";
 export const SITE_TAGLINE = "The AI-powered CRM platform built for apartment locators.";
@@ -39,7 +39,7 @@ const STATE_NAMES: Record<string, string> = {
   TN: "Tennessee",
 };
 
-export const MARKETS: { state: string; cities: string[] }[] = SUPPORTED_MARKETS.reduce(
+export const MARKETS: { state: string; cities: string[] }[] = LAUNCH_MARKETS.reduce(
   (groups, market) => {
     // The catalog's order is authoritative and already grouped by state; an
     // unmapped state falls back to its code rather than disappearing.

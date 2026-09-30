@@ -14,8 +14,9 @@ import SettingsShell, {
 } from "@/components/crm/settings/SettingsShell"
 import {
   MAX_SERVICE_AREAS,
-  marketsForState,
-  marketsForSlugs,
+  launchMarketsForState,
+  launchMarketsForSlugs,
+  isLaunchEnabledState,
   reconcilePrimaryMarket,
   needsPrimaryMarketChoice,
   serviceAreasHelperText,
@@ -191,7 +192,11 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
     }
 
     setServiceAreas((prev) => {
-      const allowed = new Set(marketsForState(next).map((m) => m.slug))
+      // Launch-filtered: the state dropdown offers only launch states, so this keeps
+      // the new state's LAUNCH markets. A legacy non-launch selection drops out here
+      // the moment the user changes state — the stored row is only rewritten if they
+      // then save, which is their own explicit action.
+      const allowed = new Set(launchMarketsForState(next).map((m) => m.slug))
       const kept = prev.filter((slug) => allowed.has(slug))
       // Changing state replaces the whole market list, so a primary from the old
       // state is now incompatible. reconcile keeps it when it survived, auto-picks
@@ -599,7 +604,15 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
                 className={settingsInputCls}
               >
                 <option value="">Select a state</option>
-                {Object.entries(LICENSE_STATE_NAMES).map(([code, name]) => (
+                {/* Launch: only launch-enabled states are selectable. A legacy saved state
+                    (e.g. IL) is still RENDERED, disabled, so the control shows the account's
+                    real value rather than going blank — it simply cannot be chosen again. */}
+                {licenseState && !isLaunchEnabledState(licenseState) && (
+                  <option value={licenseState} disabled>
+                    {`${licenseState} — ${LICENSE_STATE_NAMES[licenseState] ?? licenseState}`}
+                  </option>
+                )}
+                {Object.entries(LICENSE_STATE_NAMES).filter(([code]) => isLaunchEnabledState(code)).map(([code, name]) => (
                   <option key={code} value={code}>
                     {name}
                   </option>
@@ -668,7 +681,7 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
             </p>
           )}
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {marketsForState(licenseState).map((m) => {
+            {launchMarketsForState(licenseState).map((m) => {
               const active = serviceAreas.includes(m.slug)
               // Every market stays visible at the cap; only the unselected ones
               // stop responding, so a user can always deselect and swap.
@@ -730,7 +743,7 @@ export default function ProfileClient({ userId, initial }: { userId: string; ini
                 </p>
               )}
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {marketsForSlugs(serviceAreas).map((m) => {
+                {launchMarketsForSlugs(serviceAreas).map((m) => {
                   const active = primaryMarket === m.slug
                   return (
                     <button

@@ -6,11 +6,11 @@ import { HiOutlineArrowUpTray } from "react-icons/hi2";
 import { supabase } from "@/lib/supabase/client";
 import {
   MAX_SERVICE_AREAS,
-  marketsForSlugs,
+  launchMarketsForSlugs,
   reconcilePrimaryMarket,
   needsPrimaryMarketChoice,
-  SUPPORTED_STATES,
-  marketsForState,
+  LAUNCH_SUPPORTED_STATES,
+  launchMarketsForState,
   stateForMarkets,
   serviceAreasHelperText,
 } from "@/lib/markets/catalog";
@@ -93,7 +93,7 @@ export default function StepBusinessProfile({
   // default, not a rule.
   // Markets are ALWAYS scoped to the selected state — cross-state selection is
   // not possible because the other states' markets are never rendered.
-  const stateMarkets = marketsForState(licenseState);
+  const stateMarkets = launchMarketsForState(licenseState);
   const hasMarket = selectedMarkets.length > 0;
   // Set the first time Continue is pressed. The market requirement itself is
   // unchanged — this only decides WHEN the agent is told about it, so an
@@ -345,7 +345,7 @@ export default function StepBusinessProfile({
                 className={`${inputClass} cursor-pointer`}
               >
                 <option value="">Select your state</option>
-                {SUPPORTED_STATES.map((st) => (
+                {LAUNCH_SUPPORTED_STATES.map((st) => (
                   <option key={st.code} value={st.code}>
                     {st.name}
                   </option>
@@ -420,7 +420,7 @@ export default function StepBusinessProfile({
                 Which market do you work in most often?
               </p>
               <div className="grid grid-cols-2 gap-2">
-                {marketsForSlugs(selectedMarkets).map((m) => {
+                {launchMarketsForSlugs(selectedMarkets).map((m) => {
                   const active = primaryMarket === m.slug;
                   return (
                     <button

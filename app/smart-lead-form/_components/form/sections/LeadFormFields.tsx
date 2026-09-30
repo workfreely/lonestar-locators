@@ -6,7 +6,7 @@ import "react-datepicker/dist/react-datepicker.css"
 import type { SmartLeadFormConfig } from "../../../_lib/types"
 import { collectLeadAttribution } from "@/lib/leads/attribution"
 import { isValidUsPhone } from "@/lib/utils/formatPhone"
-import { MARKETS, getMarketByName, marketsForSlugs } from "@/lib/markets/catalog"
+import { LAUNCH_MARKETS, getMarketByName, launchMarketsForSlugs } from "@/lib/markets/catalog"
 import SelectableGrid, { bulkButtonClass } from "./SelectableGrid"
 import { MUST_HAVE_AMENITIES, MAX_MUST_HAVE_AMENITIES } from "@bc/companion-shared"
 import {
@@ -156,11 +156,13 @@ export default function LeadFormFields({
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
-  // Cities shown = the workspace's selected markets (live). Fall back to the
-  // full catalog when no selection is provided (e.g. an unconfigured workspace
-  // or a bare editor preview) so the form is never empty.
-  const enabledMarkets =
-    serviceAreaSlugs && serviceAreaSlugs.length ? marketsForSlugs(serviceAreaSlugs) : MARKETS
+  // Cities shown = the workspace's selected markets (live), filtered to the
+  // LAUNCH-enabled set so a legacy saved value can never be advertised publicly.
+  // Fall back to the launch markets — never the full catalog — when that leaves
+  // nothing, which covers an unconfigured workspace, a bare editor preview, and a
+  // workspace whose only saved markets are non-launch.
+  const savedLaunchMarkets = launchMarketsForSlugs(serviceAreaSlugs)
+  const enabledMarkets = savedLaunchMarkets.length ? savedLaunchMarkets : LAUNCH_MARKETS
 
   const { buttonColor } = config.branding
   const { enabled: consentEnabled, text: consentText } = config.consent
