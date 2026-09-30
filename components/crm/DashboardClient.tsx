@@ -3179,21 +3179,24 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             recSpecial = specials?.hasRentConcession
               ? specials.special
               : (typeof pp.currentSpecial === "string" ? pp.currentSpecial.trim() || null : null)
+            // recSpecial still populates the card's own special field below — it is
+            // deliberately NOT a reason. See recommendationReasons.ts.
             recReasons = collectRecommendationReasons({
               amenities,
               locationMatch: location?.verdict === "good",
               budget,
               approvalReason: approval?.reason ?? null,
-              special: recSpecial,
             })
           } else {
             // Map/Explorer: Google data only — a grounded location reason + a real
             // special when present, and NO numeric rent (Google supplies none → NULL).
             const loc = assessLocationFit(pp, { city: lead?.city ?? null, desiredAreas: lead?.neighborhoods ?? lead?.submarkets ?? null })
             recSpecial = typeof pp.currentSpecial === "string" ? pp.currentSpecial.trim() || null : null
+            // Map/Explorer has only Google data. With specials no longer a reason,
+            // a property whose area does not match the client yields ZERO reasons —
+            // the correct outcome, and what the manual editor is for.
             recReasons = collectRecommendationReasons({
               locationMatch: loc?.tone === "match",
-              special: recSpecial,
             })
           }
         }
@@ -4171,6 +4174,28 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                   leftColumn={<>
                   <BestMatches
                     lead={selectedLead}
+                    // "Why I chose this for you" — writes the edited reasons to THIS
+                    // client's recommendation row only. Never a global property field,
+                    // so a reason like "Military discount" can never leak to another
+                    // client. Already-sent share snapshots are frozen and unaffected;
+                    // because lb_prepare_client_share fingerprints reasons, the NEXT
+                    // Send List mints a fresh snapshot carrying the edit.
+                    onSaveReasons={async (recommendationId, reasons) => {
+                      const { error } = await supabase
+                        .from("lead_recommendations")
+                        .update({ reasons })
+                        .eq("id", recommendationId)
+                      if (error) {
+                        console.error("[recommendations] save reasons failed:", error.message)
+                        return false
+                      }
+                      // Mirror locally so the row re-renders immediately — the edit
+                      // must survive without a refetch.
+                      setLocalRecommendations((prev: any[]) =>
+                        prev.map((row) => (String(row.id) === String(recommendationId) ? { ...row, reasons } : row)),
+                      )
+                      return true
+                    }}
                     // Favorites wins for a legacy duplicate — the same rule the
                     // Companion payload applies, so both surfaces agree. Presentation
                     // only; the stray row is removed by the next deliberate move.

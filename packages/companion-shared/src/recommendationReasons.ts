@@ -7,8 +7,18 @@
 // evaluator's scoring — a fragment appears only when its evaluator supplied real evidence.
 //
 // Ordering is deterministic and favors CLIENT-SPECIFIC matching (the client's own
-// must-have amenities, requested location, budget) over generic property marketing
-// (a concession). Capped at 3 to honor the lead_recommendations_reasons_max3 constraint.
+// must-have amenities, requested location, budget).
+//
+// V1 RULE — specials/concessions are NOT a reason family here. "Why I chose this for
+// you" answers how a property matches THIS client; a Look & Lease offer or gift card
+// is property marketing that already has its own place on the card, and repeating it
+// here produced cards whose only "reason" was a truncated promotion. Zero reasons is
+// the correct output when there is no client-specific evidence — it is more honest
+// than generic copy, and the locator can add real reasons by hand.
+//
+// Automatic generation is capped at 2 (mobile-first: two short fragments sit under the
+// Google rating without pushing the View Property button down). Manual editing may
+// store up to 3, the ceiling the lead_recommendations_reasons_max3 constraint enforces.
 
 export type ReasonEvidence = {
   /** evaluateAmenities output — the client's OWN must-haves the property confirms. */
@@ -19,8 +29,6 @@ export type ReasonEvidence = {
   budget?: string | null
   /** evaluateApproval reason ("1099 friendly", "Second chance"), when present. */
   approvalReason?: string | null
-  /** Resolved current concession display ("8 Weeks Free"), when present. */
-  special?: string | null
 }
 
 /** Join amenity labels into a natural phrase: [a] → "a", [a,b] → "a and b",
@@ -38,12 +46,19 @@ function joinAmenities(list: string[]): string {
  *   2) matches the client's requested location
  *   3) fits the client's budget
  *   4) approval-friendly management
- *   5) a current concession/special               (generic marketing)
+ *
+ * Specials are deliberately absent — see the note at the top of this file.
  *
  * Review quality is intentionally NOT a source here: there is no existing evidence-
  * gated rating rule to reuse, and a new rating threshold introduced solely for reasons
- * is out of scope. Fewer than three reasons is valid — slots are never padded.
+ * is out of scope. Fewer than two reasons is valid — slots are NEVER padded, and zero
+ * is a legitimate result.
  */
+/** Automatic generation ceiling. Manual editing allows up to MAX_REASONS. */
+export const AUTO_REASON_LIMIT = 2
+/** Hard ceiling, mirroring the lead_recommendations_reasons_max3 DB constraint. */
+export const MAX_REASONS = 3
+
 export function collectRecommendationReasons(e: ReasonEvidence): string[] {
   const out: string[] = []
 
@@ -62,10 +77,7 @@ export function collectRecommendationReasons(e: ReasonEvidence): string[] {
   const approval = (e.approvalReason ?? "").trim()
   if (approval) out.push(approval)
 
-  const special = (e.special ?? "").trim()
-  if (special) out.push(special)
-
-  // De-dupe case-insensitively (preserve first/highest-priority wording), cap at 3.
+  // De-dupe case-insensitively (preserve first/highest-priority wording), cap at 2.
   const seen = new Set<string>()
   const deduped: string[] = []
   for (const r of out) {
@@ -74,5 +86,5 @@ export function collectRecommendationReasons(e: ReasonEvidence): string[] {
     seen.add(key)
     deduped.push(r)
   }
-  return deduped.slice(0, 3)
+  return deduped.slice(0, AUTO_REASON_LIMIT)
 }

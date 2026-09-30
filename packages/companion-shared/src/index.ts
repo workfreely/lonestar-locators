@@ -288,7 +288,7 @@ export type { MoneyRange } from "./budget";
 
 // Phase 2A — grounded recommendation reasons: rank/cap the evidence-gated fragments
 // the evaluators already produce (no new scoring, no LLM, never fabricated).
-export { collectRecommendationReasons } from "./recommendationReasons";
+export { collectRecommendationReasons, AUTO_REASON_LIMIT, MAX_REASONS } from "./recommendationReasons";
 export type { ReasonEvidence } from "./recommendationReasons";
 
 // Overall Match % — composes the existing Location/Budget/Approval/Amenities signals
