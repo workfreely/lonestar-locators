@@ -86,10 +86,15 @@ ok("the DB guard trigger was NOT touched by this pass — protection stays serve
   !/lb_guard_verified_license/.test(step) && !/lb_guard_verified_license/.test(wizard))
 
 console.log("\nNO ACCESS GATING IN THIS PASS:")
-for (const [label, f] of [["middleware", "middleware.ts"], ["TS access helper", "lib/billing/access.ts"]] as const) {
+// middleware was in this list until PASS 7, which deliberately added the launch
+// licence gate there. The invariant that still holds — and still matters — is that
+// the BILLING helper stays licence-free: licence and entitlement compose at the call
+// site rather than one absorbing the other.
+for (const [label, f] of [["TS access helper", "lib/billing/access.ts"]] as const) {
   const src = strip(read(f))
   ok(`${label} carries no licence logic`, !/license_verified_at|licenseVerified|license_number/.test(src))
 }
+ok("Pass 3's own step still adds no access gating", !/passesLicenseGate|lb_workspace_has_access/.test(step))
 ok("the step starts/stops no trial", !/trial/i.test(step))
 ok("the step adds no verification redirect", !/verification-pending|\/verify/.test(step))
 

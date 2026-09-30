@@ -150,9 +150,13 @@ console.log("\nevery CSS variable the new markup uses actually resolves:")
 }
 
 console.log("\nSTILL OUT OF SCOPE — Pass 4 changed none of this:")
-for (const [label, f] of [["middleware", "middleware.ts"], ["access helper", "lib/billing/access.ts"]] as const) {
+// middleware was here until PASS 7 turned enforcement on. What must stay true is
+// that the BILLING helper never learns about licences.
+for (const [label, f] of [["access helper", "lib/billing/access.ts"]] as const) {
   ok(`${label} carries no licence logic`, !/license_verified_at|licenseVerified|license_rejected/.test(strip(read(f))))
 }
+ok("the Pass 4 UI surfaces still add no access gating",
+  !/passesLicenseGate/.test(step) && !/passesLicenseGate/.test(profile) && !/passesLicenseGate/.test(panel))
 ok("no trial is started or stopped by these screens", !/trial/i.test(step) && !/lb_start_trial|trial_ends_at/.test(profile))
 ok("no verification redirect was added", !/verification-pending/.test(step) && !/verification-pending/.test(profile))
 ok("the service-area write path is untouched",

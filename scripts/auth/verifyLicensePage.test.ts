@@ -90,7 +90,12 @@ async function main() {
     ok("the stored reason is rendered", /\{reason\}/.test(client))
     ok("status + reason come from the shared module, not a local re-derivation",
       /from "@\/lib\/license\/status"/.test(client) && /licenseStatus\(stored\)/.test(client) && !/"unsubmitted"\s*:/.test(client))
-    ok("the chip reuses LICENSE_STATUS_LABEL", /LICENSE_STATUS_LABEL\[status\]/.test(client))
+    // Pass 7 added the out_of_state page state, which is not a LicenseStatus, so the
+  // chip now reads a small local map BUILT FROM the shared labels.
+  ok("the chip still reuses LICENSE_STATUS_LABEL as its source",
+    /CHIP\[status\]/.test(client) &&
+    /unsubmitted: LICENSE_STATUS_LABEL\.unsubmitted/.test(client) &&
+    /rejected: LICENSE_STATUS_LABEL\.rejected/.test(client))
   }
 
   console.log("\n6. CORRECTING a rejection returns to Pending via the EXISTING trigger:")
@@ -120,11 +125,15 @@ async function main() {
     /from\("profiles"\)\s*\.update\(/.test(client) && /from\("profiles"\)/.test(strip(read("components/crm/profile/ProfileClient.tsx"))))
 
   console.log("\n7. A VERIFIED user never sees this page:")
-  ok("verified is redirected server-side", /if \(licenseStatus\(profile\) === "verified"\) redirect\(WORKSPACE\)/.test(page))
+  // Pass 7: the question became "does this user pass the launch gate?" so a verified
+  // NON-Texas licence stays here instead of bouncing.
+  ok("a user who PASSES the gate is redirected server-side",
+    /if \(passesLicenseGate\(profile\)\) redirect\(WORKSPACE\)/.test(page))
   ok("to the existing canonical destination, not a new one",
     /const WORKSPACE = "\/admin\/leads"/.test(page) && /redirect\("\/admin\/leads"\)/.test(strip(read("app/onboarding/page.tsx"))))
-  ok("the client component cannot render a verified state at all",
-    /license_verified_at: null/.test(client) && /"unsubmitted" \| "pending" \| "rejected"/.test(client))
+  ok("a verified TEXAS licence still never renders this page",
+    /if \(passesLicenseGate\(profile\)\) redirect\(WORKSPACE\)/.test(page) &&
+    /derived === "verified" \? "out_of_state" : derived/.test(client))
 
   console.log("\n8. NO TRIAL CHANGE:")
   for (const [label, src] of [["page", page], ["client", client]] as const) {
@@ -134,12 +143,14 @@ async function main() {
   }
 
   console.log("\n9. NO ENFORCEMENT ADDED:")
-  ok("middleware reads NO licence column",
-    !/license_verified_at|license_rejected_at|license_number|license_state/.test(mw))
-  ok("middleware routes nobody by licence status",
-    !/lib\/license\/status|licenseStatus|verify-license"\s*;?\s*$/m.test(mw) && !/pathname = "\/verify-license"/.test(mw))
-  ok("middleware's ONLY mention of the route is the two path patterns",
-    (mw.match(/verify-license/g) ?? []).length === 2)
+  // PASS 7 turned enforcement on, so these three inverted. Their replacements assert
+  // the same underlying safety: enforcement reads the ONE shared predicate and sends
+  // people to the ONE destination, rather than growing a second rule.
+  ok("enforcement reads the shared predicate, not a local licence check",
+    /passesLicenseGate\(profile\)/.test(mw) &&
+    !/license_verified_at\s*(!==|===)/.test(mw) && !/license_state\s*(!==|===)/.test(mw))
+  ok("there is exactly ONE licence redirect target", (mw.match(/VERIFY_LICENSE_PATH/g) ?? []).length === 2)
+  ok("the destination is still /verify-license", /const VERIFY_LICENSE_PATH = "\/verify-license"/.test(mw))
   ok("lb_workspace_has_access was not touched", !/lb_workspace_has_access/.test(page + client + mw))
   ok("getAccessState is still called exactly once in middleware, for billing",
     (mw.match(/getAccessState\(/g) ?? []).length === 1)
@@ -152,8 +163,8 @@ async function main() {
     /if \(!needsEntitlement\) return null;/.test(mw))
   ok("the auth decision has no extra term grafted on",
     /if \(needsAuth && signedOut\) \{/.test(mw))
-  ok("middleware still selects ONLY the three billing columns from profiles",
-    /\.select\("subscription_status, trial_ends_at, onboarding_completed"\)/.test(mw) &&
+  ok("middleware still makes exactly ONE profiles query, now serving both gates",
+    /subscription_status, trial_ends_at, onboarding_completed, license_verified_at, license_state, internal_demo_access/.test(mw) &&
     (mw.match(/from\("profiles"\)/g) ?? []).length === 1)
   ok("no other surface links users here yet (Pass 7 owns routing)", (() => {
     for (const f of ["components/crm/profile/ProfileClient.tsx", "app/onboarding/_components/steps/StepBusinessProfile.tsx",

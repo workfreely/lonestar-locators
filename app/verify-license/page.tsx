@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
-import { licenseStatus } from "@/lib/license/status"
+import { passesLicenseGate } from "@/lib/license/status"
 import VerifyLicenseClient from "./_components/VerifyLicenseClient"
 
 // PASS 6 — the licence-verification status destination for the AGENT.
@@ -35,13 +35,23 @@ export default async function VerifyLicensePage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("license_number, license_state, license_verified_at, license_rejected_at, license_rejection_reason")
+    .select(
+      "license_number, license_state, license_verified_at, license_rejected_at, license_rejection_reason, internal_demo_access",
+    )
     .eq("id", user.id)
     .single()
 
-  // A verified licence has nothing to do here. Server-side so the status page is
-  // never even painted for them.
-  if (licenseStatus(profile) === "verified") redirect(WORKSPACE)
+  // PASS 7 LOOP FIX. This asks the SAME question the middleware gate asks, so the
+  // two can never disagree about who belongs here.
+  //
+  // It used to redirect on `licenseStatus() === "verified"`, which was correct
+  // while nothing routed users here — but once middleware started sending
+  // ineligible users to /verify-license, a VERIFIED NON-TEXAS agent would bounce
+  // forever: middleware → /verify-license → (verified) → /admin/leads → middleware.
+  // Asking "does this user pass the gate?" instead of "is this licence verified?"
+  // closes that: a verified Illinois licence does not pass, so they stay here and
+  // get the out-of-state state below.
+  if (passesLicenseGate(profile)) redirect(WORKSPACE)
 
   return (
     <VerifyLicenseClient
@@ -51,6 +61,7 @@ export default async function VerifyLicensePage() {
         // Reuse what is already known. Texas is the launch state, but a legacy
         // profile carrying another state is SHOWN as it is rather than relabelled.
         licenseState: profile?.license_state ?? "",
+        licenseVerifiedAt: profile?.license_verified_at ?? null,
         licenseRejectedAt: profile?.license_rejected_at ?? null,
         licenseRejectionReason: profile?.license_rejection_reason ?? null,
       }}

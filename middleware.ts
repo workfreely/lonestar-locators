@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { getAccessState, type OrganizationStatus } from "@/lib/billing/access";
+import { passesLicenseGate } from "@/lib/license/status";
 import { looksLikeShareToken } from "@/lib/clientShare/tokenShape";
 
 // Locator Beast (B2B SaaS marketing site) is served from its own domain but
@@ -10,8 +11,11 @@ import { looksLikeShareToken } from "@/lib/clientShare/tokenShape";
 //
 // This middleware does three things:
 //   1) AUTHENTICATION — server-side session gate for the protected route groups.
-//   2) PREMIUM-ROUTE PROTECTION — server-side billing gate for the CRM (/admin).
-//   3) ROUTE MAPPING — host-based rewrite for the marketing tree (unchanged).
+//   2) LICENCE ELIGIBILITY — verified Texas licence (or the owner-granted demo
+//      exemption) before normal product access. Mirrored in SQL by
+//      lb_workspace_has_access, which gates the same accounts at the RLS layer.
+//   3) PREMIUM-ROUTE PROTECTION — server-side billing gate for the CRM (/admin).
+//   4) ROUTE MAPPING — host-based rewrite for the marketing tree (unchanged).
 // It does NOT control which visual layout renders — that is purely structural
 // (route groups + per-segment layouts).
 const LOCATOR_BEAST_HOST_PATTERN = /(^|\.)locatorbeast\.(com|app)$/i;
@@ -51,10 +55,10 @@ const BILLING_SETTINGS_PREFIX = "/admin/billing";
 // Lone Star tree. /api/* and /ai/* are deliberately untouched — those belong to the
 // later API security pass, and gating them here would change API contracts.
 // /verify-license is AUTHENTICATION-gated like the rest, and deliberately sits
-// OUTSIDE the entitlement gate — exactly like /billing. A user who has to resolve a
-// requirement must be able to reach the page that resolves it, whatever their
-// entitlement says. This adds no licence CONDITION anywhere: nothing in this file
-// reads a licence column or routes anyone based on one. Pass 7 owns that.
+// OUTSIDE both the entitlement gate and (via LICENSE_EXEMPT_PATTERN) the licence
+// gate — exactly like /billing. A user who has to resolve a requirement must be
+// able to reach the page that resolves it, whatever their entitlement or licence
+// says. Gating it would be a redirect loop, not a gate.
 const PROTECTED_PATH_PATTERN = /^\/(admin|onboarding|billing|verify-license|help)(\/|$)/;
 
 // Supabase sets the session as `sb-<ref>-auth-token`, chunked as `.0`, `.1`, … when
@@ -62,6 +66,36 @@ const PROTECTED_PATH_PATTERN = /^\/(admin|onboarding|billing|verify-license|help
 // could not verify right now", which is the difference between a correct redirect
 // and locking every user out during a Supabase incident.
 const AUTH_COOKIE_PATTERN = /^sb-.+-auth-token(\.\d+)?$/;
+
+// PASS 7 — routes an authenticated user may reach WITHOUT launch licence
+// eligibility. Everything else under PROTECTED_PATH_PATTERN now requires it.
+//
+// Each of these exists so the block can actually be resolved; without them the
+// gate is a trap rather than a gate:
+//   /verify-license            the destination itself — gating it is a loop
+//   /onboarding                where a NEW user first enters a licence number, and
+//                              the reason onboarding↔verify cannot ping-pong
+//   /billing, /admin/billing   billing resolution, already exempt from the
+//                              entitlement gate for the same reason
+//   /admin/profile             licence correction, and the ONLY place a verified
+//                              out-of-state agent can relicense to Texas
+//                              (lb_change_license_state)
+//   /admin/license-verification  the owner's review queue. This is the whole
+//                              admin exception: a path exemption, not an
+//                              is_platform_admin() bypass — so the owner can
+//                              always operate verification even if their own
+//                              licence lapsed, without granting admins a blanket
+//                              pass through user-facing logic. The page is
+//                              already owner-gated by its own redirect and by
+//                              lb_list_licenses raising not_authorized.
+//
+// Signing out needs no exemption: it is a client action in ProfileAvatarMenu,
+// reachable from /verify-license through AppHeader.
+const LICENSE_EXEMPT_PATTERN =
+  /^\/(verify-license|onboarding|billing|admin\/billing|admin\/profile|admin\/license-verification)(\/|$)/;
+
+// Where a user who fails licence eligibility is sent.
+const VERIFY_LICENSE_PATH = "/verify-license";
 
 // Server-side billing enforcement for the CRM. Returns a redirect response when
 // the signed-in user has no active trial/subscription, otherwise null (allow).
@@ -72,6 +106,9 @@ const AUTH_COOKIE_PATTERN = /^sb-.+-auth-token(\.\d+)?$/;
 async function appGate(request: NextRequest): Promise<NextResponse | null> {
   const { pathname } = request.nextUrl;
   const needsAuth = PROTECTED_PATH_PATTERN.test(pathname);
+  // PASS 7 — licence eligibility applies to every protected route except the ones
+  // that exist to resolve the block.
+  const needsLicense = needsAuth && !LICENSE_EXEMPT_PATTERN.test(pathname);
   // The premium gate's original scope, unchanged: /admin except /admin/billing.
   const needsEntitlement =
     pathname.startsWith(ADMIN_PREFIX) && !pathname.startsWith(BILLING_SETTINGS_PREFIX);
@@ -139,21 +176,25 @@ async function appGate(request: NextRequest): Promise<NextResponse | null> {
     return null;
   }
 
-  // ── 2. ENTITLEMENT ────────────────────────────────────────────────────────
-  // Everything below is the original billing gate, unchanged. A signed-in user who
-  // is not entitled still goes to /billing; authentication never implies access,
-  // and this pass adds NO licence condition of any kind.
-  if (!needsEntitlement) return null;
+  // ── 2. PROFILE ────────────────────────────────────────────────────────────
+  // Fetched ONCE and shared by the licence and entitlement steps below, so adding
+  // the licence gate costs no extra round trip on an /admin navigation.
+  if (!needsLicense && !needsEntitlement) return null;
 
   let profile: {
     subscription_status: string | null;
     trial_ends_at: string | null;
     onboarding_completed: boolean | null;
+    license_verified_at: string | null;
+    license_state: string | null;
+    internal_demo_access: boolean | null;
   } | null = null;
   try {
     const { data, error } = await supabase
       .from("profiles")
-      .select("subscription_status, trial_ends_at, onboarding_completed")
+      .select(
+        "subscription_status, trial_ends_at, onboarding_completed, license_verified_at, license_state, internal_demo_access",
+      )
       .eq("id", userId)
       .single();
     if (error) return null; // fail open
@@ -163,6 +204,32 @@ async function appGate(request: NextRequest): Promise<NextResponse | null> {
   }
 
   if (!profile) return null;
+
+  // ── 3. LICENCE ELIGIBILITY ────────────────────────────────────────────────
+  // The launch rule: a VERIFIED TEXAS licence, or the explicit owner-granted demo
+  // exemption. Derived by lib/license/status.ts, whose SQL mirror
+  // (lb_workspace_has_access) gates the same accounts' CRM rows at the RLS layer —
+  // so navigation and data can never disagree.
+  //
+  // Runs BEFORE entitlement and never consults it: a paid subscription does not
+  // make an unverified licence eligible. The converse is enforced by the
+  // entitlement step still running afterwards.
+  //
+  // Fails CLOSED, unlike the billing guards below. A licence is a positive fact
+  // that must be present; absence is an answer, not an error. The profile row was
+  // read successfully by this point — a failed READ already returned null above.
+  if (needsLicense && !passesLicenseGate(profile)) {
+    const verifyUrl = request.nextUrl.clone();
+    verifyUrl.pathname = VERIFY_LICENSE_PATH;
+    verifyUrl.search = "";
+    return NextResponse.redirect(verifyUrl);
+  }
+
+  // ── 4. ENTITLEMENT ────────────────────────────────────────────────────────
+  // Everything below is the original billing gate, unchanged. A signed-in user who
+  // is not entitled still goes to /billing — passing the licence gate above does
+  // NOT grant product access on its own.
+  if (!needsEntitlement) return null;
 
   // NO onboarding bypass. There used to be an `if (!profile.onboarding_completed)
   // return null` here, because the trial was granted at the END of onboarding —

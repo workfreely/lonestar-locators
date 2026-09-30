@@ -164,9 +164,17 @@ async function main() {
   {
     const src = readFileSync(path.join(process.cwd(), "middleware.ts"), "utf8")
     const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1")
-    ok("middleware reads NO licence column", !/license_verified_at|license_rejected_at|license_number|license_state/.test(code))
+    // PASS 7 legitimately added the licence gate. What Pass 5 actually guarantees is
+    // that AUTHENTICATION itself carries no licence term — an unauthenticated request
+    // is turned away for being unauthenticated, never for its licence.
+    ok("the AUTH decision carries no licence term", /if \(needsAuth && signedOut\) \{/.test(code))
+    // Compare against the CALL SITE, not the identifier — the import sits at the top
+    // of the file and would always "precede" the auth check.
+    ok("licence is evaluated strictly AFTER authentication",
+      code.indexOf("if (needsAuth && signedOut)") < code.indexOf("passesLicenseGate(profile)"))
     ok("middleware calls NO licence RPC", !/lb_verify_license|lb_reject_license|lb_list_licenses|lb_change_license_state/.test(code))
-    ok("middleware does not import the Pass 4 status module", !/lib\/license\/status/.test(code))
+    ok("the licence gate reuses the shared module rather than a second copy",
+      /from "@\/lib\/license\/status"/.test(code) && /passesLicenseGate\(profile\)/.test(code))
     ok("middleware adds no launch-market condition", !/LAUNCH_|isLaunchEnabled/.test(code))
 
     console.log("\n  entitlement + authorization preserved exactly:")
@@ -188,8 +196,10 @@ async function main() {
     // assertion here would still pass. (Found by mutation testing.)
     ok("the entitlement early-return is CONDITIONAL, not unconditional",
       /if \(!needsEntitlement\) return null;/.test(code))
+    // Pass 7 moved the profile fetch ABOVE the entitlement early-return so one query
+    // serves both gates; the guarantee is unchanged — billing still runs afterwards.
     ok("the billing gate is still reachable after the auth gate",
-      /if \(!needsEntitlement\) return null;[\s\S]{0,600}from\("profiles"\)[\s\S]{0,400}subscription_status/.test(code))
+      /if \(!needsEntitlement\) return null;[\s\S]{0,700}getAccessState\(\{/.test(code))
     ok("trial/subscription fields are untouched by this pass",
       /subscription_status, trial_ends_at, onboarding_completed/.test(code))
     ok("the session is resolved ONCE, not once per gate",

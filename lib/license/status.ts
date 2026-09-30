@@ -65,3 +65,55 @@ export function licenseRejectionReason(p: LicenseFields | null | undefined): str
 export function isLicenseEditable(p: LicenseFields | null | undefined): boolean {
   return licenseStatus(p) !== "verified"
 }
+
+// ── PASS 7: launch access eligibility ───────────────────────────────────────
+//
+// This is the TypeScript half of a rule that exists in exactly two places. The
+// other is public.lb_workspace_has_access (supabase/manual/20261001_pass7_*.sql),
+// which gates RLS on leads and the rest of the CRM tables. They MUST agree, so
+// this is written to mirror that SQL character for character:
+//
+//     ( license_verified_at is not null and license_state = 'TX' )
+//     or internal_demo_access
+//
+// The SQL half additionally ANDs the billing sources. Billing is NOT folded in
+// here on purpose — getAccessState already owns that decision, and composing the
+// two at the call site keeps "licence" and "entitlement" separately auditable.
+
+/** The one state Locator Beast has launched in. */
+export const LAUNCH_LICENSE_STATE = "TX"
+
+export type LaunchAccessFields = LicenseFields & {
+  license_state?: string | null
+  /** Owner-granted internal demo/training exemption. Trigger-protected: a user can
+   *  neither grant nor revoke it, so it is as trustworthy as license_verified_at. */
+  internal_demo_access?: boolean | null
+}
+
+/**
+ * The launch rule proper: verified AND Texas. Both halves are required, and the
+ * Pass 4 licence-state freeze is what makes the second half trustworthy — without
+ * it a verified out-of-state agent could flip license_state to 'TX' and keep the
+ * verification stamp.
+ *
+ * Compared with EXACT equality, deliberately: the license_state CHECK constraint
+ * admits only the uppercase two-letter codes, so normalising here would only make
+ * TypeScript MORE permissive than the SQL — the one direction that matters, since
+ * it would let someone navigate into a CRM whose rows RLS then hides.
+ */
+export function hasVerifiedLaunchLicense(p: LaunchAccessFields | null | undefined): boolean {
+  return licenseStatus(p) === "verified" && p?.license_state === LAUNCH_LICENSE_STATE
+}
+
+/**
+ * Licence eligibility as the access gate asks it: the launch rule, or the explicit
+ * owner-granted demo exemption.
+ *
+ * `=== true` is deliberate — only a real boolean grants, never a merely truthy
+ * value, and never `undefined` from a caller that forgot to select the column.
+ *
+ * This says nothing about billing. `signed in → this → getAccessState → product`.
+ */
+export function passesLicenseGate(p: LaunchAccessFields | null | undefined): boolean {
+  return hasVerifiedLaunchLicense(p) || p?.internal_demo_access === true
+}
