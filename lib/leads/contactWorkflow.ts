@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase/client"
+import { CONTACT_CHASE_FOLLOW_UP_KEYS } from "./contactChase"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
@@ -115,7 +116,7 @@ export function recordFirstContact(opts: {
         .update({ status: "canceled" })
         .eq("lead_id", lead.id)
         .eq("status", "open")
-        .in("action_key", ["contact_follow_up_1", "contact_follow_up_2", "contact_follow_up_3"])
+        .in("action_key", [...CONTACT_CHASE_FOLLOW_UP_KEYS])
       if (cancelErr) console.error("[first-contact] cancel Contact FU failed:", cancelErr)
 
       const created = await createWorkflowActionIfNeeded(supabase, lead.id, {

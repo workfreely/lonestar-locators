@@ -84,6 +84,7 @@ export default function LeadBoard({
   activeCompanionLeadId,
   onSelectLead,
   onWorkflowAction,
+  onActionsCanceled,
   onInitiateContact,
   onPutOnHold,
   onResumeLead,
@@ -128,6 +129,10 @@ export default function LeadBoard({
   // drag-triggered stage change — lets the caller mirror it into local
   // next-actions state and surface the "✓ Next Action Created" toast.
   onWorkflowAction?: (action: any) => void
+  // Ids of next-actions the stage change RETIRED server-side (the pre-list contact
+  // chase, once a lead reaches Searching). The caller mirrors them into local
+  // state so a retired action stops being listed as open without a refetch.
+  onActionsCanceled?: (ids: Array<number | string>) => void
   // A New→Contacted drag hands off here instead of advancing the lead: the
   // caller selects it as the active Companion client and initiates the canonical
   // Contact Lead flow in Companion (call/text chooser → result confirmation).
@@ -425,6 +430,9 @@ export default function LeadBoard({
     // new stage has a rule and none already exists) and returns it here.
     const json = await res.json().catch(() => null)
     if (json?.workflowAction) onWorkflowAction?.(json.workflowAction)
+    // The pre-list contact chase is retired server-side once a lead reaches
+    // Searching; mirror that locally so the open panel stops listing it.
+    if (json?.canceledActionIds?.length) onActionsCanceled?.(json.canceledActionIds)
   }
 
   // A card's archive icon opens the confirmation dialog — the actual archive

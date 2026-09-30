@@ -9,6 +9,7 @@ import { updateGoogleContactNotes } from "@/lib/google/updateContactNotes"
 import { getOAuthClient } from "@/lib/google/getOAuthClient"
 import { createListSentCalendarEvent } from "@/lib/google/createCalendarEvent"
 import { getStageWorkflowAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
+import { CONTACT_CHASE_ACTION_KEYS, STAGES_PAST_CONTACT_CHASE } from "@/lib/leads/contactChase"
 import { resolveUserTimeZone } from "@/lib/timezone/server"
 import { resolveWorkHoursFromProfile } from "@/lib/workflow/autoDueDate"
 import {
@@ -271,6 +272,49 @@ export async function POST(request: Request) {
     }
 
     // =====================================================
+    // SIDE-EFFECT 0b — RETIRE THE PRE-LIST CONTACT CHASE (blocking)
+    //
+    // Once a lead reaches Searching it is no longer being chased for a first
+    // reply, so the pre-list chase (Contact Lead → 2nd/3rd/Final Contact Attempt)
+    // is finished. Its rows were previously left OPEN forever: ranking demoted
+    // them to background so they rarely surfaced as Primary, but they stayed open,
+    // kept appearing in other-action lists, and could resurface as Primary in any
+    // state with no foreground map. Four production leads had accumulated them,
+    // including two CLOSED ones still carrying an open "Contact Lead".
+    //
+    // This mirrors what contactWorkflow.ts already does when a lead is REACHED
+    // mid-chase — same 'canceled' status, which rankLeadActions already treats as
+    // a closed state. Nothing is deleted, so a genuine workflow regression can
+    // still make an earlier action relevant again.
+    //
+    // DELIBERATELY NARROW — an explicit list of four keys, NOT "everything outside
+    // the new stage's foreground set". A foreground sweep would break the Build
+    // List START move, which is exactly `contacted → searching` with
+    // skipWorkflowAction and relies on build_list staying OPEN in Searching. It
+    // would also hit per-property email_guest_card rows and the applied→denied
+    // regression, where foreground membership is not a safe proxy for "stale".
+    //
+    // Runs regardless of skipWorkflowAction: that flag suppresses the SUCCESSOR
+    // action for this transition, not the retirement of a finished sequence.
+    // The ids are returned so the client can retire the same rows in its local
+    // state immediately. Without that the panel keeps them as OPEN until the next
+    // refetch and can still list a retired "2nd Contact Attempt" beside Send List.
+    let canceledActionIds: Array<number | string> = []
+    if (oldStage !== crm_status && STAGES_PAST_CONTACT_CHASE.has(crm_status)) {
+      const { data: canceled, error: chaseErr } = await supabaseAdmin
+        .from("lead_next_actions")
+        .update({ status: "canceled" })
+        .eq("lead_id", leadId)
+        .eq("status", "open")
+        .in("action_key", CONTACT_CHASE_ACTION_KEYS)
+        .select("id")
+      // Non-fatal: a stale open chase row is a display nuisance, never a reason to
+      // fail the stage change the locator just made.
+      if (chaseErr) console.error("[stage-sync] contact-chase cleanup failed:", chaseErr)
+      else canceledActionIds = (canceled ?? []).map((r: { id: number | string }) => r.id)
+    }
+
+    // =====================================================
     // SIDE-EFFECT 1 — GOOGLE CONTACT SYNC (non-blocking)
     // Failure here must NEVER prevent the calendar event.
     // =====================================================
@@ -347,7 +391,7 @@ export async function POST(request: Request) {
       console.log(`📋 [stage-sync] List Sent calendar skipped — oldStage: ${oldStage}, newStage: ${crm_status}`)
     }
 
-    return NextResponse.json({ success: true, workflowAction })
+    return NextResponse.json({ success: true, workflowAction, canceledActionIds })
   } catch (error) {
     return NextResponse.json(
       { error: "Unexpected server error" },

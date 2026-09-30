@@ -3896,6 +3896,15 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           className={`relative z-10 flex-1 overflow-hidden block ${demoMode ? "crm-fade-in" : ""}`}
         >
           <LeadBoard
+            onActionsCanceled={(ids) => {
+              // Retired by the stage transition (pre-list contact chase). Mark them
+              // canceled locally — rankLeadActions already treats 'canceled' as a
+              // closed state, so the open panel drops them immediately.
+              const retired = new Set(ids.map(String))
+              setLocalNextActions((prev: any[]) =>
+                prev.map((a) => (retired.has(String(a.id)) ? { ...a, status: "canceled" } : a)),
+              )
+            }}
             favorites={localFavorites}
             workspace={workspace}
             onWorkspaceChange={handleWorkspaceNav}
