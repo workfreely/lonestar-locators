@@ -67,6 +67,25 @@ const HEADLINE_STROKE = 0
 const PHOTO_SIZE = 132
 const AGENT_NAME_SIZE = 27
 const AGENT_TITLE_SIZE = 19
+
+/**
+ * The emphasised agent identity, sized for the THUMBNAIL rather than the 1200×630
+ * file — an iMessage bubble renders this image around 300px wide, a quarter scale
+ * at which the default 19px title came out at ~5px and could not be read.
+ *
+ * ONE definition, spread by every caller that wants it, so the previews cannot
+ * drift apart by someone copying two of the three numbers. The title takes the
+ * larger multiplier because it degrades first; the name is 1.7× rather than a
+ * token bump because doubling the title while nudging the name put the job title
+ * in LARGER type than the person.
+ *
+ *   photo 132 → 264 (2.0×) · name 27 → 46 (1.7×) · title 19 → 38 (2.0×)
+ */
+export const PREVIEW_IDENTITY_EMPHASIS = {
+  photoSize: 264,
+  agentNameSize: 46,
+  agentTitleSize: 38,
+} as const
 // The historical decode for the default photo. Left exactly as it was rather than
 // recomputed as 2×132: it would become 264, and a 4px change in the sharp resample
 // alters the rendered headshot's pixels (measured: 0.6% of the image, max channel

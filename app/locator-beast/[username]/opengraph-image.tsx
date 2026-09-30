@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { mergeSmartFormConfig } from "@/app/smart-lead-form/_lib/mergeConfig"
 import { getHeroTheme } from "@/app/smart-lead-form/_lib/heroThemes"
-import { PREVIEW_CONTENT_TYPE, PREVIEW_SIZE, renderPreviewImage } from "@/lib/og/previewImage"
+import { PREVIEW_CONTENT_TYPE, PREVIEW_IDENTITY_EMPHASIS, PREVIEW_SIZE, renderPreviewImage } from "@/lib/og/previewImage"
 
 // Per-agent link-preview image for the public Smart Form (locatorbeast.com/{username}).
 // Uses the shared client-facing preview renderer (same design family as the /r
@@ -67,7 +67,8 @@ export default async function OgImage({ params }: { params: Promise<{ username: 
     // strings; this headline is fixed, so its size is measured once, here.
     headlineSize: 74,
     headlineStrokeWidth: 2,
-    // photoSize / agentNameSize / agentTitleSize deliberately omitted: the agent
-    // photo and identity are explicitly preserved at their current treatment.
+    // The SAME identity preset the recommendation preview uses — spread from one
+    // definition rather than three copied numbers, so the two cannot drift apart.
+    ...PREVIEW_IDENTITY_EMPHASIS,
   })
 }

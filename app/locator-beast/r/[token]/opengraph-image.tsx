@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { hashShareToken, looksLikeShareToken } from "@/lib/clientShare/token"
 import { clientHeroImage } from "@/lib/clientShare/heroImage"
-import { PREVIEW_CONTENT_TYPE, PREVIEW_SIZE, renderPreviewImage } from "@/lib/og/previewImage"
+import { PREVIEW_CONTENT_TYPE, PREVIEW_IDENTITY_EMPHASIS, PREVIEW_SIZE, renderPreviewImage } from "@/lib/og/previewImage"
 
 // Link-preview image for the client Recommendations page (/r/{token}). Same design
 // family as the Smart Form preview (shared renderer): the CLIENT's search-city theme
@@ -42,22 +42,10 @@ const HEADLINE_PX = [
 // pixel-identical). 2px adds 36% ink for 2px of width.
 const HEADLINE_STROKE = 2
 
-// Agent identity, sized for the THUMBNAIL rather than the 1200×630 file — an
-// iMessage bubble shows this around 300px wide, a quarter scale at which the
-// previous 19px title rendered at ~5px and was not readable at all.
-//
-// The title takes the larger multiplier because it degrades first; the name only
-// needs enough growth to stay proportionate between the photo and the title.
-// Measured at 1200×630 with these values: content occupies rows 65–557, i.e. 65px
-// of top margin and 73px of bottom, so nothing clips and nothing reaches the
-// bottom-right "Locator Beast" mark.
-// The name is NOT the smallest sensible bump: doubling the title to 38 while giving
-// the name only a modest 34 put the job title in LARGER type than the person, which
-// inverts the identity. 46 restores name > title (the original 27 > 19 order) while
-// the 74px headline stays unambiguously dominant.
-const PHOTO_SIZE = 264      // 2.0× — recognizable as a face at thumbnail scale
-const AGENT_NAME_SIZE = 46  // 1.7× — enough to stay above the enlarged title
-const AGENT_TITLE_SIZE = 38 // 2.0× — the element that was unreadable on a phone
+// The agent identity sizing now lives in PREVIEW_IDENTITY_EMPHASIS (lib/og/
+// previewImage.tsx), shared with the Smart Form preview so the two cannot drift.
+// Measured at 1200×630 with this headline: content occupies rows 65–557 — 65px of
+// top margin, 73px of bottom, clear of the bottom-right "Locator Beast" mark.
 
 export function headlineSizeFor(headline: string): number {
   return (HEADLINE_PX.find((s) => headline.length <= s.maxChars) ?? HEADLINE_PX.at(-1)!).size
@@ -105,8 +93,6 @@ export default async function OgImage({ params }: { params: Promise<{ token: str
     photoUrl,
     headlineSize: headlineSizeFor(headline),
     headlineStrokeWidth: HEADLINE_STROKE,
-    photoSize: PHOTO_SIZE,
-    agentNameSize: AGENT_NAME_SIZE,
-    agentTitleSize: AGENT_TITLE_SIZE,
+    ...PREVIEW_IDENTITY_EMPHASIS,
   })
 }
