@@ -8,9 +8,10 @@ import { looksLikeShareToken } from "@/lib/clientShare/tokenShape";
 // rewritten to the /locator-beast prefix internally; the URL bar still shows
 // locatorbeast.com/, /features, /pricing, etc.
 //
-// This middleware does two things:
-//   1) PREMIUM-ROUTE PROTECTION — server-side billing gate for the CRM (/admin).
-//   2) ROUTE MAPPING — host-based rewrite for the marketing tree (unchanged).
+// This middleware does three things:
+//   1) AUTHENTICATION — server-side session gate for the protected route groups.
+//   2) PREMIUM-ROUTE PROTECTION — server-side billing gate for the CRM (/admin).
+//   3) ROUTE MAPPING — host-based rewrite for the marketing tree (unchanged).
 // It does NOT control which visual layout renders — that is purely structural
 // (route groups + per-segment layouts).
 const LOCATOR_BEAST_HOST_PATTERN = /(^|\.)locatorbeast\.(com|app)$/i;
@@ -31,13 +32,46 @@ const APP_PATH_PATTERN =
 const ADMIN_PREFIX = "/admin";
 const BILLING_SETTINGS_PREFIX = "/admin/billing";
 
+// AUTHENTICATION ONLY — the routes that require a signed-in Locator Beast user.
+//
+// This is deliberately a separate concept from the two gates that follow it:
+//   1. authentication  — is there a signed-in user at all?      (this pattern)
+//   2. entitlement     — may that user use the premium CRM?     (appGate step 2)
+//   3. authorization   — is that user the platform owner?       (is_platform_admin)
+// Each page keeps its own authorization; this only establishes (1) server-side so a
+// logged-out request never receives the protected shell and then redirects itself.
+//
+// /admin/billing IS included even though the entitlement step skips it: a lapsed user must be
+// able to reach billing, but an anonymous one must not.
+//
+// EXCLUDED ON PURPOSE (these must stay reachable signed-out): every marketing route,
+// /login, /signup, /forgot-password, /reset-password, /auth/* (the OAuth callback that
+// ESTABLISHES the session), /authorize/* (Instagram OAuth landing), /smart-lead-form
+// (public renter intake), /r/<token> (public client recommendations), and the whole
+// Lone Star tree. /api/* and /ai/* are deliberately untouched — those belong to the
+// later API security pass, and gating them here would change API contracts.
+const PROTECTED_PATH_PATTERN = /^\/(admin|onboarding|billing|help)(\/|$)/;
+
+// Supabase sets the session as `sb-<ref>-auth-token`, chunked as `.0`, `.1`, … when
+// it is large. Their presence is what separates "definitely signed out" from "we
+// could not verify right now", which is the difference between a correct redirect
+// and locking every user out during a Supabase incident.
+const AUTH_COOKIE_PATTERN = /^sb-.+-auth-token(\.\d+)?$/;
+
 // Server-side billing enforcement for the CRM. Returns a redirect response when
 // the signed-in user has no active trial/subscription, otherwise null (allow).
 // Deliberately FAIL-OPEN on any auth/DB hiccup so a transient error can never
 // lock a paying customer out — only a definitive "access denied" state blocks.
 // Runs on every /admin navigation (page load / RSC fetch), so an expiry mid-
 // session doesn't yank the user — they're redirected on their next navigation.
-async function billingGate(request: NextRequest): Promise<NextResponse | null> {
+async function appGate(request: NextRequest): Promise<NextResponse | null> {
+  const { pathname } = request.nextUrl;
+  const needsAuth = PROTECTED_PATH_PATTERN.test(pathname);
+  // The premium gate's original scope, unchanged: /admin except /admin/billing.
+  const needsEntitlement =
+    pathname.startsWith(ADMIN_PREFIX) && !pathname.startsWith(BILLING_SETTINGS_PREFIX);
+  if (!needsAuth && !needsEntitlement) return null;
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anonKey) return null; // not configured — never block
@@ -52,18 +86,59 @@ async function billingGate(request: NextRequest): Promise<NextResponse | null> {
     },
   });
 
+  // ── 1. AUTHENTICATION ─────────────────────────────────────────────────────
+  // Resolved ONCE here and reused by the entitlement check below, so adding this
+  // gate costs no extra round trip on an /admin navigation.
+  //
+  // Two different failures must not be treated alike:
+  //   • no session cookie at all      → definitively signed out → redirect
+  //   • a cookie we could not verify  → could be an outage      → fail OPEN
+  // Redirecting on the second would log every real user out whenever Supabase auth
+  // is unreachable. Failing open there is safe because it only renders a shell: RLS
+  // still denies the data, and the client-side check still redirects.
+  const hasAuthCookie = request.cookies
+    .getAll()
+    .some((c) => AUTH_COOKIE_PATTERN.test(c.name));
+
   let userId: string | null = null;
-  try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    userId = user?.id ?? null;
-  } catch {
-    return null; // auth infra error → fail open
+  let signedOut = !hasAuthCookie;
+
+  if (hasAuthCookie) {
+    try {
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
+      userId = user?.id ?? null;
+      // A 4xx is Supabase authoritatively rejecting the session (expired, revoked,
+      // malformed). A 5xx or a transport failure is not an answer about the user.
+      const status = (error as { status?: number } | null)?.status;
+      if (!userId && typeof status === "number" && status >= 400 && status < 500) {
+        signedOut = true;
+      }
+    } catch {
+      return null; // auth infra error → fail open
+    }
   }
 
-  // Not signed in → let the client shell handle the /login redirect.
-  if (!userId) return null;
+  if (!userId) {
+    // THE PASS 5 FIX. This previously returned null unconditionally — "let the
+    // client shell handle the /login redirect" — which is exactly why /admin/*
+    // answered 200 with the authenticated shell for anonymous requests.
+    if (needsAuth && signedOut) {
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = "/login";
+      loginUrl.search = "";
+      return NextResponse.redirect(loginUrl);
+    }
+    return null;
+  }
+
+  // ── 2. ENTITLEMENT ────────────────────────────────────────────────────────
+  // Everything below is the original billing gate, unchanged. A signed-in user who
+  // is not entitled still goes to /billing; authentication never implies access,
+  // and this pass adds NO licence condition of any kind.
+  if (!needsEntitlement) return null;
 
   let profile: {
     subscription_status: string | null;
@@ -178,10 +253,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.rewrite(rewriteUrl);
   }
 
-  // 1) Premium-route protection — gate the CRM server-side. Skips /admin/billing
-  //    so a lapsed user can always reach billing to subscribe.
-  if (pathname.startsWith(ADMIN_PREFIX) && !pathname.startsWith(BILLING_SETTINGS_PREFIX)) {
-    const gate = await billingGate(request);
+  // 1) Authentication, then premium-route protection — both decided server-side.
+  //    appGate itself decides which of the two apply to this path (and returns
+  //    immediately for the public majority), so the check lives in ONE place
+  //    instead of being duplicated per route group.
+  {
+    const gate = await appGate(request);
     if (gate) return gate;
   }
 
