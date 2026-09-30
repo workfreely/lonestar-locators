@@ -70,6 +70,7 @@ import { createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
 import type { TourOutcome, ApplicationStatus } from "@bc/companion-shared"
 import { supabase } from "@/lib/supabase/client"
 import { loadReasonsForLead, saveReasons as saveCanonicalReasons } from "@/lib/leads/propertyReasons"
+import { ensureCommuteReasons } from "@/lib/commute/ensureCommute"
 import { getNextFollowUpAction } from "@/lib/workflowEngine"
 import { followUpSuccessorDueAt } from "@/lib/workflow/moveDateCadence"
 import { autoDueInDays, type WorkHours } from "@/lib/workflow/autoDueDate"
@@ -621,9 +622,28 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       const flat = new Map<string, string[]>()
       for (const row of map.values()) flat.set(String(row.canonical_property_key), row.reasons)
       setReasonsByKey(flat)
+      // Then fill any missing/stale drive times. Runs AFTER the map is on screen so
+      // the reasons the client already has never wait on Google, and returns
+      // immediately without calling Google at all when the client has no
+      // destination or every pair is already cached against the current one.
+      mergeCommuteRows(id, active)
     })()
     return () => { active = false }
   }, [selectedLeadId])
+
+  // Shared by the three EVENTS that can leave a drive time missing or stale: opening
+  // a client, saving their Commute / Destination, and adding a property to either
+  // collection. Merging the returned rows means the new "12 min to Fort Sam" appears
+  // without a refetch or a reload.
+  const mergeCommuteRows = useCallback(async (leadId: number | string, active = true) => {
+    const rows = await ensureCommuteReasons(leadId)
+    if (!active || rows.length === 0) return
+    setReasonsByKey((prev) => {
+      const next = new Map(prev)
+      for (const r of rows) next.set(String(r.canonical_property_key), r.reasons ?? [])
+      return next
+    })
+  }, [])
 
   // ONE save path for both sections. Keyed by the PAIR, so an edit made in Favorites
   // is the same row Recommendations shows, and neither is destroyed by a move.
@@ -3356,6 +3376,11 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           const [enriched] = await attachCatalogRatings([row], supabase)
           applyLocal(enriched)
           backfillExternalIdentity(enriched)
+          // A newly added property has no cached drive time. Fill it now so the
+          // commute reason is there the first time the locator looks, rather than
+          // appearing only after the next client switch. No-op when this client has
+          // no destination saved.
+          if (!isDemoLeadId(lead.id)) void mergeCommuteRows(lead.id)
         }
         if (isFav) {
           supabase.from("lead_favorites").insert([rowBase]).select("*").maybeSingle().then(settleAdd)
@@ -4356,6 +4381,11 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           // place (guarded internally to the lead the panel is showing). The next
           // Unleash list recomputes from the same updated localLeads row.
           postCompanionActiveClient({ ...editLead, ...updated }, localNextActionsRef.current)
+          // The edit may have set or changed the Commute / Destination. The reasons
+          // effect is keyed on selectedLeadId and so would NOT refire for the client
+          // already open, which is exactly the client being edited — recompute here
+          // instead. A no-op when the anchor didn't change.
+          void mergeCommuteRows(updated.id)
         }}
       />
 
