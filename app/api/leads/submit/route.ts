@@ -89,6 +89,11 @@ const STRING_FIELDS = [
   // with the Add Lead inputs: nothing collects them any more, so this route
   // must not write them. The COLUMNS and their existing values are kept.
   "locator_notes",
+  // Commute / Destination — the place the client needs to live near. Locator-entered
+  // in Add Lead; no public form collects it. Like `source` and `referred_by`, these
+  // are deliberately ABSENT from SCALAR_LABELS below, so a client re-submitting the
+  // public intake form can never blank an anchor the locator set by hand.
+  "commute_anchor_label", "commute_anchor_place_id",
 ] as const
 
 const BOOLEAN_FIELDS = ["sms_opt_in"] as const

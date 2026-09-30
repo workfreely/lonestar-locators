@@ -20,6 +20,7 @@ import {
 import { getMarketByName } from "@/lib/markets/catalog"
 import { MUST_HAVE_AMENITIES, MAX_MUST_HAVE_AMENITIES, normalizeMustHaveAmenities } from "@bc/companion-shared"
 import { parseMoveDate, csvToArr, arrToCsv } from "@/lib/leads/leadFormValues"
+import CommuteDestinationField from "@/components/crm/CommuteDestinationField"
 
 // ─── Shared style tokens ──────────────────────────────────────────────────────
 
@@ -314,6 +315,33 @@ export default function LeadFields({
           </div>
         )
       })()}
+
+      {/* ── Commute / Destination ─────────────────────────────────────────────
+             Directly under Preferred Locations — it answers the same question
+             ("where?") from the other direction: the fixed place they have to be
+             near, rather than the areas they like.
+
+             Deliberately NOT inside the block above: that one renders only once a
+             city with a neighborhood catalog is chosen, and a commute anchor is
+             meaningful before (and regardless of) that. Optional everywhere — a
+             locator who doesn't know it yet leaves it blank, and the second
+             outreach text still asks "are you trying to stay near a specific
+             address or side of town?". */}
+      <div>
+        <p className={sectionLabelCls}>Commute / Destination</p>
+        <CommuteDestinationField
+          label={form.commute_anchor_label || ""}
+          placeId={form.commute_anchor_place_id || ""}
+          onChange={({ label, placeId }) => {
+            // Written as a pair, always — a label without its place_id would be a
+            // destination nothing can route to, and a place_id without a label
+            // would have no client-facing wording.
+            updateField("commute_anchor_label", label)
+            updateField("commute_anchor_place_id", placeId)
+          }}
+          inputClassName={inputCls}
+        />
+      </div>
 
       {/* ── Property Preferences ──────────────────────────────────────────────
              Row 1 (3 cols): Property Type · Bedrooms · Bathrooms

@@ -630,6 +630,8 @@ export function LeadPanelBody({
           { label: "Beds / Baths", value: sc.beds || sc.baths ? `${sc.beds || "—"} / ${sc.baths || "—"}` : null },
           { label: "Move Date", value: hasValue(sc.moveDate) ? formatDateDisplay(sc.moveDate) : null },
           { label: "Desired Areas", value: sc.desiredAreas },
+          // Same row, same position, same label as the CRM's Search Criteria card.
+          { label: "Commute / Destination", value: sc.commuteDestination },
           { label: "Source", value: sc.source },
         ]}
       />

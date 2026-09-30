@@ -41,6 +41,11 @@ export const searchCriteriaSchema = z.object({
   baths: z.string().nullish(),
   moveDate: z.string().nullish(),
   desiredAreas: z.string().nullish(),
+  /** Commute / Destination — the client-facing LABEL of the place they need to be
+   *  near ("Fort Sam"). The canonical Google place_id stays server-side: the
+   *  Companion displays this destination, it does not route from it. Nullish when
+   *  the locator hasn't set one, and the row is then omitted. */
+  commuteDestination: z.string().nullish(),
   source: z.string().nullish(),
 });
 

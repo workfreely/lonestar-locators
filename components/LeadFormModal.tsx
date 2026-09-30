@@ -19,6 +19,10 @@ const EDITABLE_COLUMNS = [
   "eviction_court", "eviction_age", "eviction_balance",
   "criminal_background", "criminal_charge", "felony_age", "misdemeanor_age",
   "notes", "locator_notes", "referred_by",
+  // Commute / Destination. This allowlist governs BOTH the edit seed (line ~108)
+  // and the patch, so omitting either column would make Edit Client silently fail
+  // to load AND to save it — no error, just a field that never persists.
+  "commute_anchor_label", "commute_anchor_place_id",
 ] as const
 
 export default function LeadFormModal({
@@ -75,6 +79,9 @@ export default function LeadFormModal({
     // Shown only when source === "referral" (LeadFields); always present in state
     // so the input stays controlled and the form type includes it.
     referred_by: "",
+    // Commute / Destination — present from the start so the inputs stay controlled.
+    commute_anchor_label: "",
+    commute_anchor_place_id: "",
 
     // defaults
     source: "",
@@ -309,6 +316,8 @@ export default function LeadFormModal({
       notes: "",
       locator_notes: "",
       referred_by: "",
+      commute_anchor_label: "",
+      commute_anchor_place_id: "",
 
       source: "",
       crm_status: "new",

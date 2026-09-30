@@ -1001,7 +1001,8 @@ export default function LeadPanel({
           const anyPresent =
             hasValue(cityValue) || hasValue(lead.desired_rent) || hasValue(lead.income) ||
             hasValue(lead.property_type) || hasValue(bedsBaths) || hasValue(moveDate) ||
-            hasValue(areas) || hasValue(lead.source) || hasValue(mustHaves)
+            hasValue(areas) || hasValue(lead.source) || hasValue(mustHaves) ||
+            hasValue(lead.commute_anchor_label)
           if (!anyPresent) return null
           return (
             <SectionCard title="Search Criteria" shaded collapsible defaultOpen={true} storageKey="search-criteria">
@@ -1013,6 +1014,13 @@ export default function LeadPanel({
               {hasValue(bedsBaths) && <Field label="Beds / Baths" value={bedsBaths} />}
               {hasValue(moveDate) && <Field label="Move Date" value={moveDate} />}
               {hasValue(areas) && <Field label="Desired Areas" value={areas} />}
+              {/* Directly under Desired Areas — the same placement the edit forms
+                  use (LeadFields puts it under Preferred Locations). Read-only
+                  here, like every other row in this card: Search Criteria is a
+                  display surface, and Edit Client is its one edit path. */}
+              {hasValue(lead.commute_anchor_label) && (
+                <Field label="Commute / Destination" value={lead.commute_anchor_label} />
+              )}
               {hasValue(lead.source) && (
                 <div className="flex items-start justify-between gap-4">
                   <span className="text-[12.5px] text-[var(--crm-text-muted)] flex-none">Source</span>

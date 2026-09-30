@@ -324,6 +324,9 @@ export function buildActiveClientPayload(
       baths: str(lead.baths),
       moveDate: str(lead.move_date),
       desiredAreas: str(lead.neighborhoods) ?? str(lead.submarkets),
+      // The label only — same value the CRM's Search Criteria card shows, so the
+      // two panels never disagree about where the client needs to be.
+      commuteDestination: str(lead.commute_anchor_label),
       // Readable source label via the CRM's canonical source map (same source of
       // truth as LeadSourceBadge): "instagram_ads" → "Instagram Ads".
       source: str(lead.source) ? getSourceStyle(lead.source).label : null,
