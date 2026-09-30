@@ -476,6 +476,53 @@ export function marketsForState(stateCode: string | null | undefined): Market[] 
   return MARKETS.filter((m) => m.state === stateCode)
 }
 
+// ── Launch availability ─────────────────────────────────────────────────────
+//
+// Locator Beast launches TEXAS-ONLY. That is an availability decision, NOT a change
+// to what the product knows: MARKETS above stays the complete registry of every
+// market the platform supports, and nothing here removes, hides, renames or
+// rewrites a single entry. Atlanta, Phoenix, Tucson, Miami, Fort Lauderdale,
+// Orlando, Chicago, Denver and Nashville remain first-class catalog members and
+// stay fully visible to admin/private systems, which read the unfiltered registry.
+//
+// This block is the ONE place launch availability is decided. Every later gate —
+// the onboarding and Profile pickers, the public footer, the Smart Lead Form's
+// fallback, and the server-side service-area allow-list — must consume these
+// helpers rather than testing for "TX" itself, so opening a second state is an
+// edit to LAUNCH_STATES and nothing else.
+//
+// Everything is DERIVED from MARKETS. No label, slug, state, centre, bound or any
+// other market metadata is restated here, so a launch market can never drift from
+// its catalog entry.
+
+/** The states whose markets are selectable by a normal locator at launch. */
+export const LAUNCH_STATES: readonly string[] = ["TX"]
+
+/** Is this state open to normal locator signup at launch? */
+export function isLaunchEnabledState(stateCode: string | null | undefined): boolean {
+  return !!stateCode && LAUNCH_STATES.includes(stateCode)
+}
+
+/**
+ * The launch-available markets, in catalog order — the full Market objects, not a
+ * parallel copy. Derived, so adding a market to a launch state lists it here with
+ * no second edit.
+ */
+export const LAUNCH_MARKETS: Market[] = MARKETS.filter((m) => isLaunchEnabledState(m.state))
+
+// Membership test backing isLaunchEnabledMarket. A Set because the server-side
+// allow-list will call it per submitted slug.
+const LAUNCH_MARKET_SLUGS: ReadonlySet<string> = new Set(LAUNCH_MARKETS.map((m) => m.slug))
+
+/**
+ * Is this catalog slug selectable by a normal locator at launch? False for a
+ * non-launch market AND for anything unrecognised — an unknown slug is never
+ * treated as permitted, which is what makes this safe to use as an allow-list.
+ */
+export function isLaunchEnabledMarket(slug: string | null | undefined): boolean {
+  return !!slug && LAUNCH_MARKET_SLUGS.has(slug)
+}
+
 /**
  * The single state a set of selected markets belongs to, or null when they span
  * several states or none are recognised.
