@@ -14,6 +14,13 @@ export type OnboardingData = {
    *  in onboarding, then it filters which markets can be selected. Same canonical
    *  column Profile's License State reads, so no second state preference exists. */
   license_state: string;
+  /** profiles.license_number — the Texas licence reviewed before verification.
+   *  Editable only while unverified; the DB trigger freezes it afterwards.
+   *  NOTE: license_verified_at is deliberately NOT part of this type. finish()
+   *  spreads OnboardingData straight into a profiles UPDATE, and the guard trigger
+   *  rejects any user-originated write to the verification stamp — so it travels as
+   *  a separate read-only prop instead. */
+  license_number: string;
   profile_photo_url: string | null;
   business_logo_url: string | null;
   brand_color: string | null;

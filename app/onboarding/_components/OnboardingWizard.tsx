@@ -16,10 +16,15 @@ export default function OnboardingWizard({
   userId,
   initialStep,
   initialData,
+  licenseVerifiedAt,
 }: {
   userId: string;
   initialStep: number;
   initialData: OnboardingData;
+  /** profiles.license_verified_at — READ-ONLY here. Kept out of OnboardingData on
+   *  purpose: finish() spreads that object into a profiles UPDATE, and only the
+   *  owner-only RPC may ever set this column. */
+  licenseVerifiedAt: string | null;
 }) {
   const router = useRouter();
   const [step, setStep] = useState(() => Math.min(Math.max(initialStep, 1), TOTAL_STEPS));
@@ -166,7 +171,7 @@ export default function OnboardingWizard({
             everywhere else. */}
         <div className={`w-full ${step === 2 ? "max-w-5xl" : "max-w-xl"}`}>
           {step === 1 && <Step1Welcome {...stepProps} />}
-          {step === 2 && <StepBusinessProfile {...stepProps} userId={userId} />}
+          {step === 2 && <StepBusinessProfile {...stepProps} userId={userId} licenseVerifiedAt={licenseVerifiedAt} />}
           {step === 3 && <StepConnect {...stepProps} />}
           {step === 4 && <StepBusinessGoals {...stepProps} />}
           {step === 5 && <StepTools {...stepProps} />}

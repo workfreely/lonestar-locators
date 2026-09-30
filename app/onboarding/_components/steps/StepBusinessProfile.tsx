@@ -41,12 +41,18 @@ export default function StepBusinessProfile({
   onNext,
   onBack,
   saving,
-}: StepProps & { userId: string }) {
+  licenseVerifiedAt,
+}: StepProps & { userId: string; licenseVerifiedAt: string | null }) {
   const [firstName, setFirstName] = useState(data.first_name);
   const [lastName, setLastName] = useState(data.last_name);
   const [email, setEmail] = useState(data.email);
   const [phoneNumber, setPhoneNumber] = useState(data.phone_number);
   const [brokerage, setBrokerage] = useState(data.brokerage);
+  // Texas licence. Pre-populated from the canonical profiles.license_number, so an
+  // agent who already supplied it (or who returns to this step) never retypes it.
+  const [licenseNumber, setLicenseNumber] = useState(data.license_number);
+  // Verification is owner-granted and DB-protected; this screen only reflects it.
+  const licenseVerified = !!licenseVerifiedAt;
   // Surfaced when the photo reached storage but its URL could not be saved to the
   // profile — the upload must NOT look successful in that case (requirement C9).
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -207,6 +213,10 @@ export default function StepBusinessProfile({
       brokerage: brokerage.trim(),
       // Canonical column — becomes the agent's License State in Profile.
       license_state: licenseState,
+      // Canonical column — the SAME field Profile edits and the owner reviews. Sent
+      // only while unverified: once verified the DB trigger freezes it, so writing
+      // it back would be pointless at best and a rejected UPDATE at worst.
+      ...(licenseVerified ? {} : { license_number: licenseNumber.trim() }),
     });
   }
 
@@ -353,6 +363,40 @@ export default function StepBusinessProfile({
               </select>
             </div>
             </div>
+
+          {/* ── Texas licence ────────────────────────────────────────────────
+              Sits in the existing seam between State and Markets, because it
+              belongs to the same decision: the state governs the licence, and the
+              licence governs the markets below. Reuses labelClass / inputClass and
+              the Profile page's Pending/Verified chip treatment — no new visual
+              language, no new card, no new step. */}
+          <div className="flex flex-col gap-2">
+            <label className={labelClass}>Texas Real Estate License Number</label>
+            <div className="flex items-center gap-2">
+              <input
+                value={licenseNumber}
+                onChange={(e) => setLicenseNumber(e.target.value)}
+                readOnly={licenseVerified}
+                aria-readonly={licenseVerified || undefined}
+                autoComplete="off"
+                className={`${inputClass}${licenseVerified ? " cursor-not-allowed opacity-70" : ""}`}
+              />
+              {licenseVerified ? (
+                <span className="inline-flex flex-none items-center gap-1 rounded-full border border-[#0f9d58]/30 bg-[#0f9d58]/10 px-2.5 py-1 text-[12px] font-semibold text-[#0f9d58]">
+                  Verified
+                </span>
+              ) : licenseNumber.trim() ? (
+                <span className="inline-flex flex-none items-center rounded-full border border-[var(--beast-border)] px-2.5 py-1 text-[12px] font-semibold text-[var(--beast-ink-soft)]">
+                  Pending verification
+                </span>
+              ) : null}
+            </div>
+            {!licenseVerified && (
+              <p className="text-[12px] font-medium text-[var(--beast-ink-soft)]">
+                Licenses are verified within 3 business days and will not be displayed publicly by Locator Beast. Once verified, your license number cannot be changed.
+              </p>
+            )}
+          </div>
 
 
 {/* ── Markets ─────────────────────────────────────────────────────────
