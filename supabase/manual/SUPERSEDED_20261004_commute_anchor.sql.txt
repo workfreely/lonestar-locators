@@ -1,0 +1,141 @@
+-- ════════════════════════════════════════════════════════════════════════════
+-- COMMUTE ANCHOR — a trusted per-client destination for "Why I chose this for you"
+--
+-- PREPARED FOR MANUAL APPLICATION. The migration ledger is out of sync, so
+-- `supabase db push` would re-run 51 already-applied migrations against live
+-- Property Intelligence data. Apply by hand in the Supabase SQL Editor for
+-- project onwrrajmklxtnabekzcy, as one transaction, then run the verification
+-- queries at the bottom. Rollback is at the very end.
+--
+-- WHY. The reason builder can already confirm amenities and budget from structured
+-- data, but had no way to say "10 min to Fort Sam" — the single most client-specific
+-- reason a locator has. The property half was always there (every recommendation
+-- resolves to property_catalog coordinates); what was missing was a TRUSTED
+-- destination. It could not be read from locator_notes without inventing facts.
+--
+-- Validated before writing this file: resolving "Fort Sam Houston" through Places
+-- API (New) and computing each of one client's 8 recommendations through Routes API
+-- reproduced the locator's own Google Maps figures — 7 of 8 exact, the eighth within
+-- one minute.
+--
+-- A RESOLVED PLACE ID, NOT COORDINATES. Measuring to a guessed lat/lng for Fort Sam
+-- returned 12 minutes where the real destination returns 10. A large installation has
+-- no single point, so only the place_id reproduces what the locator would verify in
+-- Google Maps.
+--
+-- Adds columns only. No data is written, no existing row is touched.
+-- ════════════════════════════════════════════════════════════════════════════
+
+begin;
+
+-- ── 1. The anchor, on the client ────────────────────────────────────────────
+-- Two columns, exactly as approved.
+--
+-- `label` is the CLIENT-FACING wording and is deliberately editable: Places returns
+-- "Fort Sam Houston", the locator shortens it to "Fort Sam", and the reason reads
+-- "10 min to Fort Sam". Keeping the display label separate from the canonical place
+-- is what lets the copy stay short without changing which destination is measured.
+--
+-- `place_id` is the canonical destination and the ONLY thing Routes is called with.
+alter table public.leads
+  add column if not exists commute_anchor_label    text,
+  add column if not exists commute_anchor_place_id text;
+
+comment on column public.leads.commute_anchor_label is
+  'Client-facing label for the commute destination ("Fort Sam"). Locator-editable; '
+  'seeded from the Places result but intentionally shortenable for the card.';
+comment on column public.leads.commute_anchor_place_id is
+  'Google Place ID of the commute destination — the canonical target for Routes API. '
+  'Never a lat/lng: a large site (e.g. Fort Sam Houston) has no single point, and a '
+  'guessed coordinate changes the answer by whole minutes.';
+
+-- ── 2. The cached result, on the recommendation ─────────────────────────────
+-- THESE THREE ARE THE "additional fields" FLAGGED FOR APPROVAL. Each exists to make
+-- one of the approved rules implementable; none is speculative.
+--
+--   commute_minutes
+--     The cached Routes result, so repeated renders never re-bill. It is also the
+--     only reliable answer to "does a commute reason already exist here?" — the rule
+--     that keeps the backfill additive. Detecting that by regex-scanning the reasons
+--     array would misread a MANUALLY typed "12 min from BAMC" as a computed one and
+--     then overwrite it, which is exactly what must not happen.
+--
+--   commute_anchor_place_id
+--     WHICH anchor produced the stored minutes. Without it there is no way to tell a
+--     current commute reason from one computed against a previous destination, so
+--     "if the anchor changes, require an explicit recalculate" cannot be enforced —
+--     the system could neither detect staleness nor avoid silently rewriting.
+--
+--   commute_computed_at
+--     Provenance. Makes staleness visible when a number is questioned, and allows a
+--     future age-out without a second migration.
+--
+-- NOT added: distance. The approved copy is minutes only ("10 min to Fort Sam"), so
+-- a miles column would be stored and never read.
+--
+-- These are a CACHE + PROVENANCE, not the display. The reason text itself is still
+-- written into lead_recommendations.reasons, because that is the column the share
+-- snapshot copies — a value held only here would never reach the client page.
+alter table public.lead_recommendations
+  add column if not exists commute_minutes          integer,
+  add column if not exists commute_anchor_place_id  text,
+  add column if not exists commute_computed_at      timestamptz;
+
+comment on column public.lead_recommendations.commute_minutes is
+  'Cached Routes API drive time to the client''s commute anchor, in whole minutes. '
+  'Computed once (on recommend, or on first anchor save) — never per render.';
+comment on column public.lead_recommendations.commute_anchor_place_id is
+  'The anchor these minutes were computed against. A mismatch with the lead''s current '
+  'commute_anchor_place_id means the stored commute reason is STALE — surfaced for an '
+  'explicit recalculate, never rewritten silently.';
+comment on column public.lead_recommendations.commute_computed_at is
+  'When commute_minutes was computed. Provenance only.';
+
+commit;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- VERIFICATION — run after applying.
+-- ════════════════════════════════════════════════════════════════════════════
+-- a) all five columns exist and are nullable (nothing is backfilled)
+--    select table_name, column_name, data_type, is_nullable
+--      from information_schema.columns
+--     where table_schema = 'public'
+--       and (
+--         (table_name = 'leads' and column_name like 'commute_%')
+--         or (table_name = 'lead_recommendations' and column_name like 'commute_%')
+--       )
+--     order by table_name, column_name;
+--
+-- b) NOTHING was written — every row starts empty (expect 0 / 0)
+--    select count(*) filter (where commute_anchor_place_id is not null) as leads_with_anchor
+--      from public.leads;
+--    select count(*) filter (where commute_minutes is not null) as recs_with_commute
+--      from public.lead_recommendations;
+--
+-- c) the existing reasons constraint is untouched (expect the max3 check present)
+--    select conname from pg_constraint
+--     where conname = 'lead_recommendations_reasons_max3';
+--
+-- d) row counts unchanged (expect the same totals as before applying)
+--    select (select count(*) from public.leads) as leads,
+--           (select count(*) from public.lead_recommendations) as recommendations;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- ROLLBACK — drops only what this file added.
+-- Safe at any time: nothing else reads these columns until the app half ships, and
+-- dropping them discards cached commute values only (the reason TEXT already written
+-- into lead_recommendations.reasons is untouched — it is ordinary reason content and
+-- the locator can edit it by hand).
+-- ════════════════════════════════════════════════════════════════════════════
+-- begin;
+--
+-- alter table public.lead_recommendations
+--   drop column if exists commute_computed_at,
+--   drop column if exists commute_anchor_place_id,
+--   drop column if exists commute_minutes;
+--
+-- alter table public.leads
+--   drop column if exists commute_anchor_place_id,
+--   drop column if exists commute_anchor_label;
+--
+-- commit;

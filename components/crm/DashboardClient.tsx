@@ -69,6 +69,7 @@ import { DEFAULT_PROJECTION_METHOD, type ProjectionMethod } from "@/lib/leads/co
 import { createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
 import type { TourOutcome, ApplicationStatus } from "@bc/companion-shared"
 import { supabase } from "@/lib/supabase/client"
+import { loadReasonsForLead, saveReasons as saveCanonicalReasons } from "@/lib/leads/propertyReasons"
 import { getNextFollowUpAction } from "@/lib/workflowEngine"
 import { followUpSuccessorDueAt } from "@/lib/workflow/moveDateCadence"
 import { autoDueInDays, type WorkHours } from "@/lib/workflow/autoDueDate"
@@ -347,6 +348,10 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // pattern as localFavorites. Written by the Companion "+ Recommendation" verb
   // (Phase 2C); the CRM has no refetch path, so we advance this optimistically.
   const [localRecommendations, setLocalRecommendations] = useState(recommendations)
+  // CANONICAL client-property reasons — one map per selected client, read by BOTH
+  // Favorites and Recommendations so the two can never diverge. Keyed by
+  // canonical_property_key ('pid:<place id>'), which both collections already store.
+  const [reasonsByKey, setReasonsByKey] = useState<Map<string, string[]>>(new Map())
   // AI Client Insights for the active lead, cached per lead id — the ≤4 bullets
   // from ai_client_briefs (real) or getDemoBrief (demo). Read-only; fetched lazily
   // when a client is selected and passed to buildActiveClientPayload so Companion's
@@ -604,6 +609,32 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // without re-subscribing on every keystroke of state change.
   const localLeadsRef = useRef(localLeads)
   const localNextActionsRef = useRef(localNextActions)
+  // Reload the canonical reasons on client switch. Cheap (one indexed query per
+  // client) and it keeps Favorites/Recommendations in step after any move.
+  useEffect(() => {
+    let active = true
+    const id = selectedLeadId
+    if (id == null || isDemoLeadId(id)) { setReasonsByKey(new Map()); return }
+    void (async () => {
+      const map = await loadReasonsForLead(id)
+      if (!active) return
+      const flat = new Map<string, string[]>()
+      for (const row of map.values()) flat.set(String(row.canonical_property_key), row.reasons)
+      setReasonsByKey(flat)
+    })()
+    return () => { active = false }
+  }, [selectedLeadId])
+
+  // ONE save path for both sections. Keyed by the PAIR, so an edit made in Favorites
+  // is the same row Recommendations shows, and neither is destroyed by a move.
+  const handleSaveReasons = async (canonicalPropertyKey: string, next: string[]) => {
+    if (!selectedLeadId) return false
+    const okSaved = await saveCanonicalReasons(selectedLeadId, canonicalPropertyKey, next)
+    if (!okSaved) return false
+    setReasonsByKey((prev) => new Map(prev).set(String(canonicalPropertyKey), next))
+    return true
+  }
+
   const localRecommendationsRef = useRef(localRecommendations)
   useEffect(() => { localRecommendationsRef.current = localRecommendations }, [localRecommendations])
   const localFavoritesRef = useRef(localFavorites)
@@ -4174,28 +4205,8 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                   leftColumn={<>
                   <BestMatches
                     lead={selectedLead}
-                    // "Why I chose this for you" — writes the edited reasons to THIS
-                    // client's recommendation row only. Never a global property field,
-                    // so a reason like "Military discount" can never leak to another
-                    // client. Already-sent share snapshots are frozen and unaffected;
-                    // because lb_prepare_client_share fingerprints reasons, the NEXT
-                    // Send List mints a fresh snapshot carrying the edit.
-                    onSaveReasons={async (recommendationId, reasons) => {
-                      const { error } = await supabase
-                        .from("lead_recommendations")
-                        .update({ reasons })
-                        .eq("id", recommendationId)
-                      if (error) {
-                        console.error("[recommendations] save reasons failed:", error.message)
-                        return false
-                      }
-                      // Mirror locally so the row re-renders immediately — the edit
-                      // must survive without a refetch.
-                      setLocalRecommendations((prev: any[]) =>
-                        prev.map((row) => (String(row.id) === String(recommendationId) ? { ...row, reasons } : row)),
-                      )
-                      return true
-                    }}
+                    reasonsByKey={reasonsByKey}
+                    onSaveReasons={handleSaveReasons}
                     // Favorites wins for a legacy duplicate — the same rule the
                     // Companion payload applies, so both surfaces agree. Presentation
                     // only; the stray row is removed by the next deliberate move.
@@ -4220,6 +4231,8 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                     onOpenSentHistory={() => selectedLead && setSentHistory({ leadId: selectedLead.id, clientName: shareClientName(selectedLead) })}
                   />
                   <LeadFavorites
+                    reasonsByKey={reasonsByKey}
+                    onSaveReasons={handleSaveReasons}
                     lead={selectedLead}
                     favorites={localFavorites}
                     setFavorites={setLocalFavorites}

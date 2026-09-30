@@ -6,6 +6,7 @@ import FavoriteModal, { type FavoriteInput } from "./FavoriteModal"
 import ConfirmDialog from "./ConfirmDialog"
 import DateTimePicker from "./DateTimePicker"
 import PropertyThumb from "./PropertyThumb"
+import ReasonsControl from "./ReasonsControl"
 import { SectionCard } from "./LeadPanelSections"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { upcomingTourForFavorite } from "@/lib/leads/upcomingTour"
@@ -36,6 +37,8 @@ function formatPickedLabel(local: string): string {
 // manage them by hand. Extracted from LeadPanel with its CRUD intact.
 export default function LeadFavorites({
   lead,
+  reasonsByKey,
+  onSaveReasons,
   favorites = [],
   setFavorites,
   nextActions = [],
@@ -58,6 +61,12 @@ export default function LeadFavorites({
   onMoveToRecommendation,
   onEnterTourMode,
 }: {
+  /** Canonical reasons for this client, keyed by canonical_property_key — the SAME
+   *  map Recommendations reads, so neither section can diverge. */
+  reasonsByKey?: Map<string, string[]>
+  /** Persist reasons for ONE client-property PAIR (never a favorite row id: the row
+   *  is deleted when the property moves, and the reasons must outlive it). */
+  onSaveReasons?: (canonicalPropertyKey: string, reasons: string[]) => Promise<boolean>
   lead: any
   favorites?: any[]
   setFavorites?: React.Dispatch<React.SetStateAction<any[]>>
@@ -584,6 +593,18 @@ export default function LeadFavorites({
                     )
                     })()}
                   </div>
+
+                  {/* "Why I chose this for you" — the SAME canonical client-property row
+                      Recommendations edits, so a change here shows there and vice versa.
+                      Compact and secondary; the Favorites layout is otherwise untouched. */}
+                  {onSaveReasons && fav.canonical_property_key && (
+                    <div className="mt-2">
+                      <ReasonsControl
+                        reasons={reasonsByKey?.get(String(fav.canonical_property_key)) ?? []}
+                        onSave={(next) => onSaveReasons(String(fav.canonical_property_key), next)}
+                      />
+                    </div>
+                  )}
 
                   {/* Scheduled-tour metadata — mirrors the Lead Panel "Next Action
                       → Due" treatment (muted uppercase label + muted value line,
