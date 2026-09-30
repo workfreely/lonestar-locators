@@ -2289,7 +2289,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     if (outcome === "yes") applyFirstContact(lead, dc.method)
     else applyContactAttempt(lead, dc.method)
   }
-  // Text path — "Did you send the text?" → "Yes, Sent". Feeds the SAME canonical
+  // Text path — "Did you text …?" → "Yes, Sent". Feeds the SAME canonical
   // pending-outreach applier (Follow Up + text_sent timeline event → Status
   // "Waiting for Reply"). A sent text is NOT "Yes, Contacted": no recordFirstContact,
   // no New → Contacted, no Build List — the lead stays New.

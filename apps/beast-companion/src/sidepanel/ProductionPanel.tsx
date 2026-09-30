@@ -149,12 +149,12 @@ export function ProductionPanel() {
   const enrichPendingRef = useRef<Map<string, string>>(new Map()); // nonce → cache key
   const [enrichTick, setEnrichTick] = useState(0);
 
-  // Pending contact confirmation ("Were you able to contact …?"). Null = hidden.
+  // Pending contact confirmation ("Did you call …?" / "Did you text …?"). Null = hidden.
   // Immutable pending-contact context — captured when contact is INITIATED and
   // resolved against THIS captured identity, never the live active client (Bug 2).
   // Two phases of the SAME bottom sheet:
   //   "choose-method"  → "Would you like to call or text {name}?" (Contact Lead)
-  //   "confirm-result" → "Were you able to contact {name}?"       (after launch)
+  //   "confirm-result" → "Did you call {name}?"                    (after launch)
   // Header Call/Text skip straight to "confirm-result" (method already known).
   const [pendingContact, setPendingContact] = useState<null | {
     leadId: string | number;
@@ -657,7 +657,7 @@ export function ProductionPanel() {
   };
 
   // Header Call Client / Text Client: method is already known, so skip the
-  // chooser and go straight to launch + the "Were you able to contact?" result.
+  // chooser and go straight to launch + the "Did you call …?" result.
   // Captures the lead identity NOW (immutable — survives a later active switch).
   const onContact = (method: "call" | "text") => {
     const lead = active?.lead;
@@ -721,7 +721,7 @@ export function ProductionPanel() {
     }
   };
 
-  // Text path — "Did you send the text?" → "Yes, Sent". Posts the canonical
+  // Text path — "Did you text …?" → "Yes, Sent". Posts the canonical
   // "text-sent" verb to the CRM (panel → chrome.storage → content script → CRM),
   // which runs the pending-outreach cascade: a text_sent timeline event + Contact
   // FU1 (Status "Waiting for Reply") and advances New → Contacted (a sent text is a
@@ -1635,7 +1635,7 @@ export function ProductionPanel() {
             ) : pendingContact.method === "text" ? (
               <>
                 <p style={SHEET_QUESTION_STYLE}>
-                  Did you send the text to {pendingName}?
+                  Did you text {pendingName}?
                 </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   <button type="button" onClick={resolveTextSent} style={SHEET_PRIMARY_BTN}>
@@ -1649,7 +1649,7 @@ export function ProductionPanel() {
             ) : (
               <>
                 <p style={SHEET_QUESTION_STYLE}>
-                  Were you able to contact {pendingName}?
+                  Did you call {pendingName}?
                 </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   <button type="button" onClick={() => resolveContact("yes")} style={SHEET_PRIMARY_BTN}>
@@ -1840,7 +1840,7 @@ export function ProductionPanel() {
                   prompt asks "Did you make the … contact attempt?" and confirms
                   "Yes, Done".
                 - Post-list Follow-Ups are always a sent text, so they keep the
-                  "Did you send … text?" / "Yes, Sent" wording. */}
+                  "Did you text …?" / "Yes, Sent" wording. */}
             <p style={SHEET_QUESTION_STYLE}>
               {isContactFollowUpAction(followUpConfirm.title)
                 ? `Did you make the ${formatWorkflowActionLabel(followUpConfirm.title)
