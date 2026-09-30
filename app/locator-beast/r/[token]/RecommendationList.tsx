@@ -164,14 +164,6 @@ export default function RecommendationList({
   // one just tapped). Set when favoriting, cleared on animationend so the pop replays
   // on every favorite. Unfavoriting never sets it (no reverse animation).
   const [popIndex, setPopIndex] = useState<number | null>(null)
-  // TEMPORARY heart-pop diagnostic — only active with ?debug=heart in the URL, so it is
-  // invisible to real clients. Proves on-device whether .is-popping reaches the DOM and
-  // whether the animation is live or suppressed by prefers-reduced-motion. Remove after.
-  const [heartDebug, setHeartDebug] = useState(false)
-  const [heartDiag, setHeartDiag] = useState("")
-  useEffect(() => {
-    try { setHeartDebug(new URLSearchParams(window.location.search).get("debug") === "heart") } catch {}
-  }, [])
 
   async function markDone() {
     setDoneBusy(true)
@@ -233,11 +225,6 @@ export default function RecommendationList({
 
   return (
     <>
-    {heartDebug ? (
-      <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 9999, background: "#0e2545", color: "#fff", fontFamily: "monospace", fontSize: "12px", lineHeight: 1.4, padding: "8px 12px", wordBreak: "break-all" }}>
-        {heartDiag || "heart-debug on — tap a heart to capture runtime values"}
-      </div>
-    ) : null}
     <div className="lbr-grid">
       {properties.map((p) => {
         const isFav = favorites.has(p.index)
@@ -297,18 +284,7 @@ export default function RecommendationList({
               <button
                 type="button"
                 className={`lbr-heart${popIndex === p.index ? " is-popping" : ""}`}
-                onClick={(e) => {
-                  const btn = e.currentTarget
-                  toggle(p.index)
-                  // TEMP diagnostic: after React commits the class, read the LIVE production
-                  // DOM/computed style to prove exactly what reached the browser.
-                  if (heartDebug) requestAnimationFrame(() => {
-                    const cs = getComputedStyle(btn)
-                    setHeartDiag(
-                      `tapped p.index=${p.index} · class="${btn.className}" · anim-name=${cs.animationName} · dur=${cs.animationDuration} · reduce-motion=${window.matchMedia("(prefers-reduced-motion: reduce)").matches}`,
-                    )
-                  })
-                }}
+                onClick={() => toggle(p.index)}
                 onAnimationEnd={() => setPopIndex((cur) => (cur === p.index ? null : cur))}
                 aria-pressed={isFav}
                 aria-busy={isPending}
@@ -375,8 +351,13 @@ export default function RecommendationList({
                   ) : (
                     <div />
                   )}
-                  {p.websiteUrl && (
-                    <a className="lbr-view" href={p.websiteUrl} target="_blank" rel="noopener noreferrer nofollow">
+                  {/* siteHref, never the raw websiteUrl. A non-http(s) value (e.g.
+                      "www.example.com") is truthy, so gating on the raw field
+                      rendered an href the browser resolves RELATIVE to this page —
+                      a link to /locator-beast/r/<token>/www.example.com. The image
+                      and name links already used siteHref; this is the same gate. */}
+                  {siteHref && (
+                    <a className="lbr-view" href={siteHref} target="_blank" rel="noopener noreferrer nofollow">
                       View Property <Arrow />
                     </a>
                   )}

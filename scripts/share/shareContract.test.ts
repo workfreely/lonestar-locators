@@ -152,7 +152,27 @@ console.log("\n3. The CLIENT COMPONENT still renders each field:")
     /properties\.filter\(\(p\) => p\.favorited\)/.test(list))
 }
 
-console.log("\n4. The canonical identity is generated, not hand-maintained:")
+console.log("\n4. The client page tells the truth about what it saved:")
+{
+  const list = read("app/locator-beast/r/[token]/RecommendationList.tsx")
+  const route = read("app/api/r/favorite/route.ts")
+  // "View Property" must use the VALIDATED href for BOTH the gate and the link —
+  // gating on the raw field let a non-http(s) value render a relative, broken link.
+  ok("Visit Property is gated on the validated siteHref, not the raw websiteUrl",
+    /\{siteHref && \(\s*<a className="lbr-view" href=\{siteHref\}/.test(list))
+  ok("no raw websiteUrl is used as an href anywhere", !/href=\{p\.websiteUrl\}/.test(list))
+  // The favorite API must never claim success for a write that did not happen.
+  ok("the favorite route fails when the RPC persisted nothing",
+    /if \(!row\) return NextResponse\.json\(\{ ok: false, error: "not_saved" \}, \{ status: 409 \}\)/.test(route))
+  ok("it echoes the DATABASE state, not the requested state",
+    /favorited: row\.favorited \?\? favorited/.test(route))
+  ok("the page rolls back the optimistic heart on a non-2xx",
+    /if \(!res\.ok\) throw new Error\("favorite failed"\)/.test(list))
+  // No temporary diagnostics shipped to renters.
+  ok("no debug UI is shipped to production", !/debug/i.test(list))
+}
+
+console.log("\n5. The canonical identity is generated, not hand-maintained:")
 {
   const files = readdirSync(path.join(ROOT, "supabase/migrations")).filter((f) => f.endsWith(".sql"))
   const gen = files.map((f) => read(path.join("supabase/migrations", f)))

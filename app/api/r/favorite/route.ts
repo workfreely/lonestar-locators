@@ -41,8 +41,18 @@ export async function POST(req: NextRequest) {
   })
   if (error) return NextResponse.json({ error: "failed" }, { status: 500 })
 
-  // The RPC returns no row for an unknown/revoked/paused share — report the
-  // requested state back without leaking which of those it was.
+  // The RPC returns NO ROW for an unknown/revoked/paused share — nothing was
+  // persisted. This previously answered `ok: true` with the requested state, so the
+  // client kept a filled heart that had never been saved: the renter believed they
+  // had favorited a property, and the locator never saw it.
+  //
+  // Not leaking WHICH of unknown/revoked/paused it was is still right — but that is
+  // a reason to keep the response VAGUE, not a reason to call it successful. One
+  // generic non-2xx covers every case and tells the client the truth, and the page's
+  // existing `if (!res.ok)` rollback then restores the heart on its own.
   const row = (Array.isArray(data) ? data[0] : data) as { favorited?: boolean } | undefined
-  return NextResponse.json({ ok: true, favorited: row?.favorited ?? favorited })
+  if (!row) return NextResponse.json({ ok: false, error: "not_saved" }, { status: 409 })
+
+  // Echo the state the DATABASE now holds, not the state that was asked for.
+  return NextResponse.json({ ok: true, favorited: row.favorited ?? favorited })
 }
