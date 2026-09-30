@@ -154,7 +154,10 @@ export default function BestMatches({
               {/* Operational row — Recommended has no Guest Card / Schedule Tour actions,
                   so Commission aligns to the bottom-right of the card. Present whenever
                   there is a commission state (always ≥ "Not Verified"). */}
-              <div className="mt-2 flex items-center justify-between gap-2">
+              {/* The commission badge is flex-none + nowrap, and the reasons half is
+                  flex-1 + min-w-0, so a long reason ellipses instead of squeezing,
+                  wrapping or compressing the badge. */}
+              <div className="mt-2 flex items-center justify-between gap-3">
                 {/* "Why I chose this" — compact, secondary, anchored to the card's left
                     edge (the operational row spans the full card, so this aligns with
                     the property image above it). Expands an inline editor. The
@@ -166,13 +169,13 @@ export default function BestMatches({
                   />
                 ) : <span />}
                 {commission.state === "paying" ? (
-                  <span className="rounded-lg border border-[#8ecaa6] bg-[#dff5e6] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#136c3a]">
+                  <span className="flex-none whitespace-nowrap rounded-lg border border-[#8ecaa6] bg-[#dff5e6] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#136c3a]">
                     <span className="font-semibold">Commission:</span> {commission.text}
                   </span>
                 ) : commission.state === "not_paying" ? (
-                  <span className="rounded-lg border border-[#eaa9a5] bg-[#fdeaea] px-2.5 py-[3px] text-[11px] font-semibold leading-none text-[#b42318]">Not Paying Locators</span>
+                  <span className="flex-none whitespace-nowrap rounded-lg border border-[#eaa9a5] bg-[#fdeaea] px-2.5 py-[3px] text-[11px] font-semibold leading-none text-[#b42318]">Not Paying Locators</span>
                 ) : (
-                  <span className="rounded-lg border border-[#cbd4e0] bg-[#eef1f5] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#5a6b86]">Commission Not Verified</span>
+                  <span className="flex-none whitespace-nowrap rounded-lg border border-[#cbd4e0] bg-[#eef1f5] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#5a6b86]">Commission Not Verified</span>
                 )}
               </div>
             </div>

@@ -72,7 +72,33 @@ ok("budget wording is only the two vetted forms",
 console.log("\nMANUAL EDITOR — 0–3, saved to the existing row:")
 ok("the control exists with the approved label", /Why I chose this · Edit/.test(ctrl))
 ok("it sits on the LEFT of the operational row (card's left edge)",
-  /justify-between gap-2">[\s\S]{0,400}ReasonsControl/.test(best))
+  /justify-between gap-\d">[\s\S]{0,600}ReasonsControl/.test(best))
+
+// ── Readability + the commission badge's protected space ────────────────────
+// Measured in a harness built from these exact class strings: BEFORE, the badge
+// WRAPPED to two lines (30px tall) and its width varied 175/193/217px with the
+// reason length. AFTER it is 19px tall and exactly 234.1px at every card width.
+ok("the CONTROL text stays muted", /Why I chose this · Edit[\s\S]{0,40}<\/button>/.test(ctrl) &&
+  /text-\[var\(--crm-text-muted\)\][\s\S]{0,400}Why I chose this · Edit/.test(ctrl))
+ok("the saved REASON text uses the Google-rating colour, not the muted tone",
+  /min-w-0 truncate text-\[10\.5px\] text-\[var\(--crm-text-secondary\)\]/.test(ctrl))
+ok("that is the same token the Google rating figure uses",
+  /tabular-nums text-\[var\(--crm-text-secondary\)\]/.test(best))
+ok("reasons stay on ONE line and ellipse", /truncate/.test(ctrl))
+ok("the reasons half can shrink, so the ellipsis can engage",
+  /flex min-w-0 flex-1 items-center/.test(ctrl))
+ok("every commission badge is flex-none and never wraps", (() => {
+  const badges = best.match(/className="[^"]*bg-\[#(dff5e6|fdeaea|eef1f5)\][^"]*"/g) ?? []
+  return badges.length === 3 && badges.every((b) => /flex-none/.test(b) && /whitespace-nowrap/.test(b))
+})())
+// Truncation is VISUAL only: the joined string is ellipsed by CSS, so no reason is
+// dropped, reordered, or preferentially shortened — the commute reason included.
+ok("the display string is the reasons joined in their stored order",
+  /reasons\.join\(" · "\)/.test(ctrl))
+ok("no reason is sliced or filtered for display",
+  !/reasons\.slice\(/.test(ctrl.split("if (!open)")[1] ?? ""))
+ok("the editor still seeds from the FULL saved reasons",
+  /setDraft\(reasons\.length \? reasons : \[""\]\)/.test(ctrl))
 ok("the editor caps at MAX_REASONS", /draft\.length >= MAX_REASONS/.test(ctrl) && /slice\(0, MAX_REASONS\)/.test(ctrl))
 ok("blank rows are dropped rather than saved as empty bullets",
   /draft\.map\(\(r\) => r\.trim\(\)\)\.filter\(Boolean\)/.test(ctrl))

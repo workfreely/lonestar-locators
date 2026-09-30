@@ -48,16 +48,28 @@ export default function ReasonsControl({
 
   if (!open) {
     return (
-      <div className="flex min-w-0 items-center gap-1.5">
+      // flex-1 + min-w-0 so this half ABSORBS the row's spare width and, more
+      // importantly, is allowed to SHRINK. Without min-w-0 a flex item refuses to go
+      // below its content width, so a long reason would push against the commission
+      // badge instead of ellipsing.
+      <div className="flex min-w-0 flex-1 items-center gap-1.5">
         <button
           type="button"
           onClick={begin}
+          // The CONTROL stays muted and fixed-width — it is chrome, not content.
           className="flex-none text-[10.5px] font-medium text-[var(--crm-text-muted)] underline decoration-[var(--crm-border)] underline-offset-2 transition-colors hover:text-[var(--crm-text-primary)]"
         >
           Why I chose this · Edit
         </button>
         {reasons.length > 0 && (
-          <span className="min-w-0 truncate text-[10.5px] text-[var(--crm-text-muted)]">
+          // The saved reasons are CONTENT, so they take the same bright treatment as
+          // the Google rating figure rather than the muted tone of the control.
+          //
+          // `truncate` ellipses the joined display string only. Every reason is still
+          // in the array in its original order — nothing is dropped, reordered, or
+          // preferentially shortened, and the commute reason is not special-cased.
+          // The editor and the canonical row keep the full text.
+          <span className="min-w-0 truncate text-[10.5px] text-[var(--crm-text-secondary)]">
             {reasons.join(" · ")}
           </span>
         )}
