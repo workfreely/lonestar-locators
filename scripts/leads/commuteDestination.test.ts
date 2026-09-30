@@ -119,8 +119,12 @@ ok("it asks for the place id", /"id"/.test(ctrl))
 ok("it degrades to plain text when Maps is unavailable", /catch\s*\{/.test(ctrl))
 
 console.log("\nCANONICAL id + EDITABLE label:")
+// The label is now seeded through the San Antonio display bank; the place id is
+// still stored verbatim, which is the part that matters for routing identity.
 ok("selecting a place stores the place id as canonical",
-  /onChange\(\{ label: c\.name, placeId: c\.placeId \}\)/.test(ctrl))
+  /onChange\(\{ label: displayDestinationLabel\(c\.name\), placeId: c\.placeId \}\)/.test(ctrl))
+ok("the display bank never alters the place id",
+  /placeId: c\.placeId/.test(ctrl) && !/displayDestinationLabel\([^)]*placeId/.test(ctrl))
 ok("the label stays editable WITHOUT moving the destination",
   /onChange\(\{ label: e\.target\.value, placeId \}\)/.test(ctrl))
 ok("clearing empties both together", /onChange\(\{ label: "", placeId: "" \}\)/.test(ctrl))
@@ -132,10 +136,11 @@ ok("Add Lead and Edit Client are literally the same form component",
   /mode = "create"/.test(modal) && (read("components/LeadFormModal.tsx").match(/<LeadFields/g) ?? []).length === 1)
 ok("the workspace reads the same column the form writes",
   new RegExp(`lead\\.${LABEL}`).test(panel))
-ok("the Companion DTO maps the same column", new RegExp(`str\\(lead\\.${LABEL}\\)`).test(dto))
+ok("the Companion DTO maps the same column", new RegExp(`lead\\.${LABEL}`).test(dto))
 ok("the Companion contract declares the destination", /commuteDestination/.test(contract))
 ok("the Companion is shown the LABEL only, never the place id",
-  /commuteDestination: str\(lead\.commute_anchor_label\)/.test(dto) && !new RegExp(PLACE).test(cpanel))
+  /commuteDestination: displayDestinationLabel\(lead\.commute_anchor_label\)/.test(dto) &&
+  !new RegExp(PLACE).test(cpanel))
 
 console.log("\nSCOPE — no drive-time work in this pass, and the outreach text is intact:")
 ok("no Routes API call was added", !/routes\.googleapis|computeRoutes|Distance ?Matrix/i.test(ctrl + fields + panel))

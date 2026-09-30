@@ -28,6 +28,7 @@ import ConfirmDialog from "./ConfirmDialog"
 import AddNextActionModal from "./AddNextActionModal"
 import { SectionCard } from "./LeadPanelSections"
 import InvoiceDetailsSection from "./InvoiceDetailsSection"
+import { displayDestinationLabel } from "@/lib/commute/destinationAliases"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1019,7 +1020,7 @@ export default function LeadPanel({
                   here, like every other row in this card: Search Criteria is a
                   display surface, and Edit Client is its one edit path. */}
               {hasValue(lead.commute_anchor_label) && (
-                <Field label="Commute / Destination" value={lead.commute_anchor_label} />
+                <Field label="Commute / Destination" value={displayDestinationLabel(lead.commute_anchor_label)} />
               )}
               {hasValue(lead.source) && (
                 <div className="flex items-start justify-between gap-4">

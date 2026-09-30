@@ -9,6 +9,7 @@ import { rankLeadActions } from "@/lib/nextActions"
 import { getSourceStyle } from "@/lib/leads/sourceStyles"
 import { getArchiveReasonLabel } from "@/lib/leads/archiveReasons"
 import { holdFollowUpInstant } from "@/lib/leads/holdWorkflow"
+import { displayDestinationLabel } from "@/lib/commute/destinationAliases"
 
 // Phase 2 — active-client bridge payload (CRM page → content script → panel).
 //
@@ -326,7 +327,8 @@ export function buildActiveClientPayload(
       desiredAreas: str(lead.neighborhoods) ?? str(lead.submarkets),
       // The label only — same value the CRM's Search Criteria card shows, so the
       // two panels never disagree about where the client needs to be.
-      commuteDestination: str(lead.commute_anchor_label),
+      // The alias bank, so the Companion panel and the CRM card never disagree.
+      commuteDestination: displayDestinationLabel(lead.commute_anchor_label) || null,
       // Readable source label via the CRM's canonical source map (same source of
       // truth as LeadSourceBadge): "instagram_ads" → "Instagram Ads".
       source: str(lead.source) ? getSourceStyle(lead.source).label : null,

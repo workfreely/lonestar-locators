@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { loadGoogleMaps } from "@/lib/propertyExplorer/loadMaps"
+import { displayDestinationLabel } from "@/lib/commute/destinationAliases"
 
 // The ONE control for a client's Commute / Destination — the place they need to
 // live near. Renders wherever client search criteria are edited (Add Lead and Edit
@@ -100,8 +101,11 @@ export default function CommuteDestinationField({
     setCanonicalName(c.name)
     setOpen(false)
     setQuery("")
-    // The Google name seeds the label; the locator shortens it for the client.
-    onChange({ label: c.name, placeId: c.placeId })
+    // The approved short label seeds the field when the bank knows this place, so the
+    // locator does not have to shorten "Joint Base San Antonio: Fort Sam Houston" by
+    // hand every time. It is a SEED, not a lock — the input below stays editable, and
+    // the place id (the routing identity) is unaffected either way.
+    onChange({ label: displayDestinationLabel(c.name), placeId: c.placeId })
   }
 
   function clear() {

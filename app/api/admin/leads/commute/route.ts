@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { driveTimesToAnchor, RoutesConfigError } from "@/lib/commute/routes"
 import { applyCommuteReason, needsCommute } from "@/lib/commute/commuteReason"
+import { displayDestinationLabel } from "@/lib/commute/destinationAliases"
 
 // POST /api/admin/leads/commute  { leadId }
 //
@@ -61,7 +62,11 @@ export async function POST(req: NextRequest) {
   if (!lead) return NextResponse.json({ error: "not_found" }, { status: 404 })
 
   const anchorPlaceId = (lead.commute_anchor_place_id ?? "").trim()
-  const anchorLabel = (lead.commute_anchor_label ?? "").trim()
+  // The alias bank applies HERE, not at render: the label is baked into the reason
+  // string that is stored on the canonical row, and Favorites, Recommendations and
+  // every minted Preview / Send List snapshot read that string — not the label.
+  // Aliasing anywhere else would leave those four surfaces showing Google's long name.
+  const anchorLabel = displayDestinationLabel(lead.commute_anchor_label)
   // No destination saved → nothing to compute. Deliberately NOT an error: most
   // clients have no anchor, and the caller fires this on every lead open.
   if (!anchorPlaceId || !anchorLabel) {
