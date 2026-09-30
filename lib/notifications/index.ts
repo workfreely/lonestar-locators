@@ -48,6 +48,6 @@ export type { BuiltEmail, NewLeadEmailParams, LeadConfirmationEmailParams, LeadA
 export { sendBillingNotification } from "./billing"
 export type { BillingNotificationKind } from "./billing"
 
-export { sendAccountStartedEmails } from "./lifecycle"
+export { sendAccountWelcomeEmail, sendTrialStartedEmail } from "./lifecycle"
 
 export { BRAND, absoluteUrl } from "./branding"

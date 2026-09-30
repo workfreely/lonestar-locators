@@ -3,6 +3,9 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/client"
+// Aliased: this component already has a local handler called verifyLicense, and
+// an unaliased import would make that handler call itself.
+import { verifyLicense as runVerifyLicense } from "@/lib/license/verifyLicense"
 import { CRM_PRIMARY_BUTTON, CRM_SECONDARY_BUTTON } from "@/lib/crmButtonStyles"
 import Card, { ReferredByPill } from "./MemberCard"
 import type { AdminMember } from "./types"
@@ -26,14 +29,14 @@ export default function ApprovalsPanel({ members }: { members: AdminMember[] }) 
     if (busyUser) return
     setBusyUser(userId)
     setError(null)
-    const { error } = await supabase.rpc("lb_verify_license", { p_user: userId })
+    // PASS 8: the shared helper, so approving a member and verifying from the
+    // owner queue behave identically — including the trial-started email.
+    // The helper returns an already-user-facing message, so there is no second
+    // mapping here — one verification path, one set of wording.
+    const { error } = await runVerifyLicense(userId)
     setBusyUser(null)
     if (error) {
-      setError(
-        error.message?.includes("license_number_missing")
-          ? "That member hasn't entered a license number yet."
-          : error.message || "Could not verify that license.",
-      )
+      setError(error)
       return
     }
     router.refresh()

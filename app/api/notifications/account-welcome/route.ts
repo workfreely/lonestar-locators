@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { sendAccountStartedEmails } from "@/lib/notifications"
+import { sendAccountWelcomeEmail } from "@/lib/notifications"
 
-// Sends the Welcome + Trial-started emails once a user has completed onboarding
-// and their trial is active. Kept SEPARATE from the trial grant (/api/billing/
-// start-trial) so the emails fire exactly once regardless of whether the trial
-// was granted by the DB trigger or the start-trial fallback. Called fire-and-
-// forget by the onboarding wizard after the trial has been ensured.
+// Sends the account WELCOME email once a user has completed onboarding.
+//
+// PASS 8: it no longer sends the trial-started email. The trial no longer begins
+// here — it begins at successful Texas licence verification, which may be days
+// later. Claiming a started trial at this moment, with a trial_ends_at that does
+// not exist yet, would simply be false. The trial-started email now fires from
+// /api/notifications/trial-started, and only when the verification transaction
+// reports that it actually granted one.
 //
 // Auth-gated to the signed-in user and gated on onboarding actually being
 // complete, so it can't be used to spam arbitrary addresses. sendAccountStarted
@@ -24,19 +27,18 @@ export async function POST() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("first_name, full_name, trial_ends_at, onboarding_completed")
+    .select("first_name, full_name, onboarding_completed")
     .eq("id", user.id)
     .single()
 
-  // Only fire once onboarding is genuinely complete (the moment the trial starts).
+  // Only fire once onboarding is genuinely complete.
   if (!profile?.onboarding_completed) {
     return NextResponse.json({ ok: false, error: "onboarding_incomplete" })
   }
 
-  await sendAccountStartedEmails({
+  await sendAccountWelcomeEmail({
     to: user.email,
     name: profile.full_name || profile.first_name,
-    trialEndsAt: profile.trial_ends_at,
   })
 
   return NextResponse.json({ ok: true })

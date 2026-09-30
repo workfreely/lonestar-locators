@@ -14,6 +14,7 @@ import {
 } from "./licenseLookups"
 import type { LicenseRow } from "./types"
 import { licenseStatus, LICENSE_STATUS_LABEL } from "@/lib/license/status"
+import { verifyLicense } from "@/lib/license/verifyLicense"
 
 // Owner-only license review. Verification is manual by design — the owner opens the
 // issuing state's own registry, confirms the number, and records the result here.
@@ -52,16 +53,26 @@ export default function LicensePanel({ rows }: { rows: LicenseRow[] }) {
     if (busyUser) return
     setBusyUser(userId)
     setError(null)
-    const { error } = await supabase.rpc(rpc, { p_user: userId, ...args })
-    setBusyUser(null)
-    if (error) {
-      setError(
-        error.message?.includes("license_number_missing")
+    // PASS 8: Verify goes through the shared helper, which also sends the
+    // trial-started email when THAT call granted a trial, and returns an
+    // already-user-facing message. Unverify/Reject keep the plain RPC — neither
+    // can start a trial — and keep their own message mapping.
+    let message: string | null = null
+    if (rpc === "lb_verify_license") {
+      message = (await verifyLicense(userId)).error
+    } else {
+      const { error } = await supabase.rpc(rpc, { p_user: userId, ...args })
+      if (error) {
+        message = error.message?.includes("license_number_missing")
           ? "That agent hasn't entered a license number yet."
           : error.message?.includes("rejection_reason_required")
             ? "Add a short reason so the agent knows what to fix."
-            : error.message || "Could not update that license.",
-      )
+            : error.message || "Could not update that license."
+      }
+    }
+    setBusyUser(null)
+    if (message) {
+      setError(message)
       return
     }
     setRejecting(null)

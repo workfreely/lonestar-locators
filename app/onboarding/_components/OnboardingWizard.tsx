@@ -73,12 +73,10 @@ export default function OnboardingWizard({
   // shared leads table).
   async function finish() {
     setSaving(true);
-    // Completing onboarding also starts the 30-day free trial ATOMICALLY: the
-    // `trg_grant_trial_on_onboarding` DB trigger stamps trial_started_at /
-    // trial_ends_at / subscription_status='trialing' in this same write (guarded
-    // by the trial_usage ledger so it's idempotent and never grants a second
-    // trial to a reused email). No client-side trial call — a completed
-    // onboarding always yields valid trial access for a new email.
+    // PASS 8: completing onboarding no longer starts a trial. trg_grant_trial_on_
+    // onboarding was neutralised in the database along with trg_grant_trial_on_
+    // signup, so this write stamps onboarding state only. The 30-day trial begins
+    // when the platform owner verifies a real Texas licence.
     await supabase
       .from("profiles")
       .update({
@@ -115,21 +113,17 @@ export default function OnboardingWizard({
       console.error("Smart Form auto-create failed:", err);
     }
 
-    // Explicitly ensure the 30-day trial is granted before entering the CRM.
-    // This does NOT rely solely on the atomic DB trigger firing — it calls the
-    // idempotent, ledger-guarded trial grant directly, so completing onboarding
-    // always yields trial access (the /admin billing gate checks it on the very
-    // next navigation). Idempotent: if the trigger already granted the trial,
-    // this no-ops. Awaited so the trial exists before we navigate; a failure
-    // here is non-fatal and must not trap the user on the building screen.
-    try {
-      await fetch("/api/billing/start-trial", { method: "POST" });
-    } catch {
-      // Non-fatal — proceed to the CRM; the billing gate / page handles the rest.
-    }
+    // PASS 8: onboarding no longer starts the trial. The 30-day trial begins when
+    // the platform owner verifies a real Texas licence (lb_verify_license), so
+    // there is nothing to grant here and the old /api/billing/start-trial call has
+    // been removed rather than left as a no-op round trip.
+    //
+    // A finished-but-unverified user is routed to /verify-license by the Pass 7
+    // licence gate, which runs BEFORE the billing gate — so arriving here without
+    // a trial does not bounce them to /billing.
 
-    // Welcome + trial-started emails (fire-and-forget; sent once, independent of
-    // which path granted the trial). Never blocks navigation.
+    // Account welcome email (fire-and-forget). No longer claims a trial has
+    // started; that email now fires from the verification path.
     void fetch("/api/notifications/account-welcome", { method: "POST" }).catch(() => {});
 
     router.push("/admin/leads");
