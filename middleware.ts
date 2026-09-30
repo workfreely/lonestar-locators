@@ -23,7 +23,7 @@ const LOCATOR_BEAST_PREFIX = "/locator-beast";
 // the CRM, OAuth callback, and API routes 404 on the live domain). Everything
 // else on that host is a marketing page served from app/locator-beast/*.
 const APP_PATH_PATTERN =
-  /^\/(login|signup|forgot-password|reset-password|onboarding|billing|smart-lead-form|admin|api|auth|companion|ai|help|thank-you|authorize)(\/|$)/;
+  /^\/(login|signup|forgot-password|reset-password|onboarding|billing|verify-license|smart-lead-form|admin|api|auth|companion|ai|help|thank-you|authorize)(\/|$)/;
 
 // The CRM is premium. Everything under /admin requires an active trial or a
 // live subscription — EXCEPT /admin/billing, which must always be reachable so
@@ -50,7 +50,12 @@ const BILLING_SETTINGS_PREFIX = "/admin/billing";
 // (public renter intake), /r/<token> (public client recommendations), and the whole
 // Lone Star tree. /api/* and /ai/* are deliberately untouched — those belong to the
 // later API security pass, and gating them here would change API contracts.
-const PROTECTED_PATH_PATTERN = /^\/(admin|onboarding|billing|help)(\/|$)/;
+// /verify-license is AUTHENTICATION-gated like the rest, and deliberately sits
+// OUTSIDE the entitlement gate — exactly like /billing. A user who has to resolve a
+// requirement must be able to reach the page that resolves it, whatever their
+// entitlement says. This adds no licence CONDITION anywhere: nothing in this file
+// reads a licence column or routes anyone based on one. Pass 7 owns that.
+const PROTECTED_PATH_PATTERN = /^\/(admin|onboarding|billing|verify-license|help)(\/|$)/;
 
 // Supabase sets the session as `sb-<ref>-auth-token`, chunked as `.0`, `.1`, … when
 // it is large. Their presence is what separates "definitely signed out" from "we

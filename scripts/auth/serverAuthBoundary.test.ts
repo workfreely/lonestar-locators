@@ -177,7 +177,11 @@ async function main() {
     ok("lapsed users still go to /billing", /pathname = "\/billing"/.test(code))
     ok("/admin/billing is still exempt from the ENTITLEMENT gate",
       /needsEntitlement[\s\S]{0,140}!pathname\.startsWith\(BILLING_SETTINGS_PREFIX\)/.test(code))
-    ok("/admin/billing is NOT exempt from the AUTH gate", /\(admin\|onboarding\|billing\|help\)/.test(code))
+    // Pass 6 added /verify-license to this pattern. Asserted as "admin is in the set"
+    // rather than as the literal set, so adding a further protected route does not
+    // fail this for the wrong reason — the /admin/billing behaviour is what matters.
+    ok("/admin/billing is NOT exempt from the AUTH gate",
+      /const PROTECTED_PATH_PATTERN = \/\^\\\/\(admin\|/.test(code))
     ok("the entitlement path still fails OPEN on a DB error", /return null; \/\/ fail open/.test(src))
     // Without these, replacing `if (!needsEntitlement) return null` with a bare
     // `return null` would disable the billing gate entirely and every other
