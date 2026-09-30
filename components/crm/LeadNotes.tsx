@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { supabase } from "@/lib/supabase/client"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { TOUR_TYPE_LABELS, TOUR_WINDOW_LABELS, type TourType, type TourWindow } from "@bc/companion-shared"
@@ -99,19 +99,86 @@ export default function LeadNotes({
       <TourAvailabilitySection leadId={lead.id} />
 
       <CollapsibleNotes title="Locator Notes" defaultOpen={!!(lead.locator_notes && lead.locator_notes.trim())} storageKey="locator-notes">
-        <textarea
+        <AutoGrowTextarea
           value={lead.locator_notes || ""}
-          onChange={async (e) => {
-            const newNotes = e.target.value
+          onChange={async (newNotes) => {
             if (onUpdateLead) onUpdateLead({ ...lead, locator_notes: newNotes })
             // Demo leads: optimistic only — never write to the bigint leads table.
             if (isDemoLeadId(lead.id)) return
             await supabase.from("leads").update({ locator_notes: newNotes }).eq("id", lead.id).select("*")
           }}
           placeholder="Internal notes about this client..."
-          className="w-full h-24 text-[12.5px] bg-[var(--crm-inset)] border border-[var(--crm-border)] rounded-xl px-3 py-2 resize-none text-[var(--crm-text-primary)] placeholder-[var(--crm-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--crm-accent)] focus:border-transparent transition-shadow"
         />
       </CollapsibleNotes>
     </>
+  )
+}
+
+
+/**
+ * Locator Notes input — grows with the note instead of trapping a long one in a
+ * fixed 96px box.
+ *
+ * A real client note runs to dozens of lines (per-property commute, amenities,
+ * pricing), which was previously readable only by scrolling a six-line window.
+ *
+ *   • auto-grows from MIN to MAX as the text gets longer
+ *   • past MAX it stops growing and scrolls internally, so the panel stays usable
+ *   • `resize-y` still allows a manual drag on the bottom edge, and a manual drag
+ *     WINS — once the locator sizes it themselves, typing no longer re-clamps it.
+ *     Detected by comparing the element's height against the last height we set.
+ *
+ * Width, colours, radius, focus ring and the surrounding panel are unchanged; only
+ * the height behaviour differs. The value is passed straight through, so text is
+ * preserved exactly — no trimming or normalising.
+ */
+const NOTES_MIN_H = 96   // the previous fixed height (h-24) — the empty state is unchanged
+const NOTES_MAX_H = 420  // ~22 lines before it scrolls internally
+
+function AutoGrowTextarea({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string
+  onChange: (next: string) => void | Promise<void>
+  placeholder?: string
+}) {
+  const ref = useRef<HTMLTextAreaElement | null>(null)
+  // The height WE last applied. If the element differs from it, the locator dragged.
+  const applied = useRef<number | null>(null)
+  const manual = useRef(false)
+
+  // useLayoutEffect, not useEffect: size before paint so a long note never flashes
+  // at the collapsed height on open.
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el || manual.current) return
+    // Reset first so scrollHeight reports the CONTENT height, not the current box.
+    el.style.height = "auto"
+    const next = Math.min(Math.max(el.scrollHeight, NOTES_MIN_H), NOTES_MAX_H)
+    el.style.height = `${next}px`
+    el.style.overflowY = el.scrollHeight > NOTES_MAX_H ? "auto" : "hidden"
+    applied.current = next
+  }, [value])
+
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      rows={1}
+      onMouseUp={() => {
+        // A drag on the resize handle ends here. If the height is no longer the one
+        // we set, the locator chose it — stop auto-sizing from then on.
+        const el = ref.current
+        if (el && applied.current !== null && Math.abs(el.offsetHeight - applied.current) > 1) {
+          manual.current = true
+        }
+      }}
+      onChange={(e) => void onChange(e.target.value)}
+      placeholder={placeholder}
+      style={{ minHeight: NOTES_MIN_H, maxHeight: manual.current ? undefined : NOTES_MAX_H }}
+      className="w-full text-[12.5px] bg-[var(--crm-inset)] border border-[var(--crm-border)] rounded-xl px-3 py-2 resize-y text-[var(--crm-text-primary)] placeholder-[var(--crm-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--crm-accent)] focus:border-transparent transition-shadow"
+    />
   )
 }
