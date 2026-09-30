@@ -98,6 +98,51 @@ ok("an attempted-but-unroutable pair is NOT retried forever",
 ok("but it IS retried once the anchor changes",
   needsCommute({ commute_minutes: null, commute_anchor_place_id: A, commute_computed_at: "2026-09-30T00:00:00Z" }, B))
 
+console.log("\nLABEL-ONLY CHANGE — recompose from the cache, never call Routes:")
+{
+  // The approved example, exactly.
+  const cached = ["20 min to Joint Base San Antonio: Fort Sam Houston"]
+  const r = applyCommuteReason(cached, 20, "Fort Sam")
+  ok("cached minutes are reused verbatim", r.reasons[0] === "20 min to Fort Sam")
+  ok("it is a replacement, not an addition", r.outcome === "updated" && r.reasons.length === 1)
+}
+{
+  // Order and manual reasons must survive a re-wording.
+  const cached = ["20 min to Joint Base San Antonio: Fort Sam Houston", "Pet friendly", "Corner unit"]
+  const r = applyCommuteReason(cached, 20, "Fort Sam")
+  ok("at the 3-reason cap a re-wording still succeeds", r.outcome === "updated")
+  ok("commute stays FIRST and the manual reasons keep their order",
+    r.reasons.join("|") === "20 min to Fort Sam|Pet friendly|Corner unit")
+  ok("the 3-reason limit is not exceeded", r.reasons.length === 3)
+}
+ok("re-wording to the SAME label is a no-op (no pointless write)",
+  applyCommuteReason(["20 min to Fort Sam"], 20, "Fort Sam").outcome === "unchanged")
+{
+  // A row that was at the cap with no commute reason must stay that way.
+  const full = ["Walk to the river", "Pet friendly", "Corner unit"]
+  const r = applyCommuteReason(full, 20, "Fort Sam")
+  ok("a capped row with no commute reason is still skipped on re-wording",
+    r.outcome === "skipped_at_limit" && r.reasons.join("|") === full.join("|"))
+}
+
+console.log("\nTHE ROUTE: recomposition is driven by the CACHE, not by Google:")
+{
+  const api = readFileSync(path.join(process.cwd(), "app/api/admin/leads/commute/route.ts"), "utf8")
+  const src = api.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1")
+  ok("recomposition only considers pairs whose cache is NOT stale",
+    /\.filter\(\(k\) => !stale\.includes\(k\)\)/.test(src))
+  ok("it reuses the stored commute_minutes", /const minutes = prior\?\.commute_minutes/.test(src))
+  ok("Routes is called ONLY when something is genuinely stale",
+    /if \(stale\.length > 0\) \{[\s\S]{0,200}driveTimesToAnchor/.test(src))
+  ok("a label-only change therefore reaches no Google API",
+    /routesCalled: stale\.length > 0/.test(src))
+  ok("recomposition carries the cache through verbatim, never nulling it",
+    /commute_minutes: minutes,[\s\S]{0,200}commute_computed_at: prior\?\.commute_computed_at/.test(src))
+  ok("an unchanged or capped row is not written back", /outcome !== "updated" && outcome !== "added"/.test(src))
+  ok("the early return no longer short-circuits recomposition",
+    /stale\.length === 0 && recomposed\.length === 0/.test(src))
+}
+
 console.log("\nARCHITECTURE — one store, server-side Routes, not on the render path:")
 {
   const routes = strip(read("lib/commute/routes.ts"))

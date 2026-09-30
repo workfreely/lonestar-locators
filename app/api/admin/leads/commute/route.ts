@@ -109,25 +109,77 @@ export async function POST(req: NextRequest) {
 
   const byKey = new Map((existing ?? []).map((r) => [r.canonical_property_key, r]))
   const stale = keys.filter((k) => needsCommute(byKey.get(k), anchorPlaceId))
-  if (stale.length === 0) {
+
+  // ── Recomposition: a renamed label, with NO Routes call ────────────────────
+  //
+  // Changing commute_anchor_label while commute_anchor_place_id stays the same
+  // changes only the WORDING. The destination and therefore the drive time are
+  // identical, so re-asking Google would be paying for an answer we already hold:
+  //
+  //   cached  "20 min to Joint Base San Antonio: Fort Sam Houston"
+  //   label → "Fort Sam"
+  //   result  "20 min to Fort Sam"          (commute_minutes reused verbatim)
+  //
+  // Deliberately computed from the rows NOT in `stale`, i.e. those whose cache is
+  // valid for the current anchor. applyCommuteReason does the rest, so recomposition
+  // inherits every protection the compute path has: replace in place (order kept,
+  // commute first), never displace a manual reason, never exceed 3.
+  const recomposed = keys
+    .filter((k) => !stale.includes(k))
+    .map((propertyKey) => {
+      const prior = byKey.get(propertyKey)
+      const minutes = prior?.commute_minutes
+      if (minutes == null) return null // unroutable pair — nothing to re-word
+      const priorReasons = Array.isArray(prior?.reasons) ? (prior!.reasons as string[]) : []
+      const { reasons, outcome } = applyCommuteReason(priorReasons, minutes, anchorLabel)
+      // "unchanged" and "skipped_at_limit" mean the stored array is already correct;
+      // writing it back would churn updated_at for nothing.
+      if (outcome !== "updated" && outcome !== "added") return null
+      return {
+        row: {
+          lead_id: leadId,
+          canonical_property_key: propertyKey,
+          reasons,
+          // The cache is carried through VERBATIM, including the original
+          // commute_computed_at: this was a re-wording, not a measurement, so the
+          // provenance must still point at when Google was actually asked.
+          //
+          // They are repeated rather than omitted because a single upsert sends one
+          // INSERT with the UNION of every row's keys — a row that left these out
+          // would have them written as NULL, silently destroying the cached figure
+          // this whole path exists to reuse.
+          commute_minutes: minutes,
+          commute_anchor_place_id: prior?.commute_anchor_place_id ?? anchorPlaceId,
+          commute_computed_at: prior?.commute_computed_at ?? null,
+          updated_at: new Date().toISOString(),
+        },
+        outcome: `recomposed_${outcome}` as const,
+        minutes,
+      }
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null)
+
+  if (stale.length === 0 && recomposed.length === 0) {
     return NextResponse.json({ ok: true, computed: 0, upToDate: keys.length, rows: [] })
   }
 
-  // ── Google ─────────────────────────────────────────────────────────────────
-  let results
-  try {
-    results = await driveTimesToAnchor(stale, anchorPlaceId)
-  } catch (err) {
-    if (err instanceof RoutesConfigError) {
-      return NextResponse.json({ error: "routes_not_configured" }, { status: 500 })
+  // ── Google — ONLY for pairs with no valid cached figure ────────────────────
+  let results: Awaited<ReturnType<typeof driveTimesToAnchor>> = []
+  if (stale.length > 0) {
+    try {
+      results = await driveTimesToAnchor(stale, anchorPlaceId)
+    } catch (err) {
+      if (err instanceof RoutesConfigError) {
+        return NextResponse.json({ error: "routes_not_configured" }, { status: 500 })
+      }
+      console.error("[commute] Routes failed:", err)
+      return NextResponse.json({ error: "routes_failed" }, { status: 502 })
     }
-    console.error("[commute] Routes failed:", err)
-    return NextResponse.json({ error: "routes_failed" }, { status: 502 })
   }
 
   // ── Persist: the cache always, the reason only when the rules allow ────────
   const computedAt = new Date().toISOString()
-  const upserts = results.map(({ propertyKey, minutes }) => {
+  const computedUpserts = results.map(({ propertyKey, minutes }) => {
     const prior = byKey.get(propertyKey)
     const priorReasons = Array.isArray(prior?.reasons) ? (prior!.reasons as string[]) : []
     // minutes === null means Routes found no drivable route. The cache row is still
@@ -152,6 +204,9 @@ export async function POST(req: NextRequest) {
     }
   })
 
+  // Measured rows and re-worded rows share one uniform write.
+  const upserts = [...computedUpserts, ...recomposed]
+
   const { data: saved, error: saveErr } = await supabase
     .from("lead_property_reasons")
     .upsert(
@@ -167,8 +222,13 @@ export async function POST(req: NextRequest) {
   const tally = upserts.reduce<Record<string, number>>((a, u) => ({ ...a, [u.outcome]: (a[u.outcome] ?? 0) + 1 }), {})
   return NextResponse.json({
     ok: true,
+    // `computed` counts Routes results; `recomposed` counts rows re-worded from the
+    // existing cache with no Google call at all. They are reported separately so a
+    // label-only change is visibly free.
     computed: results.length,
-    upToDate: keys.length - stale.length,
+    recomposed: recomposed.length,
+    routesCalled: stale.length > 0,
+    upToDate: keys.length - stale.length - recomposed.length,
     outcomes: tally,
     anchorLabel,
     // Returned so the caller can merge into its reasons map without a refetch.
