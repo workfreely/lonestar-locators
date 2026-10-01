@@ -81,6 +81,7 @@ import { formatPersonName, greetingName, buildIntroSmsBody, type FollowUpOverrid
   evaluateAmenities, evaluateSpecials, collectRecommendationReasons } from "@bc/companion-shared"
 import { assessLocationFit } from "@/lib/propertyExplorer/locationFit"
 import type { ResolvedAgentIdentity } from "@/lib/notifications/agentSignature"
+import type { CanonicalFlow } from "@/lib/leads/stageTransition"
 
 // The legacy Lead Panel is HIDDEN in every environment (localhost AND production)
 // so the current Workspace is the one visible CRM layout while we finish Beast
@@ -234,6 +235,10 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // Revealed only after Text List / Email List is initiated — the canonical
   // "Did you send {name}'s list?" confirmation. Copy Link / Preview never set it.
   const [sendConfirm, setSendConfirm] = useState(false)
+  // A direct stage move that the server rejected or that never reached it. The
+  // optimistic card has already been reverted by the board; this tells the locator
+  // why, instead of the UI silently disagreeing with the database.
+  const [stageError, setStageError] = useState<string | null>(null)
   const [sentHistory, setSentHistory] = useState<{ leadId: number | string; clientName: string } | null>(null)
   const shareClientName = (l: any) =>
     ([l?.preferred_name, [l?.first_name, l?.last_name].filter(Boolean).join(" ")].find((n) => (n ?? "").trim()) as string) || "this client"
@@ -264,8 +269,8 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     closeSendSheet()
   }
 
-  async function handleSendRecommendations(lead: any) {
-    if (!lead?.id) return
+  async function handleSendRecommendations(lead: any): Promise<string | null> {
+    if (!lead?.id) return null
     setSendBusy(true)
     setSendCopied(false)
     setSendConfirm(false)
@@ -283,13 +288,92 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         // Prepare/reuse the snapshot and open ONLY the Send modal — no auto-preview tab.
         // Preview (in the modal) is the sole action that opens the client /r/<token> page.
         setSendSheet({ ...base, url: json.url, shareId: json.shareId, error: null })
-      } else {
-        setSendSheet({ ...base, url: null, shareId: null, error: "Couldn't prepare the recommendation list. Please try again." })
+        return json.shareId as string
       }
+      setSendSheet({ ...base, url: null, shareId: null, error: "Couldn't prepare the recommendation list. Please try again." })
+      return null
     } catch {
       setSendSheet({ ...base, url: null, shareId: null, error: "Something went wrong. Please try again." })
+      return null
     } finally {
       setSendBusy(false)
+    }
+  }
+
+  /**
+   * THE one entry point for a drag into a destination a canonical workflow owns.
+   *
+   * It performs NO stage write and NO workflow logic of its own — it opens the
+   * exact confirmation the Next Action button opens, and that existing handler
+   * does every write it already does. So dragging and clicking converge on one
+   * implementation, and "Not Yet" leaves the lead untouched because nothing has
+   * happened yet.
+   *
+   * The card is never moved optimistically for these, so cancelling needs no
+   * revert: the lead simply never left its column.
+   */
+  async function requestCanonicalTransition(lead: any, destination: string, flow: CanonicalFlow) {
+    const openAction = (key: string) =>
+      localNextActionsRef.current.find(
+        (a: any) => String(a.lead_id) === String(lead.id) && a.action_key === key && !a.completed && a.status !== "canceled",
+      ) ?? null
+
+    switch (flow) {
+      case "send_list": {
+        // Prepare/reuse the snapshot exactly as the Send Recommendations button
+        // does, then reveal the SAME "Did you send {name}'s list?" confirmation.
+        // If prep failed there is no share to mark sent, so the sheet shows its
+        // own error and the confirmation is deliberately not offered.
+        const shareId = await handleSendRecommendations(lead)
+        if (shareId) setSendConfirm(true)
+        return
+      }
+      case "tour_outcome": {
+        // The tour outcome modal owns Done Touring: it captures the outcome, sets
+        // Top Pick and creates start_application. A bare stage move left the lead
+        // with no Next Action at all, since done_touring has no workflow rule.
+        const action = openAction("tour_follow_up")
+        const favId = action?.property_id ?? lead.top_pick_favorite_id ?? null
+        const favorite = (localFavoritesRef.current ?? []).find((f: any) => String(f.id) === String(favId)) ?? null
+        const tour = (localToursRef.current ?? []).find(
+          (t: any) => String(t.lead_id) === String(lead.id) && t.status === "scheduled",
+        ) ?? null
+        setTourFollowUp({ lead, tour, favorite, actionId: action?.id ?? null })
+        return
+      }
+      case "application": {
+        // "Did the client submit their application?" → the shared Guest Card guard
+        // → Applied. Synthesizes a minimal action when no start_application row
+        // exists (a drag can precede it); applyApplicationSubmitted already guards
+        // on action.id != null before completing a row.
+        const action = openAction("start_application") ?? {
+          id: null,
+          property_id: lead.top_pick_favorite_id ?? null,
+          property_name: null,
+        }
+        setConfirmApply({ lead, action })
+        return
+      }
+      case "confirm_lease": {
+        const action = openAction("confirm_lease") ?? {
+          id: null,
+          property_id: lead.top_pick_favorite_id ?? null,
+          property_name: null,
+        }
+        setConfirmLease({ lead, action })
+        return
+      }
+      case "build_list": {
+        // Contacted → Searching is Build List's START move. Run the canonical one
+        // so build_list stays OPEN and send_list is NOT created early — the exact
+        // semantics skipWorkflowAction exists to preserve.
+        startBuildList({
+          lead,
+          onOptimistic: (updated: any) =>
+            setLocalLeads((prev) => prev.map((l: any) => (String(l.id) === String(lead.id) ? { ...l, ...updated } : l))),
+        })
+        return
+      }
     }
   }
 
@@ -1241,8 +1325,25 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     // 2) Advance to 'applied' + create the canonical Check Application action.
     let checkApp: any = null
     if (!demo) {
-      const { error } = await supabase.from("leads").update({ crm_status: "applied" }).eq("id", lead.id)
-      if (error) console.error("[apply] advance to applied failed:", error)
+      // THE one stage-write implementation. This used to be a direct
+      // `supabase.from("leads").update({ crm_status: "applied" })`, which skipped
+      // everything the route owns — Google contact sync, contact-chase retirement,
+      // the closed/reopen rules — so clicking Apply and dragging to Applied left
+      // the database in different states.
+      //
+      // skipWorkflowAction, because the successor here must be PROPERTY-SCOPED:
+      // getStageWorkflowAction("applied") produces a bare "Check App" with no
+      // property, and this row carries the Top Pick through from start_application.
+      const res = await fetch("/api/admin/leads/update-stage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId: lead.id, crm_status: "applied", skipWorkflowAction: true }),
+      })
+      if (!res.ok) {
+        console.error("[apply] advance to applied failed:", res.status)
+        setStageError("Couldn't move that lead to Applied — nothing was changed.")
+        return
+      }
       checkApp = await createWorkflowActionIfNeeded(supabase, lead.id, {
         title: "Check App",
         dueAt: autoDueInDays(3, timeZone, workHours),
@@ -2635,21 +2736,41 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       // update-stage route create the single FU1 successor (real leads). Mirrors
       // the Mark List Built path; re-posts so Companion updates without a re-click.
       if (payload.verb === "complete-send-list") {
+        // Wrapped so the sent_at write can be AWAITED before anything is
+        // completed or advanced. onVerb itself stays synchronous.
+        void (async () => {
         const now = new Date().toISOString()
 
         // Stamp the snapshot's sent_at for THIS send cycle, tying the immutable share
         // to the moment the agent confirmed the list was actually sent. Idempotent
         // server-side (only stamps while sent_at is null) and never alters a
-        // previously sent snapshot. Fire-and-forget: the workflow completion below is
-        // authoritative for the stage/Next Action and must not block on this.
+        // previously sent snapshot.
+        //
+        // AWAITED AND VERIFIED. This was fire-and-forget on the theory that the
+        // workflow completion is authoritative and must not block — but the result
+        // was a lead that reads "List Sent" over a share whose sent_at is null, so
+        // Sent Lists history and the client-facing sent state silently disagree with
+        // the pipeline. "Sent" is the whole claim this confirmation makes; if it
+        // cannot be recorded, the lead must not be advanced on the strength of it.
         if (typeof payload.shareId === "string" && payload.shareId) {
-          void fetch(`/api/admin/client-shares/${encodeURIComponent(payload.shareId)}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sent: true }),
-          }).catch((err) => {
-            if (process.env.NODE_ENV !== "production") console.error("[share-link] mark-sent failed:", err)
-          })
+          let marked = false
+          try {
+            const markRes = await fetch(`/api/admin/client-shares/${encodeURIComponent(payload.shareId)}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ sent: true }),
+            })
+            marked = markRes.ok
+            if (!markRes.ok) console.error("[share-link] mark-sent rejected:", markRes.status)
+          } catch (err) {
+            console.error("[share-link] mark-sent failed:", err)
+          }
+          if (!marked) {
+            // Nothing has been completed or advanced yet — stop here, leaving
+            // send_list open and the stage unchanged, exactly as "Not Yet" would.
+            setStageError("Couldn't record that the list was sent — nothing was changed. Please try again.")
+            return
+          }
         }
 
         const sendRow = localNextActionsRef.current.find(
@@ -2734,6 +2855,8 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             )
           },
         })
+        return
+      })()
         return
       }
 
@@ -3955,6 +4078,11 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           className={`relative z-10 flex-1 overflow-hidden block ${demoMode ? "crm-fade-in" : ""}`}
         >
           <LeadBoard
+            // ONE canonical transition pathway: a drag into a destination owned by
+            // a workflow action hands off to that action's existing confirmation
+            // instead of writing a stage. Cancel therefore changes nothing.
+            onRequestCanonical={requestCanonicalTransition}
+            onStageError={(msg) => setStageError(msg)}
             onActionsCanceled={(ids) => {
               // Retired by the stage transition (pre-list contact chase). Mark them
               // canceled locally — rankLeadActions already treats 'canceled' as a
@@ -4485,6 +4613,23 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           THEN reveal the canonical "Did you send {name}'s list?" confirmation; only
           "Yes, List Sent" runs the complete-send-list verb (sent_at + Searching → List
           Sent + FU1). Copy Link / Preview never touch sent state. No raw URL shown. */}
+      {/* A rejected/failed direct stage move. The card is already back where it
+          was; this is the part the locator could previously never see. */}
+      {stageError && (
+        <div className="fixed bottom-6 left-1/2 z-[10001] -translate-x-1/2 rounded-xl border border-[#eaa9a5] bg-[#fdeaea] px-4 py-2.5 shadow-lg">
+          <div className="flex items-center gap-3">
+            <span className="text-[12.5px] font-medium text-[#b42318]">{stageError}</span>
+            <button
+              type="button"
+              onClick={() => setStageError(null)}
+              className="text-[11px] font-semibold text-[#b42318] underline underline-offset-2"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       {sendSheet && (
         <div className="fixed inset-0 z-[10000] bg-black/40 backdrop-blur-sm flex items-center justify-center px-4" onClick={closeSendSheet}>
           <div className="w-full max-w-md rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>

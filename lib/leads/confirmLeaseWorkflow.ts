@@ -14,7 +14,7 @@ import { supabase } from "@/lib/supabase/client"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
 import { createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
-import { resolveClosedCommissionSnapshot, type ProjectionMethod } from "@/lib/leads/commissionEstimate"
+import { type ProjectionMethod } from "@/lib/leads/commissionEstimate"
 
 // The optimistic patch the caller applies to localNextActions / localLeads.
 export type ConfirmLeasePatch = {
@@ -38,16 +38,17 @@ export async function completeConfirmLease(opts: {
   // Pick — property_id was stamped at creation).
   confirmAction: { id: number | string; property_id: number | null; property_name?: string | null }
   now: string
-  // The account's canonical Sales Goals at this moment — used to FREEZE this
-  // lead's estimated commission on close, via the same estimator the dashboards
-  // use (no second formula). Mirrors the Kanban → Closed drag snapshot.
-  method: ProjectionMethod
-  avgCommission: number
+  // RETAINED for the callers' existing signature, but no longer read here: the
+  // frozen commission snapshot is now computed in exactly one place, inside
+  // /api/admin/leads/update-stage, from the owner's saved Sales Goals. Keeping a
+  // second copy of that formula on the client is how the two could drift.
+  method?: ProjectionMethod
+  avgCommission?: number
   onOptimistic?: (patch: ConfirmLeasePatch) => void
   // The created Get Invoice Details action.
   onActionCreated?: (action: any) => void
 }): Promise<void> {
-  const { lead, confirmAction, now, method, avgCommission, onOptimistic, onActionCreated } = opts
+  const { lead, confirmAction, now, onOptimistic, onActionCreated } = opts
   const demo = isDemoLeadId(lead.id)
   const propId = confirmAction.property_id
   const propertyName = (confirmAction.property_name || "").toString().trim() || null
@@ -65,17 +66,25 @@ export async function completeConfirmLease(opts: {
   // 2) Advance to Closed — the ONLY explicit close point (never inferred from
   //    approval). Stamps closed_at once (mirrors the Kanban → Closed drag). [real only]
   if (!demo) {
-    const patch: Record<string, unknown> = { crm_status: "closed" }
-    // Freeze the close date + estimated-commission snapshot only on the FIRST
-    // close (mirrors the Kanban drag: never overwrite an existing snapshot).
-    if (!lead.closed_at) {
-      patch.closed_at = now
-      const snapshot = resolveClosedCommissionSnapshot(lead, method, avgCommission)
-      patch.closed_estimated_commission = snapshot.closed_estimated_commission
-      patch.closed_estimation_method = snapshot.closed_estimation_method
+    // THE one stage-write implementation. This previously wrote crm_status and
+    // computed its OWN closed_at + frozen commission snapshot, duplicating the
+    // route's logic — two implementations of the same irreversible financial
+    // record, which could drift apart silently. The route already stamps
+    // closed_at and the snapshot on the first close (and clears them on a
+    // reopen), so that logic now lives in exactly one place.
+    //
+    // skipWorkflowAction, because the successor here must be PROPERTY-SCOPED:
+    // getStageWorkflowAction("closed") produces a bare "Get Invoice Details",
+    // while this one carries the Top Pick property through from confirm_lease.
+    const res = await fetch("/api/admin/leads/update-stage", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ leadId: lead.id, crm_status: "closed", skipWorkflowAction: true }),
+    })
+    if (!res.ok) {
+      console.error("[confirm-lease] advance to closed failed:", res.status)
+      throw new Error("confirm-lease: stage update rejected")
     }
-    const { error } = await supabase.from("leads").update(patch).eq("id", lead.id)
-    if (error) console.error("[confirm-lease] advance to closed failed:", error)
   }
 
   // 3) Immutable history (best-effort, non-blocking; demo-safe inside).

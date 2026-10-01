@@ -20,6 +20,7 @@ import { autoDueInDays, type WorkHours } from "@/lib/workflow/autoDueDate"
 import { readKanbanDensity, writeKanbanDensity, DEFAULT_KANBAN_DENSITY } from "@/lib/preferences"
 import BeastVoiceMic from "./voice/BeastVoiceMic"
 import AddPropertyModal from "./AddPropertyModal"
+import { stageTransitionPolicy, type CanonicalFlow } from "@/lib/leads/stageTransition"
 
 const ALL_COLUMNS = [
   { id: "new", title: "🟡 New" },
@@ -107,6 +108,8 @@ export default function LeadBoard({
   getVoiceCurrentProperty,
   onVoiceContactGate,
   onGuestCardGuard,
+  onRequestCanonical,
+  onStageError,
 }: {
   leads: any[]
   setLeads: React.Dispatch<React.SetStateAction<any[]>>
@@ -226,6 +229,14 @@ export default function LeadBoard({
    *  runs the check/modal and calls `proceed()` only when the move may continue.
    *  Both manual drag and Beast Voice funnel through here — one shared policy. */
   onGuestCardGuard?: (leadId: string | number, targetStage: "applied" | "closed", proceed: () => void) => void
+  /**
+   * A consequential destination was requested by a drag. The board does NOT
+   * move the card or write a stage — the host invokes the EXISTING canonical
+   * flow for that destination, which performs the stage change itself.
+   */
+  onRequestCanonical?: (lead: any, destination: string, flow: CanonicalFlow) => void
+  /** Surfaced to the locator when a direct stage move is rejected or fails. */
+  onStageError?: (message: string) => void
 }) {
   const [mounted, setMounted] = useState(false)
   const [activeLead, setActiveLead] = useState<any | null>(null)
@@ -299,6 +310,35 @@ export default function LeadBoard({
   // guard (the ONE canonical policy — never duplicated in Voice); the guard
   // decides whether to proceed. Every other move goes straight through.
   async function moveLeadToStage(leadId: string | number, newStage: string) {
+    const lead = leads.find((l) => String(l.id) === String(leadId))
+    const policy = stageTransitionPolicy(lead?.crm_status, newStage)
+
+    // Dropping a card on the column it already occupies wrote a full optimistic
+    // update and a POST for a change that could not happen.
+    if (policy.kind === "noop") return
+
+    // CONSEQUENTIAL — the destination is owned by a canonical workflow action.
+    // The card deliberately does NOT move: the existing flow performs the stage
+    // change itself once the locator confirms, so cancelling leaves the lead
+    // exactly where it was with nothing created and nothing completed.
+    if (policy.kind === "canonical") {
+      if (lead && onRequestCanonical) {
+        onRequestCanonical(lead, newStage, policy.flow)
+        return
+      }
+      // No handler wired (the marketing demo board) → fall through to the plain
+      // move rather than silently doing nothing.
+    }
+
+    // An archive needs its reason, deleted_by and pre_delete_status — the board
+    // already owns that dialog, so reuse it instead of writing a bare stage.
+    if (policy.kind === "dialog" && lead) {
+      handleArchive(leadId)
+      return
+    }
+
+    // The Guest Card guard still gates any remaining applied/closed move (a
+    // BACKWARD correction, which policy classifies as direct).
     if (onGuestCardGuard && (newStage === "applied" || newStage === "closed")) {
       onGuestCardGuard(leadId, newStage, () => {
         void applyStageMove(leadId, newStage)
@@ -412,23 +452,58 @@ export default function LeadBoard({
     // =====================================================
     // ✅ SAVE TO BACKEND
     // =====================================================
-    const res = await fetch("/api/admin/leads/update-stage", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        leadId,
-        crm_status: newStage,
-        follow_up_count:
-          followUpReset !== undefined ? followUpReset : undefined,
-        next_action_date: nextDate,
-      }),
-    })
+    // The snapshot the UI must be restored to if the write does not land. Taken
+    // BEFORE the optimistic patch above is committed, so a revert is exact rather
+    // than an attempt to invert the patch.
+    const revert = () => {
+      setLeads((prev: any[]) =>
+        prev.map((l) => (String(l.id) === String(leadId) ? { ...(draggedLead as any), _justDropped: false } : l)),
+      )
+    }
+
+    let res: Response
+    try {
+      res = await fetch("/api/admin/leads/update-stage", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          leadId,
+          crm_status: newStage,
+          follow_up_count:
+            followUpReset !== undefined ? followUpReset : undefined,
+          next_action_date: nextDate,
+        }),
+      })
+    } catch (err) {
+      // The request never reached the server. Previously this rejected into a
+      // floating promise and the card simply stayed in the new column while the
+      // database still held the old stage.
+      console.error("[stage] update-stage request failed:", err)
+      revert()
+      onStageError?.("Couldn't move that lead — check your connection and try again.")
+      return
+    }
+
+    const json = await res.json().catch(() => null)
+
+    // res.ok was never checked. A 400/403/404/500 left the UI claiming a move the
+    // database had refused — the worst kind of disagreement, because nothing
+    // looked wrong.
+    if (!res.ok) {
+      console.error("[stage] update-stage rejected:", res.status, json)
+      revert()
+      onStageError?.(
+        res.status === 403
+          ? "You don't have access to move that lead."
+          : "Couldn't move that lead — it has been put back.",
+      )
+      return
+    }
 
     // Workflow Engine — the route creates an automatic Next Action (if the
     // new stage has a rule and none already exists) and returns it here.
-    const json = await res.json().catch(() => null)
     if (json?.workflowAction) onWorkflowAction?.(json.workflowAction)
     // The pre-list contact chase is retired server-side once a lead reaches
     // Searching; mirror that locally so the open panel stops listing it.
