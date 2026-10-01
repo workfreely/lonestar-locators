@@ -14,6 +14,8 @@ import {
   type InvoiceForm,
 } from "@/lib/leads/invoiceFields"
 import { isValidLeaseTerm } from "@/lib/leads/leaseFollowUp"
+import CanonicalPropertySearchField from "@/components/crm/CanonicalPropertySearchField"
+import type { ExplorerProperty } from "@/lib/propertyExplorer/types"
 
 // Present a stored "YYYY-MM-DD" as "Aug 28, 2026" for the date-picker button; blank
 // stays blank. Purely presentational — the canonical stored value is unchanged.
@@ -73,12 +75,34 @@ export default function GetInvoiceDetailsModal({
   const [attempted, setAttempted] = useState(false)
   // Which date field's calendar popover is open (Lease Start Date). Null = closed.
   const [openDateField, setOpenDateField] = useState<keyof InvoiceForm | null>(null)
+  // The catalogued record for a property picked from the canonical search, kept
+  // only to SHOW its Property Intelligence commission as reference. Never written.
+  const [catalogRef, setCatalogRef] = useState<ExplorerProperty | null>(null)
+
+  // The client's city drives the market bias for the property search — the same
+  // input the Map uses.
+  const marketCity: string | null = lead?.city ?? null
+
+  // Verbatim trusted text, rendered as-is. No parsing: "115%" here means a
+  // percentage of ONE MONTH'S RENT, which is not the unit Commission % uses.
+  const catalogCommissionRef = (() => {
+    if (!catalogRef) return null
+    const parts: string[] = []
+    const send = (catalogRef.sendCommission ?? "").toString().trim()
+    const escort = (catalogRef.escortCommission ?? "").toString().trim()
+    const bonus = (catalogRef.bonusFlat ?? "").toString().trim()
+    if (send) parts.push(`Send ${send}`)
+    if (escort) parts.push(`Escort ${escort}`)
+    if (bonus) parts.push(`Bonus ${bonus}`)
+    return parts.length ? parts.join(" · ") : null
+  })()
 
   useEffect(() => {
     if (open) {
       setForm(seedInvoiceForm(lead ?? {}, autoPropertyName))
       setFocused(null)
       setAttempted(false)
+      setCatalogRef(null)
       setOpenDateField(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -110,7 +134,18 @@ export default function GetInvoiceDetailsModal({
   const set = (patch: Partial<InvoiceForm>) => setForm((f) => ({ ...f, ...patch }))
   // Typed computed-key setter — avoids a generic type-assertion inside JSX (which
   // the .tsx parser can mistake for a JSX tag).
-  const setField = (field: keyof InvoiceForm, value: string) => setForm((f) => ({ ...f, [field]: value }))
+  const setField = (field: keyof InvoiceForm, value: string) =>
+    setForm((f) => {
+      const next = { ...f, [field]: value }
+      // Percentage and Flat Fee are ALTERNATIVE base structures, so entering one
+      // clears the other. Enforced here rather than left to the locator: an invoice
+      // carrying both would be ambiguous about what was actually billed, and
+      // computeInvoiceTotals would silently prefer the flat fee.
+      const typed = String(value).trim() !== ""
+      if (field === "invoice_commission_pct" && typed) next.invoice_flat_fee = ""
+      if (field === "invoice_flat_fee" && typed) next.invoice_commission_pct = ""
+      return next
+    })
 
   const groupLabel = "col-span-1 sm:col-span-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--crm-text-secondary)] pt-1"
   const fieldLabel = "block mb-1 text-[11px] font-medium text-[var(--crm-text-secondary)]"
@@ -234,18 +269,60 @@ export default function GetInvoiceDetailsModal({
           {textField("invoice_contact_title", "Contact Title", "e.g. Assistant Manager")}
 
           <p className={groupLabel}>Lease Details</p>
-          {textField("invoice_property_name", "Property Name")}
+          {/* The SAME canonical Map search Favorites uses. Selecting a known
+              property establishes its identity (place id + canonical key) so the
+              invoice joins to property_catalog, the Favorite and the recommendation
+              — instead of a free-text name that joins to nothing. Typing freely
+              still works for a property Locator Beast does not know. */}
+          <div>
+            <label className={fieldLabel}>Property Name</label>
+            <CanonicalPropertySearchField
+              value={form.invoice_property_name}
+              onChange={(v) => set({ invoice_property_name: v, invoice_property_place_id: "", invoice_property_canonical_key: "" })}
+              onMatch={(m) => {
+                setCatalogRef(m.property)
+                set({
+                  invoice_property_name: m.name,
+                  invoice_property_place_id: m.placeId,
+                  invoice_property_canonical_key: `pid:${m.placeId}`,
+                })
+              }}
+              marketCity={marketCity}
+              placeholder="Search a property, or type a name"
+              inputClassName={inputCls}
+            />
+            {form.invoice_property_canonical_key && (
+              <p className="mt-1 text-[11px] font-medium text-emerald-600">✓ Linked to the property record</p>
+            )}
+          </div>
           {textField("invoice_unit_number", "Unit Number")}
           {dateField("invoice_lease_start_date", "Lease Start Date", true)}
           {textField("invoice_lease_term", "Lease Term (Months)", "Whole number, e.g. 12", "text", true)}
 
           <p className={groupLabel}>Commission</p>
           {numField("invoice_base_rent", "Base Rent", "money", true)}
-          {numField("invoice_commission_pct", "Commission %", "percent", true)}
+          {/* Percentage and Flat Fee are ALTERNATIVE base structures — a property
+              pays a percentage of rent OR a fixed fee. Entering one clears the
+              other so an invoice can never claim both. Bonus is separate and
+              additive to whichever applies. */}
+          {numField("invoice_commission_pct", "Commission %", "percent")}
+          {numField("invoice_flat_fee", "Flat Fee", "money")}
+          {numField("invoice_bonus", "Bonus", "money")}
           {readOnly("Total Invoice Amount", totalInvoice)}
           {numField("invoice_broker_split_pct", "Broker Split %", "percent")}
           {readOnly("Expected Commission", expectedCommission)}
-          <div className="hidden sm:block" />
+          {/* Property Intelligence, READ-ONLY reference. Deliberately not
+              auto-filled: only 5 of 4,202 catalogued properties carry a commission,
+              and "115%" there means a percentage of ONE MONTH'S RENT — not the same
+              unit as Commission % here. Shown so the locator can see what the
+              property generally pays, and type what this lease actually paid. An
+              invoice NEVER writes back to Property Intelligence. */}
+          {catalogCommissionRef && (
+            <p className="sm:col-span-2 -mt-1 text-[11px] text-[var(--crm-text-muted)]">
+              Property Intelligence: {catalogCommissionRef}
+              <span className="ml-1 opacity-70">— reference only, confirm the terms for this lease</span>
+            </p>
+          )}
 
           <p className={groupLabel}>Client Incentive</p>
           <div>

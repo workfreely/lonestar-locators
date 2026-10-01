@@ -217,8 +217,39 @@ export default function InvoiceDetailsSection({
               step="0.1"
               className={inputCls}
               value={form.invoice_commission_pct}
-              onChange={(e) => setForm((f) => ({ ...f, invoice_commission_pct: e.target.value }))}
-              onBlur={() => saveNumber("invoice_commission_pct")}
+              onChange={(e) => setForm((f) => ({ ...f, invoice_commission_pct: e.target.value, invoice_flat_fee: e.target.value.trim() ? "" : f.invoice_flat_fee }))}
+              onBlur={() => { saveNumber("invoice_commission_pct"); saveNumber("invoice_flat_fee") }}
+              placeholder="—"
+            />
+          </div>
+          {/* Flat Fee is the ALTERNATIVE base structure to Commission %, and Bonus
+              is additive to whichever applies. Entering one base structure clears
+              the other, so an invoice can never claim both — the same rule the
+              Get Invoice Details modal enforces, since both surfaces share one
+              invoice model. */}
+          <div>
+            <label className={fieldLabel}>Flat Fee ($)</label>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              className={inputCls}
+              value={form.invoice_flat_fee}
+              onChange={(e) => setForm((f) => ({ ...f, invoice_flat_fee: e.target.value, invoice_commission_pct: e.target.value.trim() ? "" : f.invoice_commission_pct }))}
+              onBlur={() => { saveNumber("invoice_flat_fee"); saveNumber("invoice_commission_pct") }}
+              placeholder="—"
+            />
+          </div>
+          <div>
+            <label className={fieldLabel}>Bonus ($)</label>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              className={inputCls}
+              value={form.invoice_bonus}
+              onChange={(e) => setForm((f) => ({ ...f, invoice_bonus: e.target.value }))}
+              onBlur={() => saveNumber("invoice_bonus")}
               placeholder="—"
             />
           </div>

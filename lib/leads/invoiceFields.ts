@@ -39,8 +39,17 @@ export type InvoiceForm = {
   invoice_lease_start_date: string // "YYYY-MM-DD" (blank/manual — never from move_date)
   invoice_lease_term: string
   invoice_base_rent: string
-  // Commission.
+  // Canonical property identity, from the Map's property search. Null for a
+  // property typed by hand — an uncatalogued property must still be invoiceable.
+  invoice_property_place_id: string
+  invoice_property_canonical_key: string
+  // Commission. Percentage and flat fee are ALTERNATIVE base structures, never
+  // both: a property pays a percentage of rent OR a fixed fee. Bonus is additive
+  // to whichever applies, and is a separate concept from a flat fee — "$500" in
+  // one merged field could never be told apart afterwards.
   invoice_commission_pct: string
+  invoice_flat_fee: string
+  invoice_bonus: string
   invoice_broker_split_pct: string
   // Rebate.
   invoice_rebate_type: string
@@ -62,11 +71,15 @@ const TEXT_COLUMNS: (keyof InvoiceForm)[] = [
   "invoice_lease_start_date",
   "invoice_lease_term",
   "invoice_rebate_type",
+  "invoice_property_place_id",
+  "invoice_property_canonical_key",
 ]
 // Numeric columns persisted as numbers (blank/NaN → null).
 const NUMBER_COLUMNS: (keyof InvoiceForm)[] = [
   "invoice_base_rent",
   "invoice_commission_pct",
+  "invoice_flat_fee",
+  "invoice_bonus",
   "invoice_broker_split_pct",
   "invoice_rebate_amount",
 ]
@@ -89,7 +102,11 @@ export function seedInvoiceForm(lead: any, autoPropertyName?: string | null): In
     invoice_lease_start_date: (lead.invoice_lease_start_date ?? "").slice(0, 10),
     invoice_lease_term: lead.invoice_lease_term ?? "",
     invoice_base_rent: numStr(lead.invoice_base_rent),
+    invoice_property_place_id: lead.invoice_property_place_id ?? "",
+    invoice_property_canonical_key: lead.invoice_property_canonical_key ?? "",
     invoice_commission_pct: numStr(lead.invoice_commission_pct),
+    invoice_flat_fee: numStr(lead.invoice_flat_fee),
+    invoice_bonus: numStr(lead.invoice_bonus),
     invoice_broker_split_pct: numStr(lead.invoice_broker_split_pct),
     invoice_rebate_type: lead.invoice_rebate_type ?? "None",
     invoice_rebate_amount: numStr(lead.invoice_rebate_amount),
@@ -111,21 +128,51 @@ export function autoInvoicePropertyName(lead: any, favorites: any[] = []): strin
 }
 
 /**
- * Live, read-only auto-calcs (never stored — always derivable):
- *   Total Invoice Amount = Base Rent × Commission %
- *   Expected Commission  = Total × Broker Split %
+ * The invoice totals.
+ *
+ *   base commission = flat fee            when a flat fee is entered
+ *                   = base rent × pct/100 otherwise
+ *   TOTAL           = base commission + bonus
+ *   EXPECTED        = TOTAL × broker split / 100
+ *
+ * Percentage and flat fee are ALTERNATIVES, not addends — a property pays a
+ * percentage of rent OR a fixed fee per lease. The flat fee wins when both are
+ * somehow present: it is an explicit dollar amount the locator typed, where a
+ * stale percentage may just be left over from the other structure.
+ *
+ * Bonus is INSIDE the broker split by decision: it is money the property paid on
+ * this lease, so the brokerage splits it like the rest. (If bonuses ever pay
+ * through to the agent whole, this is the one line that changes:
+ * expected = (total - bonus) × split/100 + bonus.)
+ *
+ * Still computed live for the UI — but now also PERSISTED at save time, so a
+ * historical invoice keeps the number that was actually billed even if the inputs
+ * or this formula change later. Same reason closed_estimated_commission is frozen.
  */
-export function computeInvoiceTotals(form: Pick<InvoiceForm, "invoice_base_rent" | "invoice_commission_pct" | "invoice_broker_split_pct">): {
-  totalInvoice: number | null
-  expectedCommission: number | null
-} {
+export function computeInvoiceTotals(
+  form: Pick<InvoiceForm, "invoice_base_rent" | "invoice_commission_pct" | "invoice_broker_split_pct" | "invoice_flat_fee" | "invoice_bonus">,
+): { totalInvoice: number | null; expectedCommission: number | null } {
   // Strip any presentation ($ , %) first so totals are identical whether the caller
   // passes raw digits or formatted display strings (formatting is presentation-only).
-  const base = parseFloat(rawNumericString(form.invoice_base_rent))
-  const pct = parseFloat(rawNumericString(form.invoice_commission_pct))
-  const totalInvoice = !Number.isNaN(base) && !Number.isNaN(pct) ? (base * pct) / 100 : null
-  const broker = parseFloat(rawNumericString(form.invoice_broker_split_pct))
-  const expectedCommission = totalInvoice !== null && !Number.isNaN(broker) ? (totalInvoice * broker) / 100 : null
+  const num = (v: string | undefined) => {
+    const n = parseFloat(rawNumericString(v ?? ""))
+    return Number.isNaN(n) ? null : n
+  }
+  const base = num(form.invoice_base_rent)
+  const pct = num(form.invoice_commission_pct)
+  const flat = num(form.invoice_flat_fee)
+  const bonus = num(form.invoice_bonus)
+  const broker = num(form.invoice_broker_split_pct)
+
+  const baseCommission = flat !== null ? flat : base !== null && pct !== null ? (base * pct) / 100 : null
+
+  // A bonus with no base structure is still a real invoice — some leases pay only
+  // a lease-up bonus — so the total is not gated on a base commission existing.
+  const totalInvoice =
+    baseCommission === null && bonus === null ? null : (baseCommission ?? 0) + (bonus ?? 0)
+
+  const expectedCommission =
+    totalInvoice !== null && broker !== null ? (totalInvoice * broker) / 100 : null
   return { totalInvoice, expectedCommission }
 }
 
@@ -184,5 +231,14 @@ export function buildInvoicePatch(form: InvoiceForm): Record<string, unknown> {
   }
   patch.invoice_submitted = !!form.invoice_submitted
   patch.invoice_commission_paid = !!form.invoice_commission_paid
+
+  // FREEZE the financial snapshot at save time. These two were previously derived
+  // on every render and never stored, which is fine for a live form and wrong for a
+  // historical record: an invoice must keep the number that was actually billed
+  // even if the inputs, the broker split, or this formula change afterwards. Same
+  // reasoning as closed_estimated_commission being frozen on close.
+  const { totalInvoice, expectedCommission } = computeInvoiceTotals(form)
+  patch.invoice_total_amount = totalInvoice
+  patch.invoice_expected_commission = expectedCommission
   return patch
 }
