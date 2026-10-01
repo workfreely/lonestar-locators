@@ -45,6 +45,13 @@ const LIVE_HASHES: Record<string, string> = {
   lb_create_client_share: "9d58933d49f1068e711630dc36a8c99d",
   lb_prepare_client_share: "133aaf9d04486d80fad849b6ab1b9819",
   lb_resolve_client_recommendations: "5f779cf8cd6fde2176b23e982c3d0ed3",
+  // Pass 2 area selection limit, applied 2026-10-01. These two are the REPO hashes,
+  // recorded when the migration was written and not yet confirmed against prosrc —
+  // the one query in USAGE above closes that. Behaviourally verified live the same
+  // day (scripts/sql/verifyAreaLimitTrigger.ts, 23/23), so the trigger is known to be
+  // active and running this logic; only the byte-exact body comparison is pending.
+  lb_area_selection_count: "b3381d5a7626725f926b260d4e090238",
+  lb_enforce_area_selection_limit: "c23d0ae2b03cdcf441dfc3054e4677fa",
 }
 
 const ROOT = process.cwd()
