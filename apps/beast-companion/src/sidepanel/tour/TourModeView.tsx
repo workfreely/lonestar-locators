@@ -162,7 +162,7 @@ export function TourModeView({
       {/* Reuses the Companion Field row (same 12.5px label/value typography as Search
           Criteria) with the section's 9px row rhythm. Empty rows are omitted. Display-
           only formatting — the autofill payload keeps the raw values. */}
-      <SectionCard title="Information to Autofill">
+      <SectionCard title="Client Info to Autofill">
         {(() => {
           const clientName = [client.firstName, client.lastName].filter(Boolean).join(" ");
           const clientPhone = formatPhone(client.phone);
@@ -172,16 +172,16 @@ export function TourModeView({
             <>
               <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
                 {clientName && <Field label="Name" value={clientName} />}
-                {client.email && <Field label="Email" value={client.email} />}
                 {clientPhone && <Field label="Phone" value={clientPhone} />}
+                {client.email && <Field label="Email" value={client.email} />}
                 {clientMove && <Field label="Move date" value={clientMove} />}
                 {client.bedrooms && <Field label="Bedrooms" value={client.bedrooms} />}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 9, borderTop: "1px solid var(--lb-border-soft, #242a37)", paddingTop: 13 }}>
-                <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--lb-text-muted, #8b93a3)", fontWeight: 700 }}>Locator Information</div>
+                <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--lb-text-muted, #8b93a3)", fontWeight: 700 }}>Locator Info</div>
                 {locatorName && <Field label="Name" value={locatorName} />}
-                {locator?.email && <Field label="Email" value={locator.email} />}
                 {locator?.phone && <Field label="Phone" value={locator.phone} />}
+                {locator?.email && <Field label="Email" value={locator.email} />}
                 <div style={{ fontSize: 10.5, color: "var(--lb-text-muted, #8b93a3)", marginTop: 2 }}>
                   Locator information is only added to the message.
                 </div>
