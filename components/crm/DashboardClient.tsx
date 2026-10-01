@@ -2927,27 +2927,13 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           return
         }
 
-        // No persisted row to mark (a purely DTO-synthesized follow-up): record the
-        // COMPLETED follow-up locally with the real timestamp so Last Action derives
-        // the follow-up label. Real/demo persisted rows are marked in place below.
-        const completedFollowLocal = !followRow
-          ? {
-              id: `local-fu-${lead.id}-${Date.now()}`,
-              lead_id: lead.id,
-              title: completedTitle,
-              action_key:
-                completedTitle === "FU1"
-                  ? "follow_up_1"
-                  : completedTitle === "FU2"
-                  ? "follow_up_2"
-                  : completedTitle === "FU3"
-                  ? "follow_up_3"
-                  : "final_follow_up",
-              completed: true,
-              completed_at: now,
-              status: "completed",
-            }
-          : null
+        // The synthetic client-only completed row that used to live here is GONE.
+        // It fabricated `{ id: "local-fu-…", completed: true, status: "completed" }`
+        // purely in React state when `followRow` wasn't found, so Last Action read
+        // correctly until the state was rebuilt from the server and then reverted
+        // to the "Lead Created" fallback — the two different Companion states.
+        // completeFollowUp now resolves and completes the real row server-side, so
+        // nothing enters Last Action that isn't in the database.
 
         // Demo successor (real leads get theirs from completeFollowUp) — identity
         // from the engine, due date from the approved move-date cadence.
@@ -2989,7 +2975,6 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             )
             const merged = [
               ...marked,
-              ...(completedFollowLocal ? [completedFollowLocal] : []),
               ...(demoSuccessor ? [demoSuccessor] : []),
             ]
             setLocalNextActions(merged)

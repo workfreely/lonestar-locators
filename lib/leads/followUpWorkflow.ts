@@ -3,6 +3,7 @@ import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
 import { getNextFollowUpAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
+import { completeAction, resolveOpenActionId } from "@/lib/leads/actionCompletion"
 import { followUpSuccessorDueAt } from "@/lib/workflow/moveDateCadence"
 import { emitWorkflowActionCreated } from "@/lib/workflowToast"
 import { isFollowUpAction } from "@/lib/leads/workflowActionLabels"
@@ -25,6 +26,19 @@ import { isFollowUpAction } from "@/lib/leads/workflowActionLabels"
  * demo ids, so this only completes-in-memory via onOptimistic; the caller
  * synthesizes the completed row, the successor, and the Waiting-for-Reply signal.
  */
+/**
+ * FU title → action_key. The ladder's rows are keyed by action_key but the
+ * completion signal arrives as a title ("FU1"), so the server-side resolver needs
+ * this. Same mapping the removed client-side synthetic row used.
+ */
+function actionKeyForFollowUpTitle(title: string): string {
+  const t = (title ?? "").trim().toUpperCase()
+  if (t === "FU1") return "follow_up_1"
+  if (t === "FU2") return "follow_up_2"
+  if (t === "FU3") return "follow_up_3"
+  return "final_follow_up"
+}
+
 export async function completeFollowUp(opts: {
   lead: any
   followRow?: { id: number | string } | null
@@ -70,12 +84,23 @@ export async function completeFollowUp(opts: {
 
   // 2) Complete the persisted follow-up row (real leads) so Last Action derives
   //    the follow-up label. Demo never hits the DB — caller synthesizes locally.
-  if (!isDemoLeadId(lead.id) && followRow?.id != null) {
-    const { error } = await supabase
-      .from("lead_next_actions")
-      .update({ completed: true, completed_at: now })
-      .eq("id", followRow.id)
-    if (error) console.error("[follow-up] complete row failed:", error)
+  if (!isDemoLeadId(lead.id)) {
+    // SERVER-RESOLVED. This used to be `if (followRow?.id != null)` — the row was
+    // looked up in client React state and the write SILENTLY SKIPPED when it
+    // wasn't there, while the count increment and the successor below went ahead
+    // unconditionally. That asymmetry is what left Ka'Leah Davis with
+    // follow_up_count = 1, an FU2 successor and FU1 still open, so Last Action had
+    // nothing durable to read.
+    //
+    // Now the id comes from the client when it has it and from the database when
+    // it doesn't, and a failure is reported rather than swallowed.
+    const rowId = followRow?.id ?? (await resolveOpenActionId(supabase, lead.id, actionKeyForFollowUpTitle(completedTitle)))
+    if (rowId != null) {
+      const ok = await completeAction(supabase, rowId, now)
+      if (!ok) console.error("[follow-up] complete row failed for lead", lead.id, "action", rowId)
+    } else {
+      console.error("[follow-up] no open row found to complete for lead", lead.id, "title", completedTitle)
+    }
   }
 
   // 3) Reflect the advanced cache locally. Stays in List Sent for FU1–FU3; the

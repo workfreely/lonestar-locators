@@ -10,6 +10,7 @@ import { getOAuthClient } from "@/lib/google/getOAuthClient"
 import { createListSentCalendarEvent } from "@/lib/google/createCalendarEvent"
 import { getStageWorkflowAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
 import { CONTACT_CHASE_ACTION_KEYS, STAGES_PAST_CONTACT_CHASE } from "@/lib/leads/contactChase"
+import { LIST_LADDER_ACTION_KEYS, STAGES_PAST_LIST_LADDER } from "@/lib/leads/actionCompletion"
 import { resolveUserTimeZone } from "@/lib/timezone/server"
 import { resolveWorkHoursFromProfile } from "@/lib/workflow/autoDueDate"
 import {
@@ -312,6 +313,32 @@ export async function POST(request: Request) {
       // fail the stage change the locator just made.
       if (chaseErr) console.error("[stage-sync] contact-chase cleanup failed:", chaseErr)
       else canceledActionIds = (canceled ?? []).map((r: { id: number | string }) => r.id)
+    }
+
+    // LIST SENT LADDER — the same stand-down, one stage later.
+    //
+    // Moving to Ready to Tour (or beyond) used to ADD `setup_tour` and retire
+    // nothing, so the open ladder survived: Ka'Leah Davis sat in Ready to Tour
+    // with send_list, follow_up_1 AND follow_up_2 all still open, and 6 of 17 live
+    // leads carried contradictory open actions this way. A lead being toured is
+    // not still waiting on "did you see the list?" nudges.
+    //
+    // Same explicit-key list, same 'canceled' status, same non-fatal handling as
+    // the chase above — nothing is deleted, so a genuine regression can make an
+    // earlier action relevant again. Runs regardless of skipWorkflowAction, which
+    // suppresses the SUCCESSOR for this transition, not the retirement of a
+    // finished sequence.
+    if (oldStage !== crm_status && STAGES_PAST_LIST_LADDER.has(crm_status)) {
+      const { data: retired, error: ladderErr } = await supabaseAdmin
+        .from("lead_next_actions")
+        .update({ status: "canceled" })
+        .eq("lead_id", leadId)
+        .eq("completed", false)
+        .eq("status", "open")
+        .in("action_key", LIST_LADDER_ACTION_KEYS as unknown as string[])
+        .select("id")
+      if (ladderErr) console.error("[stage-sync] list-ladder cleanup failed:", ladderErr)
+      else canceledActionIds = [...canceledActionIds, ...(retired ?? []).map((r: { id: number | string }) => r.id)]
     }
 
     // =====================================================

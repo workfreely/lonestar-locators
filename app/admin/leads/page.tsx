@@ -51,16 +51,37 @@ async function getLeads() {
   return dedupeLeads(data || [])
 }
 
-// Only open (uncompleted) manual Next Actions — completed ones don't
-// participate in the unified queue or ranking, so there's no reason to
-// ship them to the client on every page load.
+// Open Next Actions PLUS recently-completed ones.
+//
+// This used to be open-only (`.eq("completed", false)`), on the reasoning that
+// completed rows "don't participate in the unified queue or ranking". True for
+// ranking — rankLeadActions filters them out — but FALSE for Last Action:
+// deriveLastAction (lib/companion/leadToDto) exists precisely to read completed
+// rows, so stripping them meant Beast Companion could never show a real Last
+// Action after a page load and always fell back to "Lead Created". Two of
+// rankLeadActions' own suppression gates (sequenceComplete, tourScheduledComplete)
+// also need them, and without them a Ready-to-Tour lead whose tour is already
+// scheduled re-surfaces "Schedule Tour".
+//
+// Bounded by completion recency, not unbounded: Last Action only ever shows the
+// most recent one, so ancient completions are dead weight on every page load.
+//
+// `due_at` ties constantly — five action types are stamped with the same
+// immediateNow(), and autoDueInDays pins to 09:00 local — so `id` is added as a
+// tiebreaker. Without it Postgres returns ties in arbitrary order and the
+// Companion's `nextActions.find(a => !a.completed)` can pick differently between
+// loads of identical data.
+const COMPLETED_ACTION_WINDOW_DAYS = 120
+
 async function getOpenNextActions() {
   const supabase = await createClient()
+  const since = new Date(Date.now() - COMPLETED_ACTION_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString()
   const { data, error } = await supabase
     .from("lead_next_actions")
     .select("*")
-    .eq("completed", false)
+    .or(`completed.eq.false,completed_at.gte.${since}`)
     .order("due_at", { ascending: true })
+    .order("id", { ascending: true })
 
   if (error) {
     console.error("Error fetching next actions:", error.message)
