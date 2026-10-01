@@ -16,17 +16,16 @@ const strip = (t: string) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\s*\/
 const modal = strip(read("components/crm/FavoriteModal.tsx"))
 const favs = strip(read("components/crm/LeadFavorites.tsx"))
 
-console.log("ONE search implementation — the same one every other surface uses:")
-ok("the modal imports the shared PropertySearchField",
-  /import PropertySearchField.*from "@\/components\/crm\/social\/PropertySearchField"/.test(modal))
+console.log("ONE search implementation — the MAP's, not a lookalike:")
+// Superseded: this first wired the Social-Autopilot helper, which also calls
+// Place.searchByText and so looked like reuse. It is not the same search — see
+// scripts/leads/canonicalPropertySearch.test.ts for the full contract.
+ok("the modal uses the canonical (Map) property search",
+  /import CanonicalPropertySearchField/.test(modal))
+ok("and no longer uses the Social-Autopilot helper",
+  !/social\/PropertySearchField/.test(modal))
 ok("it does NOT build a second search system",
   !/loadGoogleMaps/.test(modal) && !/searchByText/.test(modal) && !/places\.Place/.test(modal))
-{
-  // The same component the Map/Explorer guard and Social Autopilot already use.
-  const consumers = ["components/crm/GuestCardGuardModal.tsx", "components/crm/social/PostEditor.tsx"]
-  ok("it is the component other CRM surfaces already consume",
-    consumers.every((f) => /PropertySearchField/.test(read(f))))
-}
 
 console.log("\nSELECTING a property fills everything Locator Beast already knows:")
 ok("name comes from the match", /name: m\.name/.test(modal))

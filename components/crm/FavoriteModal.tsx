@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { isValidUrl, normalizeUrl } from "@/lib/utils/isValidUrl"
-import PropertySearchField, { type PropertyMatch } from "@/components/crm/social/PropertySearchField"
+import CanonicalPropertySearchField, { type CanonicalPropertyMatch } from "@/components/crm/CanonicalPropertySearchField"
 import { placeUrl } from "@/lib/propertyExplorer/types"
 
 export type FavoriteInput = {
@@ -62,6 +62,7 @@ function isSlotComplete(s: Slot) {
 export default function FavoriteModal({
   open,
   editing,
+  marketCity,
   onClose,
   onSave,
 }: {
@@ -70,6 +71,8 @@ export default function FavoriteModal({
   // pre-filled slot. Null means "add new," showing three empty slots so
   // several properties can be saved in one pass.
   editing: { property_name: string | null; property_url: string | null; property_address: string | null; property_image_url?: string | null } | null
+  /** The client's search city — resolves the market bias for the canonical search. */
+  marketCity?: string | null
   onClose: () => void
   // Receives only the slots that had at least a name or URL filled in —
   // fully blank slots are dropped before this is ever called. Returns
@@ -140,7 +143,7 @@ export default function FavoriteModal({
    * No image is stored: property_catalog is the source of truth and
    * attachCatalogRatings resolves it read-side on every render.
    */
-  function selectMatch(index: number, m: PropertyMatch) {
+  function selectMatch(index: number, m: CanonicalPropertyMatch) {
     setSlots((prev) => prev.map((s, i) => (i === index ? {
       ...s,
       name: m.name,
@@ -259,10 +262,14 @@ export default function FavoriteModal({
                     <label className="text-[10px] font-semibold text-[var(--crm-text-muted)] uppercase tracking-widest mb-1 block">
                       Search Property
                     </label>
-                    <PropertySearchField
+                    <CanonicalPropertySearchField
                       value={slot.query}
                       onChange={(v) => setSlots((prev) => prev.map((x, j) => (j === i ? { ...x, query: v } : x)))}
                       onMatch={(m) => selectMatch(i, m)}
+                      // The client's own city drives the market bias — the single
+                      // biggest reason "ve" worked in Map and not here.
+                      marketCity={marketCity}
+                      autoFocus={i === 0}
                       placeholder="Start typing a property name…"
                       inputClassName="w-full text-[13px] border border-[var(--crm-border)] rounded-lg px-2.5 py-1.5 bg-[var(--crm-inset)] text-[var(--crm-text-primary)]"
                     />

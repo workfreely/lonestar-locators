@@ -952,7 +952,7 @@ export default function LeadFavorites({
         </button>
       </SectionCard>
 
-      <FavoriteModal open={showFavoriteModal} editing={editingFavorite} onClose={closeFavoriteModal} onSave={handleSaveFavorite} />
+      <FavoriteModal open={showFavoriteModal} editing={editingFavorite} marketCity={lead?.city ?? null} onClose={closeFavoriteModal} onSave={handleSaveFavorite} />
 
       {/* Cancel Tour — confirm before changing anything. Marks the tour canceled
           (history preserved), removes the Tour Follow-Up, and restores Schedule

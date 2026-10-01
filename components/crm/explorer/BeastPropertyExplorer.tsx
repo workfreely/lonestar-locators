@@ -15,6 +15,7 @@ import { selectInMarketMatch, decideNameSearch, normalizePlace, shouldFetchSugge
 import { StarRating } from "@/components/crm/StarRating"
 import { canonicalPropertyKey, selectMatchReasonLines, matchScoreTone, normalizeShortSpecial, isSpecialCurrent, evaluateLocatorCommission } from "@bc/companion-shared"
 import { createPortal } from "react-dom"
+import { searchProperties } from "@/lib/propertyExplorer/propertySearch"
 
 /**
  * Beast Property Explorer — the Map workspace.
@@ -571,38 +572,14 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
         bias = g ? { center: { lat: g.lat(), lng: g.lng() }, radius: 50000 } : undefined
       }
 
-      const { places: placesLib } = await loadGoogleMaps()
-      const { Place } = placesLib
-      const { places } = await Place.searchByText({
-        // Minimum fields, plus `types` so obvious non-apartment businesses (a
-        // brokerage, a vacation rental, a restaurant) can be qualified out. NO hard
-        // includedType — a community Google mistypes must still be findable by name.
-        fields: ["id", "displayName", "formattedAddress", "location", "types"],
-        // Apartment-context query so a bare brand ("Allora") returns communities
-        // instead of a same-named restaurant. The user's input is untouched.
-        textQuery: nameSearchTextQuery(name),
-        ...(bias ? { locationBias: bias } : {}),
-        // Fetch a few extra since the relevance filter below trims noise.
-        maxResultCount: 10,
-      })
-
-      const found: ExplorerProperty[] = (places ?? [])
-        .map((p) => normalizePlace(p, marketSlug))
-        .filter((p): p is ExplorerProperty => p !== null)
-        // Drop what the broadened "…apartments" query drags in: a generic nearby
-        // apartment when the brand has no local match, or a differently-spelled
-        // place — keep only candidates whose NAME matches what was typed.
-        .filter((p) => nameMatchesQuery(p.propertyName, name))
-      const catalog = await fetchCatalog(
-        found.map((f) => f.placeId),
-        supabase,
-      )
-      const enriched = enrichProperties(found, catalog)
-      const cataloguedIds = new Set(catalog.keys())
-      return selectInMarketMatch(enriched, marketSlug, name, cataloguedIds)
+      // The orchestration itself now lives in lib/propertyExplorer/propertySearch,
+      // so Add Favorites (and later Invoice) run THIS search rather than an
+      // approximation of it. Lifted verbatim — the Map's behaviour is unchanged.
+      return searchProperties({ query: name, locationBias: bias, marketSlug, supabase })
     },
     [marketBounds, marketSlug],
   )
+
 
   // Enter (keyboard, secondary): fetch, pick the single strongest, and apply it.
   const searchByName = useCallback(
