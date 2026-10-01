@@ -637,11 +637,19 @@ export default function LeadFavorites({
                   {(onSendGuestCard || (onScheduleTour && schedTarget)) && (
                     <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
                       {schedFavId !== fav.id ? (
-                        /* Operational row — existing action group on the LEFT (unchanged),
-                           Commission far RIGHT. [✉ Send Guest Card] | [▣ Schedule Tour].
-                           gap-x-5 (~20px) gives the divider its breathing room; icons stay
-                           small/secondary; the existing accent/hover treatment is preserved. */
-                        <div className="flex items-center justify-between gap-2">
+                        /* Operational block, stacked: the action row first, Commission on
+                           its own row beneath it.
+                           [✉ Send Guest Card] | [▣ Schedule Tour]
+                           [                              Commission ]
+                           Commission used to sit on the SAME row as `justify-between` with
+                           `flex-none`, so it never shrank and the action group — which does
+                           wrap — gave way first: on a narrow Favorites column the two
+                           actions stacked vertically instead of sitting side by side. Giving
+                           the actions the full width keeps them on one line, and `flex-wrap`
+                           is kept so they still wrap when the column is genuinely too narrow
+                           rather than overflowing. This also matches the no-actions fallback
+                           below, which already renders Commission alone on a justify-end row. */
+                        <div className="space-y-2">
                         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] font-semibold">
                           {/* Send Guest Card / ✓ Guest Card Sent (completed = not clickable). */}
                           {gcSent ? (
@@ -680,7 +688,11 @@ export default function LeadFavorites({
                             </button>
                           )}
                         </div>
-                        <div className="flex-none">{favCommissionPill}</div>
+                        {/* Guarded so a card with no commission control renders no empty
+                            row (space-y-2 would otherwise leave dead space). */}
+                        {favCommissionPill && (
+                          <div className="flex items-center justify-end">{favCommissionPill}</div>
+                        )}
                         </div>
                       ) : schedStep === "confirm" ? (
                         // Attention glow while awaiting the locator's answer — reuses

@@ -152,5 +152,34 @@ console.log("\nSNAPSHOT boundary unchanged:")
   ok("already-SENT snapshots are never reused or altered", /s\.sent_at is null/.test(prep))
 }
 
+console.log("\nFAVORITES ACTION LAYOUT — one row for the actions, Commission beneath:")
+{
+  // The two actions used to STACK on a narrow Favorites column: Commission shared the
+  // row via `justify-between` and was `flex-none`, so it never shrank and the
+  // wrap-enabled action group gave way first. Commission now has its own row.
+  // RAW source, not `favs` — `favs` is comment-stripped, and the region is anchored
+  // on a comment marker, so slicing the stripped copy finds nothing.
+  const favsRaw = read("components/crm/LeadFavorites.tsx")
+  const row = favsRaw.slice(favsRaw.indexOf("Operational block, stacked"), favsRaw.indexOf('schedStep === "confirm"'))
+  ok("the action group and Commission are no longer siblings in one justify-between row",
+    !/flex items-center justify-between gap-2/.test(row))
+  ok("the block stacks them instead", /<div className="space-y-2">/.test(row))
+  ok("Send Guest Card and Schedule Tour share ONE flex row",
+    /flex flex-wrap items-center gap-x-5 gap-y-1/.test(row))
+  ok("…containing both actions and the divider between them",
+    /Send Guest Card/.test(row) && /Schedule Tour/.test(row) && /h-3 w-px bg-\[var\(--crm-border\)\]/.test(row))
+  // The brief said: allow wrapping ONLY on narrower widths — so flex-wrap stays.
+  ok("wrapping is still permitted when the column is genuinely too narrow",
+    /flex-wrap/.test(row))
+  ok("Commission sits on its own row, right-aligned like the no-actions fallback",
+    /<div className="flex items-center justify-end">\{favCommissionPill\}<\/div>/.test(row))
+  ok("Commission is guarded, so a card without one renders no empty row",
+    /\{favCommissionPill && \(/.test(row))
+  // "Why I chose this" must remain its OWN row above the actions, not merge into them.
+  ok("the reasons control is still a separate row above the actions",
+    favsRaw.indexOf("<ReasonsControl") > 0
+      && favsRaw.indexOf("<ReasonsControl") < favsRaw.indexOf("Operational block, stacked"))
+}
+
 console.log(`\nRecommendation reasons: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)
