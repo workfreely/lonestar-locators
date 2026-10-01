@@ -46,6 +46,8 @@ import { resolveClientType } from "@/lib/leads/leadClassification"
 import { shouldExitDemoOnLead, exitDemoModeForOwner } from "@/lib/demo/demoExit"
 import { resolveSupabaseProject } from "@/lib/supabase/projects"
 import { isValidUsPhone } from "@/lib/utils/formatPhone"
+import { withPhoneIdentity } from "@/lib/phone/identity"
+import { attributeUnattributedMessages } from "@/lib/companion/attribution"
 import { verdictForWrite } from "@/lib/leads/areaLimit"
 
 // Server-only client — SUPABASE_SERVICE_ROLE_KEY has no NEXT_PUBLIC_
@@ -494,7 +496,10 @@ export async function POST(request: Request) {
       if (Object.keys(update).length > 0) {
         const { data: updateResult, error: updateError } = await supabaseAdmin
           .from("leads")
-          .update(update)
+          // withPhoneIdentity: a resubmission that carries a phone must refresh
+          // the canonical identity too, or the lead keeps an identity derived
+          // from its OLD number and Beast Sync attributes messages to the wrong one.
+          .update(withPhoneIdentity(update))
           .eq("id", existing.id)
           .select("*")
           .single()
@@ -535,7 +540,10 @@ export async function POST(request: Request) {
 
       const { data: created, error: insertError } = await supabaseAdmin
         .from("leads")
-        .insert([insertPayload])
+        // Every creation path lands here — Smart Lead Form, manual Add Lead and
+        // the Lone Star bridge — so deriving the identity once at the insert
+        // covers all three without three separate places to keep in step.
+        .insert([withPhoneIdentity(insertPayload)])
         .select("*")
         .single()
 
@@ -546,6 +554,35 @@ export async function POST(request: Request) {
 
       data = created
       dedupAction = match.confidence === "possible" ? "possible_duplicate" : "created"
+    }
+
+    // ─── Beast Sync late attribution ──────────────────────────────────────
+    // A lead can be created AFTER Beast Sync has already received that person's
+    // messages — they text before the form is filled in, or the locator adds them
+    // manually days later. Those messages are sitting unattributed with this exact
+    // identity, so connect them now.
+    //
+    // Also covers the resubmission branch above, where an existing lead's number
+    // may have just been corrected.
+    //
+    // Deferred and swallowed: the lead is already written and the renter is
+    // waiting on a response. Attribution only ever fills blanks, so whenever it
+    // next runs — the next sync, or the next save — it reaches the same result.
+    if (data?.workspace_id && data?.phone_e164) {
+      after(async () => {
+        try {
+          const r = await attributeUnattributedMessages(supabaseAdmin, data.workspace_id as string, {
+            identities: [data.phone_e164 as string],
+          })
+          if (r.conflicts.length > 0) {
+            // Two live leads now share this number. Nothing was attributed — a
+            // human decides which lead these messages belong to.
+            console.warn("[api/leads/submit] ambiguous phone identity:", JSON.stringify(r.conflicts))
+          }
+        } catch (err) {
+          console.error("[api/leads/submit] Beast Sync attribution failed:", err)
+        }
+      })
     }
 
     // ─── Lone Star Locators → Locator Beast bridge (FULL form only) ───────

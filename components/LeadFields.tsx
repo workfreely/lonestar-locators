@@ -2,7 +2,8 @@
 
 import DatePicker from "react-datepicker"
 import "react-datepicker/dist/react-datepicker.css"
-import { formatPhoneInput } from "@/lib/utils/formatPhone"
+import { formatPhoneInput, phoneDigitCount } from "@/lib/utils/formatPhone"
+import { phoneIdentity, ineligibilityMessage } from "@/lib/phone/identity"
 import {
   CITIES,
   PROPERTY_TYPES,
@@ -256,15 +257,33 @@ export default function LeadFields({
           value={form.last_name || ""}
           onChange={e => updateField("last_name", e.target.value)}
         />
-        <input
-          className={inputCls}
-          type="tel"
-          placeholder="Phone *"
-          value={form.phone || ""}
-          maxLength={14}
-          autoComplete="tel"
-          onChange={e => updateField("phone", formatPhoneInput(e.target.value))}
-        />
+        {/* The mask + maxLength=14 mean only a 10-digit NANP number can be typed
+            here, so the number that needs calling out is NOT a visibly foreign
+            one — it is a Canadian or Caribbean number that looks exactly like a
+            U.S. one, e.g. (416) 555-1234, or a number whose area code/exchange
+            is not actually assignable. Both are accepted and kept as contact
+            information; neither can identify a lead for Beast Sync. Saying so
+            here is the alternative to a locator wondering later why that
+            client's texts never appear. */}
+        <div className="flex flex-col gap-1">
+          <input
+            className={inputCls}
+            type="tel"
+            placeholder="Phone *"
+            value={form.phone || ""}
+            maxLength={14}
+            autoComplete="tel"
+            onChange={e => updateField("phone", formatPhoneInput(e.target.value))}
+          />
+          {(() => {
+            // Only once the number is complete — warning about an incomplete
+            // number the locator is still typing would be noise.
+            if (phoneDigitCount(form.phone || "") < 10) return null
+            const note = ineligibilityMessage(phoneIdentity(form.phone || ""))
+            if (!note) return null
+            return <p className="text-[11.5px] leading-snug text-[#9a6a12]">{note}</p>
+          })()}
+        </div>
         <input
           className={inputCls}
           type="email"

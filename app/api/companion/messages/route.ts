@@ -9,11 +9,11 @@ import {
 } from "@/lib/companion/entitlement"
 import { rateLimit } from "@/lib/rateLimit"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { toE164 } from "@/lib/phone/identity"
+import { attributeUnattributedMessages } from "@/lib/companion/attribution"
 
 const MAX_BATCH = 500
 const MAX_BODY_LEN = 20_000
-
-const last10 = (raw: string | null | undefined) => (raw || "").replace(/\D/g, "").slice(-10)
 
 type IncomingMessage = {
   guid?: unknown
@@ -113,26 +113,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ accepted: 0 })
   }
 
-  // Attribute to leads by last-10-digit phone match within THIS workspace.
-  const phoneKeys = Array.from(new Set(clean.map((m) => last10(m.phone)).filter(Boolean)))
-  const phoneToLead = new Map<string, number>()
-  if (phoneKeys.length > 0) {
-    const { data: leadRows } = await supabaseAdmin
-      .from("leads")
-      .select("id, phone")
-      .eq("workspace_id", workspaceId)
-    for (const lead of leadRows || []) {
-      const key = last10(lead.phone as string)
-      if (key && !phoneToLead.has(key)) phoneToLead.set(key, lead.id as number)
-    }
-  }
-
+  // STORE, then ATTRIBUTE — deliberately two steps.
+  //
+  // `lead_id` is absent from these rows, which is the whole point. PostgREST builds
+  // its ON CONFLICT DO UPDATE from the keys present in the payload, so omitting
+  // lead_id means a NEW row lands unattributed and an EXISTING row keeps whatever
+  // attribution it already has while its content is refreshed.
+  //
+  // That is what makes a re-sync safe. The previous version recomputed lead_id on
+  // every upsert, so re-uploading the same message after a lead's phone number
+  // changed would silently relocate that conversation to a different lead. Now
+  // attribution only ever fills blanks.
   const rows = clean.map((m) => ({
     workspace_id: workspaceId,
     owner_user_id: userId,
-    lead_id: phoneToLead.get(last10(m.phone)) ?? null,
     guid: m.guid,
     phone: m.phone,
+    // Canonical identity derived once, here, from the raw Apple handle — the
+    // handle itself is kept in `phone` untouched for display and debugging.
+    phone_e164: toE164(m.phone),
     is_from_me: m.is_from_me,
     body: m.body,
     sent_at: m.sentAt,
@@ -147,11 +146,40 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Failed to store messages" }, { status: 500 })
   }
 
+  // Attribution, narrowed to the identities in THIS batch so a large unattributed
+  // backlog is not rescanned on every sync. Failure is non-fatal: the messages are
+  // already stored, and the same call from a later batch — or from saving a phone
+  // number — will attribute them. Losing the batch over an attribution hiccup
+  // would be a far worse outcome than a brief delay in attribution.
+  let attribution: Awaited<ReturnType<typeof attributeUnattributedMessages>> | null = null
+  try {
+    attribution = await attributeUnattributedMessages(supabaseAdmin, workspaceId, {
+      identities: Array.from(new Set(rows.map((r) => r.phone_e164).filter((p): p is string => !!p))),
+    })
+    if (attribution.conflicts.length > 0) {
+      // Surfaced rather than guessed: two live leads share one number, so these
+      // messages stay unattributed until a human resolves which lead is right.
+      console.warn(
+        "[companion/messages] ambiguous phone identity, left unattributed:",
+        JSON.stringify(attribution.conflicts),
+      )
+    }
+  } catch (e) {
+    console.error("[companion/messages] attribution failed (messages stored):", (e as Error).message)
+  }
+
   // Stamp last successful sync for the Connected Devices "Last Sync" display.
   await supabaseAdmin
     .from("device_tokens")
     .update({ last_synced_at: new Date().toISOString() })
     .eq("id", deviceId)
 
-  return NextResponse.json({ accepted: rows.length, entitled: true, syncEnabled: true })
+  return NextResponse.json({
+    accepted: rows.length,
+    entitled: true,
+    syncEnabled: true,
+    // Echoed so the Mac's log shows whether a sync actually connected anything,
+    // rather than only that it uploaded. Omitted entirely if attribution threw.
+    ...(attribution ? { attributed: attribution.attributed, unmatched: attribution.no_match } : {}),
+  })
 }

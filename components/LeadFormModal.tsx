@@ -6,6 +6,7 @@ import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { supabase } from "@/lib/supabase/client"
 import { isValidUsPhone } from "@/lib/utils/formatPhone"
 import { buildEditPatch } from "@/lib/leads/leadFormValues"
+import { withPhoneIdentity } from "@/lib/phone/identity"
 import { verdictForWrite, countAreaSelections } from "@/lib/leads/areaLimit"
 
 // The lead columns Edit Client may change — client CRITERIA + contact + screening
@@ -175,7 +176,13 @@ export default function LeadFormModal({
       // Blank values for non-text columns become NULL at the DB boundary (today:
       // move_date, a `date` — "" is invalid for it and failed the whole save).
       // Text columns are untouched. See lib/leads/leadFormValues.
-      const patch = buildEditPatch(form as Record<string, unknown>, EDITABLE_COLUMNS)
+      //
+      // withPhoneIdentity derives the canonical Beast Sync identity (phone_e164)
+      // in the SAME update as the phone itself. It has to be atomic with it: an
+      // identity written a moment later would leave a window where the lead holds
+      // a new number but its old identity, and attribution matches on the
+      // identity — so messages from the OLD number would still land on this lead.
+      const patch = withPhoneIdentity(buildEditPatch(form as Record<string, unknown>, EDITABLE_COLUMNS))
       const { data, error } = await supabase
         .from("leads")
         .update(patch)
@@ -187,6 +194,16 @@ export default function LeadFormModal({
         alert("Could not save changes")
         return
       }
+      // LATE ATTRIBUTION. The number may have been added to a lead that had none
+      // while Beast Sync was already receiving that person's messages; this lets
+      // those messages find the lead. Fire-and-forget on purpose: the save has
+      // already succeeded, so a failure here must not be reported as a failed
+      // save, and the same call is idempotent whenever it next runs.
+      void fetch("/api/companion/reattribute", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ leadId: lead.id }),
+      }).catch(() => {})
       onLeadSaved?.(data ?? { ...lead, ...patch })
       onClose()
     } catch (err) {
