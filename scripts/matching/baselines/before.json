@@ -1,0 +1,148 @@
+[
+  {
+    "fixtureId": "one-area",
+    "desiredAreasInput": "Southtown",
+    "resolvedAreas": [
+      "Southtown"
+    ],
+    "centroidCount": 1,
+    "candidateCount": 20,
+    "qualifiedNames": [],
+    "qualifiedRanks": [],
+    "starredNames": []
+  },
+  {
+    "fixtureId": "two-areas",
+    "desiredAreasInput": "Alamo Heights, Stone Oak",
+    "resolvedAreas": [
+      "Alamo Heights",
+      "Stone Oak"
+    ],
+    "centroidCount": 2,
+    "candidateCount": 40,
+    "qualifiedNames": [
+      "Sonterra Heights",
+      "Landing Furnished Apartments at Toscana at Sonterra"
+    ],
+    "qualifiedRanks": [
+      4,
+      4
+    ],
+    "starredNames": [
+      "Sonterra Heights",
+      "Landing Furnished Apartments at Toscana at Sonterra"
+    ]
+  },
+  {
+    "fixtureId": "two-areas-plus-nearby",
+    "desiredAreasInput": "Alamo Heights, Stone Oak",
+    "resolvedAreas": [
+      "Alamo Heights",
+      "Stone Oak"
+    ],
+    "centroidCount": 2,
+    "candidateCount": 40,
+    "qualifiedNames": [
+      "Sonterra Heights",
+      "Landing Furnished Apartments at Toscana at Sonterra"
+    ],
+    "qualifiedRanks": [
+      4,
+      4
+    ],
+    "starredNames": [
+      "Sonterra Heights",
+      "Landing Furnished Apartments at Toscana at Sonterra"
+    ]
+  },
+  {
+    "fixtureId": "commute-vs-areas",
+    "desiredAreasInput": "Downtown San Antonio, Alamo Ranch, Westover Hills",
+    "resolvedAreas": [
+      "Downtown San Antonio",
+      "Alamo Ranch",
+      "Westover Hills"
+    ],
+    "centroidCount": 3,
+    "candidateCount": 50,
+    "qualifiedNames": [
+      "Victor at Alamo Ranch",
+      "Avocet Apartments",
+      "Twin Creeks at Alamo Ranch Apartments",
+      "FOX Corporate Housing",
+      "Apt 4224"
+    ],
+    "qualifiedRanks": [
+      4,
+      4,
+      4,
+      4,
+      4
+    ],
+    "starredNames": [
+      "Victor at Alamo Ranch",
+      "Avocet Apartments",
+      "Twin Creeks at Alamo Ranch Apartments",
+      "FOX Corporate Housing",
+      "Apt 4224"
+    ]
+  },
+  {
+    "fixtureId": "broad-many-areas",
+    "desiredAreasInput": "All of Houston, Downtown Houston, Midtown, Montrose, The Heights, Medical Center, Museum District, River Oaks, Galleria, Washington Ave, East Downtown (EaDo), Greenway / Upper Kirby",
+    "resolvedAreas": [
+      "Downtown Houston",
+      "Midtown"
+    ],
+    "centroidCount": 2,
+    "candidateCount": 28,
+    "qualifiedNames": [
+      "Modera Washington",
+      "Hanover Montrose"
+    ],
+    "qualifiedRanks": [
+      4,
+      4
+    ],
+    "starredNames": [
+      "Modera Washington",
+      "Hanover Montrose"
+    ]
+  },
+  {
+    "fixtureId": "no-areas",
+    "desiredAreasInput": "",
+    "resolvedAreas": [],
+    "centroidCount": 0,
+    "candidateCount": 0,
+    "qualifiedNames": [],
+    "qualifiedRanks": [],
+    "starredNames": []
+  },
+  {
+    "fixtureId": "tight-budget",
+    "desiredAreasInput": "Downtown Houston, Midtown",
+    "resolvedAreas": [
+      "Downtown Houston",
+      "Midtown"
+    ],
+    "centroidCount": 2,
+    "candidateCount": 28,
+    "qualifiedNames": [],
+    "qualifiedRanks": [],
+    "starredNames": []
+  },
+  {
+    "fixtureId": "broad-budget",
+    "desiredAreasInput": "Downtown Houston, Midtown",
+    "resolvedAreas": [
+      "Downtown Houston",
+      "Midtown"
+    ],
+    "centroidCount": 2,
+    "candidateCount": 28,
+    "qualifiedNames": [],
+    "qualifiedRanks": [],
+    "starredNames": []
+  }
+]

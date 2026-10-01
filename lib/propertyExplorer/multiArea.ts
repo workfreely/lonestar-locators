@@ -39,15 +39,62 @@ export function resolveDesiredAreaCenters(
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean)
-    .slice(0, max)
+
+  // RESOLVE FIRST, THEN CAP. The cap used to be applied to the raw label list, so
+  // an unresolvable label in the first positions consumed a search slot and the
+  // better areas behind it were discarded by position rather than by quality.
+  //
+  // This is also what handles "All of {City}": the form generates that catch-all
+  // itself and it is deliberately absent from DESIRED_AREA_CENTERS, so it resolves
+  // to null like any other unknown label and now costs nothing. Three production
+  // leads store it FIRST, which is why a 12-area Houston client searched two
+  // centroids instead of three while nine resolvable areas sat unused behind it.
+  // No special case for it: a label is skipped because it has no centroid, and if
+  // a real "all of {city}" centroid is ever catalogued it starts working for free.
   const out: AreaCenter[] = []
   for (const label of labels) {
+    if (out.length >= max) break
     const c = centerForDesiredArea(label, marketSlug)
-    // null → unresolved → dropped. Never fall back to the market center here.
+    // null → unresolved → skipped WITHOUT consuming a slot. Never fall back to the
+    // market center here: an unrecognised area should cause no search for that
+    // area, not a downtown one.
     if (c) out.push({ lat: c.lat, lng: c.lng })
   }
   return out
 }
+
+/**
+ * The client's area preferences as ONE list.
+ *
+ * Preferred Neighborhoods and Nearby Areas are two columns but one idea: places
+ * the client wants to live. Every call site used `neighborhoods ?? submarkets`,
+ * and `??` only falls through on null/undefined — so a lead with one neighborhood
+ * and two Nearby Areas searched ONE centroid, not three, and the Nearby Areas
+ * reached matching only when neighborhoods happened to be null.
+ *
+ * Neighborhoods lead, because they are the client's primary choice and the cap is
+ * applied in order. De-duplicated case-insensitively: the same place can legitimately
+ * appear in both columns and must not consume two search slots.
+ */
+export function composeDesiredAreas(
+  neighborhoods: string | null | undefined,
+  submarkets: string | null | undefined,
+): string {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const csv of [neighborhoods, submarkets]) {
+    for (const raw of (csv ?? "").split(",")) {
+      const label = raw.trim()
+      if (!label) continue
+      const key = label.toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push(label)
+    }
+  }
+  return out.join(", ")
+}
+
 
 /**
  * Merge property pools from several area searches into one, deduped by Google

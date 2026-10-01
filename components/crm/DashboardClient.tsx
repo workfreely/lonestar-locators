@@ -82,6 +82,7 @@ import { formatPersonName, greetingName, buildIntroSmsBody, type FollowUpOverrid
 import { assessLocationFit } from "@/lib/propertyExplorer/locationFit"
 import type { ResolvedAgentIdentity } from "@/lib/notifications/agentSignature"
 import type { CanonicalFlow } from "@/lib/leads/stageTransition"
+import { composeDesiredAreas } from "@/lib/propertyExplorer/multiArea"
 
 // The legacy Lead Panel is HIDDEN in every environment (localhost AND production)
 // so the current Workspace is the one visible CRM layout while we finish Beast
@@ -3335,7 +3336,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           const ctx = resolveClientContext({
             city: lead?.city ?? null,
             budgetText: lead?.desired_rent ?? null,
-            desiredAreas: lead?.neighborhoods ?? lead?.submarkets ?? null,
+            desiredAreas: composeDesiredAreas(lead?.neighborhoods, lead?.submarkets) || null,
             clientNotes: lead?.notes ?? null,
             locatorNotes: lead?.locator_notes ?? null,
             mustHaveAmenities: String(lead?.must_have_amenities ?? "").split(",").map((s: string) => s.trim()).filter(Boolean),
@@ -3364,7 +3365,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           } else {
             // Map/Explorer: Google data only — a grounded location reason + a real
             // special when present, and NO numeric rent (Google supplies none → NULL).
-            const loc = assessLocationFit(pp, { city: lead?.city ?? null, desiredAreas: lead?.neighborhoods ?? lead?.submarkets ?? null })
+            const loc = assessLocationFit(pp, { city: lead?.city ?? null, desiredAreas: composeDesiredAreas(lead?.neighborhoods, lead?.submarkets) || null })
             recSpecial = typeof pp.currentSpecial === "string" ? pp.currentSpecial.trim() || null : null
             // Map/Explorer has only Google data. With specials no longer a reason,
             // a property whose area does not match the client yields ZERO reasons —
@@ -4189,8 +4190,10 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                     ? {
                         id: sessionClientLead.id ?? null,
                         city: sessionClientLead.city ?? null,
+                        // Preferred Neighborhoods AND Nearby Areas — `??` discarded the Nearby
+                        // Areas whenever neighborhoods was a non-null empty string.
                         desiredAreas:
-                          sessionClientLead.neighborhoods ?? sessionClientLead.submarkets ?? null,
+                          composeDesiredAreas(sessionClientLead.neighborhoods, sessionClientLead.submarkets) || null,
                       }
                     : null
                 }
