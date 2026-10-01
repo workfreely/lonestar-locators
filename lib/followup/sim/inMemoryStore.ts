@@ -61,7 +61,7 @@ export class InMemoryFollowupStore implements FollowupStore {
     this.leads.set(lead.id, lead)
     if (!this.convs.has(lead.id)) this.convs.set(lead.id, { lastInboundAt: null, lastManualOutboundAt: null })
     if (!this.shares.has(lead.id))
-      this.shares.set(lead.id, { sentAt: null, doneSelectingAt: null, favoritedCount: 0, availabilitySubmittedAt: null })
+      this.shares.set(lead.id, { sentAt: null, doneSelectingAt: null, favoritedCount: 0, availabilitySubmittedAt: null, resumedAt: null })
   }
   patchLead(id: number, patch: Partial<SeedLead>) {
     const l = this.leads.get(id); if (l) this.leads.set(id, { ...l, ...patch })
@@ -71,7 +71,7 @@ export class InMemoryFollowupStore implements FollowupStore {
   }
   setShare(id: number, s: Partial<ShareSnapshot>) {
     this.shares.set(id, {
-      ...(this.shares.get(id) ?? { sentAt: null, doneSelectingAt: null, favoritedCount: 0, availabilitySubmittedAt: null }),
+      ...(this.shares.get(id) ?? { sentAt: null, doneSelectingAt: null, favoritedCount: 0, availabilitySubmittedAt: null, resumedAt: null }),
       ...s,
     })
   }
@@ -168,6 +168,29 @@ export class InMemoryFollowupStore implements FollowupStore {
     return "ok"
   }
 
+  async enrolledLeads(limit: number): Promise<LeadRow[]> {
+    return [...this.leads.values()]
+      .filter((l) => l.followup_opt_in && l.sms_opt_in && !["closed", "archived"].includes(String(l.crm_status)))
+      .slice(0, limit) as unknown as LeadRow[]
+  }
+
+  async activeLifecycleRun(leadId: number): Promise<RunRow | null> {
+    return (
+      ([...this.runs.values()] as unknown as Array<Record<string, unknown>>).find(
+        (r) =>
+          r.lead_id === leadId &&
+          (r.session_date ?? null) === null &&
+          ["waiting", "due"].includes(String(r.status)),
+      ) as unknown as RunRow
+    ) ?? null
+  }
+
+  async sessionRunExists(leadId: number, sequenceKey: string, sessionDate: string): Promise<boolean> {
+    return ([...this.runs.values()] as unknown as Array<Record<string, unknown>>).some(
+      (r) => r.lead_id === leadId && r.sequence_key === sequenceKey && r.session_date === sessionDate,
+    )
+  }
+
   async updateIntent(intentId: string, patch: Record<string, unknown>): Promise<void> {
     const i = this.intents.get(intentId); if (i) this.intents.set(intentId, { ...i, ...patch } as StoredIntent)
   }
@@ -216,6 +239,9 @@ export class InMemoryFollowupStore implements FollowupStore {
       moveMonthLabel: monthLabel(row.move_date),
       crmStatus: row.crm_status,
       smsOptIn: row.sms_opt_in === true,
+      // On Hold must reach the gate here exactly as it does in production, or the
+      // simulator and the test suite would both report sends that production holds.
+      heldAt: row.held_at ?? null,
       accountAuthorized: l?.accountAuthorized === true,
       followupOptIn: row.followup_opt_in === true,
       appliedAt: row.applied_at,
@@ -226,7 +252,7 @@ export class InMemoryFollowupStore implements FollowupStore {
     return this.convs.get(leadId) ?? { lastInboundAt: null, lastManualOutboundAt: null }
   }
   async share(leadId: number): Promise<ShareSnapshot> {
-    return this.shares.get(leadId) ?? { sentAt: null, doneSelectingAt: null, favoritedCount: 0, availabilitySubmittedAt: null }
+    return this.shares.get(leadId) ?? { sentAt: null, doneSelectingAt: null, favoritedCount: 0, availabilitySubmittedAt: null, resumedAt: null }
   }
 
   // ── Post Tour wiring ──────────────────────────────────────────────────────

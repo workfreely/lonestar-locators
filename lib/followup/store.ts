@@ -71,6 +71,22 @@ export type IntentInsert = {
 export interface FollowupStore {
   // Enrollment + tick
   enrollmentCandidates(sinceIso: string, limit: number): Promise<LeadRow[]>
+  /**
+   * Every lead eligible for LIFECYCLE enrollment — enrolled, consented, not
+   * closed/archived — with no created_at window. enrollmentCandidates is bounded
+   * to recently-created leads, which is right for new_lead but would make
+   * list_sent / application_status / done_selecting unreachable: those events
+   * happen long after the lead is created.
+   */
+  enrolledLeads(limit: number): Promise<LeadRow[]>
+  /**
+   * The lead's active run in the LIFECYCLE slot (session_date IS NULL), which is
+   * the slot the one-active-lifecycle unique index governs. Distinct from
+   * hasActiveRun, which also counts event-session runs like post_tour.
+   */
+  activeLifecycleRun(leadId: number): Promise<RunRow | null>
+  /** Has any run (any status) been created for this lead/sequence/session date? */
+  sessionRunExists(leadId: number, sequenceKey: string, sessionDate: string): Promise<boolean>
   hasActiveRun(leadId: number): Promise<boolean>
   insertRun(run: RunInsert): Promise<boolean> // false when the one-active-run guard rejects it
   dueWaitingRuns(nowIso: string, limit: number): Promise<RunRow[]>

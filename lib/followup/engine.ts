@@ -11,7 +11,15 @@
 
 import { evaluateSend } from "./gate"
 import { applicableSequence, resolveStepBody } from "./sequences"
-import { newLeadText1EligibleAt, nextStepEligibility, postTourEligibleAt } from "./cadence"
+import {
+  newLeadText1EligibleAt,
+  nextStepEligibility,
+  postTourEligibleAt,
+  listSentFu1EligibleAt,
+  doneSelectingEligibleAt,
+  applicationStatusEligibleAt,
+  resumeSearchEligibleAt,
+} from "./cadence"
 import { interClientJitterMs, nextCrossClientSlotMs } from "./pacing"
 import { runSnapshotFromRow } from "./snapshot"
 import type { SequenceKey } from "./types"
@@ -42,34 +50,139 @@ export type ClaimJob = {
 }
 
 // ── Enrollment ──────────────────────────────────────────────────────────────
-export async function enrollNewLeads(store: FollowupStore, now: Date): Promise<number> {
-  const since = new Date(now.getTime() - NEW_LEAD_ENROLL_WINDOW_MS).toISOString()
-  const leads = await store.enrollmentCandidates(since, TICK_BATCH)
+//
+// THE MISSING PRODUCERS. The registry defined list_sent, done_selecting and
+// application_status, and applicableSequence() returned them — but nothing ever
+// CREATED a run for them. So the lifecycle ladder acted purely as a cancellation
+// mechanism: sending the list superseded the new_lead run with no list_sent run to
+// follow, and automated texting for that lead stopped permanently.
+//
+// One producer now covers every lifecycle sequence, keyed off the SAME
+// applicableSequence() the gate uses, so enrollment and supersession can never
+// disagree about which sequence a lead belongs in.
+
+/** First-step seed for a lifecycle sequence, or null when it cannot start yet. */
+function lifecycleSeed(
+  applicable: SequenceKey,
+  row: LeadRow,
+  share: Awaited<ReturnType<FollowupStore["share"]>>,
+  lead: Awaited<ReturnType<FollowupStore["leadSnapshot"]>>,
+  now: Date,
+): { sequence_key: string; step_key: string; step_index: number; next_eligible_at: string } | null {
+  switch (applicable) {
+    case "new_lead": {
+      // The ONLY windowed sequence: Text 1's copy names the form the client just
+      // submitted, so a lead created days ago must not be back-filled into it.
+      const createdAt = row.created_at ? new Date(row.created_at).getTime() : 0
+      if (!createdAt || now.getTime() - createdAt > NEW_LEAD_ENROLL_WINDOW_MS) return null
+      return { sequence_key: "new_lead", step_key: "t1", step_index: 0, next_eligible_at: newLeadText1EligibleAt(row.created_at as string) }
+    }
+    case "list_sent":
+      if (!share.sentAt) return null
+      return { sequence_key: "list_sent", step_key: "fu1", step_index: 0, next_eligible_at: listSentFu1EligibleAt(share.sentAt) }
+    case "done_selecting":
+      if (!share.doneSelectingAt) return null
+      return { sequence_key: "done_selecting", step_key: "evaluate", step_index: 0, next_eligible_at: doneSelectingEligibleAt(share.doneSelectingAt) }
+    case "application_status":
+      if (!lead.appliedAt) return null
+      return { sequence_key: "application_status", step_key: "ask", step_index: 0, next_eligible_at: applicationStatusEligibleAt(lead.appliedAt) }
+    default:
+      // Event-triggered sequences are never lifecycle-derivable; applicableSequence
+      // cannot return them, and they have their own producers.
+      return null
+  }
+}
+
+/**
+ * Enroll / re-home every enrolled lead into the lifecycle sequence its CURRENT
+ * state makes applicable.
+ *
+ * Retires a stale lifecycle run itself rather than waiting for the gate to notice
+ * when the run next comes due: the one-active-lifecycle unique index means a stale
+ * run BLOCKS its replacement, so leaving it in place would stall the lead for as
+ * long as its next_eligible_at is in the future.
+ */
+export async function enrollLifecycleRuns(store: FollowupStore, now: Date): Promise<number> {
+  const rows = await store.enrolledLeads(TICK_BATCH)
   let enrolled = 0
-  for (const row of leads) {
-    if (await store.hasActiveRun(row.id)) continue
+  for (const row of rows) {
     const lead = await store.leadSnapshot(row)
     if (!lead.accountAuthorized || !lead.followupOptIn) continue
     const share = await store.share(row.id)
-    if (applicableSequence(lead, share) !== "new_lead") continue
+    const applicable = applicableSequence(lead, share)
+    if (!applicable) continue // closed/archived — nothing applies
+
+    const active = await store.activeLifecycleRun(row.id)
+    if (active) {
+      if (active.sequence_key === applicable) continue // already in the right sequence
+      // Same verdict the gate reaches, applied here so the slot frees immediately.
+      await store.updateRun(active.id, {
+        status: "superseded",
+        stop_reason: "sequence_superseded",
+        last_evaluated_at: now.toISOString(),
+      })
+    }
+
+    const seed = lifecycleSeed(applicable, row, share, lead, now)
+    if (!seed) continue
     const conv = await store.conversation(row.id)
-    const eligibleAt = newLeadText1EligibleAt(row.created_at ?? now.toISOString())
     const ok = await store.insertRun({
       lead_id: row.id,
       workspace_id: row.workspace_id,
       owner_user_id: row.owner_user_id,
       mode: "auto",
-      sequence_key: "new_lead",
-      step_key: "t1",
-      step_index: 0,
       status: "waiting",
-      next_eligible_at: eligibleAt,
       baseline_inbound_at: conv.lastInboundAt,
       sequence_version: 1,
+      ...seed,
     })
     if (ok) enrolled++
   }
   return enrolled
+}
+
+/**
+ * RESUME SEARCH — event-triggered, enrolled from the durable
+ * client_recommendation_shares.resumed_at that lb_client_resume_search flips ONCE,
+ * atomically ("only the first request flips resumed_at").
+ *
+ * Uses session_date, the existing event-session pattern that post_tour already
+ * proves: the unique index on (lead_id, sequence_key, session_date) gives
+ * enrol-exactly-once per resume AND lets this coexist with the lead's lifecycle
+ * run, which is the only coexistence this model explicitly allows.
+ */
+export async function enrollResumeSearchRuns(store: FollowupStore, now: Date): Promise<number> {
+  const rows = await store.enrolledLeads(TICK_BATCH)
+  let created = 0
+  for (const row of rows) {
+    const share = await store.share(row.id)
+    if (!share.resumedAt) continue
+    const lead = await store.leadSnapshot(row)
+    if (!lead.accountAuthorized || !lead.followupOptIn) continue
+
+    // One run per resume event. The date is derived from resumed_at itself, so a
+    // second tick cannot create a second run for the same resume.
+    const sessionDate = (share.resumedAt as string).slice(0, 10)
+    if (await store.sessionRunExists(row.id, "resume_search", sessionDate)) continue
+
+    const conv = await store.conversation(row.id)
+    const ok = await store.insertRun({
+      lead_id: row.id,
+      workspace_id: row.workspace_id,
+      owner_user_id: row.owner_user_id,
+      mode: "auto",
+      sequence_key: "resume_search",
+      step_key: "resume",
+      step_index: 0,
+      status: "waiting",
+      next_eligible_at: resumeSearchEligibleAt(share.resumedAt as string),
+      baseline_inbound_at: conv.lastInboundAt,
+      sequence_version: 1,
+      session_date: sessionDate,
+    })
+    if (ok) created++
+  }
+  return created
 }
 
 // ── Post Tour enrollment (event-triggered, one run per tour session) ──────────
@@ -145,7 +258,10 @@ export async function enrollPostTourRuns(store: FollowupStore, now: Date): Promi
 // ── Dispatcher tick ───────────────────────────────────────────────────────────
 export async function tick(store: FollowupStore, now: Date): Promise<TickSummary> {
   const summary: TickSummary = {
-    enrolled: (await enrollNewLeads(store, now)) + (await enrollPostTourRuns(store, now)),
+    enrolled:
+      (await enrollLifecycleRuns(store, now)) +
+      (await enrollPostTourRuns(store, now)) +
+      (await enrollResumeSearchRuns(store, now)),
     evaluated: 0,
     enqueued: 0,
     rescheduled: 0,

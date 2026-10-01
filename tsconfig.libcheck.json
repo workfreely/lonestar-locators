@@ -1,0 +1,33 @@
+{
+  // TYPECHECK FOR lib/ AND scripts/ — the code the main tsconfig does not cover.
+  //
+  // tsconfig.json's `include` is app/** plus two named components, so
+  // `tsc --noEmit` only reaches lib/ transitively through app imports. Anything
+  // imported solely by scripts or tests — lib/followup/sim/inMemoryStore.ts, for
+  // instance — was never typechecked at all. That let a LeadSnapshot literal go
+  // missing a required `heldAt` field, which silently made an On Hold test pass a
+  // send that production holds.
+  //
+  // Run via scripts/runAllTests.sh, or directly:
+  //   npx tsc --noEmit -p tsconfig.libcheck.json
+  "extends": "./tsconfig.json",
+  // Scoped to the follow-up / messaging engine and its tests — the code this
+  // guard exists for, and the code it can keep green. Widening it surfaces
+  // pre-existing type errors elsewhere (lib/propertyEnrichment/stores,
+  // scripts/leads/holdWorkflow.test.ts) that are unrelated to this engine; those
+  // are reported, not silently absorbed here.
+  "include": [
+    "lib/followup/**/*.ts",
+    "lib/companion/**/*.ts",
+    "lib/messaging/**/*.ts",
+    "lib/phone/**/*.ts",
+    "scripts/followup-sim.ts",
+    "scripts/tests/followupLifecycle.test.ts",
+    "scripts/tests/automatedTextSafety.test.ts",
+    "scripts/tests/phoneIdentity.test.ts",
+    "scripts/tests/beastSyncStatus.test.ts",
+    "scripts/tests/beastSyncAttribution.test.ts",
+    "global.d.ts"
+  ],
+  "exclude": ["node_modules"]
+}

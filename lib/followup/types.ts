@@ -51,6 +51,13 @@ export type FollowUpReason =
   | "future_move_wait"
   | "no_move_date"
   | "not_eligible_yet"
+  // The client put their SEARCH on hold (leads.held_at). A HOLD, never a cancel:
+  // Resume Search must re-evaluate current state, not re-enroll from scratch.
+  | "on_hold"
+  // The step is so far past its due time that its copy is no longer true — a New
+  // Lead "I got your form" three days later. Cancelled rather than rescheduled,
+  // because rescheduling would re-render the same stale message and send it.
+  | "stale_sequence"
   | "already_sent"
 
 // The deterministic gate's verdict for one run at one instant.
@@ -72,6 +79,13 @@ export type LeadSnapshot = {
   moveMonthLabel: string | null // e.g. "October" or null
   crmStatus: string | null
   smsOptIn: boolean
+  /**
+   * leads.held_at — the client paused their SEARCH (On Hold). Distinct from a
+   * locator automation pause and from opt-out: the client is still a client, they
+   * just asked to stop looking for now, so client-facing automation goes quiet
+   * while every locator-facing surface stays exactly as it was.
+   */
+  heldAt: string | null
   // ACCOUNT-level authorization: the controlling locator's Locator Beast account is
   // present in automated_texting_accounts (resolved live at evaluation time, never
   // stored on the lead). Default false. Combined with followupOptIn this is the
@@ -100,6 +114,12 @@ export type ShareSnapshot = {
   doneSelectingAt: string | null // done_selecting_at
   favoritedCount: number // favorited_count
   availabilitySubmittedAt: string | null // client_tour_availability.submitted_at
+  /**
+   * client_recommendation_shares.resumed_at — set ONCE, atomically, by
+   * lb_client_resume_search when the client taps "Resume Your Search" on a paused
+   * /r page. The durable event that enrolls the resume_search sequence.
+   */
+  resumedAt: string | null
 }
 
 export type RunSnapshot = {

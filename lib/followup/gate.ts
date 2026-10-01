@@ -12,15 +12,31 @@ import type {
   ShareSnapshot,
 } from "./types"
 import { LIFECYCLE_SEQUENCES, applicableSequence, getStep, resolveStepBody } from "./sequences"
-import { nextAllowedTime, nextMorningEligible, withinAllowedHours, withinMorningWindow } from "./pacing"
+import { nextAllowedTime, nextMorningEligible, withinAllowedHours, withinMorningWindow, withinHandoffWindow } from "./pacing"
+import { isStaleStep } from "./staleness"
 
 // Sequences whose routine steps must land in the client-local morning window.
 // New-Lead t1/t2 (immediate opening), Done-Selecting (event-relative, 10-min
 // grace) and Post-Tour (event-relative, ~2h after tour) are NOT morning-gated.
 const MORNING_GATED = new Set(["list_sent", "application_status", "future_move"])
+
+/**
+ * future_move has BOTH kinds of step, so the sequence-level set above is not
+ * enough on its own:
+ *   wait_ack   — a direct acknowledgment of a decision the client just made
+ *                ("you'd rather wait — got it"). consent_only, and documented as
+ *                immediate. Morning-gating it would have deferred an immediate
+ *                reply to the next 09:00-10:30 band, which contradicted both the
+ *                step's gate and its own comment.
+ *   reactivate — a routine unprompted nudge 45 days before the move date, which
+ *                is exactly what the morning band exists for.
+ * Resolved in favour of the step's stated intent: wait_ack is NOT morning-gated.
+ */
+const FUTURE_MOVE_IMMEDIATE_STEPS = new Set(["wait_ack"])
 // New-Lead contact-chase steps (contact_fu*) ARE morning-gated; t1/t2 are not.
 function isMorningGated(seqKey: string, stepKey: string): boolean {
   if (seqKey === "new_lead") return stepKey.startsWith("contact_")
+  if (seqKey === "future_move") return !FUTURE_MOVE_IMMEDIATE_STEPS.has(stepKey)
   return MORNING_GATED.has(seqKey)
 }
 
@@ -45,33 +61,39 @@ export function evaluateSend(
   const step = getStep(run.sequenceKey, run.stepKey)
   if (!step) return { action: "cancel", reason: "stale" }
 
-  // 0) HARD DUAL GATE — a send requires BOTH account authorization AND per-lead
-  //    enrollment. Checked FIRST, before anything else.
-  //    0a) ACCOUNT authorization: the controlling locator's account must be present
-  //        in automated_texting_accounts (resolved live). Revoking it here makes
-  //        every enrolled lead of that account ineligible with no per-lead rewrite.
-  //    0b) PER-LEAD enrollment (leads.followup_opt_in): default OFF for every lead.
-  //    Both HOLD (never cancel) so a lead resumes cleanly once authorized/enrolled.
+  // ── PRECEDENCE ─────────────────────────────────────────────────────────────
+  //   1. authorization / enrollment
+  //   2. hard stops (explicit Stop, client opt-out)
+  //   3. lifecycle supersession / stage invalidation
+  //   4. temporary suppression (locator pause, On Hold, human handoff)
+  //   5. eligibility / staleness / reply / objective / time windows
+  //
+  // 3 BEFORE 4 IS THE POINT. Suppression used to come first, so a paused or
+  // on-hold run could never be retired: it stayed `waiting`, kept the single
+  // lead_followup_runs_one_active_lifecycle slot, and blocked every future
+  // enrollment for that lead. A temporary suppression must never outlive the
+  // lifecycle truth it is suppressing.
+
+  // 1) AUTHORIZATION / ENROLLMENT. Both HOLD, never cancel, so a lead resumes
+  //    cleanly once authorized/enrolled.
+  //    1a) ACCOUNT: the controlling locator is in automated_texting_accounts
+  //        (resolved live, so a revoke disables every one of their leads at once).
+  //    1b) PER-LEAD enrollment (leads.followup_opt_in), default OFF.
   if (!lead.accountAuthorized) return { action: "hold", reason: "not_authorized" }
   if (!lead.followupOptIn) return { action: "hold", reason: "not_enrolled" }
 
-  // 1) Global automation control.
+  // 2) HARD STOPS — terminal, and they outrank lifecycle truth because there is
+  //    nothing to supersede INTO: this client is not to be texted at all.
   if (run.mode === "stopped") return { action: "cancel", reason: "stopped" }
-  if (run.mode === "paused") return { action: "hold", reason: "paused" }
-  if (run.mode === "manual") return { action: "hold", reason: "paused" } // surfaced as a suggestion, never auto-sent
-
-  // 2) Consent (opt-out flips sms_opt_in=false upstream — covers a hard "stop"
-  //    even for the consent_only opening pair).
   if (!lead.smsOptIn) return { action: "cancel", reason: "opt_out" }
 
-  // 3) Supersession. LIFECYCLE-derived sequences (new_lead/list_sent/
-  //    application_status/done_selecting) yield to whatever sequence the current
-  //    lifecycle makes applicable. EVENT-TRIGGERED sequences (resume_search,
-  //    future_move, post_tour, tour) are created by an explicit event and are not
+  // 3) LIFECYCLE SUPERSESSION / STAGE INVALIDATION. Runs even while suppressed —
+  //    see the precedence note above.
+  //    LIFECYCLE-derived sequences yield to whatever the current lifecycle makes
+  //    applicable. EVENT-TRIGGERED sequences (resume_search, future_move,
+  //    post_tour, tour) are created by an explicit event and are not
   //    lifecycle-derivable, so they stay authoritative — but are still stood down
-  //    when the lead is closed/archived (applicable === null), never texting a
-  //    finished lead. All other invalidation (opt-out, pause/stop, conversation
-  //    override, enrollment/authorization) is handled by the surrounding steps.
+  //    when the lead is closed/archived (applicable === null).
   const applicable = applicableSequence(lead, share)
   if (LIFECYCLE_SEQUENCES.has(run.sequenceKey)) {
     if (applicable !== run.sequenceKey) {
@@ -81,41 +103,77 @@ export function evaluateSend(
     return { action: "cancel", reason: "stage_changed" } // closed/archived → stand down
   }
 
-  // 4) Eligibility time reached?
-  if (run.nextEligibleAt && now.getTime() < new Date(run.nextEligibleAt).getTime()) {
-    return { action: "hold", reason: "not_eligible_yet" }
-  }
+  // 4) TEMPORARY SUPPRESSION — all HOLD/RESCHEDULE, never cancel, so the run
+  //    survives and the gate re-runs from current state later.
+  //
+  //    4a) Locator automation pause (run.mode).
+  if (run.mode === "paused") return { action: "hold", reason: "paused" }
+  if (run.mode === "manual") return { action: "hold", reason: "paused" } // suggestion only, never auto-sent
 
-  // 5) CONVERSATION OVERRIDES AUTOMATION — full-gated steps: ANY inbound since the
-  //    baseline cancels the run BEFORE interpretation. consent_only opening pair
-  //    (t1/t2) intentionally ignores ordinary replies (only opt-out, handled above).
-  if (step.gate === "full" && newer(conv.lastInboundAt, run.baselineInboundAt)) {
-    return { action: "cancel", reason: "client_replied" }
-  }
+  //    4b) ON HOLD — the client paused their SEARCH. This applies to the
+  //        consent_only opening pair too, unlike handoff below: a client who asked
+  //        to stop looking should not receive "I got your form!" follow-ups, and
+  //        held_at previously never reached this engine at all, so a held client
+  //        kept being texted.
+  if (lead.heldAt) return { action: "hold", reason: "on_hold" }
 
-  // 6) Manual locator outbound after the step was scheduled → don't fire stale
-  //    automation right after a human text; reschedule to the next window.
-  if (newer(conv.lastManualOutboundAt, run.baselineInboundAt)) {
+  //    4c) HUMAN HANDOFF — a genuine manual locator text within the last
+  //        HANDOFF_WINDOW_MS suppresses competing automation, so Locator Beast
+  //        does not talk over a live conversation.
+  //
+  //        A RECENCY WINDOW, not a comparison against run.baselineInboundAt. That
+  //        baseline never advances, so one manual text used to suppress this lead's
+  //        automation permanently. It now expires on its own.
+  //
+  //        The automation's OWN sends cannot trigger this: lastManualOutboundAt is
+  //        built from provenance = 'manual_outbound' (see lib/followup/snapshot).
+  //
+  //        consent_only steps are EXEMPT. The New-Lead pair is one thought split in
+  //        two and Text 2 carries the location question; a locator texting inside
+  //        that 30-45s window is greeting the client, not answering it. Deciding
+  //        otherwise would require interpreting whether the manual text "covered"
+  //        the question, which is exactly the judgement this engine must not make.
+  if (step.gate === "full" && withinHandoffWindow(now, conv.lastManualOutboundAt)) {
     if (isMorningGated(run.sequenceKey, run.stepKey)) {
       return { action: "reschedule", nextEligibleAt: nextMorningEligible(now, lead.timeZone), reason: "manual_conversation" }
     }
     return { action: "hold", reason: "manual_conversation" }
   }
 
-  // 7) Objective already satisfied → complete, don't nag.
+  // 5) ELIGIBILITY / STALENESS / REPLY / OBJECTIVE / TIME WINDOWS.
+  if (run.nextEligibleAt && now.getTime() < new Date(run.nextEligibleAt).getTime()) {
+    return { action: "hold", reason: "not_eligible_yet" }
+  }
+
+  // 5b) STALENESS. Beast Sync can reconnect after days offline; nothing used to
+  //     bound how LATE automation could be, so a New Lead "I got your form…" could
+  //     arrive three days after the form. Cancel rather than reschedule — the
+  //     moment for that message has passed, and rescheduling would re-render the
+  //     same time-anchored copy and send it anyway. Bounds are per sequence and
+  //     step (lib/followup/staleness), because shelf lives genuinely differ.
+  if (isStaleStep(run.sequenceKey, run.stepKey, run.nextEligibleAt, now)) {
+    return { action: "cancel", reason: "stale_sequence" }
+  }
+
+  // 5c) CONVERSATION OVERRIDES AUTOMATION — full-gated steps: ANY inbound since
+  //     the baseline cancels the run. The consent_only opening pair intentionally
+  //     ignores ordinary replies (only opt-out, handled at 2, stops it).
+  if (step.gate === "full" && newer(conv.lastInboundAt, run.baselineInboundAt)) {
+    return { action: "cancel", reason: "client_replied" }
+  }
+
+  // 5d) Objective already satisfied → complete, don't nag.
   const objective = objectiveSatisfied(run.sequenceKey, run.stepKey, share)
   if (objective) return { action: "cancel", reason: objective }
 
-  // 8) HARD quiet-hours invariant — applies to EVERY family, including event-driven
-  //    (post-tour, done-selecting, the New-Lead double-text, reactivation). Never
-  //    send before 09:00 or at/after 21:00 client-local. Defer to the next allowed
-  //    period; this whole gate re-runs then, so an overnight message is never
-  //    blindly released. Evaluated in the CLIENT's zone, not server/locator time.
+  // 5e) HARD quiet-hours invariant — EVERY family, including the New-Lead double
+  //     text. Never before 09:00 or at/after 21:00 client-local; defer to the next
+  //     allowed period, where this whole gate re-runs.
   if (!withinAllowedHours(now, lead.timeZone)) {
     return { action: "reschedule", nextEligibleAt: nextAllowedTime(now, lead.timeZone), reason: "quiet_hours" }
   }
 
-  // 9) Routine morning window (the narrower 09:00–10:30 band) for routine steps.
+  // 5f) Routine morning window (the narrower 09:00-10:30 band) for routine steps.
   if (isMorningGated(run.sequenceKey, run.stepKey) && !withinMorningWindow(now, lead.timeZone)) {
     return { action: "reschedule", nextEligibleAt: nextMorningEligible(now, lead.timeZone), reason: "outside_window" }
   }

@@ -11,7 +11,7 @@
 // chain never runs ahead of real delivery.
 
 import { nextStep } from "./sequences"
-import { DOUBLE_TEXT_MIN_MS, doubleTextSpacingMs } from "./pacing"
+import { DOUBLE_TEXT_MIN_MS, doubleTextSpacingMs, DONE_SELECTING_GRACE_MS } from "./pacing"
 import type { SequenceKey } from "./types"
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -57,6 +57,46 @@ export function newLeadText1EligibleAt(createdAtIso: string): string {
  * post_tour run stamps this as next_eligible_at. Quiet-hours deferral is applied
  * later by the gate (a 2h-after-last-tour instant past 21:00 waits for 09:00).
  */
+/**
+ * FIRST-STEP ELIGIBILITY for the lifecycle sequences whose producers were missing.
+ *
+ * Each is anchored to the DURABLE event that defines the sequence, never to "when
+ * the dispatcher noticed" — so a cron that was down for an hour does not shift a
+ * client's cadence, and re-running enrollment is idempotent.
+ */
+
+/** list_sent FU1 — +1 day after the share was actually sent. */
+export function listSentFu1EligibleAt(sentAtIso: string): string {
+  const t = new Date(sentAtIso).getTime()
+  return new Date((isNaN(t) ? Date.now() : t) + LIST_FU1_DELAY_DAYS * DAY_MS).toISOString()
+}
+
+/**
+ * done_selecting — a short grace after the client finished choosing, so the
+ * branch message reflects their final selection rather than a mid-click state.
+ */
+export function doneSelectingEligibleAt(doneAtIso: string): string {
+  const t = new Date(doneAtIso).getTime()
+  return new Date((isNaN(t) ? Date.now() : t) + DONE_SELECTING_GRACE_MS).toISOString()
+}
+
+/** application_status — +3 calendar days after the application was submitted. */
+export function applicationStatusEligibleAt(appliedAtIso: string): string {
+  const t = new Date(appliedAtIso).getTime()
+  return new Date((isNaN(t) ? Date.now() : t) + APPLICATION_STATUS_DELAY_CAL_DAYS * DAY_MS).toISOString()
+}
+
+/**
+ * resume_search — near-immediate. The client just tapped "Resume Your Search", so
+ * this is a direct acknowledgment; the small grace only keeps it from racing the
+ * RPC's own writes. Quiet hours still defers it if they tapped at 2am.
+ */
+export const RESUME_SEARCH_GRACE_MS = 2 * 60 * 1000
+export function resumeSearchEligibleAt(resumedAtIso: string): string {
+  const t = new Date(resumedAtIso).getTime()
+  return new Date((isNaN(t) ? Date.now() : t) + RESUME_SEARCH_GRACE_MS).toISOString()
+}
+
 export function postTourEligibleAt(lastTourEndIso: string): string {
   const end = new Date(lastTourEndIso)
   const t = isNaN(end.getTime()) ? Date.now() : end.getTime()

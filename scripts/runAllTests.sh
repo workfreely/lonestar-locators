@@ -30,6 +30,20 @@ for f in scripts/tests/*.test.ts scripts/leads/*.test.ts scripts/matching/*.test
   fi
 done
 
+# TYPECHECK lib/ + scripts/ — tsconfig.json's `include` is app/** plus two named
+# components, so `tsc --noEmit` never reaches code imported only by scripts or
+# tests. That gap let a LeadSnapshot literal go missing a required field and
+# silently turned an On Hold assertion into a pass. Judged by exit code like the
+# suites above.
+if [ -z "$filter" ]; then
+  if npx tsc --noEmit -p tsconfig.libcheck.json >/dev/null 2>&1; then
+    green=$((green+1)); printf '  \033[32m✓\033[0m %-48s %s\n' "tsconfig.libcheck.json" "types clean"
+  else
+    red=$((red+1)); failed+=("tsconfig.libcheck.json (npx tsc --noEmit -p tsconfig.libcheck.json)")
+    printf '  \033[31m✗\033[0m %-48s %s\n' "tsconfig.libcheck.json" "TYPE ERRORS"
+  fi
+fi
+
 echo
 if [ "$red" -eq 0 ]; then
   printf '\033[32m%s suites passed, 0 failed\033[0m\n' "$green"

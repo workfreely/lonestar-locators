@@ -20,6 +20,32 @@ export const MORNING_END_MIN = 10 * 60 + 30 // 10:30
 export const DOUBLE_TEXT_MIN_MS = 30_000
 export const DOUBLE_TEXT_MAX_MS = 45_000
 
+// HUMAN HANDOFF — how long a genuine manual locator text suppresses competing
+// full-gated automation.
+//
+// This replaced a comparison against the run's frozen baselineInboundAt, which
+// never advances: once a locator sent one manual text, automation for that lead
+// was suppressed PERMANENTLY. Four hours is long enough to cover a live back-and-
+// forth and short enough that one text on Monday does not mute Wednesday's
+// follow-up. Re-evaluated at the send gate, so it expires on its own with no
+// resume step and nothing to get stuck.
+export const HANDOFF_WINDOW_MS = 4 * 60 * 60 * 1000
+
+/**
+ * Is a locator actively handling this conversation right now?
+ *
+ * Deliberately RELATIVE TO `now`, not to any stored baseline — that is the whole
+ * fix. It expires by itself, so there is no handoff state to store, resume or get
+ * stuck in.
+ */
+export function withinHandoffWindow(now: Date, lastManualOutboundAt: string | null): boolean {
+  if (!lastManualOutboundAt) return false
+  const t = new Date(lastManualOutboundAt).getTime()
+  if (!Number.isFinite(t)) return false
+  const since = now.getTime() - t
+  return since >= 0 && since < HANDOFF_WINDOW_MS
+}
+
 // Cross-client routine send jitter: ~3–7 minutes apart (never a 9:00 blast).
 export const INTER_CLIENT_MIN_MS = 3 * 60_000
 export const INTER_CLIENT_MAX_MS = 7 * 60_000

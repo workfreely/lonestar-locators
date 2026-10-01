@@ -36,6 +36,54 @@ export class SupabaseFollowupStore implements FollowupStore {
     return (data ?? []) as unknown as LeadRow[]
   }
 
+  /** See FollowupStore.enrolledLeads — no created_at bound, unlike the above. */
+  async enrolledLeads(limit: number): Promise<LeadRow[]> {
+    const { data, error } = await supabaseAdmin
+      .from("leads")
+      .select(LEAD_COLUMNS)
+      .eq("followup_opt_in", true)
+      .eq("sms_opt_in", true)
+      .not("crm_status", "in", "(closed,archived)")
+      .order("created_at", { ascending: false })
+      .limit(limit)
+    if (error) {
+      console.error("[followup/store] enrolledLeads failed:", error.message)
+      return []
+    }
+    return (data ?? []) as unknown as LeadRow[]
+  }
+
+  /** The run occupying the lifecycle slot (session_date IS NULL). */
+  async activeLifecycleRun(leadId: number): Promise<RunRow | null> {
+    const { data } = await supabaseAdmin
+      .from("lead_followup_runs")
+      .select("*")
+      .eq("lead_id", leadId)
+      .is("session_date", null)
+      .in("status", ["waiting", "due"])
+      .limit(1)
+      .maybeSingle()
+    return (data as unknown as RunRow) ?? null
+  }
+
+  /**
+   * Any run for this lead/sequence/session date, in ANY status — the
+   * enrol-exactly-once guard for event sequences. Deliberately status-agnostic:
+   * a completed or cancelled run still means the event was already handled, and
+   * re-enrolling would re-send it.
+   */
+  async sessionRunExists(leadId: number, sequenceKey: string, sessionDate: string): Promise<boolean> {
+    const { data } = await supabaseAdmin
+      .from("lead_followup_runs")
+      .select("id")
+      .eq("lead_id", leadId)
+      .eq("sequence_key", sequenceKey)
+      .eq("session_date", sessionDate)
+      .limit(1)
+      .maybeSingle()
+    return !!data
+  }
+
   async hasActiveRun(leadId: number): Promise<boolean> {
     const { data } = await supabaseAdmin
       .from("lead_followup_runs")

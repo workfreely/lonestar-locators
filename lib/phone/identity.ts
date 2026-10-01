@@ -151,7 +151,9 @@ export function toE164(raw: string | null | undefined): string | null {
  * does not touch the phone must not touch its identity either, or an unrelated
  * edit (a move date, a note) would blank a perfectly good identity.
  */
-export function withPhoneIdentity<T extends Record<string, unknown>>(patch: T): T {
+export function withPhoneIdentity<T extends Record<string, unknown>>(
+  patch: T,
+): T & { phone_e164?: string | null } {
   if (!("phone" in patch)) return patch
   return { ...patch, phone_e164: toE164(patch.phone as string | null | undefined) }
 }

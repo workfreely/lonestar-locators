@@ -68,7 +68,10 @@ const conv = (over: Partial<ConversationSnapshot> = {}): ConversationSnapshot =>
   lastManualOutboundAt: null,
   ...over,
 })
-const share: ShareSnapshot = { sentAt: null, doneSelectingAt: null, favoritedCount: 0, availabilitySubmittedAt: null }
+const share: ShareSnapshot = { sentAt: null, doneSelectingAt: null, favoritedCount: 0, availabilitySubmittedAt: null, resumedAt: null }
+
+/** `reason` exists on every decision EXCEPT "send" — narrow instead of casting. */
+const reasonOf = (d: ReturnType<typeof evaluateSend>) => ("reason" in d ? d.reason : null)
 
 const decide = (c: ConversationSnapshot, l: LeadSnapshot = lead(), r: RunSnapshot = t2Run()) =>
   evaluateSend(NOW, l, c, share, r)
@@ -85,12 +88,17 @@ async function main() {
     check("Text 2 sends when the only prior outbound was automated", d.action === "send", JSON.stringify(d))
   }
   {
-    // The REGRESSION this replaces: before provenance, Text 1 landed in
-    // lastManualOutboundAt and newer(T1, null) === true held Text 2 forever.
-    const d = decide(conv({ lastManualOutboundAt: T1_SENT }))
+    // The REGRESSION this replaces: before provenance, an automated send landed in
+    // lastManualOutboundAt and suppressed the next automated step.
+    //
+    // Demonstrated on a FULL-gated step. The opening pair (t1/t2) is now
+    // deliberately EXEMPT from handoff — see the lifecycle pass — so t2 can no
+    // longer serve as the witness for this, and asserting on it would be
+    // asserting the old spec.
+    const d = decide(conv({ lastManualOutboundAt: T1_SENT }), lead(), t2Run({ stepKey: "contact_fu1", stepIndex: 2 }))
     check(
-      "…whereas an unfiltered outbound timestamp still holds it (proves the fix is load-bearing)",
-      d.action === "hold" && d.reason === "manual_conversation",
+      "…whereas an unfiltered outbound timestamp still suppresses a full-gated step (the fix is load-bearing)",
+      d.action !== "send" && reasonOf(d) === "manual_conversation",
       JSON.stringify(d),
     )
   }
@@ -171,7 +179,11 @@ async function main() {
       lead(),
       t2Run({ stepKey: "contact_fu1", stepIndex: 2 }),
     )
-    check("a full-gated contact follow-up IS cancelled by the same reply", d.action === "cancel" && d.reason === "client_replied", JSON.stringify(d))
+    check(
+      "a full-gated contact follow-up IS cancelled by the same reply",
+      d.action === "cancel" && reasonOf(d) === "client_replied",
+      JSON.stringify(d),
+    )
   }
 
   // ─── PROOF 3 — explicit STOP prevents Text 2 ──────────────────────────────
@@ -179,7 +191,7 @@ async function main() {
   {
     const d = decide(conv({ lastInboundAt: "2026-09-23T18:59:45.000Z" }), lead({ smsOptIn: false }))
     check("consent off → Text 2 is cancelled, not held", d.action === "cancel", JSON.stringify(d))
-    check("…with reason opt_out", d.reason === "opt_out", String(d.reason))
+    check("…with reason opt_out", reasonOf(d) === "opt_out", String(reasonOf(d)))
   }
   console.log("  keyword recognition (whole message only):")
   for (const kw of ["STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT"]) {
@@ -207,8 +219,16 @@ async function main() {
   // ─── PROOF 4 — a real manual text still holds automation ──────────────────
   console.log("\nProof 4 — a genuine manual locator text still holds/cancels automation")
   {
+    // Changed deliberately in the lifecycle pass: a manual text suppresses
+    // FULL-gated automation. It no longer holds Text 2, because the opening pair
+    // is one thought split in two and a locator texting inside that 30-45s window
+    // is greeting the client, not answering the location question.
+    const d = decide(conv({ lastManualOutboundAt: "2026-09-23T18:59:50.000Z" }), lead(), t2Run({ stepKey: "contact_fu1", stepIndex: 2 }))
+    check("a human text suppresses a full-gated step", d.action !== "send" && reasonOf(d) === "manual_conversation", JSON.stringify(d))
+  }
+  {
     const d = decide(conv({ lastManualOutboundAt: "2026-09-23T18:59:50.000Z" }))
-    check("a human text after scheduling holds Text 2", d.action === "hold" && d.reason === "manual_conversation", JSON.stringify(d))
+    check("…and does NOT hold Text 2 (consent-only is exempt)", d.action === "send", JSON.stringify(d))
   }
   {
     const d = decide(
@@ -216,7 +236,7 @@ async function main() {
       lead(),
       t2Run({ stepKey: "contact_fu1", stepIndex: 2 }),
     )
-    check("…and reschedules a morning-gated routine step", d.action === "reschedule" && d.reason === "manual_conversation", JSON.stringify(d))
+    check("…and reschedules a morning-gated routine step", d.action === "reschedule" && reasonOf(d) === "manual_conversation", JSON.stringify(d))
   }
   check(
     "a manual text BEFORE the baseline does not hold anything",

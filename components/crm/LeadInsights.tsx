@@ -506,24 +506,14 @@ function AiInsightsCard({ leadId, onCloseWorkspace, beastInsight, clientFirstNam
           </>
         ) : (
           <p className="text-[11px] text-[var(--crm-text-muted)]">
-            {syncError
-              ? null
-              : (() => {
-                  // Client's first name from existing lead data; neutral fallback when absent.
-                  const who = (clientFirstName ?? "").trim() || "this client"
-                  // THREE outcomes, not two. The old copy collapsed the first into the
-                  // second and so blamed the client for a setup gap:
-                  //   notConnected ⇒ no Mac is paired at all, so no message from ANYONE
-                  //                  could have been found. Nothing to do with this client.
-                  //   noMessages   ⇒ a sync really ran against a paired Mac and found none.
-                  //   neither      ⇒ nothing synced yet this session → prompt to Sync.
-                  if (notConnected) {
-                    return "Beast Sync isn't connected yet. Connect Beast Sync on your Mac to sync Messages."
-                  }
-                  return noMessages
-                    ? `No text messages found for ${who} yet.`
-                    : `No text messages found for ${who} yet. Click Sync to check for messages.`
-                })()}
+            {/* ONE line for every empty state: the only useful next step is the
+                Sync button directly above, so say that and nothing else. The
+                previous copy branched three ways (not connected / synced-but-empty
+                / not-synced-yet) and spent two sentences explaining a state the
+                locator cannot act on differently. `notConnected` and `noMessages`
+                are still tracked — they drive nothing here now, and remain for the
+                Beast Sync card, which is where a setup gap belongs. */}
+            {syncError ? null : "Click Sync to check for messages."}
           </p>
         )}
       </div>}

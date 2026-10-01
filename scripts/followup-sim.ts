@@ -67,6 +67,8 @@ function seed(w: World, o: Partial<SeedLead> = {}): SeedLead {
     first_name: "Sarah",
     phone: "+15551230000",
     beds: "1",
+    // On Hold — the client paused their search. Null unless a scenario sets it.
+    held_at: null,
     property_type: null,
     move_date: "2026-10-01",
     crm_status: "new",

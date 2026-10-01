@@ -46,26 +46,24 @@ ok("the UI never renders json.error for this case", (() => {
   const branch = ui.slice(ui.indexOf("no messages found"), ui.indexOf("} else {"))
   return !/setSyncError/.test(branch)
 })())
+// ── THE EMPTY STATE IS NOW ONE LINE ─────────────────────────────────────────
+// It previously branched three ways — not connected / synced-but-empty / not
+// synced yet — and spent two sentences on a distinction the locator cannot act on
+// differently: in every case the only useful next step is the Sync button
+// directly above. Approved copy change; the three-branch assertions it replaced
+// are gone rather than relaxed, so nothing here still asserts removed wording.
+console.log("\nTHE EMPTY STATE:")
+ok("it is exactly the approved sentence", /"Click Sync to check for messages\."/.test(ui))
 ok("the copy is a literal, not interpolated from the server",
-  /"Beast Sync isn't connected yet\. Connect Beast Sync on your Mac to sync Messages\."/.test(ui))
-ok("no internal lead id or 'Mac Companion' appears in any user-facing string",
   !/Mac Companion/.test(ui) && !/for lead \$\{/.test(ui))
+ok("it never names the client", !/\$\{who\}/.test(ui))
+ok("the removed three-branch wording is gone", !/isn't connected yet/.test(ui) && !/No text messages found for/.test(ui))
+ok("a visible sync error still suppresses it", /syncError \? null :/.test(ui))
 
-console.log("\nSTATE 1 — NO DEVICE PAIRED:")
+console.log("\nTHE CAUSE IS STILL TRACKED (it drives the Beast Sync card, not this line):")
 ok("the UI tracks the cause separately", /const \[notConnected, setNotConnected\] = useState\(false\)/.test(ui))
 ok("it is set from the route's machine code",
   /setNotConnected\(json\?\.reason === "not_connected" \|\| json\?\.notConnected === true\)/.test(ui))
-ok("…and takes priority over the per-client sentence", (() => {
-  const i = ui.indexOf("if (notConnected) {")
-  const j = ui.indexOf("No text messages found for ${who} yet.`")
-  return i > 0 && j > 0 && i < j
-})())
-ok("its copy names BEAST SYNC, never the client",
-  /Beast Sync isn't connected yet/.test(ui))
-ok("…and offers the next step", /Connect Beast Sync on your Mac to sync Messages/.test(ui))
-
-console.log("\nSTATE 2 — PAIRED, BUT THIS CLIENT HAS NO MESSAGES:")
-ok("the per-client sentence still exists", /No text messages found for \$\{who\} yet\./.test(ui))
 ok("…and still falls back to the Sync prompt when nothing has run yet",
   /Click Sync to check for messages/.test(ui))
 // BOTH reset sites, not just the one in the sync handler. The lead-change effect
