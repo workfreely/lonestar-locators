@@ -17,34 +17,70 @@ const ok = (l: string, c: boolean, d = "") => {
 const read = (f: string) => readFileSync(path.join(process.cwd(), f), "utf8")
 const strip = (t: string) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, "").replace(/(^|[^:])\/\/.*$/gm, "$1")
 
-console.log("CONSEQUENTIAL destinations hand off to their existing flow:")
+console.log("A STAGE IS EARNED — a forward drag advances exactly ONE step:")
+{
+  // The reported bug: Delilah went New → Searching and sat in Searching with
+  // "Contact Lead" still open — searching for a client nobody had spoken to.
+  const jumps: Array<[string, string, string, string]> = [
+    ["new", "searching", "contacted", "contact"],
+    ["new", "list_sent", "contacted", "contact"],
+    ["new", "ready_to_tour", "contacted", "contact"],
+    ["new", "closed", "contacted", "contact"],
+    ["contacted", "list_sent", "searching", "build_list"],
+    ["searching", "ready_to_tour", "list_sent", "send_list"],
+    ["searching", "applied", "list_sent", "send_list"],
+  ]
+  for (const [from, dropped, landsOn, flow] of jumps) {
+    const p = stageTransitionPolicy(from, dropped)
+    ok(`${from} → ${dropped} is clamped to ${landsOn} (${flow})`,
+      p.kind === "canonical" && p.destination === landsOn && p.flow === flow,
+      p.kind === "canonical" ? `${p.destination}/${p.flow}` : p.kind)
+  }
+  // list_sent → applied clamps to ready_to_tour, which NO canonical action earns,
+  // so it stays a direct move rather than inventing a confirmation.
+  const p = stageTransitionPolicy("list_sent", "applied")
+  ok("list_sent → applied clamps to ready_to_tour and stays direct",
+    p.kind === "direct" && p.destination === "ready_to_tour")
+}
+ok("a single step forward is NOT clamped",
+  (stageTransitionPolicy("new", "contacted") as { destination: string }).destination === "contacted")
+ok("New → Contacted uses the existing Contact Gate",
+  (stageTransitionPolicy("new", "contacted") as { flow?: string }).flow === "contact")
+
+console.log("\nEACH STEP uses the action that earns it:")
 const cases: Array<[string, string, string]> = [
+  ["new", "contacted", "contact"],
+  ["contacted", "searching", "build_list"],
   ["searching", "list_sent", "send_list"],
-  ["list_sent", "done_touring", "tour_outcome"],
   ["ready_to_tour", "done_touring", "tour_outcome"],
   ["done_touring", "applied", "application"],
   ["applied", "closed", "confirm_lease"],
-  ["contacted", "searching", "build_list"],
 ]
 for (const [from, to, flow] of cases) {
   const p = stageTransitionPolicy(from, to)
   ok(`${from} → ${to} uses the ${flow} flow`, p.kind === "canonical" && p.flow === flow, p.kind)
 }
+// list_sent → ready_to_tour is the one forward step NO action earns: a list was
+// sent and the client is ready to look. Direct, with no invented confirmation.
+ok("list_sent → ready_to_tour is a direct step", stageTransitionPolicy("list_sent", "ready_to_tour").kind === "direct")
 ok("archived opens the archive dialog, never a bare stage write",
   stageTransitionPolicy("closed", "archived").kind === "dialog")
 
-console.log("\nSAFE direct moves stay direct:")
-for (const [from, to] of [["contacted", "new"], ["new", "ready_to_tour"], ["searching", "ready_to_tour"], ["archived", "new"]] as const) {
-  ok(`${from} → ${to}`, stageTransitionPolicy(from, to).kind === "direct")
+console.log("\nBACKWARD moves are corrective: never clamped, never re-confirmed:")
+for (const [from, to] of [["contacted", "new"], ["closed", "new"], ["applied", "searching"], ["list_sent", "contacted"], ["archived", "new"]] as const) {
+  const p = stageTransitionPolicy(from, to)
+  ok(`${from} → ${to} lands exactly where dropped, directly`,
+    p.kind === "direct" && (p as { destination: string }).destination === to)
 }
-
-console.log("\nBACKWARD moves are corrections, not re-runs of the workflow:")
-// Dragging a lead back must never re-ask "Did you send the list?", re-stamp
-// sent_at, or re-run a lease confirmation.
 ok("ready_to_tour → list_sent does NOT re-ask to send", stageTransitionPolicy("ready_to_tour", "list_sent").kind === "direct")
-ok("closed → applied does NOT re-confirm the application", stageTransitionPolicy("closed", "applied").kind === "direct")
 ok("applied → done_touring does NOT re-open the tour outcome", stageTransitionPolicy("applied", "done_touring").kind === "direct")
-ok("searching → searching from contacted is still canonical", stageTransitionPolicy("contacted", "searching").kind === "canonical")
+
+console.log("\nRESTORE from archived is not a pipeline step:")
+{
+  const p = stageTransitionPolicy("archived", "applied")
+  ok("archived → applied is NOT rewound to New", (p as { destination: string }).destination === "applied")
+  ok("and still asks for the application confirmation", p.kind === "canonical")
+}
 
 console.log("\nDROPPING ON THE SAME COLUMN is a no-op:")
 for (const s of ["new", "list_sent", "closed", "archived"]) {
@@ -69,7 +105,13 @@ console.log("\nTHE BOARD routes everything through the policy:")
   // The `return` is load-bearing: without it the card moves AND the canonical
   // flow runs, which is worse than either bug alone.
   ok("a canonical destination hands off and RETURNS before any stage write",
-    /onRequestCanonical\(lead, newStage, policy\.flow\)\s*\n\s*return/.test(board))
+    /onRequestCanonical\(lead, policy\.destination, policy\.flow\)\s*\n\s*return/.test(board))
+  ok("the hand-off passes the CLAMPED destination, not the dropped column",
+    !/onRequestCanonical\(lead, newStage/.test(board))
+  ok("direct moves also use the clamped destination",
+    /const target = policy\.destination/.test(board) && /applyStageMove\(leadId, target\)/.test(board))
+  ok("New → Contacted reuses the existing Contact Gate",
+    /policy\.flow === "contact"[\s\S]{0,200}onInitiateContact\(lead\)/.test(board))
   ok("archive goes to the existing dialog", /policy\.kind === "dialog"[\s\S]{0,120}handleArchive\(leadId\)/.test(board))
   ok("the Guest Card guard is still applied to the remaining direct moves",
     /onGuestCardGuard \(?\&\&|onGuestCardGuard &&/.test(board))

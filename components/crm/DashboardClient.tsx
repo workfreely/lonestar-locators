@@ -4634,7 +4634,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         <div className="fixed inset-0 z-[10000] bg-black/40 backdrop-blur-sm flex items-center justify-center px-4" onClick={closeSendSheet}>
           <div className="w-full max-w-md rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
-              <h3 className="min-w-0 text-[16px] font-bold text-[var(--crm-text-primary)]">Send Recommendations to {sendSheet.fullName}</h3>
+              <h3 className="min-w-0 text-[16px] font-bold text-[var(--crm-text-primary)]">Send List to {sendSheet.fullName}</h3>
               <button type="button" aria-label="Close" onClick={closeSendSheet} className="flex h-7 w-7 flex-none items-center justify-center rounded-lg text-[13px] text-[var(--crm-text-muted)] hover:bg-[var(--crm-card)] hover:text-[var(--crm-text-primary)]">✕</button>
             </div>
             {sendSheet.error ? (

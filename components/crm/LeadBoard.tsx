@@ -322,8 +322,18 @@ export default function LeadBoard({
     // change itself once the locator confirms, so cancelling leaves the lead
     // exactly where it was with nothing created and nothing completed.
     if (policy.kind === "canonical") {
-      if (lead && onRequestCanonical) {
-        onRequestCanonical(lead, newStage, policy.flow)
+      // The Contact Gate already exists on this board and is wired by the host —
+      // reuse it rather than routing New → Contacted through a second path.
+      if (policy.flow === "contact") {
+        if (lead && onInitiateContact) {
+          onInitiateContact(lead)
+          return
+        }
+      } else if (lead && onRequestCanonical) {
+        // policy.destination, NOT newStage: a drop farther ahead is CLAMPED to the
+        // next required stage, so dropping a New lead on List Sent asks about
+        // contacting them — never about a list that could not have been sent.
+        onRequestCanonical(lead, policy.destination, policy.flow)
         return
       }
       // No handler wired (the marketing demo board) → fall through to the plain
@@ -337,15 +347,20 @@ export default function LeadBoard({
       return
     }
 
+    // From here the move is DIRECT. Use the clamped destination so a forward drop
+    // that skipped stages still only advances one step (e.g. List Sent → Applied
+    // lands on Ready to Tour, which no canonical action earns).
+    const target = policy.destination
+
     // The Guest Card guard still gates any remaining applied/closed move (a
     // BACKWARD correction, which policy classifies as direct).
-    if (onGuestCardGuard && (newStage === "applied" || newStage === "closed")) {
-      onGuestCardGuard(leadId, newStage, () => {
-        void applyStageMove(leadId, newStage)
+    if (onGuestCardGuard && (target === "applied" || target === "closed")) {
+      onGuestCardGuard(leadId, target, () => {
+        void applyStageMove(leadId, target)
       })
       return
     }
-    await applyStageMove(leadId, newStage)
+    await applyStageMove(leadId, target)
   }
 
   // The SHARED stage-transition core, extracted verbatim from the drag handler so

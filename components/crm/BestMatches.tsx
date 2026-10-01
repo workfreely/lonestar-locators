@@ -207,7 +207,7 @@ export default function BestMatches({
               title={leadRecommendations.length === 0 ? "Add recommendations first" : "Send these recommendations to the client"}
               className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[var(--crm-accent)] px-3 py-2 text-[12px] font-semibold text-white transition-[filter,opacity] hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-100"
             >
-              Send Recommendations
+              Send List
             </button>
           )}
         </div>
