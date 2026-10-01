@@ -114,6 +114,7 @@ async function main() {
     centroids: number; candidates: number; enriched: number
     qualified: number; beastMatches: number
     byRank: Record<number, number>; loss: string
+    detail: Array<{ placeId: string; name: string; rank: number; reason: string; viaAlias: boolean }>
   }
   const reports: Report[] = []
 
@@ -161,6 +162,15 @@ async function main() {
     const qualified = fits.filter((x) => x.fit?.tone === "match")
     const byRank: Record<number, number> = {}
     for (const q of qualified) byRank[q.fit!.rank ?? 0] = (byRank[q.fit!.rank ?? 0] ?? 0) + 1
+    // Attribution: for each qualified property, the tier and the exact evidence, so a
+    // before/after diff can say WHICH alias admitted a newly-qualified property.
+    const detail = qualified.map((q) => ({
+      placeId: q.p.placeId, name: q.p.propertyName,
+      rank: q.fit!.rank ?? 0, reason: q.fit!.reason,
+      // An exact label hit needs no alias; anything else at rank 2 came via the table.
+      viaAlias: q.fit!.rank === 2
+        && !stored.some((a2) => norm(a2) === norm(q.fit!.reason.replace(/^Keyword:\s*/i, ""))),
+    }))
     const beast = computeSuggestions(merged, client).size
 
     // Which stored areas actually produced a qualifying match?
@@ -183,7 +193,7 @@ async function main() {
     reports.push({
       id: l.id, name: l.first_name ?? "?", city: l.city, stored, resolved, unresolved,
       centroids: centers.length, candidates: merged.length, enriched,
-      qualified: qualified.length, beastMatches: beast, byRank, loss,
+      qualified: qualified.length, beastMatches: beast, byRank, loss, detail,
     })
   }
 

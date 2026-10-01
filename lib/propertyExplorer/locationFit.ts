@@ -1,4 +1,5 @@
 import type { ExplorerProperty } from "./types"
+import { isAreaAlias } from "./areaAliases"
 
 /**
  * Simple, honest location intelligence for V1.
@@ -82,8 +83,15 @@ export function assessLocationFit(
     if (nbhdHit) {
       return { label: "Preferred Neighborhood Match", reason: `Neighborhood: ${nbhdHit}`, tone: "match", rank: 1 }
     }
-    // Location Keyword (OR).
-    const kwHit = (property.locationKeywords ?? []).map(norm).find((k) => clientAreas.includes(k))
+    // Location Keyword (OR). Accepts the client's label verbatim, or one of the
+    // CURATED spellings for that label in this market (lib/propertyExplorer/areaAliases)
+    // — the catalog says "uptown dallas" where the client chose "Uptown", and that is
+    // the same place. Still exact equality against an allowlist, never a substring:
+    // "minutes from southtown" is not a spelling of Southtown and cannot qualify.
+    // Tier, order and reason text are unchanged.
+    const kwHit = (property.locationKeywords ?? []).map(norm).find(
+      (k) => clientAreas.includes(k) || clientAreas.some((a) => isAreaAlias(k, a, client.city)),
+    )
     if (kwHit) {
       return { label: "Location Keyword Match", reason: `Keyword: ${kwHit}`, tone: "match", rank: 2 }
     }
