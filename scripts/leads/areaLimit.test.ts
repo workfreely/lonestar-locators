@@ -175,7 +175,10 @@ console.log("\nMATCHING IS UNTOUCHED BY THIS PASS:")
   // cap is what a client may PICK, MAX_UNLEASH_AREAS is how many centroids the Map
   // will search for a lead that already holds more.
   ok("MAX_UNLEASH_AREAS is still 3", /MAX_UNLEASH_AREAS = 3/.test(multi))
-  ok("MAX_SUGGESTIONS is still 5 (Pass 3)", /MAX_SUGGESTIONS = 5/.test(sug))
+  // Pass 2 was intake enforcement; the suggestion cap belongs to Pass 3. Assert the
+  // separation rather than the number: nothing in the intake path reads this cap.
+  ok("the suggestion cap is independent of the intake limit",
+    !/MAX_LOCATIONS|areaLimit/.test(sug))
   ok("areaLimit does not import the matcher", !/propertyExplorer/.test(strip(read("lib/leads/areaLimit.ts"))))
   ok("multiArea does not import the intake limit", !/areaLimit|formOptions/.test(multi))
 }

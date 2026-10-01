@@ -85,8 +85,11 @@ console.log("\n4. RANKING AND SCORING ARE UNTOUCHED:")
     /rank: 1/.test(fit) && /rank: 2/.test(fit) && /rank: 3/.test(fit) && /rank: 4/.test(fit))
   ok("suggestions still rank ascending then truncate",
     /sort\(\(a, b\) => \(a\.fit!\.rank \?\? 99\) - \(b\.fit!\.rank \?\? 99\)\)/.test(sug))
-  // Pass 3 changes this number; Pass 1 must not.
-  ok("MAX_SUGGESTIONS is still 5 in this pass", /MAX_SUGGESTIONS = 5/.test(sug))
+  // Pass 1 changed area plumbing only. The suggestion cap is Pass 3's to move (5 -> 8);
+  // what matters here is that truncation remains the ONLY thing it affects.
+  ok("the suggestion cap is applied after filtering and sorting, nowhere else",
+    sug.indexOf("out.size >= MAX_SUGGESTIONS") > sug.indexOf(".sort((a, b) =>")
+      && (sug.match(/MAX_SUGGESTIONS/g) ?? []).length === 2)
   ok("only tone === 'match' qualifies", /tone === "match"/.test(sug))
 }
 

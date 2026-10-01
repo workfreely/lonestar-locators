@@ -23,7 +23,28 @@ import { assessLocationFit, type ClientLocationContext } from "./locationFit"
  * suggest none. There is deliberately no scoring, ranking or percentage — the
  * properties either carry the evidence or they don't.
  */
-export const MAX_SUGGESTIONS = 5
+
+/**
+ * How many suggestions may be starred at once.
+ *
+ * The product target is 8 strong matches, 6–8 being the healthy range. This number is
+ * a CEILING ON AN ALREADY-QUALIFIED, ALREADY-RANKED LIST and nothing else: every
+ * property it admits has already passed `tone === "match"` in assessLocationFit and
+ * has already been placed by rank. Raising it therefore lets ranked positions 6–8
+ * through and CANNOT pad the list with weak matches — a client with five qualifying
+ * properties still gets five, which is exactly what the two fixtures at the old cap
+ * showed (two-areas-plus-nearby 5 → 8 from a pool of 22; commute-vs-areas stayed at
+ * 5, its whole qualified pool).
+ *
+ * It was 5 from Explorer V1 (3334029, 23 Aug 2026), when this function had no ranking
+ * at all and the first five arbitrary matches won. Ranking arrived later (1493c8b,
+ * 30 Aug 2026) without the number being revisited, so 5 made the 6–8 target
+ * structurally unreachable no matter how good the pool was.
+ *
+ * Reaching 8 consistently needs a deeper qualified pool as well; this removes the
+ * ceiling as the binding constraint, it does not by itself produce 8.
+ */
+export const MAX_SUGGESTIONS = 8
 
 export type Suggestion = {
   /** Stable identity of the suggested property. */

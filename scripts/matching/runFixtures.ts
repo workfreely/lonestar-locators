@@ -20,6 +20,7 @@ import path from "node:path"
 import { MATCHING_FIXTURES, type MatchingFixture } from "./fixtures"
 import { centerForDesiredArea, getMarketByName, isInsideState } from "@/lib/markets/catalog"
 import { assessLocationFit } from "@/lib/propertyExplorer/locationFit"
+import { MAX_SUGGESTIONS } from "@/lib/propertyExplorer/suggestions"
 import type { ExplorerProperty } from "@/lib/propertyExplorer/types"
 
 for (const line of readFileSync(".env.local", "utf8").split("\n")) {
@@ -41,8 +42,10 @@ type Row = {
   /** tone === "match", rank-ordered — the pool MAX_SUGGESTIONS trims. */
   qualifiedNames: string[]
   qualifiedRanks: number[]
-  /** What the locator would see starred today (the cap applies here). */
+  /** What the locator would see starred (MAX_SUGGESTIONS applies here). */
   starredNames: string[]
+  /** The cap in force for this run, so a baseline records which number produced it. */
+  maxSuggestions: number
 }
 
 /** The CURRENT composition at every call site: `neighborhoods ?? submarkets`. */
@@ -115,7 +118,8 @@ async function runFixture(f: MatchingFixture, compose: (f: MatchingFixture) => s
     candidateCount: merged.length,
     qualifiedNames: qualified.map((x) => x.p.propertyName),
     qualifiedRanks: qualified.map((x) => x.fit!.rank ?? 99),
-    starredNames: qualified.slice(0, 5).map((x) => x.p.propertyName),
+    starredNames: qualified.slice(0, MAX_SUGGESTIONS).map((x) => x.p.propertyName),
+    maxSuggestions: MAX_SUGGESTIONS,
   }
 }
 
@@ -163,7 +167,7 @@ async function main() {
     console.log(`   centroids  ${r.centroidCount}  [${r.resolvedAreas.join(" | ")}]`)
     console.log(`   candidates ${r.candidateCount}`)
     console.log(`   qualified  ${r.qualifiedNames.length}  ranks[${r.qualifiedRanks.join(",")}]`)
-    console.log(`   starred(5) ${r.starredNames.length}  ${r.starredNames.slice(0, 5).join(" · ")}`)
+    console.log(`   starred(${r.maxSuggestions}) ${r.starredNames.length}  ${r.starredNames.join(" · ")}`)
   }
 
   if (saveIdx > 0) {
@@ -175,13 +179,24 @@ async function main() {
   if (diffIdx > 0) {
     const prev: Row[] = JSON.parse(readFileSync(path.join(OUT, `${process.argv[diffIdx + 1]}.json`), "utf8"))
     console.log(`\n${"=".repeat(74)}\nDIFF vs "${process.argv[diffIdx + 1]}"\n${"=".repeat(74)}`)
-    console.log("fixture                  centroids      candidates      qualified")
+    console.log("fixture                  centroids      candidates      qualified       starred")
     for (const r of rows) {
       const p = prev.find((x) => x.fixtureId === r.fixtureId)
       if (!p) { console.log(`  ${r.fixtureId}: NEW`); continue }
       const d = (a: number, b: number) => (a === b ? `${b}` : `${a} → ${b}`)
-      const changed = p.centroidCount !== r.centroidCount || p.candidateCount !== r.candidateCount || p.qualifiedNames.length !== r.qualifiedNames.length
-      console.log(`  ${changed ? "▲" : " "} ${r.fixtureId.padEnd(22)} ${d(p.centroidCount, r.centroidCount).padEnd(14)} ${d(p.candidateCount, r.candidateCount).padEnd(15)} ${d(p.qualifiedNames.length, r.qualifiedNames.length)}`)
+      const changed = p.centroidCount !== r.centroidCount || p.candidateCount !== r.candidateCount
+        || p.qualifiedNames.length !== r.qualifiedNames.length || p.starredNames.length !== r.starredNames.length
+      console.log(`  ${changed ? "▲" : " "} ${r.fixtureId.padEnd(22)} ${d(p.centroidCount, r.centroidCount).padEnd(14)} ${d(p.candidateCount, r.candidateCount).padEnd(15)} ${d(p.qualifiedNames.length, r.qualifiedNames.length).padEnd(15)} ${d(p.starredNames.length, r.starredNames.length)}`)
+      // Pass 3 must ONLY add already-qualified ranked matches 6-8. A starred name
+      // absent from the qualified pool, or a reordering of the kept prefix, would mean
+      // qualification or ranking moved rather than the cap.
+      const notQualified = r.starredNames.filter((n) => !r.qualifiedNames.includes(n))
+      if (notQualified.length) console.log(`       !! STARRED BUT NOT QUALIFIED: ${notQualified.join(" · ")}`)
+      const prefix = Math.min(p.starredNames.length, r.starredNames.length)
+      if (JSON.stringify(p.starredNames.slice(0, prefix)) !== JSON.stringify(r.starredNames.slice(0, prefix)))
+        console.log(`       !! ORDER CHANGED in the first ${prefix}`)
+      const added = r.starredNames.filter((n) => !p.starredNames.includes(n))
+      if (added.length) console.log(`       ADDED (ranks ${p.starredNames.length + 1}-${r.starredNames.length}): ${added.join(" · ")}`)
       const lost = p.qualifiedNames.filter((n) => !r.qualifiedNames.includes(n))
       if (lost.length) console.log(`       LOST: ${lost.join(" · ")}`)
     }
