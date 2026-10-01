@@ -130,7 +130,10 @@ export default function ConnectedDevicesSection() {
           {status.state === "not_connected" && (
             <ol className="mt-4 space-y-1.5 border-t border-[#eceef3] pt-4 text-[12.5px] leading-relaxed text-[#4b5162]">
               <li>1. Open <span className="font-semibold text-[#111318]">Beast Sync</span> on your Mac.</li>
-              <li>2. Choose <span className="font-semibold text-[#111318]">Connect Locator Beast</span> from its menu-bar icon.</li>
+              {/* Wording matches the Mac app's menu item verbatim, ellipsis included
+                  (MenuBarController "Connect Locator Beast…"). Instructions that
+                  paraphrase a control are instructions people fail to follow. */}
+              <li>2. Choose <span className="font-semibold text-[#111318]">Connect Locator Beast…</span> from its menu-bar icon.</li>
               <li>3. Approve this workspace in the browser tab it opens.</li>
             </ol>
           )}
@@ -161,8 +164,12 @@ export default function ConnectedDevicesSection() {
                             Pause
                           </button>
                         ))}
+                      {/* "Reset Connection", NOT "Reconnect": this invalidates the
+                          current connection and makes the Mac ask for approval
+                          again. A button labelled "Reconnect" would promise the
+                          opposite of what it does. */}
                       <button type="button" onClick={() => resetPairing(d.id)} disabled={busy === d.id} className={neutralBtn}>
-                        Reconnect
+                        Reset Connection
                       </button>
                       <button type="button" onClick={() => revoke(d.id)} disabled={busy === d.id} className={dangerBtn}>
                         Disconnect
