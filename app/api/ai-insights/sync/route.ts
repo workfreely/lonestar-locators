@@ -47,6 +47,33 @@ export async function POST(req: NextRequest) {
       message.includes("no phone")
         ? 400
         : 500
+
+    // "No messages" has TWO very different causes, and the UI previously showed one
+    // sentence for both: "No text messages found for {name} yet." That reads as a
+    // claim about the CLIENT when the real situation is usually that Beast Sync has
+    // never been connected at all — so no message from anyone could have been found.
+    //
+    // `notConnected` separates them. The raw backend string is still never returned
+    // to the browser for this case (it names an internal lead id and "Mac
+    // Companion"); only this boolean crosses the wire, and LeadInsights picks the
+    // copy. `reason` is a stable machine code so the UI never pattern-matches prose.
+    //
+    // Read with the CALLER'S session, not the service role: device_tokens carries a
+    // "members read device_tokens" RLS policy scoped by is_active_workspace_member,
+    // so this can only ever see the caller's own workspace devices.
+    if (/^no messages found/i.test(message.trim())) {
+      const { data: devices } = await supabase
+        .from("device_tokens")
+        .select("id")
+        .is("revoked_at", null)
+        .limit(1)
+      const notConnected = (devices ?? []).length === 0
+      return NextResponse.json(
+        { error: message, reason: notConnected ? "not_connected" : "no_messages", notConnected },
+        { status },
+      )
+    }
+
     return NextResponse.json({ error: message }, { status })
   }
 }

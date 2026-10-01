@@ -316,6 +316,10 @@ function AiInsightsCard({ leadId, onCloseWorkspace, beastInsight, clientFirstNam
   // normal empty state, rendered muted (never the red error path). Genuine failures
   // (network/server/etc.) still go through syncError. Reset on lead change + each sync.
   const [noMessages, setNoMessages] = useState(false)
+  // Beast Sync has never been connected on any Mac in this workspace. A DISTINCT
+  // cause from "this client has no messages", and the one the old single sentence
+  // mis-attributed to the client.
+  const [notConnected, setNotConnected] = useState(false)
   const [open, setOpen] = useState(false)
   const initialOpenSet = useRef(false)
 
@@ -352,6 +356,10 @@ function AiInsightsCard({ leadId, onCloseWorkspace, beastInsight, clientFirstNam
     initialOpenSet.current = false
     setOpen(false)
     setNoMessages(false)
+    // Reset the CAUSE too. Without this, a lead that showed "Beast Sync isn't
+    // connected yet" left notConnected=true, and selecting a different lead showed
+    // that same copy before any sync had run for them.
+    setNotConnected(false)
     loadBrief()
   }, [leadId])
 
@@ -364,6 +372,7 @@ function AiInsightsCard({ leadId, onCloseWorkspace, beastInsight, clientFirstNam
     setSyncing(true)
     setSyncError(null)
     setNoMessages(false)
+    setNotConnected(false)
     try {
       const res = await fetch("/api/ai-insights/sync", {
         method: "POST",
@@ -376,6 +385,10 @@ function AiInsightsCard({ leadId, onCloseWorkspace, beastInsight, clientFirstNam
         // muted empty state — never surface the raw backend string (it names an internal
         // lead id + "Mac Companion"). Every other failure keeps the visible error path.
         if (typeof json?.error === "string" && /^no messages found/i.test(json.error.trim())) {
+          // The route tells us WHICH of the two causes it was via a stable machine
+          // code, so the copy below never has to pattern-match prose. The raw string
+          // is still never shown — it names an internal lead id and "Mac Companion".
+          setNotConnected(json?.reason === "not_connected" || json?.notConnected === true)
           setNoMessages(true)
         } else {
           setSyncError(json?.error ?? "Sync failed")
@@ -498,9 +511,15 @@ function AiInsightsCard({ leadId, onCloseWorkspace, beastInsight, clientFirstNam
               : (() => {
                   // Client's first name from existing lead data; neutral fallback when absent.
                   const who = (clientFirstName ?? "").trim() || "this client"
-                  // noMessages ⇒ a sync just ran and found none (no "Click Sync" prompt).
-                  // Otherwise the client hasn't synced / connection can't be determined
-                  // from component state → prompt to Sync.
+                  // THREE outcomes, not two. The old copy collapsed the first into the
+                  // second and so blamed the client for a setup gap:
+                  //   notConnected ⇒ no Mac is paired at all, so no message from ANYONE
+                  //                  could have been found. Nothing to do with this client.
+                  //   noMessages   ⇒ a sync really ran against a paired Mac and found none.
+                  //   neither      ⇒ nothing synced yet this session → prompt to Sync.
+                  if (notConnected) {
+                    return "Beast Sync isn't connected yet. Connect Beast Sync on your Mac to sync Messages."
+                  }
                   return noMessages
                     ? `No text messages found for ${who} yet.`
                     : `No text messages found for ${who} yet. Click Sync to check for messages.`
