@@ -34,7 +34,16 @@ eq(
 )
 ok(!AGENT_TEMPLATE_VARIABLES.some((v) => v.token === "property_list"), "property_list is NOT in the agent menu")
 ok(!AGENT_TEMPLATE_VARIABLES.some((v) => /last_?name/i.test(v.token)), "no last-name variable")
-eq([...SYSTEM_TEMPLATE_TOKENS].sort(), ["beds_phrase", "move_suffix", "property_list"], "system-only tokens listed")
+// search_tail is engine-composed (it fills new_lead_text1's " for a 1 bedroom
+// move in June" tail) and is correctly absent from the agent menu above — it was
+// added to SYSTEM_TEMPLATE_TOKENS without being added here, which is why this
+// assertion was red.
+eq(
+  [...SYSTEM_TEMPLATE_TOKENS].sort(),
+  ["beds_phrase", "move_suffix", "property_list", "search_tail"],
+  "system-only tokens listed",
+)
+ok(!AGENT_TEMPLATE_VARIABLES.some((v) => v.token === "search_tail"), "search_tail is NOT in the agent menu")
 
 // ── Populated lead: clean/bare values, no surrounding spaces ──────────────────
 {

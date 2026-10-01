@@ -81,6 +81,16 @@ export interface FollowupStore {
   // Intents
   insertIntent(intent: IntentInsert): Promise<"ok" | "duplicate">
   updateIntent(intentId: string, patch: Record<string, unknown>): Promise<void>
+  /**
+   * ATOMICALLY take ownership of a pending intent. Returns true only for the
+   * caller that actually won it; every other caller gets false and must not send.
+   *
+   * Separate from updateIntent because the claim is the one write where "did I
+   * change the row?" is the answer, not a side effect: two Macs poll the same
+   * workspace on independent timers, and a read-then-write claim let both of them
+   * send the same text to the same client.
+   */
+  claimIntent(intentId: string, patch: Record<string, unknown>): Promise<boolean>
   pendingIntents(workspaceId: string, limit: number): Promise<IntentRow[]>
   intentById(intentId: string): Promise<IntentRow | null>
   // Latest send_not_before among the workspace's live (pending/claimed) intents —

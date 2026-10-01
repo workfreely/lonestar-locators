@@ -93,7 +93,10 @@ ok(renderNewLeadText1(lead({ firstName: null, agentFirstName: null })) === "Hey!
 ok(NEW_LEAD_TEXT2 === "Are you trying to stay near a specific address or side of town?", "Text2 locked")
 ok(listFu3(2) === LIST_FU3_WITH_FAVORITES && listFu3(0) === LIST_FU3_NO_FAVORITES, "FU3 conditional LOCKED variants")
 ok(FINAL_PAUSE.startsWith("I haven't heard back") && !/Sarah|\{/.test(FINAL_PAUSE), "Final pause LOCKED, no name/token")
-ok(POST_TOUR === "How did the tour go? Hopefully everything went well", "Post-tour locked")
+// The trailing "!" is the shipped copy and matches its multi-tour sibling
+// ("How did the tours go? Hopefully everything went well!"); this LOCKED
+// assertion had simply not been updated when the punctuation was added.
+ok(POST_TOUR === "How did the tour go? Hopefully everything went well!", "Post-tour locked")
 ok(APPLICATION_STATUS === "Have you heard anything back on your application yet?", "Application status approved")
 
 console.log("PACING")

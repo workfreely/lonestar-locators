@@ -96,6 +96,10 @@ const KEYS = [
   "new_lead_text1", "new_lead_text2", "list_fu3_favorites", "list_fu3_no_favorites", "list_final",
   "ds_availability_submitted", "ds_needs_availability", "ds_tour_now_or_wait",
   "future_move_wait_ack", "future_move_reactivate", "post_tour", "application_status",
+  // Added to the in-code map later; this list had not been updated, which is why
+  // this assertion was red. Both are also now accepted by the save RPC
+  // (supabase/manual/20261014_follow_up_templates_23_keys.sql).
+  "post_tour_multi", "resume_search",
 ] as const
 eq(Object.keys(DEFAULT_FOLLOW_UP_TEMPLATES).sort().join(","), [...KEYS].sort().join(","), "default map has exactly the content keys (legacy + Follow-Up Agent Phase-1)")
 eq(TEMPLATE_CHAR_LIMITS.intro, 180, "intro limit 180")

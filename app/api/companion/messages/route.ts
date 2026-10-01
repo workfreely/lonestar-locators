@@ -11,6 +11,8 @@ import { rateLimit } from "@/lib/rateLimit"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { toE164 } from "@/lib/phone/identity"
 import { attributeUnattributedMessages } from "@/lib/companion/attribution"
+import { applyProvenance } from "@/lib/companion/provenance"
+import { applyOptOuts } from "@/lib/companion/applyOptOut"
 
 const MAX_BATCH = 500
 const MAX_BODY_LEN = 20_000
@@ -166,6 +168,39 @@ export async function POST(req: Request) {
     }
   } catch (e) {
     console.error("[companion/messages] attribution failed (messages stored):", (e as Error).message)
+  }
+
+  // PROVENANCE — must run AFTER attribution, because correlating an outbound
+  // message to the intent that produced it needs the message's lead_id. Without
+  // this, the automation's own sends read as manual locator texts and hold the
+  // next automated step (New Lead Text 1 held Text 2).
+  try {
+    await applyProvenance(supabaseAdmin, workspaceId)
+  } catch (e) {
+    // Non-fatal and self-healing: provenance is only written where it is still
+    // NULL, so the next sync reclassifies whatever this run missed. A NULL
+    // outbound row meanwhile reads as manual, which is the safe direction.
+    console.error("[companion/messages] provenance failed (messages stored):", (e as Error).message)
+  }
+
+  // EXPLICIT OPT-OUT — also after attribution, since it acts per lead. This is
+  // what makes the opening pair's deliberate reply-insensitivity defensible: an
+  // ordinary reply does not stop Text 2, but "STOP" does.
+  try {
+    const optOut = await applyOptOuts(supabaseAdmin, workspaceId)
+    if (optOut.leadIds.length > 0) {
+      console.warn(
+        "[companion/messages] explicit opt-out applied:",
+        JSON.stringify({
+          leads: optOut.leadIds,
+          keywords: optOut.keywords,
+          runsCanceled: optOut.runsCanceled,
+          intentsWithdrawn: optOut.intentsWithdrawn,
+        }),
+      )
+    }
+  } catch (e) {
+    console.error("[companion/messages] opt-out handling failed (messages stored):", (e as Error).message)
   }
 
   // Stamp last successful sync for the Connected Devices "Last Sync" display.

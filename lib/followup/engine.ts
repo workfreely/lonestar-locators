@@ -285,12 +285,16 @@ export async function runClaim(
         continue
       }
 
-      await store.updateIntent(intent.id, {
+      // ATOMIC CLAIM. Only the device that actually flipped the row from pending
+      // gets the job; a simultaneous poll from a second paired Mac changes nothing
+      // and is handed nothing, so one intent can never produce two texts.
+      const won = await store.claimIntent(intent.id, {
         dispatch_status: "claimed",
         gateway_device_id: deviceId,
         claimed_at: now.toISOString(),
         rendered_body: decision.body,
       })
+      if (!won) continue // another device won it — do not release this job
       jobs.push({
         intentId: intent.id,
         idempotencyKey: intent.idempotency_key ?? "",
@@ -334,6 +338,11 @@ export type AckInput = {
   status: "sent" | "failed"
   localSentAt: string
   error?: string | null
+  /**
+   * chat.db guid of the message this send produced, when the Mac captured it.
+   * Optional — provenance falls back to exact-body correlation without it.
+   */
+  messageGuid?: string | null
 }
 export type AckResult = { ok: boolean; status?: string; already?: boolean; error?: string; code?: number }
 
@@ -358,6 +367,9 @@ export async function runAck(store: FollowupStore, input: AckInput): Promise<Ack
     dispatch_status: "sent",
     sent_at: new Date().toISOString(),
     local_sent_at: input.localSentAt,
+    // The authoritative provenance link, when the device could report it. Only
+    // written when present so an older build never blanks a guid.
+    ...(input.messageGuid ? { message_guid: input.messageGuid } : {}),
   })
   if (intent.run_id) await advanceRun(store, intent.run_id, input.localSentAt)
   return { ok: true, status: "sent" }

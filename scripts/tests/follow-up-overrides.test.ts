@@ -5,7 +5,7 @@
  *
  *   npx tsx scripts/tests/follow-up-overrides.test.ts
  */
-import { readFileSync } from "node:fs"
+import { readFileSync, readdirSync, existsSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import { dirname, join } from "node:path"
 import {
@@ -25,14 +25,17 @@ const eq = (a: unknown, b: unknown, name: string) => {
 const ok = (c: boolean, name: string) => { if (c) pass++; else { fail++; console.error("✗", name) } }
 
 // ── Content keys ─────────────────────────────────────────────────────────────
+// post_tour_multi + resume_search were added to the in-code map without being
+// added here or to the RPC's accepted-key case, so this assertion and the SQL
+// mirror below had both been red. 23 is the shipped set.
 eq([...FOLLOW_UP_TEMPLATE_KEYS].sort(), [
   "application_status", "contact_follow_up_1", "contact_follow_up_2", "contact_follow_up_3",
   "ds_availability_submitted", "ds_needs_availability", "ds_tour_now_or_wait",
   "final_follow_up", "follow_up_1", "follow_up_2", "follow_up_3",
   "future_move_reactivate", "future_move_wait_ack", "intro", "list_final",
   "list_fu3_favorites", "list_fu3_no_favorites", "new_lead_text1", "new_lead_text2",
-  "post_tour", "text_top_3",
-], "21 content keys (legacy + Follow-Up Agent Phase-1)")
+  "post_tour", "post_tour_multi", "resume_search", "text_top_3",
+], "23 content keys (legacy + Follow-Up Agent Phase-1)")
 ok(isFollowUpTemplateKey("intro") && !isFollowUpTemplateKey("follow_up_4"), "isFollowUpTemplateKey guards the set")
 
 // ── sanitize: keeps only genuine, valid, in-range customizations ─────────────
@@ -93,8 +96,26 @@ eq(mergeFollowUpTemplates({ follow_up_1: "  " }).follow_up_1, DEFAULT_FOLLOW_UP_
 // The RPC hardcodes per-key limits; they MUST equal the in-code TEMPLATE_CHAR_LIMITS.
 {
   const here = dirname(fileURLToPath(import.meta.url))
-  // The authoritative RPC is the LATEST migration that re-declares it.
-  const sql = readFileSync(join(here, "../../supabase/migrations/20260922000004_follow_up_templates_keys.sql"), "utf8")
+  // The authoritative RPC is the LATEST file that re-declares it — RESOLVED, not
+  // hardcoded. It was pinned to one migration, so when a later file re-declared
+  // the function the test kept reading a stale definition. Worse, the obvious
+  // "fix" for the resulting red is to edit the pinned (already-applied) migration,
+  // which turns the test green while production's function keeps the old key set.
+  // Scanning both directories makes the test track whatever actually ships last.
+  const roots = ["../../supabase/migrations", "../../supabase/manual"]
+  const declaring = roots
+    .flatMap((r) => {
+      const dir = join(here, r)
+      if (!existsSync(dir)) return []
+      return readdirSync(dir)
+        .filter((f) => f.endsWith(".sql"))
+        .map((f) => ({ name: f, path: join(dir, f) }))
+    })
+    .filter((f) => /create or replace function public\.save_follow_up_templates/.test(readFileSync(f.path, "utf8")))
+    .sort((a, b) => a.name.localeCompare(b.name))
+  ok(declaring.length > 0, "found at least one file declaring save_follow_up_templates")
+  const authoritative = declaring[declaring.length - 1]
+  const sql = readFileSync(authoritative.path, "utf8")
   for (const key of FOLLOW_UP_TEMPLATE_KEYS) {
     const m = sql.match(new RegExp(`when '${key}'\\s+then\\s+(\\d+)`))
     ok(!!m, `SQL declares a limit for '${key}'`)

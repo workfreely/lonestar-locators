@@ -94,12 +94,26 @@ export async function buildLeadSnapshot(admin: SupabaseClient, lead: LeadRow): P
   }
 }
 
-/** Latest inbound (is_from_me=false) and latest manual outbound (is_from_me=true) for the lead. */
+/**
+ * Latest client inbound and latest MANUAL (human) outbound for the lead.
+ *
+ * `lastManualOutboundAt` deliberately excludes the automation's own sends. It
+ * feeds the gate's "a locator just texted — don't talk over them" hold, and the
+ * Mac re-ingests every outgoing chat.db row including the ones Locator Beast
+ * sent: New Lead Text 1 therefore held New Lead Text 2 thirty seconds later, and
+ * whether the opening pair finished was a race between two 30-second timers.
+ *
+ * Provenance (migration 20261013, written by lib/companion/provenance.ts) is what
+ * separates them. NULL is counted as manual on purpose — those rows predate the
+ * column, and reading an unknown outbound message as human keeps the protective
+ * behaviour as the fail-safe. The cost of that error is a held message; the cost
+ * of the opposite error is automation interrupting a live conversation.
+ */
 export async function buildConversationSnapshot(
   admin: SupabaseClient,
   leadId: number,
 ): Promise<ConversationSnapshot> {
-  const [{ data: inbound }, { data: outbound }] = await Promise.all([
+  const [{ data: inbound }, { data: outbound, error: outboundErr }] = await Promise.all([
     admin
       .from("companion_messages")
       .select("sent_at")
@@ -113,10 +127,33 @@ export async function buildConversationSnapshot(
       .select("sent_at")
       .eq("lead_id", leadId)
       .eq("is_from_me", true)
+      .or("provenance.is.null,provenance.eq.manual_outbound")
       .order("sent_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
   ])
+
+  // FAIL SAFE IF `provenance` IS NOT THERE YET. Until migration 20261013 is
+  // applied, that filter makes PostgREST reject the whole query — and an ignored
+  // error would leave lastManualOutboundAt null, which reads as "no human has
+  // texted" and would switch the manual-text protection OFF entirely. That is the
+  // one degradation worth guarding against, so on ANY error we re-ask without the
+  // filter: behaviour falls back to exactly what it was before this change
+  // (every outbound message counts as manual) rather than to no protection.
+  if (outboundErr) {
+    const { data: unfiltered } = await admin
+      .from("companion_messages")
+      .select("sent_at")
+      .eq("lead_id", leadId)
+      .eq("is_from_me", true)
+      .order("sent_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    return {
+      lastInboundAt: (inbound?.sent_at as string | null) ?? null,
+      lastManualOutboundAt: (unfiltered?.sent_at as string | null) ?? null,
+    }
+  }
   return {
     lastInboundAt: (inbound?.sent_at as string | null) ?? null,
     lastManualOutboundAt: (outbound?.sent_at as string | null) ?? null,

@@ -172,6 +172,14 @@ export class InMemoryFollowupStore implements FollowupStore {
     const i = this.intents.get(intentId); if (i) this.intents.set(intentId, { ...i, ...patch } as StoredIntent)
   }
 
+  /** Mirrors the conditional UPDATE: only a still-pending intent can be claimed. */
+  async claimIntent(intentId: string, patch: Record<string, unknown>): Promise<boolean> {
+    const i = this.intents.get(intentId)
+    if (!i || i.dispatch_status !== "pending") return false
+    this.intents.set(intentId, { ...i, ...patch } as StoredIntent)
+    return true
+  }
+
   async pendingIntents(workspaceId: string, limit: number): Promise<IntentRow[]> {
     const key = (i: StoredIntent) => (i.send_not_before ? new Date(i.send_not_before).getTime() : new Date(i.created_at).getTime())
     return [...this.intents.values()]

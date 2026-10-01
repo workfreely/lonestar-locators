@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   if (!auth.ok) return auth.response
   const { workspaceId, deviceId } = auth
 
-  let body: { intentId?: unknown; status?: unknown; localSentAt?: unknown; error?: unknown }
+  let body: { intentId?: unknown; status?: unknown; localSentAt?: unknown; error?: unknown; messageGuid?: unknown }
   try {
     body = await req.json()
   } catch {
@@ -34,8 +34,14 @@ export async function POST(req: Request) {
       ? new Date(body.localSentAt).toISOString()
       : new Date().toISOString()
   const errText = typeof body.error === "string" ? body.error.slice(0, 500) : null
+  // chat.db guid of the message this send produced, when the Mac could capture it.
+  // Optional: an older build omits it and provenance falls back to exact-body
+  // correlation. Accepting it here means the Mac side can start reporting it
+  // without a second server change. See lib/companion/provenance.ts.
+  const messageGuid =
+    typeof body.messageGuid === "string" && body.messageGuid.trim() ? body.messageGuid.trim().slice(0, 255) : null
 
-  const result = await runAck(store, { intentId, workspaceId, deviceId, status, localSentAt, error: errText })
+  const result = await runAck(store, { intentId, workspaceId, deviceId, status, localSentAt, error: errText, messageGuid })
   if (!result.ok) {
     return NextResponse.json({ error: result.error ?? "ack_failed" }, { status: result.code ?? 400 })
   }

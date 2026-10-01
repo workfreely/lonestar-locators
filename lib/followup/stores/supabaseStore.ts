@@ -99,6 +99,31 @@ export class SupabaseFollowupStore implements FollowupStore {
     await supabaseAdmin.from("followup_outbound_intents").update(patch).eq("id", intentId)
   }
 
+  /**
+   * One UPDATE, guarded by the status it is transitioning away from, returning the
+   * rows it changed. Postgres evaluates that predicate under a row lock, so of two
+   * concurrent claims exactly one updates a row and the other matches nothing —
+   * the loser sees an empty array and sends nothing.
+   *
+   * The previous claim was `SELECT ... WHERE dispatch_status='pending'` followed by
+   * an unconditional `UPDATE ... WHERE id = ?`. Two Macs could both complete the
+   * SELECT before either UPDATE landed, both be handed the job, and both send; the
+   * loser's ack then failed with 409 AFTER the duplicate text had been delivered,
+   * and the server recorded a single `sent`, so the duplicate was invisible.
+   */
+  async claimIntent(intentId: string, patch: Record<string, unknown>): Promise<boolean> {
+    const { data, error } = await supabaseAdmin
+      .from("followup_outbound_intents")
+      .update(patch)
+      .eq("id", intentId)
+      .eq("dispatch_status", "pending")
+      .select("id")
+    // Fail CLOSED: an error here is indistinguishable from "someone else won", and
+    // sending on an uncertain claim is the one outcome worth avoiding.
+    if (error) return false
+    return (data ?? []).length === 1
+  }
+
   async pendingIntents(workspaceId: string, limit: number): Promise<IntentRow[]> {
     const { data } = await supabaseAdmin
       .from("followup_outbound_intents")
