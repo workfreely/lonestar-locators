@@ -8,6 +8,7 @@ import { collectLeadAttribution } from "@/lib/leads/attribution"
 import { isValidUsPhone } from "@/lib/utils/formatPhone"
 import { LAUNCH_MARKETS, getMarketByName, launchMarketsForSlugs } from "@/lib/markets/catalog"
 import SelectableGrid, { bulkButtonClass } from "./SelectableGrid"
+import { isAtAreaLimit, areaLimitHint } from "@/lib/leads/areaLimit"
 import { MUST_HAVE_AMENITIES, MAX_MUST_HAVE_AMENITIES } from "@bc/companion-shared"
 import {
   PROPERTY_TYPES,
@@ -19,7 +20,6 @@ import {
   CRIMINAL_CHARGE_OPTIONS,
   RENT_RANGE_OPTIONS,
   INCOME_OPTIONS,
-  MAX_LOCATIONS,
 } from "@/lib/formOptions"
 
 // The neighborhood option list for a city = the catalog's neighborhoods. The
@@ -230,14 +230,14 @@ export default function LeadFormFields({
     setFormData((prev) => ({ ...prev, beds: value, baths: newBaths }))
   }
 
-  // Pick up to MAX_LOCATIONS TOTAL across Preferred Neighborhoods + Nearby Areas.
+  // Pick up to MAX_AREA_SELECTIONS TOTAL across Preferred Neighborhoods + Nearby Areas.
   // At the combined cap a further SELECT is refused (in EITHER section) while
   // DESELECT stays available, so the renter can always swap one area for another.
   function toggleNeighborhood(checked: boolean, value: string) {
     setFormData((prev) => {
       const current = prev.neighborhoods
       if (!checked) return { ...prev, neighborhoods: current.filter((n) => n !== value) }
-      if (current.includes(value) || prev.neighborhoods.length + prev.submarkets.length >= MAX_LOCATIONS)
+      if (current.includes(value) || isAtAreaLimit(prev.neighborhoods, prev.submarkets))
         return prev
       return { ...prev, neighborhoods: [...current, value] }
     })
@@ -260,7 +260,7 @@ export default function LeadFormFields({
     setFormData((prev) => {
       const current = prev.submarkets
       if (!checked) return { ...prev, submarkets: current.filter((s) => s !== value) }
-      if (current.includes(value) || prev.neighborhoods.length + prev.submarkets.length >= MAX_LOCATIONS)
+      if (current.includes(value) || isAtAreaLimit(prev.neighborhoods, prev.submarkets))
         return prev
       return { ...prev, submarkets: [...current, value] }
     })
@@ -465,11 +465,11 @@ export default function LeadFormFields({
           </div>
         )}
 
-        {/* Neighborhoods — pick up to 3. */}
+        {/* Neighborhoods — combined limit with Nearby Areas (lib/leads/areaLimit). */}
         {f.location && neighborhoodList && (
           <div className="flex flex-col gap-2">
             <label className={`${labelClass} font-semibold`}>Preferred Neighborhoods</label>
-            <div className={noteClass}>Select up to 3 areas you&rsquo;d like to live in.</div>
+            <div className={noteClass}>Select {areaLimitHint()}.</div>
             <div className="flex gap-2">
               <button type="button" onClick={() => set("neighborhoods", [])}
                 className={bulkButtonClass}>
@@ -483,13 +483,13 @@ export default function LeadFormFields({
               onToggle={toggleNeighborhood}
               isDisabled={(v) =>
                 !formData.neighborhoods.includes(v) &&
-                formData.neighborhoods.length + formData.submarkets.length >= MAX_LOCATIONS
+                isAtAreaLimit(formData.neighborhoods, formData.submarkets)
               }
             />
 
             {/* Nearby Areas — the market's submarkets (catalog-driven). Shares the
                 COMBINED cap with Preferred Neighborhoods above. Select All removed so
-                a bulk pick can never bypass the 3-total cap. */}
+                a bulk pick can never bypass the combined cap. */}
             {selectedMarket && selectedMarket.submarkets.length > 0 && (
               <div className="mt-3 flex flex-col gap-2">
                 <label className={`${labelClass} font-semibold`}>Nearby Areas</label>
@@ -506,7 +506,7 @@ export default function LeadFormFields({
                   onToggle={toggleSubmarket}
                   isDisabled={(v) =>
                     !formData.submarkets.includes(v) &&
-                    formData.neighborhoods.length + formData.submarkets.length >= MAX_LOCATIONS
+                    isAtAreaLimit(formData.neighborhoods, formData.submarkets)
                   }
                 />
               </div>

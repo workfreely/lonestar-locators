@@ -46,6 +46,7 @@ import { resolveClientType } from "@/lib/leads/leadClassification"
 import { shouldExitDemoOnLead, exitDemoModeForOwner } from "@/lib/demo/demoExit"
 import { resolveSupabaseProject } from "@/lib/supabase/projects"
 import { isValidUsPhone } from "@/lib/utils/formatPhone"
+import { verdictForWrite } from "@/lib/leads/areaLimit"
 
 // Server-only client — SUPABASE_SERVICE_ROLE_KEY has no NEXT_PUBLIC_
 // prefix, so it is never bundled into browser JS.
@@ -193,6 +194,20 @@ function validateAndBuildPayload(
     })
   }
 
+  // AREA SELECTION LIMIT — a COMBINED maximum across Preferred Neighborhoods and
+  // Nearby Areas. Enforced here, server-side, because the cap must hold no matter
+  // which surface posted: the client-side guards in the pickers are the UX, not the
+  // rule. REJECTED, never trimmed — the same stance this route already takes on an
+  // incomplete phone number, and for the same reason: silently keeping two of three
+  // areas would invent a preference the client never expressed.
+  const areaVerdict = verdictForWrite(
+    payload.neighborhoods as string | undefined,
+    payload.submarkets as string | undefined,
+  )
+  if (!areaVerdict.ok) {
+    errors.push({ field: "neighborhoods", message: areaVerdict.message })
+  }
+
   // lead_type describes the CLIENT, not the form. Locator Beast has ONE Smart
   // Lead Form; question configuration never creates a different "form type", so
   // lead_type is never derived from formType/field count/config — it is a
@@ -207,10 +222,20 @@ function validateAndBuildPayload(
 //
 // Fields treated as a running narrative — concatenated with a timestamp
 // marker on an exact match, never silently overwritten.
-const NARRATIVE_FIELDS = ["notes", "neighborhoods"] as const
+//
+// `neighborhoods` USED TO BE HERE, and that was a cap bypass plus a data bug. On a
+// resubmission the two values were joined as `${old}; ${new}`, so a client with
+// "Downtown, UTSA" who resubmitted with "Boerne" was stored as
+// "Downtown, UTSA; Boerne" — three areas past the limit, AND a malformed label,
+// because every reader splits these columns on COMMAS. "UTSA; Boerne" resolves to no
+// centroid at all, so the concatenation silently destroyed a real area rather than
+// preserving it. It is a SCALAR_LABELS field now: the newest selection wins and the
+// previous value is written to the locator_notes history block, so nothing is lost.
+// (Verified 2026-09-30: zero production leads contain a ";" in either area column,
+// so this path had not yet fired on real data.)
+const NARRATIVE_FIELDS = ["notes"] as const
 const NARRATIVE_LABELS: Record<string, string> = {
   notes: "Notes",
-  neighborhoods: "Desired Areas",
 }
 
 // Every other allowlisted field that describes the lead's own details
@@ -226,7 +251,11 @@ const SCALAR_LABELS: Record<string, string> = {
   email: "Email",
   move_date: "Move Date",
   city: "City",
-  submarkets: "Submarkets",
+  // Both area columns are scalars: newest non-blank wins, previous value recorded in
+  // the history block first. See the NARRATIVE_FIELDS note above for why
+  // `neighborhoods` is no longer concatenated.
+  neighborhoods: "Desired Areas",
+  submarkets: "Nearby Areas",
   property_type: "Property Type",
   desired_rent: "Budget",
   beds: "Bedrooms",

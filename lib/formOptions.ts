@@ -103,5 +103,9 @@ export const BATH_OPTIONS = [
 
 /** The COMBINED cap across Preferred Neighborhoods + Nearby Areas — max this many
  *  TOTAL selections (not per section). Shared with the public Smart Lead Form so the
- *  rule has ONE definition. */
-export const MAX_LOCATIONS = 3
+ *  rule has ONE definition.
+ *
+ *  Consumers should import from lib/leads/areaLimit instead, which owns the counting
+ *  and the save/refuse verdict (including how legacy over-cap leads reduce). This
+ *  stays the single numeric source so the two existing picker imports keep working. */
+export const MAX_LOCATIONS = 2

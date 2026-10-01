@@ -15,11 +15,11 @@ import {
   BALANCE_OPTIONS,
   INCOME_OPTIONS,
   RENT_RANGE_OPTIONS,
-  MAX_LOCATIONS,
 } from "@/lib/formOptions"
 import { getMarketByName } from "@/lib/markets/catalog"
 import { MUST_HAVE_AMENITIES, MAX_MUST_HAVE_AMENITIES, normalizeMustHaveAmenities } from "@bc/companion-shared"
 import { parseMoveDate, csvToArr, arrToCsv } from "@/lib/leads/leadFormValues"
+import { isAtAreaLimit, areaLimitHint } from "@/lib/leads/areaLimit"
 import CommuteDestinationField from "@/components/crm/CommuteDestinationField"
 
 // ─── Shared style tokens ──────────────────────────────────────────────────────
@@ -103,7 +103,8 @@ function MustHaveAmenities({ value, onChange }: { value: string; onChange: (next
 
 /**
  * Preferred Neighborhoods + Nearby Areas — the SAME catalog-driven options and the
- * SAME COMBINED max-3 rule as the public Smart Lead Form (MAX_LOCATIONS is shared).
+ * SAME COMBINED limit as the public Smart Lead Form — see lib/leads/areaLimit, which
+ * owns the count and the verdict for every surface that writes these columns.
  * Options come from the selected city's market (getMarketByName), split into the
  * market's `neighborhoods` (Preferred) and `submarkets` (Nearby). The Preferred vs
  * Nearby SPLIT is preserved: each writes back to its own CSV column. At the combined
@@ -126,7 +127,9 @@ function LocationPicker({
   const subOpts = market?.submarkets ?? []
   const nbhds = csvToArr(neighborhoods)
   const subs = csvToArr(submarkets)
-  const atCap = nbhds.length + subs.length >= MAX_LOCATIONS
+  // Shared predicate, so a legacy lead holding MORE than the cap is also "at" it:
+  // adding is refused while removing stays available.
+  const atCap = isAtAreaLimit(nbhds, subs)
 
   // No city (or a market with no neighborhood list) → no picker, exactly like the
   // public form, which renders the areas only once a city is chosen.
@@ -168,7 +171,7 @@ function LocationPicker({
   )
 
   // Stored values NOT in the current catalog for their column (tagged so the ×
-  // removes from the right CSV). They still count toward the max-3 total, but are
+  // removes from the right CSV). They still count toward the combined total, but are
   // shown in a separate "Previously Selected" group — never mixed into the normal
   // selectable catalog chips. Not remapped or renamed; removing one frees its slot
   // and, since it isn't a catalog option, it simply disappears.
@@ -204,7 +207,7 @@ function LocationPicker({
         </div>
       )}
       <div>
-        <p className="text-[11px] text-[var(--crm-text-muted)] mb-1.5">Preferred Neighborhoods — up to 3 total (with Nearby Areas)</p>
+        <p className="text-[11px] text-[var(--crm-text-muted)] mb-1.5">Preferred Neighborhoods — {areaLimitHint()}</p>
         <Chips options={nbhdOpts} list={nbhds} keyName="neighborhoods" />
       </div>
       {subOpts.length > 0 && (
@@ -298,7 +301,7 @@ export default function LeadFields({
 
       {/* ── Preferred Locations ──────────────────────────────────────────────
              Preferred Neighborhoods + Nearby Areas, catalog-driven per the chosen
-             city, sharing ONE combined max-3 rule. Renders only once a city with a
+             city, sharing ONE combined area limit. Renders only once a city with a
              neighborhood list is selected (mirrors the public form). */}
       {(() => {
         const market = getMarketByName(form.city || "")

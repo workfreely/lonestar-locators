@@ -9,6 +9,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { isAtAreaLimit, areaLimitHint } from "@/lib/leads/areaLimit";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { format } from "date-fns";
@@ -154,7 +155,6 @@ useEffect(() => {
 
   const cityNeighborhoods: Record<string, string[]> = {
     Austin: [
-      "All of Austin",
       "Downtown Austin",
       "South Congress (SoCo)",
       "East Austin",
@@ -168,7 +168,6 @@ useEffect(() => {
       "South Lamar", // ✅ new
     ],
     Dallas: [
-      "All of Dallas",
       "Downtown Dallas",
       "Uptown",
       "Midtown",
@@ -184,7 +183,6 @@ useEffect(() => {
       "South Dallas",
     ],
     Houston: [
-      "All of Houston",
       "Downtown Houston",
       "Midtown",
       "Montrose",
@@ -198,7 +196,6 @@ useEffect(() => {
       "Greenway / Upper Kirby", // ✅ new high-end area
     ],
     "San Antonio": [
-      "All of San Antonio",
       "Downtown San Antonio",
       "La Cantera/The Rim",
       "The Dominion", // ✅ new
@@ -831,31 +828,12 @@ const noteStyle = {
           >
             Preferred Neighborhoods
           </label>
+          <p style={{ margin: "0 0 0.75rem", fontSize: "0.85rem", color: "#555" }}>
+            Select {areaLimitHint()}.
+          </p>
 
-          {/* Select / Deselect All */}
+          {/* Deselect All — reducing is always allowed */}
           <div style={{ marginBottom: "0.75rem" }}>
-            <button
-              type="button"
-              onClick={() =>
-                setFormData((prev) => ({
-                  ...prev,
-                  neighborhoods: [...cityNeighborhoods[formData.city]],
-                }))
-              }
-              style={{
-                marginRight: "10px",
-                padding: "6px 12px",
-                fontSize: "0.9rem",
-                borderRadius: "4px",
-                border: "1px solid #ccc",
-                background: "#f2f2f2",
-              cursor: isSubmitting ? "not-allowed" : "pointer",
-              opacity: isSubmitting ? 0.7 : 1,
-              }}
-            >
-              Select All
-            </button>
-
             <button
               type="button"
               onClick={() =>
@@ -888,7 +866,13 @@ const noteStyle = {
               gap: "0.75rem",
             }}
           >
-            {cityNeighborhoods[formData.city].map((neighborhood) => (
+            {cityNeighborhoods[formData.city].map((neighborhood) => {
+              // At the combined limit an unselected option is unavailable — shown,
+              // but visibly so, rather than a click that silently does nothing.
+              const blocked =
+                !formData.neighborhoods.includes(neighborhood) &&
+                isAtAreaLimit(formData.neighborhoods, formData.submarkets);
+              return (
               <label
                 key={neighborhood}
                 style={{
@@ -897,7 +881,8 @@ const noteStyle = {
                   border: "1px solid #ccc",
                   borderRadius: "6px",
                   fontSize: "0.95rem",
-                  cursor: "pointer",
+                  cursor: blocked ? "not-allowed" : "pointer",
+                  opacity: blocked ? 0.45 : 1,
                   background: "#fff",
                   padding: "0.5rem 0.75rem",
                   whiteSpace: "nowrap",
@@ -916,36 +901,27 @@ const noteStyle = {
                     name="neighborhoods"
                     value={neighborhood}
                     checked={formData.neighborhoods.includes(neighborhood)}
+                    disabled={
+                      !formData.neighborhoods.includes(neighborhood) &&
+                      isAtAreaLimit(formData.neighborhoods, formData.submarkets)
+                    }
                     onChange={(e) => {
                       const { checked, value } = e.target;
                       setFormData((prev) => {
-                        let updated = [...prev.neighborhoods];
-                        if (value.startsWith("All of")) {
-                          updated = checked
-                            ? [...cityNeighborhoods[formData.city]]
-                            : [];
-                        } else {
-                          updated = checked
-                            ? [...updated, value]
-                            : updated.filter((n) => n !== value);
-
-                          if (
-                            updated.length ===
-                              cityNeighborhoods[formData.city].length - 1 &&
-                            !updated.includes(`All of ${formData.city}`)
-                          ) {
-                            updated = [...cityNeighborhoods[formData.city]];
-                          } else if (
-                            updated.includes(`All of ${formData.city}`) &&
-                            updated.length !==
-                              cityNeighborhoods[formData.city].length
-                          ) {
-                            updated = updated.filter(
-                              (n) => n !== `All of ${formData.city}`
-                            );
-                          }
-                        }
-                        return { ...prev, neighborhoods: updated };
+                        // Deselect is always allowed; select is refused at the
+                        // COMBINED limit, so this legacy form cannot write more
+                        // areas than the Smart Lead Form permits.
+                        if (!checked)
+                          return {
+                            ...prev,
+                            neighborhoods: prev.neighborhoods.filter((n) => n !== value),
+                          };
+                        if (
+                          prev.neighborhoods.includes(value) ||
+                          isAtAreaLimit(prev.neighborhoods, prev.submarkets)
+                        )
+                          return prev;
+                        return { ...prev, neighborhoods: [...prev.neighborhoods, value] };
                       });
                     }}
                     style={{
@@ -956,7 +932,8 @@ const noteStyle = {
                   <span>{neighborhood}</span>
                 </div>
               </label>
-            ))}
+              );
+            })}
           </div>
 
           {/* ✅ Nearby Submarkets – only for San Antonio */}
@@ -972,29 +949,8 @@ const noteStyle = {
                 Nearby Submarkets
               </label>
 
-              {/* Select / Deselect All */}
+              {/* Deselect All — reducing is always allowed */}
               <div style={{ marginBottom: "0.75rem" }}>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setFormData((prev) => ({
-                      ...prev,
-                    submarkets: ["New Braunfels", "Boerne", "Schertz", "San Marcos"],
-                    }))
-                  }
-                  style={{
-                    marginRight: "10px",
-                    padding: "6px 12px",
-                    fontSize: "0.9rem",
-                    borderRadius: "4px",
-                    border: "1px solid #ccc",
-                    background: "#f2f2f2",
-                    cursor: "pointer",
-                  }}
-                >
-                  Select All
-                </button>
-
                 <button
                   type="button"
                   onClick={() =>
@@ -1055,15 +1011,25 @@ const noteStyle = {
                         name="submarkets"
                         value={sub}
                         checked={formData.submarkets?.includes(sub)}
+                        disabled={
+                          !formData.submarkets?.includes(sub) &&
+                          isAtAreaLimit(formData.neighborhoods, formData.submarkets)
+                        }
                         onChange={(e) => {
                           const { checked, value } = e.target;
                           setFormData((prev) => {
-                            const updated = checked
-                              ? [...(prev.submarkets || []), value]
-                              : (prev.submarkets || []).filter(
-                                  (s) => s !== value
-                                );
-                            return { ...prev, submarkets: updated };
+                            // Shares ONE allowance with Preferred Neighborhoods.
+                            if (!checked)
+                              return {
+                                ...prev,
+                                submarkets: (prev.submarkets || []).filter((s) => s !== value),
+                              };
+                            if (
+                              (prev.submarkets || []).includes(value) ||
+                              isAtAreaLimit(prev.neighborhoods, prev.submarkets)
+                            )
+                              return prev;
+                            return { ...prev, submarkets: [...(prev.submarkets || []), value] };
                           });
                         }}
                         style={{

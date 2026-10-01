@@ -6,6 +6,7 @@ import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { supabase } from "@/lib/supabase/client"
 import { isValidUsPhone } from "@/lib/utils/formatPhone"
 import { buildEditPatch } from "@/lib/leads/leadFormValues"
+import { verdictForWrite, countAreaSelections } from "@/lib/leads/areaLimit"
 
 // The lead columns Edit Client may change — client CRITERIA + contact + screening
 // only. Deliberately EXCLUDES pipeline/attribution fields (crm_status, priority,
@@ -152,6 +153,20 @@ export default function LeadFormModal({
     // U.S. number.
     if ((form.phone ?? "").trim() && !isValidUsPhone(form.phone)) {
       alert("Please enter a complete 10-digit US phone number.")
+      return
+    }
+    // Same reason as the phone gate above: this path has no server route, so the
+    // combined area limit has to be checked here too. `previousCount` is what the
+    // lead holds TODAY, which is what lets a legacy over-cap client be saved while
+    // they are still on the way down (12 → 5 is fine; 5 → 5 and 5 → 6 are not).
+    // The picker already refuses to ADD past the cap; this catches the save itself.
+    const areaVerdict = verdictForWrite(
+      form.neighborhoods,
+      form.submarkets,
+      countAreaSelections(lead.neighborhoods, lead.submarkets),
+    )
+    if (!areaVerdict.ok) {
+      alert(areaVerdict.message)
       return
     }
     try {
