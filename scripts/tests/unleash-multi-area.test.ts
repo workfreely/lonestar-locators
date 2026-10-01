@@ -558,10 +558,21 @@ const prop = (placeId: string, name: string, address: string | null = null): Exp
     .split("\n")
     .map((l) => l.replace(/\/\/.*$/, ""))
     .join("\n")
-  ok(/Place\.searchByText\s*\(/.test(runFn), "name search calls Place.searchByText")
+  // The name-search ORCHESTRATION moved to lib/propertyExplorer/propertySearch.ts so
+  // Add Favorites could run the SAME search instead of an approximation of it. The
+  // explorer now delegates; the behaviour is unchanged because that module is this
+  // code. These assertions follow the code rather than pinning its old address.
+  ok(/searchProperties\s*\(/.test(runFn), "name search delegates to the shared searchProperties service")
+  ok(/locationBias: bias/.test(runFn), "and still passes the market locationBias")
   eq((runFn.match(/includedType\b/g) ?? []).length, 0, "no includedType in the name-search request")
   eq((runFn.match(/includedPrimaryTypes\b/g) ?? []).length, 0, "no includedPrimaryTypes in the name-search request")
-  ok(/selectInMarketMatch\s*\(/.test(runFn), "name search restricts to in-market via selectInMarketMatch")
+  {
+    const svc = readFileSync("lib/propertyExplorer/propertySearch.ts", "utf8")
+      .split("\n").map((l) => l.replace(/\/\/.*$/, "")).join("\n")
+    ok(/Place\.searchByText\s*\(/.test(svc), "the service calls Place.searchByText")
+    ok(/selectInMarketMatch\s*\(/.test(svc), "the service restricts to in-market via selectInMarketMatch")
+    eq((svc.match(/includedPrimaryTypes\b/g) ?? []).length, 0, "no includedPrimaryTypes in the service either")
+  }
 }
 
 // ── Autocomplete refinements: trigger, picker-click identity, marker visibility ─

@@ -123,11 +123,18 @@ export default function CanonicalPropertySearchField({
         className={inputClassName}
         autoComplete="off"
       />
-      {searching && <p className="mt-1 text-[11px] text-[var(--crm-text-muted)]">Searching…</p>}
+      {/* NO in-flow loading or error text. The Map's search bar shows nothing under
+          its input while searching, and anything rendered in flow here changes the
+          field's height mid-type — the dropdown and the rest of the modal jump. A
+          failure is surfaced in the SAME absolutely-positioned layer the results
+          use, so the layout is identical whether it is empty, loading, showing
+          results, or showing an error. */}
       {failed && !searching && (
-        <p className="mt-1 text-[11px] font-medium text-amber-600">
-          Couldn&apos;t reach property search — you can still add by URL below.
-        </p>
+        <div className="absolute z-30 mt-1 left-0 right-0 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-panel)] px-3 py-2 shadow-lg">
+          <span className="text-[11.5px] font-medium text-amber-600">
+            Couldn&apos;t reach property search — you can still add by URL below.
+          </span>
+        </div>
       )}
       {open && results.length > 0 && (
         <div className="absolute z-30 mt-1 left-0 right-0 max-h-[240px] overflow-y-auto rounded-lg border border-[var(--crm-border)] bg-[var(--crm-panel)] shadow-lg">

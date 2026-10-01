@@ -4,6 +4,8 @@ import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase/client"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { SectionCard } from "./LeadPanelSections"
+import CanonicalPropertySearchField from "@/components/crm/CanonicalPropertySearchField"
+import type { ExplorerProperty } from "@/lib/propertyExplorer/types"
 import {
   seedInvoiceForm,
   computeInvoiceTotals,
@@ -27,6 +29,24 @@ export default function InvoiceDetailsSection({
   onUpdateLead?: (updatedLead: any) => void
 }) {
   const [form, setForm] = useState<InvoiceForm>(() => seedInvoiceForm(lead))
+  // The catalogued record for a property picked from the canonical search, kept
+  // ONLY to show its Property Intelligence commission as reference. Never written
+  // back — the invoice is transaction data, the catalog is property data.
+  const [catalogRef, setCatalogRef] = useState<ExplorerProperty | null>(null)
+
+  // Verbatim trusted text, rendered as-is. No parsing: "115%" there means a
+  // percentage of ONE MONTH'S RENT, not the unit Commission % uses.
+  const catalogCommissionRef = (() => {
+    if (!catalogRef) return null
+    const parts: string[] = []
+    const send = (catalogRef.sendCommission ?? "").toString().trim()
+    const escort = (catalogRef.escortCommission ?? "").toString().trim()
+    const bonus = (catalogRef.bonusFlat ?? "").toString().trim()
+    if (send) parts.push(`Send ${send}`)
+    if (escort) parts.push(`Escort ${escort}`)
+    if (bonus) parts.push(`Bonus ${bonus}`)
+    return parts.length ? parts.join(" · ") : null
+  })()
 
   // The panel reuses one instance across leads — reseed whenever the selected lead
   // changes OR its stored invoice values change underneath us (e.g. the Get Invoice
@@ -148,13 +168,52 @@ export default function InvoiceDetailsSection({
           <p className={groupLabel}>Lease Details</p>
           <div>
             <label className={fieldLabel}>Property Name</label>
-            <input
-              className={inputCls}
+            {/* The SAME canonical search the Map and Add Favorites use — this
+                section was the one invoice surface it never got wired into, so a
+                known property still had to be typed by hand. Selecting establishes
+                the canonical identity; free text remains valid for a property
+                Locator Beast does not know. */}
+            <CanonicalPropertySearchField
               value={form.invoice_property_name}
-              onChange={(e) => setForm((f) => ({ ...f, invoice_property_name: e.target.value }))}
-              onBlur={() => saveText("invoice_property_name")}
-              placeholder="—"
+              onChange={(v) =>
+                setForm((f) => ({
+                  ...f,
+                  invoice_property_name: v,
+                  // Typing by hand drops a stale identity — a name and a place id
+                  // that disagree would be worse than no identity at all.
+                  invoice_property_place_id: "",
+                  invoice_property_canonical_key: "",
+                }))
+              }
+              onMatch={(m) => {
+                setCatalogRef(m.property)
+                setForm((f) => ({
+                  ...f,
+                  invoice_property_name: m.name,
+                  invoice_property_place_id: m.placeId,
+                  invoice_property_canonical_key: `pid:${m.placeId}`,
+                }))
+                // This section autosaves per field, so persist all three together
+                // rather than waiting for a blur that a dropdown click never fires.
+                void persist({
+                  invoice_property_name: m.name,
+                  invoice_property_place_id: m.placeId,
+                  invoice_property_canonical_key: `pid:${m.placeId}`,
+                })
+              }}
+              marketCity={lead?.city ?? null}
+              placeholder="Search a property, or type a name"
+              inputClassName={inputCls}
             />
+            {form.invoice_property_canonical_key && (
+              <p className="mt-1 text-[11px] font-medium text-emerald-600">✓ Linked to the property record</p>
+            )}
+            {catalogCommissionRef && (
+              <p className="mt-0.5 text-[11px] text-[var(--crm-text-muted)]">
+                Property Intelligence: {catalogCommissionRef}
+                <span className="ml-1 opacity-70">— reference only</span>
+              </p>
+            )}
           </div>
           <div>
             <label className={fieldLabel}>Unit Number</label>

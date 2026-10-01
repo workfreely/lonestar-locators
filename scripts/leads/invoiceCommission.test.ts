@@ -82,6 +82,36 @@ console.log("\nTHE SNAPSHOT IS FROZEN AT SAVE, not only derived:")
   ok("blank numerics persist as null, never 0", buildInvoicePatch(form({})).invoice_flat_fee === null)
 }
 
+console.log("\nBOTH invoice surfaces use the ONE canonical search:")
+{
+  // The persistent section was the surface the search never got wired into, so a
+  // known property still had to be typed by hand there. Both now share one
+  // component and one data layer — no second property search anywhere.
+  for (const f of ["components/crm/GetInvoiceDetailsModal.tsx", "components/crm/InvoiceDetailsSection.tsx"]) {
+    const src = strip(read(f))
+    ok(`${f.split("/").pop()} uses CanonicalPropertySearchField`, /CanonicalPropertySearchField/.test(src))
+    ok(`${f.split("/").pop()} builds no search of its own`,
+      !/searchByText/.test(src) && !/loadGoogleMaps/.test(src))
+    ok(`${f.split("/").pop()} stores the canonical key`, /invoice_property_canonical_key/.test(src))
+  }
+  // The section autosaves per field, and a dropdown click never fires the input's
+  // blur — so the selection must persist explicitly or it is lost on reload.
+  const section = strip(read("components/crm/InvoiceDetailsSection.tsx"))
+  ok("the section PERSISTS the selection immediately (no blur to rely on)",
+    /void persist\(\{\s*invoice_property_name: m\.name/.test(section))
+}
+
+console.log("\nTHE SEARCH FIELD MATCHES THE MAP'S UX — no layout shift:")
+{
+  const field = strip(read("components/crm/CanonicalPropertySearchField.tsx"))
+  // The Map shows nothing under its input while searching; anything rendered in
+  // flow here changes the field height mid-type and the modal jumps.
+  ok("no in-flow 'Searching…' line", !/Searching…/.test(field))
+  ok("the failure notice is in the same absolute layer as the dropdown",
+    /failed && !searching && \(\s*\n\s*<div className="absolute/.test(field))
+  ok("the loading state is still tracked internally", /setSearching\(true\)/.test(field))
+}
+
 console.log("\nCANONICAL PROPERTY IDENTITY on the invoice:")
 {
   const modal = strip(read("components/crm/GetInvoiceDetailsModal.tsx"))
