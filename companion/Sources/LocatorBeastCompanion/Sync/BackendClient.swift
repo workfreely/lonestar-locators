@@ -78,9 +78,19 @@ final class BackendClient {
     }
 
     // GET /api/companion/status
-    func status(token: String) async -> BackendResult<StatusOutcome> {
+    /// `phase` / `fdaGranted` are the DEVICE'S SELF-REPORT, piggy-backed on the
+    /// heartbeat the engine already sends so Beast Sync costs no extra request.
+    /// Only the Mac knows whether it can read chat.db, and without that the CRM
+    /// cannot tell "Needs Full Disk Access" from a healthy, quiet device.
+    func status(token: String, phase: String? = nil, fdaGranted: Bool? = nil) async -> BackendResult<StatusOutcome> {
         do {
-            let (data, resp) = try await session.data(for: authorized(Config.statusURL, method: "GET", body: nil, token: token))
+            var comps = URLComponents(url: Config.statusURL, resolvingAgainstBaseURL: false)!
+            var q: [URLQueryItem] = []
+            if let phase { q.append(URLQueryItem(name: "phase", value: phase)) }
+            if let fdaGranted { q.append(URLQueryItem(name: "fda", value: fdaGranted ? "1" : "0")) }
+            if !q.isEmpty { comps.queryItems = q }
+            let url = comps.url ?? Config.statusURL
+            let (data, resp) = try await session.data(for: authorized(url, method: "GET", body: nil, token: token))
             return map(data, resp) { json in
                 StatusOutcome(
                     entitled: (json["entitled"] as? Bool) ?? false,

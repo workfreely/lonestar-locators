@@ -84,7 +84,7 @@ export default function IntegrationsClient({ googleConnected, automatedTextingAu
         </div>
       </SettingsCard>
 
-      {/* Connected Devices — the paired Companions (any platform) + controls. */}
+      {/* Beast Sync — workspace sync status + the paired Macs and their controls. */}
       <ConnectedDevicesSection />
     </SettingsShell>
   )

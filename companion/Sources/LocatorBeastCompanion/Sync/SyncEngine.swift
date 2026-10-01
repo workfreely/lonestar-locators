@@ -13,6 +13,27 @@ enum SyncPhase: Equatable {
     case offline
 }
 
+extension SyncPhase {
+    /// Stable slug reported to the server (device_tokens.sync_phase) and mapped to a
+    /// chip by the Beast Sync card. Deliberately NOT derived from the enum's
+    /// description: renaming a case must not silently change the wire value, and the
+    /// DB has a CHECK constraint on exactly these strings.
+    var wireValue: String {
+        switch self {
+        case .needsPairing:          return "needs_pairing"
+        case .disconnected:          return "disconnected"
+        case .pairingReset:          return "pairing_reset"
+        case .needsFullDiskAccess:   return "needs_full_disk_access"
+        case .needsUpdate:           return "needs_update"
+        case .maintenance:           return "maintenance"
+        case .paused:                return "paused"
+        case .idle:                  return "idle"
+        case .syncing:               return "syncing"
+        case .offline:               return "offline"
+        }
+    }
+}
+
 struct EngineStatus: Equatable {
     var phase: SyncPhase = .needsPairing
     var lastSyncAt: Date?
@@ -124,7 +145,12 @@ final class SyncEngine {
     // ── Heartbeat (server-authoritative state) ──────────────────────────────
     private func heartbeat() async {
         guard let token = Keychain.loadToken() else { setPhase(.needsPairing); return }
-        switch await backend.status(token: token) {
+        // Report our own state alongside the heartbeat. FDA is probed fresh rather
+        // than cached, so a permission granted while the app is running is reflected
+        // on the next beat without a relaunch — which is what lets the CRM stop
+        // showing "Needs Full Disk Access" on its own.
+        let fda = sources.contains { $0.isAvailable() }
+        switch await backend.status(token: token, phase: status.phase.wireValue, fdaGranted: fda) {
         case .ok(let s):
             state.lastKnownEntitled = s.entitled
             state.lastKnownReason = s.reason

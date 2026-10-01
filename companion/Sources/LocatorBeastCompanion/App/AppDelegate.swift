@@ -20,6 +20,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // surface the Automation prompt) BEFORE any real send. Sends nothing.
         Task { await AppleMessagesSender.recordSenderIdentity() }
 
-        AppLog.info("Locator Beast Companion \(Config.appVersion) started.")
+        // A normal install should be always-on without anyone finding a setting.
+        // Only applies its default ONCE — a user who turns it off stays off.
+        LoginItem.enableOnFirstRunIfNeeded()
+
+        AppLog.info("Beast Sync \(Config.appVersion) started. \(LoginItem.statusText)")
     }
 }

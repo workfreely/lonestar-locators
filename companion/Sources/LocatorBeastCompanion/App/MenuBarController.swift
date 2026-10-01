@@ -51,6 +51,19 @@ final class MenuBarController: NSObject {
         }
 
         menu.addItem(action("Refresh Now", #selector(refresh)))
+
+        // Launch at Login — hidden entirely on the `swift run` dev path, where
+        // SMAppService has no enclosing .app to register and would always fail.
+        if LoginItem.isSupported {
+            menu.addItem(.separator())
+            let item = action("Launch at Login", #selector(toggleLoginItem))
+            item.state = LoginItem.isEnabled ? .on : .off
+            menu.addItem(item)
+            if LoginItem.requiresApproval {
+                menu.addItem(disabled("Approve Beast Sync in System Settings → Login Items"))
+            }
+        }
+
         menu.addItem(.separator())
         menu.addItem(action("Quit", #selector(quit)))
 
@@ -78,6 +91,11 @@ final class MenuBarController: NSObject {
     @objc private func openBilling() { NSWorkspace.shared.open(Config.billingURL) }
     @objc private func refresh() { engine.manualRefresh() }
     @objc private func quit() { NSApp.terminate(nil) }
+
+    @objc private func toggleLoginItem() {
+        LoginItem.set(!LoginItem.isEnabled)
+        rebuildMenu()
+    }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
     private func disabled(_ title: String) -> NSMenuItem {
