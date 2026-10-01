@@ -395,9 +395,20 @@ export function buildActiveClientPayload(
   // stage action with the SAME rankLeadActions the CRM/Agenda/Board use, then surface
   // that exact primary — so the Companion can no longer disagree with the CRM surfaces
   // (previously it ignored the automatic action except as a zero-open-row fallback).
-  const openRaw = (nextActions || []).filter((a) => String(a.lead_id) === String(lead.id) && !a.completed && String(a.status ?? "") !== "canceled")
+  // PASS THE LEAD'S FULL ROW SET, completed rows included.
+  //
+  // This used to pass `openRaw` (completed stripped), which silently disabled the
+  // two gates that suppress a redundant automatic action — `finalFollowUpCompleted`
+  // and `tourScheduledComplete` both SCAN for completed rows (lib/nextActions).
+  // With them permanently false, a Companion lead whose tour is already scheduled
+  // re-surfaced "Schedule Tour" and a finished ladder re-surfaced a follow-up.
+  // rankLeadActions does its own open-only filtering internally, so handing it the
+  // full set is what the other three call sites (LeadCard, LeadPanel, FollowUpRow)
+  // already do — this was the one surface that differed.
+  const forLeadAll = (nextActions || []).filter((a) => String(a.lead_id) === String(lead.id))
+  const openRaw = forLeadAll.filter((a) => !a.completed && String(a.status ?? "") !== "canceled")
   const rankedLead = { ...lead, follow_up_count: dto.workflow.followUpCount }
-  const ranked = rankLeadActions(rankedLead, openRaw as any, getNextAction(rankedLead))
+  const ranked = rankLeadActions(rankedLead, forLeadAll as any, getNextAction(rankedLead))
 
   // Order the real rows by the canonical rank (foreground → urgency → priority → due).
   const rankIndex = new Map<string, number>()

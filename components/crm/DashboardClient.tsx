@@ -35,6 +35,7 @@ import { recordPendingOutreach } from "@/lib/leads/pendingOutreach"
 import { completeBuildList, startBuildList } from "@/lib/leads/buildListWorkflow"
 import { completeSendList } from "@/lib/leads/sendListWorkflow"
 import { completeFollowUp } from "@/lib/leads/followUpWorkflow"
+import { completeAction, completedPatch } from "@/lib/leads/actionCompletion"
 import { completeContactFollowUp } from "@/lib/leads/contactFollowUpWorkflow"
 import { isContactFollowUpAction } from "@/lib/leads/workflowActionLabels"
 import { crmMayConfirm } from "@/lib/workflow/promptOwnership"
@@ -1617,7 +1618,16 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       setLocalNextActions((prev: any) => prev.map((a: any) => (String(a.id) === String(row.id) ? { ...a, ...patch } : a)))
       localNextActionsRef.current = localNextActionsRef.current.map((a: any) => (String(a.id) === String(row.id) ? { ...a, ...patch } : a))
       if (!isDemoLeadId(lead.id) && !String(row.id).startsWith("demo-")) {
-        void supabase.from("lead_next_actions").update(patch).eq("id", row.id)
+        // Not a completion (no `completed`), so the status/completed CHECK does
+        // not apply and a failure is cosmetic — the property label on an existing
+        // open row. Logged rather than thrown, but no longer invisible.
+        void supabase
+          .from("lead_next_actions")
+          .update(patch)
+          .eq("id", row.id)
+          .then(({ error }) => {
+            if (error) console.error("[applied-property] stamping property on action failed:", error.message)
+          })
       }
     }
 
@@ -1672,13 +1682,23 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     const now = new Date().toISOString()
     const sessionKey = `${lead.id}:${favId}`
     const alreadyRecorded = confirmedGuestCardsRef.current.has(sessionKey)
-    const markCompleted = (id: number | string) => {
-      const patch = { completed: true, completed_at: now, status: "completed" }
+    // DB FIRST, THEN STATE. This previously patched React state with the correct
+    // three-field shape and sent a TWO-field shape to Postgres in the same
+    // function, via bare `void` with no error channel — and the live CHECK
+    // `(status='completed') = (completed=true)` rejects that with 23514. So every
+    // guest-card completion was discarded while the UI marked it sent AND an
+    // immutable lead_timeline event was written on the strength of it.
+    //
+    // Returns false when the write did not land, so the caller can refuse to
+    // advance rather than record history that the action row contradicts.
+    const markCompleted = async (id: number | string): Promise<boolean> => {
+      if (!isDemoLeadId(lead.id) && !String(id).startsWith("demo-")) {
+        if (!(await completeAction(supabase, id, now))) return false
+      }
+      const patch = completedPatch(now)
       setLocalNextActions((prev: any) => prev.map((a: any) => (String(a.id) === String(id) ? { ...a, ...patch } : a)))
       localNextActionsRef.current = localNextActionsRef.current.map((a: any) => (String(a.id) === String(id) ? { ...a, ...patch } : a))
-      if (!isDemoLeadId(lead.id) && !String(id).startsWith("demo-")) {
-        void supabase.from("lead_next_actions").update({ completed: true, completed_at: now }).eq("id", id)
-      }
+      return true
     }
 
     // 1) Complete the exact property-scoped email_guest_card.
@@ -1686,10 +1706,10 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     if (opts?.actionId != null) {
       const row = localNextActionsRef.current.find((a: any) => String(a.id) === String(opts.actionId))
       const isDone = !!row && (row.completed === true || String(row.status ?? "") === "completed")
-      if (!isDone) { markCompleted(opts.actionId); didComplete = true }
+      if (!isDone) { didComplete = await markCompleted(opts.actionId) }
     } else {
       const plan = planGuestCardSent(favId, localNextActionsRef.current)
-      if (plan.action === "complete") { markCompleted(plan.actionId); didComplete = true }
+      if (plan.action === "complete") { didComplete = await markCompleted(plan.actionId) }
       else if (plan.action === "create-complete") {
         const fav = localFavoritesRef.current.find((f: any) => String(f.id) === String(favId))
         if (fav) {
@@ -1705,11 +1725,16 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           } else {
             const created = await createGuestCardForProperty(supabase, lead.id, fav)
             if (created) {
-              const done = { ...created, completed: true, completed_at: now, status: "completed" }
-              setLocalNextActions((prev: any) => [...prev, done])
-              localNextActionsRef.current = [...localNextActionsRef.current, done]
-              void supabase.from("lead_next_actions").update({ completed: true, completed_at: now }).eq("id", created.id)
-              didComplete = true
+              // Complete in the DB BEFORE claiming it locally — same reason as
+              // markCompleted above.
+              if (await completeAction(supabase, created.id, now)) {
+                const done = { ...created, ...completedPatch(now) }
+                setLocalNextActions((prev: any) => [...prev, done])
+                localNextActionsRef.current = [...localNextActionsRef.current, done]
+                didComplete = true
+              } else {
+                console.error("[guest-card] completing the new row failed; not recording it as sent")
+              }
             }
           }
         }
@@ -2663,7 +2688,14 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         // synthesized Build List): record the COMPLETED build_list activity
         // locally with the real completion timestamp so Last Action derives
         // "Built List" from genuine completed history — NOT from the stage.
-        const completedBuildLocal = !buildRow
+        // DEMO ONLY. This fabricated a COMPLETED row in React state for any lead
+        // whose row the client hadn't loaded — not just demo leads, despite the
+        // comment — so Last Action read "Built List" with nothing in the database and
+        // reverted on the next server read. Same pattern removed from the
+        // follow-up path after the Ka'Leah Davis incident. Real leads now have
+        // their row resolved and completed server-side, so no local stand-in is
+        // needed or wanted.
+        const completedBuildLocal = !buildRow && isDemoLeadId(lead.id)
           ? {
               id: `local-build-${lead.id}-${Date.now()}`,
               lead_id: lead.id,
@@ -2785,7 +2817,14 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         // No persisted send_list row to mark (demo leads, or a virtual/synthesized
         // Send List): record the COMPLETED send_list activity locally with the real
         // completion timestamp so Last Action derives "Sent List" — NOT the stage.
-        const completedSendLocal = !sendRow
+        // DEMO ONLY. This fabricated a COMPLETED row in React state for any lead
+        // whose row the client hadn't loaded — not just demo leads, despite the
+        // comment — so Last Action read "Sent List" with nothing in the database and
+        // reverted on the next server read. Same pattern removed from the
+        // follow-up path after the Ka'Leah Davis incident. Real leads now have
+        // their row resolved and completed server-side, so no local stand-in is
+        // needed or wanted.
+        const completedSendLocal = !sendRow && isDemoLeadId(lead.id)
           ? {
               id: `local-send-${lead.id}-${Date.now()}`,
               lead_id: lead.id,
@@ -3035,7 +3074,14 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         // No persisted setup_tour row to mark (demo leads, or a synthesized Setup
         // Tour): record the COMPLETED setup_tour locally so Last Action derives
         // "Tour Scheduled" — NOT the stage.
-        const completedTourLocal = !tourRow
+        // DEMO ONLY. This fabricated a COMPLETED row in React state for any lead
+        // whose row the client hadn't loaded — not just demo leads, despite the
+        // comment — so Last Action read "Tour Scheduled" with nothing in the database and
+        // reverted on the next server read. Same pattern removed from the
+        // follow-up path after the Ka'Leah Davis incident. Real leads now have
+        // their row resolved and completed server-side, so no local stand-in is
+        // needed or wanted.
+        const completedTourLocal = !tourRow && isDemoLeadId(lead.id)
           ? {
               id: `local-tour-${lead.id}-${Date.now()}`,
               lead_id: lead.id,

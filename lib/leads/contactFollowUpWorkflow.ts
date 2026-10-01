@@ -5,6 +5,7 @@ import { recordTimelineEvent } from "@/lib/leads/timeline"
 import { getNextContactFollowUpAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
 import { isContactFollowUpAction } from "@/lib/leads/workflowActionLabels"
 import { emitWorkflowActionCreated } from "@/lib/workflowToast"
+import { completeAction, resolveOpenActionId } from "@/lib/leads/actionCompletion"
 
 /**
  * CANONICAL pre-list Contact FU completion — one handler for the Contact FU1 →
@@ -34,6 +35,14 @@ import { emitWorkflowActionCreated } from "@/lib/workflowToast"
  * Demo leads never reach this (recordPendingOutreach no-ops on demo ids, so no
  * contact-FU rows exist for them); the guards below are still demo-safe.
  */
+/** Contact FU title → action_key, mirroring the post-list ladder's helper. */
+function actionKeyForContactFollowUpTitle(title: string): string {
+  const t = (title ?? "").trim().toUpperCase()
+  if (t === "CONTACT FU1") return "contact_follow_up_1"
+  if (t === "CONTACT FU2") return "contact_follow_up_2"
+  return "contact_follow_up_3"
+}
+
 export async function completeContactFollowUp(opts: {
   lead: any
   followRow?: { id: number | string } | null
@@ -78,12 +87,20 @@ export async function completeContactFollowUp(opts: {
   recordTimelineEvent({ leadId: lead.id, type: "text_sent", method: "text", sequence: null, occurredAt: now })
 
   // 2) Complete the persisted row (real leads) so Last Action derives the label.
-  if (!isDemoLeadId(lead.id) && followRow?.id != null) {
-    const { error } = await supabase
-      .from("lead_next_actions")
-      .update({ completed: true, completed_at: now, status: "completed" })
-      .eq("id", followRow.id)
-    if (error) console.error("[contact-follow-up] complete row failed:", error)
+  // SERVER-RESOLVED. The three-field shape was already correct here, but the row
+  // was looked up in CLIENT React state and the write SKIPPED when absent — the
+  // exact twin of the Ka'Leah Davis bug fixed in followUpWorkflow, left in place
+  // because only the post-List-Sent ladder was repaired. The timeline event above
+  // and the successor below both run regardless, so a miss produced the same
+  // "completed in the UI, open in the database" split.
+  if (!isDemoLeadId(lead.id)) {
+    const rowId =
+      followRow?.id ?? (await resolveOpenActionId(supabase, lead.id, actionKeyForContactFollowUpTitle(completedTitle)))
+    if (rowId == null) {
+      console.error("[contact-follow-up] no open row to complete for lead", lead.id, "title", completedTitle)
+    } else if (!(await completeAction(supabase, rowId, now))) {
+      throw new Error(`contact-follow-up: completing action ${rowId} failed`)
+    }
   }
 
   // 3) Reflect optimistically — completed row, plus the terminal-ghost archive when

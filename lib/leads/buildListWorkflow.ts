@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase/client"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { emitWorkflowActionCreated } from "@/lib/workflowToast"
 import { getStageWorkflowAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
+import { completeAction, resolveOpenActionId } from "@/lib/leads/actionCompletion"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 
 /**
@@ -108,12 +109,21 @@ export async function completeBuildList(opts: {
 }): Promise<void> {
   const { lead, buildRow, timeZone, onOptimistic, onWorkflowAction } = opts
 
-  if (!isDemoLeadId(lead.id) && buildRow?.id != null) {
-    const { error } = await supabase
-      .from("lead_next_actions")
-      .update({ completed: true, completed_at: new Date().toISOString() })
-      .eq("id", buildRow.id)
-    if (error) console.error("[build-list] complete row failed:", error)
+  // SERVER-RESOLVED + THREE-FIELD. This wrote only {completed, completed_at},
+  // which the live CHECK `(status='completed') = (completed=true)` REJECTS with
+  // 23514 — so every Build List completion since that constraint landed was
+  // silently discarded while the UI advanced. It was also skipped entirely when
+  // the client lacked the row.
+  if (!isDemoLeadId(lead.id)) {
+    const rowId = buildRow?.id ?? (await resolveOpenActionId(supabase, lead.id, "build_list"))
+    if (rowId == null) {
+      console.error("[build-list] no open build_list row to complete for lead", lead.id)
+    } else if (!(await completeAction(supabase, rowId, new Date().toISOString()))) {
+      // The completion is the point of this call: without it the successor's
+      // dedup still sees build_list open and Last Action never shows "Built
+      // List". Stop rather than advance the UI onto a write that did not land.
+      throw new Error(`build-list: completing action ${rowId} failed`)
+    }
   }
 
   // Stay in Searching (Build List START already moved the stage); reflect it

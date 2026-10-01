@@ -29,6 +29,7 @@ import AddNextActionModal from "./AddNextActionModal"
 import { SectionCard } from "./LeadPanelSections"
 import InvoiceDetailsSection from "./InvoiceDetailsSection"
 import { displayDestinationLabel } from "@/lib/commute/destinationAliases"
+import { completeAction } from "@/lib/leads/actionCompletion"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -671,10 +672,14 @@ export default function LeadPanel({
     // Demo leads: skip the DB write (optimistic removal below still runs; the
     // Setup-Tour creation is centrally no-op'd in createWorkflowActionIfNeeded).
     if (id != null && !isDemoLeadId(lead.id)) {
-      await supabase
-        .from("lead_next_actions")
-        .update({ completed: true, completed_at: new Date().toISOString() })
-        .eq("id", id)
+      // THREE-FIELD, and the result is checked. The old two-field shape is
+      // rejected by the live `(status='completed') = (completed=true)` CHECK, and
+      // the result was discarded entirely — so the row stayed open while the
+      // panel removed it from view and created Setup Tour.
+      if (!(await completeAction(supabase, id))) {
+        alert("Could not record the guest card as sent. Please try again.")
+        return
+      }
     }
     // Any OTHER guest cards still pending for this lead?
     const remainingGuestCards = nextActions.filter(
@@ -728,17 +733,22 @@ export default function LeadPanel({
       // confirmation. Guard here too so this can never regress.
       if (isFollowUpAction(primaryAction.title)) return
       const ts = new Date().toISOString()
-      setCompletedAtTs(ts)
       // Persist for a real manual-action row. Demo leads are client-side only —
       // their string ids can't key the bigint table, so skip the write entirely
       // (the earlier "demo rows match nothing" assumption was wrong: a demo id
       // throws a bigint cast error, it doesn't no-op).
       if (primaryAction.kind === "manual" && primaryAction.manualAction && !isDemoLeadId(lead.id)) {
-        supabase
-          .from("lead_next_actions")
-          .update({ completed: true, completed_at: ts })
-          .eq("id", primaryAction.manualAction.id)
-          .then(() => {})
+        // THREE-FIELD, and `setCompletedAtTs` now runs only AFTER the write
+        // lands. Previously the timestamp — which IS this panel's Last Action —
+        // was set first and the write was a two-field shape with `.then(() => {})`
+        // swallowing the rejection, so the panel showed a completion the database
+        // had refused.
+        void completeAction(supabase, primaryAction.manualAction.id, ts).then((ok) => {
+          if (ok) setCompletedAtTs(ts)
+          else console.error("[lead-panel] focus auto-complete failed; not marking it done")
+        })
+      } else if (isDemoLeadId(lead.id)) {
+        setCompletedAtTs(ts)
       }
     }
     document.addEventListener("visibilitychange", onReturn)

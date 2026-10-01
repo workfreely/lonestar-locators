@@ -3,6 +3,7 @@ import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { createGuestCardForProperty } from "@/lib/leads/guestCardWorkflow"
 import { createTourFollowUpForProperty } from "@/lib/leads/tourFollowUpWorkflow"
 import { tourFollowUpDueAt, tourFollowUpDueForTour } from "@/lib/leads/tourFollowUp"
+import { completedPatch, resolveOpenActionId } from "@/lib/leads/actionCompletion"
 
 // Pure tour date/time helpers now live in lib/leads/tourFollowUp.ts (no DB), so
 // tests can import them without pulling in the browser Supabase client. Re-export
@@ -100,12 +101,23 @@ export async function completeSetupTour(opts: {
   //    Scheduled". Snapshot the scheduled Favorite's name on the row so the Last
   //    Action line can read "Tour Scheduled · {property}" (null for a
   //    Without-Property tour → the line stays just "Tour Scheduled").
-  if (!demo && actionRow?.id != null) {
-    const { error } = await supabase
-      .from("lead_next_actions")
-      .update({ completed: true, completed_at: now, property_name: propertyName ?? null })
-      .eq("id", actionRow.id)
-    if (error) console.error("[setup-tour] complete setup_tour row failed:", error)
+  if (!demo) {
+    // THREE-FIELD + SERVER-RESOLVED. The old shape omitted `status`, which the
+    // live CHECK `(status='completed') = (completed=true)` rejects with 23514 —
+    // so every Schedule Tour completion was silently discarded, leaving
+    // setup_tour open and blocking its own re-creation via the one-open-per-
+    // action index. property_name rides along for the "Tour Scheduled · {name}"
+    // Last Action line.
+    const rowId = actionRow?.id ?? (await resolveOpenActionId(supabase, lead.id, "setup_tour"))
+    if (rowId == null) {
+      console.error("[setup-tour] no open setup_tour row to complete for lead", lead.id)
+    } else {
+      const { error } = await supabase
+        .from("lead_next_actions")
+        .update({ ...completedPatch(now), property_name: propertyName ?? null })
+        .eq("id", rowId)
+      if (error) throw new Error(`setup-tour: completing action ${rowId} failed — ${error.message}`)
+    }
   }
 
   // 4) Reflect the advanced lead cache locally (next_action_date = follow-up due;

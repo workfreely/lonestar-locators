@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase/client"
+import { completeAction, resolveOpenActionId } from "@/lib/leads/actionCompletion"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { emitWorkflowActionCreated } from "@/lib/workflowToast"
@@ -35,12 +36,16 @@ export async function completeSendList(opts: {
   // Complete the persisted send_list row (real leads) so Last Action derives
   // "Sent List". Demo leads never hit the DB — the caller synthesizes the local
   // completed row instead.
-  if (!isDemoLeadId(lead.id) && sendRow?.id != null) {
-    const { error } = await supabase
-      .from("lead_next_actions")
-      .update({ completed: true, completed_at: new Date().toISOString() })
-      .eq("id", sendRow.id)
-    if (error) console.error("[send-list] complete row failed:", error)
+  // SERVER-RESOLVED + THREE-FIELD — see the note in buildListWorkflow. The
+  // two-field shape is rejected by the live status/completed CHECK, so every Send
+  // List completion was being discarded.
+  if (!isDemoLeadId(lead.id)) {
+    const rowId = sendRow?.id ?? (await resolveOpenActionId(supabase, lead.id, "send_list"))
+    if (rowId == null) {
+      console.error("[send-list] no open send_list row to complete for lead", lead.id)
+    } else if (!(await completeAction(supabase, rowId, new Date().toISOString()))) {
+      throw new Error(`send-list: completing action ${rowId} failed`)
+    }
   }
 
   // Searching → List Sent, follow-up count reset to 0 (same as the Kanban drop).
