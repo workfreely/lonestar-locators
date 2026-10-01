@@ -10,12 +10,30 @@
 // locator's own Google Maps said 10. The place_id is what reproduces the figure a
 // locator would quote to a client, which is the only figure worth showing them.
 //
-// One computeRouteMatrix call covers every property for a client (measured: 7
-// origins → 1 destination in 126ms), so a whole client costs a single request
-// rather than one per property.
+// One computeRouteMatrix call covers up to MAX_ORIGINS properties (measured: 7
+// origins → 1 destination in 126ms), so the Favorites/Recommendations case costs a
+// single request rather than one per property. Commute Mode passes a whole metro's
+// prefiltered inventory and therefore batches — see MAX_ORIGINS for why the batch is
+// 49 and not 625.
 
-/** Routes caps a matrix at 625 elements; with one destination that is 625 origins. */
-const MAX_ORIGINS = 100
+/**
+ * Routes caps a matrix at 625 ELEMENTS, but separately caps "Addresses and Place IDs"
+ * at 50 — and this module deliberately uses place_ids on both ends, so the binding
+ * limit is 50, not 625: 49 origins plus the one destination.
+ *
+ * This was previously 100, which had never been reached because the only caller passed
+ * a client's Favorites and Recommendations (a handful of properties). Commute Mode
+ * passes hundreds, and 100 place_ids returns
+ * "The total number of Addresses and Place IDs in the request must be <= 50".
+ *
+ * WHY NOT SWITCH THE ORIGINS TO COORDINATES, which would lift the cap to 625 in one
+ * call? Because the figure changes. Measured for Altitude at Brooks → Fort Sam:
+ * place_id origin 20 min, coordinate origin 21 min. Against a client's stated 20-minute
+ * maximum that is the difference between qualifying and not — and the number used to
+ * QUALIFY a property must be the same number shown in its "20 min to Fort Sam" reason,
+ * or a property could be starred on one figure and explained with another.
+ */
+const MAX_ORIGINS = 49
 
 export type CommuteResult = {
   /** 'pid:<place id>' — the canonical key the caller passed in, echoed back. */

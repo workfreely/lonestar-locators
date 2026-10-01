@@ -4194,6 +4194,15 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                         // Areas whenever neighborhoods was a non-null empty string.
                         desiredAreas:
                           composeDesiredAreas(sessionClientLead.neighborhoods, sessionClientLead.submarkets) || null,
+                        // COMMUTE MODE. Both must be present for the mode to engage;
+                        // commute_max_minutes null (or the column absent before its
+                        // migration is applied) leaves Area Mode completely unchanged.
+                        commuteAnchorPlaceId: sessionClientLead.commute_anchor_place_id ?? null,
+                        commuteAnchorLabel: sessionClientLead.commute_anchor_label ?? null,
+                        commuteMaxMinutes:
+                          sessionClientLead.commute_max_minutes == null
+                            ? null
+                            : Number(sessionClientLead.commute_max_minutes),
                       }
                     : null
                 }

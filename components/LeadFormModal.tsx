@@ -23,7 +23,7 @@ const EDITABLE_COLUMNS = [
   // Commute / Destination. This allowlist governs BOTH the edit seed (line ~108)
   // and the patch, so omitting either column would make Edit Client silently fail
   // to load AND to save it — no error, just a field that never persists.
-  "commute_anchor_label", "commute_anchor_place_id",
+  "commute_anchor_label", "commute_anchor_place_id", "commute_max_minutes",
 ] as const
 
 export default function LeadFormModal({
@@ -82,6 +82,7 @@ export default function LeadFormModal({
     referred_by: "",
     // Commute / Destination — present from the start so the inputs stay controlled.
     commute_anchor_label: "",
+      commute_max_minutes: "",
     commute_anchor_place_id: "",
 
     // defaults
@@ -332,6 +333,7 @@ export default function LeadFormModal({
       locator_notes: "",
       referred_by: "",
       commute_anchor_label: "",
+      commute_max_minutes: "",
       commute_anchor_place_id: "",
 
       source: "",

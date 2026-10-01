@@ -81,6 +81,8 @@ const EDITABLE = [
   "eviction_court", "eviction_age", "eviction_balance",
   "criminal_background", "criminal_charge", "felony_age", "misdemeanor_age",
   "notes", "locator_notes", "referred_by",
+  // Commute / Destination, and Commute Mode's maximum.
+  "commute_anchor_label", "commute_anchor_place_id", "commute_max_minutes",
 ] as const
 
 // The bug itself: every blank shape a move_date can arrive in → null, never "".
@@ -123,7 +125,16 @@ eq(afterClear.move_date, null, "clear → save sends null, not ''")
 // Guard: the non-text set must stay a subset of the editable columns.
 ok([...NON_TEXT_EDITABLE_COLUMNS].every((c) => (EDITABLE as readonly string[]).includes(c)),
   "NON_TEXT_EDITABLE_COLUMNS ⊆ EDITABLE_COLUMNS")
-eq(NON_TEXT_EDITABLE_COLUMNS.size, 1, "move_date is currently the ONLY non-text editable column")
+// Asserting the exact MEMBERS, not a count — a count silently accepts a swap, and the
+// whole point of this set is WHICH columns reject "". commute_max_minutes joined it
+// with Commute Mode: it is an `integer`, so a blank must become null exactly as
+// move_date's does, and blank there means "no limit" i.e. back to Area Mode.
+eq([...NON_TEXT_EDITABLE_COLUMNS].sort().join(","), "commute_max_minutes,move_date",
+  "the non-text editable columns are exactly move_date + commute_max_minutes")
+eq(buildEditPatch({ commute_max_minutes: "" }, ["commute_max_minutes"]).commute_max_minutes, null,
+  "a blank max drive → null, never '' (an integer column)")
+eq(buildEditPatch({ commute_max_minutes: "20" }, ["commute_max_minutes"]).commute_max_minutes, "20",
+  "a set max drive passes through")
 
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail > 0) process.exit(1)

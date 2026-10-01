@@ -97,6 +97,14 @@ const STRING_FIELDS = [
   "commute_anchor_label", "commute_anchor_place_id",
 ] as const
 
+// Commute Mode's maximum drive time — an `integer`, so it gets its own validated
+// group rather than riding in STRING_FIELDS where "" and arbitrary text would reach
+// the column. Blank/absent means "no limit", i.e. Area Mode, and is simply omitted.
+// Deliberately ABSENT from SCALAR_LABELS below, like `source` and the commute anchor:
+// a client re-submitting the public intake form must never blank a requirement the
+// locator set by hand. No public form collects it; Add Lead does.
+const NULLABLE_INTEGER_FIELDS = ["commute_max_minutes"] as const
+
 const BOOLEAN_FIELDS = ["sms_opt_in"] as const
 const NULLABLE_TIMESTAMP_FIELDS = ["sms_consent_at"] as const
 
@@ -135,6 +143,17 @@ function validateAndBuildPayload(
       continue
     }
     payload[field] = value
+  }
+
+  for (const field of NULLABLE_INTEGER_FIELDS) {
+    const value = rawLead[field]
+    if (value === undefined || value === null || value === "") continue
+    const n = Number(value)
+    if (!Number.isInteger(n) || n <= 0 || n > 180) {
+      errors.push({ field, message: `${field} must be a whole number of minutes between 1 and 180` })
+      continue
+    }
+    payload[field] = n
   }
 
   for (const field of BOOLEAN_FIELDS) {

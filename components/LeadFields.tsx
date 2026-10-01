@@ -341,7 +341,17 @@ export default function LeadFields({
             // would have no client-facing wording.
             updateField("commute_anchor_label", label)
             updateField("commute_anchor_place_id", placeId)
+            // Clearing the destination must clear the maximum too: a max drive with
+            // nothing to drive to would leave the lead in a half-configured state
+            // that isCommuteMode would reject anyway, but silently.
+            if (!placeId) updateField("commute_max_minutes", "")
           }}
+          maxMinutes={
+            form.commute_max_minutes === "" || form.commute_max_minutes == null
+              ? null
+              : Number(form.commute_max_minutes)
+          }
+          onMaxMinutesChange={(next) => updateField("commute_max_minutes", next == null ? "" : String(next))}
           inputClassName={inputCls}
         />
       </div>

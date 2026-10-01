@@ -1,18 +1,28 @@
 import type { ExplorerProperty } from "./types"
 import { isAreaAlias } from "./areaAliases"
+import { isCommuteMode, meetsCommute, commuteMatchReason } from "./commuteMode"
 
 /**
- * Simple, honest location intelligence for V1.
+ * Simple, honest location intelligence.
  *
- * WHAT WE ACTUALLY HAVE: a lead's `city` (a market display name) and
- * `neighborhoods` (free text the client picked, e.g. "Downtown Miami"), plus the
- * property's formatted address. No client coordinates, and V1 does not use
- * Geocoding — so the only defensible comparison is TEXTUAL.
+ * TWO MODES, and which one applies is decided by the client's own data.
  *
- * Accordingly this does no geospatial scoring, no polygons, no landmark or street
- * proximity, no commute time, no radius maths and no match percentage. It reports
- * only what the strings support, and returns null whenever they are ambiguous —
- * showing nothing is better than implying certainty we do not have.
+ * AREA MODE (the default, and byte-identical to its long-standing behaviour). What we
+ * have is a lead's `city` (a market display name) and `neighborhoods` (free text the
+ * client picked, e.g. "Downtown Miami"), plus the property's formatted address. No
+ * client coordinates and no Geocoding — so the only defensible comparison is TEXTUAL.
+ * Accordingly the area path does no geospatial scoring, no polygons, no landmark or
+ * street proximity, no radius maths and no match percentage. It reports only what the
+ * strings support and returns null whenever they are ambiguous — showing nothing is
+ * better than implying certainty we do not have.
+ *
+ * COMMUTE MODE, when the client has stated BOTH a destination and a maximum drive
+ * time. Then their geographic requirement is not a neighbourhood name at all, and a
+ * drive time VERIFIED by Google Routes is the primary qualification — see the branch
+ * at the top of assessLocationFit. This is still not a score: the only question asked
+ * is whether a measured number is at or under the maximum the client themselves gave.
+ * Every line of the area logic is untouched, and runs unchanged whenever
+ * commuteMaxMinutes is null.
  */
 export type LocationFit = {
   label:
@@ -20,13 +30,17 @@ export type LocationFit = {
     | "Location Keyword Match"
     | "Preferred Location Match"
     | "Preferred Area Match"
+    | "Commute Match"
     | "Within Preferred Area"
     | "Outside Preferred Area"
   /** Short factual reason, never a score. */
   reason: string
   tone: "match" | "neutral" | "outside"
-  /** Lower is stronger, for ordering when several match: neighborhood 1,
-   *  keyword 2, location 3, address-text 4. Absent for non-match results. */
+  /** Lower is stronger, for ordering when several match. A VERIFIED COMMUTE IS 0:
+   *  in Commute Mode the client's stated maximum drive time IS their geographic
+   *  requirement, so satisfying it is the primary qualification, not a fallback
+   *  beneath the area tiers. Then neighborhood 1, keyword 2, location 3,
+   *  address-text 4. Absent for non-match results. */
   rank?: number
 }
 
@@ -40,6 +54,14 @@ export type ClientLocationContext = {
   city: string | null
   /** Comma-joined free text the client chose (neighborhoods, or submarkets). */
   desiredAreas: string | null
+  // ── Commute Mode (all optional; absent = the existing Area Mode, unchanged) ──
+  /** leads.commute_anchor_place_id — the place the client must be near. */
+  commuteAnchorPlaceId?: string | null
+  /** leads.commute_anchor_label — display only, for the reason line. */
+  commuteAnchorLabel?: string | null
+  /** leads.commute_max_minutes. Null/absent ⇒ NOT Commute Mode, and every line of
+   *  the area logic below behaves exactly as it did before this existed. */
+  commuteMaxMinutes?: number | null
 }
 
 const norm = (v: string) => v.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim()
@@ -58,12 +80,38 @@ function areaList(desiredAreas: string | null, city: string | null): string[] {
 export function assessLocationFit(
   property: Pick<
     ExplorerProperty,
-    "propertyAddress" | "neighborhood" | "location" | "locationKeywords"
+    "propertyAddress" | "neighborhood" | "location" | "locationKeywords" | "commuteMinutes"
   >,
   client: ClientLocationContext | null,
 ): LocationFit | null {
   // No client, or nothing to compare against — show no label at all.
   if (!client) return null
+
+  // ── COMMUTE MODE — the PRIMARY geographic qualification ────────────────────
+  // When the client has stated both a destination and a maximum drive time, that
+  // maximum IS their location requirement. A property Routes has verified inside it
+  // has satisfied it, and needs no Desired Area text to do so: Altitude at Brooks is
+  // 19 minutes from Fort Sam and 9.1 km from the Southtown centroid, so the area
+  // text could never have found it. Hence rank 0 — ahead of the four area tiers, not
+  // beneath them.
+  //
+  // `commuteMinutes` is a VERIFIED Routes result (lib/commute/routes.ts, place_id on
+  // both ends), never a straight-line estimate. The prefilter radius that narrowed
+  // the catalog qualifies nothing; only this number does.
+  if (isCommuteMode(client.commuteAnchorPlaceId, client.commuteMaxMinutes)) {
+    const max = Number(client.commuteMaxMinutes)
+    if (meetsCommute(property.commuteMinutes, max)) {
+      return {
+        label: "Commute Match",
+        reason: commuteMatchReason(Number(property.commuteMinutes), client.commuteAnchorLabel),
+        tone: "match",
+        rank: 0,
+      }
+    }
+    // Over the maximum, or no drivable route → earns NO commute match. It falls
+    // through to the area logic below, so nothing a property qualified for before
+    // Commute Mode existed is taken away; commute simply grants it nothing.
+  }
 
   // ── Structured intelligence path (Property Intelligence catalog) ───────────
   // When a property carries catalogued geography, match the client's chosen

@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { COMMUTE_MINUTE_OPTIONS } from "@/lib/propertyExplorer/commuteMode"
 import { loadGoogleMaps } from "@/lib/propertyExplorer/loadMaps"
 import { displayDestinationLabel } from "@/lib/commute/destinationAliases"
 
@@ -31,6 +32,8 @@ export default function CommuteDestinationField({
   placeId,
   onChange,
   inputClassName,
+  maxMinutes,
+  onMaxMinutesChange,
 }: {
   /** commute_anchor_label — the client-facing wording, locator-editable. */
   label: string
@@ -39,6 +42,10 @@ export default function CommuteDestinationField({
   /** Always writes BOTH columns together so they can never disagree. */
   onChange: (next: { label: string; placeId: string }) => void
   inputClassName?: string
+  /** leads.commute_max_minutes. Null = Area Mode. */
+  maxMinutes?: number | null
+  /** Omit to hide the Max Drive selector entirely (surfaces that do not collect it). */
+  onMaxMinutesChange?: (next: number | null) => void
 }) {
   const [query, setQuery] = useState("")
   const [open, setOpen] = useState(false)
@@ -146,6 +153,30 @@ export default function CommuteDestinationField({
             className={inputClassName}
             autoComplete="off"
           />
+          {/* MAX DRIVE — the client's requirement, and the Commute Mode switch.
+              Only shown once a destination is anchored, because a maximum with
+              nothing to measure against means nothing. "No limit" writes NULL,
+              which returns the client to the ordinary Desired Areas workflow. */}
+          {onMaxMinutesChange && (
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-[var(--crm-text-muted)] flex-none">Max drive</span>
+              <select
+                value={maxMinutes == null ? "" : String(maxMinutes)}
+                onChange={(e) => onMaxMinutesChange(e.target.value === "" ? null : Number(e.target.value))}
+                className={inputClassName ? `${inputClassName} cursor-pointer` : undefined}
+              >
+                <option value="">No limit</option>
+                {COMMUTE_MINUTE_OPTIONS.map((m) => (
+                  <option key={m} value={m}>{`${m} min`}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {onMaxMinutesChange && maxMinutes != null && (
+            <p className="text-[11px] text-[var(--crm-text-muted)]">
+              Beast will search by drive time to this destination instead of Preferred Areas.
+            </p>
+          )}
         </div>
       ) : (
         <div className="relative">

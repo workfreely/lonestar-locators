@@ -35,10 +35,13 @@ function arrayBlock(src: string, name: string): string {
   return src.slice(i, src.indexOf("] as const", i))
 }
 
+// `commute_max_minutes` is allowed below: it is Commute Mode's MAXIMUM, not a second
+// destination. The rule this guards is "one canonical destination field", and that
+// still holds — the anchor is still exactly commute_anchor_label + commute_anchor_place_id.
 console.log("ONE canonical field — no per-surface duplicates:")
 for (const [name, src] of [["LeadFields", fields], ["LeadPanel", panel], ["the field itself", ctrl], ["leadToDto", dto]] as const) {
   ok(`${name} invents no alternative destination column`,
-    !/commute_(?!anchor_label|anchor_place_id|minutes|computed_at|destination\b)/.test(src) &&
+    !/commute_(?!anchor_label|anchor_place_id|max_minutes|minutes|computed_at|destination\b)/.test(src) &&
     !/\b(destination_address|work_address|commute_address|anchor_address)\b/.test(src))
 }
 

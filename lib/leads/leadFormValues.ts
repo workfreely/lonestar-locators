@@ -72,7 +72,12 @@ export const arrToCsv = (a: string[]): string => a.join(", ")
  *
  * ADD TO THIS SET if a date / numeric / boolean column is ever made editable.
  */
-export const NON_TEXT_EDITABLE_COLUMNS: ReadonlySet<string> = new Set(["move_date"])
+export const NON_TEXT_EDITABLE_COLUMNS: ReadonlySet<string> = new Set([
+  "move_date",
+  // Commute Mode's switch. An `integer`, so "" is invalid for it exactly as it was
+  // for move_date — and blank here MEANS "no limit", i.e. back to Area Mode.
+  "commute_max_minutes",
+])
 
 /**
  * Build the Edit Client UPDATE patch from the form. Shape is unchanged — every

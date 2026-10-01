@@ -5,6 +5,7 @@ import { loadGoogleMaps, MapsConfigError } from "@/lib/propertyExplorer/loadMaps
 import { hasCoordinates, placeUrl, displayAddress, propertyWebsiteHref, type ExplorerProperty } from "@/lib/propertyExplorer/types"
 import PropertyThumb from "@/components/crm/PropertyThumb"
 import { assessLocationFit, type ClientLocationContext } from "@/lib/propertyExplorer/locationFit"
+import { isCommuteMode } from "@/lib/propertyExplorer/commuteMode"
 import { computeSuggestions } from "@/lib/propertyExplorer/suggestions"
 import { enrichProperties, fetchCatalog } from "@/lib/propertyExplorer/catalog"
 import { supabase } from "@/lib/supabase/client"
@@ -512,6 +513,75 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     }
   }, [marketSlug, center, licenseState])
 
+  // ── Commute Mode search ─────────────────────────────────────────────────────
+  // When the client stated a destination AND a maximum drive time, their geographic
+  // requirement is that drive time, not an area name. The pool therefore comes from
+  // property_catalog (which has coordinates on 4,200 of 4,202 rows) narrowed by a
+  // cheap straight-line prefilter and then VERIFIED by Google Routes server-side.
+  //
+  // Places is deliberately not used here: searchNearby caps at 20 results at ANY
+  // radius, so widening it cannot reach a property 13 km away — measured by sweeping
+  // 3 to 50 km around Fort Sam, where Altitude at Brooks appeared at no radius.
+  //
+  // Results arrive already catalog-shaped (name/address/coords plus the structured
+  // geography), so they need no second enrichment pass, and each carries the verified
+  // `commuteMinutes` that assessLocationFit turns into the match.
+  // Commute Mode is a property of the CLIENT's data, nothing the locator toggles here.
+  const commuteMode = isCommuteMode(activeClient?.commuteAnchorPlaceId, activeClient?.commuteMaxMinutes)
+
+  const searchByCommute = useCallback(async (leadId: string | number) => {
+    setStatus("searching")
+    setError(null)
+    try {
+      const res = await fetch("/api/admin/leads/commute-candidates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId }),
+      })
+      const json = (await res.json()) as {
+        commuteMode?: boolean
+        candidates?: Array<{
+          placeId: string; propertyName: string; propertyAddress: string | null
+          lat: number; lng: number; neighborhood: string | null; location: string | null
+          locationKeywords: string[]; commuteMinutes: number
+        }>
+        error?: string
+      }
+      if (!res.ok) throw new Error(json.error || `commute search failed (${res.status})`)
+      // Not in Commute Mode after all (e.g. the maximum was cleared): leave the map
+      // as it is rather than blanking it, and let the area path own the view.
+      if (!json.commuteMode) { setStatus("ready"); return false }
+
+      setResults(
+        (json.candidates ?? []).map((c) => ({
+          placeId: c.placeId,
+          propertyId: c.placeId,
+          propertyName: c.propertyName || "Unnamed property",
+          propertyAddress: c.propertyAddress,
+          propertyUrl: placeUrl(c.placeId),
+          lat: c.lat,
+          lng: c.lng,
+          source: "google_places",
+          marketSlug,
+          neighborhood: c.neighborhood,
+          location: c.location,
+          locationKeywords: c.locationKeywords,
+          commuteMinutes: c.commuteMinutes,
+        })) as ExplorerProperty[],
+      )
+      setDirty(false)
+      setStatus("ready")
+      return true
+    } catch (e) {
+      if (process.env.NODE_ENV !== "production") {
+        console.error("[Beast Property Explorer] commute search failed:", e)
+      }
+      setError("We couldn't search by drive time. Please try again.")
+      setStatus("ready")
+      return false
+    }
+  }, [marketSlug])
+
   // ── Name search (find a specific community) ─────────────────────────────────
   // The toolbar text opens a PICKER of qualified in-market matches (see the
   // debounced effect below); clicking a row — or pressing Enter — selects ONE. All
@@ -843,11 +913,23 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
       setRadarOrigins([])
     }
 
-    // The REAL search/ranking path: Places around EACH center -> merge/dedupe ->
+    // ONE geography mode, chosen from the client's own data.
+    //
+    // COMMUTE MODE (anchor + maximum both set): the maximum drive time is the primary
+    // geographic qualification, so the pool is built and verified from it. Falls back
+    // to the area path if the route reports the client is not actually in Commute Mode.
+    //
+    // AREA MODE (the default, unchanged): Places around EACH center -> merge/dedupe ->
     // catalog enrichment -> assessLocationFit -> computeSuggestions. The halo pass
     // runs from the effect below once these results have rendered.
-    void searchThisArea(hasAreas ? desiredAreaCenters : undefined)
-  }, [beastReset, desiredAreaCenters, searchThisArea])
+    if (commuteMode && activeClient?.id != null) {
+      void searchByCommute(activeClient.id).then((ok) => {
+        if (!ok) void searchThisArea(hasAreas ? desiredAreaCenters : undefined)
+      })
+    } else {
+      void searchThisArea(hasAreas ? desiredAreaCenters : undefined)
+    }
+  }, [beastReset, desiredAreaCenters, searchThisArea, commuteMode, searchByCommute, activeClient?.id])
 
   useEffect(() => () => beastReset(), [beastReset])
 

@@ -71,6 +71,10 @@ export type ExplorerProperty = {
   location?: string | null
   /** Up to 3 locator search keywords, when catalogued. */
   locationKeywords?: string[]
+  /** Verified Routes drive time to the client's commute anchor, in whole minutes.
+   *  Set ONLY by the commute-candidates route; null when Routes found no route and
+   *  undefined whenever Commute Mode is off. Never a straight-line estimate. */
+  commuteMinutes?: number | null
   /** ZIP from the catalog. Carried, not yet matched. */
   zip?: string | null
   /** Google Places star rating (0.0–5.0), from property_catalog.google_rating by
