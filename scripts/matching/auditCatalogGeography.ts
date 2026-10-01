@@ -32,13 +32,16 @@ const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPAB
 const norm = (v: string) => v.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim()
 
 type Row = {
-  id: number | string | null
+  place_id: string | null
   property_name: string | null
   city: string | null
-  full_address: string | null
+  address: string | null
   neighborhood: string | null
   location: string | null
   location_keywords: string[] | null
+  /** Catalog columns that hold geography but which assessLocationFit does NOT read. */
+  submarket: string | null
+  cross_streets: string | null
 }
 
 async function main() {
@@ -46,7 +49,7 @@ async function main() {
   let from = 0
   for (;;) {
     const { data, error } = await db.from("property_catalog")
-      .select("id,property_name,city,full_address,neighborhood,location,location_keywords")
+      .select("place_id,property_name,city,address,neighborhood,location,location_keywords,submarket,cross_streets")
       .range(from, from + 999)
     if (error) throw new Error(error.message)
     const b = (data ?? []) as Row[]
@@ -66,6 +69,11 @@ async function main() {
   console.log(`  location populated       (rank 3)     ${rows.filter((r) => r.location).length}  (${((rows.filter((r) => r.location).length / rows.length) * 100).toFixed(2)}%)`)
   console.log(`  NO structured geography at all        ${rows.filter((r) => !hasKw(r) && !r.neighborhood && !r.location).length}`)
   console.log(`\n  Ranks 1 and 3 are effectively unavailable to matching at these levels.`)
+  console.log(`\n  GEOGRAPHY THE CATALOG HOLDS BUT MATCHING NEVER READS:`)
+  console.log(`      submarket populated                  ${rows.filter((r) => r.submarket).length}`)
+  console.log(`      cross_streets populated              ${rows.filter((r) => r.cross_streets).length}`)
+  console.log(`      (assessLocationFit reads neighborhood, location, location_keywords and the`)
+  console.log(`       address only — these two columns are invisible to it today.)`)
 
   // ── 5. Coverage by market ────────────────────────────────────────────────
   console.log(`\n${"═".repeat(100)}`)
@@ -118,7 +126,7 @@ async function main() {
           || (r.location && accepted.has(norm(r.location)))
         if (already) continue
         cands.push({
-          id: String(r.id ?? ""), name: r.property_name ?? "", city: m.name, area: o,
+          id: String(r.place_id ?? ""), name: r.property_name ?? "", city: m.name, area: o,
           has: kws.length ? `${kws.length} kw, none naming ${o}` : "EMPTY keywords",
         })
         break
