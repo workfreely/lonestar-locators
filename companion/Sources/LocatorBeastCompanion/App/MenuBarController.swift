@@ -83,8 +83,36 @@ final class MenuBarController: NSObject {
                 self?.engine.onPaired()
             case .failure(let err):
                 AppLog.error("Pairing failed: \(err)")
+                self?.showPairingFailure(err)
             }
         }
+    }
+
+    /// Surface a pairing failure. Previously these were logged and nothing else,
+    /// so a failed browser-open or a failed socket bind looked exactly like a
+    /// click that never registered. Beast Sync has no window, so an alert is the
+    /// only place a menu-bar app can say this out loud.
+    private func showPairingFailure(_ err: Error) {
+        let detail: String
+        switch err {
+        case PairingService.PairingError.browserOpenFailed:
+            detail = "Beast Sync couldn't open your browser. Open \(Config.baseURL.absoluteString) manually, sign in, then try Connect again."
+        case PairingService.PairingError.listenFailed:
+            detail = "Beast Sync couldn't open the local connection it needs to finish pairing. Quit and reopen Beast Sync, then try again."
+        case PairingService.PairingError.stateMismatch:
+            detail = "The approval didn't match this Mac's request. Try Connect again, and approve in the tab Beast Sync opens."
+        case PairingService.PairingError.timeout:
+            detail = "Pairing timed out before it was approved. Choose Connect Locator Beast… again to retry."
+        default:
+            detail = "Pairing didn't complete. Please try Connect Locator Beast… again."
+        }
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Couldn't connect Locator Beast"
+        alert.informativeText = detail
+        alert.addButton(withTitle: "OK")
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
     }
 
     @objc private func openFDA() { FullDiskAccess.openSettings() }

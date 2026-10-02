@@ -13,7 +13,7 @@ final class PairingService {
     private let state = UUID().uuidString
     private var completion: ((Result<String, Error>) -> Void)?
 
-    enum PairingError: Error { case listenFailed, stateMismatch, noToken, timeout }
+    enum PairingError: Error { case listenFailed, stateMismatch, noToken, timeout, browserOpenFailed }
 
     func startPairing(completion: @escaping (Result<String, Error>) -> Void) {
         self.completion = completion
@@ -27,8 +27,20 @@ final class PairingService {
                 guard let self else { return }
                 if case .ready = st, let port = listener.port?.rawValue {
                     let url = Config.pairPageURL(port: Int(port), state: self.state)
-                    AppLog.info("Pairing: opening browser")
-                    NSWorkspace.shared.open(url)
+                    // NSWorkspace is AppKit — it must be called on the main thread.
+                    // This closure runs on the listener's queue (.global()), so hop.
+                    // The Bool result is CHECKED: an unchecked failure here was
+                    // indistinguishable from a click that never registered, and the
+                    // listener would then sit idle until the 300s timeout.
+                    DispatchQueue.main.async {
+                        let opened = NSWorkspace.shared.open(url)
+                        if opened {
+                            AppLog.info("Pairing: opened browser on port \(port)")
+                        } else {
+                            AppLog.error("Pairing: NSWorkspace failed to open \(url.absoluteString)")
+                            self.finish(.failure(PairingError.browserOpenFailed))
+                        }
+                    }
                 } else if case .failed = st {
                     self.finish(.failure(PairingError.listenFailed))
                 }

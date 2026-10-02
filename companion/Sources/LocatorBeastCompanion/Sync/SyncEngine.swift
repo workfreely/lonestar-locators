@@ -268,7 +268,20 @@ final class SyncEngine {
         setPhase(.paused(reason: reason))
     }
 
-    private func setPhase(_ phase: SyncPhase) { status.phase = phase; onChange?() }
+    /// Set the phase, notifying observers ONLY when it actually changed.
+    ///
+    /// The unguarded version fired `onChange` on every poll, and `onChange` is
+    /// `rebuildMenu`, whose last act is `statusItem.menu = menu`. Replacing an
+    /// NSStatusItem's menu while that menu is open cancels tracking — so an
+    /// unpaired app (which re-asserts `.needsPairing` every 30s) could close its
+    /// own menu out from under the pointer, and the click on "Connect Locator
+    /// Beast…" would never dispatch. SyncPhase is Equatable, so this is exact,
+    /// including the `paused(reason:)` associated value.
+    private func setPhase(_ phase: SyncPhase) {
+        guard status.phase != phase else { return }
+        status.phase = phase
+        onChange?()
+    }
     private func setError(_ msg: String) {
         AppLog.error(msg)
         state.lastSyncError = msg
