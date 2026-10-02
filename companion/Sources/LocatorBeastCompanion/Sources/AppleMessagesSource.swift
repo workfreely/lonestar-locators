@@ -35,8 +35,8 @@ final class AppleMessagesSource: MessageSource {
     // else. Canonical attribution still happens server-side under the phone
     // identity rules; the Mac never asserts which lead a message belongs to.
     //
-    // V1 is 1:1 ONLY: the HAVING COUNT(*) = 1 clause excludes group chats, so a
-    // thread containing a client plus other people is never read.
+    // V1 is 1:1 ONLY: the HAVING clause below excludes group chats, so a thread
+    // containing a client plus other people is never read.
     func resolveConversations(identities: [String]) throws -> [String: [Int64]] {
         if identities.isEmpty { return [:] }
         var db: OpaquePointer?
@@ -53,7 +53,16 @@ final class AppleMessagesSource: MessageSource {
         FROM chat_handle_join chj
         JOIN handle h ON h.ROWID = chj.handle_id
         WHERE chj.chat_id IN (
-            SELECT chat_id FROM chat_handle_join GROUP BY chat_id HAVING COUNT(*) = 1
+            -- 1:1 means ONE PERSON, not one row. Messages stores a separate handle
+            -- row per service, so someone reachable by both iMessage and SMS has two
+            -- handle rows with the SAME id joined to the same chat. COUNT(*) would
+            -- see that as a group chat and skip a real client conversation; the
+            -- distinct id is what actually identifies the participant.
+            SELECT chj2.chat_id
+            FROM chat_handle_join chj2
+            JOIN handle h2 ON h2.ROWID = chj2.handle_id
+            GROUP BY chj2.chat_id
+            HAVING COUNT(DISTINCT h2.id) = 1
         )
         """
         var stmt: OpaquePointer?
@@ -139,7 +148,14 @@ final class AppleMessagesSource: MessageSource {
             let date = sqlite3_column_int64(stmt, 5)
             let assocType = sqlite3_column_int64(stmt, 6)
             if assocType != 0 { continue } // tapback / reaction — skip
-            let body = (text?.isEmpty == false ? text : Self.extractAttributedBody(attributed))
+            // TRIM FIRST, then decide. `text?.isEmpty == false` is true for " " or
+            // "\n", so the old form committed to a whitespace-only text, never
+            // consulted attributedBody, and the guard below then dropped the message
+            // outright. Modern iMessage stores most bodies in attributedBody, so that
+            // silently lost real client messages — 15 of Ka'Leah's 45. This restores
+            // getTranscript.ts's semantics, which this file is a port of.
+            let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let body = (trimmed?.isEmpty == false ? trimmed : Self.extractAttributedBody(attributed))
             guard let body, !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
             out.append(SourceMessage(guid: guid, phone: nil, isFromMe: isFromMe, body: body,
                                      sentAt: Self.appleTimestampToDate(date), cursor: rowid))

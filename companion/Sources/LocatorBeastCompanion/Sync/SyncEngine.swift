@@ -132,11 +132,12 @@ final class SyncEngine {
 
         // An EMPTY allowlist syncs nothing. That is the safe direction: a missing or
         // failed identity fetch can never degrade into "upload everything".
-        if identities.isEmpty { return false }
+        if identities.isEmpty { AppLog.info("Sync: no identities from server yet — nothing to sync"); return false }
 
         let conversations: [String: [Int64]]
         do { conversations = try source.resolveConversations(identities: identities) }
         catch { setError("Conversation lookup failed: \(error)"); return true }
+        AppLog.info("Sync: \(identities.count) identities → \(conversations.count) matched conversation(s)")
         if conversations.isEmpty { return false }
 
         for (identity, chatIds) in conversations {
