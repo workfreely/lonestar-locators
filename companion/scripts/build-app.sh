@@ -11,12 +11,28 @@
 # (see the note printed at the end). Signing + notarization are the next step and
 # are blocked on an Apple Developer account, not on this script.
 #
-# WHY IT IS AD-HOC SIGNED. macOS TCC (the thing that grants Full Disk Access)
-# identifies an app by its code signature, not its path. A completely unsigned
-# bundle gets a fresh identity on every rebuild, so a granted FDA permission would
-# silently stop applying. Ad-hoc (`codesign -s -`) gives the bundle a real, stable
-# identifier; the grant still has to be re-made if the binary itself changes, but it
-# survives relaunches and reboots, which is what matters day to day.
+# WHY IT IS SIGNED WITH A STABLE IDENTITY, NOT AD-HOC.
+#
+# macOS identifies an app by its code signature — both TCC (Full Disk Access) and
+# the Keychain ACL do. An AD-HOC signature has no certificate, so its designated
+# requirement is a bare CDHash:
+#
+#     designated => cdhash H"810938e3…"
+#
+# which is a hash of the binary. Every rebuild changes those bytes, so every
+# rebuild is a DIFFERENT APP to macOS: Full Disk Access silently stops applying
+# and the Keychain re-prompts even after "Always Allow". That cost us several
+# hours of false diagnoses — grants kept being invalidated by the next build.
+#
+# Signing with a self-signed Code Signing certificate fixes both. The CDHash still
+# changes per build, but the designated requirement becomes the CERTIFICATE
+# identity, which is stable across rebuilds — so FDA and Keychain trust survive.
+#
+# SIGN_IDENTITY may be overridden; it falls back to ad-hoc only if the certificate
+# is missing, so a fresh checkout still builds (with the old re-grant tax).
+# Create the certificate once:
+#   Keychain Access → Certificate Assistant → Create a Certificate…
+#   Name: Locator Beast Development   Type: Code Signing   Self Signed Root
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -91,8 +107,17 @@ PLIST
 # PkgInfo is legacy but cheap, and some Finder/launch paths still read it.
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
-echo "▸ Ad-hoc signing (stable TCC identity — see header)…"
-codesign --force --sign - --identifier "$BUNDLE_ID" "$APP" >/dev/null 2>&1 || {
+echo "▸ Signing…"
+SIGN_IDENTITY="${SIGN_IDENTITY:-Locator Beast Development}"
+if security find-identity -v -p codesigning 2>/dev/null | grep -q "$SIGN_IDENTITY"; then
+  echo "  identity: $SIGN_IDENTITY (stable — FDA/Keychain grants survive rebuilds)"
+else
+  echo "  WARNING: '$SIGN_IDENTITY' not found; falling back to ad-hoc." >&2
+  echo "           Full Disk Access and Keychain trust will need re-granting after EVERY rebuild." >&2
+  echo "           Create it: Keychain Access → Certificate Assistant → Create a Certificate…" >&2
+  SIGN_IDENTITY="-"
+fi
+codesign --force --sign "$SIGN_IDENTITY" --identifier "$BUNDLE_ID" "$APP" >/dev/null 2>&1 || {
   echo "  codesign failed; the bundle still runs but Full Disk Access may not persist across rebuilds" >&2
 }
 codesign --verify --verbose=1 "$APP" 2>&1 | sed 's/^/  /' || true
