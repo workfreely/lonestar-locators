@@ -206,6 +206,10 @@ export default function SocialAutopilotClient() {
 
   // Bulk selection (real rows only).
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  // Bulk delete — confirmation gate + in-flight flag. Nothing is deleted until the
+  // modal's destructive action is pressed.
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleteBusy, setDeleteBusy] = useState(false)
   const [bulkKind, setBulkKind] = useState<null | "market" | "property">(null)
   const [bulkValue, setBulkValue] = useState("")
   const [bulkPlaceId, setBulkPlaceId] = useState<string | null>(null) // canonical id when a match is picked
@@ -507,6 +511,53 @@ export default function SocialAutopilotClient() {
     }
   }, [bulkKind, bulkValue, bulkPlaceId, bulkMatched, selected, load])
 
+  /**
+   * Bulk delete — the SAME deletion the per-card trash icon performs, applied to
+   * each selected id.
+   *
+   * Deliberately fans out to the existing `DELETE /content/:id` endpoint rather
+   * than adding a delete branch to the bulk route: that endpoint is the one place
+   * that removes the storage object before the row, and duplicating it server-side
+   * would be a second deletion implementation to keep in sync. Per-request results
+   * also give honest per-item success/failure for free.
+   *
+   * Failures are never reported as success — any failure surfaces as an error and
+   * the library is reloaded either way, so what's on screen is the real state.
+   */
+  const deleteSelected = useCallback(async () => {
+    const ids = Array.from(selected)
+    if (ids.length === 0) return
+    setDeleteBusy(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const results = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            const res = await fetch(`/api/admin/social-autopilot/content/${encodeURIComponent(id)}`, { method: "DELETE" })
+            return res.ok
+          } catch {
+            return false
+          }
+        }),
+      )
+      const deleted = results.filter(Boolean).length
+      const failed = results.length - deleted
+      if (failed > 0) {
+        setError(`Deleted ${deleted} of ${results.length}. ${failed} could not be deleted — the library below shows the current state.`)
+      } else {
+        setNotice(`Deleted ${deleted} ${deleted === 1 ? "video" : "videos"}.`)
+      }
+      setConfirmDelete(false)
+      clearSelection()
+      // Reload regardless of outcome: on partial failure this is what keeps the
+      // library honest rather than optimistically dropping cards that still exist.
+      await load()
+    } finally {
+      setDeleteBusy(false)
+    }
+  }, [selected, load])
+
   const remove = useCallback(
     async (id: string) => {
       if (!confirm("Delete this source video and its file? This cannot be undone.")) return
@@ -573,6 +624,10 @@ export default function SocialAutopilotClient() {
   const btn = "text-[12px] font-semibold px-2.5 py-1.5 rounded-lg border border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] transition-colors disabled:opacity-50"
   const primaryBtn = "text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"
   const inputCls = "w-full text-[13px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] px-2.5 py-1.5"
+  // Destructive styling, matching the app's red-600 convention (ProfileAvatarMenu,
+  // FirstRunChecklist). Ghost variant for the bar; filled for the modal's commit.
+  const dangerGhostBtn = `${btn} !text-red-600 hover:!bg-red-50 dark:hover:!bg-red-950/40`
+  const dangerBtn = "text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50"
   const fieldLabel = "text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]"
 
   return (
@@ -637,6 +692,8 @@ export default function SocialAutopilotClient() {
           <span className="text-[12.5px] font-bold text-[var(--crm-text-primary)]">{selected.size} selected</span>
           <button type="button" className={btn} onClick={() => openBulk("market")}>Change Market</button>
           <button type="button" className={btn} onClick={() => openBulk("property")}>Change Property</button>
+          {/* Opens the confirmation modal only — never deletes on this click. */}
+          <button type="button" className={dangerGhostBtn} onClick={() => setConfirmDelete(true)}>Delete Selected</button>
           {!allVisibleSelected && (
             <button type="button" className={btn} onClick={selectAllVisible}>Select all visible ({visibleRealIds.length})</button>
           )}
@@ -909,6 +966,27 @@ export default function SocialAutopilotClient() {
                 {bulkBusy ? "Applying…" : "Apply"}
               </button>
               <button type="button" className={btn} disabled={bulkBusy} onClick={() => setBulkKind(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk delete confirmation. Same modal shell as the bulk value modal above;
+          Cancel sits first because the commit is destructive. */}
+      {confirmDelete && selected.size > 0 && (
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={() => !deleteBusy && setConfirmDelete(false)}>
+          <div className="w-full max-w-sm rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4" onClick={(e) => e.stopPropagation()}>
+            <div className="text-[15px] font-bold text-[var(--crm-text-primary)]">
+              Delete {selected.size} selected {selected.size === 1 ? "video" : "videos"}?
+            </div>
+            <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5 mb-3">
+              This will permanently remove the selected videos from the Video Library.
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button type="button" className={btn} disabled={deleteBusy} onClick={() => setConfirmDelete(false)}>Cancel</button>
+              <button type="button" className={dangerBtn} disabled={deleteBusy} onClick={() => void deleteSelected()}>
+                {deleteBusy ? "Deleting…" : `Delete ${selected.size} ${selected.size === 1 ? "Video" : "Videos"}`}
+              </button>
             </div>
           </div>
         </div>
