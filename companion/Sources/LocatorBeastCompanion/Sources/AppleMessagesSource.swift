@@ -24,30 +24,112 @@ final class AppleMessagesSource: MessageSource {
         return rc == SQLITE_OK
     }
 
-    func fetchNewMessages(afterCursor: Int64, limit: Int) throws -> [SourceMessage] {
+    // ── Conversation resolution ──────────────────────────────────────────────
+    //
+    // Resolve the server's canonical phone allowlist to local 1:1 chat ids.
+    //
+    // handle.id is stored inconsistently by Messages ("+17707786743",
+    // "7707786743", "(770) 778-6743", or an Apple ID email), so handles are
+    // normalized HERE and compared against the allowlist. This normalization is a
+    // LOCAL READ FILTER ONLY — it decides which conversations to open, nothing
+    // else. Canonical attribution still happens server-side under the phone
+    // identity rules; the Mac never asserts which lead a message belongs to.
+    //
+    // V1 is 1:1 ONLY: the HAVING COUNT(*) = 1 clause excludes group chats, so a
+    // thread containing a client plus other people is never read.
+    func resolveConversations(identities: [String]) throws -> [String: [Int64]] {
+        if identities.isEmpty { return [:] }
         var db: OpaquePointer?
         guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK, db != nil else {
             throw MessageSourceError.notAvailable("Cannot open chat.db — grant Full Disk Access.")
         }
         defer { sqlite3_close(db) }
 
-        // 1) Distinct new messages, ordered + limited on messages (not joins).
-        let msgSQL = """
+        let wanted = Set(identities)
+        var out: [String: [Int64]] = [:]
+
+        let sql = """
+        SELECT h.id, chj.chat_id
+        FROM chat_handle_join chj
+        JOIN handle h ON h.ROWID = chj.handle_id
+        WHERE chj.chat_id IN (
+            SELECT chat_id FROM chat_handle_join GROUP BY chat_id HAVING COUNT(*) = 1
+        )
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            throw MessageSourceError.readFailed("resolve prepare failed: \(String(cString: sqlite3_errmsg(db)))")
+        }
+        defer { sqlite3_finalize(stmt) }
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard let raw = columnText(stmt, 0) else { continue }
+            let chatId = sqlite3_column_int64(stmt, 1)
+            guard let canonical = Self.normalizeHandle(raw), wanted.contains(canonical) else { continue }
+            out[canonical, default: []].append(chatId)
+        }
+        return out
+    }
+
+    /// Digits-only normalization mirroring lib/messages/getTranscript.ts.
+    /// Returns nil for anything that cannot be a US phone (e.g. email handles),
+    /// which simply means "no local match" — never an upload.
+    static func normalizeHandle(_ raw: String) -> String? {
+        if raw.contains("@") { return nil }
+        let digits = raw.filter { $0.isNumber }
+        if digits.count == 10 { return "+1\(digits)" }
+        if digits.count == 11 && digits.hasPrefix("1") { return "+\(digits)" }
+        if digits.count > 11 { return "+\(digits)" }
+        return nil
+    }
+
+    // ── Scoped reads ─────────────────────────────────────────────────────────
+    func fetchRecent(conversationIds: [Int64], limit: Int) throws -> [SourceMessage] {
+        try read(conversationIds: conversationIds, bound: nil, ascending: false, limit: limit)
+    }
+
+    func fetchNewMessages(conversationIds: [Int64], afterCursor: Int64, limit: Int) throws -> [SourceMessage] {
+        try read(conversationIds: conversationIds, bound: (">", afterCursor), ascending: true, limit: limit)
+    }
+
+    func fetchOlder(conversationIds: [Int64], beforeCursor: Int64, limit: Int) throws -> [SourceMessage] {
+        try read(conversationIds: conversationIds, bound: ("<", beforeCursor), ascending: false, limit: limit)
+    }
+
+    /// One scoped reader for all three directions. Joins through
+    /// chat_message_join so BOTH directions are captured — outbound messages have
+    /// handle_id = 0, so filtering on message.handle_id would silently drop every
+    /// message the locator sent.
+    private func read(conversationIds: [Int64], bound: (String, Int64)?, ascending: Bool, limit: Int) throws -> [SourceMessage] {
+        if conversationIds.isEmpty { return [] }
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK, db != nil else {
+            throw MessageSourceError.notAvailable("Cannot open chat.db — grant Full Disk Access.")
+        }
+        defer { sqlite3_close(db) }
+
+        let chatPlaceholders = conversationIds.map { _ in "?" }.joined(separator: ",")
+        let boundClause = bound.map { " AND m.ROWID \($0.0) ?" } ?? ""
+        let order = ascending ? "ASC" : "DESC"
+        let sql = """
         SELECT m.ROWID, m.guid, m.text, m.attributedBody, m.is_from_me, m.date, m.associated_message_type
         FROM message m
-        WHERE m.ROWID > ?
-        ORDER BY m.ROWID ASC
+        JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
+        WHERE cmj.chat_id IN (\(chatPlaceholders))\(boundClause)
+        ORDER BY m.ROWID \(order)
         LIMIT ?
         """
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, msgSQL, -1, &stmt, nil) == SQLITE_OK else {
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
             throw MessageSourceError.readFailed("prepare failed: \(String(cString: sqlite3_errmsg(db)))")
         }
-        sqlite3_bind_int64(stmt, 1, afterCursor)
-        sqlite3_bind_int64(stmt, 2, Int64(limit))
+        defer { sqlite3_finalize(stmt) }
 
-        struct Raw { let rowid: Int64; let guid: String; let body: String?; let fromMe: Bool; let date: Int64 }
-        var raws: [Raw] = []
+        var idx: Int32 = 1
+        for id in conversationIds { sqlite3_bind_int64(stmt, idx, id); idx += 1 }
+        if let bound { sqlite3_bind_int64(stmt, idx, bound.1); idx += 1 }
+        sqlite3_bind_int64(stmt, idx, Int64(limit))
+
+        var out: [SourceMessage] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
             let rowid = sqlite3_column_int64(stmt, 0)
             let guid = columnText(stmt, 1) ?? "apple-\(rowid)"
@@ -56,58 +138,14 @@ final class AppleMessagesSource: MessageSource {
             let isFromMe = sqlite3_column_int64(stmt, 4) == 1
             let date = sqlite3_column_int64(stmt, 5)
             let assocType = sqlite3_column_int64(stmt, 6)
-
             if assocType != 0 { continue } // tapback / reaction — skip
-
             let body = (text?.isEmpty == false ? text : Self.extractAttributedBody(attributed))
             guard let body, !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
-
-            raws.append(Raw(rowid: rowid, guid: guid, body: body, fromMe: isFromMe, date: date))
+            out.append(SourceMessage(guid: guid, phone: nil, isFromMe: isFromMe, body: body,
+                                     sentAt: Self.appleTimestampToDate(date), cursor: rowid))
         }
-        sqlite3_finalize(stmt)
-
-        if raws.isEmpty { return [] }
-
-        // 2) Resolve one handle (phone/email) per message via its chat.
-        let handleByMessage = try resolveHandles(db: db, rowids: raws.map { $0.rowid })
-
-        return raws.map { r in
-            SourceMessage(
-                guid: r.guid,
-                phone: handleByMessage[r.rowid],
-                isFromMe: r.fromMe,
-                body: r.body,
-                sentAt: Self.appleTimestampToDate(r.date),
-                cursor: r.rowid
-            )
-        }
-    }
-
-    // Map message ROWID -> a participant handle (first one) via chat joins. For
-    // 1:1 chats this is the counterpart for both sent and received messages.
-    private func resolveHandles(db: OpaquePointer?, rowids: [Int64]) throws -> [Int64: String] {
-        var result: [Int64: String] = [:]
-        let placeholders = rowids.map { _ in "?" }.joined(separator: ",")
-        let sql = """
-        SELECT cmj.message_id, h.id
-        FROM chat_message_join cmj
-        JOIN chat_handle_join chj ON chj.chat_id = cmj.chat_id
-        JOIN handle h ON h.ROWID = chj.handle_id
-        WHERE cmj.message_id IN (\(placeholders))
-        """
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return result }
-        defer { sqlite3_finalize(stmt) }
-        for (i, id) in rowids.enumerated() {
-            sqlite3_bind_int64(stmt, Int32(i + 1), id)
-        }
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            let msgId = sqlite3_column_int64(stmt, 0)
-            if result[msgId] == nil, let handle = columnText(stmt, 1) {
-                result[msgId] = handle
-            }
-        }
-        return result
+        // Always hand back ascending so the engine's high-water logic is uniform.
+        return ascending ? out : out.reversed()
     }
 
     // ── Column helpers ──────────────────────────────────────────────────────

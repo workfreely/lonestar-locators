@@ -8,7 +8,14 @@ import Foundation
 // don't advance, so the next run re-reads the same rows. At-least-once delivery
 // is safe because the backend dedups on message.guid.
 struct SyncState: Codable {
+    // Forward high-water mark, keyed "apple_messages:+17707786743" — ONE PER
+    // CLIENT CONVERSATION. The old global "apple_messages" key drove a
+    // ROWID-0-forward replay of the entire Mac; it is retired on load.
     var cursorsBySource: [String: Int64] = [:]
+    /// Lowest ROWID imported per conversation key — the floor history fills down from.
+    var backfillFloorByKey: [String: Int64] = [:]
+    /// Conversations whose history has been walked back to the beginning.
+    var backfillDoneByKey: [String: Bool] = [:]
     var lastSyncAt: Date?
     var lastSyncError: String?
     var lastKnownEntitled: Bool = true
@@ -26,9 +33,15 @@ struct SyncState: Codable {
 
     static func load() -> SyncState {
         guard let data = try? Data(contentsOf: fileURL),
-              let state = try? JSONDecoder().decode(SyncState.self, from: data) else {
+              var state = try? JSONDecoder().decode(SyncState.self, from: data) else {
             return SyncState()
         }
+        // RETIRE THE GLOBAL CURSOR. Builds before targeted sync stored a single
+        // "apple_messages" high-water mark and replayed the whole Mac from ROWID 0.
+        // Dropping it means the first targeted cycle treats every allowlisted
+        // conversation as new and imports it newest-first, instead of resuming a
+        // full-history crawl that would upload unrelated personal messages again.
+        state.cursorsBySource.removeValue(forKey: "apple_messages")
         return state
     }
 

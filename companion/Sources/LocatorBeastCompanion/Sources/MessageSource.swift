@@ -28,9 +28,26 @@ protocol MessageSource {
     // Disk Access). Sources that can't read are skipped, not fatal.
     func isAvailable() -> Bool
 
-    // Fetch up to `limit` messages with cursor > `afterCursor`, ascending.
-    // Throws on a hard read error (e.g. permission lost mid-run).
-    func fetchNewMessages(afterCursor: Int64, limit: Int) throws -> [SourceMessage]
+    // ── TARGETED SYNC ────────────────────────────────────────────────────────
+    //
+    // Reads are scoped to CONVERSATIONS the paired workspace actually knows about.
+    // The engine passes the server's phone allowlist; the source resolves it to
+    // local conversation ids and never reads anything else. This is what keeps a
+    // locator's personal messages on their Mac.
+
+    /// Map each allowlisted identity to its local 1:1 conversation ids.
+    /// Identities with no conversation (or only group chats) are simply absent.
+    func resolveConversations(identities: [String]) throws -> [String: [Int64]]
+
+    /// Newest-first slice for a conversation's FIRST import, so a client becomes
+    /// usable immediately instead of after a full-history replay.
+    func fetchRecent(conversationIds: [Int64], limit: Int) throws -> [SourceMessage]
+
+    /// Forward incremental read: cursor > `afterCursor`, ascending.
+    func fetchNewMessages(conversationIds: [Int64], afterCursor: Int64, limit: Int) throws -> [SourceMessage]
+
+    /// Backward history fill: cursor < `beforeCursor`, newest-first.
+    func fetchOlder(conversationIds: [Int64], beforeCursor: Int64, limit: Int) throws -> [SourceMessage]
 }
 
 enum MessageSourceError: Error {

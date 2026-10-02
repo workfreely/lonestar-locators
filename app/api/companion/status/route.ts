@@ -1,5 +1,6 @@
 export const runtime = "nodejs"
 
+import { createHash } from "node:crypto"
 import { NextResponse } from "next/server"
 import { requireDeviceToken } from "@/lib/companion/auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
@@ -59,6 +60,43 @@ export async function GET(req: Request) {
     }
   }
 
+  // ── THE SYNC ALLOWLIST ──────────────────────────────────────────────────────
+  //
+  // The canonical phone identities of this workspace's live leads. Beast Sync uses
+  // them LOCALLY to decide which chat.db conversations to read at all, so a
+  // locator's family, friends and unrelated businesses are never uploaded. Before
+  // this existed the Mac walked chat.db from ROWID 0 and shipped everything: one
+  // accidental run uploaded 7,228 personal messages, none of which matched a lead.
+  //
+  // PHONE NUMBERS ONLY — deliberately no lead_id. The Mac never needs one, and not
+  // sending it means a compromised or modified client cannot assert which lead a
+  // message belongs to. Attribution stays server-side and canonical in
+  // attributeUnattributedMessages; this list only narrows what gets read.
+  //
+  // Scoped to auth.workspaceId, which comes from the device token — never from
+  // anything the Mac sends. phone_e164 is already the canonical identity written
+  // by the phone-identity rules, so no normalization happens here.
+  //
+  // `identitiesHash` lets the Mac detect "the allowlist changed" (a new client was
+  // added, or a number was corrected) without diffing the array every poll.
+  let identities: string[] = []
+  {
+    const { data, error } = await supabaseAdmin
+      .from("leads")
+      .select("phone_e164")
+      .eq("workspace_id", auth.workspaceId)
+      .is("deleted_at", null)
+      .not("phone_e164", "is", null)
+    if (error) {
+      // Non-fatal: an empty allowlist makes the Mac sync NOTHING, which is the
+      // safe direction — it can never fall back to uploading everything.
+      console.warn("[companion/status] identities unavailable:", error.message)
+    } else {
+      identities = Array.from(new Set((data ?? []).map((r) => r.phone_e164 as string))).sort()
+    }
+  }
+  const identitiesHash = createHash("sha256").update(identities.join(",")).digest("hex").slice(0, 16)
+
   const entitlement = await getFeatureEntitlement(auth.userId, auth.workspaceId, "messages_sync")
   const maintenance = isCompanionMaintenance()
   const versionOk = isVersionSupported(auth.appVersion)
@@ -74,6 +112,9 @@ export async function GET(req: Request) {
     updateRequired: !versionOk,
     minVersion: MIN_COMPANION_VERSION,
     syncEnabled,
+    // Local read filter for Beast Sync. Phone identities only — see above.
+    identities,
+    identitiesHash,
     serverTime: new Date().toISOString(),
   })
 }

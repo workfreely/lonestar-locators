@@ -55,6 +55,9 @@ final class SyncEngine {
     private var syncTimer: Timer?
     private var heartbeatTimer: Timer?
     private var outboundTimer: Timer?
+    /// Server-delivered phone allowlist. Empty until the first heartbeat — and an
+    /// empty list syncs nothing, by design.
+    private var identities: [String] = []
     private var isRunning = false
     private var outboundRunning = false
 
@@ -113,32 +116,99 @@ final class SyncEngine {
     }
 
     /// Returns true if the whole cycle should stop.
+    ///
+    /// TARGETED SYNC. Reads are scoped to the conversations belonging to this
+    /// workspace's leads — the allowlist the heartbeat delivers. Nothing else in
+    /// chat.db is opened, so personal conversations never leave the Mac.
+    ///
+    /// Per conversation:
+    ///   • no cursor yet  → import the newest `initialImportLimit` messages so the
+    ///                      client is usable immediately, then fill history
+    ///                      backwards in later cycles
+    ///   • cursor present → forward incremental only
+    ///   • history floor  → one backward batch per cycle until exhausted
     private func syncSource(_ source: MessageSource) async -> Bool {
         guard let token = Keychain.loadToken() else { setPhase(.needsPairing); return true }
-        var cursor = state.cursor(for: source.sourceId)
-        while true {
-            let batch: [SourceMessage]
-            do { batch = try source.fetchNewMessages(afterCursor: cursor, limit: Config.batchSize) }
-            catch { setError("Read failed: \(error)"); return true }
-            if batch.isEmpty { return false }
 
-            switch await backend.ingest(batch, token: token) {
-            case .ok(let outcome):
-                if !outcome.syncEnabled { await heartbeat(); return true } // server paused us
-                cursor = batch.last!.cursor          // advance ONLY on ACK
-                state.cursorsBySource[source.sourceId] = cursor
-                state.save()
-                if batch.count < Config.batchSize { return false }
-            case .notEntitled(let reason): enterPaused(reason: reason); return true
-            case .paused(let reason): setPhase(.paused(reason: reason)); return true
-            case .maintenance: setPhase(.maintenance); return true
-            case .updateRequired: setPhase(.needsUpdate); return true
-            case .unpaired, .revoked: Keychain.clearToken(); setPhase(.disconnected); return true
-            case .reset: Keychain.clearToken(); setPhase(.pairingReset); return true
-            case .offline: setPhase(.offline); return true // cursor not advanced → retry
-            case .rateLimited: return true
-            case .failure(let msg): setError(msg); return true
+        // An EMPTY allowlist syncs nothing. That is the safe direction: a missing or
+        // failed identity fetch can never degrade into "upload everything".
+        if identities.isEmpty { return false }
+
+        let conversations: [String: [Int64]]
+        do { conversations = try source.resolveConversations(identities: identities) }
+        catch { setError("Conversation lookup failed: \(error)"); return true }
+        if conversations.isEmpty { return false }
+
+        for (identity, chatIds) in conversations {
+            let key = "\(source.sourceId):\(identity)"
+
+            // 1) FORWARD — new messages since the high-water mark, or the first import.
+            if let cursor = state.cursorsBySource[key] {
+                if await pump(source: source, token: token, identity: identity, key: key,
+                              fetch: { try source.fetchNewMessages(conversationIds: chatIds, afterCursor: cursor, limit: Config.batchSize) }) { return true }
+            } else {
+                if await pump(source: source, token: token, identity: identity, key: key,
+                              fetch: { try source.fetchRecent(conversationIds: chatIds, limit: Config.initialImportLimit) }) { return true }
             }
+
+            // 2) BACKWARD — one history batch per cycle, so a long thread fills in
+            //    without ever blocking the newest messages.
+            if state.backfillDoneByKey[key] != true, let floor = state.backfillFloorByKey[key] {
+                let older: [SourceMessage]
+                do { older = try source.fetchOlder(conversationIds: chatIds, beforeCursor: floor, limit: Config.batchSize) }
+                catch { setError("History read failed: \(error)"); return true }
+                if older.isEmpty {
+                    state.backfillDoneByKey[key] = true
+                    state.save()
+                } else if await upload(older, identity: identity, key: key, token: token, advanceForward: false) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    /// Drain one direction until the source stops returning full batches.
+    private func pump(source: MessageSource, token: String, identity: String, key: String,
+                      fetch: () throws -> [SourceMessage]) async -> Bool {
+        let batch: [SourceMessage]
+        do { batch = try fetch() } catch { setError("Read failed: \(error)"); return true }
+        if batch.isEmpty { return false }
+        return await upload(batch, identity: identity, key: key, token: token, advanceForward: true)
+    }
+
+    /// Upload one batch and move the conversation's marks. Returns true to stop.
+    ///
+    /// The identity is stamped HERE rather than read per message: for a 1:1 chat it
+    /// is the counterpart for both directions, and outbound rows carry handle_id 0
+    /// so there is nothing to read off the message itself.
+    private func upload(_ batch: [SourceMessage], identity: String, key: String,
+                        token: String, advanceForward: Bool) async -> Bool {
+        let stamped = batch.map {
+            SourceMessage(guid: $0.guid, phone: identity, isFromMe: $0.isFromMe,
+                          body: $0.body, sentAt: $0.sentAt, cursor: $0.cursor)
+        }
+        switch await backend.ingest(stamped, token: token) {
+        case .ok(let outcome):
+            if !outcome.syncEnabled { await heartbeat(); return true }
+            // Marks advance ONLY on ACK, so a failed upload is simply retried.
+            let lo = stamped.map { $0.cursor }.min() ?? 0
+            let hi = stamped.map { $0.cursor }.max() ?? 0
+            if advanceForward {
+                state.cursorsBySource[key] = max(state.cursorsBySource[key] ?? 0, hi)
+            }
+            state.backfillFloorByKey[key] = min(state.backfillFloorByKey[key] ?? lo, lo)
+            state.save()
+            return false
+        case .notEntitled(let reason): enterPaused(reason: reason); return true
+        case .paused(let reason): setPhase(.paused(reason: reason)); return true
+        case .maintenance: setPhase(.maintenance); return true
+        case .updateRequired: setPhase(.needsUpdate); return true
+        case .unpaired, .revoked: Keychain.clearToken(); setPhase(.disconnected); return true
+        case .reset: Keychain.clearToken(); setPhase(.pairingReset); return true
+        case .offline: setPhase(.offline); return true // marks not advanced → retry
+        case .rateLimited: return true
+        case .failure(let msg): setError(msg); return true
         }
     }
 
@@ -155,6 +225,12 @@ final class SyncEngine {
             state.lastKnownEntitled = s.entitled
             state.lastKnownReason = s.reason
             state.save()
+            // The sync allowlist. Refreshed on every heartbeat, so a lead added in
+            // the CRM today is discovered on the next beat and ONLY that
+            // conversation is backfilled — no rescan of anything else. A lead whose
+            // number is removed simply stops appearing; its already-synced CRM
+            // history is left untouched.
+            identities = s.identities
             if s.updateRequired {
                 setPhase(.needsUpdate)
             } else if s.maintenance {

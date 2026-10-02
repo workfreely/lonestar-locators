@@ -40,6 +40,10 @@ struct StatusOutcome {
     let updateRequired: Bool
     let minVersion: String
     let syncEnabled: Bool   // the net verdict — pause when false
+    /// Canonical phone identities of the workspace's live leads. The LOCAL read
+    /// filter — Beast Sync opens only these conversations. Phone numbers only;
+    /// the server never sends a lead id and the Mac never asserts one.
+    let identities: [String]
 }
 
 final class BackendClient {
@@ -100,7 +104,10 @@ final class BackendClient {
                     maintenance: (json["maintenance"] as? Bool) ?? false,
                     updateRequired: (json["updateRequired"] as? Bool) ?? false,
                     minVersion: (json["minVersion"] as? String) ?? "0.0.0",
-                    syncEnabled: (json["syncEnabled"] as? Bool) ?? false
+                    syncEnabled: (json["syncEnabled"] as? Bool) ?? false,
+                    // Absent on an older server → empty → the Mac syncs nothing
+                    // rather than falling back to reading everything.
+                    identities: (json["identities"] as? [String]) ?? []
                 )
             }
         } catch { return .offline }

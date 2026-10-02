@@ -45,4 +45,8 @@ enum Config {
 
     // Max messages per ingest batch (must stay <= server MAX_BATCH of 500).
     static let batchSize = 200
+    // First import for a newly matched client conversation: newest-first, so the
+    // client is usable immediately. Older history then fills in one batchSize at a
+    // time per cycle.
+    static let initialImportLimit = 500
 }
