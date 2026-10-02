@@ -48,6 +48,9 @@ import CheckApplicationModal from "./CheckApplicationModal"
 import GetInvoiceDetailsModal from "./GetInvoiceDetailsModal"
 import SendInvoiceModal from "./SendInvoiceModal"
 import InvoiceDetailsSection from "./InvoiceDetailsSection"
+// Per-client Automated Texts On/Off. Already written and correct; it was simply
+// never mounted. The flip goes through the one server enrollment route.
+import AutomatedTextsToggle from "./AutomatedTextsToggle"
 import { autoInvoicePropertyName, formatInvoiceCurrency } from "@/lib/leads/invoiceFields"
 import { leaseFollowUpDueAt } from "@/lib/leads/leaseFollowUp"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
@@ -4499,10 +4502,45 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                       }
                     />
                   )}
-                  {/* Automated Texts card removed from the Client Workspace — the
-                      per-client On/Off control lives in the Beast Companion hamburger
-                      menu. Account-level capability/config belongs in Integrations.
-                      (automatedTextingAuthorized still gates the Companion payload.) */}
+                  {/* Automated Texts — per-client On/Off, restored to the Client
+                      Workspace.
+
+                      It was removed on the grounds that the control "lives in the
+                      Beast Companion hamburger menu". That left the web CRM with NO
+                      control at all: the Companion is an unpublished Chrome
+                      extension, so an agent without it had no way to turn automation
+                      off for one client. This is the SAME control and the SAME
+                      server route the Companion drives (POST
+                      /api/leads/[id]/automated-texting, service-role, dual-gated) —
+                      a second surface on one implementation, not a second
+                      implementation.
+
+                      `automatedTextingAuthorized` gates it exactly as it gates the
+                      Companion payload, so unauthorized accounts still see nothing.
+
+                      `key` is load-bearing: the toggle seeds its own state from
+                      initialEnrolled via useState, which does NOT re-read on prop
+                      change. Keying it to the lead remounts it per client so one
+                      client's setting can never be shown — or flipped — for another.
+
+                      Scope: enrollment only. It never touches sms_opt_in (client
+                      consent), never touches held_at (On Hold), and removes no
+                      Agenda/Next Action row. Manual texting is unaffected. */}
+                  {automatedTextingAuthorized && (
+                    <AutomatedTextsToggle
+                      key={`automated-texts-${selectedLead.id}`}
+                      leadId={selectedLead.id}
+                      initialEnrolled={(selectedLead as any).followup_opt_in === true}
+                      // Mirror the flip into local state so the Kanban card, the next
+                      // Companion active-client payload and this card agree without a
+                      // reload. The authoritative write already happened server-side.
+                      onEnrolledChange={(enabled) =>
+                        setLocalLeads((prev) =>
+                          prev.map((l: any) => (String(l.id) === String(selectedLead.id) ? { ...l, followup_opt_in: enabled } : l)),
+                        )
+                      }
+                    />
+                  )}
                   </>}
                   rightColumn={<>
                   <LeadNotes

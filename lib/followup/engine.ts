@@ -344,8 +344,37 @@ async function enqueueIntent(
     idempotency_key: idempotencyKey,
     send_not_before: sendNotBefore,
   })
+
+  // `status: "due"` means "an intent for this step is live". It must therefore be
+  // written ONLY when one actually is, because `due` leaves dueWaitingRuns and
+  // nothing re-evaluates it afterwards — a run marked due with no live intent is
+  // stalled permanently, and it keeps holding the one-active-lifecycle slot.
+  //
+  // insertIntent cannot tell the two failure modes apart on its own: it returns
+  // "duplicate" both when a genuinely active intent already exists (a duplicate
+  // cron tick — `due` is the truth) and when the insert really failed (where
+  // `due` is the stall). The Supabase adapter deliberately collapses any insert
+  // error into "duplicate" so it can never double-send, which makes that
+  // ambiguity structural. So ask the store which case this is.
+  if (res !== "ok") {
+    const active = await store.activeIntentFor(run.id, run.step_key)
+    if (active) {
+      await store.updateRun(run.id, { status: "due", last_evaluated_at: now.toISOString() })
+    } else {
+      // Nothing is live and nothing was enqueued. Stay WAITING so a later tick
+      // re-evaluates, backed off by the same interval a hold uses so a persistent
+      // failure does not re-attempt every minute.
+      await store.updateRun(run.id, {
+        status: "waiting",
+        next_eligible_at: new Date(now.getTime() + HOLD_BACKOFF_MS).toISOString(),
+        last_evaluated_at: now.toISOString(),
+      })
+    }
+    return false
+  }
+
   await store.updateRun(run.id, { status: "due", last_evaluated_at: new Date().toISOString() })
-  return res === "ok"
+  return true
 }
 
 // ── Claim (device pulls approved jobs; re-validated here) ──────────────────────
@@ -442,8 +471,32 @@ export async function runClaim(
   return jobs
 }
 
+/**
+ * Withdraw a queued intent, releasing its idempotency key.
+ *
+ * `followup_outbound_intents.idempotency_key` is declared `text unique` —
+ * UNCONDITIONALLY unique across the table, not partial. Leaving the key on a
+ * superseded row meant the SAME step could never be enqueued again: the
+ * replacement insert collided with a terminal row, and the run was then marked
+ * `due` with nothing live and stalled forever. Turning Automated Texts off and
+ * back on was a one-way door for whichever step happened to be queued.
+ *
+ * Nulling the key is safe and is the contract the rest of the engine already
+ * assumes:
+ *   • The row itself is PRESERVED — status, reason, rendered body, sequence/step
+ *     and timestamps all stay, so what was almost sent remains auditable. Only
+ *     the dedup token is released, and a token is not evidence.
+ *   • Double-send protection for LIVE intents is unaffected. That comes from the
+ *     partial index followup_intents_active_step_uidx (run_id, step_key) WHERE
+ *     dispatch_status IN ('pending','claimed','sent') — which already excludes
+ *     'superseded', i.e. it was written expecting exactly this re-enqueue — plus
+ *     the atomic claim, which only ever flips a row that is still 'pending'. A
+ *     superseded row can never be claimed again regardless of its key.
+ *   • runAck's failure path has always done this (`idempotency_key: null`) so a
+ *     failed send can be retried. Supersession simply now matches it.
+ */
 async function supersedeIntent(store: FollowupStore, intentId: string, reason: string): Promise<void> {
-  await store.updateIntent(intentId, { dispatch_status: "superseded", error: reason })
+  await store.updateIntent(intentId, { dispatch_status: "superseded", error: reason, idempotency_key: null })
 }
 
 // ── Ack (device confirms a send; run advances only on confirm) ─────────────────

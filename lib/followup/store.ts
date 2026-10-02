@@ -107,6 +107,19 @@ export interface FollowupStore {
    * send the same text to the same client.
    */
   claimIntent(intentId: string, patch: Record<string, unknown>): Promise<boolean>
+  /**
+   * The LIVE intent for this (run, step), if one exists — mirrors the partial
+   * index followup_intents_active_step_uidx exactly: dispatch_status IN
+   * ('pending','claimed','sent').
+   *
+   * Exists so enqueueIntent can tell a duplicate tick (a real intent is already
+   * out, so the run genuinely IS due) from a failed insert (nothing is live, so
+   * marking the run due would strand it outside dueWaitingRuns forever).
+   * insertIntent's "duplicate" return cannot distinguish them, because the
+   * Supabase adapter deliberately collapses every insert error into it rather
+   * than risk a double-send.
+   */
+  activeIntentFor(runId: string, stepKey: string): Promise<IntentRow | null>
   pendingIntents(workspaceId: string, limit: number): Promise<IntentRow[]>
   intentById(intentId: string): Promise<IntentRow | null>
   // Latest send_not_before among the workspace's live (pending/claimed) intents —

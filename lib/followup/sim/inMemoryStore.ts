@@ -203,6 +203,14 @@ export class InMemoryFollowupStore implements FollowupStore {
     return true
   }
 
+  /** Same predicate as the DB partial index on (run_id, step_key). */
+  async activeIntentFor(runId: string, stepKey: string): Promise<IntentRow | null> {
+    for (const i of this.intents.values()) {
+      if (i.run_id === runId && i.step_key === stepKey && ["pending", "claimed", "sent"].includes(i.dispatch_status)) return i
+    }
+    return null
+  }
+
   async pendingIntents(workspaceId: string, limit: number): Promise<IntentRow[]> {
     const key = (i: StoredIntent) => (i.send_not_before ? new Date(i.send_not_before).getTime() : new Date(i.created_at).getTime())
     return [...this.intents.values()]

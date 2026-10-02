@@ -172,6 +172,29 @@ export class SupabaseFollowupStore implements FollowupStore {
     return (data ?? []).length === 1
   }
 
+  /** See FollowupStore.activeIntentFor — the exact predicate of the partial index. */
+  async activeIntentFor(runId: string, stepKey: string): Promise<IntentRow | null> {
+    const { data, error } = await supabaseAdmin
+      .from("followup_outbound_intents")
+      .select("*")
+      .eq("run_id", runId)
+      .eq("step_key", stepKey)
+      .in("dispatch_status", ["pending", "claimed", "sent"])
+      .limit(1)
+      .maybeSingle()
+    // On an unreadable answer, report "nothing live". That is the recoverable
+    // direction: the caller leaves the run WAITING with a backoff and re-evaluates
+    // later, which at worst costs one wasted insert attempt that the partial index
+    // rejects anyway. Claiming an intent exists when the read failed would mark the
+    // run `due`, and a wrongly-`due` run is exactly the permanent stall this
+    // method was added to prevent.
+    if (error) {
+      console.error("[followup/store] activeIntentFor failed:", error.message)
+      return null
+    }
+    return (data as unknown as IntentRow) ?? null
+  }
+
   async pendingIntents(workspaceId: string, limit: number): Promise<IntentRow[]> {
     const { data } = await supabaseAdmin
       .from("followup_outbound_intents")
