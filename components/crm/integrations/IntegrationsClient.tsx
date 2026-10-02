@@ -4,7 +4,6 @@ import SettingsShell, { SettingsCard } from "@/components/crm/settings/SettingsS
 import BeastCompanionExtensionSection from "@/components/crm/integrations/BeastCompanionExtensionSection"
 import DeviceEcosystemSection from "@/components/crm/integrations/DeviceEcosystemSection"
 import MetaAdsSection from "@/components/crm/integrations/MetaAdsSection"
-import ConnectedDevicesSection from "@/components/crm/devices/ConnectedDevicesSection"
 
 // Phone Sync lives in its own Beast Companion section below (it's the desktop
 // Companion), so it's no longer a generic "Soon" row here.
@@ -84,8 +83,16 @@ export default function IntegrationsClient({ googleConnected, automatedTextingAu
         </div>
       </SettingsCard>
 
-      {/* Beast Sync — workspace sync status + the paired Macs and their controls. */}
-      <ConnectedDevicesSection />
+      {/* NO second Beast Sync section here.
+          "Beast Sync for macOS" already lives in the Mac + iPhone card above
+          (DeviceEcosystemSection), which reads device_tokens for its Connected
+          pill and version. A ConnectedDevicesSection was rendered here as well,
+          and once it was retitled "Beast Sync" with its own "Open Beast Sync on
+          your Mac / Choose Connect Locator Beast…" steps it read as a competing
+          integration card for the same product.
+          The per-device controls it carried (Pause / Reset Connection /
+          Disconnect) are intentionally gone from this page for now; connection
+          state belongs on the one card above. See the connection-flow audit. */}
     </SettingsShell>
   )
 }
