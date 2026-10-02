@@ -474,7 +474,11 @@ function AiInsightsCard({ leadId, onCloseWorkspace, beastInsight, clientFirstNam
 
         {hasInsights ? (
           <>
-            <ul className="space-y-1.5">
+            {/* space-y-2.5 (10px) — was space-y-1.5 (6px). Visual polish only:
+                `space-y-*` sets margin-top on siblings, so it adds separation
+                BETWEEN bullets and never touches line-height inside a multi-line
+                bullet (each span keeps `leading-snug`). */}
+            <ul className="space-y-2.5">
               {/* Bullet 1 (fixed): the AI lead assessment, reusing the existing
                   Approval / Responsiveness / Close Ratio values (no new AI
                   generation). Same bullet styling as the three below. */}
