@@ -283,37 +283,41 @@ async function main() {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // The CRM control must stay MOUNTED. It existed, correct and complete, for
-  // weeks while being imported by nothing — so "the component exists" is not the
-  // assertion that matters; "something renders it" is.
+  // CONTROL PLACEMENT. By product decision the per-client automation control
+  // lives in BEAST COMPANION, not the Client Workspace. It was briefly mounted
+  // in the CRM and removed again — so this section pins the placement in BOTH
+  // directions: the workspace must not render it, and the shared component plus
+  // the one authoritative route must survive intact for the Companion to drive.
   // ───────────────────────────────────────────────────────────────────────────
-  console.log("\nThe CRM Automated Texts control is mounted and correctly wired")
+  console.log("\nAutomated Texts lives in Beast Companion, not the Client Workspace")
   {
     const dash = readFileSync("components/crm/DashboardClient.tsx", "utf8")
     const toggle = readFileSync("components/crm/AutomatedTextsToggle.tsx", "utf8")
 
-    check("DashboardClient imports the existing control", /import AutomatedTextsToggle from "\.\/AutomatedTextsToggle"/.test(dash))
-    check("…and actually renders it", /<AutomatedTextsToggle/.test(dash))
-    check("…gated on account authorization", /\{automatedTextingAuthorized && \(\s*<AutomatedTextsToggle/.test(dash))
-    check(
-      "…keyed per lead, so one client's state is never shown for another",
-      /<AutomatedTextsToggle[\s\S]{0,200}?key=\{`automated-texts-\$\{selectedLead\.id\}`\}/.test(dash),
-    )
-    check("…seeded from that lead's own enrollment", /initialEnrolled=\{\(selectedLead as any\)\.followup_opt_in === true\}/.test(dash))
+    check("the Client Workspace does NOT render the toggle", !/<AutomatedTextsToggle/.test(dash))
+    check("…and does not import it", !/import AutomatedTextsToggle/.test(dash))
 
-    check('the label is still "Automated Texts"', /title="Automated Texts"/.test(toggle))
+    // Removed from the page, NOT deleted — the Companion depends on both.
+    check("the reusable component still exists", /export default function AutomatedTextsToggle/.test(toggle))
+    check('…still labelled "Automated Texts"', /title="Automated Texts"/.test(toggle))
     check("…with simple On / Off copy", /"On —/.test(toggle) && /"Off —/.test(toggle))
     check(
-      "the authoritative write still goes through the one server route",
+      "…and still writes only through the one server route",
       /fetch\(`\/api\/leads\/\$\{leadId\}\/automated-texting`/.test(toggle),
     )
-    check("…and the control itself touches no table directly", !/supabase|from\(["']leads/.test(toggle))
-    check("…it does not conflate enrollment with SMS consent", !/sms_opt_in/.test(toggle))
+    check("…touching no table directly", !/supabase|from\(["\']leads/.test(toggle))
+    check("…never conflating enrollment with SMS consent", !/sms_opt_in/.test(toggle))
     check("…nor with On Hold", !/held_at|heldAt/.test(toggle))
 
+    // The Companion remains the user-facing control: it posts a verb and the CRM
+    // performs the authoritative flip against the same route.
+    check("the Companion still renders its Automated Texts toggle", /automatedTexting\?\.authorized && \(/.test(readFileSync("apps/beast-companion/src/sidepanel/menu/CompanionMenu.tsx", "utf8")))
+    check("the CRM still handles the Companion verb", /payload\.verb === "automated-texting"/.test(dash))
+    check("…by calling the same enrollment route", /fetch\(`\/api\/leads\/\$\{lead\.id\}\/automated-texting`/.test(dash))
+    check("…and still ships enrollment in the Companion payload", /enrolled: !!\(selectedLead as any\)\.followup_opt_in/.test(dash))
+
     // No surface may write followup_opt_in from the browser: the column's UPDATE is
-    // revoked from `authenticated`/`anon` AND trigger-guarded, so a direct client
-    // write would fail at runtime rather than at review time.
+    // revoked from `authenticated`/`anon` AND trigger-guarded.
     const clientWriters: string[] = []
     for (const f of ["components/crm/DashboardClient.tsx", "components/crm/AutomatedTextsToggle.tsx"]) {
       const src = readFileSync(f, "utf8")
@@ -334,7 +338,6 @@ async function main() {
       !/lead_next_actions/.test(route) && !/lead_next_actions/.test(toggle),
     )
   }
-
 
 }
 
