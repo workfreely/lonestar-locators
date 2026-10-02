@@ -12,7 +12,7 @@ export async function syncAiInsights(leadId: string | number): Promise<void> {
   // 1. Look up lead
   const { data: lead, error: leadError } = await supabaseAdmin
     .from("leads")
-    .select("id, phone")
+    .select("id, phone, workspace_id, owner_user_id")
     .eq("id", leadIdNum)
     .single()
 
@@ -63,6 +63,23 @@ export async function syncAiInsights(leadId: string | number): Promise<void> {
         last_message_rowid: lastMessageRowId,
         last_message_date: lastMessageDate,
         last_synced_at: new Date().toISOString(),
+        // TENANCY — carried from the lead, not inferred.
+        //
+        // ai_client_briefs has RLS: "workspace members access" USING
+        // is_active_workspace_member(workspace_id). A brief written without a
+        // workspace is invisible to EVERY browser session, so the AI Client
+        // Insights card renders its empty state ("Last Beast Sync: Never") while
+        // the row sits there, current and complete, readable only by the service
+        // role. That is exactly what happened to lead 84.
+        //
+        // The canonical trg_ownership trigger does cover this table, but it cannot
+        // help here on two counts: it derives ownership from auth.uid(), which is
+        // NULL for a service-role write, and it is BEFORE INSERT only — this is an
+        // upsert on lead_id, so regenerating a brief takes the UPDATE path and the
+        // trigger never fires. Passing the values explicitly is what the trigger
+        // itself expects: it coalesces to a supplied owner_user_id first.
+        workspace_id: (lead as { workspace_id?: string | null }).workspace_id ?? null,
+        owner_user_id: (lead as { owner_user_id?: string | null }).owner_user_id ?? null,
       },
       { onConflict: "lead_id" }
     )
