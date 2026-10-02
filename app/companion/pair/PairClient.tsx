@@ -87,12 +87,12 @@ export default function PairClient({
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#f7f8fa] px-6">
-      <div className="w-full max-w-md rounded-2xl border border-[var(--beast-border)] bg-white p-8 text-center shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)]">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--beast-blue)]/10 text-[26px]">💬</div>
-        <h1 className="mt-5 text-[22px] font-semibold tracking-tight text-[var(--beast-ink)]">
+      <div className="w-full max-w-md rounded-2xl border border-[rgba(5,7,13,0.08)] bg-white p-8 text-center shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)]">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[rgba(47,107,255,0.10)] text-[26px]">💬</div>
+        <h1 className="mt-5 text-[22px] font-semibold tracking-tight text-[#05070d]">
           Connect this Mac
         </h1>
-        <p className="mt-2 text-[14px] leading-relaxed text-[var(--beast-ink-soft)]">
+        <p className="mt-2 text-[14px] leading-relaxed text-[#4b5162]">
           Authorize Beast Sync on this Mac to sync your Apple Messages into your CRM.
         </p>
 
@@ -100,18 +100,18 @@ export default function PairClient({
             only place the browser's signed-in account becomes visible, and Beast
             Sync may have opened a browser the locator does not normally use. */}
         {status !== "manual" && status !== "handed-off" && (
-          <div className="mt-6 rounded-xl border border-[var(--beast-border)] bg-[#f7f8fa] px-4 py-3 text-left">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--beast-ink-soft)]">
+          <div className="mt-6 rounded-xl border border-[rgba(5,7,13,0.08)] bg-[#f7f8fa] px-4 py-3 text-left">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#4b5162]">
               Connecting to this account
             </p>
             {displayName && (
-              <p className="mt-1.5 text-[14px] font-semibold text-[var(--beast-ink)]">{displayName}</p>
+              <p className="mt-1.5 text-[14px] font-semibold text-[#05070d]">{displayName}</p>
             )}
-            <p className="mt-0.5 break-all text-[13px] text-[var(--beast-ink)]">{email ?? "Unknown account"}</p>
-            <p className="mt-1 text-[12.5px] text-[var(--beast-ink-soft)]">
-              Workspace: <span className="font-medium text-[var(--beast-ink)]">{workspaceName ?? "Unknown workspace"}</span>
+            <p className="mt-0.5 break-all text-[13px] text-[#05070d]">{email ?? "Unknown account"}</p>
+            <p className="mt-1 text-[12.5px] text-[#4b5162]">
+              Workspace: <span className="font-medium text-[#05070d]">{workspaceName ?? "Unknown workspace"}</span>
             </p>
-            <p className="mt-2 text-[11.5px] leading-relaxed text-[var(--beast-ink-soft)]">
+            <p className="mt-2 text-[11.5px] leading-relaxed text-[#4b5162]">
               This Mac&rsquo;s messages will sync into this workspace. If this isn&rsquo;t you, switch accounts first.
             </p>
           </div>
@@ -119,8 +119,8 @@ export default function PairClient({
 
         {status === "manual" ? (
           <div className="mt-6 text-left">
-            <p className="text-[13px] font-medium text-[var(--beast-ink-soft)]">Paste this key into Beast Sync (shown once):</p>
-            <code className="mt-2 block break-all rounded-xl border border-[var(--beast-border)] bg-[#f7f8fa] px-4 py-3 font-mono text-[13px] text-[var(--beast-ink)]">
+            <p className="text-[13px] font-medium text-[#4b5162]">Paste this key into Beast Sync (shown once):</p>
+            <code className="mt-2 block break-all rounded-xl border border-[rgba(5,7,13,0.08)] bg-[#f7f8fa] px-4 py-3 font-mono text-[13px] text-[#05070d]">
               {token}
             </code>
           </div>
@@ -132,7 +132,7 @@ export default function PairClient({
               type="button"
               onClick={approve}
               disabled={busy}
-              className="mt-5 w-full rounded-full bg-[var(--beast-ink)] px-7 py-3.5 text-[15px] font-semibold text-white transition-transform duration-300 hover:scale-[1.02] hover:bg-[var(--beast-blue)] disabled:opacity-60"
+              className="mt-5 w-full rounded-full bg-[#05070d] px-7 py-3.5 text-[15px] font-semibold text-white transition-transform duration-300 hover:scale-[1.02] hover:bg-[#2f6bff] disabled:opacity-60"
             >
               {status === "working" ? "Connecting…" : "Connect This Mac"}
             </button>
@@ -140,7 +140,7 @@ export default function PairClient({
               type="button"
               onClick={switchAccount}
               disabled={busy}
-              className="mt-3 w-full rounded-full border border-[var(--beast-border)] bg-white px-7 py-3 text-[14px] font-semibold text-[var(--beast-ink)] transition-colors hover:bg-[#f4f5f8] disabled:opacity-60"
+              className="mt-3 w-full rounded-full border border-[rgba(5,7,13,0.08)] bg-white px-7 py-3 text-[14px] font-semibold text-[#05070d] transition-colors hover:bg-[#f4f5f8] disabled:opacity-60"
             >
               {status === "switching" ? "Signing out…" : "Switch Account"}
             </button>
