@@ -36,7 +36,11 @@ import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 // metadata: { hold_follow_up_at, from_stage }. 'resumed' = Resume Search cleared
 // the hold, metadata: { to_stage } (the preserved stage it returned to). Both are
 // history only; leads.held_at / hold_follow_up_at hold the durable current state.
-export type LeadTimelineType = "first_contact" | "follow_up" | "contact_attempt" | "text_sent" | "tour_outcome" | "application_outcome" | "lease_signed" | "invoice_sent" | "commission_paid" | "rebate_sent" | "guest_card" | "on_hold" | "resumed"
+// 'criteria_changed' = Client History: one meaningful update to the five tracked
+// search criteria, metadata: { source, changes[] } (see lib/leads/criteriaHistory).
+// ONE event per update, not per field. History only — `leads` remains the source
+// of truth for matching, exactly like every other type here.
+export type LeadTimelineType = "first_contact" | "follow_up" | "contact_attempt" | "text_sent" | "tour_outcome" | "application_outcome" | "lease_signed" | "invoice_sent" | "commission_paid" | "rebate_sent" | "guest_card" | "on_hold" | "resumed" | "criteria_changed"
 export type LeadTimelineMethod = "call" | "text" | "email"
 
 export type TimelineEventInput = {

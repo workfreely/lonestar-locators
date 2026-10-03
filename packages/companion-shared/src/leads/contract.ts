@@ -49,6 +49,28 @@ export const searchCriteriaSchema = z.object({
   source: z.string().nullish(),
 });
 
+/** One criterion's movement within a single Client History entry. Pre-formatted
+ *  display strings — an audit record keeps saying what it said. "" means the
+ *  criterion had no value on that side (a seeded form value has from: ""). */
+export const criteriaChangeSchema = z.object({
+  label: z.string(),
+  from: z.string(),
+  to: z.string(),
+});
+
+/** ONE meaningful client-profile update, which may carry several field changes —
+ *  "within 20 minutes of Lackland AFB" sets a destination AND a maximum, and is
+ *  one thing that happened, so it is one entry. */
+export const clientHistoryEntrySchema = z.object({
+  occurredAt: z.string(),
+  /** "form" | "edit_client" | "conversation" — the machine code. */
+  source: z.string(),
+  /** Already-resolved heading ("Lead Form" / "Manual Edit" / "Client
+   *  Conversation") so the panel needs no source→label table. */
+  sourceLabel: z.string(),
+  changes: z.array(criteriaChangeSchema),
+});
+
 export const creditScreeningSchema = z.object({
   creditScore: z.string().nullish(),
   creditHistory: z.string().nullish(),
@@ -162,6 +184,13 @@ export const leadSummarySchema = z.object({
   holdFollowUpDueAt: z.string().nullish(),
   searchCriteria: searchCriteriaSchema,
   creditScreening: creditScreeningSchema,
+  /** CLIENT HISTORY — structured history of the five tracked search criteria,
+   *  newest first. DISPLAY ONLY: searchCriteria above remains the current truth
+   *  used for matching, and this never feeds it. Not AI Client Insights and not a
+   *  conversation summary. Empty/absent for leads with no recorded change yet —
+   *  including every lead created before this shipped, whose original form values
+   *  were never preserved and are deliberately NOT reconstructed. */
+  clientHistory: z.array(clientHistoryEntrySchema).nullish(),
   workflow: workflowStateSchema,
   /** Most recently COMPLETED workflow action (see lastActionSchema). Null when
    *  nothing has been completed yet — the panel then hides the Last Action row. */
@@ -197,6 +226,8 @@ export const leadSummarySchema = z.object({
   aiInsights: z.array(z.string()).nullish(),
 });
 export type LeadSummaryDTO = z.infer<typeof leadSummarySchema>;
+export type CriteriaChangeDTO = z.infer<typeof criteriaChangeSchema>;
+export type ClientHistoryEntryDTO = z.infer<typeof clientHistoryEntrySchema>;
 
 /** Full detail response: summary + open actions (+ favorites handled separately). */
 export const leadDetailSchema = z.object({

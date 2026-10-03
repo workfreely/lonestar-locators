@@ -8,6 +8,8 @@ import { isValidUsPhone } from "@/lib/utils/formatPhone"
 import { buildEditPatch } from "@/lib/leads/leadFormValues"
 import { withPhoneIdentity } from "@/lib/phone/identity"
 import { verdictForWrite, countAreaSelections } from "@/lib/leads/areaLimit"
+import { criteriaChangedMetadata, diffCriteria } from "@/lib/leads/criteriaHistory"
+import { recordTimelineEvent } from "@/lib/leads/timeline"
 
 // The lead columns Edit Client may change — client CRITERIA + contact + screening
 // only. Deliberately EXCLUDES pipeline/attribution fields (crm_status, priority,
@@ -194,6 +196,21 @@ export default function LeadFormModal({
         alert("Could not save changes")
         return
       }
+      // CLIENT HISTORY. One save = ONE entry, however many of the five tracked
+      // criteria moved — the locator made one update, so the history shows one.
+      //
+      // Diffed against the lead as it was LOADED, not against the form, so a value
+      // retyped identically, respaced, or merely re-saved records nothing; an edit
+      // touching only untracked fields records nothing either. Recorded AFTER the
+      // update has succeeded and deliberately fire-and-forget (recordTimelineEvent
+      // can never throw into the caller), because a history write must never turn a
+      // successful client edit into a failed one.
+      const criteria = criteriaChangedMetadata(
+        "edit_client",
+        diffCriteria(lead as Record<string, unknown>, patch as Record<string, unknown>),
+      )
+      if (criteria) recordTimelineEvent({ leadId: lead.id, type: "criteria_changed", metadata: criteria })
+
       // LATE ATTRIBUTION. The number may have been added to a lead that had none
       // while Beast Sync was already receiving that person's messages; this lets
       // those messages find the lead. Fire-and-forget on purpose: the save has

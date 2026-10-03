@@ -52,6 +52,21 @@ function fmtDue(iso: string | null | undefined, tz: string) {
  * the single gate for conditional rendering: uncollected fields are omitted
  * entirely — never shown as blank, "$0", a placeholder dash, or "Not specified".
  */
+/**
+ * "Oct 3" — the heading date of a Client History entry.
+ *
+ * `new Date()` is CORRECT here and deliberately not formatDateDisplay: occurredAt
+ * is a lead_timeline timestamptz, a real instant, so it must render in the
+ * viewer's local time. formatDateDisplay is for date-only "YYYY-MM-DD" columns
+ * (move_date) and would read the UTC calendar date off this one — turning an edit
+ * made at 11pm Central into the following day.
+ */
+function historyDate(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ""
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+}
+
 function hasValue(v: unknown): boolean {
   if (v === null || v === undefined) return false;
   if (typeof v === "string") return v.trim().length > 0;
@@ -650,6 +665,43 @@ export function LeadPanelBody({
           { label: "Criminal Background", value: cs.criminalBackground },
         ]}
       />
+
+      {/* ── Client History ── structured history of the five tracked search
+          criteria, newest first. NOT AI Client Insights and not a conversation
+          summary: every row is a recorded change to a criterion.
+
+          Display only — SEARCH CRITERIA above stays the current truth used for
+          matching, and nothing here feeds it.
+
+          Always rendered (unlike Client Notes, which hides when empty) so the
+          accordion is a dependable place to look. Leads created before this
+          shipped have no entries: their original form values were never
+          preserved, and inventing them would be worse than an empty state. */}
+      <SectionCard key={`client-history-${lead.id}`} title="Client History" defaultOpen={false}>
+        {(lead.clientHistory ?? []).length === 0 ? (
+          <p className="lp-history-empty">No recorded criteria changes yet.</p>
+        ) : (
+          <div className="lp-history">
+            {(lead.clientHistory ?? []).map((entry, i) => (
+              <div className="lp-history-entry" key={`${entry.occurredAt}-${i}`}>
+                <div className="lp-history-head">
+                  {historyDate(entry.occurredAt)} · {entry.sourceLabel}
+                </div>
+                {entry.changes.map((c, j) => (
+                  <div className="lp-history-row" key={`${c.label}-${j}`}>
+                    <span className="lp-history-label">{c.label}</span>
+                    {/* A seeded form value has no "from" — show the value alone
+                        rather than an arrow pointing out of nothing. */}
+                    <span className="lp-history-value">
+                      {c.from ? `${c.from} → ${c.to || "—"}` : c.to || "—"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </SectionCard>
 
       {/* ── Client Notes ── (read-only, client's form-submitted notes; same
           existing data as the CRM's Client Notes = leads.notes. Locator Notes

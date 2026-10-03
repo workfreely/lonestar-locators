@@ -48,7 +48,44 @@ async function getLeads() {
     return []
   }
 
-  return dedupeLeads(data || [])
+  const leads = dedupeLeads(data || [])
+
+  // CLIENT HISTORY — attached to each lead row rather than threaded through
+  // buildActiveClientPayload as yet another positional argument. That keeps the
+  // DTO builder's signature (and its many call sites and tests) untouched, and
+  // matches how leads are already decorated before they reach the client.
+  //
+  // Scoped to criteria_changed only: Client History is the five tracked search
+  // criteria, never the general activity timeline. Best-effort — a failure here
+  // leaves the accordion empty and must never take the CRM page down.
+  try {
+    const ids = leads.map((l: { id: number }) => l.id).filter((id) => typeof id === "number")
+    if (ids.length > 0) {
+      const { data: history, error: histErr } = await supabase
+        .from("lead_timeline")
+        .select("lead_id, metadata, occurred_at")
+        .eq("type", "criteria_changed")
+        .in("lead_id", ids)
+        .order("occurred_at", { ascending: false })
+      if (histErr) {
+        console.error("Error fetching client history:", histErr.message)
+      } else {
+        const byLead = new Map<number, unknown[]>()
+        for (const row of history ?? []) {
+          const list = byLead.get((row as { lead_id: number }).lead_id)
+          if (list) list.push(row)
+          else byLead.set((row as { lead_id: number }).lead_id, [row])
+        }
+        for (const lead of leads as Array<Record<string, unknown>>) {
+          lead.criteria_history = byLead.get(lead.id as number) ?? []
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Error attaching client history:", e instanceof Error ? e.message : "unknown")
+  }
+
+  return leads
 }
 
 // Open Next Actions PLUS recently-completed ones.

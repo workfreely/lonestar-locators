@@ -49,6 +49,7 @@ import { isValidUsPhone } from "@/lib/utils/formatPhone"
 import { withPhoneIdentity } from "@/lib/phone/identity"
 import { attributeUnattributedMessages } from "@/lib/companion/attribution"
 import { verdictForWrite } from "@/lib/leads/areaLimit"
+import { criteriaChangedMetadata, initialCriteria } from "@/lib/leads/criteriaHistory"
 
 // Server-only client — SUPABASE_SERVICE_ROLE_KEY has no NEXT_PUBLIC_
 // prefix, so it is never bundled into browser JS.
@@ -554,6 +555,32 @@ export async function POST(request: Request) {
 
       data = created
       dedupAction = match.confidence === "possible" ? "possible_duplicate" : "created"
+
+      // CLIENT HISTORY — seed the criteria this lead actually arrived with, as one
+      // "Lead Form" entry. This is the ONLY chance to capture them: nothing else
+      // preserves the original submission, so once a criterion is edited the value
+      // the client first gave is gone.
+      //
+      // Only criteria that were actually supplied are recorded (initialCriteria
+      // omits blanks) — a history entry must never imply the client answered
+      // something they skipped. A form supplying none of the five records nothing.
+      //
+      // Written here with supabaseAdmin rather than recordTimelineEvent, which is
+      // browser-only. Fire-and-forget under try/catch for the same reason that
+      // helper is: a history write must never fail a lead creation.
+      try {
+        const seed = criteriaChangedMetadata("form", initialCriteria(created as Record<string, unknown>))
+        if (seed) {
+          const { error: histErr } = await supabaseAdmin.from("lead_timeline").insert([{
+            lead_id: (created as { id: number }).id,
+            type: "criteria_changed",
+            metadata: seed,
+          }])
+          if (histErr) console.error("[api/leads/submit] criteria history seed failed:", histErr.message)
+        }
+      } catch (e) {
+        console.error("[api/leads/submit] criteria history seed threw:", e instanceof Error ? e.message : "unknown")
+      }
     }
 
     // ─── Beast Sync late attribution ──────────────────────────────────────

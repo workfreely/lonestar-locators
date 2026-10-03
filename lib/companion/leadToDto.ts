@@ -1,4 +1,4 @@
-import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO, RecommendationDTO, FollowUpOverrides } from "@bc/companion-shared"
+import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO, RecommendationDTO, FollowUpOverrides, ClientHistoryEntryDTO } from "@bc/companion-shared"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { visibleRecommendations, favoriteMoveBlock } from "@/lib/leads/propertyCollections"
 import { isClientFavorite } from "@/lib/leads/favoriteOrigin"
@@ -10,6 +10,7 @@ import { getSourceStyle } from "@/lib/leads/sourceStyles"
 import { getArchiveReasonLabel } from "@/lib/leads/archiveReasons"
 import { holdFollowUpInstant } from "@/lib/leads/holdWorkflow"
 import { clientCommuteCriterion } from "@/lib/commute/commuteReason"
+import { SOURCE_LABELS, type CriteriaSource } from "@/lib/leads/criteriaHistory"
 
 // Phase 2 — active-client bridge payload (CRM page → content script → panel).
 //
@@ -207,6 +208,37 @@ function deriveLastAction(
 // open `lead_next_actions` rows. Mirrors the Lead Panel's own field derivations
 // (identity, Search Criteria, Credit Screening, Client Notes, workflow). NO
 // writes, NO workflow mutation — display only.
+/**
+ * `criteria_changed` lead_timeline rows → the Client History DTO, newest first.
+ *
+ * Defensive by design: these rows are jsonb written by an older build of this
+ * code, so a row whose metadata predates (or postdates) the current shape is
+ * SKIPPED rather than rendered half-empty. An entry with no usable changes is
+ * dropped — the panel's empty state is the honest result.
+ */
+function toClientHistory(rows: unknown): ClientHistoryEntryDTO[] {
+  if (!Array.isArray(rows)) return []
+  const out: ClientHistoryEntryDTO[] = []
+  for (const r of rows as Array<Record<string, unknown>>) {
+    const meta = (r?.metadata ?? {}) as { source?: unknown; changes?: unknown }
+    const source = typeof meta.source === "string" ? meta.source : ""
+    if (!source || !Array.isArray(meta.changes)) continue
+    const changes = (meta.changes as Array<Record<string, unknown>>)
+      .filter((c) => c && typeof c.label === "string")
+      .map((c) => ({ label: String(c.label), from: String(c.from ?? ""), to: String(c.to ?? "") }))
+    if (changes.length === 0) continue
+    out.push({
+      occurredAt: String(r.occurred_at ?? r.created_at ?? ""),
+      source,
+      sourceLabel: SOURCE_LABELS[source as CriteriaSource] ?? "Update",
+      changes,
+    })
+  }
+  // Newest first. Sorted here rather than trusted from the query so the order holds
+  // whatever the caller passes in.
+  return out.sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())
+}
+
 export function buildActiveClientPayload(
   lead: any,
   nextActions: any[] = [],
@@ -340,6 +372,10 @@ export function buildActiveClientPayload(
       // truth as LeadSourceBadge): "instagram_ads" → "Instagram Ads".
       source: str(lead.source) ? getSourceStyle(lead.source).label : null,
     },
+    // CLIENT HISTORY — read off the lead row, which the server page decorates with
+    // its `criteria_changed` lead_timeline rows. Display only: it never feeds
+    // searchCriteria above, which stays the current truth used for matching.
+    clientHistory: toClientHistory(lead.criteria_history),
     creditScreening: {
       creditScore: str(lead.credit_score),
       creditHistory: str(lead.credit_history),

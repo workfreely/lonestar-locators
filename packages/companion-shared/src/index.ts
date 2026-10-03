@@ -90,6 +90,8 @@ export {
 export type {
   NextActionDTO,
   LeadSummaryDTO,
+  ClientHistoryEntryDTO,
+  CriteriaChangeDTO,
   InvoiceSummaryDTO,
   LeadDetailDTO,
   FavoriteDTO,
