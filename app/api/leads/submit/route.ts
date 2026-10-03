@@ -534,10 +534,38 @@ export async function POST(request: Request) {
               ...(wsId ? { workspace_id: wsId } : {}),
             }
           : result.payload
-      const insertPayload =
-        match.confidence === "possible" && match.matchedLead
+      // OUT OF OFFICE — stamp the lead if its workspace is away RIGHT NOW.
+      //
+      // Read once, here, and frozen onto the lead. Deciding this later from the
+      // workspace's then-current state would mean flipping the toggle silently
+      // changed how already-created leads are treated. Only the new_lead opening
+      // pair is affected (lib/followup/engine lifecycleSeed); everything else
+      // about intake is unchanged, and a failure leaves the stamp NULL — the lead
+      // is created either way, and the worst case is the normal opening sequence,
+      // never a lost lead.
+      let oooHeldAt: string | null = null
+      if (wsId) {
+        try {
+          const { data: ws } = await supabaseAdmin
+            .from("workspaces")
+            .select("out_of_office_enabled")
+            .eq("id", wsId)
+            .maybeSingle()
+          if ((ws as { out_of_office_enabled?: boolean } | null)?.out_of_office_enabled) {
+            oooHeldAt = new Date().toISOString()
+          }
+        } catch (e) {
+          console.error("[api/leads/submit] OOO check failed:", e instanceof Error ? e.message : "unknown")
+        }
+      }
+      const insertPayload = {
+        ...(match.confidence === "possible" && match.matchedLead
           ? { ...basePayload, possible_duplicate_of: (match.matchedLead as any).id }
-          : basePayload
+          : basePayload),
+        // Omitted entirely when not OOO, so a normal lead's row is byte-identical
+        // to before this change.
+        ...(oooHeldAt ? { ooo_held_at: oooHeldAt } : {}),
+      }
 
       const { data: created, error: insertError } = await supabaseAdmin
         .from("leads")

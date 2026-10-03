@@ -71,6 +71,23 @@ function lifecycleSeed(
 ): { sequence_key: string; step_key: string; step_index: number; next_eligible_at: string } | null {
   switch (applicable) {
     case "new_lead": {
+      // OUT OF OFFICE — this lead arrived while the locator was away, so the
+      // normal two-text opening ("I got your form!" → "a specific address or side
+      // of town?") must not fire: it would promise an immediacy nobody is there to
+      // deliver. Returning null is the SAME path the staleness guard below already
+      // uses, so no run and no intent is ever created — suppression at the source,
+      // not a queued message waiting to escape later. No t1 means no t2, since t2
+      // is only scheduled by advanceRun once t1 is ACKed.
+      //
+      // Deliberately keyed on the LEAD's stamp, never the workspace's current
+      // state: toggling OOO off must not retroactively change how a lead created
+      // weeks ago is handled. The stamp is permanent history and is never cleared;
+      // manual resume will use separate state.
+      //
+      // Scoped to new_lead ONLY. list_sent, done_selecting, application_status,
+      // tours and resume-search are untouched, and a lead with ooo_held_at = null
+      // takes exactly the path it always did.
+      if (row.ooo_held_at) return null
       // The ONLY windowed sequence: Text 1's copy names the form the client just
       // submitted, so a lead created days ago must not be back-filled into it.
       const createdAt = row.created_at ? new Date(row.created_at).getTime() : 0
