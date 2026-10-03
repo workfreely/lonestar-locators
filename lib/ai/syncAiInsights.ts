@@ -90,17 +90,25 @@ export async function syncAiInsights(leadId: string | number): Promise<SyncAiIns
     // every message-derived field survive untouched.
     const { data: existing } = await supabaseAdmin
       .from("ai_client_briefs")
-      .select("message_count")
+      .select("message_count, last_synced_at")
       .eq("lead_id", leadIdNum)
       .maybeSingle()
-    const existingCount = (existing as { message_count?: number | null } | null)?.message_count ?? 0
-    if (existing && existingCount > 0) {
-      const { error: stampErr } = await supabaseAdmin
-        .from("ai_client_briefs")
-        .update({ last_synced_at: lastSyncedAt, ...tenancy })
-        .eq("lead_id", leadIdNum)
-      if (stampErr) throw new Error(`Failed to record the check: ${stampErr.message}`)
-      return { status: "no_messages", messageCount: 0, lastSyncedAt, preservedExistingBrief: true }
+    const existingRow = existing as { message_count?: number | null; last_synced_at?: string | null } | null
+    const existingCount = existingRow?.message_count ?? 0
+    if (existingRow && existingCount > 0) {
+      // A TRUE NO-OP — not even last_synced_at moves.
+      //
+      // "Last Beast Sync" is read as the last successful check BACKING the insights
+      // on screen. An anomalous zero-message read validates nothing, so stamping it
+      // would make stale intelligence look freshly confirmed — the one thing that
+      // timestamp must never do. The brief is returned exactly as it stands, and the
+      // reported timestamp is the EXISTING one, not now.
+      return {
+        status: "no_messages",
+        messageCount: 0,
+        lastSyncedAt: existingRow.last_synced_at ?? lastSyncedAt,
+        preservedExistingBrief: true,
+      }
     }
 
     const { error: emptyErr } = await supabaseAdmin.from("ai_client_briefs").upsert(

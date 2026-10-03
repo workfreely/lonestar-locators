@@ -143,32 +143,42 @@ console.log("\nAn existing non-empty brief CANNOT be clobbered by a zero-message
   const zero = i >= 0 ? code.slice(i, i + 2600) : ""
   check(
     "the zero branch READS the existing brief before writing",
-    /\.from\("ai_client_briefs"\)\s*\.select\("message_count"\)[\s\S]{0,120}\.eq\("lead_id", leadIdNum\)/.test(zero),
+    /\.from\("ai_client_briefs"\)\s*\.select\("message_count, last_synced_at"\)[\s\S]{0,120}\.eq\("lead_id", leadIdNum\)/.test(zero),
   )
   check(
     "…and branches on an existing non-empty brief",
-    /if \(existing && existingCount > 0\)/.test(zero),
+    /if \(existingRow && existingCount > 0\)/.test(zero),
   )
   check(
     "…with existingCount READ from that row, never hardcoded",
-    /const existingCount = \(existing as \{[^}]*\} \| null\)\?\.message_count \?\? 0/.test(zero),
+    /const existingCount = existingRow\?\.message_count \?\? 0/.test(zero),
     "a constant here would make the guard dead code while the shape still looks right",
   )
-  check(
-    "…preserving it with an UPDATE, never an upsert",
-    /if \(existing && existingCount > 0\) \{[\s\S]{0,400}\.update\(\{ last_synced_at: lastSyncedAt/.test(zero),
-    "an upsert would replace insights/last_conversation; only last_synced_at may move",
-  )
   {
-    // The preserve path must touch ONLY the check timestamp (+ tenancy).
-    const j = zero.indexOf("if (existing && existingCount > 0)")
-    const preserve = j >= 0 ? zero.slice(j, j + 500) : ""
-    check("…it never writes insights", !/insights:/.test(preserve))
-    check("…never writes last_conversation", !/last_conversation:/.test(preserve))
-    check("…never writes message_count", !/message_count:/.test(preserve))
-    check("…never writes last_message_rowid / last_message_date", !/last_message_(rowid|date):/.test(preserve))
-    check("…but still carries tenancy", /\.\.\.tenancy/.test(preserve))
-    check("…and a failed stamp still throws", /if \(stampErr\) throw new Error/.test(preserve))
+    // The protected path must be a TRUE NO-OP: no write of any kind, so the whole
+    // row survives — including last_synced_at, which must keep representing the last
+    // check that actually BACKS the insights on screen. Stamping it would make stale
+    // intelligence look freshly validated.
+    const j = zero.indexOf("if (existingRow && existingCount > 0)")
+    const brace = zero.indexOf("\n    }", j)
+    const preserve = j >= 0 && brace > j ? zero.slice(j, brace) : ""
+    check("the protected branch body was located", preserve.length > 0)
+    check("…performs NO update", !/\.update\(/.test(preserve))
+    check("…performs NO upsert", !/\.upsert\(/.test(preserve))
+    check("…performs NO insert or delete", !/\.(insert|delete)\(/.test(preserve))
+    for (const col of ["insights", "last_conversation", "message_count", "last_message_rowid", "last_message_date", "last_synced_at"]) {
+      check(`…never writes ${col}`, !new RegExp(`${col}:\\s`).test(preserve))
+    }
+    check(
+      "…returns the EXISTING last_synced_at, not now",
+      /lastSyncedAt: existingRow\.last_synced_at \?\? lastSyncedAt/.test(preserve),
+      "reporting `now` would imply the stale insights were just re-validated",
+    )
+    check("…and still reports preservedExistingBrief: true", /preservedExistingBrief: true/.test(preserve))
+    check(
+      "…it returns BEFORE reaching any write",
+      preserve.includes("return {"),
+    )
   }
   check(
     "the empty-row write is reachable only when there is no non-empty brief",
