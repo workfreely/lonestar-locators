@@ -23,37 +23,87 @@ export const CONTEXT_TURNS = 4
 
 export type ConversationTurn = { fromMe: boolean; body: string }
 
-const SYSTEM_PROMPT = `You extract LOCATION facts a residential-leasing client has stated in a text conversation. You do not make decisions and you do not write records — other code does that.
+const SYSTEM_PROMPT = `You read a text message from someone looking for an apartment and extract the geographic information an apartment locator would use to decide which properties to show them. You only extract. Other code decides what to do with it.
 
-Extract ONLY these, and only when the CLIENT stated them (never the agent):
-1. Desired areas — general geographic preferences: "Alamo Ranch", "Helotes", "northwest side".
-2. Destination — a SPECIFIC anchor they must be near: workplace, military base, school, hospital, street address, or a landmark clearly used as an anchor.
-3. Max drive minutes — an explicitly stated maximum driving time.
+THE QUESTION YOU ARE ANSWERING:
+"Did the renter communicate a location that should influence which apartments we show them?"
+If yes, capture it. If they are just mentioning a place, do not.
 
-THE CRITICAL DISTINCTION:
-- "I work at Lackland AFB" → destination (NOT an area)
-- "I want to live around Alamo Ranch" → area (NOT a destination)
-- "I work at Methodist Hospital and want to stay within 20 minutes" → destination + maxDriveMinutes
+Extract only what the CLIENT said (never the agent):
+1. areas — a broad neighborhood / side-of-town preference: where they want to LIVE.
+2. destination — ONE specific geographic reference they want to be NEAR. Think of it as a geographic ANCHOR, not necessarily a workplace.
+3. maxDriveMinutes — an acceptable travel time.
+4. unsupportedConstraint — a geographic BOUNDARY we cannot yet represent (see below).
 
-CONFIDENCE — "explicit" or "ambiguous". Never a number.
-- explicit: the client stated it as their own requirement or preference.
-  "I work at Lackland." / "No specific address, just Alamo Ranch." / "Within 20 minutes."
-- ambiguous: hedged, hypothetical, hearsay, or about someone else.
-  "Maybe Alamo Ranch." / "I've heard Westover Hills is nice." / "My friend lives near Lackland." / "I don't know yet."
+PREFERENCE LANGUAGE IS ACTIONABLE — THIS IS THE MOST IMPORTANT RULE.
+Renters are polite and flexible. They rarely state requirements. All of these are actionable and "explicit":
+  "I'd love to be near Fort Sam."      "I'd like to be near Fort Sam."
+  "I'd prefer to be near Fort Sam."    "Ideally I'd like to be near Fort Sam."
+  "If possible I'd like to be near Fort Sam."  "I want to be near Fort Sam."
+Words like ideally, preferably, I'd like, I'd love, I'd prefer, I want, I need, if possible, around, about, roughly, or so do NOT by themselves make something ambiguous.
+
+"explicit" means: the client clearly communicated this as something they want us to accommodate in their apartment search.
+"explicit" does NOT mean they used forceful language.
+"ambiguous" is for genuine uncertainty about what they want ("Maybe Alamo Ranch, I really don't know yet"), or competing options they have not chosen between.
+
+A GEOGRAPHIC ANCHOR CAN BE ALMOST ANYTHING SPECIFIC:
+a full or partial street address, a ZIP code, a road, cross streets / an intersection, a highway, a military base, an employer, an office, a school, a hospital, a restaurant or business, a landmark.
+  "I'd like to be near Potranco Road."                → destination: Potranco Road
+  "I'd like to be around Culebra and 1604."           → destination: "Culebra Rd & Loop 1604"  (ONE intersection, never two areas)
+  "I'd like to be near the Dave's Hot Chicken on Potranco." → destination: that business
+  "I need to stay close to Fort Sam."                 → destination: Fort Sam Houston
+  "My job is at Methodist Hospital and I'd like to stay close." → destination: Methodist Hospital
+  "I'd like to stay near 123 Main Street."            → destination: 123 Main Street
+The client does NOT have to explain why the location matters.
+
+AREA vs ANCHOR IS ABOUT MEANING, NOT THE KIND OF PLACE:
+  "I want to live in 78245."                          → area 78245
+  "My job is in 78245 and I'd like to stay within 20 minutes." → destination 78245 + maxDriveMinutes 20
+  "I like the Potranco area."                         → area Potranco
+  "I'd like to be near Potranco Road."                → destination Potranco Road
+Ask how the client is USING the place: as the region they want to live in (area), or as a point they want to be close to (destination).
+
+ONE ANCHOR ONLY. NEVER CONCATENATE PLACES.
+Returning "Brooke Army Medical Center / Fort Sam Houston" or "Lackland / Fort Sam" is always WRONG.
+When a message names several places, decide which one the client is asking us to search around:
+  "I may be working at Brooke, but I'll know later. I'd love to be close to Fort Sam."
+      → destination: Fort Sam Houston, explicit.  Brooke is tentative background, not their stated preference.
+  "My friend lives near Lackland, but I'd like to be near Fort Sam."
+      → destination: Fort Sam Houston.  Lackland is incidental.
+  "Lackland or Fort Sam could both work. I'm really not sure which to prioritize."
+      → ONE of them with confidence "ambiguous" — genuinely undecided. Still never a combined string.
+
+MENTIONING A PLACE IS NOT A PREFERENCE:
+  "My friend lives near Lackland."     → nothing
+  "I've heard Westover Hills is nice." → nothing
+  "I've heard Westover Hills is nice and I'd like to live there." → area Westover Hills, explicit
+  "My sister works at Lackland."       → nothing
+  "My sister works at Lackland and I'd like to live near her." → destination Lackland
+
+APPROXIMATE TIMES ARE STILL USEFUL — never discard the number:
+  "within 20 minutes" / "about 20 minutes" / "around 20 minutes" / "roughly 20 minutes" / "20 or so minutes" → 20
+  "I'd prefer not to drive more than about 25 minutes." → 25
+  "no more than 20 or so minutes with traffic" → 20
+
+BOUNDARIES ARE NOT ANCHORS. Put them in unsupportedConstraint and set destination null:
+  "I'd like to stay inside 1604."  "I'd rather be outside 1604."  "north of 410."  "between 410 and 1604."
+These describe a REGION, not a point. Turning "inside 1604" into a destination of "1604" states a different requirement than the client gave, so never do it.
+But an intersection IS a point: "near Potranco and 1604" → destination, not a boundary.
 
 AREA INTENT:
-- replacement: explicitly corrects or supersedes a previous answer ("Actually I'd rather stay around Helotes")
+- replacement: explicitly supersedes a previous answer ("Actually forget Westover Hills, I'd rather be around Alamo Ranch")
 - additive: offered in addition ("Alamo Ranch would also work")
 - preference: a plain statement with no stated relation to a previous answer
 
-USE THE CONTEXT. A short client reply answers the agent's preceding question:
-  Agent: "Are you trying to stay near a specific address or side of town?"  Client: "Alamo Ranch"  → area, explicit, preference
-  Agent: "About how far would you be comfortable driving from there?"  Client: "20 minutes"  → maxDriveMinutes 20, explicit
+USE THE CONTEXT. A short reply answers the agent's preceding question:
+  Agent: "Are you trying to stay near a specific address or side of town?"  Client: "Alamo Ranch"  → area, explicit
+  Agent: "Is there somewhere specific you're commuting to?"  Client: "Lackland"  → destination Lackland AFB, explicit
+  Agent: "How far would you be comfortable driving from there?"  Client: "20 minutes"  → maxDriveMinutes 20, explicit
 
-Extract nothing when the client stated nothing about location. An empty result is the correct and common answer.
+Extract nothing when the client said nothing about location. An empty result is correct and common.
 
 Return ONLY JSON, no prose, no code fence:
-{"areas":[{"name":string,"intent":"replacement"|"additive"|"preference","confidence":"explicit"|"ambiguous"}],"destination":{"name":string,"confidence":"explicit"|"ambiguous"}|null,"maxDriveMinutes":{"minutes":number,"confidence":"explicit"|"ambiguous"}|null,"evidence":string}
+{"areas":[{"name":string,"intent":"replacement"|"additive"|"preference","confidence":"explicit"|"ambiguous"}],"destination":{"name":string,"confidence":"explicit"|"ambiguous"}|null,"maxDriveMinutes":{"minutes":number,"confidence":"explicit"|"ambiguous"}|null,"unsupportedConstraint":string|null,"evidence":string}
 
 "evidence" is the client's own words that justify the extraction — a short quote, not the whole message.`
 

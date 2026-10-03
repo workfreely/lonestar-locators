@@ -149,6 +149,29 @@ console.log("\nNEVER DELETE ON MENTION; NEVER INVENT:")
     reconcileLocation({ lead: { ...ANCHORED, commute_max_minutes: 20 }, facts: F({ maxDriveMinutes: max(20) }) }).changes.length === 0)
 }
 
+console.log("\nUNSUPPORTED GEOGRAPHIC BOUNDARIES — surfaced, never written:")
+{
+  // "inside 1604" / "north of 410" describe a REGION, not a point. The only
+  // shaped slot V1 has is a point anchor, so forcing one in would state a
+  // different requirement than the client gave. Flagged instead of guessed.
+  const b = reconcileLocation({ lead: BLANK, facts: F({ unsupportedConstraint: "inside 1604" }) })
+  ok("a boundary writes NOTHING", Object.keys(b.patch).length === 0 && b.changes.length === 0)
+  ok("…and is flagged for review", b.needsReview && b.notes.includes("unsupported_geographic_constraint"))
+  // It must never be silently dropped either — the note is the record that we saw it.
+  ok("…never silently discarded", b.notes.includes("unsupported_geographic_constraint"))
+  // A boundary alongside a genuine fact must not block that fact.
+  const mixed = reconcileLocation({
+    lead: ANCHORED,
+    facts: F({ unsupportedConstraint: "north of 410", maxDriveMinutes: max(20) }),
+  })
+  ok("a genuine Max Drive in the same message STILL applies", mixed.patch.commute_max_minutes === 20)
+  ok("…while the boundary still raises review", mixed.needsReview)
+  // And the schema must actually carry the field.
+  ok("the contract has a place for it",
+    locationFactsSchema.safeParse({ unsupportedConstraint: "inside 1604" }).success)
+  ok("…defaulting to absent", locationFactsSchema.parse({}).unsupportedConstraint == null)
+}
+
 console.log("\nUNRESOLVED DESTINATION WRITES NOTHING:")
 {
   const r = reconcileLocation({ lead: BLANK, facts: F({ destination: dest("Methodist Hospital") }), resolvedDestination: null })

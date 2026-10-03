@@ -73,13 +73,27 @@ export const locationFactsSchema = z.object({
       confidence: confidenceSchema,
     })
     .nullish(),
+  /**
+   * A geographic instruction V1 cannot represent — a BOUNDARY rather than a point:
+   * "inside 1604", "north of 410", "between 410 and 1604".
+   *
+   * It exists so the model has somewhere honest to put these. Without it the only
+   * shaped slot is `destination`, and "inside 1604" would become a point anchor on
+   * Loop 1604 — a different requirement from the one the client stated, applied
+   * silently. Captured here it is neither written nor lost: reconciliation flags
+   * it for review.
+   *
+   * Carries no structure on purpose. Supporting boundaries properly is a later
+   * decision, not something to improvise a representation for now.
+   */
+  unsupportedConstraint: z.string().nullish(),
   /** The client's own words that justify the above — for audit, never for display. */
   evidence: z.string().default(""),
 })
 
 export type LocationFacts = z.infer<typeof locationFactsSchema>
 
-export const EMPTY_FACTS: LocationFacts = { areas: [], destination: null, maxDriveMinutes: null, evidence: "" }
+export const EMPTY_FACTS: LocationFacts = { areas: [], destination: null, maxDriveMinutes: null, unsupportedConstraint: null, evidence: "" }
 
 /**
  * Does this message plausibly contain a location statement at all?

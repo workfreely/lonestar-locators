@@ -80,6 +80,15 @@ export function reconcileLocation({ lead, facts, resolvedDestination }: Reconcil
   if (facts.destination && !destination) notes.push("ambiguous_destination_ignored")
   if (facts.maxDriveMinutes && !maxDrive) notes.push("ambiguous_max_drive_ignored")
 
+  // A BOUNDARY the schema cannot represent ("inside 1604", "north of 410").
+  // Surfaced, never written: it is a region, and the only shaped slot for it would
+  // be a point anchor — which would state a different requirement than the client
+  // gave. Review is the honest outcome until boundaries are supported properly.
+  if (facts.unsupportedConstraint) {
+    notes.push("unsupported_geographic_constraint")
+    needsReview = true
+  }
+
   // ── DESTINATION (rule 2, 6) ──────────────────────────────────────────────
   // Written to its own columns. It never touches neighborhoods, so a client who
   // names where they work keeps the areas they already gave us (rule 3).
