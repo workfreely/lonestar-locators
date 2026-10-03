@@ -1,5 +1,6 @@
 import type { LocationFacts } from "./locationFacts"
 import { diffCriteria, type CriteriaChange } from "@/lib/leads/criteriaHistory"
+import { displayDestinationLabel } from "@/lib/commute/destinationAliases"
 
 /**
  * RECONCILIATION — what, if anything, should actually change.
@@ -95,8 +96,26 @@ export function reconcileLocation({ lead, facts, resolvedDestination }: Reconcil
   if (destination) {
     if (resolvedDestination?.placeId) {
       const currentPlaceId = String(lead.commute_anchor_place_id ?? "").trim()
+      const currentLabel = displayDestinationLabel(lead.commute_anchor_label as string | null | undefined)
+      const resolvedLabel = displayDestinationLabel(resolvedDestination.label)
       if (currentPlaceId === resolvedDestination.placeId) {
         notes.push("destination_unchanged")
+      } else if (currentPlaceId && currentLabel && currentLabel === resolvedLabel) {
+        // IDENTITY STABILITY — same anchor, different Google row.
+        //
+        // Large destinations have several place ids: the alias bank already notes
+        // that Fort Sam has at least three. A client restating where they work
+        // ("I'd love to be close to Fort Sam Houston") says nothing new about their
+        // destination, but Text Search can return a different id than the one the
+        // locator originally picked. Writing it would silently re-point the client's
+        // whole search and invalidate every cached drive time — a change the client
+        // never asked for, and one Client History could not even show, since the
+        // label either side is identical.
+        //
+        // Equivalence is EXACT equality of the canonical label from the existing
+        // alias bank — not fuzzy matching, and not a second alias system. When the
+        // canonical labels genuinely differ, the normal replacement path below runs.
+        notes.push("destination_same_canonical_anchor")
       } else {
         patch.commute_anchor_label = resolvedDestination.label
         patch.commute_anchor_place_id = resolvedDestination.placeId

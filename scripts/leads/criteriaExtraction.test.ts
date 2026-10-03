@@ -172,6 +172,72 @@ console.log("\nUNSUPPORTED GEOGRAPHIC BOUNDARIES — surfaced, never written:")
   ok("…defaulting to absent", locationFactsSchema.parse({}).unsupportedConstraint == null)
 }
 
+console.log("\nANCHOR IDENTITY STABILITY — a new Place ID is not a client change:")
+{
+  // Large destinations have several Google place ids (the alias bank notes Fort
+  // Sam has at least three). A client restating where they work says nothing new
+  // about their destination, so a different id for the SAME canonical anchor must
+  // never re-point their search.
+  const FS_OLD = "ChIJ_FORTSAM_OLD", FS_NEW = "ChIJ_FORTSAM_NEW"
+  const anchored = { ...BLANK, commute_anchor_label: "Fort Sam", commute_anchor_place_id: FS_OLD }
+
+  // 1. Same anchor, same id → nothing at all.
+  {
+    const r = reconcileLocation({ lead: anchored, facts: F({ destination: dest("Fort Sam") }), resolvedDestination: { label: "Fort Sam", placeId: FS_OLD } })
+    ok("same canonical anchor + same Place ID → no anchor change",
+      !("commute_anchor_place_id" in r.patch) && r.notes.includes("destination_unchanged"))
+  }
+  // 2. Same anchor, DIFFERENT id → existing id preserved.
+  {
+    const r = reconcileLocation({ lead: anchored, facts: F({ destination: dest("Fort Sam Houston") }), resolvedDestination: { label: "Fort Sam", placeId: FS_NEW } })
+    ok("same canonical anchor + different Place ID → existing ID preserved",
+      !("commute_anchor_place_id" in r.patch) && !("commute_anchor_label" in r.patch))
+    ok("…noted as an equivalent anchor", r.notes.includes("destination_same_canonical_anchor"))
+    ok("…NO destination change reaches Client History", r.changes.length === 0)
+    ok("…and needsReview stays false", r.needsReview === false)
+  }
+  // 3. An ALIAS variation of the same place → same canonical label → preserved.
+  {
+    const r = reconcileLocation({
+      lead: anchored,
+      facts: F({ destination: dest("Joint Base San Antonio: Fort Sam Houston") }),
+      // What the resolver would hand back BEFORE aliasing is irrelevant; what
+      // matters is that both sides canonicalize through the SAME bank.
+      resolvedDestination: { label: "Joint Base San Antonio: Fort Sam Houston", placeId: FS_NEW },
+    })
+    ok("an alias variation resolving to the same canonical anchor → existing ID preserved",
+      !("commute_anchor_place_id" in r.patch) && r.notes.includes("destination_same_canonical_anchor"))
+  }
+  // 4. A genuinely different destination must still replace.
+  {
+    const r = reconcileLocation({ lead: anchored, facts: F({ destination: dest("Lackland AFB") }), resolvedDestination: { label: "Lackland AFB", placeId: "ChIJ_LACKLAND" } })
+    ok("a genuinely DIFFERENT canonical destination is NOT suppressed",
+      r.patch.commute_anchor_place_id === "ChIJ_LACKLAND" && r.notes.includes("destination_set"))
+    ok("…and it IS recorded in Client History", r.changes.some((c) => c.label === "Commute / Destination"))
+  }
+  // 5. The Ka'Leah shape: equivalent anchor + a genuine new maximum.
+  {
+    const r = reconcileLocation({
+      lead: anchored,
+      facts: F({ destination: dest("Fort Sam Houston"), maxDriveMinutes: max(20) }),
+      resolvedDestination: { label: "Fort Sam", placeId: FS_NEW },
+    })
+    ok("equivalent anchor + new Max Drive → ONLY the maximum is written",
+      JSON.stringify(r.patch) === JSON.stringify({ commute_max_minutes: 20 }), JSON.stringify(r.patch))
+    ok("…and Client History shows exactly one change: Max Drive",
+      r.changes.length === 1 && r.changes[0].label === "Max Drive" && r.changes[0].to === "20 min")
+  }
+  // The rule must not fire when there is no existing anchor to preserve.
+  {
+    const r = reconcileLocation({ lead: BLANK, facts: F({ destination: dest("Fort Sam") }), resolvedDestination: { label: "Fort Sam", placeId: FS_NEW } })
+    ok("a lead with NO anchor still gets one (the rule never blocks a first write)",
+      r.patch.commute_anchor_place_id === FS_NEW)
+  }
+  ok("equivalence uses the existing alias bank, not a second system",
+    /displayDestinationLabel/.test(strip(read("lib/criteria/reconcileLocation.ts"))) &&
+    !/levenshtein|fuzzy|similarity|startsWith|includes\(/.test(strip(read("lib/criteria/reconcileLocation.ts")).split("IDENTITY STABILITY")[1]?.slice(0, 600) ?? ""))
+}
+
 console.log("\nUNRESOLVED DESTINATION WRITES NOTHING:")
 {
   const r = reconcileLocation({ lead: BLANK, facts: F({ destination: dest("Methodist Hospital") }), resolvedDestination: null })
