@@ -316,6 +316,9 @@ function AiInsightsCard({ leadId, onCloseWorkspace, beastInsight, clientFirstNam
   // normal empty state, rendered muted (never the red error path). Genuine failures
   // (network/server/etc.) still go through syncError. Reset on lead change + each sync.
   const [noMessages, setNoMessages] = useState(false)
+  // TRANSIENT by design: "nothing new since your last check" describes THIS click,
+  // not a durable fact about the lead, so it is deliberately not persisted.
+  const [noNewMessages, setNoNewMessages] = useState(false)
   // Beast Sync has never been connected on any Mac in this workspace. A DISTINCT
   // cause from "this client has no messages", and the one the old single sentence
   // mis-attributed to the client.
@@ -356,6 +359,7 @@ function AiInsightsCard({ leadId, onCloseWorkspace, beastInsight, clientFirstNam
     initialOpenSet.current = false
     setOpen(false)
     setNoMessages(false)
+    setNoNewMessages(false)
     // Reset the CAUSE too. Without this, a lead that showed "Beast Sync isn't
     // connected yet" left notConnected=true, and selecting a different lead showed
     // that same copy before any sync had run for them.
@@ -372,6 +376,7 @@ function AiInsightsCard({ leadId, onCloseWorkspace, beastInsight, clientFirstNam
     setSyncing(true)
     setSyncError(null)
     setNoMessages(false)
+    setNoNewMessages(false)
     setNotConnected(false)
     try {
       const res = await fetch("/api/ai-insights/sync", {
@@ -394,6 +399,15 @@ function AiInsightsCard({ leadId, onCloseWorkspace, beastInsight, clientFirstNam
           setSyncError(json?.error ?? "Sync failed")
         }
       } else {
+        // Zero messages is now a SUCCESS (200) carrying a structured result, not a
+        // 400. Distinguish "nothing there at all" from "nothing NEW since the last
+        // check" — the latter is deliberately transient and needs no persistence.
+        const prevCount = brief?.message_count ?? null
+        if (json?.status === "no_messages") {
+          setNoMessages(true)
+        } else if (json?.status === "insights" && prevCount !== null && json?.messageCount === prevCount) {
+          setNoNewMessages(true)
+        }
         loadBrief()
       }
     } catch {
@@ -469,7 +483,14 @@ function AiInsightsCard({ leadId, onCloseWorkspace, beastInsight, clientFirstNam
 
       {open && <div className="px-4 py-3 space-y-2">
         {syncError && (
-          <p className="text-[12px] text-red-500 italic">{syncError}</p>
+          <p className="text-[12px] text-red-500 italic">Unable to check messages. Try again.</p>
+        )}
+        {/* TRANSIENT confirmation that a manual check completed and found nothing
+            new. Deliberately not persisted — it describes this click, not a durable
+            fact about the lead. Same muted treatment as the other status copy; the
+            insight bullets and Last Conversation below are untouched. */}
+        {!syncError && noNewMessages && (
+          <p className="text-[11px] text-[var(--crm-text-muted)]">No new messages since last sync.</p>
         )}
 
         {hasInsights ? (
@@ -517,7 +538,18 @@ function AiInsightsCard({ leadId, onCloseWorkspace, beastInsight, clientFirstNam
                 locator cannot act on differently. `notConnected` and `noMessages`
                 are still tracked — they drive nothing here now, and remain for the
                 Beast Sync card, which is where a setup gap belongs. */}
-            {syncError ? null : "Click Sync to check for messages."}
+            {syncError
+              ? null
+              : syncing
+                ? "Checking for messages…"
+                : /* A brief row with message_count 0 is the RECORD of a successful
+                     check that found nothing — a positive assertion, never inferred
+                     from a missing row. `brief === null` therefore still means
+                     "never checked", which is also the safe fallback if a brief is
+                     ever hidden by RLS again. */
+                  noMessages || (brief != null && brief.message_count === 0)
+                  ? "No messages found."
+                  : "Click Sync to check for messages."}
           </p>
         )}
       </div>}
