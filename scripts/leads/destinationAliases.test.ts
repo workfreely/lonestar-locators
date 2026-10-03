@@ -123,10 +123,16 @@ console.log("\nCONSUMED IN ALL FOUR SURFACES:")
   // Preview / Send List snapshot render — so this ONE call covers three of them.
   ok("reason composition (→ Favorites, Recommendations, Preview/Send List)",
     /const anchorLabel = displayDestinationLabel\(lead\.commute_anchor_label\)/.test(api))
+  // The two Search Criteria surfaces reach the bank THROUGH clientCommuteCriterion
+  // now — one formatter, so they cannot render the destination differently from
+  // each other. The bank still reaches both; that link is asserted just below
+  // rather than at each call site.
   ok("Search Criteria card",
-    /value=\{displayDestinationLabel\(lead\.commute_anchor_label\)\}/.test(panel))
+    /value=\{clientCommuteCriterion\(lead\.commute_anchor_label, lead\.commute_max_minutes\)\}/.test(panel))
   ok("Companion Search Criteria",
-    /commuteDestination: displayDestinationLabel\(lead\.commute_anchor_label\)/.test(dto))
+    /commuteDestination: clientCommuteCriterion\(lead\.commute_anchor_label, lead\.commute_max_minutes\)/.test(dto))
+  ok("…and that shared formatter applies the bank",
+    /displayDestinationLabel\(storedLabel\)/.test(strip(read("lib/commute/commuteReason.ts"))))
   ok("and the destination picker seeds the short label on save",
     /label: displayDestinationLabel\(c\.name\)/.test(field))
   ok("the picker still stores the untouched place id",

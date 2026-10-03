@@ -9,7 +9,7 @@ import { rankLeadActions } from "@/lib/nextActions"
 import { getSourceStyle } from "@/lib/leads/sourceStyles"
 import { getArchiveReasonLabel } from "@/lib/leads/archiveReasons"
 import { holdFollowUpInstant } from "@/lib/leads/holdWorkflow"
-import { displayDestinationLabel } from "@/lib/commute/destinationAliases"
+import { clientCommuteCriterion } from "@/lib/commute/commuteReason"
 
 // Phase 2 — active-client bridge payload (CRM page → content script → panel).
 //
@@ -325,10 +325,17 @@ export function buildActiveClientPayload(
       baths: str(lead.baths),
       moveDate: str(lead.move_date),
       desiredAreas: str(lead.neighborhoods) ?? str(lead.submarkets),
-      // The label only — same value the CRM's Search Criteria card shows, so the
-      // two panels never disagree about where the client needs to be.
-      // The alias bank, so the Companion panel and the CRM card never disagree.
-      commuteDestination: displayDestinationLabel(lead.commute_anchor_label) || null,
+      // The client's commute REQUIREMENT, already formatted — "Within 20 min of
+      // Six Flags", or just "Six Flags" when they stated no maximum.
+      //
+      // Through the SHARED formatter the CRM's Search Criteria card also calls, so
+      // the two panels cannot disagree about it. They previously each applied the
+      // alias bank themselves under a comment claiming exactly that; when the CRM
+      // started showing the maximum, this one silently kept showing the bare label.
+      //
+      // Pre-formatted ON PURPOSE: Companion needs no commute_max_minutes field and
+      // no contract change, because the string is the whole criterion.
+      commuteDestination: clientCommuteCriterion(lead.commute_anchor_label, lead.commute_max_minutes) || null,
       // Readable source label via the CRM's canonical source map (same source of
       // truth as LeadSourceBadge): "instagram_ads" → "Instagram Ads".
       source: str(lead.source) ? getSourceStyle(lead.source).label : null,

@@ -28,7 +28,7 @@ import ConfirmDialog from "./ConfirmDialog"
 import AddNextActionModal from "./AddNextActionModal"
 import { SectionCard } from "./LeadPanelSections"
 import InvoiceDetailsSection from "./InvoiceDetailsSection"
-import { displayDestinationLabel } from "@/lib/commute/destinationAliases"
+import { clientCommuteCriterion } from "@/lib/commute/commuteReason"
 import { completeAction } from "@/lib/leads/actionCompletion"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1036,17 +1036,12 @@ export default function LeadPanel({
                   // own — it is not a second criterion, it is what qualifies the
                   // destination, and a card this dense reads better as one phrase.
                   //
-                  // "Within 20 min of Six Flags" is the client's REQUIREMENT. The
-                  // superficially similar text on a property card ("19 min to Six
-                  // Flags", commuteReasonText) is a MEASURED RESULT for that one
-                  // property. Same two values, opposite meanings — keep the
-                  // wordings distinct so the card can never be misread as a
-                  // measurement, and never route this through that formatter.
-                  value={
-                    lead.commute_max_minutes
-                      ? `Within ${lead.commute_max_minutes} min of ${displayDestinationLabel(lead.commute_anchor_label)}`
-                      : displayDestinationLabel(lead.commute_anchor_label)
-                  }
+                  // Through the SHARED formatter, never hand-rolled here: Beast
+                  // Companion renders this same criterion from its own DTO, and the
+                  // only thing keeping the two surfaces honest is that they call one
+                  // function. See clientCommuteCriterion for why it is not
+                  // commuteReasonText (requirement vs measured result).
+                  value={clientCommuteCriterion(lead.commute_anchor_label, lead.commute_max_minutes)}
                 />
               )}
               {hasValue(lead.source) && (

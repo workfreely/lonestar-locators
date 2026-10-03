@@ -1,4 +1,5 @@
 import { MAX_REASONS } from "@bc/companion-shared"
+import { displayDestinationLabel } from "@/lib/commute/destinationAliases"
 
 // How a drive time becomes a client-facing reason, and the rules that protect the
 // locator's own words while doing it.
@@ -15,6 +16,42 @@ import { MAX_REASONS } from "@bc/companion-shared"
  */
 export function commuteReasonText(minutes: number, anchorLabel: string): string {
   return `${minutes} min to ${anchorLabel.trim()}`
+}
+
+/**
+ * "Within 20 min of Six Flags" — the client's REQUIREMENT.
+ *
+ * Deliberately adjacent to commuteReasonText, because the two are the easiest pair
+ * in this codebase to confuse and the contrast is the whole point:
+ *
+ *   commuteReasonText(19, "Six Flags")            "19 min to Six Flags"
+ *     a MEASURED RESULT for ONE property — what Routes actually returned.
+ *
+ *   clientCommuteCriterion("Six Flags", 20)       "Within 20 min of Six Flags"
+ *     the client's STATED LIMIT — true of the client, not of any property.
+ *
+ * The wordings are kept structurally different ("within … of" vs "… to") so neither
+ * can be misread as the other at a glance. Never substitute one for the other.
+ *
+ * ONE formatter, because this string renders on two independent surfaces — the CRM's
+ * Search Criteria card and Beast Companion's, which receives it pre-formatted as
+ * `commuteDestination`. They were already duplicating the label-only version, with a
+ * comment on each asserting they agreed; the moment one gained the maximum they
+ * silently disagreed, and nothing failed. Shared code is what makes that impossible.
+ *
+ * Returns "" when there is no destination, letting each caller keep its own existing
+ * empty behaviour (the CRM gates the row on the label; the DTO maps "" to null).
+ * A null/0/absent maximum yields the bare label — i.e. Area Mode reads exactly as it
+ * always did.
+ */
+export function clientCommuteCriterion(
+  storedLabel: string | null | undefined,
+  maxMinutes: number | null | undefined,
+): string {
+  // The alias bank still owns the label, so both surfaces shorten identically.
+  const label = displayDestinationLabel(storedLabel)
+  if (!label) return ""
+  return maxMinutes ? `Within ${maxMinutes} min of ${label}` : label
 }
 
 /**

@@ -8,6 +8,7 @@
 // Run: npx tsx scripts/leads/commuteDestination.test.ts
 import { readFileSync } from "node:fs"
 import path from "node:path"
+import { clientCommuteCriterion, commuteReasonText } from "@/lib/commute/commuteReason"
 
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
@@ -144,9 +145,56 @@ ok("the workspace reads the same column the form writes",
   new RegExp(`lead\\.${LABEL}`).test(panel))
 ok("the Companion DTO maps the same column", new RegExp(`lead\\.${LABEL}`).test(dto))
 ok("the Companion contract declares the destination", /commuteDestination/.test(contract))
-ok("the Companion is shown the LABEL only, never the place id",
-  /commuteDestination: displayDestinationLabel\(lead\.commute_anchor_label\)/.test(dto) &&
+ok("the Companion is shown the criterion TEXT only, never the place id",
+  /commuteDestination: clientCommuteCriterion\(lead\.commute_anchor_label, lead\.commute_max_minutes\)/.test(dto) &&
   !new RegExp(PLACE).test(cpanel))
+
+console.log("\nONE CRITERION — the CRM card and Companion cannot drift apart:")
+{
+  // Both surfaces render the client's commute REQUIREMENT from independent code,
+  // and they already diverged once: each applied the alias bank itself under a
+  // comment asserting the two agreed, so the moment the CRM started showing the
+  // maximum, Companion silently kept showing the bare label. Nothing failed, and
+  // nothing could have — which is why the guard has to be "one function", not
+  // "two expressions that currently match".
+  const SHARED = /clientCommuteCriterion\(lead\.commute_anchor_label, lead\.commute_max_minutes\)/
+  ok("the CRM Search Criteria row calls the shared formatter", SHARED.test(panel))
+  ok("Companion's commuteDestination calls the SAME formatter", SHARED.test(dto))
+  const fmt = strip(read("lib/commute/commuteReason.ts"))
+  ok("the phrase is built in the formatter and nowhere else",
+    /`Within \$\{maxMinutes\} min of \$\{label\}`/.test(fmt))
+  for (const [name, src] of [["LeadPanel", panel], ["leadToDto", dto]] as const)
+    ok(`${name} does not hand-roll the phrase`, !/Within \$\{/.test(src))
+  ok("…and the shared formatter still routes through the alias bank",
+    /displayDestinationLabel\(storedLabel\)/.test(fmt))
+
+  // REQUIREMENT vs MEASURED RESULT — the pair this codebase is likeliest to
+  // confuse. A limit rendered in the measurement's wording would read as a fact
+  // about a property that nothing measured.
+  ok("neither Search Criteria surface uses the measured-result formatter",
+    !/commuteReasonText/.test(panel) && !/commuteReasonText/.test(dto))
+  ok("the two wordings are structurally different for the same numbers",
+    clientCommuteCriterion("Six Flags", 20) !== commuteReasonText(20, "Six Flags"))
+  ok("property cards still render the measured result unchanged",
+    commuteReasonText(19, "Six Flags") === "19 min to Six Flags")
+}
+
+console.log("\nTHE CRITERION READS CORRECTLY:")
+ok('max 20 → "Within 20 min of Six Flags"',
+  clientCommuteCriterion("Six Flags", 20) === "Within 20 min of Six Flags")
+ok('no max → "Six Flags" (Area Mode reads exactly as before)',
+  clientCommuteCriterion("Six Flags", null) === "Six Flags")
+ok("an absent max behaves as no max",
+  clientCommuteCriterion("Six Flags", undefined) === "Six Flags")
+ok('the alias bank still applies → "Within 20 min of Fort Sam"',
+  clientCommuteCriterion("Joint Base San Antonio: Fort Sam Houston", 20) === "Within 20 min of Fort Sam")
+ok("no destination → empty, whatever the maximum says",
+  clientCommuteCriterion(null, 20) === "" && clientCommuteCriterion("", 20) === "")
+// Each caller keeps the empty behaviour it already had — that is why the formatter
+// returns "" rather than picking null or a placeholder for both.
+ok("…the DTO maps that empty to null", /clientCommuteCriterion\([^)]*\) \|\| null/.test(dto))
+ok("…and the CRM still gates the row on the label",
+  /hasValue\(lead\.commute_anchor_label\) &&/.test(panel))
 
 console.log("\nSCOPE — no drive-time work in this pass, and the outreach text is intact:")
 ok("no Routes API call was added", !/routes\.googleapis|computeRoutes|Distance ?Matrix/i.test(ctrl + fields + panel))
