@@ -189,6 +189,40 @@ console.log("\n8. The Companion accordion:")
   // Credit Screening must be exactly as it was.
   ok("Credit Screening is unchanged and still collapsed",
     /title="Credit Screening"\s+defaultOpen=\{false\}/.test(view))
+
+  // The empty state is a plain statement of fact, not an aside — muted by token,
+  // never italic.
+  const css = read("apps/beast-companion/src/sidepanel/lead/panel.css")
+  const emptyRule = css.slice(css.indexOf(".lp-history-empty"), css.indexOf("}", css.indexOf(".lp-history-empty")))
+  ok("the empty state is muted via the secondary token", /--lb-text-secondary/.test(emptyRule))
+  ok("…and is NOT italic", !/font-style:\s*italic/.test(emptyRule))
+
+  // Client History is unconditional: an empty accordion is a dependable place to
+  // look, so it must never be hidden the way Client Notes is.
+  ok("Client History renders even with no entries (not wrapped in a hasValue guard)",
+    !/hasValue\(lead\.clientHistory\)[\s\S]{0,40}title="Client History"/.test(view))
+}
+
+console.log("\n9. CLIENT NOTES is conditional; CLIENT HISTORY is not:")
+{
+  const view = strip(read("apps/beast-companion/src/sidepanel/lead/LeadPanelView.tsx"))
+  ok("Client Notes renders ONLY when the client actually submitted notes",
+    /hasValue\(lead\.clientNotes\) && \(/.test(view))
+  // hasValue is what makes "null, empty, or whitespace-only" one rule.
+  ok("…and hasValue treats whitespace-only as absent",
+    /if \(typeof v === "string"\) return v\.trim\(\)\.length > 0;/.test(view))
+  ok("…nullish too", /if \(v === null \|\| v === undefined\) return false;/.test(view))
+  // Order holds in BOTH cases: Client History sits before Client Notes, so
+  // dropping the notes card leaves Client History last rather than re-ordering.
+  ok("order is Search Criteria → Credit Screening → Client History → Client Notes",
+    view.indexOf('title="Search Criteria"') < view.indexOf('title="Credit Screening"') &&
+    view.indexOf('title="Credit Screening"') < view.indexOf('title="Client History"') &&
+    view.indexOf('title="Client History"') < view.indexOf('title="Client Notes"'))
+  ok("…so with no notes the panel simply ends at Client History",
+    view.indexOf('title="Client History"') < view.indexOf("hasValue(lead.clientNotes)"))
+  // The notes DATA is untouched — this is a render guard, nothing more.
+  ok("the notes value is still rendered verbatim when present",
+    /<p className="lp-notes">\{lead\.clientNotes\}<\/p>/.test(view))
 }
 
 console.log("\nSAFETY — a history write can never break a save:")

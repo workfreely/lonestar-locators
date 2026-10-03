@@ -266,11 +266,13 @@
   text-align: right;
   overflow-wrap: anywhere;
 }
+/* Muted, not italic: this is an ordinary statement of fact ("nothing recorded
+   yet"), not an aside. The secondary token already carries the de-emphasis, and
+   the size matches .lp-notes so the accordion reads like the rest of the panel. */
 .lp-history-empty {
   margin: 0;
   font-size: 12.5px;
   color: var(--lb-text-secondary);
-  font-style: italic;
 }
 
 /* ── Sections (accordion) ── */
