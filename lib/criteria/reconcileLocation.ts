@@ -31,8 +31,19 @@ import { displayDestinationLabel } from "@/lib/commute/destinationAliases"
 /** Current limit on Desired Areas. Mirrors the product rule the forms enforce. */
 export const MAX_DESIRED_AREAS = 2
 
-/** A destination the resolver has already turned into a canonical place. */
-export type ResolvedDestination = { label: string; placeId: string }
+/**
+ * A destination the resolver has already turned into a canonical place.
+ *
+ * `selection` is provenance, not a verdict: "unique" means Places returned one
+ * place, "best_match" means several geographically cohesive rows were collapsed
+ * to Google's first. Both are safe to write — the distinction is recorded so a
+ * later reader knows which happened.
+ */
+export type ResolvedDestination = {
+  label: string
+  placeId: string
+  selection?: "unique" | "best_match"
+}
 
 export type ReconcileInput = {
   /** The lead's current row — only the location columns are read. */
@@ -95,6 +106,12 @@ export function reconcileLocation({ lead, facts, resolvedDestination }: Reconcil
   // names where they work keeps the areas they already gave us (rule 3).
   if (destination) {
     if (resolvedDestination?.placeId) {
+      // Provenance only. Recorded whatever the branch below decides, including
+      // when the existing anchor is preserved — "how was this chosen" is worth
+      // knowing even when the answer is "nothing changed". It is NOT a Client
+      // History change: Google's resolution mechanics are not the renter's
+      // criteria moving.
+      if (resolvedDestination.selection === "best_match") notes.push("destination_best_match")
       const currentPlaceId = String(lead.commute_anchor_place_id ?? "").trim()
       const currentLabel = displayDestinationLabel(lead.commute_anchor_label as string | null | undefined)
       const resolvedLabel = displayDestinationLabel(resolvedDestination.label)

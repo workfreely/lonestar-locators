@@ -12,6 +12,7 @@ import { readFileSync } from "node:fs"
 import { execSync } from "node:child_process"
 import path from "node:path"
 import { reconcileLocation, MAX_DESIRED_AREAS } from "@/lib/criteria/reconcileLocation"
+import { chooseCandidate, candidateSpreadKm, COHESION_RADIUS_KM } from "@/lib/criteria/resolveDestination"
 import { mayContainLocation, locationFactsSchema, EMPTY_FACTS } from "@/lib/criteria/locationFacts"
 import { buildPrompt, CONTEXT_TURNS } from "@/lib/criteria/extractLocationFacts"
 import type { LocationFacts } from "@/lib/criteria/locationFacts"
@@ -147,6 +148,106 @@ console.log("\nNEVER DELETE ON MENTION; NEVER INVENT:")
     reconcileLocation({ lead: TWO_AREAS, facts: F({ areas: [area("Westover Hills", "additive")] }) }).changes.length === 0)
   ok("re-stating the SAME max is a no-op",
     reconcileLocation({ lead: { ...ANCHORED, commute_max_minutes: 20 }, facts: F({ maxDriveMinutes: max(20) }) }).changes.length === 0)
+}
+
+console.log("\nCANDIDATE COHESION — one place labelled twice vs genuinely different places:")
+{
+  // Pure decision, tested without a network call. Coordinates are the REAL ones
+  // measured from Places for each case, so the thresholds are exercised against
+  // the data that motivated them.
+  const C = (name: string, lat: number, lng: number, id = name.replace(/\W/g, "")) => ({ id, name, address: name, lat, lng })
+
+  ok("the V1 radius is 1 km", COHESION_RADIUS_KM === 1)
+
+  // One candidate → unique.
+  {
+    const c = chooseCandidate([C("Potranco Road", 29.4341, -98.7357)])
+    ok("a single candidate → resolved, selection 'unique'", c.kind === "pick" && c.selection === "unique")
+  }
+  // The real Potranco × 1604 pair: 0.13 km apart, two sides of one interchange.
+  {
+    const cands = [C("Potranco Rd & W Loop 1604 S", 29.4355, -98.7119), C("Potranco Rd & Loop 1604 N", 29.4357, -98.7106)]
+    const spread = candidateSpreadKm(cands)
+    ok(`the real Potranco pair measures ~0.13 km (got ${spread.toFixed(2)})`, spread > 0 && spread < 0.3)
+    const c = chooseCandidate(cands)
+    ok("…→ resolved, selection 'best_match'", c.kind === "pick" && c.selection === "best_match")
+    ok("…and Google's #1 is the one selected", c.kind === "pick" && c.candidate.name.includes("W Loop 1604 S"))
+  }
+  // Just inside the radius.
+  {
+    // ~0.9 km apart at this latitude.
+    const c = chooseCandidate([C("A", 29.4355, -98.7119), C("B", 29.4355, -98.7026)])
+    const spread = candidateSpreadKm([C("A", 29.4355, -98.7119), C("B", 29.4355, -98.7026)])
+    ok(`just UNDER 1 km (${spread.toFixed(2)}) → best_match`, spread < 1 && c.kind === "pick" && c.selection === "best_match")
+  }
+  // Just outside.
+  {
+    const pair = [C("A", 29.4355, -98.7119), C("B", 29.4355, -98.6975)]
+    const spread = candidateSpreadKm(pair)
+    ok(`just OVER 1 km (${spread.toFixed(2)}) → ambiguous`, spread > 1 && chooseCandidate(pair).kind === "ambiguous")
+  }
+  // Real dispersed hospitals — 22 km.
+  {
+    const hospitals = [
+      C("Methodist Hospital", 29.5094, -98.5766),
+      C("Methodist Hospital Stone Oak", 29.6137, -98.4850),
+      C("Methodist Hospital Metropolitan", 29.4398, -98.4875),
+      C("Methodist Hospital Northeast", 29.5450, -98.3390),
+    ]
+    ok("materially dispersed hospitals → ambiguous", chooseCandidate(hospitals).kind === "ambiguous")
+    ok("…and the spread is reported", (chooseCandidate(hospitals) as { spreadKm: number }).spreadKm > 10)
+  }
+  // Real dispersed businesses sharing ONE name — the case the old name test got wrong.
+  {
+    const daves = [
+      C("Dave's Hot Chicken", 29.5747, -98.2730, "a"),
+      C("Dave's Hot Chicken", 29.3304, -98.4408, "b"),
+      C("Dave's Hot Chicken", 29.4576, -98.6796, "c"),
+    ]
+    ok("identically NAMED but dispersed businesses → ambiguous", chooseCandidate(daves).kind === "ambiguous")
+  }
+  // "Bandera and 1604" stays ambiguous at 1 km, deliberately.
+  {
+    const bandera = [C("RBFCU - Bandera Pointe", 29.5745, -98.6680), C("H-E-B plus!", 29.5610, -98.6580)]
+    ok("Bandera-and-1604-style business cluster stays ambiguous under the 1 km rule",
+      candidateSpreadKm(bandera) > 1 && chooseCandidate(bandera).kind === "ambiguous")
+  }
+}
+
+console.log("\nBEST_MATCH FLOWS THROUGH RECONCILIATION:")
+{
+  const FS_OLD = "ChIJ_FORTSAM_OLD", FS_NEW = "ChIJ_FORTSAM_NEW"
+  const anchored = { ...BLANK, commute_anchor_label: "Fort Sam", commute_anchor_place_id: FS_OLD }
+  // best_match + an equivalent existing anchor → identity stability still wins.
+  {
+    const r = reconcileLocation({
+      lead: anchored,
+      facts: F({ destination: dest("Fort Sam Houston") }),
+      resolvedDestination: { label: "Fort Sam", placeId: FS_NEW, selection: "best_match" },
+    })
+    ok("best_match + same canonical anchor → existing Place ID preserved",
+      !("commute_anchor_place_id" in r.patch) && r.notes.includes("destination_same_canonical_anchor"))
+    ok("…provenance still recorded", r.notes.includes("destination_best_match"))
+    ok("…and NO Client History change from resolution mechanics alone", r.changes.length === 0)
+  }
+  // best_match + a genuinely new anchor → normal write.
+  {
+    const r = reconcileLocation({
+      lead: BLANK,
+      facts: F({ destination: dest("Potranco and 1604") }),
+      resolvedDestination: { label: "Potranco Rd & W Loop 1604 S", placeId: "ChIJ_POTRANCO", selection: "best_match" },
+    })
+    ok("best_match + genuinely new anchor → normal anchor write",
+      r.patch.commute_anchor_place_id === "ChIJ_POTRANCO" && r.notes.includes("destination_set"))
+    ok("…recorded in Client History as a real criterion change",
+      r.changes.some((c) => c.label === "Commute / Destination"))
+    ok("…with provenance noted", r.notes.includes("destination_best_match"))
+  }
+  // A unique resolution must NOT be labelled best_match.
+  {
+    const r = reconcileLocation({ lead: BLANK, facts: F({ destination: dest("Lackland AFB") }), resolvedDestination: { ...LACKLAND, selection: "unique" } })
+    ok("a unique resolution carries no best_match note", !r.notes.includes("destination_best_match"))
+  }
 }
 
 console.log("\nUNSUPPORTED GEOGRAPHIC BOUNDARIES — surfaced, never written:")

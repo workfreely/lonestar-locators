@@ -30,11 +30,80 @@ import type { ResolvedDestination } from "./reconcileLocation"
 
 export type ResolveOutcome =
   | { status: "resolved"; destination: ResolvedDestination }
-  | { status: "ambiguous"; candidates: string[] }
+  | { status: "ambiguous"; candidates: string[]; spreadKm: number }
   | { status: "not_found" }
   | { status: "unavailable"; reason: string }
 
-type PlaceCandidate = { id: string; name: string; address: string }
+export type PlaceCandidate = { id: string; name: string; address: string; lat: number; lng: number }
+
+/**
+ * How far apart candidates may be and still describe ONE practical location.
+ *
+ * Measured, not guessed. "Potranco Rd & Loop 1604" returns two rows 0.13 km
+ * apart — the north and south sides of a single interchange, which happens to
+ * straddle a ZIP boundary. "Methodist Hospital" returns five facilities spread
+ * 22 km. Two orders of magnitude separate "same place, labelled twice" from
+ * "materially different places", so a plain radius separates them cleanly with
+ * no scoring and no name matching.
+ *
+ * 1 km deliberately leaves "Bandera and 1604" (1.48 km) ambiguous: its
+ * candidates are BUSINESSES near the intersection — a credit union, a grocery
+ * store — not the intersection itself, so selecting one would anchor the client
+ * on a bank. Resolving that case needs name cohesion, which is more machinery
+ * than V1 should carry.
+ */
+export const COHESION_RADIUS_KM = 1
+
+/** Great-circle distance in km. */
+function distanceKm(a: PlaceCandidate, b: PlaceCandidate): number {
+  const R = 6371
+  const rad = (x: number) => (x * Math.PI) / 180
+  const dLat = rad(b.lat - a.lat)
+  const dLng = rad(b.lng - a.lng)
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(h))
+}
+
+/** The widest gap between any two candidates. 0 for a single candidate. */
+export function candidateSpreadKm(candidates: PlaceCandidate[]): number {
+  let max = 0
+  for (let i = 0; i < candidates.length; i++) {
+    for (let j = i + 1; j < candidates.length; j++) {
+      const d = distanceKm(candidates[i], candidates[j])
+      if (d > max) max = d
+    }
+  }
+  return max
+}
+
+export type CandidateChoice =
+  | { kind: "pick"; candidate: PlaceCandidate; selection: "unique" | "best_match"; spreadKm: number }
+  | { kind: "ambiguous"; spreadKm: number }
+
+/**
+ * Choose among candidates by GEOGRAPHIC COHESION alone.
+ *
+ * Exported and pure so the rule is testable without a network call — the
+ * decision is the part worth pinning, not the HTTP.
+ *
+ * This deliberately replaced an earlier name-containment test, which asked
+ * whether the candidates were "the same place by name". That was wrong in both
+ * directions: a bare "Dave's Hot Chicken" returns four branches all sharing one
+ * name, up to 146 km apart, and the name test accepted them — silently anchoring
+ * a client on a different city. Distance answers the question the name was
+ * standing in for.
+ *
+ * NOT a general "pick Google's first result": #1 is taken only once every
+ * candidate has been shown to describe the same practical location.
+ */
+export function chooseCandidate(candidates: PlaceCandidate[]): CandidateChoice {
+  if (candidates.length === 0) return { kind: "ambiguous", spreadKm: 0 }
+  if (candidates.length === 1) return { kind: "pick", candidate: candidates[0], selection: "unique", spreadKm: 0 }
+  const spreadKm = candidateSpreadKm(candidates)
+  if (spreadKm > COHESION_RADIUS_KM) return { kind: "ambiguous", spreadKm }
+  // Cohesive: one place, several rows. Google's ranking decides which row.
+  return { kind: "pick", candidate: candidates[0], selection: "best_match", spreadKm }
+}
 
 /** Bias toward the market we operate in so a bare "Methodist Hospital" resolves locally. */
 const DEFAULT_BIAS = { rectangle: {
@@ -42,14 +111,6 @@ const DEFAULT_BIAS = { rectangle: {
   high: { latitude: 29.8, longitude: -98.2 },
 } }
 
-/**
- * Two names are "the same place" for disambiguation when one contains the other
- * after normalization — Google often returns a base and its visitor center, or a
- * hospital and its campus, as separate results for one real destination.
- */
-function normalize(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim()
-}
 
 export async function resolveDestination(
   query: string,
@@ -68,7 +129,8 @@ export async function resolveDestination(
       headers: {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": key,
-        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress",
+        // places.location is what the cohesion test measures.
+        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location",
       },
       // The client's words, UNMODIFIED. No includedType and no appended context
       // term — a destination may be an address, an employer, a base, a school, a
@@ -85,30 +147,47 @@ export async function resolveDestination(
   }
 
   const json = (await res.json()) as {
-    places?: Array<{ id?: string; displayName?: { text?: string }; formattedAddress?: string }>
+    places?: Array<{
+      id?: string
+      displayName?: { text?: string }
+      formattedAddress?: string
+      location?: { latitude?: number; longitude?: number }
+    }>
   }
   const candidates: PlaceCandidate[] = (json.places ?? [])
-    .map((p) => ({ id: String(p.id ?? ""), name: String(p.displayName?.text ?? ""), address: String(p.formattedAddress ?? "") }))
-    .filter((p) => p.id && p.name)
+    .map((p) => ({
+      id: String(p.id ?? ""),
+      name: String(p.displayName?.text ?? ""),
+      address: String(p.formattedAddress ?? ""),
+      lat: Number(p.location?.latitude),
+      lng: Number(p.location?.longitude),
+    }))
+    // A candidate with no coordinates cannot be measured, so it cannot take part
+    // in a cohesion decision.
+    .filter((p) => p.id && p.name && Number.isFinite(p.lat) && Number.isFinite(p.lng))
 
   if (candidates.length === 0) return { status: "not_found" }
 
-  // One result, or several that are all the same real place → unambiguous.
-  const first = candidates[0]
-  const distinct = candidates.filter((c) => {
-    const a = normalize(c.name)
-    const b = normalize(first.name)
-    return !(a.includes(b) || b.includes(a))
-  })
-  if (distinct.length > 0) {
-    return { status: "ambiguous", candidates: candidates.slice(0, 5).map((c) => `${c.name} — ${c.address}`) }
+  const choice = chooseCandidate(candidates)
+  if (choice.kind === "ambiguous") {
+    return {
+      status: "ambiguous",
+      candidates: candidates.slice(0, 5).map((c) => `${c.name} — ${c.address}`),
+      spreadKm: choice.spreadKm,
+    }
   }
 
   return {
     status: "resolved",
-    // The SAME alias bank the CRM and Companion display through, so a
-    // conversation-resolved anchor reads identically to a locator-chosen one
-    // ("Joint Base San Antonio: Fort Sam Houston" → "Fort Sam").
-    destination: { label: displayDestinationLabel(first.name), placeId: first.id },
+    destination: {
+      // The SAME alias bank the CRM and Companion display through, so a
+      // conversation-resolved anchor reads identically to a locator-chosen one
+      // ("Joint Base San Antonio: Fort Sam Houston" → "Fort Sam").
+      label: displayDestinationLabel(choice.candidate.name),
+      placeId: choice.candidate.id,
+      // Provenance: "best_match" means several cohesive rows were collapsed, not
+      // that the answer was unique. Nothing downstream pretends otherwise.
+      selection: choice.selection,
+    },
   }
 }
