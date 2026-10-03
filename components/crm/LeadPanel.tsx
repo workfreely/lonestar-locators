@@ -1030,7 +1030,24 @@ export default function LeadPanel({
                   here, like every other row in this card: Search Criteria is a
                   display surface, and Edit Client is its one edit path. */}
               {hasValue(lead.commute_anchor_label) && (
-                <Field label="Commute / Destination" value={displayDestinationLabel(lead.commute_anchor_label)} />
+                <Field
+                  label="Commute / Destination"
+                  // The maximum folds into THIS row rather than earning one of its
+                  // own — it is not a second criterion, it is what qualifies the
+                  // destination, and a card this dense reads better as one phrase.
+                  //
+                  // "Within 20 min of Six Flags" is the client's REQUIREMENT. The
+                  // superficially similar text on a property card ("19 min to Six
+                  // Flags", commuteReasonText) is a MEASURED RESULT for that one
+                  // property. Same two values, opposite meanings — keep the
+                  // wordings distinct so the card can never be misread as a
+                  // measurement, and never route this through that formatter.
+                  value={
+                    lead.commute_max_minutes
+                      ? `Within ${lead.commute_max_minutes} min of ${displayDestinationLabel(lead.commute_anchor_label)}`
+                      : displayDestinationLabel(lead.commute_anchor_label)
+                  }
+                />
               )}
               {hasValue(lead.source) && (
                 <div className="flex items-start justify-between gap-4">

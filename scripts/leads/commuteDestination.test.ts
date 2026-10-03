@@ -104,8 +104,11 @@ console.log("\nPLACEMENT — directly under Preferred Locations, consistently la
 console.log("\nNO NEW CARD / SECTION was introduced:")
 ok("it reuses the existing LeadFields section rhythm (sectionLabelCls)",
   /sectionLabelCls}>Commute \/ Destination/.test(fields))
+// `\s+` not a literal space: the row's value is now a conditional expression, so
+// the attributes are formatted across lines. The CONTRACT is that it is still a
+// `Field` in the existing card, never a card of its own.
 ok("the workspace row reuses the existing Field + SectionCard",
-  /<Field label="Commute \/ Destination"/.test(panel) && !/SectionCard title="Commute/.test(panel))
+  /<Field\s+label="Commute \/ Destination"/.test(panel) && !/SectionCard title="Commute/.test(panel))
 ok("LeadFields is still the single shared criteria form",
   (read("components/LeadFormModal.tsx").match(/<LeadFields/g) ?? []).length === 1)
 

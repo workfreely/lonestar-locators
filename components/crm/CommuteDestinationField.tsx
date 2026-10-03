@@ -145,33 +145,51 @@ export default function CommuteDestinationField({
               · change
             </button>
           </div>
-          {/* The client-facing wording. Shortening this never moves the destination. */}
-          <input
-            value={label}
-            onChange={(e) => onChange({ label: e.target.value, placeId })}
-            placeholder="Shown to the client — e.g. Fort Sam"
-            className={inputClassName}
-            autoComplete="off"
-          />
-          {/* MAX DRIVE — the client's requirement, and the Commute Mode switch.
+          {/* MAX DRIVE (left, compact) + the client-facing wording (right, fills the
+              rest). One row: the maximum only ever needs room for "No limit" and
+              "45 min", and giving it a full-width line pushed the destination it
+              qualifies onto a separate row from it.
+
+              MAX DRIVE is the client's requirement, and the Commute Mode switch.
               Only shown once a destination is anchored, because a maximum with
               nothing to measure against means nothing. "No limit" writes NULL,
-              which returns the client to the ordinary Desired Areas workflow. */}
-          {onMaxMinutesChange && (
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-[var(--crm-text-muted)] flex-none">Max drive</span>
-              <select
-                value={maxMinutes == null ? "" : String(maxMinutes)}
-                onChange={(e) => onMaxMinutesChange(e.target.value === "" ? null : Number(e.target.value))}
-                className={inputClassName ? `${inputClassName} cursor-pointer` : undefined}
-              >
-                <option value="">No limit</option>
-                {COMMUTE_MINUTE_OPTIONS.map((m) => (
-                  <option key={m} value={m}>{`${m} min`}</option>
-                ))}
-              </select>
+              which returns the client to the ordinary Desired Areas workflow.
+
+              flex-wrap + a min width on the destination makes the two controls
+              STACK in a narrow modal instead of squeezing the input to nothing.
+              The select's width lives on a wrapper, not appended to
+              inputClassName — that token carries `w-full`, and a competing width
+              utility in the same class list resolves by stylesheet order, not by
+              which was written last. */}
+          <div className="flex flex-wrap items-center gap-2">
+            {onMaxMinutesChange && (
+              <div className="flex items-center gap-1.5 flex-none">
+                <span className="text-[11px] text-[var(--crm-text-muted)]">Max drive</span>
+                <div className="w-[112px]">
+                  <select
+                    value={maxMinutes == null ? "" : String(maxMinutes)}
+                    onChange={(e) => onMaxMinutesChange(e.target.value === "" ? null : Number(e.target.value))}
+                    className={inputClassName ? `${inputClassName} cursor-pointer` : undefined}
+                  >
+                    <option value="">No limit</option>
+                    {COMMUTE_MINUTE_OPTIONS.map((m) => (
+                      <option key={m} value={m}>{`${m} min`}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+            {/* Shortening this never moves the destination. */}
+            <div className="flex-1 min-w-[160px]">
+              <input
+                value={label}
+                onChange={(e) => onChange({ label: e.target.value, placeId })}
+                placeholder="Shown to the client — e.g. Fort Sam"
+                className={inputClassName}
+                autoComplete="off"
+              />
             </div>
-          )}
+          </div>
           {onMaxMinutesChange && maxMinutes != null && (
             <p className="text-[11px] text-[var(--crm-text-muted)]">
               Beast will search by drive time to this destination instead of Preferred Areas.
