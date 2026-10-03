@@ -58,10 +58,14 @@ const CSS = `
 .lbr-greet{font-size:36px;line-height:1.14;font-weight:800;color:#fff;letter-spacing:-.02em;margin:0;text-wrap:balance;max-width:16ch;text-align:left}
 /* CARD SECTION */
 .lbr-recs{padding:30px 40px 8px}
-.ooo-card{max-width:520px;margin:6px auto 0;background:#fff;border:1px solid var(--line);border-radius:18px;padding:24px 28px;text-align:center;box-shadow:0 20px 60px -44px rgba(14,37,69,.4)}
-.ooo-body{font-size:15px;color:var(--muted);margin:0 auto;max-width:390px;line-height:1.6}
-.ooo-body + .ooo-body{margin-top:10px}
-.ooo-btn{display:inline-flex;align-items:center;justify-content:center;min-height:48px;margin-top:20px;background:var(--navy);color:#fff;font-weight:700;font-size:15px;text-decoration:none;padding:12px 24px;border-radius:12px;appearance:none;border:none;cursor:pointer;font-family:inherit}
+.ooo-card{max-width:480px;margin:6px auto 0;background:#fff;border:1px solid var(--line);border-radius:18px;padding:22px 26px 24px;text-align:center;box-shadow:0 20px 60px -44px rgba(14,37,69,.4)}
+/* PRIMARY line — the sentence that has to land, so it carries the card: navy, 700,
+   a step up in size. The return date sits inside it and inherits that weight. */
+.ooo-lead{font-size:17px;font-weight:700;color:var(--navy);letter-spacing:-.01em;margin:0 auto;max-width:380px;line-height:1.4}
+/* SUPPORTING line — --ink, not --muted. The muted token is for incidental text and
+   read as washed out carrying a real instruction. */
+.ooo-body{font-size:14.5px;color:var(--ink);margin:8px auto 0;max-width:370px;line-height:1.5}
+.ooo-btn{display:inline-flex;align-items:center;justify-content:center;min-height:46px;margin-top:16px;background:var(--navy);color:#fff;font-weight:700;font-size:15px;text-decoration:none;padding:11px 24px;border-radius:12px;appearance:none;border:none;cursor:pointer;font-family:inherit}
 /* AGENT SIGNATURE */
 .lbr-sig{margin:26px 40px 0;text-align:center;padding:8px 20px 4px}
 /* FOOTER — identity row only, matching the paused page's simplified treatment. The
