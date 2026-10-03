@@ -37,8 +37,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await syncAiInsights(leadId)
-    return NextResponse.json({ success: true })
+    // A zero-message check is a SUCCESS, not an error. syncAiInsights now persists
+    // that outcome (ai_client_briefs with message_count 0 and a real
+    // last_synced_at) and reports it here, so the card can say "No messages found."
+    // from a recorded check rather than inferring it from a missing row.
+    const result = await syncAiInsights(leadId)
+    return NextResponse.json({ success: true, ...result })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unexpected error"
     const status =

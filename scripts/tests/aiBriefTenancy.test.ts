@@ -67,16 +67,61 @@ console.log("\nThe upsert carries it")
   const i = code.indexOf('.from("ai_client_briefs")')
   const upsert = i >= 0 ? code.slice(i, i + 1200) : ""
   check("an ai_client_briefs upsert exists", i >= 0)
-  check("the upsert sets workspace_id", /workspace_id:/.test(upsert), upsert.slice(0, 160))
-  check("the upsert sets owner_user_id", /owner_user_id:/.test(upsert))
+  // BOTH upserts (insights and zero-message) carry tenancy via the shared
+  // `tenancy` object; its lead-derived definition is asserted separately below.
+  const upsertCount = (code.match(/\.from\("ai_client_briefs"\)[\s\S]{0,80}\.upsert\(/g) ?? []).length
+  check("there are exactly TWO ai_client_briefs upserts (insights + zero-message)", upsertCount === 2, `found ${upsertCount}`)
   check(
-    "…sourced from the lead, not hardcoded or invented",
-    /workspace_id:\s*\(?lead/.test(upsert) && /owner_user_id:\s*\(?lead/.test(upsert),
-    "both must derive from the lead row this function already fetched",
+    "every ai_client_briefs upsert carries tenancy",
+    (code.match(/\.\.\.tenancy/g) ?? []).length === upsertCount,
+    "each upsert must spread the shared tenancy object — no upsert may omit it",
+  )
+  check(
+    "…and tenancy is derived from the lead, not hardcoded or invented",
+    /const tenancy = \{[\s\S]{0,240}workspace_id:\s*\(?lead[\s\S]{0,240}owner_user_id:\s*\(?lead/.test(code),
+    "both fields must derive from the lead row this function already fetched",
   )
   check(
     "…and still upserts on lead_id (unchanged conflict target)",
     /onConflict:\s*"lead_id"/.test(upsert),
+  )
+}
+
+console.log("\nThe ZERO-MESSAGE check is persisted, and carries tenancy too")
+{
+  // A successful check that found nothing must leave a row, or "never checked" and
+  // "checked, nothing there" are indistinguishable. That row is subject to the SAME
+  // RLS, so it needs the same tenancy — a brief written without it is invisible and
+  // the card silently falls back to "Click Sync", losing the record of the check.
+  const i = code.indexOf("messageCount === 0")
+  const zero = i >= 0 ? code.slice(i, i + 1400) : ""
+  check("a zero-message branch exists", i >= 0)
+  check("…it UPSERTS instead of throwing", /\.from\("ai_client_briefs"\)[\s\S]{0,80}\.upsert\(/.test(zero))
+  check("…writing message_count: 0", /message_count:\s*0/.test(zero))
+  check("…insights: []", /insights:\s*\[\]/.test(zero))
+  check("…last_conversation: null", /last_conversation:\s*null/.test(zero))
+  check("…a real last_synced_at", /last_synced_at:\s*lastSyncedAt/.test(zero))
+  check("…AND tenancy (the RLS requirement)", /\.\.\.tenancy/.test(zero))
+  check(
+    "…on the same lead_id conflict target",
+    /onConflict:\s*"lead_id"/.test(zero),
+  )
+  check(
+    "the old pre-upsert throw is gone",
+    !/No messages found for lead \$\{leadId\} yet/.test(code),
+    "throwing before the upsert is what erased the record of the check",
+  )
+  check(
+    "a FAILED write still throws (never reports a successful check)",
+    /if \(emptyErr\) throw new Error/.test(code),
+  )
+  check(
+    "tenancy is derived from the lead for BOTH paths",
+    /const tenancy = \{[\s\S]{0,200}workspace_id:\s*\(?lead[\s\S]{0,200}owner_user_id:\s*\(?lead/.test(code),
+  )
+  check(
+    "the function reports a structured success instead of throwing",
+    /return \{ status: "no_messages"/.test(code) && /return \{ status: "insights"/.test(code),
   )
 }
 

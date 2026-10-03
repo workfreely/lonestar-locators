@@ -3,7 +3,16 @@ import { getTranscript, normalizePhone } from "@/lib/messages/getTranscript"
 import { getCompanionTranscript } from "@/lib/messages/getCompanionTranscript"
 import { generateAiInsights } from "@/lib/ai/generateAiInsights"
 
-export async function syncAiInsights(leadId: string | number): Promise<void> {
+/**
+ * Outcome of a SUCCESSFUL check. A zero-message result is a success, not a
+ * failure — the lead was checked and nothing was there. Only genuine errors
+ * (bad lead, no phone, generation failure, write failure) still throw.
+ */
+export type SyncAiInsightsResult =
+  | { status: "insights"; messageCount: number; lastSyncedAt: string }
+  | { status: "no_messages"; messageCount: 0; lastSyncedAt: string }
+
+export async function syncAiInsights(leadId: string | number): Promise<SyncAiInsightsResult> {
   const leadIdNum = Number(leadId)
   if (!Number.isFinite(leadIdNum)) {
     throw new Error(`Invalid leadId: ${leadId}`)
@@ -42,10 +51,44 @@ export async function syncAiInsights(leadId: string | number): Promise<void> {
     }
   }
 
+  // TENANCY — carried from the lead on BOTH write paths below. See the upsert at
+  // the end of this function for why ai_client_briefs rows are invisible without it.
+  const tenancy = {
+    workspace_id: (lead as { workspace_id?: string | null }).workspace_id ?? null,
+    owner_user_id: (lead as { owner_user_id?: string | null }).owner_user_id ?? null,
+  }
+  const lastSyncedAt = new Date().toISOString()
+
+  // A SUCCESSFUL CHECK THAT FOUND NOTHING is persisted, not thrown.
+  //
+  // This used to throw before the upsert below, so a lead that had been checked and
+  // genuinely had no messages left NO trace — indistinguishable from a lead that had
+  // never been checked at all. Across 50-60 leads that makes "did I already sync this
+  // person?" unanswerable.
+  //
+  // The row IS the record of the check: message_count 0 with a real last_synced_at.
+  // That matters for safety as much as for UX — "No messages found" is then a
+  // POSITIVE assertion from a row that exists, never an inference from absence. If a
+  // brief is ever hidden again (the RLS regression this pipeline already suffered),
+  // the card falls back to "Click Sync to check for messages", which is the honest
+  // default; it can never silently claim a successful empty check.
   if (messageCount === 0) {
-    throw new Error(
-      `No messages found for lead ${leadId} yet. Connect the Mac Companion or wait for it to sync.`
+    const { error: emptyErr } = await supabaseAdmin.from("ai_client_briefs").upsert(
+      {
+        lead_id: leadIdNum,
+        insights: [],
+        last_conversation: null,
+        message_count: 0,
+        last_message_rowid: null,
+        last_message_date: null,
+        last_synced_at: lastSyncedAt,
+        ...tenancy,
+      },
+      { onConflict: "lead_id" },
     )
+    // A failed WRITE is a real failure — it must not report a successful check.
+    if (emptyErr) throw new Error(`Failed to record the check: ${emptyErr.message}`)
+    return { status: "no_messages", messageCount: 0, lastSyncedAt }
   }
 
   // 3. Generate AI insights
@@ -62,7 +105,7 @@ export async function syncAiInsights(leadId: string | number): Promise<void> {
         message_count: messageCount,
         last_message_rowid: lastMessageRowId,
         last_message_date: lastMessageDate,
-        last_synced_at: new Date().toISOString(),
+        last_synced_at: lastSyncedAt,
         // TENANCY — carried from the lead, not inferred.
         //
         // ai_client_briefs has RLS: "workspace members access" USING
@@ -78,8 +121,7 @@ export async function syncAiInsights(leadId: string | number): Promise<void> {
         // upsert on lead_id, so regenerating a brief takes the UPDATE path and the
         // trigger never fires. Passing the values explicitly is what the trigger
         // itself expects: it coalesces to a supplied owner_user_id first.
-        workspace_id: (lead as { workspace_id?: string | null }).workspace_id ?? null,
-        owner_user_id: (lead as { owner_user_id?: string | null }).owner_user_id ?? null,
+        ...tenancy,
       },
       { onConflict: "lead_id" }
     )
@@ -87,4 +129,6 @@ export async function syncAiInsights(leadId: string | number): Promise<void> {
   if (upsertError) {
     throw new Error(`Failed to save AI insights: ${upsertError.message}`)
   }
+
+  return { status: "insights", messageCount, lastSyncedAt }
 }
