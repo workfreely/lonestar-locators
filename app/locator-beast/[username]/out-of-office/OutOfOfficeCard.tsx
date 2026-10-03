@@ -25,12 +25,8 @@ export default function OutOfOfficeCard({
     <div className="ooo-card">
       {/* A null return date is a real state ("away, no date yet"). Omit the
           sentence entirely rather than printing a placeholder. */}
-      {returnDate && (
-        <p className="ooo-lead">I’m currently out of the office until {returnDate}.</p>
-      )}
-      <p className="ooo-body">
-        Please complete the form below and I’ll follow up as soon as I return.
-      </p>
+      {returnDate && <p className="ooo-lead">I’m out of the office until {returnDate}.</p>}
+      <p className="ooo-body">Complete the form. I’ll contact you when I return.</p>
       <Link className="ooo-btn" href={`/${username}`}>
         Start My Search
       </Link>
