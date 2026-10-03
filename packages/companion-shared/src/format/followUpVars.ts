@@ -1,3 +1,5 @@
+import { formatMonthDisplay } from "./date";
+
 /**
  * Token VALUE derivation + clean missing-value handling (CP2.5).
  *
@@ -52,9 +54,13 @@ export function buildFollowUpTemplateVars(input: FollowUpVarInput): Record<strin
   const bedsNorm = norm(input.beds); // "" when absent
   const bathsNorm = norm(input.baths);
   const propertyType = String(input.propertyType ?? "").trim();
-  const monthName = input.moveDate
-    ? new Date(input.moveDate).toLocaleString("en-US", { month: "long" })
-    : "";
+  // The canonical date-only month formatter, NOT `new Date(input.moveDate)`.
+  // moveDate is a bare "YYYY-MM-DD" (leads.move_date is a Postgres `date`), and
+  // new Date() parses that as UTC midnight — one day earlier in any timezone
+  // behind UTC. For a first-of-the-month move that lands in the PREVIOUS month,
+  // so {move_month} / {move_suffix} told the client "in October" for a November 1
+  // move, inside automated outbound text. Mid-month dates hid it.
+  const monthName = formatMonthDisplay(input.moveDate);
 
   // System token: the legacy conflated beds phrase (property type wins for
   // Studio/High-Rise), reproduced EXACTLY so the default intro is unchanged.

@@ -16,6 +16,7 @@ import {
   DEFAULT_FOLLOW_UP_TEMPLATES,
   TEMPLATE_TOKENS,
   TEMPLATE_CHAR_LIMITS,
+  formatMonthDisplay,
 } from "@bc/companion-shared"
 
 let pass = 0, fail = 0
@@ -31,7 +32,14 @@ function oldIntro(opts: { firstName: string; locatorFirstName: string; propertyT
     opts.propertyType === "Studio" ? "studio"
     : opts.propertyType === "High-Rise" ? "high-rise"
     : opts.beds ? `${String(opts.beds).replace("-", "").trim()} bed` : ""
-  const monthText = opts.moveDate ? ` in ${new Date(opts.moveDate).toLocaleString("en-US", { month: "long" })}` : ""
+  // This reference reproduces the legacy intro's WORDING, which is what parity is
+  // for. It deliberately no longer reproduces the legacy MONTH BUG: the original
+  // used `new Date(opts.moveDate)`, which parses a date-only "YYYY-MM-DD" as UTC
+  // midnight and names the previous month for a first-of-the-month move. Case 2
+  // below is 2026-12-01, so this file was asserting that a December move be
+  // described to the client as "November". Keeping that here would have meant the
+  // suite permanently demanded the bug back.
+  const monthText = opts.moveDate ? ` in ${formatMonthDisplay(opts.moveDate)}` : ""
   return `Hey ${opts.firstName} it's ${opts.locatorFirstName}! I got your form for a ${bedsText} move${monthText}. Are you trying to stay near a specific address or side of town?`
 }
 function oldFollowUp(titleOrKey: string, name: string): string {

@@ -6,6 +6,8 @@
  *
  *   npx tsx scripts/tests/follow-up-variables.test.ts
  */
+import { readFileSync } from "node:fs"
+import path from "node:path"
 import {
   buildFollowUpTemplateVars,
   tidyRenderedMessage,
@@ -96,6 +98,50 @@ eq(tidyRenderedMessage("  leading and trailing  "), "leading and trailing", "tri
 eq(tidyRenderedMessage("line one\n\nline two"), "line one\n\nline two", "preserves blank lines between paragraphs")
 eq(tidyRenderedMessage("1. The Millbrook\nhttps://a.com"), "1. The Millbrook\nhttps://a.com", "no-op on a clean property line (URL untouched)")
 eq(tidyRenderedMessage("Hey Sarah, I found options!"), "Hey Sarah, I found options!", "no-op on already-clean prose")
+
+// ── move_month is a CALENDAR date, never an instant ──────────────────────────
+// This token goes into automated outbound text a CLIENT reads. moveDate is a bare
+// "YYYY-MM-DD", and `new Date(that)` parses it as UTC midnight — one day earlier
+// in any timezone behind UTC, which for a FIRST-OF-THE-MONTH move lands in the
+// previous month: "your move in October" for a November 1 date.
+//
+// Note the populated-lead case above uses 2026-09-15. Mid-month dates shift a day
+// but stay in the same month, so they could never catch this. Every assertion here
+// is therefore a first of the month, the only day that can fall out of its month.
+{
+  const WANT_TZ = "America/Chicago"
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const month = (d: string) => buildFollowUpTemplateVars({ moveDate: d }).move_month
+
+  eq(month("2026-11-01"), "November", "move_month: 2026-11-01 → November (not October)")
+  eq(month("2026-12-01"), "December", "move_month: 2026-12-01 → December")
+  eq(month("2026-01-01"), "January", "move_month: 2026-01-01 → January (not the prior December)")
+  eq(
+    buildFollowUpTemplateVars({ moveDate: "2026-11-01" }).move_suffix,
+    " in November",
+    "move_suffix carries the corrected month, connective unchanged",
+  )
+  // The host timezone must be irrelevant — no Date is constructed at all. Assert
+  // that explicitly rather than trusting the runner to be in any particular zone.
+  ok(tz === tz, `evaluated under TZ=${tz}`)
+  eq(month("2026-11-01"), "November", `move_month is TZ-independent (host TZ=${tz}, target ${WANT_TZ})`)
+
+  // Unchanged behaviour: an absent move date still yields empty tokens, so the
+  // rendered sentence omits the phrase rather than saying "undefined".
+  eq(buildFollowUpTemplateVars({}).move_month, "", "no move date → move_month empty")
+  eq(buildFollowUpTemplateVars({}).move_suffix, "", "no move date → move_suffix empty")
+
+  // STRUCTURAL GUARD, and it carries the real weight here. The value assertions
+  // above only fail in a timezone behind UTC — on a UTC runner the old code
+  // passes them all, which is how this shipped in the first place. This check is
+  // timezone-independent, so a revert is caught wherever the suite runs.
+  const src = readFileSync(
+    path.join(process.cwd(), "packages/companion-shared/src/format/followUpVars.ts"),
+    "utf8",
+  ).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "")
+  ok(/formatMonthDisplay\(input\.moveDate\)/.test(src), "move_month derives from the canonical formatter")
+  ok(!/new Date\(/.test(src), "followUpVars constructs no Date at all")
+}
 
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail > 0) process.exit(1)
