@@ -85,9 +85,13 @@ export async function syncAiInsights(leadId: string | number): Promise<SyncAiIns
     // evidence of an empty conversation. Overwriting with insights: [] would
     // destroy real client intelligence on the strength of a suspicious read.
     //
-    // So: stamp the successful check and leave the brief alone. An UPDATE of
-    // last_synced_at only — never an upsert — so insights, last_conversation and
-    // every message-derived field survive untouched.
+    // So: leave the brief completely alone. The protected path is a TRUE NO-OP —
+    // no upsert, no update, no write of any kind — so insights, last_conversation,
+    // every message-derived field AND last_synced_at all survive untouched. The
+    // timestamp is deliberately included: "Last Beast Sync" is read as the last
+    // check BACKING the insights on screen, and an anomalous zero-message read
+    // validates nothing, so stamping it would make stale intelligence look freshly
+    // confirmed. See the branch below, which returns before reaching any write.
     const { data: existing } = await supabaseAdmin
       .from("ai_client_briefs")
       .select("message_count, last_synced_at")
