@@ -71,11 +71,19 @@ console.log("\nThe upsert carries it")
   // `tenancy` object; its lead-derived definition is asserted separately below.
   const upsertCount = (code.match(/\.from\("ai_client_briefs"\)[\s\S]{0,80}\.upsert\(/g) ?? []).length
   check("there are exactly TWO ai_client_briefs upserts (insights + zero-message)", upsertCount === 2, `found ${upsertCount}`)
-  check(
-    "every ai_client_briefs upsert carries tenancy",
-    (code.match(/\.\.\.tenancy/g) ?? []).length === upsertCount,
-    "each upsert must spread the shared tenancy object — no upsert may omit it",
-  )
+  {
+    // Scan EACH upsert's own payload rather than counting globally — the
+    // preserve-path UPDATE also carries tenancy, so a global count would drift.
+    const offenders: number[] = []
+    for (const m of code.matchAll(/\.from\("ai_client_briefs"\)[\s\S]{0,80}\.upsert\(/g)) {
+      if (!/\.\.\.tenancy/.test(code.slice(m.index!, m.index! + 700))) offenders.push(m.index!)
+    }
+    check(
+      "every ai_client_briefs upsert carries tenancy",
+      offenders.length === 0,
+      `upsert(s) missing ...tenancy at offset(s): ${offenders.join(", ")}`,
+    )
+  }
   check(
     "…and tenancy is derived from the lead, not hardcoded or invented",
     /const tenancy = \{[\s\S]{0,240}workspace_id:\s*\(?lead[\s\S]{0,240}owner_user_id:\s*\(?lead/.test(code),
@@ -94,7 +102,7 @@ console.log("\nThe ZERO-MESSAGE check is persisted, and carries tenancy too")
   // RLS, so it needs the same tenancy — a brief written without it is invisible and
   // the card silently falls back to "Click Sync", losing the record of the check.
   const i = code.indexOf("messageCount === 0")
-  const zero = i >= 0 ? code.slice(i, i + 1400) : ""
+  const zero = i >= 0 ? code.slice(i, i + 2600) : ""
   check("a zero-message branch exists", i >= 0)
   check("…it UPSERTS instead of throwing", /\.from\("ai_client_briefs"\)[\s\S]{0,80}\.upsert\(/.test(zero))
   check("…writing message_count: 0", /message_count:\s*0/.test(zero))
@@ -122,6 +130,54 @@ console.log("\nThe ZERO-MESSAGE check is persisted, and carries tenancy too")
   check(
     "the function reports a structured success instead of throwing",
     /return \{ status: "no_messages"/.test(code) && /return \{ status: "insights"/.test(code),
+  )
+}
+
+console.log("\nAn existing non-empty brief CANNOT be clobbered by a zero-message result")
+{
+  // companion_messages only ever accumulates, so a lead that already has a
+  // message-backed brief reading zero NOW is anomalous, not proof the conversation
+  // vanished. Overwriting with insights: [] would destroy real client intelligence
+  // on the strength of a suspicious read.
+  const i = code.indexOf("messageCount === 0")
+  const zero = i >= 0 ? code.slice(i, i + 2600) : ""
+  check(
+    "the zero branch READS the existing brief before writing",
+    /\.from\("ai_client_briefs"\)\s*\.select\("message_count"\)[\s\S]{0,120}\.eq\("lead_id", leadIdNum\)/.test(zero),
+  )
+  check(
+    "…and branches on an existing non-empty brief",
+    /if \(existing && existingCount > 0\)/.test(zero),
+  )
+  check(
+    "…with existingCount READ from that row, never hardcoded",
+    /const existingCount = \(existing as \{[^}]*\} \| null\)\?\.message_count \?\? 0/.test(zero),
+    "a constant here would make the guard dead code while the shape still looks right",
+  )
+  check(
+    "…preserving it with an UPDATE, never an upsert",
+    /if \(existing && existingCount > 0\) \{[\s\S]{0,400}\.update\(\{ last_synced_at: lastSyncedAt/.test(zero),
+    "an upsert would replace insights/last_conversation; only last_synced_at may move",
+  )
+  {
+    // The preserve path must touch ONLY the check timestamp (+ tenancy).
+    const j = zero.indexOf("if (existing && existingCount > 0)")
+    const preserve = j >= 0 ? zero.slice(j, j + 500) : ""
+    check("…it never writes insights", !/insights:/.test(preserve))
+    check("…never writes last_conversation", !/last_conversation:/.test(preserve))
+    check("…never writes message_count", !/message_count:/.test(preserve))
+    check("…never writes last_message_rowid / last_message_date", !/last_message_(rowid|date):/.test(preserve))
+    check("…but still carries tenancy", /\.\.\.tenancy/.test(preserve))
+    check("…and a failed stamp still throws", /if \(stampErr\) throw new Error/.test(preserve))
+  }
+  check(
+    "the empty-row write is reachable only when there is no non-empty brief",
+    zero.indexOf("if (existing && existingCount > 0)") < zero.indexOf(".upsert("),
+    "the guard must come BEFORE the destructive upsert",
+  )
+  check(
+    "the outcome reports whether an existing brief was preserved",
+    /preservedExistingBrief: true/.test(code) && /preservedExistingBrief: false/.test(code),
   )
 }
 

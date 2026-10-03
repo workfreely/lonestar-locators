@@ -10,7 +10,13 @@ import { generateAiInsights } from "@/lib/ai/generateAiInsights"
  */
 export type SyncAiInsightsResult =
   | { status: "insights"; messageCount: number; lastSyncedAt: string }
-  | { status: "no_messages"; messageCount: 0; lastSyncedAt: string }
+  | {
+      status: "no_messages"
+      messageCount: 0
+      lastSyncedAt: string
+      /** True when an existing non-empty brief was left intact (see below). */
+      preservedExistingBrief: boolean
+    }
 
 export async function syncAiInsights(leadId: string | number): Promise<SyncAiInsightsResult> {
   const leadIdNum = Number(leadId)
@@ -73,6 +79,30 @@ export async function syncAiInsights(leadId: string | number): Promise<SyncAiIns
   // the card falls back to "Click Sync to check for messages", which is the honest
   // default; it can never silently claim a successful empty check.
   if (messageCount === 0) {
+    // NON-DESTRUCTIVE GUARD. Zero CURRENT messages does not prove the historical
+    // conversation vanished — companion_messages only ever accumulates, so a lead
+    // that already has a message-backed brief reading zero now is anomalous, not
+    // evidence of an empty conversation. Overwriting with insights: [] would
+    // destroy real client intelligence on the strength of a suspicious read.
+    //
+    // So: stamp the successful check and leave the brief alone. An UPDATE of
+    // last_synced_at only — never an upsert — so insights, last_conversation and
+    // every message-derived field survive untouched.
+    const { data: existing } = await supabaseAdmin
+      .from("ai_client_briefs")
+      .select("message_count")
+      .eq("lead_id", leadIdNum)
+      .maybeSingle()
+    const existingCount = (existing as { message_count?: number | null } | null)?.message_count ?? 0
+    if (existing && existingCount > 0) {
+      const { error: stampErr } = await supabaseAdmin
+        .from("ai_client_briefs")
+        .update({ last_synced_at: lastSyncedAt, ...tenancy })
+        .eq("lead_id", leadIdNum)
+      if (stampErr) throw new Error(`Failed to record the check: ${stampErr.message}`)
+      return { status: "no_messages", messageCount: 0, lastSyncedAt, preservedExistingBrief: true }
+    }
+
     const { error: emptyErr } = await supabaseAdmin.from("ai_client_briefs").upsert(
       {
         lead_id: leadIdNum,
@@ -88,7 +118,7 @@ export async function syncAiInsights(leadId: string | number): Promise<SyncAiIns
     )
     // A failed WRITE is a real failure — it must not report a successful check.
     if (emptyErr) throw new Error(`Failed to record the check: ${emptyErr.message}`)
-    return { status: "no_messages", messageCount: 0, lastSyncedAt }
+    return { status: "no_messages", messageCount: 0, lastSyncedAt, preservedExistingBrief: false }
   }
 
   // 3. Generate AI insights
