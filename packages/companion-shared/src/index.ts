@@ -135,7 +135,7 @@ export { displayAddress } from "./format/address";
 export { propertyWebsiteHref, canonicalPropertyKey } from "./format/url";
 
 // Date display formatting (timezone-safe, MM/DD/YYYY)
-export { formatDateDisplay } from "./format/date";
+export { formatDateDisplay, formatMonthDisplay } from "./format/date";
 
 // Next-Action due date/time formatting (Today/Tomorrow • time; shared with the CRM)
 export { formatDueDateTime, isPastDue } from "./format/dueDate";

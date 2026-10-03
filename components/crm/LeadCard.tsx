@@ -11,20 +11,16 @@ import LeadSourceBadge from "./LeadSourceBadge"
 import { getArchiveReasonBadgeLabel } from "@/lib/leads/archiveReasons"
 import { isOnHold as leadIsOnHold, formatHoldFollowUpNumeric } from "@/lib/leads/holdWorkflow"
 import HoldControls from "./HoldControls"
-import { formatPersonName } from "@bc/companion-shared"
+// formatDateDisplay, NOT a local formatter: move_date is a date-only "YYYY-MM-DD",
+// and `new Date(that)` parses it as UTC midnight — which in Central renders the
+// PREVIOUS day (10/10 showed as 10/09, and 01/01 as the prior year). This card had
+// its own copy doing exactly that while the Companion used the shared one, so the
+// same lead read differently on two screens.
+import { formatPersonName, formatDateDisplay } from "@bc/companion-shared"
 
 // Canonical, shared person-name display formatter — the Agenda, Lead Card, Lead
 // Panel and Companion all use it, so a client's name never renders two ways.
 const normalizeName = formatPersonName
-
-function formatDate(date: string) {
-  if (!date) return ""
-  return new Date(date).toLocaleDateString("en-US", {
-    month: "2-digit",
-    day: "2-digit",
-    year: "numeric",
-  })
-}
 
 function formatRent(rent: string) {
   if (!rent) return "Not listed"
@@ -352,7 +348,7 @@ export default function LeadCard({
           {hasValue(lead.move_date) && (
             <div className="kb-row">
               <span className="kb-k">Move Date</span>
-              <span className="kb-v">{formatDate(lead.move_date)}</span>
+              <span className="kb-v">{formatDateDisplay(lead.move_date)}</span>
             </div>
           )}
           {!twoFields && hasValue(lead.credit_score) && (

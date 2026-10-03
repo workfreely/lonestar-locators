@@ -21,7 +21,7 @@ import { autoDueInDays } from "@/lib/workflow/autoDueDate"
 import { followUpSuccessorDueAt } from "@/lib/workflow/moveDateCadence"
 import { emitWorkflowActionCreated } from "@/lib/workflowToast"
 import { getActionIcon, formatDueDateTime } from "@/lib/actionDisplay"
-import { formatPersonName } from "@bc/companion-shared"
+import { formatPersonName, formatDateDisplay, formatMonthDisplay } from "@bc/companion-shared"
 import { formatWorkflowActionLabel, formatLastActionLabel, isFollowUpAction } from "@/lib/leads/workflowActionLabels"
 import AiVoiceScriptModal from "./AiVoiceScriptModal"
 import ConfirmDialog from "./ConfirmDialog"
@@ -38,6 +38,14 @@ import { completeAction } from "@/lib/leads/actionCompletion"
 // surface — Agenda, Card, Panel, Companion — now formats names identically.
 const normalizeName = formatPersonName
 
+/**
+ * TIMESTAMPS ONLY (deleted_at and friends) — never a date-only column.
+ *
+ * `new Date(v)` is correct for a full ISO timestamp, which carries its own
+ * instant. It is WRONG for a date-only "YYYY-MM-DD" such as leads.move_date:
+ * that parses as UTC midnight and renders the previous day in any timezone
+ * behind UTC. Use formatDateDisplay for those — see the Move Date row below.
+ */
 function formatDate(date: string) {
   if (!date) return "—"
   return new Date(date).toLocaleDateString("en-US", {
@@ -293,7 +301,10 @@ export default function LeadPanel({
       lead.property_type === "Studio" ? "studio" :
       lead.property_type === "High-Rise" ? "high-rise" :
       lead.beds ? `${String(lead.beds).replace("-", "").trim()} bed` : ""
-    const monthText = lead.move_date ? ` in ${new Date(lead.move_date).toLocaleString("en-US", { month: "long" })}` : ""
+    // The month a CLIENT reads in this text. `new Date(move_date)` put a
+    // first-of-the-month move in the PREVIOUS month ("your move in October" for a
+    // November 1 date), because a date-only value parses as UTC midnight.
+    const monthText = lead.move_date ? ` in ${formatMonthDisplay(lead.move_date)}` : ""
     openSMS(`Hey ${name} it's ${locatorFirstName}! I got your form for a ${bedsText} move${monthText}. Are you trying to stay near a specific address or side of town?`)
     recordFirstContact("text")
   }
@@ -1003,7 +1014,8 @@ export default function LeadPanel({
         {(() => {
           const cityValue = lead.city
           const bedsBaths = lead.beds || lead.baths ? `${lead.beds || "—"} / ${lead.baths || "—"}` : null
-          const moveDate = hasValue(lead.move_date) ? formatDate(lead.move_date) : null
+          // Date-only column — formatDateDisplay, never formatDate above.
+          const moveDate = hasValue(lead.move_date) ? formatDateDisplay(lead.move_date) : null
           const areas = formatDesiredAreas(lead.neighborhoods, lead.city)
           // Stored as canonical values — render the full client-facing labels.
           const mustHaves = normalizeMustHaveAmenities(String(lead.must_have_amenities ?? "").split(","))
