@@ -11,6 +11,8 @@ export const SOCIAL_SPECIAL_OPTIONS: readonly string[] = [
   "4 Weeks Free",
   "6 Weeks Free",
   "8 Weeks Free",
+  "10 Weeks Free",
+  "12 Weeks Free",
   "1 Month Free",
   "2 Months Free",
   "Free Movers",

@@ -318,6 +318,17 @@ ok("4th selected amenity stored but NOT in caption (max 3)", !capSel.includes("F
 
 console.log("Social Special selector (standardized short-forms + gift card + custom):")
 ok("standardized options use NUMBERS, not spelled-out", SOCIAL_SPECIAL_OPTIONS.includes("8 Weeks Free") && SOCIAL_SPECIAL_OPTIONS.includes("1 Month Free") && SOCIAL_SPECIAL_OPTIONS.includes("Free Movers") && !SOCIAL_SPECIAL_OPTIONS.some((o) => /eight|six|one month/i.test(o)))
+ok("10 + 12 Weeks Free are offered", SOCIAL_SPECIAL_OPTIONS.includes("10 Weeks Free") && SOCIAL_SPECIAL_OPTIONS.includes("12 Weeks Free"))
+ok("…in ascending week order, before the Months entries", (() => {
+  const i = (v: string) => SOCIAL_SPECIAL_OPTIONS.indexOf(v)
+  return i("8 Weeks Free") < i("10 Weeks Free") && i("10 Weeks Free") < i("12 Weeks Free") && i("12 Weeks Free") < i("1 Month Free")
+})())
+ok("…with no duplicates anywhere in the bank", new Set(SOCIAL_SPECIAL_OPTIONS).size === SOCIAL_SPECIAL_OPTIONS.length)
+ok("the pre-existing options all survived", ["1 Week Free","2 Weeks Free","4 Weeks Free","6 Weeks Free","8 Weeks Free","1 Month Free","2 Months Free","Free Movers"].every((o) => SOCIAL_SPECIAL_OPTIONS.includes(o)))
+// The derived short label already handled 1-12, so the new values need no parser change.
+ok("specialDisplay derives the new values unchanged", specialDisplay("10 Weeks Free") === "10 Weeks Free" && specialDisplay("12 Weeks Free") === "12 Weeks Free")
+ok("…and still shortens prose containing them", specialDisplay("Limited time: get ten weeks free on select units!") === "10 Weeks Free")
+ok("custom-entry behaviour is untouched", sanitizeCustomSpecial("  two months  on us ") === "two months on us")
 ok("gift card with amount → '$500 Gift Card'", giftCardLabel(500) === "$500 Gift Card")
 ok("gift card 1000 → '$1,000 Gift Card' (comma-grouped)", giftCardLabel("1000") === "$1,000 Gift Card")
 ok("gift card no/zero amount → 'Gift Card' (never invents an amount)", giftCardLabel("") === "Gift Card" && giftCardLabel(0) === "Gift Card" && giftCardLabel(null) === "Gift Card")
