@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin"
 import { isValidPostType } from "@/lib/social/postTypes"
 import { normalizeHashtag } from "@/lib/social/hashtags"
+import { isOverlayTemplate } from "@/lib/social/composePost"
 
 // One post: GET (composer load), PATCH (save fields / schedule / unschedule), DELETE.
 // Platform-admin ONLY + RLS owner-scoping. PROTECTED fields (owner_user_id, source_content_id,
@@ -15,7 +16,6 @@ const SELECT =
   "source:source_content_id(display_name, property_name, property_type, place_id, market, special, budget_range, amenities, storage_path, original_filename, kind, overlay_mode)"
 const SIGNED_URL_TTL = 60 * 30
 const AUDIO_CHOICES = new Set(["original", "none", "lb_track"])
-const OVERLAY_TEMPLATE_SET = new Set(["market_type", "your_sign", "special_feature", "next_property", "upgrade"])
 const MAX_HASHTAGS = 30
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -118,7 +118,14 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   // Overlay MODE ('generate' | 'existing') is a post-level override; switching it changes what the
   // renderer draws, so it invalidates any existing derivative.
   if ("overlayMode" in body && (body.overlayMode === "generate" || body.overlayMode === "existing")) { patch.overlay_mode = body.overlayMode; renderAffecting = true }
-  if ("overlayTemplate" in body && typeof body.overlayTemplate === "string" && OVERLAY_TEMPLATE_SET.has(body.overlayTemplate)) { patch.overlay_template = body.overlayTemplate; renderAffecting = true }
+  // Validated against the CANONICAL OVERLAY_TEMPLATES via isOverlayTemplate, never a
+  // list kept here. This line previously tested a hard-coded Set of five keys that
+  // was never updated as templates were added, so 11 of the 16 the editor offers —
+  // including "market_type_centered" (2) and everything from "apartment_standards"
+  // (7) on — were silently discarded: the PATCH returned 200, the headline saved,
+  // and the template did not. Deriving the check from the single source of truth is
+  // what stops a 17th template breaking the same way.
+  if ("overlayTemplate" in body && isOverlayTemplate(body.overlayTemplate)) { patch.overlay_template = body.overlayTemplate; renderAffecting = true }
   if ("audioChoice" in body && typeof body.audioChoice === "string" && AUDIO_CHOICES.has(body.audioChoice)) { patch.audio_choice = body.audioChoice; renderAffecting = true }
   // Voice Clips (Hook = start, CTA = end). A uuid selects; null clears. Render-affecting.
   const VOICE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
