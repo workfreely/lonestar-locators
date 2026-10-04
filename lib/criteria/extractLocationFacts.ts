@@ -56,12 +56,30 @@ a full or partial street address, a ZIP code, a road, cross streets / an interse
   "I'd like to stay near 123 Main Street."            → destination: 123 Main Street
 The client does NOT have to explain why the location matters.
 
-AREA vs ANCHOR IS ABOUT MEANING, NOT THE KIND OF PLACE:
-  "I want to live in 78245."                          → area 78245
+AREA vs ANCHOR — DECIDE BY WHAT KIND OF PLACE THEY NAMED:
+
+A NEIGHBOURHOOD, residential area, submarket or side of town is an AREA — even when
+the client uses proximity words. "near", "close to", "around", "stay near", "live
+near", "preferably near" do NOT make something an anchor:
+  "I'd like to stay near Westover Hills."   → area Westover Hills   (NOT a destination)
+  "I'd like to stay around Alamo Ranch."    → area Alamo Ranch
+  "I'd prefer to live close to Stone Oak."  → area Stone Oak
+  "I want to live in 78245."                → area 78245
+A neighbourhood is a REGION. It has no single point to measure to, so it can never
+be an anchor however the sentence is phrased.
+
+A POINT-LIKE or destination-style place is an ANCHOR — an address, workplace or
+employer, military base, school, hospital, business, landmark, road, or intersection:
+  "I need to be near Lackland AFB."              → destination Lackland AFB
+  "I'd like to be close to Methodist Hospital."  → destination Methodist Hospital
+  "I work at USAA and want to stay nearby."      → destination USAA
+  "I'd like to be near Potranco Road."           → destination Potranco Road
+
+When the SAME name could be either, the client's use decides:
+  "I like the Potranco area."                                  → area Potranco
   "My job is in 78245 and I'd like to stay within 20 minutes." → destination 78245 + maxDriveMinutes 20
-  "I like the Potranco area."                         → area Potranco
-  "I'd like to be near Potranco Road."                → destination Potranco Road
-Ask how the client is USING the place: as the region they want to live in (area), or as a point they want to be close to (destination).
+Ask first "what kind of place is this?", and only if that is genuinely ambiguous,
+"how is the client using it?"
 
 ONE ANCHOR ONLY. NEVER CONCATENATE PLACES.
 Returning "Brooke Army Medical Center / Fort Sam Houston" or "Lackland / Fort Sam" is always WRONG.

@@ -60,6 +60,87 @@ const CASES: Case[] = [
       : "",
   },
 
+  // ── NEIGHBOURHOOD + proximity language is still an AREA ───────────────────
+  // The real production failure: "I'd like to stay near west over hills papi, with
+  // you 😍" was classified as a DESTINATION because of the word "near". A
+  // neighbourhood is a region with no point to measure to, so proximity wording
+  // must not turn it into an anchor.
+  {
+    name: `"stay near Westover Hills" → AREA, not an anchor`,
+    message: "I'd like to stay near Westover Hills.",
+    check: (f) =>
+      f.destination ? `became an anchor: ${JSON.stringify(destName(f))}`
+      : !explicitAreas(f).some((a) => has(a.name, "westover")) ? `areas were ${JSON.stringify(areaNames(f))}`
+      : "",
+  },
+  {
+    name: `"live near Alamo Ranch" → AREA`,
+    message: "I'd like to live near Alamo Ranch.",
+    check: (f) =>
+      f.destination ? `became an anchor: ${JSON.stringify(destName(f))}`
+      : !explicitAreas(f).some((a) => has(a.name, "alamo ranch")) ? `areas were ${JSON.stringify(areaNames(f))}`
+      : "",
+  },
+  {
+    name: `"close to Stone Oak" → AREA`,
+    message: "I'd prefer to live close to Stone Oak.",
+    check: (f) =>
+      f.destination ? `became an anchor: ${JSON.stringify(destName(f))}`
+      : !explicitAreas(f).some((a) => has(a.name, "stone oak")) ? `areas were ${JSON.stringify(areaNames(f))}`
+      : "",
+  },
+  // The mirror image: point-like places must STAY anchors under the same wording.
+  {
+    name: `"near Lackland AFB" → ANCHOR (same wording, different kind of place)`,
+    message: "I need to be near Lackland AFB.",
+    check: (f) =>
+      explicitAreas(f).length > 0 ? `became an area: ${JSON.stringify(areaNames(f))}`
+      : !has(destName(f), "lackland") ? `destination was ${JSON.stringify(destName(f))}`
+      : "",
+  },
+  {
+    name: `"close to Methodist Hospital" → ANCHOR`,
+    message: "I'd like to be close to Methodist Hospital.",
+    check: (f) =>
+      explicitAreas(f).length > 0 ? `became an area: ${JSON.stringify(areaNames(f))}`
+      : !has(destName(f), "methodist") ? `destination was ${JSON.stringify(destName(f))}`
+      : "",
+  },
+  {
+    name: `"I work at USAA and want to stay nearby" → ANCHOR`,
+    message: "I work at USAA and want to stay nearby.",
+    check: (f) =>
+      explicitAreas(f).length > 0 ? `became an area: ${JSON.stringify(areaNames(f))}`
+      : !has(destName(f), "usaa") ? `destination was ${JSON.stringify(destName(f))}`
+      : "",
+  },
+  // Filler, emoji and split/lowercase spelling — the real message's own hazards.
+  {
+    name: `conversational filler + emoji do not affect classification`,
+    message: "I'd like to stay near Westover Hills papi, with you 😍",
+    check: (f) =>
+      f.destination ? `filler flipped it to an anchor: ${JSON.stringify(destName(f))}`
+      : !explicitAreas(f).some((a) => has(a.name, "westover")) ? `areas were ${JSON.stringify(areaNames(f))}`
+      : "",
+  },
+  {
+    name: `split/lowercase "west over hills" still normalizes AND stays an area`,
+    message: "i'd like to stay near west over hills",
+    check: (f) =>
+      f.destination ? `became an anchor: ${JSON.stringify(destName(f))}`
+      : !explicitAreas(f).some((a) => /westover/i.test(a.name)) ? `not normalized — areas were ${JSON.stringify(areaNames(f))}`
+      : "",
+  },
+  // The two-area capacity must survive the change.
+  {
+    name: `"Westover Hills or Stone Oak" → still able to extract TWO areas`,
+    message: "I'd prefer Westover Hills or Stone Oak.",
+    check: (f) =>
+      f.areas.length < 2 ? `only extracted ${f.areas.length}: ${JSON.stringify(areaNames(f))}`
+      : f.destination ? `also produced an anchor: ${JSON.stringify(destName(f))}`
+      : "",
+  },
+
   // ── Roads, intersections, businesses are ONE anchor ───────────────────────
   {
     name: `"around Culebra and 1604" → ONE intersection anchor, never two areas`,
