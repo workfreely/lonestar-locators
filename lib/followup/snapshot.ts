@@ -33,12 +33,15 @@ export type LeadRow = {
   /** Set at creation when the workspace was Out of Office; NULL for every normal
    *  lead. Read ONLY by lifecycleSeed's new_lead branch. Never cleared. */
   ooo_held_at: string | null
+  /** Set when the locator manually started follow-up on an OOO-held lead. Selects
+   *  the OOO restart wording for new_lead/t1; NULL for every normal lead. */
+  ooo_released_at: string | null
   owner_user_id: string | null
   workspace_id: string
 }
 
 export const LEAD_COLUMNS =
-  "id, first_name, phone, beds, property_type, move_date, crm_status, sms_opt_in, held_at, followup_opt_in, followup_enrolled_at, applied_at, created_at, ooo_held_at, owner_user_id, workspace_id"
+  "id, first_name, phone, beds, property_type, move_date, crm_status, sms_opt_in, held_at, followup_opt_in, followup_enrolled_at, applied_at, created_at, ooo_held_at, ooo_released_at, owner_user_id, workspace_id"
 
 function monthLabel(moveDate: string | null): string | null {
   if (!moveDate) return null
@@ -92,6 +95,7 @@ export async function buildLeadSnapshot(admin: SupabaseClient, lead: LeadRow): P
     crmStatus: lead.crm_status,
     smsOptIn: lead.sms_opt_in === true,
     heldAt: lead.held_at,
+    oooReleasedAt: lead.ooo_released_at,
     accountAuthorized,
     followupOptIn: lead.followup_opt_in === true,
     appliedAt: lead.applied_at,

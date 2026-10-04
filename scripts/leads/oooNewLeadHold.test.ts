@@ -67,7 +67,7 @@ async function main() {
         id: 1, first_name: "Sarah", phone: "(210) 555-1234", beds: "1", property_type: null,
         move_date: "2026-11-01", crm_status: "new", sms_opt_in: true, held_at: null,
         followup_opt_in: true, followup_enrolled_at: ago(60 * MIN), applied_at: null,
-        created_at: ago(30 * MIN), ooo_held_at: null,
+        created_at: ago(30 * MIN), ooo_held_at: null, ooo_released_at: null,
         owner_user_id: "owner-1", workspace_id: "ws-1",
         agentFirstName: "Jay", timeZone: "America/Chicago", accountAuthorized: true,
         ...(over as object),
@@ -135,6 +135,83 @@ async function main() {
       /now\.getTime\(\) - createdAt > NEW_LEAD_ENROLL_WINDOW_MS\) return null/.test(engine))
   }
 
+  console.log("\nMANUAL START FOLLOW-UP — copy variant (new_lead/t1 only):")
+  {
+    const { resolveStepBody } = await import("@/lib/followup/sequences")
+    const snap = (over: Record<string, unknown> = {}) =>
+      ({ id: 1, firstName: "Bonita", agentFirstName: "Jay", beds: "1", propertyType: null,
+         moveDate: "2026-11-01", moveMonthLabel: "November", crmStatus: "new", smsOptIn: true,
+         heldAt: null, oooReleasedAt: null, accountAuthorized: true, followupOptIn: true,
+         appliedAt: null, timeZone: "America/Chicago", ...over }) as never
+    const share = {} as never
+
+    const normalT1 = resolveStepBody("new_lead" as never, "t1", snap(), share)
+    const oooT1 = resolveStepBody("new_lead" as never, "t1", snap({ oooReleasedAt: "2026-10-03T16:00:00Z" }), share)
+    const normalT2 = resolveStepBody("new_lead" as never, "t2", snap(), share)
+    const oooT2 = resolveStepBody("new_lead" as never, "t2", snap({ oooReleasedAt: "2026-10-03T16:00:00Z" }), share)
+
+    ok("the NORMAL new-lead Text 1 is unchanged",
+      normalT1 === "Hey Bonita it's Jay! I got your form for a 1 bedroom move in November.",
+      JSON.stringify(normalT1))
+    ok("an OOO-restarted lead gets the OOO Text 1 instead",
+      oooT1 === "Hey Bonita, it's Jay! I'm back in the office and following up on your apartment request.",
+      JSON.stringify(oooT1))
+    ok("…and never says \"I got your form\"", !/I got your form/.test(oooT1))
+    ok("Text 2 is the SAME location question either way",
+      normalT2 === oooT2 && normalT2 === "Are you trying to stay near a specific address or side of town?",
+      JSON.stringify({ normalT2, oooT2 }))
+    // The variant must not leak into the chase steps.
+    for (const step of ["contact_fu1", "contact_fu2", "contact_fu3"]) {
+      const a = resolveStepBody("new_lead" as never, step, snap(), share)
+      const b = resolveStepBody("new_lead" as never, step, snap({ oooReleasedAt: "2026-10-03T16:00:00Z" }), share)
+      ok(`${step} is identical with and without the OOO stamp`, a === b)
+    }
+    // And not into another family.
+    const ls = resolveStepBody("list_sent" as never, "fu1", snap(), share)
+    const lsOoo = resolveStepBody("list_sent" as never, "fu1", snap({ oooReleasedAt: "2026-10-03T16:00:00Z" }), share)
+    ok("list_sent copy is unaffected by the OOO stamp", ls === lsOoo)
+  }
+
+  console.log("\nTHE START FOLLOW-UP ENDPOINT:")
+  {
+    const route = strip(read("app/api/admin/leads/start-ooo-followup/route.ts"))
+    ok("it is authenticated", /requireWorkspaceMember\(\)/.test(route))
+    ok("ownership is checked with the CALLER'S session, not the service role",
+      /guard\.supabase[\s\S]{0,120}\.from\("leads"\)/.test(route))
+    ok("it requires ooo_held_at", /if \(!lead\.ooo_held_at\)/.test(route))
+    ok("it requires crm_status = new", /!== "new"/.test(route))
+    ok("an already-released lead is a NO-OP success", /if \(lead\.ooo_released_at\)[\s\S]{0,160}alreadyStarted: true/.test(route))
+    // Must branch on the query RESULT, not merely contain the query: replacing
+    // `if (active)` with `if (false)` leaves the surrounding text intact.
+    ok("an existing active lifecycle run is a NO-OP success",
+      /\.in\("status", \["waiting", "due"\]\)[\s\S]{0,200}alreadyStarted: true/.test(route) &&
+      /if \(active\) \{[\s\S]{0,160}alreadyStarted: true/.test(route))
+    ok("it creates exactly ONE run", (route.match(/\.from\("lead_followup_runs"\)[\s\S]{0,40}\.insert/g) ?? []).length === 1)
+    ok("…as new_lead / t1 / step 0, eligible now",
+      /sequence_key: "new_lead"[\s\S]{0,120}step_key: "t1"[\s\S]{0,80}step_index: 0/.test(route) &&
+      /next_eligible_at: nowIso/.test(route))
+    ok("…with session_date null so the one-active-lifecycle index applies", /session_date: null/.test(route))
+    ok("a unique-violation race is treated as success, not an error", /23505/.test(route))
+    // Anchor on the INSERT, not on `.from("lead_followup_runs")` — that string also
+    // appears in the active-run SELECT above, which made this vacuously true.
+    ok("the run is inserted BEFORE the stamp",
+      route.indexOf('.from("lead_followup_runs").insert(') >= 0 &&
+      route.indexOf('.from("lead_followup_runs").insert(') < route.indexOf("ooo_released_at: nowIso"),
+      "a stamp written first would leave a lead that looks started with no run")
+    {
+      // Scoped to the UPDATE/INSERT payloads. ooo_held_at and crm_status legitimately
+      // appear in the select list, the row type and the precondition checks; what
+      // must never happen is either of them being WRITTEN.
+      const writes = [...route.matchAll(/\.(update|insert)\(([\s\S]{0,400}?)\)\s*\n/g)].map((m) => m[2]).join("\n")
+      ok("ooo_held_at is NEVER written", !/ooo_held_at/.test(writes), writes.slice(0, 200))
+      ok("crm_status is never written", !/crm_status/.test(writes))
+      ok("…and the only lead column written is ooo_released_at",
+        /ooo_released_at: nowIso/.test(writes))
+    }
+    ok("no other sequence family is referenced",
+      !/list_sent|done_selecting|application_status|resume_search|post_tour/.test(route))
+  }
+
   console.log("\nUNTOUCHED SYSTEMS:")
   {
     const engine = strip(read("lib/followup/engine.ts"))
@@ -145,7 +222,7 @@ async function main() {
     ok("LEAD_COLUMNS selects the new column so the guard can see it",
       /ooo_held_at/.test(snapshot))
     ok("…and no other lead field was added or removed",
-      /id, first_name, phone, beds, property_type, move_date, crm_status, sms_opt_in, held_at, followup_opt_in, followup_enrolled_at, applied_at, created_at, ooo_held_at, owner_user_id, workspace_id/.test(snapshot))
+      /id, first_name, phone, beds, property_type, move_date, crm_status, sms_opt_in, held_at, followup_opt_in, followup_enrolled_at, applied_at, created_at, ooo_held_at, ooo_released_at, owner_user_id, workspace_id/.test(snapshot))
   }
 
 

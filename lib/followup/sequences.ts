@@ -125,7 +125,11 @@ export function resolveStepBody(
   if (seq === "new_lead") {
     switch (stepKey) {
       case "t1":
-        return C.renderNewLeadText1(lead)
+        // SAME step, SAME sequence, same 30–45s hand-off to t2 — only the opening
+        // sentence changes, and only for a lead the locator manually restarted
+        // after being away. Every normal lead has oooReleasedAt === null and gets
+        // byte-identical copy to before.
+        return lead.oooReleasedAt ? C.renderOooRestartText1(lead) : C.renderNewLeadText1(lead)
       case "t2":
         return C.NEW_LEAD_TEXT2
       case "contact_fu1":

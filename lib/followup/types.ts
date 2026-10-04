@@ -86,6 +86,14 @@ export type LeadSnapshot = {
    * while every locator-facing surface stays exactly as it was.
    */
   heldAt: string | null
+  /**
+   * leads.ooo_released_at — the locator manually started follow-up on a lead that
+   * arrived while they were Out of Office. Selects the OOO restart wording for
+   * new_lead/t1 ONLY: such a lead can be days old, and "I got your form!" would
+   * read as if it had just arrived. NULL for every normal lead, which therefore
+   * renders exactly the copy it always did.
+   */
+  oooReleasedAt: string | null
   // ACCOUNT-level authorization: the controlling locator's Locator Beast account is
   // present in automated_texting_accounts (resolved live at evaluation time, never
   // stored on the lead). Default false. Combined with followupOptIn this is the

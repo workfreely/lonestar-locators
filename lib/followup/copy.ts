@@ -59,6 +59,32 @@ export function renderNewLeadText1(lead: LeadSnapshot, override?: string | null)
     .trim()
 }
 
+/**
+ * New-Lead Text 1 when the locator MANUALLY restarts an Out-of-Office lead.
+ *
+ * Same sequence, same step, same timing — only the opening sentence differs. The
+ * standard copy says "I got your form!", which is true of a lead that arrived
+ * minutes ago and absurd for one that has been waiting a week while the locator
+ * was away. This names the gap instead of pretending it isn't there.
+ *
+ * Deliberately NOT in DEFAULT_FOLLOW_UP_TEMPLATES: that catalogue is the
+ * agent-editable template set, with token lists, char limits and an editor UI
+ * behind it. This is a system variant chosen by lead state, not something a
+ * locator picks, so adding it there would imply an editability it does not have.
+ *
+ * {search_tail} is deliberately absent: the client's beds/move month are stale
+ * context by now, and leading with them would read like a form echo rather than a
+ * person returning to their request.
+ */
+export function renderOooRestartText1(lead: LeadSnapshot): string {
+  const first = (lead.firstName || "").trim()
+  const agent = (lead.agentFirstName || "").trim()
+  // Mirrors renderNewLeadText1's graceful degradation: a missing agent name must
+  // never leave "Hey Sarah, it's !" on a client's screen.
+  const opener = first && agent ? `Hey ${first}, it's ${agent}!` : first ? `Hey ${first}!` : "Hey!"
+  return `${opener} I'm back in the office and following up on your apartment request.`
+}
+
 // ── Canonical strings re-exported under the engine's stable names ─────────────
 export const NEW_LEAD_TEXT2 = DEFAULT_FOLLOW_UP_TEMPLATES.new_lead_text2
 
