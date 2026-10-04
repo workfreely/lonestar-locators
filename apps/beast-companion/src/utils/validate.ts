@@ -20,7 +20,7 @@
 export const MSG_SOURCE = "lb-companion";
 
 /** Every message type the content scripts will accept. Anything else is dropped. */
-export const INBOUND_TYPES = ["active-client", "current-property", "changed", "signed-out", "enrich-property-result", "share-link-result"] as const;
+export const INBOUND_TYPES = ["active-client", "current-property", "changed", "signed-out", "enrich-property-result", "share-link-result", "out-of-office-result"] as const;
 export type InboundType = (typeof INBOUND_TYPES)[number];
 
 /**
@@ -252,6 +252,40 @@ export function isValidShareLinkResultPayload(
   }
   if (p.listNumber !== null && typeof p.listNumber !== "number") return false;
   if (typeof p.reused !== "boolean") return false;
+  if (p.error !== null && !idOk(p.error, 512)) return false;
+  return isWithinSizeLimit(payload);
+}
+
+/**
+ * Out-of-Office result schema. Carries NO client data — a workspace's own away
+ * state, its public slug, and the public URL built from it.
+ *
+ * `previewUrl` is restricted to http(s) for the same reason as the share link: it
+ * ends up in window.open, so a forged result must not be able to turn Preview
+ * into a `javascript:` launcher. `until` is validated as a calendar date, which
+ * also means a forged result cannot push arbitrary text into the panel's date
+ * field.
+ */
+export function isValidOooResultPayload(
+  payload: unknown,
+): payload is {
+  nonce: string
+  enabled: boolean
+  until: string | null
+  slug: string | null
+  previewUrl: string | null
+  error: string | null
+} {
+  if (!payload || typeof payload !== "object") return false;
+  const p = payload as Record<string, unknown>;
+  if (!idOk(p.nonce, 128)) return false;
+  if (typeof p.enabled !== "boolean") return false;
+  if (p.until !== null && !(typeof p.until === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.until))) return false;
+  if (p.slug !== null && !idOk(p.slug, 256)) return false;
+  if (p.previewUrl !== null) {
+    if (!idOk(p.previewUrl, MAX_TEXT)) return false;
+    if (!/^https?:\/\//i.test(p.previewUrl)) return false;
+  }
   if (p.error !== null && !idOk(p.error, 512)) return false;
   return isWithinSizeLimit(payload);
 }

@@ -12,6 +12,7 @@ import { startCurrentPropertyBridge, syncCurrentProperty } from "./currentProper
 import { startMapPropertyBridge } from "./mapPropertyBridge";
 import { startEnrichmentBridge } from "./enrichmentBridge";
 import { startShareLinkBridge } from "./shareLinkBridge";
+import { startOutOfOfficeBridge } from "./outOfOfficeBridge";
 import { log, logError } from "@/utils/log";
 import type { PanelSide } from "@/types";
 
@@ -153,6 +154,11 @@ function init(): void {
     // reuse-or-mints the snapshot and resolves its stable /r/<token> URL, then writes
     // the answer back for the panel's Preview / Copy Link. Self-gated to CRM pages.
     startShareLinkBridge();
+
+    // Out-of-Office bridge — relays the Companion hamburger's read/write of the
+    // workspace's away state to the CRM, which performs the authenticated call and
+    // writes the STORED state back. Self-gated to CRM pages.
+    startOutOfOfficeBridge();
 
     log("ready — launcher docked; click opens the native side panel (native X closes)");
   } catch (err) {

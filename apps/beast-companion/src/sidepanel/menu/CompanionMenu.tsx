@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatPersonName, type ThemeId } from "@bc/companion-shared";
 import { ThemeSelect } from "./ThemeSelect";
+import { OutOfOfficeControl } from "./OutOfOfficeControl";
 import type { CompanionConnection } from "../connection";
 import "./menu.css";
 
@@ -88,6 +89,11 @@ export function CompanionMenu({
 }) {
   const firstItemRef = useRef<HTMLButtonElement>(null);
 
+  // Which view the popover is showing. "menu" is the list; "ooo" replaces it with
+  // the Out of Office control. Local to the popover — closing the menu discards
+  // it, and the control re-reads its state from the server on every open anyway.
+  const [view, setView] = useState<"menu" | "ooo">("menu");
+
   // Dynamic Edit Client label — "Edit {First}’s Profile" using the active client's
   // first name only; falls back to "Edit Client Profile" when no name is available.
   // Display copy only — nothing here changes the edit-client verb or behavior.
@@ -103,6 +109,10 @@ export function CompanionMenu({
     <>
       <div className="bc-pop-backdrop" onClick={onClose} aria-hidden />
       <div className="bc-popover" role="menu" aria-label="Companion menu">
+        {view === "ooo" ? (
+          <OutOfOfficeControl onBack={() => setView("menu")} />
+        ) : (
+        <>
         {/* Top actions — the everyday things a locator reaches the menu for. */}
         {canEditClient && (
           <button
@@ -157,6 +167,25 @@ export function CompanionMenu({
           <PrefToggle on={aiVoiceScriptOn} onToggle={onToggleAiVoiceScript} label="Voicemail Script" />
         </div>
 
+        {/* OUT OF OFFICE — opens the control rather than toggling inline. It is
+            workspace state with a return date and a public page behind it, not an
+            agent preference, so it gets a view and an explicit status instead of a
+            bare switch the locator could flip by accident. */}
+        <button
+          type="button"
+          className="bc-pop-item"
+          role="menuitem"
+          onClick={(e) => {
+            e.stopPropagation();
+            setView("ooo");
+          }}
+        >
+          <span className="bc-pop-label">Out of Office</span>
+          <svg className="bc-pop-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M9 6l6 6-6 6" />
+          </svg>
+        </button>
+
         <div className="bc-pop-item bc-theme-row">
           <span className="bc-pop-label">Theme</span>
           <ThemeSelect value={theme} onChange={onPickTheme} />
@@ -189,6 +218,8 @@ export function CompanionMenu({
             </div>
           )}
         </div>
+        </>
+        )}
       </div>
     </>
   );

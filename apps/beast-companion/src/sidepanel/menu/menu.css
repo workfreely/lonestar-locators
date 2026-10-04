@@ -293,3 +293,144 @@
   transition: left 0.15s ease, background 0.15s ease;
 }
 .bc-toggle.is-on .bc-toggle-knob { left: 18px; background: #fff; }
+
+/* ── Out of Office control ───────────────────────────────────────────────────
+   A VIEW inside the popover, not a second overlay: it replaces the menu list and
+   reuses the popover's own backdrop, Escape handling and width. Every colour here
+   is a theme token, so it follows the Companion's five workspace themes rather
+   than pinning its own palette. The one exception is the away dot/status accent,
+   which must read as a state (not as the brand) in all five. */
+.bc-ooo { display: flex; flex-direction: column; }
+.bc-ooo-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 8px;
+  border-bottom: 1px solid var(--lb-border);
+  margin-bottom: 8px;
+}
+.bc-ooo-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--lb-text-secondary);
+  cursor: pointer;
+}
+.bc-ooo-back:hover { background: var(--lb-surface-elevated); color: var(--lb-text-primary); }
+.bc-ooo-back:focus-visible { outline: 2px solid var(--lb-accent); outline-offset: -1px; }
+.bc-ooo-title {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--lb-text-primary);
+}
+.bc-ooo-body { display: flex; flex-direction: column; gap: 2px; }
+
+/* Status — the reason this control exists. Stated in words, never inferred from
+   the switch position alone. */
+.bc-ooo-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  border-radius: 8px;
+  background: var(--lb-surface-elevated);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--lb-text-secondary);
+}
+.bc-ooo-status.is-on { color: var(--lb-text-primary); }
+.bc-ooo-status strong { font-weight: 700; }
+.bc-ooo-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lb-text-secondary);
+  opacity: 0.5;
+}
+.bc-ooo-dot.is-on { background: #f5a524; opacity: 1; }
+
+.bc-ooo-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+}
+.bc-ooo-label {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lb-text-primary);
+}
+.bc-ooo-date {
+  flex: none;
+  width: 134px;
+  padding: 5px 7px;
+  border: 1px solid var(--lb-border);
+  border-radius: 7px;
+  background: var(--lb-surface);
+  color: var(--lb-text-primary);
+  font-family: inherit;
+  font-size: 12.5px;
+}
+.bc-ooo-date:focus-visible { outline: 2px solid var(--lb-accent); outline-offset: -1px; }
+.bc-ooo-date:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.bc-ooo-hint,
+.bc-ooo-note {
+  margin: 0;
+  padding: 0 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--lb-text-secondary);
+}
+.bc-ooo-hint { margin-top: -2px; }
+.bc-ooo-note { margin-top: 8px; }
+
+.bc-ooo-preview {
+  margin: 10px 10px 2px;
+  padding: 7px 10px;
+  border: 1px solid var(--lb-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--lb-text-primary);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+}
+.bc-ooo-preview:hover { background: var(--lb-surface-elevated); }
+.bc-ooo-preview:focus-visible { outline: 2px solid var(--lb-accent); outline-offset: -1px; }
+
+.bc-ooo-retry {
+  margin: 8px 10px 2px;
+  padding: 7px 10px;
+  border: 1px solid var(--lb-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--lb-text-primary);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.bc-ooo-retry:hover { background: var(--lb-surface-elevated); }
+
+.bc-ooo-err {
+  margin: 8px 10px 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #c0264b;
+}
+
+/* Chevron on a menu row that opens a sub-view (Out of Office). */
+.bc-pop-chev { flex: none; color: var(--lb-text-secondary); }
