@@ -225,9 +225,15 @@ async function main() {
     ok("the small-icon class is applied", /className="lb-date-native \[color-scheme:dark\] sb-research-date"/.test(ui))
     ok("…and lb-date-native really sizes the indicator down",
       /input\[type="date"\]\.lb-date-native::-webkit-calendar-picker-indicator \{[\s\S]{0,200}width: 1\.15em/.test(css))
+    // The selector MUST be prefixed: a bare .sb-research-date is (0,1,0) and loses
+    // to the base input[type="date"] rule (0,1,1) — measured in production as
+    // width 851px / font-size 17px with the class applied but overridden.
+    ok("the compact rule out-specifies the marketing base rule",
+      /input\[type="date"\]\.sb-research-date \{/.test(css))
     ok("the field is compact (140–170px)",
-      /\.sb-research-date \{[\s\S]{0,200}width: 15\dpx/.test(css))
-    ok("…and does not flex-grow", /\.sb-research-date \{[\s\S]{0,200}flex: none/.test(css))
+      /input\[type="date"\]\.sb-research-date \{[\s\S]{0,200}width: 15\dpx/.test(css))
+    ok("…and does not flex-grow",
+      /input\[type="date"\]\.sb-research-date \{[\s\S]{0,200}flex: none/.test(css))
     ok("the old Tailwind indicator hacks are gone",
       !/\[&::-webkit-calendar-picker-indicator\]/.test(ui))
     ok("the Save button got more room", /crm-cta px-6 py-2[^"]*whitespace-nowrap/.test(ui))

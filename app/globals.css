@@ -2098,8 +2098,14 @@ body.jaybot-open {
    and out-ranks layered utilities — the same reason .kb-hold-date exists. Pair in
    the JSX with .lb-date-native (restores a small trailing calendar icon instead of
    the base rule's full-field indicator) and [color-scheme:dark]. The input stays a
-   real type="date": the native picker still opens on click. */
-.sb-research-date {
+   real type="date": the native picker still opens on click.
+
+   NOTE the input[type="date"] PREFIX. A bare .sb-research-date is specificity
+   (0,1,0) and LOSES to the base rule's input[type="date"] (0,1,1) — measured in
+   production as width 851px / font-size 17px despite the class applying. The
+   prefix makes it (0,2,1), which is the same trick .lb-date-native and
+   .crm-native-date already use on the indicator. */
+input[type="date"].sb-research-date {
   width: 150px;
   flex: none;
   font: inherit;
