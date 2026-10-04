@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { requirePlatformAdmin, type PlatformAdminGuardOk } from "@/lib/auth/requirePlatformAdmin"
 import { QUEUE_STATUSES, isPostStatus } from "@/lib/social/postStatus"
 import { defaultPostType, isValidPostType } from "@/lib/social/postTypes"
-import { preparePost } from "@/lib/social/composePost"
+import { preparePost, priceLabelMode } from "@/lib/social/composePost"
 
 // Social Autopilot post variations API — platform-admin ONLY (requirePlatformAdmin gates
 // every method); RLS on social_posts is the second layer. A post references an immutable
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
   // PUBLIC-safe metadata used for auto-preparation (notes/placeId are intentionally excluded).
   const { data: src, error: srcErr } = await supabase
     .from("social_content")
-    .select("id, display_name, property_name, property_type, market, special, budget_range, amenities, details, overlay_mode")
+    .select("id, display_name, property_name, property_type, market, special, budget_range, price_label_mode, amenities, details, overlay_mode")
     .eq("id", sourceContentId)
     .maybeSingle()
   if (srcErr) return NextResponse.json({ error: "create_failed" }, { status: 500 })
@@ -153,6 +153,7 @@ export async function POST(req: NextRequest) {
       propertyType: s.property_type as string | null,
       special: s.special as string | null,
       budgetRange: s.budget_range as string | null,
+      priceLabelMode: priceLabelMode(s.price_label_mode),
       amenities: s.amenities as string | null,
     },
     // Deterministic hook rotation seed: the source video id — one source always gets the same

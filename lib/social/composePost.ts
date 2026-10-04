@@ -25,7 +25,12 @@ export type SourceMeta = {
   propertyType?: string | null
   special?: string | null // RAW Current Special (source metadata) — factual, never overwritten
   socialSpecial?: string | null // per-post explicit short-form Social Special; wins over `special`
-  budgetRange?: string | null // "Price Range" in the UI; column stays budget_range
+  budgetRange?: string | null // "Starting At" in the UI; column stays budget_range
+  // What the price MEANS for this footage. Per-SOURCE, not per-post: "the exact unit
+  // shown" describes the video itself, and stays true of every post made from it.
+  // Undefined/null is "starting_at", so existing content keeps today's wording with
+  // no backfill.
+  priceLabelMode?: PriceLabelMode | null
   amenities?: string | null
   // propertyName / areaNeighborhood / notes / placeId / originalFilename are INTERNAL — never
   // accepted here, so the public preparation engine cannot emit them.
@@ -101,9 +106,51 @@ function lowestPrice(range: string | null | undefined): number | null {
 // the same string. DISPLAY ONLY — no stored price value changes. Was "/mo".
 export const PER_MONTH_SUFFIX = "/month"
 
-export function startingPriceLabel(range: string | null | undefined): string {
+/** Rents at or above this compact to "K". Below it, full digits stay clearer. */
+export const COMPACT_PRICE_MIN = 7000
+
+/**
+ * Display form of a whole-dollar rent. Compact only at/above COMPACT_PRICE_MIN AND
+ * only when the value is exact to one decimal place — i.e. a multiple of 100:
+ *
+ *    7000 → $7K        7100 → $7.1K      12500 → $12.5K     20000 → $20K
+ *    7250 → $7,250     7123 → $7,123                        6950  → $6,950
+ *
+ * NEVER ROUNDS. $7,250 would be $7.3K at one decimal and $7.25K at two — the first
+ * misstates the rent, the second reads like a typo — so a value that cannot be said
+ * exactly in one decimal keeps its full digits instead.
+ *
+ * The arithmetic is integer-only (whole thousands + tenths) rather than n/1000, so
+ * no float formatting can introduce a stray decimal.
+ *
+ * DISPLAY ONLY. social_content.budget_range keeps whatever was typed; nothing here
+ * parses, rewrites or stores a price.
+ */
+function formatPriceDisplay(n: number): string {
+  if (n >= COMPACT_PRICE_MIN && n % 100 === 0) {
+    const whole = Math.floor(n / 1000)
+    const tenths = (n % 1000) / 100 // integer 0–9, because n is a multiple of 100
+    return tenths === 0 ? `$${whole}K` : `$${whole}.${tenths}K`
+  }
+  return `$${n.toLocaleString("en-US")}`
+}
+
+/** How the price is introduced. Per-SOURCE; null/absent reads as "starting_at". */
+export type PriceLabelMode = "starting_at" | "exact_unit"
+export const PRICE_LABEL_MODES: readonly PriceLabelMode[] = ["starting_at", "exact_unit"] as const
+const PRICE_LABEL_PREFIX: Record<PriceLabelMode, string> = {
+  starting_at: "Starting at",
+  exact_unit: "Exact unit shown:",
+}
+/** Narrow an unknown/stored value to a mode; anything else is "starting_at". */
+export function priceLabelMode(v: unknown): PriceLabelMode {
+  return v === "exact_unit" ? "exact_unit" : "starting_at"
+}
+
+export function startingPriceLabel(range: string | null | undefined, mode?: PriceLabelMode | null): string {
   const n = lowestPrice(range)
-  return n === null ? "" : `Starting at $${n.toLocaleString("en-US")}${PER_MONTH_SUFFIX}`
+  if (n === null) return ""
+  return `${PRICE_LABEL_PREFIX[priceLabelMode(mode)]} ${formatPriceDisplay(n)}${PER_MONTH_SUFFIX}`
 }
 
 /** Just the formatted lowest price ("$1,495", $ + thousands separator, no "Starting at"/"/mo") — for
@@ -111,7 +158,10 @@ export function startingPriceLabel(range: string | null | undefined): string {
  *  fabricated $0/placeholder). Same parsing rule as startingPriceLabel (shares lowestPrice). */
 export function startingPriceAmount(range: string | null | undefined): string {
   const n = lowestPrice(range)
-  return n === null ? "" : `$${n.toLocaleString("en-US")}`
+  // Shares formatPriceDisplay so "What $7.5K/month gets you in Dallas" and
+  // "Starting at $7.5K/month" can never disagree about the same number. The LABEL
+  // mode deliberately does not apply here: these callers compose their own sentence.
+  return n === null ? "" : formatPriceDisplay(n)
 }
 
 /** Headline = Market + Property Type ("SAN ANTONIO TOWNHOMES"), a generic, public-safe leasing
@@ -129,7 +179,7 @@ export function buildOverlayHeadline(src: SourceMeta): string {
  *  NEVER the property name, area, or notes. The current special still appears in the CAPTION's ✨
  *  line — it is intentionally not part of the Template 1 overlay subheadline. */
 export function buildOverlaySubheadline(src: SourceMeta): string {
-  return startingPriceLabel(src.budgetRange).slice(0, 60)
+  return startingPriceLabel(src.budgetRange, src.priceLabelMode).slice(0, 60)
 }
 
 // ── APPROVED caption template system ─────────────────────────────────────────────────────────
@@ -307,7 +357,7 @@ export function preparePost(src: SourceMeta, seed?: string | number, template?: 
 // detail is "Starting at {lowest price}/mo" (or empty). It is DERIVED — never a free-text field —
 // so a stale manual value (e.g. "This could be your next home") can never masquerade as it.
 export function buildOverlayDetail(src: SourceMeta): string {
-  return startingPriceLabel(src.budgetRange)
+  return startingPriceLabel(src.budgetRange, src.priceLabelMode)
 }
 
 /** Join present overlay-detail parts into ONE line with the canonical centered-dot separator
@@ -500,7 +550,7 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
  *  template has no detail or the needed values are missing (never fabricated). */
 export function buildTemplateDetail(template: OverlayTemplate, src: SourceMeta): string {
   const special = resolveSocialSpecial(src)
-  const price = startingPriceLabel(src.budgetRange)
+  const price = startingPriceLabel(src.budgetRange, src.priceLabelMode)
   const feature = firstFeature(src.amenities)
   switch (template) {
     case "market_type":
@@ -597,8 +647,35 @@ export function isGeneratedHeadline(text: string | null | undefined): boolean {
  *      are collapsed to the canonical single line "🏡 a, b, c" so they compare equal. Without this
  *      an inline-amenity caption never matches the bulleted generator output and is frozen as
  *      "manual" forever (the bug that let a stale caption publish). */
+/**
+ * Collapse EQUIVALENT price spellings to one canonical token so a caption stored
+ * before compact formatting still matches the generator afterwards.
+ *
+ *   "$18,000" and "$18K"   → "$18000"
+ *   "$7,500"  and "$7.5K"  → "$7500"
+ *
+ * Deliberately narrow: it only rewrites the NUMBER's spelling, never any words, and
+ * different amounts stay different ($18K and $19K do not collapse). So a genuinely
+ * manual caption is still manual — the only captions this makes equal are ones that
+ * already said the same rent a different way.
+ *
+ * Without it, three templates would silently break: pov_price, what_mo_gets_you and
+ * what_mo_gets_you_top put the price in the CAPTION, so changing the number format
+ * would make their stored captions stop matching buildCaption, freeze them as
+ * "manual", and publish the old spelling forever.
+ */
+const canonicalizePriceText = (s: string) =>
+  s
+    // Compact form first ("$7.5K", "$18K") → the dollar amount it denotes.
+    .replace(/\$(\d[\d,]*)(?:\.(\d))?K\b/gi, (_m, whole: string, tenth?: string) => {
+      const n = parseInt(whole.replace(/,/g, ""), 10) * 1000 + (tenth ? Number(tenth) * 100 : 0)
+      return `$${n}`
+    })
+    // Full form ("$18,000") → the same digits without separators.
+    .replace(/\$(\d[\d,]*)/g, (_m, d: string) => `$${d.replace(/,/g, "")}`)
+
 const captionKey = (s: string) => {
-  const lines = s.replace(/\r/g, "").split("\n").map((l) => l.trim()).filter(Boolean)
+  const lines = canonicalizePriceText(s).replace(/\r/g, "").split("\n").map((l) => l.trim()).filter(Boolean)
   const out: string[] = []
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i]

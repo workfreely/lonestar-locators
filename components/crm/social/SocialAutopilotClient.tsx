@@ -953,7 +953,11 @@ export default function SocialAutopilotClient() {
                   <input className={`${inputCls} mt-1`} value={batch.special} onChange={(e) => setBatch((b) => ({ ...b, special: e.target.value }))} />
                 </label>
                 <label className="block">
-                  <span className={fieldLabel}>Price Range</span>
+                  {/* Same field, same column (budget_range) — this label just said
+                      "Price Range" while the Post Editor said "Starting At" for the
+                      identical value. Label only: nothing about storage, parsing or
+                      template behaviour changes. */}
+                  <span className={fieldLabel}>Starting At</span>
                   <input className={`${inputCls} mt-1`} value={batch.budgetRange} onChange={(e) => setBatch((b) => ({ ...b, budgetRange: e.target.value }))} />
                 </label>
               </div>

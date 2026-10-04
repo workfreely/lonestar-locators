@@ -7,7 +7,7 @@
 //
 // Server-only. The future replenish cron will call generateOccurrences() with the same logic.
 import type { PlatformAdminGuardOk } from "@/lib/auth/requirePlatformAdmin"
-import { preparePost, startingPriceLabel } from "@/lib/social/composePost"
+import { preparePost, startingPriceLabel, priceLabelMode } from "@/lib/social/composePost"
 import {
   planOccurrences, dayKeysFrom, dateKeyInTz, wallClockToUtcISO, horizonDays, maxOccurrencesFor,
   slotForMinute, isGeneratingState, DEFAULT_TIMEZONE, DEFAULT_POSTS_PER_DAY, type Occupancy, type Slot, type PlacementPref,
@@ -75,7 +75,7 @@ export async function generateOccurrences(supabase: SB, rule: RuleRow, tz: strin
 
   const { data: src } = await supabase
     .from("social_content")
-    .select("market, property_type, special, budget_range, amenities, overlay_mode, display_name")
+    .select("market, property_type, special, budget_range, price_label_mode, amenities, overlay_mode, display_name")
     .eq("id", rule.source_content_id)
     .maybeSingle()
   if (!src) return { created: 0, horizonDays: 0, planned: 0 }
@@ -111,7 +111,7 @@ export async function generateOccurrences(supabase: SB, rule: RuleRow, tz: strin
   const have = new Set((had ?? []).map((r) => (r as { recurrence_index: number | null }).recurrence_index))
 
   const prepared = preparePost(
-    { market: s.market as string | null, propertyType: s.property_type as string | null, special: s.special as string | null, budgetRange: s.budget_range as string | null, amenities: s.amenities as string | null },
+    { market: s.market as string | null, propertyType: s.property_type as string | null, special: s.special as string | null, budgetRange: s.budget_range as string | null, priceLabelMode: priceLabelMode(s.price_label_mode), amenities: s.amenities as string | null },
     rule.source_content_id,
   )
   const overlayMode = s.overlay_mode === "existing" ? "existing" : "generate"
@@ -127,7 +127,7 @@ export async function generateOccurrences(supabase: SB, rule: RuleRow, tz: strin
       post_name: postName,
       caption: prepared.caption,
       overlay_headline: prepared.overlayHeadline,
-      overlay_subheadline: startingPriceLabel(s.budget_range as string | null),
+      overlay_subheadline: startingPriceLabel(s.budget_range as string | null, priceLabelMode(s.price_label_mode)),
       overlay_mode: overlayMode,
       hashtags: prepared.hashtags,
       audio_choice: rule.audio_choice,

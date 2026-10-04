@@ -18,7 +18,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from("social_content")
     .select(
-      "id, storage_path, kind, original_filename, content_type, size_bytes, duration_s, display_name, name_customized, upload_batch_id, batch_seq, property_name, property_type, market, area_neighborhood, special, budget_range, amenities, tags, notes, place_id, details, created_at, updated_at",
+      "id, storage_path, kind, original_filename, content_type, size_bytes, duration_s, display_name, name_customized, upload_batch_id, batch_seq, property_name, property_type, market, area_neighborhood, special, budget_range, price_label_mode, amenities, tags, notes, place_id, details, created_at, updated_at",
     )
     .order("created_at", { ascending: false })
   if (error) return NextResponse.json({ error: "list_failed" }, { status: 500 })

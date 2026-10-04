@@ -7,7 +7,7 @@ import { previewAspectClass } from "@/lib/social/postTypes"
 import { SiInstagram, SiTiktok, SiYoutube } from "react-icons/si"
 import type { IconType } from "react-icons"
 import { buildHashtags, normalizeHashtag, hashtagLimitFor, MAX_HASHTAGS } from "@/lib/social/hashtags"
-import { buildCaption, specialDisplay, buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, DEFAULT_OVERLAY_TEMPLATE, type OverlayTemplate, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags, isOverlayPreviewStale, type OverlayPreviewBaseline, type SourceMeta } from "@/lib/social/composePost"
+import { PRICE_LABEL_MODES, priceLabelMode as narrowPriceLabelMode, type PriceLabelMode, buildCaption, specialDisplay, buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, DEFAULT_OVERLAY_TEMPLATE, type OverlayTemplate, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags, isOverlayPreviewStale, type OverlayPreviewBaseline, type SourceMeta } from "@/lib/social/composePost"
 import SpecialSelect from "@/components/crm/social/SpecialSelect"
 import { computeOverlayLayout } from "@/lib/social/overlaySpec"
 import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
@@ -38,6 +38,7 @@ type Source = {
   market: string | null
   special: string | null
   budgetRange: string | null
+  priceLabelMode: string | null
   amenities: string | null
   originalFilename: string | null
   kind: string | null
@@ -194,6 +195,8 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [special, setSpecial] = useState("") // RAW Current Special (source metadata; preserved)
   const [socialSpecial, setSocialSpecial] = useState("") // per-post explicit Social Special
   const [priceRange, setPriceRange] = useState("")
+  // Per-SOURCE: what the Starting At number means for this footage. Absent → "starting_at".
+  const [priceMode, setPriceMode] = useState<PriceLabelMode>("starting_at")
   const [amenities, setAmenities] = useState("")
 
   const load = useCallback(async () => {
@@ -224,6 +227,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       setSpecial(p.source?.special ?? "")
       setSocialSpecial(p.socialSpecial ?? "")
       setPriceRange(p.source?.budgetRange ?? "")
+      setPriceMode(narrowPriceLabelMode(p.source?.priceLabelMode))
       setAmenities(p.source?.amenities ?? "")
 
       // Generated-vs-manual detection on load. A stored value that matches a generated form for
@@ -236,6 +240,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
         special: p.source?.special ?? null,
         socialSpecial: p.socialSpecial ?? null,
         budgetRange: p.source?.budgetRange ?? null,
+        priceLabelMode: narrowPriceLabelMode(p.source?.priceLabelMode),
         amenities: p.source?.amenities ?? null,
       }
       const seed = p.sourceContentId ?? undefined
@@ -286,10 +291,10 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
     () => ({
       postName, postType, caption, socialSpecial: socialSpecial || null,
       overlayHeadline: headline,
-      overlaySubheadline: overlayMode === "generate" ? buildTemplateDetail(overlayTemplate, { market, propertyType, special: special || null, socialSpecial: socialSpecial || null, budgetRange: priceRange || null, amenities: amenities || null }) : "",
+      overlaySubheadline: overlayMode === "generate" ? buildTemplateDetail(overlayTemplate, { market, propertyType, special: special || null, socialSpecial: socialSpecial || null, budgetRange: priceRange || null, priceLabelMode: priceMode, amenities: amenities || null }) : "",
       overlayMode, overlayTemplate, hashtags, audioChoice, voiceHookId, voiceCtaId,
     }),
-    [postName, postType, caption, socialSpecial, headline, overlayMode, overlayTemplate, market, propertyType, special, priceRange, amenities, hashtags, audioChoice, voiceHookId, voiceCtaId],
+    [postName, postType, caption, socialSpecial, headline, overlayMode, overlayTemplate, market, propertyType, special, priceRange, priceMode, amenities, hashtags, audioChoice, voiceHookId, voiceCtaId],
   )
 
   // Persist the public-safe SOURCE facts to social_content (reuses the canonical content PATCH,
@@ -299,10 +304,10 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
     const res = await fetch(`/api/admin/social-autopilot/content/${encodeURIComponent(sourceContentId)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ propertyName, propertyType, market, placeId, special, budgetRange: priceRange, amenities }),
+      body: JSON.stringify({ propertyName, propertyType, market, placeId, special, budgetRange: priceRange, priceLabelMode: priceMode, amenities }),
     })
     return res.ok
-  }, [sourceContentId, propertyName, propertyType, market, placeId, special, priceRange, amenities])
+  }, [sourceContentId, propertyName, propertyType, market, placeId, special, priceRange, priceMode, amenities])
 
   const patch = useCallback(
     async (extra: Record<string, unknown>, successMsg: string | null) => {
@@ -578,7 +583,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // the caption keeps its deterministic hook and only re-resolves its variables). A field the user
   // has manually overridden (dirty) is left untouched.
   const metaOf = (over: Partial<SourceMeta> = {}): SourceMeta => ({
-    market, propertyType, special: special || null, socialSpecial: socialSpecial || null, budgetRange: priceRange || null, amenities: amenities || null, ...over,
+    market, propertyType, special: special || null, socialSpecial: socialSpecial || null, budgetRange: priceRange || null, priceLabelMode: priceMode, amenities: amenities || null, ...over,
   })
   const syncGenerated = (meta: SourceMeta, tpl: OverlayTemplate = overlayTemplate) => {
     if (!headlineDirty) setHeadline(buildTemplateHeadline(tpl, meta))
@@ -858,6 +863,23 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 />
                 <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[13px] text-[var(--crm-text-muted)]">/mo</span>
               </div>
+              {/* What the number MEANS. Per-source (it describes the footage), so it
+                  rides the same source PATCH as the price itself. Existing content
+                  has no stored value and reads as "Starting at" — unchanged. */}
+              <select
+                className="mt-1.5 w-full text-[12px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-secondary)] py-1 px-2 cursor-pointer"
+                value={priceMode}
+                onChange={(e) => {
+                  const v = narrowPriceLabelMode(e.target.value)
+                  setPriceMode(v)
+                  syncGenerated(metaOf({ priceLabelMode: v }))
+                }}
+                aria-label="Price label"
+              >
+                {PRICE_LABEL_MODES.map((m) => (
+                  <option key={m} value={m}>{m === "exact_unit" ? "Exact unit shown" : "Starting at"}</option>
+                ))}
+              </select>
             </label>
           </div>
 
