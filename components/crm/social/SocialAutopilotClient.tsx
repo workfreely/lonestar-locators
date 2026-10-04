@@ -388,6 +388,19 @@ export default function SocialAutopilotClient() {
     return ["All", ...SOCIAL_MARKETS, ...extras]
   }, [allCards])
 
+  // ABSOLUTE inventory per market, counted from allCards — the UNFILTERED list.
+  // Counting `cards` instead would make every number move the moment a market is
+  // picked or a search is typed, which defeats the question these answer: "how
+  // much reusable inventory do I have here?" Keyed on the same marketLabel the
+  // filter compares against, so a pill's number always equals what clicking it
+  // yields. Dallas and DFW stay distinct — normalizeSocialMarket only trims.
+  const marketCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const c of allCards) counts.set(c.marketLabel, (counts.get(c.marketLabel) ?? 0) + 1)
+    counts.set("All", allCards.length)
+    return counts
+  }, [allCards])
+
   const cards = useMemo(() => {
     let list = allCards
     if (market !== "All") list = list.filter((c) => c.marketLabel === market)
@@ -736,7 +749,10 @@ export default function SocialAutopilotClient() {
         <div className="flex items-center gap-1.5 flex-wrap">
           {marketChips.map((m) => (
             <button key={m} type="button" className={chip(market === m)} onClick={() => setMarket(m)}>
-              {m}
+              {m}{" "}
+              {/* Dimmer than the label so the pill reads as a filter first and a
+                  count second. */}
+              <span className="opacity-55 tabular-nums">({marketCounts.get(m) ?? 0})</span>
             </button>
           ))}
         </div>

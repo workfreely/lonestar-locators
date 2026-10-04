@@ -1,6 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import AmenitySelect from "@/components/crm/social/AmenitySelect"
+import { parseAmenities, serializeAmenities } from "@/lib/social/amenities"
 
 /**
  * PROPERTY RESEARCH — a collapsed disclosure under "Matched property".
@@ -56,7 +58,9 @@ function todayLocalIso(): string {
 }
 
 export default function PropertyResearch({ sourceContentId }: { sourceContentId: string }) {
-  const [open, setOpen] = useState(false)
+  // Mounted only while expanded (PostEditor owns the toggle), so "open" is true
+  // for this component's whole life.
+  const open = true
   const [showMore, setShowMore] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle")
@@ -141,22 +145,15 @@ export default function PropertyResearch({ sourceContentId }: { sourceContentId:
   const setField = (k: string, v: string) => setFields((f) => ({ ...f, [k]: v }))
 
   return (
-    <div className="mt-1.5">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]"
-        aria-expanded={open}
-      >
-        <span aria-hidden>{open ? "▾" : "▸"}</span> Property Research
-      </button>
-
-      {open && (
-        <div className="mt-2 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] p-2.5 flex flex-col gap-2.5">
+    <div className="w-full min-w-0">
+      {/* Spans the full editor content width beneath the Property/Type/Market row.
+          It previously lived inside that row's 2fr cell, where its inner grids
+          overflowed and dragged the page layout sideways. */}
+      <div className="rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] p-3 flex flex-col gap-3">
           {/* ── THIS VIDEO ─────────────────────────────────────────────── */}
           <div>
             <div className={tiny}>This Video</div>
-            <div className="mt-1 grid grid-cols-3 gap-1.5">
+            <div className="mt-1 grid grid-cols-2 md:grid-cols-3 gap-1.5">
               <label className="block"><span className="sr-only">Floor Plan</span>
                 <input className={inputCls} placeholder="Floor Plan" value={plan.planName}
                   onChange={(e) => setPlan((p) => ({ ...p, planName: e.target.value }))} /></label>
@@ -167,7 +164,7 @@ export default function PropertyResearch({ sourceContentId }: { sourceContentId:
                 <input className={inputCls} inputMode="decimal" placeholder="Baths" value={plan.baths}
                   onChange={(e) => setPlan((p) => ({ ...p, baths: e.target.value }))} /></label>
             </div>
-            <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+            <div className="mt-1.5 grid grid-cols-2 md:grid-cols-3 gap-1.5">
               <label className="block"><span className="sr-only">Sq Ft</span>
                 <input className={inputCls} inputMode="numeric" placeholder="Sq Ft" value={plan.sqft}
                   onChange={(e) => setPlan((p) => ({ ...p, sqft: e.target.value }))} /></label>
@@ -187,7 +184,7 @@ export default function PropertyResearch({ sourceContentId }: { sourceContentId:
           {/* ── PROPERTY STARTING PRICES ───────────────────────────────── */}
           <div>
             <div className={tiny}>Property Starting Prices</div>
-            <div className="mt-1 grid grid-cols-4 gap-1.5">
+            <div className="mt-1 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
               {CORE_FIELDS.map(([key, label]) => (
                 <label key={key} className="block">
                   <span className="sr-only">{label}</span>
@@ -197,7 +194,7 @@ export default function PropertyResearch({ sourceContentId }: { sourceContentId:
               ))}
             </div>
             {showMore ? (
-              <div className="mt-1.5 grid grid-cols-4 gap-1.5">
+              <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                 {MORE_FIELDS.map(([key, label]) => (
                   <label key={key} className="block">
                     <span className="sr-only">{label}</span>
@@ -222,13 +219,29 @@ export default function PropertyResearch({ sourceContentId }: { sourceContentId:
                 those 3 are a curated ranking layer, never the property's feature
                 list — the same distinction property_catalog.amenity_keywords
                 already draws against property_attributes. */}
-            <input className={inputCls} placeholder="Features Observed" value={fields.observed_features ?? ""}
-              onChange={(e) => setField("observed_features", e.target.value)} />
+            <div>
+              <div className={tiny}>Features Observed</div>
+              {/* The SAME canonical bank + search the marketing field uses, with the
+                  3-cap lifted: three curated keywords are a ranking layer, never the
+                  property's feature list. Stored newline-joined in the observation
+                  layer only — never written back to social_content.amenities. */}
+              <div className="mt-1">
+                <AmenitySelect
+                  max={25}
+                  value={parseAmenities(fields.observed_features ?? "")}
+                  onChange={(next) => setField("observed_features", serializeAmenities(next))}
+                />
+              </div>
+            </div>
             <input className={inputCls} placeholder="Source URL" value={sourceUrl}
               onChange={(e) => setSourceUrl(e.target.value)} />
             <div className="flex items-center gap-2">
-              <input type="date" className={`${inputCls} w-auto`} value={observedAt}
-                onChange={(e) => setObservedAt(e.target.value)} aria-label="Observed date" />
+              {/* The native calendar glyph crowds a field this small. Hiding the
+                  indicator is purely visual — the input stays type="date", keeps
+                  its YYYY-MM-DD value, and still opens its picker on click. */}
+              <input type="date" aria-label="Observed date" value={observedAt}
+                onChange={(e) => setObservedAt(e.target.value)}
+                className={`${inputCls} w-auto [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:w-0 [&::-webkit-calendar-picker-indicator]:m-0`} />
               <div className="flex-1" />
               {state === "error" && <span className="text-[11px] text-[#c0264b]">Couldn’t save.</span>}
               {state === "saved" && <span className="text-[11px] text-emerald-500">Saved.</span>}
@@ -238,8 +251,7 @@ export default function PropertyResearch({ sourceContentId }: { sourceContentId:
               </button>
             </div>
           </div>
-        </div>
-      )}
+      </div>
     </div>
   )
 }

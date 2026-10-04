@@ -36,6 +36,7 @@ type Source = {
   propertyName: string | null
   propertyType: string | null
   placeId: string | null
+  address: string | null
   market: string | null
   special: string | null
   budgetRange: string | null
@@ -193,6 +194,13 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [propertyType, setPropertyType] = useState("")
   const [market, setMarket] = useState("")
   const [placeId, setPlaceId] = useState("")
+  // Matched property's street address, READ from property_catalog by place_id —
+  // social_content stores no address and none is added. Null when the place is
+  // not in the catalog yet; the row then simply does not render.
+  const [address, setAddress] = useState<string | null>(null)
+  // Owned here, not inside PropertyResearch, so the collapsed trigger can stay in
+  // the property cell while the expanded panel spans the full row below it.
+  const [researchOpen, setResearchOpen] = useState(false)
   const [special, setSpecial] = useState("") // RAW Current Special (source metadata; preserved)
   const [socialSpecial, setSocialSpecial] = useState("") // per-post explicit Social Special
   const [priceRange, setPriceRange] = useState("")
@@ -225,6 +233,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       setPropertyType(p.source?.propertyType ?? "")
       setMarket(p.source?.market ?? "")
       setPlaceId(p.source?.placeId ?? "")
+      setAddress(p.source?.address ?? null)
       setSpecial(p.source?.special ?? "")
       setSocialSpecial(p.socialSpecial ?? "")
       setPriceRange(p.source?.budgetRange ?? "")
@@ -806,17 +815,32 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 matched={!!placeId}
                 inputClassName={`${control} mt-1`}
                 placeholder="Search existing property or type…"
-                onChange={(v) => { setPropertyName(v); setPlaceId("") }}
+                onChange={(v) => { setPropertyName(v); setPlaceId(""); setAddress(null) }}
                 onMatch={(m) => { setPropertyName(m.name); setPlaceId(m.placeId); setMarket((mk) => mk || detectMarket(m.address ?? "") || "") }}
-                onClearMatch={() => setPlaceId("")}
+                onClearMatch={() => { setPlaceId(""); setAddress(null) }}
               />
-              {/* Property Research — collapsed, one line, directly under the
-                  "Matched property" indicator PropertySearchField renders. It
-                  lives here rather than inside that component because the field
-                  is shared with the upload modal and Bulk Review, which have no
-                  saved video to attach research to. Shown only when matched:
-                  observations need a property to belong to. */}
-              {!!placeId && sourceContentId && <PropertyResearch sourceContentId={sourceContentId} />}
+              {/* Full street address of the matched property. Read-only and muted —
+                  nothing here is editable, and no row renders when the catalog has
+                  no address for this place. */}
+              {!!placeId && address && (
+                <div className="mt-1 text-[11px] leading-snug text-[var(--crm-text-muted)]">{address}</div>
+              )}
+              {/* Property Research TRIGGER — one line, under the "Matched property"
+                  indicator PropertySearchField renders. The expanded PANEL is
+                  rendered full-width below this whole row (see after the grid):
+                  inside this 2fr cell its inner grids overflowed and dragged the
+                  page sideways. Shown only when matched — observations need a
+                  property to belong to. */}
+              {!!placeId && sourceContentId && (
+                <button
+                  type="button"
+                  onClick={() => setResearchOpen((o) => !o)}
+                  aria-expanded={researchOpen}
+                  className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]"
+                >
+                  <span aria-hidden>{researchOpen ? "▾" : "▸"}</span> Property Research
+                </button>
+              )}
             </label>
             <label className="block">
               <span className={fieldLabel}>Property Type</span>
@@ -833,6 +857,12 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               </select>
             </label>
           </div>
+
+          {/* Property Research PANEL — full editor width, directly beneath the
+              Property/Type/Market row whose first cell holds its trigger. */}
+          {researchOpen && !!placeId && sourceContentId && (
+            <PropertyResearch sourceContentId={sourceContentId} />
+          )}
 
           {/* Row 2 — ONE horizontal row: Amenities (widest — chips stay one line) | Special (compact)
               | Starting At (most compact). The layout caps at max-w-[1200px]; at the MacBook Air

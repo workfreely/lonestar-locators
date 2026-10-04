@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin"
+import { requirePlatformAdmin, type PlatformAdminGuardOk } from "@/lib/auth/requirePlatformAdmin"
 import { isValidPostType } from "@/lib/social/postTypes"
 import { normalizeHashtag } from "@/lib/social/hashtags"
 import { isOverlayTemplate } from "@/lib/social/composePost"
@@ -17,6 +17,37 @@ const SELECT =
 const SIGNED_URL_TTL = 60 * 30
 const AUDIO_CHOICES = new Set(["original", "none", "lb_track"])
 const MAX_HASHTAGS = 30
+
+/**
+ * The matched property's full street address, read from the catalog.
+ *
+ * social_content stores no address — only place_id — so this is a lookup, never a
+ * stored duplicate. property_catalog.address already holds the COMPLETE formatted
+ * address ("5004 Memorial Dr, Houston, TX 77007, USA"); city/state/zip are
+ * redundant with it and appending them would read "…TX 77007, USA, Houston, TX".
+ *
+ * Deliberately NOT the Google Places formattedAddress PropertySearchField sees at
+ * match time: that exists only in that moment and is discarded, so it would show
+ * on match and vanish on reload.
+ *
+ * There is no FK between the tables, so PostgREST cannot embed it — hence one
+ * small separate query. A place the catalog has not ingested yet simply returns
+ * null and the editor renders no address row.
+ */
+async function catalogAddress(
+  supabase: PlatformAdminGuardOk["supabase"],
+  placeId: string | null | undefined,
+): Promise<string | null> {
+  if (!placeId) return null
+  const { data } = await supabase
+    .from("property_catalog")
+    .select("address")
+    .eq("place_id", placeId)
+    .maybeSingle()
+  const raw = (data as { address?: string | null } | null)?.address ?? null
+  if (!raw) return null
+  return raw.replace(/,\s*USA\s*$/i, "").trim() || null
+}
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const guard = await requirePlatformAdmin()
@@ -74,6 +105,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
           market: src.market,
           special: src.special,
           budgetRange: src.budget_range,
+          address: await catalogAddress(guard.supabase, src.place_id),
           priceLabelMode: src.price_label_mode,
           amenities: src.amenities,
           originalFilename: src.original_filename,

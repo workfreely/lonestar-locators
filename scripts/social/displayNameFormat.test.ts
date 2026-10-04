@@ -166,6 +166,37 @@ async function main() {
       /\{c\.propertyName \|\| <span className="text-\[var\(--crm-text-muted\)\]">No property<\/span>\}/.test(src))
   }
 
+  console.log("\nMARKET PILL COUNTS — absolute inventory:")
+  {
+    const lib = read("components/crm/social/SocialAutopilotClient.tsx")
+    ok("counts are derived from allCards (the UNFILTERED list)",
+      /const marketCounts = useMemo\(\(\) => \{[\s\S]{0,400}for \(const c of allCards\)/.test(lib))
+    // The decisive negative: counting `cards` would make every number move when a
+    // market is picked or a search is typed.
+    ok("…never from the filtered `cards`",
+      !/marketCounts[\s\S]{0,300}of cards\b/.test(lib))
+    ok("the memo depends only on allCards",
+      /return counts\n  \}, \[allCards\]\)/.test(lib))
+    ok("All is the full library total", /counts\.set\("All", allCards\.length\)/.test(lib))
+    ok("counts key on the SAME marketLabel the filter uses",
+      /counts\.set\(c\.marketLabel/.test(lib) && /list\.filter\(\(c\) => c\.marketLabel === market\)/.test(lib))
+    ok("the count renders inside the existing pill, dimmed",
+      /\{marketCounts\.get\(m\) \?\? 0\}/.test(lib) && /opacity-55 tabular-nums/.test(lib))
+    // Two /content calls pre-existed (the list load, and the upload POST). The
+    // claim is that counts added NEITHER a third nor any fetch of their own.
+    ok("no new /content call was added — still exactly 2",
+      (lib.match(/fetch\("\/api\/admin\/social-autopilot\/content"/g) ?? []).length === 2)
+    ok("the counts memo fetches nothing",
+      !/marketCounts = useMemo[\s\S]{0,400}fetch\(/.test(lib))
+    ok("…and no aggregate endpoint exists", !/\/content\/counts|marketCounts.*api/.test(lib))
+    ok("filtering, search and sort are untouched",
+      /if \(market !== "All"\) list = list\.filter/.test(lib) &&
+      /list\.filter\(\(c\) => \[c\.displayName, c\.propertyName, c\.originalFilename\]/.test(lib) &&
+      /sorted\.sort\(\(a, b\) => b\.sortDate - a\.sortDate\)/.test(lib))
+    ok("Dallas and DFW are still distinct (normalize only trims)",
+      /return \(m \?\? ""\)\.trim\(\)/.test(read("lib/social/markets.ts")))
+  }
+
   console.log("\nNOTHING WRITES A FORMATTED NAME BACK:")
   {
     for (const f of [

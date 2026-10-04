@@ -11,19 +11,26 @@ import { AMENITY_BANK, canonicalizeAmenity, sanitizeCustomAmenity } from "@/lib/
 
 const key = (s: string) => s.toLowerCase()
 const MAX = 3 // Post Editor workflow: at most 3 amenities (the caption uses the first 3, in order)
+// Research reuses this control for OBSERVED features, where the 3-cap must not
+// apply: three marketing keywords are a curated ranking layer, never the
+// property's feature list — the same distinction property_catalog.amenity_keywords
+// already draws against property_attributes. Callers that omit `max` keep MAX.
 
 export default function AmenitySelect({
   value,
   onChange,
+  max = MAX,
 }: {
   value: string[]
   onChange: (next: string[]) => void
+  /** Selection cap. Defaults to the marketing MAX of 3; research passes a higher one. */
+  max?: number
 }) {
   const [query, setQuery] = useState("")
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const atMax = value.length >= MAX
+  const atMax = value.length >= max
 
   // Close the dropdown when clicking outside the control.
   useEffect(() => {
@@ -53,7 +60,7 @@ export default function AmenitySelect({
     !AMENITY_BANK.some((a) => key(a) === key(canonicalOfQuery))
 
   const add = (raw: string) => {
-    if (value.length >= MAX) return // cap at 3
+    if (value.length >= max) return // cap (3 for marketing, higher for research)
     const v = canonicalizeAmenity(raw) // known variant → canonical display; unknown → trimmed custom
     if (!v) return
     if (selectedKeys.has(key(v))) { setQuery(""); return } // no exact duplicates
@@ -61,7 +68,7 @@ export default function AmenitySelect({
     onChange(next)
     setQuery("")
     // Keep the picker open + focused so "Add another" flows without re-clicking, until we hit 3.
-    if (next.length < MAX) { setOpen(true); setTimeout(() => inputRef.current?.focus(), 0) } else setOpen(false)
+    if (next.length < max) { setOpen(true); setTimeout(() => inputRef.current?.focus(), 0) } else setOpen(false)
   }
   const addCustom = () => {
     const v = sanitizeCustomAmenity(query)

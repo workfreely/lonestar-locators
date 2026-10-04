@@ -155,12 +155,25 @@ async function main() {
 
   console.log("\nUI — ONE LINE COLLAPSED, ONLY WHEN MATCHED:")
   {
-    ok("collapsed renders a single disclosure button",
-      /\{open \? "▾" : "▸"\}<\/span> Property Research/.test(read(UI)))
-    ok("…and it is the toggle itself", /onClick=\{\(\) => setOpen\(\(o\) => !o\)\}/.test(ui))
-    ok("the body renders only when open", /\{open && \(/.test(ui))
+    ok("the collapsed trigger is one line in the property cell",
+      /\{researchOpen \? "▾" : "▸"\}<\/span> Property Research/.test(read(EDITOR)))
+    ok("…and it toggles the panel", /onClick=\{\(\) => setResearchOpen\(\(o\) => !o\)\}/.test(editor))
+    ok("the panel renders only when open",
+      /\{researchOpen && !!placeId && sourceContentId && \(/.test(editor))
+    // The clipping fix: the panel must sit AFTER the 2fr grid closes, not inside it.
+    ok("the panel is OUTSIDE the [2fr_1fr_1fr] row",
+      editor.indexOf("<PropertyResearch sourceContentId") > editor.indexOf("68fr_19fr_13fr") - 400 &&
+      editor.indexOf("<PropertyResearch sourceContentId") > editor.indexOf("sm:grid-cols-[2fr_1fr_1fr]"))
+    ok("…and spans the full width", /<div className="w-full min-w-0">/.test(ui))
+    // A leading space means UNPREFIXED; "md:grid-cols-3" is the responsive form
+    // and must not trip this (the first version of this assertion did).
+    ok("its inner grids are responsive (no unprefixed 3/4 columns)",
+      !/ grid-cols-3 /.test(ui) && !/ grid-cols-4 /.test(ui) &&
+      /grid-cols-2 md:grid-cols-3/.test(ui) && /grid-cols-2 sm:grid-cols-4/.test(ui))
+    ok("…every grid in the panel starts at 2 columns",
+      (ui.match(/grid-cols-2 (sm|md):grid-cols-[34]/g) ?? []).length === 4)
     ok("it is shown only when a property is matched",
-      /\{!!placeId && sourceContentId && <PropertyResearch/.test(editor))
+      /\{!!placeId && sourceContentId && \(/.test(editor))
     ok("it sits inside PostEditor, not the shared PropertySearchField",
       !/PropertyResearch/.test(read("components/crm/social/PropertySearchField.tsx")))
     ok("…so the upload modal and Bulk Review are untouched",
@@ -170,6 +183,47 @@ async function main() {
       /if \(!open \|\| loaded\) return/.test(ui))
     ok("+ More reveals the optional four",
       /\{showMore \?/.test(ui) && /MORE_FIELDS/.test(ui) && /\+ More/.test(ui))
+  }
+
+  console.log("\nMATCHED PROPERTY ADDRESS (read, never stored):")
+  {
+    const route2 = strip(read("app/api/admin/social-autopilot/posts/[id]/route.ts"))
+    ok("the address is READ from property_catalog by place_id",
+      /\.from\("property_catalog"\)[\s\S]{0,80}\.select\("address"\)[\s\S]{0,60}\.eq\("place_id", placeId\)/.test(route2))
+    ok("…and returned on the post's source", /address: await catalogAddress\(/.test(route2))
+    ok("no address column is added to social_content",
+      !/address/.test(read("supabase/manual/20261004_social_property_observations.sql")))
+    ok("a trailing ', USA' is trimmed", /replace\(\/,\\s\*USA\\s\*\$\/i, ""\)/.test(route2))
+    ok("no row renders without an address", /\{!!placeId && address && \(/.test(editor))
+    ok("clearing the match clears the address",
+      /onClearMatch=\{\(\) => \{ setPlaceId\(""\); setAddress\(null\) \}\}/.test(editor))
+    ok("it is read-only text, not an input",
+      /text-\[var\(--crm-text-muted\)\]">\{address\}<\/div>/.test(editor))
+    ok("property matching behaviour is untouched",
+      /onMatch=\{\(m\) => \{ setPropertyName\(m\.name\); setPlaceId\(m\.placeId\)/.test(editor))
+  }
+
+  console.log("\nOBSERVED DATE + STANDARDISED FEATURES:")
+  {
+    ok("the native calendar indicator is hidden",
+      /\[&::-webkit-calendar-picker-indicator\]:opacity-0/.test(ui))
+    ok("…but it is still a date input", /<input type="date"/.test(ui))
+    ok("…and still bound to observedAt", /value=\{observedAt\}/.test(ui))
+
+    ok("Features Observed uses the shared AmenitySelect",
+      /<AmenitySelect/.test(ui) && /from "@\/components\/crm\/social\/AmenitySelect"/.test(ui))
+    ok("…backed by the SAME canonical bank (no duplicate list)",
+      /from "@\/lib\/social\/amenities"/.test(ui) && !/AMENITY_BANK = \[/.test(ui))
+    ok("…with the marketing 3-cap lifted", /max=\{25\}/.test(ui))
+    ok("the marketing field keeps its cap by default",
+      /max = MAX/.test(read("components/crm/social/AmenitySelect.tsx")) &&
+      !/max=\{/.test(editor.slice(editor.indexOf("Amenities / Features"), editor.indexOf("Amenities / Features") + 400)))
+    ok("every cap check now honours the prop",
+      !/value\.length >= MAX|next\.length < MAX/.test(read("components/crm/social/AmenitySelect.tsx")))
+    ok("research features persist only in the observation layer",
+      /setField\("observed_features", serializeAmenities\(next\)\)/.test(ui))
+    ok("…and are never prefilled from marketing amenities",
+      !/social_content\.amenities|p\.source\?\.amenities/.test(ui))
   }
 
   console.log("\nEXISTING SAVE-DRAFT BEHAVIOUR IS UNCHANGED:")
