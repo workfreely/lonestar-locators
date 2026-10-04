@@ -15,10 +15,17 @@ enum AppleMessagesSendResult {
     case failure(String)
 }
 
-// Read-only identity diagnostic: which iMessage service(s) exist on this Mac, and
-// which one the send path ("1st service whose service type = iMessage") resolves
-// to. Sends NOTHING. Written to Application Support so it can be verified before
-// any real send; also the first Apple Event that surfaces the Automation prompt.
+// Read-only identity diagnostic: which iMessage account(s) exist on this Mac, and
+// which one would be chosen if a send were scoped to one. Sends NOTHING. Written
+// to Application Support so it can be verified before any real send; also the
+// first Apple Event that surfaces the Automation prompt.
+//
+// This is now purely INFORMATIONAL: the send path no longer scopes to an account
+// (see scriptLines below — it sends to an unqualified `participant` and lets
+// Messages route), so `chosenIMessage` documents the signed-in identity rather
+// than predicting the sender. Left in place deliberately: knowing which Apple ID
+// Messages is signed into is still the first thing worth checking when a send
+// misbehaves.
 struct MessagesIdentity: Codable {
     var services: [String] = []   // "name || type" per service
     var chosenIMessage: String?   // the exact service the send path will use
@@ -27,16 +34,39 @@ struct MessagesIdentity: Codable {
 }
 
 enum AppleMessagesSender {
-    // AppleScript: send to the number over iMessage. `on run argv` keeps the phone
-    // and body as data arguments (injection-safe).
+    // AppleScript: send to the number through Messages. `on run argv` keeps the
+    // phone and body as data arguments (injection-safe).
+    //
+    // ── WHY `participant`, UNQUALIFIED ──────────────────────────────────────
+    // This previously read:
+    //     set targetService to 1st service whose service type = iMessage
+    //     set targetBuddy to buddy phoneNumber of targetService
+    //     send messageText to targetBuddy
+    // and could not send. The failure is subtle: `service` and `buddy` are still
+    // declared in Messages.sdef as SYNONYMS for `account` and `participant`, so
+    // that script PARSES fine and fails only at runtime. `buddy X of <service>`
+    // is an element lookup scoped to one account, and it resolves only handles
+    // Messages already holds for that account — so an arbitrary phone number for
+    // a client who has never been messaged is simply not found.
+    //
+    // `participant` is a top-level element of the application (Messages.sdef:
+    //   <class-extension extends="application"> … <element type="participant">),
+    // and `send … to participant "<number>"` is the form proven by hand against
+    // both an iMessage and an SMS/RCS recipient. Unqualified is the point: it
+    // lets Messages pick the account and route (iMessage vs SMS) the same way it
+    // does when a human types the number into a new conversation, instead of
+    // forcing the send through one account that may not be able to reach them.
+    //
+    // NOTE for the ACK path (unchanged here): because the route is chosen by
+    // Messages, a successful send may go out over SMS rather than iMessage. That
+    // is a routing detail, not a contract change — this still returns only
+    // "Messages accepted it", never a delivery receipt.
     private static let scriptLines: [String] = [
         "on run argv",
         "  set phoneNumber to item 1 of argv",
         "  set messageText to item 2 of argv",
         "  tell application \"Messages\"",
-        "    set targetService to 1st service whose service type = iMessage",
-        "    set targetBuddy to buddy phoneNumber of targetService",
-        "    send messageText to targetBuddy",
+        "    send messageText to participant phoneNumber",
         "  end tell",
         "end run",
     ]
