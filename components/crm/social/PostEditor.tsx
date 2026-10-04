@@ -12,6 +12,7 @@ import SpecialSelect from "@/components/crm/social/SpecialSelect"
 import { computeOverlayLayout } from "@/lib/social/overlaySpec"
 import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
 import VideoLightbox from "@/components/crm/social/VideoLightbox"
+import PropertyResearch from "@/components/crm/social/PropertyResearch"
 import TikTokPostConfirm from "@/components/crm/social/TikTokPostConfirm"
 import AmenitySelect from "@/components/crm/social/AmenitySelect"
 import VoiceClipsControl from "@/components/crm/social/VoiceClipsControl"
@@ -809,6 +810,13 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 onMatch={(m) => { setPropertyName(m.name); setPlaceId(m.placeId); setMarket((mk) => mk || detectMarket(m.address ?? "") || "") }}
                 onClearMatch={() => setPlaceId("")}
               />
+              {/* Property Research — collapsed, one line, directly under the
+                  "Matched property" indicator PropertySearchField renders. It
+                  lives here rather than inside that component because the field
+                  is shared with the upload modal and Bulk Review, which have no
+                  saved video to attach research to. Shown only when matched:
+                  observations need a property to belong to. */}
+              {!!placeId && sourceContentId && <PropertyResearch sourceContentId={sourceContentId} />}
             </label>
             <label className="block">
               <span className={fieldLabel}>Property Type</span>
