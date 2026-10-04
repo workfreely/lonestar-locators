@@ -190,6 +190,16 @@ async function main() {
     const route2 = strip(read("app/api/admin/social-autopilot/posts/[id]/route.ts"))
     ok("the address is READ from property_catalog by place_id",
       /\.from\("property_catalog"\)[\s\S]{0,80}\.select\("address"\)[\s\S]{0,60}\.eq\("place_id", placeId\)/.test(route2))
+    // property_catalog has RLS ENABLED and no policies in this database, so an
+    // RLS-scoped read returns zero rows for every property — indistinguishable
+    // from "no address". Service role is what every other reader of this table
+    // uses; the route is already platform-admin gated.
+    ok("…via the service role, like every other reader of that table",
+      /const \{ data, error \} = await supabaseAdmin\s*\n\s*\.from\("property_catalog"\)/.test(route2))
+    ok("…and a lookup failure is logged, never silently null",
+      /if \(error\) \{[\s\S]{0,160}catalog address lookup failed/.test(route2))
+    ok("the lookup is READ-ONLY — no write to property_catalog",
+      !/supabaseAdmin[\s\S]{0,200}\.from\("property_catalog"\)[\s\S]{0,120}\.(update|insert|upsert|delete)\(/.test(route2))
     ok("…and returned on the post's source", /address: await catalogAddress\(/.test(route2))
     ok("no address column is added to social_content",
       !/address/.test(read("supabase/manual/20261004_social_property_observations.sql")))

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { requirePlatformAdmin, type PlatformAdminGuardOk } from "@/lib/auth/requirePlatformAdmin"
+import { supabaseAdmin } from "@/lib/supabase/admin"
 import { isValidPostType } from "@/lib/social/postTypes"
 import { normalizeHashtag } from "@/lib/social/hashtags"
 import { isOverlayTemplate } from "@/lib/social/composePost"
@@ -34,16 +35,27 @@ const MAX_HASHTAGS = 30
  * small separate query. A place the catalog has not ingested yet simply returns
  * null and the editor renders no address row.
  */
-async function catalogAddress(
-  supabase: PlatformAdminGuardOk["supabase"],
-  placeId: string | null | undefined,
-): Promise<string | null> {
+async function catalogAddress(placeId: string | null | undefined): Promise<string | null> {
   if (!placeId) return null
-  const { data } = await supabase
+  // SERVICE ROLE, like every other property_catalog reader in this codebase.
+  // The table has RLS enabled and — in this database — NO policies at all: the
+  // `property_catalog_read` policy declared in migration 20260901000002 was never
+  // applied here, so an authenticated client reads zero rows. Reading through the
+  // caller's RLS client therefore returned null for every property, which looked
+  // exactly like "this place has no address". Nothing is escalated: the route is
+  // already platform-admin gated and this returns one address for a property the
+  // operator has already matched to this video.
+  const { data, error } = await supabaseAdmin
     .from("property_catalog")
     .select("address")
     .eq("place_id", placeId)
     .maybeSingle()
+  // Never swallow the failure — a silent null here is indistinguishable from a
+  // property that genuinely has no address, which is what hid the bug above.
+  if (error) {
+    console.error("[posts/:id] catalog address lookup failed:", error.message)
+    return null
+  }
   const raw = (data as { address?: string | null } | null)?.address ?? null
   if (!raw) return null
   return raw.replace(/,\s*USA\s*$/i, "").trim() || null
@@ -105,7 +117,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
           market: src.market,
           special: src.special,
           budgetRange: src.budget_range,
-          address: await catalogAddress(guard.supabase, src.place_id),
+          address: await catalogAddress(src.place_id),
           priceLabelMode: src.price_label_mode,
           amenities: src.amenities,
           originalFilename: src.original_filename,
