@@ -2615,7 +2615,14 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         payload.verb !== "move-to-favorite" &&
         payload.verb !== "remove-recommendation" &&
         payload.verb !== "edit-client" &&
-        payload.verb !== "edit-templates"
+        payload.verb !== "edit-templates" &&
+        // Was MISSING, which made the handler below (search "automated-texting")
+        // unreachable: the Companion's Automated Texts toggle posted the verb,
+        // this gate dropped it, and the switch silently did nothing. A handled
+        // verb absent from this list is the one way to add dead code here, so
+        // scripts/leads/companionVerbAllowList.test.ts now pins every handled
+        // verb to this gate.
+        payload.verb !== "automated-texting"
       )
         return
 
