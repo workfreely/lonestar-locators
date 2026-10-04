@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import { formatDateDisplay } from "@bc/companion-shared";
+import { useEffect, useRef } from "react";
 import { useOutOfOffice } from "./useOutOfOffice";
+import { DateField } from "./DateField";
 
 /**
  * OUT OF OFFICE — the locator's own away switch, as a view inside the Companion
@@ -38,17 +38,10 @@ export function OutOfOfficeControl({ onBack }: { onBack: () => void }) {
   const ooo = useOutOfOffice(true);
   const backRef = useRef<HTMLButtonElement>(null);
 
-  // The date field is a DRAFT: typing a date must not save on every keystroke,
-  // and a half-typed "2026-1" must not be sent. It is committed on blur/Save, or
-  // immediately when the toggle is flipped (so one tap can mean "away until the
-  // 20th" without a second confirm).
-  const [draft, setDraft] = useState<string>("");
-  const [dirty, setDirty] = useState(false);
-  useEffect(() => {
-    // Adopt the server value whenever it arrives, unless the locator is mid-edit.
-    if (!dirty) setDraft(ooo.until ?? "");
-  }, [ooo.until, dirty]);
-
+  // No local draft state. The calendar commits on SELECTION (the CRM picker's
+  // live-commit mode), so there is no half-typed value to guard against and no
+  // second confirm step — which also means the control has exactly one source of
+  // truth for the date: the server.
   useEffect(() => {
     backRef.current?.focus();
   }, []);
@@ -56,24 +49,10 @@ export function OutOfOfficeControl({ onBack }: { onBack: () => void }) {
   const busy = ooo.status === "loading" || ooo.status === "saving";
   const unreachable = ooo.status === "unreachable";
 
-  function commitDate() {
-    if (!dirty) return;
-    setDirty(false);
-    // "" means the locator cleared the field — an explicit null, not an omission.
-    ooo.save({ enabled: ooo.enabled, until: draft === "" ? null : draft });
-  }
-
   function toggle() {
-    const next = !ooo.enabled;
-    // A pending date edit rides along with the flip so the two cannot disagree.
-    if (dirty) {
-      setDirty(false);
-      ooo.save({ enabled: next, until: draft === "" ? null : draft });
-    } else {
-      // No `until` key — the stored return date is preserved, including when
-      // turning OFF. Coming back early should not erase next week's date.
-      ooo.save({ enabled: next });
-    }
+    // No `until` key — the stored return date is preserved, including when
+    // turning OFF. Coming back early should not erase next week's date.
+    ooo.save({ enabled: !ooo.enabled });
   }
 
   return (
@@ -109,8 +88,7 @@ export function OutOfOfficeControl({ onBack }: { onBack: () => void }) {
               <span>Checking…</span>
             ) : ooo.enabled ? (
               <span>
-                You’re marked <strong>away</strong>
-                {ooo.until ? <> until {formatDateDisplay(ooo.until)}</> : null}
+                You’re <strong>away</strong>
               </span>
             ) : (
               <span>
@@ -138,29 +116,13 @@ export function OutOfOfficeControl({ onBack }: { onBack: () => void }) {
           </div>
 
           <div className="bc-ooo-row">
-            <label className="bc-ooo-label" htmlFor="bc-ooo-until">
-              Return date
-            </label>
-            <input
-              id="bc-ooo-until"
-              type="date"
-              className="bc-ooo-date"
-              value={draft}
+            <span className="bc-ooo-label">Return date</span>
+            <DateField
+              label="Return date"
+              value={ooo.until}
               min={todayLocalIso()}
               disabled={busy}
-              onChange={(e) => {
-                setDirty(true);
-                setDraft(e.target.value);
-              }}
-              onBlur={commitDate}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  commitDate();
-                }
-                // Escape here would otherwise close the whole popover mid-edit.
-                if (e.key === "Escape") e.stopPropagation();
-              }}
+              onChange={(next) => ooo.save({ enabled: ooo.enabled, until: next })}
             />
           </div>
           <p className="bc-ooo-hint">
@@ -174,6 +136,10 @@ export function OutOfOfficeControl({ onBack }: { onBack: () => void }) {
             held lead yourself from the board when you’re back.
           </p>
 
+          {/* Opens the AUTHENTICATED preview, so it works while Out of Office is
+              off too. The public page still 404s when you're in — that gate is
+              what stops a client reading "I'm away" about a working locator —
+              which is exactly why Preview cannot point at it. */}
           {ooo.previewUrl && (
             <a
               className="bc-ooo-preview"
@@ -183,6 +149,12 @@ export function OutOfOfficeControl({ onBack }: { onBack: () => void }) {
             >
               Preview Out of Office Page
             </a>
+          )}
+          {!ooo.enabled && ooo.previewUrl && (
+            <p className="bc-ooo-hint bc-ooo-hint--preview">
+              Preview works while you’re in the office. Clients only see this page once
+              Out of Office is on.
+            </p>
           )}
           {ooo.error && <p className="bc-ooo-err">Couldn’t save. Try again.</p>}
         </div>

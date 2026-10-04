@@ -274,6 +274,7 @@ export function isValidOooResultPayload(
   until: string | null
   slug: string | null
   previewUrl: string | null
+  publicUrl: string | null
   error: string | null
 } {
   if (!payload || typeof payload !== "object") return false;
@@ -282,9 +283,10 @@ export function isValidOooResultPayload(
   if (typeof p.enabled !== "boolean") return false;
   if (p.until !== null && !(typeof p.until === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.until))) return false;
   if (p.slug !== null && !idOk(p.slug, 256)) return false;
-  if (p.previewUrl !== null) {
-    if (!idOk(p.previewUrl, MAX_TEXT)) return false;
-    if (!/^https?:\/\//i.test(p.previewUrl)) return false;
+  for (const url of [p.previewUrl, p.publicUrl]) {
+    if (url === null || url === undefined) continue;
+    if (!idOk(url, MAX_TEXT)) return false;
+    if (!/^https?:\/\//i.test(url)) return false;
   }
   if (p.error !== null && !idOk(p.error, 512)) return false;
   return isWithinSizeLimit(payload);

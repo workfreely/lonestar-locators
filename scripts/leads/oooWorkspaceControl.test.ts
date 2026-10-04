@@ -98,9 +98,72 @@ async function main() {
     ok("POST re-reads after writing", (route.match(/readState\(guard\)/g) ?? []).length >= 2)
     ok("…and the re-read happens AFTER the update",
       route.indexOf(".update(update)") < route.lastIndexOf("readState(guard)"))
-    ok("the preview URL is built server-side, not in the extension",
-      /previewUrl: slug \?/.test(route) && /out-of-office`/.test(route))
-    ok("…and the slug is URL-encoded", /encodeURIComponent\(slug\)/.test(route))
+    ok("the URLs are built server-side, not in the extension",
+      /previewUrl: `\$\{SITE_ORIGIN\}\/admin\/out-of-office\/preview`/.test(route))
+    ok("…and the public slug is URL-encoded", /encodeURIComponent\(slug\)/.test(route))
+  }
+
+  console.log("\nUX POLISH — calendar, banner, preview:")
+  {
+    const control = strip(read("apps/beast-companion/src/sidepanel/menu/OutOfOfficeControl.tsx"))
+    const cal = strip(read("apps/beast-companion/src/sidepanel/menu/DateField.tsx"))
+    const pub = strip(read("app/locator-beast/[username]/out-of-office/page.tsx"))
+    const view = strip(read("app/locator-beast/[username]/out-of-office/OutOfOfficeView.tsx"))
+    const prev = strip(read("app/admin/out-of-office/preview/page.tsx"))
+
+    // (1) THE CALENDAR — the CRM picker's grid, ported, date-only.
+    ok("the Return date uses the calendar, not a native date input",
+      /<DateField/.test(control) && !/type="date"/.test(control))
+    ok("the whole field is the trigger (a click anywhere opens it)",
+      /className=\{`bc-cal-trigger[\s\S]{0,400}onClick=\{\(e\) => \{[\s\S]{0,80}setOpen\(\(o\) => !o\)/.test(cal))
+    ok("it mirrors the CRM grid's leading-blank cell math",
+      /const firstWeekday = new Date\(year, month, 1\)\.getDay\(\)/.test(cal) &&
+      /for \(let i = 0; i < firstWeekday; i\+\+\) out\.push\(null\)/.test(cal))
+    ok("selecting a day updates the OOO date state",
+      /onChange=\{\(next\) => ooo\.save\(\{ enabled: ooo\.enabled, until: next \}\)\}/.test(control))
+    // DATE-ONLY + NO TIMEZONE CONVERSION — the whole point.
+    ok("values are composed from LOCAL parts, never toISOString()",
+      /getFullYear\(\)\}-\$\{pad\(d\.getMonth\(\) \+ 1\)\}-\$\{pad\(d\.getDate\(\)\)\}/.test(cal) &&
+      !/toISOString/.test(cal))
+    ok("…and parsed by parts, never new Date(iso)",
+      /new Date\(Number\(m\[1\]\), Number\(m\[2\]\) - 1, Number\(m\[3\]\)\)/.test(cal))
+    ok("it emits a bare YYYY-MM-DD (no time component)",
+      !/T\$\{/.test(cal) && !/:00/.test(cal))
+    ok("Clear sends an explicit null, not an omission", /onChange\(null\)/.test(cal))
+    ok("Escape closes only the calendar, not the whole menu",
+      /e\.stopPropagation\(\)[\s\S]{0,60}setOpen\(false\)/.test(cal))
+    ok("the API/schema are untouched by the picker swap",
+      /until: next/.test(control) && !/out_of_office/.test(cal))
+
+    // (2) THE BANNER — one line, no date.
+    ok("the ON banner says just 'away' with no date",
+      /You’re <strong>away<\/strong>/.test(control) && !/until \{formatDateDisplay/.test(control))
+    ok("…and the date is not repeated there", !/formatDateDisplay/.test(control))
+    ok("the OFF banner is unchanged", /You’re <strong>in the office<\/strong>/.test(control))
+
+    // (3) PREVIEW — authenticated, and the public gate NOT weakened.
+    ok("the public route still renders the same component", /OutOfOfficeView/.test(pub))
+    // Directly: the public route renders the view with ONLY a username. The
+    // earlier version of this assertion was an or-chain that could pass without
+    // proving anything.
+    ok("…and renders it with username ALONE — no preview prop",
+      /<OutOfOfficeView username=\{username\} \/>/.test(pub) && !/preview/.test(pub))
+    ok("the gate still 404s a locator who is not away",
+      /if \(!preview && !ooo\?\.out_of_office_enabled\) notFound\(\)/.test(view))
+    ok("…and an unknown username 404s in BOTH modes",
+      /if \(!agent\) notFound\(\)/.test(view))
+    ok("there is NO query-parameter bypass anywhere",
+      !/searchParams/.test(view) && !/searchParams/.test(pub) && !/preview=1/.test(view))
+    ok("the preview route is authenticated", /requireWorkspaceMember\(\)/.test(prev))
+    ok("…and 404s rather than leaking a 401/403 JSON", /if \(!guard\.ok\) notFound\(\)/.test(prev))
+    ok("…and resolves the username from the SESSION, never a param",
+      /\.eq\("id", guard\.workspaceId\)/.test(prev) && !/params/.test(prev))
+    ok("the preview WRITES nothing", !/\.update\(|\.insert\(|\.upsert\(|\.delete\(/.test(prev))
+    ok("…and never sets out_of_office_enabled", !/out_of_office_enabled/.test(prev))
+    ok("the Companion Preview button targets the authenticated route",
+      /previewUrl: `\$\{SITE_ORIGIN\}\/admin\/out-of-office\/preview`/.test(strip(read(ROUTE))))
+    ok("the preview renders the identical view component",
+      /<OutOfOfficeView username=\{slug\} preview \/>/.test(prev))
   }
 
   console.log("\nBLAST RADIUS — the route touches nothing else:")
@@ -154,6 +217,7 @@ async function main() {
     const hook = strip(read("apps/beast-companion/src/sidepanel/menu/useOutOfOffice.ts"))
     const menu = strip(read("apps/beast-companion/src/sidepanel/menu/CompanionMenu.tsx"))
     const control = strip(read("apps/beast-companion/src/sidepanel/menu/OutOfOfficeControl.tsx"))
+    const cal2 = strip(read("apps/beast-companion/src/sidepanel/menu/DateField.tsx"))
 
     // An unregistered type is dropped by isKnownEnvelope — the classic way a new
     // message silently never arrives.
@@ -186,14 +250,18 @@ async function main() {
       /setStatus\("unreachable"\)/.test(hook) && /TIMEOUT_MS/.test(hook))
 
     // The On/Off flip must not carry a date, or it would overwrite the stored one.
+    // (The control is now live-commit: the calendar commits on selection, so the
+    // old draft/dirty assertions were retired with the draft state itself.)
     ok("an On/Off flip sends NO `until` key",
-      /ooo\.save\(\{ enabled: next \}\)/.test(control))
-    ok("…unless the locator was mid-edit, in which case both go together",
-      /if \(dirty\)[\s\S]{0,160}save\(\{ enabled: next, until:/.test(control))
-    ok("clearing the field sends an explicit null",
-      /until: draft === "" \? null : draft/.test(control))
+      /ooo\.save\(\{ enabled: !ooo\.enabled \}\)/.test(control))
+    ok("…and the toggle has no date branch left to get wrong",
+      !/dirty/.test(control) && !/draft/.test(control))
+    ok("a date selection commits on its own, carrying the current enabled state",
+      /onChange=\{\(next\) => ooo\.save\(\{ enabled: ooo\.enabled, until: next \}\)\}/.test(control))
+    ok("clearing sends an explicit null (from the calendar's Clear)",
+      /onChange\(null\)/.test(cal2))
     ok("the date is rendered with the shared formatter, not new Date()",
-      /formatDateDisplay\(ooo\.until\)/.test(control) && !/new Date\(ooo\.until/.test(control))
+      /formatDateDisplay\(value\)/.test(cal2) && !/new Date\(value/.test(cal2))
     ok("…and the input's min is built from LOCAL parts, not toISOString()",
       /todayLocalIso/.test(control) && !/toISOString\(\)/.test(control))
 
@@ -222,9 +290,11 @@ async function main() {
       "content/outOfOfficeBridge.ts": "apps/beast-companion/src/content/outOfOfficeBridge.ts",
       "menu/OutOfOfficeControl.tsx": "apps/beast-companion/src/sidepanel/menu/OutOfOfficeControl.tsx",
       "menu/useOutOfOffice.ts": "apps/beast-companion/src/sidepanel/menu/useOutOfOffice.ts",
+      "menu/DateField.tsx": "apps/beast-companion/src/sidepanel/menu/DateField.tsx",
     } as const
     const ALLOWED_IMPORTS = new Set([
-      "react", "@bc/companion-shared", "@/utils/log", "@/utils/validate", "./useOutOfOffice",
+      "react", "@bc/companion-shared", "@/utils/log", "@/utils/validate",
+      "./useOutOfOffice", "./DateField",
     ])
     for (const [label, file] of Object.entries(NEW_FILES)) {
       const src = strip(read(file))

@@ -39,7 +39,10 @@ export type OooView = {
   status: OooStatus;
   enabled: boolean;
   until: string | null;
+  /** Authenticated preview — works whether Out of Office is on or off. */
   previewUrl: string | null;
+  /** The public URL, shown for reference; it 404s while Out of Office is off. */
+  publicUrl: string | null;
   /** Last failure reported BY the server (not a transport failure). */
   error: string | null;
   refresh: () => void;
@@ -54,6 +57,7 @@ type Result = {
   until: string | null;
   slug: string | null;
   previewUrl: string | null;
+  publicUrl: string | null;
   error: string | null;
 };
 
@@ -66,6 +70,7 @@ export function useOutOfOffice(open: boolean): OooView {
   const [enabled, setEnabled] = useState(false);
   const [until, setUntil] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [publicUrl, setPublicUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // The nonce of the request we are currently waiting for. Null = not waiting, so
@@ -146,6 +151,7 @@ export function useOutOfOffice(open: boolean): OooView {
       setEnabled(r.enabled === true);
       setUntil(typeof r.until === "string" ? r.until : null);
       setPreviewUrl(typeof r.previewUrl === "string" ? r.previewUrl : null);
+      setPublicUrl(typeof r.publicUrl === "string" ? r.publicUrl : null);
       setError(typeof r.error === "string" ? r.error : null);
       setStatus("ready");
     };
@@ -154,5 +160,5 @@ export function useOutOfOffice(open: boolean): OooView {
     return () => onc?.removeListener?.(onChanged);
   }, [open, clearTimer]);
 
-  return { status, enabled, until, previewUrl, error, refresh, save };
+  return { status, enabled, until, previewUrl, publicUrl, error, refresh, save };
 }
