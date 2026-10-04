@@ -1015,6 +1015,81 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     return () => window.removeEventListener("message", onShareRequest)
   }, [])
 
+  // ── OUT OF OFFICE (Companion hamburger) ────────────────────────────────────
+  // Same shape as the share-link round trip above, and for the same reason: the
+  // Companion side panel has no locatorbeast.com session, so it cannot call
+  // /api/admin/workspace/out-of-office itself. It posts {nonce, op} here; this
+  // page carries the agent's cookie, performs the call, and posts the STORED
+  // state back. The workspace is derived server-side from that session — the
+  // Companion never names a workspace, a username or a slug.
+  //
+  // Deliberately a SEPARATE listener from the workflow-verb handler. Every verb
+  // there is per-lead (it looks a lead up and returns when it can't), and this is
+  // workspace-level with no lead at all. It also needs a RESULT, which the verb
+  // channel is one-way and cannot carry.
+  //
+  // Nothing here reads or writes a lead, a run, an intent, a share or a next
+  // action. Turning Out of Office on changes what happens to leads created
+  // AFTERWARDS and nothing that already exists.
+  useEffect(() => {
+    async function onOooRequest(e: MessageEvent) {
+      if (e.source !== window || e.origin !== window.location.origin) return
+      const d: any = e.data
+      if (!d || d.source !== COMPANION_MSG_SOURCE || d.type !== "out-of-office-request") return
+      const payload = d.payload || {}
+      const nonce = typeof payload.nonce === "string" ? payload.nonce : ""
+      const op = payload.op === "write" ? "write" : payload.op === "read" ? "read" : null
+      if (!nonce || !op) return
+
+      let result: {
+        nonce: string
+        enabled: boolean
+        until: string | null
+        slug: string | null
+        previewUrl: string | null
+        error: string | null
+      } = { nonce, enabled: false, until: null, slug: null, previewUrl: null, error: "ooo_failed" }
+      try {
+        // A read is a GET with no body; a write sends only the fields the panel
+        // actually changed, so an On/Off flip that omits `until` preserves the
+        // stored return date (the route treats a missing key and an explicit null
+        // as different things).
+        const res =
+          op === "read"
+            ? await fetch("/api/admin/workspace/out-of-office", { method: "GET" })
+            : await fetch("/api/admin/workspace/out-of-office", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  enabled: payload.enabled === true,
+                  ...("until" in payload ? { until: payload.until } : {}),
+                }),
+              })
+        const json: any = await res.json().catch(() => ({}))
+        if (res.ok && typeof json?.enabled === "boolean") {
+          result = {
+            nonce,
+            enabled: json.enabled,
+            until: typeof json.until === "string" ? json.until : null,
+            slug: typeof json.slug === "string" ? json.slug : null,
+            previewUrl: typeof json.previewUrl === "string" ? json.previewUrl : null,
+            error: null,
+          }
+        } else {
+          result.error = typeof json?.error === "string" ? json.error : `http_${res.status}`
+        }
+      } catch (err) {
+        if (process.env.NODE_ENV !== "production") console.error("[out-of-office] request failed:", err)
+      }
+      window.postMessage(
+        { source: COMPANION_MSG_SOURCE, type: "out-of-office-result", payload: result },
+        window.location.origin,
+      )
+    }
+    window.addEventListener("message", onOooRequest)
+    return () => window.removeEventListener("message", onOooRequest)
+  }, [])
+
   // ── Canonical tour edit/cancel (Workspace Favorite → Edit / Cancel Tour) ────
   // Both route through the SAME rescheduleTour / cancelTour helpers as any future
   // Companion edit would, and reconcile the SAME optimistic state (localTours +
