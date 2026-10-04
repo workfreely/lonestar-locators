@@ -15,6 +15,7 @@
  */
 import { readFileSync } from "node:fs"
 import path from "node:path"
+import { parseAmenities, serializeAmenities } from "@/lib/social/amenities"
 
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean, d = "") => {
@@ -253,6 +254,61 @@ async function main() {
       /setField\("observed_features", serializeAmenities\(next\)\)/.test(ui))
     ok("…and are never prefilled from marketing amenities",
       !/social_content\.amenities|p\.source\?\.amenities/.test(ui))
+  }
+
+  console.log("\nobserved_features ROUND-TRIPS (the five-chips-became-one bug):")
+  {
+    // The defect: the route normalised EVERY field with .replace(/\s+/g, " "),
+    // which eats the "\n" that serializeAmenities writes and parseAmenities splits
+    // on. Five selected features came back as one chip, with no comma left for
+    // parseAmenities' fallback to find. Measured in production before the fix:
+    //   "High Ceilings Floor-to-Ceiling Windows Concrete Flooring Skyline Views Rooftop Pool"
+
+    // Only observed_features is multi-value; everything else must stay single-line.
+    ok("the route declares exactly ONE multiline field",
+      /MULTILINE_FIELDS = new Set\(\["observed_features"\]\)/.test(route))
+    ok("…and the value branches on it",
+      /MULTILINE_FIELDS\.has\(field\) \? lines\(incoming\[field\]\) : text\(incoming\[field\]\)/.test(route))
+    // The single-line normaliser is UNCHANGED for every other field.
+    ok("single-line fields still collapse all whitespace",
+      /const text = \(v: unknown, max = 500\)[\s\S]*?replace\(\/\\s\+\/g, " "\)/.test(route))
+
+    // The two pieces that make the multiline normaliser safe. \s includes \n;
+    // [^\S\n] is "whitespace except newline", which is the whole fix.
+    const SPLIT = String.raw`.split(/\r?\n/)`
+    const COLLAPSE = String.raw`.replace(/[^\S\n]+/g, " ")`
+    ok("the multiline normaliser splits on newline", route.includes(SPLIT))
+    ok("…and collapses horizontal whitespace ONLY (never \\n)", route.includes(COLLAPSE))
+    ok("…so it never runs a bare \\s+ collapse over the value",
+      !/const lines = [\s\S]*?replace\(\/\\s\+\/g/.test(route))
+
+    // Behavioural: the same pipeline the route now runs, over the real helpers.
+    // The two assertions above are what keep this from being a vacuous replica —
+    // if the route's pipeline changes, they fail first.
+    const normalise = (v: string) =>
+      v.split(/\r?\n/).map((l) => l.replace(/[^\S\n]+/g, " ").trim()).filter(Boolean).join("\n")
+
+    const picked = ["High Ceilings", "Floor-to-Ceiling Windows", "Concrete Flooring", "Skyline Views", "Rooftop Pool"]
+    const stored = normalise(serializeAmenities(picked))
+    ok("5 features store newline-delimited", stored.split("\n").length === 5, JSON.stringify(stored))
+    const back = parseAmenities(stored)
+    ok("…and reload as 5 separate chips", back.length === 5, JSON.stringify(back))
+    ok("…in the order they were picked", back.join("|") === picked.join("|"), back.join("|"))
+
+    // The pre-fix normaliser, asserted to actually reproduce the bug — otherwise
+    // the test above could pass for the wrong reason.
+    const broken = serializeAmenities(picked).replace(/\s+/g, " ").trim()
+    ok("the OLD normaliser really did collapse them to one chip",
+      parseAmenities(broken).length === 1)
+
+    // Multi-word features must not be shredded, and internal padding still cleans up.
+    ok("a single feature stays one chip", parseAmenities(normalise(serializeAmenities(["Rooftop Pool"]))).length === 1)
+    ok("padded lines are trimmed, not dropped",
+      parseAmenities(normalise("  High Ceilings  \n\tRooftop   Pool  ")).join("|") === "High Ceilings|Rooftop Pool")
+    ok("blank lines do not become empty chips",
+      parseAmenities(normalise("High Ceilings\n\n\nRooftop Pool")).length === 2)
+    // A fully blank value is still "not an observation" → deleted, not stored as "".
+    ok("an all-whitespace value normalises to nothing", normalise(" \n \t \n ") === "")
   }
 
   console.log("\nEXISTING SAVE-DRAFT BEHAVIOUR IS UNCHANGED:")

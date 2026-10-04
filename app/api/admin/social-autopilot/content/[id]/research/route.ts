@@ -47,10 +47,33 @@ const PROPERTY_FIELDS = new Set([
 const PRICE_CONTEXTS = new Set(["starting_at", "exact_unit"])
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
 
+/** The default normalizer, for the SINGLE-LINE fields: prices, specials, plan
+ *  names, URLs. Collapsing all whitespace is correct for them. */
 const text = (v: unknown, max = 500): string | null => {
   const s = typeof v === "string" ? v.replace(/\s+/g, " ").trim() : ""
   return s ? s.slice(0, max) : null
 }
+
+/** observed_features is the ONE newline-DELIMITED field. serializeAmenities joins
+ *  the chips with "\n" and parseAmenities splits on "\n" when present (falling back
+ *  to ","), so running `text()` over it collapsed \n to a space and destroyed the
+ *  delimiter — five selected features reloaded as a single chip with no comma left
+ *  for the fallback to find. Collapse HORIZONTAL whitespace inside each line, drop
+ *  blank lines, and keep "\n" as the separator so the value round-trips. */
+const lines = (v: unknown, max = 500): string | null => {
+  const s =
+    typeof v === "string"
+      ? v
+          .split(/\r?\n/)
+          .map((l) => l.replace(/[^\S\n]+/g, " ").trim())
+          .filter(Boolean)
+          .join("\n")
+      : ""
+  return s ? s.slice(0, max) : null
+}
+
+/** Only observed_features is multi-value; every other field stays single-line. */
+const MULTILINE_FIELDS = new Set(["observed_features"])
 const num = (v: unknown): number | null => {
   if (typeof v === "number" && Number.isFinite(v)) return v
   const s = typeof v === "string" ? v.replace(/[^0-9.]/g, "") : ""
@@ -132,7 +155,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
   const clears: string[] = []
   for (const field of PROPERTY_FIELDS) {
     if (!(field in incoming)) continue
-    const value = text(incoming[field])
+    const value = MULTILINE_FIELDS.has(field) ? lines(incoming[field]) : text(incoming[field])
     if (value === null) { clears.push(field); continue } // blank → remove, never store ""
     upserts.push({
       place_id: placeId,
