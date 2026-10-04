@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/client"
 import { DEMO_LIBRARY } from "./demoFixtures"
 import { SOCIAL_MARKETS, normalizeSocialMarket } from "@/lib/social/markets"
+import { formatSocialDisplayName } from "@/lib/social/displayName"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
 import { inferFromFilename, detectMarket, suggestArea } from "@/lib/social/filenameInference"
 import { resolvePropertyMatch } from "@/lib/social/resolveProperty"
@@ -52,7 +53,15 @@ type Item = {
 
 type Card = {
   key: string
+  // STORED name, exactly as it sits in social_content.display_name. Everything
+  // non-visual reads this one: the search box below matches against it, and
+  // post_name snapshots copy it verbatim.
   displayName: string
+  // The same name formatted for READING (ISO dates → "Oct 2, 2026"). Rendered,
+  // and nothing else. Kept separate from displayName on purpose — reformatting
+  // that field in place would silently change what the search box matches, so a
+  // locator typing "2026-10" would stop finding their own videos.
+  titleLabel: string
   propertyName: string | null
   market: string | null
   marketLabel: string // normalized (Dallas/Fort Worth → DFW) for filter + sort
@@ -269,6 +278,9 @@ export default function SocialAutopilotClient() {
       return items.map((it) => ({
         key: it.id,
         displayName: it.displayName || it.propertyName || base(it.originalFilename) || "Untitled",
+        titleLabel: formatSocialDisplayName(
+          it.displayName || it.propertyName || base(it.originalFilename) || "Untitled",
+        ),
         propertyName: it.propertyName,
         market: it.market,
         marketLabel: normalizeSocialMarket(it.market),
@@ -285,6 +297,7 @@ export default function SocialAutopilotClient() {
       return DEMO_LIBRARY.map((d, i) => ({
         key: d.id,
         displayName: d.displayName,
+        titleLabel: formatSocialDisplayName(d.displayName),
         propertyName: d.propertyName,
         market: d.market,
         marketLabel: normalizeSocialMarket(d.market),
@@ -750,8 +763,10 @@ export default function SocialAutopilotClient() {
                   )}
                 </div>
                 <div className="p-2.5 flex-1 flex flex-col">
+                  {/* titleLabel, not displayName: display formatting only. The
+                      hover title still shows the untouched original filename. */}
                   <div className="text-[12.5px] font-bold text-[var(--crm-text-primary)] leading-snug line-clamp-2" title={c.originalFilename ?? undefined}>
-                    {c.displayName}
+                    {c.titleLabel}
                   </div>
                   <div className="text-[11.5px] text-[var(--crm-text-secondary)] mt-1 truncate">
                     {c.propertyName || <span className="text-[var(--crm-text-muted)]">No property</span>}
