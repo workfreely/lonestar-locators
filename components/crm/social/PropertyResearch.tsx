@@ -235,18 +235,25 @@ export default function PropertyResearch({ sourceContentId }: { sourceContentId:
             </div>
             <input className={inputCls} placeholder="Source URL" value={sourceUrl}
               onChange={(e) => setSourceUrl(e.target.value)} />
-            <div className="flex items-center gap-2">
-              {/* The native calendar glyph crowds a field this small. Hiding the
-                  indicator is purely visual — the input stays type="date", keeps
-                  its YYYY-MM-DD value, and still opens its picker on click. */}
+            {/* Bottom row: compact date · flexible gap · roomy Save. Wraps instead
+                of overflowing on narrow widths. */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* A REAL date input — the native picker still opens on click. The
+                  oversized "icon" was the marketing base rule stretching
+                  ::-webkit-calendar-picker-indicator to fill the whole field
+                  (width/height 100%, position absolute, inset 0), which covered the
+                  text. .lb-date-native restores a small trailing glyph and
+                  .sb-research-date restores sane width/type size; both live in
+                  globals.css because that base rule is unlayered and out-ranks
+                  utilities. Value stays YYYY-MM-DD — no timezone conversion. */}
               <input type="date" aria-label="Observed date" value={observedAt}
                 onChange={(e) => setObservedAt(e.target.value)}
-                className={`${inputCls} w-auto [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:w-0 [&::-webkit-calendar-picker-indicator]:m-0`} />
-              <div className="flex-1" />
+                className="lb-date-native [color-scheme:dark] sb-research-date" />
+              <div className="flex-1 min-w-[12px]" />
               {state === "error" && <span className="text-[11px] text-[#c0264b]">Couldn’t save.</span>}
               {state === "saved" && <span className="text-[11px] text-emerald-500">Saved.</span>}
               <button type="button" onClick={save} disabled={state === "saving"}
-                className="crm-cta px-3 py-1.5 rounded-lg text-[12px] font-semibold disabled:opacity-50">
+                className="crm-cta px-6 py-2 rounded-lg text-[12px] font-semibold whitespace-nowrap disabled:opacity-50">
                 {state === "saving" ? "Saving…" : "Save Property Research"}
               </button>
             </div>

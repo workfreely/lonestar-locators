@@ -215,10 +215,23 @@ async function main() {
 
   console.log("\nOBSERVED DATE + STANDARDISED FEATURES:")
   {
-    ok("the native calendar indicator is hidden",
-      /\[&::-webkit-calendar-picker-indicator\]:opacity-0/.test(ui))
-    ok("…but it is still a date input", /<input type="date"/.test(ui))
+    // The giant "icon" was the marketing base rule stretching the indicator to
+    // fill the field. The fix reuses the two classes the CRM already uses for
+    // exactly this, defined in globals.css because that rule is unlayered and
+    // out-ranks Tailwind utilities.
+    const css = read("app/globals.css")
+    ok("it is still a real date input (picker still opens)", /<input type="date"/.test(ui))
     ok("…and still bound to observedAt", /value=\{observedAt\}/.test(ui))
+    ok("the small-icon class is applied", /className="lb-date-native \[color-scheme:dark\] sb-research-date"/.test(ui))
+    ok("…and lb-date-native really sizes the indicator down",
+      /input\[type="date"\]\.lb-date-native::-webkit-calendar-picker-indicator \{[\s\S]{0,200}width: 1\.15em/.test(css))
+    ok("the field is compact (140–170px)",
+      /\.sb-research-date \{[\s\S]{0,200}width: 15\dpx/.test(css))
+    ok("…and does not flex-grow", /\.sb-research-date \{[\s\S]{0,200}flex: none/.test(css))
+    ok("the old Tailwind indicator hacks are gone",
+      !/\[&::-webkit-calendar-picker-indicator\]/.test(ui))
+    ok("the Save button got more room", /crm-cta px-6 py-2[^"]*whitespace-nowrap/.test(ui))
+    ok("the bottom row wraps instead of overflowing", /flex flex-wrap items-center gap-2/.test(ui))
 
     ok("Features Observed uses the shared AmenitySelect",
       /<AmenitySelect/.test(ui) && /from "@\/components\/crm\/social\/AmenitySelect"/.test(ui))
