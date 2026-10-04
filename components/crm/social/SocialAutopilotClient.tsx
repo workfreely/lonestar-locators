@@ -6,6 +6,9 @@ import { supabase } from "@/lib/supabase/client"
 import { DEMO_LIBRARY } from "./demoFixtures"
 import { SOCIAL_MARKETS, normalizeSocialMarket } from "@/lib/social/markets"
 import { formatSocialDisplayName } from "@/lib/social/displayName"
+import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
+import { computeOverlayLayout, type OverlayLayout } from "@/lib/social/overlaySpec"
+import { OVERLAY_TEMPLATES, DEFAULT_OVERLAY_TEMPLATE } from "@/lib/social/composePost"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
 import { inferFromFilename, detectMarket, suggestArea } from "@/lib/social/filenameInference"
 import { resolvePropertyMatch } from "@/lib/social/resolveProperty"
@@ -68,6 +71,10 @@ type Card = {
   sortDate: number
   originalFilename: string | null
   previewUrl: string | null
+  // The saved draft's overlay, rebuilt from persisted values — null when this
+  // source has no draft, or when the draft is in "existing" mode (the video
+  // already carries its own text, so drawing ours would double it).
+  draftOverlay: OverlayLayout | null
   hue: number | null
   demo: boolean
   raw?: Item
@@ -166,6 +173,11 @@ function Thumb({ card }: { card: Card }) {
           className="w-full h-full object-cover bg-black"
         />
       )}
+      {/* SAVED DRAFT overlay — the shared PreviewOverlay, same as the editor and
+          the lightbox. It stays visible during playback (matching the editor),
+          and is pointer-events-none so the play button and the native controls
+          underneath remain clickable. */}
+      <PreviewOverlay layout={card.draftOverlay} />
       {!playing && (
         <button
           type="button"
@@ -181,6 +193,47 @@ function Thumb({ card }: { card: Card }) {
       )}
     </div>
   )
+}
+
+/**
+ * Rebuild a source's SAVED DRAFT overlay from persisted values.
+ *
+ * This is the same expression the editor uses for its pre-render preview
+ * (PostEditor.tsx: `overlayMode === "existing" ? null : computeOverlayLayout(...)`)
+ * with the editor's live state replaced by what Save Draft actually wrote. There
+ * is deliberately no second rendering path: the geometry comes from
+ * computeOverlayLayout and the pixels from <PreviewOverlay>, the same two the
+ * editor, the lightbox and BulkReview all go through.
+ *
+ * Pricing needs no recomputation here. Save Draft persists the composed detail
+ * line — buildTemplateDetail(template, {market, type, special, budgetRange, …}) —
+ * into overlay_subheadline, so the stored value already carries the price.
+ *
+ * Returns null (→ raw source video, exactly as before) when:
+ *   • the source has no non-published post at all,
+ *   • the draft is in "existing" mode — the video already has text burned in, so
+ *     layering ours would double it, which is why the editor nulls out too,
+ *   • or the draft has no headline yet (a post created but never edited).
+ *
+ * When a source has several drafts the NEWEST by updated_at wins, so re-saving a
+ * draft is reflected on the next library load.
+ */
+function draftOverlayFor(posts: {
+  status: string; overlayMode: string; overlayTemplate: string | null
+  overlayHeadline: string | null; overlaySubheadline: string | null; updatedAt: string | null
+}[] | undefined): OverlayLayout | null {
+  if (!posts || posts.length === 0) return null
+  const newest = [...posts].sort(
+    (a, b) => (Date.parse(b.updatedAt ?? "") || 0) - (Date.parse(a.updatedAt ?? "") || 0),
+  )[0]
+  if (!newest) return null
+  if (newest.overlayMode === "existing") return null
+  const headline = (newest.overlayHeadline ?? "").trim()
+  if (!headline) return null
+  const tpl = (OVERLAY_TEMPLATES as readonly string[]).includes(newest.overlayTemplate ?? "")
+    ? (newest.overlayTemplate as string)
+    : DEFAULT_OVERLAY_TEMPLATE
+  return computeOverlayLayout(tpl, headline, newest.overlaySubheadline ?? "")
 }
 
 export default function SocialAutopilotClient() {
@@ -225,7 +278,14 @@ export default function SocialAutopilotClient() {
 
   // Per-source rollup of EDITABLE (non-published) posts. Drives the "Edit Post" workflow:
   // 0 → create+open, 1 → open it, >1 → let the operator pick (never silently guess).
-  type EditablePost = { id: string; status: string; scheduledAt: string | null; name: string }
+  type EditablePost = {
+    id: string; status: string; scheduledAt: string | null; name: string
+    // Persisted overlay state — enough to rebuild the draft's preview without a
+    // second fetch. updatedAt picks the newest draft when a source has several.
+    overlayMode: string; overlayTemplate: string | null
+    overlayHeadline: string | null; overlaySubheadline: string | null
+    updatedAt: string | null
+  }
   const [postsBySource, setPostsBySource] = useState<Record<string, EditablePost[]>>({})
   const [editMenuFor, setEditMenuFor] = useState<string | null>(null) // source id whose picker is open
 
@@ -249,13 +309,26 @@ export default function SocialAutopilotClient() {
       const pres = await fetch("/api/admin/social-autopilot/posts", { headers: { Accept: "application/json" } })
       if (pres.ok) {
         const pj = (await pres.json()) as {
-          items?: { id: string; sourceContentId: string | null; status: string; scheduledAt: string | null; postName: string | null; source: { propertyName: string | null; displayName: string | null } | null }[]
+          items?: {
+            id: string; sourceContentId: string | null; status: string; scheduledAt: string | null; postName: string | null
+            overlayMode?: string | null; overlayTemplate?: string | null
+            overlayHeadline?: string | null; overlaySubheadline?: string | null; updatedAt?: string | null
+            source: { propertyName: string | null; displayName: string | null } | null
+          }[]
         }
         const map: Record<string, EditablePost[]> = {}
         for (const p of pj.items ?? []) {
           const sid = p.sourceContentId
           if (!sid || p.status === "published") continue // only editable (non-published) posts
-          ;(map[sid] ??= []).push({ id: p.id, status: p.status, scheduledAt: p.scheduledAt, name: p.source?.propertyName || p.source?.displayName || p.postName || "Untitled" })
+          ;(map[sid] ??= []).push({
+            id: p.id, status: p.status, scheduledAt: p.scheduledAt,
+            name: p.source?.propertyName || p.source?.displayName || p.postName || "Untitled",
+            overlayMode: p.overlayMode ?? "generate",
+            overlayTemplate: p.overlayTemplate ?? null,
+            overlayHeadline: p.overlayHeadline ?? null,
+            overlaySubheadline: p.overlaySubheadline ?? null,
+            updatedAt: p.updatedAt ?? null,
+          })
         }
         setPostsBySource(map)
       }
@@ -282,6 +355,7 @@ export default function SocialAutopilotClient() {
         sortDate: new Date(it.createdAt).getTime() || 0,
         originalFilename: it.originalFilename,
         previewUrl: it.previewUrl,
+        draftOverlay: draftOverlayFor(postsBySource[it.id]),
         hue: null,
         demo: false,
         raw: it,
@@ -298,12 +372,13 @@ export default function SocialAutopilotClient() {
         sortDate: DEMO_LIBRARY.length - i,
         originalFilename: d.originalFilename,
         previewUrl: null,
+        draftOverlay: null,
         hue: d.hue,
         demo: true,
       }))
     }
     return []
-  }, [items, usingDemo])
+  }, [items, usingDemo, postsBySource])
 
   // Market chips: the primary SA taxonomy (San Antonio / Austin / DFW / Houston) is always
   // shown; any other normalized market present in the data is appended (extensible).

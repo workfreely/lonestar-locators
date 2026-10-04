@@ -12,7 +12,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 const SELECT =
   "id, platform, post_type, post_name, caption, on_video_text, on_video_config, " +
-  "overlay_headline, overlay_subheadline, hashtags, audio_choice, audio_track_id, rendered_storage_path, render_status, render_error, render_version, " +
+  "overlay_headline, overlay_subheadline, overlay_mode, overlay_template, hashtags, audio_choice, audio_track_id, rendered_storage_path, render_status, render_error, render_version, " +
   "status, scheduled_at, published_at, external_post_url, created_at, updated_at, source_content_id, recurring_rule_id, recurrence_slot, " +
   "source:source_content_id(display_name, property_name, property_type, market, special, budget_range, amenities, storage_path, original_filename, kind)"
 
@@ -46,6 +46,12 @@ async function shape(supabase: PlatformAdminGuardOk["supabase"], rows: Record<st
         onVideoConfig: r.on_video_config,
         overlayHeadline: r.overlay_headline,
         overlaySubheadline: r.overlay_subheadline,
+        // The two fields the LIST route was missing. /posts/[id] already returned
+        // them; without them a caller can read a draft's text but cannot rebuild
+        // its overlay, because computeOverlayLayout is keyed on the template and
+        // "existing" mode means the video already has its text burned in.
+        overlayMode: r.overlay_mode,
+        overlayTemplate: r.overlay_template,
         hashtags: Array.isArray(r.hashtags) ? r.hashtags : [],
         audioChoice: (r.audio_choice as string) || "original",
         audioTrackId: r.audio_track_id,
