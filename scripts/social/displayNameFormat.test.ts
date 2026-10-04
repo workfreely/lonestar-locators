@@ -122,6 +122,15 @@ async function main() {
       !/titleLabel[\s\S]{0,200}storagePath|storagePath[\s\S]{0,200}titleLabel/.test(src))
     ok("the hover tooltip still shows the untouched original filename",
       /title=\{c\.originalFilename \?\? undefined\}/.test(src))
+
+    // The date is now shown ONCE. The small grey row under property/market used
+    // to repeat it; with the title carrying a readable date that row was the
+    // same string twice.
+    ok("the duplicate dateLabel row is gone", !/\{c\.dateLabel\}/.test(src))
+    ok("…and no dead dateLabel field is left behind", !/dateLabel/.test(src))
+    ok("…nor the fmt helper that existed only to build it", !/const fmt = /.test(src))
+    ok("property · market still renders between title and actions",
+      /\{c\.propertyName \|\| <span className="text-\[var\(--crm-text-muted\)\]">No property<\/span>\}/.test(src))
   }
 
   console.log("\nNOTHING WRITES A FORMATTED NAME BACK:")

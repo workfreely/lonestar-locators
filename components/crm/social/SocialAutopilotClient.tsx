@@ -65,7 +65,6 @@ type Card = {
   propertyName: string | null
   market: string | null
   marketLabel: string // normalized (Dallas/Fort Worth → DFW) for filter + sort
-  dateLabel: string
   sortDate: number
   originalFilename: string | null
   previewUrl: string | null
@@ -104,10 +103,6 @@ type Sort = (typeof SORTS)[number]
 const UPLOAD_CONCURRENCY = 3
 
 const base = (name: string | null) => (name ? name.replace(/\.[^.]+$/, "") : "")
-const fmt = (iso: string) => {
-  const d = new Date(iso)
-  return isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-}
 const extOf = (name: string) => (name.split(".").pop() || "mp4").toLowerCase().replace(/[^a-z0-9]/g, "") || "mp4"
 
 // RFC-4122 v4 — MUST match the server's UUID gate (it validates contentId + storage path).
@@ -284,7 +279,6 @@ export default function SocialAutopilotClient() {
         propertyName: it.propertyName,
         market: it.market,
         marketLabel: normalizeSocialMarket(it.market),
-        dateLabel: fmt(it.createdAt),
         sortDate: new Date(it.createdAt).getTime() || 0,
         originalFilename: it.originalFilename,
         previewUrl: it.previewUrl,
@@ -301,7 +295,6 @@ export default function SocialAutopilotClient() {
         propertyName: d.propertyName,
         market: d.market,
         marketLabel: normalizeSocialMarket(d.market),
-        dateLabel: d.dateLabel,
         sortDate: DEMO_LIBRARY.length - i,
         originalFilename: d.originalFilename,
         previewUrl: null,
@@ -772,7 +765,6 @@ export default function SocialAutopilotClient() {
                     {c.propertyName || <span className="text-[var(--crm-text-muted)]">No property</span>}
                     {c.marketLabel ? ` · ${c.marketLabel}` : ""}
                   </div>
-                  <div className="text-[11px] text-[var(--crm-text-muted)] mt-0.5">{c.dateLabel}</div>
                   {!c.demo && c.raw && (() => {
                     const sid = c.raw.id
                     const ed = postsBySource[sid] ?? []
