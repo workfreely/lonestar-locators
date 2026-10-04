@@ -89,6 +89,7 @@ export default function LeadBoard({
   onInitiateContact,
   onPutOnHold,
   onResumeLead,
+  onStartOooFollowUp,
   onRescheduleHold,
   columns = ALL_COLUMNS,
   timeZone,
@@ -145,6 +146,7 @@ export default function LeadBoard({
   //    Archive dialog; Resume/Reschedule live on the Inactive → On Hold card. ──
   onPutOnHold?: (leadId: string | number, followUpDate: string) => void
   onResumeLead?: (leadId: string | number) => void
+  onStartOooFollowUp?: (leadId: string | number) => void
   onRescheduleHold?: (leadId: string | number, followUpDate: string) => void
   // Optional subset/override of the pipeline columns (defaults to all stages).
   // Used by the public marketing demo to show only New → Contacted; the CRM
@@ -838,6 +840,7 @@ export default function LeadBoard({
               key={col.id}
               id={col.id}
               title={col.title}
+              onStartOooFollowUp={onStartOooFollowUp}
               view={view}
               nextActions={nextActions}
               favorites={favorites}

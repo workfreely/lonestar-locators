@@ -11,6 +11,7 @@ import LeadSourceBadge from "./LeadSourceBadge"
 import { getArchiveReasonBadgeLabel } from "@/lib/leads/archiveReasons"
 import { isOnHold as leadIsOnHold, formatHoldFollowUpNumeric } from "@/lib/leads/holdWorkflow"
 import HoldControls from "./HoldControls"
+import OooFollowUpControls from "./OooFollowUpControls"
 // formatDateDisplay, NOT a local formatter: move_date is a date-only "YYYY-MM-DD",
 // and `new Date(that)` parses it as UTC midnight — which in Central renders the
 // PREVIOUS day (10/10 showed as 10/09, and 01/01 as the prior year). This card had
@@ -69,6 +70,9 @@ export default function LeadCard({
   // the card shows the hold state + controls in place of the Next Action pill.
   onResumeHold,
   onRescheduleHold,
+  // Out of Office: the lead arrived while the locator was away, so the normal
+  // New-Lead opening pair was never enrolled. Present only on the New column.
+  onStartOooFollowUp,
   // Held cards are non-draggable in v1 (no drag-to-resume). Defaults to draggable.
   draggable = true,
   view = "detailed",
@@ -171,6 +175,17 @@ export default function LeadCard({
   // ─── Archive reason badge (archived leads only) ────────────────────────
   const archiveBadgeLabel =
     lead.crm_status === "archived" ? getArchiveReasonBadgeLabel(lead.archive_reason) : null
+
+  // ─── Out of Office ────────────────────────────────────────────────────────
+  // The badge explains an absence: a New lead with no opening texts would
+  // otherwise be indistinguishable from a bug. It stays FOREVER, because
+  // ooo_held_at is permanent arrival history — only the action goes away.
+  const isOooLead = !!lead.ooo_held_at && String(lead.crm_status ?? "").toLowerCase() === "new"
+  // The action also requires the lead not to have been started yet. The server
+  // additionally refuses when an active lifecycle run exists; the CRM does not
+  // load run state, so that check stays server-side and a click in that case is a
+  // harmless confirmed no-op rather than a duplicate send.
+  const canStartOoo = isOooLead && !lead.ooo_released_at
 
   // New leads not yet worked pulse gently until contacted.
   const isFresh = lead.crm_status === "new"
@@ -275,6 +290,17 @@ export default function LeadCard({
     )
   }
 
+  // Same treatment and placement as the archive-reason badge — its own line under
+  // the phone number rather than crammed beside the name.
+  function oooLine() {
+    if (!isOooLead) return null
+    return (
+      <div className="kb-archive-line">
+        <span className="kb-pill kb-pill--neutral">OOO Lead</span>
+      </div>
+    )
+  }
+
   // Phone number on the left; the quick utility actions (Archive, Copy) grouped
   // together on the right of the same row — kept away from the drag handle,
   // which stays alone in the top-right corner for reordering.
@@ -315,6 +341,7 @@ export default function LeadCard({
         {nameEl()}
         {phoneRow()}
         {archiveLine()}
+        {oooLine()}
         {/* Canonical order (subset of the panel): City, Budget, Income,
             Property, Move Date, Credit, Source. Each row shows only when the
             lead has that saved value — no "—" / "Not listed" / "$0" rows.
@@ -384,6 +411,12 @@ export default function LeadCard({
             <span className={`kb-pill kb-pill--push ${nextClass}`} title={nextText}>{nextText}</span>
           )}
         </div>
+        {/* Start Follow-Up — mutually exclusive with HoldControls in practice: a
+            held lead has held_at, an OOO lead does not. Kept as a separate block
+            so neither can change the other's behaviour. */}
+        {canStartOoo && onStartOooFollowUp && (
+          <OooFollowUpControls leadId={lead.id} onStarted={onStartOooFollowUp} />
+        )}
         {/* Resume / Reschedule for a held card (Inactive → On Hold tab only). */}
         {onHold && (onResumeHold || onRescheduleHold) && (
           <HoldControls

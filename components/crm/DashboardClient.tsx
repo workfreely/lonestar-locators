@@ -816,6 +816,25 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     if (target) postCompanionActiveClient({ ...target, ...updates }, localNextActionsRef.current)
   }
 
+  /**
+   * OUT OF OFFICE — the locator has returned and deliberately picked this lead.
+   *
+   * The server has already created the new_lead/t1 run and stamped
+   * ooo_released_at by the time this runs; all that is left is to reflect it so
+   * the button disappears. Deliberately NOT optimistic: OooFollowUpControls only
+   * calls back after the API confirms, so a failed request leaves the action
+   * available rather than silently losing a lead.
+   *
+   * Separate from handleResumeLead on purpose — that one clears hold columns and
+   * sends nothing; this one has already caused a client to be texted.
+   */
+  function handleStartOooFollowUp(leadId: string | number) {
+    const releasedAt = new Date().toISOString()
+    setLocalLeads((prev) =>
+      prev.map((l: any) => (String(l.id) === String(leadId) ? { ...l, ooo_released_at: releasedAt } : l)),
+    )
+  }
+
   async function handleRescheduleHold(leadId: string | number, followUpDate: string) {
     const target = localLeadsRef.current.find((l: any) => String(l.id) === String(leadId))
     const updates = buildRescheduleHoldUpdate(followUpDate)
@@ -4257,6 +4276,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             onPutOnHold={handlePutOnHold}
             onResumeLead={handleResumeLead}
             onRescheduleHold={handleRescheduleHold}
+            onStartOooFollowUp={handleStartOooFollowUp}
             onInitiateContact={(lead) => {
               // Drag New→Contacted: select the lead (so Companion loads it via the
               // Phase 2 active-client bridge) and open the CENTERED CRM MODAL where

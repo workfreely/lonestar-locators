@@ -2062,6 +2062,9 @@ body.jaybot-open {
 /* Held-lead Resume / Reschedule controls (board card + Agenda reminder). */
 .kb-hold-controls { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:8px; }
 .kb-hold-controls--xs { margin-top:6px; gap:4px; }
+/* Out of Office: the inline Start Follow-Up error line. The button itself reuses
+   .kb-hold-btn--primary, so the two card actions stay visually consistent. */
+.kb-ooo-err { margin:6px 0 0; font-size:10px; line-height:1.3; color:#c0264b; flex-basis:100%; }
 /* Agenda held reminder: the card is narrow (~194px), so the two equal buttons use
    smaller type/padding than the board so "Resume Search" fits its half without
    clipping — compact + consistent with the Agenda card, still equal 50/50. */

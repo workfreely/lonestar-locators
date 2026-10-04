@@ -24,6 +24,8 @@ type Props = {
   activeCompanionLeadId?: string | number | null
   onSelectLead?: (leadId: string | number) => void
   onArchiveLead?: (leadId: string | number) => void
+  /** Out of Office: start the normal new_lead sequence for a held lead. */
+  onStartOooFollowUp?: (leadId: string | number) => void
   view?: KanbanView
   emptyMessage?: string
 }
@@ -57,6 +59,7 @@ export default function LeadColumn({
   activeCompanionLeadId,
   onSelectLead,
   onArchiveLead,
+  onStartOooFollowUp,
   view = "detailed",
   emptyMessage = "No leads",
 }: Props) {
@@ -87,6 +90,7 @@ export default function LeadColumn({
             }
             onSelect={onSelectLead}
             onArchive={onArchiveLead}
+            onStartOooFollowUp={onStartOooFollowUp}
             view={view}
           />
         ))}

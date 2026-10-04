@@ -212,6 +212,70 @@ async function main() {
       !/list_sent|done_selecting|application_status|resume_search|post_tour/.test(route))
   }
 
+  console.log("\nLEAD CARD — badge and action visibility:")
+  {
+    const card = strip(read("components/crm/LeadCard.tsx"))
+    const ctrl = strip(read("components/crm/OooFollowUpControls.tsx"))
+
+    // The two conditions, read off the component rather than re-implemented here.
+    ok("the badge shows for an OOO lead that is still New",
+      /const isOooLead = !!lead\.ooo_held_at && String\(lead\.crm_status \?\? ""\)\.toLowerCase\(\) === "new"/.test(card))
+    ok("the ACTION additionally requires not-yet-released",
+      /const canStartOoo = isOooLead && !lead\.ooo_released_at/.test(card))
+    // 1. a normal lead shows neither
+    ok("a normal New lead shows neither (both conditions start from ooo_held_at)",
+      /isOooLead = !!lead\.ooo_held_at/.test(card))
+    // 3. released keeps the badge, loses the button
+    ok("a RELEASED lead keeps the badge (badge ignores ooo_released_at)",
+      !/const isOooLead =[^\n]*ooo_released_at/.test(card))
+    ok("…and loses the button", /canStartOoo[^\n]*!lead\.ooo_released_at/.test(card))
+    // 4. a non-New historical OOO lead shows no action
+    ok("a non-New OOO lead shows no action (crm_status gates isOooLead)",
+      /isOooLead[^\n]*crm_status/.test(card))
+    ok("the badge renders on its own line, like the archive badge",
+      /function oooLine\(\)[\s\S]{0,200}kb-pill kb-pill--neutral">OOO Lead/.test(card))
+    ok("the action renders only when canStartOoo AND a handler is present",
+      /\{canStartOoo && onStartOooFollowUp && \([\s\S]{0,160}OooFollowUpControls/.test(card))
+
+    // 5/6/7 — in-flight and failure behaviour.
+    ok("the button calls the authenticated endpoint",
+      /fetch\("\/api\/admin\/leads\/start-ooo-followup"/.test(ctrl) && /method: "POST"/.test(ctrl))
+    ok("…exactly once per click (guarded while busy)", /if \(state === "busy"\) return/.test(ctrl))
+    ok("…and the button is disabled in flight", /disabled=\{state === "busy"\}/.test(ctrl))
+    // A failure must not hide the button: the only non-idle terminal state is
+    // "error", and the button's disabled condition names "busy" alone, so the
+    // control is still clickable after a failed attempt.
+    ok("a FAILED request leaves the action available (no optimistic hide)",
+      /catch \{[\s\S]{0,60}setState\("error"\)/.test(ctrl)
+      && /disabled=\{state === "busy"\}/.test(ctrl)
+      && !/disabled=\{[^}]*"error"/.test(ctrl))
+    {
+      // Ordering only means something if BOTH anchors exist — a missing anchor
+      // would otherwise make indexOf return -1 and pass vacuously.
+      const guard = ctrl.indexOf("if (!res.ok) throw")
+      const told = ctrl.indexOf("onStarted?.(leadId)")
+      ok("…the parent is told ONLY after the API confirms",
+        guard >= 0 && told >= 0 && guard < told)
+    }
+    ok("…and an error is surfaced to the locator", /kb-ooo-err/.test(ctrl))
+    ok("clicks never open the card underneath", /e\.stopPropagation\(\)/.test(ctrl))
+
+    // Isolation from Hold Resume.
+    ok("it is a SEPARATE component from HoldControls",
+      !/HoldControls/.test(ctrl) && /OooFollowUpControls/.test(card))
+    ok("…rendered in its own block, not inside the hold block",
+      card.indexOf("canStartOoo && onStartOooFollowUp") < card.indexOf("onHold && (onResumeHold"))
+    const dash = strip(read("components/crm/DashboardClient.tsx"))
+    ok("the handler is separate from handleResumeLead",
+      /function handleStartOooFollowUp/.test(dash) && /function handleResumeLead/.test(dash))
+    ok("…and only marks the lead released locally (the server did the work)",
+      /handleStartOooFollowUp[\s\S]{0,400}ooo_released_at: releasedAt/.test(dash))
+    ok("…never writing ooo_held_at or crm_status",
+      !/handleStartOooFollowUp[\s\S]{0,400}(ooo_held_at|crm_status)/.test(dash))
+    ok("…and never calling the hold endpoints",
+      !/handleStartOooFollowUp[\s\S]{0,400}(buildResumeUpdate|hold_follow_up_at)/.test(dash))
+  }
+
   console.log("\nUNTOUCHED SYSTEMS:")
   {
     const engine = strip(read("lib/followup/engine.ts"))
