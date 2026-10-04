@@ -42,20 +42,35 @@ enum AppleMessagesSender {
     //     set targetService to 1st service whose service type = iMessage
     //     set targetBuddy to buddy phoneNumber of targetService
     //     send messageText to targetBuddy
-    // and could not send. The failure is subtle: `service` and `buddy` are still
-    // declared in Messages.sdef as SYNONYMS for `account` and `participant`, so
-    // that script PARSES fine and fails only at runtime. `buddy X of <service>`
-    // is an element lookup scoped to one account, and it resolves only handles
-    // Messages already holds for that account — so an arbitrary phone number for
-    // a client who has never been messaged is simply not found.
+    //
+    // It is tempting to assume that failed because the handle could not be
+    // resolved. MEASURED ON THIS MACHINE, THAT IS NOT TRUE — both forms resolve,
+    // even for a number that has never been messaged:
+    //     buddy "+15550123456" of (1st service whose service type = iMessage)
+    //       → 643A262E-…:+15550123456
+    //     participant "+15550123456"
+    //       → 3F68952D-…:+15550123456
+    // Resolution is not the difference. The ACCOUNT is: this Mac has 6 accounts,
+    // all enabled, and the two forms pick different ones. `1st service whose
+    // service type = iMessage` selects account #5 (643A262E…); an unqualified
+    // `participant` resolves through account #1 (3F68952D…), the default.
+    //
+    // So the old script was not failing to find anyone — it was pinning every
+    // send to one specific, non-default account chosen by list order. "1st
+    // service whose service type = iMessage" reads like "the iMessage account"
+    // but is really "whichever iMessage account happens to be enumerated first",
+    // which is neither stable nor necessarily the identity Messages would use.
     //
     // `participant` is a top-level element of the application (Messages.sdef:
     //   <class-extension extends="application"> … <element type="participant">),
-    // and `send … to participant "<number>"` is the form proven by hand against
-    // both an iMessage and an SMS/RCS recipient. Unqualified is the point: it
-    // lets Messages pick the account and route (iMessage vs SMS) the same way it
-    // does when a human types the number into a new conversation, instead of
-    // forcing the send through one account that may not be able to reach them.
+    // so `send … to participant "<number>"` hands routing to Messages — the same
+    // account and transport selection it performs when a person types a number
+    // into a new conversation. That is the behaviour we want: not "force
+    // iMessage", but "reach this person however you normally would".
+    //
+    // Note that `exists participant "<any number>"` is true even for fictional
+    // numbers, so neither resolution nor `exists` can be used as a reachability
+    // check. The only real signal is a send.
     //
     // NOTE for the ACK path (unchanged here): because the route is chosen by
     // Messages, a successful send may go out over SMS rather than iMessage. That
