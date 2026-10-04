@@ -1047,8 +1047,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         until: string | null
         slug: string | null
         previewUrl: string | null
+        publicUrl: string | null
         error: string | null
-      } = { nonce, enabled: false, until: null, slug: null, previewUrl: null, error: "ooo_failed" }
+      } = { nonce, enabled: false, until: null, slug: null, previewUrl: null, publicUrl: null, error: "ooo_failed" }
       try {
         // A read is a GET with no body; a write sends only the fields the panel
         // actually changed, so an On/Off flip that omits `until` preserves the
@@ -1073,6 +1074,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             until: typeof json.until === "string" ? json.until : null,
             slug: typeof json.slug === "string" ? json.slug : null,
             previewUrl: typeof json.previewUrl === "string" ? json.previewUrl : null,
+            publicUrl: typeof json.publicUrl === "string" ? json.publicUrl : null,
             error: null,
           }
         } else {

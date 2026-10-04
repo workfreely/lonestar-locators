@@ -61,7 +61,10 @@ type OooState = {
   enabled: boolean
   until: string | null
   slug: string | null
-  previewUrl: string | null
+  /** Authenticated preview — renders whether Out of Office is on or off. */
+  previewUrl: string
+  /** The genuinely public URL (404s while Out of Office is off, by design). */
+  publicUrl: string | null
 }
 
 async function readState(guard: Extract<Awaited<ReturnType<typeof requireWorkspaceMember>>, { ok: true }>) {
@@ -81,10 +84,19 @@ async function readState(guard: Extract<Awaited<ReturnType<typeof requireWorkspa
     enabled: row.out_of_office_enabled === true,
     until: row.out_of_office_until ?? null,
     slug,
-    // Built here rather than in the Companion so the extension never has to
-    // assemble a locatorbeast URL from parts it could get wrong, and so the
-    // panel's "Preview" is a value it renders rather than a string it composes.
-    previewUrl: slug ? `${SITE_ORIGIN}/${encodeURIComponent(slug)}/out-of-office` : null,
+    // PREVIEW points at the AUTHENTICATED preview route, not the public URL.
+    // The public page 404s while Out of Office is off — correctly, and that gate
+    // is untouched — which made Preview useless at the one moment a locator most
+    // wants it: before going away. The preview renders the identical component
+    // from the same stored return date and writes nothing, so it is the right
+    // target in both states and needs no "which URL?" branch in the extension.
+    //
+    // Not a query parameter on the public page: that would be a public bypass of
+    // the gate. This route requires a session and resolves the username from it.
+    previewUrl: `${SITE_ORIGIN}/admin/out-of-office/preview`,
+    // The real public URL, for reference/display. Null until the workspace has a
+    // slug, since without one there is no public page to point at.
+    publicUrl: slug ? `${SITE_ORIGIN}/${encodeURIComponent(slug)}/out-of-office` : null,
   }
   return state
 }
