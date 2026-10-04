@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic"
 
 import { NextResponse, type NextRequest } from "next/server"
 import { requireWorkspaceMember } from "@/lib/auth/requireWorkspaceMember"
+import { supabaseAdmin } from "@/lib/supabase/admin"
 
 /**
  * OUT OF OFFICE — the locator-facing read/write for their own workspace state.
@@ -30,10 +31,24 @@ import { requireWorkspaceMember } from "@/lib/auth/requireWorkspaceMember"
  * slug travels OUTWARD only (so the Companion can link to the right public page);
  * it is never an input, so no caller can aim this route at another workspace.
  *
- * Writes go through guard.supabase — the caller's RLS-enforced client, not the
- * service role. A workspace's own state is something the signed-in member is
- * already permitted to change, so there is no reason to reach for a client that
- * bypasses RLS; if the policy would refuse the write, this route should too.
+ * ── WHY THE WRITE USES THE SERVICE ROLE ─────────────────────────────────────
+ * The first version of this route wrote through guard.supabase (the caller's
+ * RLS-enforced client), reasoning that a member may already change their own
+ * workspace. That was wrong, and it failed SILENTLY in production: public.
+ * workspaces carries exactly one policy, "members read their workspace" (SELECT).
+ * With no UPDATE policy, the update matched zero rows, PostgREST reported no
+ * error, and this route returned 200 with the state unchanged.
+ *
+ * The fix is the convention requireWorkspaceMember() already documents: the guard
+ * authenticates and derives the workspace, and the write runs with the service
+ * role. The guard is the gate, not RLS. Adding an UPDATE policy to a shared table
+ * instead would widen what every session can write for the sake of one column.
+ *
+ * READS still use guard.supabase, because the SELECT policy exists and a
+ * tenancy-scoped read is a free second opinion on the guard.
+ *
+ * And the lesson is enforced structurally below: the update asks for its affected
+ * row back, so "wrote nothing" can never again be reported as success.
  */
 
 const SITE_ORIGIN = "https://locatorbeast.com"
@@ -132,12 +147,24 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const { error } = await guard.supabase
+  // `.select("id")` is not decoration. An update that matches no row is NOT an
+  // error to PostgREST — it is an empty result — so without asking for the
+  // affected row back, a write blocked by RLS, a wrong id, or a deleted workspace
+  // all return 200 and change nothing. That is precisely the failure this route
+  // shipped with once; requiring a row makes it a 500 the caller can see.
+  const { data: written, error } = await supabaseAdmin
     .from("workspaces")
     .update(update)
     .eq("id", guard.workspaceId)
+    .select("id")
   if (error) {
     console.error("[workspace/out-of-office] update failed:", error.message)
+    return NextResponse.json({ error: "Could not save Out of Office" }, { status: 500 })
+  }
+  if (!written || written.length !== 1) {
+    console.error(
+      `[workspace/out-of-office] update affected ${written?.length ?? 0} rows for workspace ${guard.workspaceId}`,
+    )
     return NextResponse.json({ error: "Could not save Out of Office" }, { status: 500 })
   }
 

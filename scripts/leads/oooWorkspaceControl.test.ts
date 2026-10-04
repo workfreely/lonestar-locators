@@ -56,10 +56,23 @@ async function main() {
       !/body\.(workspaceId|workspace_id|slug|username)/.test(route))
     ok("the slug is SELECTED but never used as a filter",
       /select\("slug/.test(route) && !/\.eq\("slug"/.test(route))
-    ok("no service-role client is used (the caller's RLS client does the write)",
-      !/supabaseAdmin/.test(route))
-    ok("the write goes through guard.supabase",
-      /guard\.supabase[\s\S]{0,80}\.update\(/.test(route))
+    // This pair originally asserted the OPPOSITE — that the write used the
+    // caller's RLS client and no service role. That shipped, and failed silently
+    // in production: public.workspaces has only a SELECT policy, so the update
+    // matched zero rows, PostgREST reported no error, and the route returned 200
+    // having changed nothing. The guard is the tenancy gate here, not RLS.
+    ok("the WRITE uses the service role (workspaces has no UPDATE policy)",
+      /supabaseAdmin[\s\S]{0,80}\.update\(/.test(route))
+    ok("…but the workspace is still the session's, never the body's",
+      /\.update\(update\)[\s\S]{0,60}\.eq\("id", guard\.workspaceId\)/.test(route))
+    ok("the READ still goes through the caller's RLS client",
+      /guard\.supabase[\s\S]{0,120}\.select\("slug/.test(route))
+
+    // The structural lesson: a write that affects nothing must not read as success.
+    ok("the update asks for its affected row back",
+      /\.update\(update\)[\s\S]{0,120}\.select\("id"\)/.test(route))
+    ok("…and a zero-row write is a 500, not a silent 200",
+      /written\.length !== 1[\s\S]{0,320}status: 500/.test(route))
   }
 
   console.log("\nTHE PRESERVED RETURN DATE:")
