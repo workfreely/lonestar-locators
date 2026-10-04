@@ -57,16 +57,44 @@ function timeInZone(d: Date, timeZone?: string): string {
 }
 
 /**
- * Whether a due timestamp has already passed relative to `now`. "Overdue" is a
- * pure instant comparison (both sides are absolute instants), so it is
- * independent of time zone. A missing/invalid timestamp is treated as
- * not-overdue. Use this to derive Next-Action status from the due timestamp —
- * never from an unrelated priority flag (a future due can't be "Overdue").
+ * Whether a due timestamp is overdue relative to `now`. "Overdue" is a CALENDAR
+ * DAY comparison: an action is overdue once its due DAY is behind today's day,
+ * not the moment its due time passes.
+ *
+ * ── WHY DAY-LEVEL, NOT AN INSTANT COMPARISON ────────────────────────────────
+ * This was `t < now.getTime()`, which disagreed with the CRM board and produced
+ * a visible contradiction. Automatic workflow actions are DAY-scheduled: a new
+ * lead's Contact Lead is due 9:00 AM local on its creation day
+ * (lib/workflowEngine.ts → autoDueInDays(0)). A lead arriving at 2 PM therefore
+ * had a due time three hours in the past, so the Companion showed it Overdue the
+ * instant it landed, while the board showed it as Today — because the board's
+ * urgencyOf (lib/nextActions.ts) normalises both sides to midnight.
+ *
+ * The board's rule is the correct one and the older one, so this now matches it:
+ * one lead, one due state, wherever the locator happens to be looking.
+ *
+ * KNOWN CONSEQUENCE, accepted deliberately: a manual Task with a user-picked
+ * time (3:00 PM today) no longer flips to Overdue at 3:01 PM — it stays Today
+ * until tomorrow. That is not a regression against the board, which never flipped
+ * it either; it is the two surfaces finally agreeing. Making time-specific tasks
+ * overdue at their time is a separate product decision, and would need to change
+ * both implementations together, not just this one.
+ *
+ * Day boundaries are resolved in `timeZone` when given (the same zone-aware,
+ * DST-safe dayKeyInZone that formatDueDateTime already uses for Today/Tomorrow,
+ * so the badge and the label can never disagree); omitted → runtime-local, which
+ * is what the CRM board uses. A missing/invalid timestamp is not-overdue.
  */
-export function isPastDue(dueAt: string | null | undefined, now: Date = new Date()): boolean {
+export function isPastDue(
+  dueAt: string | null | undefined,
+  now: Date = new Date(),
+  timeZone?: string,
+): boolean {
   if (!dueAt) return false;
-  const t = new Date(dueAt).getTime();
-  return Number.isFinite(t) && t < now.getTime();
+  const due = new Date(dueAt);
+  if (!Number.isFinite(due.getTime())) return false;
+  // "YYYY-MM-DD" keys compare lexicographically === chronologically.
+  return dayKeyInZone(due, timeZone) < dayKeyInZone(now, timeZone);
 }
 
 export function formatDueDateTime(dueAt: string, options: DueDateFormatOptions = {}): string {
