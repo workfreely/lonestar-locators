@@ -237,7 +237,27 @@ async function main() {
       /input\[type="date"\]\.sb-research-date \{[\s\S]{0,200}flex: none/.test(css))
     ok("the old Tailwind indicator hacks are gone",
       !/\[&::-webkit-calendar-picker-indicator\]/.test(ui))
-    ok("the Save button got more room", /crm-cta px-6 py-2[^"]*whitespace-nowrap/.test(ui))
+    // Chrome opens the native picker ONLY from the trailing indicator, so clicking
+    // the text half of a 150px field looked dead. showPicker() makes the whole
+    // control open it.
+    ok("clicking anywhere in the field opens the picker",
+      /onClick=\{\(e\) => \{ try \{ e\.currentTarget\.showPicker\(\) \} catch \{\} \}\}/.test(ui))
+    ok("…on the date input itself, not a wrapper",
+      /<input type="date"[\s\S]{0,300}showPicker\(\)/.test(ui))
+    ok("…and the whole control reads as clickable",
+      /input\[type="date"\]\.sb-research-date \{[^}]*cursor: pointer/.test(css))
+    // showPicker throws when the picker is already open (the indicator was clicked)
+    // or is unsupported; in both cases native behaviour is already right.
+    ok("the throw is swallowed, so the indicator still works", /showPicker\(\) \} catch \{\}/.test(ui))
+    // It is still a REAL date input — not a text box with a fake picker.
+    ok("it is still type=\"date\"", /<input type="date" aria-label="Observed date"/.test(ui))
+    ok("…and storage is untouched: still the plain YYYY-MM-DD onChange",
+      /onChange=\{\(e\) => setObservedAt\(e\.target\.value\)\}/.test(ui))
+    ok("…with no Date parsing anywhere near the field",
+      !/new Date\(observedAt|Date\.parse|toISOString\(\)\.slice/.test(ui.split("type=\"date\"")[1]?.slice(0, 400) ?? ""))
+
+    ok("the Save button got more room", /crm-cta px-10 py-2[^"]*whitespace-nowrap/.test(ui))
+    ok("…wider than the original px-6", !/crm-cta px-6 /.test(ui))
     ok("the bottom row wraps instead of overflowing", /flex flex-wrap items-center gap-2/.test(ui))
 
     ok("Features Observed uses the shared AmenitySelect",
