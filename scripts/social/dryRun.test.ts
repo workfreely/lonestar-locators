@@ -29,7 +29,7 @@ const dbInput = { caption: OLD_STORED, hashtags: HASHTAGS, socialSpecial: null, 
 console.log("payload source of truth (buildInstagramCaptionPayload):")
 ok("equals composeFinalCaption(publishCaption(...))", buildInstagramCaptionPayload(dbInput) === composeFinalCaption(publishCaption(OLD_STORED, meta, SEED), HASHTAGS))
 ok("regenerates a generator-owned caption to canonical bullets", buildInstagramCaptionPayload(dbInput) === composeFinalCaption(buildCaption(meta, SEED), HASHTAGS))
-ok("payload has 🏡 Amenities + bullets + hashtags", (() => { const p = buildInstagramCaptionPayload(dbInput); return p.includes("🏡 Amenities\n• yard\n• garage\n• pool") && p.endsWith("#sanantonioapartments #satxapartments") })())
+ok("payload has 🏡 Amenities + bullets + hashtags", (() => { const p = buildInstagramCaptionPayload(dbInput); return p.includes("🏡 Amenities\n\n• yard\n• garage\n• pool") && p.endsWith("#sanantonioapartments #satxapartments") })())
 ok("a MANUAL caption is published verbatim", buildInstagramCaptionPayload({ ...dbInput, caption: "Custom manual caption!" }) === composeFinalCaption("Custom manual caption!", HASHTAGS))
 
 console.log("\nboth the real publish and the dry-run use the SAME payload function:")

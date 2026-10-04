@@ -32,7 +32,7 @@ const src = { market: "San Antonio", propertyType: "Townhome", special: "1 Month
 const prep = preparePost(src, "seed-A")
 ok("headline = MARKET + TYPE (not property name)", prep.overlayHeadline === "SAN ANTONIO TOWNHOMES")
 ok("subheadline = Starting-at lowest price (Template 1)", prep.overlaySubheadline === "Starting at $1,200/month")
-ok("caption includes special + bulleted amenities; NO price line (overlay-only)", prep.caption.includes("✨ 1 Month Free") && prep.caption.includes("🏡 Amenities\n• private yard\n• garage\n• pool") && !prep.caption.includes("💰"))
+ok("caption includes special + bulleted amenities; NO price line (overlay-only)", prep.caption.includes("✨ 1 Month Free") && prep.caption.includes("🏡 Amenities\n\n• private yard\n• garage\n• pool") && !prep.caption.includes("💰"))
 ok("caption at most 7 hashtags prepared separately", prep.hashtags.length <= 7 && prep.hashtags.length >= 1)
 // Even if a property name were somehow supplied, the type-level SourceMeta drops it — verify no
 // internal identity leaks into the public copy.
@@ -66,11 +66,11 @@ ok("city substituted, no unresolved placeholder", buildCaption({ market: "Austin
 // Conditional detail lines.
 const full = buildCaption({ market: "Dallas", propertyType: "Townhome", special: "8 weeks free", budgetRange: "Starting at $1,495", amenities: "Rooftop pool, fitness center, dog park, sauna" }, "z")
 ok("✨ line present (special normalized to social-display form)", full.includes("✨ 8 Weeks Free"))
-ok("🏡 amenities bulleted, canonicalized, capped at 3, no 4th", full.includes("🏡 Amenities\n• Rooftop Pool\n• Fitness Center\n• Dog Park") && !full.includes("sauna"))
+ok("🏡 amenities bulleted, canonicalized, capped at 3, no 4th", full.includes("🏡 Amenities\n\n• Rooftop Pool\n• Fitness Center\n• Dog Park") && !full.includes("sauna"))
 ok("NO 💰 price line in caption (price lives in the overlay detail only)", !full.includes("💰"))
 const noSpecial = buildCaption({ market: "Dallas", propertyType: "Townhome", amenities: "Private yard", budgetRange: "Starting at $1,895" }, "z")
 ok("✨ line OMITTED entirely (emoji included) when special missing", !noSpecial.includes("✨"))
-ok("🏡 single amenity → heading + one bullet", noSpecial.includes("🏡 Amenities\n• Private yard"))
+ok("🏡 single amenity → heading + one bullet", noSpecial.includes("🏡 Amenities\n\n• Private yard"))
 const bare = buildCaption({ market: "Dallas", propertyType: "Townhome" }, "z")
 ok("no 🏡/💰/✨ lines when none present", !bare.includes("🏡") && !bare.includes("💰") && !bare.includes("✨"))
 // Fixed CTA — always, verbatim, no emoji, never rotated. The two sentences are separated by a
@@ -94,7 +94,7 @@ ok("' High-Rise ' padded → 'Need a new high-rise?'", buildCaption({ propertyTy
 ok("' 8 weeks free ' → '✨ 8 Weeks Free' (trimmed + normalized)", buildCaption({ market: "Dallas", special: " 8 weeks free " }, "s0").includes("✨ 8 Weeks Free"))
 ok("budgetRange present → still NO 💰 line (price is overlay-only)", !buildCaption({ market: "Dallas", budgetRange: " Starting at $1,495 " }, "s0").includes("💰"))
 // Amenities with surrounding + inter-item whitespace → exact bulleted list.
-ok("messy amenities → bulleted, canonicalized '🏡 Amenities' list", buildCaption({ market: "Dallas", amenities: "  Rooftop pool ,  fitness center , dog park  " }, "s0").includes("🏡 Amenities\n• Rooftop Pool\n• Fitness Center\n• Dog Park"))
+ok("messy amenities → bulleted, canonicalized '🏡 Amenities' list", buildCaption({ market: "Dallas", amenities: "  Rooftop pool ,  fitness center , dog park  " }, "s0").includes("🏡 Amenities\n\n• Rooftop Pool\n• Fitness Center\n• Dog Park"))
 // Whole-caption cleanliness with messy input: no double spaces, no trailing spaces on any line,
 // no space-before-punctuation. Blank lines BETWEEN sections are intentional (readable spacing), so
 // we require blank separators to be truly empty (never whitespace-only) and never tripled.
@@ -256,14 +256,14 @@ ok("original metadata is untouched — specialDisplay is pure/derived", (() => {
 console.log("Instagram caption formatting (readable vertical spacing + bulleted amenities):")
 const houston = buildCaption({ market: "Houston", propertyType: "Townhome", special: "Receive up to 8 weeks free on select units when you move in by September 30. Restrictions apply.", budgetRange: "1495", amenities: "floor-to-ceiling windows\nmodern appliances\nkitchen counter" }, "seed-houston")
 ok("caption uses the concise special display in the ✨ section", houston.includes("✨ 8 Weeks Free") && !houston.includes("Restrictions apply"))
-ok("amenities render as a heading + '• ' bullets (canonicalized; not a comma line)", houston.includes("🏡 Amenities\n• Floor-to-Ceiling Windows\n• modern appliances\n• kitchen counter") && !houston.includes("windows, modern"))
+ok("amenities render as a heading + '• ' bullets (canonicalized; not a comma line)", houston.includes("🏡 Amenities\n\n• Floor-to-Ceiling Windows\n• modern appliances\n• kitchen counter") && !houston.includes("windows, modern"))
 ok("ONE blank line between each present section (join with \\n\\n)", houston.split("\n").filter((l) => l === "").length >= 4 && !/\n\n\n/.test(houston))
 ok("blank line between the two fixed CTA sentences", houston.includes("My apartment locating service is completely free!\n\nSubmit the form to get your free custom apartment list."))
 ok("caption ends with CTA sentence 2", houston.endsWith("Submit the form to get your free custom apartment list."))
 ok("hook is the first line, followed by a blank line", (() => { const lines = houston.split("\n"); return lines[0].length > 0 && lines[1] === "" })())
 // Amenities capping + empty-entry hygiene in the bulleted list.
 const bulletCap = buildCaption({ market: "Houston", amenities: "one, two, , three, four" }, "s0")
-ok("bulleted amenities capped at 3, empties ignored", bulletCap.includes("🏡 Amenities\n• one\n• two\n• three") && !bulletCap.includes("• four"))
+ok("bulleted amenities capped at 3, empties ignored", bulletCap.includes("🏡 Amenities\n\n• one\n• two\n• three") && !bulletCap.includes("• four"))
 // No amenities → the whole Amenities section (heading + bullets) is omitted.
 ok("no amenities → no '🏡 Amenities' heading at all", !buildCaption({ market: "Houston", propertyType: "Townhome" }, "s0").includes("🏡"))
 
@@ -313,7 +313,7 @@ ok("existing NEWLINE-separated free-text loads as chips", JSON.stringify(parseAm
 ok("legacy custom value with '/' or 'and' stays intact (not over-split)", JSON.stringify(parseAmenities("24/7 Concierge\nCats and Dogs Welcome")) === JSON.stringify(["24/7 Concierge", "Cats and Dogs Welcome"]))
 // Caption uses first up to 3, in order, bulleted; the 4th is stored but not shown.
 const capSel = buildCaption({ market: "Dallas", propertyType: "Townhome", amenities: serializeAmenities(sel) }, "s0")
-ok("caption uses first 3 selected amenities, in order, bulleted", capSel.includes("🏡 Amenities\n• Private Yards\n• Attached Garages\n• Floor-to-Ceiling Windows"))
+ok("caption uses first 3 selected amenities, in order, bulleted", capSel.includes("🏡 Amenities\n\n• Private Yards\n• Attached Garages\n• Floor-to-Ceiling Windows"))
 ok("4th selected amenity stored but NOT in caption (max 3)", !capSel.includes("Fitness Center"))
 
 console.log("Social Special selector (standardized short-forms + gift card + custom):")

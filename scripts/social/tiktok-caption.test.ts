@@ -26,7 +26,7 @@ console.log("TikTok caption BODY == Instagram caption body (generated), hashtags
   const igTags = buildHashtags("San Antonio", MAX_HASHTAGS, "Apartment")
 
   ok("TikTok body begins with the generated hook (same as buildCaption)", tt.startsWith(buildCaption(meta, "seed-1").split("\n\n")[0]))
-  ok("TikTok has the '🏡 Amenities' section with bullets", /🏡 Amenities\n• yard\n• garage\n• pool/.test(tt))
+  ok("TikTok has the '🏡 Amenities' section with bullets", /🏡 Amenities\n\n• yard\n• garage\n• pool/.test(tt))
   ok("blank-line section spacing preserved (\\n\\n between sections)", tt.includes("\n\n🏡 Amenities") && /\n\n#/.test(tt))
   ok(`TikTok hashtags ≤ ${TIKTOK_MAX_HASHTAGS}`, ttTags.length > 0 && ttTags.length <= TIKTOK_MAX_HASHTAGS)
   ok("TIKTOK_MAX_HASHTAGS is 5", TIKTOK_MAX_HASHTAGS === 5)

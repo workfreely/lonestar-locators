@@ -9,12 +9,24 @@
 // Ordered selections serialize to a newline-joined string; legacy comma/newline free-text still
 // parses. Unknown values are preserved verbatim as custom selections (never dropped, never rewritten).
 
-/** Curated, de-duplicated selling points. Clean, consistent display capitalization. */
+/** Curated, de-duplicated selling points. Clean, consistent display capitalization.
+ *
+ *  PLURAL IS THE CONVENTION for countable unit features (Balconies, Patios, Walk-In Closets,
+ *  Kitchen Islands, Attached Garages, Built-In Desks, Mudrooms, Wine Fridges). "Walk-In Closet"
+ *  and "Kitchen Island" were proposed as additions and deliberately NOT added: normalizeKey below
+ *  keeps the trailing "s", so a singular form does NOT collapse into its plural — it would appear
+ *  as a SECOND, separately selectable chip meaning the same thing. The plurals already cover them.
+ *  ("Private Balcony" is different: a private balcony is a distinct claim from a building having
+ *  balconies, so it earns its own entry alongside "Balconies".) */
 export const AMENITY_BANK: readonly string[] = [
   "Private Yards",
   "Attached Garages",
   "Detached Garages",
+  "Garage Parking",
   "Floor-to-Ceiling Windows",
+  "High Ceilings",
+  "Exposed Concrete Ceilings",
+  "Concrete Flooring",
   "Rooftop Pool",
   "Resort-Style Pool",
   "Infinity Pool",
@@ -23,6 +35,7 @@ export const AMENITY_BANK: readonly string[] = [
   "Granite Countertops",
   "Kitchen Islands",
   "Walk-In Closets",
+  "Private Balcony",
   "Balconies",
   "Patios",
   "EV Charging",
@@ -32,6 +45,8 @@ export const AMENITY_BANK: readonly string[] = [
   "Yoga Studio",
   "Coworking Space",
   "Business Center",
+  "Clubroom",
+  "Sky Lounge",
   "Concierge",
   "Package Lockers",
   "Controlled Access",

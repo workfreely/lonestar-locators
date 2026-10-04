@@ -107,6 +107,10 @@ console.log("\nmanual-edit + legacy rules preserved:")
      "Moving to San Antonio? POV: you upgraded.", "Moving to San Antonio? Luxury doesn't have to break the budget.",
      "POV: this is what $1,800/month gets you in San Antonio.", "Moving to San Antonio? It might be time to trade up.",
      "This is real townhome living in San Antonio."]
+      // NOTE: this fixture deliberately keeps the PRE-blank-line spacing. It is an
+      // INPUT representing a caption stored by an older engine, and it must stay
+      // recognized as generator-owned — captionKey() drops empty lines, so both
+      // spacings compare equal. Updating it would silently delete that coverage.
       .every((opener) => isGeneratedCaption([opener, "✨ 1 Month Free", "🏡 Amenities\n• Rooftop Pool\n• EV Charging",
         "My apartment locating service is completely free!", "Submit the form to get your free custom apartment list."].join("\n\n"), SA, "seed-1")))
   ok("a stale caption from a DIFFERENT market/type is still generator-owned",

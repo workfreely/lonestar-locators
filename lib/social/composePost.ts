@@ -244,7 +244,13 @@ function captionSections(src: SourceMeta, opener: string | null): string {
   const sections: string[] = []
   if (opener) sections.push(opener)
   if (special) sections.push(`✨ ${special}`)
-  if (feats.length) sections.push(`🏡 Amenities\n${feats.map((f) => `• ${f}`).join("\n")}`)
+  // Blank line after the heading so the bullets read as a list rather than running
+  // straight into it. PRESENTATION ONLY: captionKey() below trims each line and
+  // drops empties, so a caption stored without this blank line still compares
+  // equal to a freshly generated one — an existing draft is NOT reclassified as a
+  // manual override, which is the failure mode that once let a stale caption
+  // publish.
+  if (feats.length) sections.push(`🏡 Amenities\n\n${feats.map((f) => `• ${f}`).join("\n")}`)
   sections.push(CTA_LINES[0], CTA_LINES[1])
   return sections.join("\n\n").slice(0, 1800)
 }

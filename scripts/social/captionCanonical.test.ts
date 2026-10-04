@@ -29,7 +29,7 @@ ok("a genuine MANUAL caption ⇒ NOT generated", isGeneratedCaption("Come tour t
 
 console.log("\npublishCaption canonicalizes generator-owned, preserves manual:")
 ok("OLD stored caption ⇒ regenerated to canonical", publishCaption(OLD_STORED, SA, SEED) === canonical)
-ok("regenerated payload has bullets", publishCaption(OLD_STORED, SA, SEED).includes("🏡 Amenities\n• yard\n• garage\n• pool"))
+ok("regenerated payload has bullets", publishCaption(OLD_STORED, SA, SEED).includes("🏡 Amenities\n\n• yard\n• garage\n• pool"))
 ok("MANUAL caption ⇒ returned verbatim (never clobbered)", publishCaption("Come tour this stunning San Antonio home today!! DM me", SA, SEED) === "Come tour this stunning San Antonio home today!! DM me")
 ok("null stored ⇒ regenerated canonical", publishCaption(null, SA, SEED) === canonical)
 
