@@ -66,7 +66,7 @@ function daysInMonth(year: number, month1: number): number {
  */
 export function formatSocialDisplayName(name: string | null | undefined): string {
   if (!name) return ""
-  return name.replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, (whole, y: string, m: string, d: string) => {
+  const withDates = name.replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, (whole, y: string, m: string, d: string) => {
     const year = Number(y)
     const month = Number(m)
     const day = Number(d)
@@ -74,6 +74,32 @@ export function formatSocialDisplayName(name: string | null | undefined): string
     if (day < 1 || day > daysInMonth(year, month)) return whole
     return `${MONTHS_SHORT[month - 1]} ${day}, ${year}`
   })
+  return stripTrailingSeq(withDates)
+}
+
+/**
+ * Drop the trailing ` - NN` batch sequence from a DISPLAYED name.
+ *
+ *   "EastEnder - Dallas - Oct 4, 2026 - 01"  →  "EastEnder - Dallas - Oct 4, 2026"
+ *
+ * The sequence is still stored, still written by buildSocialDisplayName, and
+ * still what batch_seq means — this only stops showing it.
+ *
+ * DELIBERATELY NARROW. It matches only a ` - ` separator followed by one or two
+ * digits AT THE VERY END, which is exactly the shape padSeq() emits (01…99). It
+ * does not touch numbers anywhere else, so property names keep theirs:
+ *
+ *   "The M9 - Austin - Sep 10, 2026 - 02"  →  "The M9 - Austin - Sep 10, 2026"
+ *   "Knox 1200 - Dallas"                   →  unchanged (not trailing)
+ *   "Property 12"                          →  unchanged (no " - " separator)
+ *   "Studio - 1200"                        →  unchanged (4 digits, not a seq)
+ *
+ * A name ending in a 3+ digit number is left alone: padSeq pads to two and only
+ * reaches three digits past 99 uploads in one batch, at which point guessing
+ * wrong and eating a real number is the worse error.
+ */
+function stripTrailingSeq(name: string): string {
+  return name.replace(/\s-\s\d{1,2}$/, "")
 }
 
 export function buildSocialDisplayName(opts: {

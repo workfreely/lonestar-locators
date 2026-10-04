@@ -37,30 +37,61 @@ async function main() {
   {
     eq("the example from the request",
       formatSocialDisplayName("Selene Luxury Residences - Dallas - 2026-10-02 - 01"),
-      "Selene Luxury Residences - Dallas - Oct 2, 2026 - 01")
-    eq("the day loses its leading zero", formatSocialDisplayName("X - 2026-10-02 - 01"), "X - Oct 2, 2026 - 01")
-    eq("a two-digit day is unchanged in value", formatSocialDisplayName("X - 2026-10-20 - 01"), "X - Oct 20, 2026 - 01")
-    eq("January", formatSocialDisplayName("A - 2026-01-01 - 01"), "A - Jan 1, 2026 - 01")
-    eq("December", formatSocialDisplayName("A - 2026-12-31 - 01"), "A - Dec 31, 2026 - 01")
-    eq("a real leap day formats", formatSocialDisplayName("A - 2024-02-29 - 01"), "A - Feb 29, 2024 - 01")
+      "Selene Luxury Residences - Dallas - Oct 2, 2026")
+    eq("the day loses its leading zero", formatSocialDisplayName("X - 2026-10-02 - 01"), "X - Oct 2, 2026")
+    eq("a two-digit day is unchanged in value", formatSocialDisplayName("X - 2026-10-20 - 01"), "X - Oct 20, 2026")
+    eq("January", formatSocialDisplayName("A - 2026-01-01 - 01"), "A - Jan 1, 2026")
+    eq("December", formatSocialDisplayName("A - 2026-12-31 - 01"), "A - Dec 31, 2026")
+    eq("a real leap day formats", formatSocialDisplayName("A - 2024-02-29 - 01"), "A - Feb 29, 2024")
   }
 
   console.log("\nEVERYTHING THAT IS NOT A DATE SURVIVES BYTE-FOR-BYTE:")
   {
     eq("the sequence suffix is preserved",
       formatSocialDisplayName("Alta Westover Hills - San Antonio - 2026-09-11 - 07"),
-      "Alta Westover Hills - San Antonio - Sep 11, 2026 - 07")
+      "Alta Westover Hills - San Antonio - Sep 11, 2026")
     eq("a name with NO date passes through untouched",
       formatSocialDisplayName("Selene Luxury Residences - Dallas - 01"),
-      "Selene Luxury Residences - Dallas - 01")
+      "Selene Luxury Residences - Dallas")
     eq("a fully custom name is untouched",
       formatSocialDisplayName("my hero clip FINAL v3"), "my hero clip FINAL v3")
     eq("hyphens inside a property name are not mistaken for a date",
       formatSocialDisplayName("Twenty-Four Twenty - DFW - 2026-03-05 - 02"),
-      "Twenty-Four Twenty - DFW - Mar 5, 2026 - 02")
+      "Twenty-Four Twenty - DFW - Mar 5, 2026")
     eq("empty in, empty out", formatSocialDisplayName(""), "")
     eq("null in, empty out", formatSocialDisplayName(null), "")
     eq("undefined in, empty out", formatSocialDisplayName(undefined), "")
+  }
+
+  console.log("\nTHE TRAILING SEQUENCE IS HIDDEN, REAL NUMBERS ARE NOT:")
+  {
+    eq("the request's example",
+      formatSocialDisplayName("EastEnder - Dallas - 2026-10-04 - 01"),
+      "EastEnder - Dallas - Oct 4, 2026")
+    eq("a later sequence in the same batch",
+      formatSocialDisplayName("The M9 - Austin - 2026-09-10 - 02"),
+      "The M9 - Austin - Sep 10, 2026")
+    eq("a two-digit sequence",
+      formatSocialDisplayName("Knox - Dallas - 2026-09-09 - 17"),
+      "Knox - Dallas - Sep 9, 2026")
+
+    // The whole risk of this rule is eating a number that belongs to the name.
+    eq("a number INSIDE a property name survives",
+      formatSocialDisplayName("Knox 1200 - Dallas - 2026-09-09 - 01"),
+      "Knox 1200 - Dallas - Sep 9, 2026")
+    eq("a property name ENDING in a number survives when it is not last",
+      formatSocialDisplayName("The M9 - Austin - 2026-09-10 - 01"),
+      "The M9 - Austin - Sep 10, 2026")
+    eq("a trailing number with no ' - ' separator survives",
+      formatSocialDisplayName("Property 12"), "Property 12")
+    eq("a trailing 4-digit number is NOT a sequence",
+      formatSocialDisplayName("Studio - 1200"), "Studio - 1200")
+    eq("a trailing 3-digit number is left alone (padSeq pads to 2)",
+      formatSocialDisplayName("A - Dallas - 101"), "A - Dallas - 101")
+    eq("only ONE trailing sequence is removed",
+      formatSocialDisplayName("A - Dallas - 01 - 02"), "A - Dallas - 01")
+    eq("a bare property name with no sequence is untouched",
+      formatSocialDisplayName("EastEnder - Dallas"), "EastEnder - Dallas")
   }
 
   console.log("\nNO TIMEZONE SHIFT — the move_date bug must not reappear here:")
@@ -72,7 +103,7 @@ async function main() {
     const ours = formatSocialDisplayName("A - 2026-01-01 - 01")
     ok("a naive new Date() would shift this date in a behind-UTC zone (control)",
       typeof naive === "string" && naive.length > 0)
-    eq("ours does not — Jan 1 stays Jan 1", ours, "A - Jan 1, 2026 - 01")
+    eq("ours does not — Jan 1 stays Jan 1", ours, "A - Jan 1, 2026")
     const impl = strip(read("lib/social/displayName.ts"))
     ok("the implementation constructs no Date at all", !/new Date\(/.test(impl))
     ok("…and does not use toLocaleDateString", !/toLocaleDateString/.test(impl))
@@ -81,13 +112,13 @@ async function main() {
 
   console.log("\nIMPOSSIBLE DATES STAY RAW (showing the stored value beats inventing one):")
   {
-    eq("Feb 31 is not rendered", formatSocialDisplayName("A - 2026-02-31 - 01"), "A - 2026-02-31 - 01")
-    eq("month 13 is not rendered", formatSocialDisplayName("A - 2026-13-01 - 01"), "A - 2026-13-01 - 01")
-    eq("month 00 is not rendered", formatSocialDisplayName("A - 2026-00-10 - 01"), "A - 2026-00-10 - 01")
-    eq("day 00 is not rendered", formatSocialDisplayName("A - 2026-10-00 - 01"), "A - 2026-10-00 - 01")
-    eq("Feb 29 in a NON-leap year is not rendered", formatSocialDisplayName("A - 2026-02-29 - 01"), "A - 2026-02-29 - 01")
-    eq("…and 1900 is not a leap year (the %4 trap)", formatSocialDisplayName("A - 1900-02-29 - 01"), "A - 1900-02-29 - 01")
-    eq("…but 2000 is (the %400 rule)", formatSocialDisplayName("A - 2000-02-29 - 01"), "A - Feb 29, 2000 - 01")
+    eq("Feb 31 is not rendered", formatSocialDisplayName("A - 2026-02-31 - 01"), "A - 2026-02-31")
+    eq("month 13 is not rendered", formatSocialDisplayName("A - 2026-13-01 - 01"), "A - 2026-13-01")
+    eq("month 00 is not rendered", formatSocialDisplayName("A - 2026-00-10 - 01"), "A - 2026-00-10")
+    eq("day 00 is not rendered", formatSocialDisplayName("A - 2026-10-00 - 01"), "A - 2026-10-00")
+    eq("Feb 29 in a NON-leap year is not rendered", formatSocialDisplayName("A - 2026-02-29 - 01"), "A - 2026-02-29")
+    eq("…and 1900 is not a leap year (the %4 trap)", formatSocialDisplayName("A - 1900-02-29 - 01"), "A - 1900-02-29")
+    eq("…but 2000 is (the %400 rule)", formatSocialDisplayName("A - 2000-02-29 - 01"), "A - Feb 29, 2000")
   }
 
   console.log("\nTHE BUILDER IS UNCHANGED — stored names still ISO:")
@@ -95,6 +126,8 @@ async function main() {
     eq("buildSocialDisplayName still emits YYYY-MM-DD",
       buildSocialDisplayName({ propertyName: "Selene Luxury Residences", market: "Dallas", dateISO: "2026-10-02T14:03:00Z", seq: 1 }),
       "Selene Luxury Residences - Dallas - 2026-10-02 - 01")
+    ok("…and still emits the trailing sequence",
+      /- 01$/.test(buildSocialDisplayName({ propertyName: "A", market: "Dallas", dateISO: "2026-10-02", seq: 1 })))
     ok("…so what is written to the database never contains a month name",
       !/Oct|Jan|Dec/.test(buildSocialDisplayName({ propertyName: "A", market: "Dallas", dateISO: "2026-10-02", seq: 1 })))
   }
