@@ -132,8 +132,7 @@ export function OutOfOfficeControl({ onBack }: { onBack: () => void }) {
           {/* What this actually does — the assumption worth correcting. */}
           <p className="bc-ooo-note">
             While you’re away, new leads can still submit your form, but they won’t get the
-            automatic opening texts. Clients already in progress are unaffected. Start each
-            held lead yourself from the board when you’re back.
+            automatic opening texts.
           </p>
 
           {/* Opens the AUTHENTICATED preview, so it works while Out of Office is
@@ -149,12 +148,6 @@ export function OutOfOfficeControl({ onBack }: { onBack: () => void }) {
             >
               Preview Out of Office Page
             </a>
-          )}
-          {!ooo.enabled && ooo.previewUrl && (
-            <p className="bc-ooo-hint bc-ooo-hint--preview">
-              Preview works while you’re in the office. Clients only see this page once
-              Out of Office is on.
-            </p>
           )}
           {ooo.error && <p className="bc-ooo-err">Couldn’t save. Try again.</p>}
         </div>

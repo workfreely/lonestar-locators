@@ -349,15 +349,19 @@
 }
 .bc-ooo-status.is-on { color: var(--lb-text-primary); }
 .bc-ooo-status strong { font-weight: 700; }
+/* The dot encodes STATE, not brand: green = in the office (nothing is being
+   held), yellow = away (new leads are being held back from the opening pair).
+   Yellow rather than red deliberately — being away is a chosen, harmless state,
+   not an error. Both are full opacity so neither reads as disabled. */
 .bc-ooo-dot {
   flex: none;
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--lb-text-secondary);
-  opacity: 0.5;
+  background: var(--lb-success, #10b981);
+  opacity: 1;
 }
-.bc-ooo-dot.is-on { background: #f5a524; opacity: 1; }
+.bc-ooo-dot.is-on { background: #f5a524; }
 
 .bc-ooo-row {
   display: flex;
@@ -383,19 +387,26 @@
 .bc-ooo-hint { margin-top: -2px; }
 .bc-ooo-note { margin-top: 8px; }
 
+/* Primary action — the same treatment as .lp-btn.v-solid in panel.css (accent
+   fill, white label, accent border, the same hover mix), so the Companion has
+   ONE primary-button look rather than a second one invented here. The accent
+   token is theme-driven, which is why this is var(--lb-accent) and not a literal
+   blue: it is blue in the default theme and stays correct in the other four. */
 .bc-ooo-preview {
+  display: block;
   margin: 10px 10px 2px;
-  padding: 7px 10px;
-  border: 1px solid var(--lb-border);
+  padding: 8px 10px;
+  border: 1px solid var(--lb-accent);
   border-radius: 8px;
-  background: transparent;
-  color: var(--lb-text-primary);
+  background: var(--lb-accent);
+  color: #fff;
   font-size: 12.5px;
   font-weight: 600;
   text-align: center;
   text-decoration: none;
+  transition: background 120ms ease;
 }
-.bc-ooo-preview:hover { background: var(--lb-surface-elevated); }
+.bc-ooo-preview:hover { background: color-mix(in srgb, var(--lb-accent) 88%, #fff); }
 .bc-ooo-preview:focus-visible { outline: 2px solid var(--lb-accent); outline-offset: -1px; }
 
 .bc-ooo-retry {
@@ -544,5 +555,3 @@
 .bc-cal-link:hover { color: var(--lb-text-primary); }
 .bc-cal-link:focus-visible { outline: 2px solid var(--lb-accent); outline-offset: 2px; }
 
-/* Preview caveat line, shown only while Out of Office is off. */
-.bc-ooo-hint--preview { margin-top: 6px; }
