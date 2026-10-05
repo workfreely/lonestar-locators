@@ -123,6 +123,31 @@ async function main() {
     ok("…and no OTHER social cron was added", vercel.crons.filter((c) => /social/.test(c.path)).length === 1)
   }
 
+  console.log("\nTHE AUTOPUBLISH LAUNCH GATE (deployed but disarmed):")
+  {
+    ok("the flag is read from SOCIAL_INSTAGRAM_AUTOPUBLISH_ENABLED",
+      /process\.env\.SOCIAL_INSTAGRAM_AUTOPUBLISH_ENABLED/.test(worker))
+    // Strict equality against the exact string: a typo must not arm a real account.
+    ok("ONLY the exact string 'true' arms it",
+      /\(process\.env\.SOCIAL_INSTAGRAM_AUTOPUBLISH_ENABLED \?\? ""\)\.trim\(\) === "true"/.test(worker))
+    ok("…so missing / empty / 'false' / '1' / 'yes' all read as OFF",
+      !/toLowerCase\(\)[\s\S]{0,40}=== "true"/.test(worker) && !/!== "false"/.test(worker))
+
+    // The gate must sit before EVERY read and write. A guard further down could still claim a row
+    // before deciding not to publish it, which is exactly what "inert" must not mean.
+    const gateAt = worker.indexOf("if (!autopublishEnabled())")
+    ok("the gate precedes the due query", gateAt > 0 && gateAt < worker.indexOf('.eq("status", "scheduled")'))
+    ok("…precedes the reconcile sweep", gateAt < worker.indexOf("reconcileOnly: true"))
+    ok("…precedes any claim", gateAt < worker.indexOf('status: "publishing"'))
+    ok("…and precedes any Meta call", gateAt < worker.indexOf("createReelContainer("))
+
+    // It is a SECOND layer, not a replacement: auth still runs first and still fails closed.
+    ok("CRON_SECRET auth still runs BEFORE the flag",
+      worker.indexOf("Unauthorized") < gateAt)
+    ok("a disabled run reports itself clearly rather than silently doing nothing",
+      /inert: true/.test(worker) && /enabled: false/.test(worker))
+  }
+
   console.log("\nORDERING — EVERY CLAIM HAPPENS BEFORE META:")
   {
     const claimAt = worker.indexOf('.eq("status", "scheduled")')

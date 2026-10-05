@@ -43,6 +43,22 @@ import { finalizeInstagramPublish } from "@/lib/social/instagramFinalize"
 /** Hard ceiling per invocation, so one run cannot hold a serverless function open indefinitely or
  *  empty a backlog into Instagram in one burst. Remaining due posts are picked up next run. */
 const MAX_PER_RUN = 5
+
+/**
+ * LAUNCH GATE — the environment kill switch, separate from and in addition to CRON_SECRET.
+ *
+ * CRON_SECRET answers "is this caller allowed to invoke the worker?". This answers "is the worker
+ * allowed to publish at all?". They are different questions, and the second one is the one that
+ * lets this route be deployed and verified in production while real Instagram publishing stays
+ * off.
+ *
+ * FAIL CLOSED, and deliberately strict: only the exact string "true" arms it. Missing, empty,
+ * "false", "1", "yes", "TRUE " with a stray space — every one of those is OFF. A typo in a Vercel
+ * env var must never be the thing that starts posting to a real account.
+ */
+function autopublishEnabled(): boolean {
+  return (process.env.SOCIAL_INSTAGRAM_AUTOPUBLISH_ENABLED ?? "").trim() === "true"
+}
 /** How long to wait for Meta to finish transcoding a Reel container before giving up for this run.
  *  The post stays claimed as 'publishing' with its container id and is reconciled next run. */
 const CONTAINER_WAIT_MS = 55_000
@@ -67,6 +83,21 @@ async function run(req: NextRequest) {
   if (!cronSecret || auth !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
+  // The gate sits BEFORE every read and every write. When it is off this route authenticates and
+  // reports, and does nothing else: no due query, no reconcile sweep, no claim, no render, no
+  // container, no publish. Returning here rather than inside the loop is the point — a guard
+  // further down could still have claimed a row before deciding not to publish it.
+  if (!autopublishEnabled()) {
+    return NextResponse.json({
+      ok: true,
+      enabled: false,
+      inert: true,
+      reason: "SOCIAL_INSTAGRAM_AUTOPUBLISH_ENABLED is not 'true' — worker is deployed but disarmed",
+      published: 0,
+      claimed: 0,
+    })
+  }
+
   if (!instagramConfigured()) return NextResponse.json({ ok: true, skipped: "not_configured" })
 
   const now = new Date().toISOString()
