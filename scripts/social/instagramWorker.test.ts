@@ -148,6 +148,55 @@ async function main() {
       /inert: true/.test(worker) && /enabled: false/.test(worker))
   }
 
+  console.log("\nPAUSED DESTINATION ≠ BROKEN DESTINATION:")
+  {
+    // The bug: resolveDestination collapsed "paused", "disconnected" and "expired" into null, the
+    // check ran AFTER the claim, and every one of them became needs_attention. Pausing an account
+    // moved its due posts out of 'scheduled' permanently — needs_attention has no route back.
+    ok("the resolver reports WHY, not just that it failed",
+      /kind: "paused"/.test(worker) && /kind: "fault"/.test(worker))
+    ok("…and never returns a bare null for an unusable destination",
+      !/Promise<\{ token: string; externalAccountId: string \} \| null>/.test(worker))
+
+    // Ordering is the whole fix.
+    const loop = worker.slice(worker.indexOf("for (const row of (due"))
+    // Anchored on CODE, not on a comment: `worker` is comment-stripped, so indexOf("CLAIM 1")
+    // returns -1 and every "x < claimAt" check would pass vacuously.
+    const destAt = loop.indexOf("const dest = await resolveDestination")
+    const claimAt = loop.indexOf('.update({ status: "publishing"')
+    ok("the claim marker is found at all (guards against a vacuous -1)", claimAt > 0, `claimAt=${claimAt}`)
+    ok("the destination is resolved BEFORE the claim", destAt > 0 && destAt < claimAt, `dest=${destAt} claim=${claimAt}`)
+
+    // Paused: the post must be left completely untouched.
+    ok("a PAUSED destination skips without claiming",
+      /kind === "paused"\)\s*\{\s*\n\s*result\.skippedDestinationPaused\+\+\s*\n\s*continue/.test(loop))
+    ok("…and is counted, not silently dropped", /skippedDestinationPaused: 0/.test(worker))
+    // The real claim: the paused branch CONTINUES before any fail() can be reached.
+    const pausedBranch = loop.slice(loop.indexOf('kind === "paused"'))
+    ok("…and continues out before reaching fail()",
+      pausedBranch.indexOf("continue") < pausedBranch.indexOf("await fail("))
+
+    // Faults: must still be surfaced, with the specific reason.
+    ok("a FAULT still goes to needs_attention", /await fail\(postId, dest\.reason\)/.test(loop))
+    ok("…disconnected is a fault, not a skip", /is \$\{d\.status\} — reconnect it/.test(worker))
+    ok("…an expired token is a fault, not a skip", /access token expired/.test(worker))
+    ok("…a missing destination is a fault", /destination not found/.test(worker))
+    ok("…and an RPC error is a fault rather than a silent null", /could not read destination/.test(worker))
+
+    // Precedence: a deliberate pause wins over an expiry, so a paused account never burns posts.
+    const pausedAt = worker.indexOf('if (d.posting_paused) return { ok: false, kind: "paused" }')
+    const statusAt = worker.indexOf('d.status && d.status !== "connected"')
+    const expiryAt = worker.indexOf("token_expires_at && new Date")
+    ok("paused is evaluated BEFORE status and expiry",
+      pausedAt > 0 && pausedAt < statusAt && pausedAt < expiryAt)
+
+    // Claim semantics are untouched by this change.
+    ok("the claim still guards on status='scheduled' and a null external id",
+      /\.eq\("status", "scheduled"\)\s*\n\s*\.is\("external_post_id", null\)/.test(loop))
+    ok("…and still precedes every Meta call",
+      claimAt > 0 && claimAt < loop.indexOf("createReelContainer("))
+  }
+
   console.log("\nORDERING — EVERY CLAIM HAPPENS BEFORE META:")
   {
     const claimAt = worker.indexOf('.eq("status", "scheduled")')

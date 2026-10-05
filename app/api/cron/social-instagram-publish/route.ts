@@ -127,7 +127,7 @@ async function run(req: NextRequest) {
   }
 
   const now = new Date().toISOString()
-  const result = { reconciled: 0, published: 0, pending: 0, failed: 0, skippedNoRender: 0, claimed: 0, missedWhilePaused: 0, tooLate: 0 }
+  const result = { reconciled: 0, published: 0, pending: 0, failed: 0, skippedNoRender: 0, claimed: 0, missedWhilePaused: 0, tooLate: 0, skippedDestinationPaused: 0 }
 
   // ── 0) RECONCILE unacknowledged publishes FIRST ────────────────────────────────────────────
   // Rows whose media_publish call was claimed but never acknowledged locally. These are the crash
@@ -143,7 +143,12 @@ async function run(req: NextRequest) {
   for (const r of (unacked ?? []) as Row[]) {
     try {
       const dest = await resolveDestination(r.connection_id as string | null)
-      if (!dest || !r.ig_container_id) continue
+      // Any unusable destination — paused included — is skipped here, because the paused result
+      // deliberately carries no token and reconciliation needs one to ask Meta anything. That
+      // DEFERS reconciliation rather than losing it: the row keeps its claim and its container id,
+      // and the next run after the account is resumed reconciles it. Nothing publishes either way,
+      // and a deferred reconcile cannot become a duplicate.
+      if (!dest.ok || !r.ig_container_id) continue
       const outcome = await finalizeInstagramPublish({
         db: supabaseAdmin,
         postId: r.id as string,
@@ -201,6 +206,33 @@ async function run(req: NextRequest) {
         continue
       }
 
+      // ── DESTINATION STATE — resolved BEFORE the claim ──────────────────────────────────────
+      // Order matters. This used to run AFTER the claim, so a paused account turned every due
+      // post into needs_attention: already moved out of 'scheduled', and needs_attention has no
+      // route back to publishable. Pausing an account quietly burned its queue.
+      //
+      // The two outcomes are genuinely different and must not be collapsed:
+      //   paused → the operator's deliberate choice. Not a fault, not this post's problem. The
+      //            post is left EXACTLY as it was — still scheduled, still due, publishable the
+      //            moment the account is resumed. Nothing is claimed, so no slot is burned.
+      //   fault  → disconnected, missing, or an expired token. A real problem that must be seen,
+      //            so the post goes to needs_attention carrying the specific reason.
+      //
+      // Paused is checked first inside resolveDestination: when an account is both paused and
+      // expired, the pause is what the operator asked for, and the expiry surfaces on resume.
+      const dest = await resolveDestination(row.connection_id as string | null)
+      if (!dest.ok) {
+        if (dest.kind === "paused") {
+          result.skippedDestinationPaused++
+          continue // untouched: status, scheduled_at and claim all unchanged
+        }
+        // A fault is worth a claim: moving it out of 'scheduled' is what makes it visible and
+        // stops the worker retrying a broken destination every five minutes.
+        await fail(postId, dest.reason)
+        result.failed++
+        continue
+      }
+
       // ── CLAIM 1: scheduled → publishing, before anything external happens ──────────────────
       const { data: claimed } = await supabaseAdmin
         .from("social_posts")
@@ -212,13 +244,6 @@ async function run(req: NextRequest) {
         .maybeSingle()
       if (!claimed) continue // another worker took it
       result.claimed++
-
-      const dest = await resolveDestination(row.connection_id as string | null)
-      if (!dest) {
-        await fail(postId, "destination unavailable (disconnected, paused, or token expired)")
-        result.failed++
-        continue
-      }
 
       const { data: signed, error: signErr } = await supabaseAdmin.storage
         .from("social-media")
@@ -292,20 +317,49 @@ async function readAutoPostingForSoleOwner(): Promise<AutoPostingSettings> {
   }
 }
 
-/** Resolve the Instagram destination for one connection, server-side, and refuse it unless it is
- *  live: connected, not paused, token unexpired. The RPC itself is provider-scoped to Instagram,
- *  so a connection id pointing at any other provider returns nothing. */
-async function resolveDestination(connectionId: string | null): Promise<{ token: string; externalAccountId: string } | null> {
-  if (!connectionId) return null
-  const { data } = await supabaseAdmin.rpc("sa_get_instagram_token_by_connection", { p_connection_id: connectionId })
+/**
+ * Why a destination cannot be published to — not just THAT it cannot.
+ *
+ * The caller has to choose between leaving a post untouched and marking it needs_attention, and
+ * those are opposite decisions. A single `null` forced the worker to guess, and it guessed
+ * "failure" for every case, including a deliberate pause.
+ */
+type DestinationResult =
+  | { ok: true; token: string; externalAccountId: string }
+  /** The operator paused this account on purpose. Not a fault. */
+  | { ok: false; kind: "paused" }
+  /** Disconnected, missing, or an unusable token — a real problem that must be surfaced. */
+  | { ok: false; kind: "fault"; reason: string }
+
+/** Resolve the Instagram destination for one connection, server-side. The RPC is provider-scoped
+ *  to Instagram, so a connection id pointing at any other provider resolves to nothing. */
+async function resolveDestination(connectionId: string | null): Promise<DestinationResult> {
+  if (!connectionId) return { ok: false, kind: "fault", reason: "no publishing destination selected for this post" }
+
+  const { data, error } = await supabaseAdmin.rpc("sa_get_instagram_token_by_connection", { p_connection_id: connectionId })
+  if (error) return { ok: false, kind: "fault", reason: `could not read destination: ${error.message.slice(0, 200)}` }
+
   const d = (Array.isArray(data) ? data[0] : data) as
     | { token: string | null; external_account_id: string | null; status?: string | null; posting_paused?: boolean | null; token_expires_at?: string | null }
     | null
-  if (!d || !d.token || !d.external_account_id) return null
-  if (d.status && d.status !== "connected") return null
-  if (d.posting_paused) return null
-  if (d.token_expires_at && new Date(d.token_expires_at).getTime() < Date.now()) return null
-  return { token: d.token, externalAccountId: d.external_account_id }
+  if (!d) return { ok: false, kind: "fault", reason: "publishing destination not found (disconnected or removed)" }
+
+  // PAUSED IS CHECKED FIRST, deliberately. An account that is both paused and expired is one the
+  // operator already told us to stop using; treating it as a fault would move a post out of
+  // 'scheduled' over a condition they chose. The expiry still surfaces — on the first run after
+  // they resume, which is exactly when they can act on it.
+  if (d.posting_paused) return { ok: false, kind: "paused" }
+
+  if (d.status && d.status !== "connected") {
+    return { ok: false, kind: "fault", reason: `publishing destination is ${d.status} — reconnect it to resume posting` }
+  }
+  if (d.token_expires_at && new Date(d.token_expires_at).getTime() < Date.now()) {
+    return { ok: false, kind: "fault", reason: "Instagram access token expired — reconnect the destination" }
+  }
+  if (!d.token || !d.external_account_id) {
+    return { ok: false, kind: "fault", reason: "publishing destination is missing its Instagram credentials" }
+  }
+  return { ok: true, token: d.token, externalAccountId: d.external_account_id }
 }
 
 /** Record a failure on ONE post. needs_attention keeps it visible and recoverable rather than
