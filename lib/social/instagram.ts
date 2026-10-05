@@ -14,6 +14,8 @@
 //   refresh     GET  https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token
 //   profile     GET  https://graph.instagram.com/me?fields=user_id,username,account_type
 
+import type { ReelCover } from "@/lib/social/reelCover"
+
 const AUTHORIZE_URL = "https://www.instagram.com/oauth/authorize"
 const TOKEN_URL = "https://api.instagram.com/oauth/access_token"
 const GRAPH_BASE = "https://graph.instagram.com"
@@ -149,9 +151,22 @@ async function igError(res: Response): Promise<string> {
   }
 }
 
-/** (1) Create a REELS container. Returns the creation_id (container id). */
-export async function createReelContainer(igUserId: string, videoUrl: string, caption: string, token: string): Promise<string> {
+/** (1) Create a REELS container. Returns the creation_id (container id).
+ *
+ *  `cover` is optional and carries EXACTLY ONE cover parameter — the ReelCover union makes sending
+ *  both cover_url and thumb_offset unrepresentable, so precedence is decided by the caller (see
+ *  lib/social/reelCover.ts) rather than by Meta's tie-break. Omitting it keeps the pre-existing
+ *  behaviour: Instagram picks the frame. */
+export async function createReelContainer(
+  igUserId: string,
+  videoUrl: string,
+  caption: string,
+  token: string,
+  cover?: ReelCover | null,
+): Promise<string> {
   const body = new URLSearchParams({ media_type: "REELS", video_url: videoUrl, caption, access_token: token })
+  if (cover?.kind === "url") body.set("cover_url", cover.url)
+  else if (cover?.kind === "offset") body.set("thumb_offset", String(cover.ms))
   const res = await fetch(`${PUBLISH_BASE}/${encodeURIComponent(igUserId)}/media`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },

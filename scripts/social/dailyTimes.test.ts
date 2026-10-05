@@ -200,8 +200,12 @@ async function main() {
       /add column if not exists cadence text not null default 'interval'/.test(mig))
     ok("daily_times is nullable with no default", /add column if not exists daily_times smallint\[\]/.test(mig))
     ok("the migration performs NO update/backfill", !/\bupdate\s+public\.social_recurring_rules\b/i.test(mig))
+    // The range test lives in the IMMUTABLE helper (Postgres rejects a subquery in a CHECK), so
+    // it is phrased over the function's parameter rather than the column.
     ok("a daily_times rule must carry 1-3 valid times",
-      /array_length\(daily_times, 1\) between 1 and 3/.test(mig) && /t >= 0 and t < 1440/.test(mig))
+      /array_length\(p_times, 1\) between 1 and 3/.test(mig) && /t >= 0 and t < 1440/.test(mig))
+    ok("…and the CHECK actually calls that helper",
+      /public\.social_daily_times_valid\(daily_times\)/.test(mig))
     ok("…and an interval rule must carry none", /cadence = 'interval' and daily_times is null/.test(mig))
   }
 

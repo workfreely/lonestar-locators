@@ -12,7 +12,7 @@ import { isOverlayTemplate } from "@/lib/social/composePost"
 // overlay text or audio choice invalidates any existing render (render_status → 'none').
 const SELECT =
   "id, platform, post_type, post_name, caption, social_special, on_video_text, on_video_config, " +
-  "overlay_headline, overlay_subheadline, overlay_mode, overlay_template, hashtags, audio_choice, audio_track_id, voice_hook_id, voice_cta_id, rendered_storage_path, render_status, render_error, render_version, " +
+  "overlay_headline, overlay_subheadline, overlay_mode, overlay_template, cover_thumb_offset_ms, cover_storage_path, cover_render_version, hashtags, audio_choice, audio_track_id, voice_hook_id, voice_cta_id, rendered_storage_path, render_status, render_error, render_version, " +
   "status, scheduled_at, published_at, external_post_url, created_at, updated_at, source_content_id, " +
   "source:source_content_id(display_name, property_name, property_type, place_id, market, special, budget_range, price_label_mode, amenities, storage_path, original_filename, kind, overlay_mode)"
 const SIGNED_URL_TTL = 60 * 30
@@ -95,6 +95,15 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     overlayMode: (r.overlay_mode as string) === "existing" ? "existing" : "generate",
     overlayTemplate: (r.overlay_template as string | null) ?? "market_type",
     hashtags: Array.isArray(r.hashtags) ? r.hashtags : [],
+    coverThumbOffsetMs: (r.cover_thumb_offset_ms as number | null) ?? null,
+    coverStoragePath: (r.cover_storage_path as string | null) ?? null,
+    // Signed so the editor can SHOW the chosen custom cover without a second round trip.
+    coverPreviewUrl: await sign((r.cover_storage_path as string | null) ?? null),
+    // Advisory: the chosen frame refers to a DIFFERENT render than the current one.
+    coverMayHaveShifted:
+      r.cover_thumb_offset_ms != null &&
+      r.cover_render_version != null &&
+      r.cover_render_version !== r.render_version,
     audioChoice: (r.audio_choice as string) || "original",
     audioTrackId: r.audio_track_id,
     voiceHookId: r.voice_hook_id,
@@ -175,6 +184,30 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const VOICE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   if ("voiceHookId" in body && (body.voiceHookId === null || (typeof body.voiceHookId === "string" && VOICE_UUID.test(body.voiceHookId)))) { patch.voice_hook_id = body.voiceHookId; renderAffecting = true }
   if ("voiceCtaId" in body && (body.voiceCtaId === null || (typeof body.voiceCtaId === "string" && VOICE_UUID.test(body.voiceCtaId)))) { patch.voice_cta_id = body.voiceCtaId; renderAffecting = true }
+  // ── REEL COVER ────────────────────────────────────────────────────────────────────────────
+  // Which frame Instagram SHOWS, never what the MP4 contains — so these are deliberately set
+  // OUTSIDE the renderAffecting block. Choosing a cover must not invalidate a finished render.
+  if ("coverThumbOffsetMs" in body) {
+    const v = body.coverThumbOffsetMs
+    if (v === null) patch.cover_thumb_offset_ms = null
+    else {
+      const n = Math.round(Number(v))
+      if (!Number.isFinite(n) || n < 0) return NextResponse.json({ error: "invalid coverThumbOffsetMs" }, { status: 400 })
+      patch.cover_thumb_offset_ms = n
+      // Stamp WHICH render this frame refers to, so a later re-render can be detected and warned
+      // about rather than silently invalidating a deliberate choice.
+      const { data: rv } = await supabase.from("social_posts").select("render_version").eq("id", id).maybeSingle()
+      patch.cover_render_version = (rv as { render_version?: number | null } | null)?.render_version ?? null
+    }
+    if (body.coverThumbOffsetMs === null) patch.cover_render_version = null
+  }
+  if ("coverStoragePath" in body) {
+    const v = body.coverStoragePath
+    if (v === null) patch.cover_storage_path = null
+    else if (typeof v === "string" && v.trim()) patch.cover_storage_path = v.trim().slice(0, 400)
+    else return NextResponse.json({ error: "invalid coverStoragePath" }, { status: 400 })
+  }
+
   if ("hashtags" in body && Array.isArray(body.hashtags)) {
     // The cap is the PLATFORM's product rule, read from the one shared table. This used to be a
     // local `const MAX_HASHTAGS = 30` that shadowed the canonical export: the name made the line

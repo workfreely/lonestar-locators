@@ -10,6 +10,7 @@ import { buildHashtags, normalizeHashtag, hashtagLimitFor, MAX_HASHTAGS } from "
 import { PRICE_LABEL_MODES, priceLabelMode as narrowPriceLabelMode, type PriceLabelMode, buildCaption, specialDisplay, buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, DEFAULT_OVERLAY_TEMPLATE, type OverlayTemplate, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags, isOverlayPreviewStale, type OverlayPreviewBaseline, type SourceMeta } from "@/lib/social/composePost"
 import SpecialSelect from "@/components/crm/social/SpecialSelect"
 import { computeOverlayLayout } from "@/lib/social/overlaySpec"
+import ReelCoverControl from "@/components/crm/social/ReelCoverControl"
 import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
 import VideoLightbox from "@/components/crm/social/VideoLightbox"
 import PropertyResearch from "@/components/crm/social/PropertyResearch"
@@ -68,6 +69,10 @@ type Post = {
   source: Source | null
   previewUrl: string | null
   renderedPreviewUrl: string | null
+  coverThumbOffsetMs: number | null
+  coverStoragePath: string | null
+  coverPreviewUrl: string | null
+  coverMayHaveShifted?: boolean
 }
 
 // Generation count now comes from the SHARED canonical constant (5) — this file used to declare its
@@ -1018,6 +1023,25 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               taller DEFAULT so its bottom lands near the bottom of the right-column stack / preview
               — set via rows (initial height), NOT a large min-height, so it stays resizable DOWN to
               the 76px floor. resize-y keeps resizing vertical only (never breaks the column width). */}
+          {/* REEL COVER — which frame Instagram shows. Grouped with the publish-time
+              presentation controls rather than the render controls, because choosing a cover
+              deliberately does NOT invalidate the rendered MP4. */}
+          {sourceContentId && (
+            <div className="mb-3">
+              <ReelCoverControl
+                postId={postId}
+                contentId={sourceContentId}
+                renderedUrl={post.renderedPreviewUrl}
+                renderReady={rendered}
+                initialOffsetMs={post.coverThumbOffsetMs ?? null}
+                initialCoverPath={post.coverStoragePath ?? null}
+                initialCoverUrl={post.coverPreviewUrl ?? null}
+                coverMayHaveShifted={post.coverMayHaveShifted}
+                onSaved={() => void load()}
+              />
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block">
               {/* Wrap the label in the SAME flex header row as Hashtags (right column) so the two

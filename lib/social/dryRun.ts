@@ -10,6 +10,7 @@
 // would send. Enforced by scripts/social/dryRun.test.ts (static source assertions).
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { buildInstagramCaptionPayload, isOverlayTemplate } from "@/lib/social/composePost"
+import { chooseCover, describeCover } from "@/lib/social/reelCover"
 
 export type PublishPreview = {
   postId: string
@@ -21,6 +22,10 @@ export type PublishPreview = {
   videoUrl: string
   renderPath: string
   renderVersion: number | null
+  /** WHICH cover parameter the real publish will send — named, not just "a cover", so the preview
+   *  cannot claim one thing while the publish sends another. */
+  cover: string
+  coverKind: "custom" | "offset" | "none"
   /** Destination identity only (never the token); null when no connection is attached yet. */
   igUserId: string | null
   destUsername: string | null
@@ -43,13 +48,13 @@ export async function buildPublishPreview(deps: {
 
   const { data: post } = await supabase
     .from("social_posts")
-    .select("id, platform, render_status, rendered_storage_path, render_version, caption, hashtags, social_special, overlay_template, source_content_id, connection_id, external_post_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
+    .select("id, platform, render_status, rendered_storage_path, render_version, caption, hashtags, social_special, overlay_template, cover_thumb_offset_ms, cover_storage_path, source_content_id, connection_id, external_post_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
     .eq("id", postId)
     .maybeSingle()
   if (!post) return { ok: false, status: 404, error: "not_found" }
   const p = post as {
     id: string; platform: string; render_status: string; rendered_storage_path: string | null; render_version: number | null
-    caption: string | null; hashtags: string[] | null; social_special: string | null; overlay_template: string | null; source_content_id: string | null
+    caption: string | null; hashtags: string[] | null; social_special: string | null; overlay_template: string | null; cover_thumb_offset_ms: number | null; cover_storage_path: string | null; source_content_id: string | null
     connection_id: string | null; external_post_id: string | null
     source: { market: string | null; property_type: string | null; special: string | null; budget_range: string | null; amenities: string | null } | { market: string | null; property_type: string | null; special: string | null; budget_range: string | null; amenities: string | null }[] | null
   }
@@ -58,6 +63,10 @@ export async function buildPublishPreview(deps: {
   if (p.render_status !== "ready" || !p.rendered_storage_path) {
     return { ok: false, status: 409, error: "not_ready", reason: "no current rendered MP4 — render the post first" }
   }
+
+  // The cover, via the SAME shared chooser the publish paths use — including its precedence rule,
+  // so a post with both a custom cover and an offset previews as the one that will actually be sent.
+  const coverChoice = chooseCover(p.cover_storage_path, p.cover_thumb_offset_ms)
 
   // Caption/hashtags payload — the SAME shared source of truth the real publish uses.
   const caption = buildInstagramCaptionPayload({
@@ -97,6 +106,8 @@ export async function buildPublishPreview(deps: {
       videoUrl: signed.signedUrl,
       renderPath: p.rendered_storage_path,
       renderVersion: p.render_version ?? null,
+      cover: describeCover(coverChoice),
+      coverKind: coverChoice.kind,
       igUserId,
       destUsername,
       destStatus,

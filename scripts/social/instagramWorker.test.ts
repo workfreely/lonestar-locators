@@ -98,8 +98,16 @@ async function main() {
     // A scheduled post with no render must never fall back to the raw source.
     ok("a post without a current render is SKIPPED, not published",
       /render_status !== "ready" \|\| !row\.rendered_storage_path/.test(worker) && /skippedNoRender\+\+/.test(worker))
-    ok("…and only the rendered derivative is ever signed",
-      /createSignedUrl\(row\.rendered_storage_path/.test(worker) && !/storage_path(?!s)/.test(worker.replace(/rendered_storage_path/g, "")))
+    // The claim is that the VIDEO handed to Meta is the rendered derivative and never the raw
+    // source. Enumerate every signed path rather than grepping for "storage_path", which now also
+    // matches the legitimate cover_storage_path.
+    const signedArgs = [...worker.matchAll(/createSignedUrl\(\s*([^,]+),/g)].map((m) => m[1].trim())
+    ok("the video signed is the rendered derivative",
+      signedArgs.some((a) => /rendered_storage_path/.test(a)), signedArgs.join(" | "))
+    ok("…and the raw source is NEVER signed",
+      signedArgs.every((a) => !/\bsource\b|source\.storage_path/.test(a)), signedArgs.join(" | "))
+    ok("…the only other signed path is the optional cover",
+      signedArgs.every((a) => /rendered_storage_path|path/.test(a)), signedArgs.join(" | "))
     ok("there is a per-run ceiling", /MAX_PER_RUN/.test(worker) && /\.limit\(MAX_PER_RUN\)/.test(worker))
   }
 

@@ -6,6 +6,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin"
 import { instagramConfigured, createReelContainer } from "@/lib/social/instagram"
 import { buildInstagramCaptionPayload, isOverlayTemplate } from "@/lib/social/composePost"
 import { finalizeInstagramPublish } from "@/lib/social/instagramFinalize"
+import { chooseCover, resolveReelCover } from "@/lib/social/reelCover"
 import {
   readAutoPosting, isEligibleAfterResume, isWithinLatenessWindow,
   AUTO_POSTING_FALLBACK, type AutoPostingSettings,
@@ -166,7 +167,7 @@ async function run(req: NextRequest) {
   // ── 1) SELECT due posts ────────────────────────────────────────────────────────────────────
   const { data: due, error: dueErr } = await supabaseAdmin
     .from("social_posts")
-    .select("id, owner_user_id, connection_id, scheduled_at, caption, hashtags, social_special, overlay_template, render_status, rendered_storage_path, render_version, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
+    .select("id, owner_user_id, connection_id, scheduled_at, caption, hashtags, social_special, overlay_template, cover_thumb_offset_ms, cover_storage_path, render_status, rendered_storage_path, render_version, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
     .eq("platform", "instagram")
     .eq("status", "scheduled")
     .lte("scheduled_at", now)
@@ -264,7 +265,19 @@ async function run(req: NextRequest) {
         source: src as never,
       })
 
-      const containerId = await createReelContainer(dest.externalAccountId, signed.signedUrl, caption, dest.token)
+      // Same shared chooser as the manual route and the dry run — one answer to "which cover?".
+      const choice = chooseCover(row.cover_storage_path as string | null, row.cover_thumb_offset_ms as number | null)
+      const cover = await resolveReelCover(choice, async (path) => {
+        const { data } = await supabaseAdmin.storage.from("social-media").createSignedUrl(path, 3600)
+        return data?.signedUrl ?? null
+      })
+      if (choice.kind === "custom" && !cover) {
+        await fail(postId, "custom cover could not be signed")
+        result.failed++
+        continue
+      }
+
+      const containerId = await createReelContainer(dest.externalAccountId, signed.signedUrl, caption, dest.token, cover)
       // Persist the container id BEFORE media_publish — it is the reconciliation key if this
       // process dies during the publish call.
       await supabaseAdmin
