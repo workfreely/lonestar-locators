@@ -132,6 +132,9 @@ export async function POST(req: NextRequest) {
       market: market,
       special: str(body.special),
       budget_range: str(body.budgetRange),
+      // Captured at INTAKE so the Post Editor does not have to re-state it. Same narrowing the
+      // editor's PATCH uses: anything unrecognised is 'starting_at'.
+      price_label_mode: body.priceLabelMode === "exact_unit" ? "exact_unit" : "starting_at",
       amenities: str(body.amenities),
       // Default overlay mode for this source ('generate' unless flagged 'existing' at upload). New
       // posts inherit it; the Post Editor can override per post.

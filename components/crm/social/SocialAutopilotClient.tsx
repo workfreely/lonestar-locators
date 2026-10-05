@@ -14,6 +14,12 @@ import { inferFromFilename, detectMarket, suggestArea } from "@/lib/social/filen
 import { resolvePropertyMatch } from "@/lib/social/resolveProperty"
 import BulkReview from "@/components/crm/social/BulkReview"
 import PropertySearchField from "@/components/crm/social/PropertySearchField"
+import AreaSelect from "@/components/crm/social/AreaSelect"
+import SpecialSelect from "@/components/crm/social/SpecialSelect"
+import AmenitySelect from "@/components/crm/social/AmenitySelect"
+import { propertyNamePrefill } from "@/lib/social/intakeFields"
+import { parseAmenities, serializeAmenities } from "@/lib/social/amenities"
+import { PRICE_LABEL_MODES, priceLabelMode as narrowPriceLabelMode, type PriceLabelMode } from "@/lib/social/composePost"
 
 // Public-post overrides once stored on a source (social_content.details.preparedPost). Retained
 // for the Item shape / backward compatibility; the editor lives in PostEditor now, not here.
@@ -102,6 +108,8 @@ type BatchMeta = {
   amenities: string
   notes: string
   overlayMode: "generate" | "existing"
+  /** Per-SOURCE meaning of Starting At — same field the Post Editor sets, captured at intake. */
+  priceLabelMode: PriceLabelMode
 }
 
 const SORTS = ["Newest", "Oldest", "Property", "Market"] as const
@@ -257,7 +265,7 @@ export default function SocialAutopilotClient() {
   const fileRef = useRef<HTMLInputElement>(null)
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null) // 1-file quick setup
   const [bulkFiles, setBulkFiles] = useState<File[] | null>(null) // 2+ files → Bulk Review
-  const [batch, setBatch] = useState<BatchMeta>({ market: "", areaNeighborhood: "", propertyName: "", propertyType: "", placeId: null, matched: false, special: "", budgetRange: "", amenities: "", notes: "", overlayMode: "generate" })
+  const [batch, setBatch] = useState<BatchMeta>({ market: "", areaNeighborhood: "", propertyName: "", propertyType: "", placeId: null, matched: false, special: "", budgetRange: "", amenities: "", notes: "", overlayMode: "generate", priceLabelMode: "starting_at" })
   const [uploads, setUploads] = useState<UploadFile[] | null>(null) // active/finished progress list
   const [uploadingBatch, setUploadingBatch] = useState(false)
 
@@ -456,13 +464,16 @@ export default function SocialAutopilotClient() {
       // 1 file → quick single-video setup, prefilled from the filename (editable).
       const inf = inferFromFilename(files[0].name)
       setPendingFiles(files)
-      setBatch({ market: inf.market ?? "", areaNeighborhood: "", propertyName: inf.propertyName ?? "", propertyType: inf.propertyType ?? "", placeId: null, matched: false, special: "", budgetRange: "", amenities: "", notes: "", overlayMode: "generate" })
+      // A UUID/hash/export filename is not a property name — leave the field blank so the
+      // property search is usable immediately. Market/type inference is unaffected.
+      setBatch({ market: inf.market ?? "", areaNeighborhood: "", propertyName: propertyNamePrefill(inf.propertyName), propertyType: inf.propertyType ?? "", placeId: null, matched: false, special: "", budgetRange: "", amenities: "", notes: "", overlayMode: "generate", priceLabelMode: "starting_at" })
       // Auto-resolve the inferred name against the read-only property search. A single clear
       // in-market match auto-fills the canonical name + place_id (+ area from its address);
       // anything ambiguous is left as inferred text for the operator to confirm. Guarded so a
       // late result never overwrites edits the operator has already made.
-      if (inf.propertyName) {
-        const seed = inf.propertyName
+      const seedName = propertyNamePrefill(inf.propertyName)
+      if (seedName) {
+        const seed = seedName
         void resolvePropertyMatch(seed, inf.market).then((r) => {
           if (!r.match) return
           setBatch((b) => {
@@ -505,6 +516,7 @@ export default function SocialAutopilotClient() {
           placeId: meta.placeId || null,
           special: meta.special || null,
           budgetRange: meta.budgetRange || null,
+          priceLabelMode: meta.priceLabelMode,
           amenities: meta.amenities || null,
           notes: meta.notes || null,
         }),
@@ -961,12 +973,16 @@ export default function SocialAutopilotClient() {
               </label>
               <label className="block">
                 <span className={fieldLabel}>Area / Neighborhood <span className="normal-case text-[var(--crm-text-muted)]">· internal</span></span>
-                <input className={`${inputCls} mt-1`} value={batch.areaNeighborhood} onChange={(e) => setBatch((b) => ({ ...b, areaNeighborhood: e.target.value }))} placeholder="e.g. Schertz, Stone Oak, The Rim, Uptown" />
+                {/* Canonical market catalog — the same bank the Smart Lead Form reads. */}
+                <AreaSelect market={batch.market} value={batch.areaNeighborhood} className={`${inputCls} mt-1`}
+                  onChange={(v) => setBatch((b) => ({ ...b, areaNeighborhood: v }))} />
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
                   <span className={fieldLabel}>Current Special</span>
-                  <input className={`${inputCls} mt-1`} value={batch.special} onChange={(e) => setBatch((b) => ({ ...b, special: e.target.value }))} />
+                  <div className="mt-1">
+                    <SpecialSelect value={batch.special} onChange={(v) => setBatch((b) => ({ ...b, special: v }))} />
+                  </div>
                 </label>
                 <label className="block">
                   {/* Same field, same column (budget_range) — this label just said
@@ -975,11 +991,17 @@ export default function SocialAutopilotClient() {
                       template behaviour changes. */}
                   <span className={fieldLabel}>Starting At</span>
                   <input className={`${inputCls} mt-1`} value={batch.budgetRange} onChange={(e) => setBatch((b) => ({ ...b, budgetRange: e.target.value }))} />
+                  {/* Same per-source meaning the Post Editor sets, so it does not have to be re-stated there. */}
+                  <select className={`${inputCls} mt-1 cursor-pointer`} value={batch.priceLabelMode}
+                    onChange={(e) => setBatch((b) => ({ ...b, priceLabelMode: narrowPriceLabelMode(e.target.value) }))}>
+                    {PRICE_LABEL_MODES.map((m) => <option key={m} value={m}>{m === "starting_at" ? "Starting at" : "Exact unit shown"}</option>)}
+                  </select>
                 </label>
               </div>
               <label className="block">
-                <span className={fieldLabel}>Amenities / Features</span>
-                <input className={`${inputCls} mt-1`} value={batch.amenities} onChange={(e) => setBatch((b) => ({ ...b, amenities: e.target.value }))} />
+                <span className={fieldLabel}>Amenities / Features <span className="normal-case text-[var(--crm-text-muted)]">· choose up to 3</span></span>
+                {/* The SAME canonical bank and 3-cap as the Post Editor — not a second vocabulary. */}
+                <AmenitySelect value={parseAmenities(batch.amenities)} onChange={(next) => setBatch((b) => ({ ...b, amenities: serializeAmenities(next) }))} />
               </label>
               <label className="block">
                 <span className={fieldLabel}>Notes <span className="normal-case text-[var(--crm-text-muted)]">· internal</span></span>

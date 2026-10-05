@@ -11,6 +11,8 @@ import { preparePost, DEFAULT_OVERLAY_TEMPLATE } from "@/lib/social/composePost"
 import { computeOverlayLayout } from "@/lib/social/overlaySpec"
 import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
 import PropertySearchField, { type PropertyMatch } from "@/components/crm/social/PropertySearchField"
+import AreaSelect from "@/components/crm/social/AreaSelect"
+import { propertyNamePrefill } from "@/lib/social/intakeFields"
 
 // Bulk Review / Intake — opens automatically for 2+ files. One compact row per source video,
 // auto-prepared from the SAME filename inference + property-match pipeline as single upload.
@@ -131,7 +133,8 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
         file,
         objectUrl: URL.createObjectURL(file),
         inf,
-        propertyName: inf.propertyName ?? "",
+        // UUID/hash/export filenames are not property names — leave blank so the search is usable.
+        propertyName: propertyNamePrefill(inf.propertyName),
         market: inf.market ?? "",
         areaNeighborhood: "",
         propertyType: inf.propertyType ?? "",
@@ -488,7 +491,9 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
                   </label>
                   <label className="block">
                     <span className={fieldLabel}>Area / Neighborhood <span className="normal-case text-[var(--crm-text-muted)]">· internal</span></span>
-                    <input className={`${inputCls} mt-1`} value={active.areaNeighborhood} onChange={(e) => patchRow(active.uid, { areaNeighborhood: e.target.value })} placeholder="e.g. Schertz, Stone Oak, Uptown" />
+                    {/* Canonical market catalog — the same bank the Upload modal and Smart Lead Form read. */}
+                    <AreaSelect market={active.market} value={active.areaNeighborhood} className={`${inputCls} mt-1`}
+                      onChange={(v) => patchRow(active.uid, { areaNeighborhood: v })} />
                   </label>
                 </div>
                 {/* Sticky action bar */}
