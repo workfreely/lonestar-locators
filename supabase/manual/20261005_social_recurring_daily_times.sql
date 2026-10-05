@@ -35,6 +35,19 @@
 
 begin;
 
+-- Every element in range, as a FUNCTION rather than a subquery: Postgres rejects a subquery in a
+-- CHECK constraint ("cannot use subquery in check constraint"), and unnest() in that position is
+-- one. IMMUTABLE because the result depends only on the argument, which is what CHECK requires.
+create or replace function public.social_daily_times_valid(p_times smallint[])
+returns boolean
+language sql
+immutable
+as $$
+  select p_times is not null
+     and array_length(p_times, 1) between 1 and 3
+     and array_length(p_times, 1) = (select count(*) from unnest(p_times) t where t >= 0 and t < 1440);
+$$;
+
 alter table public.social_recurring_rules
   add column if not exists cadence text not null default 'interval',
   add column if not exists daily_times smallint[];
@@ -65,8 +78,7 @@ begin
         or (
           cadence = 'daily_times'
           and daily_times is not null
-          and array_length(daily_times, 1) between 1 and 3
-          and (select bool_and(t >= 0 and t < 1440) from unnest(daily_times) t)
+          and public.social_daily_times_valid(daily_times)
         )
       );
   end if;
