@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin"
 import { generateOccurrences, type RuleRow } from "@/lib/social/generateRecurrence"
+import { normalizeCadence, normalizeDailyTimes } from "@/lib/social/recurrence"
 
 // Beast Social — RECURRING RULES. POST creates a rule and generates the rolling first horizon of
 // occurrence instances (normal social_posts, status 'scheduled'). GET lists this admin's rules.
@@ -15,7 +16,7 @@ export async function GET() {
   const { supabase } = guard
   const { data, error } = await supabase
     .from("social_recurring_rules")
-    .select("id, source_content_id, interval_days, end_mode, end_at, placement_pref, posts_per_day, state, post_type, audio_choice, last_generated_at, created_at")
+    .select("id, source_content_id, interval_days, end_mode, end_at, placement_pref, posts_per_day, state, post_type, audio_choice, cadence, daily_times, last_generated_at, created_at")
     .order("created_at", { ascending: false })
   if (error) return NextResponse.json({ error: "list_failed" }, { status: 500 })
   return NextResponse.json({ items: data ?? [] })
@@ -33,6 +34,14 @@ export async function POST(req: NextRequest) {
   if (!UUID_RE.test(sourceContentId)) return NextResponse.json({ error: "valid sourceContentId required" }, { status: 400 })
 
   // Interval: one of the presets, or a safe custom (1–365).
+  // CADENCE. Absent / unrecognised resolves to 'interval', so every existing client that does not
+  // send the field keeps creating exactly the rules it always did.
+  const cadence = normalizeCadence(body.cadence)
+  const dailyTimes = normalizeDailyTimes(Array.isArray(body.dailyTimes) ? (body.dailyTimes as number[]) : null)
+  if (cadence === "daily_times" && (dailyTimes.length < 1 || dailyTimes.length > 3)) {
+    return NextResponse.json({ error: "daily_times requires 1-3 valid times (minutes from local midnight)" }, { status: 400 })
+  }
+
   let intervalDays = Number(body.intervalDays)
   if (!Number.isFinite(intervalDays) || intervalDays < 1 || intervalDays > 365) return NextResponse.json({ error: "invalid intervalDays" }, { status: 400 })
   intervalDays = Math.round(intervalDays)
@@ -75,6 +84,8 @@ export async function POST(req: NextRequest) {
       source_content_id: sourceContentId,
       platform: "instagram",
       interval_days: intervalDays,
+      cadence,
+      daily_times: cadence === "daily_times" ? dailyTimes : null,
       end_mode,
       end_at,
       placement_pref: placementPref,
@@ -83,7 +94,7 @@ export async function POST(req: NextRequest) {
       post_type: postType,
       audio_choice: audioChoice,
     })
-    .select("id, owner_user_id, source_content_id, platform, interval_days, end_mode, end_at, placement_pref, posts_per_day, state, post_type, audio_choice")
+    .select("id, owner_user_id, source_content_id, platform, interval_days, end_mode, end_at, placement_pref, posts_per_day, state, post_type, audio_choice, cadence, daily_times")
     .single()
   if (error || !rule) return NextResponse.json({ error: "create_failed" }, { status: 500 })
 

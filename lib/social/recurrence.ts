@@ -74,13 +74,20 @@ export function slotOrder(ruleId: string, dateKey: string, pref: PlacementPref):
   return RECURRENCE_SLOTS.map((_, i) => RECURRENCE_SLOTS[(i + off) % RECURRENCE_SLOTS.length])
 }
 
-export type DayOccupancy = { count: number; slots: Set<Slot> }
+/** `minutes` records the EXACT minute-of-day each existing post occupies, alongside the coarse
+ *  window in `slots`. planOccurrences ignores it entirely and is unaffected; planDailyTimes needs
+ *  it because an explicit 9:00 AM has to be able to notice that 9:00 AM is already taken, which a
+ *  three-window granularity cannot express. */
+export type DayOccupancy = { count: number; slots: Set<Slot>; minutes: Set<number> }
 export type Occupancy = Map<string, DayOccupancy>
-export type Placement = { index: number; dateKey: string; slot: Slot; minute: number }
+/** `slot` is the approved WINDOW an occurrence landed in. It is null only for a daily_times rule
+ *  whose configured time falls outside all three windows — a legitimate explicit choice, recorded
+ *  honestly as "no window" rather than mislabelled as the nearest one. */
+export type Placement = { index: number; dateKey: string; slot: Slot | null; minute: number }
 
 function cloneOccupancy(o: Occupancy): Occupancy {
   const m: Occupancy = new Map()
-  for (const [k, v] of o) m.set(k, { count: v.count, slots: new Set(v.slots) })
+  for (const [k, v] of o) m.set(k, { count: v.count, slots: new Set(v.slots), minutes: new Set(v.minutes ?? []) })
   return m
 }
 
@@ -109,7 +116,7 @@ export function planOccurrences(input: PlanInput): Placement[] {
       const p = base + step
       if (p >= days.length) break
       const dk = days[p]
-      const day = occ.get(dk) ?? { count: 0, slots: new Set<Slot>() }
+      const day = occ.get(dk) ?? { count: 0, slots: new Set<Slot>(), minutes: new Set<number>() }
       if (day.count >= postsPerDay) continue // day's posting goal already satisfied → next day
       const slot = slotOrder(ruleId, dk, placementPref).find((s) => !day.slots.has(s))
       if (!slot) continue // every approved window for this day is taken → next day
@@ -123,6 +130,98 @@ export function planOccurrences(input: PlanInput): Placement[] {
     if (!placed) break // ran out of horizon room
   }
   return out
+}
+
+// ── DAILY TIMES ──────────────────────────────────────────────────────────────────────────────
+// A SEPARATE cadence, deliberately not a parameter of planOccurrences. The interval planner maps
+// an occurrence index to a DAY and then derives a minute by hashing; this one maps an index to a
+// (day, EXPLICIT minute) pair. Two configured times therefore produce exactly two occurrences per
+// day, in the order configured — which the interval planner structurally cannot do, because one
+// index is one day there.
+//
+// Nothing below calls slotMinute or slotOrder: no hashing, no window rotation. The times are the
+// cadence.
+
+/** The configured times for one day, normalised: integral minutes-of-day in range, de-duplicated,
+ *  and SORTED so "first post / second post" always means earlier/later regardless of input order. */
+export function normalizeDailyTimes(times: readonly number[] | null | undefined): number[] {
+  const seen = new Set<number>()
+  const out: number[] = []
+  for (const t of times ?? []) {
+    if (!Number.isFinite(t)) continue
+    const m = Math.trunc(t)
+    if (m < 0 || m >= 1440 || seen.has(m)) continue
+    seen.add(m)
+    out.push(m)
+  }
+  return out.sort((a, b) => a - b)
+}
+
+export type DailyTimesInput = {
+  intervalDays: number // 1 = every day; >1 = every N days, still at the configured times
+  dailyTimes: readonly number[] // minutes from LOCAL midnight
+  days: string[]
+  occupancy: Occupancy
+  maxOccurrences: number
+}
+
+/**
+ * Plan placements at explicit local times.
+ *
+ * Occurrence index i belongs to cycle floor(i / times.length) and takes times[i % times.length],
+ * so with [9:00, 19:00] the sequence is day0@9, day0@19, day1@9, day1@19 — exactly two per day, in
+ * order. The minute is the configured one, never derived.
+ *
+ * COLLISION uses the EXISTING rules, so a manually scheduled post still wins: an occurrence whose
+ * exact minute is taken, or whose approved window is already occupied, moves FORWARD to the next
+ * day at the same time. Never backward, never onto an occupant. A configured time outside all
+ * three windows collides only on the exact minute, since it has no window to contend for.
+ *
+ * Pure and deterministic: same inputs, same placements.
+ */
+export function planDailyTimes(input: DailyTimesInput): Placement[] {
+  const { intervalDays, days, maxOccurrences } = input
+  const times = normalizeDailyTimes(input.dailyTimes)
+  if (!times.length) return [] // a rule with no times generates nothing, rather than guessing one
+  const step1 = Math.max(1, Math.trunc(intervalDays) || 1)
+  const occ = cloneOccupancy(input.occupancy)
+  const out: Placement[] = []
+
+  for (let index = 0; index < maxOccurrences; index++) {
+    const cycle = Math.floor(index / times.length)
+    const minute = times[index % times.length]
+    const base = cycle * step1
+    let placed = false
+    for (let step = 0; step < MAX_BUMP_DAYS; step++) {
+      const p = base + step
+      if (p >= days.length) break
+      const dk = days[p]
+      const day = occ.get(dk) ?? { count: 0, slots: new Set<Slot>(), minutes: new Set<number>() }
+      if (day.minutes.has(minute)) continue // this exact time is already taken on this day
+      const slot = slotForMinute(minute)
+      if (slot && day.slots.has(slot)) continue // the approved window is occupied — manual wins
+      out.push({ index, dateKey: dk, slot, minute })
+      day.minutes.add(minute)
+      if (slot) day.slots.add(slot)
+      day.count += 1
+      occ.set(dk, day)
+      placed = true
+      break
+    }
+    if (!placed) break // ran out of horizon room
+  }
+  return out
+}
+
+/** The approved launch cadence: 9:00 AM and 7:00 PM local. Editable per rule; this is only the
+ *  default a new Twice Daily rule starts from. */
+export const DEFAULT_DAILY_TIMES = [9 * 60, 19 * 60] as const
+
+export type Cadence = "interval" | "daily_times"
+/** Narrow a stored/unknown value. Anything unrecognised is 'interval' — the pre-existing behaviour
+ *  — so a bad value can never silently turn a rule into a twice-daily publisher. */
+export function normalizeCadence(v: unknown): Cadence {
+  return v === "daily_times" ? "daily_times" : "interval"
 }
 
 // ── calendar / timezone helpers ──────────────────────────────────────────────────────────────

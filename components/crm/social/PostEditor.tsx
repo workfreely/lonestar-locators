@@ -119,6 +119,17 @@ function fmtDateShort(iso: string): string {
   return isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
 }
 // Friendly placement summary (slot key 'midday' shows as "Afternoons").
+/** Selectable posting times for the Twice Daily cadence — every half hour, labelled in local
+ *  12-hour form and VALUED in minutes from local midnight, which is exactly what the scheduler
+ *  stores. Minutes rather than a timestamp is what keeps 9:00 AM at 9:00 AM across a DST change. */
+const TIME_CHOICES: { min: number; label: string }[] = Array.from({ length: 48 }, (_, i) => {
+  const min = i * 30
+  const h24 = Math.floor(min / 60)
+  const m = min % 60
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12
+  return { min, label: `${h12}:${String(m).padStart(2, "0")} ${h24 < 12 ? "AM" : "PM"}` }
+})
+
 const PLACEMENT_SUMMARY: Record<string, string> = { any: "Social Beast chooses the time", morning: "Mornings", midday: "Afternoons", evening: "Evenings" }
 
 export default function PostEditor({ postId, from }: { postId: string; from?: string | null }) {
@@ -169,6 +180,12 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [scheduling, setScheduling] = useState(false) // RIGHT column shows the Schedule workspace
   // Posting: Post Once (manual date/time) vs Repeat (recurring rule) — exposed inline in the editor.
   const [postingMode, setPostingMode] = useState<"once" | "repeat">("once")
+  // TWICE DAILY is a distinct cadence, not an interval — the value "twice" cannot be expressed as
+  // a number of days. Kept as its own piece of state so the existing interval options are
+  // completely unaffected by it.
+  const [cadence, setCadence] = useState<"interval" | "daily_times">("interval")
+  const [firstTimeMin, setFirstTimeMin] = useState(9 * 60)   // 9:00 AM
+  const [secondTimeMin, setSecondTimeMin] = useState(19 * 60) // 7:00 PM
   const [repeatEvery, setRepeatEvery] = useState(14) // 14 | 30 | 60 (approved)
   const [durationMode, setDurationMode] = useState<"days" | "date" | "until_stopped">("until_stopped")
   const [durationDays, setDurationDays] = useState(30) // 30 | 60 | 90
@@ -411,7 +428,16 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       await patchSource() // persist latest metadata so generated occurrences use it
       const res = await fetch("/api/admin/social-autopilot/recurring", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceContentId, intervalDays: repeatEvery, placementPref: placement, duration: durationBody() }),
+        body: JSON.stringify({
+          sourceContentId,
+          // A Twice Daily rule runs EVERY day at the two configured times; the interval selector
+          // does not apply to it, so it is pinned to 1 rather than carrying a stale 14/30/60.
+          intervalDays: cadence === "daily_times" ? 1 : repeatEvery,
+          placementPref: placement,
+          duration: durationBody(),
+          cadence,
+          ...(cadence === "daily_times" ? { dailyTimes: [firstTimeMin, secondTimeMin] } : {}),
+        }),
       })
       if (!res.ok) { setError("Couldn't start Repeat."); return }
       const j = (await res.json()) as { id: string; created: number; horizonDays: number }
@@ -1109,10 +1135,35 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                       <div className="grid grid-cols-1 sm:grid-cols-[30fr_29fr_41fr] gap-2.5">
                         <label className="block min-w-0">
                           <span className="text-[11px] text-[var(--crm-text-muted)]">Repeat Post</span>
-                          <select className={`${controlCompact} mt-1 cursor-pointer`} value={repeatEvery} onChange={(e) => setRepeatEvery(Number(e.target.value))}>
-                            <option value={14}>Every 14 days</option><option value={30}>Every 30 days</option><option value={60}>Every 60 days</option>
+                          {/* The existing interval options are untouched; "Twice Daily" is an extra
+                              entry that switches cadence rather than changing what the day values mean. */}
+                          <select className={`${controlCompact} mt-1 cursor-pointer`}
+                            value={cadence === "daily_times" ? "twice-daily" : String(repeatEvery)}
+                            onChange={(e) => {
+                              const v = e.target.value
+                              if (v === "twice-daily") setCadence("daily_times")
+                              else { setCadence("interval"); setRepeatEvery(Number(v)) }
+                            }}>
+                            <option value="twice-daily">Twice Daily</option>
+                            <option value="14">Every 14 days</option><option value="30">Every 30 days</option><option value="60">Every 60 days</option>
                           </select>
                         </label>
+                        {cadence === "daily_times" && (
+                          <>
+                            <label className="block min-w-0">
+                              <span className="text-[11px] text-[var(--crm-text-muted)]">First post</span>
+                              <select className={`${controlCompact} mt-1 cursor-pointer`} value={firstTimeMin} onChange={(e) => setFirstTimeMin(Number(e.target.value))}>
+                                {TIME_CHOICES.map((t) => <option key={t.min} value={t.min}>{t.label}</option>)}
+                              </select>
+                            </label>
+                            <label className="block min-w-0">
+                              <span className="text-[11px] text-[var(--crm-text-muted)]">Second post</span>
+                              <select className={`${controlCompact} mt-1 cursor-pointer`} value={secondTimeMin} onChange={(e) => setSecondTimeMin(Number(e.target.value))}>
+                                {TIME_CHOICES.map((t) => <option key={t.min} value={t.min}>{t.label}</option>)}
+                              </select>
+                            </label>
+                          </>
+                        )}
                         <label className="block min-w-0">
                           <span className="text-[11px] text-[var(--crm-text-muted)]">Duration</span>
                           <select className={`${controlCompact} mt-1 cursor-pointer`}

@@ -11,6 +11,7 @@ import { preparePost, startingPriceLabel, priceLabelMode } from "@/lib/social/co
 import {
   planOccurrences, dayKeysFrom, dateKeyInTz, wallClockToUtcISO, horizonDays, maxOccurrencesFor,
   slotForMinute, isGeneratingState, DEFAULT_TIMEZONE, DEFAULT_POSTS_PER_DAY, type Occupancy, type Slot, type PlacementPref,
+  planDailyTimes, normalizeCadence, normalizeDailyTimes,
 } from "@/lib/social/recurrence"
 
 type SB = PlatformAdminGuardOk["supabase"]
@@ -32,9 +33,12 @@ async function buildOccupancy(supabase: SB, ownerId: string, tz: string): Promis
     const parts = Object.fromEntries(hm.formatToParts(d).map((x) => [x.type, x.value]))
     const min = (Number(parts.hour) % 24) * 60 + Number(parts.minute)
     const slot = slotForMinute(min)
-    const day = occupancy.get(dk) ?? { count: 0, slots: new Set<Slot>() }
+    const day = occupancy.get(dk) ?? { count: 0, slots: new Set<Slot>(), minutes: new Set<number>() }
     day.count += 1
     if (slot) day.slots.add(slot)
+    // The EXACT minute as well as the window: a daily_times rule posting at 9:00 AM has to be able
+    // to see that 9:00 AM itself is taken, which three windows cannot express.
+    day.minutes.add(min)
     occupancy.set(dk, day)
   }
   return occupancy
@@ -65,6 +69,11 @@ export type RuleRow = {
   state: string
   post_type: string
   audio_choice: string
+  /** 'interval' (the original cadence) or 'daily_times'. Absent on rows read by older code paths,
+   *  which normalizeCadence resolves to 'interval' — the pre-existing behaviour. */
+  cadence?: string | null
+  /** Minutes from LOCAL midnight, for cadence='daily_times' only. */
+  daily_times?: number[] | null
 }
 
 export type GenerateResult = { created: number; horizonDays: number; planned: number }
@@ -90,21 +99,41 @@ export async function generateOccurrences(supabase: SB, rule: RuleRow, tz: strin
     durationDays = Math.max(0, Math.round((new Date(rule.end_at).getTime() - startMs) / 86400000))
   }
   const horizon = horizonDays(durationDays)
-  const maxOcc = maxOccurrencesFor(rule.interval_days, horizon)
+  const cadence = normalizeCadence(rule.cadence)
+  const dailyTimes = normalizeDailyTimes(rule.daily_times)
+  // A daily_times rule produces one occurrence PER CONFIGURED TIME per cycle, so the occurrence
+  // budget is the interval budget multiplied by the number of times. The interval path's own
+  // budget is untouched.
+  const maxOcc =
+    cadence === "daily_times"
+      ? maxOccurrencesFor(rule.interval_days, horizon) * Math.max(1, dailyTimes.length)
+      : maxOccurrencesFor(rule.interval_days, horizon)
   const days = dayKeysFrom(startKey, horizon + 25) // +buffer so bumped occurrences still fit
 
   // Occupancy from every existing PLANNED post for this owner (manual + prior occurrences win first).
   const occupancy = await buildOccupancy(supabase, rule.owner_user_id, tz)
 
-  const placements = planOccurrences({
-    ruleId: rule.id,
-    intervalDays: rule.interval_days,
-    placementPref: rule.placement_pref as PlacementPref,
-    postsPerDay: rule.posts_per_day,
-    days,
-    occupancy,
-    maxOccurrences: maxOcc,
-  })
+  // TWO CADENCES, ONE WRITER. The branch is only about WHERE the placements come from; everything
+  // downstream — idempotency, row shape, DST-safe wall-clock conversion — is shared, so the two
+  // cadences cannot drift in how they persist.
+  const placements =
+    cadence === "daily_times"
+      ? planDailyTimes({
+          intervalDays: rule.interval_days,
+          dailyTimes,
+          days,
+          occupancy,
+          maxOccurrences: maxOcc,
+        })
+      : planOccurrences({
+          ruleId: rule.id,
+          intervalDays: rule.interval_days,
+          placementPref: rule.placement_pref as PlacementPref,
+          postsPerDay: rule.posts_per_day,
+          days,
+          occupancy,
+          maxOccurrences: maxOcc,
+        })
 
   // Only insert occurrence indices that don't already exist for this rule → idempotent re-runs.
   const { data: had } = await supabase.from("social_posts").select("recurrence_index").eq("recurring_rule_id", rule.id)

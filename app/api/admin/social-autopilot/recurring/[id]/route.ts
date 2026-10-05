@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin"
 import { generateOccurrences, type RuleRow } from "@/lib/social/generateRecurrence"
+import { normalizeCadence, normalizeDailyTimes } from "@/lib/social/recurrence"
 
 // Social Beast — recurring rule control. PATCH handles TWO intents on an existing rule:
 //  1) STATE change (state: active | paused | stopped). Paused/Stopped stop generation of NEW
@@ -23,7 +24,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   try { body = (await req.json()) as Record<string, unknown> } catch { body = {} }
 
   // ── State-only change ────────────────────────────────────────────────────────────────────────
-  if ("state" in body && !("intervalDays" in body) && !("placementPref" in body) && !("duration" in body)) {
+  if ("state" in body && !("intervalDays" in body) && !("placementPref" in body) && !("duration" in body) && !("cadence" in body) && !("dailyTimes" in body)) {
     const state = String(body.state)
     if (!STATES.has(state)) return NextResponse.json({ error: "invalid state" }, { status: 400 })
     const { data, error } = await supabase
@@ -39,6 +40,31 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   // ── Edit rule settings (interval / placement / duration) ────────────────────────────────────
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  // Cadence is editable, but only as a COMPLETE pair: switching to daily_times must bring its
+  // times with it, and switching back must clear them, so the row can never satisfy the CHECK
+  // constraint by accident.
+  if ("cadence" in body) {
+    const next = normalizeCadence(body.cadence)
+    if (next === "daily_times") {
+      const times = normalizeDailyTimes(Array.isArray(body.dailyTimes) ? (body.dailyTimes as number[]) : null)
+      if (times.length < 1 || times.length > 3) {
+        return NextResponse.json({ error: "daily_times requires 1-3 valid times (minutes from local midnight)" }, { status: 400 })
+      }
+      patch.cadence = "daily_times"
+      patch.daily_times = times
+    } else {
+      patch.cadence = "interval"
+      patch.daily_times = null
+    }
+  } else if ("dailyTimes" in body) {
+    // Times without an explicit cadence: only meaningful for a rule already on daily_times.
+    const times = normalizeDailyTimes(Array.isArray(body.dailyTimes) ? (body.dailyTimes as number[]) : null)
+    if (times.length < 1 || times.length > 3) {
+      return NextResponse.json({ error: "daily_times requires 1-3 valid times (minutes from local midnight)" }, { status: 400 })
+    }
+    patch.daily_times = times
+  }
+
   if ("intervalDays" in body) {
     const n = Math.round(Number(body.intervalDays))
     if (!Number.isFinite(n) || n < 1 || n > 365) return NextResponse.json({ error: "invalid intervalDays" }, { status: 400 })
@@ -70,7 +96,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     .from("social_recurring_rules")
     .update(patch)
     .eq("id", id)
-    .select("id, owner_user_id, source_content_id, platform, interval_days, end_mode, end_at, placement_pref, posts_per_day, state, post_type, audio_choice")
+    .select("id, owner_user_id, source_content_id, platform, interval_days, end_mode, end_at, placement_pref, posts_per_day, state, post_type, audio_choice, cadence, daily_times")
     .maybeSingle()
   if (error) return NextResponse.json({ error: "update_failed" }, { status: 500 })
   if (!rule) return NextResponse.json({ error: "not_found" }, { status: 404 })
