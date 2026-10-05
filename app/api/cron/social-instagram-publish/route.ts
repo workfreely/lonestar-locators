@@ -6,6 +6,10 @@ import { supabaseAdmin } from "@/lib/supabase/admin"
 import { instagramConfigured, createReelContainer } from "@/lib/social/instagram"
 import { buildInstagramCaptionPayload, isOverlayTemplate } from "@/lib/social/composePost"
 import { finalizeInstagramPublish } from "@/lib/social/instagramFinalize"
+import {
+  readAutoPosting, isEligibleAfterResume, isWithinLatenessWindow,
+  AUTO_POSTING_FALLBACK, type AutoPostingSettings,
+} from "@/lib/social/autoPosting"
 
 /**
  * SOCIAL BEAST — the Instagram due-post worker.
@@ -100,8 +104,30 @@ async function run(req: NextRequest) {
 
   if (!instagramConfigured()) return NextResponse.json({ ok: true, skipped: "not_configured" })
 
+  // ── GATE 2: the operator's master switch ──────────────────────────────────────────────────
+  // Read BEFORE any claim or write, same as the env flag. Fail closed: a missing row, an
+  // unreadable row, or an unrecognised value all resolve to paused, and `unreadable` is reported
+  // so a database problem is never presented as a confident "paused".
+  const owner = process.env.SOCIAL_AUTOPOST_OWNER_USER_ID ?? null
+  const settings = owner
+    ? await readAutoPosting(supabaseAdmin, owner)
+    : await readAutoPostingForSoleOwner()
+  if (settings.state !== "on") {
+    return NextResponse.json({
+      ok: true,
+      enabled: true,
+      autoPosting: settings.state,
+      inert: true,
+      reason: settings.unreadable
+        ? "Auto Posting could not be read — failing closed, nothing published"
+        : "Social Beast Auto Posting is PAUSED",
+      published: 0,
+      claimed: 0,
+    })
+  }
+
   const now = new Date().toISOString()
-  const result = { reconciled: 0, published: 0, pending: 0, failed: 0, skippedNoRender: 0, claimed: 0 }
+  const result = { reconciled: 0, published: 0, pending: 0, failed: 0, skippedNoRender: 0, claimed: 0, missedWhilePaused: 0, tooLate: 0 }
 
   // ── 0) RECONCILE unacknowledged publishes FIRST ────────────────────────────────────────────
   // Rows whose media_publish call was claimed but never acknowledged locally. These are the crash
@@ -135,7 +161,7 @@ async function run(req: NextRequest) {
   // ── 1) SELECT due posts ────────────────────────────────────────────────────────────────────
   const { data: due, error: dueErr } = await supabaseAdmin
     .from("social_posts")
-    .select("id, owner_user_id, connection_id, caption, hashtags, social_special, overlay_template, render_status, rendered_storage_path, render_version, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
+    .select("id, owner_user_id, connection_id, scheduled_at, caption, hashtags, social_special, overlay_template, render_status, rendered_storage_path, render_version, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
     .eq("platform", "instagram")
     .eq("status", "scheduled")
     .lte("scheduled_at", now)
@@ -150,6 +176,24 @@ async function run(req: NextRequest) {
   for (const row of (due ?? []) as Row[]) {
     const postId = row.id as string
     try {
+      // ── THE BACKLOG RULE ────────────────────────────────────────────────────────────────
+      // This post is due, but "due" is not the same as "should publish now". A post whose time
+      // passed while Auto Posting was paused is NOT a catch-up candidate: pausing for two days at
+      // 9am/7pm leaves four due posts, and publishing them back to back is exactly the burst this
+      // must prevent. It keeps its row, keeps its scheduled_at, and is COUNTED as missed — nothing
+      // is deleted and no date is rewritten. A human reschedules it.
+      if (!isEligibleAfterResume(row.scheduled_at as string | null, settings)) {
+        result.missedWhilePaused++
+        continue
+      }
+      // Same hazard, different cause: a cron outage or long deploy gap can also leave a post hours
+      // or days overdue with no pause involved. Invisible in normal operation (the worker runs
+      // every 5 minutes); it only ever catches a burst that should not happen.
+      if (!isWithinLatenessWindow(row.scheduled_at as string | null)) {
+        result.tooLate++
+        continue
+      }
+
       // A scheduled post with no current render is NOT publishable and must not fall back to the
       // raw source. Left scheduled so a render makes it eligible on a later run.
       if (row.render_status !== "ready" || !row.rendered_storage_path) {
@@ -224,6 +268,28 @@ async function run(req: NextRequest) {
   }
 
   return NextResponse.json({ ok: true, ...result })
+}
+
+/**
+ * Social Beast is a single-operator internal tool today: one platform admin owns every post. Rather
+ * than require an env var naming them, resolve the owner from the settings table itself when
+ * exactly one row exists. Zero rows → paused (nobody has turned it on). More than one owner → also
+ * paused, because "which account's switch governs?" has no safe default; set
+ * SOCIAL_AUTOPOST_OWNER_USER_ID to disambiguate when that day comes.
+ */
+async function readAutoPostingForSoleOwner(): Promise<AutoPostingSettings> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("social_settings")
+      .select("owner_user_id, auto_posting, auto_posting_resumed_at")
+      .limit(2)
+    if (error) return { ...AUTO_POSTING_FALLBACK, unreadable: true }
+    const rows = (data ?? []) as { owner_user_id: string }[]
+    if (rows.length !== 1) return AUTO_POSTING_FALLBACK
+    return readAutoPosting(supabaseAdmin, rows[0].owner_user_id)
+  } catch {
+    return { ...AUTO_POSTING_FALLBACK, unreadable: true }
+  }
 }
 
 /** Resolve the Instagram destination for one connection, server-side, and refuse it unless it is

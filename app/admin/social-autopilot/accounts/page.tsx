@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server"
 import { instagramConfigured } from "@/lib/social/instagram"
 import { tiktokConfigured } from "@/lib/social/tiktok"
 import PublishingDestinations, { type Destination, type PendingInvite, type TikTokConnection } from "@/components/crm/social/PublishingDestinations"
+import AutoPostingControl from "@/components/crm/social/AutoPostingControl"
 
 // Social Autopilot → Accounts. Manages N Instagram Publishing Destinations for the current
 // platform-admin owner (was single-connection). Platform-admin gated. Tokens live in Vault and are
@@ -148,6 +149,13 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
           {errorText[errorCode] ?? "Something went wrong. Please try again."}
         </div>
       )}
+
+      {/* The MASTER automatic-publishing switch, above the per-destination list on purpose: it
+          governs all of them, and a per-destination pause means something narrower. Enforced
+          server-side by the Instagram worker — this is the control, not the guard. */}
+      <div className="mb-4">
+        <AutoPostingControl />
+      </div>
 
       <PublishingDestinations
         configured={configured}

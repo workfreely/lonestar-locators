@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import AutoPostingControl from "@/components/crm/social/AutoPostingControl"
 import { useRouter } from "next/navigation"
 import { platformMeta } from "@/lib/social/platformMeta"
 import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
@@ -116,6 +117,10 @@ export default function QueueClient() {
         {FILTERS.map((f) => (
           <button key={f} type="button" className={chip(filter === f)} onClick={() => setFilter(f)}>{f}</button>
         ))}
+        {/* A queue of scheduled posts looks identical whether or not anything will publish. This
+            says which it is, where the scheduling happens. Read-only — the switch lives on
+            Accounts. */}
+        <span className="ml-auto"><AutoPostingControl mode="status" /></span>
       </div>
 
       {error && (
