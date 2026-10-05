@@ -55,8 +55,11 @@ console.log("\nRender REUSE goes through the existing invalidation, not a new ca
   // The existing gate that swaps the left player to the rendered file is untouched.
   ok("the left player still switches on the EXISTING rendered gate",
     /const rendered = post\.renderStatus === "ready" && !!post\.renderedPreviewUrl && !overlayEdited/.test(editor))
+  // Attribute-order independent: the rendered player gained a ref for Reel-cover frame selection,
+  // and anchoring on "<video src=" made this fail on attribute position while the actual claim —
+  // the rendered player is NOT muted — was still true.
   ok("the rendered MP4 is what plays, with audio (no muted attribute on the rendered player)",
-    /<video src=\{post\.renderedPreviewUrl!\} controls(?![^>]*\bmuted\b)/.test(editor))
+    /<video(?=[^>]*\bsrc=\{post\.renderedPreviewUrl!\})(?=[^>]*\bcontrols\b)(?![^>]*\bmuted\b)[^>]*>/.test(editor))
 }
 
 console.log("\nCreate Variation is preserved and still reachable:")

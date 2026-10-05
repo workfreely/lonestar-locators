@@ -146,25 +146,41 @@ async function main() {
       !/coverMayHaveShifted|cover_render_version/.test(pub) && !/coverMayHaveShifted|cover_render_version/.test(worker))
   }
 
-  console.log("\nUI — SELECT FRAME IS PRIMARY, CUSTOM IS OPTIONAL:")
+  console.log("\nUI — ONE PREVIEW, COMPACT STRIP:")
   {
-    ok("the frame picker uses the RENDERED video, not the source",
-      /renderedUrl/.test(ui) && !/previewUrl/.test(ui))
-    ok("…and is gated on a current render", /!p\.renderReady \?/.test(ui))
-    ok("the custom upload is labelled optional", /Custom cover \(optional\)/.test(ui))
-    ok("9:16 is recommended", /Recommended 9:16/.test(ui))
-    ok("a non-9:16 upload WARNS rather than rejects",
-      /Instagram will crop it/.test(ui) && !/return;?\s*\n?\s*\/\/ reject/.test(ui))
-    ok("…and the upload still proceeds after the warning",
-      ui.indexOf("setAspectWarning(") < ui.indexOf("storage.from(\"social-media\").upload"))
-    ok("the editor mirrors the custom-wins precedence",
-      /coverPath \? "custom" : offsetMs != null \? "offset" : "none"/.test(ui))
-    ok("a preview of the chosen cover is shown", /alt="Cover preview"/.test(ui))
+    const editor = read("components/crm/social/PostEditor.tsx")
+    // The whole point of the refactor: no second player, no second scrubber.
+    ok("the control renders NO video element of its own", !/<video/.test(ui))
+    ok("…and no scrub slider of its own", !/type="range"/.test(ui))
+    ok("it reads the EXISTING preview's position instead", /getCurrentMs\(\)/.test(ui))
+    ok("the editor passes the live currentTime of its one preview",
+      /previewVideoRef\.current/.test(editor) && /v\.currentTime \* 1000/.test(editor))
+    ok("…from the element bound to the RENDERED derivative",
+      /<video ref=\{previewVideoRef\} src=\{post\.renderedPreviewUrl!\}/.test(editor))
+    // Gating uses the editor's own `rendered` flag, which already means
+    // renderStatus==='ready' && renderedPreviewUrl && !overlayEdited — so a stale render cannot
+    // be scrubbed for a cover.
+    ok("gating reuses the editor's rendered flag", /renderReady=\{rendered\}/.test(editor))
+    ok("the unrendered helper text is the approved wording",
+      /Render video to choose a cover frame\./.test(ui))
+
+    ok("the primary action is the approved label", /Use current frame as Reel cover/.test(ui))
+    ok("a chosen frame shows the compact state", /✓ Reel cover: \{fmt\(p\.offsetMs\)\}/.test(ui))
+    ok("…with Change and Clear", /&gt;Change&lt;|>Change</.test(ui) && />Clear</.test(ui))
+    ok("Change re-reads the current frame", /onClick=\{useCurrentFrame\}[\s\S]{0,120}>Change</.test(ui))
+    ok("custom cover is a secondary link", /Upload custom cover/.test(ui))
+    ok("…with Replace and Remove once set", />Replace</.test(ui) && />Remove</.test(ui))
+    ok("a small thumbnail is shown for a custom cover", /w-7 h-12 object-cover/.test(ui))
+    ok("the editor mirrors custom-wins precedence", /const custom = !!p\.coverPath/.test(ui))
     ok("no re-render is triggered from the control", !/\/render/.test(ui))
-    ok("the upload path is scoped to the signed-in user's own folder",
+    ok("the upload stays scoped to the signed-in user's folder",
       /auth\.user\?\.id/.test(ui) && /\$\{ownerId\}\/\$\{p\.contentId\}\/covers\//.test(ui))
-    ok("the control is mounted in the editor",
-      /<ReelCoverControl/.test(read("components/crm/social/PostEditor.tsx")))
+
+    // The large panel is gone.
+    ok("the big REEL COVER panel markup is removed",
+      !/Cover frame position/.test(editor) && !/CUSTOM COVER \(OPTIONAL\)/.test(ui))
+    ok("the editor still has exactly two videos (rendered + source fallback), not three",
+      (editor.match(/<video/g) ?? []).length === 2)
   }
 
   console.log("\nPERSISTENCE + MIGRATION:")

@@ -211,6 +211,9 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [ttConfirmOpen, setTtConfirmOpen] = useState(false) // TikTok Direct Post confirmation modal (Sandbox MVP)
 
   // social_content (source) public-safe fields — edited here, written back to the source row.
+  // The ONE preview element. The Reel cover reads its live currentTime instead of mounting a
+  // second player — the position has already been chosen by scrubbing this one.
+  const previewVideoRef = useRef<HTMLVideoElement>(null)
   const [sourceContentId, setSourceContentId] = useState<string | null>(null)
   const [propertyName, setPropertyName] = useState("")
   const [propertyType, setPropertyType] = useState("")
@@ -732,7 +735,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               // FAITHFUL FINAL PREVIEW — the real rendered derivative (overlay burned in + audio).
               // Only shown when nothing overlay-affecting has changed since load (see
               // overlayEdited) — otherwise this MP4 would misleadingly look current when it isn't.
-              <video src={post.renderedPreviewUrl!} controls controlsList="nofullscreen" disablePictureInPicture playsInline preload="metadata" className="w-full h-full object-cover" />
+              <video ref={previewVideoRef} src={post.renderedPreviewUrl!} controls controlsList="nofullscreen" disablePictureInPicture playsInline preload="metadata" className="w-full h-full object-cover" />
             ) : post.previewUrl ? (
               <>
                 <video src={post.previewUrl} controls controlsList="nofullscreen" disablePictureInPicture muted playsInline preload="metadata" className="w-full h-full object-cover" />
@@ -760,6 +763,27 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               </button>
             )}
           </div>
+
+          {/* REEL COVER — a compact strip under the preview above. No second player: it reads the
+              live currentTime of the one already on screen, which is the rendered derivative
+              whenever `rendered` is true — the exact file Instagram receives, and therefore what a
+              thumb_offset indexes. */}
+          {sourceContentId && (
+            <ReelCoverControl
+              postId={postId}
+              contentId={sourceContentId}
+              renderReady={rendered}
+              getCurrentMs={() => {
+                const v = previewVideoRef.current
+                return v && Number.isFinite(v.currentTime) ? Math.round(v.currentTime * 1000) : null
+              }}
+              offsetMs={post.coverThumbOffsetMs ?? null}
+              coverPath={post.coverStoragePath ?? null}
+              coverUrl={post.coverPreviewUrl ?? null}
+              mayHaveShifted={post.coverMayHaveShifted}
+              onSaved={() => void load()}
+            />
+          )}
 
           {/* ── POST TO — publishing destinations. Three platform buttons on ONE row (icon + name),
               multi-select by design (a Set) so Instagram + TikTok + YouTube can eventually be selected
@@ -1023,25 +1047,6 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               taller DEFAULT so its bottom lands near the bottom of the right-column stack / preview
               — set via rows (initial height), NOT a large min-height, so it stays resizable DOWN to
               the 76px floor. resize-y keeps resizing vertical only (never breaks the column width). */}
-          {/* REEL COVER — which frame Instagram shows. Grouped with the publish-time
-              presentation controls rather than the render controls, because choosing a cover
-              deliberately does NOT invalidate the rendered MP4. */}
-          {sourceContentId && (
-            <div className="mb-3">
-              <ReelCoverControl
-                postId={postId}
-                contentId={sourceContentId}
-                renderedUrl={post.renderedPreviewUrl}
-                renderReady={rendered}
-                initialOffsetMs={post.coverThumbOffsetMs ?? null}
-                initialCoverPath={post.coverStoragePath ?? null}
-                initialCoverUrl={post.coverPreviewUrl ?? null}
-                coverMayHaveShifted={post.coverMayHaveShifted}
-                onSaved={() => void load()}
-              />
-            </div>
-          )}
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block">
               {/* Wrap the label in the SAME flex header row as Hashtags (right column) so the two
