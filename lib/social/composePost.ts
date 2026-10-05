@@ -11,7 +11,7 @@
 // SourceMeta, so they can never leak into public copy automatically. The operator may still type
 // any of those into the editable fields as an explicit creative decision.
 
-import { buildHashtags, isCanonicalHashtag, MAX_HASHTAGS } from "@/lib/social/hashtags"
+import { buildHashtags, isCanonicalHashtag, MAX_HASHTAGS, PLATFORM_HASHTAG_LIMIT } from "@/lib/social/hashtags"
 import { parseAmenities } from "@/lib/social/amenities"
 import { normalizeSocialMarket, SOCIAL_MARKETS } from "@/lib/social/markets"
 import { propertyNoun, propertyNounPlural, normalizeToCanonical, PROPERTY_TYPES } from "@/lib/social/propertyTypes"
@@ -747,11 +747,28 @@ export function publishCaption(storedCaption: string | null | undefined, src: So
   return isGeneratedCaption(stored, src, seed) ? buildCaption(src, seed, template) : stored
 }
 
+/** Instagram's own hard limit on caption text. Enforced on the FINAL payload (body + hashtag
+ *  block), which is the only string Meta ever sees — the 2200 applied when a caption is SAVED is a
+ *  per-field truncation that happens before hashtags exist, so the two together could exceed it. */
+export const IG_CAPTION_MAX = 2200
+
 /** Combine the approved caption + hashtags into the final publish text (composer keeps them
- *  separate; this is only the eventual outgoing payload). */
-export function composeFinalCaption(caption: string, hashtags: string[]): string {
-  const tags = (hashtags ?? []).filter(Boolean)
-  return tags.length ? `${caption}\n\n${tags.join(" ")}` : caption
+ *  separate; this is only the eventual outgoing payload).
+ *
+ *  `tagLimit` caps the hashtag block. Legacy rows can still hold more than today's product rule
+ *  allows (the stored cap was once 30), and nothing trims them on read, so the cap is applied HERE
+ *  as well — the last point before the text leaves for Meta. The caption body is never touched by
+ *  the tag cap. */
+export function composeFinalCaption(caption: string, hashtags: string[], tagLimit = MAX_HASHTAGS): string {
+  const tags = (hashtags ?? []).filter(Boolean).slice(0, Math.max(0, tagLimit))
+  const full = tags.length ? `${caption}\n\n${tags.join(" ")}` : caption
+  if (full.length <= IG_CAPTION_MAX) return full
+  // Over the limit: keep the WHOLE hashtag block and trim the body, because losing a tag changes
+  // distribution while losing a trailing sentence does not. Falls back to a hard slice if the tag
+  // block alone somehow exceeds the limit.
+  const suffix = tags.length ? `\n\n${tags.join(" ")}` : ""
+  const room = IG_CAPTION_MAX - suffix.length
+  return room > 0 ? `${caption.slice(0, room).trimEnd()}${suffix}` : full.slice(0, IG_CAPTION_MAX)
 }
 
 /** THE single source of truth for the EXACT outgoing Instagram caption text (caption body +
@@ -764,6 +781,11 @@ export function buildInstagramCaptionPayload(input: {
   hashtags: string[] | null | undefined
   socialSpecial: string | null | undefined
   sourceContentId: string | null | undefined
+  /** The post's saved overlay template. REQUIRED for the published text to match what was
+   *  approved: a generator-owned caption is regenerated here, and buildCaption picks the opener
+   *  from the template. Omitting it (as this did) silently fell through to the seed-rotated legacy
+   *  hooks, so the first line of every template-drafted post changed at publish time. */
+  overlayTemplate?: OverlayTemplate | null
   source: { market: string | null; property_type: string | null; special: string | null; budget_range: string | null; amenities: string | null } | null | undefined
 }): string {
   const s = input.source ?? null
@@ -775,7 +797,8 @@ export function buildInstagramCaptionPayload(input: {
     budgetRange: s?.budget_range ?? null,
     amenities: s?.amenities ?? null,
   }
-  return composeFinalCaption(publishCaption(input.caption, meta, input.sourceContentId ?? undefined), (input.hashtags ?? []).filter(Boolean))
+  const caption = publishCaption(input.caption, meta, input.sourceContentId ?? undefined, input.overlayTemplate ?? null)
+  return composeFinalCaption(caption, (input.hashtags ?? []).filter(Boolean), PLATFORM_HASHTAG_LIMIT.instagram)
 }
 
 // TikTok's own product limit. It now COINCIDES with the shared MAX_HASHTAGS (both 5) but stays a

@@ -1,9 +1,14 @@
 // Social Beast — PLATFORM-AWARE HASHTAG LIMITS.
-// The editor hashtag cap is the STRICTEST (smallest) limit among the selected destinations:
-//   Instagram 7 · TikTok 5 · YouTube 7  (Social Beast PRODUCT limits, not platform API hard caps).
-// Any selection that includes TikTok caps at 5; Instagram and/or YouTube alone allow 7. Existing tags
-// already over the cap are the caller's concern — hashtagLimitFor() only computes the cap and never
-// mutates a set, so a >5 selection is NEVER silently trimmed by this logic.
+// The cap is the STRICTEST (smallest) limit among the selected destinations:
+//   Instagram 5 · TikTok 5 · YouTube 7  (Social Beast PRODUCT limits, not platform API hard caps).
+//
+// Instagram is 5 — the SAME number as MAX_HASHTAGS. It used to be 7, which contradicted the
+// canonical generation rule and let the editor add two tags generation would never produce. These
+// assertions exist to make that divergence impossible to reintroduce silently: if someone raises
+// PLATFORM_HASHTAG_LIMIT.instagram above MAX_HASHTAGS, this file fails.
+//
+// Existing tags already over the cap are the caller's concern — hashtagLimitFor() only computes the
+// cap and never mutates a set, so a historical >5 selection is NEVER silently trimmed by it.
 // Run: npx tsx scripts/social/hashtagLimits.test.ts
 import { readFileSync } from "node:fs"
 import { hashtagLimitFor, PLATFORM_HASHTAG_LIMIT, MAX_HASHTAGS } from "@/lib/social/hashtags"
@@ -11,19 +16,20 @@ import { hashtagLimitFor, PLATFORM_HASHTAG_LIMIT, MAX_HASHTAGS } from "@/lib/soc
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
 
-console.log("Per-platform product limits (IG 7 / TikTok 5 / YouTube 7):")
-ok("instagram = 7", PLATFORM_HASHTAG_LIMIT.instagram === 7)
+console.log("Per-platform product limits (IG 5 / TikTok 5 / YouTube 7):")
+ok("instagram = 5", PLATFORM_HASHTAG_LIMIT.instagram === 5)
+ok("…which IS the canonical MAX_HASHTAGS, not a second number", PLATFORM_HASHTAG_LIMIT.instagram === MAX_HASHTAGS)
 ok("tiktok = 5", PLATFORM_HASHTAG_LIMIT.tiktok === 5)
 ok("youtube = 7", PLATFORM_HASHTAG_LIMIT.youtube === 7)
 
 console.log("\nAll selection combinations (strictest applicable wins):")
 const S = (...ids: string[]) => new Set(ids)
 // Singles
-ok("Instagram only → 7", hashtagLimitFor(S("instagram")) === 7)
+ok("Instagram only → 5", hashtagLimitFor(S("instagram")) === 5)
 ok("TikTok only → 5", hashtagLimitFor(S("tiktok")) === 5)
 ok("YouTube only → 7", hashtagLimitFor(S("youtube")) === 7)
 // Pairs
-ok("Instagram + YouTube → 7", hashtagLimitFor(S("instagram", "youtube")) === 7)
+ok("Instagram + YouTube → 5 (IG is now the stricter one)", hashtagLimitFor(S("instagram", "youtube")) === 5)
 ok("Instagram + TikTok → 5", hashtagLimitFor(S("instagram", "tiktok")) === 5)
 ok("TikTok + YouTube → 5", hashtagLimitFor(S("tiktok", "youtube")) === 5)
 // Triple
@@ -32,19 +38,19 @@ ok("Instagram + TikTok + YouTube → 5", hashtagLimitFor(S("instagram", "tiktok"
 ok("TikTok listed first still → 5", hashtagLimitFor(S("tiktok", "instagram", "youtube")) === 5)
 
 console.log("\nEdge cases (fallback + unknown ids):")
-ok("empty selection → fallback 7 (editor baseline, NOT the generation cap)", hashtagLimitFor(S()) === 7)
+ok("empty selection → fallback 5 (the canonical cap; a cleared selection can only tighten)", hashtagLimitFor(S()) === MAX_HASHTAGS)
 ok("empty selection → explicit fallback honored", hashtagLimitFor(S(), 9) === 9)
-ok("unknown id only → fallback 7", hashtagLimitFor(S("facebook")) === 7)
+ok("unknown id only → fallback 5", hashtagLimitFor(S("facebook")) === 5)
 ok("unknown id ignored, TikTok still caps → 5", hashtagLimitFor(S("facebook", "tiktok")) === 5)
-ok("unknown id ignored, IG baseline → 7", hashtagLimitFor(S("facebook", "instagram")) === 7)
+ok("unknown id ignored, IG baseline → 5", hashtagLimitFor(S("facebook", "instagram")) === 5)
 
 console.log("\n>5 existing-selection case — cap is computed, tags are NEVER trimmed here:")
 {
   // A post carrying 7 IG-generated tags, then TikTok gets added to the selection (cap drops to 5).
   const existing = ["#satxapartments", "#sanantonioapartmentlocator", "#movingtosanantonio", "#highrise", "#downtownsanantonio", "#sanantoniotexas", "#nowleasing"]
   const cap = hashtagLimitFor(S("instagram", "tiktok"))
-  ok("cap is 5 when TikTok joins a 7-tag Instagram post", cap === 5)
-  ok("the 7 existing tags are OVER the cap (2 over)", existing.length - cap === 2)
+  ok("cap is 5", cap === 5)
+  ok("a HISTORICAL 7-tag set is 2 over today's cap", existing.length - cap === 2)
   // hashtagLimitFor returns a number only — it cannot and does not mutate the caller's array.
   ok("hashtagLimitFor returns a number, not a list (no trimming)", typeof cap === "number")
   // Still 7: a HISTORICAL post generated under the old cap is never trimmed or rewritten.

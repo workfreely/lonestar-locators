@@ -210,21 +210,31 @@ export function buildHashtags(market: string | null | undefined, target = MAX_HA
   return chosen.slice(0, cap)
 }
 
-// ── PLATFORM-AWARE EDITOR CAPS ────────────────────────────────────────────────────────────────
-// Social Beast PRODUCT limits for how many hashtags the composer allows per publishing destination —
-// deliberately NOT platform API hard caps: Instagram 7, TikTok 5, YouTube 7. These bound the EDITOR
-// (add-cap, count label, publish-validity warning) only; the Instagram 7-hashtag GENERATION bank
-// (buildHashtags) is unchanged and still composes up to 7.
-export const PLATFORM_HASHTAG_LIMIT: Record<string, number> = { instagram: 7, tiktok: 5, youtube: 7 }
+// ── PLATFORM-AWARE CAPS ───────────────────────────────────────────────────────────────────────
+// Social Beast PRODUCT limits per publishing destination — NOT platform API hard caps.
+//
+// Instagram is 5, the SAME number as MAX_HASHTAGS. That is the point: this used to read 7, which
+// contradicted the canonical product rule two screens up and let the editor add two tags that
+// generation would never produce. One rule, one number. YouTube keeps its own 7 because no
+// YouTube publishing exists yet to have an opinion.
+export const PLATFORM_HASHTAG_LIMIT: Record<string, number> = { instagram: MAX_HASHTAGS, tiktok: 5, youtube: 7 }
+
+/** The hashtag cap for one platform id — the single server-side answer to "how many may be stored
+ *  for this post?". Unknown/absent platform falls back to the canonical MAX_HASHTAGS rather than a
+ *  looser per-route constant. */
+export function hashtagLimitForPlatform(platform: string | null | undefined): number {
+  const n = PLATFORM_HASHTAG_LIMIT[(platform ?? "").toLowerCase()]
+  return typeof n === "number" ? n : MAX_HASHTAGS
+}
 
 /**
  * The editor hashtag cap for a set of selected destinations: the STRICTEST (smallest) limit among
- * them, so any selection that includes TikTok caps at 5 while Instagram and/or YouTube alone allow 7.
- * Unknown platform ids are ignored; an empty/all-unknown selection falls back to `fallback` (the
- * Instagram baseline, 7). Pure and deterministic — existing tags over the cap are the caller's concern
- * (they are kept and flagged, never trimmed here).
+ * them. Unknown platform ids are ignored; an empty/all-unknown selection falls back to `fallback`,
+ * which is the canonical MAX_HASHTAGS — never a looser number, so a cleared selection can only
+ * tighten the cap, never widen it. Pure and deterministic — existing tags over the cap are the
+ * caller's concern (they are kept and flagged, never trimmed here).
  */
-export function hashtagLimitFor(selected: Iterable<string>, fallback = 7): number {
+export function hashtagLimitFor(selected: Iterable<string>, fallback = MAX_HASHTAGS): number {
   const limits: number[] = []
   for (const id of selected) {
     const n = PLATFORM_HASHTAG_LIMIT[id]

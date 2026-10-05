@@ -106,6 +106,25 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       .update({ render_status: "ready", rendered_storage_path: derivativePath, render_version: nextVersion, render_error: null, updated_at: new Date().toISOString() })
       .eq("id", id)
 
+    // ── THE READY TRANSITION ────────────────────────────────────────────────────────────────
+    // render_status and status are DIFFERENT axes and stay that way: render_status describes the
+    // MP4, status describes where the post is in its lifecycle. A finished render makes a post
+    // publishable, so a DRAFT becomes 'ready' — which is exactly what the manual publish route has
+    // always claimed on, and what nothing ever wrote.
+    //
+    // A SCHEDULED post is deliberately left alone. Its eligibility is (scheduled + due +
+    // render_status='ready'), evaluated by the worker at its scheduled time; promoting it to
+    // 'ready' here would drop its scheduled_at out of the worker's selection and publish it the
+    // moment it finished rendering. Rendering must never cause publication.
+    //
+    // Guarded on status='draft' so a re-render of a published/publishing/needs_attention post
+    // cannot walk it backwards into a publishable state.
+    await supabase
+      .from("social_posts")
+      .update({ status: "ready", updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("status", "draft")
+
     return NextResponse.json({ status: "ready", renderVersion: nextVersion })
   } catch (e) {
     const message = e instanceof Error ? e.message.slice(0, 400) : "render error"

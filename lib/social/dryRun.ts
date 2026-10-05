@@ -9,7 +9,7 @@
 // publish uses (buildInstagramCaptionPayload), so the dry run is byte-identical to what production
 // would send. Enforced by scripts/social/dryRun.test.ts (static source assertions).
 import type { SupabaseClient } from "@supabase/supabase-js"
-import { buildInstagramCaptionPayload } from "@/lib/social/composePost"
+import { buildInstagramCaptionPayload, isOverlayTemplate } from "@/lib/social/composePost"
 
 export type PublishPreview = {
   postId: string
@@ -43,13 +43,13 @@ export async function buildPublishPreview(deps: {
 
   const { data: post } = await supabase
     .from("social_posts")
-    .select("id, platform, render_status, rendered_storage_path, render_version, caption, hashtags, social_special, source_content_id, connection_id, external_post_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
+    .select("id, platform, render_status, rendered_storage_path, render_version, caption, hashtags, social_special, overlay_template, source_content_id, connection_id, external_post_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
     .eq("id", postId)
     .maybeSingle()
   if (!post) return { ok: false, status: 404, error: "not_found" }
   const p = post as {
     id: string; platform: string; render_status: string; rendered_storage_path: string | null; render_version: number | null
-    caption: string | null; hashtags: string[] | null; social_special: string | null; source_content_id: string | null
+    caption: string | null; hashtags: string[] | null; social_special: string | null; overlay_template: string | null; source_content_id: string | null
     connection_id: string | null; external_post_id: string | null
     source: { market: string | null; property_type: string | null; special: string | null; budget_range: string | null; amenities: string | null } | { market: string | null; property_type: string | null; special: string | null; budget_range: string | null; amenities: string | null }[] | null
   }
@@ -65,6 +65,7 @@ export async function buildPublishPreview(deps: {
     hashtags: p.hashtags,
     socialSpecial: p.social_special,
     sourceContentId: p.source_content_id,
+    overlayTemplate: isOverlayTemplate(p.overlay_template) ? p.overlay_template : null,
     source: Array.isArray(p.source) ? p.source[0] : p.source,
   })
 

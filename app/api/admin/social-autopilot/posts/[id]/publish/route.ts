@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { instagramConfigured, createReelContainer } from "@/lib/social/instagram"
-import { buildInstagramCaptionPayload } from "@/lib/social/composePost"
+import { buildInstagramCaptionPayload, isOverlayTemplate } from "@/lib/social/composePost"
 
 // POST /posts/[id]/publish — Instagram Reels publish PHASE 1 (single post → single selected
 // destination). This STARTS the async flow: it validates everything, retrieves the token
@@ -23,13 +23,13 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   // Ownership is enforced by RLS (owner-scoped): the admin can only read their own post.
   const { data: post } = await supabase
     .from("social_posts")
-    .select("id, status, render_status, rendered_storage_path, render_version, connection_id, caption, hashtags, external_post_id, platform, social_special, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
+    .select("id, status, render_status, rendered_storage_path, render_version, connection_id, caption, hashtags, external_post_id, platform, social_special, overlay_template, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
     .eq("id", id)
     .maybeSingle()
   if (!post) return NextResponse.json({ error: "not_found" }, { status: 404 })
   const p = post as {
     id: string; status: string; render_status: string; rendered_storage_path: string | null; render_version: number | null
-    connection_id: string | null; caption: string | null; hashtags: string[] | null; external_post_id: string | null; platform: string
+    connection_id: string | null; caption: string | null; hashtags: string[] | null; external_post_id: string | null; platform: string; overlay_template: string | null
     social_special: string | null; source_content_id: string | null
     source: { market: string | null; property_type: string | null; special: string | null; budget_range: string | null; amenities: string | null } | { market: string | null; property_type: string | null; special: string | null; budget_range: string | null; amenities: string | null }[] | null
   }
@@ -79,6 +79,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       hashtags: p.hashtags,
       socialSpecial: p.social_special,
       sourceContentId: p.source_content_id,
+      overlayTemplate: isOverlayTemplate(p.overlay_template) ? p.overlay_template : null,
       source: Array.isArray(p.source) ? p.source[0] : p.source,
     })
     const containerId = await createReelContainer(dest.external_account_id, signed.signedUrl, caption, dest.token)

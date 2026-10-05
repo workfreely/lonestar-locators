@@ -3,7 +3,7 @@ export const runtime = "nodejs"
 import { NextResponse, type NextRequest } from "next/server"
 import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin"
 import { supabaseAdmin } from "@/lib/supabase/admin"
-import { getContainerStatus, publishReelContainer, getMediaPermalink } from "@/lib/social/instagram"
+import { finalizeInstagramPublish } from "@/lib/social/instagramFinalize"
 
 // POST /posts/[id]/publish/status — the async FINALIZE step. The client polls this after /publish.
 // It checks the Reels container's processing status and, only once FINISHED, calls media_publish
@@ -40,51 +40,26 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ error: "destination_unavailable" }, { status: 409 })
   }
 
-  try {
-    const containerStatus = await getContainerStatus(p.ig_container_id, dest.token)
+  // The container check, the exactly-once claim, the media_publish call and the result write all
+  // live in finalizeInstagramPublish — shared verbatim with the cron worker, so the manual path and
+  // the automatic path cannot drift in the one place a duplicate Reel could originate.
+  const outcome = await finalizeInstagramPublish({
+    db: supabase,
+    postId: id,
+    containerId: p.ig_container_id,
+    igUserId: dest.external_account_id,
+    token: dest.token,
+  })
 
-    if (containerStatus === "IN_PROGRESS" || containerStatus === "UNKNOWN") {
-      return NextResponse.json({ status: "publishing", containerStatus })
-    }
-    if (containerStatus === "ERROR" || containerStatus === "EXPIRED") {
-      await supabase.from("social_posts").update({ status: "needs_attention", error_message: `container ${containerStatus}`, updated_at: new Date().toISOString() }).eq("id", id)
-      return NextResponse.json({ status: "failed", containerStatus })
-    }
-
-    // FINISHED (or already PUBLISHED). Claim the finalize atomically to prevent a concurrent poll
-    // from calling media_publish twice: move status out of 'publishing' guarded by external_post_id
-    // still null. If we don't win the claim, someone else is finalizing → report current state.
-    const { data: claim } = await supabase
-      .from("social_posts")
-      .update({ status: "published", updated_at: new Date().toISOString() })
-      .eq("id", id)
-      .eq("status", "publishing")
-      .is("external_post_id", null)
-      .select("id")
-      .maybeSingle()
-    if (!claim) {
-      const { data: fresh } = await supabase.from("social_posts").select("status, external_post_id, external_post_url").eq("id", id).maybeSingle()
-      const f = fresh as { status: string; external_post_id: string | null; external_post_url: string | null } | null
-      return NextResponse.json({ status: f?.external_post_id ? "published" : (f?.status ?? "publishing"), mediaId: f?.external_post_id, url: f?.external_post_url })
-    }
-
-    try {
-      const mediaId = await publishReelContainer(dest.external_account_id, p.ig_container_id, dest.token)
-      const url = await getMediaPermalink(mediaId, dest.token)
-      await supabase
-        .from("social_posts")
-        .update({ external_post_id: mediaId, external_post_url: url, published_at: new Date().toISOString(), status: "published", error_message: null, updated_at: new Date().toISOString() })
-        .eq("id", id)
-      return NextResponse.json({ status: "published", mediaId, url })
-    } catch (e) {
-      // media_publish failed after the claim — revert to needs_attention (post preserved).
-      const message = e instanceof Error ? e.message.slice(0, 400) : "publish error"
-      await supabase.from("social_posts").update({ status: "needs_attention", error_message: message, updated_at: new Date().toISOString() }).eq("id", id)
-      return NextResponse.json({ status: "failed", error: "publish_failed" }, { status: 502 })
-    }
-  } catch (e) {
-    const message = e instanceof Error ? e.message.slice(0, 400) : "status error"
-    await supabase.from("social_posts").update({ status: "needs_attention", error_message: message, updated_at: new Date().toISOString() }).eq("id", id)
-    return NextResponse.json({ status: "failed", error: "status_failed" }, { status: 502 })
+  if (outcome.state === "published") {
+    return NextResponse.json({ status: "published", mediaId: outcome.mediaId, url: outcome.url, recovered: outcome.recovered ?? false })
   }
+  if (outcome.state === "pending") return NextResponse.json({ status: "publishing", containerStatus: outcome.containerStatus })
+  if (outcome.state === "failed") return NextResponse.json({ status: "failed", error: "publish_failed" }, { status: 502 })
+
+  // Lost the claim → another poll (or the worker) is finalizing. Report the row's current truth
+  // rather than guessing; this is a normal race outcome, not an error.
+  const { data: fresh } = await supabase.from("social_posts").select("status, external_post_id, external_post_url").eq("id", id).maybeSingle()
+  const f = fresh as { status: string; external_post_id: string | null; external_post_url: string | null } | null
+  return NextResponse.json({ status: f?.status ?? "publishing", mediaId: f?.external_post_id ?? null, url: f?.external_post_url ?? null })
 }

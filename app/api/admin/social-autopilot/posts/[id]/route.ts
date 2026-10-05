@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { requirePlatformAdmin, type PlatformAdminGuardOk } from "@/lib/auth/requirePlatformAdmin"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { isValidPostType } from "@/lib/social/postTypes"
-import { normalizeHashtag } from "@/lib/social/hashtags"
+import { normalizeHashtag, hashtagLimitForPlatform } from "@/lib/social/hashtags"
 import { isOverlayTemplate } from "@/lib/social/composePost"
 
 // One post: GET (composer load), PATCH (save fields / schedule / unschedule), DELETE.
@@ -17,7 +17,6 @@ const SELECT =
   "source:source_content_id(display_name, property_name, property_type, place_id, market, special, budget_range, price_label_mode, amenities, storage_path, original_filename, kind, overlay_mode)"
 const SIGNED_URL_TTL = 60 * 30
 const AUDIO_CHOICES = new Set(["original", "none", "lb_track"])
-const MAX_HASHTAGS = 30
 
 /**
  * The matched property's full street address, read from the catalog.
@@ -177,6 +176,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if ("voiceHookId" in body && (body.voiceHookId === null || (typeof body.voiceHookId === "string" && VOICE_UUID.test(body.voiceHookId)))) { patch.voice_hook_id = body.voiceHookId; renderAffecting = true }
   if ("voiceCtaId" in body && (body.voiceCtaId === null || (typeof body.voiceCtaId === "string" && VOICE_UUID.test(body.voiceCtaId)))) { patch.voice_cta_id = body.voiceCtaId; renderAffecting = true }
   if ("hashtags" in body && Array.isArray(body.hashtags)) {
+    // The cap is the PLATFORM's product rule, read from the one shared table. This used to be a
+    // local `const MAX_HASHTAGS = 30` that shadowed the canonical export: the name made the line
+    // look like it honoured the 5-tag rule while actually storing up to 30, and it was the real
+    // ceiling on every stored post. Server-side enforcement matters because the editor's cap is
+    // only a React render condition.
+    const { data: existing } = await supabase.from("social_posts").select("platform").eq("id", id).maybeSingle()
+    const cap = hashtagLimitForPlatform((existing as { platform?: string | null } | null)?.platform)
     const seen = new Set<string>()
     const tags: string[] = []
     for (const raw of body.hashtags as unknown[]) {
@@ -184,7 +190,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       if (!t || seen.has(t.toLowerCase())) continue
       seen.add(t.toLowerCase())
       tags.push(t)
-      if (tags.length >= MAX_HASHTAGS) break
+      if (tags.length >= cap) break
     }
     patch.hashtags = tags
   }
