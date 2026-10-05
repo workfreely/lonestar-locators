@@ -9,6 +9,7 @@ import { resolvePropertyMatch } from "@/lib/social/resolveProperty"
 import { buildHashtags, MAX_HASHTAGS } from "@/lib/social/hashtags"
 import { preparePost, DEFAULT_OVERLAY_TEMPLATE } from "@/lib/social/composePost"
 import { computeOverlayLayout } from "@/lib/social/overlaySpec"
+import { DEFAULT_PLATFORM } from "@/lib/social/platformSafeArea"
 import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
 import PropertySearchField, { type PropertyMatch } from "@/components/crm/social/PropertySearchField"
 import AreaSelect from "@/components/crm/social/AreaSelect"
@@ -292,7 +293,14 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
   // That bypassed fit-to-width entirely, so "SAN ANTONIO SPLIT-LEVEL PENTHOUSES" rendered as three
   // stacked lines here while the actual burn-in was one fitted line. Bulk Review rows have no
   // per-row template (it is chosen later in Create Post), so the preview shows the default (T1).
-  const bulkLayout = activePrep ? computeOverlayLayout(DEFAULT_OVERLAY_TEMPLATE, activePrep.overlayHeadline, activePrep.overlaySubheadline) : null
+  //
+  // PLATFORM PARITY: these rows have no post yet, so there is no post.platform to read. The posts
+  // route creates every new post as Instagram, so that is the platform whose safe box the burn-in
+  // will use — passed EXPLICITLY rather than left to the parameter default, so this preview states
+  // which platform it is showing instead of inheriting one by accident. A guard test asserts the
+  // creation platform still matches DEFAULT_PLATFORM; if post creation ever becomes multi-platform,
+  // that test fails here rather than this preview silently drifting from the render.
+  const bulkLayout = activePrep ? computeOverlayLayout(DEFAULT_OVERLAY_TEMPLATE, activePrep.overlayHeadline, activePrep.overlaySubheadline, DEFAULT_PLATFORM) : null
   const activeConfirmed = !!(active && active.matched && active.placeId)
 
   return (

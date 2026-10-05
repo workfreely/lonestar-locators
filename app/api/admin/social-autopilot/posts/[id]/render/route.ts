@@ -30,7 +30,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
 
   const { data: post, error: readErr } = await supabase
     .from("social_posts")
-    .select("id, source_content_id, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, voice_hook_id, voice_cta_id, render_version, source:source_content_id(storage_path)")
+    .select("id, platform, source_content_id, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, voice_hook_id, voice_cta_id, render_version, source:source_content_id(storage_path)")
     .eq("id", id)
     .maybeSingle()
   if (readErr) return NextResponse.json({ error: "render_failed" }, { status: 500 })
@@ -90,6 +90,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       headline: existingText ? "" : ((p.overlay_headline as string | null) ?? ""),
       subheadline: existingText ? "" : ((p.overlay_subheadline as string | null) ?? ""),
       audioChoice: existingText ? "original" : (((p.audio_choice as string) || "original") as AudioChoice),
+      platform: (p.platform as string | null) ?? "instagram",
       workDir: work,
       hookPath: hookLocal,
       ctaPath: ctaLocal,

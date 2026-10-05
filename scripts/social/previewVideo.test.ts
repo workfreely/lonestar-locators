@@ -80,7 +80,14 @@ console.log("\nThe render path itself is UNCHANGED by this pass:")
   ok("mix still pinned to the video duration", /apad,atrim=end=/.test(render))
   const route = stripComments(read("app/api/admin/social-autopilot/posts/[id]/render/route.ts"))
   ok("the render route still passes Hook/CTA paths", /hookPath:/.test(route) && /ctaPath:/.test(route))
-  ok("the render route publishes nothing", !/instagram|tiktok|youtube/i.test(route))
+  // Assert the ACTUAL claim — no publish call — rather than the absence of platform NAMES. The
+  // route now legitimately names a platform when choosing which safe area to fit the headline into,
+  // which is not publishing.
+  ok("the render route publishes nothing",
+    !/createReelContainer|publishReelContainer|media_publish|\/publish|integrations\/tiktok/i.test(route))
+  ok("…and the only platform reference is the safe-area selection",
+    !/instagram/i.test(route.replace(/platform: \(p\.platform as string \| null\) \?\? "instagram"/g, "")
+      .replace(/Instagram publishing here/gi, "").replace(/Active overlay fonts[\s\S]*?identically\./g, "")))
 }
 
 console.log(`\nPreview Video: ${pass} passed, ${fail} failed`)

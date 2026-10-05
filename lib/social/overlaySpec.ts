@@ -4,6 +4,7 @@
 // text clear of the Reel UI (top actions, bottom caption/controls).
 
 import { COMPOUND_TYPE_QUALIFIERS } from "@/lib/social/propertyTypes"
+import { safeAreaFor, sideMarginPx, textAvailPx, DEFAULT_PLATFORM } from "@/lib/social/platformSafeArea"
 
 export const OVERLAY_CANVAS = { w: 1080, h: 1920 } as const
 
@@ -162,10 +163,15 @@ const COMPOUND_HEADLINE_RE = new RegExp(
 export function isCompoundHeadline(text: string | null | undefined): boolean {
   return COMPOUND_HEADLINE_RE.test(text ?? "")
 }
-// Conversational ceiling. 46 -> 28: at 46 the short hooks (T11/T3/T13) dominated the frame; 28 is the
-// intended conversational scale, letting the footage stay dominant. HOOK_MIN_PX is kept only for the
-// exported range assertions — the live floor is HOOK_FLOOR_PX below.
-export const HOOK_MAX_PX = 28, HOOK_MIN_PX = 22
+// Conversational ceiling. History: 46 -> 28 (at 46 the short hooks dominated the frame), then
+// 28 -> 38 after a live Instagram test showed 28 was substantially too small on an actual phone —
+// ~1.5% of frame height, which reads as thin and barely legible over bright footage regardless of
+// the Bold face. 38 was chosen from a measured sweep over all 42 existing conversational posts:
+// it is the largest ceiling that keeps the COMMON case on one line (36/42), invokes shrink-to-fit
+// on nothing, and overflows nothing. 40 was rejected — it wraps 12/42 including the average-length
+// headline, for no visible gain.
+// HOOK_MIN_PX is kept only for the exported range assertions — the live floor is HOOK_FLOOR_PX below.
+export const HOOK_MAX_PX = 38, HOOK_MIN_PX = 22
 
 // Per-character advance (px) at 100px in LibreBaskerville-Head.ttf (Libre Baskerville Bold, wght 700,
 // unitsPerEm 1000). Covers the full headline vocabulary (A–Z, a–z, space, hyphen, colon, apostrophe).
@@ -369,6 +375,33 @@ export const CENTER_HOOK = { maxPx: HOOK_MAX_PX, minPx: HOOK_MIN_PX, lineSpacing
 // HERO templates (T1 / T2 / T4) do NOT use any of this — they have their own branch, their own
 // [HERO_MIN_PX, HERO_MAX_PX] range and their own detail sizing, all unchanged.
 const HOOK_FLOOR_PX = 22 // only reachable by copy too long for the box even at the ceiling
+
+// ── Conversational safe box ──────────────────────────────────────────────────────────────────
+// Now PER PLATFORM — see lib/social/platformSafeArea.ts, where the Instagram numbers are measured
+// from a real published Reel rather than estimated. Instagram's box is 860px (110px margins): the
+// engagement rail starts at x978, and the old 900px box let a fitted headline reach x990, i.e.
+// under the icons.
+//
+// This export keeps the Instagram width available as the module-level default so existing callers
+// and tests read unchanged; the platform-aware values come from safeAreaFor().
+//
+// A matching HOOK_SIDE_MARGIN_PX was removed: the live margin comes from sideMarginPx(platform) at
+// the point the block is built, so a module-level constant could only ever restate Instagram's and
+// would read as configuration the layout respects when nothing consumed it.
+//
+// Deliberately NOT a change to OVERLAY_SPEC.headline.sideMarginPx: that constant is shared with the
+// HERO family, whose typography is out of scope here.
+export const HOOK_TEXT_AVAIL_PX = textAvailPx(DEFAULT_PLATFORM) // Instagram: 860
+
+// A one-line headline shrinks to fit rather than wrapping — "largest size that keeps it on one
+// line" is the rule, not a single flat size. This is the floor below which shrinking stops being
+// worth it and a wrap reads better.
+//
+// 26 is not arbitrary. Across all 101 generated conversational headlines the required one-line size
+// falls in two clusters with a gap at 26: the trade_up family needs 18–25px (half the ceiling —
+// genuinely too small, and it is the family already designed as two-line), while everything else
+// needs 27px or more. 26 separates them without clipping either group.
+const HOOK_ONE_LINE_MIN_PX = 26
 /** Fit conversational text inside a box, measured with the HEAD advance map. Tests the floor itself
  *  (unlike fitHeadlinePx, which returns minPx untested) so the size returned is always one that was
  *  actually measured. `availPx` lets the conversational DETAIL — which renders in the same head face —
@@ -378,19 +411,19 @@ function fitHookPx(text: string, maxPx: number, minPx: number = HOOK_FLOOR_PX, a
   return minPx
 }
 
-// Supporting/detail line for the center-hook family: a FLAT 27px, against a 28px hook.
+// Supporting/detail line for the center-hook family: a FLAT 36px, against a 38px hook.
 //
-// 28/27 is DELIBERATE and not an accident of some ratio. This started as a 0.75 ratio (21px), then a
+// 38/36 is DELIBERATE and not an accident of some ratio. This started as a 0.75 ratio (21px), then a
 // flat 24px; both tested too small for lines like "Starting at $1,500/mo" on real mobile video.
 // Legibility on a phone outranks a numeric size hierarchy here — the supporting line is already
 // subordinate by placement (below the hook) and by content, so it does not need to be visibly smaller
 // to read as secondary. Do not "restore proportion" by shrinking this.
 //
-// The clamp is a safety rail, not the rule. It is hook − 1 rather than hook − 2 precisely so 27 is
-// reachable at the 28px ceiling, while still guaranteeing the supporting line stays STRICTLY under the
-// headline if a hook ever shrinks below the ceiling (only reachable by copy too long for the box even
-// at 28px). Hero detail sizing (MARKET_TYPE_DETAIL_PX, OVERLAY_SPEC.sub.fontPx) is NOT affected.
-const HOOK_DETAIL_PX = 27
+// The clamp is a safety rail, not the rule. It is hook − 1 so the detail is always reachable at the
+// ceiling (36 sits under the 38 hook with room to spare), while still guaranteeing the supporting
+// line stays STRICTLY under the headline if a hook ever shrinks below the ceiling (only reachable by
+// copy too long for the box even at 38px). Hero detail sizing (MARKET_TYPE_DETAIL_PX, OVERLAY_SPEC.sub.fontPx) is NOT affected.
+const HOOK_DETAIL_PX = 36
 const HOOK_DETAIL_MIN_PX = 20
 function hookDetailPxFor(hookPx: number): number {
   return Math.min(HOOK_DETAIL_PX, Math.max(HOOK_DETAIL_MIN_PX, hookPx - 1))
@@ -431,7 +464,7 @@ export type OverlayLayout = { family: LayoutFamily; headline: OverlayBlock; deta
 
 /** Resolve the on-canvas (1080×1920) layout for a template + its already-computed headline/detail
  *  text. Shared by the CSS preview and the FFmpeg render so the two match. */
-export function computeOverlayLayout(template: string, headlineText: string, detailText: string): OverlayLayout {
+export function computeOverlayLayout(template: string, headlineText: string, detailText: string, platform: string = DEFAULT_PLATFORM): OverlayLayout {
   const family = templateFamily(template)
   const H = OVERLAY_CANVAS.h
   const detail = (detailText ?? "").trim()
@@ -502,8 +535,19 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   // a LOWER floor can only make one line easier to achieve, so "This is what real rental home living
   // looks like" stays single-line a fortiori (asserted in the composer tests).
   const hookMinPx = HOOK_FLOOR_PX
+  // FIT DOWN FIRST. A one-line headline renders at the LARGEST size in
+  // [HOOK_ONE_LINE_MIN_PX, ceiling] that keeps it on one line in the conversational box — so sizes
+  // vary per headline (38px short, 31px long) instead of one flat size forcing long copy to wrap.
+  // fitHookPx returns its minPx untested when nothing fits, so the result is re-measured before it
+  // is trusted as a genuine one-line fit.
+  // The box is the PLATFORM's text-safe area, not the raw canvas — Instagram's measured 860px
+  // here, TikTok's narrower box when rendering for TikTok. Each platform fits to its own; a wider
+  // platform is never penalised by a narrower one's estimate.
+  const safeW = textAvailPx(platform)
+  const oneLinePx = oneLine ? fitHookPx(oneLine, hookMaxPx, HOOK_ONE_LINE_MIN_PX, safeW) : 0
+  const fitsOneLine = !!oneLine && headlineTextWidthPx(oneLine, oneLinePx) <= safeW
   let lines = oneLine ? [oneLine] : []
-  let hookPx = oneLine ? fitHookPx(oneLine, hookMaxPx, hookMinPx) : hookMaxPx
+  let hookPx = fitsOneLine ? oneLinePx : hookMaxPx
   // Copy too wide for the box AT THE CEILING WRAPS rather than shrinking below the conversational
   // scale. The trigger is deliberately the CEILING, not the floor: at the floor, T12's sentence does
   // fit one line (837px at 22px) — but only by rendering ~5px smaller than every other template, which
@@ -511,21 +555,21 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   // at the same 28px as its siblings. Only T12 reaches this branch; every other hook fits one line at
   // the ceiling. The per-line budget comes from the real measured width (no magic constant) and breaks
   // the sentence into as FEW lines as possible, so T12 is two lines, never three.
-  if (oneLine && headlineTextWidthPx(oneLine, hookMaxPx) > HEADLINE_TEXT_AVAIL_PX) {
+  if (oneLine && !fitsOneLine) {
     // BALANCED break. Packing each line to the box maximally left an orphan ("…for a" / "rental
     // home" — 877px then 92px). Take the fewest lines the width actually requires, then use the
     // SMALLEST character budget that still produces that many lines: an even split is the starting
     // guess, and the budget grows until the greedy wrapper stops over-splitting (an even split alone
     // pushed the short types to three lines). The result is the minimum line count with lines of
     // near-equal length.
-    const needed = Math.max(2, Math.ceil(headlineTextWidthPx(oneLine, hookMaxPx) / HEADLINE_TEXT_AVAIL_PX))
+    const needed = Math.max(2, Math.ceil(headlineTextWidthPx(oneLine, HOOK_ONE_LINE_MIN_PX) / safeW))
     let perLine = Math.max(8, Math.ceil(oneLine.length / needed))
     lines = wrapHeadline(oneLine, perLine)
     while (lines.length > needed && perLine < oneLine.length) {
       perLine++
       lines = wrapHeadline(oneLine, perLine)
     }
-    hookPx = Math.min(...lines.map((l) => fitHookPx(l, hookMaxPx, hookMinPx)))
+    hookPx = Math.min(...lines.map((l) => fitHookPx(l, hookMaxPx, hookMinPx, safeW)))
   }
   const n = Math.max(1, lines.length)
   const headBlockH = n * hookPx + (n - 1) * CENTER_HOOK.lineSpacing
@@ -535,7 +579,7 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   // an unusually long detail needs it; never wraps/stacks.
   // Measured with HEADLINE metrics because it now RENDERS in the head face — using the Bodoni advance
   // map here would under-measure it by ~13% and break preview/render parity. Size and box are unchanged.
-  const detailPx = hasDetail ? fitHookPx(detail, hookDetailPxFor(hookPx), HOOK_DETAIL_MIN_PX, DETAIL_TEXT_AVAIL_PX) : CENTER_HOOK.detailFontPx
+  const detailPx = hasDetail ? fitHookPx(detail, hookDetailPxFor(hookPx), HOOK_DETAIL_MIN_PX, safeW) : CENTER_HOOK.detailFontPx
   const detailLines = hasDetail ? [detail] : []
   const detailBlockH = hasDetail ? detailPx : 0 // one line
   const gap = hasDetail ? (template === "upgrade" || template === "apartment_standards" ? UPGRADE_DETAIL_GAP_PX : CENTER_HOOK_DETAIL_GAP_PX) : 0 // Upgrade + its variant a touch looser; T8 stays 16
@@ -545,9 +589,9 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   // reuses T1's own yFrac constant, so the hook typography/fit stays identical to T11's.
   const topAnchored = template === "what_mo_gets_you_top"
   const groupTop = topAnchored ? OVERLAY_SPEC.headline.yFrac * H : (H - totalH) / 2
-  const headline: OverlayBlock = { lines, fontPx: hookPx, topPx: groupTop, uppercase: false, sideMarginPx: OVERLAY_SPEC.headline.sideMarginPx, lineSpacing: CENTER_HOOK.lineSpacing, face: "head" }
+  const headline: OverlayBlock = { lines, fontPx: hookPx, topPx: groupTop, uppercase: false, sideMarginPx: sideMarginPx(platform), lineSpacing: CENTER_HOOK.lineSpacing, face: "head" }
   const detailBlock: OverlayBlock | null = hasDetail
-    ? { lines: detailLines, fontPx: detailPx, topPx: groupTop + headBlockH + gap, uppercase: false, sideMarginPx: OVERLAY_SPEC.sub.sideMarginPx, lineSpacing: OVERLAY_SPEC.sub.lineSpacing, face: "head" }
+    ? { lines: detailLines, fontPx: detailPx, topPx: groupTop + headBlockH + gap, uppercase: false, sideMarginPx: sideMarginPx(platform), lineSpacing: OVERLAY_SPEC.sub.lineSpacing, face: "head" }
     : null
   return { family, headline, detail: detailBlock }
 }

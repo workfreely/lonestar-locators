@@ -229,6 +229,7 @@ function Thumb({ card }: { card: Card }) {
 function draftOverlayFor(posts: {
   status: string; overlayMode: string; overlayTemplate: string | null
   overlayHeadline: string | null; overlaySubheadline: string | null; updatedAt: string | null
+  platform: string | null
 }[] | undefined): OverlayLayout | null {
   if (!posts || posts.length === 0) return null
   const newest = [...posts].sort(
@@ -241,7 +242,11 @@ function draftOverlayFor(posts: {
   const tpl = (OVERLAY_TEMPLATES as readonly string[]).includes(newest.overlayTemplate ?? "")
     ? (newest.overlayTemplate as string)
     : DEFAULT_OVERLAY_TEMPLATE
-  return computeOverlayLayout(tpl, headline, newest.overlaySubheadline ?? "")
+  // PLATFORM PARITY: the draft's own platform — the same field the render route reads — so this
+  // card preview is fitted to the same safe box the burn-in will use. `?? undefined` lets
+  // computeOverlayLayout apply its documented Instagram fallback for a row that predates the
+  // column; it is never silently forced to Instagram for a post that HAS a platform.
+  return computeOverlayLayout(tpl, headline, newest.overlaySubheadline ?? "", newest.platform ?? undefined)
 }
 
 export default function SocialAutopilotClient() {
@@ -293,6 +298,9 @@ export default function SocialAutopilotClient() {
     overlayMode: string; overlayTemplate: string | null
     overlayHeadline: string | null; overlaySubheadline: string | null
     updatedAt: string | null
+    // The post's publishing platform — carried so the card preview is fitted to the same safe
+    // area the render path uses for this post.
+    platform: string | null
   }
   const [postsBySource, setPostsBySource] = useState<Record<string, EditablePost[]>>({})
   const [editMenuFor, setEditMenuFor] = useState<string | null>(null) // source id whose picker is open
@@ -321,6 +329,7 @@ export default function SocialAutopilotClient() {
             id: string; sourceContentId: string | null; status: string; scheduledAt: string | null; postName: string | null
             overlayMode?: string | null; overlayTemplate?: string | null
             overlayHeadline?: string | null; overlaySubheadline?: string | null; updatedAt?: string | null
+            platform?: string | null
             source: { propertyName: string | null; displayName: string | null } | null
           }[]
         }
@@ -336,6 +345,7 @@ export default function SocialAutopilotClient() {
             overlayHeadline: p.overlayHeadline ?? null,
             overlaySubheadline: p.overlaySubheadline ?? null,
             updatedAt: p.updatedAt ?? null,
+            platform: p.platform ?? null,
           })
         }
         setPostsBySource(map)

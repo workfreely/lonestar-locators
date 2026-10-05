@@ -11,6 +11,7 @@ import { PRICE_LABEL_MODES, priceLabelMode as narrowPriceLabelMode, type PriceLa
 import SpecialSelect from "@/components/crm/social/SpecialSelect"
 import { computeOverlayLayout } from "@/lib/social/overlaySpec"
 import ReelCoverControl from "@/components/crm/social/ReelCoverControl"
+import SafeAreaOverlay from "@/components/crm/social/SafeAreaOverlay"
 import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
 import VideoLightbox from "@/components/crm/social/VideoLightbox"
 import PropertyResearch from "@/components/crm/social/PropertyResearch"
@@ -214,6 +215,9 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // The ONE preview element. The Reel cover reads its live currentTime instead of mounting a
   // second player — the position has already been chosen by scrubbing this one.
   const previewVideoRef = useRef<HTMLVideoElement>(null)
+  // Safe-area guide: off by default (it is a working aid, not the design), and it names the
+  // platform rather than implying one universal set of zones.
+  const [safeArea, setSafeArea] = useState<"off" | "instagram" | "tiktok">("off")
   const [sourceContentId, setSourceContentId] = useState<string | null>(null)
   const [propertyName, setPropertyName] = useState("")
   const [propertyType, setPropertyType] = useState("")
@@ -688,7 +692,15 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const previewSrc = rendered ? post.renderedPreviewUrl : post.previewUrl // source for the enlarge modal
   // The chosen template's layout drives the preview (Hero / Center Hook / Center Hook + Detail),
   // shared with the FFmpeg render. 'existing' mode draws no overlay.
-  const overlayLayout = overlayMode === "existing" ? null : computeOverlayLayout(overlayTemplate, headline, overlayDetail)
+  //
+  // PLATFORM PARITY: pass post.platform — the SAME field the render route selects and hands to
+  // renderReel. The safe box is per platform now, so omitting it here would silently fit the
+  // preview to Instagram's 860px while a TikTok render fitted to 764px, reintroducing exactly the
+  // preview/burn-in divergence this one-geometry-path architecture exists to prevent.
+  //
+  // Deliberately NOT `selectedPlatforms`: that selector is UI-only preparation for the eventual
+  // multi-platform workflow and does not change post.platform or what gets rendered.
+  const overlayLayout = overlayMode === "existing" ? null : computeOverlayLayout(overlayTemplate, headline, overlayDetail, post.platform)
 
   // Posting mode toggle (Post Once / Recurring) — reused as-is in two positions: above the Repeat
   // settings form, and inline in the compact Posting|Scheduled row. Same handler/state either way.
@@ -762,6 +774,21 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 </svg>
               </button>
             )}
+            <SafeAreaOverlay platform={safeArea === "off" ? "instagram" : safeArea} show={safeArea !== "off"} />
+          </div>
+
+          {/* Safe-area toggle — shows what each app's UI will cover. Presentational: the headline
+              fitter reads the same numbers from lib/social/platformSafeArea. */}
+          <div className="mt-1.5 flex items-center gap-1">
+            <span className="text-[10px] uppercase tracking-wide text-[var(--crm-text-muted)] mr-1">Safe area</span>
+            {(["off", "instagram", "tiktok"] as const).map((k) => (
+              <button key={k} type="button" onClick={() => setSafeArea(k)}
+                className={`text-[10.5px] font-semibold px-2 py-0.5 rounded-full border ${safeArea === k
+                  ? "border-[var(--crm-accent,#28a745)] text-[var(--crm-text-primary)] bg-[var(--crm-panel)]"
+                  : "border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]"}`}>
+                {k === "off" ? "Off" : k === "instagram" ? "Instagram" : "TikTok"}
+              </button>
+            ))}
           </div>
 
           {/* REEL COVER — a compact strip under the preview above. No second player: it reads the

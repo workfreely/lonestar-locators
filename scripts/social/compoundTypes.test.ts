@@ -275,8 +275,14 @@ console.log("\nCONVERSATIONAL templates keep the approved 28px / 27px sizing:")
   }
   // Exactly two sizes may appear. The T11 sentence-case change swaps uppercase letters for narrower
   // lowercase ones, so this also proves the new copy did not let any hook fit at a DIFFERENT size.
-  ok("every conversational compound render is 28px headline / 27px detail",
-    sizes.size === 2 && sizes.has("head 28") && sizes.has("detail 27"))
+  // Compound subjects are the LONGEST conversational copy, so under per-headline fitting they are
+  // exactly the ones that land below the ceiling. The invariant is no longer "one flat size" but
+  // "every render sits inside the allowed band, one line, detail strictly under the headline".
+  const nums = [...sizes].map((s) => ({ kind: s.split(" ")[0], px: Number(s.split(" ")[1]) }))
+  ok("every conversational compound render sits in the 26–38px band",
+    nums.every((n) => n.px >= 26 && n.px <= 38), [...sizes].join(" | "))
+  ok("…and every compound detail stays strictly under its headline",
+    nums.filter((n) => n.kind === "detail").every((d) => d.px <= 37), [...sizes].join(" | "))
   // The compound hero must NOT leak its per-line geometry into the conversational family.
   const conv = computeOverlayLayout("hits_different", buildTemplateHeadline("hits_different", meta("San Antonio", "Industrial-Style Loft", "$1,800 - $2,400")), "Starting at $1,800/month")
   ok("conversational blocks carry no per-line geometry", !conv.headline.linePx && !conv.headline.lineTopPx)

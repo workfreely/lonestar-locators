@@ -17,6 +17,8 @@ export type RenderInput = {
   outputPath: string // local path to write the rendered derivative
   fontPath: string // bundled TTF for the HEAD face (Libre Baskerville Bold) — headlines + conversational detail
   detailFontPath?: string // bundled TTF for the DETAIL face (Bodoni text cut) — HERO detail only; falls back to fontPath
+  /** Which platform's safe area the headline is fitted into. Defaults to Instagram. */
+  platform?: string
   template?: string | null // overlay template (drives the layout family); defaults to market_type
   headline?: string | null
   subheadline?: string | null // the template's detail line
@@ -235,7 +237,9 @@ export function buildAudioFilter(plan: AudioMixPlan): string | null {
 
 /** Compute the template layout, write each text block to a temp file, run ffmpeg. Throws on failure. */
 export async function renderReel(ffmpegPath: string, input: RenderInput): Promise<void> {
-  const layout = computeOverlayLayout(input.template ?? "market_type", (input.headline ?? "").trim(), (input.subheadline ?? "").trim())
+  // The platform decides the text-safe box, so one source post can produce a separate Instagram
+  // render and TikTok render from identical copy.
+  const layout = computeOverlayLayout(input.template ?? "market_type", (input.headline ?? "").trim(), (input.subheadline ?? "").trim(), input.platform ?? "instagram")
   const detailFont = input.detailFontPath ?? input.fontPath
   const items: DrawItem[] = []
   for (const it of buildDrawPlan(layout)) {
