@@ -12,13 +12,17 @@
 
 import LeadSourceBadge from "@/components/crm/LeadSourceBadge"
 import CollapsibleSection from "@/components/crm/CollapsibleSection"
+import { marketingLeads, resolveChannel } from "@/lib/leads/resolveChannel"
 
 export default function CampaignTable({ leads }: { leads: any[] }) {
+  // Same canonical channel as Lead Sources, so a campaign row and a source row can never disagree
+  // about what a lead was. Test records excluded — see LeadSourcesCard.
+  const scoped = marketingLeads(leads)
   const groups: Record<string, { campaign: string; source: string | null; count: number }> = {}
 
-  for (const l of leads) {
+  for (const l of scoped) {
     const campaign = l.utm_campaign || "(no campaign data)"
-    const source = l.utm_source || l.source || null
+    const source = resolveChannel(l)
     const key = `${campaign} ${source ?? ""}`
     if (!groups[key]) groups[key] = { campaign, source, count: 0 }
     groups[key].count += 1

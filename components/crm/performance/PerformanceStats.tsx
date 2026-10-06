@@ -10,6 +10,7 @@
 // classes) so the two stay visually consistent.
 
 import LeadSourceBadge from "@/components/crm/LeadSourceBadge"
+import { marketingLeads, resolveChannel } from "@/lib/leads/resolveChannel"
 
 const TOURED_STATUSES = new Set(["done_touring", "applied", "closed"])
 
@@ -31,10 +32,12 @@ export default function PerformanceStats({ leads }: { leads: any[] }) {
     ? Math.round((closedLeads.length / touredLeads.length) * 100)
     : 0
 
+  // Top Source reads the CANONICAL channel and ignores internal/test records, so it cannot
+  // disagree with the Lead Sources card directly beneath it.
   const sourceCounts: Record<string, number> = {}
   const campaignCounts: Record<string, number> = {}
-  for (const l of leads) {
-    const source = (l.source || "unknown").toLowerCase()
+  for (const l of marketingLeads(leads)) {
+    const source = resolveChannel(l)
     sourceCounts[source] = (sourceCounts[source] ?? 0) + 1
     if (l.utm_campaign) {
       campaignCounts[l.utm_campaign] = (campaignCounts[l.utm_campaign] ?? 0) + 1

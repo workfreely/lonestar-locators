@@ -41,6 +41,10 @@ const KNOWN_SOURCES: Record<string, SourceStyle> = {
   // First-class as of this update — previously only existed in a dead,
   // never-rendered map, so it had no real "existing" color to preserve.
   google: { label: "Google", badgeClassName: "bg-green-50 text-green-700 border-green-200", barColor: "#16a34a", color: "#22c55e" },
+  // Branded Smart Lead Form source links (/{agent}/email, /{agent}/qr). Added so those channels
+  // render a proper label and colour instead of the neutral unknown-source fallback.
+  email:  { label: "Email",   badgeClassName: "bg-slate-50 text-slate-700 border-slate-200",  barColor: "#475569", color: "#64748b" },
+  qr:     { label: "QR Code", badgeClassName: "bg-teal-50 text-teal-700 border-teal-200",     barColor: "#0d9488", color: "#14b8a6" },
 
   // Future-ready: no leads use this yet. Covers leads that come through
   // Vapi, a chat widget, or other AI-driven intake tools once wired up —

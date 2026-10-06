@@ -12,15 +12,24 @@
 // of being silently dropped.
 
 import LeadSourceBadge from "@/components/crm/LeadSourceBadge"
+import { marketingLeads, resolveChannel } from "@/lib/leads/resolveChannel"
 
 export default function LeadSourcesCard({ leads }: { leads: any[] }) {
+  // Grouped by the CANONICAL channel, not the raw leads.source string. That column mixes site
+  // labels ("Lone Star Website"), test labels and the submit route's fallback, so grouping on it
+  // put two paid Google leads and a YouTube lead inside one "Lone Star Website" bucket. Raw fields
+  // are untouched — this is read-time only.
+  //
+  // Internal/test records are excluded entirely rather than shown as a channel; they are not
+  // acquisition, and leaving them in inflates the denominator behind every percentage here.
+  const scoped = marketingLeads(leads)
   const counts: Record<string, number> = {}
-  for (const l of leads) {
-    const source = l.source || "unknown"
+  for (const l of scoped) {
+    const source = resolveChannel(l)
     counts[source] = (counts[source] ?? 0) + 1
   }
 
-  const total = leads.length
+  const total = scoped.length
   const rows = Object.entries(counts).sort((a, b) => b[1] - a[1])
 
   return (
