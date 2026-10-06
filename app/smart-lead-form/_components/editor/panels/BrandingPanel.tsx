@@ -4,6 +4,9 @@ import { AVAILABLE_THEME_GROUPS, CUSTOM_THEME_ID } from "@/lib/themes/config"
 import UploadTile from "../ui/UploadTile"
 import SegmentedControl from "../ui/SegmentedControl"
 import Select from "../ui/Select"
+import { TextField } from "../ui/TextField"
+import { DEFAULT_CONFIG } from "../../../_lib/defaultConfig"
+import { FORM_REASSURANCE_MAX } from "../../form/sections/AgentProfile"
 
 type Updater = (updater: (prev: SmartLeadFormConfig) => SmartLeadFormConfig) => void
 
@@ -37,9 +40,17 @@ const PROFILE_IMAGE_POSITION_OPTIONS: { id: SmartLeadFormConfig["branding"]["pro
 export default function BrandingPanel({ config, onChange }: { config: SmartLeadFormConfig; onChange: Updater }) {
   const { agentPhotoSize, profileImagePosition, heroTheme, heroImageUrl, heroOverlay, buttonColor } =
     config.branding
+  const { formReassurance } = config.copy
 
   function updateBranding(patch: Partial<SmartLeadFormConfig["branding"]>) {
     onChange((prev) => ({ ...prev, branding: { ...prev.branding, ...patch } }))
+  }
+
+  // The reassurance line is microcopy, so it lives in `copy` with the rest of the
+  // editable text even though its control sits in this panel beside the placement
+  // switch that governs whether it renders at all.
+  function updateCopy(patch: Partial<SmartLeadFormConfig["copy"]>) {
+    onChange((prev) => ({ ...prev, copy: { ...prev.copy, ...patch } }))
   }
 
   return (
@@ -58,6 +69,27 @@ export default function BrandingPanel({ config, onChange }: { config: SmartLeadF
           value={profileImagePosition}
           onChange={(value) => updateBranding({ profileImagePosition: value })}
         />
+
+        {/* Overlapping only, and shown HERE rather than in the Content tab because
+            it exists only as a consequence of the control directly above it — the
+            line lives in the gap that the Overlapping placement creates between the
+            agent block and the form. Switching to Under Headline hides the field
+            without discarding the text, so switching back restores it.
+
+            Clearing it is a supported choice: the renderer drops the line and
+            restores the section's original spacing. The placeholder shows the
+            default so a blank field still reads as deliberate rather than broken. */}
+        {profileImagePosition === "overlapping" && (
+          <div className="mt-3">
+            <TextField
+              label="Form Reassurance Text"
+              value={formReassurance}
+              onChange={(v) => updateCopy({ formReassurance: v })}
+              maxLength={FORM_REASSURANCE_MAX}
+              placeholder={DEFAULT_CONFIG.copy.formReassurance}
+            />
+          </div>
+        )}
       </div>
 
       <div className="py-3">

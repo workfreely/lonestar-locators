@@ -67,6 +67,18 @@ export type SmartLeadFormConfig = {
     serviceAreas: string
     socialHandle: string
     phoneNumber: string
+    /** One quiet line of reassurance between the agent identity block and the form
+     *  card, e.g. "Takes less than 60 seconds to complete."
+     *
+     *  OVERLAPPING PLACEMENT ONLY — it lives in AgentProfile, which is the only
+     *  thing that sits between the identity block and the form, and which is not
+     *  rendered at all for Under Headline.
+     *
+     *  Blank is a real, supported state: an agent who clears it gets no line and no
+     *  leftover gap. Because mergeSmartFormConfig spreads saved copy OVER the
+     *  defaults, a MISSING key (an older saved form) takes the default sentence
+     *  while a saved "" is preserved as the deliberate choice it is. */
+    formReassurance: string
     // Fixed at exactly 3 — the Highlights section shows a maximum of 3
     // pills, so there's no add/remove control, just three text fields.
     highlights: [string, string, string]
