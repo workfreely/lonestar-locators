@@ -10,7 +10,7 @@
 // campaign bucket (most commonly "(no campaign data)") would report a
 // single arbitrary source for a count that spans every source in it.
 
-import LeadSourceBadge from "@/components/crm/LeadSourceBadge"
+import ChannelLabel from "@/lib/leads/channelMeta"
 import CollapsibleSection from "@/components/crm/CollapsibleSection"
 import { marketingLeads, resolveChannel } from "@/lib/leads/resolveChannel"
 
@@ -47,7 +47,7 @@ export default function CampaignTable({ leads }: { leads: any[] }) {
                 <tr key={`${row.campaign} ${row.source ?? ""}`} className="border-b border-[var(--crm-border-soft)] last:border-0">
                   <td className="py-2 text-[var(--crm-text-primary)]">{row.campaign}</td>
                   <td className="py-2">
-                    <LeadSourceBadge source={row.source} className="text-[11px] px-2 py-0.5" />
+                    <ChannelLabel channel={row.source} className="text-[12px] text-[var(--crm-text-secondary)]" />
                   </td>
                   <td className="py-2 text-right font-semibold text-[var(--crm-text-primary)]">{row.count}</td>
                 </tr>

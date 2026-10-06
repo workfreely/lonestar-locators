@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { getSourceBarColor } from "@/lib/leads/sourceStyles"
 import { sumEstimatedCommission, sumClosedEstimatedCommission, DEFAULT_PROJECTION_METHOD, type ProjectionMethod } from "@/lib/leads/commissionEstimate"
+import ChannelLabel from "@/lib/leads/channelMeta"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 // Fallbacks when a profile hasn't set its own goals (real operator today).
@@ -198,19 +199,22 @@ export default function DashboardStats({
                   ))}
                 </div>
 
-                {/* Legend — all five sources always visible */}
+                {/* Legend — all five sources always visible.
+                    The icon is the identifier now, not a coloured dot: an inactive source keeps its
+                    real mark at reduced opacity, so the legend still reads
+                    "Web / TikTok / FB / IG / YT" when a source has no leads yet, instead of
+                    collapsing into five anonymous grey dots. Counts, tracked sources and the
+                    stacked bar above are unchanged. */}
                 <div className="mt-1.5 flex items-center flex-wrap gap-x-2.5 gap-y-0.5">
                   {withCounts.map((s) => (
-                    <span
+                    <ChannelLabel
                       key={s.key}
-                      className={`flex items-center gap-1 text-[10px] ${s.count === 0 ? "text-[var(--crm-text-muted)]/60" : "text-[var(--crm-text-secondary)]"}`}
-                    >
-                      <span
-                        className="w-1.5 h-1.5 rounded-full flex-none"
-                        style={{ backgroundColor: s.count === 0 ? "#d1d5db" : s.barColor }}
-                      />
-                      {s.label}
-                    </span>
+                      channel={s.key}
+                      label={s.label}
+                      size={11}
+                      dim={s.count === 0}
+                      className={`text-[10px] ${s.count === 0 ? "text-[var(--crm-text-muted)]" : "text-[var(--crm-text-secondary)]"}`}
+                    />
                   ))}
                 </div>
               </div>

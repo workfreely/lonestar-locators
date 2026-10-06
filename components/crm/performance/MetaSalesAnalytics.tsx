@@ -13,6 +13,7 @@
 import { useState } from "react"
 import CollapsibleSection from "@/components/crm/CollapsibleSection"
 import type { MetaSalesAnalytics, MetaSalesRow, MetaSalesMetrics } from "@/lib/meta/salesAnalytics"
+import ChannelLabel from "@/lib/leads/channelMeta"
 
 function money(n: number): string {
   return `$${Math.round(n).toLocaleString("en-US")}`
@@ -199,7 +200,11 @@ export default function MetaSalesAnalytics({ data }: { data: MetaSalesAnalytics 
                     <tbody>
                       {data!.platforms.map((p) => (
                         <tr key={p.key} className="border-b border-[var(--crm-border-soft)] last:border-0">
-                          <td className="py-2 px-3 text-[var(--crm-text-primary)]">{p.label}</td>
+                          <td className="py-2 px-3 text-[var(--crm-text-primary)]">
+                            {/* Same icon + label treatment as Lead Sources and Campaigns. p.label
+                                still supplies the text via the shared channel map. */}
+                            <ChannelLabel channel={p.key} />
+                          </td>
                           <td className="py-2 px-3 text-right tabular-nums">{int(p.leads)}</td>
                           <td className="py-2 px-3 text-right tabular-nums">{int(p.closed)}</td>
                           <td className="py-2 px-3 text-right tabular-nums font-semibold">{money(p.estimatedCommission)}</td>

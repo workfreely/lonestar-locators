@@ -11,7 +11,7 @@
 // exist in the known list yet still shows up (graceful fallback) instead
 // of being silently dropped.
 
-import LeadSourceBadge from "@/components/crm/LeadSourceBadge"
+import ChannelLabel from "@/lib/leads/channelMeta"
 import { marketingLeads, resolveChannel } from "@/lib/leads/resolveChannel"
 
 export default function LeadSourcesCard({ leads }: { leads: any[] }) {
@@ -47,7 +47,9 @@ export default function LeadSourcesCard({ leads }: { leads: any[] }) {
           const pct = total > 0 ? Math.round((count / total) * 100) : 0
           return (
             <div key={source} className="flex items-center gap-3">
-              <LeadSourceBadge source={source} className="flex-none text-[11px] px-2 py-0.5" />
+              {/* Icon + label replaces the filled badge: the mark is the identifier, the brand
+                  colour a restrained accent. Bars, counts and percentages are untouched. */}
+              <ChannelLabel channel={source} className="flex-none w-28 text-[12px] text-[var(--crm-text-secondary)]" />
               <div className="flex-1 h-2 bg-[var(--crm-inset)] rounded-full overflow-hidden">
                 <div
                   className="h-full bg-[var(--kb-accent)] rounded-full transition-all duration-500"
