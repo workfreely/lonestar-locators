@@ -1,3 +1,4 @@
+import { HiCheck } from "react-icons/hi2"
 import type { SmartLeadFormConfig } from "../../../_lib/types"
 import { AGENT_PHOTO_SIZES } from "../../../_lib/agentPhotoSizes"
 import AgentPhoto from "./AgentPhoto"
@@ -38,10 +39,18 @@ export default function AgentProfile({ config }: { config: SmartLeadFormConfig }
 
         <AgentInfoText config={config} theme="light" />
 
-        {/* Deliberately the quietest thing in the block — 13px, regular weight, and
-            the #6b7280 grey the service areas just vacated — so it reads as a
-            footnote to the identity block rather than a fourth line of it. No icon
-            and no pill: it is reassurance, not a badge.
+        {/* A quiet green pill: the middle rung of the page's three-level hierarchy —
+            the blue incentive bar above is the loud one (benefits), this is
+            low-friction reassurance, and the grey/black identity text is detail.
+            Staying BELOW the blue bar is the whole job, so the green is desaturated
+            on every axis: a near-white #f2f9f4 ground, a #d4e9dc hairline for
+            definition rather than contrast, and muted #2f6b4a text. A saturated
+            green with a filled ground would read as a success ALERT — something that
+            just happened — when nothing has happened yet.
+
+            Text stays whatever the agent typed; the treatment is independent of the
+            wording, so the copy remains fully editable and the default sentence is
+            not special-cased.
 
             The negative bottom margin eats into the form section's 34px top padding
             so the line lands ~21px above the card instead of 34px. Margins do not
@@ -53,7 +62,10 @@ export default function AgentProfile({ config }: { config: SmartLeadFormConfig }
             where 10px lands it at ~14px — mid-band for the separation this line
             wants from the identity block. */}
         {reassurance && (
-          <p className="mt-2.5 -mb-[13px] max-w-full text-[13px] font-normal text-[#6b7280]">{reassurance}</p>
+          <p className="mt-2.5 -mb-[13px] inline-flex max-w-full items-center gap-1.5 rounded-full border border-[#d4e9dc] bg-[#f2f9f4] px-3 py-1.5 text-[13px] font-medium text-[#2f6b4a]">
+            <HiCheck className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="min-w-0">{reassurance}</span>
+          </p>
         )}
       </div>
     </section>

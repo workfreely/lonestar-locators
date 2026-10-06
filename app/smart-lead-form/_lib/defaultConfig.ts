@@ -44,7 +44,7 @@ export const DEFAULT_CONFIG: SmartLeadFormConfig = {
     serviceAreas: "Austin, Dallas, Houston",
     socialHandle: "@jordanfindsapartments",
     phoneNumber: "(210) 555-1234",
-    formReassurance: "Takes less than 60 seconds to complete.",
+    formReassurance: "Takes less than a minute to complete",
     highlights: ["Free Service", "Cash Rebate", "Free Movers"],
     testimonials: [
       { name: "Sarah M.", city: "Austin, TX", quote: "Found us the perfect place in two days. Completely free and so easy.", photoUrl: null },
