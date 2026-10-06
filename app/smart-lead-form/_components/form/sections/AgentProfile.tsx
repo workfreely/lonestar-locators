@@ -43,10 +43,16 @@ export default function AgentProfile({ config }: { config: SmartLeadFormConfig }
             the blue incentive bar above is the loud one (benefits), this is
             low-friction reassurance, and the grey/black identity text is detail.
             Staying BELOW the blue bar is the whole job, so the green is desaturated
-            on every axis: a near-white #f2f9f4 ground, a #d4e9dc hairline for
-            definition rather than contrast, and muted #2f6b4a text. A saturated
+            on every axis: a very light #e9f4ed ground, a #bfddcb hairline for
+            definition rather than contrast, and muted #275a3e text. A saturated
             green with a filled ground would read as a success ALERT — something that
             just happened — when nothing has happened yet.
+
+            These are each one step down from the first pass (#f2f9f4 / #d4e9dc /
+            #2f6b4a), which was legible but under-defined against the white section.
+            The step is deliberately uniform across ground, border and text so the
+            pill gains presence without shifting hue toward emerald — the ratio
+            between the three is what keeps it reading as muted rather than bright.
 
             Text stays whatever the agent typed; the treatment is independent of the
             wording, so the copy remains fully editable and the default sentence is
@@ -62,7 +68,7 @@ export default function AgentProfile({ config }: { config: SmartLeadFormConfig }
             where 10px lands it at ~14px — mid-band for the separation this line
             wants from the identity block. */}
         {reassurance && (
-          <p className="mt-2.5 -mb-[13px] inline-flex max-w-full items-center gap-1.5 rounded-full border border-[#d4e9dc] bg-[#f2f9f4] px-3 py-1.5 text-[13px] font-medium text-[#2f6b4a]">
+          <p className="mt-2.5 -mb-[13px] inline-flex max-w-full items-center gap-1.5 rounded-full border border-[#bfddcb] bg-[#e9f4ed] px-3 py-1.5 text-[13px] font-medium text-[#275a3e]">
             <HiCheck className="h-3.5 w-3.5 shrink-0" aria-hidden />
             <span className="min-w-0">{reassurance}</span>
           </p>
