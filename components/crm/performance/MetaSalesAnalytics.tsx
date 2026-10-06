@@ -201,9 +201,11 @@ export default function MetaSalesAnalytics({ data }: { data: MetaSalesAnalytics 
                       {data!.platforms.map((p) => (
                         <tr key={p.key} className="border-b border-[var(--crm-border-soft)] last:border-0">
                           <td className="py-2 px-3 text-[var(--crm-text-primary)]">
-                            {/* Same icon + label treatment as Lead Sources and Campaigns. p.label
-                                still supplies the text via the shared channel map. */}
-                            <ChannelLabel channel={p.key} />
+                            {/* Same icon + label treatment as Lead Sources and Campaigns.
+                                p.label is normalizeMetaPublisherPlatform's FULL name ("Instagram",
+                                "Messenger", "Audience Network") and is passed through verbatim —
+                                an earlier revision dropped it and rendered the raw token as "Ig". */}
+                            <ChannelLabel channel={p.key} label={p.label} />
                           </td>
                           <td className="py-2 px-3 text-right tabular-nums">{int(p.leads)}</td>
                           <td className="py-2 px-3 text-right tabular-nums">{int(p.closed)}</td>

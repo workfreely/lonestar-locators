@@ -49,6 +49,34 @@ ok("…and NOT Instagram (the bug platformMeta's fallback would have caused here
   channelMeta("nonsense").Icon !== channelMeta("instagram").Icon)
 ok("case-insensitive", channelMeta("InStaGram").Icon === channelMeta("instagram").Icon)
 
+console.log("\nMETA PUBLISHER TOKENS RESOLVE TO THE SAME MARKS:")
+ok('"ig" → the Instagram mark (not the neutral glyph)',
+  channelMeta("ig").Icon === channelMeta("instagram").Icon)
+ok('"fb" → the Facebook mark', channelMeta("fb").Icon === channelMeta("facebook").Icon)
+ok('"IG" uppercase works too', channelMeta("IG").Icon === channelMeta("instagram").Icon)
+ok('"tiktok" resolves directly (Meta has no TikTok surface)', channelMeta("tiktok").Icon === channelMeta("tiktok").Icon)
+// msg / an are REAL distinct surfaces — collapsing them into Facebook would mislabel them.
+ok('"msg" is NOT forced into Facebook', channelMeta("msg").Icon !== channelMeta("facebook").Icon)
+ok('"an" is NOT forced into Facebook', channelMeta("an").Icon !== channelMeta("facebook").Icon)
+ok('"msg"/"an" keep the neutral glyph',
+  channelMeta("msg").Icon === channelMeta("unknown").Icon && channelMeta("an").Icon === channelMeta("unknown").Icon)
+
+console.log("\nNO RAW TOKEN IS EVER DISPLAYED:")
+const metaSrc = read("components/crm/performance/MetaSalesAnalytics.tsx")
+ok("the Meta row passes p.label (the FULL normalized name) through", /<ChannelLabel channel=\{p\.key\} label=\{p\.label\} \/>/.test(metaSrc))
+ok("…so it never renders the raw key as text", !/>\{p\.key\}</.test(metaSrc))
+// publisherPlatform is the authority on those labels and is unchanged.
+const pp = read("lib/meta/publisherPlatform.ts")
+ok("publisherPlatform still maps ig → Instagram", /ig: "Instagram"/.test(pp))
+ok("…and fb → Facebook", /fb: "Facebook"/.test(pp))
+ok("…and is otherwise untouched", /msg: "Messenger"/.test(pp) && /an: "Audience Network"/.test(pp))
+
+console.log("\nTOP SOURCE USES THE SAME TREATMENT:")
+const perfSrc = read("components/crm/performance/PerformanceStats.tsx")
+ok("Top Source renders <ChannelLabel>", /<ChannelLabel channel=\{topSource\}/.test(perfSrc))
+ok("…and the old coloured pill is gone", !/LeadSourceBadge/.test(code(perfSrc)))
+ok("the Top Source CALCULATION is unchanged", /const topSource = topByCount\(sourceCounts\)/.test(perfSrc))
+
 console.log("\nSOCIAL BEAST'S MARKS ARE REUSED, SOCIAL BEAST IS NOT MODIFIED:")
 const pm = read("lib/social/platformMeta.ts")
 const cm = read("lib/leads/channelMeta.tsx")

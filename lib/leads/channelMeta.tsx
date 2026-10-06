@@ -37,6 +37,21 @@ const CHANNEL_ICON: Record<Channel, IconType> = {
   unknown: FiHelpCircle,
 }
 
+/**
+ * Meta publisher-platform tokens → canonical channels, so the Meta Sales rows get the SAME mark as
+ * Lead Sources. Meta's site_source_name values are short ("ig", "fb"); without this the raw token
+ * matched nothing and fell to the neutral glyph.
+ *
+ * Only fb/ig are aliased, deliberately: "msg" (Messenger) and "an" (Audience Network) are real,
+ * distinct surfaces with no channel of their own, and forcing them into Facebook would mislabel
+ * them — the same reason lib/meta/publisherPlatform refuses to collapse unknown tokens. They keep
+ * the neutral glyph and their own full label. Meta has no TikTok surface, and a literal "tiktok"
+ * value already resolves directly.
+ *
+ * Mirrors the aliasing lib/leads/attribution.normalizeSource already applies to utm_source.
+ */
+const TOKEN_ALIAS: Record<string, Channel> = { ig: "instagram", fb: "facebook" }
+
 export type ChannelMeta = { label: string; Icon: IconType; color: string }
 
 /**
@@ -46,7 +61,8 @@ export type ChannelMeta = { label: string; Icon: IconType; color: string }
  * The LABEL comes from sourceStyles so it matches the badge text elsewhere in the CRM exactly.
  */
 export function channelMeta(channel: string | null | undefined): ChannelMeta {
-  const key = (channel ?? "").trim().toLowerCase()
+  const raw = (channel ?? "").trim().toLowerCase()
+  const key = TOKEN_ALIAS[raw] ?? raw
   const Icon = CHANNEL_ICON[key as Channel] ?? FiHelpCircle
   const style = getSourceStyle(key || "unknown")
   return { label: style.label, Icon, color: style.color }

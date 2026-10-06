@@ -9,7 +9,7 @@
 // as LeadSourcesCard.tsx (same lib/leads/sourceStyles.ts module, same
 // classes) so the two stay visually consistent.
 
-import LeadSourceBadge from "@/components/crm/LeadSourceBadge"
+import ChannelLabel from "@/lib/leads/channelMeta"
 import { marketingLeads, resolveChannel } from "@/lib/leads/resolveChannel"
 
 const TOURED_STATUSES = new Set(["done_touring", "applied", "closed"])
@@ -63,7 +63,7 @@ export default function PerformanceStats({ leads }: { leads: any[] }) {
         <p className={labelCls}>Top Source</p>
         <div className="mt-1">
           {topSource ? (
-            <LeadSourceBadge source={topSource} className="text-sm px-2.5 py-1" />
+            <ChannelLabel channel={topSource} size={15} className="text-sm text-[var(--crm-text-primary)]" />
           ) : (
             <p className={valueCls}>—</p>
           )}
