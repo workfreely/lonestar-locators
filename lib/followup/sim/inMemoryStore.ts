@@ -250,6 +250,12 @@ export class InMemoryFollowupStore implements FollowupStore {
       // On Hold must reach the gate here exactly as it does in production, or the
       // simulator and the test suite would both report sends that production holds.
       heldAt: row.held_at ?? null,
+      // Same reason, for the OOO RESTART wording. buildLeadSnapshot maps
+      // leads.ooo_released_at, and new_lead/t1 branches on it to choose the restart
+      // opener over "I got your form". Omitting it here left it permanently
+      // undefined, so the simulator silently reported the ORDINARY opener for a
+      // manually released lead — a behaviour production does not have.
+      oooReleasedAt: row.ooo_released_at ?? null,
       accountAuthorized: l?.accountAuthorized === true,
       followupOptIn: row.followup_opt_in === true,
       appliedAt: row.applied_at,
