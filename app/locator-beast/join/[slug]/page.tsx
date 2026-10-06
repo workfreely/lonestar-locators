@@ -119,7 +119,10 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
               own mt-3 (which was winning the collapse), and `tight` pulls the
               title up under the name so name+title read as one unit. */}
           <div className="mt-[20px]">
-            <AgentInfoText config={config} theme="dark" tight />
+            {/* verifiedBadge: the shield was removed from the public Smart Lead Form,
+                but this recruiting page is a different audience and was not part of
+                that decision — it keeps its existing look until changed deliberately. */}
+            <AgentInfoText config={config} theme="dark" tight verifiedBadge />
           </div>
 
           <a
