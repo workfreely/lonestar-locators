@@ -62,11 +62,25 @@ export default function Hero({ config }: { config: SmartLeadFormConfig }) {
     <section className={`relative overflow-hidden bg-[#0b0f1a] px-5 pt-5 text-center text-white sm:px-8 sm:pt-8 ${heroBottomPadding}`}>
       {backgroundUrl && (
         <>
+          {/* This image is the hero's full-bleed backdrop, so it is above the fold on
+              every viewport and is in fact the LCP element — measured on production at
+              1040ms, with a paint area of ~199,000px² against the agent photo's
+              ~25,000px². It was marked `loading="lazy"`, which does NOT delay discovery
+              for an in-viewport image but does drop it to LOW fetch priority and
+              suppresses the SSR preload React emits for eager images. Eager + high
+              priority is simply the honest description of what this image is.
+
+              Deliberately still a plain <img> rather than next/image: the source is
+              already an optimised same-origin WebP (the theme catalog) or an agent's
+              own upload, the box is a CSS-sized full-bleed backdrop with no intrinsic
+              dimensions to hand the optimizer, and re-encoding it would change the
+              visual the hero is built around. Priority was the defect; compression was
+              not. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={backgroundUrl}
             alt=""
-            loading="lazy"
+            fetchPriority="high"
             decoding="async"
             className="absolute inset-0 h-full w-full object-cover"
           />
