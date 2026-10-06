@@ -4,9 +4,17 @@
 // and knows nothing about which components live behind each tab; PerformanceClient holds the
 // selected tab and decides what to render.
 //
-// Styling is the CRM-dark tab treatment already used by Social Beast's SocialAutopilotNav (same
-// --crm-* tokens, same `-mb-px border-b-2` active underline sitting on the shared divider), so the
-// two tabbed surfaces in the app look like one product rather than two.
+// ── IT MIRRORS SOCIAL BEAST'S NAV, DELIBERATELY ─────────────────────────────────────────────
+// The visual contract is copied from components/crm/social/SocialAutopilotNav: same px-3.5 py-2
+// hit area, same text-[13px] font-semibold, same gap-1, the same `-mb-px border-b-2` active
+// underline sitting ON the nav's own bottom border, the same --crm-* tokens, and the same
+// ⛶ Focus / Exit Focus control pushed to the right. Reproduced rather than imported: that file is
+// a ROUTE nav (<Link> + usePathname, six Social Beast pages) and bending it into a stateful
+// in-page switcher would risk regressions on a working surface for no gain here.
+//
+// NOT STICKY. Social Beast's nav sits in normal flow and scrolls away with the page, so this does
+// too. An earlier revision pinned it with `sticky top-0` and negative margins, which made it float
+// over the cards as they scrolled underneath — the overlap this version exists to remove.
 //
 // Buttons, not <Link>s. Each tab is a different VIEW of one already-fetched lead set, not a
 // different route — see the refetch note in PerformanceClient.
@@ -14,6 +22,7 @@
 export const ANALYTICS_TABS = [
   { id: "overview", label: "Sales Overview" },
   { id: "marketing", label: "Marketing Analytics" },
+  { id: "campaigns", label: "Campaigns" },
   { id: "monthly", label: "Monthly Performance" },
 ] as const
 
@@ -34,22 +43,24 @@ export function parseAnalyticsTab(raw: string | null | undefined): AnalyticsTabI
 export default function AnalyticsTabs({
   tab,
   onChange,
+  focus = false,
+  onToggleFocus,
 }: {
   tab: AnalyticsTabId
   onChange: (next: AnalyticsTabId) => void
+  // Focus is the page's state, not the bar's — the control only renders when a handler is supplied,
+  // exactly as SocialAutopilotNav does it.
+  focus?: boolean
+  onToggleFocus?: () => void
 }) {
   return (
-    // STICKY against the page's own scroll container (the overflow-y-auto body in
-    // PerformanceClient), not the window — the same technique BulkReview's <thead> and
-    // FollowUpTemplatesModal's header already use. The negative insets + padding let the bar's
-    // background span the container's p-5 gutter so content scrolls UNDER it rather than beside it.
-    <div className="sticky top-0 z-20 -mx-5 -mt-5 mb-1 px-5 pt-5 pb-0 bg-[var(--crm-workspace)]">
+    <div className="flex items-end justify-between gap-2.5 border-b border-[var(--crm-border)]">
       <nav
         role="tablist"
         aria-label="Analytics sections"
-        // Horizontally scrollable below the fold on narrow screens so three labels never wrap or
-        // overflow on a phone; the divider still spans the full width.
-        className="flex items-center gap-1 overflow-x-auto border-b border-[var(--crm-border)]"
+        // Four labels do not fit a phone, so the bar scrolls horizontally rather than wrapping or
+        // clipping. The divider lives on the parent so it still spans the full width.
+        className="flex items-center gap-1 overflow-x-auto"
       >
         {ANALYTICS_TABS.map((t) => {
           const active = t.id === tab
@@ -72,6 +83,19 @@ export default function AnalyticsTabs({
           )
         })}
       </nav>
+
+      {/* Same control, same glyph, same classes as SocialAutopilotNav's. */}
+      {onToggleFocus && (
+        <button
+          type="button"
+          onClick={onToggleFocus}
+          aria-pressed={focus}
+          className="mb-2 flex-none inline-flex items-center gap-1.5 text-[12.5px] font-semibold px-3 py-2 rounded-xl border border-[var(--crm-border)] text-[var(--crm-text-secondary)] bg-[var(--crm-card)] hover:text-[var(--crm-text-primary)] hover:bg-[var(--crm-border)] transition-colors"
+        >
+          <span aria-hidden>⛶</span>
+          {focus ? "Exit Focus" : "Focus"}
+        </button>
+      )}
     </div>
   )
 }

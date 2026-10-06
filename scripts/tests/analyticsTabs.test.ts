@@ -29,20 +29,21 @@ const clientCode = code(client)
 const tabsCode = code(tabs)
 
 console.log("\nTABS + URL PARSING:")
-ok("exactly three tabs", ANALYTICS_TABS.length === 3)
-ok("ids are overview / marketing / monthly",
-  ANALYTICS_TABS.map((t) => t.id).join(",") === "overview,marketing,monthly")
+ok("exactly four tabs", ANALYTICS_TABS.length === 4)
+ok("ids are overview / marketing / campaigns / monthly",
+  ANALYTICS_TABS.map((t) => t.id).join(",") === "overview,marketing,campaigns,monthly")
 ok("labels match the approved names",
-  ANALYTICS_TABS.map((t) => t.label).join(" | ") === "Sales Overview | Marketing Analytics | Monthly Performance")
+  ANALYTICS_TABS.map((t) => t.label).join(" | ") === "Sales Overview | Marketing Analytics | Campaigns | Monthly Performance")
 ok("Sales Overview is the default", DEFAULT_ANALYTICS_TAB === "overview")
 
 console.log("\n?tab= RESOLUTION (invalid/missing must fall back, never render nothing):")
 ok('"marketing" → marketing', parseAnalyticsTab("marketing") === "marketing")
 ok('"monthly" → monthly', parseAnalyticsTab("monthly") === "monthly")
+ok('"campaigns" → campaigns', parseAnalyticsTab("campaigns") === "campaigns")
 ok('"overview" → overview', parseAnalyticsTab("overview") === "overview")
 ok('"MARKETING" (case) → marketing', parseAnalyticsTab("MARKETING") === "marketing")
 ok('" monthly " (whitespace) → monthly', parseAnalyticsTab(" monthly ") === "monthly")
-for (const bad of ["", "   ", "nonsense", "campaigns", "sales", "../admin", "1"]) {
+for (const bad of ["", "   ", "nonsense", "summary", "sales", "../admin", "1"]) {
   ok(`${JSON.stringify(bad)} → overview`, parseAnalyticsTab(bad) === "overview")
 }
 ok("null → overview", parseAnalyticsTab(null) === "overview")
@@ -82,16 +83,20 @@ console.log("\nTAB MEMBERSHIP (each component sits in exactly the agreed tab):")
 const seg = (id: string) => {
   const i = client.indexOf(`{tab === "${id}"`)
   if (i < 0) return ""
-  const next = ["overview", "marketing", "monthly"]
+  const next = ["overview", "marketing", "campaigns", "monthly"]
     .map((o) => client.indexOf(`{tab === "${o}"`, i + 10))
     .filter((x) => x > i)
   return client.slice(i, next.length ? Math.min(...next) : client.length)
 }
-const overview = seg("overview"), marketing = seg("marketing"), monthly = seg("monthly")
+const overview = seg("overview"), marketing = seg("marketing"), campaigns = seg("campaigns"), monthly = seg("monthly")
 ok("Sales Overview = KPI strip + both city cards",
   /DashboardStats/.test(overview) && /LeadsByCityCard/.test(overview) && /ClosedDealsByCityCard/.test(overview))
-ok("Marketing = sources, landing pages, summary, campaigns, Meta",
-  ["LeadSourcesCard", "LandingPageTable", "PerformanceStats", "CampaignTable", "MetaSalesAnalytics"].every((c) => new RegExp(c).test(marketing)))
+ok("Marketing = summary, sources, landing pages, Meta (no campaigns)",
+  ["PerformanceStats", "LeadSourcesCard", "LandingPageTable", "MetaSalesAnalytics"].every((c) => new RegExp(c).test(marketing)) && !/CampaignTable/.test(marketing))
+ok("SUMMARY IS FIRST in Marketing — before Lead Sources",
+  marketing.indexOf("PerformanceStats") < marketing.indexOf("LeadSourcesCard"))
+ok("…and before Meta Sales", marketing.indexOf("PerformanceStats") < marketing.indexOf("MetaSalesAnalytics"))
+ok("Campaigns has its OWN tab", /CampaignTable/.test(campaigns))
 ok("Monthly = Monthly Sales only", /MonthlyPerformanceHistory/.test(monthly) && !/CampaignTable/.test(monthly))
 ok("no analytics component leaks into two tabs",
   !/DashboardStats/.test(marketing) && !/MonthlyPerformanceHistory/.test(overview))
@@ -99,7 +104,7 @@ ok("no analytics component leaks into two tabs",
 const seg0 = (id: string) => {
   const i = clientCode.indexOf(`{tab === "${id}"`)
   if (i < 0) return ""
-  const next = ["overview", "marketing", "monthly"]
+  const next = ["overview", "marketing", "campaigns", "monthly"]
     .map((o) => clientCode.indexOf(`{tab === "${o}"`, i + 10))
     .filter((x) => x > i)
   return clientCode.slice(i, next.length ? Math.min(...next) : clientCode.length)
@@ -117,9 +122,46 @@ for (const [file, label] of [
 }
 ok("the marketing summary opens by default", /title="Summary"[^>]*defaultOpen=\{true\}/.test(client))
 
-console.log("\nSTICKY + RESPONSIVE:")
-ok("tab bar is sticky in the scroll container", /sticky top-0/.test(tabs))
-ok("…and layered above the content it scrolls under", /z-\d+/.test(tabs))
+console.log("\nSALES OVERVIEW CONTAINER RESTORED (the 7f6f86b visual regression):")
+ok("DashboardStats is wrapped in the panel container again",
+  /bg-\[var\(--crm-panel\)\] border border-\[var\(--crm-border\)\] rounded-xl overflow-hidden shadow-\[[^\]]+\]">\s*<DashboardStats/.test(client))
+ok("…with the same classes CollapsibleSection applies", (() => {
+  const cs = read("components/crm/CollapsibleSection.tsx")
+  return ["bg-[var(--crm-panel)]", "border border-[var(--crm-border)]", "rounded-xl", "overflow-hidden"].every((c) => cs.includes(c) && client.includes(c))
+})())
+ok("…but WITHOUT a duplicate 'Sales Overview' header", !/title="Sales Overview"/.test(client))
+ok("DashboardStats itself is untouched by this work",
+  !/DashboardStats\.tsx/.test(client))
+
+console.log("\nNAV MATCHES SOCIAL BEAST AND DOES NOT OVERLAP:")
+const sbNav = read("components/crm/social/SocialAutopilotNav.tsx")
+ok("NOT sticky any more — no floating over content", !/sticky/.test(tabsCode))
+ok("…and no negative margins pulling it over the gutter", !/-mx-5|-mt-5/.test(tabsCode))
+for (const cls of ["px-3.5 py-2", "text-[13px] font-semibold", "-mb-px border-b-2", "gap-1"]) {
+  ok(`shares Social Beast's \`${cls}\``, code(sbNav).includes(cls) && tabsCode.includes(cls))
+}
+ok("same active treatment as Social Beast",
+  sbNav.includes("text-[var(--crm-text-primary)] border-[var(--crm-text-primary)]") &&
+  tabs.includes("text-[var(--crm-text-primary)] border-[var(--crm-text-primary)]"))
+ok("same inactive treatment",
+  sbNav.includes("text-[var(--crm-text-secondary)] border-transparent hover:text-[var(--crm-text-primary)]") &&
+  tabs.includes("text-[var(--crm-text-secondary)] border-transparent hover:text-[var(--crm-text-primary)]"))
+ok("Social Beast itself was NOT modified", sbNav.includes("usePathname") && sbNav.includes("<Link"))
+
+console.log("\nFOCUS MODE REUSES THE EXISTING PATTERN:")
+const focusHook = read("lib/ui/useFocusMode.ts")
+ok("analytics uses the shared hook", /useFocusMode\("lb-analytics-focus"\)/.test(client))
+ok("…its own sessionStorage key, so it cannot toggle Social Beast's", !/lb-social-focus/.test(client))
+ok("hook persists per TAB (sessionStorage), like both existing versions", /sessionStorage/.test(code(focusHook)) && !/localStorage/.test(code(focusHook)))
+ok("Esc exits Focus, as in Social Beast", /e\.key === "Escape"/.test(code(focusHook)))
+ok("the ⛶ control renders beside the tabs", /⛶/.test(tabs))
+ok("label flips Focus / Exit Focus", /Exit Focus/.test(tabs) && /: "Focus"/.test(tabs))
+ok("app header hides in Focus, like SocialAutopilotShell", /\{!focus && \(\s*<AppHeader/.test(client))
+ok("Back to Lead Board is still rendered in the header", /<BackToDashboard \/>/.test(client))
+ok("SocialAutopilotShell was NOT modified",
+  read("components/crm/social/SocialAutopilotShell.tsx").includes('const FOCUS_KEY = "lb-social-focus"'))
+
+console.log("\nRESPONSIVE:")
 ok("labels never wrap; the bar scrolls on narrow screens",
   /whitespace-nowrap/.test(tabs) && /overflow-x-auto/.test(tabs))
 ok("card rows stack on mobile (grid-cols-1 → md:grid-cols-2)",

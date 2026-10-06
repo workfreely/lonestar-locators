@@ -14,6 +14,7 @@ import MonthlyPerformanceHistory from "./MonthlyPerformanceHistory"
 import MetaSalesAnalytics from "./MetaSalesAnalytics"
 import CollapsibleSection from "@/components/crm/CollapsibleSection"
 import AnalyticsTabs, { DEFAULT_ANALYTICS_TAB, parseAnalyticsTab, type AnalyticsTabId } from "./AnalyticsTabs"
+import { useFocusMode } from "@/lib/ui/useFocusMode"
 import AppHeader from "@/components/crm/AppHeader"
 import type { ProjectionMethod } from "@/lib/leads/commissionEstimate"
 import type { MetaSalesAnalytics as MetaSalesAnalyticsData } from "@/lib/meta/salesAnalytics"
@@ -57,6 +58,10 @@ export default function PerformanceClient({
     setTab(parseAnalyticsTab(searchParams?.get("tab")))
   }, [searchParams])
 
+  // Focus Mode — same pattern and same control Social Beast uses; its own per-tab key so the two
+  // surfaces do not toggle each other.
+  const { focus, toggle: toggleFocus } = useFocusMode("lb-analytics-focus")
+
   const selectTab = useCallback((next: AnalyticsTabId) => {
     setTab(next)
     // history.replaceState, NOT router.replace: this updates the address bar without re-entering
@@ -76,24 +81,40 @@ export default function PerformanceClient({
   return (
     <div className="relative h-screen w-full flex flex-col bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]">
 
-      {/* ─── TOP NAVIGATION BAR — the shared app header ─── */}
-      <AppHeader variant="dark" fullBleed>
-        <BackToDashboard />
-      </AppHeader>
+      {/* ─── TOP NAVIGATION BAR — the shared app header ───
+          Hidden in Focus Mode so the workspace reclaims the space, matching SocialAutopilotShell.
+          Back to Lead Board lives here and is untouched; leaving Focus restores it. */}
+      {!focus && (
+        <AppHeader variant="dark" fullBleed>
+          <BackToDashboard />
+        </AppHeader>
+      )}
 
       {/* ─── BODY ─── */}
-      <div className="beast-ai-clearance flex-1 overflow-y-auto p-5 space-y-5">
+      <div className={"beast-ai-clearance flex-1 overflow-y-auto space-y-5 " + (focus ? "px-5 pt-3 pb-5" : "p-5")}>
 
         {/* Top-level tabs, sticky against THIS scroll container. */}
-        <AnalyticsTabs tab={tab} onChange={selectTab} />
+        <AnalyticsTabs tab={tab} onChange={selectTab} focus={focus} onToggleFocus={toggleFocus} />
 
         {/* ─── SALES OVERVIEW ───────────────────────────────────────────────────────────────
-            The KPI strip renders BARE. It used to sit inside a CollapsibleSection also titled
-            "Sales Overview"; behind a tab of the same name that header was a duplicate label and
-            a way to hide the page's primary content one click after arriving at it. */}
+            DashboardStats' own root is `bg-[var(--crm-card)] border-b ... px-5 pt-3 pb-5` — the
+            Dashboard's EDGE-TO-EDGE strip. On this page it was always wrapped in a container that
+            turned that strip into a page card; rendering it bare (as the first tab revision did)
+            dropped the panel background, the side borders, the rounding and the shadow, so the KPI
+            row read as a flat band against the workspace while every card below it stayed rounded.
+            This restores that container verbatim — the same classes CollapsibleSection applies —
+            WITHOUT the "Sales Overview" header, which the tab already provides.
+
+            Nothing inside DashboardStats is touched: the icons, source dots, platform colors,
+            typography, spacing and progress bars are its own and were never modified. (The legend
+            dots render grey when a tracked source has no leads THIS MONTH — `s.count === 0 ?
+            "#d1d5db" : s.barColor` — which is existing data-driven behaviour, not styling that
+            went missing.) */}
         {tab === "overview" && (
           <>
-            <DashboardStats leads={dashboardLeads} monthlyGoal={monthlyGoal} avgCommission={avgCommission} projectionMethod={projectionMethod} />
+            <div className="bg-[var(--crm-panel)] border border-[var(--crm-border)] rounded-xl overflow-hidden shadow-[0_1px_4px_rgba(var(--crm-shadow-color),0.07)]">
+              <DashboardStats leads={dashboardLeads} monthlyGoal={monthlyGoal} avgCommission={avgCommission} projectionMethod={projectionMethod} />
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <LeadsByCityCard leads={leads} />
               <ClosedDealsByCityCard leads={leads} />
@@ -102,29 +123,32 @@ export default function PerformanceClient({
         )}
 
         {/* ─── MARKETING ANALYTICS ──────────────────────────────────────────────────────────
-            Same components as before, same props. The old "Marketing Analytics" CollapsibleSection
-            around PerformanceStats is gone for the same reason as above — the tab already carries
-            that label — so the summary is visible on arrival. Campaigns and Meta Sales keep their
-            own collapsible headers because those are genuinely distinct subsections, but they now
-            open by default (see defaultOpen) instead of greeting the tab with a wall of collapsed
-            rows. */}
+            Summary FIRST — it is the read-at-a-glance answer, so it leads rather than sitting
+            below two tables. Then the source/landing detail, then Meta. Same components, same
+            props, same calculations; only their order changed. Paid vs Organic / Channel
+            Performance land after Meta when they exist. */}
         {tab === "marketing" && (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <LeadSourcesCard leads={leads} />
-              <LandingPageTable leads={leads} />
-            </div>
             <CollapsibleSection title="Summary" storageKey="performance-metrics-expanded" defaultOpen={true}>
               <div className="p-4">
                 <PerformanceStats leads={leads} />
               </div>
             </CollapsibleSection>
-            <CampaignTable leads={leads} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <LeadSourcesCard leads={leads} />
+              <LandingPageTable leads={leads} />
+            </div>
             {/* Meta Sales Analytics — spend → attributed lead → close → estimated commission →
                 ROAS, plus a Facebook/Instagram lead breakdown. */}
             <MetaSalesAnalytics data={metaSales} />
           </>
         )}
+
+        {/* ─── CAMPAIGNS ────────────────────────────────────────────────────────────────────
+            Promoted out of Marketing Analytics to its own tab. The component is MOVED, not
+            copied — same instance, same leads prop, same grouping. Future campaign-level metrics
+            belong here; nothing new is built in this pass. */}
+        {tab === "campaigns" && <CampaignTable leads={leads} />}
 
         {/* ─── MONTHLY PERFORMANCE ──────────────────────────────────────────────────────────── */}
         {tab === "monthly" && <MonthlyPerformanceHistory leads={leads} />}
