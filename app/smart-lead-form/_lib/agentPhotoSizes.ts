@@ -21,27 +21,36 @@ export type AgentPhotoSize = SmartLeadFormConfig["branding"]["agentPhotoSize"]
 // breakpoint. They are precomputed class strings instead — literal, so Tailwind
 // sees them — which is what makes a responsive photo possible at all. Change a
 // box size here and its overlap, hero padding and pull-up must change with it.
+// `sizes` is the SAME two numbers as boxClass, restated for next/image: the 640px
+// breakpoint is Tailwind's `sm:`, so each string reads "desktop box, else mobile
+// box". It must be edited in lockstep with boxClass above — a stale `sizes` does
+// not break layout (the box is fixed either way), it silently makes the browser
+// pick the wrong srcset candidate, which is exactly the 500×500-into-112px waste
+// this field exists to end.
 export const AGENT_PHOTO_SIZES: Record<
   AgentPhotoSize,
-  { boxClass: string; initialsClass: string; heroPadClass: string; pullUpClass: string }
+  { boxClass: string; initialsClass: string; heroPadClass: string; pullUpClass: string; sizes: string }
 > = {
   small: {
     boxClass: "h-[96px] w-[96px] sm:h-[112px] sm:w-[112px]",
     initialsClass: "text-[30px] sm:text-[36px]",
     heroPadClass: "pb-[76px] sm:pb-[84px]", // 48+28 / 56+28
     pullUpClass: "-mt-[48px] sm:-mt-[56px]",
+    sizes: "(min-width: 640px) 112px, 96px",
   },
   medium: {
     boxClass: "h-[128px] w-[128px] sm:h-[160px] sm:w-[160px]",
     initialsClass: "text-[40px] sm:text-[50px]",
     heroPadClass: "pb-[92px] sm:pb-[108px]", // 64+28 / 80+28
     pullUpClass: "-mt-[64px] sm:-mt-[80px]",
+    sizes: "(min-width: 640px) 160px, 128px",
   },
   large: {
     boxClass: "h-[168px] w-[168px] sm:h-[208px] sm:w-[208px]",
     initialsClass: "text-[52px] sm:text-[64px]",
     heroPadClass: "pb-[112px] sm:pb-[132px]", // 84+28 / 104+28
     pullUpClass: "-mt-[84px] sm:-mt-[104px]",
+    sizes: "(min-width: 640px) 208px, 168px",
   },
 }
 
