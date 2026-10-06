@@ -14,7 +14,7 @@
 import { buildHashtags, isCanonicalHashtag, MAX_HASHTAGS, PLATFORM_HASHTAG_LIMIT } from "@/lib/social/hashtags"
 import { parseAmenities } from "@/lib/social/amenities"
 import { normalizeSocialMarket, SOCIAL_MARKETS } from "@/lib/social/markets"
-import { propertyNoun, propertyNounPlural, normalizeToCanonical, PROPERTY_TYPES } from "@/lib/social/propertyTypes"
+import { propertyNoun, propertyNounPlural, normalizeToCanonical, PROPERTY_TYPES, COMPOUND_TYPE_QUALIFIERS } from "@/lib/social/propertyTypes"
 
 // Re-exported from lib/social/hashtags, which owns the canonical generation cap (5). Kept as a named
 // export here because callers already import it from this module.
@@ -183,11 +183,49 @@ export function buildOverlaySubheadline(src: SourceMeta): string {
 }
 
 // ── APPROVED caption template system ─────────────────────────────────────────────────────────
-// The fixed CTA every caption ends with (two lines, no emoji — never rotated).
-const CTA_LINES = [
-  "My apartment locating service is completely free!",
-  "Submit the form to get your free custom apartment list.",
-] as const
+// Every caption ends with the service line, a blank line, then ONE call to action.
+const SERVICE_LINE = "My apartment locating service is completely free!"
+
+// The ORIGINAL closing line. Superseded by the comment CTA below and never generated any more, but
+// kept forever for RECOGNITION: isGeneratedCaption compares a stored caption against what the
+// generator would produce, so without this every caption written before the comment CTA would stop
+// matching, freeze as a "manual override" and never re-sync on a Market/Type change. Same rule the
+// legacy "/mo" headline and superseded openers already follow in this file.
+const LEGACY_FORM_CTA = "Submit the form to get your free custom apartment list."
+
+// ── COMMENT CTA ──────────────────────────────────────────────────────────────────────────────
+// Organic posts drive leads through automated DMs, so the closing line asks for a comment keyword.
+// The keyword is DERIVED from the already-selected Property Type — no new field, no new state.
+//
+// Compound Social-only types reduce to their HEAD NOUN ("Split-Level Townhome" -> Townhome -> TOWN),
+// which is the same rule hashtag ranking already applies, so the two stay consistent by construction
+// rather than by a second hand-maintained list.
+const COMMENT_KEYWORDS: Record<string, string> = {
+  Studio: "LIST",
+  Apartment: "LIST",
+  Townhome: "TOWN",
+  Loft: "LOFT",
+  "High-Rise": "RISE",
+  "Rental Home": "HOME",
+  Penthouse: "KEY",
+}
+
+/** The comment keyword for a Property Type. Unknown, absent or unmapped -> "LIST". */
+export function commentCtaKeyword(propertyType: string | null | undefined): string {
+  const raw = (propertyType ?? "").trim()
+  // "Home" is accepted as a synonym of the canonical "Rental Home" so a non-canonical stored value
+  // still resolves rather than silently falling back to LIST.
+  if (/^home$/i.test(raw)) return "HOME"
+  const canonical = normalizeToCanonical(raw) ?? raw
+  const qualifier = COMPOUND_TYPE_QUALIFIERS.find((q) => canonical.startsWith(`${q} `))
+  const head = qualifier ? canonical.slice(qualifier.length + 1) : canonical
+  return COMMENT_KEYWORDS[head] ?? "LIST"
+}
+
+/** The closing CTA line for a Property Type. */
+export function commentCta(propertyType: string | null | undefined): string {
+  return `✅ Comment "${commentCtaKeyword(propertyType)}" and I’ll send you the best options within your budget.`
+}
 
 // Deterministic, stable string hash (FNV-1a, 32-bit unsigned) used ONLY to pick a hook. Same seed
 // (a source video's id) → same hook across renders/deploys; different sources rotate. NO AI, no RNG.
@@ -288,7 +326,7 @@ function supersededOpeners(src: SourceMeta): string[] {
 /** The caption BODY below the opener — unchanged by the template-aware opener work. Split out so the
  *  legacy-recognition pass can rebuild an older caption with its original rotating hook without
  *  duplicating the section logic. */
-function captionSections(src: SourceMeta, opener: string | null): string {
+function captionSections(src: SourceMeta, opener: string | null, ctaTail?: string): string {
   const special = resolveSocialSpecial(src)
   const feats = features(src.amenities).slice(0, 3)
   const sections: string[] = []
@@ -301,7 +339,8 @@ function captionSections(src: SourceMeta, opener: string | null): string {
   // manual override, which is the failure mode that once let a stale caption
   // publish.
   if (feats.length) sections.push(`🏡 Amenities\n\n${feats.map((f) => `• ${f}`).join("\n")}`)
-  sections.push(CTA_LINES[0], CTA_LINES[1])
+  // Joined with "\n\n", so this is exactly ONE blank line between the service line and the CTA.
+  sections.push(SERVICE_LINE, ctaTail ?? commentCta(src.propertyType))
   return sections.join("\n\n").slice(0, 1800)
 }
 
@@ -334,11 +373,19 @@ export function buildCaption(src: SourceMeta, seed?: string | number, template?:
   // OPENER: template-aware (captionOpener). When the chosen template's opener cannot be fully
   // resolved — or no template is supplied — it falls back to the original seed-rotated hooks, so the
   // caption never loses its first line and never emits an unresolved placeholder.
-  const opener = (template ? captionOpener(template, src) : null) ?? (() => {
+  return captionSections(src, resolveOpener(src, seed, template ?? null))
+}
+
+/** The opener buildCaption would choose. Extracted so the legacy-recognition pass can rebuild a
+ *  caption with the CURRENT opener but the SUPERSEDED closing line, without a second copy of this
+ *  selection rule drifting out of step with the real one. */
+function resolveOpener(src: SourceMeta, seed: string | number | undefined, template: OverlayTemplate | null): string | null {
+  const city = clean(normalizeSocialMarket(src.market))
+  const canonicalType = normalizeToCanonical(clean(src.propertyType) || null)
+  return (template ? captionOpener(template, src) : null) ?? (() => {
     const hooks = eligibleHooks(city, canonicalType)
     return hooks.length ? hooks[hashSeed(seed) % hooks.length] : null
   })()
-  return captionSections(src, opener)
 }
 
 /** Prepare all suggested fields at once. `seed` (the source id) makes hook rotation deterministic. */
@@ -715,6 +762,17 @@ export function isGeneratedCaption(text: string | null | undefined, src: SourceM
     // generator-owned rather than frozen as a manual override.
     for (const legacy of supersededOpeners(s2)) {
       if (captionKey(captionSections(s2, legacy)) === t) return true
+    }
+    // ...and the SUPERSEDED CLOSING LINE. Every caption in the library predates the comment CTA and
+    // ends with "Submit the form…"; without this it would match nothing, be judged a manual override
+    // and never re-sync again. Checked for the current opener and for every superseded one, because
+    // an old caption can be old in both respects at once.
+    if (captionKey(captionSections(s2, resolveOpener(s2, seed, null), LEGACY_FORM_CTA)) === t) return true
+    for (const tpl of OVERLAY_TEMPLATES) {
+      if (captionKey(captionSections(s2, resolveOpener(s2, seed, tpl), LEGACY_FORM_CTA)) === t) return true
+    }
+    for (const legacy of supersededOpeners(s2)) {
+      if (captionKey(captionSections(s2, legacy, LEGACY_FORM_CTA)) === t) return true
     }
   }
   return false

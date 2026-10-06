@@ -41,7 +41,8 @@ ok("internal property name never leaks into caption", !leaky.caption.includes("B
 ok("internal area never leaks into caption/overlay", !leaky.caption.includes("Medical Center") && !leaky.overlayHeadline.includes("MEDICAL") && !leaky.overlaySubheadline.includes("MEDICAL"))
 ok("internal notes never leak", !leaky.caption.includes("call owner"))
 
-console.log("APPROVED caption template (4 rotating hooks, conditional lines, fixed CTA):")
+const SERVICE_LINE = "My apartment locating service is completely free!"
+console.log("APPROVED caption template (4 rotating hooks, conditional lines, comment CTA):")
 const APPROVED_HOOKS_CITY = ["Moving to Dallas? This is your sign.", "This is your sign to move to Dallas.", "Moving to Dallas? You need to see this one."]
 const APPROVED_HOOK4 = (noun: string) => `Need a new ${noun}?`
 // Rotation across many seeds (city + type present) → only the 4 approved hooks, and >1 distinct.
@@ -73,13 +74,14 @@ ok("✨ line OMITTED entirely (emoji included) when special missing", !noSpecial
 ok("🏡 single amenity → heading + one bullet", noSpecial.includes("🏡 Amenities\n\n• Private yard"))
 const bare = buildCaption({ market: "Dallas", propertyType: "Townhome" }, "z")
 ok("no 🏡/💰/✨ lines when none present", !bare.includes("🏡") && !bare.includes("💰") && !bare.includes("✨"))
-// Fixed CTA — always, verbatim, no emoji, never rotated. The two sentences are separated by a
-// blank line (their own sections), so the caption renders them one line apart.
-ok("fixed CTA present verbatim (blank line between the two sentences)", full.includes("My apartment locating service is completely free!\n\nSubmit the form to get your free custom apartment list."))
-ok("caption always ends with the CTA", full.endsWith("Submit the form to get your free custom apartment list.") && bare.endsWith("Submit the form to get your free custom apartment list."))
-ok("CTA has no emoji", !/[☀-➿\uD83C-\uDBFF]/.test("My apartment locating service is completely free! Submit the form to get your free custom apartment list."))
+// Fixed tail — the service line, a blank line, then the COMMENT CTA whose keyword comes from the
+// Property Type. Both captions here are Townhome, so both close with TOWN.
+const TOWN_CTA = '✅ Comment "TOWN" and I’ll send you the best options within your budget.'
+ok("service line + blank line + comment CTA, verbatim", full.includes(`${SERVICE_LINE}\n\n${TOWN_CTA}`))
+ok("caption always ends with the comment CTA", full.endsWith(TOWN_CTA) && bare.endsWith(TOWN_CTA))
+ok("the superseded form CTA is gone", !full.includes("Submit the form") && !bare.includes("Submit the form"))
 // No city AND no type → no hook line at all (never an unresolved placeholder); starts with CTA.
-ok("no city + no type → caption starts with the CTA (no empty hook)", buildCaption({}).split("\n")[0] === "My apartment locating service is completely free!")
+ok("no city + no type → caption starts with the service line (no empty hook)", buildCaption({}).split("\n")[0] === SERVICE_LINE)
 
 console.log("caption whitespace hardening (messy input → clean output):")
 // Padded city (Hook 1 is seed-index 0 for these seeds' pool; assert the produced hook is clean).
@@ -258,8 +260,8 @@ const houston = buildCaption({ market: "Houston", propertyType: "Townhome", spec
 ok("caption uses the concise special display in the ✨ section", houston.includes("✨ 8 Weeks Free") && !houston.includes("Restrictions apply"))
 ok("amenities render as a heading + '• ' bullets (canonicalized; not a comma line)", houston.includes("🏡 Amenities\n\n• Floor-to-Ceiling Windows\n• modern appliances\n• kitchen counter") && !houston.includes("windows, modern"))
 ok("ONE blank line between each present section (join with \\n\\n)", houston.split("\n").filter((l) => l === "").length >= 4 && !/\n\n\n/.test(houston))
-ok("blank line between the two fixed CTA sentences", houston.includes("My apartment locating service is completely free!\n\nSubmit the form to get your free custom apartment list."))
-ok("caption ends with CTA sentence 2", houston.endsWith("Submit the form to get your free custom apartment list."))
+ok("blank line between the service line and the comment CTA", houston.includes(`${SERVICE_LINE}\n\n${TOWN_CTA}`))
+ok("caption ends with the comment CTA", houston.endsWith(TOWN_CTA))
 ok("hook is the first line, followed by a blank line", (() => { const lines = houston.split("\n"); return lines[0].length > 0 && lines[1] === "" })())
 // Amenities capping + empty-entry hygiene in the bulleted list.
 const bulletCap = buildCaption({ market: "Houston", amenities: "one, two, , three, four" }, "s0")

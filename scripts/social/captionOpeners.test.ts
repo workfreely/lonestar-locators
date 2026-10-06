@@ -42,8 +42,8 @@ console.log("\nonly the first line changes — the rest of the caption is untouc
   const bodies = new Set(OVERLAY_TEMPLATES.map((t) => body(buildCaption(SA, "seed-1", t))))
   ok("every template produces the SAME body below the opener", bodies.size === 1)
   const b = [...bodies][0]
-  ok("the two fixed CTA lines are intact and unchanged",
-    b.includes("My apartment locating service is completely free!") && b.includes("Submit the form to get your free custom apartment list."))
+  ok("the service line and the comment CTA are intact and unchanged",
+    b.includes("My apartment locating service is completely free!") && /✅ Comment "[A-Z]+" and I’ll send you the best options within your budget\./.test(b))
   ok("the special and amenities sections are intact", b.includes("✨ 1 Month Free") && b.includes("🏡 Amenities") && b.includes("• Rooftop Pool"))
   ok("the caption still carries no price LINE (price only appears in openers 10/15/16)",
     !b.includes("Starting at") && !b.includes("💰"))

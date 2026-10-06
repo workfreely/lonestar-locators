@@ -141,8 +141,8 @@ async function main() {
   console.log("\nNOTHING ELSE IN POST GENERATION MOVED:")
   {
     const compose = read("lib/social/composePost.ts")
-    ok("the CTA lines still close the caption",
-      /sections\.push\(CTA_LINES\[0\], CTA_LINES\[1\]\)/.test(compose))
+    ok("the service line + comment CTA still close the caption",
+      /sections\.push\(SERVICE_LINE, ctaTail \?\? commentCta\(src\.propertyType\)\)/.test(compose))
     ok("sections are still joined by a blank line and capped at 1800",
       /sections\.join\("\\n\\n"\)\.slice\(0, 1800\)/.test(compose))
     ok("the hashtag cap is untouched", /MAX_HASHTAGS/.test(compose))
