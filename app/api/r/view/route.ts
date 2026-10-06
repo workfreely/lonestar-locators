@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { hashShareToken, looksLikeShareToken } from "@/lib/clientShare/token"
+import { sendNotification } from "@/lib/notifications/send"
+import { absoluteUrl } from "@/lib/notifications/branding"
 
 // Public, token-scoped VIEW BEACON for a Client Recommendation list.
 //
@@ -39,12 +41,38 @@ export async function POST(req: NextRequest) {
 
   const supabase = await createClient()
   // AWAITED — the entire point of this route.
-  const { error } = await supabase.rpc("lb_record_client_share_view", {
+  const { data, error } = await supabase.rpc("lb_record_client_share_view", {
     p_token_hash: hashShareToken(token),
   })
   if (error) return NextResponse.json({ error: "failed" }, { status: 500 })
 
-  // The RPC returns void and is a deliberate no-op for an unknown/revoked/disabled share, so a
-  // clean 200 here means "recorded if recordable" — never an assertion that a view was counted.
+  // NO ROW = unknown / revoked / disabled share. The RPC recorded nothing, so there is nothing to
+  // announce. A clean 200 here means "recorded if recordable" — never an assertion that a view
+  // was counted.
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | { should_notify?: boolean; is_first_view?: boolean; client_first_name?: string | null; locator_email?: string | null; lead_id?: number | null }
+    | null
+
+  // AGENT NOTIFICATION. Every rule that decides WHETHER to send lives in the RPC, in the same
+  // transaction as the session write — a refresh inside the 30-minute window never reaches a new
+  // session, a repeat visit inside 6 hours fails the cooldown, and ?preview=1 never calls this
+  // route at all. Here we only deliver what the database already decided.
+  if (row?.should_notify && row.locator_email) {
+    const first = (row.client_first_name || "Your client").trim()
+    // Singular "their", not "her": the client's pronouns are not something the CRM knows, and a
+    // guessed one is wrong for a real person every time it misses.
+    const subject = row.is_first_view
+      ? `${first} just viewed their apartment recommendations`
+      : `${first} viewed their apartment recommendations again`
+    // Same deep link the new-lead email uses, so the alert opens straight to this client.
+    const leadUrl = absoluteUrl(`/admin/leads?id=${row.lead_id}`)
+    await sendNotification({
+      to: row.locator_email,
+      subject,
+      html: `<p>${subject}.</p><p><a href="${leadUrl}">Open ${first} in Locator Beast</a></p>`,
+      text: `${subject}.\n\nOpen ${first} in Locator Beast: ${leadUrl}`,
+    })
+  }
+
   return NextResponse.json({ ok: true })
 }

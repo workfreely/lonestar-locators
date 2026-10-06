@@ -12,6 +12,7 @@ import LeadFavorites from "./LeadFavorites"
 import LeadNotes from "./LeadNotes"
 import BestMatches from "./BestMatches"
 import SentListsPanel from "./SentListsPanel"
+import RecommendationEngagement from "./RecommendationEngagement"
 import LeadFormModal from "../LeadFormModal"
 import FollowUpTemplatesModal from "./FollowUpTemplatesModal"
 import WorkflowActionToast from "./WorkflowActionToast"
@@ -4530,6 +4531,10 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                     onSendRecommendations={() => selectedLead && handleSendRecommendations(selectedLead)}
                     onOpenSentHistory={() => selectedLead && setSentHistory({ leadId: selectedLead.id, clientName: shareClientName(selectedLead) })}
                   />
+                  {/* Compact recommendation engagement — reads the existing view/session data, no
+                      new tracking and no new endpoint. Sits under the send/history controls it
+                      describes rather than becoming its own card. */}
+                  {selectedLead && <RecommendationEngagement leadId={selectedLead.id} />}
                   <LeadFavorites
                     reasonsByKey={reasonsByKey}
                     onSaveReasons={handleSaveReasons}
