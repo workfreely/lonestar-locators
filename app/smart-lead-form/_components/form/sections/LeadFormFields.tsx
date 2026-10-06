@@ -142,12 +142,16 @@ export default function LeadFormFields({
   config,
   serviceAreaSlugs,
   submitUsername,
+  pathUtmSource,
 }: {
   config: SmartLeadFormConfig
   serviceAreaSlugs?: string[]
   // Public page: submit real, attributed leads for this username. Absent in the
   // editor preview (submit is a no-op confirmation there).
   submitUsername?: string
+  // utm_source implied by a CLEAN branded URL (/{username}/tt). Resolved server-side; a query-string
+  // utm_source still wins, so existing long links are unaffected.
+  pathUtmSource?: string
 }) {
   const [formData, setFormData] = useState<FormData>(INITIAL)
   // Earliest selectable move-in date (today); memoized so the picker isn't handed
@@ -310,7 +314,7 @@ export default function LeadFormFields({
     // no client persistence needed. Un-substituted Meta placeholders are dropped (never fabricated).
     const attribution =
       typeof window !== "undefined"
-        ? collectLeadAttribution(new URLSearchParams(window.location.search), window.location.href, document.referrer || undefined)
+        ? collectLeadAttribution(new URLSearchParams(window.location.search), window.location.href, document.referrer || undefined, pathUtmSource)
         : {}
     try {
       const res = await fetch("/api/leads/submit", {

@@ -52,9 +52,19 @@ export function collectLeadAttribution(
   search: URLSearchParams,
   href: string | undefined,
   referrer: string | undefined,
+  /**
+   * utm_source implied by the CLEAN branded URL path (locatorbeast.com/{agent}/tt → "tiktok"),
+   * resolved server-side from the one slug table in smart-lead-form/_lib/shareConfig.
+   *
+   * It is a FALLBACK, never an override: an explicit ?utm_source in the query always wins, so every
+   * link already live in a bio, a QR code or an ad keeps attributing exactly as it does today. This
+   * is also why the branded path does not synthesize utm_medium/utm_campaign — inventing values the
+   * click did not carry would corrupt paid-vs-organic reporting, which reads utm_medium.
+   */
+  pathUtmSource?: string | undefined,
 ): LeadAttribution {
   const g = (k: string) => clean(search.get(k))
-  const utm_source = g("utm_source")
+  const utm_source = g("utm_source") ?? clean(pathUtmSource)
   const out: LeadAttribution = {
     utm_source,
     utm_medium: g("utm_medium"),

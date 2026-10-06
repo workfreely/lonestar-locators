@@ -10,7 +10,7 @@ import Card from "../ui/Card"
 import {
   FALLBACK_USERNAME,
   SHARE_PLATFORMS,
-  buildShareUrl,
+  buildCleanShareUrl,
   publicPagePath,
   publicPageUrl,
 } from "../../../_lib/shareConfig"
@@ -37,12 +37,15 @@ export default function SharePanel({ slug }: { slug: string | null }) {
   const username = slug ?? FALLBACK_USERNAME
   const pagePath = publicPagePath(username) // locatorbeast.com/jay-morris
   const pageUrl = publicPageUrl(username) // https://locatorbeast.com/jay-morris
+  // The QR encodes the branded /qr link so a SCAN is distinguishable from a tap in reporting. Codes
+  // already printed encode the base URL and keep working untouched — that link is unchanged.
+  const qrUrl = buildCleanShareUrl(username, "qr")
 
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    QRCode.toDataURL(pageUrl, {
+    QRCode.toDataURL(qrUrl, {
       width: 320,
       margin: 1,
       color: { dark: "#111318", light: "#ffffff" },
@@ -56,7 +59,7 @@ export default function SharePanel({ slug }: { slug: string | null }) {
     return () => {
       cancelled = true
     }
-  }, [pageUrl])
+  }, [qrUrl])
 
   function downloadQr() {
     if (!qrDataUrl) return
@@ -102,7 +105,9 @@ export default function SharePanel({ slug }: { slug: string | null }) {
                   <Icon className="h-4 w-4" style={{ color }} />
                 </span>
                 <span className="min-w-0 flex-1 text-[13.5px] font-medium text-[#111318]">{platform.label}</span>
-                <CopyButton value={buildShareUrl(username, platform.utmSource)} label="Copy" />
+                {/* Clean branded URL — locatorbeast.com/{slug}/tt. Attribution is resolved server-side
+                    from the slug, so no utm_* is ever exposed in what the locator copies or posts. */}
+                <CopyButton value={buildCleanShareUrl(username, platform.slug)} label="Copy" />
               </Card>
             )
           })}

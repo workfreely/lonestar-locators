@@ -21,6 +21,7 @@ export default function SmartLeadForm({
   config,
   serviceAreaSlugs,
   submitUsername,
+  pathUtmSource,
 }: {
   config: SmartLeadFormConfig
   // The workspace's selected market slugs — drives which cities the form shows.
@@ -30,6 +31,8 @@ export default function SmartLeadForm({
   // leads to /api/leads/submit for this username. When absent (editor preview),
   // submit is a no-op confirmation.
   submitUsername?: string
+  // Attribution implied by a clean branded URL path; forwarded verbatim to the fields.
+  pathUtmSource?: string
 }) {
   // Service Areas come from ONE source: the agent's Profile market selection
   // (serviceAreaSlugs). They render in canonical catalog order (matching how
@@ -56,7 +59,7 @@ export default function SmartLeadForm({
       <Hero config={displayConfig} />
       {showOverlappingAgentProfile && <AgentProfile config={displayConfig} />}
 
-      <LeadFormFields config={displayConfig} serviceAreaSlugs={serviceAreaSlugs} submitUsername={submitUsername} />
+      <LeadFormFields config={displayConfig} serviceAreaSlugs={serviceAreaSlugs} submitUsername={submitUsername} pathUtmSource={pathUtmSource} />
 
       {AFTER_FORM_ORDER.map((id) => (visibility[id] ? <div key={id}>{AFTER_FORM_REGISTRY[id](displayConfig)}</div> : null))}
 
