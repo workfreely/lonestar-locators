@@ -64,7 +64,7 @@ export default function MetaSalesAnalytics({ data }: { data: MetaSalesAnalytics 
   const hasData = !!data && (data.overview.leads > 0 || data.overview.spend > 0)
 
   return (
-    <CollapsibleSection title="Meta Sales Analytics" storageKey="meta-sales-analytics-expanded" defaultOpen={false}>
+    <CollapsibleSection title="Meta Sales Analytics" storageKey="meta-sales-analytics-expanded" defaultOpen={true}>
       <div className="p-4">
         {/* Freshness */}
         <div className="mb-3 flex items-center justify-between gap-3">

@@ -93,7 +93,7 @@ export default function MonthlyPerformanceHistory({ leads }: { leads: any[] }) {
     })
 
   return (
-    <CollapsibleSection title="Monthly Sales" storageKey="monthly-performance-history-expanded" defaultOpen={false}>
+    <CollapsibleSection title="Monthly Sales" storageKey="monthly-performance-history-expanded" defaultOpen={true}>
       <div className="p-4">
         <table className="w-full text-sm">
           <thead>

@@ -27,7 +27,7 @@ export default function CampaignTable({ leads }: { leads: any[] }) {
   const rows = Object.values(groups).sort((a, b) => b.count - a.count)
 
   return (
-    <CollapsibleSection title="Campaigns" storageKey="campaigns-expanded" defaultOpen={false}>
+    <CollapsibleSection title="Campaigns" storageKey="campaigns-expanded" defaultOpen={true}>
       <div className="p-4">
         <table className="w-full text-sm">
           <thead>
