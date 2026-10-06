@@ -4,14 +4,17 @@
 
 export const CITIES = ["San Antonio", "Austin", "Dallas", "Houston"] as const
 
+// DISPLAY ORDER for the lead-form Property Type dropdown: apartment-style first, then
+// house-style, with "Open to All" last. Only the ORDER changed — every value is byte-identical,
+// so nothing stored, matched or inferred is affected.
 export const PROPERTY_TYPES = [
   "Studio",
   "Apartment",
   "High-Rise",
+  "Loft",
   "Townhome",
   "Rental Home",
   "Penthouse",
-  "Loft",
   "Open to All",
 ] as const
 

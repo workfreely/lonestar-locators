@@ -21,8 +21,27 @@ export const SOCIAL_ONLY_PROPERTY_TYPES = [
  *  without hard-coding city×type strings — adding another qualified family only touches this file. */
 export const COMPOUND_TYPE_QUALIFIERS = ["Split-Level", "Industrial-Style"] as const
 
+// ORDER IS PINNED HERE, membership is still derived.
+//
+// The lead-form dropdown was reordered (Loft moved up beside the apartment-style types) as a
+// display change for CLIENTS. Social Beast's selector is an internal admin control that was not
+// part of that request, and inheriting the array order would have silently reordered it too. So
+// this keeps Social Beast's existing order while still taking its MEMBERSHIP from the canonical
+// list — a value added to or removed from lib/formOptions still flows through, and the assertion
+// below fails loudly if one ever does, rather than letting the two drift apart unnoticed.
+const SOCIAL_CANONICAL_ORDER = ["Studio", "Apartment", "High-Rise", "Townhome", "Rental Home", "Penthouse", "Loft"] as const
+{
+  const derived = [...CANONICAL_PROPERTY_TYPES].filter((t) => t !== "Open to All").sort()
+  const pinned = [...SOCIAL_CANONICAL_ORDER].sort()
+  if (derived.join("|") !== pinned.join("|")) {
+    throw new Error(
+      `social propertyTypes: canonical membership changed (${derived.join(", ")}) — update SOCIAL_CANONICAL_ORDER to match`,
+    )
+  }
+}
+
 export const PROPERTY_TYPES = [
-  ...CANONICAL_PROPERTY_TYPES.filter((t) => t !== "Open to All"), // Studio | Apartment | High-Rise | Townhome | Rental Home | Penthouse | Loft
+  ...SOCIAL_CANONICAL_ORDER, // Studio | Apartment | High-Rise | Townhome | Rental Home | Penthouse | Loft
   ...SOCIAL_ONLY_PROPERTY_TYPES,
 ] as const
 export type PropertyType = (typeof PROPERTY_TYPES)[number]
