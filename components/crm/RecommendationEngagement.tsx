@@ -42,8 +42,12 @@ export default function RecommendationEngagement({ leadId }: { leadId: number | 
           headers: { Accept: "application/json" },
         })
         if (!res.ok) { if (!cancelled) setRows([]); return }
-        const json = (await res.json()) as { items?: ShareRow[] }
-        if (!cancelled) setRows(Array.isArray(json.items) ? json.items : [])
+        // The per-lead branch answers { shares: [...] }; the workspace-wide branch answers
+        // { items: [...] }. Accept both rather than assuming — reading the wrong key silently
+        // yields an empty list, which renders a confident and WRONG "Not viewed yet".
+        const json = (await res.json()) as { shares?: ShareRow[]; items?: ShareRow[] }
+        const list = Array.isArray(json.shares) ? json.shares : Array.isArray(json.items) ? json.items : []
+        if (!cancelled) setRows(list)
       } catch {
         if (!cancelled) setRows([]) // a stats line must never surface an error into the panel
       }
