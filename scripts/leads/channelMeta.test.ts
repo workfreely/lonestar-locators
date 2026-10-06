@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { channelMeta } from "@/lib/leads/channelMeta"
 import { getSourceStyle } from "@/lib/leads/sourceStyles"
+import { PLATFORM_ICON_SIZE, PLATFORM_ICON_SIZE_COMPACT, PLATFORM_ICON_GAP, platformIconColor } from "@/lib/ui/platformIcon"
 
 let pass = 0
 const failures: string[] = []
@@ -48,6 +49,70 @@ ok("null/undefined → unknown glyph",
 ok("…and NOT Instagram (the bug platformMeta's fallback would have caused here)",
   channelMeta("nonsense").Icon !== channelMeta("instagram").Icon)
 ok("case-insensitive", channelMeta("InStaGram").Icon === channelMeta("instagram").Icon)
+
+console.log("\nSHARED PLATFORM-MARK CONTRACT (Social Beast History ↔ Analytics):")
+const hist = read("components/crm/social/HistoryTable.tsx")
+const cmSrc = read("lib/leads/channelMeta.tsx")
+ok("one shared size constant exists", PLATFORM_ICON_SIZE === 14)
+ok("History renders at the shared size", /size=\{PLATFORM_ICON_SIZE\}/.test(hist))
+ok("…and no longer hard-codes 13", !/size=\{13\}/.test(hist))
+ok("Analytics defaults to the shared size", /size = PLATFORM_ICON_SIZE/.test(cmSrc))
+ok("…and no longer hard-codes 13", !/size = 13/.test(cmSrc))
+ok("both import the contract, so size cannot drift",
+  /@\/lib\/ui\/platformIcon/.test(hist) && /@\/lib\/ui\/platformIcon/.test(cmSrc))
+ok("the shared gap is the one History already used", PLATFORM_ICON_GAP === "gap-1.5")
+ok("History still uses gap-1.5", /inline-flex items-center gap-1\.5/.test(hist))
+
+console.log("\nTHE THREE SHARED PLATFORMS CANNOT DRIFT IN COLOUR:")
+for (const p of ["instagram", "tiktok", "youtube"] as const) {
+  ok(`${p}: History and Analytics resolve the SAME hue`,
+    platformIconColor(p) === channelMeta(p).color, `${platformIconColor(p)} vs ${channelMeta(p).color}`)
+  ok(`${p}: and it is the canonical CRM source hue`, platformIconColor(p) === getSourceStyle(p).color)
+}
+ok("History now passes an explicit colour (was monochrome)", /color=\{platformIconColor\(h\.platform\)\}/.test(hist))
+ok("an unknown platform gets the neutral hue, not a borrowed brand one",
+  platformIconColor("nonsense") === getSourceStyle("unknown").color)
+
+console.log("\nTHE CONTRACT REACHES EVERY SURFACE THAT DRAWS THESE MARKS:")
+const cal = read("components/crm/social/CalendarShell.tsx")
+const queue = read("components/crm/social/QueueClient.tsx")
+const metaS = read("components/crm/performance/MetaSalesAnalytics.tsx")
+const srcC = read("components/crm/performance/LeadSourcesCard.tsx")
+const campC = read("components/crm/performance/CampaignTable.tsx")
+const perfC = read("components/crm/performance/PerformanceStats.tsx")
+for (const [name, src] of [
+  ["History", hist], ["Calendar", cal], ["Queue", queue],
+  ["Lead Sources", srcC], ["Campaigns", campC], ["Top Source", perfC], ["Meta publisher", metaS],
+] as const) {
+  const viaContract = /@\/lib\/ui\/platformIcon/.test(src)
+  const viaChannelLabel = /@\/lib\/leads\/channelMeta/.test(src)
+  ok(`${name} draws via the shared contract`, viaContract || viaChannelLabel)
+}
+ok("Calendar takes its colour from the contract, not platformMeta's brand hex",
+  /const color = platformIconColor\(platform\)/.test(cal))
+ok("…and its size from the contract", /size=\{PLATFORM_ICON_SIZE\}/.test(cal))
+ok("…with the hard-coded h-4/h-3.5 sizing classes removed",
+  !/h-4 w-4 flex-none/.test(cal) && !/h-3\.5 w-3\.5 flex-none/.test(cal))
+ok("Queue takes its colour from the contract", /color=\{platformIconColor\(p\.platform\)\}/.test(queue))
+ok("…at the CENTRALISED compact size (value unchanged at 12)",
+  /size=\{PLATFORM_ICON_SIZE_COMPACT\}/.test(queue) && PLATFORM_ICON_SIZE_COMPACT === 12)
+ok("no surface hard-codes a platform icon size any more",
+  ![hist, cal, queue].some((s) => /size=\{1[0-9]\}/.test(code(s))))
+
+console.log("\nTHE APPROVED CANONICAL COLOURS:")
+for (const [p, hex] of [["instagram", "#a855f7"], ["tiktok", "#f59e0b"], ["youtube", "#ef4444"]] as const) {
+  ok(`${p} = ${hex}`, platformIconColor(p) === hex, platformIconColor(p))
+}
+
+console.log("\nSOCIAL BEAST BEHAVIOUR + LAYOUT UNTOUCHED:")
+ok("History table layout unchanged (same cell padding)", /px-3 py-2\.5 text-\[var\(--crm-text-secondary\)\] whitespace-nowrap/.test(hist))
+ok("…table type scale unchanged", /text-\[13px\]/.test(hist))
+ok("…platform label still from platformMeta", /\{pm\.label\}/.test(hist))
+ok("platformMeta itself is NOT modified", /color: "#E4405F"/.test(read("lib/social/platformMeta.ts")))
+ok("Queue keeps its dense 11.5px label line (only the mark changed)",
+  /text-\[11\.5px\] text-\[var\(--crm-text-secondary\)\] truncate flex items-center gap-1/.test(read("components/crm/social/QueueClient.tsx")))
+ok("no theme token was touched anywhere",
+  !/kb-accent|data-theme/.test(read("lib/ui/platformIcon.ts")))
 
 console.log("\nMETA PUBLISHER TOKENS RESOLVE TO THE SAME MARKS:")
 ok('"ig" → the Instagram mark (not the neutral glyph)',

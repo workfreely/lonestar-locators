@@ -47,7 +47,7 @@ export default function CampaignTable({ leads }: { leads: any[] }) {
                 <tr key={`${row.campaign} ${row.source ?? ""}`} className="border-b border-[var(--crm-border-soft)] last:border-0">
                   <td className="py-2 text-[var(--crm-text-primary)]">{row.campaign}</td>
                   <td className="py-2">
-                    <ChannelLabel channel={row.source} className="text-[12px] text-[var(--crm-text-secondary)]" />
+                    <ChannelLabel channel={row.source} className="text-[13px] text-[var(--crm-text-secondary)]" />
                   </td>
                   <td className="py-2 text-right font-semibold text-[var(--crm-text-primary)]">{row.count}</td>
                 </tr>

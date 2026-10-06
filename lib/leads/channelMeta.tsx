@@ -18,6 +18,7 @@ import { SiInstagram, SiTiktok, SiYoutube, SiFacebook, SiGoogle } from "react-ic
 import { FiGlobe, FiUsers, FiNavigation, FiMail, FiHelpCircle } from "react-icons/fi"
 import { MdQrCode2 } from "react-icons/md"
 import { getSourceStyle } from "@/lib/leads/sourceStyles"
+import { PLATFORM_ICON_SIZE } from "@/lib/ui/platformIcon"
 import type { Channel } from "@/lib/leads/resolveChannel"
 
 /** Icon per canonical channel. Brand marks for real platforms; neutral Feather glyphs for the
@@ -80,7 +81,7 @@ export function channelMeta(channel: string | null | undefined): ChannelMeta {
  */
 export default function ChannelLabel({
   channel,
-  size = 13,
+  size = PLATFORM_ICON_SIZE,
   dim = false,
   showLabel = true,
   label: labelOverride,

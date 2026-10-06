@@ -49,7 +49,7 @@ export default function LeadSourcesCard({ leads }: { leads: any[] }) {
             <div key={source} className="flex items-center gap-3">
               {/* Icon + label replaces the filled badge: the mark is the identifier, the brand
                   colour a restrained accent. Bars, counts and percentages are untouched. */}
-              <ChannelLabel channel={source} className="flex-none w-28 text-[12px] text-[var(--crm-text-secondary)]" />
+              <ChannelLabel channel={source} className="flex-none w-28 text-[13px] text-[var(--crm-text-secondary)]" />
               <div className="flex-1 h-2 bg-[var(--crm-inset)] rounded-full overflow-hidden">
                 <div
                   className="h-full bg-[var(--kb-accent)] rounded-full transition-all duration-500"

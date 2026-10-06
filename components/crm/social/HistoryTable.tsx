@@ -4,6 +4,7 @@ import { useState } from "react"
 import VideoLightbox from "@/components/crm/social/VideoLightbox"
 import { formatPublishedAt } from "@/lib/social/formatPublishedAt"
 import { platformMeta } from "@/lib/social/platformMeta"
+import { PLATFORM_ICON_SIZE, platformIconColor } from "@/lib/ui/platformIcon"
 import type { DemoHistoryItem } from "@/components/crm/social/demoFixtures"
 
 // Social Autopilot → History table (client). Same columns/layout as before — only the first column
@@ -93,9 +94,11 @@ export default function HistoryTable({ items }: { items: DemoHistoryItem[] }) {
                   )}
                 </td>
                 <td className="px-3 py-2.5 text-[var(--crm-text-secondary)] whitespace-nowrap">
-                  {/* Same platform-icon treatment as Queue: small mark + name, from the persisted platform. */}
+                  {/* Shared platform-mark contract (lib/ui/platformIcon): same size and colour the
+                      Analytics source icons use, so one platform reads identically on both screens.
+                      Table layout, row height, gap and label are unchanged. */}
                   <span className="inline-flex items-center gap-1.5">
-                    <pm.Icon className="flex-none" size={13} aria-hidden />
+                    <pm.Icon className="flex-none" size={PLATFORM_ICON_SIZE} color={platformIconColor(h.platform)} aria-hidden />
                     <span>{pm.label}</span>
                   </span>
                 </td>

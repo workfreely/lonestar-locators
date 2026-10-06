@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import AutoPostingControl from "@/components/crm/social/AutoPostingControl"
 import { useRouter } from "next/navigation"
 import { platformMeta } from "@/lib/social/platformMeta"
+import { PLATFORM_ICON_SIZE_COMPACT, platformIconColor } from "@/lib/ui/platformIcon"
 import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
 
 // Social Autopilot → Queue (REAL post model). Shows this admin's posts that have not yet
@@ -159,7 +160,9 @@ export default function QueueClient() {
                   {p.recurring && <span className="flex-none text-[9.5px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-[var(--crm-card)] text-[var(--crm-text-secondary)] border border-[var(--crm-border)]">Recurring</span>}
                 </div>
                 <div className="text-[11.5px] text-[var(--crm-text-secondary)] truncate flex items-center gap-1">
-                  <pm.Icon className="flex-none" size={12} aria-hidden />
+                  {/* Shared colour; the COMPACT size (same 12px as before) because this is a dense
+                      11.5px secondary line — see PLATFORM_ICON_SIZE_COMPACT. */}
+                  <pm.Icon className="flex-none" size={PLATFORM_ICON_SIZE_COMPACT} color={platformIconColor(p.platform)} aria-hidden />
                   <span>{pm.label}{p.source?.market ? ` · ${p.source.market}` : ""}</span>
                 </div>
                 <div className="text-[11px] text-[var(--crm-text-muted)] mt-0.5">{fmtWhen(p.scheduledAt)}</div>

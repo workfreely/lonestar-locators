@@ -63,7 +63,7 @@ export default function PerformanceStats({ leads }: { leads: any[] }) {
         <p className={labelCls}>Top Source</p>
         <div className="mt-1">
           {topSource ? (
-            <ChannelLabel channel={topSource} size={15} className="text-sm text-[var(--crm-text-primary)]" />
+            <ChannelLabel channel={topSource} className="text-sm text-[var(--crm-text-primary)]" />
           ) : (
             <p className={valueCls}>—</p>
           )}

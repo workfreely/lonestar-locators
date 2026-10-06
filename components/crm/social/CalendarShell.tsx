@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
 import { platformMeta } from "@/lib/social/platformMeta"
+import { PLATFORM_ICON_SIZE, platformIconColor } from "@/lib/ui/platformIcon"
 // Shared calendar data + formatting — the SAME source of truth the Post Editor's scheduling
 // workspace uses, so the two views never disagree about what is scheduled.
 import { type CalPost, WEEKDAYS, addDays, sameDay, dateKey, timeLabel, marketAbbr, shortLabel, calLabel as label, groupByDay } from "@/lib/social/calendar"
@@ -43,11 +44,15 @@ const STATUS_DOT: Record<PostStatus, string> = {
 // the platform's recognizable BRAND color (inline style → the svg's currentColor fill), which is
 // intentionally independent of the workspace accent; size comes from the caller's className.
 function PlatformIcon({ platform, className }: { platform: string; className?: string }) {
-  const { Icon, color } = platformMeta(platform)
+  const { Icon } = platformMeta(platform)
+  // Colour and size come from the SHARED contract (lib/ui/platformIcon), so a platform reads the
+  // same here as in History and Analytics. Previously this used platformMeta's brand hex, which
+  // disagreed with every other surface.
+  const color = platformIconColor(platform)
   // Simple Icons fill their 0 0 24 24 viewBox edge-to-edge, and an <svg>'s default `overflow:hidden`
   // shaves the boundary at small sizes (the glyph's bottom edge looked clipped in the compact Month
   // event). `overflow-visible` lets the whole glyph render without enlarging the box or the row.
-  return <Icon className={"overflow-visible " + (className ?? "")} style={{ color }} aria-hidden />
+  return <Icon size={PLATFORM_ICON_SIZE} className={"overflow-visible " + (className ?? "")} style={{ color }} aria-hidden />
 }
 
 function Thumb({ p, className }: { p: CalPost; className?: string }) {
@@ -204,7 +209,7 @@ function CellPost({ p, onOpenPost }: { p: CalPost; onOpenPost: (id: string) => v
       className="w-full flex items-center gap-1 rounded px-1 py-0.5 text-left bg-[var(--crm-card)] hover:bg-[var(--crm-border)] transition-colors"
     >
       <Thumb p={p} className="h-4 w-3 flex-none rounded-[2px]" />
-      <PlatformIcon platform={p.platform} className="h-4 w-4 flex-none" />
+      <PlatformIcon platform={p.platform} className="flex-none" />
       <span className="text-[10px] font-semibold text-[var(--crm-text-secondary)] tabular-nums flex-none">{timeLabel(p.scheduledAt)}</span>
       {p.recurring && <span title="Recurring" aria-label="Recurring" className="flex-none text-[10px] text-[var(--crm-text-muted)] leading-none">↻</span>}
       <span className="text-[10px] text-[var(--crm-text-muted)] truncate">{label(p)}</span>
@@ -228,7 +233,7 @@ function MonthEntry({ p, onOpenPost }: { p: CalPost; onOpenPost: (id: string) =>
       title={`${platformMeta(p.platform).label} · ${t}${mkt ? ` · ${mkt}` : ""} · ${label(p)}`}
       className="w-full flex items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-[var(--crm-card)] transition-colors leading-tight"
     >
-      <PlatformIcon platform={p.platform} className="h-3.5 w-3.5 flex-none" />
+      <PlatformIcon platform={p.platform} className="flex-none" />
       <span className="text-[10.5px] font-semibold text-[var(--crm-text-secondary)] tabular-nums flex-none">{t}</span>
       {p.recurring && <span title="Recurring" aria-label="Recurring" className="flex-none text-[10px] text-[var(--crm-text-muted)] leading-none">↻</span>}
       {mkt && <span className="text-[10.5px] font-semibold text-[var(--crm-text-secondary)] flex-none">· {mkt}</span>}
@@ -396,7 +401,7 @@ function ListView({ cursor, today, byDay, onOpenPost }: GridProps) {
                     <button key={p.id} type="button" onClick={() => onOpenPost(p.id)} className="flex items-center gap-2 text-left rounded px-2 py-1 hover:bg-[var(--crm-card)] transition-colors">
                       <span className={"h-1.5 w-1.5 rounded-full flex-none " + (STATUS_DOT[p.status] ?? "bg-[var(--crm-text-muted)]")} />
                       <span className="text-[12.5px] text-[var(--crm-text-primary)] font-semibold tabular-nums">{timeLabel(p.scheduledAt)}</span>
-                      <PlatformIcon platform={p.platform} className="h-4 w-4 flex-none text-[var(--crm-text-muted)]" />
+                      <PlatformIcon platform={p.platform} className="flex-none" />
                       <span className="text-[12.5px] text-[var(--crm-text-secondary)] truncate">{label(p)}</span>
                     </button>
                   ))}
@@ -451,7 +456,7 @@ function DayView({
               <Thumb p={p} className="w-12 h-[68px] flex-none rounded-md" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <PlatformIcon platform={p.platform} className="h-4 w-4 flex-none" />
+                  <PlatformIcon platform={p.platform} className="flex-none" />
                   <span className="text-[12px] font-semibold text-[var(--crm-text-primary)] tabular-nums">
                     {platformMeta(p.platform).label} · {timeLabel(p.scheduledAt)}
                   </span>
@@ -601,7 +606,7 @@ function DayDetail({
                     <Thumb p={p} className="w-10 h-[57px] flex-none rounded-md" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
-                        <PlatformIcon platform={p.platform} className="h-4 w-4 flex-none text-[var(--crm-text-muted)]" />
+                        <PlatformIcon platform={p.platform} className="flex-none" />
                         <span className="text-[12px] font-semibold text-[var(--crm-text-primary)] tabular-nums">{timeLabel(p.scheduledAt)}</span>
                         <span className="ml-auto flex items-center gap-1 text-[10.5px] font-semibold text-[var(--crm-text-secondary)]">
                           <span className={"h-1.5 w-1.5 rounded-full " + (STATUS_DOT[p.status] ?? "bg-[var(--crm-text-muted)]")} />
@@ -624,7 +629,7 @@ function DayDetail({
                 <>
                   <div className="text-[12px] font-semibold text-[var(--crm-text-primary)] truncate">{label(active)}</div>
                   <div className="flex items-center gap-1.5 text-[11.5px] text-[var(--crm-text-secondary)]">
-                    <PlatformIcon platform={active.platform} className="h-4 w-4 flex-none text-[var(--crm-text-muted)]" />
+                    <PlatformIcon platform={active.platform} className="flex-none" />
                     <span className="tabular-nums">{timeLabel(active.scheduledAt)}</span>
                     <span className="ml-1">· {POST_STATUS_LABEL[active.status] ?? active.status}</span>
                   </div>
