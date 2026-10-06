@@ -104,7 +104,11 @@ export default function SentListsPanel({
       setBusyId(id)
       const url = await resolveUrl(id)
       setBusyId(null)
-      if (url) window.open(url, "_blank", "noopener,noreferrer")
+      // ?preview=1 suppresses the view beacon ONLY. The page still renders exactly what the client
+      // sees — that is the point of Preview — but checking your own list no longer registers as the
+      // client having viewed it. Copy Link below deliberately does NOT add it: that URL is the one
+      // the client receives.
+      if (url) window.open(`${url}${url.includes("?") ? "&" : "?"}preview=1`, "_blank", "noopener,noreferrer")
       else setError("Couldn't open that list.")
     },
     [resolveUrl],

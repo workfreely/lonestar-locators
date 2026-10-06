@@ -10,6 +10,8 @@ import RecommendationList, { type ClientProperty } from "./RecommendationList"
 import type { TourType, TourWindow } from "@bc/companion-shared"
 import { clientHeroImage } from "@/lib/clientShare/heroImage"
 
+import ViewBeacon from "./ViewBeacon"
+
 export const dynamic = "force-dynamic"
 
 const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800", "900"], variable: "--lbr-sans", display: "swap" })
@@ -501,10 +503,16 @@ function NoticeScreen({
 
 export default async function ClientRecommendationsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ token: string }>
+  searchParams: Promise<{ preview?: string }>
 }) {
   const { token } = await params
+  // The agent's own Preview action opens the real list with ?preview=1. It suppresses the view
+  // beacon ONLY — the page renders byte-identically to what the client sees, which is the entire
+  // value of Preview. A client link never carries this and is unaffected.
+  const isPreview = (await searchParams)?.preview === "1"
   if (!looksLikeShareToken(token)) notFound()
 
   const supabase = await createClient()
@@ -514,8 +522,16 @@ export default async function ClientRecommendationsPage({
   const share = (Array.isArray(data) ? data[0] : data) as Resolved | undefined
   if (error || !share) notFound()
 
-  // Deduped viewing session + first/last viewed. Unchanged.
-  void supabase.rpc("lb_record_client_share_view", { p_token_hash: tokenHash })
+  // VIEW RECORDING MOVED TO THE BROWSER — see ViewBeacon + /api/r/view.
+  //
+  // This used to be `void supabase.rpc("lb_record_client_share_view", ...)` right here. Un-awaited
+  // work is dropped when the serverless function freezes after the response, and production proved
+  // it: 4 shares had favorites a client could only set by opening the page, yet not one view was
+  // ever recorded. The render ALSO counted link-preview crawlers, because this page is
+  // force-dynamic and every unfurl re-ran it.
+  //
+  // The RPC itself is unchanged and still the only writer, so sessionization, first/last-viewed and
+  // hit_count semantics are exactly as before.
 
   // Tour-availability workflow state (Done pressed? availability submitted?) — a
   // separate read RPC so the core resolver signature stays stable. Failure is
@@ -562,12 +578,15 @@ export default async function ClientRecommendationsPage({
   const properties = share.properties ?? []
   if (properties.length === 0) {
     return (
+      <>
+      <ViewBeacon token={token} disabled={isPreview} />
       <NoticeScreen
         title="Your list is being prepared"
         body={`${agentFirst} is still putting your recommendations together — you'll get a text as soon as they're ready.`}
         config={share.smart_form_config}
         brokerage={brokerage}
       />
+      </>
     )
   }
 
@@ -577,6 +596,9 @@ export default async function ClientRecommendationsPage({
 
   return (
     <div className={`${inter.variable} ${caveat.variable} lbr-root`}>
+      {/* Records the view from the BROWSER so it is actually awaited, and so link-preview crawlers,
+          which never run JS, stop counting. Suppressed for the agent's own Preview. */}
+      <ViewBeacon token={token} disabled={isPreview} />
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="lbr-page"><div className="lbr-shell">
 
