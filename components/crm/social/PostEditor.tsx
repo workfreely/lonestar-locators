@@ -71,6 +71,8 @@ type Post = {
   source: Source | null
   previewUrl: string | null
   renderedPreviewUrl: string | null
+  /** Increments on every successful render. Used as the player's React key — see the <video>. */
+  renderVersion: number | null
   coverThumbOffsetMs: number | null
   coverStoragePath: string | null
   coverPreviewUrl: string | null
@@ -748,7 +750,18 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               // FAITHFUL FINAL PREVIEW — the real rendered derivative (overlay burned in + audio).
               // Only shown when nothing overlay-affecting has changed since load (see
               // overlayEdited) — otherwise this MP4 would misleadingly look current when it isn't.
-              <video ref={previewVideoRef} src={post.renderedPreviewUrl!} controls controlsList="nofullscreen" disablePictureInPicture playsInline preload="metadata" className="w-full h-full object-cover" />
+              // `key` is the fix for a stale player after a re-render. Changing a media element's
+              // `src` does NOT make it load the new resource — per the HTML spec the element keeps
+              // the media it already loaded until load() is called or the element is replaced. React
+              // reconciles same-type/same-position elements by PATCHING the src attribute, so after
+              // a v2 -> v3 render the DOM node kept showing v2 even though state, the refetch and
+              // the signed URL were all correct. Keying on renderVersion forces a genuine remount,
+              // so a v2 element cannot survive once v3 exists.
+              //
+              // renderVersion, not the URL: the URL is re-signed on every load() and would remount
+              // (and reset playback) on each poll, where the version only changes when the artifact
+              // actually does.
+              <video key={post.renderVersion ?? 0} ref={previewVideoRef} src={post.renderedPreviewUrl!} controls controlsList="nofullscreen" disablePictureInPicture playsInline preload="metadata" className="w-full h-full object-cover" />
             ) : post.previewUrl ? (
               <>
                 <video src={post.previewUrl} controls controlsList="nofullscreen" disablePictureInPicture muted playsInline preload="metadata" className="w-full h-full object-cover" />
