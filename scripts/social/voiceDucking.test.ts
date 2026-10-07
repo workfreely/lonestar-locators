@@ -22,7 +22,6 @@ const FF = ffmpegPath as string | null
 if (!FF || !existsSync(FF)) { console.log("voiceDucking.test: ffmpeg-static unavailable — SKIPPED"); process.exit(0) }
 const dir = mkdtempSync(path.join(tmpdir(), "sa-voice-test-"))
 const FONT = "assets/social/fonts/LibreBaskerville-Head.ttf"
-const DETAIL_FONT = "assets/social/fonts/BodoniModa-Detail.ttf"
 
 // ── fixtures ─────────────────────────────────────────────────────────────────────────────────
 /** Video with a CONSTANT full-scale tone as its "music bed" (amplitude 1.0 ⇒ easy level maths). */
@@ -77,7 +76,7 @@ function hasAudioStream(file: string): boolean {
 async function render(name: string, src: string, o: { audioChoice?: "original" | "none"; hook?: string | null; cta?: string | null } = {}): Promise<string> {
   const out = path.join(dir, name)
   await renderReel(FF!, {
-    sourcePath: src, outputPath: out, fontPath: FONT, detailFontPath: DETAIL_FONT,
+    sourcePath: src, outputPath: out, fontPath: FONT, detailFontPath: FONT,
     template: "market_type", headline: "SAN ANTONIO TOWNHOMES", subheadline: "Starting at $1,800/month",
     audioChoice: o.audioChoice ?? "original", workDir: dir, hookPath: o.hook ?? null, ctaPath: o.cta ?? null,
   })

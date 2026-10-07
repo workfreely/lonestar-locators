@@ -21,7 +21,7 @@ import {
 import { OVERLAY_TEMPLATES, buildTemplateHeadline, buildTemplateDetail, type SourceMeta } from "@/lib/social/composePost"
 import { buildDrawPlan } from "@/lib/social/renderVideo"
 import {
-  computeOverlayLayout, templateFamily, headlineTextWidthPx, detailTextWidthPx, isCompoundHeadline,
+  computeOverlayLayout, templateFamily, headlineTextWidthPx, isCompoundHeadline,
   fitCompoundHeroPx, HEADLINE_TEXT_AVAIL_PX, DETAIL_TEXT_AVAIL_PX, HERO_MAX_PX, HERO_MIN_PX,
   COMPOUND_HERO_MIN_PX, OVERLAY_CANVAS, OVERLAY_SPEC, splitCompoundHeadline, MARKET_TYPE_DETAIL_PX,
   COMPOUND_MARKET_SCALE, COMPOUND_DETAIL_SCALE,
@@ -216,7 +216,8 @@ for (const t of COMPOUND_TYPES) for (const m of MARKETS) for (const price of PRI
       // block's nominal fontPx is the SMALLER one — measuring line 1 at 44 would under-report by a
       // third and hide a real overflow.
       const px = b.linePx?.[i] ?? b.fontPx
-      const w = b.face === "head" ? headlineTextWidthPx(txt, px) : detailTextWidthPx(txt, px)
+      // ONE face now, so one measurement — head advances for every block.
+      const w = headlineTextWidthPx(txt, px)
       if (w > avail + 0.5) { overflow++; console.log(`    overflow ${t}/${m}/${tpl}: ${Math.round(w)} > ${avail} @${px}px "${txt}"`) }
     })
   }

@@ -13,11 +13,10 @@ import { renderReel, makeWorkDir, type AudioChoice } from "@/lib/social/renderVi
 // modified; the derivative gets its OWN path {owner}/{contentId}/renders/{postId}-{v}.mp4 in
 // the same private bucket. NO Instagram publishing here. Runs the render synchronously and
 // returns the final status (short Reels complete well within maxDuration).
-// Active overlay fonts: HEADLINES are Libre Baskerville Bold (OFL, wght 700); DETAIL is unchanged —
-// Bodoni Moda's text cut. Both files are the same bytes the browser preview loads via @font-face in
-// globals.css, so preview and burned-in render measure identically.
-const HEAD_FONT_PATH = path.join(process.cwd(), "assets/social/fonts/LibreBaskerville-Head.ttf")
-const DETAIL_FONT_PATH = path.join(process.cwd(), "assets/social/fonts/BodoniModa-Detail.ttf")
+// ONE overlay font: Libre Baskerville Bold (OFL, wght 700), used for the headline AND the detail
+// line. The same bytes the browser preview loads via @font-face in globals.css, so preview and
+// burned-in render measure identically.
+const OVERLAY_FONT_PATH = path.join(process.cwd(), "assets/social/fonts/LibreBaskerville-Head.ttf")
 const extOf = (p: string) => (p.split(".").pop() || "mp4").toLowerCase().replace(/[^a-z0-9]/g, "") || "mp4"
 
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -84,8 +83,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     await renderReel(ffmpegPath as unknown as string, {
       sourcePath: srcLocal,
       outputPath: outLocal,
-      fontPath: HEAD_FONT_PATH,
-      detailFontPath: DETAIL_FONT_PATH,
+      fontPath: OVERLAY_FONT_PATH,
       template: existingText ? "market_type" : ((p.overlay_template as string | null) ?? "market_type"),
       headline: existingText ? "" : ((p.overlay_headline as string | null) ?? ""),
       subheadline: existingText ? "" : ((p.overlay_subheadline as string | null) ?? ""),

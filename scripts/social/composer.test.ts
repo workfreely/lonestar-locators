@@ -6,7 +6,7 @@ import { preparePost, buildCaption, buildOverlayHeadline, buildOverlaySubheadlin
 import { SOCIAL_SPECIAL_OPTIONS, giftCardLabel, isGiftCardSpecial, sanitizeCustomSpecial } from "@/lib/social/socialSpecial"
 import { PROPERTY_TYPES, propertyNoun, propertyNounPlural } from "@/lib/social/propertyTypes"
 import { buildFfmpegArgs, buildVideoFilter } from "@/lib/social/renderVideo"
-import { wrapHeadline, wrapSub, headlineFit, headlineTextWidthPx, computeOverlayLayout, templateFamily, OVERLAY_SPEC, OVERLAY_CANVAS, OVERLAY_TEXT, HEADLINE_TEXT_AVAIL_PX, HOOK_TEXT_AVAIL_PX, HERO_MAX_PX, HERO_MIN_PX, HOOK_MAX_PX, HOOK_MIN_PX, detailTextWidthPx, DETAIL_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
+import { wrapHeadline, wrapSub, headlineFit, headlineTextWidthPx, computeOverlayLayout, templateFamily, OVERLAY_SPEC, OVERLAY_CANVAS, OVERLAY_TEXT, HEADLINE_TEXT_AVAIL_PX, HOOK_TEXT_AVAIL_PX, HERO_MAX_PX, HERO_MIN_PX, HOOK_MAX_PX, HOOK_MIN_PX, DETAIL_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
 import { buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL } from "@/lib/social/composePost"
 
 let pass = 0, fail = 0
@@ -364,7 +364,7 @@ ok("NO visible outline (edge alpha 0 — crisp solid white)", OVERLAY_TEXT.edgeA
 ok("headline/detail tracking is 0 and never negative", OVERLAY_TEXT.trackingEm === 0)
 ok("measured width === rendered width (no phantom tracking budget)",
   headlineTextWidthPx("What $1,500/month gets you in San Antonio", 41) === headlineTextWidthPx("What $1,500/month gets you in San Antonio", 41, 0) &&
-  detailTextWidthPx("Starting at $1,800/month", 40) === detailTextWidthPx("Starting at $1,800/month", 40, 0))
+  headlineTextWidthPx("Starting at $1,800/month", 40) === headlineTextWidthPx("Starting at $1,800/month", 40, 0))
 // HEAD_ADV covers the full headline vocabulary — digits/$/,// were falling through to ADV_FALLBACK,
 // which mis-measured every price-bearing headline (T15/T16).
 ok("price headline is measured from real advances, not the fallback",
@@ -506,12 +506,12 @@ console.log("Templates 5 & 8 detail hierarchy (supporting the hook — one line,
 const t5cases = ["8 Weeks Free · Starting at $1,900/month", "Starting at $1,900/month", "8 Weeks Free"]
 for (const d of t5cases) {
   const L = computeOverlayLayout("upgrade", "What life looks like when you upgrade", d)
-  ok(`T6 detail one line at the flat conversational size: "${d}" (${L.detail!.fontPx}px vs hook ${L.headline.fontPx})`, L.detail!.lines.length === 1 && L.detail!.fontPx === Math.min(36, Math.max(20, L.headline.fontPx - 1)) && L.detail!.fontPx < L.headline.fontPx && detailTextWidthPx(d, L.detail!.fontPx) <= DETAIL_TEXT_AVAIL_PX)
+  ok(`T6 detail one line at the flat conversational size: "${d}" (${L.detail!.fontPx}px vs hook ${L.headline.fontPx})`, L.detail!.lines.length === 1 && L.detail!.fontPx === Math.min(36, Math.max(20, L.headline.fontPx - 1)) && L.detail!.fontPx < L.headline.fontPx && headlineTextWidthPx(d, L.detail!.fontPx) <= DETAIL_TEXT_AVAIL_PX)
 }
 // T8 POV + Price — price detail 40px (strong but below the POV headline), one line for all prices.
 for (const p of ["Starting at $995/month", "Starting at $1,250/month", "Starting at $1,900/month", "Starting at $2,495/month"]) {
   const L = computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", p)
-  ok(`T10 price one line at the flat conversational size: "${p}" (${L.detail!.fontPx}px vs hook ${L.headline.fontPx})`, L.detail!.lines.length === 1 && L.detail!.fontPx === Math.min(36, Math.max(20, L.headline.fontPx - 1)) && L.detail!.fontPx < L.headline.fontPx && detailTextWidthPx(p, L.detail!.fontPx) <= DETAIL_TEXT_AVAIL_PX)
+  ok(`T10 price one line at the flat conversational size: "${p}" (${L.detail!.fontPx}px vs hook ${L.headline.fontPx})`, L.detail!.lines.length === 1 && L.detail!.fontPx === Math.min(36, Math.max(20, L.headline.fontPx - 1)) && L.detail!.fontPx < L.headline.fontPx && headlineTextWidthPx(p, L.detail!.fontPx) <= DETAIL_TEXT_AVAIL_PX)
 }
 // Was "T10's price detail is LARGER than T6's" — a per-template size table that no longer exists.
 // Both now derive from the same 0.75 ratio off the same ceiling, so they are equal by construction
@@ -877,8 +877,8 @@ console.log("\nSplit-Level property types — wording, plurals, casing, fit:")
       const h = buildTemplateHeadline(t, { market: "San Antonio", propertyType: pt, budgetRange: "1600" })
       if (!h) return true
       const L = computeOverlayLayout(t, h, buildTemplateDetail(t, { market: "San Antonio", propertyType: pt, budgetRange: "1600" }))
-      const hw = Math.max(...L.headline.lines.map((l) => (L.headline.face === "head" ? headlineTextWidthPx : detailTextWidthPx)(l, L.headline.fontPx)))
-      const dw = L.detail ? Math.max(...L.detail.lines.map((l) => (L.detail!.face === "head" ? headlineTextWidthPx : detailTextWidthPx)(l, L.detail!.fontPx))) : 0
+      const hw = Math.max(...L.headline.lines.map((l) => headlineTextWidthPx(l, L.headline.fontPx)))
+      const dw = L.detail ? Math.max(...L.detail.lines.map((l) => headlineTextWidthPx(l, L.detail!.fontPx))) : 0
       return hw <= HEADLINE_TEXT_AVAIL_PX && dw <= DETAIL_TEXT_AVAIL_PX
     })))
   // SUPERSEDED REPEATEDLY, now settled. This hero first STACKED at the hero floor (splitting

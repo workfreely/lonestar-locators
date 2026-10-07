@@ -21,19 +21,22 @@ export const OVERLAY_SPEC = {
   // MAX (HERO_MAX_PX) used as the block default; the actual per-headline size comes from headlineFit.
   // maxChars/maxLines are the FALLBACK char-wrap for arbitrary/custom headline text only.
   headline: { yFrac: 0.13, fontPx: 66, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24, maxChars: 16, maxLines: 3, sideMarginPx: 90 },
-  // The sub/detail sits `gapPx` BELOW the headline block; it is the SECONDARY line (Bodoni-Detail,
-  // opsz 18). 44px (raised from 36) makes "Starting at $X/mo" clearly readable and intentional in the
+  // The sub/detail sits `gapPx` BELOW the headline block; it is the SECONDARY line, in the same
+  // Libre Baskerville Bold face as the headline and distinguished by SIZE alone. 44px (raised from 36) makes "Starting at $X/mo" clearly readable and intentional in the
   // editor/enlarged preview and the render, while staying clearly secondary to the headline (56–66).
   // Its safe box is ≈86% of the canvas (930px; 75px margins each side). maxChars/maxLines unchanged.
   sub: { gapPx: 35, fontPx: 44, lineSpacing: 6, boxAlpha: 0.28, boxBorderPx: 16, maxChars: 33, maxLines: 4, sideMarginPx: 75 },
   safe: { topFrac: 0.1, bottomFrac: 0.2 },
 } as const
 
-// NOTE ON THE FONT: the active overlay face is BODONI MODA (open-source, OFL, from Google Fonts),
-// instanced to two static cuts we bundle: headlines use the DISPLAY cut (opsz 96, wght 650 — solid,
-// high-contrast, dramatic thick/thin) and detail text uses the TEXT cut (opsz 18, wght 500 — more
-// legible small). Bodoni is a high-contrast Didone: elegant/editorial, NOT condensed or heavy. Anton
-// (the old Overlay-Bold.ttf) is no longer used by the overlay system.
+// NOTE ON THE FONT: there is exactly ONE overlay face — LIBRE BASKERVILLE BOLD (OFL, wght 700),
+// bundled as a single static cut and used for the headline AND the detail line.
+//
+// This comment previously described Bodoni Moda as the active face and went on saying so long after
+// it was not, which is precisely how a Bodoni detail line survived unnoticed. Bodoni is a Didone:
+// its hairline strokes are the first thing a lossy re-encode destroys, which made secondary copy
+// read as thin and decorative over video. It is now removed from the system entirely — see
+// OverlayFace, which has a single member so a second face cannot be selected.
 //
 // Typography treatment (tuned to a luxury-editorial reference): CRISP SOLID WHITE text with NO
 // visible outline and NO obvious shadow — clean, not stamped. There is NO background band/scrim/box/
@@ -211,29 +214,15 @@ export function fitHeadlinePx(text: string, maxPx: number, minPx: number, availP
   return minPx
 }
 
-// ── Detail (Bodoni-Detail) fit-to-width — for the price-bearing center-hook detail (T5/T8) ─────────
-// Detail text uses the TEXT cut, which has different metrics from the headline, so it needs its own
-// per-character advance map (advance px at 100px in BodoniModa-Detail, incl. digits/$,·/). Summed
-// advances equal FFmpeg drawtext's line width; adding the same tracking the CSS preview uses keeps
-// the fit conservative for the browser too — so preview and render resolve the SAME detail size.
+// ── Detail box width ─────────────────────────────────────────────────────────────────────────
+// The detail's safe box. This is GEOMETRY — canvas minus the sub margins — and has nothing to do
+// with which typeface fills it, so it survives the removal of the Bodoni metrics below.
 export const DETAIL_TEXT_AVAIL_PX = OVERLAY_CANVAS.w - 2 * OVERLAY_SPEC.sub.sideMarginPx // 930 (75px margins)
-const DETAIL_ADV: Record<string, number> = {
-  A: 77, B: 66, C: 70, D: 73, E: 61, F: 59, G: 74, H: 77, I: 39, J: 47, K: 72, L: 60, M: 87, N: 76, O: 75, P: 64, Q: 75, R: 72, S: 58, T: 67, U: 72, V: 77, W: 102, X: 77, Y: 73, Z: 58,
-  a: 54, b: 61, c: 51, d: 61, e: 53, f: 40, g: 60, h: 60, i: 30, j: 31, k: 61, l: 33, m: 86, n: 60, o: 56, p: 61, q: 61, r: 45, s: 44, t: 35, u: 60, v: 55, w: 78, x: 57, y: 56, z: 47,
-  "0": 63, "1": 45, "2": 56, "3": 53, "4": 61, "5": 51, "6": 57, "7": 51, "8": 56, "9": 57,
-  " ": 25, ".": 22, ",": 23, $: 57, "/": 41, "·": 21, ":": 25, "'": 25, "-": 36,
-}
-/** Width (canvas px) of a detail line at `fontPx` WITH tracking — constrains both render and preview. */
-export function detailTextWidthPx(text: string, fontPx: number, trackingEm = OVERLAY_TEXT.trackingEm): number {
-  let adv = 0
-  for (const c of text) adv += DETAIL_ADV[c] ?? ADV_FALLBACK
-  return (adv * fontPx) / 100 + trackingEm * fontPx * text.length
-}
-/** Largest integer px in [minPx, maxPx] at which the detail fits ONE line inside the detail safe box. */
-export function fitDetailPx(text: string, maxPx: number, minPx: number, availPx = DETAIL_TEXT_AVAIL_PX): number {
-  for (let px = maxPx; px > minPx; px--) if (detailTextWidthPx(text, px) <= availPx) return px
-  return minPx
-}
+
+// The detail line is MEASURED WITH HEAD METRICS because it renders in the head face. The former
+// DETAIL_ADV advance map, detailTextWidthPx and fitDetailPx are deleted: they described Bodoni
+// Moda, were already unreachable from computeOverlayLayout, and keeping a Bodoni-shaped measuring
+// tape around would quietly mis-size anything that picked it up again.
 // (The old per-template center-hook detail table — a 38–40px target capped at hook − 2 — was replaced
 //  by the proportional hookDetailPxFor() below, which keeps one constant ratio at every hook size.)
 // Gap below the hook for center-hook + detail: tighter than the Hero sub gap so the two lines read as
@@ -359,7 +348,7 @@ export type LayoutFamily = "hero" | "center_hook" | "center_hook_detail"
 // each hook renders at the largest size that fits ONE line in the 900px safe box (short hooks larger,
 // the longest supported hook "Your sign to get that rental home in San Antonio" shrinks only as
 // needed — never wrapped or stacked). When a center-hook template carries a detail line (T5 Upgrade),
-// the detail uses `detailFontPx` (smaller than the hook, Bodoni-Detail) so the hook stays dominant.
+// the detail uses `detailFontPx` (smaller than the hook) so the hook stays dominant.
 // Shared by preview + render (parity).
 export const CENTER_HOOK = { maxPx: HOOK_MAX_PX, minPx: HOOK_MIN_PX, lineSpacing: 8, detailFontPx: 30 } as const
 
@@ -454,9 +443,22 @@ export function templateFamily(template: string): LayoutFamily {
 
 // `face` says WHICH bundled font a block renders in, so the CSS preview and the FFmpeg render pick the
 // same one. It is per-BLOCK, not per-element-role: the conversational detail renders in the HEAD face
-// (Libre Baskerville Bold) while the HERO detail stays on the Bodoni text cut. Anything measuring a
+// (Libre Baskerville Bold), as does the hero detail — one face everywhere. Anything measuring a
 // block's width must use the matching advance map — head face -> headlineTextWidthPx.
-export type OverlayFace = "head" | "detail"
+/**
+ * The overlay typeface. ONE member, deliberately.
+ *
+ * This was `"head" | "detail"`, where "detail" selected a Bodoni Moda text cut for the hero
+ * secondary line. Bodoni is a Didone: its defining hairline strokes are the first thing a lossy
+ * re-encode destroys, which is exactly how "2 Months Free · Private Yards" came to read as thin
+ * and decorative beside its own headline.
+ *
+ * Narrowing the UNION rather than merely ceasing to emit "detail" is the point. While the second
+ * member existed, every `face:` assignment and every `face === "head" ? … : …` branch was a place
+ * Bodoni could silently return — and a wrong face is invisible in a thumbnail. Now reintroducing
+ * it is a TYPE ERROR at the assignment, not a visual regression discovered in a published Reel.
+ */
+export type OverlayFace = "head"
 // PER-LINE geometry (`linePx` + `lineTopPx`, always the same length as `lines`) is present ONLY for
 // the compound two-line hero. When set, each line is drawn as its OWN unit — one FFmpeg drawtext and
 // one absolutely-positioned preview div at that exact top — which is what lets the two lines carry
@@ -490,7 +492,7 @@ export function computeOverlayLayout(template: string, headlineText: string, det
     // center-hook detail. Without it the four longest Hero combos (SAN ANTONIO APARTMENTS /
     // TOWNHOMES / RENTAL HOMES / PENTHOUSES), which fit at 47–51px in the wider Libre Baskerville,
     // would render a 52px price line LARGER than the headline it supports, inverting the hierarchy.
-    // The detail FACE is unchanged (Bodoni Moda text cut) — only this size ceiling.
+    // Only this size ceiling — the face is the same Libre Baskerville Bold as the headline.
     const baseDetailPx = usesMarketDetail
       ? Math.min(MARKET_TYPE_DETAIL_PX, Math.max(OVERLAY_SPEC.sub.fontPx, fit.fontPx - 2))
       : OVERLAY_SPEC.sub.fontPx
@@ -592,7 +594,7 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   const n = Math.max(1, lines.length)
   const headBlockH = n * hookPx + (n - 1) * CENTER_HOOK.lineSpacing
   const hasDetail = family === "center_hook_detail" && detail.length > 0
-  // Detail is ONE line, FIT-TO-WIDTH (Bodoni-Detail) at a larger price-detail size that stays below
+  // Detail is ONE line, FIT-TO-WIDTH at a larger price-detail size that stays below
   // the hook (see hookDetailPxFor) so it reads as a strong-but-secondary line. Shrinks only if
   // an unusually long detail needs it; never wraps/stacks.
   // Measured with HEADLINE metrics because it now RENDERS in the head face — using the Bodoni advance

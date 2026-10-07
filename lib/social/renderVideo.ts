@@ -16,8 +16,7 @@ export type AudioChoice = "original" | "none" | "lb_track"
 export type RenderInput = {
   sourcePath: string // local path to the downloaded immutable source
   outputPath: string // local path to write the rendered derivative
-  fontPath: string // bundled TTF for the HEAD face (Libre Baskerville Bold) — headlines + conversational detail
-  detailFontPath?: string // bundled TTF for the DETAIL face — now UNUSED by every live layout (hero detail moved to the head face); falls back to fontPath
+  fontPath: string // the ONE bundled overlay TTF (Libre Baskerville Bold) — headline and detail alike
   /** Which platform's safe area the headline is fitted into. Defaults to Instagram. */
   platform?: string
   template?: string | null // overlay template (drives the layout family); defaults to market_type
@@ -431,15 +430,13 @@ export async function renderReel(ffmpegPath: string, input: RenderInput): Promis
   // The platform decides the text-safe box, so one source post can produce a separate Instagram
   // render and TikTok render from identical copy.
   const layout = computeOverlayLayout(input.template ?? "market_type", (input.headline ?? "").trim(), (input.subheadline ?? "").trim(), input.platform ?? "instagram")
-  const detailFont = input.detailFontPath ?? input.fontPath
   const items: DrawItem[] = []
   for (const it of buildDrawPlan(layout)) {
     const file = path.join(input.workDir, `${it.name}.txt`)
     await fs.writeFile(file, it.text, "utf8")
-    // Face comes from the LAYOUT, not the element role. Every live layout now resolves to the head
-    // face (Libre Baskerville Bold) for BOTH headline and detail; the "detail" branch is retained
-    // only so an explicitly detail-faced block would still render if one is ever reintroduced.
-    items.push({ file, fontPx: it.fontPx, topPx: it.topPx, lineSpacing: it.lineSpacing, font: it.face === "head" ? input.fontPath : detailFont })
+    // ONE face for every block. There is no per-item font choice to make any more — OverlayFace has
+    // a single member — so there is no branch here for a wrong face to slip through.
+    items.push({ file, fontPx: it.fontPx, topPx: it.topPx, lineSpacing: it.lineSpacing, font: input.fontPath })
   }
   // The traced static binary can lose its exec bit in the serverless bundle — restore it. Must come
   // before any probe, because probing runs the same binary.

@@ -7,9 +7,9 @@
 
 /* Beast Social overlay preview fonts — the SAME files the FFmpeg renderer burns in, so
    the preview's glyph widths match the 1080×1920 render (a headline that fits one line in the render
-   also fits one line in the preview). "OverlayHead" = Libre Baskerville Bold 700, used for headlines
-   AND detail. "OverlayDetail" (Bodoni Moda) is retained for the face switch but is no longer selected
-   by any live layout. Each is a single baked weight, so no synthetic bolding widens preview vs render. */
+   also fits one line in the preview). "OverlayHead" = Libre Baskerville Bold 700 and is the ONLY
+   overlay face: headline and detail alike. A single baked weight, so no synthetic bolding can widen
+   the preview relative to the render. */
 @font-face {
   font-family: "OverlayHead";
   /* Libre Baskerville Bold (OFL, Google Fonts static cut, wght 700). Headline face ONLY — the
@@ -17,13 +17,6 @@
      renderer loads (assets/social/fonts/LibreBaskerville-Head.ttf) or preview and render would
      measure differently. */
   src: url("/fonts/LibreBaskerville-Head.ttf") format("truetype");
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "OverlayDetail";
-  src: url("/fonts/BodoniModa-Detail.ttf") format("truetype");
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;

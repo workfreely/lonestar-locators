@@ -19,9 +19,8 @@ function depthShadow(): string {
 // at the same font/size/position/spacing the FFmpeg render uses. Font sizes are in `cqh`, so this
 // element sets containerType:size and fills a 9:16 parent. Editing APPROXIMATION only.
 // Overlay face (must match the FFmpeg render): Libre Baskerville Bold 700 for BOTH headline and
-// detail. The Bodoni Moda text cut it used to carry for hero detail is no longer rendered anywhere.
+// detail alike. The second face this component used to carry has been removed from the system.
 const FONT_HEAD = '"OverlayHead", Georgia, "Times New Roman", serif'
-const FONT_DETAIL = '"OverlayDetail", Georgia, "Times New Roman", serif'
 
 function blockStyle(b: OverlayBlock, weight: number, fontFamily: string): CSSProperties {
   const H = OVERLAY_CANVAS.h
@@ -43,10 +42,10 @@ function blockStyle(b: OverlayBlock, weight: number, fontFamily: string): CSSPro
   }
 }
 
-// Weight + family come from the block's own `face`, so the preview loads exactly the file the FFmpeg
-// render draws with. EVERY live block now resolves to "head" (Libre Baskerville Bold 700); the
-// "detail" branch survives only so a detail-faced block would still render if one is reintroduced.
-const faceOf = (b: OverlayBlock): [number, string] => (b.face === "head" ? [650, FONT_HEAD] : [500, FONT_DETAIL])
+// ONE face. Weight and family no longer depend on the block: OverlayFace has a single member, so
+// a per-block lookup would be a branch that can only go one way. Kept as a function purely so the
+// call sites read unchanged.
+const faceOf = (_b: OverlayBlock): [number, string] => [700, FONT_HEAD]
 
 const blockText = (b: OverlayBlock) => (b.uppercase ? b.lines.join("\n").toUpperCase() : b.lines.join("\n"))
 

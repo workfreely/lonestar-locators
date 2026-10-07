@@ -38,11 +38,10 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/admin/social-autopilot/posts/[id]/render": [
       "./node_modules/ffmpeg-static/ffmpeg",
-      // The overlay faces the render route loads at runtime via path.join(process.cwd(), …), which
-      // Next cannot detect statically. This previously named Overlay-Bold.ttf, a file that no longer
-      // exists — corrected here to the fonts actually in use so both are traced into the function.
+      // The overlay face the render route loads at runtime via path.join(process.cwd(), …), which
+      // Next cannot detect statically. It previously named Overlay-Bold.ttf (long deleted) and then
+      // a second Bodoni file; there is now exactly ONE overlay font, so exactly one entry.
       "./assets/social/fonts/LibreBaskerville-Head.ttf",
-      "./assets/social/fonts/BodoniModa-Detail.ttf",
     ],
   },
   images: {
