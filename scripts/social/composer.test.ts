@@ -5,8 +5,8 @@ import { AMENITY_BANK, canonicalizeAmenity, parseAmenities, serializeAmenities, 
 import { preparePost, buildCaption, buildOverlayHeadline, buildOverlaySubheadline, composeFinalCaption, startingPriceLabel, startingPriceAmount, buildOverlayDetail, joinDetailParts, specialDisplay, resolveSocialSpecial, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags } from "@/lib/social/composePost"
 import { SOCIAL_SPECIAL_OPTIONS, giftCardLabel, isGiftCardSpecial, sanitizeCustomSpecial } from "@/lib/social/socialSpecial"
 import { PROPERTY_TYPES, propertyNoun, propertyNounPlural } from "@/lib/social/propertyTypes"
-import { buildFfmpegArgs, buildVideoFilter } from "@/lib/social/renderVideo"
-import { wrapHeadline, wrapSub, headlineFit, headlineTextWidthPx, computeOverlayLayout, templateFamily, OVERLAY_SPEC, OVERLAY_CANVAS, OVERLAY_TEXT, HEADLINE_TEXT_AVAIL_PX, HOOK_TEXT_AVAIL_PX, HERO_MAX_PX, HERO_MIN_PX, HOOK_MAX_PX, HOOK_MIN_PX, DETAIL_TEXT_AVAIL_PX } from "@/lib/social/overlaySpec"
+import { buildFfmpegArgs, buildVideoFilter, buildDrawPlan } from "@/lib/social/renderVideo"
+import { wrapHeadline, wrapSub, headlineFit, headlineTextWidthPx, computeOverlayLayout, templateFamily, OVERLAY_SPEC, OVERLAY_CANVAS, OVERLAY_TEXT, HEADLINE_TEXT_AVAIL_PX, HOOK_TEXT_AVAIL_PX, HERO_MAX_PX, HERO_MIN_PX, HOOK_MAX_PX, HOOK_MIN_PX, DETAIL_TEXT_AVAIL_PX, DETAIL_GAP_EM, detailGapPx } from "@/lib/social/overlaySpec"
 import { buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL } from "@/lib/social/composePost"
 
 let pass = 0, fail = 0
@@ -453,8 +453,16 @@ ok("T6 is CENTER HOOK (no detail block)", computeOverlayLayout("pov_upgrade", bu
 // T7 — fixed universal hook; no variables/metadata, no detail.
 ok("T7 headline is the fixed universal hook", buildTemplateHeadline("affordable_luxury", tMeta) === "Luxury doesn't have to be expensive")
 ok("T7 ignores ALL metadata (type/market/special/price)", buildTemplateHeadline("affordable_luxury", { market: "Dallas", propertyType: "Loft", socialSpecial: "8 Weeks Free", budgetRange: "1200" }) === "Luxury doesn't have to be expensive")
-ok("T7 no detail line", buildTemplateDetail("affordable_luxury", tMeta) === "")
-ok("T7 is CENTER HOOK (no detail block)", computeOverlayLayout("affordable_luxury", "Luxury doesn't have to be expensive", "").family === "center_hook")
+// Affordable Luxury now carries the shared OPTIONAL price line, so "never has a detail" is no longer
+// the rule — tMeta has a price, and with one it emits exactly what pov_price would. What must stay
+// true is that it collapses COMPLETELY when there is no price. (The "T7" labels in this block are
+// stale numbering from before the 2026-09-29 picker reorder; the key string is the identity.)
+ok("Affordable Luxury emits the shared price line when a price exists", buildTemplateDetail("affordable_luxury", tMeta) === "Starting at $1,600/month")
+ok("...which is byte-identical to pov_price's — one code path, not two", buildTemplateDetail("affordable_luxury", tMeta) === buildTemplateDetail("pov_price", tMeta))
+ok("Affordable Luxury emits NO detail when there is no price", buildTemplateDetail("affordable_luxury", { ...tMeta, budgetRange: null }) === "")
+ok("it is CENTER HOOK + DETAIL, yet renders no block when the line is empty",
+  computeOverlayLayout("affordable_luxury", "Luxury doesn't have to be expensive", "").family === "center_hook_detail"
+  && computeOverlayLayout("affordable_luxury", "Luxury doesn't have to be expensive", "").detail === null)
 // Fit-to-width: longest T6 variant + T7 render ONE line within the 900px safe box (shared engine).
 for (const s of ["POV: You upgraded to high-rise living", "POV: You upgraded to a rental home", "Luxury doesn't have to be expensive"]) {
   const L = computeOverlayLayout("pov_upgrade", s, "")
@@ -560,12 +568,14 @@ ok("T4 wording unchanged + one line", buildTemplateHeadline("next_property", { p
 // T5 gap 16 → 21; T8 gap stays 16.
 const t5g = computeOverlayLayout("upgrade", "What life looks like when you upgrade", "6 Weeks Free · Starting at $1,800/month")
 const t8g = computeOverlayLayout("pov_price", "POV: You upgraded to a townhome", "Starting at $1,800/month")
-// Both conversational gaps tightened by 4px (16->12, 21->17) once the supporting line reached 27px
-// against a 28px hook — at near-equal sizes the old gaps read as two elements, not one lockup. T6/T7
-// keep their 5px looser offset. The group is vertically centred, so this closes the internal spacing
-// WITHOUT moving the lockup (its centre stays at 960 — asserted below).
-ok("T6 gap tightened to 17px", (t5g.detail!.topPx - (t5g.headline.topPx + t5g.headline.fontPx)) === 17)
-ok("T10 gap tightened to 12px", (t8g.detail!.topPx - (t8g.headline.topPx + t8g.headline.fontPx)) === 12)
+// The 12px/17px SPLIT IS GONE. Two constants governed templates that are visually identical — same
+// face, same hook size, same detail size — so against upgrade/apartment_standards at 17px the 12px
+// group (pov_price, hits_different, trade_up, wanted_luxury, real_living) read as visibly too tight.
+// Both now resolve from the one DETAIL_GAP_EM ratio, which lands on exactly 17px at the shared 38px
+// hook: the approved look is unchanged and the tight group moved to meet it. The group is vertically
+// centred, so this does not move the lockup (its centre stays at 960 — asserted below).
+ok("upgrade keeps its approved 17px gap", (t5g.detail!.topPx - (t5g.headline.topPx + t5g.headline.fontPx)) === 17)
+ok("pov_price now MATCHES it instead of sitting 5px tighter", (t8g.detail!.topPx - (t8g.headline.topPx + t8g.headline.fontPx)) === 17)
 ok("tightening the gap does NOT move the lockup — it stays centred on the canvas", (() => {
   return (["hits_different", "real_living", "trade_up", "upgrade", "wanted_luxury"] as const).every((t) => {
     const L = computeOverlayLayout(t, buildTemplateHeadline(t, { propertyType: "Rental Home", market: "San Antonio", budgetRange: "1500" }), "Starting at $1,500/month")
@@ -898,6 +908,126 @@ console.log("\nSplit-Level property types — wording, plurals, casing, fit:")
   ok("existing types are untouched by the addition",
     buildOverlayHeadline({ market: "San Antonio", propertyType: "Townhome" }) === "SAN ANTONIO TOWNHOMES" &&
     computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,600/month").headline.fontPx === 52)
+}
+
+// ── HEADLINE -> DETAIL SEPARATION ────────────────────────────────────────────────────────────────
+// Regression cover for the drift that made T10 read "too tight": two independent gap constants (12px
+// and 17px) for templates that are visually identical. These assertions are written against the
+// MEASURED geometry computeOverlayLayout actually emits, not against the constants, so replacing the
+// token with a different mechanism keeps them meaningful.
+console.log("\nheadline -> detail separation (one shared ratio):")
+{
+  const src = { market: "San Antonio", propertyType: "High-Rise", budgetRange: "1495",
+    priceLabelMode: "starting_at", amenities: "Rooftop Pool", currentSpecial: "2 Months Free" } as never
+
+  // The gap as the renderer sees it: detail top minus the BOTTOM of the headline block, so a wrapped
+  // headline is measured from its real last line and not from its first.
+  const measured = (tmpl: string, head: string, det: string) => {
+    const L = computeOverlayLayout(tmpl, head, det)
+    if (!L.detail) return null
+    const n = L.headline.lines.length
+    const blockH = L.headline.linePx
+      ? L.headline.linePx.reduce((a, b) => a + b, 0) + (n - 1) * L.headline.lineSpacing
+      : n * L.headline.fontPx + (n - 1) * L.headline.lineSpacing
+    return { gap: L.detail.topPx - (L.headline.topPx + blockH), hookPx: L.headline.fontPx, lines: n, L }
+  }
+
+  const conversational = OVERLAY_TEMPLATES.filter((id) => templateFamily(id) === "center_hook_detail")
+  ok("every conversational template that can carry a detail is in one family (>=8 of them)", conversational.length >= 8)
+
+  const ratios = new Map<string, number>()
+  for (const id of conversational) {
+    const m = measured(id, buildTemplateHeadline(id, src), buildTemplateDetail(id, src))
+    if (m) ratios.set(id, m.gap / m.hookPx)
+  }
+  ok("all of them actually render a detail line with this price", ratios.size === conversational.length)
+  ok("and they ALL share one separation ratio — no per-template drift",
+    new Set([...ratios.values()].map((r) => r.toFixed(4))).size === 1)
+  ok(`that ratio is the shared token (${DETAIL_GAP_EM})`,
+    [...ratios.values()].every((r) => Math.abs(r - DETAIL_GAP_EM) < 0.02))
+
+  // T7 is the approved visual reference: normalizing must not have MOVED it.
+  const t7 = measured("apartment_standards", buildTemplateHeadline("apartment_standards", src), buildTemplateDetail("apartment_standards", src))!
+  ok("T7 apartment_standards — the reference — is unchanged at 17px", t7.gap === 17)
+  ok("T6 upgrade, its twin, matches T7 exactly",
+    measured("upgrade", buildTemplateHeadline("upgrade", src), buildTemplateDetail("upgrade", src))!.gap === t7.gap)
+  // The reported bug, stated as the thing a future edit must not undo.
+  const t10 = measured("pov_price", buildTemplateHeadline("pov_price", src), buildTemplateDetail("pov_price", src))!
+  ok("T10 pov_price no longer sits tighter than T7 (was 12px vs 17px)", t10.gap === t7.gap)
+
+  // The gap is a RATIO, so it must track a headline that shrank or wrapped rather than staying flat.
+  ok("the gap follows the rendered headline size, not a fixed pixel count",
+    detailGapPx(38) === 17 && detailGapPx(22) < detailGapPx(38) && detailGapPx(22) === Math.round(22 * DETAIL_GAP_EM))
+
+  // WRAPPED headline must not collide: the detail has to clear the LAST line, not the first.
+  const longHead = "What life looks like when you trade in your apartment for a high-rise"
+  const w = measured("trade_up", longHead, "Starting at $1,495/month")
+  if (w) {
+    ok("a wrapped headline still renders (>=2 lines)", w.lines >= 2)
+    ok("the detail clears the wrapped headline's LAST line — no collision", w.gap > 0)
+    ok("and it uses the same ratio when wrapped", Math.abs(w.gap / w.hookPx - DETAIL_GAP_EM) < 0.02)
+    const lastLineBottom = w.L.headline.topPx + w.lines * w.L.headline.fontPx + (w.lines - 1) * w.L.headline.lineSpacing
+    ok("detail top is strictly below the full rendered headline block", (w.L.detail?.topPx ?? 0) >= lastLineBottom)
+  }
+
+  // NO detail => NO reserved space. The whole group must re-centre, not sit with a hole in it.
+  for (const id of ["pov_price", "affordable_luxury", "hits_different"] as const) {
+    const L = computeOverlayLayout(id, buildTemplateHeadline(id, src), "")
+    ok(`${id} with no price has no detail block at all`, L.detail === null)
+  }
+  const withPrice = computeOverlayLayout("pov_price", buildTemplateHeadline("pov_price", src), "Starting at $1,495/month")
+  const without = computeOverlayLayout("pov_price", buildTemplateHeadline("pov_price", src), "")
+  ok("no detail => the headline re-centres rather than leaving a blank gap", without.headline.topPx > withPrice.headline.topPx)
+
+  // ── T9 Affordable Luxury: the optional price line, reusing T6's logic ──
+  console.log("\nT9 Affordable Luxury — optional price detail:")
+  const t9head = buildTemplateHeadline("affordable_luxury", src)
+  ok("headline is unchanged and still fixed", t9head === "Luxury doesn't have to be expensive")
+  ok("Starting-at mode gives 'Starting at $X/month'",
+    buildTemplateDetail("affordable_luxury", src) === "Starting at $1,495/month")
+  ok("exact-unit mode uses the EXISTING exact wording (not a second implementation)",
+    buildTemplateDetail("affordable_luxury", { ...(src as object), priceLabelMode: "exact_unit" } as never)
+      === "Exact unit shown: $1,495/month")
+  ok("no price => empty detail, so no second line",
+    buildTemplateDetail("affordable_luxury", { ...(src as object), budgetRange: null } as never) === "")
+  ok("no price => no blank vertical space reserved",
+    computeOverlayLayout("affordable_luxury", t9head, buildTemplateDetail("affordable_luxury", { ...(src as object), budgetRange: null } as never)).detail === null)
+  ok("its price line matches T10's behaviour exactly (one shared code path)",
+    buildTemplateDetail("affordable_luxury", src) === buildTemplateDetail("pov_price", src))
+  ok("T9 never fabricates a price from a bad range",
+    buildTemplateDetail("affordable_luxury", { ...(src as object), budgetRange: "n/a" } as never) === "")
+  ok("T9's gap matches the reference T7", measured("affordable_luxury", t9head, buildTemplateDetail("affordable_luxury", src))!.gap === t7.gap)
+
+  // ── PREVIEW <-> RENDER PARITY ──
+  // The gap is only real if FFmpeg draws it where the CSS preview shows it. Both consume the SAME
+  // computeOverlayLayout, and buildDrawPlan feeds topPx straight into drawtext's y=, so this asserts
+  // the normalized gap actually survives into the render plan rather than living in the preview only.
+  console.log("\nthe normalized gap survives into the FFmpeg draw plan:")
+  for (const id of conversational) {
+    const head = buildTemplateHeadline(id, src), det = buildTemplateDetail(id, src)
+    const L = computeOverlayLayout(id, head, det)
+    const plan = buildDrawPlan(L)
+    const sub = plan.find((p) => p.name === "sub")
+    const heads = plan.filter((p) => p.name.startsWith("head"))
+    const lastHeadBottom = L.headline.topPx + L.headline.lines.length * L.headline.fontPx
+      + (L.headline.lines.length - 1) * L.headline.lineSpacing
+    ok(`${id}: drawtext y for the detail equals the layout's detail top`,
+      !!sub && sub.topPx === L.detail!.topPx)
+    ok(`${id}: and that is exactly ${DETAIL_GAP_EM} em below the headline block`,
+      !!sub && Math.abs((sub.topPx - lastHeadBottom) / L.headline.fontPx - DETAIL_GAP_EM) < 0.02)
+    ok(`${id}: the headline is in the plan too, so the gap is between two real drawn items`, heads.length >= 1)
+  }
+  // And with no detail there is no 'sub' item at all — nothing is drawn into a reserved space.
+  for (const id of ["pov_price", "affordable_luxury"] as const) {
+    const plan = buildDrawPlan(computeOverlayLayout(id, buildTemplateHeadline(id, src), ""))
+    ok(`${id}: no price => no 'sub' drawtext item is emitted`, !plan.some((p) => p.name === "sub"))
+  }
+
+  // Templates with NO detail by design must stay that way — T9 moving family must not drag them.
+  for (const id of ["your_sign", "next_property", "pov_upgrade", "what_mo_gets_you", "what_mo_gets_you_top"] as const) {
+    ok(`${id} still has no detail line by design`, buildTemplateDetail(id, src) === ""
+      && computeOverlayLayout(id, buildTemplateHeadline(id, src), buildTemplateDetail(id, src)).detail === null)
+  }
 }
 
 console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)

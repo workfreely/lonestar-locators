@@ -18,6 +18,7 @@ import VideoLightbox from "@/components/crm/social/VideoLightbox"
 import PropertyResearch from "@/components/crm/social/PropertyResearch"
 import TikTokPostConfirm from "@/components/crm/social/TikTokPostConfirm"
 import AmenitySelect from "@/components/crm/social/AmenitySelect"
+import AreaSelect from "@/components/crm/social/AreaSelect"
 import VoiceClipsControl from "@/components/crm/social/VoiceClipsControl"
 import { parseAmenities, serializeAmenities } from "@/lib/social/amenities"
 import { SOCIAL_MARKETS } from "@/lib/social/markets"
@@ -41,6 +42,9 @@ type Source = {
   placeId: string | null
   address: string | null
   market: string | null
+  /** INTERNAL. Captured at upload, stored on social_content, and editable here — but deliberately
+   *  NOT part of SourceMeta, so it can never reach a caption or an on-video overlay. */
+  areaNeighborhood: string | null
   special: string | null
   budgetRange: string | null
   priceLabelMode: string | null
@@ -225,6 +229,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [propertyName, setPropertyName] = useState("")
   const [propertyType, setPropertyType] = useState("")
   const [market, setMarket] = useState("")
+  const [areaNeighborhood, setAreaNeighborhood] = useState("")
   const [placeId, setPlaceId] = useState("")
   // Matched property's street address, READ from property_catalog by place_id —
   // social_content stores no address and none is added. Null when the place is
@@ -264,6 +269,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       setPropertyName(p.source?.propertyName ?? "")
       setPropertyType(p.source?.propertyType ?? "")
       setMarket(p.source?.market ?? "")
+      setAreaNeighborhood(p.source?.areaNeighborhood ?? "")
       setPlaceId(p.source?.placeId ?? "")
       setAddress(p.source?.address ?? null)
       setSpecial(p.source?.special ?? "")
@@ -346,10 +352,10 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
     const res = await fetch(`/api/admin/social-autopilot/content/${encodeURIComponent(sourceContentId)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ propertyName, propertyType, market, placeId, special, budgetRange: priceRange, priceLabelMode: priceMode, amenities }),
+      body: JSON.stringify({ propertyName, propertyType, market, areaNeighborhood, placeId, special, budgetRange: priceRange, priceLabelMode: priceMode, amenities }),
     })
     return res.ok
-  }, [sourceContentId, propertyName, propertyType, market, placeId, special, priceRange, priceMode, amenities])
+  }, [sourceContentId, propertyName, propertyType, market, areaNeighborhood, placeId, special, priceRange, priceMode, amenities])
 
   const patch = useCallback(
     async (extra: Record<string, unknown>, successMsg: string | null) => {
@@ -906,8 +912,12 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             />
           ) : (
           <>
-          {/* Row 1: Property (widest) | Type | Market */}
-          <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr_1fr] gap-3">
+          {/* Row 1: Property (still widest) | Type | Market | Area / Neighborhood
+              Property gives up width to make room for the fourth cell: 2fr of 4fr (50%) becomes
+              1.6fr of 4.6fr (~35%), while Type/Market/Area share the rest equally at ~22% each. It
+              stays the widest cell — it holds a search field and the matched-property and address
+              lines beneath it — but it was the only cell with slack to give. */}
+          <div className="grid grid-cols-1 sm:grid-cols-[1.6fr_1fr_1fr_1fr] gap-3">
             <label className="block">
               <span className={fieldLabel}>Property / Building Name</span>
               <PropertySearchField
@@ -955,6 +965,26 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 <option value="">No market</option>
                 {[...SOCIAL_MARKETS, ...(market && !SOCIAL_MARKETS.includes(market) ? [market] : [])].map((m) => <option key={m} value={m}>{m}</option>)}
               </select>
+            </label>
+            {/* Area / Neighborhood — captured at upload and stored all along, but until now the
+                editor never read it back, so a wrong or missing value could not be corrected after
+                upload. Same AreaSelect the upload screens use, so the option list comes from the
+                same market catalog and a market switch cannot silently drop a saved area.
+
+                NOT passed to syncGenerated. Every other field in this row feeds generated copy;
+                this one is internal-only and deliberately absent from SourceMeta, so editing it
+                must not invalidate or regenerate a caption, headline or overlay. The "internal"
+                marker matches the upload screens' labelling so the distinction is visible here too. */}
+            <label className="block">
+              <span className={fieldLabel}>
+                Neighborhood <span className="normal-case text-[var(--crm-text-muted)]">· internal</span>
+              </span>
+              <AreaSelect
+                market={market}
+                value={areaNeighborhood}
+                className={`${control} mt-1`}
+                onChange={(v) => setAreaNeighborhood(v)}
+              />
             </label>
           </div>
 
