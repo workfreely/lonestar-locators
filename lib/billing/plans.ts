@@ -22,7 +22,8 @@ export const PLANS: Record<string, Plan> = {
   locator_beast_monthly: {
     key: "locator_beast_monthly",
     name: "Locator Beast",
-    priceUsd: 99,
+    // Display only — the charged amount is the Stripe Price behind priceIdEnv. Keep in step.
+    priceUsd: 299,
     interval: "month",
     priceIdEnv: "STRIPE_PRICE_ID",
   },

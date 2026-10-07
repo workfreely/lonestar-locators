@@ -5,7 +5,7 @@ import { TRIAL_URL } from "@/app/locator-beast/_lib/site";
 export default function ClosingCTA({
   title,
   subtitle,
-  buttonLabel = "Start Your 30-Day Free Trial",
+  buttonLabel = "Start Your 7-Day Free Trial",
   noCardNote = false,
 }: {
   title: React.ReactNode;

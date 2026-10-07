@@ -611,11 +611,20 @@ export function buildTemplateDetail(template: OverlayTemplate, src: SourceMeta):
     case "wanted_luxury":
     case "real_living":
     case "hits_different":
-      return price // "Starting at $X/mo" or "" (T8 shows the POV headline + this price line)
+    // T9 Affordable Luxury joins this group rather than getting a branch of its own. It is the same
+    // optional-price behaviour T6 Upgrade established, and `startingPriceLabel` is already the one
+    // implementation of it: it resolves BOTH label modes ("Starting at $1,495/month" / "Exact unit
+    // shown: $1,495/month") and already returns "" for a missing or invalid price, so the line and
+    // its gap collapse on their own with no second code path to keep in step.
+    //
+    // Deliberately the price ALONE, not T6's special+price lockup. T9's headline — "Luxury doesn't
+    // have to be expensive" — is an argument about COST, so the number is the payoff; a special
+    // sitting beside it competes with the one point the template is making.
+    case "affordable_luxury":
+      return price // "Starting at $X/month" or "" (T8 shows the POV headline + this price line)
     case "your_sign":
     case "next_property":
     case "pov_upgrade":
-    case "affordable_luxury":
     case "what_mo_gets_you": // the price+city sentence is the whole headline — no separate detail
     case "what_mo_gets_you_top": // T16 = T11's copy, top-anchored; same "no detail"
       return "" // center-hook, no detail

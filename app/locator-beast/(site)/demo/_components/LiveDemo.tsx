@@ -93,7 +93,7 @@ export default function LiveDemo() {
                 href={TRIAL_URL}
                 className="mt-6 inline-block rounded-full bg-[var(--beast-blue)] px-8 py-3.5 text-[15px] font-semibold text-white transition-transform duration-200 hover:scale-[1.02]"
               >
-                Start Your Free 30-Day Trial
+                Start Your Free 7-Day Trial
               </Link>
               <p className="mt-3 text-[12.5px] text-white/40">No credit card required.</p>
             </div>

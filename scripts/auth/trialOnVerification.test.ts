@@ -1,4 +1,5 @@
-// PASS 8 — the 30-day trial begins at licence verification, not at signup.
+// PASS 8 — the trial begins at licence verification, not at signup.
+// (The length is now 7 days; it is asserted below against the migration, not hard-coded here.)
 //
 // Covers the thirteen stated regression requirements. The eligibility rule itself
 // is transcribed from the APPLIED SQL and exercised as a truth table; the app half
@@ -23,8 +24,15 @@ const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}
 const read = (f: string) => readFileSync(path.join(process.cwd(), f), "utf8")
 const strip = (t: string) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, "").replace(/(^|[^:])\/\/.*$/gm, "$1")
 
+// Pass 8's own file documents the DESIGN this test was written against (the eligibility
+// rule, the ledger, the atomicity), so the structural assertions still read it.
 const sql = read("supabase/manual/20261002_pass8_trial_on_verification.sql")
 const sqlLive = sql.slice(sql.indexOf("\nbegin;"), sql.indexOf("\ncommit;"))
+// The TRIAL LENGTH, though, has since been changed by a real migration, and that migration
+// is now the authoritative body. Reading the length off the Pass 8 file would assert a
+// number production stopped using. Its body was dumped from production with
+// pg_get_functiondef, so it is the deployed definition and not a transcription.
+const sqlCurrent = read("supabase/migrations/20261007000003_trial_seven_days.sql")
 // Comment-free view. The file's prose explains what is deliberately ABSENT from the
 // grant, so a naive search would match the explanation instead of the code.
 const sqlCode = sqlLive.split("\n").filter((l) => !l.trim().startsWith("--")).join("\n")
@@ -95,9 +103,15 @@ async function main() {
   ok("re-verification is blocked by `v_started is null`", /and v_started is null/.test(sqlLive))
   ok("the launch state is required", /if v_state = 'TX'/.test(sqlLive))
 
-  console.log("\nTRIAL LENGTH + LEDGER unchanged:")
-  ok("still 30 days in SQL", /interval '30 days'/.test(sqlLive))
-  ok("still 30 days in TypeScript", TRIAL_LENGTH_DAYS === 30)
+  console.log("\nTRIAL LENGTH (now 7 days) + LEDGER unchanged:")
+  // The grant lives in lb_verify_license. The two signup-era granters were neutralised by
+  // Pass 8, which is why a migration aimed at grant_trial_on_signup would have been a silent
+  // no-op — the mistake these three assertions exist to catch.
+  ok("7 days in the current SQL definition", /interval '7 days'/.test(sqlCurrent))
+  ok("and no 30-day grant survives anywhere in it", !/interval '30 days'/.test(sqlCurrent))
+  ok("the change was made to lb_verify_license, the function that actually grants",
+    /create or replace function public\.lb_verify_license/i.test(sqlCurrent))
+  ok("7 days in TypeScript", TRIAL_LENGTH_DAYS === 7)
   ok("reuses the EXISTING ledger, no second one", /public\.trial_usage/.test(sqlLive) && !/create table/.test(sqlLive))
   ok("reuses the existing anti-abuse check", /lb_trial_already_used\(v_email, v_phone\)/.test(sqlLive))
   ok("claims BOTH email and phone at once", /insert into public\.trial_usage \(email, phone, user_id\)/.test(sqlLive))
@@ -171,7 +185,10 @@ async function main() {
   console.log("\nOUT OF SCOPE — untouched:")
   ok("getAccessState is unchanged", !/license|internal_demo|verify/i.test(strip(read("lib/billing/access.ts"))))
   ok("no Stripe behaviour changed", !/stripe/i.test(helper) && !/stripe/i.test(trialRoute) && !/stripe/i.test(startTrial))
-  ok("pricing is untouched", /MONTHLY_PRICE_USD = 99/.test(read("lib/billing/trial.ts")))
+  // Pricing is NOT out of scope any more — it moved with the trial, so it is pinned instead
+  // of asserted-unchanged. Both numbers are DISPLAY only; Stripe remains authoritative.
+  ok("display price is the founding-member $299", /MONTHLY_PRICE_USD = 299/.test(read("lib/billing/trial.ts")))
+  ok("no $99 left in the pricing constants", !/\b99\b/.test(read("lib/billing/trial.ts")))
 }
 
 main().then(() => {

@@ -17,12 +17,16 @@ export default function PricingSection() {
           Everything Included.
         </h1>
 
-        {/* Future standard price, struck through, above the current price. */}
+        {/* The future standard price, EXPLICITLY LABELLED. A bare struck-through figure beside a
+            live price reads as a discount off a price that was once charged — which would not be
+            true, since nothing has ever billed at this amount. The label is what makes the framing
+            honest, so it travels with the number rather than being styling. */}
         <p
-          className="beast-fade-up mt-8 text-[20px] font-medium text-[var(--beast-ink-inverse-soft)] line-through"
+          className="beast-fade-up mt-8 text-[15px] font-medium text-[var(--beast-ink-inverse-soft)]"
           style={{ animationDelay: "80ms" }}
         >
-          ${STANDARD_PRICE_USD}/month
+          Future standard price{" "}
+          <span className="line-through">${STANDARD_PRICE_USD}/month</span>
         </p>
         <p
           className="beast-fade-up mt-1 text-[56px] font-semibold leading-none tracking-tight md:text-[64px]"
@@ -36,7 +40,7 @@ export default function PricingSection() {
           className="beast-fade-up mt-4 text-[15px] text-[var(--beast-ink-inverse-soft)]"
           style={{ animationDelay: "150ms" }}
         >
-          Lock in the ${MONTHLY_PRICE_USD} new-member rate before pricing goes up.
+          Founding member rate — lock in ${MONTHLY_PRICE_USD}/month for as long as your subscription stays active.
         </p>
 
         <div className="beast-fade-up mt-8 flex flex-col items-center" style={{ animationDelay: "190ms" }}>
@@ -44,7 +48,7 @@ export default function PricingSection() {
             href={TRIAL_URL}
             className="inline-block rounded-full bg-[var(--beast-blue)] px-8 py-3.5 text-[15px] font-semibold text-white transition-transform duration-300 hover:scale-[1.03] hover:bg-[var(--beast-blue-bright)]"
           >
-            Start Your 30-Day Free Trial
+            Start Your 7-Day Free Trial
           </Link>
           <p className="mt-3 text-[13px] text-[var(--beast-ink-inverse-soft)]">No credit card required</p>
         </div>

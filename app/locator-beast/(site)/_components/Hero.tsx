@@ -3,7 +3,7 @@ import HomepageDemo from "../demo/_components/HomepageDemo";
 import { AppleIcon, WindowsIcon } from "@/components/icons/PlatformIcons";
 import { TRIAL_URL } from "@/app/locator-beast/_lib/site";
 
-const TRUST_ITEMS = ["30-Day Free Trial", "No credit card required", "Setup in under 10 minutes"];
+const TRUST_ITEMS = ["7-Day Free Trial", "No credit card required", "Setup in under 10 minutes"];
 
 export default function Hero() {
   return (
@@ -73,7 +73,7 @@ export default function Hero() {
           href={TRIAL_URL}
           className="mt-10 block w-full rounded-full bg-[var(--beast-blue)] px-8 py-4 text-center text-[16px] font-semibold text-white transition-transform duration-200 active:scale-[0.99] lg:hidden"
         >
-          Start Your 30-Day Free Trial
+          Start Your 7-Day Free Trial
         </Link>
 
         {/* Mobile-only trust highlights — the two original trust bullets, now

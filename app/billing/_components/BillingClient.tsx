@@ -159,7 +159,7 @@ export default function BillingClient({
             }
             subtitle={
               isFresh
-                ? "30 days, full access, no credit card required."
+                ? "7 days, full access, no credit card required."
                 : access.reason === "trial_expired"
                   ? "We hope you've enjoyed using Locator Beast. Continue growing your apartment locating business with unlimited access."
                   : access.reason === "past_due"
@@ -198,7 +198,7 @@ export default function BillingClient({
             {actionError && <p className="mt-5 text-[13px] text-red-500">{actionError}</p>}
 
             <div className="mt-8 flex flex-col gap-3">
-              {/* No "Start Your 30-Day Free Trial" button. The trial is granted
+              {/* No "Start Your 7-Day Free Trial" button. The trial is granted
                   automatically at signup (trg_grant_trial_on_signup), so an
                   ELIGIBLE user is already trialing and never reaches this page.
                   Anyone who does reach it is BLOCKED — expired, canceled, past
