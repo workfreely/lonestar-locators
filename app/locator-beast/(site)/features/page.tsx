@@ -43,7 +43,7 @@ export default function FeaturesPage() {
 
       <ClosingCTA
         title="Ready to become a Beast?"
-        subtitle="Start your 30-Day Free Trial."
+        subtitle="Start your 7-Day Free Trial."
       />
     </>
   );

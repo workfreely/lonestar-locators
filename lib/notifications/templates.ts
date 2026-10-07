@@ -419,12 +419,12 @@ export function trialStartedEmail(params: {
 }): BuiltEmail {
   const endsText = formatDate(params.trialEndsAt)
   const contentHtml = `
-    ${paragraph(`${greeting(params.name)} your free 30-day trial is now active — full access, no credit card required.`)}
+    ${paragraph(`${greeting(params.name)} your free 7-day trial is now active — full access, no credit card required.`)}
     ${infoTable([
       { label: "Plan", value: "Locator Beast — full access" },
-      { label: "Trial length", value: "30 days" },
+      { label: "Trial length", value: "7 days" },
       { label: "Trial ends", value: endsText },
-      { label: "Price after trial", value: "$99/month" },
+      { label: "Price after trial", value: "$299/month" },
     ])}
     ${paragraph("Make the most of it — set up your Smart Lead Form and start capturing leads today.")}
   `
@@ -432,7 +432,7 @@ export function trialStartedEmail(params: {
     category: "transactional",
     subject: "Your Locator Beast trial has started",
     html: renderEmail({
-      preheader: "30 days of full access — no credit card required.",
+      preheader: "7 days of full access — no credit card required.",
       heading: "Your free trial is live",
       contentHtml,
       cta: { label: "Get started", url: absoluteUrl("/admin/leads") },
@@ -453,7 +453,7 @@ export function trialEndingEmail(params: {
     ${paragraph(`${greeting(params.name)} your Locator Beast free trial ends in <strong>${params.daysLeft} ${dayWord}</strong>${
       endsText ? ` (on ${esc(endsText)})` : ""
     }.`)}
-    ${paragraph("Subscribe now to keep your leads, workflows, and Smart Lead Form running without interruption — just $99/month.")}
+    ${paragraph("Subscribe now to keep your leads, workflows, and Smart Lead Form running without interruption — just $299/month.")}
   `
   return {
     category: "transactional",
@@ -474,7 +474,7 @@ export function subscriptionSuccessfulEmail(params: { name?: string | null }): B
     ${paragraph(`${greeting(params.name)} thank you for subscribing to Locator Beast! Your subscription is active and you have full access.`)}
     ${infoTable([
       { label: "Plan", value: "Locator Beast" },
-      { label: "Price", value: "$99/month" },
+      { label: "Price", value: "$299/month" },
       { label: "Status", value: "Active" },
     ])}
     ${paragraph("You can manage your subscription or update payment details any time from Billing.")}

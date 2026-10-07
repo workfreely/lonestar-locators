@@ -75,7 +75,7 @@ export default function OnboardingWizard({
     setSaving(true);
     // PASS 8: completing onboarding no longer starts a trial. trg_grant_trial_on_
     // onboarding was neutralised in the database along with trg_grant_trial_on_
-    // signup, so this write stamps onboarding state only. The 30-day trial begins
+    // signup, so this write stamps onboarding state only. The trial begins
     // when the platform owner verifies a real Texas licence.
     await supabase
       .from("profiles")
@@ -113,7 +113,7 @@ export default function OnboardingWizard({
       console.error("Smart Form auto-create failed:", err);
     }
 
-    // PASS 8: onboarding no longer starts the trial. The 30-day trial begins when
+    // PASS 8: onboarding no longer starts the trial. The trial begins when
     // the platform owner verifies a real Texas licence (lb_verify_license), so
     // there is nothing to grant here and the old /api/billing/start-trial call has
     // been removed rather than left as a no-op round trip.

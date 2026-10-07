@@ -4,7 +4,7 @@ import { NextResponse } from "next/server"
 //
 // It used to be the third of three trial-start paths (alongside the
 // trg_grant_trial_on_signup and trg_grant_trial_on_onboarding triggers, both now
-// inert in the database), and OnboardingWizard.finish() awaited it. The 30-day
+// inert in the database), and OnboardingWizard.finish() awaited it. The
 // trial now begins only inside lb_verify_license, when the platform owner
 // verifies a real Texas licence — one trusted path, in one transaction, with the
 // anti-abuse ledger claimed in the same statement.

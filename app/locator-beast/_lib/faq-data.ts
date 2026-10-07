@@ -19,7 +19,7 @@ export const PRICING_FAQ: FAQItem[] = [
   },
   {
     question: "Is there a free trial?",
-    answer: "Every plan starts with a 30-day free trial, and no credit card is required to begin.",
+    answer: "Every plan starts with a 7-day free trial, and no credit card is required to begin.",
   },
   {
     question: "Do I keep future updates?",

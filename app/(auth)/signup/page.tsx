@@ -58,7 +58,7 @@ export default function SignupPage() {
   return (
     <AuthCard
       title="Create your account"
-      subtitle="Start your 30-day free trial."
+      subtitle="Start your 7-day free trial."
       footer={
         <>
           Already have an account?{" "}

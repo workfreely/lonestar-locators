@@ -230,7 +230,7 @@ export default function HomepageDemo() {
   }, [activeStage]);
 
   // Mobile only: once the Step 3 panel tour + internal scroll finish (showCta),
-  // pause ~1s, then smoothly bring the "Start Your 30-Day Free Trial" CTA fully
+  // pause ~1s, then smoothly bring the "Start Your 7-Day Free Trial" CTA fully
   // into view — guiding the visitor straight from the completed demo to the CTA.
   // Scrolls just enough (bottom-aligned with a small margin) and stops there; it
   // never restarts the demo or touches the internal Step 3 panel scroll. Desktop
@@ -240,7 +240,7 @@ export default function HomepageDemo() {
     if (typeof window === "undefined" || window.innerWidth >= 1024) return;
     const t = setTimeout(() => {
       const cta = Array.from(document.querySelectorAll("a")).find(
-        (a) => a.textContent?.trim() === "Start Your 30-Day Free Trial" && a.offsetParent !== null
+        (a) => a.textContent?.trim() === "Start Your 7-Day Free Trial" && a.offsetParent !== null
       );
       if (!cta) return;
       const rect = cta.getBoundingClientRect();
@@ -439,7 +439,7 @@ export default function HomepageDemo() {
           href={TRIAL_URL}
           className="mt-3 inline-block rounded-full bg-[var(--beast-blue)] px-8 py-3 text-[15px] font-semibold text-white transition-transform duration-200 hover:scale-[1.02]"
         >
-          Start Your Free 30-Day Trial
+          Start Your Free 7-Day Trial
         </Link>
         <p className="mt-2 text-[12.5px] text-white/45">No credit card required.</p>
         <button

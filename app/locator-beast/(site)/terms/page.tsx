@@ -25,7 +25,7 @@ const SECTIONS = [
   },
   {
     heading: "Free Trial",
-    body: "New accounts receive a 30-day free trial. No credit card is required to begin a trial. At the end of the trial, continued use of the service requires an active paid subscription.",
+    body: "New accounts receive a 7-day free trial. No credit card is required to begin a trial. At the end of the trial, continued use of the service requires an active paid subscription.",
   },
   {
     heading: "Subscription and Billing",
