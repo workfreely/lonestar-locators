@@ -99,9 +99,10 @@ for (const t of COMPOUND_TYPES) for (const m of MARKETS) for (const price of PRI
   // Line 2 carries the COMPLETE compound type — qualifier and head noun together, never split.
   const expected2 = propertyNounPlural(t).toUpperCase()
   if (h.lines[1] === expected2 && (h.linePx?.[1] ?? 0) <= HERO_MAX_PX) typeIntact++
-  // The detail stays a separate third element below, on its existing rule (never hero typography).
+  // The detail stays a separate third element below, on its own SIZE rule. It now shares the hero
+  // FACE (Libre Baskerville Bold) — hierarchy here is carried by size, not by a contrasting typeface.
   // The detail must be VISIBLY smaller than the property-type line, not merely not-larger.
-  if (!L.detail || (L.detail.fontPx <= MARKET_TYPE_DETAIL_PX && L.detail.face === "detail" && L.detail.fontPx < prPx)) detailOk++
+  if (!L.detail || (L.detail.fontPx <= MARKET_TYPE_DETAIL_PX && L.detail.face === "head" && L.detail.fontPx < prPx)) detailOk++
   // Line 2 sits directly under line 1: top2 = top1 + size1 + lineSpacing, and the detail below both.
   if (h.lineTopPx && Math.round(h.lineTopPx[1]) === Math.round(h.lineTopPx[0] + h.linePx![0] + h.lineSpacing)
     && (!L.detail || L.detail.topPx >= h.lineTopPx[1] + h.linePx![1])) stacked++
@@ -256,7 +257,7 @@ console.log("\nRENDER PLAN — the FFmpeg path draws the two title lines as two 
   ok("title items carry the per-line tops", plan[0].topPx === L.headline.lineTopPx![0] && plan[1].topPx === L.headline.lineTopPx![1])
   ok("each title item holds ONE line of text, already uppercased",
     plan[0].text === "SAN ANTONIO" && plan[1].text === "INDUSTRIAL-STYLE APARTMENTS" && !plan[0].text.includes("\n") && !plan[1].text.includes("\n"))
-  ok("the detail is a separate item on the detail face", plan[2].face === "detail" && plan[2].fontPx === L.detail!.fontPx)
+  ok("the detail is a separate item on the head face", plan[2].face === "head" && plan[2].fontPx === L.detail!.fontPx)
   // A NON-compound hero must still be ONE item with the whole (possibly multi-line) text, unchanged.
   const N = computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,800/month")
   const nplan = buildDrawPlan(N)

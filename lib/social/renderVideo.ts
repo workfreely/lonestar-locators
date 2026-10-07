@@ -9,6 +9,7 @@ import { promises as fs } from "node:fs"
 import path from "node:path"
 import os from "node:os"
 import { OVERLAY_TEXT, computeOverlayLayout, type OverlayLayout, type OverlayFace } from "@/lib/social/overlaySpec"
+import { DELIVERY_SIZE } from "@/lib/social/deliverySize"
 
 export type AudioChoice = "original" | "none" | "lb_track"
 
@@ -16,7 +17,7 @@ export type RenderInput = {
   sourcePath: string // local path to the downloaded immutable source
   outputPath: string // local path to write the rendered derivative
   fontPath: string // bundled TTF for the HEAD face (Libre Baskerville Bold) — headlines + conversational detail
-  detailFontPath?: string // bundled TTF for the DETAIL face (Bodoni text cut) — HERO detail only; falls back to fontPath
+  detailFontPath?: string // bundled TTF for the DETAIL face — now UNUSED by every live layout (hero detail moved to the head face); falls back to fontPath
   /** Which platform's safe area the headline is fitted into. Defaults to Instagram. */
   platform?: string
   template?: string | null // overlay template (drives the layout family); defaults to market_type
@@ -46,7 +47,7 @@ function escFilterPath(p: string): string {
  *  Hook / Center Hook + Detail all render from the same geometry the preview uses. NOTE: FFmpeg
  *  drawtext has no letter-spacing (tracking) or shadow blur, so the burned-in text omits the subtle
  *  tracking and uses a hard-offset shadow; the preview carries the full treatment. */
-export function buildVideoFilter(fontPath: string, items: DrawItem[]): string {
+export function buildVideoFilter(fontPath: string, items: DrawItem[], sourceChain?: string): string {
   const depth = (fontPx: number) => {
     const edge = Math.max(1, Math.round(OVERLAY_TEXT.edgeEm * fontPx))
     const dy = Math.max(1, Math.round(OVERLAY_TEXT.shadowDyEm * fontPx))
@@ -54,11 +55,15 @@ export function buildVideoFilter(fontPath: string, items: DrawItem[]): string {
     return `:borderw=${edge}:bordercolor=black@${OVERLAY_TEXT.edgeAlpha}:shadowcolor=black@${OVERLAY_TEXT.shadowAlpha}:shadowx=${dx}:shadowy=${dy}`
   }
 
-  const graph: string[] = [`[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920[bg]`]
+  // Source normalization runs FIRST and produces [bg]; the overlay is composited onto an already
+  // tone-mapped, already-scaled canvas. Callers that have probed the source pass its chain; the
+  // default keeps the historical behaviour for callers (and tests) that have not.
+  const chain = sourceChain ?? `scale=${DELIVERY.w}:${DELIVERY.h}:force_original_aspect_ratio=increase,crop=${DELIVERY.w}:${DELIVERY.h}`
+  const graph: string[] = [`[0:v]${chain}[bg]`]
   let label = "bg"
   items.forEach((it, i) => {
     const next = i === items.length - 1 ? "v" : `t${i}`
-    const font = escFilterPath(it.font ?? fontPath) // per-item font (Bodoni-Head vs Bodoni-Detail)
+    const font = escFilterPath(it.font ?? fontPath) // per-item font, chosen from the block's face
     graph.push(
       `[${label}]drawtext=fontfile='${font}':textfile='${escFilterPath(it.file)}':fontcolor=white:fontsize=${it.fontPx}` +
         `:line_spacing=${it.lineSpacing}${depth(it.fontPx)}:x=(w-text_w)/2:y=${Math.round(it.topPx)}[${next}]`,
@@ -80,6 +85,9 @@ export function buildFfmpegArgs(input: {
   extraInputs?: string[]
   /** The audio half of the graph, ending in [aout]. Null ⇒ no audio processing (unchanged behaviour). */
   audioFilter?: string | null
+  /** Probed source. Drives frame rate and whether the audio can be stream-copied. Omit to keep the
+   *  historical fixed-30fps / always-re-encode behaviour. */
+  source?: SourceInfo | null
 }): string[] {
   // The graph is a labelled -filter_complex ending in [v]; map that plus the source audio through.
   const args = ["-y", "-i", input.sourcePath]
@@ -87,18 +95,70 @@ export function buildFfmpegArgs(input: {
   // The VIDEO graph is untouched. When an audio graph exists it is appended as further chains in the
   // same -filter_complex, so there is still exactly ONE graph and one render invocation.
   const filter = input.audioFilter ? `${input.filter};${input.audioFilter}` : input.filter
-  args.push("-filter_complex", filter, "-map", "[v]", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-r", "30")
-  if (input.audioFilter) {
-    // Voice clips present: map the mixed result. Same codec/bitrate as before, so the container and
-    // TikTok's FILE_UPLOAD expectations are unchanged.
-    args.push("-map", "[aout]", "-c:a", "aac", "-b:a", "128k")
-  } else if (input.audioChoice === "none") {
-    args.push("-an")
-  } else {
-    args.push("-map", "0:a?", "-c:a", "aac", "-b:a", "128k")
-  }
+  // ONE encode, and it is the DELIVERY encode — the source is decoded, normalized, composited and
+  // encoded in a single pass, so no intermediate generation exists to lose quality to.
+  //
+  // crf 18 / preset slow (was crf 20 / veryfast): these sources are already platform-compressed, so
+  // the encoder is spending bits re-describing existing artifacts. A visually-transparent crf plus a
+  // slower motion search is what stops THIS generation adding its own, before Instagram adds another.
+  args.push("-filter_complex", filter, "-map", "[v]",
+    "-c:v", "libx264", "-preset", "slow", "-crf", "18", "-profile:v", "high", "-level", "4.2", "-pix_fmt", "yuv420p",
+    // Tag the output as BT.709. The normalization chain has already converted to it; without the tag
+    // players are left to guess, which is how correctly-converted footage still ends up looking wrong.
+    "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709")
+  // Frame rate: emit -r ONLY when the source needs correcting. Omitting it is the only way to
+  // guarantee no resampling — a 60fps source stays 60fps.
+  const fps = input.source ? outputFps(input.source) : 30
+  if (fps !== null) args.push("-r", String(fps))
+
+  args.push(...audioArgs({ audioChoice: input.audioChoice, audioFilter: input.audioFilter ?? null, source: input.source ?? null }))
   args.push("-movflags", "+faststart", input.outputPath)
   return args
+}
+
+// ── AUDIO: PRESERVE THE ORIGINAL UNLESS SOMETHING MAKES THAT IMPOSSIBLE ───────────────────────
+//
+// The pipeline does not change the audio, so by default it must not RE-ENCODE the audio either.
+// Every re-encode is a generation of loss applied to a stream the render never touched, and these
+// sources are already platform-compressed once.
+//
+// Copy is used whenever the source codec is valid in an MP4 and accepted by both platforms, which
+// in practice means AAC — and a TikTok-downloaded file is AAC by construction, so the whole of the
+// current library takes the copy path.
+//
+// `aacCompatible` is deliberately a allow-LIST, not a deny-list. An unrecognised codec re-encodes
+// rather than being optimistically copied: a copy that produces an unplayable MP4 fails at UPLOAD,
+// far from here, whereas an unnecessary re-encode is merely imperfect.
+
+/** Source audio codecs that can be stream-copied into the delivery MP4 as-is. */
+const COPYABLE_AUDIO = new Set(["aac"])
+
+/**
+ * Bitrate for the cases where re-encoding is unavoidable. AAC-LC stereo at 256k is comfortably
+ * inside what both Instagram and TikTok accept while being high enough that the one forced
+ * generation is not the weak link.
+ *
+ * NOT verified against either platform's current published spec — see the note in the handoff. If
+ * one of them is ever found to cap lower, this is the single place to change.
+ */
+const FORCED_AAC_BITRATE = "256k"
+
+export function audioArgs(input: { audioChoice: AudioChoice; audioFilter: string | null; source: SourceInfo | null }): string[] {
+  // A mix exists only when voice clips are in play. Mixing two streams is decoding both and
+  // producing a new one — there is no copy path, by definition.
+  if (input.audioFilter) return ["-map", "[aout]", "-c:a", "aac", "-b:a", FORCED_AAC_BITRATE]
+  if (input.audioChoice === "none") return ["-an"]
+
+  // THE PRESERVATION PATH. No -b:a, no -ar, no -ac: bitrate, sample rate and channel layout are
+  // whatever the source already had, bit-for-bit, because `copy` does not decode at all.
+  if (input.source && input.source.audioCodec !== null && COPYABLE_AUDIO.has(input.source.audioCodec)) {
+    return ["-map", "0:a?", "-c:a", "copy"]
+  }
+
+  // Unknown/incompatible codec, or no probe at all. Re-encode — but STILL do not resample or
+  // remix: omitting -ar and -ac makes ffmpeg keep the source's rate and channel layout, so the only
+  // thing that changes is the codec.
+  return ["-map", "0:a?", "-c:a", "aac", "-b:a", FORCED_AAC_BITRATE]
 }
 
 /** PURE layout → draw plan. Each entry is one drawtext: its TEXT (already cased), size, top-Y, and
@@ -148,6 +208,137 @@ export function parseProbe(stderr: string): { durationSeconds: number | null; ha
   const m = /Duration:\s*(\d+):(\d\d):(\d\d(?:\.\d+)?)/.exec(stderr)
   const durationSeconds = m ? Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) : null
   return { durationSeconds, hasAudio: /Stream #\d+:\d+.*:\s*Audio:/.test(stderr) }
+}
+
+// ── SOURCE NORMALIZATION ──────────────────────────────────────────────────────────────────────
+// The practical source library is TikTok-downloaded files: already platform-compressed, frequently
+// BELOW the 1080×1920 delivery size, often 60fps, and — on iPhone-shot clips — HLG/BT.2020 HDR.
+// They are the masters we have, so the pipeline is tuned to lose as little as possible from them
+// rather than to assume pristine input.
+
+/** The delivery canvas. Re-exported from lib/social/deliverySize so the client-side source-quality
+ *  badge can share the exact numbers without importing this server-only module. */
+export const DELIVERY = DELIVERY_SIZE
+
+export type SourceInfo = {
+  width: number | null
+  height: number | null
+  fps: number | null
+  /** Transfer characteristic exactly as ffmpeg names it, e.g. "arib-std-b67" (HLG), "smpte2084"
+   *  (PQ), "bt709". Null when the banner does not state one. */
+  colorTransfer: string | null
+  /** Bits per component, read from the pixel format (yuv420p10le -> 10, yuv420p -> 8). */
+  bitDepth: number | null
+  /** TRUE only when the source is trustworthily HDR — see isTrustworthyHdr. */
+  isHdr: boolean
+  /** Audio codec name as ffmpeg reports it, e.g. "aac". Null when the source has no audio. */
+  audioCodec: string | null
+  /** Source is smaller than the delivery canvas, i.e. it will be UPSCALED and cannot gain detail. */
+  belowDelivery: boolean
+}
+
+/**
+ * Is this source HDR in a way we are willing to act on?
+ *
+ * Tone-mapping is a DESTRUCTIVE colour transform. Applying it to footage that is not really HDR
+ * washes it out, and the failure is silent — so the bar is corroborating evidence, not a single
+ * tag:
+ *
+ *  1. The TRANSFER function must itself be an HDR curve — HLG (arib-std-b67) or PQ (smpte2084).
+ *     BT.2020 PRIMARIES alone are deliberately NOT enough: a file can carry wide-gamut primaries
+ *     with an SDR transfer, and tone-mapping it would be pure damage.
+ *  2. The source must be at least 10-bit. An 8-bit file claiming HLG/PQ is almost certainly
+ *     mis-tagged — real HDR is not delivered in 8 bits — and mis-tagged metadata is exactly what
+ *     this check exists to refuse.
+ *
+ * Anything that fails either test is passed through with its colour untouched.
+ */
+export function isTrustworthyHdr(info: Pick<SourceInfo, "colorTransfer" | "bitDepth">): boolean {
+  const hdrCurve = info.colorTransfer !== null && /^(arib-std-b67|smpte2084)$/i.test(info.colorTransfer)
+  return hdrCurve && info.bitDepth !== null && info.bitDepth >= 10
+}
+
+/** Pull geometry, frame rate, colour transfer and audio codec out of ffmpeg's stderr banner. */
+export function parseSourceInfo(stderr: string): SourceInfo {
+  const v = /Stream #\d+:\d+.*:\s*Video:.*/.exec(stderr)?.[0] ?? ""
+  const a = /Stream #\d+:\d+.*:\s*Audio:\s*([A-Za-z0-9_]+)/.exec(stderr)
+  // Take the LAST WxH on the video line: the codec tag can contain digits, but the resolution is
+  // always printed after the pixel format.
+  const dims = [...v.matchAll(/\b(\d{2,5})x(\d{2,5})\b/g)].pop()
+  const fpsM = /([\d.]+)\s*fps\b/.exec(v)
+  const fps = fpsM ? Number(fpsM[1]) : null
+  const width = dims ? Number(dims[1]) : null
+  const height = dims ? Number(dims[2]) : null
+  // Transfer sits in the parenthesised colour group after the pixel format, e.g.
+  // "yuv420p10le(tv, bt2020nc/bt2020/arib-std-b67)".
+  const transfer = /\b(arib-std-b67|smpte2084|bt709|bt470bg|smpte170m|iec61966-2-1|linear)\b/i.exec(v)?.[1]?.toLowerCase() ?? null
+  const depth = /\byuva?\d{3}p(\d{1,2})(?:le|be)?\b/i.exec(v)
+  const bitDepth = depth ? Number(depth[1]) : /\byuva?\d{3}p\b/i.test(v) ? 8 : null
+  const base = { colorTransfer: transfer, bitDepth }
+  return {
+    width, height,
+    fps: fps && Number.isFinite(fps) && fps > 0 ? fps : null,
+    ...base,
+    isHdr: isTrustworthyHdr(base),
+    audioCodec: a ? a[1].toLowerCase() : null,
+    belowDelivery: width !== null && height !== null && (width < DELIVERY.w || height < DELIVERY.h),
+  }
+}
+
+/**
+ * The [0:v] chain that turns an arbitrary source into the delivery canvas, BEFORE any overlay is
+ * composited. Order matters and is deliberate:
+ *
+ *   1. tone-map (HDR only) — done in LINEAR light, at the source's own resolution. Tone-mapping
+ *      after scaling would blend HDR values with SDR-ish neighbours and shift hue.
+ *   2. scale with LANCZOS — the upscale most of this library needs. swscale's default (bicubic) is
+ *      softer; lanczos keeps edge definition without the ringing of sharper kernels.
+ *   3. crop to the exact canvas.
+ *   4. format=yuv420p LAST, so every earlier step works at the highest available precision.
+ *
+ * Deliberately NO sharpening/unsharp: these sources are already platform-compressed, and sharpening
+ * compression artifacts makes them more visible, not less. If testing ever shows otherwise it can be
+ * added here as one explicit step.
+ */
+export function buildSourceChain(info: Pick<SourceInfo, "isHdr" | "width" | "height">): string {
+  const steps: string[] = []
+  if (info.isHdr) {
+    // hable preserves highlight roll-off without the flat look of `linear`; desat=0 keeps the
+    // original saturation rather than the default desaturation of bright areas.
+    steps.push("zscale=t=linear:npl=100", "tonemap=hable:desat=0", "zscale=p=bt709:t=bt709:m=bt709:r=tv")
+  }
+
+  // RESIZE ONLY WHEN THE SOURCE IS NOT ALREADY THE DELIVERY CANVAS. A source that is exactly
+  // 1080×1920 is passed through untouched: running it through swscale would be a resample that
+  // cannot improve anything and can only cost. Dimensions are only known when the probe read them —
+  // an unreadable probe keeps the full scale+crop, because getting the canvas right matters more
+  // than avoiding one redundant filter.
+  const exact = info.width === DELIVERY.w && info.height === DELIVERY.h
+  if (!exact) {
+    // `increase` + crop is a COVER fit: scale until both axes cover the canvas, then trim the
+    // overflow. For a source whose aspect already matches 9:16 the crop is a no-op; for anything
+    // else it is what removes the letterboxing instead of adding bars.
+    steps.push(
+      `scale=${DELIVERY.w}:${DELIVERY.h}:force_original_aspect_ratio=increase:flags=lanczos`,
+      `crop=${DELIVERY.w}:${DELIVERY.h}`,
+    )
+  }
+  // Always last, and always present: the overlay and the encoder both need a known 8-bit pixel
+  // format, and putting it at the end keeps every earlier step at the source's own precision.
+  steps.push("format=yuv420p")
+  return steps.join(",")
+}
+
+/**
+ * Output frame rate. Source fps is PRESERVED — a 60fps TikTok clip stays 60fps instead of being
+ * halved, which is what the old hard-coded `-r 30` did. Returns null to mean "emit no -r at all",
+ * the only way to guarantee ffmpeg does not resample. A rate above 60 is capped (the platforms
+ * re-encode above that anyway), and an unreadable rate falls back to 30 rather than to nothing.
+ */
+export function outputFps(info: Pick<SourceInfo, "fps">): number | null {
+  if (info.fps === null) return 30
+  if (info.fps > 60) return 60
+  return null
 }
 
 export type VoiceWindow = { startSeconds: number; endSeconds: number }
@@ -245,19 +436,24 @@ export async function renderReel(ffmpegPath: string, input: RenderInput): Promis
   for (const it of buildDrawPlan(layout)) {
     const file = path.join(input.workDir, `${it.name}.txt`)
     await fs.writeFile(file, it.text, "utf8")
-    // Face comes from the LAYOUT, not the element role: the conversational detail renders in the head
-    // face (Libre Baskerville Bold), the hero detail stays on the Bodoni text cut.
+    // Face comes from the LAYOUT, not the element role. Every live layout now resolves to the head
+    // face (Libre Baskerville Bold) for BOTH headline and detail; the "detail" branch is retained
+    // only so an explicitly detail-faced block would still render if one is ever reintroduced.
     items.push({ file, fontPx: it.fontPx, topPx: it.topPx, lineSpacing: it.lineSpacing, font: it.face === "head" ? input.fontPath : detailFont })
   }
-  const filter = buildVideoFilter(input.fontPath, items)
-
-  // The traced static binary can lose its exec bit in the serverless bundle — restore it. Moved above
-  // the probes because probing runs the same binary.
+  // The traced static binary can lose its exec bit in the serverless bundle — restore it. Must come
+  // before any probe, because probing runs the same binary.
   try {
     await fs.chmod(ffmpegPath, 0o755)
   } catch {
     /* best effort */
   }
+
+  // Probe the SOURCE once, up front: its resolution, frame rate, colour transfer and audio codec all
+  // feed decisions below (tone-map or not, which fps to emit, whether audio can be stream-copied).
+  // A probe that reveals nothing degrades to the historical defaults rather than failing the render.
+  const sourceInfo = parseSourceInfo(await probeStderr(ffmpegPath, input.sourcePath))
+  const filter = buildVideoFilter(input.fontPath, items, buildSourceChain(sourceInfo))
 
   // ── Voice clips: probe real durations, then build the audio graph ───────────────────────────
   const hookPath = input.hookPath ?? null
@@ -298,7 +494,7 @@ export async function renderReel(ffmpegPath: string, input: RenderInput): Promis
     })
   }
 
-  const args = buildFfmpegArgs({ sourcePath: input.sourcePath, outputPath: input.outputPath, filter, audioChoice: input.audioChoice, extraInputs, audioFilter })
+  const args = buildFfmpegArgs({ sourcePath: input.sourcePath, outputPath: input.outputPath, filter, audioChoice: input.audioChoice, extraInputs, audioFilter, source: sourceInfo })
 
   await new Promise<void>((resolve, reject) => {
     execFile(ffmpegPath, args, { maxBuffer: 1024 * 1024 * 16 }, (err, _stdout, stderr) => {
@@ -311,9 +507,14 @@ export async function renderReel(ffmpegPath: string, input: RenderInput): Promis
 /** Run `ffmpeg -i <file>` purely to read its stderr banner (duration + stream list). ffmpeg exits
  *  non-zero when given no output file, which is expected — the banner is still on stderr. */
 export async function probeMedia(ffmpegPath: string, filePath: string): Promise<{ durationSeconds: number | null; hasAudio: boolean }> {
+  return parseProbe(await probeStderr(ffmpegPath, filePath))
+}
+
+/** The raw stderr banner, for callers that need more than duration/audio (see parseSourceInfo). */
+export async function probeStderr(ffmpegPath: string, filePath: string): Promise<string> {
   return new Promise((resolve) => {
     execFile(ffmpegPath, ["-hide_banner", "-i", filePath], { maxBuffer: 1024 * 1024 * 8 }, (_err, _stdout, stderr) => {
-      resolve(parseProbe(String(stderr ?? "")))
+      resolve(String(stderr ?? ""))
     })
   })
 }

@@ -18,7 +18,8 @@ function depthShadow(): string {
 // TEMPLATE's layout (computeOverlayLayout) produces — Hero, Center Hook, or Center Hook + Detail —
 // at the same font/size/position/spacing the FFmpeg render uses. Font sizes are in `cqh`, so this
 // element sets containerType:size and fills a 9:16 parent. Editing APPROXIMATION only.
-// Bodoni Moda cuts (must match the FFmpeg render): headlines = display cut, detail = text cut.
+// Overlay face (must match the FFmpeg render): Libre Baskerville Bold 700 for BOTH headline and
+// detail. The Bodoni Moda text cut it used to carry for hero detail is no longer rendered anywhere.
 const FONT_HEAD = '"OverlayHead", Georgia, "Times New Roman", serif'
 const FONT_DETAIL = '"OverlayDetail", Georgia, "Times New Roman", serif'
 
@@ -43,8 +44,8 @@ function blockStyle(b: OverlayBlock, weight: number, fontFamily: string): CSSPro
 }
 
 // Weight + family come from the block's own `face`, so the preview loads exactly the file the FFmpeg
-// render draws with. The conversational detail carries face "head" (Libre Baskerville Bold) while the
-// HERO detail stays "detail" (Bodoni text cut) — one switch, both blocks, no per-template branching.
+// render draws with. EVERY live block now resolves to "head" (Libre Baskerville Bold 700); the
+// "detail" branch survives only so a detail-faced block would still render if one is reintroduced.
 const faceOf = (b: OverlayBlock): [number, string] => (b.face === "head" ? [650, FONT_HEAD] : [500, FONT_DETAIL])
 
 const blockText = (b: OverlayBlock) => (b.uppercase ? b.lines.join("\n").toUpperCase() : b.lines.join("\n"))
@@ -67,8 +68,9 @@ export default function PreviewOverlay({ layout }: { layout: OverlayLayout | nul
   if (!layout) return null
   return (
     <div className="pointer-events-none absolute inset-0" aria-hidden style={{ containerType: "size" }}>
-      {/* Each Bodoni cut is a single baked weight (headline w650, detail w500); the @font-face maps
-          100–900 to it with no synthetic bolding. Headline uses the display cut, detail the text cut. */}
+      {/* Libre Baskerville Bold is a single baked weight (700); the @font-face maps 100–900 onto it
+          with no synthetic bolding, so the preview cannot be heavier than the render. Headline AND
+          detail both use it. There is no outline — the face carries its own weight. */}
       {layout.headline.lines.length > 0 && (perLineBlocks(layout.headline)
         ?? <div style={blockStyle(layout.headline, ...faceOf(layout.headline))}>{blockText(layout.headline)}</div>)}
       {layout.detail && layout.detail.lines.length > 0 && <div style={blockStyle(layout.detail, ...faceOf(layout.detail))}>{blockText(layout.detail)}</div>}

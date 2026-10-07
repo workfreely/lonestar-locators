@@ -825,12 +825,20 @@ console.log("\nFont faces (preview and render both read block.face):")
   ok("conversational detail uses the HEAD face (Libre Baskerville Bold)", conv.detail!.face === "head")
   const hero = computeOverlayLayout("market_type", "SAN ANTONIO TOWNHOMES", "Starting at $1,600/month")
   ok("hero headline uses the HEAD face", hero.headline.face === "head")
-  ok("hero detail STAYS on the DETAIL face (Bodoni) — untouched this pass", hero.detail!.face === "detail")
+  ok("hero detail now uses the HEAD face (Libre Baskerville Bold)", hero.detail!.face === "head")
   // Every center-hook detail, not just the sampled one.
   ok("every conversational detail is head-faced", (["upgrade", "apartment_standards", "pov_price", "trade_up", "wanted_luxury", "real_living", "hits_different"] as const)
     .every((t) => computeOverlayLayout(t, buildTemplateHeadline(t, { propertyType: "High-Rise", market: "San Antonio", budgetRange: "1600" }), "Starting at $1,600/month").detail!.face === "head"))
-  ok("every hero detail stays detail-faced", (["market_type", "market_type_centered", "special_feature"] as const)
-    .every((t) => computeOverlayLayout(t, "SAN ANTONIO LOFTS", "Starting at $1,200/month").detail!.face === "detail"))
+  ok("every hero detail is head-faced (T1/T2/T4 — no Bodoni left in live output)", (["market_type", "market_type_centered", "special_feature"] as const)
+    .every((t) => computeOverlayLayout(t, "SAN ANTONIO LOFTS", "Starting at $1,200/month").detail!.face === "head"))
+  // The hero detail has NO fit-down step (its wrap is character-count based, so font-agnostic), and
+  // Libre Baskerville runs ~14-16% wider than the Bodoni cut it replaced. Measure the real strings
+  // against the real box so a future size change cannot quietly push them past the safe margins.
+  ok("hero detail fits its sub box under HEAD metrics", (["market_type", "market_type_centered", "special_feature"] as const)
+    .every((t) => {
+      const d = computeOverlayLayout(t, "SAN ANTONIO RENTAL HOMES", "2 Months Free \u00b7 Private Yards").detail!
+      return d.lines.every((ln) => headlineTextWidthPx(ln, d.fontPx) <= DETAIL_TEXT_AVAIL_PX)
+    }))
   // A head-faced detail must be MEASURED with head metrics, or preview/render parity silently breaks.
   const d = conv.detail!
   ok("head-faced detail fits its sub box under HEAD metrics", headlineTextWidthPx(d.lines[0], d.fontPx) <= DETAIL_TEXT_AVAIL_PX)

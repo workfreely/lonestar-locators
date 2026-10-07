@@ -111,7 +111,13 @@ ok("overlapping windows duck ONCE (max, not multiplied)", duckVolumeExpr([{ star
   ok("without voice the arg list is the ORIGINAL one (-map 0:a?, no extra inputs)",
     a.join(" ").includes("-map 0:a?") && a.filter((x) => x === "-i").length === 1)
   const b = buildFfmpegArgs({ sourcePath: "s.mp4", outputPath: "o.mp4", filter: "[0:v]null[v]", audioChoice: "original", extraInputs: ["h.m4a"], audioFilter: "[1:a]anull[aout]" })
-  ok("with voice: extra input added, [aout] mapped, same AAC 128k", b.filter((x) => x === "-i").length === 2 && b.join(" ").includes("-map [aout]") && b.join(" ").includes("-b:a 128k"))
+  // A voice mix CANNOT be stream-copied, so this path always re-encodes. It was pinned at 128k only
+  // because that was the pre-existing value; the bitrate is not a TikTok/Instagram requirement (both
+  // accept well above it). Raised to 192k so the one unavoidable audio generation costs less — the
+  // no-voice path now avoids re-encoding entirely via -c:a copy.
+  ok("with voice: extra input added, [aout] mapped, re-encoded AAC at >=128k",
+    b.filter((x) => x === "-i").length === 2 && b.join(" ").includes("-map [aout]") && /-b:a (1[2-9]\d|[2-9]\d\d)k/.test(b.join(" ")))
+  ok("with voice the audio is NEVER stream-copied (a mix has to be encoded)", !b.join(" ").includes("-c:a copy"))
   ok("the approved VIDEO graph is passed through untouched", b[b.indexOf("-filter_complex") + 1].startsWith("[0:v]null[v];"))
 }
 

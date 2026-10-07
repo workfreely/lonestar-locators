@@ -13,6 +13,7 @@ import { computeOverlayLayout } from "@/lib/social/overlaySpec"
 import ReelCoverControl from "@/components/crm/social/ReelCoverControl"
 import SafeAreaOverlay from "@/components/crm/social/SafeAreaOverlay"
 import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
+import SourceQualityBadge from "@/components/crm/social/SourceQualityBadge"
 import VideoLightbox from "@/components/crm/social/VideoLightbox"
 import PropertyResearch from "@/components/crm/social/PropertyResearch"
 import TikTokPostConfirm from "@/components/crm/social/TikTokPostConfirm"
@@ -756,6 +757,10 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                     edits immediately; null (renders nothing) in 'Already has text' mode. Also the
                     fallback once overlayEdited is true, even for an already-rendered post. */}
                 <PreviewOverlay layout={overlayLayout} />
+                {/* Informational only — never blocks rendering. See SourceQualityBadge. */}
+                <div className="absolute bottom-2 left-2 z-10">
+                  <SourceQualityBadge videoUrl={post.previewUrl} />
+                </div>
               </>
             ) : (
               <div className="w-full h-full flex items-center justify-center text-[12px] text-[var(--crm-text-muted)]">No preview</div>

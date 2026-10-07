@@ -52,6 +52,9 @@ export const OVERLAY_TEXT = {
   // negative: the render ignores tracking, so a negative value would let the fitter over-size text
   // until it ran past the 90px safe margins (verified: -0.01em overflowed all three test headlines).
   trackingEm: 0,
+  // NO outline. The 1px white stroke trialled here was compensation for FFmpeg drawtext laying down
+  // ~13% less ink than the browser preview; with Chromium owning the rasterization that deficit does
+  // not exist, so the compensation is not carried forward. Libre Baskerville Bold 700 stands on its own.
   edgeAlpha: 0, //     NO visible outline (crisp solid white per the reference)
   edgeEm: 0, //        (border width irrelevant at alpha 0)
   shadowAlpha: 0.6, // SUBTLE, non-obvious drop shadow (nudged 0.5→0.6) — helps white text separate
@@ -518,8 +521,23 @@ export function computeOverlayLayout(template: string, headlineText: string, det
     const headline: OverlayBlock = { lines: fit.lines, fontPx: fit.fontPx, topPx: headTop, uppercase: true, sideMarginPx: OVERLAY_SPEC.headline.sideMarginPx, lineSpacing: OVERLAY_SPEC.headline.lineSpacing, face: "head", linePx: fit.linePx, lineTopPx }
     let detailBlock: OverlayBlock | null = null
     if (hasDetail) {
-      // HERO detail deliberately stays on the Bodoni text cut — unchanged in this pass.
-      detailBlock = { lines: detailLines, fontPx: detailPx, topPx: headTop + headBlockH + gap, uppercase: false, sideMarginPx: OVERLAY_SPEC.sub.sideMarginPx, lineSpacing: OVERLAY_SPEC.sub.lineSpacing, face: "detail" }
+      // HERO detail renders in the HEAD face (Libre Baskerville Bold 700), same as the headline above
+      // it and the same as the conversational detail. It previously used the Bodoni Moda text cut
+      // (wght 500) — a Didone, whose defining hairline strokes are the first thing Instagram's
+      // re-encode destroys, which is exactly how a line like "2 Months Free · Private Yards" came to
+      // read as thin and decorative next to its own headline.
+      //
+      // This finishes a migration that was already half-done: the conversational/center-hook detail
+      // moved to the head face earlier and the hero family was deliberately left behind. With this
+      // line, NO live layout emits face "detail" any more.
+      //
+      // Sizes, gaps, wrapping and placement are deliberately untouched. That is safe but not free:
+      // Libre Baskerville runs ~14-16% wider than Bodoni, and hero detail has no fit-down step (the
+      // wrap is character-count based, so it is font-agnostic). Measured against the 930px box:
+      // "2 Months Free · Private Yards" @44px = 680px, "Starting at $1,800/month" @52px = 688px, a
+      // full 33-character line @52px ≈ 876px. Real copy clears it; a 33-char line of wide capitals
+      // would not — but that already overflowed in Bodoni (1733px), so the hazard predates this.
+      detailBlock = { lines: detailLines, fontPx: detailPx, topPx: headTop + headBlockH + gap, uppercase: false, sideMarginPx: OVERLAY_SPEC.sub.sideMarginPx, lineSpacing: OVERLAY_SPEC.sub.lineSpacing, face: "head" }
     }
     return { family, headline, detail: detailBlock }
   }
