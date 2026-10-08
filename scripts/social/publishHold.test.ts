@@ -80,8 +80,15 @@ ok("clearing touches ONLY the review columns — never status or schedule",
   /intent === "clear_review"[\s\S]{0,320}?patch\.needs_review_reason = null/.test(patchRoute)
   && !/intent === "clear_review"[\s\S]{0,320}?patch\.status/.test(patchRoute))
 ok("the GET exposes the flag so the editor can show it", /needsReviewAt: r\.needs_review_at/.test(patchRoute))
-ok("a finished re-render clears it automatically",
-  /needs_review_at: null/.test(read("app/api/admin/social-autopilot/posts/[id]/render/route.ts")))
+// The render body now lives in the shared module both the admin route and the queue worker call,
+// so the assertion follows it there — and this way it covers the BULK path too, not just the
+// interactive one.
+ok("a finished re-render clears it automatically, on both render paths",
+  /needs_review_at: null/.test(read("lib/social/renderPost.ts")))
+ok("the admin route delegates to that shared implementation",
+  /renderPostToStorage/.test(read("app/api/admin/social-autopilot/posts/[id]/render/route.ts")))
+ok("and so does the queue worker",
+  /renderPostToStorage/.test(read("app/api/admin/social-autopilot/render-jobs/run/route.ts")))
 
 console.log(`\nPublish hold: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)
