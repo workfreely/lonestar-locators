@@ -15,8 +15,10 @@ export const OVERLAY_CANVAS = { w: 1080, h: 1920 } as const
 // the CSS preview and the FFmpeg render (FFmpeg centers each line via x=(w-text_w)/2, so the
 // char-wrap is what constrains its width to the box). Headline box ≈ 800px, sub box ≈ 930px.
 // ── THE TOP ANCHOR (yFrac) AND INSTAGRAM'S GRID CROP ────────────────────────────────────────
-// yFrac positions the TOP-ANCHORED lockup: T1 market_type, T4 special_feature and T16
-// what_mo_gets_you_top all read this one value. The centred templates do not.
+// yFrac positions the TOP-ANCHORED HERO lockup: T1 market_type and T4 special_feature. T2
+// market_type_centered is the same typography but vertically centred, so it does not read this.
+// T16 what_mo_gets_you_top is top-anchored too but belongs to the SMALLER conversational family
+// (38px, sentence case) — it has its own CENTER_HOOK_TOP_YFRAC and is deliberately unaffected.
 //
 // It was 0.13 (y 249.6), which looked right in the full-frame Reel and WRONG on the profile grid.
 // Instagram crops a 1080x1920 Reel to a CENTRED 3:4 thumbnail — measured from a real profile
@@ -29,10 +31,11 @@ export const OVERLAY_CANVAS = { w: 1080, h: 1920 } as const
 // which reads as a deliberate top margin rather than a near-miss. The full-frame Reel also gains
 // room from Instagram's own back-arrow row.
 //
-// ONLY THE ANCHOR MOVED. Font, size, weight, line spacing and the headline-to-price gap
-// (MARKET_TYPE_GAP_PX) are untouched — the whole lockup translates down as one unit, so the
-// internal composition is identical. Fixed once here rather than per template, so the three
-// top-anchored templates cannot drift apart.
+// ONLY THE ANCHOR MOVED. Font, size, weight, line spacing, the horizontal fit box
+// (sideMarginPx/HEADLINE_TEXT_AVAIL_PX) and the headline-to-price gap (MARKET_TYPE_GAP_PX) are all
+// untouched — the whole lockup translates down as one unit, so the internal composition is
+// identical. The hero side margin was deliberately NOT widened: the fit box IS what sets the
+// fitted size, so narrowing it would have re-fitted 49 of 70 headlines smaller by a median 18px.
 export const OVERLAY_SPEC = {
   // Template 1/3 (Hero) headline size is FIT-TO-WIDTH per actual text (see headlineFit): each combo
   // renders at the largest size in [HERO_MIN_PX, HERO_MAX_PX] that fits one line in the 900px safe box,
@@ -430,6 +433,17 @@ export const CENTER_HOOK = { maxPx: HOOK_MAX_PX, minPx: HOOK_MIN_PX, lineSpacing
 // [HERO_MIN_PX, HERO_MAX_PX] range and their own detail sizing, all unchanged.
 const HOOK_FLOOR_PX = 22 // only reachable by copy too long for the box even at the ceiling
 
+// ── T16's OWN TOP ANCHOR ────────────────────────────────────────────────────────────────────────
+// what_mo_gets_you_top is top-anchored, but it is NOT the hero family: it is the conversational
+// treatment — 38px, sentence case, center_hook — merely positioned at the top instead of centred.
+// It only ever BORROWED OVERLAY_SPEC.headline.yFrac as a convenient number.
+//
+// That borrowing became a bug the moment the hero anchor moved to clear Instagram's grid crop: a
+// 66px uppercase hero and a 38px sentence-case hook have different relationships to the top of the
+// frame, and a value chosen for one silently dragged the other. Pinned here at 0.13 — exactly
+// where T16 has always rendered — so the two can move independently from now on.
+const CENTER_HOOK_TOP_YFRAC = 0.13
+
 // ── Conversational safe box ──────────────────────────────────────────────────────────────────
 // Now PER PLATFORM — see lib/social/platformSafeArea.ts, where the Instagram numbers are measured
 // from a real published Reel rather than estimated. Instagram's box is 860px (110px margins): the
@@ -684,7 +698,7 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   // mirror image of T2, which is T1's typography at a centered anchor. Only the anchor differs, and it
   // reuses T1's own yFrac constant, so the hook typography/fit stays identical to T11's.
   const topAnchored = template === "what_mo_gets_you_top"
-  const groupTop = topAnchored ? OVERLAY_SPEC.headline.yFrac * H : (H - totalH) / 2
+  const groupTop = topAnchored ? CENTER_HOOK_TOP_YFRAC * H : (H - totalH) / 2
   const headline: OverlayBlock = { lines, fontPx: hookPx, topPx: groupTop, uppercase: false, sideMarginPx: sideMarginPx(platform), lineSpacing: CENTER_HOOK.lineSpacing, face: "head" }
   const detailBlock: OverlayBlock | null = hasDetail
     ? { lines: detailLines, fontPx: detailPx, topPx: groupTop + headBlockH + gap, uppercase: false, sideMarginPx: sideMarginPx(platform), lineSpacing: OVERLAY_SPEC.sub.lineSpacing, face: "head" }

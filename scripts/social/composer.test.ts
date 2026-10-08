@@ -729,7 +729,15 @@ ok("T16 has no detail line, like T11", buildTemplateDetail("what_mo_gets_you_top
 {
   const t11L = computeOverlayLayout("what_mo_gets_you", buildTemplateHeadline("what_mo_gets_you", t16src), "")
   const t16L = computeOverlayLayout("what_mo_gets_you_top", buildTemplateHeadline("what_mo_gets_you_top", t16src), "")
-  ok("T16 anchors at T1's top position (yFrac), NOT centred", Math.round(t16L.headline.topPx) === Math.round(OVERLAY_SPEC.headline.yFrac * OVERLAY_CANVAS.h))
+  // T16 is top-anchored, NOT centred — but it no longer borrows the hero's anchor. It is the
+  // conversational family (38px, sentence case) merely positioned at the top, and the hero anchor
+  // moved to clear Instagram's 3:4 grid crop, which is a 66px-uppercase problem. Sharing the number
+  // meant a hero fix silently dragged T16. It is pinned at its own long-standing 249.6.
+  ok("T16 is top-anchored, well above centre", Math.round(t16L.headline.topPx) === 250)
+  ok("…and is INDEPENDENT of the hero anchor, which has moved below it",
+    t16L.headline.topPx < OVERLAY_SPEC.headline.yFrac * OVERLAY_CANVAS.h)
+  ok("…because it is the smaller conversational family, not a hero",
+    t16L.headline.fontPx < 50 && t16L.headline.uppercase === false && t16L.family === "center_hook")
   ok("T11 stays CENTRED and is unchanged by T16 existing", Math.abs(t11L.headline.topPx - (OVERLAY_CANVAS.h - t11L.headline.fontPx) / 2) < 40 && t11L.headline.topPx > t16L.headline.topPx)
   ok("T16 reuses T11's hook typography exactly (same size, one line, same family)", t16L.headline.fontPx === t11L.headline.fontPx && t16L.headline.lines.length === 1 && t16L.family === t11L.family)
 }
