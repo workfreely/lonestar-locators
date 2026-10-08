@@ -1,6 +1,7 @@
 import Image from "next/image"
 import type { SmartLeadFormConfig } from "../../../_lib/types"
 import { AGENT_PHOTO_SIZES } from "../../../_lib/agentPhotoSizes"
+import { canOptimizeImage } from "@/lib/images/canOptimize"
 
 // Just the photo/initials box — no positioning of its own. AgentProfile.tsx
 // wraps this with a negative margin for the overlapping placement; Hero.tsx
@@ -21,26 +22,8 @@ import { AGENT_PHOTO_SIZES } from "../../../_lib/agentPhotoSizes"
 // above-the-fold focal point, so it must be eager + fetchPriority=high + preloaded
 // rather than left to the browser's default low image priority.
 
-/**
- * Can next/image's optimizer fetch this URL?
- *
- * A relative path is same-origin; remote hosts must match next.config.mjs
- * `images.remotePatterns`, which today is *.supabase.co (every uploaded avatar)
- * plus res.cloudinary.com. An unlisted host makes next/image THROW at render —
- * and this component sits on the public lead-capture form, where that would be a
- * 500 on the page the whole funnel depends on. So an unrecognised host degrades
- * to an unoptimized (plain) load instead: slower, but it still shows the photo.
- */
-function canOptimize(url: string): boolean {
-  if (url.startsWith("/")) return true
-  try {
-    const { hostname } = new URL(url)
-    return hostname.endsWith(".supabase.co") || hostname === "res.cloudinary.com"
-  } catch {
-    return false
-  }
-}
-
+// The host allowlist lives in lib/images/canOptimize so this component and the shared <Avatar>
+// cannot disagree about which URLs are safe to optimize. It used to be duplicated here.
 export default function AgentPhoto({ config }: { config: SmartLeadFormConfig }) {
   const { agentPhotoUrl, agentPhotoSize } = config.branding
   const { agentName } = config.copy
@@ -69,7 +52,7 @@ export default function AgentPhoto({ config }: { config: SmartLeadFormConfig }) 
           // verified in the rendered DOM. A preloaded image usually gets high
           // priority anyway; this makes it a guarantee instead of a side effect.
           fetchPriority="high"
-          unoptimized={!canOptimize(agentPhotoUrl)}
+          unoptimized={!canOptimizeImage(agentPhotoUrl)}
           className="object-cover"
         />
       ) : (
