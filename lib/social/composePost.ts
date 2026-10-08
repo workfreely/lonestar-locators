@@ -622,17 +622,23 @@ export function buildTemplateDetail(template: OverlayTemplate, src: SourceMeta):
     // sitting beside it competes with the one point the template is making.
     case "affordable_luxury":
       return price // "Starting at $X/month" or "" (T8 shows the POV headline + this price line)
-    case "your_sign":
     case "next_property":
     case "pov_upgrade":
+      return price // T5/T8 gained the same optional price line — see the group above
+    case "your_sign":
     case "what_mo_gets_you": // the price+city sentence is the whole headline — no separate detail
     case "what_mo_gets_you_top": // T16 = T11's copy, top-anchored; same "no detail"
       return "" // center-hook, no detail
     case "special_feature":
       return joinDetailParts([special, feature]) // special+feature / special / feature / none
+    // T6 and T7 USED TO fold the current special in alongside the price
+    // (joinDetailParts([special, price]) -> "2 Months Free · Starting at $1,495/month"). They now
+    // show the price alone, like every other T5-T14 template, so all ten have one secondary-line
+    // behaviour and one line shape. The special is NOT lost: resolveSocialSpecial still drives the
+    // caption's ✨ line, which is where it was always the more natural fit.
     case "upgrade":
-    case "apartment_standards": // same shared special+price detail as Upgrade
-      return joinDetailParts([special, price]) // special+price / special / price / none
+    case "apartment_standards":
+      return price
   }
 }
 
