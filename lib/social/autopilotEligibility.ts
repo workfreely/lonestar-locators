@@ -8,6 +8,9 @@
 // it is reported as missing inventory instead (see planAutopilot).
 
 export type EligibilityInput = {
+  /** Set when this post is a companion distribution of another (a Story following its Reel).
+   *  Follow-ups are released by their parent's publish, never by the planner. */
+  followsPostId?: string | null
   status: string | null
   renderStatus: string | null
   renderedStoragePath: string | null
@@ -27,6 +30,7 @@ export type Ineligible =
   | "render_failed"
   | "no_rendered_artifact"
   | "wrong_platform"
+  | "follow_up_post"       // a companion Story — scheduled by its Reel, not by the rotation
 
 /**
  * Why this post cannot be scheduled, or null when it can.
@@ -61,6 +65,11 @@ export function ineligibleReason(p: EligibilityInput, platform = "instagram"): I
   if (p.status !== "ready") return "not_ready"
 
   if (p.platform && p.platform !== platform) return "wrong_platform"
+
+  // A COMPANION STORY IS NOT A ROTATION ENTRY. It is the same property and the same creative as a
+  // Reel already in the plan, released 45 minutes after that Reel publishes. Letting it into the
+  // pool would consume one of the day's two slots and show a viewer the same building twice.
+  if (p.followsPostId) return "follow_up_post"
   return null
 }
 

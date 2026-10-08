@@ -18,6 +18,7 @@
 // id was persisted before the call, and a container whose status_code is PUBLISHED proves the Reel
 // exists, so that row is marked published rather than published again.
 
+import { releaseStoryForReel } from "@/lib/social/storyFollowUp"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import * as ig from "@/lib/social/instagram"
 
@@ -97,6 +98,16 @@ export async function finalizeInstagramPublish(args: {
       })
       .eq("id", postId)
       .is("external_post_id", null)
+    // A RECOVERED Reel is still published, so its Story is still owed. decideStoryFollowUp gates on
+    // published_at AND external_post_id, and this path leaves the media id null — so the Story
+    // stays held rather than being released against an incomplete record. Attempted anyway so the
+    // reason is logged rather than silently skipped.
+    try {
+      const rel = await releaseStoryForReel(db as never, postId)
+      console.log(`[ig-finalize] recovered reel: story ${rel.scheduled ? `due ${rel.dueAt}` : `not scheduled (${rel.reason})`}`)
+    } catch (storyErr) {
+      console.error("[ig-finalize] story follow-up failed after recovery (Reel is unaffected):", storyErr)
+    }
     return { state: "published", mediaId: null, url, recovered: true }
   }
 
@@ -142,6 +153,19 @@ export async function finalizeInstagramPublish(args: {
         updated_at: now(),
       })
       .eq("id", postId)
+    // COMPANION STORY. Released only now, from the REAL publish time, so a Reel that went out late
+    // carries its Story with it instead of both firing together. Idempotent and race-guarded, so a
+    // retried finalize cannot produce a second Story.
+    //
+    // Its failure is swallowed ON PURPOSE: the Reel IS published, and a Story that could not be
+    // scheduled must never make a successful Reel publish look failed. Logged instead.
+    try {
+      const rel = await releaseStoryForReel(db as never, postId)
+      if (rel.scheduled) console.log(`[ig-finalize] story ${rel.storyId?.slice(0, 8)} due ${rel.dueAt}`)
+      else if (rel.reason !== "no_story") console.log(`[ig-finalize] story not scheduled: ${rel.reason}`)
+    } catch (storyErr) {
+      console.error("[ig-finalize] story follow-up failed (Reel is unaffected):", storyErr)
+    }
     return { state: "published", mediaId, url }
   } catch (e) {
     const reason = e instanceof Error ? e.message.slice(0, 400) : "publish error"
