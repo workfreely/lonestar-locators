@@ -6,6 +6,13 @@
 create table if not exists public.social_render_jobs (
   id uuid primary key default gen_random_uuid(),
   post_id uuid not null references public.social_posts(id) on delete cascade,
+  -- PLATFORM IS PART OF THE JOB, not something to look up later. The overlay is fitted to the
+  -- platform's safe area (lib/social/platformSafeArea), so the SAME post rendered for Instagram and
+  -- for TikTok produces DIFFERENT MP4s. A job that did not carry its platform could be claimed and
+  -- rendered against the wrong one, and the resulting artifact would be silently mis-sized rather
+  -- than visibly broken. It is also part of the idempotency key, so the two never collapse onto one
+  -- job. Constrained rather than free text: a typo here would quietly create a third "platform".
+  platform text not null check (platform in ('instagram', 'tiktok')),
   -- IDEMPOTENCY. One row per (post, render intent): a double-click, a retried HTTP request or a
   -- duplicated queue message all collapse onto the same job instead of rendering (and later
   -- publishing) the same post twice. The caller derives this from the post id + overlay inputs, so
