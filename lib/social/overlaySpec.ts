@@ -43,11 +43,17 @@ export const OVERLAY_CANVAS = { w: 1080, h: 1920 } as const
 //                    in the grid; that difference is inherent, not a bug to tune away.
 //   full-screen    — also uncropped, with the player's chrome over the top of the frame.
 //
-// 0.240625 puts the box at y462 (exactly, on the 1920 canvas): 18px up from 480. It keeps 222px of
-// grid clearance above the lockup — still comfortably inside the crop — while taking some of the
-// excess headroom out of the feed and full-screen views. The deepest lockup the engine can produce
-// (T1, 3-line headline + 4-line detail) bottoms out at y839 against a crop bottom of 1680, so the
-// full title + price stay far from the lower edge in every configuration.
+// 0.240625 put the box at y462 (18px up from 480) and read better in the feed, but still slightly
+// low. 0.2328125 is the settled value: y447 exactly on the 1920 canvas, a further 15px up and 33px
+// above the original 480. It keeps 207px of grid clearance above the lockup — still comfortably
+// inside the crop — while taking the remaining excess headroom out of the feed and full-screen
+// views. The deepest lockup the engine can produce (T1, 3-line headline + 4-line detail) bottoms
+// out at y824 against a crop bottom of 1680, so the full title + price stay far from the lower edge
+// in every configuration.
+//
+// Each step here was a VISUAL call checked against a real published Reel, not a derivation. If this
+// moves again, move it the same way: change this one number, re-render, and look at all three
+// contexts.
 //
 // Do NOT re-derive this from a screenshot ink scan. Recovering burned-in text positions from
 // Instagram's compressed thumbnails was tried and is not reliable — it produced y302 for a frame
@@ -66,7 +72,7 @@ export const OVERLAY_SPEC = {
   // so "SAN ANTONIO TOWNHOMES" is larger than "SAN ANTONIO RENTAL HOMES". `fontPx` here is the START/
   // MAX (HERO_MAX_PX) used as the block default; the actual per-headline size comes from headlineFit.
   // maxChars/maxLines are the FALLBACK char-wrap for arbitrary/custom headline text only.
-  headline: { yFrac: 0.240625, fontPx: 66, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24, maxChars: 16, maxLines: 3, sideMarginPx: 90 },
+  headline: { yFrac: 0.2328125, fontPx: 66, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24, maxChars: 16, maxLines: 3, sideMarginPx: 90 },
   // The sub/detail sits `gapPx` BELOW the headline block; it is the SECONDARY line, in the same
   // Libre Baskerville Bold face as the headline and distinguished by SIZE alone. 44px (raised from 36) makes "Starting at $X/mo" clearly readable and intentional in the
   // editor/enlarged preview and the render, while staying clearly secondary to the headline (56–66).
