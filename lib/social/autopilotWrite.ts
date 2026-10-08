@@ -173,27 +173,33 @@ function toClaim(p: PlannedPost): Claim {
 
 function inventoryOf(plan: Pick<AutopilotPlan, "sufficient" | "inventory">) {
   const i = plan.inventory
-  // Every number the decision needs, named. A caller must not have to infer "is there enough
-  // content?" from a boolean whose definition it cannot see — the previous version reported
-  // "sufficient" for a pool that filled three quarters of its slots with repeats.
+  // FILL-FORWARD framing. The old report answered "is a 7-day horizon fillable?", which was the
+  // wrong question twice over: the horizon is no longer fixed, and "fillable" said nothing about
+  // whether the content was fresh. What matters now is how far ahead the queue reaches and how
+  // much of that reach is genuinely new to the account.
   const lines = [
     plan.sufficient
-      ? "INVENTORY OK — every placement uses a property that account has not posted before."
-      : "INSUFFICIENT INVENTORY FOR A HEALTHY ROTATION — see the numbers below.",
-    `  horizon placements required : ${i.horizonPlacements}`,
-    `  eligible posts              : ${i.eligiblePosts}`,
-    `  unique properties           : ${i.uniqueProperties}`,
-    `  unique placements           : ${i.uniquePlacements}`,
-    `  reused placements           : ${i.reusedPlacements}  (${i.reusePercent}%)`,
-    `  first reuse                 : ${i.firstReuseAt ? `${i.firstReuseAt.dateKey} @ ${String(Math.floor(i.firstReuseAt.minute / 60)).padStart(2, "0")}:${String(i.firstReuseAt.minute % 60).padStart(2, "0")}` : "none"}`,
+      ? `QUEUE HEALTHY — ${i.daysFillable} day(s) filled, every placement a property this account has not posted.`
+      : i.recycledPlacements > 0
+        ? `FRESH INVENTORY RUNS OUT after ${i.freshRunwayDays} day(s) — recycling begins beyond that.`
+        : `QUEUE CANNOT BE FILLED — see unfilled slots below.`,
+    `  total eligible posts        : ${i.eligiblePosts}`,
+    `  distinct properties         : ${i.distinctProperties}`,
+    `  fresh properties available  : ${i.freshPropertiesAvailable}`,
+    `  fresh placements            : ${i.freshPlacements}`,
+    `  recycled placements         : ${i.recycledPlacements}  (${i.recycledProperties} distinct propert${i.recycledProperties === 1 ? "y" : "ies"})`,
+    `  days fillable at cadence    : ${i.daysFillable}`,
+    `  fresh runway (days)         : ${i.freshRunwayDays}`,
+    `  first recycle               : ${i.firstRecycleAt ? `${i.firstRecycleAt.dateKey} @ ${String(Math.floor(i.firstRecycleAt.minute / 60)).padStart(2, "0")}:${String(i.firstRecycleAt.minute % 60).padStart(2, "0")} — ${i.firstRecycleAt.propertyName ?? "?"}` : "none"}`,
+    `  cooldown                    : ${i.cooldownDays} days, violations ${i.cooldownViolations}${i.cooldownViolations ? "  <-- BUG" : ""}`,
     `  market fallbacks            : ${i.marketFallbacks}`,
     `  unfilled slots              : ${i.unfilledSlots}`,
     `  collisions                  : ${i.collisions}`,
     ...i.byPlatform.map((b) =>
-      `  ${b.platform}: ${b.connections} account(s), ${b.eligiblePosts} eligible post(s), `
-      + `${b.uniqueProperties} propert${b.uniqueProperties === 1 ? "y" : "ies"} for ${b.horizonPlacements} placement(s)`),
+      `  ${b.platform}: ${b.connections} account(s), ${b.eligiblePosts} post(s), ${b.distinctProperties} propert${b.distinctProperties === 1 ? "y" : "ies"}`
+      + ` -> ${b.daysFillable} day(s) fillable, ${b.freshRunwayDays} fresh`),
   ]
-  if (!plan.sufficient) lines.push("  => render more distinct properties before scheduling this horizon.")
+  if (i.recycledPlacements > 0 || i.unfilledSlots > 0) lines.push("  => render more distinct properties to extend the fresh runway.")
   return { ...i, sufficient: plan.sufficient, summary: lines.join("\n") }
 }
 

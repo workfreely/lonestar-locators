@@ -30,25 +30,31 @@ const planned = (postId: string, connectionId: string, at: string, i = 0): Plann
   minute: 750, scheduledAtUtc: at, market: "San Antonio", propertyName: `P-${postId}`, poolIndex: i,
 })
 type InvOver = Partial<{
-  sufficient: boolean; horizonPlacements: number; eligiblePosts: number; uniqueProperties: number
-  uniquePlacements: number; reusedPlacements: number; reusePercent: number; unfilledSlots: number
+  sufficient: boolean; eligiblePosts: number; distinctProperties: number
+  freshPlacements: number; recycledPlacements: number; recycledProperties: number
+  daysFillable: number; freshRunwayDays: number; unfilledSlots: number
 }>
 const planOf = (planned: PlannedPost[], over: InvOver = {}) => ({
   planned,
   sufficient: over.sufficient ?? true,
   inventory: {
-    horizonPlacements: over.horizonPlacements ?? planned.length,
     eligiblePosts: over.eligiblePosts ?? planned.length,
-    uniqueProperties: over.uniqueProperties ?? planned.length,
-    uniquePlacements: over.uniquePlacements ?? planned.length,
-    reusedPlacements: over.reusedPlacements ?? 0,
-    reusePercent: over.reusePercent ?? 0,
-    firstReuseAt: null,
+    distinctProperties: over.distinctProperties ?? planned.length,
+    freshPropertiesAvailable: over.distinctProperties ?? planned.length,
+    freshPlacements: over.freshPlacements ?? planned.length,
+    recycledPlacements: over.recycledPlacements ?? 0,
+    recycledProperties: over.recycledProperties ?? 0,
+    daysFillable: over.daysFillable ?? 1,
+    freshRunwayDays: over.freshRunwayDays ?? 1,
+    firstRecycleAt: over.recycledPlacements ? { dateKey: "2026-11-07", minute: 450, propertyName: "The Standard at Legacy" } : null,
+    cooldownViolations: 0,
+    cooldownDays: 21,
     marketFallbacks: 0,
     unfilledSlots: over.unfilledSlots ?? 0,
     collisions: 0,
     byPlatform: [{ platform: "instagram", connections: 1, eligiblePosts: over.eligiblePosts ?? planned.length,
-      uniqueProperties: over.uniqueProperties ?? planned.length, horizonPlacements: over.horizonPlacements ?? planned.length }],
+      distinctProperties: over.distinctProperties ?? planned.length,
+      daysFillable: over.daysFillable ?? 1, freshRunwayDays: over.freshRunwayDays ?? 1 }],
   },
 })
 const stateMap = (ids: string[], over: Partial<EligibilityInput> = {}) =>
@@ -223,37 +229,47 @@ async function main() {
       JSON.stringify(buildClaims(plan, cur).claims) === JSON.stringify(buildClaims(plan, cur).claims))
   }
 
-  console.log("\ninsufficient inventory is reported loudly, not inferred:")
-  {
-    const r = await applyAutopilotPlan({
-      plan: planOf([planned("p1", CONN_A, T1)], {
-        sufficient: false, horizonPlacements: 28, eligiblePosts: 7, uniqueProperties: 6,
-        uniquePlacements: 7, reusedPlacements: 21, reusePercent: 75,
-      }),
-      current: stateMap(["p1"]),
-    })
-    const s = r.inventory.summary
-    ok("sufficient is false", !r.inventory.sufficient)
-    ok("the headline says INSUFFICIENT", /INSUFFICIENT INVENTORY FOR A HEALTHY ROTATION/.test(s))
-    // Each number the decision needs must be present BY NAME — the old one-liner reported
-    // "sufficient" for exactly this shape because it compared against one day's minimum.
-    for (const [label, re] of [
-      ["horizon placements", /horizon placements required\s*:\s*28/],
-      ["eligible posts",     /eligible posts\s*:\s*7/],
-      ["unique properties",  /unique properties\s*:\s*6/],
-      ["unique placements",  /unique placements\s*:\s*7/],
-      ["reused placements",  /reused placements\s*:\s*21\s*\(75%\)/],
-      ["market fallbacks",   /market fallbacks\s*:/],
-      ["unfilled slots",     /unfilled slots\s*:/],
-      ["collisions",         /collisions\s*:/],
-      ["per-platform line",  /instagram: 1 account/],
-    ] as const) ok(`the report names ${label}`, re.test(s))
-    ok("it never calls this pool sufficient", !/INVENTORY OK/.test(s))
-    ok("it says what to do about it", /render more distinct properties/i.test(s))
-    ok("a short pool still claims what it legitimately can", r.claims.length === 1)
-  }
+  console.log("\nthe inventory report is fill-forward, and never flatters a short pool:")
+{
+  const r = await applyAutopilotPlan({
+    plan: planOf([planned("p1", CONN_A, T1)], {
+      sufficient: false, eligiblePosts: 7, distinctProperties: 6, freshPlacements: 6,
+      recycledPlacements: 8, recycledProperties: 4, daysFillable: 7, freshRunwayDays: 3, unfilledSlots: 14,
+    }),
+    current: stateMap(["p1"]),
+  })
+  const s = r.inventory.summary
+  ok("sufficient is false", !r.inventory.sufficient)
+  ok("the headline names the fresh runway, not a horizon", /FRESH INVENTORY RUNS OUT after 3 day/.test(s))
+  // Every number the user asked to see, by name.
+  for (const [label, re] of [
+    ["total eligible posts",    /total eligible posts\s*:\s*7/],
+    ["distinct properties",     /distinct properties\s*:\s*6/],
+    ["fresh properties",        /fresh properties available\s*:\s*6/],
+    ["fresh placements",        /fresh placements\s*:\s*6/],
+    ["recycled placements",     /recycled placements\s*:\s*8\s*\(4 distinct properties\)/],
+    ["days fillable",           /days fillable at cadence\s*:\s*7/],
+    ["fresh runway",            /fresh runway \(days\)\s*:\s*3/],
+    ["first recycle",           /first recycle\s*:\s*2026-11-07 @ 07:30 — The Standard at Legacy/],
+    ["cooldown + violations",   /cooldown\s*:\s*21 days, violations 0/],
+    ["market fallbacks",        /market fallbacks\s*:/],
+    ["unfilled slots",          /unfilled slots\s*:\s*14/],
+    ["collisions",              /collisions\s*:/],
+    ["per-platform line",       /instagram: 1 account/],
+  ] as const) ok(`the report names ${label}`, re.test(s))
+  ok("it never calls this pool healthy", !/QUEUE HEALTHY/.test(s))
+  ok("it says what to do about it", /render more distinct properties/i.test(s))
+  ok("a short pool still claims what it legitimately can", r.claims.length === 1)
 
-  console.log(`\nAutopilot write path: ${pass} passed, ${fail} failed`)
+  const healthy = await applyAutopilotPlan({
+    plan: planOf([planned("p9", CONN_A, T1)], { sufficient: true, daysFillable: 30, freshRunwayDays: 30 }),
+    current: stateMap(["p9"]),
+  })
+  ok("a healthy queue says so, with the day count", /QUEUE HEALTHY — 30 day\(s\) filled/.test(healthy.inventory.summary))
+  ok("and reports no recycling", /recycled placements\s*:\s*0/.test(healthy.inventory.summary))
+}
+
+console.log(`\nAutopilot write path: ${pass} passed, ${fail} failed`)
   process.exit(fail === 0 ? 0 : 1)
 }
 main()
