@@ -236,20 +236,30 @@ export const DETAIL_TEXT_AVAIL_PX = OVERLAY_CANVAS.w - 2 * OVERLAY_SPEC.sub.side
 //     T7  apartment_standards   17px  = 0.447em   <- the approved reference
 //     T10 pov_price             12px  = 0.316em   <- 29% tighter, the reported problem
 //
-// RATIO, not pixels. The hook is fit-to-width per sentence, so it is NOT always 38px — long copy
-// shrinks, and T12 wraps and shrinks further. A flat pixel gap would therefore read looser at a
-// small hook than at a large one, which is the same drift in a different disguise. Expressing it as
-// a fraction of the rendered headline size makes the SEPARATION constant, which is what the eye
-// actually judges. At the 38px hook it resolves to exactly 17px, so T6/T7 — the approved look — are
-// byte-for-byte unchanged.
+// A FIXED PIXEL GAP, not a ratio.
 //
-// Every center-hook template now reads this one token through detailGapPx(). Adding a template, or
-// changing one template's gap, is no longer possible without changing the shared ratio, so the two
-// groups cannot silently diverge again.
-export const DETAIL_GAP_EM = 0.447
-/** Headline→detail gap for a rendered headline size. Shared by preview + render (parity). */
-export function detailGapPx(headlineFontPx: number): number {
-  return Math.round(headlineFontPx * DETAIL_GAP_EM)
+// This was briefly a ratio (0.447em), on the reasoning that a fit-to-width hook varies in size so a
+// proportional gap would keep the SEPARATION constant. Measured across all 280 market × type ×
+// price combinations, that produced SIX different gaps — 12, 13, 14, 15, 16 and 17px — because the
+// hook shrinks for long copy (T14 fits anywhere from 27px to 38px). "Proportionally constant" and
+// "identical" are not the same property, and the one that was asked for, and that the eye checks
+// when two templates sit side by side in a feed, is identical.
+//
+// So: one number, applied to every compatible template, with nothing to recompute per template or
+// per headline. 17px is Template 7's approved value, which is what makes this a standardisation
+// rather than a retune — T6/T7 do not move at all.
+//
+// EXPLICITLY NOT GLYPH-AWARE. The measured INK separation still varies with content: a headline
+// whose centre carries descenders (T10's "high-rise living") shows ~11.75px of visible space where
+// one without them (T7's "…standards…") shows ~23px, at the same 17px box gap. Compensating for
+// that would make spacing depend on which letters a sentence happens to contain — content-specific
+// geometry, the opposite of a shared rule — so it is deliberately not done. Constant baseline
+// spacing with descenders intruding is ordinary typographic behaviour.
+export const DETAIL_GAP_PX = 17
+/** The headline→detail gap. One value; the argument list is empty by design — there is nothing a
+ *  caller could pass that is allowed to change it. Shared by preview + render (parity). */
+export function detailGapPx(): number {
+  return DETAIL_GAP_PX
 }
 // ── HERO FAMILY (T1 / T2 / T4) — DELIBERATELY NOT on DETAIL_GAP_EM ───────────────────────────────
 // These keep their own tuned gaps. The shared ratio was evaluated for them and is NOT structurally
@@ -465,7 +475,10 @@ export function templateFamily(template: string): LayoutFamily {
   // hook sizing (CENTER_HOOK.maxPx/minPx/lineSpacing) Template 7 (apartment_standards) also uses.
   // what_mo_gets_you_top (T16) is that SAME center-hook treatment, only anchored at T1's top
   // position instead of vertically centered — see the topAnchored branch in computeOverlayLayout.
-  if (template === "your_sign" || template === "next_property" || template === "pov_upgrade" || template === "what_mo_gets_you" || template === "what_mo_gets_you_top") return "center_hook"
+  // T3 your_sign and T15/T16 what_mo_gets_you* are the only templates left with NO second line:
+  // the first takes no metadata at all, and the last two already carry the price INSIDE the headline
+  // sentence, so a separate price line would state it twice.
+  if (template === "your_sign" || template === "what_mo_gets_you" || template === "what_mo_gets_you_top") return "center_hook"
   // apartment_standards is an EXACT Upgrade variant → same center-hook+detail geometry. T12–T15 join
   // them: T11's centered composition plus an OPTIONAL "Starting at $X/mo" line that collapses to a
   // headline-only render when there is no valid price (hasDetail below is text-driven, not family-driven).
@@ -475,7 +488,7 @@ export function templateFamily(template: string): LayoutFamily {
   // family change is what makes the line reachable at all; it does not force a line to exist.
   if (template === "upgrade" || template === "apartment_standards" || template === "pov_price"
     || template === "trade_up" || template === "wanted_luxury" || template === "real_living" || template === "hits_different"
-    || template === "affordable_luxury") return "center_hook_detail"
+    || template === "affordable_luxury" || template === "next_property" || template === "pov_upgrade") return "center_hook_detail"
   return "hero" // market_type, market_type_centered (vertically centered in the hero branch), special_feature, unknown → hero
 }
 
@@ -644,7 +657,7 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   // varies per sentence, and is smaller again when T12 wraps) — so the separation the eye sees is
   // the same everywhere. No per-template branch: that branch is what let T10–T14 drift 29% tighter
   // than T7. `hasDetail` is text-driven, so a template with no price line reserves NO gap at all.
-  const gap = hasDetail ? detailGapPx(hookPx) : 0
+  const gap = hasDetail ? detailGapPx() : 0
   const totalH = headBlockH + gap + detailBlockH
   // T16 (what_mo_gets_you_top) is T11 anchored near the TOP instead of vertically centered — the
   // mirror image of T2, which is T1's typography at a centered anchor. Only the anchor differs, and it
