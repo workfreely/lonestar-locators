@@ -1,6 +1,7 @@
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
+import { shouldHoldForReview, publishHoldEnabled } from "@/lib/social/publishHold"
 import { NextResponse, type NextRequest } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { instagramConfigured, createReelContainer } from "@/lib/social/instagram"
@@ -128,7 +129,7 @@ async function run(req: NextRequest) {
   }
 
   const now = new Date().toISOString()
-  const result = { reconciled: 0, published: 0, pending: 0, failed: 0, skippedNoRender: 0, claimed: 0, missedWhilePaused: 0, tooLate: 0, skippedDestinationPaused: 0 }
+  const result = { reconciled: 0, published: 0, pending: 0, failed: 0, skippedNoRender: 0, claimed: 0, missedWhilePaused: 0, tooLate: 0, skippedDestinationPaused: 0, flaggedForReview: 0, heldForReview: 0 }
 
   // ── 0) RECONCILE unacknowledged publishes FIRST ────────────────────────────────────────────
   // Rows whose media_publish call was claimed but never acknowledged locally. These are the crash
@@ -167,13 +168,33 @@ async function run(req: NextRequest) {
   // ── 1) SELECT due posts ────────────────────────────────────────────────────────────────────
   const { data: due, error: dueErr } = await supabaseAdmin
     .from("social_posts")
-    .select("id, owner_user_id, connection_id, scheduled_at, caption, hashtags, social_special, overlay_template, cover_thumb_offset_ms, cover_storage_path, render_status, rendered_storage_path, render_version, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
+    .select("id, needs_review_at, owner_user_id, connection_id, scheduled_at, caption, hashtags, social_special, overlay_template, cover_thumb_offset_ms, cover_storage_path, render_status, rendered_storage_path, render_version, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
     .eq("platform", "instagram")
     .eq("status", "scheduled")
     .lte("scheduled_at", now)
     .is("external_post_id", null)
+    // REVIEW HOLD. The price or special this post shows changed after it was scheduled, so its
+    // burned-in overlay and caption may now state something untrue. It stays SCHEDULED and keeps
+    // its slot — held, not cancelled, not reverted, not deleted — and publishes normally once the
+    // review state is cleared by a re-render or an explicit review. Change-driven, never
+    // age-driven: nothing here looks at how old a post or its source data is.
     .order("scheduled_at", { ascending: true })
     .limit(MAX_PER_RUN)
+  // A filtered-out post would otherwise vanish from every signal this worker produces, so the held
+  // count is gathered explicitly and surfaced in the run result.
+  const { count: heldForReview } = await supabaseAdmin
+    .from("social_posts")
+    .select("id", { count: "exact", head: true })
+    .eq("platform", "instagram").eq("status", "scheduled")
+    .lte("scheduled_at", now).is("external_post_id", null)
+    .not("needs_review_at", "is", null)
+  // ALWAYS COUNTED, whether or not the hold is armed — this number is the evidence that tells us
+  // later whether the flag is trustworthy enough to start blocking on.
+  result.flaggedForReview = heldForReview ?? 0
+  if (heldForReview) {
+    console.warn(`[ig-worker] ${heldForReview} due post(s) flagged for review (price/special changed after scheduling)`
+      + (publishHoldEnabled() ? " — HELD, not publishing" : " — publishing anyway, hold is OFF"))
+  }
   if (dueErr) {
     console.error("[ig-worker] due query failed:", dueErr.message)
     return NextResponse.json({ error: "query_failed" }, { status: 500 })
@@ -188,6 +209,9 @@ async function run(req: NextRequest) {
       // 9am/7pm leaves four due posts, and publishing them back to back is exactly the burst this
       // must prevent. It keeps its row, keeps its scheduled_at, and is COUNTED as missed — nothing
       // is deleted and no date is rewritten. A human reschedules it.
+      // THE HOLD, when armed. Applied per row rather than in the query so the post keeps its slot
+      // and still appears in this run's accounting instead of vanishing from it silently.
+      if (shouldHoldForReview(row.needs_review_at as string | null)) { result.heldForReview++; continue }
       if (!isEligibleAfterResume(row.scheduled_at as string | null, settings)) {
         result.missedWhilePaused++
         continue

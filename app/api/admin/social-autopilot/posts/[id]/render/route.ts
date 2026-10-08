@@ -102,7 +102,9 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
 
     await supabase
       .from("social_posts")
-      .update({ render_status: "ready", rendered_storage_path: derivativePath, render_version: nextVersion, render_error: null, updated_at: new Date().toISOString() })
+      // A finished render rebuilds the overlay from the CURRENT source data, which is exactly what a
+      // review asks for — so the flag clears itself here rather than needing a second manual step.
+      .update({ render_status: "ready", rendered_storage_path: derivativePath, render_version: nextVersion, render_error: null, needs_review_at: null, needs_review_reason: null, updated_at: new Date().toISOString() })
       .eq("id", id)
 
     // ── THE READY TRANSITION ────────────────────────────────────────────────────────────────

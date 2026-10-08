@@ -54,6 +54,8 @@ type Source = {
 }
 type Post = {
   id: string
+  needsReviewAt?: string | null
+  needsReviewReason?: string | null
   platform: string
   postType: string
   postName: string | null
@@ -230,6 +232,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [propertyType, setPropertyType] = useState("")
   const [market, setMarket] = useState("")
   const [areaNeighborhood, setAreaNeighborhood] = useState("")
+  const [needsReview, setNeedsReview] = useState<{ at: string; reason: string | null } | null>(null)
   const [placeId, setPlaceId] = useState("")
   // Matched property's street address, READ from property_catalog by place_id —
   // social_content stores no address and none is added. Null when the place is
@@ -270,6 +273,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       setPropertyType(p.source?.propertyType ?? "")
       setMarket(p.source?.market ?? "")
       setAreaNeighborhood(p.source?.areaNeighborhood ?? "")
+      setNeedsReview(p.needsReviewAt ? { at: p.needsReviewAt, reason: p.needsReviewReason ?? null } : null)
       setPlaceId(p.source?.placeId ?? "")
       setAddress(p.source?.address ?? null)
       setSpecial(p.source?.special ?? "")
@@ -902,6 +906,33 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             editor field values live in component state, so they survive the swap (Cancel returns
             with everything intact). */}
         <div className="flex flex-col gap-3">
+          {/* REVIEW NOTICE. The price or special behind this post changed after it was scheduled,
+              so the burned-in overlay and the caption may now state something untrue.
+              INFORMATIONAL ONLY today — publishing is NOT blocked unless the publish-hold flag is
+              on. Shown at the top of the field column because the whole point is that the change
+              is visible rather than silent. */}
+          {needsReview && (
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
+              <div className="flex items-start gap-2">
+                <span aria-hidden className="mt-px text-amber-400">⚠</span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[12px] font-semibold text-amber-200">Needs review — source data changed after scheduling</div>
+                  <div className="mt-0.5 text-[11px] leading-snug text-[var(--crm-text-secondary)]">
+                    {needsReview.reason ? <span className="font-medium text-amber-200/90">{needsReview.reason}</span> : "The price or special behind this post changed."}
+                    {" "}This post will still publish. Re-render to rebuild the overlay from current data, or clear the review if it is still accurate.
+                  </div>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => { void patch({ intent: "clear_review" }, "Review cleared").then(() => setNeedsReview(null)) }}
+                    className="mt-2 rounded-md border border-amber-500/50 px-2.5 py-1 text-[11px] font-semibold text-amber-200 hover:bg-amber-500/15 disabled:opacity-50"
+                  >
+                    Clear review
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           {scheduling ? (
             <ScheduleWorkspace
               initialValue={scheduleVal}

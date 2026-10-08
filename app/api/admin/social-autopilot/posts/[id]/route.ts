@@ -13,7 +13,7 @@ import { isOverlayTemplate } from "@/lib/social/composePost"
 const SELECT =
   "id, platform, post_type, post_name, caption, social_special, on_video_text, on_video_config, " +
   "overlay_headline, overlay_subheadline, overlay_mode, overlay_template, cover_thumb_offset_ms, cover_storage_path, cover_render_version, hashtags, audio_choice, audio_track_id, voice_hook_id, voice_cta_id, rendered_storage_path, render_status, render_error, render_version, " +
-  "status, scheduled_at, published_at, external_post_url, created_at, updated_at, source_content_id, " +
+  "status, scheduled_at, published_at, external_post_url, created_at, updated_at, source_content_id, needs_review_at, needs_review_reason, " +
   // area_neighborhood is INTERNAL editing metadata. It was captured at upload and stored correctly,
   // but was missing from this projection — so the Post Editor could neither show it nor correct it and
   // the value was effectively write-once. Read here for EDITING only: it stays deliberately absent
@@ -120,6 +120,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     sourceContentId: r.source_content_id,
+    // Informational today: the editor shows a warning, nothing is blocked. See lib/social/publishHold.
+    needsReviewAt: r.needs_review_at,
+    needsReviewReason: r.needs_review_reason,
     source: src
       ? {
           displayName: src.display_name,
@@ -244,6 +247,11 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   } else if (intent === "unschedule") {
     patch.scheduled_at = null
     patch.status = "draft"
+  } else if (intent === "clear_review") {
+    // "I looked at it and it is fine." The post is otherwise untouched — same status, same slot,
+    // same render — so reviewing something can never move a schedule.
+    patch.needs_review_at = null
+    patch.needs_review_reason = null
   } else if ("scheduledAt" in body) {
     const raw = typeof body.scheduledAt === "string" ? body.scheduledAt : ""
     if (raw) {
