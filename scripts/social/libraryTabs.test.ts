@@ -215,5 +215,36 @@ ok("both tabs route through it", /c\.post[\s\S]{0,120}renderedBadge[\s\S]{0,120}
 ok("the Sample marker stays upper-LEFT", /Sample[\s\S]{0,0}/.test(client3) && /top-1\.5 left-1\.5[\s\S]{0,160}Sample/.test(client3))
 ok("no status pill remains on the left", !/top-1\.5 left-1\.5[^]{0,200}(Published|Scheduled|Approved|READY)/.test(client3))
 
+console.log("\nHOOK ORDER — every hook must run on every render:")
+{
+  const src = read("components/crm/social/PostEditor.tsx")
+  const lines = src.split("\n")
+  // The component's early return. Anything hook-shaped below it is skipped on the renders where
+  // the guard fires, which changes the hook order between renders — React throws
+  // "a change in the order of Hooks called by PostEditor". This happened for real: the Replace
+  // Video useRef/useState were declared beside their helper, below this line.
+  const guard = lines.findIndex((l) => /^  if \(!post\) return /.test(l))
+  ok("the early return is still there (the test is meaningful)", guard > 0)
+  const after = lines
+    .slice(guard)
+    .map((l, i) => [guard + i + 1, l] as [number, string])
+    .filter(([, l]) => /\buse(State|Ref|Effect|Callback|Memo|Reducer|Context)\s*\(/.test(l))
+  ok(`NO hooks after the early return (found ${after.length}${after.length ? ": line " + after.map(([n]) => n).join(", ") : ""})`,
+    after.length === 0)
+
+  // Every hook must also sit at the component's top level — not nested in an if, loop or callback.
+  const nested = lines
+    .map((l, i) => [i + 1, l] as [number, string])
+    .filter(([, l]) => /\b(const|let)\s.*=\s*use(State|Ref|Memo|Callback|Reducer|Context)\s*\(/.test(l))
+    .filter(([, l]) => !/^  (const|let)\s/.test(l))
+  ok(`every hook declared at top level (found ${nested.length} nested)`, nested.length === 0)
+
+  // The specific hooks that caused the bug, asserted to be above the guard.
+  for (const name of ["videoRef", "swapping", "unlocked"]) {
+    const at = lines.findIndex((l) => new RegExp(`^  const \\[?${name}\\b`).test(l))
+    ok(`${name} is declared before the early return`, at > 0 && at < guard)
+  }
+}
+
 console.log(`\nLibrary tabs + rendered editor: ${pass} passed, ${fail} failed`)
 if (fail > 0) process.exit(1)

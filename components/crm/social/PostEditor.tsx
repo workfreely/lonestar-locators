@@ -213,6 +213,14 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // operator can always see how the video was made. This opt-in unlocks them for a deliberate
   // change; it is reset by load(), so re-opening a post always starts locked again.
   const [unlocked, setUnlocked] = useState(false)
+  // REPLACE VIDEO state. MUST live here with the other unconditional hooks: these were originally
+  // declared beside the replaceVideo() helper further down, which sits BELOW the `if (!post)`
+  // early return. On the first render post is null, so the two hooks never ran; once the post
+  // loaded they did, changing the hook order between renders — React's
+  // "change in the order of Hooks called by PostEditor" error. Hooks are positional, so every one
+  // has to be reachable on every render, before any return.
+  const videoRef = useRef<HTMLInputElement>(null)
+  const [swapping, setSwapping] = useState(false)
   const [scheduleVal, setScheduleVal] = useState("") // local "YYYY-MM-DDTHH:mm"
   const [scheduling, setScheduling] = useState(false) // RIGHT column shows the Schedule workspace
   // Posting: Post Once (manual date/time) vs Repeat (recurring rule) — exposed inline in the editor.
@@ -742,8 +750,6 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   //
   // A published post is refused: its footage is historical. The database enforces that with a
   // trigger and the PATCH route answers 409; this just keeps the control out of reach and says why.
-  const videoRef = useRef<HTMLInputElement>(null)
-  const [swapping, setSwapping] = useState(false)
   const replaceVideo = async (file: File) => {
     if (!post.sourceContentId) { setError("This post has no source record."); return }
     setSwapping(true); setError(null); setNotice(null)
