@@ -14,13 +14,32 @@ export const OVERLAY_CANVAS = { w: 1080, h: 1920 } as const
 // character break so nonsense/no-space text can never run off-screen. The SAME wrap drives both
 // the CSS preview and the FFmpeg render (FFmpeg centers each line via x=(w-text_w)/2, so the
 // char-wrap is what constrains its width to the box). Headline box ≈ 800px, sub box ≈ 930px.
+// ── THE TOP ANCHOR (yFrac) AND INSTAGRAM'S GRID CROP ────────────────────────────────────────
+// yFrac positions the TOP-ANCHORED lockup: T1 market_type, T4 special_feature and T16
+// what_mo_gets_you_top all read this one value. The centred templates do not.
+//
+// It was 0.13 (y 249.6), which looked right in the full-frame Reel and WRONG on the profile grid.
+// Instagram crops a 1080x1920 Reel to a CENTRED 3:4 thumbnail — measured from a real profile
+// screenshot (1320x2868), cells 438x584 = exactly 3:4, so the visible canvas band is y 240..1680
+// and 240px is cut off the top. The headline box sat at 249.6, just 10px inside that cut, and its
+// glyph ink at 254.8 — measured in the same screenshot. In the grid the title read as jammed
+// against the edge.
+//
+// 0.175 puts the box at 336: ~96px of clearance below the crop line, about 7% of the visible band,
+// which reads as a deliberate top margin rather than a near-miss. The full-frame Reel also gains
+// room from Instagram's own back-arrow row.
+//
+// ONLY THE ANCHOR MOVED. Font, size, weight, line spacing and the headline-to-price gap
+// (MARKET_TYPE_GAP_PX) are untouched — the whole lockup translates down as one unit, so the
+// internal composition is identical. Fixed once here rather than per template, so the three
+// top-anchored templates cannot drift apart.
 export const OVERLAY_SPEC = {
   // Template 1/3 (Hero) headline size is FIT-TO-WIDTH per actual text (see headlineFit): each combo
   // renders at the largest size in [HERO_MIN_PX, HERO_MAX_PX] that fits one line in the 900px safe box,
   // so "SAN ANTONIO TOWNHOMES" is larger than "SAN ANTONIO RENTAL HOMES". `fontPx` here is the START/
   // MAX (HERO_MAX_PX) used as the block default; the actual per-headline size comes from headlineFit.
   // maxChars/maxLines are the FALLBACK char-wrap for arbitrary/custom headline text only.
-  headline: { yFrac: 0.13, fontPx: 66, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24, maxChars: 16, maxLines: 3, sideMarginPx: 90 },
+  headline: { yFrac: 0.175, fontPx: 66, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24, maxChars: 16, maxLines: 3, sideMarginPx: 90 },
   // The sub/detail sits `gapPx` BELOW the headline block; it is the SECONDARY line, in the same
   // Libre Baskerville Bold face as the headline and distinguished by SIZE alone. 44px (raised from 36) makes "Starting at $X/mo" clearly readable and intentional in the
   // editor/enlarged preview and the render, while staying clearly secondary to the headline (56–66).

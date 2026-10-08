@@ -3,7 +3,7 @@
 //   • apartment_standards   = Upgrade (T6) exactly, headline "Your apartment standards went up".
 // Run: npx tsx scripts/social/newTemplates.test.ts
 import { buildTemplateHeadline, buildTemplateDetail, type SourceMeta } from "@/lib/social/composePost"
-import { computeOverlayLayout, templateFamily, OVERLAY_CANVAS } from "@/lib/social/overlaySpec"
+import { computeOverlayLayout, templateFamily, OVERLAY_CANVAS, OVERLAY_SPEC } from "@/lib/social/overlaySpec"
 
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
@@ -25,7 +25,16 @@ ok("layout family is hero", templateFamily("market_type_centered") === "hero")
   ok("headline font size identical to T1", t2.headline.fontPx === t1.headline.fontPx)
   ok("detail font size identical to T1", (t2.detail?.fontPx ?? 0) === (t1.detail?.fontPx ?? 0))
   // T1 is anchored near the top; the centered variant sits far lower (vertical center of the group).
-  ok("T1 anchored near the top (< 300px)", t1.headline.topPx < 300)
+  // Asserted as the CONTRAST plus the real constraint, not an arbitrary pixel threshold — the old
+  // "< 300px" broke the moment the anchor moved for a reason that had nothing to do with T2.
+  ok("T1 is top-anchored, nowhere near the vertical centre", t1.headline.topPx < OVERLAY_CANVAS.h / 3)
+  ok("T1 reads the shared top anchor", t1.headline.topPx === OVERLAY_SPEC.headline.yFrac * OVERLAY_CANVAS.h)
+  // THE GRID CROP. Instagram centre-crops a Reel to 3:4 on the profile grid — measured from a real
+  // profile screenshot, cells 438x584 — so canvas y 0..240 is thrown away. A top-anchored lockup
+  // that starts inside that band reads as jammed against the edge in the grid, which is exactly
+  // what happened at yFrac 0.13 (box 249.6, ink 254.8 — 15px inside the cut).
+  ok("T1 clears Instagram's 3:4 grid crop with real margin", t1.headline.topPx >= 240 + 60)
+  ok("…and its price line is inside the crop too", (t1.detail?.topPx ?? 0) + (t1.detail?.fontPx ?? 0) <= 1680)
   ok("T2 group moved well below the top (> 700px)", t2.headline.topPx > 700)
   // The whole group is vertically centered around the canvas midpoint (960).
   const groupTop = t2.headline.topPx
