@@ -11,6 +11,7 @@
  *
  * Run: npx tsx scripts/social/platformSafeArea.test.ts
  */
+import { DESTINATIONS } from "@/lib/social/destinations"
 import { readFileSync } from "node:fs"
 import path from "node:path"
 import { PLATFORM_SAFE_AREAS, safeAreaFor, textAvailPx, sideMarginPx, SOCIAL_CANVAS, DEFAULT_PLATFORM } from "@/lib/social/platformSafeArea"
@@ -128,7 +129,17 @@ console.log("\nTHE OVERLAY IS PRESENTATIONAL ONLY:")
   ok("the editor exposes an Off / Instagram / TikTok toggle", /"off", "instagram", "tiktok"/.test(editor))
   ok("…defaulting to Off", /useState<"off" \| "instagram" \| "tiktok">\("off"\)/.test(editor))
   ok("the renderer fits to the post's platform", /input\.platform \?\? "instagram"/.test(read("lib/social/renderVideo.ts")))
-  ok("…and the render route passes the post's platform", /platform: \(p\.platform as string \| null\) \?\? "instagram"/.test(read("app/api/admin/social-autopilot/posts/[id]/render/route.ts")))
+  // BEHAVIOUR CHANGED, deliberately. The render used to pass the post's bare `platform`. It now
+  // passes the DESTINATION's safe-area id, because an Instagram Reel and an Instagram Story share a
+  // platform but not a safe area — passing "instagram" for both would fit a Story headline into the
+  // Reel box. For a Reel the resolved id is still "instagram", so Reel output is unchanged.
+  ok("…and the render passes the DESTINATION's safe-area id, not the bare platform",
+    /platform: safeAreaId/.test(read("lib/social/renderPost.ts")))
+  ok("…which it resolves from the post's destination",
+    /const safeAreaId = DESTINATIONS\[destination\]\.safeAreaId/.test(read("lib/social/renderPost.ts")))
+  ok("…and a Reel still resolves to the unchanged 'instagram' geometry",
+    DESTINATIONS.instagram_reel.safeAreaId === "instagram")
+  ok("…while a Story resolves to its own", DESTINATIONS.instagram_story.safeAreaId === "instagram_story")
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`)

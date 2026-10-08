@@ -8,6 +8,7 @@
 // Vercel's /tmp before; a queue drained one item at a time gives every render a clean work dir and
 // a fresh execution budget, and a crash costs one job rather than a batch.
 import { createHash } from "node:crypto"
+import { DESTINATIONS, isSocialDestination, destinationFromLegacyPlatform, type SocialDestination } from "@/lib/social/destinations"
 
 export const RENDER_PLATFORMS = ["instagram", "tiktok"] as const
 export type RenderPlatform = (typeof RENDER_PLATFORMS)[number]
@@ -36,6 +37,9 @@ export const CLAIM_LEASE_SECONDS = 600
  */
 export function renderJobKey(input: {
   postId: string
+  /** THE SURFACE. Two destinations on one platform can need different geometry, so platform alone
+   *  is not enough to tell two renders apart. */
+  destination: SocialDestination
   platform: RenderPlatform
   overlayMode: string | null
   overlayTemplate: string | null
@@ -45,8 +49,13 @@ export function renderJobKey(input: {
   voiceHookId: string | null
   voiceCtaId: string | null
 }): string {
+  // The SAFE-AREA id, not the destination id, is what decides the pixels: two destinations that
+  // share geometry produce a byte-identical frame and deliberately share one job and one asset
+  // (tiktok_video and tiktok_story today). Two that differ get separate jobs — which is exactly
+  // why instagram_reel and instagram_story cannot collapse.
+  const geometry = DESTINATIONS[input.destination].safeAreaId
   const canonical = JSON.stringify([
-    input.postId, input.platform, input.overlayMode ?? "", input.overlayTemplate ?? "",
+    input.postId, input.platform, geometry, input.overlayMode ?? "", input.overlayTemplate ?? "",
     input.headline ?? "", input.subheadline ?? "", input.audioChoice ?? "",
     input.voiceHookId ?? "", input.voiceCtaId ?? "",
   ])
@@ -57,11 +66,12 @@ export function renderJobKey(input: {
 
 /** The post columns the key needs. Exported so the enqueue query and the key cannot drift apart. */
 export const RENDER_JOB_POST_COLUMNS =
-  "id, platform, status, render_status, rendered_storage_path, overlay_mode, overlay_template, overlay_headline, overlay_subheadline, audio_choice, voice_hook_id, voice_cta_id, source_content_id"
+  "id, platform, destination, status, render_status, rendered_storage_path, overlay_mode, overlay_template, overlay_headline, overlay_subheadline, audio_choice, voice_hook_id, voice_cta_id, source_content_id"
 
 export type RenderJobPost = {
   id: string
   platform: string | null
+  destination: string | null
   status: string | null
   render_status: string | null
   rendered_storage_path: string | null
@@ -88,15 +98,18 @@ export type EnqueueSkip =
  * key's inputs, not against render_status alone: a post that was rendered and then had its headline
  * edited has render_status 'ready' and a stale artifact, and must be rendered again.
  */
-export function evaluateForEnqueue(post: RenderJobPost): { enqueue: true; key: string; platform: RenderPlatform } | { enqueue: false; skip: EnqueueSkip } {
+export function evaluateForEnqueue(post: RenderJobPost): { enqueue: true; key: string; platform: RenderPlatform; destination: SocialDestination } | { enqueue: false; skip: EnqueueSkip } {
   if (!post.source_content_id) return { enqueue: false, skip: "no_source" }
   if (!isRenderPlatform(post.platform)) return { enqueue: false, skip: "unknown_platform" }
   // EXISTING ARTIFACTS ARE NEVER DISTURBED. A post mid-publish or already published keeps its MP4:
   // re-rendering underneath it would swap the video out from under a live or in-flight post.
   if (post.status === "publishing" || post.status === "published") return { enqueue: false, skip: "post_in_flight" }
 
+  // A row written before destinations existed resolves through the legacy bridge rather than
+  // being skipped — no backfill dependency in the code path.
+  const destination = isSocialDestination(post.destination) ? post.destination : destinationFromLegacyPlatform(post.platform)
   const key = renderJobKey({
-    postId: post.id, platform: post.platform,
+    postId: post.id, destination, platform: post.platform,
     overlayMode: post.overlay_mode, overlayTemplate: post.overlay_template,
     headline: post.overlay_headline, subheadline: post.overlay_subheadline,
     audioChoice: post.audio_choice, voiceHookId: post.voice_hook_id, voiceCtaId: post.voice_cta_id,
@@ -104,10 +117,10 @@ export function evaluateForEnqueue(post: RenderJobPost): { enqueue: true; key: s
   // A ready render WITH an artifact means these inputs already produced a video. The unique index
   // on idempotency_key is the real guarantee; this is the cheap check that avoids the round trip.
   if (post.render_status === "ready" && post.rendered_storage_path) return { enqueue: false, skip: "already_rendered" }
-  return { enqueue: true, key, platform: post.platform }
+  return { enqueue: true, key, platform: post.platform, destination }
 }
 
-export type EnqueueOutcome = { postId: string; created: boolean; key: string; platform: RenderPlatform }
+export type EnqueueOutcome = { postId: string; created: boolean; key: string; platform: RenderPlatform; destination: SocialDestination }
 export type EnqueueReport = {
   considered: number
   created: EnqueueOutcome[]
@@ -132,18 +145,18 @@ export async function enqueueRenderJobs(
     const verdict = evaluateForEnqueue(post)
     if (!verdict.enqueue) { report.skipped.push({ postId: post.id, reason: verdict.skip }); continue }
     const row = {
-      post_id: post.id, platform: verdict.platform, idempotency_key: verdict.key,
+      post_id: post.id, platform: verdict.platform, destination: verdict.destination, idempotency_key: verdict.key,
       status: "queued", ...(opts.maxAttempts ? { max_attempts: opts.maxAttempts } : {}),
     }
     const { data, error } = await client.from("social_render_jobs").insert(row).select("id")
     if (error) {
       if ((error as { code?: string }).code === "23505") {
-        report.deduped.push({ postId: post.id, created: false, key: verdict.key, platform: verdict.platform })
+        report.deduped.push({ postId: post.id, created: false, key: verdict.key, platform: verdict.platform, destination: verdict.destination })
       } else report.errors.push({ postId: post.id, message: error.message })
       continue
     }
-    if ((data?.length ?? 0) > 0) report.created.push({ postId: post.id, created: true, key: verdict.key, platform: verdict.platform })
-    else report.deduped.push({ postId: post.id, created: false, key: verdict.key, platform: verdict.platform })
+    if ((data?.length ?? 0) > 0) report.created.push({ postId: post.id, created: true, key: verdict.key, platform: verdict.platform, destination: verdict.destination })
+    else report.deduped.push({ postId: post.id, created: false, key: verdict.key, platform: verdict.platform, destination: verdict.destination })
   }
   return report
 }

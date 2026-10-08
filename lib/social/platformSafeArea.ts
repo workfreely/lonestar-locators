@@ -68,6 +68,33 @@ const RAW: Record<string, PlatformSafeArea> = {
     measured: true,
     source: "measured from a published Reel screenshot, 2026-10-05",
   },
+  // ── INSTAGRAM STORIES ───────────────────────────────────────────────────────────────────────
+  // A DIFFERENT SURFACE, not a variant of the Reel box, and the differences pull in opposite
+  // directions: a Story has NO right-hand engagement rail, so it is horizontally wider than a Reel;
+  // but it does have a profile/progress header and a "Send message" reply bar, so it is
+  // vertically shorter. Reusing the Reel box here would put the detail line under the reply bar.
+  //
+  // PROVISIONAL, and flagged as such for the same reason the TikTok entry is: these come from
+  // published guidance (the widely used ~250px top / ~250px bottom Story reserve), NOT from
+  // measuring a real published Story the way the Reel numbers were. Replace them by measuring a
+  // screenshot the same way — the Reel entry documents that method. Until then, nobody should read
+  // `measured: false` as equivalent evidence.
+  //
+  // The side margins deliberately match the Reel's 110px rather than widening to the full frame:
+  // the extra room the missing rail offers is not worth a headline that reads differently across
+  // the two surfaces, and keeping them equal means a creative looks like itself on both.
+  instagram_story: {
+    id: "instagram_story",
+    label: "Instagram Stories",
+    // x 110..970 (860 wide, symmetric), y 250..1670 (1420 tall)
+    text: { x: 110, y: 250, w: 860, h: 1420 },
+    zones: [
+      { label: "Profile / progress", kind: "header", rect: { x: 0, y: 0, w: 1080, h: 250 } },
+      { label: "Reply bar", kind: "caption", rect: { x: 0, y: 1670, w: 1080, h: 1920 - 1670 } },
+    ],
+    measured: false,
+    source: "PROVISIONAL — published Story safe-area guidance, not measured from a real Story",
+  },
   tiktok: {
     id: "tiktok",
     label: "TikTok",

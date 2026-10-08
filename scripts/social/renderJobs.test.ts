@@ -7,13 +7,14 @@ import {
   renderJobKey, evaluateForEnqueue, enqueueRenderJobs, isRenderPlatform,
   RENDER_JOB_POST_COLUMNS, CLAIM_LEASE_SECONDS, type RenderJobPost, type JobClient,
 } from "@/lib/social/renderJobs"
+import { sharesAssetWith } from "@/lib/social/destinations"
 
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
 const read = (f: string) => readFileSync(path.join(process.cwd(), f), "utf8")
 
 const post = (over: Partial<RenderJobPost> = {}): RenderJobPost => ({
-  id: "post-1", platform: "instagram", status: "draft", render_status: "none",
+  id: "post-1", platform: "instagram", destination: "instagram_reel", status: "draft", render_status: "none",
   rendered_storage_path: null, overlay_mode: "generate", overlay_template: "market_type",
   overlay_headline: "SAN ANTONIO HIGH-RISES", overlay_subheadline: "Starting at $1,495/month",
   audio_choice: "original", voice_hook_id: null, voice_cta_id: null,
@@ -31,7 +32,7 @@ ok("the key is namespaced and bounded", /^rj1_[0-9a-f]{48}$/.test(keyOf(post())!
 console.log("\n…and a DIFFERENT video gets a different key:")
 for (const [label, over] of [
   ["a different post",      { id: "post-2" }],
-  ["a different platform",  { platform: "tiktok" }],
+  ["a different platform",  { platform: "tiktok", destination: "tiktok_video" }],
   ["a different template",  { overlay_template: "pov_price" }],
   ["a different headline",  { overlay_headline: "DALLAS LOFTS" }],
   ["a different detail",    { overlay_subheadline: "Starting at $2,000/month" }],
@@ -44,7 +45,30 @@ for (const [label, over] of [
 // THE critical one: the same post for two platforms must never collapse into one job, because the
 // overlay is fitted to each platform's safe area and the artifacts genuinely differ.
 ok("Instagram and TikTok renders of ONE post are two distinct jobs",
-  keyOf(post({ platform: "instagram" })) !== keyOf(post({ platform: "tiktok" })))
+  keyOf(post({ platform: "instagram", destination: "instagram_reel" })) !== keyOf(post({ platform: "tiktok", destination: "tiktok_video" })))
+
+// ── DESTINATION, not just platform ──
+// A Reel and a Story share a provider, an account and a token, but NOT a safe area. If the key
+// ignored destination they would collapse into one job and the Story would silently never render.
+console.log("\ndestination is part of the identity, because geometry is:")
+ok("Instagram Reel and Instagram Story are DIFFERENT jobs",
+  keyOf(post({ destination: "instagram_reel" })) !== keyOf(post({ destination: "instagram_story" })))
+ok("…even though they share a platform and an account",
+  post({ destination: "instagram_story" }).platform === post({ destination: "instagram_reel" }).platform)
+ok("the enqueue verdict carries the destination", (() => {
+  const v = evaluateForEnqueue(post({ destination: "instagram_story" }))
+  return v.enqueue && v.destination === "instagram_story"
+})())
+// The converse: destinations that share GEOMETRY must share one job, or we would render the same
+// frames twice and store two identical MP4s.
+ok("TikTok video and TikTok Story share geometry, so they share ONE job",
+  keyOf(post({ platform: "tiktok", destination: "tiktok_video" })) === keyOf(post({ platform: "tiktok", destination: "tiktok_story" })))
+ok("…which is decided by safe area, not by destination name",
+  sharesAssetWith("tiktok_video", "tiktok_story") && !sharesAssetWith("instagram_reel", "instagram_story"))
+ok("a legacy row with no destination still resolves", (() => {
+  const v = evaluateForEnqueue(post({ destination: null }))
+  return v.enqueue && v.destination === "instagram_reel"
+})())
 ok("every job carries its platform", (() => {
   const v = evaluateForEnqueue(post({ platform: "tiktok" }))
   return v.enqueue && v.platform === "tiktok"
@@ -94,7 +118,7 @@ async function enqueueChecks() {
   ok("jobs total 3, not 6", seen.size === 3)
 
   // Same post, both platforms -> two jobs. The one case that MUST not dedupe.
-  const cross = await enqueueRenderJobs(client, [post({ id: "x", platform: "instagram" }), post({ id: "x", platform: "tiktok" })])
+  const cross = await enqueueRenderJobs(client, [post({ id: "x", platform: "instagram", destination: "instagram_reel" }), post({ id: "x", platform: "tiktok", destination: "tiktok_video" })])
   ok("one post across two platforms creates TWO jobs", cross.created.length === 2)
   ok("and they carry different platforms",
     new Set(cross.created.map((c) => c.platform)).size === 2)

@@ -78,16 +78,24 @@ console.log("\nThe render path itself is UNCHANGED by this pass:")
   ok("duck level 0.2 and ramp 0.25s untouched", /duckLevel: 0\.2, rampSeconds: 0\.25/.test(render))
   ok("amix still normalize=0", /normalize=0/.test(render))
   ok("mix still pinned to the video duration", /apad,atrim=end=/.test(render))
-  const route = stripComments(read("app/api/admin/social-autopilot/posts/[id]/render/route.ts"))
+  // The render body now lives in lib/social/renderPost.ts — ONE implementation shared by the
+// interactive admin route and the bulk queue worker. These assertions follow it there, which
+// also means they now cover the BULK path, not just the interactive one.
+  const route = stripComments(read("lib/social/renderPost.ts"))
   ok("the render route still passes Hook/CTA paths", /hookPath:/.test(route) && /ctaPath:/.test(route))
   // Assert the ACTUAL claim — no publish call — rather than the absence of platform NAMES. The
   // route now legitimately names a platform when choosing which safe area to fit the headline into,
   // which is not publishing.
   ok("the render route publishes nothing",
     !/createReelContainer|publishReelContainer|media_publish|\/publish|integrations\/tiktok/i.test(route))
-  ok("…and the only platform reference is the safe-area selection",
-    !/instagram/i.test(route.replace(/platform: \(p\.platform as string \| null\) \?\? "instagram"/g, "")
-      .replace(/Instagram publishing here/gi, "").replace(/Active overlay fonts[\s\S]*?identically\./g, "")))
+  // The original form here subtracted one exact expression and then asserted the word "instagram"
+  // was absent. That was brittle the moment the render started resolving geometry from a
+  // destination, and it was only ever a proxy for the real claim. State the claim directly: the
+  // render module imports nothing that can publish, and names a platform only to pick geometry.
+  ok("…and it imports nothing capable of publishing",
+    !/from "@\/lib\/social\/instagram"|instagramFinalize|from "@\/lib\/social\/tiktok/.test(route))
+  ok("…its platform references are geometry only",
+    /safeAreaId/.test(route) && !/access_token|ig_user_id|graph\.facebook|open\.tiktokapis/i.test(route))
 }
 
 console.log(`\nPreview Video: ${pass} passed, ${fail} failed`)

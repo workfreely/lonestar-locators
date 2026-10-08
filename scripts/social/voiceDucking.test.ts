@@ -253,7 +253,10 @@ async function main() {
   {
     const read = (f: string) => readFileSync(path.join(process.cwd(), f), "utf8")
     const strip = (t: string) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1")
-    const renderRoute = strip(read("app/api/admin/social-autopilot/posts/[id]/render/route.ts"))
+    // The render body now lives in lib/social/renderPost.ts — ONE implementation shared by the
+// interactive admin route and the bulk queue worker. These assertions follow it there, which
+// also means they now cover the BULK path, not just the interactive one.
+    const renderRoute = strip(read("lib/social/renderPost.ts"))
     ok("render route SELECTS both voice columns", /voice_hook_id/.test(renderRoute) && /voice_cta_id/.test(renderRoute))
     ok("render route PASSES both clip paths into the renderer", /hookPath:/.test(renderRoute) && /ctaPath:/.test(renderRoute))
     ok("render route resolves clips from social_voice_clips storage", /social_voice_clips/.test(renderRoute) && /createSignedUrl/.test(renderRoute))

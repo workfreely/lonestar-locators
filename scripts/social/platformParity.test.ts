@@ -98,7 +98,10 @@ const editor = read("components/crm/social/PostEditor.tsx")
 const client = read("components/crm/social/SocialAutopilotClient.tsx")
 const bulk = read("components/crm/social/BulkReview.tsx")
 const render = read("lib/social/renderVideo.ts")
-const route = read("app/api/admin/social-autopilot/posts/[id]/render/route.ts")
+// The render body now lives in lib/social/renderPost.ts — ONE implementation shared by the
+// interactive admin route and the bulk queue worker. These assertions follow it there, which
+// also means they now cover the BULK path, not just the interactive one.
+const route = read("lib/social/renderPost.ts")
 
 ok("PostEditor passes post.platform", /computeOverlayLayout\(overlayTemplate, headline, overlayDetail, post\.platform\)/.test(editor))
 ok("…not the UI-only platform selector", !/computeOverlayLayout\([^)]*selectedPlatforms/.test(editor))

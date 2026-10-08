@@ -10,6 +10,7 @@ import { promises as fs } from "node:fs"
 import path from "node:path"
 import ffmpegPath from "ffmpeg-static"
 import { renderReel, makeWorkDir, type AudioChoice } from "@/lib/social/renderVideo"
+import { DESTINATIONS, isSocialDestination, destinationFromLegacyPlatform } from "@/lib/social/destinations"
 // ONE overlay font: Libre Baskerville Bold (OFL, wght 700), headline AND detail. The same bytes
 // the browser preview loads via @font-face, so preview and burned-in render measure identically.
 // Moved here verbatim with the render body — not re-pointed, not re-chosen.
@@ -18,7 +19,7 @@ const OVERLAY_FONT_PATH = path.join(process.cwd(), "assets/social/fonts/LibreBas
 const extOf = (p: string) => (p.split(".").pop() || "mp4").toLowerCase().replace(/[^a-z0-9]/g, "") || "mp4"
 
 export type RenderPostResult =
-  | { ok: true; renderVersion: number; outputPath: string; platform: string }
+  | { ok: true; renderVersion: number; outputPath: string; platform: string; destination: string; safeAreaId: string }
   | { ok: false; code: string; message: string }
 
 /** Render one post and write the artifact + post state. `supabase` must be privileged enough to
@@ -31,7 +32,7 @@ export async function renderPostToStorage(args: {
   const { supabase, id, userId } = args
   const { data: post, error: readErr } = await supabase
     .from("social_posts")
-    .select("id, platform, source_content_id, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, voice_hook_id, voice_cta_id, render_version, source:source_content_id(storage_path)")
+    .select("id, platform, destination, source_content_id, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, voice_hook_id, voice_cta_id, render_version, source:source_content_id(storage_path)")
     .eq("id", id)
     .maybeSingle()
   if (readErr) return { ok: false as const, code: "read_failed", message: readErr.message }
@@ -81,6 +82,8 @@ export async function renderPostToStorage(args: {
     // 'existing' mode = the uploaded video already has burned-in text: draw NO Beast Social overlay
     // (empty headline/subheadline → no drawtext) and keep the original audio. 'generate' = the
     // normal Template 1 overlay. Either way the derivative is a 9:16 mp4 (source is never modified).
+    const destination = isSocialDestination(p.destination) ? p.destination : destinationFromLegacyPlatform(p.platform as string | null)
+    const safeAreaId = DESTINATIONS[destination].safeAreaId
     const existingText = (p.overlay_mode as string) === "existing"
     await renderReel(ffmpegPath as unknown as string, {
       sourcePath: srcLocal,
@@ -90,14 +93,22 @@ export async function renderPostToStorage(args: {
       headline: existingText ? "" : ((p.overlay_headline as string | null) ?? ""),
       subheadline: existingText ? "" : ((p.overlay_subheadline as string | null) ?? ""),
       audioChoice: existingText ? "original" : (((p.audio_choice as string) || "original") as AudioChoice),
-      platform: (p.platform as string | null) ?? "instagram",
+        // THE DESTINATION'S GEOMETRY, not the bare platform. An Instagram Reel and an Instagram
+        // Story share a provider but not a safe area, so passing "instagram" for both would fit a
+        // Story headline into the Reel box and leave it under the Story reply bar. The layout
+        // engine takes a safe-area id; the destination is what resolves it.
+        platform: safeAreaId,
       workDir: work,
       hookPath: hookLocal,
       ctaPath: ctaLocal,
     })
 
     const nextVersion = (typeof p.render_version === "number" ? p.render_version : 0) + 1
-    const derivativePath = `${userId}/${contentId}/renders/${id}-${nextVersion}.mp4`
+    // The path carries the SAFE-AREA id so two destinations of one post cannot overwrite each
+    // other's artifact. Reel keeps the historic un-suffixed shape, so every render already in
+    // storage keeps its exact path and nothing moves.
+    const suffix = safeAreaId === "instagram" ? "" : `-${safeAreaId}`
+    const derivativePath = `${userId}/${contentId}/renders/${id}-${nextVersion}${suffix}.mp4`
     const bytes = await fs.readFile(outLocal)
     const up = await supabase.storage.from("social-media").upload(derivativePath, bytes, { contentType: "video/mp4", upsert: true })
     if (up.error) throw new Error(`upload: ${up.error.message}`)
@@ -128,7 +139,7 @@ export async function renderPostToStorage(args: {
       .eq("id", id)
       .eq("status", "draft")
 
-    return { ok: true as const, renderVersion: nextVersion, outputPath: derivativePath, platform: (p.platform as string | null) ?? "instagram" }
+    return { ok: true as const, renderVersion: nextVersion, outputPath: derivativePath, platform: (p.platform as string | null) ?? "instagram", destination, safeAreaId }
   } catch (e) {
     const message = e instanceof Error ? e.message.slice(0, 400) : "render error"
     await supabase.from("social_posts").update({ render_status: "error", render_error: message, updated_at: new Date().toISOString() }).eq("id", id)

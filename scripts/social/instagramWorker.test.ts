@@ -27,7 +27,10 @@ const strip = (t: string) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:]
 
 const WORKER = "app/api/cron/social-instagram-publish/route.ts"
 const FINALIZE = "lib/social/instagramFinalize.ts"
-const RENDER = "app/api/admin/social-autopilot/posts/[id]/render/route.ts"
+// The render body now lives in lib/social/renderPost.ts — ONE implementation shared by the
+// interactive admin route and the bulk queue worker. These assertions follow it there, which
+// also means they now cover the BULK path, not just the interactive one.
+const RENDER = "lib/social/renderPost.ts"
 const STATUS = "app/api/admin/social-autopilot/posts/[id]/publish/status/route.ts"
 
 // ── A FAKE DB THAT HONOURS CONDITIONAL UPDATES ────────────────────────────────────────────────
