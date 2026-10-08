@@ -246,7 +246,10 @@ export function supabaseClaimExecutor(client: SupabaseLike): ClaimExecutor {
   return async (req) => {
     const q = client
       .from("social_posts")
-      .update({ scheduled_at: req.scheduledAtUtc, connection_id: req.connectionId, status: "scheduled" })
+      // updated_at is set EXPLICITLY. social_posts has no trigger maintaining it — every other
+      // writer in the codebase stamps it by hand, and a claim that skipped it would leave a freshly
+      // scheduled row looking untouched since its last edit.
+      .update({ scheduled_at: req.scheduledAtUtc, connection_id: req.connectionId, status: "scheduled", updated_at: new Date().toISOString() })
       .eq("id", req.postId)
       .eq("status", req.requireStatus)
       .eq("render_status", req.requireRenderStatus)
