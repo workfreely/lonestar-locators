@@ -32,10 +32,28 @@ export const OVERLAY_CANVAS = { w: 1080, h: 1920 } as const
 // is the requirement here, so this is set visually rather than to the minimum that technically
 // survives the crop.
 //
-// 0.25 puts the box at 480 — a clean quarter of the frame, and 240px below the crop line, which is
-// one sixth of the 1440px visible band. The lockup then occupies roughly the upper quarter of what
-// the grid shows: unmistakably top-anchored, unmistakably inside. A two-line compound hero, the
-// tallest case, still ends around 672 against a crop bottom of 1680.
+// 0.25 put the box at 480 — 240px below the crop line, one sixth of the 1440px visible band. That
+// was right for the grid and slightly low in the other two contexts, which is the trade-off this
+// value has to make: Instagram is THREE viewing contexts, not one.
+//
+//   profile grid   — the only HARD constraint. Centred 3:4 crop, visible band y240..1680, so the
+//                    top 240px never appears and the anchor must stay well clear of y240.
+//   feed/scrolling — presents the frame essentially uncropped, so the 240px of headroom the grid
+//                    hides is visible here. The same anchor therefore reads LOWER in the feed than
+//                    in the grid; that difference is inherent, not a bug to tune away.
+//   full-screen    — also uncropped, with the player's chrome over the top of the frame.
+//
+// 0.240625 puts the box at y462 (exactly, on the 1920 canvas): 18px up from 480. It keeps 222px of
+// grid clearance above the lockup — still comfortably inside the crop — while taking some of the
+// excess headroom out of the feed and full-screen views. The deepest lockup the engine can produce
+// (T1, 3-line headline + 4-line detail) bottoms out at y839 against a crop bottom of 1680, so the
+// full title + price stay far from the lower edge in every configuration.
+//
+// Do NOT re-derive this from a screenshot ink scan. Recovering burned-in text positions from
+// Instagram's compressed thumbnails was tried and is not reliable — it produced y302 for a frame
+// provably rendered at y480, because the scan catches thumbnail artefacts and Instagram's own grid
+// chrome, not our glyphs. The grid CELL geometry (sharp UI gutters) is measurable; the text inside
+// it is not. Take the anchor from this constant and the lockup extents from computeOverlayLayout.
 //
 // ONLY THE ANCHOR MOVED. Font, size, weight, line spacing, the horizontal fit box
 // (sideMarginPx/HEADLINE_TEXT_AVAIL_PX) and the headline-to-price gap (MARKET_TYPE_GAP_PX) are all
@@ -48,7 +66,7 @@ export const OVERLAY_SPEC = {
   // so "SAN ANTONIO TOWNHOMES" is larger than "SAN ANTONIO RENTAL HOMES". `fontPx` here is the START/
   // MAX (HERO_MAX_PX) used as the block default; the actual per-headline size comes from headlineFit.
   // maxChars/maxLines are the FALLBACK char-wrap for arbitrary/custom headline text only.
-  headline: { yFrac: 0.25, fontPx: 66, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24, maxChars: 16, maxLines: 3, sideMarginPx: 90 },
+  headline: { yFrac: 0.240625, fontPx: 66, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24, maxChars: 16, maxLines: 3, sideMarginPx: 90 },
   // The sub/detail sits `gapPx` BELOW the headline block; it is the SECONDARY line, in the same
   // Libre Baskerville Bold face as the headline and distinguished by SIZE alone. 44px (raised from 36) makes "Starting at $X/mo" clearly readable and intentional in the
   // editor/enlarged preview and the render, while staying clearly secondary to the headline (56–66).
