@@ -58,8 +58,19 @@ export const OVERLAY_CANVAS = { w: 1080, h: 1920 } as const
 // drawtext y in the render. `427 / 1920` is exact, self-documenting, and cannot be broken by
 // someone tidying up a long decimal. Keep this form if the anchor moves again.
 //
-// If it does move again, move it the same way: change this one number, re-render, and look at all
-// three contexts.
+// ⛔ FROZEN — APPROVED PRODUCTION BASELINE, 2026-10-08.
+//
+// y427 is signed off after four measured steps (480 → 462 → 447 → 427), each one rendered and
+// published as a real Reel and judged on the live profile grid, feed and full-screen views. This
+// is the approved geometry for T1 market_type, T4 special_feature and T16 what_mo_gets_you_top.
+//
+// DO NOT re-tune this value, the fonts, the sizing, the margins, the line spacing or the
+// headline-to-price gap as a side effect of other work, and do not "improve" it on your own
+// judgement. It is reopened only by an explicit instruction from Jay to do so.
+//
+// T2 market_type_centered keeps its CENTERED position and is unaffected by this constant: the
+// centered branch resolves (H - totalH) / 2 and never reads yFrac (T1 y427 vs T2 y890, verified).
+// Same for T15 what_mo_gets_you, the centered sibling of T16.
 //
 // Do NOT re-derive this from a screenshot ink scan. Recovering burned-in text positions from
 // Instagram's compressed thumbnails was tried and is not reliable — it produced y302 for a frame
