@@ -178,6 +178,38 @@ export async function createReelContainer(
   return j.id
 }
 
+/** (1b) Create a STORIES container. Returns the creation_id.
+ *
+ *  A SIBLING of createReelContainer rather than a flag on it, so the Reel path is untouched by
+ *  construction — the launch-critical surface cannot regress because a Story branch was added.
+ *
+ *  Steps (2) and (3) are deliberately NOT duplicated: getContainerStatus and publishReelContainer
+ *  take only a container id, so a Story is polled and published through exactly the same calls a
+ *  Reel is. Only the container differs.
+ *
+ *  NO CAPTION, NO COVER. A Story has neither — Instagram ignores `caption` on a STORIES container,
+ *  and there is no cover frame to choose. They are not accepted here rather than being sent and
+ *  silently dropped, so a caller cannot believe it published a captioned Story.
+ *
+ *  Stories expire after 24 hours. That is Instagram's behaviour, not something this code manages.
+ */
+export async function createStoryContainer(
+  igUserId: string,
+  videoUrl: string,
+  token: string,
+): Promise<string> {
+  const body = new URLSearchParams({ media_type: "STORIES", video_url: videoUrl, access_token: token })
+  const res = await fetch(`${PUBLISH_BASE}/${encodeURIComponent(igUserId)}/media`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  })
+  if (!res.ok) throw new Error(`story container: ${await igError(res)}`)
+  const j = (await res.json()) as { id?: string }
+  if (!j.id) throw new Error("story container: no id returned")
+  return j.id
+}
+
 export type ContainerStatus = "IN_PROGRESS" | "FINISHED" | "ERROR" | "EXPIRED" | "PUBLISHED" | "UNKNOWN"
 
 /** (2) Poll a container's processing status. */

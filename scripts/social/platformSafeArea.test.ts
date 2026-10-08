@@ -139,7 +139,17 @@ console.log("\nTHE OVERLAY IS PRESENTATIONAL ONLY:")
     /const safeAreaId = DESTINATIONS\[destination\]\.safeAreaId/.test(read("lib/social/renderPost.ts")))
   ok("…and a Reel still resolves to the unchanged 'instagram' geometry",
     DESTINATIONS.instagram_reel.safeAreaId === "instagram")
-  ok("…while a Story resolves to its own", DESTINATIONS.instagram_story.safeAreaId === "instagram_story")
+  // A Story SHARES the Reel geometry today. Proven, not assumed: the engine reads only text.w and
+  // text.x, so a Story box differing only in y/h was inert — one post rendered to both produced
+  // byte-identical files (same sha256, 8,308,240 bytes). The Story numbers still exist in
+  // PLATFORM_SAFE_AREAS, flagged unmeasured, for when the engine honours vertical boxes.
+  ok("…and a Story currently SHARES that geometry rather than claiming its own",
+    DESTINATIONS.instagram_story.safeAreaId === "instagram")
+  ok("the unused Story box is still defined, and still flagged unmeasured",
+    safeAreaFor("instagram_story").measured === false)
+  ok("the engine consumes only width and left margin — which is why y/h was inert",
+    textAvailPx("instagram") === safeAreaFor("instagram").text.w
+    && sideMarginPx("instagram") === safeAreaFor("instagram").text.x)
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`)

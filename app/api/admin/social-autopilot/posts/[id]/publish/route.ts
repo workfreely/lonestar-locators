@@ -4,7 +4,8 @@ import { shouldHoldForReview } from "@/lib/social/publishHold"
 import { NextResponse, type NextRequest } from "next/server"
 import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin"
 import { supabaseAdmin } from "@/lib/supabase/admin"
-import { instagramConfigured, createReelContainer } from "@/lib/social/instagram"
+import { instagramConfigured, createReelContainer, createStoryContainer } from "@/lib/social/instagram"
+import { DESTINATIONS, isSocialDestination, destinationFromLegacyPlatform } from "@/lib/social/destinations"
 import { buildInstagramCaptionPayload, isOverlayTemplate } from "@/lib/social/composePost"
 import { chooseCover, resolveReelCover } from "@/lib/social/reelCover"
 
@@ -25,7 +26,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   // Ownership is enforced by RLS (owner-scoped): the admin can only read their own post.
   const { data: post } = await supabase
     .from("social_posts")
-    .select("id, needs_review_at, needs_review_reason, status, render_status, rendered_storage_path, render_version, connection_id, caption, hashtags, external_post_id, platform, social_special, overlay_template, cover_thumb_offset_ms, cover_storage_path, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
+    .select("id, destination, needs_review_at, needs_review_reason, status, render_status, rendered_storage_path, render_version, connection_id, caption, hashtags, external_post_id, platform, social_special, overlay_template, cover_thumb_offset_ms, cover_storage_path, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
     .eq("id", id)
     .maybeSingle()
   if (!post) return NextResponse.json({ error: "not_found" }, { status: 404 })
@@ -43,7 +44,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   }
   const p = post as {
     id: string; status: string; render_status: string; rendered_storage_path: string | null; render_version: number | null
-    connection_id: string | null; caption: string | null; hashtags: string[] | null; external_post_id: string | null; platform: string; overlay_template: string | null; cover_thumb_offset_ms: number | null; cover_storage_path: string | null
+    destination: string | null; connection_id: string | null; caption: string | null; hashtags: string[] | null; external_post_id: string | null; platform: string; overlay_template: string | null; cover_thumb_offset_ms: number | null; cover_storage_path: string | null
     social_special: string | null; source_content_id: string | null
     source: { market: string | null; property_type: string | null; special: string | null; budget_range: string | null; amenities: string | null } | { market: string | null; property_type: string | null; special: string | null; budget_range: string | null; amenities: string | null }[] | null
   }
@@ -106,7 +107,21 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     })
     if (choice.kind === "custom" && !cover) throw new Error("custom cover could not be signed")
 
-    const containerId = await createReelContainer(dest.external_account_id, signed.signedUrl, caption, dest.token, cover)
+    // SURFACE BRANCH. Reel is untouched — same call, same arguments, same order. A Story takes a
+    // different container type and accepts neither a caption nor a cover, so those are simply not
+    // sent rather than passed and silently ignored by Instagram.
+    //
+    // Steps 2 and 3 are SHARED: /publish/status polls and publishes a Story through exactly the
+    // same getContainerStatus + publishReelContainer calls a Reel uses, because both take only a
+    // container id. Nothing downstream of here needs to know which surface it was.
+    const destination = isSocialDestination(p.destination) ? p.destination : destinationFromLegacyPlatform(p.platform)
+    const spec = DESTINATIONS[destination]
+    if (spec.publish !== "supported") {
+      return NextResponse.json({ error: "destination_not_publishable", destination, detail: spec.publishNote }, { status: 409 })
+    }
+    const containerId = spec.surface === "story"
+      ? await createStoryContainer(dest.external_account_id, signed.signedUrl, dest.token)
+      : await createReelContainer(dest.external_account_id, signed.signedUrl, caption, dest.token, cover)
 
     await supabase
       .from("social_posts")

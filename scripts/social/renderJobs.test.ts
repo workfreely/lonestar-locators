@@ -51,10 +51,18 @@ ok("Instagram and TikTok renders of ONE post are two distinct jobs",
 // A Reel and a Story share a provider, an account and a token, but NOT a safe area. If the key
 // ignored destination they would collapse into one job and the Story would silently never render.
 console.log("\ndestination is part of the identity, because geometry is:")
-ok("Instagram Reel and Instagram Story are DIFFERENT jobs",
-  keyOf(post({ destination: "instagram_reel" })) !== keyOf(post({ destination: "instagram_story" })))
-ok("…even though they share a platform and an account",
-  post({ destination: "instagram_story" }).platform === post({ destination: "instagram_reel" }).platform)
+// GEOMETRY decides job identity, not the destination name. Reel and Story currently resolve to the
+// same safe area — measured: rendering one post to both produced byte-identical MP4s — so they
+// correctly share ONE job and ONE asset. The moment the engine honours vertical safe areas and the
+// Story box diverges, this flips to two jobs with no other change.
+ok("Reel and Story share one job while their geometry is identical",
+  keyOf(post({ destination: "instagram_reel" })) === keyOf(post({ destination: "instagram_story" })))
+ok("…because they resolve to the same safe area", sharesAssetWith("instagram_reel", "instagram_story"))
+ok("…and they remain SEPARATE destinations regardless", (() => {
+  const a = evaluateForEnqueue(post({ destination: "instagram_reel" }))
+  const b = evaluateForEnqueue(post({ destination: "instagram_story" }))
+  return a.enqueue && b.enqueue && a.destination !== b.destination
+})())
 ok("the enqueue verdict carries the destination", (() => {
   const v = evaluateForEnqueue(post({ destination: "instagram_story" }))
   return v.enqueue && v.destination === "instagram_story"
@@ -64,7 +72,10 @@ ok("the enqueue verdict carries the destination", (() => {
 ok("TikTok video and TikTok Story share geometry, so they share ONE job",
   keyOf(post({ platform: "tiktok", destination: "tiktok_video" })) === keyOf(post({ platform: "tiktok", destination: "tiktok_story" })))
 ok("…which is decided by safe area, not by destination name",
-  sharesAssetWith("tiktok_video", "tiktok_story") && !sharesAssetWith("instagram_reel", "instagram_story"))
+  sharesAssetWith("tiktok_video", "tiktok_story"))
+// The key must still separate genuinely different geometry — Instagram vs TikTok.
+ok("different geometry still produces different jobs",
+  keyOf(post({ platform: "instagram", destination: "instagram_reel" })) !== keyOf(post({ platform: "tiktok", destination: "tiktok_video" })))
 ok("a legacy row with no destination still resolves", (() => {
   const v = evaluateForEnqueue(post({ destination: null }))
   return v.enqueue && v.destination === "instagram_reel"

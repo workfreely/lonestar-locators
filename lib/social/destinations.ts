@@ -67,11 +67,28 @@ export const DESTINATIONS: Record<SocialDestination, DestinationSpec> = {
   instagram_story: {
     id: "instagram_story", label: "Instagram Story",
     provider: "instagram", surface: "story",
-    // DIFFERENT GEOMETRY from the Reel, which is the whole reason this is its own destination.
-    // Stories have no right-hand engagement rail, so the box is wider; but they do have a profile
-    // header and a reply bar, so it is shorter. Sharing the Reel asset would put the headline
-    // under the "Send message" bar.
-    safeAreaId: "instagram_story",
+    // SHARES THE REEL'S GEOMETRY TODAY — measured, not assumed.
+    //
+    // This was briefly "instagram_story", on the reasoning that a Story has no engagement rail but
+    // does have a header and a reply bar. That reasoning is about VERTICAL space, and the layout
+    // engine consumes only text.w (textAvailPx) and text.x (sideMarginPx) — it never reads a safe
+    // area's y or h. So a Story-specific box differing only in y/h is inert, and the proof was
+    // direct: rendering one post to both produced byte-identical files, same sha256, same 8,308,240
+    // bytes. The split cost a second render, a second 8.3 MB object, and bought nothing.
+    //
+    // Sharing is also genuinely safe here, not just convenient: the centred lockup sits near y960,
+    // well inside a Story's 250–1670 usable band.
+    //
+    // WHEN THIS CHANGES: teach the engine to honour a vertical safe area AND measure a real
+    // published Story (PLATFORM_SAFE_AREAS.instagram_story still holds those numbers, flagged
+    // unmeasured). Flip this one id back and the fan-out produces two assets again automatically —
+    // renderVariantsFor, the job key and the artifact path all key on safeAreaId, so nothing else
+    // needs touching.
+    //
+    // The DESTINATION stays separate regardless. Geometry is only about which pixels get rendered;
+    // publish behaviour, independent selection, scheduling and status handling are all per
+    // destination and unaffected by two destinations sharing one asset.
+    safeAreaId: "instagram",
     // Official Graph API: a STORIES container (media_type=STORIES) published through the same
     // /media + /media_publish pair a Reel uses, on the same IG Business account and token.
     publish: "supported",
