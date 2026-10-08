@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import { supabase } from "@/lib/supabase/client"
 import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
 import { previewAspectClass } from "@/lib/social/postTypes"
 import { SiInstagram, SiTiktok, SiYoutube } from "react-icons/si"
@@ -80,6 +81,10 @@ type Post = {
   externalPostUrl?: string | null
   /** The post's OWN footage, when it overrides the property's. Null = use the property's video. */
   sourceStoragePath?: string | null
+  /** When a human marked this rendered post final. Null = still Working, even with a valid MP4. */
+  approvedAt?: string | null
+  /** Artifact AND approval — the Rendered/Ready predicate, computed server-side. */
+  isRenderedReady?: boolean
   status: PostStatus
   scheduledAt: string | null
   sourceContentId: string | null
@@ -721,6 +726,44 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // showing stale burned-in text. This never touches the render pipeline or the stored asset —
   // load() resets the baseline (and picks up any newly rendered asset) on every reload.
   const overlayEdited = isOverlayPreviewStale(overlayBaselineRef.current, { mode: overlayMode, template: overlayTemplate, headline })
+  // APPROVE / UNAPPROVE — the human sign-off that moves a post into Rendered/Ready. Rendering
+  // deliberately does NOT do this: a successful render says the video was produced, not that
+  // anyone checked the pricing, specials, amenities or caption behind it.
+  // REPLACE VIDEO — new footage for the SAME property.
+  //
+  // Writes social_posts.source_storage_path (the post's own override). The property record
+  // (pricing, specials, amenities, keywords, notes, market, neighborhood, type) is never touched
+  // and never copied, so nothing has to be re-entered. The file lands under the SAME content
+  // folder the property already owns, so storage stays organised by property.
+  //
+  // A published post is refused: its footage is historical. The database enforces that with a
+  // trigger and the PATCH route answers 409; this just keeps the control out of reach and says why.
+  const videoRef = useRef<HTMLInputElement>(null)
+  const [swapping, setSwapping] = useState(false)
+  const replaceVideo = async (file: File) => {
+    if (!post.sourceContentId) { setError("This post has no source record."); return }
+    setSwapping(true); setError(null); setNotice(null)
+    try {
+      const { data: auth } = await supabase.auth.getUser()
+      const ownerId = auth.user?.id
+      if (!ownerId) { setError("Not signed in."); return }
+      const ext = (file.name.split(".").pop() || "mp4").toLowerCase().replace(/[^a-z0-9]/g, "") || "mp4"
+      // Unique per upload so a replacement never overwrites footage an earlier RENDER was made
+      // from — previously published videos must stay byte-for-byte retrievable.
+      const path = `${ownerId}/${post.sourceContentId}/takes/${Date.now()}.${ext}`
+      const up = await supabase.storage.from("social-media").upload(path, file, { contentType: file.type || "video/mp4", upsert: false })
+      if (up.error) { setError(`Upload failed: ${up.error.message}`); return }
+      if (await patch({ sourceStoragePath: path }, "New footage attached — re-render to use it.")) await load()
+    } finally {
+      setSwapping(false)
+      if (videoRef.current) videoRef.current.value = ""
+    }
+  }
+
+  const setApproved = async (approved: boolean) => {
+    if (await patch({ approved }, approved ? "Marked ready." : "Moved back to Working.")) await load()
+  }
+
   const rendered = post.renderStatus === "ready" && !!post.renderedPreviewUrl && !overlayEdited
   // ── RENDER-AFFECTING CONTROLS ARE READ-ONLY ON A FINISHED POST ──────────────────────────────
   // Visible, never hidden: how the video was made is exactly what you want to see when deciding
@@ -792,21 +835,64 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               </>
             ) : (
               <>
-                <span className="font-semibold text-[var(--crm-text-primary)]">Rendered video v{post.renderVersion ?? 1}.</span>{" "}
-                Caption, hashtags, cover, schedule and destination are editable. Fields burned into the video are locked.
+                <span className="font-semibold text-[var(--crm-text-primary)]">
+                  Rendered video v{post.renderVersion ?? 1}
+                  {post.approvedAt || post.isPublished ? " · Ready" : " · not approved"}.
+                </span>{" "}
+                {post.approvedAt || post.isPublished
+                  ? "Caption, hashtags, cover, schedule and destination are editable. Fields burned into the video are locked."
+                  : "A video exists, but the content behind it hasn't been signed off — this post stays in Working until you mark it ready."}
                 {post.isPublished ? " This post is published — its footage can't be swapped; use Create Variation for new footage." : ""}
               </>
             )}
           </div>
-          {!unlocked && (
-            <button
-              type="button"
-              className={`${btn} ml-auto shrink-0`}
-              onClick={() => setUnlocked(true)}
-            >
-              Edit &amp; re-render
+          <div className="ml-auto shrink-0 flex items-center gap-2">
+            {/* MARK READY is the only thing that moves a post into Rendered/Ready. Never inferred
+                from a render succeeding — that is what wrongly promoted test renders. */}
+            {!unlocked && !post.isPublished && (
+              post.approvedAt ? (
+                <button type="button" className={btn} disabled={busy} onClick={() => void setApproved(false)}>Move to Working</button>
+              ) : (
+                <button type="button" className={btn} disabled={busy} onClick={() => void setApproved(true)}>Mark ready</button>
+              )
+            )}
+            {!unlocked && (
+              <button type="button" className={btn} onClick={() => setUnlocked(true)}>Edit &amp; re-render</button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── REPLACE VIDEO — new footage, same property ───────────────────────────────────────
+          Shown while the creative is editable (an unrendered post, or one unlocked for
+          re-render). The property record is reused wholesale: pricing, specials, amenities,
+          keywords, notes, market, neighborhood and type are never re-entered and never copied. */}
+      {(unlocked || !hasRender) && !post.isPublished && (
+        <div className="mb-3 rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2.5 flex items-center gap-3 flex-wrap">
+          <div className="text-[12px] text-[var(--crm-text-secondary)] min-w-0">
+            <span className="font-semibold text-[var(--crm-text-primary)]">Source video.</span>{" "}
+            {post.sourceStoragePath
+              ? "This post uses its own footage. The property details below are unchanged and shared."
+              : "Using the property's original upload. Swapping it here affects only this post."}
+          </div>
+          <div className="ml-auto shrink-0 flex items-center gap-2">
+            {post.sourceStoragePath && (
+              <button type="button" className={btn} disabled={busy || swapping}
+                onClick={() => void (async () => { if (await patch({ sourceStoragePath: null }, "Reverted to the property's original video.")) await load() })()}>
+                Use original
+              </button>
+            )}
+            <button type="button" className={btn} disabled={busy || swapping} onClick={() => videoRef.current?.click()}>
+              {swapping ? "Uploading…" : "Replace video"}
             </button>
-          )}
+          </div>
+          <input
+            ref={videoRef}
+            type="file"
+            accept="video/*"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) void replaceVideo(f) }}
+          />
         </div>
       )}
 

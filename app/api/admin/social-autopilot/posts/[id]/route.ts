@@ -5,6 +5,7 @@ import { isValidPostType } from "@/lib/social/postTypes"
 import { normalizeHashtag, hashtagLimitForPlatform } from "@/lib/social/hashtags"
 import { isOverlayTemplate } from "@/lib/social/composePost"
 import { renderAffectingChanges, valueChanged } from "@/lib/social/renderInvalidation"
+import { hasRender, isRenderedReady, type LaneFacts } from "@/lib/social/postLane"
 
 // One post: GET (composer load), PATCH (save fields / schedule / unschedule), DELETE.
 // Platform-admin ONLY + RLS owner-scoping. PROTECTED fields (owner_user_id, source_content_id,
@@ -16,7 +17,7 @@ import { renderAffectingChanges, valueChanged } from "@/lib/social/renderInvalid
 const SELECT =
   "id, platform, post_type, post_name, caption, social_special, on_video_text, on_video_config, " +
   "overlay_headline, overlay_subheadline, overlay_mode, overlay_template, cover_thumb_offset_ms, cover_storage_path, cover_render_version, hashtags, audio_choice, audio_track_id, voice_hook_id, voice_cta_id, rendered_storage_path, render_status, render_error, render_version, " +
-  "status, scheduled_at, published_at, external_post_id, external_post_url, created_at, updated_at, source_content_id, source_storage_path, needs_review_at, needs_review_reason, " +
+  "status, scheduled_at, published_at, external_post_id, external_post_url, created_at, updated_at, source_content_id, source_storage_path, approved_at, needs_review_at, needs_review_reason, " +
   // area_neighborhood is INTERNAL editing metadata. It was captured at upload and stored correctly,
   // but was missing from this projection — so the Post Editor could neither show it nor correct it and
   // the value was effectively write-once. Read here for EDITING only: it stays deliberately absent
@@ -120,7 +121,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     renderVersion: r.render_version,
     // Does a usable artifact exist RIGHT NOW? The editor locks the render-affecting controls on
     // this, and the library puts the post in the Rendered tab on this — one predicate, both places.
-    hasRender: (r.render_status as string) === "ready" && !!r.rendered_storage_path,
+    hasRender: hasRender(r as LaneFacts),
+    approvedAt: (r.approved_at as string | null) ?? null,
+    isRenderedReady: isRenderedReady(r as LaneFacts),
     status: r.status,
     publishedAt: r.published_at,
     externalPostUrl: r.external_post_url,
@@ -294,6 +297,36 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (changed.length > 0) {
     patch.render_status = "none"
     patch.render_error = null
+    // A changed creative un-approves itself. Approval is of a SPECIFIC rendered video, so letting
+    // it survive an edit would leave a post looking signed-off that nobody has actually reviewed —
+    // the precise failure the approval flag exists to prevent. (The database enforces the same
+    // thing on re-render; this covers the edit that precedes it.)
+    patch.approved_at = null
+  }
+
+  // ── APPROVAL — "this content is verified and ready to go out" ─────────────────────────────
+  // Explicit and human. Deliberately NOT inferred from a render succeeding: most rendered posts
+  // here are test renders whose pricing/specials/amenities/notes have not been checked, and
+  // treating an artifact as a sign-off is what wrongly promoted them to production inventory.
+  //
+  // Applied AFTER the invalidation block so that approving and editing in the same request cannot
+  // approve a creative that this very request changed.
+  if ("approved" in body) {
+    if (body.approved === true) {
+      const willHaveRender = patch.render_status === undefined
+        ? stored?.render_status === "ready" && !!stored?.rendered_storage_path
+        : false
+      if (!willHaveRender) {
+        return NextResponse.json({
+          error: "nothing_to_approve",
+          detail: "This post has no current rendered video to approve.",
+          hint: "Render it first, then mark it ready.",
+        }, { status: 409 })
+      }
+      patch.approved_at = new Date().toISOString()
+    } else if (body.approved === false) {
+      patch.approved_at = null
+    }
   }
 
   const intent = typeof body.intent === "string" ? body.intent : null

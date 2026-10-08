@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server"
+import { hasRender, isRenderedReady, workingReason, type LaneFacts } from "@/lib/social/postLane"
 import { requirePlatformAdmin, type PlatformAdminGuardOk } from "@/lib/auth/requirePlatformAdmin"
 import { QUEUE_STATUSES, isPostStatus } from "@/lib/social/postStatus"
 import { defaultPostType, isValidPostType } from "@/lib/social/postTypes"
@@ -12,7 +13,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 const SELECT =
   "id, platform, post_type, post_name, caption, on_video_text, on_video_config, " +
-  "overlay_headline, overlay_subheadline, overlay_mode, overlay_template, hashtags, audio_choice, audio_track_id, rendered_storage_path, render_status, render_error, render_version, source_storage_path, " +
+  "overlay_headline, overlay_subheadline, overlay_mode, overlay_template, hashtags, audio_choice, audio_track_id, rendered_storage_path, render_status, render_error, render_version, source_storage_path, approved_at, " +
   "status, scheduled_at, published_at, external_post_url, created_at, updated_at, source_content_id, recurring_rule_id, recurrence_slot, " +
   "source:source_content_id(display_name, property_name, property_type, market, special, budget_range, amenities, storage_path, original_filename, kind)"
 
@@ -58,11 +59,13 @@ async function shape(supabase: PlatformAdminGuardOk["supabase"], rows: Record<st
         renderStatus: (r.render_status as string) || "none",
         renderError: r.render_error,
         renderVersion: r.render_version,
-        // THE TAB PREDICATE, computed server-side so the library and the editor cannot disagree
-        // about what "rendered" means. A post is Rendered/Ready when a usable artifact exists —
-        // status (ready / scheduled / published) deliberately plays no part, which is what keeps
-        // published posts visible in the Rendered tab as reusable history.
-        hasRender: (r.render_status as string) === "ready" && !!r.rendered_storage_path,
+        // THE TAB PREDICATE, computed server-side from the ONE shared definition so the library,
+        // the editor and the tests cannot disagree. Rendered/Ready needs BOTH a usable artifact
+        // AND human approval — an MP4 alone is a test render, not production inventory.
+        hasRender: hasRender(r as LaneFacts),
+        approvedAt: (r.approved_at as string | null) ?? null,
+        isRenderedReady: isRenderedReady(r as LaneFacts),
+        workingReason: workingReason(r as LaneFacts),
         sourceStoragePath: (r.source_storage_path as string | null) ?? null,
         status: r.status,
         scheduledAt: r.scheduled_at,

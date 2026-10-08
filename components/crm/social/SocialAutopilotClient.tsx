@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase/client"
 import { DEMO_LIBRARY } from "./demoFixtures"
 import { SOCIAL_MARKETS, normalizeSocialMarket } from "@/lib/social/markets"
 import { formatSocialDisplayName } from "@/lib/social/displayName"
+import { sourceNeedsWork, WORKING_REASON_LABEL, type WorkingReason, type LaneFacts } from "@/lib/social/postLane"
 import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
 import { computeOverlayLayout, type OverlayLayout } from "@/lib/social/overlaySpec"
 import { OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, DEFAULT_OVERLAY_TEMPLATE } from "@/lib/social/composePost"
@@ -336,6 +337,9 @@ export default function SocialAutopilotClient() {
   // would throw away the thing that makes this a library rather than a queue.
   const [renderedPosts, setRenderedPosts] = useState<RenderedPost[]>([])
   const [tab, setTab] = useState<"working" | "rendered">("working")
+  // Per-source lane facts, so Working can drop a property whose every creative is finished.
+  const [sourceLane, setSourceLane] = useState<Record<string, LaneFacts[]>>({})
+  const [postReason, setPostReason] = useState<Record<string, WorkingReason | null>>({})
   const [editMenuFor, setEditMenuFor] = useState<string | null>(null) // source id whose picker is open
 
   const load = useCallback(async () => {
@@ -363,7 +367,10 @@ export default function SocialAutopilotClient() {
             overlayMode?: string | null; overlayTemplate?: string | null
             overlayHeadline?: string | null; overlaySubheadline?: string | null; updatedAt?: string | null
             platform?: string | null
-            hasRender?: boolean; renderedPreviewUrl?: string | null; renderVersion?: number | null
+            hasRender?: boolean; isRenderedReady?: boolean; approvedAt?: string | null
+            workingReason?: WorkingReason | null
+            renderStatus?: string | null
+            renderedPreviewUrl?: string | null; renderVersion?: number | null
             sourceStoragePath?: string | null; publishedAt?: string | null; externalPostUrl?: string | null
             createdAt?: string | null
             source: { propertyName: string | null; displayName: string | null; market?: string | null } | null
@@ -371,11 +378,21 @@ export default function SocialAutopilotClient() {
         }
         const map: Record<string, EditablePost[]> = {}
         const rendered: RenderedPost[] = []
+        const laneFacts: Record<string, LaneFacts[]> = {}
+        const reasons: Record<string, WorkingReason | null> = {}
         for (const p of pj.items ?? []) {
           // RENDERED/READY: a usable artifact exists. `hasRender` is the server's own predicate
           // (render_status = 'ready' AND rendered_storage_path IS NOT NULL) and deliberately
           // ignores status, so Ready, Scheduled and Published all qualify.
-          if (p.hasRender) {
+          // Lane facts for the Working source filter — a source leaves Working only when EVERY
+          // one of its posts is finished.
+          if (p.sourceContentId) (laneFacts[p.sourceContentId] ??= []).push({
+            render_status: p.renderStatus ?? null, rendered_storage_path: p.hasRender ? "x" : null,
+            approved_at: p.approvedAt ?? null, published_at: p.publishedAt ?? null,
+          })
+          // RENDERED/READY needs an artifact AND approval. A rendered-but-unapproved test post is
+          // still Working — the video exists, but nobody has verified the content behind it.
+          if (p.isRenderedReady) {
             rendered.push({
               id: p.id, postName: p.postName, status: p.status,
               scheduledAt: p.scheduledAt, publishedAt: p.publishedAt ?? null,
@@ -390,6 +407,7 @@ export default function SocialAutopilotClient() {
               createdAt: p.createdAt ?? null, updatedAt: p.updatedAt ?? null,
             })
           }
+          reasons[p.id] = p.workingReason ?? null
           const sid = p.sourceContentId
           if (!sid || p.status === "published") continue // the WORKING rollup stays editable-only
           ;(map[sid] ??= []).push({
@@ -405,6 +423,8 @@ export default function SocialAutopilotClient() {
         }
         setPostsBySource(map)
         setRenderedPosts(rendered)
+        setSourceLane(laneFacts)
+        setPostReason(reasons)
       }
     } catch { /* non-fatal */ }
   }, [])
@@ -525,12 +545,21 @@ export default function SocialAutopilotClient() {
     return out
   }, [renderedPosts, sourceById])
 
+  // WORKING drops a property whose every creative is finished (rendered AND approved, or
+  // published). A source with no posts yet has definitionally not been worked and stays. This is
+  // what stops completed properties lingering in Working — while a property with one approved
+  // version and one still being edited correctly remains.
+  const workingCards = useMemo(
+    () => allCards.filter((c) => (c.demo || !c.raw) ? true : sourceNeedsWork(sourceLane[c.raw.id] ?? [])),
+    [allCards, sourceLane],
+  )
+
   // Tab counts are of the FULL set, not the filtered view, so switching tabs never looks empty
   // because a market chip is still applied from the other tab.
-  const workingCount = allCards.filter((c) => !c.demo).length
+  const workingCount = workingCards.filter((c) => !c.demo).length
 
   const cards = useMemo(() => {
-    let list = tab === "rendered" ? renderedCards : allCards
+    let list = tab === "rendered" ? renderedCards : workingCards
     if (market !== "All") list = list.filter((c) => c.marketLabel === market)
     const q = search.trim().toLowerCase()
     if (q) list = list.filter((c) => [c.displayName, c.propertyName, c.originalFilename].some((v) => (v ?? "").toLowerCase().includes(q)))
@@ -540,7 +569,7 @@ export default function SocialAutopilotClient() {
     else if (sort === "Property") sorted.sort((a, b) => (a.propertyName ?? "").localeCompare(b.propertyName ?? ""))
     else if (sort === "Market") sorted.sort((a, b) => a.marketLabel.localeCompare(b.marketLabel))
     return sorted
-  }, [allCards, renderedCards, tab, market, search, sort])
+  }, [workingCards, renderedCards, tab, market, search, sort])
 
   // Visible REAL ids (demo never counts toward selection).
   const visibleRealIds = useMemo(() => cards.filter((c) => !c.demo && c.raw).map((c) => c.raw!.id), [cards])
@@ -991,7 +1020,7 @@ export default function SocialAutopilotClient() {
                       by looking at the video. */}
                   {c.post ? (
                     <span className={`absolute top-1.5 left-1.5 text-[9.5px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white ${c.post.publishedAt ? "bg-emerald-600/90" : c.post.status === "scheduled" ? "bg-sky-600/90" : "bg-black/55"}`}>
-                      {c.post.publishedAt ? "Published" : c.post.status === "scheduled" ? "Scheduled" : "Ready"}
+                      {c.post.publishedAt ? "Published" : c.post.status === "scheduled" ? "Scheduled" : "Approved"}
                     </span>
                   ) : c.demo ? (
                     <span className="absolute top-1.5 left-1.5 text-[9.5px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-black/55 text-white">
@@ -1053,6 +1082,21 @@ export default function SocialAutopilotClient() {
                     const ed = postsBySource[sid] ?? []
                     return (
                       <div className="relative mt-2 pt-2 border-t border-[var(--crm-border)] flex flex-col gap-1.5" onDoubleClick={(e) => e.stopPropagation()}>
+                        {/* WHY this is still in Working. The case that matters is
+                            "rendered · not approved": the card looks finished and is not, which is
+                            exactly the confusion the approval gate exists to remove. */}
+                        {(() => {
+                          const rs = ed.map((e) => postReason[e.id]).filter(Boolean) as WorkingReason[]
+                          const worst = rs.find((r) => r === "render_error")
+                            ?? rs.find((r) => r === "rendered_unapproved")
+                            ?? rs.find((r) => r === "needs_rerender")
+                            ?? rs.find((r) => r === "rendering")
+                          return worst ? (
+                            <div className={`text-[10.5px] truncate ${worst === "render_error" ? "text-red-500" : worst === "rendered_unapproved" ? "text-amber-500" : "text-[var(--crm-text-muted)]"}`}>
+                              {WORKING_REASON_LABEL[worst]}
+                            </div>
+                          ) : null
+                        })()}
                         <button
                           type="button"
                           className="text-[12px] font-semibold px-2.5 py-1.5 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"
