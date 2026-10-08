@@ -414,7 +414,11 @@ ok("next_property moved to CENTER HOOK + DETAIL, but renders no block without a 
   && computeOverlayLayout("next_property", "What your next high-rise could look like", "").detail === null)
 ok("T5 is CENTER HOOK + DETAIL", computeOverlayLayout("upgrade", "What life looks like when you upgrade", "8 Weeks Free · Starting at $1,600/month").family === "center_hook_detail")
 const heroL = computeOverlayLayout("market_type", "SAN ANTONIO HIGH-RISES", "Starting at $1,600/month")
-ok("HERO headline sits near the top; detail below it", heroL.headline.topPx < 400 && !!heroL.detail && heroL.detail.topPx > heroL.headline.topPx)
+// Top-anchored means "in the upper part of the frame, not centred" — not a fixed pixel number.
+// The old "< 400" was a magic threshold that broke whenever the anchor moved for visual reasons.
+ok("HERO headline sits in the upper frame; detail below it",
+  heroL.headline.topPx < OVERLAY_CANVAS.h / 3 && !!heroL.detail && heroL.detail.topPx > heroL.headline.topPx)
+ok("HERO reads the shared top anchor", heroL.headline.topPx === OVERLAY_SPEC.headline.yFrac * OVERLAY_CANVAS.h)
 ok("HERO headline is uppercase-flagged; center hook is not", heroL.headline.uppercase === true && computeOverlayLayout("your_sign", "Your sign", "").headline.uppercase === false)
 // The T2 headline the generator actually produces is Property Type ONLY — the market was removed from
 // this template (see buildTemplateHeadline). The old fixture still carried "… in San Antonio", which
@@ -733,9 +737,20 @@ ok("T16 has no detail line, like T11", buildTemplateDetail("what_mo_gets_you_top
   // conversational family (38px, sentence case) merely positioned at the top, and the hero anchor
   // moved to clear Instagram's 3:4 grid crop, which is a 66px-uppercase problem. Sharing the number
   // meant a hero fix silently dragged T16. It is pinned at its own long-standing 249.6.
-  ok("T16 is top-anchored, well above centre", Math.round(t16L.headline.topPx) === 250)
-  ok("…and is INDEPENDENT of the hero anchor, which has moved below it",
-    t16L.headline.topPx < OVERLAY_SPEC.headline.yFrac * OVERLAY_CANVAS.h)
+  ok("T16 is top-anchored, in the upper frame", t16L.headline.topPx < OVERLAY_CANVAS.h / 3)
+  // SHARED, deliberately. T16 briefly had its own anchor so a hero change could not drag it; the
+  // requirement is the opposite — every top-anchored template sits at ONE position so the three
+  // read as a family on the profile grid, whatever their type size.
+  ok("…at the SAME shared anchor as the hero templates",
+    t16L.headline.topPx === OVERLAY_SPEC.headline.yFrac * OVERLAY_CANVAS.h)
+  ok("…so T1, T4 and T16 are all aligned", (() => {
+    const t1 = computeOverlayLayout("market_type", "DALLAS APARTMENTS", "Starting at $2,600/month")
+    const t4 = computeOverlayLayout("special_feature", "DALLAS APARTMENTS", "2 Months Free")
+    return t1.headline.topPx === t4.headline.topPx && t4.headline.topPx === t16L.headline.topPx
+  })())
+  // The visual requirement this encodes: clearly inside Instagram's measured 3:4 grid crop
+  // (canvas y 240..1680), with a real margin rather than the minimum that survives it.
+  ok("…and all three sit well clear of the grid crop line", t16L.headline.topPx >= 240 + 180)
   ok("…because it is the smaller conversational family, not a hero",
     t16L.headline.fontPx < 50 && t16L.headline.uppercase === false && t16L.family === "center_hook")
   ok("T11 stays CENTRED and is unchanged by T16 existing", Math.abs(t11L.headline.topPx - (OVERLAY_CANVAS.h - t11L.headline.fontPx) / 2) < 40 && t11L.headline.topPx > t16L.headline.topPx)

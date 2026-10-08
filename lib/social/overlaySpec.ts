@@ -15,10 +15,10 @@ export const OVERLAY_CANVAS = { w: 1080, h: 1920 } as const
 // the CSS preview and the FFmpeg render (FFmpeg centers each line via x=(w-text_w)/2, so the
 // char-wrap is what constrains its width to the box). Headline box ≈ 800px, sub box ≈ 930px.
 // ── THE TOP ANCHOR (yFrac) AND INSTAGRAM'S GRID CROP ────────────────────────────────────────
-// yFrac positions the TOP-ANCHORED HERO lockup: T1 market_type and T4 special_feature. T2
-// market_type_centered is the same typography but vertically centred, so it does not read this.
-// T16 what_mo_gets_you_top is top-anchored too but belongs to the SMALLER conversational family
-// (38px, sentence case) — it has its own CENTER_HOOK_TOP_YFRAC and is deliberately unaffected.
+// yFrac positions EVERY top-anchored lockup: T1 market_type, T4 special_feature and T16
+// what_mo_gets_you_top. All three sit at the same position by design, so they read as one family
+// on the profile grid. T2 market_type_centered is the same typography as T1 but vertically
+// centred, so it does not read this and is unaffected.
 //
 // It was 0.13 (y 249.6), which looked right in the full-frame Reel and WRONG on the profile grid.
 // Instagram crops a 1080x1920 Reel to a CENTRED 3:4 thumbnail — measured from a real profile
@@ -27,9 +27,15 @@ export const OVERLAY_CANVAS = { w: 1080, h: 1920 } as const
 // glyph ink at 254.8 — measured in the same screenshot. In the grid the title read as jammed
 // against the edge.
 //
-// 0.175 puts the box at 336: ~96px of clearance below the crop line, about 7% of the visible band,
-// which reads as a deliberate top margin rather than a near-miss. The full-frame Reel also gains
-// room from Instagram's own back-arrow row.
+// 0.175 (box at 336, +96px below the cut) was measured to clear the crop, and still read as too
+// high on a real profile grid. Measurement said "not clipped"; the eye said "not placed". The eye
+// is the requirement here, so this is set visually rather than to the minimum that technically
+// survives the crop.
+//
+// 0.25 puts the box at 480 — a clean quarter of the frame, and 240px below the crop line, which is
+// one sixth of the 1440px visible band. The lockup then occupies roughly the upper quarter of what
+// the grid shows: unmistakably top-anchored, unmistakably inside. A two-line compound hero, the
+// tallest case, still ends around 672 against a crop bottom of 1680.
 //
 // ONLY THE ANCHOR MOVED. Font, size, weight, line spacing, the horizontal fit box
 // (sideMarginPx/HEADLINE_TEXT_AVAIL_PX) and the headline-to-price gap (MARKET_TYPE_GAP_PX) are all
@@ -42,7 +48,7 @@ export const OVERLAY_SPEC = {
   // so "SAN ANTONIO TOWNHOMES" is larger than "SAN ANTONIO RENTAL HOMES". `fontPx` here is the START/
   // MAX (HERO_MAX_PX) used as the block default; the actual per-headline size comes from headlineFit.
   // maxChars/maxLines are the FALLBACK char-wrap for arbitrary/custom headline text only.
-  headline: { yFrac: 0.175, fontPx: 66, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24, maxChars: 16, maxLines: 3, sideMarginPx: 90 },
+  headline: { yFrac: 0.25, fontPx: 66, lineSpacing: 8, boxAlpha: 0.32, boxBorderPx: 24, maxChars: 16, maxLines: 3, sideMarginPx: 90 },
   // The sub/detail sits `gapPx` BELOW the headline block; it is the SECONDARY line, in the same
   // Libre Baskerville Bold face as the headline and distinguished by SIZE alone. 44px (raised from 36) makes "Starting at $X/mo" clearly readable and intentional in the
   // editor/enlarged preview and the render, while staying clearly secondary to the headline (56–66).
@@ -433,16 +439,14 @@ export const CENTER_HOOK = { maxPx: HOOK_MAX_PX, minPx: HOOK_MIN_PX, lineSpacing
 // [HERO_MIN_PX, HERO_MAX_PX] range and their own detail sizing, all unchanged.
 const HOOK_FLOOR_PX = 22 // only reachable by copy too long for the box even at the ceiling
 
-// ── T16's OWN TOP ANCHOR ────────────────────────────────────────────────────────────────────────
-// what_mo_gets_you_top is top-anchored, but it is NOT the hero family: it is the conversational
-// treatment — 38px, sentence case, center_hook — merely positioned at the top instead of centred.
-// It only ever BORROWED OVERLAY_SPEC.headline.yFrac as a convenient number.
+// ── T16 SHARES THE TOP-ANCHOR FAMILY POSITION ───────────────────────────────────────────────────
+// what_mo_gets_you_top is the conversational treatment (38px, sentence case) positioned at the top
+// rather than centred. It was briefly given its own anchor so a hero change could not drag it —
+// but the requirement is the opposite: every top-anchored template, whatever its type size, should
+// sit at ONE shared safe position so the three read as a family on the profile grid.
 //
-// That borrowing became a bug the moment the hero anchor moved to clear Instagram's grid crop: a
-// 66px uppercase hero and a 38px sentence-case hook have different relationships to the top of the
-// frame, and a value chosen for one silently dragged the other. Pinned here at 0.13 — exactly
-// where T16 has always rendered — so the two can move independently from now on.
-const CENTER_HOOK_TOP_YFRAC = 0.13
+// So it reads OVERLAY_SPEC.headline.yFrac again, deliberately. There is exactly one top anchor.
+const CENTER_HOOK_TOP_YFRAC = OVERLAY_SPEC.headline.yFrac
 
 // ── Conversational safe box ──────────────────────────────────────────────────────────────────
 // Now PER PLATFORM — see lib/social/platformSafeArea.ts, where the Instagram numbers are measured
