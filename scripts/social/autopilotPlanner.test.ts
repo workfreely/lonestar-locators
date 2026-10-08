@@ -247,7 +247,13 @@ console.log("\nINVENTORY REPORTING — sufficiency means a healthy rotation, not
   ok("but it is NOT reported as sufficient", thin.sufficient === false)
   ok("horizon demand is reported, not just the one-day minimum", thin.inventory.horizonPlacements === 14)
   ok("unique properties are counted as BUILDINGS", thin.inventory.uniqueProperties === 2)
-  ok("reuse is quantified", thin.inventory.reusedPlacements === 12 && thin.inventory.reusePercent === 86)
+  // UNIQUE means "this connection has not posted this building anywhere in the horizon" — not
+  // "the current cycle had not used it yet". Counting off the cycling set reported a property the
+  // account had already posted as fresh, which inflated uniqueness by one per cycle.
+  ok("reuse is quantified against the WHOLE horizon, not per cycle",
+    thin.inventory.uniquePlacements === 2 && thin.inventory.reusedPlacements === 12 && thin.inventory.reusePercent === 86)
+  ok("unique placements can never exceed the number of distinct properties",
+    thin.inventory.uniquePlacements <= thin.inventory.uniqueProperties)
   ok("and the first reuse point is reported", !!thin.inventory.firstReuseAt)
   ok("the note states the shortfall in words", thin.notes.some((n) => /INSUFFICIENT for a healthy rotation/.test(n)))
 

@@ -245,8 +245,13 @@ export function planAutopilot(input: {
 
       const usedPosts = new Set<string>()
       // Keyed on the BUILDING (propertyKeyOf), not the content row: two uploads of one community
-      // are one property, so using either exhausts it.
+      // are one property, so using either exhausts it. This set is RESET when the cycle restarts.
       let usedProps = new Set<string>()
+      // A SECOND, never-reset set, used only for counting. `usedProps` is cycling state: once it is
+      // cleared to allow repeats, the next pick looks "free" again, so counting off it reported a
+      // property the account had already posted as a unique placement. For the report, unique means
+      // "this connection has not posted this building anywhere in the horizon".
+      const everUsedProps = new Set<string>()
       let reuseRecorded = false
       const uniquePropertyCount = new Set(pool.map(propertyKeyOf)).size
 
@@ -276,7 +281,9 @@ export function planAutopilot(input: {
           }
         }
         if (!pick) { unfilledSlots++; return }
-        if (!isReuse) uniquePlacements++
+        if (!everUsedProps.has(propertyKeyOf(pick))) uniquePlacements++
+        everUsedProps.add(propertyKeyOf(pick))
+        void isReuse
         if (fallbackReason && wantMarket && pick.market !== wantMarket) {
           marketFallbacks.push({ connectionId: rule.connectionId, dateKey: pl.dateKey, minute: pl.minute, requestedMarket: wantMarket, selectedMarket: pick.market, reason: fallbackReason })
         }
