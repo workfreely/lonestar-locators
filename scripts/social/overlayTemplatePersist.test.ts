@@ -15,6 +15,7 @@
  * Run: npx tsx scripts/social/overlayTemplatePersist.test.ts
  */
 import { readFileSync } from "node:fs"
+import { RENDER_AFFECTING_COLUMNS, shouldInvalidateRender } from "@/lib/social/renderInvalidation"
 import path from "node:path"
 import { OVERLAY_TEMPLATES, DEFAULT_OVERLAY_TEMPLATE, isOverlayTemplate } from "@/lib/social/composePost"
 
@@ -39,8 +40,10 @@ async function main() {
   {
     ok("the PATCH gate calls isOverlayTemplate",
       /if \("overlayTemplate" in body && isOverlayTemplate\(body\.overlayTemplate\)\)/.test(route))
+    // Brace-agnostic: the guard's body lost its braces when the presence-based renderAffecting
+    // flag was removed, and the old regex required them verbatim.
     ok("…and assigns the value when it passes",
-      /isOverlayTemplate\(body\.overlayTemplate\)\) \{ patch\.overlay_template = body\.overlayTemplate/.test(route))
+      /isOverlayTemplate\(body\.overlayTemplate\)\)\s*\{?\s*patch\.overlay_template = body\.overlayTemplate/.test(route))
     // The decisive negative — the stale duplicate must be gone, not merely extended.
     ok("NO hard-coded template Set remains in the route",
       !/OVERLAY_TEMPLATE_SET/.test(route))
@@ -118,8 +121,18 @@ async function main() {
       !/patch\.(owner_user_id|source_content_id|platform|published_at|rendered_storage_path|render_version)\s*=/.test(route))
     ok("pricing/amenities live on social_content and this route never writes them",
       !/patch\.(budget_range|amenities|property_name|market)\s*=/.test(route))
-    ok("changing the template still invalidates the render, as before",
-      /isOverlayTemplate\(body\.overlayTemplate\)\) \{[^}]*renderAffecting = true/.test(route))
+    // REWRITTEN 2026-10-08. This required `renderAffecting = true` beside the template guard —
+    // the PRESENCE-based rule that was itself the bug: it fired on every save, so a schedule-only
+    // edit threw away a valid MP4. Invalidation is now change-based, so the property is asserted
+    // against the canonical list and by behaviour instead of by source spelling.
+    ok("overlay_template is on the canonical render-affecting list",
+      (RENDER_AFFECTING_COLUMNS as readonly string[]).includes("overlay_template"))
+    ok("changing the template still invalidates the render",
+      shouldInvalidateRender({ overlay_template: "market_type" }, { overlay_template: "special_feature" }))
+    ok("…but re-saving the SAME template does not",
+      !shouldInvalidateRender({ overlay_template: "market_type" }, { overlay_template: "market_type" }))
+    ok("the route decides it by comparing against the stored row",
+      /renderAffectingChanges\(stored, patch\)/.test(route) && !/renderAffecting = true/.test(route))
   }
 
   console.log("\nNO BACKFILL, NO MIGRATION, NO BULK WRITE:")

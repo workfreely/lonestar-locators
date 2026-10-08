@@ -71,6 +71,15 @@ type Post = {
   voiceCtaId?: string | null
   renderStatus: string
   renderError: string | null
+  /** Server-computed: render_status='ready' AND an artifact exists. The SAME predicate the library
+   *  uses for the Rendered/Ready tab, so the editor and the tab can never disagree. */
+  hasRender?: boolean
+  /** Published posts are immutable creative: their footage is frozen by a DB trigger. */
+  isPublished?: boolean
+  publishedAt?: string | null
+  externalPostUrl?: string | null
+  /** The post's OWN footage, when it overrides the property's. Null = use the property's video. */
+  sourceStoragePath?: string | null
   status: PostStatus
   scheduledAt: string | null
   sourceContentId: string | null
@@ -84,6 +93,10 @@ type Post = {
   coverPreviewUrl: string | null
   coverMayHaveShifted?: boolean
 }
+
+/** One sentence, used on every disabled render-affecting control, so the reason is always the
+ *  same wherever the operator hovers. */
+const LOCK_HINT = "This video is already rendered — choose “Edit & re-render” to change what is burned into it."
 
 // Generation count now comes from the SHARED canonical constant (5) — this file used to declare its
 // own 7, a second source of truth that could drift from the generator.
@@ -191,6 +204,10 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [audioChoice, setAudioChoice] = useState("original")
   const [voiceHookId, setVoiceHookId] = useState<string | null>(null)
   const [voiceCtaId, setVoiceCtaId] = useState<string | null>(null)
+  // EDIT & RE-RENDER. A finished post's creative controls are disabled but still VISIBLE, so the
+  // operator can always see how the video was made. This opt-in unlocks them for a deliberate
+  // change; it is reset by load(), so re-opening a post always starts locked again.
+  const [unlocked, setUnlocked] = useState(false)
   const [scheduleVal, setScheduleVal] = useState("") // local "YYYY-MM-DDTHH:mm"
   const [scheduling, setScheduling] = useState(false) // RIGHT column shows the Schedule workspace
   // Posting: Post Once (manual date/time) vs Repeat (recurring rule) — exposed inline in the editor.
@@ -258,6 +275,9 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       }
       const p = (await res.json()) as Post
       setPost(p)
+      // Re-lock on every load. A completed re-render returns a post that is rendered again, and
+      // leaving it unlocked would quietly re-open the burned-in fields on a finished video.
+      setUnlocked(false)
       setPostName(p.postName ?? "")
       setPostType(p.postType || "reel")
       setSelectedPlatforms(new Set([p.platform || "instagram"])) // reflect the post's platform (Instagram today)
@@ -702,6 +722,13 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // load() resets the baseline (and picks up any newly rendered asset) on every reload.
   const overlayEdited = isOverlayPreviewStale(overlayBaselineRef.current, { mode: overlayMode, template: overlayTemplate, headline })
   const rendered = post.renderStatus === "ready" && !!post.renderedPreviewUrl && !overlayEdited
+  // ── RENDER-AFFECTING CONTROLS ARE READ-ONLY ON A FINISHED POST ──────────────────────────────
+  // Visible, never hidden: how the video was made is exactly what you want to see when deciding
+  // whether to reuse it. `locked` only disables. Non-pixel fields (caption, hashtags, cover,
+  // schedule, destination, post name) are deliberately NOT gated by this — they change nothing in
+  // the MP4, and the PATCH route now agrees (lib/social/renderInvalidation).
+  const hasRender = post.hasRender ?? (post.renderStatus === "ready" && !!post.renderedPreviewUrl)
+  const locked = hasRender && !unlocked
   const previewSrc = rendered ? post.renderedPreviewUrl : post.previewUrl // source for the enlarge modal
   // The chosen template's layout drives the preview (Hero / Center Hook / Center Hook + Detail),
   // shared with the FFmpeg render. 'existing' mode draws no overlay.
@@ -745,6 +772,43 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             stay reachable; the natural longer-term home is a Library post-card action. */}
         <button type="button" className={`${btn} ml-auto`} disabled={busy || publishing || previewing} onClick={() => void clonePost()}>Create Variation</button>
       </div>
+
+      {/* ── THIS POST IS ALREADY RENDERED ────────────────────────────────────────────────────
+          Says what state the post is in and what that means for editing, then offers the one
+          action that changes it. The creative controls below stay VISIBLE while locked, so the
+          operator can always read how the video was made — only editing them is gated.
+
+          For a PUBLISHED post the lock is not just a convention: its footage is frozen by a
+          database trigger, and the PATCH route answers 409. New footage there means a new
+          variation on the same property, which is why that path is named here rather than left
+          for the operator to discover from an error. */}
+      {hasRender && (
+        <div className={`mb-3 rounded-xl border px-3 py-2.5 flex items-center gap-3 flex-wrap ${unlocked ? "border-amber-500/40 bg-amber-500/10" : "border-[var(--crm-border)] bg-[var(--crm-card)]"}`}>
+          <div className="text-[12px] text-[var(--crm-text-secondary)] min-w-0">
+            {unlocked ? (
+              <>
+                <span className="font-semibold text-[var(--crm-text-primary)]">Re-render required.</span>{" "}
+                The creative fields are unlocked. The current video <span className="font-semibold">v{post.renderVersion ?? 1}</span> stays in place until you render a new one.
+              </>
+            ) : (
+              <>
+                <span className="font-semibold text-[var(--crm-text-primary)]">Rendered video v{post.renderVersion ?? 1}.</span>{" "}
+                Caption, hashtags, cover, schedule and destination are editable. Fields burned into the video are locked.
+                {post.isPublished ? " This post is published — its footage can't be swapped; use Create Variation for new footage." : ""}
+              </>
+            )}
+          </div>
+          {!unlocked && (
+            <button
+              type="button"
+              className={`${btn} ml-auto shrink-0`}
+              onClick={() => setUnlocked(true)}
+            >
+              Edit &amp; re-render
+            </button>
+          )}
+        </div>
+      )}
 
       {(error || notice) && (
         <div className={`mb-3 rounded-lg border px-4 py-2.5 text-[13px] ${error ? "border-[var(--crm-border)] bg-[var(--crm-panel)] text-[var(--crm-text-secondary)]" : "border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)]"}`}>
@@ -1109,7 +1173,9 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                       type="button"
                       onClick={() => setOverlayMode(val)}
                       aria-pressed={overlayMode === val}
-                      className={"text-[12px] font-semibold px-2.5 py-1 rounded-md transition-colors " + (overlayMode === val ? "bg-[var(--crm-text-primary)] text-[var(--crm-panel)]" : "text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]")}
+                      disabled={locked}
+                      title={locked ? LOCK_HINT : undefined}
+                      className={"text-[12px] font-semibold px-2.5 py-1 rounded-md transition-colors disabled:opacity-45 disabled:cursor-not-allowed " + (overlayMode === val ? "bg-[var(--crm-text-primary)] text-[var(--crm-panel)]" : "text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)]")}
                     >
                       {label}
                     </button>
@@ -1118,13 +1184,13 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               </div>
               <label className="block min-w-0">
                 <span className={fieldLabel}>Overlay Template</span>
-                <select className={`${control} mt-1 cursor-pointer`} value={overlayTemplate} onChange={(e) => changeTemplate(e.target.value as OverlayTemplate)}>
+                <select className={`${control} mt-1 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed`} value={overlayTemplate} disabled={locked} title={locked ? LOCK_HINT : undefined} onChange={(e) => changeTemplate(e.target.value as OverlayTemplate)}>
                   {OVERLAY_TEMPLATES.map((t, i) => <option key={t} value={t}>{i + 1}. {OVERLAY_TEMPLATE_LABEL[t]}</option>)}
                 </select>
               </label>
               <label className="block min-w-0">
                 <span className={fieldLabel}>Overlay Headline</span>
-                <input className={`${control} mt-1`} value={headline} onChange={(e) => { setHeadline(e.target.value); setHeadlineDirty(true) }} placeholder="Burned into the video" />
+                <input className={`${control} mt-1 disabled:opacity-45 disabled:cursor-not-allowed`} value={headline} disabled={locked} title={locked ? LOCK_HINT : undefined} onChange={(e) => { setHeadline(e.target.value); setHeadlineDirty(true) }} placeholder="Burned into the video" />
               </label>
             </div>
           ) : (
@@ -1198,7 +1264,9 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                     aria-label="Music"
                     value={audioChoice}
                     onChange={(e) => e.target.value !== "lb_track" && setAudioChoice(e.target.value)}
-                    className={`${control} mt-1 cursor-pointer`}
+                    disabled={locked}
+                    title={locked ? LOCK_HINT : undefined}
+                    className={`${control} mt-1 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed`}
                   >
                     {AUDIO_OPTIONS.map((a) => (
                       <option key={a.key} value={a.key} disabled={a.disabled}>{a.label}{a.note ? ` — ${a.note}` : ""}</option>
@@ -1207,7 +1275,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 </label>
                 <div className="block">
                   <span className={fieldLabel}>Voice Clips</span>
-                  <div className="mt-1">
+                  <div className={`mt-1 ${locked ? "opacity-45 pointer-events-none" : ""}`} title={locked ? LOCK_HINT : undefined} aria-disabled={locked || undefined}>
                     <VoiceClipsControl
                       triggerClassName={control}
                       hookId={voiceHookId}

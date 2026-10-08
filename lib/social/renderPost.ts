@@ -18,6 +18,27 @@ const OVERLAY_FONT_PATH = path.join(process.cwd(), "assets/social/fonts/LibreBas
 
 const extOf = (p: string) => (p.split(".").pop() || "mp4").toLowerCase().replace(/[^a-z0-9]/g, "") || "mp4"
 
+/**
+ * Which video does this post render from?
+ *
+ * Exported and pure so the rule is testable without a database and so every caller that needs to
+ * know "what footage is this post built on" — the renderer, the editor, a future preview — reads
+ * the SAME rule rather than reimplementing `?? content.storage_path` and drifting.
+ *
+ * A blank/whitespace override is treated as absent, not as a path: an empty string reaching the
+ * storage client would be a confusing "object not found" rather than a clean fall back to the
+ * property's own video.
+ */
+export function resolveSourcePath(
+  overridePath: string | null | undefined,
+  contentPath: string | null | undefined,
+): string | null {
+  const o = (overridePath ?? "").trim()
+  if (o) return o
+  const c = (contentPath ?? "").trim()
+  return c || null
+}
+
 export type RenderPostResult =
   | { ok: true; renderVersion: number; outputPath: string; platform: string; destination: string; safeAreaId: string }
   | { ok: false; code: string; message: string }
@@ -32,14 +53,24 @@ export async function renderPostToStorage(args: {
   const { supabase, id, userId } = args
   const { data: post, error: readErr } = await supabase
     .from("social_posts")
-    .select("id, platform, destination, source_content_id, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, voice_hook_id, voice_cta_id, render_version, source:source_content_id(storage_path)")
+    .select("id, platform, destination, source_content_id, source_storage_path, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, voice_hook_id, voice_cta_id, render_version, source:source_content_id(storage_path)")
     .eq("id", id)
     .maybeSingle()
   if (readErr) return { ok: false as const, code: "read_failed", message: readErr.message }
   if (!post) return { ok: false as const, code: "not_found", message: "post not found" }
   const p = post as Record<string, unknown>
   const source = (p.source ?? null) as { storage_path?: string } | null
-  const sourcePath = source?.storage_path
+  // THE POST'S OWN FOOTAGE WINS, when it has any.
+  //
+  // social_content carries both the property facts and a source video. A post that needs different
+  // footage for the same property sets source_storage_path on ITSELF rather than forcing a second
+  // content row — which would be a second, independently-editable copy of the property data (two
+  // such pairs already exist in this database and have drifted to different prices).
+  //
+  // Resolution is deliberately "override ?? content", never a merge: the override is the whole
+  // answer when present, so a post renders from exactly one file and there is no case where part
+  // of the video comes from one place and part from another.
+  const sourcePath = resolveSourcePath(p.source_storage_path as string | null, source?.storage_path ?? null)
   const contentId = p.source_content_id as string | null
   if (!sourcePath || !contentId) return { ok: false as const, code: "missing_source", message: "the post has no source video" }
   if (!ffmpegPath) return { ok: false as const, code: "renderer_unavailable", message: "ffmpeg is not available in this runtime" }

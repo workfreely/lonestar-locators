@@ -4,16 +4,19 @@ import { supabaseAdmin } from "@/lib/supabase/admin"
 import { isValidPostType } from "@/lib/social/postTypes"
 import { normalizeHashtag, hashtagLimitForPlatform } from "@/lib/social/hashtags"
 import { isOverlayTemplate } from "@/lib/social/composePost"
+import { renderAffectingChanges, valueChanged } from "@/lib/social/renderInvalidation"
 
 // One post: GET (composer load), PATCH (save fields / schedule / unschedule), DELETE.
 // Platform-admin ONLY + RLS owner-scoping. PROTECTED fields (owner_user_id, source_content_id,
 // platform, published_at, external_post_id/url, error_message, rendered_storage_path,
 // render_status) are NEVER mutable via client payloads — only the whitelist below. Editing the
-// overlay text or audio choice invalidates any existing render (render_status → 'none').
+// overlay text, audio choice or source video invalidates any existing render (render_status →
+// 'none') — but ONLY when the value actually CHANGES, not merely because the editor posted the
+// key. See lib/social/renderInvalidation.
 const SELECT =
   "id, platform, post_type, post_name, caption, social_special, on_video_text, on_video_config, " +
   "overlay_headline, overlay_subheadline, overlay_mode, overlay_template, cover_thumb_offset_ms, cover_storage_path, cover_render_version, hashtags, audio_choice, audio_track_id, voice_hook_id, voice_cta_id, rendered_storage_path, render_status, render_error, render_version, " +
-  "status, scheduled_at, published_at, external_post_url, created_at, updated_at, source_content_id, needs_review_at, needs_review_reason, " +
+  "status, scheduled_at, published_at, external_post_id, external_post_url, created_at, updated_at, source_content_id, source_storage_path, needs_review_at, needs_review_reason, " +
   // area_neighborhood is INTERNAL editing metadata. It was captured at upload and stored correctly,
   // but was missing from this projection — so the Post Editor could neither show it nor correct it and
   // the value was effectively write-once. Read here for EDITING only: it stays deliberately absent
@@ -115,11 +118,21 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     renderStatus: (r.render_status as string) || "none",
     renderError: r.render_error,
     renderVersion: r.render_version,
+    // Does a usable artifact exist RIGHT NOW? The editor locks the render-affecting controls on
+    // this, and the library puts the post in the Rendered tab on this — one predicate, both places.
+    hasRender: (r.render_status as string) === "ready" && !!r.rendered_storage_path,
     status: r.status,
+    publishedAt: r.published_at,
+    externalPostUrl: r.external_post_url,
+    // Published footage is frozen (DB trigger + a 409 from PATCH); the editor greys the swap control.
+    isPublished: !!(r.published_at || r.external_post_id),
     scheduledAt: r.scheduled_at,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     sourceContentId: r.source_content_id,
+    // The post's OWN footage, when it overrides the property's. Null = render from the property's
+    // own video (social_content.storage_path) — true of every row before this feature existed.
+    sourceStoragePath: (r.source_storage_path as string | null) ?? null,
     // Informational today: the editor shows a warning, nothing is blocked. See lib/social/publishHold.
     needsReviewAt: r.needs_review_at,
     needsReviewReason: r.needs_review_reason,
@@ -138,6 +151,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
           amenities: src.amenities,
           originalFilename: src.original_filename,
           kind: src.kind,
+          // The PROPERTY's own video. Shown so the operator can see what the post falls back to
+          // when its override is cleared.
+          storagePath: src.storage_path,
         }
       : null,
     previewUrl,
@@ -159,6 +175,20 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     body = {}
   }
 
+  // THE STORED ROW, READ ONCE.
+  //
+  // Needed to decide whether this edit actually changes the burned-in video (see
+  // lib/social/renderInvalidation). It also replaces two separate single-column reads that used to
+  // sit further down — one for render_version when stamping a cover, one for platform when capping
+  // hashtags — so this is one query where there were two.
+  const { data: storedRow } = await supabase
+    .from("social_posts")
+    .select("id, platform, published_at, external_post_id, render_version, source_storage_path, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, audio_track_id, voice_hook_id, voice_cta_id")
+    .eq("id", id)
+    .maybeSingle()
+  const stored = (storedRow ?? null) as Record<string, unknown> | null
+  const isPublished = !!(stored?.published_at || stored?.external_post_id)
+
   const str = (v: unknown, max = 2200) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null)
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
   if ("postName" in body) patch.post_name = str(body.postName, 300)
@@ -170,15 +200,15 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if ("onVideoText" in body) patch.on_video_text = str(body.onVideoText, 500)
   if ("onVideoConfig" in body && body.onVideoConfig && typeof body.onVideoConfig === "object") patch.on_video_config = body.onVideoConfig
 
-  // Composer fields. Overlay text + audio affect the RENDER, so changing them invalidates any
-  // existing derivative (render_status → 'none'); caption/hashtags are the IG caption (not
-  // burned in) and never invalidate the render.
-  let renderAffecting = false
-  if ("overlayHeadline" in body) { patch.overlay_headline = str(body.overlayHeadline, 200); renderAffecting = true }
-  if ("overlaySubheadline" in body) { patch.overlay_subheadline = str(body.overlaySubheadline, 200); renderAffecting = true }
+  // Composer fields. Overlay text + audio are burned into the MP4; caption/hashtags are the IG
+  // caption and never are. Assignment here only STAGES the value — whether it invalidates the
+  // existing render is decided at the end by comparing against the stored row, not by the key
+  // being present. See lib/social/renderInvalidation for why that distinction matters.
+  if ("overlayHeadline" in body) patch.overlay_headline = str(body.overlayHeadline, 200)
+  if ("overlaySubheadline" in body) patch.overlay_subheadline = str(body.overlaySubheadline, 200)
   // Overlay MODE ('generate' | 'existing') is a post-level override; switching it changes what the
   // renderer draws, so it invalidates any existing derivative.
-  if ("overlayMode" in body && (body.overlayMode === "generate" || body.overlayMode === "existing")) { patch.overlay_mode = body.overlayMode; renderAffecting = true }
+  if ("overlayMode" in body && (body.overlayMode === "generate" || body.overlayMode === "existing")) patch.overlay_mode = body.overlayMode
   // Validated against the CANONICAL OVERLAY_TEMPLATES via isOverlayTemplate, never a
   // list kept here. This line previously tested a hard-coded Set of five keys that
   // was never updated as templates were added, so 11 of the 16 the editor offers —
@@ -186,12 +216,12 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   // (7) on — were silently discarded: the PATCH returned 200, the headline saved,
   // and the template did not. Deriving the check from the single source of truth is
   // what stops a 17th template breaking the same way.
-  if ("overlayTemplate" in body && isOverlayTemplate(body.overlayTemplate)) { patch.overlay_template = body.overlayTemplate; renderAffecting = true }
-  if ("audioChoice" in body && typeof body.audioChoice === "string" && AUDIO_CHOICES.has(body.audioChoice)) { patch.audio_choice = body.audioChoice; renderAffecting = true }
+  if ("overlayTemplate" in body && isOverlayTemplate(body.overlayTemplate)) patch.overlay_template = body.overlayTemplate
+  if ("audioChoice" in body && typeof body.audioChoice === "string" && AUDIO_CHOICES.has(body.audioChoice)) patch.audio_choice = body.audioChoice
   // Voice Clips (Hook = start, CTA = end). A uuid selects; null clears. Render-affecting.
   const VOICE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  if ("voiceHookId" in body && (body.voiceHookId === null || (typeof body.voiceHookId === "string" && VOICE_UUID.test(body.voiceHookId)))) { patch.voice_hook_id = body.voiceHookId; renderAffecting = true }
-  if ("voiceCtaId" in body && (body.voiceCtaId === null || (typeof body.voiceCtaId === "string" && VOICE_UUID.test(body.voiceCtaId)))) { patch.voice_cta_id = body.voiceCtaId; renderAffecting = true }
+  if ("voiceHookId" in body && (body.voiceHookId === null || (typeof body.voiceHookId === "string" && VOICE_UUID.test(body.voiceHookId)))) patch.voice_hook_id = body.voiceHookId
+  if ("voiceCtaId" in body && (body.voiceCtaId === null || (typeof body.voiceCtaId === "string" && VOICE_UUID.test(body.voiceCtaId)))) patch.voice_cta_id = body.voiceCtaId
   // ── REEL COVER ────────────────────────────────────────────────────────────────────────────
   // Which frame Instagram SHOWS, never what the MP4 contains — so these are deliberately set
   // OUTSIDE the renderAffecting block. Choosing a cover must not invalidate a finished render.
@@ -204,8 +234,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       patch.cover_thumb_offset_ms = n
       // Stamp WHICH render this frame refers to, so a later re-render can be detected and warned
       // about rather than silently invalidating a deliberate choice.
-      const { data: rv } = await supabase.from("social_posts").select("render_version").eq("id", id).maybeSingle()
-      patch.cover_render_version = (rv as { render_version?: number | null } | null)?.render_version ?? null
+      patch.cover_render_version = (stored?.render_version as number | null) ?? null
     }
     if (body.coverThumbOffsetMs === null) patch.cover_render_version = null
   }
@@ -222,8 +251,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     // look like it honoured the 5-tag rule while actually storing up to 30, and it was the real
     // ceiling on every stored post. Server-side enforcement matters because the editor's cap is
     // only a React render condition.
-    const { data: existing } = await supabase.from("social_posts").select("platform").eq("id", id).maybeSingle()
-    const cap = hashtagLimitForPlatform((existing as { platform?: string | null } | null)?.platform)
+    const cap = hashtagLimitForPlatform((stored?.platform as string | null) ?? null)
     const seen = new Set<string>()
     const tags: string[] = []
     for (const raw of body.hashtags as unknown[]) {
@@ -235,7 +263,38 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     }
     patch.hashtags = tags
   }
-  if (renderAffecting) { patch.render_status = "none"; patch.render_error = null }
+  // ── THE SOURCE VIDEO OVERRIDE ─────────────────────────────────────────────────────────────
+  // Lets one property/source record serve several creatives shot from different footage, without
+  // duplicating the property metadata onto a second social_content row. Null clears it, falling
+  // back to the property's own video.
+  //
+  // REFUSED OUTRIGHT ON A PUBLISHED POST. The database enforces this too (trigger
+  // social_posts_freeze_published_source_trg), but failing here gives the operator an explanation
+  // instead of a raw constraint violation. New footage on a published post means a new VARIATION
+  // sharing the same source_content_id — the published row's artifact and external_post_id are a
+  // historical record and must stay exactly as they went out.
+  if ("sourceStoragePath" in body) {
+    const v = body.sourceStoragePath
+    const next = v === null ? null : str(v, 400)
+    if (isPublished && valueChanged(stored?.source_storage_path, next)) {
+      return NextResponse.json({
+        error: "published_source_immutable",
+        detail: "This post is already published, so its footage cannot be swapped.",
+        hint: "Use Create Variation to build a new creative from the same property with the new video.",
+      }, { status: 409 })
+    }
+    patch.source_storage_path = next
+  }
+
+  // ── RENDER INVALIDATION — CHANGE-BASED, NOT KEY-PRESENCE-BASED ────────────────────────────
+  // The editor posts every composer field on every save, so "the key is present" was true for a
+  // schedule-only or caption-only edit and silently threw away a valid MP4. Compare what is about
+  // to be written against what is stored, and invalidate only on a real difference.
+  const changed = renderAffectingChanges(stored, patch)
+  if (changed.length > 0) {
+    patch.render_status = "none"
+    patch.render_error = null
+  }
 
   const intent = typeof body.intent === "string" ? body.intent : null
   if (intent === "schedule") {

@@ -14,6 +14,7 @@
  * Run: npx tsx scripts/social/reelCover.test.ts
  */
 import { readFileSync } from "node:fs"
+import { RENDER_AFFECTING_COLUMNS, shouldInvalidateRender } from "@/lib/social/renderInvalidation"
 import path from "node:path"
 import { chooseCover, describeCover, resolveReelCover } from "@/lib/social/reelCover"
 
@@ -121,8 +122,21 @@ async function main() {
       coverBranches.length > 0 && coverBranches.every((l) => !/renderAffecting\s*=\s*true/.test(l)),
       coverBranches.filter((l) => /renderAffecting/.test(l)).join(" | "))
     // And the flag is genuinely still driven by the real render inputs.
-    ok("…while overlay/audio fields still DO set it",
-      /overlayTemplate[\s\S]{0,160}renderAffecting = true/.test(posts) || /audioChoice[\s\S]{0,160}renderAffecting = true/.test(posts))
+    // REWRITTEN 2026-10-08. This used to assert `renderAffecting = true` appeared near
+    // overlayTemplate/audioChoice — i.e. it encoded the PRESENCE-based rule that was itself the
+    // bug (every save invalidated a valid render because the editor posts every composer key).
+    // The property that actually matters is unchanged and is now asserted directly against the
+    // canonical list: cover fields are not render-affecting, overlay/audio are.
+    ok("…while overlay/audio fields still DO invalidate, via the canonical list",
+      (RENDER_AFFECTING_COLUMNS as readonly string[]).includes("overlay_template") &&
+      (RENDER_AFFECTING_COLUMNS as readonly string[]).includes("audio_choice"))
+    ok("…and no cover column is in that list",
+      !["cover_thumb_offset_ms", "cover_storage_path", "cover_render_version"]
+        .some((c) => (RENDER_AFFECTING_COLUMNS as readonly string[]).includes(c)))
+    ok("…so a cover-only save provably preserves a ready render",
+      !shouldInvalidateRender(
+        { overlay_template: "market_type", audio_choice: "original" },
+        { overlay_template: "market_type", audio_choice: "original", cover_thumb_offset_ms: 1500 }))
     ok("the cover fields ARE accepted by PATCH",
       /if \("coverThumbOffsetMs" in body\)/.test(posts) && /if \("coverStoragePath" in body\)/.test(posts))
     ok("a negative offset is rejected at the API", /invalid coverThumbOffsetMs/.test(posts))
@@ -155,8 +169,12 @@ async function main() {
     ok("it reads the EXISTING preview's position instead", /getCurrentMs\(\)/.test(ui))
     ok("the editor passes the live currentTime of its one preview",
       /previewVideoRef\.current/.test(editor) && /v\.currentTime \* 1000/.test(editor))
+    // Attribute-ORDER-independent. The original regex required `<video ref={previewVideoRef}
+    // src={post.renderedPreviewUrl!}` verbatim and broke the day a `key={post.renderVersion}` was
+    // added between the tag and the ref — reporting a binding defect where the binding was fine.
     ok("…from the element bound to the RENDERED derivative",
-      /<video ref=\{previewVideoRef\} src=\{post\.renderedPreviewUrl!\}/.test(editor))
+      /<video[^>]*\bref=\{previewVideoRef\}[^>]*>/.test(editor) &&
+      /<video[^>]*\bref=\{previewVideoRef\}[^>]*\bsrc=\{post\.renderedPreviewUrl!\}/.test(editor))
     // Gating uses the editor's own `rendered` flag, which already means
     // renderStatus==='ready' && renderedPreviewUrl && !overlayEdited — so a stale render cannot
     // be scrubbed for a cover.
@@ -179,8 +197,11 @@ async function main() {
     // The large panel is gone.
     ok("the big REEL COVER panel markup is removed",
       !/Cover frame position/.test(editor) && !/CUSTOM COVER \(OPTIONAL\)/.test(ui))
+    // Counts ELEMENTS, not the string "<video". The original counted a mention inside a code
+    // comment ("…see the <video>.") as a third player, so it failed on a file with exactly two.
     ok("the editor still has exactly two videos (rendered + source fallback), not three",
-      (editor.match(/<video/g) ?? []).length === 2)
+      (editor.match(/<video[\s>]/g) ?? []).length -
+      ((editor.match(/^\s*(?:\/\/|\*|\/\*).*<video[\s>]/gm) ?? []).length) === 2)
   }
 
   console.log("\nPERSISTENCE + MIGRATION:")

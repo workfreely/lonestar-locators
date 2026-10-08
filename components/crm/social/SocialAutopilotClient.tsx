@@ -8,7 +8,7 @@ import { SOCIAL_MARKETS, normalizeSocialMarket } from "@/lib/social/markets"
 import { formatSocialDisplayName } from "@/lib/social/displayName"
 import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
 import { computeOverlayLayout, type OverlayLayout } from "@/lib/social/overlaySpec"
-import { OVERLAY_TEMPLATES, DEFAULT_OVERLAY_TEMPLATE } from "@/lib/social/composePost"
+import { OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, DEFAULT_OVERLAY_TEMPLATE } from "@/lib/social/composePost"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
 import { inferFromFilename, detectMarket, suggestArea } from "@/lib/social/filenameInference"
 import { resolvePropertyMatch } from "@/lib/social/resolveProperty"
@@ -84,6 +84,30 @@ type Card = {
   hue: number | null
   demo: boolean
   raw?: Item
+  // Set ONLY on Rendered/Ready cards: the finished creative this card represents. Working cards
+  // carry `raw` (the source) instead. Exactly one of the two is present, which is what lets the
+  // shared card JSX route a click to the right place.
+  post?: RenderedPost
+}
+
+/** A post with a usable artifact — one Rendered/Ready card. `hasRender` is computed server-side
+ *  so the library and the editor cannot disagree about what "rendered" means. */
+type RenderedPost = {
+  id: string
+  postName: string | null
+  status: string
+  scheduledAt: string | null
+  publishedAt: string | null
+  externalPostUrl: string | null
+  renderVersion: number | null
+  renderedPreviewUrl: string | null
+  sourceContentId: string | null
+  sourceStoragePath: string | null
+  overlayTemplate: string | null
+  propertyName: string | null
+  market: string | null
+  createdAt: string | null
+  updatedAt: string | null
 }
 
 // Per-file upload state (batch upload progress).
@@ -118,6 +142,10 @@ type Sort = (typeof SORTS)[number]
 const UPLOAD_CONCURRENCY = 3
 
 const base = (name: string | null) => (name ? name.replace(/\.[^.]+$/, "") : "")
+/** Human label for a template id, read from the canonical catalog so a renamed or added template
+ *  never needs a second list here. Falls back to the raw id rather than hiding an unknown value. */
+const templateLabel = (id: string | null): string =>
+  (id && OVERLAY_TEMPLATE_LABEL[id as keyof typeof OVERLAY_TEMPLATE_LABEL]) || id || "—"
 const extOf = (name: string) => (name.split(".").pop() || "mp4").toLowerCase().replace(/[^a-z0-9]/g, "") || "mp4"
 
 // RFC-4122 v4 — MUST match the server's UUID gate (it validates contentId + storage path).
@@ -303,6 +331,11 @@ export default function SocialAutopilotClient() {
     platform: string | null
   }
   const [postsBySource, setPostsBySource] = useState<Record<string, EditablePost[]>>({})
+  // Rendered/Ready inventory — posts holding a usable artifact, INCLUDING published ones. They are
+  // reusable history (what went out, with which template and footage), so hiding them once live
+  // would throw away the thing that makes this a library rather than a queue.
+  const [renderedPosts, setRenderedPosts] = useState<RenderedPost[]>([])
+  const [tab, setTab] = useState<"working" | "rendered">("working")
   const [editMenuFor, setEditMenuFor] = useState<string | null>(null) // source id whose picker is open
 
   const load = useCallback(async () => {
@@ -330,13 +363,35 @@ export default function SocialAutopilotClient() {
             overlayMode?: string | null; overlayTemplate?: string | null
             overlayHeadline?: string | null; overlaySubheadline?: string | null; updatedAt?: string | null
             platform?: string | null
-            source: { propertyName: string | null; displayName: string | null } | null
+            hasRender?: boolean; renderedPreviewUrl?: string | null; renderVersion?: number | null
+            sourceStoragePath?: string | null; publishedAt?: string | null; externalPostUrl?: string | null
+            createdAt?: string | null
+            source: { propertyName: string | null; displayName: string | null; market?: string | null } | null
           }[]
         }
         const map: Record<string, EditablePost[]> = {}
+        const rendered: RenderedPost[] = []
         for (const p of pj.items ?? []) {
+          // RENDERED/READY: a usable artifact exists. `hasRender` is the server's own predicate
+          // (render_status = 'ready' AND rendered_storage_path IS NOT NULL) and deliberately
+          // ignores status, so Ready, Scheduled and Published all qualify.
+          if (p.hasRender) {
+            rendered.push({
+              id: p.id, postName: p.postName, status: p.status,
+              scheduledAt: p.scheduledAt, publishedAt: p.publishedAt ?? null,
+              externalPostUrl: p.externalPostUrl ?? null,
+              renderVersion: p.renderVersion ?? null,
+              renderedPreviewUrl: p.renderedPreviewUrl ?? null,
+              sourceContentId: p.sourceContentId,
+              sourceStoragePath: p.sourceStoragePath ?? null,
+              overlayTemplate: p.overlayTemplate ?? null,
+              propertyName: p.source?.propertyName ?? null,
+              market: p.source?.market ?? null,
+              createdAt: p.createdAt ?? null, updatedAt: p.updatedAt ?? null,
+            })
+          }
           const sid = p.sourceContentId
-          if (!sid || p.status === "published") continue // only editable (non-published) posts
+          if (!sid || p.status === "published") continue // the WORKING rollup stays editable-only
           ;(map[sid] ??= []).push({
             id: p.id, status: p.status, scheduledAt: p.scheduledAt,
             name: p.source?.propertyName || p.source?.displayName || p.postName || "Untitled",
@@ -349,6 +404,7 @@ export default function SocialAutopilotClient() {
           })
         }
         setPostsBySource(map)
+        setRenderedPosts(rendered)
       }
     } catch { /* non-fatal */ }
   }, [])
@@ -357,6 +413,15 @@ export default function SocialAutopilotClient() {
   }, [load])
 
   const usingDemo = items !== null && items.length === 0
+
+  // Property facts for a rendered card, looked up from the ONE social_content row the post points
+  // at — never copied onto the post. This is the reuse guarantee made visible: two rendered cards
+  // for the same property read the same record, so they cannot show different prices.
+  const sourceById = useMemo(() => {
+    const m: Record<string, Item> = {}
+    for (const it of items ?? []) m[it.id] = it
+    return m
+  }, [items])
 
   // Unify real + demo into a common card shape.
   const allCards: Card[] = useMemo(() => {
@@ -419,8 +484,53 @@ export default function SocialAutopilotClient() {
     return counts
   }, [allCards])
 
+  // ── RENDERED / READY — POST-CENTRIC CARDS ────────────────────────────────────────────────
+  //
+  // The Working tab is SOURCE-centric: one card per social_content, which is the upload-and-prepare
+  // workflow and is unchanged. The Rendered tab is POST-centric: one card per finished artifact.
+  //
+  // The differing cardinality is deliberate, not a bug. One property can carry several creatives
+  // (different template, different headline, different footage), and once rendered each is its own
+  // reusable asset with its own history. So a source with three posts, two of them rendered, shows
+  // ONE Working card and TWO Rendered cards.
+  //
+  // Both tabs build the SAME `Card` shape and render through the SAME JSX below, so the two tabs
+  // cannot visually drift — the tab chooses the array, never the renderer.
+  const renderedCards: Card[] = useMemo(() => {
+    const out: Card[] = []
+    for (const p of renderedPosts) {
+      const src = p.sourceContentId ? sourceById[p.sourceContentId] : undefined
+      const name = p.propertyName || src?.propertyName || src?.displayName || p.postName || "Untitled"
+      out.push({
+        key: p.id, // the POST is the identity here, not the source
+        displayName: name,
+        titleLabel: formatSocialDisplayName(name),
+        propertyName: p.propertyName ?? src?.propertyName ?? null,
+        market: p.market ?? src?.market ?? null,
+        marketLabel: normalizeSocialMarket(p.market ?? src?.market ?? null),
+        // Sorted by when the creative last changed, so a freshly rendered version surfaces first.
+        sortDate: new Date(p.updatedAt ?? p.createdAt ?? 0).getTime() || 0,
+        originalFilename: src?.originalFilename ?? null,
+        // The RENDERED derivative — what actually went out, overlay burned in.
+        previewUrl: p.renderedPreviewUrl ?? null,
+        // The overlay is already in the pixels; drawing the CSS preview on top would double it.
+        draftOverlay: null,
+        hue: null,
+        // No `raw`: a Rendered card is a POST, not a source row. The card JSX branches on which of
+        // the two is present, so leaving this undefined is what routes the click to the post.
+        demo: false,
+        post: p,
+      })
+    }
+    return out
+  }, [renderedPosts, sourceById])
+
+  // Tab counts are of the FULL set, not the filtered view, so switching tabs never looks empty
+  // because a market chip is still applied from the other tab.
+  const workingCount = allCards.filter((c) => !c.demo).length
+
   const cards = useMemo(() => {
-    let list = allCards
+    let list = tab === "rendered" ? renderedCards : allCards
     if (market !== "All") list = list.filter((c) => c.marketLabel === market)
     const q = search.trim().toLowerCase()
     if (q) list = list.filter((c) => [c.displayName, c.propertyName, c.originalFilename].some((v) => (v ?? "").toLowerCase().includes(q)))
@@ -430,7 +540,7 @@ export default function SocialAutopilotClient() {
     else if (sort === "Property") sorted.sort((a, b) => (a.propertyName ?? "").localeCompare(b.propertyName ?? ""))
     else if (sort === "Market") sorted.sort((a, b) => a.marketLabel.localeCompare(b.marketLabel))
     return sorted
-  }, [allCards, market, search, sort])
+  }, [allCards, renderedCards, tab, market, search, sort])
 
   // Visible REAL ids (demo never counts toward selection).
   const visibleRealIds = useMemo(() => cards.filter((c) => !c.demo && c.raw).map((c) => c.raw!.id), [cards])
@@ -760,6 +870,28 @@ export default function SocialAutopilotClient() {
           "SAMPLE DATA" pill was removed — sample state is still obvious from the per-card
           "Sample" markers on the demo fixtures. */}
       {/* mb-6 (24px) gives extra breathing room before the card grid vs. the tighter mb-3 rows. */}
+      {/* WORKING vs RENDERED / READY.
+          Its own row above the existing controls, so Search / Market / Sort / Upload keep their
+          current positions exactly. Both tabs feed the SAME card grid below — the tab only picks
+          which array is rendered, so the two can never look like different libraries. */}
+      <div className="mb-3 flex items-center gap-1.5 flex-wrap" role="tablist" aria-label="Library view">
+        {([
+          ["working", "Working", workingCount, "Drafts, unrendered, rendering and render errors"],
+          ["rendered", "Rendered / Ready", renderedCards.length, "Finished videos — ready, scheduled and published"],
+        ] as const).map(([id, label, count, hint]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            title={hint}
+            onClick={() => setTab(id)}
+            className={chip(tab === id)}
+          >
+            {label} <span className="opacity-55 tabular-nums">({count})</span>
+          </button>
+        ))}
+      </div>
       <div className="mb-6 flex items-center gap-2.5 flex-wrap">
         <input
           type="search"
@@ -837,7 +969,10 @@ export default function SocialAutopilotClient() {
         >
           {cards.map((c) => {
             const isSel = !c.demo && c.raw ? selected.has(c.raw.id) : false
-            const real = !c.demo && c.raw
+            // A Rendered card has a post instead of a source row; both are "real" (interactive,
+            // non-sample). `open` is the card's primary action either way.
+            const real = !c.demo && (!!c.raw || !!c.post)
+            const open = c.post ? () => router.push(`/admin/social-autopilot/posts/${c.post!.id}?from=library`) : c.raw ? () => void createPost(c.raw!.id) : undefined
             return (
               <div
                 key={c.key}
@@ -845,13 +980,20 @@ export default function SocialAutopilotClient() {
                 // (canonical Create Post → one guarded draft). Inner controls stop double-click
                 // from bubbling, so play/select/Edit/Delete never create a post.
                 tabIndex={real ? 0 : undefined}
-                onDoubleClick={real ? () => void createPost(c.raw!.id) : undefined}
-                onKeyDown={real ? (e) => { if (e.key === "Enter" && e.target === e.currentTarget) { e.preventDefault(); void createPost(c.raw!.id) } } : undefined}
+                onDoubleClick={open}
+                onKeyDown={open ? (e) => { if (e.key === "Enter" && e.target === e.currentTarget) { e.preventDefault(); open() } } : undefined}
                 className={`rounded-2xl border bg-[var(--crm-panel)] overflow-hidden flex flex-col ${real ? "sa-lib-card" : ""} ${isSel ? "border-[var(--crm-text-primary)] ring-1 ring-[var(--crm-text-primary)]" : "border-[var(--crm-border)]"}`}
               >
                 <div className="relative aspect-[9/16] bg-[var(--crm-card)]" onDoubleClick={(e) => e.stopPropagation()}>
                   <Thumb card={c} />
-                  {c.demo ? (
+                  {/* Rendered cards carry no checkbox (bulk actions are a source-level operation);
+                      the corner shows WHERE the creative is instead — the one thing you cannot tell
+                      by looking at the video. */}
+                  {c.post ? (
+                    <span className={`absolute top-1.5 left-1.5 text-[9.5px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white ${c.post.publishedAt ? "bg-emerald-600/90" : c.post.status === "scheduled" ? "bg-sky-600/90" : "bg-black/55"}`}>
+                      {c.post.publishedAt ? "Published" : c.post.status === "scheduled" ? "Scheduled" : "Ready"}
+                    </span>
+                  ) : c.demo ? (
                     <span className="absolute top-1.5 left-1.5 text-[9.5px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-black/55 text-white">
                       Sample
                     </span>
@@ -878,6 +1020,34 @@ export default function SocialAutopilotClient() {
                     {c.propertyName || <span className="text-[var(--crm-text-muted)]">No property</span>}
                     {c.marketLabel ? ` · ${c.marketLabel}` : ""}
                   </div>
+                  {/* RENDERED/READY footer. Same card shell, same typography, same button class as
+                      the Working footer below — only the labels and the destination differ. */}
+                  {c.post && (
+                    <div className="relative mt-2 pt-2 border-t border-[var(--crm-border)] flex flex-col gap-1.5" onDoubleClick={(e) => e.stopPropagation()}>
+                      <div className="text-[10.5px] text-[var(--crm-text-muted)] truncate">
+                        {templateLabel(c.post.overlayTemplate)} · v{c.post.renderVersion ?? 1}
+                        {c.post.sourceStoragePath ? " · own footage" : ""}
+                      </div>
+                      <button
+                        type="button"
+                        className="text-[12px] font-semibold px-2.5 py-1.5 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)]"
+                        onClick={() => router.push(`/admin/social-autopilot/posts/${c.post!.id}?from=library`)}
+                      >
+                        Open Post
+                      </button>
+                      {c.post.externalPostUrl && (
+                        <a
+                          href={c.post.externalPostUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[11px] text-center text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)] underline underline-offset-2"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          View on Instagram
+                        </a>
+                      )}
+                    </div>
+                  )}
                   {!c.demo && c.raw && (() => {
                     const sid = c.raw.id
                     const ed = postsBySource[sid] ?? []

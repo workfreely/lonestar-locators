@@ -19,7 +19,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   // Read the original under RLS (so only the caller's own post can be duplicated).
   const { data: orig, error: readErr } = await supabase
     .from("social_posts")
-    .select("source_content_id, platform, post_type, post_name, caption, on_video_text, on_video_config, overlay_mode, overlay_headline, overlay_subheadline, hashtags, social_special, audio_choice, audio_track_id, voice_hook_id, voice_cta_id")
+    .select("source_content_id, source_storage_path, platform, post_type, post_name, caption, on_video_text, on_video_config, overlay_mode, overlay_headline, overlay_subheadline, hashtags, social_special, audio_choice, audio_track_id, voice_hook_id, voice_cta_id")
     .eq("id", id)
     .maybeSingle()
   if (readErr) return NextResponse.json({ error: "duplicate_failed" }, { status: 500 })
@@ -33,7 +33,13 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     .from("social_posts")
     .insert({
       owner_user_id: userId, // from session, never copied from the original row
-      source_content_id: o.source_content_id, // same immutable source
+      source_content_id: o.source_content_id, // SAME property record — never a second copy of the property facts
+      // The post's own footage, inherited so the variation starts as a faithful copy. This is the
+      // mechanism behind "same property, new video": clone, then swap the override on the CLONE.
+      // A published original cannot have its own footage swapped (DB trigger + a 409 from PATCH),
+      // so this is the only route to new footage for an already-live property — and it leaves the
+      // published row, its artifact and its external_post_id completely untouched.
+      source_storage_path: (o.source_storage_path as string | null) ?? null,
       platform: o.platform ?? "instagram",
       post_type: o.post_type ?? "reel",
       post_name: copyName,
