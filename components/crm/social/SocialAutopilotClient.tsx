@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase/client"
 import { DEMO_LIBRARY } from "./demoFixtures"
 import { SOCIAL_MARKETS, normalizeSocialMarket } from "@/lib/social/markets"
 import { formatSocialDisplayName } from "@/lib/social/displayName"
-import { sourceNeedsWork, WORKING_REASON_LABEL, type WorkingReason, type LaneFacts } from "@/lib/social/postLane"
+import { sourceNeedsWork, workingBadge, renderedBadge, BADGE_TONE, type LaneFacts, type DraftFacts, type CardBadge } from "@/lib/social/postLane"
 import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
 import { computeOverlayLayout, type OverlayLayout } from "@/lib/social/overlaySpec"
 import { OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, DEFAULT_OVERLAY_TEMPLATE } from "@/lib/social/composePost"
@@ -143,6 +143,25 @@ type Sort = (typeof SORTS)[number]
 const UPLOAD_CONCURRENCY = 3
 
 const base = (name: string | null) => (name ? name.replace(/\.[^.]+$/, "") : "")
+
+/** Status pill. ONE component and ONE position (upper-right) for every status across both tabs,
+ *  so a card's state always reads from the same place. The demo "Sample" marker deliberately
+ *  stays upper-left: it is provenance, not status, and the select checkbox also lives there. */
+const BADGE_CLASS: Record<string, string> = {
+  green:   "bg-emerald-700/90",
+  amber:   "bg-amber-600/90",
+  red:     "bg-red-700/90",
+  neutral: "bg-black/60",
+  emerald: "bg-emerald-600/90",
+  sky:     "bg-sky-600/90",
+}
+function StatusBadge({ badge }: { badge: CardBadge }) {
+  return (
+    <span className={`absolute top-1.5 right-1.5 z-10 text-[9.5px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white ${BADGE_CLASS[BADGE_TONE[badge]]}`}>
+      {badge}
+    </span>
+  )
+}
 /** Human label for a template id, read from the canonical catalog so a renamed or added template
  *  never needs a second list here. Falls back to the raw id rather than hiding an unknown value. */
 const templateLabel = (id: string | null): string =>
@@ -338,8 +357,7 @@ export default function SocialAutopilotClient() {
   const [renderedPosts, setRenderedPosts] = useState<RenderedPost[]>([])
   const [tab, setTab] = useState<"working" | "rendered">("working")
   // Per-source lane facts, so Working can drop a property whose every creative is finished.
-  const [sourceLane, setSourceLane] = useState<Record<string, LaneFacts[]>>({})
-  const [postReason, setPostReason] = useState<Record<string, WorkingReason | null>>({})
+  const [sourceLane, setSourceLane] = useState<Record<string, DraftFacts[]>>({})
   const [editMenuFor, setEditMenuFor] = useState<string | null>(null) // source id whose picker is open
 
   const load = useCallback(async () => {
@@ -367,8 +385,7 @@ export default function SocialAutopilotClient() {
             overlayMode?: string | null; overlayTemplate?: string | null
             overlayHeadline?: string | null; overlaySubheadline?: string | null; updatedAt?: string | null
             platform?: string | null
-            hasRender?: boolean; isRenderedReady?: boolean; approvedAt?: string | null
-            workingReason?: WorkingReason | null
+            hasRender?: boolean; isRenderedReady?: boolean; approvedAt?: string | null; draftSavedAt?: string | null
             renderStatus?: string | null
             renderedPreviewUrl?: string | null; renderVersion?: number | null
             sourceStoragePath?: string | null; publishedAt?: string | null; externalPostUrl?: string | null
@@ -378,8 +395,7 @@ export default function SocialAutopilotClient() {
         }
         const map: Record<string, EditablePost[]> = {}
         const rendered: RenderedPost[] = []
-        const laneFacts: Record<string, LaneFacts[]> = {}
-        const reasons: Record<string, WorkingReason | null> = {}
+        const laneFacts: Record<string, DraftFacts[]> = {}
         for (const p of pj.items ?? []) {
           // RENDERED/READY: a usable artifact exists. `hasRender` is the server's own predicate
           // (render_status = 'ready' AND rendered_storage_path IS NOT NULL) and deliberately
@@ -389,6 +405,7 @@ export default function SocialAutopilotClient() {
           if (p.sourceContentId) (laneFacts[p.sourceContentId] ??= []).push({
             render_status: p.renderStatus ?? null, rendered_storage_path: p.hasRender ? "x" : null,
             approved_at: p.approvedAt ?? null, published_at: p.publishedAt ?? null,
+            draft_saved_at: p.draftSavedAt ?? null,
           })
           // RENDERED/READY needs an artifact AND approval. A rendered-but-unapproved test post is
           // still Working — the video exists, but nobody has verified the content behind it.
@@ -407,7 +424,6 @@ export default function SocialAutopilotClient() {
               createdAt: p.createdAt ?? null, updatedAt: p.updatedAt ?? null,
             })
           }
-          reasons[p.id] = p.workingReason ?? null
           const sid = p.sourceContentId
           if (!sid || p.status === "published") continue // the WORKING rollup stays editable-only
           ;(map[sid] ??= []).push({
@@ -424,7 +440,6 @@ export default function SocialAutopilotClient() {
         setPostsBySource(map)
         setRenderedPosts(rendered)
         setSourceLane(laneFacts)
-        setPostReason(reasons)
       }
     } catch { /* non-fatal */ }
   }, [])
@@ -1015,14 +1030,17 @@ export default function SocialAutopilotClient() {
               >
                 <div className="relative aspect-[9/16] bg-[var(--crm-card)]" onDoubleClick={(e) => e.stopPropagation()}>
                   <Thumb card={c} />
-                  {/* Rendered cards carry no checkbox (bulk actions are a source-level operation);
-                      the corner shows WHERE the creative is instead — the one thing you cannot tell
-                      by looking at the video. */}
-                  {c.post ? (
-                    <span className={`absolute top-1.5 left-1.5 text-[9.5px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white ${c.post.publishedAt ? "bg-emerald-600/90" : c.post.status === "scheduled" ? "bg-sky-600/90" : "bg-black/55"}`}>
-                      {c.post.publishedAt ? "Published" : c.post.status === "scheduled" ? "Scheduled" : "Approved"}
-                    </span>
-                  ) : c.demo ? (
+                  {/* STATUS: always upper-RIGHT, both tabs, every state. Rendered cards report
+                      where the creative is; Working cards report what still needs doing — with no
+                      badge at all for "just uploaded", which is what makes DRAFT meaningful. */}
+                  {(() => {
+                    const b: CardBadge | null = c.post
+                      ? renderedBadge({ published_at: c.post.publishedAt, status: c.post.status })
+                      : c.raw ? workingBadge(sourceLane[c.raw.id] ?? []) : null
+                    return b ? <StatusBadge badge={b} /> : null
+                  })()}
+                  {/* Provenance stays upper-LEFT, alongside the select checkbox — it is not status. */}
+                  {c.demo ? (
                     <span className="absolute top-1.5 left-1.5 text-[9.5px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-black/55 text-white">
                       Sample
                     </span>
@@ -1082,21 +1100,6 @@ export default function SocialAutopilotClient() {
                     const ed = postsBySource[sid] ?? []
                     return (
                       <div className="relative mt-2 pt-2 border-t border-[var(--crm-border)] flex flex-col gap-1.5" onDoubleClick={(e) => e.stopPropagation()}>
-                        {/* WHY this is still in Working. The case that matters is
-                            "rendered · not approved": the card looks finished and is not, which is
-                            exactly the confusion the approval gate exists to remove. */}
-                        {(() => {
-                          const rs = ed.map((e) => postReason[e.id]).filter(Boolean) as WorkingReason[]
-                          const worst = rs.find((r) => r === "render_error")
-                            ?? rs.find((r) => r === "rendered_unapproved")
-                            ?? rs.find((r) => r === "needs_rerender")
-                            ?? rs.find((r) => r === "rendering")
-                          return worst ? (
-                            <div className={`text-[10.5px] truncate ${worst === "render_error" ? "text-red-500" : worst === "rendered_unapproved" ? "text-amber-500" : "text-[var(--crm-text-muted)]"}`}>
-                              {WORKING_REASON_LABEL[worst]}
-                            </div>
-                          ) : null
-                        })()}
                         <button
                           type="button"
                           className="text-[12px] font-semibold px-2.5 py-1.5 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"

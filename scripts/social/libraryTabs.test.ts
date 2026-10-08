@@ -8,7 +8,7 @@
 // Run: npx tsx scripts/social/libraryTabs.test.ts
 import { readFileSync } from "node:fs"
 import path from "node:path"
-import { hasRender as libHasRender, isApproved, isRenderedReady, laneOf, workingReason, sourceNeedsWork } from "@/lib/social/postLane"
+import { hasRender as libHasRender, isApproved, isRenderedReady, laneOf, workingReason, sourceNeedsWork, workingBadge, renderedBadge, BADGE_TONE } from "@/lib/social/postLane"
 
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
@@ -155,6 +155,65 @@ ok("...writing ONLY the post-level override", /patch\(\{ sourceStoragePath: path
 ok("...never touching property fields", !/patch\(\{[^}]*budgetRange|patch\(\{[^}]*amenities/.test(editor2))
 ok("the original video can be restored", /Use original/.test(editor2))
 ok("replace is hidden on a published post", /\(unlocked \|\| !hasRender\) && !post\.isPublished/.test(editor2))
+
+console.log("\nCARD BADGES — an upload is NOT a draft:")
+const ART3 = "owner/c/renders/p.mp4"
+ok("just uploaded, no posts at all -> NO badge", workingBadge([]) === null)
+ok("a post CREATED but never saved -> NO badge (status='draft' is auto-assigned)",
+  workingBadge([{ render_status: "none", rendered_storage_path: null, draft_saved_at: null }]) === null)
+ok("explicitly saved -> DRAFT", workingBadge([{ render_status: "none", draft_saved_at: "2026-10-08T12:00:00Z" }]) === "DRAFT")
+ok("rendered but unapproved -> RENDERED · NOT APPROVED",
+  workingBadge([{ render_status: "ready", rendered_storage_path: ART3 }]) === "RENDERED · NOT APPROVED")
+ok("render error -> RENDER ERROR", workingBadge([{ render_status: "error" }]) === "RENDER ERROR")
+
+console.log("\nWorking badge priority — most actionable wins:")
+ok("error outranks rendered-unapproved",
+  workingBadge([{ render_status: "ready", rendered_storage_path: ART3 }, { render_status: "error" }]) === "RENDER ERROR")
+ok("rendered-unapproved outranks draft",
+  workingBadge([{ render_status: "ready", rendered_storage_path: ART3 }, { render_status: "none", draft_saved_at: "x" }]) === "RENDERED · NOT APPROVED")
+ok("an approved sibling does NOT trigger rendered-unapproved",
+  workingBadge([{ render_status: "ready", rendered_storage_path: ART3, approved_at: "x" }, { render_status: "none", draft_saved_at: "y" }]) === "DRAFT")
+
+console.log("\nRendered/Ready badges:")
+ok("published -> PUBLISHED", renderedBadge({ published_at: "x", status: "published" }) === "PUBLISHED")
+ok("scheduled -> SCHEDULED", renderedBadge({ published_at: null, status: "scheduled" }) === "SCHEDULED")
+ok("approved only -> READY", renderedBadge({ published_at: null, status: "ready" }) === "READY")
+ok("published outranks scheduled", renderedBadge({ published_at: "x", status: "scheduled" }) === "PUBLISHED")
+
+console.log("\nbadge tones match the agreed colour language:")
+ok("DRAFT is green", BADGE_TONE["DRAFT"] === "green")
+ok("RENDERED · NOT APPROVED is amber", BADGE_TONE["RENDERED · NOT APPROVED"] === "amber")
+ok("RENDER ERROR is red", BADGE_TONE["RENDER ERROR"] === "red")
+ok("PUBLISHED keeps its existing emerald", BADGE_TONE["PUBLISHED"] === "emerald")
+ok("SCHEDULED keeps its existing sky", BADGE_TONE["SCHEDULED"] === "sky")
+
+console.log("\nDRAFT comes ONLY from an explicit Save Draft:")
+const route3 = read("app/api/admin/social-autopilot/posts/[id]/route.ts")
+const editor3 = read("components/crm/social/PostEditor.tsx")
+ok("PATCH stamps draft_saved_at on intent 'save_draft'", /if \(intent === "save_draft"\) patch\.draft_saved_at/.test(route3))
+ok("...and nowhere else in the route", (route3.match(/patch\.draft_saved_at/g) ?? []).length === 1)
+ok("the Save Draft button sends that intent", /patch\(\{ intent: "save_draft"/.test(editor3))
+ok("scheduling does NOT send it", !/intent: "schedule"[^}]*draft_saved/.test(editor3))
+ok("rendering never writes draft_saved_at", !/draft_saved_at/.test(read("lib/social/renderPost.ts")))
+// Structural, not proximity-based: the earlier version matched the word "approving" inside a
+// CODE COMMENT near the assignment and reported coupling that did not exist. What matters is that
+// the approve branch assigns approved_at and nothing else.
+ok("the approve branch assigns only approved_at", (() => {
+  const i = route3.indexOf('if ("approved" in body)')
+  if (i < 0) return false
+  const block = route3.slice(i, route3.indexOf("\n  }", i))
+  return /patch\.approved_at/.test(block) && !/draft_saved_at/.test(block)
+})())
+ok("the migration leaves every existing row NULL (no backfill)",
+  !/update .*social_posts.*set .*draft_saved_at/i.test(read("supabase/migrations/20261008000003_post_draft_saved.sql")))
+
+console.log("\nbadge placement — upper-right, one component, both tabs:")
+const client3 = read("components/crm/social/SocialAutopilotClient.tsx")
+ok("StatusBadge is positioned top-right", /function StatusBadge[\s\S]{0,300}top-1\.5 right-1\.5/.test(client3))
+ok("there is exactly ONE status badge component", (client3.match(/function StatusBadge/g) ?? []).length === 1)
+ok("both tabs route through it", /c\.post[\s\S]{0,120}renderedBadge[\s\S]{0,120}workingBadge/.test(client3))
+ok("the Sample marker stays upper-LEFT", /Sample[\s\S]{0,0}/.test(client3) && /top-1\.5 left-1\.5[\s\S]{0,160}Sample/.test(client3))
+ok("no status pill remains on the left", !/top-1\.5 left-1\.5[^]{0,200}(Published|Scheduled|Approved|READY)/.test(client3))
 
 console.log(`\nLibrary tabs + rendered editor: ${pass} passed, ${fail} failed`)
 if (fail > 0) process.exit(1)

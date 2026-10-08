@@ -96,3 +96,58 @@ export function sourceNeedsWork(posts: readonly LaneFacts[]): boolean {
   if (posts.length === 0) return true
   return posts.some((p) => !isRenderedReady(p))
 }
+
+// ── CARD STATUS BADGES ───────────────────────────────────────────────────────────────────────
+//
+// One definition for what a card says about itself, shared by the library and the tests.
+//
+// The distinction that motivated this: an upload sitting in Working does NOT mean "draft". A post
+// row is created with status='draft' automatically, so that column says only "a row exists".
+// DRAFT here means the operator went into the editor and pressed Save Draft — recorded by
+// draft_saved_at, which nothing else writes.
+
+export type CardBadge =
+  | "DRAFT"
+  | "RENDERED · NOT APPROVED"
+  | "RENDER ERROR"
+  | "READY"
+  | "SCHEDULED"
+  | "PUBLISHED"
+
+export type BadgeTone = "green" | "amber" | "red" | "neutral" | "emerald" | "sky"
+
+export const BADGE_TONE: Record<CardBadge, BadgeTone> = {
+  DRAFT: "green",
+  "RENDERED · NOT APPROVED": "amber",
+  "RENDER ERROR": "red",
+  READY: "neutral",
+  SCHEDULED: "sky",
+  PUBLISHED: "emerald",
+}
+
+export type DraftFacts = LaneFacts & { draft_saved_at?: string | null; render_error?: string | null }
+
+/**
+ * The badge for a RENDERED/READY card. Published and scheduled outrank plain approval because they
+ * say something approval does not: where the post actually is.
+ */
+export function renderedBadge(p: LaneFacts & { status?: string | null }): CardBadge {
+  if (p.published_at) return "PUBLISHED"
+  if (p.status === "scheduled") return "SCHEDULED"
+  return "READY"
+}
+
+/**
+ * The badge for a WORKING card, which is SOURCE-centric: one card can cover several posts, so the
+ * most actionable state wins.
+ *
+ * Order is deliberate — a failure the operator must fix outranks one they must review, which
+ * outranks a note that setup is done. Returning null (no badge) is a real outcome, not a fallback:
+ * it is how "just uploaded, still needs setup" is expressed, and it is why DRAFT is meaningful.
+ */
+export function workingBadge(posts: readonly DraftFacts[]): CardBadge | null {
+  if (posts.some((p) => p.render_status === "error")) return "RENDER ERROR"
+  if (posts.some((p) => hasRender(p) && !isApproved(p))) return "RENDERED · NOT APPROVED"
+  if (posts.some((p) => !!p.draft_saved_at)) return "DRAFT"
+  return null
+}

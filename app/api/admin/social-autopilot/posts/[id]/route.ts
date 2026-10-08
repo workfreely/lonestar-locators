@@ -17,7 +17,7 @@ import { hasRender, isRenderedReady, type LaneFacts } from "@/lib/social/postLan
 const SELECT =
   "id, platform, post_type, post_name, caption, social_special, on_video_text, on_video_config, " +
   "overlay_headline, overlay_subheadline, overlay_mode, overlay_template, cover_thumb_offset_ms, cover_storage_path, cover_render_version, hashtags, audio_choice, audio_track_id, voice_hook_id, voice_cta_id, rendered_storage_path, render_status, render_error, render_version, " +
-  "status, scheduled_at, published_at, external_post_id, external_post_url, created_at, updated_at, source_content_id, source_storage_path, approved_at, needs_review_at, needs_review_reason, " +
+  "status, scheduled_at, published_at, external_post_id, external_post_url, created_at, updated_at, source_content_id, source_storage_path, approved_at, draft_saved_at, needs_review_at, needs_review_reason, " +
   // area_neighborhood is INTERNAL editing metadata. It was captured at upload and stored correctly,
   // but was missing from this projection — so the Post Editor could neither show it nor correct it and
   // the value was effectively write-once. Read here for EDITING only: it stays deliberately absent
@@ -123,6 +123,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     // this, and the library puts the post in the Rendered tab on this — one predicate, both places.
     hasRender: hasRender(r as LaneFacts),
     approvedAt: (r.approved_at as string | null) ?? null,
+    draftSavedAt: (r.draft_saved_at as string | null) ?? null,
     isRenderedReady: isRenderedReady(r as LaneFacts),
     status: r.status,
     publishedAt: r.published_at,
@@ -330,6 +331,11 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
 
   const intent = typeof body.intent === "string" ? body.intent : null
+  // EXPLICIT SAVE DRAFT — the ONLY thing that stamps draft_saved_at, which drives the green DRAFT
+  // badge. Not scheduling (that has its own SCHEDULED state), not rendering, publishing, approving
+  // or autopilot writes: status='draft' is auto-assigned at creation and updated_at is bumped by
+  // background work, so neither can express "the operator actually set this up".
+  if (intent === "save_draft") patch.draft_saved_at = new Date().toISOString()
   if (intent === "schedule") {
     const raw = typeof body.scheduledAt === "string" ? body.scheduledAt : ""
     const when = raw ? new Date(raw) : null

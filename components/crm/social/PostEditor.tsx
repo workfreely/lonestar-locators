@@ -414,7 +414,11 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   )
 
   const saveDraft = async () => {
-    if (await patch({ scheduledAt: scheduleToIso(scheduleVal) ?? "" }, "Draft saved.")) await load()
+    // intent 'save_draft' is what stamps draft_saved_at → the green DRAFT badge in the library.
+    // It marks "the operator entered the information and saved it", which no existing column could
+    // express: status='draft' is auto-assigned at creation and updated_at is bumped by renders,
+    // publishes and background jobs.
+    if (await patch({ intent: "save_draft", scheduledAt: scheduleToIso(scheduleVal) ?? "" }, "Draft saved.")) await load()
   }
   // Confirm scheduling from the Schedule workspace with an explicit local "YYYY-MM-DDTHH:mm".
   // No render is triggered here — scheduling only writes scheduled_at (background render later).
