@@ -625,7 +625,10 @@ export function buildTemplateDetail(template: OverlayTemplate, src: SourceMeta):
     case "next_property":
     case "pov_upgrade":
       return price // T5/T8 gained the same optional price line — see the group above
+    // T3 your_sign now takes the SAME optional price line too. Its headline is unchanged and still
+    // uses no metadata; the price is purely an additional, collapsible second line.
     case "your_sign":
+      return price
     case "what_mo_gets_you": // the price+city sentence is the whole headline — no separate detail
     case "what_mo_gets_you_top": // T16 = T11's copy, top-anchored; same "no detail"
       return "" // center-hook, no detail

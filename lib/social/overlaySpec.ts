@@ -475,10 +475,11 @@ export function templateFamily(template: string): LayoutFamily {
   // hook sizing (CENTER_HOOK.maxPx/minPx/lineSpacing) Template 7 (apartment_standards) also uses.
   // what_mo_gets_you_top (T16) is that SAME center-hook treatment, only anchored at T1's top
   // position instead of vertically centered — see the topAnchored branch in computeOverlayLayout.
-  // T3 your_sign and T15/T16 what_mo_gets_you* are the only templates left with NO second line:
-  // the first takes no metadata at all, and the last two already carry the price INSIDE the headline
-  // sentence, so a separate price line would state it twice.
-  if (template === "your_sign" || template === "what_mo_gets_you" || template === "what_mo_gets_you_top") return "center_hook"
+  // T15/T16 what_mo_gets_you* are now the ONLY templates with no second line, and for a reason that
+  // cannot be generalised away: they already state the price INSIDE the headline sentence ("What
+  // $1,495/month gets you in Dallas"), so a price line below would print the same number twice.
+  // Every other template with a hook takes the shared optional price line.
+  if (template === "what_mo_gets_you" || template === "what_mo_gets_you_top") return "center_hook"
   // apartment_standards is an EXACT Upgrade variant → same center-hook+detail geometry. T12–T15 join
   // them: T11's centered composition plus an OPTIONAL "Starting at $X/mo" line that collapses to a
   // headline-only render when there is no valid price (hasDetail below is text-driven, not family-driven).
@@ -488,7 +489,8 @@ export function templateFamily(template: string): LayoutFamily {
   // family change is what makes the line reachable at all; it does not force a line to exist.
   if (template === "upgrade" || template === "apartment_standards" || template === "pov_price"
     || template === "trade_up" || template === "wanted_luxury" || template === "real_living" || template === "hits_different"
-    || template === "affordable_luxury" || template === "next_property" || template === "pov_upgrade") return "center_hook_detail"
+    || template === "affordable_luxury" || template === "next_property" || template === "pov_upgrade"
+    || template === "your_sign") return "center_hook_detail"
   return "hero" // market_type, market_type_centered (vertically centered in the hero branch), special_feature, unknown → hero
 }
 

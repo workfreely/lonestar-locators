@@ -381,7 +381,9 @@ ok("T1 detail = Starting at price", buildTemplateDetail("market_type", tMeta) ==
 ok("T1 detail omitted when no price", buildTemplateDetail("market_type", { market: "San Antonio", propertyType: "High-Rise" }) === "")
 // T2 Your Sign (CENTER HOOK, no detail)
 ok("T2 headline hook (Property Type only, no Market, reads as an upgrade)", buildTemplateHeadline("your_sign", tMeta) === "Your sign to get that new high-rise")
-ok("T2 no detail", buildTemplateDetail("your_sign", tMeta) === "")
+// your_sign now carries the shared optional price line (its headline is still metadata-free).
+ok("your_sign emits the shared price line when a price exists", buildTemplateDetail("your_sign", tMeta) === "Starting at $1,600/month")
+ok("your_sign emits nothing without a price", buildTemplateDetail("your_sign", { ...tMeta, budgetRange: null }) === "")
 // T3 Special + Feature (HERO)
 ok("T3 headline = CITY TYPE_PLURAL", buildTemplateHeadline("special_feature", tMeta) === "SAN ANTONIO HIGH-RISES")
 ok("T3 detail special + feature", buildTemplateDetail("special_feature", tMeta) === "8 Weeks Free · Private Yards")
@@ -404,7 +406,9 @@ ok("the special no longer reaches the overlay detail", !/Weeks Free/.test(buildT
 ok("T5 detail price only", buildTemplateDetail("upgrade", { market: "San Antonio", propertyType: "High-Rise", budgetRange: "1600" }) === "Starting at $1,600/month")
 // Layout families
 ok("T1/T3 are HERO (headline near top, uppercase)", computeOverlayLayout("market_type", "SAN ANTONIO HIGH-RISES", "Starting at $1,600/month").family === "hero" && computeOverlayLayout("special_feature", "X", "").family === "hero")
-ok("your_sign is still CENTER HOOK — it takes no metadata at all", computeOverlayLayout("your_sign", "Your sign to get that high-rise in San Antonio", "").family === "center_hook")
+ok("your_sign moved to CENTER HOOK + DETAIL, but renders no block without a price",
+  computeOverlayLayout("your_sign", "Your sign to get that high-rise in San Antonio", "").family === "center_hook_detail"
+  && computeOverlayLayout("your_sign", "Your sign to get that high-rise in San Antonio", "").detail === null)
 ok("next_property moved to CENTER HOOK + DETAIL, but renders no block without a price",
   computeOverlayLayout("next_property", "What your next high-rise could look like", "").family === "center_hook_detail"
   && computeOverlayLayout("next_property", "What your next high-rise could look like", "").detail === null)
@@ -1039,12 +1043,59 @@ console.log("\nheadline -> detail separation (one shared ratio):")
   }
 
   // Templates with NO detail by design must stay that way — T9 moving family must not drag them.
-  // Only these three never take a second line: your_sign uses no metadata, and the two
-  // what_mo_gets_you variants already carry the price INSIDE the headline sentence.
-  for (const id of ["your_sign", "what_mo_gets_you", "what_mo_gets_you_top"] as const) {
+  // Only these two never take a second line, and only because they already state the price INSIDE
+  // the headline sentence — a price line below would print the same number twice.
+  for (const id of ["what_mo_gets_you", "what_mo_gets_you_top"] as const) {
     ok(`${id} still has no detail line by design`, buildTemplateDetail(id, src) === ""
       && computeOverlayLayout(id, buildTemplateHeadline(id, src), buildTemplateDetail(id, src)).detail === null)
   }
+}
+
+// ── TEMPLATE 3 (your_sign) — the optional price line ────────────────────────────────────────────
+// T3 was the last hook template with no second line. Its HEADLINE is untouched and still consumes
+// no metadata; only the collapsible price line is new, through the same startingPriceLabel path
+// every other template uses — no template-specific price logic was added.
+console.log("\nT3 your_sign — optional price detail:")
+{
+  const base = { market: "San Antonio", propertyType: "High-Rise" } as never
+  const withPrice = { ...(base as object), budgetRange: "1495", priceLabelMode: "starting_at" } as never
+  const exact = { ...(base as object), budgetRange: "1495", priceLabelMode: "exact_unit" } as never
+  const noPrice = { ...(base as object), budgetRange: null } as never
+
+  const head = buildTemplateHeadline("your_sign", withPrice)
+  ok("the headline is UNCHANGED by adding a price", head === buildTemplateHeadline("your_sign", noPrice))
+  ok("and still consumes no price/special metadata",
+    !/1,?495/.test(head) && !/Starting at/.test(head))
+
+  // 1. starting-at price
+  ok("starting-at → 'Starting at $1,495/month'", buildTemplateDetail("your_sign", withPrice) === "Starting at $1,495/month")
+  // 2. exact price — the EXISTING wording, not a new string
+  ok("exact-unit → the existing exact wording", buildTemplateDetail("your_sign", exact) === "Exact unit shown: $1,495/month")
+  // 3. no price
+  ok("no price → empty detail", buildTemplateDetail("your_sign", noPrice) === "")
+  ok("invalid price → empty detail, never a fabricated $0",
+    buildTemplateDetail("your_sign", { ...(base as object), budgetRange: "n/a" } as never) === "")
+
+  // Shared path, not a copy: identical output to the other templates for identical input.
+  ok("byte-identical to pov_price for the same input",
+    buildTemplateDetail("your_sign", withPrice) === buildTemplateDetail("pov_price", withPrice)
+    && buildTemplateDetail("your_sign", exact) === buildTemplateDetail("pov_price", exact))
+
+  // Geometry: the one shared 17px gap, and nothing reserved when the line is absent.
+  const L = computeOverlayLayout("your_sign", head, buildTemplateDetail("your_sign", withPrice))
+  const n = L.headline.lines.length
+  const bottom = L.headline.topPx + n * L.headline.fontPx + (n - 1) * L.headline.lineSpacing
+  ok("uses the shared fixed gap", !!L.detail && L.detail.topPx - bottom === DETAIL_GAP_PX)
+  const none = computeOverlayLayout("your_sign", head, buildTemplateDetail("your_sign", noPrice))
+  ok("no price → no detail block at all", none.detail === null)
+  ok("no price → no reserved gap; the headline re-centres", none.headline.topPx > L.headline.topPx)
+  // Typography must be untouched by the family move.
+  ok("hook size is unchanged whether or not a price exists", none.headline.fontPx === L.headline.fontPx)
+  ok("and the headline still renders on one line", L.headline.lines.length === 1)
+  // It reaches the FFmpeg plan like every other template.
+  const plan = buildDrawPlan(L)
+  ok("the price line reaches the render plan at the same y", plan.find((x) => x.name === "sub")?.topPx === L.detail!.topPx)
+  ok("and emits no 'sub' item when there is no price", !buildDrawPlan(none).some((x) => x.name === "sub"))
 }
 
 console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)
