@@ -21,16 +21,52 @@ import { ineligibleReason, type EligibilityInput, type Ineligible } from "@/lib/
 
 export type PoolPost = EligibilityInput & {
   id: string
-  /** The PROPERTY. Two different rendered creatives of one property share this id, and for the
-   *  uniqueness rule they count as the same property — varying the creative does not make a
-   *  second post about the same building feel like fresh content to a viewer. */
+  /** The CONTENT row. NOT the property identity — see propertyKeyOf. */
   sourceContentId: string
+  /** Google Places id of the building, when the content row was matched to one. THE property
+   *  identity when present. */
+  placeId: string | null
   market: string | null
   propertyName: string | null
 }
 
+/**
+ * THE PROPERTY IDENTITY, for uniqueness and reuse.
+ *
+ * This used to be sourceContentId, on the stated assumption that "two creatives of one property
+ * share this id". Production disproves it: two separate uploads of one building are two content
+ * rows with different ids and the SAME place_id —
+ *
+ *     src=30f39a56  place=ChIJT5xoBCCK…  The Standard at Legacy
+ *     src=808cbb09  place=ChIJT5xoBCCK…  The Standard at Legacy
+ *
+ * so a 7-post pool was being counted as 7 properties when it is 6, and one building could be
+ * scheduled twice as though it were two. place_id is the authoritative building identity.
+ *
+ * FALLBACK, only when place_id is absent: the normalised property name scoped to its market, so an
+ * unmatched upload still collapses against another unmatched upload of the same name. Last resort
+ * is the content id, which at least never merges two genuinely different buildings — the failure
+ * mode there is over-counting uniqueness, which is the safer direction for an unidentifiable row.
+ */
+export function propertyKeyOf(p: Pick<PoolPost, "placeId" | "propertyName" | "market" | "sourceContentId">): string {
+  const place = (p.placeId ?? "").trim()
+  if (place) return `place:${place}`
+  const name = (p.propertyName ?? "").trim().toLowerCase().replace(/\s+/g, " ")
+  if (name) return `name:${(p.market ?? "").trim().toLowerCase()}|${name}`
+  return `content:${p.sourceContentId}`
+}
+
 export type AutopilotRule = {
   connectionId: string
+  /**
+   * THE DESTINATION'S OWN PLATFORM, derived from the connection's provider — never a global.
+   *
+   * planAutopilot previously took ONE `platform` and applied it to every rule, so a TikTok
+   * connection was handed Instagram-eligible posts (14 of them, in the first real dry run). Those
+   * would have faulted at publish. Eligibility is now evaluated per rule against THIS value, so a
+   * connection can only ever be offered posts for its own network.
+   */
+  platform: string
   enabled: boolean
   timezone: string
   /** Baseline minutes BEFORE stagger — normally {450, 1170}. */
@@ -84,11 +120,38 @@ export type AutopilotPlan = {
   /** Every pool candidate that was rejected, with the reason. Never silently dropped. */
   excluded: { postId: string; reason: Ineligible }[]
   collisions: RotationCollision[]
+  /**
+   * HEALTHY inventory for the whole horizon — NOT merely collision-free for one day.
+   *
+   * This used to be `collisions.length === 0`, which made a 7-post pool report "sufficient" while
+   * filling 28 placements by reusing 21 of them. A single day's collision-free minimum says nothing
+   * about whether a 7-day rotation has enough distinct buildings to stay interesting.
+   */
   sufficient: boolean
   poolSize: number
+  /** Posts needed to fill ONE day across all connections without a same-slot collision. */
   requiredPoolSize: number
   /** Slots the horizon asked for but inventory could not fill. */
   unfilledSlots: number
+  /** The full picture, so "is there enough content?" is answerable without arithmetic. */
+  inventory: {
+    /** Every slot the horizon asks for: connections x postsPerDay x horizonDays. */
+    horizonPlacements: number
+    eligiblePosts: number
+    /** DISTINCT BUILDINGS (propertyKeyOf), which is what a viewer perceives as repetition. */
+    uniqueProperties: number
+    /** Placements filled with a property not yet used by that connection. */
+    uniquePlacements: number
+    reusedPlacements: number
+    reusePercent: number
+    /** When reuse first begins, earliest across connections. Null when nothing repeats. */
+    firstReuseAt: { dateKey: string; minute: number } | null
+    marketFallbacks: number
+    unfilledSlots: number
+    collisions: number
+    /** Per platform, so a shortfall on one network is not hidden by surplus on another. */
+    byPlatform: { platform: string; connections: number; eligiblePosts: number; uniqueProperties: number; horizonPlacements: number }[]
+  }
   notes: string[]
 }
 
@@ -111,152 +174,155 @@ export function planAutopilot(input: {
   wallClockToUtc: (dateKey: string, minute: number, tz: string) => string
   /** Existing scheduled posts per connection, so manual posts still win their slot. */
   occupancyByConnection?: Map<string, Occupancy>
-  platform?: string
 }): AutopilotPlan {
-  const platform = input.platform ?? "instagram"
   const notes: string[] = []
-
-  // 1. ELIGIBILITY. Applied in code even though the query also filters, so a forgotten column
-  //    cannot admit an ineligible post.
-  const excluded: { postId: string; reason: Ineligible }[] = []
-  const eligible: PoolPost[] = []
-  for (const p of input.pool) {
-    const reason = ineligibleReason(p, platform)
-    if (reason) excluded.push({ postId: p.id, reason })
-    else eligible.push(p)
-  }
-  // Stable pool order: the caller's order is preserved (it is the curated bulk-render order), with
-  // id as the tiebreak so two runs over the same set agree.
-  const pool = [...eligible]
-
   const rules = input.rules.filter((r) => r.enabled)
   if (rules.length === 0) notes.push("No enabled autopilot rules — nothing to plan.")
-  if (pool.length === 0) notes.push("Ready pool is empty: no rendered, unscheduled, unassigned posts.")
 
-  // 2. ROTATION. One start index per connection into the shared pool, plus the collision report.
-  const postsPerDay = Math.max(1, Math.min(...rules.map((r) => r.postsPerDay), 3) || 1)
-  const horizon = Math.max(...rules.map((r) => r.horizonDays), 1)
-  const dayKeys = dayKeysFrom(input.startDateKey, horizon)
-  const rotation = planRotation({
-    connections: rules.map((r) => ({ connectionId: r.connectionId, startIndex: r.startIndex })),
-    poolSize: pool.length,
-    postsPerDay,
-    dayKeys,
-  })
+  // PLATFORM ISOLATION. Connections are grouped by their OWN platform and each group is planned
+  // against its own eligible pool. There is no global platform any more: a rule can only ever be
+  // offered posts that passed ineligibleReason for ITS network, so an Instagram post cannot reach a
+  // TikTok destination or the reverse.
+  const byPlatform = new Map<string, AutopilotRule[]>()
+  for (const r of rules) byPlatform.set(r.platform, [...(byPlatform.get(r.platform) ?? []), r])
 
-  // 3. TIMING + ASSIGNMENT, per rule.
   const planned: PlannedPost[] = []
   const marketFallbacks: MarketFallback[] = []
   const reusePoints: ReusePoint[] = []
+  const excluded: { postId: string; reason: Ineligible }[] = []
+  const collisions: RotationCollision[] = []
+  const byPlatformStats: AutopilotPlan["inventory"]["byPlatform"] = []
   let unfilledSlots = 0
+  let requiredPoolSize = 0
+  let horizonPlacements = 0
+  let uniquePlacements = 0
+  let rotationSufficient = true
+  // A post ineligible for one network may be fine for another, so exclusion is only reported for a
+  // post that no planned platform could use.
+  const usableSomewhere = new Set<string>()
+  const exclusionReason = new Map<string, Ineligible>()
 
-  for (const rule of rules) {
-    const times = effectiveDailyTimes(rule.connectionId, rule.staggerOffsetMinutes, rule.dailyTimes)
-    const placements: Placement[] = planDailyTimes({
-      intervalDays: 1,
-      dailyTimes: times,
-      days: dayKeys,
-      occupancy: input.occupancyByConnection?.get(rule.connectionId) ?? new Map(),
-      maxOccurrences: rule.horizonDays * rule.postsPerDay,
+  for (const [platform, groupRules] of byPlatform) {
+    const pool: PoolPost[] = []
+    for (const p of input.pool) {
+      const reason = ineligibleReason(p, platform)
+      if (reason) { if (!exclusionReason.has(p.id)) exclusionReason.set(p.id, reason) }
+      else { pool.push(p); usableSomewhere.add(p.id) }
+    }
+    if (pool.length === 0) notes.push(`No eligible ${platform} inventory: nothing rendered, unscheduled and unassigned for that network.`)
+
+    const postsPerDay = Math.max(1, Math.min(...groupRules.map((r) => r.postsPerDay), 3) || 1)
+    const horizon = Math.max(...groupRules.map((r) => r.horizonDays), 1)
+    const dayKeys = dayKeysFrom(input.startDateKey, horizon)
+    const rotation = planRotation({
+      connections: groupRules.map((r) => ({ connectionId: r.connectionId, startIndex: r.startIndex })),
+      poolSize: pool.length, postsPerDay, dayKeys,
     })
+    collisions.push(...rotation.collisions)
+    rotationSufficient = rotationSufficient && rotation.sufficient
+    requiredPoolSize += rotation.requiredPoolSize
+    const groupPlacements = groupRules.length * postsPerDay * horizon
+    horizonPlacements += groupPlacements
+    byPlatformStats.push({
+      platform, connections: groupRules.length, eligiblePosts: pool.length,
+      uniqueProperties: new Set(pool.map(propertyKeyOf)).size, horizonPlacements: groupPlacements,
+    })
+    if (!rotation.sufficient) {
+      notes.push(`${platform}: inventory too small for collision-free scheduling — ${rotation.poolSize} eligible, need at least ${rotation.requiredPoolSize} for ${groupRules.length} account(s) at ${postsPerDay}/day.`)
+    }
 
-    // The account's view of the pool: same order, different entry point.
-    const start = rotation.startIndices.get(rule.connectionId) ?? 0
-    const ordered = rotatePool(pool, start)
-
-    // Market order is applied as a PREFERENCE within the account's rotated view: for each slot,
-    // prefer the next unused post whose market matches that slot's market, else fall through to
-    // the next unused post of any market. Preferences, not quotas — a market with no inventory
-    // simply does not participate rather than blocking the slot.
-    const marketsPresent = pool.map((p) => p.market ?? "").filter(Boolean)
-    const order = marketOrderFor(rule.connectionId, weightedMarketOrder(rule.marketWeights, marketsPresent), rule.marketRotationSeed)
-
-    // SELECTION, in strict preference order:
-    //   1. an unused PROPERTY in the slot's preferred market
-    //   2. an unused PROPERTY in any other enabled market   -> recorded as a market fallback
-    //   3. unique inventory exhausted -> reset and allow repeats -> recorded as a reuse point
-    //
-    // Uniqueness is tracked by sourceContentId, not post id: two creatives of the same building
-    // are the same property to a viewer, so exhausting distinct PROPERTIES is the rule.
-    const usedPosts = new Set<string>()
-    let usedSources = new Set<string>()
-    let reuseRecorded = false
-    const uniqueSourceCount = new Set(pool.map((p) => p.sourceContentId)).size
-
-    placements.forEach((pl, i) => {
-      const wantMarket = order.length ? order[i % order.length] : null
-      const free = (p: PoolPost) => !usedPosts.has(p.id) && !usedSources.has(p.sourceContentId)
-
-      let pick = wantMarket ? ordered.find((p) => free(p) && p.market === wantMarket) : ordered.find(free)
-      let fallbackReason: MarketFallback["reason"] | null = null
-
-      if (!pick && wantMarket) {
-        // The preferred market could not supply this slot. Distinguish "that market has no eligible
-        // inventory at all" from "it had some but this connection has already used it", because the
-        // two call for different fixes — render more of that market, or widen the pool.
-        const marketHasAny = pool.some((p) => p.market === wantMarket)
-        fallbackReason = marketHasAny ? "market_inventory_already_used" : "no_eligible_inventory_in_market"
-        pick = ordered.find(free)
-      }
-
-      if (!pick) {
-        // Every distinct property has been used. Reuse is permitted ONLY from here, and the point
-        // at which it begins is reported so the shortfall is visible rather than inferred.
-        if (!reuseRecorded && ordered.length > 0) {
-          reusePoints.push({ connectionId: rule.connectionId, dateKey: pl.dateKey, minute: pl.minute, uniqueSourcesExhausted: uniqueSourceCount })
-          reuseRecorded = true
-        }
-        usedSources = new Set()
-        pick = wantMarket ? ordered.find((p) => !usedSources.has(p.sourceContentId) && p.market === wantMarket) : undefined
-        if (!pick) {
-          if (wantMarket && !fallbackReason) fallbackReason = "market_inventory_already_used"
-          pick = ordered[0] ? ordered.find((p) => !usedSources.has(p.sourceContentId)) ?? ordered[0] : undefined
-        }
-      }
-
-      if (!pick) { unfilledSlots++; return }
-      if (fallbackReason && wantMarket && pick.market !== wantMarket) {
-        marketFallbacks.push({ connectionId: rule.connectionId, dateKey: pl.dateKey, minute: pl.minute, requestedMarket: wantMarket, selectedMarket: pick.market, reason: fallbackReason })
-      }
-      usedPosts.add(pick.id)
-      usedSources.add(pick.sourceContentId)
-      planned.push({
-        postId: pick.id,
-        sourceContentId: pick.sourceContentId,
-        connectionId: rule.connectionId,
-        dateKey: pl.dateKey,
-        minute: pl.minute,
-        scheduledAtUtc: input.wallClockToUtc(pl.dateKey, pl.minute, rule.timezone),
-        market: pick.market,
-        propertyName: pick.propertyName,
-        poolIndex: pool.findIndex((p) => p.id === pick!.id),
+    for (const rule of groupRules) {
+      const times = effectiveDailyTimes(rule.connectionId, rule.staggerOffsetMinutes, rule.dailyTimes)
+      const placements: Placement[] = planDailyTimes({
+        intervalDays: 1, dailyTimes: times, days: dayKeys,
+        occupancy: input.occupancyByConnection?.get(rule.connectionId) ?? new Map(),
+        maxOccurrences: rule.horizonDays * rule.postsPerDay,
       })
-    })
+      const start = rotation.startIndices.get(rule.connectionId) ?? 0
+      const ordered = rotatePool(pool, start)
+      const marketsPresent = pool.map((p) => p.market ?? "").filter(Boolean)
+      const order = marketOrderFor(rule.connectionId, weightedMarketOrder(rule.marketWeights, marketsPresent), rule.marketRotationSeed)
+
+      const usedPosts = new Set<string>()
+      // Keyed on the BUILDING (propertyKeyOf), not the content row: two uploads of one community
+      // are one property, so using either exhausts it.
+      let usedProps = new Set<string>()
+      let reuseRecorded = false
+      const uniquePropertyCount = new Set(pool.map(propertyKeyOf)).size
+
+      placements.forEach((pl, i) => {
+        const wantMarket = order.length ? order[i % order.length] : null
+        const free = (p: PoolPost) => !usedPosts.has(p.id) && !usedProps.has(propertyKeyOf(p))
+        let pick = wantMarket ? ordered.find((p) => free(p) && p.market === wantMarket) : ordered.find(free)
+        let fallbackReason: MarketFallback["reason"] | null = null
+        let isReuse = false
+
+        if (!pick && wantMarket) {
+          const marketHasAny = pool.some((p) => p.market === wantMarket)
+          fallbackReason = marketHasAny ? "market_inventory_already_used" : "no_eligible_inventory_in_market"
+          pick = ordered.find(free)
+        }
+        if (!pick) {
+          if (!reuseRecorded && ordered.length > 0) {
+            reusePoints.push({ connectionId: rule.connectionId, dateKey: pl.dateKey, minute: pl.minute, uniqueSourcesExhausted: uniquePropertyCount })
+            reuseRecorded = true
+          }
+          isReuse = true
+          usedProps = new Set()
+          pick = wantMarket ? ordered.find((p) => !usedProps.has(propertyKeyOf(p)) && p.market === wantMarket) : undefined
+          if (!pick) {
+            if (wantMarket && !fallbackReason) fallbackReason = "market_inventory_already_used"
+            pick = ordered[0] ? ordered.find((p) => !usedProps.has(propertyKeyOf(p))) ?? ordered[0] : undefined
+          }
+        }
+        if (!pick) { unfilledSlots++; return }
+        if (!isReuse) uniquePlacements++
+        if (fallbackReason && wantMarket && pick.market !== wantMarket) {
+          marketFallbacks.push({ connectionId: rule.connectionId, dateKey: pl.dateKey, minute: pl.minute, requestedMarket: wantMarket, selectedMarket: pick.market, reason: fallbackReason })
+        }
+        usedPosts.add(pick.id)
+        usedProps.add(propertyKeyOf(pick))
+        planned.push({
+          postId: pick.id, sourceContentId: pick.sourceContentId, connectionId: rule.connectionId,
+          dateKey: pl.dateKey, minute: pl.minute,
+          scheduledAtUtc: input.wallClockToUtc(pl.dateKey, pl.minute, rule.timezone),
+          market: pick.market, propertyName: pick.propertyName,
+          poolIndex: pool.findIndex((p) => p.id === pick!.id),
+        })
+      })
+    }
   }
+
+  for (const [id, reason] of exclusionReason) if (!usableSomewhere.has(id)) excluded.push({ postId: id, reason })
 
   planned.sort((a, b) => (a.scheduledAtUtc < b.scheduledAtUtc ? -1 : a.scheduledAtUtc > b.scheduledAtUtc ? 1 : a.connectionId < b.connectionId ? -1 : 1))
 
-  if (!rotation.sufficient) {
-    notes.push(`Inventory too small for collision-free scheduling: ${rotation.poolSize} eligible, need at least ${rotation.requiredPoolSize} for ${rules.length} account(s) at ${postsPerDay}/day.`)
-  }
-  if (unfilledSlots > 0) {
-    notes.push(`${unfilledSlots} slot(s) in the ${horizon}-day horizon could not be filled — the pool recycles or runs out before the horizon ends.`)
-  }
+  const reusedPlacements = planned.length - uniquePlacements
+  const firstReuse = [...reusePoints].sort((a, b) => (a.dateKey < b.dateKey ? -1 : a.dateKey > b.dateKey ? 1 : a.minute - b.minute))[0] ?? null
+  const uniqueProperties = new Set(input.pool.filter((p) => usableSomewhere.has(p.id)).map(propertyKeyOf)).size
+  const reusePercent = planned.length ? Math.round((reusedPlacements / planned.length) * 100) : 0
 
-  if (reusePoints.length > 0) {
-    notes.push(`Unique inventory exhausted — property reuse begins ${reusePoints.map((r) => `${r.dateKey} for ${r.connectionId.slice(0, 8)}`).join(", ")}.`)
-  }
-  if (marketFallbacks.length > 0) {
-    notes.push(`${marketFallbacks.length} slot(s) fell forward to another market because the preferred one had nothing available.`)
+  // HEALTHY, not merely collision-free: every slot the horizon asks for must be fillable with a
+  // property that connection has not already used. Reuse at all means the pool is short.
+  const sufficient = rotationSufficient && unfilledSlots === 0 && reusedPlacements === 0
+
+  if (unfilledSlots > 0) notes.push(`${unfilledSlots} slot(s) in the horizon could not be filled at all.`)
+  if (reusePoints.length > 0) notes.push(`Unique inventory exhausted — property reuse begins ${reusePoints.map((r) => `${r.dateKey} for ${r.connectionId.slice(0, 8)}`).join(", ")}.`)
+  if (marketFallbacks.length > 0) notes.push(`${marketFallbacks.length} slot(s) fell forward to another market because the preferred one had nothing available.`)
+  if (reusedPlacements > 0) {
+    notes.push(`INSUFFICIENT for a healthy rotation: ${horizonPlacements} placement(s) requested against ${uniqueProperties} distinct propert${uniqueProperties === 1 ? "y" : "ies"} — ${reusedPlacements} (${reusePercent}%) repeat a building the account has already posted.`)
   }
 
   return {
-    planned, excluded, marketFallbacks, reusePoints,
-    collisions: rotation.collisions,
-    sufficient: rotation.sufficient && unfilledSlots === 0,
-    poolSize: pool.length,
-    requiredPoolSize: rotation.requiredPoolSize,
-    unfilledSlots,
+    planned, excluded, marketFallbacks, reusePoints, collisions,
+    sufficient, poolSize: new Set([...usableSomewhere]).size, requiredPoolSize, unfilledSlots,
+    inventory: {
+      horizonPlacements, eligiblePosts: usableSomewhere.size, uniqueProperties,
+      uniquePlacements, reusedPlacements, reusePercent,
+      firstReuseAt: firstReuse ? { dateKey: firstReuse.dateKey, minute: firstReuse.minute } : null,
+      marketFallbacks: marketFallbacks.length, unfilledSlots, collisions: collisions.length,
+      byPlatform: byPlatformStats,
+    },
     notes,
   }
 }

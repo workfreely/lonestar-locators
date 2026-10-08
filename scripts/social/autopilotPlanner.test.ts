@@ -1,6 +1,6 @@
 // Planner: orchestration only. The safety properties under test are (a) nothing ineligible is ever
 // scheduled, and (b) a shortage is reported rather than papered over.
-import { planAutopilot, weightedMarketOrder, type AutopilotRule, type PoolPost } from "@/lib/social/autopilotPlanner"
+import { propertyKeyOf, planAutopilot, weightedMarketOrder, type AutopilotRule, type PoolPost } from "@/lib/social/autopilotPlanner"
 import { ineligibleReason, isEligible } from "@/lib/social/autopilotEligibility"
 import { wallClockToUtcISO } from "@/lib/social/recurrence"
 
@@ -9,13 +9,14 @@ const ok = (l: string, c: boolean, d = "") => { if (c) { pass++; console.log("  
 
 const READY = { status: "ready", renderStatus: "ready", renderedStoragePath: "p/x.mp4", scheduledAt: null, publishedAt: null, externalPostId: null, connectionId: null, platform: "instagram" }
 const post = (id: string, market: string, over: Partial<PoolPost> = {}): PoolPost =>
-  ({ id, sourceContentId: `src-${id}`, market, propertyName: id, ...READY, ...over })
-/** Two creatives of the SAME property share a sourceContentId. */
+  ({ id, sourceContentId: `src-${id}`, placeId: `place-${id}`, market, propertyName: id, ...READY, ...over })
+/** Two creatives of the SAME property. They are now distinguished by place_id, not by a shared
+ *  sourceContentId — production proved two uploads of one building get DIFFERENT content ids. */
 const variant = (id: string, srcId: string, market: string): PoolPost =>
-  ({ id, sourceContentId: srcId, market, propertyName: srcId, ...READY })
+  ({ id, sourceContentId: `src-${id}`, placeId: `place-${srcId}`, market, propertyName: srcId, ...READY })
 const A = "aaaa-1111", B = "bbbb-2222"
 const rule = (connectionId: string, over: Partial<AutopilotRule> = {}): AutopilotRule => ({
-  connectionId, enabled: true, timezone: "America/Chicago", dailyTimes: [450, 1170],
+  connectionId, platform: "instagram", enabled: true, timezone: "America/Chicago", dailyTimes: [450, 1170],
   postsPerDay: 2, horizonDays: 3, marketWeights: { Dallas: 3, "San Antonio": 3, Houston: 1 },
   marketRotationSeed: null, staggerOffsetMinutes: 0, startIndex: null, ...over,
 })
@@ -111,7 +112,7 @@ console.log("\nSHORTAGE IS REPORTED, NEVER HIDDEN:")
   ok("it still returns the plan rather than throwing", plan.planned.length > 0)
 
   const empty = planAutopilot({ rules: [rule(A)], pool: [], startDateKey: "2026-10-08", wallClockToUtc: wallClockToUtcISO })
-  ok("an empty pool says so explicitly", empty.notes.some((n) => n.includes("Ready pool is empty")))
+  ok("an empty pool says so explicitly", empty.notes.some((n) => /no eligible .* inventory/i.test(n)))
   ok("…and plans nothing", empty.planned.length === 0 && empty.sufficient === false)
 
   const noRules = planAutopilot({ rules: [rule(A, { enabled: false })], pool: [post("p", "Dallas")], startDateKey: "2026-10-08", wallClockToUtc: wallClockToUtcISO })
@@ -131,11 +132,15 @@ console.log("\nPOLICY 1 — exhaust distinct PROPERTIES before repeating:")
   // Four posts, but only TWO properties: p1/p1b are one building, p2/p2b another.
   const pool = [variant("p1", "srcA", "Dallas"), variant("p1b", "srcA", "Dallas"), variant("p2", "srcB", "Dallas"), variant("p2b", "srcB", "Dallas")]
   const plan = planAutopilot({ rules: [rule(A, { startIndex: 0, horizonDays: 2, marketWeights: { Dallas: 1 } })], pool, startDateKey: "2026-10-08", wallClockToUtc: wallClockToUtcISO })
-  const srcs = plan.planned.map((p) => p.sourceContentId)
-  ok("the first two slots use two DIFFERENT properties", srcs[0] !== srcs[1], srcs.join(","))
-  // A second creative of an already-used property must NOT count as fresh content.
+  // Identity is the BUILDING, so compare property keys, not content ids — the four posts here are
+  // four distinct content rows and only two buildings.
+  const keyOf = (postId: string) => propertyKeyOf(pool.find((x) => x.id === postId)!)
+  const keys = plan.planned.map((p) => keyOf(p.postId))
+  ok("the first two slots use two DIFFERENT properties", keys[0] !== keys[1], keys.join(","))
   ok("a different creative of the same property is not treated as unique",
-    new Set(srcs.slice(0, 2)).size === 2 && srcs.slice(0, 2).every((x) => ["srcA", "srcB"].includes(x)))
+    new Set(keys.slice(0, 2)).size === 2 && keys.slice(0, 2).every((k) => ["place:place-srcA", "place:place-srcB"].includes(k)))
+  ok("…even though those creatives have different source_content_ids",
+    new Set(plan.planned.slice(0, 2).map((p) => p.sourceContentId)).size === 2)
   ok("reuse is reported, with the slot where it begins", plan.reusePoints.length === 1 && !!plan.reusePoints[0].dateKey)
   ok("…and how many unique properties were available", plan.reusePoints[0].uniqueSourcesExhausted === 2)
   ok("the note names where reuse starts", plan.notes.some((n) => n.includes("reuse begins")))
@@ -179,6 +184,82 @@ console.log("\nPOLICY 2 — market fallback is explicit, never silent:")
   ok("…a reason distinguishing 'used up' from 'never had any'", f.reason === "market_inventory_already_used", f.reason)
   ok("…and the exact slot it happened in", !!f.dateKey && typeof f.minute === "number")
   ok("the note surfaces the fallback count", plan.notes.some((n) => n.includes("fell forward")))
+}
+
+
+// ── PLATFORM ISOLATION ──────────────────────────────────────────────────────────────────────────
+// The first real dry run handed a TikTok connection 14 Instagram-eligible posts, because
+// planAutopilot took ONE platform and applied it to every rule. Eligibility is now evaluated per
+// rule against the connection's OWN platform, so cross-network assignment is not representable.
+console.log("\nPLATFORM ISOLATION — a connection only ever receives its own network's posts:")
+{
+  const IG = "conn-ig", TT = "conn-tt"
+  const igPost = (id: string) => ({ ...post(id, "Dallas"), platform: "instagram" })
+  const ttPost = (id: string) => ({ ...post(id, "Dallas"), platform: "tiktok" })
+  const pool = [igPost("i1"), igPost("i2"), igPost("i3"), ttPost("t1"), ttPost("t2"), ttPost("t3")]
+  const plan = planAutopilot({
+    rules: [rule(IG, { platform: "instagram", horizonDays: 2 }), rule(TT, { platform: "tiktok", horizonDays: 2 })],
+    pool, startDateKey: "2026-10-08", wallClockToUtc: wallClockToUtcISO,
+  })
+  const platOf = (postId: string) => pool.find((p) => p.id === postId)!.platform
+  const igGot = plan.planned.filter((p) => p.connectionId === IG)
+  const ttGot = plan.planned.filter((p) => p.connectionId === TT)
+
+  ok("both connections were scheduled", igGot.length > 0 && ttGot.length > 0)
+  ok("an INSTAGRAM post can never reach the TikTok connection", ttGot.every((p) => platOf(p.postId) === "tiktok"))
+  ok("a TIKTOK post can never reach the Instagram connection", igGot.every((p) => platOf(p.postId) === "instagram"))
+  ok("no post is assigned to both networks",
+    igGot.every((a) => !ttGot.some((b) => b.postId === a.postId)))
+
+  // A post eligible for ONE network must not be reported as globally excluded.
+  ok("a tiktok post is not reported as excluded just because Instagram could not use it",
+    !plan.excluded.some((e) => e.postId.startsWith("t")))
+
+  // Per-platform inventory is reported separately, so a shortfall on one network is visible.
+  const ig = plan.inventory.byPlatform.find((b) => b.platform === "instagram")!
+  const tt = plan.inventory.byPlatform.find((b) => b.platform === "tiktok")!
+  ok("inventory is broken out per platform", !!ig && !!tt)
+  ok("each platform counts only its OWN eligible posts", ig.eligiblePosts === 3 && tt.eligiblePosts === 3)
+
+  // The decisive case: NO inventory at all for one network.
+  const starved = planAutopilot({
+    rules: [rule(IG, { platform: "instagram", horizonDays: 1 }), rule(TT, { platform: "tiktok", horizonDays: 1 })],
+    pool: [igPost("i1"), igPost("i2")], startDateKey: "2026-10-08", wallClockToUtc: wallClockToUtcISO,
+  })
+  ok("a network with zero inventory schedules NOTHING rather than borrowing",
+    starved.planned.every((p) => p.connectionId === IG))
+  ok("and it says so by name", starved.notes.some((n) => /no eligible tiktok inventory/i.test(n)))
+}
+
+// ── INVENTORY REPORTING ─────────────────────────────────────────────────────────────────────────
+// "sufficient" used to mean "no same-day collision", which reported a 7-post pool filling 28
+// placements as healthy. It now means every placement uses a property that account has not posted.
+console.log("\nINVENTORY REPORTING — sufficiency means a healthy rotation, not a collision-free day:")
+{
+  const C = "conn-x"
+  // 2 properties, 2/day for 7 days = 14 placements. Technically fillable, obviously not healthy.
+  const thin = planAutopilot({
+    rules: [rule(C, { horizonDays: 7, marketWeights: { Dallas: 1 } })],
+    pool: [post("a", "Dallas"), post("b", "Dallas")],
+    startDateKey: "2026-10-08", wallClockToUtc: wallClockToUtcISO,
+  })
+  ok("every slot still gets filled", thin.unfilledSlots === 0 && thin.planned.length === 14)
+  ok("but it is NOT reported as sufficient", thin.sufficient === false)
+  ok("horizon demand is reported, not just the one-day minimum", thin.inventory.horizonPlacements === 14)
+  ok("unique properties are counted as BUILDINGS", thin.inventory.uniqueProperties === 2)
+  ok("reuse is quantified", thin.inventory.reusedPlacements === 12 && thin.inventory.reusePercent === 86)
+  ok("and the first reuse point is reported", !!thin.inventory.firstReuseAt)
+  ok("the note states the shortfall in words", thin.notes.some((n) => /INSUFFICIENT for a healthy rotation/.test(n)))
+
+  // Genuinely healthy: one property per placement.
+  const fat = planAutopilot({
+    rules: [rule(C, { horizonDays: 2, marketWeights: { Dallas: 1 } })],
+    pool: Array.from({ length: 12 }, (_, i) => post(`f${i}`, "Dallas")),
+    startDateKey: "2026-10-08", wallClockToUtc: wallClockToUtcISO,
+  })
+  ok("a pool with room to spare IS sufficient", fat.sufficient === true)
+  ok("with zero reuse", fat.inventory.reusedPlacements === 0 && fat.inventory.reusePercent === 0)
+  ok("and no first-reuse point", fat.inventory.firstReuseAt === null)
 }
 
 console.log(`\nAutopilot planner: ${pass} passed, ${fail} failed`)

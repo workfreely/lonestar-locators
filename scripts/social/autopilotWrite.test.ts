@@ -29,8 +29,27 @@ const planned = (postId: string, connectionId: string, at: string, i = 0): Plann
   postId, sourceContentId: `src-${postId}`, connectionId, dateKey: at.slice(0, 10),
   minute: 750, scheduledAtUtc: at, market: "San Antonio", propertyName: `P-${postId}`, poolIndex: i,
 })
-const planOf = (planned: PlannedPost[], over: Partial<{ sufficient: boolean; poolSize: number; requiredPoolSize: number; unfilledSlots: number }> = {}) => ({
-  planned, sufficient: true, poolSize: planned.length, requiredPoolSize: planned.length, unfilledSlots: 0, ...over,
+type InvOver = Partial<{
+  sufficient: boolean; horizonPlacements: number; eligiblePosts: number; uniqueProperties: number
+  uniquePlacements: number; reusedPlacements: number; reusePercent: number; unfilledSlots: number
+}>
+const planOf = (planned: PlannedPost[], over: InvOver = {}) => ({
+  planned,
+  sufficient: over.sufficient ?? true,
+  inventory: {
+    horizonPlacements: over.horizonPlacements ?? planned.length,
+    eligiblePosts: over.eligiblePosts ?? planned.length,
+    uniqueProperties: over.uniqueProperties ?? planned.length,
+    uniquePlacements: over.uniquePlacements ?? planned.length,
+    reusedPlacements: over.reusedPlacements ?? 0,
+    reusePercent: over.reusePercent ?? 0,
+    firstReuseAt: null,
+    marketFallbacks: 0,
+    unfilledSlots: over.unfilledSlots ?? 0,
+    collisions: 0,
+    byPlatform: [{ platform: "instagram", connections: 1, eligiblePosts: over.eligiblePosts ?? planned.length,
+      uniqueProperties: over.uniqueProperties ?? planned.length, horizonPlacements: over.horizonPlacements ?? planned.length }],
+  },
 })
 const stateMap = (ids: string[], over: Partial<EligibilityInput> = {}) =>
   new Map(ids.map((id) => [id, eligible(over)]))
@@ -207,14 +226,30 @@ async function main() {
   console.log("\ninsufficient inventory is reported loudly, not inferred:")
   {
     const r = await applyAutopilotPlan({
-      plan: planOf([planned("p1", CONN_A, T1)], { sufficient: false, poolSize: 7, requiredPoolSize: 28, unfilledSlots: 21 }),
+      plan: planOf([planned("p1", CONN_A, T1)], {
+        sufficient: false, horizonPlacements: 28, eligiblePosts: 7, uniqueProperties: 6,
+        uniquePlacements: 7, reusedPlacements: 21, reusePercent: 75,
+      }),
       current: stateMap(["p1"]),
     })
+    const s = r.inventory.summary
     ok("sufficient is false", !r.inventory.sufficient)
-    ok("the summary states the shortfall in words", /INSUFFICIENT INVENTORY/.test(r.inventory.summary))
-    ok("it names both numbers and the unfilled count",
-      /7 eligible/.test(r.inventory.summary) && /28 slot/.test(r.inventory.summary) && /21 slot/.test(r.inventory.summary))
-    ok("it says what to do about it", /Render more inventory/.test(r.inventory.summary))
+    ok("the headline says INSUFFICIENT", /INSUFFICIENT INVENTORY FOR A HEALTHY ROTATION/.test(s))
+    // Each number the decision needs must be present BY NAME — the old one-liner reported
+    // "sufficient" for exactly this shape because it compared against one day's minimum.
+    for (const [label, re] of [
+      ["horizon placements", /horizon placements required\s*:\s*28/],
+      ["eligible posts",     /eligible posts\s*:\s*7/],
+      ["unique properties",  /unique properties\s*:\s*6/],
+      ["unique placements",  /unique placements\s*:\s*7/],
+      ["reused placements",  /reused placements\s*:\s*21\s*\(75%\)/],
+      ["market fallbacks",   /market fallbacks\s*:/],
+      ["unfilled slots",     /unfilled slots\s*:/],
+      ["collisions",         /collisions\s*:/],
+      ["per-platform line",  /instagram: 1 account/],
+    ] as const) ok(`the report names ${label}`, re.test(s))
+    ok("it never calls this pool sufficient", !/INVENTORY OK/.test(s))
+    ok("it says what to do about it", /render more distinct properties/i.test(s))
     ok("a short pool still claims what it legitimately can", r.claims.length === 1)
   }
 

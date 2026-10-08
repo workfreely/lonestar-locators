@@ -64,13 +64,11 @@ export type WritePlan = {
   claims: Claim[]
   /** Rejected by the in-memory predicate before any write. */
   preRejected: ClaimRejection[]
-  /** Inventory shortfalls carried through from the planner, so a caller sees them in one place. */
-  inventory: {
+  /** Inventory, carried through from the planner so a caller sees it in one place. */
+  inventory: AutopilotPlan["inventory"] & {
     sufficient: boolean
-    poolSize: number
-    requiredPoolSize: number
-    unfilledSlots: number
-    /** Human-readable, deliberately explicit rather than a bare boolean. */
+    /** Multi-line and explicit. The previous one-liner said "sufficient" for a 7-post pool filling
+     *  28 placements, because it compared the pool against ONE DAY's collision-free minimum. */
     summary: string
   }
 }
@@ -124,7 +122,7 @@ const requestFor = (c: Claim): ClaimRequest => ({
  * before it reaches the database. The SQL re-check still runs; this one produces a better reason.
  */
 export function buildClaims(
-  plan: Pick<AutopilotPlan, "planned" | "sufficient" | "poolSize" | "requiredPoolSize" | "unfilledSlots">,
+  plan: Pick<AutopilotPlan, "planned" | "sufficient" | "inventory">,
   current: ReadonlyMap<string, EligibilityInput>,
   platform = "instagram",
 ): { claims: Claim[]; preRejected: ClaimRejection[] } {
@@ -173,17 +171,30 @@ function toClaim(p: PlannedPost): Claim {
   }
 }
 
-function inventoryOf(plan: Pick<AutopilotPlan, "sufficient" | "poolSize" | "requiredPoolSize" | "unfilledSlots">) {
-  // Spelled out rather than left as a boolean: "insufficient inventory" is the single most likely
-  // reason a run does less than expected, and it must be impossible to mistake for success.
-  const summary = plan.sufficient
-    ? `inventory sufficient — ${plan.poolSize} eligible post(s) for ${plan.requiredPoolSize} slot(s)`
-    : `INSUFFICIENT INVENTORY — ${plan.poolSize} eligible post(s) for ${plan.requiredPoolSize} slot(s); `
-      + `${plan.unfilledSlots} slot(s) cannot be filled. Render more inventory before scheduling.`
-  return {
-    sufficient: plan.sufficient, poolSize: plan.poolSize,
-    requiredPoolSize: plan.requiredPoolSize, unfilledSlots: plan.unfilledSlots, summary,
-  }
+function inventoryOf(plan: Pick<AutopilotPlan, "sufficient" | "inventory">) {
+  const i = plan.inventory
+  // Every number the decision needs, named. A caller must not have to infer "is there enough
+  // content?" from a boolean whose definition it cannot see — the previous version reported
+  // "sufficient" for a pool that filled three quarters of its slots with repeats.
+  const lines = [
+    plan.sufficient
+      ? "INVENTORY OK — every placement uses a property that account has not posted before."
+      : "INSUFFICIENT INVENTORY FOR A HEALTHY ROTATION — see the numbers below.",
+    `  horizon placements required : ${i.horizonPlacements}`,
+    `  eligible posts              : ${i.eligiblePosts}`,
+    `  unique properties           : ${i.uniqueProperties}`,
+    `  unique placements           : ${i.uniquePlacements}`,
+    `  reused placements           : ${i.reusedPlacements}  (${i.reusePercent}%)`,
+    `  first reuse                 : ${i.firstReuseAt ? `${i.firstReuseAt.dateKey} @ ${String(Math.floor(i.firstReuseAt.minute / 60)).padStart(2, "0")}:${String(i.firstReuseAt.minute % 60).padStart(2, "0")}` : "none"}`,
+    `  market fallbacks            : ${i.marketFallbacks}`,
+    `  unfilled slots              : ${i.unfilledSlots}`,
+    `  collisions                  : ${i.collisions}`,
+    ...i.byPlatform.map((b) =>
+      `  ${b.platform}: ${b.connections} account(s), ${b.eligiblePosts} eligible post(s), `
+      + `${b.uniqueProperties} propert${b.uniqueProperties === 1 ? "y" : "ies"} for ${b.horizonPlacements} placement(s)`),
+  ]
+  if (!plan.sufficient) lines.push("  => render more distinct properties before scheduling this horizon.")
+  return { ...i, sufficient: plan.sufficient, summary: lines.join("\n") }
 }
 
 /**
@@ -194,7 +205,7 @@ function inventoryOf(plan: Pick<AutopilotPlan, "sufficient" | "poolSize" | "requ
  * and did not is worse than a crash.
  */
 export async function applyAutopilotPlan(input: {
-  plan: Pick<AutopilotPlan, "planned" | "sufficient" | "poolSize" | "requiredPoolSize" | "unfilledSlots">
+  plan: Pick<AutopilotPlan, "planned" | "sufficient" | "inventory">
   current: ReadonlyMap<string, EligibilityInput>
   mode?: WriteMode
   executor?: ClaimExecutor
