@@ -1,11 +1,18 @@
 /**
  * VIDEO LIBRARY — bulk "Delete Selected".
  *
- * Guards the three things that make a destructive bulk action safe here:
+ * Guards the things that make a destructive bulk action safe here:
  *   1. the first click CANNOT delete — it only opens a confirmation;
- *   2. it reuses the existing per-id DELETE endpoint (the one place that removes
- *      the storage object before the row), rather than a second implementation;
- *   3. a partial failure is never reported as success.
+ *   2. it reuses the per-id DELETE endpoint rather than a second implementation, which is now a
+ *      PROTECTION and not just tidiness: every source-video safeguard lives in that handler, so
+ *      bulk cannot be a weaker path than the per-card trash icon;
+ *   3. a source with dependent posts is reported, never deleted — and its posts are never touched;
+ *   4. a partial failure is never reported as success.
+ *
+ * NOTE ON ORDERING: this file used to assert that the route removed the storage object BEFORE the
+ * row. That order was deliberately reversed in Phase 2 (row first, then file) because a failed row
+ * delete otherwise left a row pointing at footage that no longer existed — invisible until a render
+ * failed. The assertions below encode the new order and the reason for it.
  *
  * Run: npx tsx scripts/social/bulkDelete.test.ts
  */
@@ -60,7 +67,14 @@ console.log("\nThe first click cannot delete")
 console.log("\nThe modal counts dynamically")
 {
   check("title uses the live count", /Delete \{selected\.size\} selected \{selected\.size === 1 \? "video" : "videos"\}\?/.test(src))
-  check("…with the specified body copy", /This will permanently remove the selected videos from the Video Library\./.test(src))
+  // Copy asserted by MEANING, not by sentence: the modal must name what is at risk (originals /
+  // masters) and promise that protected sources are skipped rather than cascaded.
+  {
+    const modal = src.slice(src.indexOf("{confirmDelete && selected.size > 0 && ("))
+    const body = modal.slice(0, modal.indexOf("</div>", modal.indexOf("crm-text-muted")))
+    check("the body copy names the ORIGINAL masters, not just 'videos'", /original uploaded videos/i.test(body) && /master/i.test(body))
+    check("…and says protected sources are skipped with their posts intact", /protected/i.test(body) && /skipped/i.test(body) && /posts/i.test(body))
+  }
   check("commit button counts too", /Delete \$\{selected\.size\} \$\{selected\.size === 1 \? "Video" : "Videos"\}/.test(src))
   check("…and singular/plural is handled", /selected\.size === 1 \? "Video" : "Videos"/.test(src))
   check("Cancel is present", /disabled=\{deleteBusy\} onClick=\{\(\) => setConfirmDelete\(false\)\}>Cancel<\/button>/.test(src))
@@ -72,33 +86,80 @@ console.log("\nReuses the existing single-video deletion path")
 {
   check(
     "bulk delete calls the per-id DELETE endpoint",
-    /fetch\(`\/api\/admin\/social-autopilot\/content\/\$\{encodeURIComponent\(id\)\}`, \{ method: "DELETE" \}\)/.test(src),
+    /fetch\(`\/api\/admin\/social-autopilot\/content\/\$\{encodeURIComponent\(id\)\}`, \{\s*method: "DELETE"/.test(src),
   )
   check(
     "…the same endpoint the per-card trash uses (2 call sites, one implementation)",
-    (src.match(/content\/\$\{encodeURIComponent\(id\)\}`, \{ method: "DELETE" \}/g) ?? []).length === 2,
+    (src.match(/content\/\$\{encodeURIComponent\(id\)\}`, \{\s*\n?\s*method: "DELETE"/g) ?? []).length === 2,
   )
   check("no second bulk-delete server route was added", !/content\/bulk[\s\S]{0,120}DELETE/.test(src))
   const bulkRoute = readFileSync("app/api/admin/social-autopilot/content/bulk/route.ts", "utf8")
   check("…and the bulk route still performs no deletion", !/\.delete\(\)/.test(bulkRoute) && !/storage[\s\S]{0,40}remove\(/.test(bulkRoute))
 
-  // The single-video path is what cleans up storage; keep that true.
-  check("the per-id route removes the storage object", /storage\.from\("social-media"\)\.remove\(\[path\]\)/.test(route))
-  check("…before deleting the row", route.indexOf("storage") < route.indexOf('.from("social_content").delete()'))
+  // The single-video path is still what cleans up storage — but in the SAFE order.
+  check("the per-id route removes the storage object", /storage\.from\("social-media"\)\.remove\(\[src\.storage_path\]\)/.test(route))
+  {
+    const iRow = route.indexOf('.from("social_content").delete()')
+    const iFile = route.indexOf('storage.from("social-media").remove(')
+    check("…AFTER deleting the row, so a failed delete never orphans a live row", iRow > -1 && iFile > iRow, `row=${iRow} file=${iFile}`)
+    check("…and a failed file removal reports the exact orphaned path", /warning: "file_not_removed"/.test(route) && /orphanedPath: src\.storage_path/.test(route))
+  }
   check("…and is platform-admin gated", /requirePlatformAdmin\(\)/.test(route))
 }
 
 console.log("\nPartial failure is never reported as success")
 {
   check("per-item results are collected", /const results = await Promise\.all\(/.test(src))
-  check("…a non-ok response counts as failure", /return res\.ok/.test(src))
-  check("…a thrown request counts as failure too", /catch \{\s*return false\s*\}/.test(src))
-  check("failures are surfaced as an error, not a notice", /if \(failed > 0\) \{\s*setError\(/.test(src))
+  check("…a non-ok response counts as failure", /return \{ ok: res\.ok, blocked: false \}/.test(src))
+  check("…a thrown request counts as failure too", /catch \{\s*return \{ ok: false, blocked: false \}\s*\}/.test(src))
+  {
+    // Structural, not line-adjacent: whatever the branch builds first, the failure path must END in
+    // setError and must never reach for setNotice.
+    const i = src.indexOf("if (failed > 0) {")
+    const branch = i > -1 ? src.slice(i, src.indexOf("} else {", i)) : ""
+    check("failures are surfaced as an error, not a notice", /setError\(/.test(branch) && !/setNotice\(/.test(branch))
+  }
   check("…naming how many of how many", /Deleted \$\{deleted\} of \$\{results\.length\}/.test(src))
   check("success copy only when nothing failed", /\} else \{\s*setNotice\(`Deleted \$\{deleted\}/.test(src))
   check("the library is reloaded either way", /await load\(\)\s*\n\s*\} finally \{\s*\n\s*setDeleteBusy\(false\)/.test(src))
   check("selection is cleared after the run", /clearSelection\(\)[\s\S]{0,200}await load\(\)/.test(src))
   check("…and the modal closes", /setConfirmDelete\(false\)[\s\S]{0,120}clearSelection\(\)/.test(src))
+}
+
+console.log("\nBulk inherits every source-video protection")
+{
+  // THE POINT OF THIS SECTION. A multi-select is the easiest way to destroy a lot at once, so bulk
+  // must be no more powerful than one trash click. It is the same handler, so it gets the dependent
+  // check, the 409 and the RESTRICT constraint for free — these assertions keep it that way.
+  check("bulk sends the confirmation token (the operator confirmed the whole selection)", /confirm: "delete-source-video"/.test(src))
+  check(
+    "…which CANNOT bypass the dependency refusal, because that refusal takes no token",
+    route.indexOf('error: "source_has_dependents"') < route.indexOf('body.confirm !== "delete-source-video"'),
+  )
+  check("a 409 is read for its counts and reported, not retried", /res\.status === 409[\s\S]{0,260}blocked: true/.test(src))
+  check("…and blocked sources are counted separately from plain failures", /const blocked = results\.filter\(\(r\) => r\.blocked\)\.length/.test(src))
+  check("…the message says their posts were NOT deleted", /posts were NOT deleted/.test(src))
+  check("no cascade exists anywhere in the route", !/cascade/i.test(route.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, "")))
+
+  // Modelled end-to-end: a 6-item selection where 2 sources still have posts.
+  type Src = { id: string; posts: number; published: number }
+  const selection: Src[] = [
+    { id: "a", posts: 0, published: 0 },
+    { id: "b", posts: 3, published: 2 },
+    { id: "c", posts: 0, published: 0 },
+    { id: "d", posts: 1, published: 0 },
+    { id: "e", posts: 0, published: 0 },
+    { id: "f", posts: 0, published: 0 },
+  ]
+  // The server's decision, as shipped: dependents => 409 regardless of token.
+  const serverDelete = (s: Src, token: string | null) =>
+    s.posts > 0 ? { status: 409, blocked: true } : token === "delete-source-video" ? { status: 200, blocked: false } : { status: 409, blocked: false }
+  const results = selection.map((s) => serverDelete(s, "delete-source-video"))
+  const deleted = results.filter((r) => r.status === 200).length
+  const blocked = results.filter((r) => r.blocked).length
+  check(`4 unused sources deleted, 2 protected (deleted=${deleted} blocked=${blocked})`, deleted === 4 && blocked === 2)
+  check("the 4 dependent posts (2 published) all survive", selection.filter((s) => s.posts > 0).reduce((n, s) => n + s.posts, 0) === 4)
+  check("a bulk run of ONLY protected sources deletes nothing", selection.filter((s) => s.posts > 0).every((s) => serverDelete(s, "delete-source-video").status === 409))
 }
 
 console.log("\nNothing else in the Video Library changed")

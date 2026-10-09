@@ -798,13 +798,17 @@ export default function SocialAutopilotClient() {
    * each selected id.
    *
    * Deliberately fans out to the existing `DELETE /content/:id` endpoint rather
-   * than adding a delete branch to the bulk route: that endpoint is the one place
-   * that removes the storage object before the row, and duplicating it server-side
-   * would be a second deletion implementation to keep in sync. Per-request results
-   * also give honest per-item success/failure for free.
+   * than adding a delete branch to the bulk route. That is now a protection and not
+   * just tidiness: every safeguard on source deletion — the dependent-post count,
+   * the 409 refusal, the row-before-file ordering, the orphan report — lives in that
+   * one handler, so bulk CANNOT be a weaker path than the per-card icon. A second
+   * server-side implementation is exactly how a bulk tidy-up ends up cascading away
+   * published posts.
    *
    * Failures are never reported as success — any failure surfaces as an error and
    * the library is reloaded either way, so what's on screen is the real state.
+   * Sources protected by dependents are counted out separately, because "4 of 6
+   * deleted, 2 still have posts" is a different message from "2 failed".
    */
   const deleteSelected = useCallback(async () => {
     const ids = Array.from(selected)
@@ -816,17 +820,33 @@ export default function SocialAutopilotClient() {
       const results = await Promise.all(
         ids.map(async (id) => {
           try {
-            const res = await fetch(`/api/admin/social-autopilot/content/${encodeURIComponent(id)}`, { method: "DELETE" })
-            return res.ok
+            // BULK INHERITS EVERY PROTECTION. It fans out to the same route, so a multi-select can
+            // no longer destroy posts: any source with dependents comes back 409 and is reported,
+            // not deleted. The confirmation token is sent because the operator already confirmed
+            // the whole selection — it never bypasses the dependency refusal, which has no token.
+            const res = await fetch(`/api/admin/social-autopilot/content/${encodeURIComponent(id)}`, {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ confirm: "delete-source-video" }),
+            })
+            if (res.status === 409) {
+              const j = (await res.json().catch(() => ({}))) as { counts?: { posts: number; published: number } }
+              return { ok: false, blocked: true, counts: j.counts }
+            }
+            return { ok: res.ok, blocked: false }
           } catch {
-            return false
+            return { ok: false, blocked: false }
           }
         }),
       )
-      const deleted = results.filter(Boolean).length
+      const deleted = results.filter((r) => r.ok).length
+      const blocked = results.filter((r) => r.blocked).length
       const failed = results.length - deleted
       if (failed > 0) {
-        setError(`Deleted ${deleted} of ${results.length}. ${failed} could not be deleted — the library below shows the current state.`)
+        const protectedNote = blocked > 0
+          ? ` ${blocked} ${blocked === 1 ? "is" : "are"} still used by posts and ${blocked === 1 ? "was" : "were"} protected — their posts were NOT deleted.`
+          : ""
+        setError(`Deleted ${deleted} of ${results.length}.${protectedNote} The library below shows the current state.`)
       } else {
         setNotice(`Deleted ${deleted} ${deleted === 1 ? "video" : "videos"}.`)
       }
@@ -840,13 +860,37 @@ export default function SocialAutopilotClient() {
     }
   }, [selected, load])
 
+  // Delete ONE source video. The original is a protected master, so the server refuses twice over:
+  // 409 when any post depends on it (never a cascade), and 409 again without an explicit token.
+  // This surfaces the server's own counts rather than a generic failure, because "3 posts, 2
+  // published" is the only thing that makes the refusal actionable.
   const remove = useCallback(
     async (id: string) => {
       if (!confirm("Delete this source video and its file? This cannot be undone.")) return
-      const res = await fetch(`/api/admin/social-autopilot/content/${encodeURIComponent(id)}`, { method: "DELETE" })
-      if (!res.ok) {
-        setError("Couldn't delete.")
-        return
+      const send = (confirmToken?: string) =>
+        fetch(`/api/admin/social-autopilot/content/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(confirmToken ? { confirm: confirmToken } : {}),
+        })
+      let res = await send()
+      if (res.status === 409) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string; detail?: string; counts?: { posts: number; published: number } }
+        if (j.error === "source_has_dependents") {
+          // HARD STOP. Dependent posts are never cascaded away, with or without a token.
+          setError(j.detail ?? "This source video is still used by posts.")
+          return
+        }
+        // Dependent-free, but protected by default — ask once more, naming what is at stake.
+        if (!confirm("This original video has no posts, but originals are protected by default.\n\nPermanently delete the master file?")) return
+        res = await send("delete-source-video")
+      }
+      if (!res.ok) { setError("Couldn't delete."); return }
+      const done = (await res.json().catch(() => ({}))) as { warning?: string; orphanedPath?: string }
+      if (done.warning === "file_not_removed") {
+        // Named, not swallowed: the row is gone but the bytes remain, so the path is the only way
+        // back to a deliberate tidy-up.
+        setError(`Record deleted, but its video file is still in storage: ${done.orphanedPath ?? "unknown path"}`)
       }
       await load()
     },
@@ -1356,7 +1400,7 @@ export default function SocialAutopilotClient() {
               Delete {selected.size} selected {selected.size === 1 ? "video" : "videos"}?
             </div>
             <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5 mb-3">
-              This will permanently remove the selected videos from the Video Library.
+              This permanently removes the <strong className="font-semibold text-[var(--crm-text-primary)]">original uploaded videos</strong> — the masters every Reel is built from. Any source still used by a post is protected and will be skipped, with its posts left untouched.
             </div>
             <div className="flex gap-2 mt-4">
               <button type="button" className={btn} disabled={deleteBusy} onClick={() => setConfirmDelete(false)}>Cancel</button>

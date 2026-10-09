@@ -103,7 +103,26 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   return NextResponse.json({ id: out.id, displayName: out.display_name, nameCustomized: out.name_customized })
 }
 
-export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+/**
+ * DELETE a source video.
+ *
+ * THE ORIGINAL UPLOAD IS A PROTECTED MASTER — it is reused indefinitely to produce new Reels with
+ * different templates, overlays, pricing, narration and later AI-presenter versions, so it must
+ * outlive every post, render and variation built from it. This route is therefore deliberately
+ * hard to use, in two escalating steps:
+ *
+ *   dependent posts exist  -> 409, ALWAYS. No token, no override, no cascade. The database agrees
+ *                             (the FK is ON DELETE RESTRICT), so this is a readable explanation of
+ *                             a refusal that would happen anyway rather than the protection itself.
+ *   no dependents          -> still refused unless the caller passes an explicit confirmation
+ *                             token. Protected BY DEFAULT: an unused upload is still footage the
+ *                             operator may want months from now, and "it has no posts yet" is a
+ *                             statement about today.
+ *
+ * NOTHING HERE TOUCHES RENDERED FILES. Disposable renders under renders/ are a separate cleanup
+ * concern with a separate path; conflating them is how a master gets swept up in a bulk tidy.
+ */
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const guard = await requirePlatformAdmin()
   if (!guard.ok) return guard.response
   const { supabase } = guard
@@ -111,16 +130,85 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
   const { id } = await ctx.params
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 })
 
-  const { data: row, error: readErr } = await supabase.from("social_content").select("id, storage_path").eq("id", id).maybeSingle()
+  const { data: row, error: readErr } = await supabase
+    .from("social_content")
+    .select("id, storage_path, property_name")
+    .eq("id", id)
+    .maybeSingle()
   if (readErr) return NextResponse.json({ error: "delete_failed" }, { status: 500 })
   if (!row) return NextResponse.json({ error: "not_found" }, { status: 404 })
+  const src = row as { id: string; storage_path?: string | null; property_name?: string | null }
 
-  const path = (row as { storage_path?: string }).storage_path
-  if (path) {
-    const { error: rmErr } = await supabase.storage.from("social-media").remove([path])
-    if (rmErr) console.error("[social-autopilot] storage remove failed:", rmErr.message)
+  // ── DEPENDENCY CHECK ──────────────────────────────────────────────────────────────────────
+  // Counted, not merely detected: "3 posts, 2 of them published" tells the operator what they
+  // would be destroying. `published` is called out separately because those rows carry
+  // external_post_id — the only record that something actually reached Instagram.
+  const { data: deps, error: depErr } = await supabase
+    .from("social_posts")
+    .select("id, published_at")
+    .eq("source_content_id", id)
+  if (depErr) return NextResponse.json({ error: "delete_failed" }, { status: 500 })
+  const posts = deps ?? []
+  const published = posts.filter((p) => (p as { published_at: string | null }).published_at).length
+
+  if (posts.length > 0) {
+    return NextResponse.json({
+      error: "source_has_dependents",
+      detail: `This source video is used by ${posts.length} post${posts.length === 1 ? "" : "s"}${published ? `, ${published} of which ${published === 1 ? "is" : "are"} published` : ""}.`,
+      counts: { posts: posts.length, published },
+      hint: "Delete or re-point those posts first. Published posts are historical records and are never deleted automatically.",
+    }, { status: 409 })
   }
+
+  // ── EXPLICIT CONFIRMATION, even with no dependents ────────────────────────────────────────
+  // Deliberately NOT a cascade token: there is nothing to cascade here, by definition. It exists
+  // so deleting original footage can never be a stray click or an accidental bulk selection.
+  let body: Record<string, unknown> = {}
+  try { body = (await req.json()) as Record<string, unknown> } catch { body = {} }
+  if (body.confirm !== "delete-source-video") {
+    return NextResponse.json({
+      error: "confirmation_required",
+      detail: "Original source videos are protected. Deleting one requires explicit confirmation.",
+      counts: { posts: 0, published: 0 },
+      hint: 'Resend with {"confirm":"delete-source-video"}. An Archive Source option is planned so originals need not be destroyed at all.',
+    }, { status: 409 })
+  }
+
+  // ── ORDERING ──────────────────────────────────────────────────────────────────────────────
+  // ROW FIRST, FILE SECOND — the reverse of what this used to do.
+  //
+  // Removing the file first meant a failed row delete left a row pointing at footage that no
+  // longer existed: the library would show the card, the editor would open, and every render and
+  // preview would fail on a 404 with nothing to recover. That state is invisible until used.
+  //
+  // This way the two failure modes are not symmetrical, and the surviving one is recoverable: if
+  // the row goes and the file removal then fails, the bytes are still there and the response names
+  // the exact path, so it can be re-registered or tidied deliberately. A tracked orphan beats a
+  // row that lies.
   const { error: delErr } = await supabase.from("social_content").delete().eq("id", id)
-  if (delErr) return NextResponse.json({ error: "delete_failed" }, { status: 500 })
+  if (delErr) {
+    // RESTRICT may still fire here if a post was created between the count above and now — the
+    // check is a courtesy, the constraint is the guarantee.
+    const racedDependents = (delErr as { code?: string }).code === "23503"
+    return NextResponse.json({
+      error: racedDependents ? "source_has_dependents" : "delete_failed",
+      detail: racedDependents
+        ? "A post was created for this source while the delete was in flight. Nothing was removed."
+        : "The source could not be deleted. Its video was not touched.",
+    }, { status: racedDependents ? 409 : 500 })
+  }
+
+  if (src.storage_path) {
+    const { error: rmErr } = await supabase.storage.from("social-media").remove([src.storage_path])
+    if (rmErr) {
+      console.error("[social-autopilot] source row deleted but its file remains:", src.storage_path, rmErr.message)
+      return NextResponse.json({
+        ok: true,
+        warning: "file_not_removed",
+        detail: "The record was deleted but its video file could not be removed. The file is still in storage.",
+        orphanedPath: src.storage_path,
+      })
+    }
+  }
   return NextResponse.json({ ok: true })
 }
