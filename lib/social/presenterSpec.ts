@@ -28,11 +28,20 @@
 // drawtext chain, so text is always drawn on top of the avatar and can never be occluded by it.
 import { SOCIAL_CANVAS, safeAreaFor } from "./platformSafeArea"
 
+export type PresenterSide = "left" | "right"
+
 export const PRESENTER = {
   /** Left edge, canvas units. Matches the headline box's left edge. */
   xPx: 110,
   /** Rendered width. Height follows the clip's own aspect ratio (`-2` in the scale filter). */
   widthPx: 360,
+  /** Operator-adjustable width bounds, mirrored by a CHECK constraint on social_posts. */
+  minWidthPx: 240,
+  maxWidthPx: 520,
+  /** Gap kept between a RIGHT-placed presenter and Instagram's engagement rail. */
+  railClearancePx: 24,
+  /** The approved default corner. */
+  defaultSide: "left" as PresenterSide,
   /** Gap between the presenter's bottom edge and the top of Instagram's caption block. */
   captionClearancePx: 36,
   /** Default spoken intro length. Clamped to [MIN, MAX] everywhere it is accepted. */
@@ -65,14 +74,46 @@ export function clampIntroSeconds(seconds: number | null | undefined): number {
   return Math.min(PRESENTER.maxIntroSeconds, Math.max(PRESENTER.minIntroSeconds, seconds))
 }
 
+/** Clamp an operator-supplied width into the supported range. Non-finite → the default. */
+export function clampWidthPx(px: number | null | undefined): number {
+  if (typeof px !== "number" || !Number.isFinite(px)) return PRESENTER.widthPx
+  return Math.round(Math.min(PRESENTER.maxWidthPx, Math.max(PRESENTER.minWidthPx, px)))
+}
+
+export function normalizeSide(side: string | null | undefined): PresenterSide {
+  return side === "right" ? "right" : PRESENTER.defaultSide
+}
+
+/**
+ * Left edge for a given side and width.
+ *
+ * LEFT mirrors the headline box's own left margin. RIGHT is measured BACK from Instagram's
+ * engagement rail rather than from the canvas edge — the rail is where the like/comment/share
+ * icons sit, and a presenter tucked under them is both hidden and in the way. A width that would
+ * not fit is pushed left until it does, which is why this returns a computed x rather than
+ * rejecting the combination: the operator's size choice is honoured and the placement yields.
+ */
+export function presenterXPx(side: PresenterSide, widthPx: number, platform: string = "instagram"): number {
+  if (side === "left") return PRESENTER.xPx
+  const area = safeAreaFor(platform)
+  const rail = area.zones.find((z) => z.kind === "rail")
+  const railLeft = rail ? rail.rect.x : SOCIAL_CANVAS.w
+  return Math.max(PRESENTER.xPx, railLeft - PRESENTER.railClearancePx - widthPx)
+}
+
 /**
  * CSS-ready fractions for the editor preview. The preview positions a box with percentages; these
  * are the SAME numbers the renderer uses, divided by the canvas, so the two cannot drift.
  */
-export function presenterPreviewFractions(platform: string = "instagram") {
+export function presenterPreviewFractions(
+  opts: { side?: string | null; widthPx?: number | null; platform?: string } = {},
+) {
+  const platform = opts.platform ?? "instagram"
+  const side = normalizeSide(opts.side)
+  const widthPx = clampWidthPx(opts.widthPx)
   return {
-    leftFrac: PRESENTER.xPx / SOCIAL_CANVAS.w,
-    widthFrac: PRESENTER.widthPx / SOCIAL_CANVAS.w,
+    leftFrac: presenterXPx(side, widthPx, platform) / SOCIAL_CANVAS.w,
+    widthFrac: widthPx / SOCIAL_CANVAS.w,
     bottomFrac: presenterBottomInsetPx(platform) / SOCIAL_CANVAS.h,
   }
 }
@@ -100,6 +141,7 @@ export type PresenterPlan = {
   /** ffmpeg input index this clip was appended at. */
   inputIndex: number
   introSeconds: number
+  side: PresenterSide
   xPx: number
   widthPx: number
   bottomInsetPx: number
@@ -109,14 +151,21 @@ export type PresenterPlan = {
 export function buildPresenterPlan(input: {
   inputIndex: number
   introSeconds?: number | null
+  /** Operator overrides. Both omitted ⇒ the approved default: lower-LEFT at 360px. */
+  side?: string | null
+  widthPx?: number | null
   platform?: string
 }): PresenterPlan {
+  const platform = input.platform ?? "instagram"
+  const side = normalizeSide(input.side)
+  const widthPx = clampWidthPx(input.widthPx)
   return {
     inputIndex: input.inputIndex,
     introSeconds: clampIntroSeconds(input.introSeconds),
-    xPx: PRESENTER.xPx,
-    widthPx: PRESENTER.widthPx,
-    bottomInsetPx: presenterBottomInsetPx(input.platform ?? "instagram"),
+    side,
+    xPx: presenterXPx(side, widthPx, platform),
+    widthPx,
+    bottomInsetPx: presenterBottomInsetPx(platform),
     fadeSeconds: PRESENTER.fadeSeconds,
   }
 }

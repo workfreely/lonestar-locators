@@ -18,6 +18,7 @@ const SELECT =
   "id, platform, post_type, post_name, caption, social_special, on_video_text, on_video_config, " +
   "overlay_headline, overlay_subheadline, overlay_mode, overlay_template, cover_thumb_offset_ms, cover_storage_path, cover_render_version, hashtags, audio_choice, audio_track_id, voice_hook_id, voice_cta_id, rendered_storage_path, render_status, render_error, render_version, " +
   "status, scheduled_at, published_at, external_post_id, external_post_url, created_at, updated_at, source_content_id, source_storage_path, approved_at, draft_saved_at, needs_review_at, needs_review_reason, " +
+  "presenter_id, presenter_intro_seconds, presenter_side, presenter_width_px, presenter_clip_storage_path, presenter_audio_storage_path, " +
   // area_neighborhood is INTERNAL editing metadata. It was captured at upload and stored correctly,
   // but was missing from this projection — so the Post Editor could neither show it nor correct it and
   // the value was effectively write-once. Read here for EDITING only: it stays deliberately absent
@@ -116,6 +117,12 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     audioTrackId: r.audio_track_id,
     voiceHookId: r.voice_hook_id,
     voiceCtaId: r.voice_cta_id,
+    // AI Presenter. presenterId null ⇒ the feature is off, which is the state of every post that
+    // predates it. The editor hydrates its control from exactly these.
+    presenterId: r.presenter_id,
+    presenterIntroSeconds: r.presenter_intro_seconds === null || r.presenter_intro_seconds === undefined ? null : Number(r.presenter_intro_seconds),
+    presenterSide: r.presenter_side,
+    presenterWidthPx: r.presenter_width_px === null || r.presenter_width_px === undefined ? null : Number(r.presenter_width_px),
     renderStatus: (r.render_status as string) || "none",
     renderError: r.render_error,
     renderVersion: r.render_version,
@@ -226,6 +233,67 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const VOICE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   if ("voiceHookId" in body && (body.voiceHookId === null || (typeof body.voiceHookId === "string" && VOICE_UUID.test(body.voiceHookId)))) patch.voice_hook_id = body.voiceHookId
   if ("voiceCtaId" in body && (body.voiceCtaId === null || (typeof body.voiceCtaId === "string" && VOICE_UUID.test(body.voiceCtaId)))) patch.voice_cta_id = body.voiceCtaId
+
+  // ── AI PRESENTER ──────────────────────────────────────────────────────────────────────────
+  // OWNERSHIP IS RE-ESTABLISHED HERE, not trusted from the client. The editor only ever offers
+  // presenters the list endpoint returned, but a PATCH is a plain HTTP request and can name any
+  // uuid. So a supplied presenter_id is looked up through the CALLER'S RLS client: another agent's
+  // presenter simply does not resolve, and the field is rejected rather than written.
+  //
+  // Every one of these is render-affecting and belongs inside the renderAffecting set, because a
+  // finished render shows a specific avatar at a specific size for a specific duration.
+  if ("presenterId" in body) {
+    if (body.presenterId === null) {
+      patch.presenter_id = null
+      // Turning the feature off clears its whole configuration, so a later re-enable starts from
+      // the product defaults rather than silently resurrecting old settings.
+      patch.presenter_intro_seconds = null
+      patch.presenter_side = null
+      patch.presenter_width_px = null
+      patch.presenter_audio_storage_path = null
+    } else if (typeof body.presenterId === "string" && VOICE_UUID.test(body.presenterId)) {
+      const { data: pres } = await supabase
+        .from("social_presenters")
+        .select("id, clip_storage_path, enabled")
+        .eq("id", body.presenterId)
+        .maybeSingle()
+      if (!pres) return NextResponse.json({ error: "presenter_not_found" }, { status: 404 })
+      if ((pres as { enabled?: boolean }).enabled === false) {
+        return NextResponse.json({ error: "presenter_disabled" }, { status: 409 })
+      }
+      patch.presenter_id = body.presenterId
+      // Cache the presenter's clip on the post so the renderer reads one row, and so changing the
+      // presenter's clip later cannot silently alter an already-rendered post.
+      patch.presenter_clip_storage_path = (pres as { clip_storage_path?: string | null }).clip_storage_path ?? null
+    }
+  }
+  if ("presenterIntroSeconds" in body) {
+    const v = body.presenterIntroSeconds
+    patch.presenter_intro_seconds = typeof v === "number" && Number.isFinite(v)
+      ? Math.min(5, Math.max(3, v))   // the DB CHECK enforces the same range; this avoids a 400
+      : null
+  }
+  if ("presenterSide" in body) {
+    patch.presenter_side = body.presenterSide === "right" ? "right" : null // null ⇒ the default (left)
+  }
+  if ("presenterWidthPx" in body) {
+    const v = body.presenterWidthPx
+    patch.presenter_width_px = typeof v === "number" && Number.isFinite(v)
+      ? Math.round(Math.min(520, Math.max(240, v)))
+      : null
+  }
+  // Narration: a Voice Clip id resolves to its storage path, which is then the ONE audio used for
+  // both the HeyGen lip-sync and the final mix. Resolved server-side so a client cannot point the
+  // renderer at an arbitrary storage key.
+  if ("presenterVoiceClipId" in body) {
+    if (body.presenterVoiceClipId === null || typeof body.presenterVoiceClipId !== "string") {
+      patch.presenter_audio_storage_path = null
+    } else if (VOICE_UUID.test(body.presenterVoiceClipId)) {
+      const { data: clip } = await supabase
+        .from("social_voice_clips").select("storage_path").eq("id", body.presenterVoiceClipId).maybeSingle()
+      patch.presenter_audio_storage_path = (clip as { storage_path?: string | null } | null)?.storage_path ?? null
+    }
+  }
   // ── REEL COVER ────────────────────────────────────────────────────────────────────────────
   // Which frame Instagram SHOWS, never what the MP4 contains — so these are deliberately set
   // OUTSIDE the renderAffecting block. Choosing a cover must not invalidate a finished render.

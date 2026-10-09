@@ -53,7 +53,7 @@ export async function renderPostToStorage(args: {
   const { supabase, id, userId } = args
   const { data: post, error: readErr } = await supabase
     .from("social_posts")
-    .select("id, platform, destination, source_content_id, source_storage_path, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, voice_hook_id, voice_cta_id, render_version, presenter_id, presenter_intro_seconds, presenter_clip_storage_path, presenter_audio_storage_path, source:source_content_id(storage_path)")
+    .select("id, platform, destination, source_content_id, source_storage_path, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, voice_hook_id, voice_cta_id, render_version, presenter_id, presenter_intro_seconds, presenter_clip_storage_path, presenter_audio_storage_path, presenter_side, presenter_width_px, source:source_content_id(storage_path)")
     .eq("id", id)
     .maybeSingle()
   if (readErr) return { ok: false as const, code: "read_failed", message: readErr.message }
@@ -168,6 +168,8 @@ export async function renderPostToStorage(args: {
       ctaPath: ctaLocal,
       presenterPath: presenterLocal,
       presenterIntroSeconds: typeof p.presenter_intro_seconds === "number" ? p.presenter_intro_seconds : null,
+      presenterSide: (p.presenter_side as string | null) ?? null,
+      presenterWidthPx: typeof p.presenter_width_px === "number" ? p.presenter_width_px : null,
     })
 
     const nextVersion = (typeof p.render_version === "number" ? p.render_version : 0) + 1

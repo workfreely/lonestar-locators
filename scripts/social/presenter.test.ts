@@ -21,6 +21,7 @@ import path from "node:path"
 import {
   PRESENTER, presenterBottomPx, presenterBottomInsetPx, clampIntroSeconds,
   presenterPreviewFractions, decoderForPresenterClip, buildPresenterPlan, buildPresenterFilter,
+  clampWidthPx, normalizeSide, presenterXPx,
 } from "../../lib/social/presenterSpec"
 import { buildVideoFilter, buildFfmpegArgs } from "../../lib/social/renderVideo"
 import { renderJobKey } from "../../lib/social/renderJobs"
@@ -247,6 +248,88 @@ console.log("\n9. a presenter change invalidates the render AND enqueues new wor
   ok("the enqueue query selects the presenter columns, so the key cannot be built from stale data",
     ["presenter_id", "presenter_intro_seconds", "presenter_clip_storage_path", "presenter_audio_storage_path"]
       .every((c) => read("lib/social/renderJobs.ts").includes(c)))
+}
+
+// ── 10. SIZE AND SIDE ───────────────────────────────────────────────────────
+console.log("\n10. adjustable size and side, with the approved defaults intact:")
+{
+  ok("the default side is still LEFT", PRESENTER.defaultSide === "left" && normalizeSide(null) === "left")
+  ok("...and the default width is still 360", clampWidthPx(null) === 360 && PRESENTER.widthPx === 360)
+  ok("anything that is not 'right' normalizes to left (including junk)",
+    normalizeSide("RIGHT") === "left" && normalizeSide("middle") === "left" && normalizeSide(undefined) === "left")
+  ok("'right' is honoured", normalizeSide("right") === "right")
+  ok("width clamps to the 240-520 range", clampWidthPx(100) === 240 && clampWidthPx(900) === 520 && clampWidthPx(400) === 400)
+  ok("...and a non-finite width falls back to the default", clampWidthPx(NaN) === 360 && clampWidthPx(undefined) === 360)
+
+  const railLeft = safeAreaFor("instagram").zones.find((z) => z.kind === "rail")!.rect.x
+  ok("LEFT placement is unchanged at x110", presenterXPx("left", 360) === 110)
+  ok("...at every width, because left is measured from the canvas edge",
+    presenterXPx("left", 240) === 110 && presenterXPx("left", 520) === 110)
+
+  // RIGHT is measured back from the engagement rail, not the canvas edge.
+  for (const w of [240, 360, 520]) {
+    const x = presenterXPx("right", w)
+    ok(`RIGHT at ${w}px ends clear of the engagement rail (${x}+${w}=${x + w} <= ${railLeft - PRESENTER.railClearancePx})`,
+      x + w <= railLeft - PRESENTER.railClearancePx)
+    ok(`...and never runs off the left edge at ${w}px`, x >= PRESENTER.xPx)
+  }
+
+  // The plan and the filter must carry the chosen values, not the defaults.
+  const right520 = buildPresenterPlan({ inputIndex: 1, side: "right", widthPx: 520 })
+  ok("the plan records the side", right520.side === "right")
+  ok("...and the filter uses the computed x and chosen width",
+    buildPresenterFilter(right520, "o").includes(`scale=520:-2`) && buildPresenterFilter(right520, "o").includes(`x=${right520.xPx}:`))
+  ok("the bottom inset is the SAME for both sides — only the corner changes",
+    buildPresenterPlan({ inputIndex: 1, side: "left" }).bottomInsetPx === right520.bottomInsetPx)
+
+  // Preview parity holds for the overrides too, not just the defaults.
+  for (const [side, w] of [["left", 360], ["right", 240], ["right", 520]] as const) {
+    const fr = presenterPreviewFractions({ side, widthPx: w })
+    ok(`preview matches the renderer for ${side}/${w}`,
+      Math.abs(fr.leftFrac - presenterXPx(side, w) / SOCIAL_CANVAS.w) < 1e-12 && Math.abs(fr.widthFrac - w / SOCIAL_CANVAS.w) < 1e-12)
+  }
+}
+
+// ── 11. EDITOR + SERVER CONTRACT ────────────────────────────────────────────
+console.log("\n11. the editor is opt-in and the server re-checks ownership:")
+{
+  const ctrl = read("components/crm/social/AiPresenterControl.tsx")
+  const editor = read("components/crm/social/PostEditor.tsx")
+  const route = read("app/api/admin/social-autopilot/posts/[id]/route.ts")
+  const list = read("app/api/admin/social-autopilot/presenters/route.ts")
+  const box = read("components/crm/social/PresenterPreviewBox.tsx")
+
+  ok("the editor's presenter state starts entirely null (OFF)", /presenterId: null, introSeconds: null, side: null, widthPx: null, audioVoiceClipId: null/.test(editor))
+  ok("the control collapses to one switch until enabled", /role="switch"/.test(ctrl) && /\{!on \? \(/.test(ctrl))
+  ok("turning it OFF clears the whole configuration", /onChange\(\{ presenterId: null, introSeconds: null, side: null, widthPx: null, audioVoiceClipId: null \}\)/.test(ctrl))
+  ok("a presenter with no clip cannot be auto-selected", /filter\(\(o\) => o\.hasClip\)/.test(ctrl))
+  ok("the control defines NO geometry of its own — it imports the spec",
+    /from "@\/lib\/social\/presenterSpec"/.test(ctrl) && !/360|110|1548/.test(ctrl.replace(/\/\*[\s\S]*?\*\//g, "")))
+  ok("choosing the default width stores NULL, so the spec stays the definition of 'default'",
+    /px === PRESENTER\.widthPx \? null : px/.test(ctrl))
+
+  ok("the preview box is rendered only when a presenter is set", /presenter\.presenterId && \(\s*<PresenterPreviewBox/.test(editor))
+  ok("...and reads the shared fraction helper, not its own numbers",
+    /presenterPreviewFractions/.test(box) && !/left: "110|width: "360/.test(box))
+
+  // SERVER-SIDE OWNERSHIP — the editor only offers permitted rows, but a PATCH can name any uuid.
+  ok("PATCH looks the presenter up before accepting it", /from\("social_presenters"\)[\s\S]{0,200}\.eq\("id", body\.presenterId\)/.test(route))
+  ok("...through the CALLER'S RLS client, so another agent's row does not resolve",
+    /const \{ data: pres \} = await supabase[\s\S]{0,160}social_presenters/.test(route))
+  ok("...and an unresolvable presenter is REJECTED, not written", /if \(!pres\) return NextResponse\.json\(\{ error: "presenter_not_found" \}, \{ status: 404 \}\)/.test(route))
+  ok("a disabled presenter is refused", /presenter_disabled/.test(route))
+  ok("narration is resolved server-side from a clip id, never a client-supplied storage path",
+    /from\("social_voice_clips"\)\.select\("storage_path"\)/.test(route) && !/body\.presenterAudioStoragePath/.test(route))
+  {
+    // The route's doc comment legitimately EXPLAINS the owner_user_id policy, and that explanation
+    // matched a text search for the very thing it says is absent from the query. Assert on code.
+    const listCode = list.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "")
+    ok("the list endpoint relies on RLS rather than a forgettable WHERE",
+      !/owner_user_id/.test(listCode) && /from\("social_presenters"\)/.test(listCode))
+  }
+  ok("...and returns no credential", !/heygen_avatar_id|api_key|secret|token/i.test(list.replace(/\/\*[\s\S]*?\*\//g, "")))
+  ok("server-side range clamping mirrors the DB CHECKs",
+    /Math\.min\(5, Math\.max\(3, v\)\)/.test(route) && /Math\.min\(520, Math\.max\(240, v\)\)/.test(route))
 }
 
 console.log(`\nAI Presenter: ${pass} passed, ${fail} failed`)

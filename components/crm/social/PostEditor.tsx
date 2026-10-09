@@ -21,6 +21,8 @@ import TikTokPostConfirm from "@/components/crm/social/TikTokPostConfirm"
 import AmenitySelect from "@/components/crm/social/AmenitySelect"
 import AreaSelect from "@/components/crm/social/AreaSelect"
 import VoiceClipsControl from "@/components/crm/social/VoiceClipsControl"
+import AiPresenterControl, { type PresenterValue } from "@/components/crm/social/AiPresenterControl"
+import PresenterPreviewBox from "@/components/crm/social/PresenterPreviewBox"
 import { parseAmenities, serializeAmenities } from "@/lib/social/amenities"
 import { SOCIAL_MARKETS } from "@/lib/social/markets"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
@@ -55,6 +57,11 @@ type Source = {
 }
 type Post = {
   id: string
+  // AI Presenter — null/absent means off, the state of every post predating the feature.
+  presenterId?: string | null
+  presenterIntroSeconds?: number | null
+  presenterSide?: string | null
+  presenterWidthPx?: number | null
   needsReviewAt?: string | null
   needsReviewReason?: string | null
   platform: string
@@ -208,6 +215,9 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [tagInput, setTagInput] = useState("")
   const [audioChoice, setAudioChoice] = useState("original")
   const [voiceHookId, setVoiceHookId] = useState<string | null>(null)
+  // AI PRESENTER — one object rather than five useStates, so "off" is a single assignment that
+  // cannot leave a stray setting behind.
+  const [presenter, setPresenter] = useState<PresenterValue>({ presenterId: null, introSeconds: null, side: null, widthPx: null, audioVoiceClipId: null })
   const [voiceCtaId, setVoiceCtaId] = useState<string | null>(null)
   // EDIT & RE-RENDER. A finished post's creative controls are disabled but still VISIBLE, so the
   // operator can always see how the video was made. This opt-in unlocks them for a deliberate
@@ -300,6 +310,14 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       setAudioChoice(p.audioChoice || "original")
       setVoiceHookId(p.voiceHookId ?? null)
       setVoiceCtaId(p.voiceCtaId ?? null)
+      // AI Presenter. presenterId null ⇒ off, which is how every pre-existing post loads.
+      setPresenter({
+        presenterId: p.presenterId ?? null,
+        introSeconds: p.presenterIntroSeconds ?? null,
+        side: p.presenterSide ?? null,
+        widthPx: p.presenterWidthPx ?? null,
+        audioVoiceClipId: null,
+      })
       setScheduleVal(isoToLocalInput(p.scheduledAt))
       setSourceContentId(p.sourceContentId ?? null)
       setPropertyName(p.source?.propertyName ?? "")
@@ -378,8 +396,15 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       overlayHeadline: headline,
       overlaySubheadline: overlayMode === "generate" ? buildTemplateDetail(overlayTemplate, { market, propertyType, special: special || null, socialSpecial: socialSpecial || null, budgetRange: priceRange || null, priceLabelMode: priceMode, amenities: amenities || null }) : "",
       overlayMode, overlayTemplate, hashtags, audioChoice, voiceHookId, voiceCtaId,
+      // AI Presenter. Sent on every save so turning it OFF persists as nulls rather than being
+      // omitted and leaving the previous configuration in place.
+      presenterId: presenter.presenterId,
+      presenterIntroSeconds: presenter.presenterId ? presenter.introSeconds : null,
+      presenterSide: presenter.presenterId ? presenter.side : null,
+      presenterWidthPx: presenter.presenterId ? presenter.widthPx : null,
+      presenterVoiceClipId: presenter.presenterId ? presenter.audioVoiceClipId : null,
     }),
-    [postName, postType, caption, socialSpecial, headline, overlayMode, overlayTemplate, market, propertyType, special, priceRange, priceMode, amenities, hashtags, audioChoice, voiceHookId, voiceCtaId],
+    [postName, postType, caption, socialSpecial, headline, overlayMode, overlayTemplate, market, propertyType, special, priceRange, priceMode, amenities, hashtags, audioChoice, voiceHookId, voiceCtaId, presenter],
   )
 
   // Persist the public-safe SOURCE facts to social_content (reuses the canonical content PATCH,
@@ -940,6 +965,9 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                     edits immediately; null (renders nothing) in 'Already has text' mode. Also the
                     fallback once overlayEdited is true, even for an already-rendered post. */}
                 <PreviewOverlay layout={overlayLayout} />
+                {presenter.presenterId && (
+                  <PresenterPreviewBox side={presenter.side} widthPx={presenter.widthPx} />
+                )}
                 {/* Informational only — never blocks rendering. See SourceQualityBadge. */}
                 <div className="absolute bottom-2 left-2 z-10">
                   <SourceQualityBadge videoUrl={post.previewUrl} />
@@ -1379,6 +1407,18 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                       onChange={({ hookId, ctaId }) => { setVoiceHookId(hookId); setVoiceCtaId(ctaId) }}
                     />
                   </div>
+                </div>
+                {/* AI PRESENTER — collapsed to one switch until enabled. Sits beside Voice Clips
+                    because they share a narration, and uses the same lock treatment as every other
+                    render-affecting control on a published post. */}
+                <div className={`mt-3 ${locked ? "opacity-45 pointer-events-none" : ""}`}>
+                  <AiPresenterControl
+                    value={presenter}
+                    onChange={setPresenter}
+                    disabled={locked}
+                    disabledHint={locked ? LOCK_HINT : undefined}
+                    controlClassName={control}
+                  />
                 </div>
               </div>
 

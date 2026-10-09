@@ -54,6 +54,8 @@ export function renderJobKey(input: {
   presenterIntroSeconds?: number | null
   presenterClipPath?: string | null
   presenterAudioPath?: string | null
+  presenterSide?: string | null
+  presenterWidthPx?: number | null
 }): string {
   // The SAFE-AREA id, not the destination id, is what decides the pixels: two destinations that
   // share geometry produce a byte-identical frame and deliberately share one job and one asset
@@ -64,7 +66,8 @@ export function renderJobKey(input: {
   // every post that has no presenter — i.e. all of them today — making settled work look new. With
   // this guard a presenter-free post hashes to exactly the string it always did.
   const presenterPart = input.presenterId
-    ? [input.presenterId, String(input.presenterIntroSeconds ?? ""), input.presenterClipPath ?? "", input.presenterAudioPath ?? ""]
+    ? [input.presenterId, String(input.presenterIntroSeconds ?? ""), input.presenterClipPath ?? "", input.presenterAudioPath ?? "",
+       input.presenterSide ?? "", String(input.presenterWidthPx ?? "")]
     : []
   const canonical = JSON.stringify([
     input.postId, input.platform, geometry, input.overlayMode ?? "", input.overlayTemplate ?? "",
@@ -79,7 +82,7 @@ export function renderJobKey(input: {
 
 /** The post columns the key needs. Exported so the enqueue query and the key cannot drift apart. */
 export const RENDER_JOB_POST_COLUMNS =
-  "id, platform, destination, status, render_status, rendered_storage_path, overlay_mode, overlay_template, overlay_headline, overlay_subheadline, audio_choice, voice_hook_id, voice_cta_id, source_content_id, presenter_id, presenter_intro_seconds, presenter_clip_storage_path, presenter_audio_storage_path"
+  "id, platform, destination, status, render_status, rendered_storage_path, overlay_mode, overlay_template, overlay_headline, overlay_subheadline, audio_choice, voice_hook_id, voice_cta_id, source_content_id, presenter_id, presenter_intro_seconds, presenter_clip_storage_path, presenter_audio_storage_path, presenter_side, presenter_width_px"
 
 export type RenderJobPost = {
   id: string

@@ -35,6 +35,9 @@ export type RenderInput = {
   presenterPath?: string | null
   /** Spoken intro length in seconds; clamped to the supported 3–5s range. */
   presenterIntroSeconds?: number | null
+  /** Per-post placement overrides. Null/omitted ⇒ the approved default (lower-left, 360px). */
+  presenterSide?: string | null
+  presenterWidthPx?: number | null
 }
 
 // One drawtext item: pre-wrapped text file + its font size, top Y (canvas px), line spacing, and an
@@ -486,7 +489,7 @@ export async function renderReel(ffmpegPath: string, input: RenderInput): Promis
   // places — the filter graph and the input list — from this one value.
   const voiceCount = (input.hookPath ? 1 : 0) + (input.ctaPath ? 1 : 0)
   const presenterPlan = input.presenterPath
-    ? buildPresenterPlan({ inputIndex: 1 + voiceCount, introSeconds: input.presenterIntroSeconds ?? null, platform: input.platform })
+    ? buildPresenterPlan({ inputIndex: 1 + voiceCount, introSeconds: input.presenterIntroSeconds ?? null, side: input.presenterSide ?? null, widthPx: input.presenterWidthPx ?? null, platform: input.platform })
     : null
   const filter = buildVideoFilter(input.fontPath, items, buildSourceChain(sourceInfo), presenterPlan)
 

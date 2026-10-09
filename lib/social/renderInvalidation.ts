@@ -54,6 +54,8 @@ export const RENDER_AFFECTING_COLUMNS = [
   "presenter_intro_seconds",
   "presenter_clip_storage_path",
   "presenter_audio_storage_path",
+  "presenter_side",
+  "presenter_width_px",
 ] as const
 
 export type RenderAffectingColumn = (typeof RENDER_AFFECTING_COLUMNS)[number]
