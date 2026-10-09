@@ -655,9 +655,21 @@ export default function SocialAutopilotClient() {
     setUploads((prev) => prev?.map((u) => (u.uid === uf.uid ? { ...u, status: "uploading", error: undefined } : u)) ?? prev)
     try {
       const path = `${userId}/${uf.contentId}/source.${extOf(uf.file.name)}`
+      // upsert:false — THE MASTER IS WRITE-ONCE.
+      //
+      // This was upsert:true, justified as "same contentId only, and it makes retry idempotent".
+      // Both halves were true, but the safety rested entirely on a CONVENTION: contentId is a
+      // fresh uuidv4() per upload, so the key never collides. Nothing enforced that. Any future
+      // path that reused a contentId — a retry that regenerates state, an import, a restored
+      // draft — would have silently overwritten an original the operator intends to reuse
+      // indefinitely for new templates, narration and AI-presenter versions.
+      //
+      // With upsert:false a collision FAILS instead, which is the correct outcome: the existing
+      // master is the valuable artifact, not the incoming bytes. Retry is still safe — a retry of
+      // a genuinely failed upload has no object to collide with.
       const up = await supabase.storage.from("social-media").upload(path, uf.file, {
         contentType: uf.file.type || "video/mp4",
-        upsert: true, // same contentId only — safe, and makes retry idempotent
+        upsert: false,
       })
       if (up.error) throw new Error(up.error.message)
       const res = await fetch("/api/admin/social-autopilot/content", {

@@ -241,7 +241,11 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
         setRows((prev) => prev.map((x) => (x.uid === r.uid ? { ...x, upload: "uploading" } : x)))
         try {
           const path = `${user.id}/${r.contentId}/source.${extOf(r.file.name)}`
-          const up = await supabase.storage.from("social-media").upload(path, r.file, { contentType: r.file.type || "video/mp4", upsert: true })
+          // upsert:false — the uploaded original is a write-once master. See the matching change
+          // in SocialAutopilotClient: a fresh contentId per upload meant the key never collided,
+          // but that was convention, not enforcement. A collision must now fail rather than
+          // silently replace footage the operator plans to reuse indefinitely.
+          const up = await supabase.storage.from("social-media").upload(path, r.file, { contentType: r.file.type || "video/mp4", upsert: false })
           if (up.error) throw new Error(up.error.message)
           const res = await fetch("/api/admin/social-autopilot/content", {
             method: "POST",
