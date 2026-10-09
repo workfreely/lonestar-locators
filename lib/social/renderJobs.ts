@@ -48,16 +48,29 @@ export function renderJobKey(input: {
   audioChoice: string | null
   voiceHookId: string | null
   voiceCtaId: string | null
+  /** AI Presenter. All four change the pixels, so two different presenter configs must not
+   *  collapse into one queued job. */
+  presenterId?: string | null
+  presenterIntroSeconds?: number | null
+  presenterClipPath?: string | null
+  presenterAudioPath?: string | null
 }): string {
   // The SAFE-AREA id, not the destination id, is what decides the pixels: two destinations that
   // share geometry produce a byte-identical frame and deliberately share one job and one asset
   // (tiktok_video and tiktok_story today). Two that differ get separate jobs — which is exactly
   // why instagram_reel and instagram_story cannot collapse.
   const geometry = DESTINATIONS[input.destination].safeAreaId
+  // APPENDED ONLY WHEN A PRESENTER IS SET. Adding fields unconditionally would change the key of
+  // every post that has no presenter — i.e. all of them today — making settled work look new. With
+  // this guard a presenter-free post hashes to exactly the string it always did.
+  const presenterPart = input.presenterId
+    ? [input.presenterId, String(input.presenterIntroSeconds ?? ""), input.presenterClipPath ?? "", input.presenterAudioPath ?? ""]
+    : []
   const canonical = JSON.stringify([
     input.postId, input.platform, geometry, input.overlayMode ?? "", input.overlayTemplate ?? "",
     input.headline ?? "", input.subheadline ?? "", input.audioChoice ?? "",
     input.voiceHookId ?? "", input.voiceCtaId ?? "",
+    ...presenterPart,
   ])
   // Hashed rather than concatenated: headlines contain arbitrary text, and the column is unique —
   // a raw key would be unbounded and awkward to read in logs.
@@ -66,7 +79,7 @@ export function renderJobKey(input: {
 
 /** The post columns the key needs. Exported so the enqueue query and the key cannot drift apart. */
 export const RENDER_JOB_POST_COLUMNS =
-  "id, platform, destination, status, render_status, rendered_storage_path, overlay_mode, overlay_template, overlay_headline, overlay_subheadline, audio_choice, voice_hook_id, voice_cta_id, source_content_id"
+  "id, platform, destination, status, render_status, rendered_storage_path, overlay_mode, overlay_template, overlay_headline, overlay_subheadline, audio_choice, voice_hook_id, voice_cta_id, source_content_id, presenter_id, presenter_intro_seconds, presenter_clip_storage_path, presenter_audio_storage_path"
 
 export type RenderJobPost = {
   id: string

@@ -53,7 +53,7 @@ export async function renderPostToStorage(args: {
   const { supabase, id, userId } = args
   const { data: post, error: readErr } = await supabase
     .from("social_posts")
-    .select("id, platform, destination, source_content_id, source_storage_path, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, voice_hook_id, voice_cta_id, render_version, source:source_content_id(storage_path)")
+    .select("id, platform, destination, source_content_id, source_storage_path, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, voice_hook_id, voice_cta_id, render_version, presenter_id, presenter_intro_seconds, presenter_clip_storage_path, presenter_audio_storage_path, source:source_content_id(storage_path)")
     .eq("id", id)
     .maybeSingle()
   if (readErr) return { ok: false as const, code: "read_failed", message: readErr.message }
@@ -109,6 +109,40 @@ export async function renderPostToStorage(args: {
     const hookLocal = await voiceLocal((p.voice_hook_id as string | null) ?? null, "Hook")
     const ctaLocal = await voiceLocal((p.voice_cta_id as string | null) ?? null, "CTA")
 
+    // ── AI PRESENTER ──────────────────────────────────────────────────────────────────────────
+    // Entirely opt-in: no presenter_id ⇒ nothing below runs and the render is exactly what it was.
+    //
+    // Downloading by storage path, the same read-only signed-URL pattern as the source and voice
+    // clips. The presenter clip is a DERIVATIVE under presenters/ — no source.* key is read here,
+    // and nothing is uploaded.
+    let presenterLocal: string | null = null
+    let presenterAudioLocal: string | null = null
+    if (p.presenter_id) {
+      const clipPath = (p.presenter_clip_storage_path as string | null) ?? null
+      if (clipPath) {
+        const { data: sg, error: sgErr } = await supabase.storage.from("social-media").createSignedUrl(clipPath, 600)
+        if (sgErr || !sg?.signedUrl) throw new Error("AI Presenter: could not read the avatar clip")
+        const r = await fetch(sg.signedUrl)
+        if (!r.ok) throw new Error(`AI Presenter: the avatar clip failed to download (${r.status})`)
+        presenterLocal = path.join(work, `presenter.${extOf(clipPath)}`)
+        await fs.writeFile(presenterLocal, Buffer.from(await r.arrayBuffer()))
+      }
+      const audioPath = (p.presenter_audio_storage_path as string | null) ?? null
+      if (audioPath) {
+        const { data: ag, error: agErr } = await supabase.storage.from("social-media").createSignedUrl(audioPath, 600)
+        if (agErr || !ag?.signedUrl) throw new Error("AI Presenter: could not read the presenter audio")
+        const ar = await fetch(ag.signedUrl)
+        if (!ar.ok) throw new Error(`AI Presenter: the presenter audio failed to download (${ar.status})`)
+        presenterAudioLocal = path.join(work, `presenter-audio.${extOf(audioPath)}`)
+        await fs.writeFile(presenterAudioLocal, Buffer.from(await ar.arrayBuffer()))
+      }
+    }
+    // ONE audio file drives both the avatar's lip-sync and the final mix. It rides the EXISTING
+    // Voice Clip hook path — same ducking, same timing, already tested — rather than introducing a
+    // second audio chain that could drift out of sync with the mouth. An explicitly chosen Hook
+    // still wins: the operator's selection is never silently replaced.
+    const effectiveHook = hookLocal ?? presenterAudioLocal
+
     const outLocal = path.join(work, "out.mp4")
     // 'existing' mode = the uploaded video already has burned-in text: draw NO Beast Social overlay
     // (empty headline/subheadline → no drawtext) and keep the original audio. 'generate' = the
@@ -130,8 +164,10 @@ export async function renderPostToStorage(args: {
         // engine takes a safe-area id; the destination is what resolves it.
         platform: safeAreaId,
       workDir: work,
-      hookPath: hookLocal,
+      hookPath: effectiveHook,
       ctaPath: ctaLocal,
+      presenterPath: presenterLocal,
+      presenterIntroSeconds: typeof p.presenter_intro_seconds === "number" ? p.presenter_intro_seconds : null,
     })
 
     const nextVersion = (typeof p.render_version === "number" ? p.render_version : 0) + 1

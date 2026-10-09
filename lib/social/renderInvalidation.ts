@@ -47,6 +47,13 @@ export const RENDER_AFFECTING_COLUMNS = [
   "voice_cta_id",
   // The post's own footage. Swapping the video is the most render-affecting change there is.
   "source_storage_path",
+  // AI PRESENTER. All four change the pixels: which avatar is composited, for how long, from which
+  // clip, and the audio its mouth is synced to. Omitting any of them would leave a stale render
+  // claiming to show a presenter it no longer matches.
+  "presenter_id",
+  "presenter_intro_seconds",
+  "presenter_clip_storage_path",
+  "presenter_audio_storage_path",
 ] as const
 
 export type RenderAffectingColumn = (typeof RENDER_AFFECTING_COLUMNS)[number]

@@ -10,6 +10,7 @@ import path from "node:path"
 import os from "node:os"
 import { OVERLAY_TEXT, computeOverlayLayout, type OverlayLayout, type OverlayFace } from "@/lib/social/overlaySpec"
 import { DELIVERY_SIZE } from "@/lib/social/deliverySize"
+import { buildPresenterFilter, buildPresenterPlan, decoderForPresenterClip, type PresenterPlan } from "@/lib/social/presenterSpec"
 
 export type AudioChoice = "original" | "none" | "lb_track"
 
@@ -28,6 +29,12 @@ export type RenderInput = {
   // omitted. When present the source music bed ducks while the clip plays (see VOICE_MIX).
   hookPath?: string | null
   ctaPath?: string | null
+  /** AI PRESENTER — local path to a transparent avatar clip (WebM/VP9+alpha from HeyGen, or a
+   *  ProRes 4444 / QTRLE stand-in). Omitted or null ⇒ the graph is exactly what it was, which is
+   *  how every existing post keeps rendering identically. */
+  presenterPath?: string | null
+  /** Spoken intro length in seconds; clamped to the supported 3–5s range. */
+  presenterIntroSeconds?: number | null
 }
 
 // One drawtext item: pre-wrapped text file + its font size, top Y (canvas px), line spacing, and an
@@ -46,7 +53,15 @@ function escFilterPath(p: string): string {
  *  Hook / Center Hook + Detail all render from the same geometry the preview uses. NOTE: FFmpeg
  *  drawtext has no letter-spacing (tracking) or shadow blur, so the burned-in text omits the subtle
  *  tracking and uses a hard-offset shadow; the preview carries the full treatment. */
-export function buildVideoFilter(fontPath: string, items: DrawItem[], sourceChain?: string): string {
+export function buildVideoFilter(
+  fontPath: string,
+  items: DrawItem[],
+  sourceChain?: string,
+  /** AI Presenter. Composited onto [bg] BEFORE the drawtext chain, so overlay text is always drawn
+   *  ON TOP of the avatar and can never be occluded by it. Omit → the graph is byte-identical to
+   *  what it was, which is what keeps every existing render reproducible. */
+  presenter?: PresenterPlan | null,
+): string {
   const depth = (fontPx: number) => {
     const edge = Math.max(1, Math.round(OVERLAY_TEXT.edgeEm * fontPx))
     const dy = Math.max(1, Math.round(OVERLAY_TEXT.shadowDyEm * fontPx))
@@ -60,6 +75,10 @@ export function buildVideoFilter(fontPath: string, items: DrawItem[], sourceChai
   const chain = sourceChain ?? `scale=${DELIVERY.w}:${DELIVERY.h}:force_original_aspect_ratio=increase,crop=${DELIVERY.w}:${DELIVERY.h}`
   const graph: string[] = [`[0:v]${chain}[bg]`]
   let label = "bg"
+  if (presenter) {
+    graph.push(buildPresenterFilter(presenter, "withpres"))
+    label = "withpres"
+  }
   items.forEach((it, i) => {
     const next = i === items.length - 1 ? "v" : `t${i}`
     const font = escFilterPath(it.font ?? fontPath) // per-item font, chosen from the block's face
@@ -87,10 +106,20 @@ export function buildFfmpegArgs(input: {
   /** Probed source. Drives frame rate and whether the audio can be stream-copied. Omit to keep the
    *  historical fixed-30fps / always-re-encode behaviour. */
   source?: SourceInfo | null
+  /** AI Presenter clip, appended as the LAST input so every voice-clip index above stays valid.
+   *  `decoder` is emitted before its -i: FFmpeg's native vp9/vp8 decoders silently drop the alpha
+   *  channel, so a transparent WebM composites as an opaque box without it. */
+  presenterInput?: { path: string; decoder: string | null } | null
 }): string[] {
   // The graph is a labelled -filter_complex ending in [v]; map that plus the source audio through.
   const args = ["-y", "-i", input.sourcePath]
   for (const extra of input.extraInputs ?? []) args.push("-i", extra)
+  // LAST, and after the voice clips, so adding a presenter cannot renumber an existing audio input.
+  // The decoder flag is per-input and must precede the -i it applies to.
+  if (input.presenterInput) {
+    if (input.presenterInput.decoder) args.push("-c:v", input.presenterInput.decoder)
+    args.push("-i", input.presenterInput.path)
+  }
   // The VIDEO graph is untouched. When an audio graph exists it is appended as further chains in the
   // same -filter_complex, so there is still exactly ONE graph and one render invocation.
   const filter = input.audioFilter ? `${input.filter};${input.audioFilter}` : input.filter
@@ -450,7 +479,16 @@ export async function renderReel(ffmpegPath: string, input: RenderInput): Promis
   // feed decisions below (tone-map or not, which fps to emit, whether audio can be stream-copied).
   // A probe that reveals nothing degrades to the historical defaults rather than failing the render.
   const sourceInfo = parseSourceInfo(await probeStderr(ffmpegPath, input.sourcePath))
-  const filter = buildVideoFilter(input.fontPath, items, buildSourceChain(sourceInfo))
+
+  // ── AI PRESENTER ────────────────────────────────────────────────────────────────────────────
+  // Its input index is computed AFTER the voice clips are counted, because the presenter is
+  // appended last precisely so it cannot renumber them. The plan is built here and consumed in two
+  // places — the filter graph and the input list — from this one value.
+  const voiceCount = (input.hookPath ? 1 : 0) + (input.ctaPath ? 1 : 0)
+  const presenterPlan = input.presenterPath
+    ? buildPresenterPlan({ inputIndex: 1 + voiceCount, introSeconds: input.presenterIntroSeconds ?? null, platform: input.platform })
+    : null
+  const filter = buildVideoFilter(input.fontPath, items, buildSourceChain(sourceInfo), presenterPlan)
 
   // ── Voice clips: probe real durations, then build the audio graph ───────────────────────────
   const hookPath = input.hookPath ?? null
@@ -491,7 +529,13 @@ export async function renderReel(ffmpegPath: string, input: RenderInput): Promis
     })
   }
 
-  const args = buildFfmpegArgs({ sourcePath: input.sourcePath, outputPath: input.outputPath, filter, audioChoice: input.audioChoice, extraInputs, audioFilter, source: sourceInfo })
+  const args = buildFfmpegArgs({
+    sourcePath: input.sourcePath, outputPath: input.outputPath, filter,
+    audioChoice: input.audioChoice, extraInputs, audioFilter, source: sourceInfo,
+    presenterInput: input.presenterPath
+      ? { path: input.presenterPath, decoder: decoderForPresenterClip(input.presenterPath) }
+      : null,
+  })
 
   await new Promise<void>((resolve, reject) => {
     execFile(ffmpegPath, args, { maxBuffer: 1024 * 1024 * 16 }, (err, _stdout, stderr) => {
