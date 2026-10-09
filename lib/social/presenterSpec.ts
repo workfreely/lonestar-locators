@@ -42,8 +42,27 @@ export const PRESENTER = {
   railClearancePx: 24,
   /** The approved default corner. */
   defaultSide: "left" as PresenterSide,
-  /** Gap between the presenter's bottom edge and the top of Instagram's caption block. */
-  captionClearancePx: 36,
+  /**
+   * How far the presenter's feet sit BELOW the top of Instagram's caption block.
+   *
+   * Negative = above it (a clearance). Positive = deliberately overlapping into it.
+   *
+   * This was -36 (i.e. 36px of clearance, feet at y1512) and read as floating: 408px of the frame
+   * sat empty beneath the figure, and a presenter that does not reach the bottom of the shot does
+   * not look like it is standing in the room.
+   *
+   * THE MEASURED CONSTRAINT. The caption block begins at canvas y1548 — that is where Instagram
+   * draws the username row, with the caption at y1649 and "View insights" at y1856, all
+   * left-aligned and therefore directly over a left-placed presenter. There are only 36px between
+   * the old position and that boundary, so a genuinely lower placement HAS to enter the zone;
+   * there is no third option.
+   *
+   * +60 puts the feet at y1608: past the username row, stopping short of the caption text at
+   * y1649. The overlap is the figure's lowest band — the bottom of the torso — which is the part
+   * of a waist-up shot that carries the least information, and Instagram's username line is a
+   * single row of text rather than a solid panel. The bottom gap falls from 408px to 312px.
+   */
+  captionOverlapPx: 60,
   /** Default spoken intro length. Clamped to [MIN, MAX] everywhere it is accepted. */
   defaultIntroSeconds: 4,
   minIntroSeconds: 3,
@@ -60,7 +79,8 @@ export function presenterBottomPx(platform: string = "instagram"): number {
   // No caption zone declared (a platform we have not measured) → fall back to a 20% bottom inset
   // rather than letting the avatar sit on the very bottom edge.
   const captionTop = caption ? caption.rect.y : Math.round(SOCIAL_CANVAS.h * 0.8)
-  return captionTop - PRESENTER.captionClearancePx
+  // Never past the canvas itself, however the overlap is tuned.
+  return Math.min(SOCIAL_CANVAS.h, captionTop + PRESENTER.captionOverlapPx)
 }
 
 /** Distance from the canvas BOTTOM to the presenter's bottom edge — what `overlay=y=H-h-N` needs. */

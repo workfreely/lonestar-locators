@@ -39,8 +39,17 @@ console.log("1. lower-left, clear of the Instagram caption block:")
 {
   const caption = safeAreaFor("instagram").zones.find((z) => z.kind === "caption")!
   ok("the caption block starts at the MEASURED y1548", caption.rect.y === 1548)
-  ok(`the presenter's bottom edge is above it (${presenterBottomPx("instagram")} < 1548)`, presenterBottomPx("instagram") < caption.rect.y)
-  ok(`...by exactly the declared clearance (${PRESENTER.captionClearancePx}px)`, caption.rect.y - presenterBottomPx("instagram") === PRESENTER.captionClearancePx)
+  // The presenter now sits DELIBERATELY lower, overlapping the top of the caption block by a
+  // declared amount — 36px of clearance read as floating, with 408px of empty frame beneath the
+  // figure. There were only 36px between that position and the caption boundary, so a lower
+  // placement necessarily enters the zone; the question is by how much, not whether.
+  ok(`the bottom edge is the caption top plus the declared overlap (${presenterBottomPx("instagram")})`,
+    presenterBottomPx("instagram") === caption.rect.y + PRESENTER.captionOverlapPx)
+  ok("...which is lower than the old 1512 position", presenterBottomPx("instagram") > 1512)
+  ok("...and the bottom gap shrank from 408px", SOCIAL_CANVAS.h - presenterBottomPx("instagram") < 408)
+  ok("...while stopping short of the caption TEXT line at y1649",
+    presenterBottomPx("instagram") < 1649)
+  ok("...and never past the canvas itself", presenterBottomPx("instagram") <= SOCIAL_CANVAS.h)
   ok("its left edge matches the headline box's left edge, so they read as one composition",
     PRESENTER.xPx === safeAreaFor("instagram").text.x)
   ok("it stays well clear of the engagement rail on the right",

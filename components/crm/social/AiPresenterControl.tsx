@@ -109,6 +109,8 @@ export default function AiPresenterControl({
   const widthPx = clampWidthPx(value.widthPx)
   const introSeconds = clampIntroSeconds(value.introSeconds)
   const wrap = disabled ? "opacity-45 pointer-events-none" : ""
+  // One shared sub-label style: the rows only read as rows if every caption above them matches.
+  const subLabel = "block truncate text-[10px] uppercase tracking-wide text-[var(--crm-text-muted)]"
 
   return (
     <div className="block" title={disabled ? disabledHint : undefined} aria-disabled={disabled || undefined}>
@@ -129,54 +131,50 @@ export default function AiPresenterControl({
       </div>
 
       {!on ? (
-        <p className="mt-1 text-[11px] text-[var(--crm-text-muted)]">
-          Off. A talking presenter introduces the property, then fades out.
-        </p>
+        <p className="mt-1 text-[11px] text-[var(--crm-text-muted)]">Off</p>
       ) : (
         <div className={`mt-2 flex flex-col gap-2 ${wrap}`}>
           {loadErr && <p className="text-[11px] text-red-400">{loadErr}</p>}
 
-          <label className="block">
-            <span className="text-[10.5px] uppercase tracking-wide text-[var(--crm-text-muted)]">Presenter</span>
-            <select
-              className={controlClassName}
-              value={value.presenterId ?? ""}
-              onChange={(e) => {
-                const pick = (options ?? []).find((o) => o.id === e.target.value)
-                patch({ presenterId: e.target.value || null, introSeconds: pick ? clampIntroSeconds(pick.defaultIntroSeconds) : introSeconds })
-              }}
-            >
-              {options === null && <option value={value.presenterId ?? ""}>Loading…</option>}
-              {(options ?? []).map((o) => (
-                <option key={o.id} value={o.id} disabled={!o.hasClip}>
-                  {o.label}{o.isSample ? " (sample)" : ""}{o.hasClip ? "" : " — no clip yet"}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="text-[10.5px] uppercase tracking-wide text-[var(--crm-text-muted)]">Narration</span>
-            <select
-              className={controlClassName}
-              value={value.audioVoiceClipId ?? ""}
-              onChange={(e) => patch({ audioVoiceClipId: e.target.value || null })}
-            >
-              <option value="">Presenter&apos;s own voice</option>
-              {voiceClips.map((c) => (
-                <option key={c.id} value={c.id}>{c.name} ({c.clipType})</option>
-              ))}
-            </select>
-            {/* The same file drives the avatar's mouth AND the Reel's audio, so there is exactly
-                one narration and it cannot disagree with itself. */}
-            <span className="mt-1 block text-[10.5px] text-[var(--crm-text-muted)]">
-              Used for both the lip-sync and the video&apos;s audio.
-            </span>
-          </label>
-
+          {/* ROW 1 — who speaks, and with what voice. */}
           <div className="grid grid-cols-2 gap-2">
-            <label className="block">
-              <span className="text-[10.5px] uppercase tracking-wide text-[var(--crm-text-muted)]">Corner</span>
+            <label className="block min-w-0">
+              <span className={subLabel}>Presenter</span>
+              <select
+                className={controlClassName}
+                value={value.presenterId ?? ""}
+                onChange={(e) => {
+                  const pick = (options ?? []).find((o) => o.id === e.target.value)
+                  patch({ presenterId: e.target.value || null, introSeconds: pick ? clampIntroSeconds(pick.defaultIntroSeconds) : introSeconds })
+                }}
+              >
+                {options === null && <option value={value.presenterId ?? ""}>Loading…</option>}
+                {(options ?? []).map((o) => (
+                  <option key={o.id} value={o.id} disabled={!o.hasClip}>
+                    {o.label}{o.isSample ? " (sample)" : ""}{o.hasClip ? "" : " — no clip"}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block min-w-0">
+              <span className={subLabel}>Narration</span>
+              <select
+                className={controlClassName}
+                value={value.audioVoiceClipId ?? ""}
+                onChange={(e) => patch({ audioVoiceClipId: e.target.value || null })}
+              >
+                <option value="">Own voice</option>
+                {voiceClips.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {/* ROW 2 — where it stands and how long it speaks. */}
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block min-w-0">
+              <span className={subLabel}>Corner</span>
               <select
                 className={controlClassName}
                 value={side}
@@ -186,10 +184,8 @@ export default function AiPresenterControl({
                 <option value="right">Lower right</option>
               </select>
             </label>
-            <label className="block">
-              <span className="text-[10.5px] uppercase tracking-wide text-[var(--crm-text-muted)]">
-                Intro {introSeconds.toFixed(1)}s
-              </span>
+            <label className="block min-w-0">
+              <span className={subLabel}>Intro · {introSeconds.toFixed(1)}s</span>
               <input
                 type="range" className="mt-2 w-full"
                 min={PRESENTER.minIntroSeconds} max={PRESENTER.maxIntroSeconds} step={0.5}
@@ -199,12 +195,11 @@ export default function AiPresenterControl({
             </label>
           </div>
 
+          {/* ROW 3 — size, full width: it is the control most worth dragging precisely. */}
           <label className="block">
-            <span className="text-[10.5px] uppercase tracking-wide text-[var(--crm-text-muted)]">
-              Size {widthPx}px{widthPx === PRESENTER.widthPx ? " (default)" : ""}
-            </span>
+            <span className={subLabel}>Size · {widthPx}px{widthPx === PRESENTER.widthPx ? " (default)" : ""}</span>
             <input
-              type="range" className="mt-2 w-full"
+              type="range" className="mt-1.5 w-full"
               min={PRESENTER.minWidthPx} max={PRESENTER.maxWidthPx} step={20}
               value={widthPx}
               // Storing NULL at the default keeps presenterSpec the single definition of "default",
@@ -216,9 +211,7 @@ export default function AiPresenterControl({
             />
           </label>
 
-          <p className="text-[10.5px] text-[var(--crm-text-muted)]">
-            Fades out after the intro; the walkthrough keeps playing. Overlay text is unchanged.
-          </p>
+          <p className="text-[10.5px] text-[var(--crm-text-muted)]">Fades out after the intro.</p>
         </div>
       )}
     </div>
