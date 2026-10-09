@@ -562,6 +562,13 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
       return city && amount ? `What ${amount}${PER_MONTH_SUFFIX} gets you in ${city}` : ""
     }
     case "trade_up": {
+      // APARTMENT TRADES FOR AN APARTMENT — the one destination type that cannot be phrased as a
+      // trade. "…trade in your apartment for an apartment" is what the generic sentence produced,
+      // and it reads as a non-statement. An apartment-to-apartment move is an UPGRADE, so that is
+      // what it says. Only the exact canonical "Apartment" is special-cased: the compound
+      // "Industrial-Style Apartment" IS a meaningfully different destination, so it keeps the trade
+      // wording ("…for an industrial-style apartment") and reads correctly.
+      if (canonicalType === "Apartment") return "What life looks like when you upgrade your apartment"
       // Canonical display type ("Townhome", "High-Rise"); no type → the same generic "home" fallback
       // Template 5 uses, never "undefined"/"null".
       const subject = canonicalType ?? "home"

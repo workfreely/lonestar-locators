@@ -660,7 +660,12 @@ ok("T12 Townhome → lowercase", buildTemplateHeadline("trade_up", { propertyTyp
 ok("T12 High-Rise → lowercase", buildTemplateHeadline("trade_up", { propertyType: "High-Rise" }) === "What life looks like when you trade in your apartment for a high-rise")
 ok("T12 Loft → lowercase", buildTemplateHeadline("trade_up", { propertyType: "Loft" }) === "What life looks like when you trade in your apartment for a loft")
 // indefiniteArticle() is case-insensitive, so lowercasing cannot break the a/an grammar.
-ok("T12 Apartment still takes 'an' after lowercasing", buildTemplateHeadline("trade_up", { propertyType: "Apartment" }) === "What life looks like when you trade in your apartment for an apartment")
+// Apartment is the ONE destination that cannot be phrased as a trade — "…trade in your apartment
+// for an apartment" was a non-statement, so it reads as an upgrade instead.
+ok("T12 Apartment → upgrade wording, not apartment-for-an-apartment", buildTemplateHeadline("trade_up", { propertyType: "Apartment" }) === "What life looks like when you upgrade your apartment")
+// The a/an-after-lowercasing coverage this line used to carry moves to a vowel-initial type that
+// still takes the trade path, so the grammar rule stays asserted.
+ok("T12 vowel-initial type still takes 'an' after lowercasing", buildTemplateHeadline("trade_up", { propertyType: "Industrial-Style Apartment" }) === "What life looks like when you trade in your apartment for an industrial-style apartment")
 ok("T12 no type → generic 'a home' (never undefined/null)", buildTemplateHeadline("trade_up", {}) === "What life looks like when you trade in your apartment for a home")
 ok("T12 price line present when Starting At is valid", buildTemplateDetail("trade_up", { propertyType: "Townhome", budgetRange: "1495" }) === "Starting at $1,495/month")
 ok("T12 price line OMITTED when no Starting At", buildTemplateDetail("trade_up", { propertyType: "Townhome" }) === "")
