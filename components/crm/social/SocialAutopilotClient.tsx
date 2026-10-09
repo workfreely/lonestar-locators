@@ -845,14 +845,16 @@ export default function SocialAutopilotClient() {
   // open the editor. Never modifies/duplicates the source; a fresh social_posts row is made.
   const [creatingId, setCreatingId] = useState<string | null>(null)
   const createPost = useCallback(
-    async (sourceContentId: string) => {
+    async (sourceContentId: string, opts: { explicitNew?: boolean } = {}) => {
       setCreatingId(sourceContentId)
       setError(null)
       try {
         const res = await fetch("/api/admin/social-autopilot/posts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sourceContentId }),
+          // intent 'new' = the deliberate "+ New" path, which always inserts. Omitted for the
+          // implicit Edit path so the server returns an existing draft instead of duplicating.
+          body: JSON.stringify(opts.explicitNew ? { sourceContentId, intent: "new" } : { sourceContentId }),
         })
         if (!res.ok) {
           setError("Couldn't create the post.")
@@ -860,17 +862,28 @@ export default function SocialAutopilotClient() {
         }
         const json = (await res.json()) as { id?: string }
         if (json.id) {
+          // REFRESH BEFORE NAVIGATING. editPost decides "create or open" from postsBySource, and
+          // this rollup is only ever filled by load(). Without this the map still says ZERO posts
+          // for this source, so the next click creates ANOTHER draft — which is exactly how
+          // Peregrine ended up with three in 11.6 seconds. Awaited, so the map is correct even if
+          // the navigation below is slow or never happens.
+          await load()
           const params = new URLSearchParams({ from: "library" })
           if (scheduleDate) params.set("date", scheduleDate)
           router.push(`/admin/social-autopilot/posts/${encodeURIComponent(json.id)}?${params.toString()}`)
+          // DELIBERATELY NOT clearing creatingId here. router.push resolves long before the page
+          // actually changes, and that gap is when the extra clicks landed. The button stays
+          // disabled until this component unmounts on navigation; the catch below re-enables it
+          // if the request failed, so a genuine failure never leaves the card stuck.
+          return
         }
       } catch {
         setError("Couldn't create the post.")
-      } finally {
-        setCreatingId(null)
       }
+      // Only reached when creation FAILED or returned no id — re-enable so the operator can retry.
+      setCreatingId(null)
     },
-    [router, scheduleDate],
+    [router, scheduleDate, load],
   )
 
   // Open an existing post in the unified editor (Library origin).
@@ -1147,7 +1160,7 @@ export default function SocialAutopilotClient() {
               ))}
             </div>
             <div className="flex gap-2 mt-4">
-              <button type="button" className={primaryBtn} onClick={() => { const s = editMenuFor; setEditMenuFor(null); void createPost(s!) }}>+ New post variation</button>
+              <button type="button" className={primaryBtn} onClick={() => { const s = editMenuFor; setEditMenuFor(null); void createPost(s!, { explicitNew: true }) }}>+ New post variation</button>
               <button type="button" className={btn} onClick={() => setEditMenuFor(null)}>Cancel</button>
             </div>
           </div>

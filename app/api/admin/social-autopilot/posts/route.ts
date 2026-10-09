@@ -137,6 +137,33 @@ export async function POST(req: NextRequest) {
   const sourceContentId = typeof body.sourceContentId === "string" ? body.sourceContentId.trim() : ""
   if (!UUID_RE.test(sourceContentId)) return NextResponse.json({ error: "valid sourceContentId required" }, { status: 400 })
 
+  // ── IMPLICIT (Edit) vs DELIBERATE (+ New) CREATION ───────────────────────────────────────
+  //
+  // Edit is MEANT to be idempotent: "open this source's post, making one only if none exists".
+  // The library decided that from a client-side rollup that createPost never refreshed, so a
+  // second click during the navigation gap created a second post — three in 11.6s for Peregrine.
+  //
+  // `intent: "new"` is the deliberate path ("+ New" in the >1 picker). It always inserts.
+  // Create Variation is a DIFFERENT route (/duplicate) and is untouched by any of this.
+  const explicitNew = body.intent === "new"
+
+  // THE IDEMPOTENT READ. Any existing unpublished post for this source means Edit should OPEN
+  // something rather than create — which is the stated workflow, and is also right when the
+  // source already has deliberate variations (the client picker chooses among them; this is the
+  // fallback when its rollup is stale). Newest first so a just-created draft wins the race below.
+  if (!explicitNew) {
+    const { data: existing } = await supabase
+      .from("social_posts")
+      .select("id")
+      .eq("source_content_id", sourceContentId)
+      .is("published_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const found = (existing as { id?: string } | null)?.id
+    if (found) return NextResponse.json({ id: found, reused: true })
+  }
+
   // The source must exist AND be visible to this admin under RLS (owned by them). Pull the
   // PUBLIC-safe metadata used for auto-preparation (notes/placeId are intentionally excluded).
   const { data: src, error: srcErr } = await supabase
@@ -198,9 +225,29 @@ export async function POST(req: NextRequest) {
       audio_choice: "original",
       render_status: "none",
       status: "draft",
+      // PROVENANCE — what makes the uniqueness guarantee possible without touching variations.
+      // Only the implicit Edit path is constrained (one per source while unpublished, via
+      // social_posts_one_initial_draft_uidx); "+ New" is marked a variation and never is.
+      created_via: explicitNew ? "variation" : "edit_initial",
     })
     .select("id")
     .single()
-  if (error) return NextResponse.json({ error: "create_failed" }, { status: 500 })
+  if (error) {
+    // 23505 = the one-initial-draft index refused. Two Edit clicks raced and the other won, so
+    // return ITS row: both clicks then open the SAME post, which is the whole point. The read
+    // above is not atomic on its own — this is the guarantee, not a nicety.
+    if ((error as { code?: string }).code === "23505") {
+      const { data: winner } = await supabase
+        .from("social_posts")
+        .select("id")
+        .eq("source_content_id", sourceContentId)
+        .eq("created_via", "edit_initial")
+        .is("published_at", null)
+        .maybeSingle()
+      const id = (winner as { id?: string } | null)?.id
+      if (id) return NextResponse.json({ id, reused: true })
+    }
+    return NextResponse.json({ error: "create_failed" }, { status: 500 })
+  }
   return NextResponse.json({ id: (data as { id: string }).id })
 }

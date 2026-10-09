@@ -59,6 +59,10 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       // silently produced a clone whose rendered video had no Hook/CTA.
       voice_hook_id: o.voice_hook_id ?? null,
       voice_cta_id: o.voice_cta_id ?? null,
+      // A variation is DELIBERATE, so it is never subject to the one-initial-draft index. Without
+      // this marker a clone would default to NULL provenance, which is fine today but would make
+      // the two paths indistinguishable to anything added later.
+      created_via: "variation",
       status: "draft", // always a fresh draft
       render_status: "none", // the clone must render itself — never reuse the original's derivative
       scheduled_at: null, // cleared
