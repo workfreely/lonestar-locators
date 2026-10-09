@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin"
+import { supabaseAdmin } from "@/lib/supabase/admin"
 import { buildSocialDisplayName } from "@/lib/social/displayName"
 
 // PATCH /api/admin/social-autopilot/content/:id → edit internal metadata / display name.
@@ -130,14 +131,27 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const { id } = await ctx.params
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 })
 
+  // ── THE PATH COMES FROM THE DATABASE, NEVER FROM THE CALLER ───────────────────────────────
+  // Read through the RLS client, so another admin's row matches nothing here before the
+  // service-role client is involved at all. storage_path is then whatever the database says it is:
+  // the request body contributes only a confirmation token, and cannot name an object to delete.
   const { data: row, error: readErr } = await supabase
     .from("social_content")
-    .select("id, storage_path, property_name")
+    .select("id, storage_path, property_name, owner_user_id")
     .eq("id", id)
     .maybeSingle()
   if (readErr) return NextResponse.json({ error: "delete_failed" }, { status: 500 })
   if (!row) return NextResponse.json({ error: "not_found" }, { status: 404 })
-  const src = row as { id: string; storage_path?: string | null; property_name?: string | null }
+  const src = row as { id: string; storage_path?: string | null; property_name?: string | null; owner_user_id?: string | null }
+
+  // ── OWNERSHIP, ASSERTED EXPLICITLY ────────────────────────────────────────────────────────
+  // RLS already scoped the read above, and the storage policy scoped by owner folder. Neither
+  // protects what comes next: the service-role client bypasses RLS entirely, so every assumption
+  // RLS was making has to be re-established in code before it is used. Checked against the session
+  // identity from requirePlatformAdmin, never the body.
+  if (src.owner_user_id && src.owner_user_id !== guard.userId) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 })
+  }
 
   // ── DEPENDENCY CHECK ──────────────────────────────────────────────────────────────────────
   // Counted, not merely detected: "3 posts, 2 of them published" tells the operator what they
@@ -174,6 +188,40 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     }, { status: 409 })
   }
 
+  // ── JOURNAL BEFORE DESTROY ────────────────────────────────────────────────────────────────
+  // Deleting a source is two operations against two systems with no transaction spanning them, so
+  // either half can fail alone. Writing the path down FIRST is what guarantees an original can
+  // never become an untracked file — not on a failed storage call, not on a cut-off request, not if
+  // the process dies between the two steps. Any row left 'pending' or 'row_deleted' is a deletion
+  // that did not finish, with the path right there to finish or reverse it.
+  //
+  // Service role because the journal has no client write policy at all: an audit log the audited
+  // party can amend is not an audit log.
+  const journalPath = src.storage_path ?? ""
+  const { data: journal, error: journalErr } = await supabaseAdmin
+    .from("social_source_deletions")
+    .insert({
+      source_content_id: id,
+      storage_path: journalPath,
+      property_name: src.property_name ?? null,
+      requested_by: guard.userId,
+      status: "pending",
+    })
+    .select("id")
+    .maybeSingle()
+  // A journal failure ABORTS the deletion. Proceeding would be the exact untracked-original case
+  // this whole mechanism exists to make impossible.
+  if (journalErr || !journal) {
+    console.error("[social-autopilot] refusing to delete a source without a journal entry:", id, journalErr?.message)
+    return NextResponse.json({
+      error: "delete_failed",
+      detail: "The deletion could not be recorded, so nothing was deleted. Your video is untouched.",
+    }, { status: 500 })
+  }
+  const journalId = (journal as { id: string }).id
+  const mark = (patch: Record<string, unknown>) =>
+    supabaseAdmin.from("social_source_deletions").update(patch).eq("id", journalId)
+
   // ── ORDERING ──────────────────────────────────────────────────────────────────────────────
   // ROW FIRST, FILE SECOND — the reverse of what this used to do.
   //
@@ -181,15 +229,17 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   // longer existed: the library would show the card, the editor would open, and every render and
   // preview would fail on a 404 with nothing to recover. That state is invisible until used.
   //
-  // This way the two failure modes are not symmetrical, and the surviving one is recoverable: if
-  // the row goes and the file removal then fails, the bytes are still there and the response names
-  // the exact path, so it can be re-registered or tidied deliberately. A tracked orphan beats a
-  // row that lies.
+  // This way the two failure modes are not symmetrical, and the surviving one is recoverable: the
+  // bytes are still there and the journal names the exact path.
+  //
+  // The row delete stays on the RLS client — least privilege, and RLS re-checks ownership at the
+  // moment of the write rather than trusting the read above.
   const { error: delErr } = await supabase.from("social_content").delete().eq("id", id)
   if (delErr) {
     // RESTRICT may still fire here if a post was created between the count above and now — the
     // check is a courtesy, the constraint is the guarantee.
     const racedDependents = (delErr as { code?: string }).code === "23503"
+    await mark({ status: "aborted", failure_reason: `row_delete_failed: ${delErr.message}` })
     return NextResponse.json({
       error: racedDependents ? "source_has_dependents" : "delete_failed",
       detail: racedDependents
@@ -197,18 +247,28 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
         : "The source could not be deleted. Its video was not touched.",
     }, { status: racedDependents ? 409 : 500 })
   }
+  await mark({ status: "row_deleted", row_deleted_at: new Date().toISOString() })
 
   if (src.storage_path) {
-    const { error: rmErr } = await supabase.storage.from("social-media").remove([src.storage_path])
+    // ── SERVICE ROLE, AND ONLY HERE ─────────────────────────────────────────────────────────
+    // source.* objects are DELETE-protected against ordinary client sessions by a restrictive RLS
+    // policy on storage.objects, so the caller's own client cannot do this — by design. This is the
+    // single audited path that can, and it is reached only after: platform-admin verification,
+    // an ownership assertion, a zero-dependent-post count, an explicit confirmation token, and a
+    // journal entry. The path is the one read from the database.
+    const { error: rmErr } = await supabaseAdmin.storage.from("social-media").remove([src.storage_path])
     if (rmErr) {
+      await mark({ status: "orphaned", failure_reason: `file_remove_failed: ${rmErr.message}` })
       console.error("[social-autopilot] source row deleted but its file remains:", src.storage_path, rmErr.message)
       return NextResponse.json({
         ok: true,
         warning: "file_not_removed",
-        detail: "The record was deleted but its video file could not be removed. The file is still in storage.",
+        detail: "The record was deleted but its video file could not be removed. The file is still in storage and has been recorded for recovery.",
         orphanedPath: src.storage_path,
+        journalId,
       })
     }
   }
-  return NextResponse.json({ ok: true })
+  await mark({ status: "completed", file_removed_at: new Date().toISOString() })
+  return NextResponse.json({ ok: true, journalId })
 }

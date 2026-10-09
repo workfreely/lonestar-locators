@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin"
+import { assertDisposablePath } from "@/lib/social/storagePaths"
 
 // Social Beast Voice Clips library API — platform-admin only. Reusable Hook/CTA
 // voiceovers stored in the private `social-media` bucket. Clips hold file basics only
@@ -65,6 +66,11 @@ export async function DELETE(req: NextRequest) {
   const { data: row } = await supabase.from("social_voice_clips").select("storage_path").eq("id", id).maybeSingle()
   const { error } = await supabase.from("social_voice_clips").delete().eq("id", id)
   if (error) return NextResponse.json({ error: "delete_failed" }, { status: 500 })
-  if (row?.storage_path) await supabase.storage.from("social-media").remove([row.storage_path as string])
+  // GUARDED. This bucket holds original masters alongside disposable clips, and the only thing
+  // separating them is the key. assertDisposablePath throws rather than filters, so if a path from
+  // this table ever named a source.* object the removal fails loudly instead of destroying it.
+  if (row?.storage_path) {
+    await supabase.storage.from("social-media").remove([assertDisposablePath(row.storage_path as string)])
+  }
   return NextResponse.json({ ok: true })
 }
