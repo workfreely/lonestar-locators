@@ -57,3 +57,6 @@ pnpm-debug.log*
 
 # Local session recovery snapshots (never deploy/commit)
 .snapshots/
+# HeyGen test artifacts — local only, never committed
+heygen-avatars.html
+heygen-avatars.json
