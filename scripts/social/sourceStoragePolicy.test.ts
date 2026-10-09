@@ -72,7 +72,9 @@ console.log("1. the SQL predicate and its TypeScript twin agree:")
     [`${OWNER}/${CID}/takes/1760000000000.mov`, false],          // Replace Video
     [`${OWNER}/${CID}/covers/cover.jpg`, false],                // Reel cover
     [`${OWNER}/voice/7081b2cd.mp3`, false],                     // voice clip
-    [`${OWNER}/${CID}/render-e2e-proof-muy4sxeq.mp4`, false],    // the one stray object
+    [`${OWNER}/${CID}/render-e2e-proof-muy4sxeq.mp4`, false],    // a render-pipeline e2e artifact; the object itself was
+                                                                // deleted 2026-10-09, but the SHAPE still has to classify as
+                                                                // disposable — it sat in the same folder as a source.mov
     [`${OWNER}/${CID}/sources.mov`, false],                     // not the prefix
     [`${OWNER}/${CID}/my-source.mov`, false],                    // filename must START with it
     [`${OWNER}/${CID}/renders/source.mp4`, true],               // protected at ANY depth, by design
