@@ -12,10 +12,10 @@
 //
 // So Rendered/Ready requires BOTH:
 //   1. a usable artifact  — render_status='ready' AND rendered_storage_path
-//   2. human approval     — approved_at, or already published
+//   2. human approval     — approved_at, explicitly. NOT implied by publishing: see isApproved.
 //
-// Published counts as approved because it is a stronger fact than any flag: it went out. That also
-// means publishing never needs an approval backfill.
+// Publishing does NOT imply approval — every post published before the gate existed was a test, and
+// counting those as production-ready is exactly the mistake this guards against. See isApproved.
 //
 // Everything else is Working — including a rendered-but-unapproved test post, which is exactly
 // where it belongs while its content is still being verified. Nothing is deleted or hidden; the
@@ -35,9 +35,24 @@ export type LaneFacts = {
 export const hasRender = (p: LaneFacts): boolean =>
   p.render_status === "ready" && !!p.rendered_storage_path
 
-/** Has a person signed this off? Publishing implies it — it already went out. */
-export const isApproved = (p: LaneFacts): boolean =>
-  !!p.approved_at || !!p.published_at
+/**
+ * Has a PERSON signed this off?
+ *
+ * APPROVAL IS EXPLICIT. Publishing used to imply it, on the reasoning that going out is a stronger
+ * fact than any flag. That reasoning does not survive contact with pre-launch reality: every post
+ * published so far was a TEST, pushed out before the approval gate existed, and treating those as
+ * approved silently counted them as production-ready launch inventory.
+ *
+ * So `published_at` alone no longer qualifies. The distinction is exact rather than convenient —
+ * the test posts are precisely the posts that were published WITHOUT ever being approved, and in
+ * the real flow (review → Save Draft → render → approve → schedule → publish) approval always
+ * precedes publishing, so a genuine launch post carries approved_at and still appears normally.
+ *
+ * A published-but-unapproved post therefore shows in NEITHER tab: Rendered/Ready requires approval,
+ * and the Working rollup already skips published posts. That is deliberate — it keeps the historical
+ * record completely intact in the database while leaving it out of the active launch workflow.
+ */
+export const isApproved = (p: LaneFacts): boolean => !!p.approved_at
 
 /**
  * Rendered/Ready means final: schedulable, publishable, reusable.

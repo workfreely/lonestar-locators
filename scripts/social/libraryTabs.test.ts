@@ -112,12 +112,19 @@ ok("...and says why", workingReason(testRender) === "rendered_unapproved")
 ok("...and its artifact is NOT discarded", libHasRender(testRender))
 ok("approving it moves it to Rendered/Ready",
   laneOf({ ...testRender, approved_at: "2026-10-08T12:00:00Z" }) === "rendered")
-ok("a PUBLISHED post counts as approved with no backfill",
-  laneOf({ ...testRender, published_at: "2026-10-08T12:00:00Z" }) === "rendered")
+// CHANGED 2026-10-08: publishing no longer implies approval. Every post published before the
+// approval gate existed was a TEST, and counting those as approved silently made them
+// production-ready launch inventory. A published-but-unapproved post now belongs to NEITHER tab —
+// Rendered/Ready requires approval and the Working rollup skips published — which is how the
+// historical record stays intact without polluting the launch workflow.
+ok("a published-but-UNAPPROVED post is not Rendered/Ready",
+  laneOf({ ...testRender, published_at: "2026-10-08T12:00:00Z" }) === "working")
+ok("a published post that WAS approved is Rendered/Ready",
+  laneOf({ ...testRender, published_at: "2026-10-08T12:00:00Z", approved_at: "2026-10-08T11:00:00Z" }) === "rendered")
 ok("approval WITHOUT an artifact is still Working (both halves required)",
   laneOf({ render_status: "none", rendered_storage_path: null, approved_at: "2026-10-08T12:00:00Z" }) === "working")
 ok("isApproved is true for approved", isApproved({ approved_at: "x" }))
-ok("isApproved is true for published", isApproved({ published_at: "x" }))
+ok("isApproved is FALSE for published-only (approval is explicit)", !isApproved({ published_at: "x" }))
 ok("isApproved is false for neither", !isApproved({}))
 
 console.log("\nWorking reasons distinguish the states:")
@@ -134,7 +141,9 @@ ok("a source with NO posts still needs work", sourceNeedsWork([]))
 ok("a source whose every post is finished LEAVES Working", !sourceNeedsWork([done, done]))
 ok("...but one unfinished version keeps it there", sourceNeedsWork([done, unfinished]))
 ok("a rendered-but-unapproved post keeps the source in Working", sourceNeedsWork([testRender]))
-ok("a published post counts as finished", !sourceNeedsWork([{ ...testRender, published_at: "x" }]))
+// A source whose only post is a published TEST returns to Working for review — the launch reset.
+ok("a published-but-unapproved post leaves its source needing work", sourceNeedsWork([{ ...testRender, published_at: "x" }]))
+ok("...but an APPROVED published post does finish its source", !sourceNeedsWork([{ ...testRender, published_at: "x", approved_at: "y" }]))
 
 console.log("\napproval is wired through the stack:")
 const editor2 = read("components/crm/social/PostEditor.tsx")
