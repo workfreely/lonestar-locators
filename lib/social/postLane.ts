@@ -160,7 +160,18 @@ export function renderedBadge(p: LaneFacts & { status?: string | null }): CardBa
  * outranks a note that setup is done. Returning null (no badge) is a real outcome, not a fallback:
  * it is how "just uploaded, still needs setup" is expressed, and it is why DRAFT is meaningful.
  */
-export function workingBadge(posts: readonly DraftFacts[]): CardBadge | null {
+export function workingBadge(all: readonly DraftFacts[]): CardBadge | null {
+  // PUBLISHED POSTS ARE NOT PART OF THE WORKING STATE and must not colour this badge.
+  //
+  // They are already excluded from the Working rollup, but they ARE present in the lane facts this
+  // reads. That was harmless while publishing implied approval; once approval became explicit
+  // (approved_at only), every published test post started matching "has a render and is not
+  // approved" and painted its source amber — 6 sources lit up as RENDERED · NOT APPROVED with
+  // nothing unapproved left in Working at all.
+  //
+  // The badge describes what the operator still has to DO on this source. A published post is
+  // history, out of the launch workflow by design, and there is no action to take on it here.
+  const posts = all.filter((p) => !p.published_at)
   if (posts.some((p) => p.render_status === "error")) return "RENDER ERROR"
   if (posts.some((p) => hasRender(p) && !isApproved(p))) return "RENDERED · NOT APPROVED"
   if (posts.some((p) => !!p.draft_saved_at)) return "DRAFT"

@@ -255,5 +255,19 @@ console.log("\nHOOK ORDER — every hook must run on every render:")
   }
 }
 
+console.log("\na PUBLISHED post never colours the Working badge:")
+{
+  const ART = "owner/c/renders/p.mp4"
+  const publishedTest = { render_status: "ready", rendered_storage_path: ART, approved_at: null, published_at: "2026-10-08T12:00:00Z" }
+  // REGRESSION: once approval became explicit, a published test post matched "has a render and is
+  // not approved" and painted its source amber even though nothing in Working was unapproved.
+  ok("published-but-unapproved alone -> NO badge", workingBadge([publishedTest]) === null)
+  ok("published + a saved draft -> DRAFT, not amber",
+    workingBadge([publishedTest, { render_status: "none", draft_saved_at: "x" }]) === "DRAFT")
+  ok("published + a genuinely unapproved WORKING render -> amber (still correct)",
+    workingBadge([publishedTest, { render_status: "ready", rendered_storage_path: ART }]) === "RENDERED · NOT APPROVED")
+  ok("published + a render error -> RENDER ERROR", workingBadge([publishedTest, { render_status: "error" }]) === "RENDER ERROR")
+}
+
 console.log(`\nLibrary tabs + rendered editor: ${pass} passed, ${fail} failed`)
 if (fail > 0) process.exit(1)
