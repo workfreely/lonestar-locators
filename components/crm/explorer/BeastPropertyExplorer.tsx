@@ -94,6 +94,23 @@ type Status = "loading" | "ready" | "searching" | "error" | "unconfigured"
 // cloud setup. This is the ONLY thing the Map ID changes here.
 const MAP_ID = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID"
 
+// How long the preview card survives after the pointer leaves a pin.
+//
+// WHY A DELAY AT ALL: pins are separate DOM nodes, so moving from marker A to
+// marker B fires `mouseleave` A and `mouseenter` B as two separate events — which
+// used to render "no card" between them, tearing the card down and rebuilding it on
+// every move. Deferring only the CLEAR lets B's enter cancel A's pending clear, so a
+// direct A to B move never passes through empty.
+//
+// It also absorbs the real bug: two pins close enough to overlap trade rapid
+// enter/leave pairs as the pointer crosses the seam (they differ only by DOM order
+// at equal zIndex), which flickered the card between the two properties. Each clear
+// is cancelled by the next enter, so the card settles instead of toggling.
+//
+// Short enough to feel immediate when leaving the map entirely; long enough to span
+// the gap between two adjacent pins.
+const HOVER_CLEAR_MS = 80
+
 // The property pins are AdvancedMarkerElements (so hover can use real DOM events).
 type PropertyMarker = google.maps.marker.AdvancedMarkerElement
 
@@ -114,6 +131,8 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   const hostRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<PropertyMarker[]>([])
+  // Pending hover-clear timer (see HOVER_CLEAR_MS and the marker listeners).
+  const hoverClearRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // placeId -> its map marker, so the Unleash Beast animation can highlight the
   // REAL ranked matches (Beast Suggestions) rather than arbitrary render order.
   const markerByIdRef = useRef<Map<string, PropertyMarker>>(new Map())
@@ -324,6 +343,9 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   }, [marketBounds, center, status])
 
   const clearMarkers = useCallback(() => {
+    // Drop any pending hover-clear with the markers it referred to, so a timer armed
+    // by a pin that no longer exists cannot fire against the next search's results.
+    if (hoverClearRef.current) { clearTimeout(hoverClearRef.current); hoverClearRef.current = null }
     // Listeners go with the marker; nothing accumulates across searches.
     for (const m of markersRef.current) {
       google.maps.event.clearInstanceListeners(m)
@@ -331,6 +353,13 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     }
     markersRef.current = []
     markerByIdRef.current.clear()
+  }, [])
+
+  // UNMOUNT: never leave a hover-clear armed. clearMarkers cancels it on every
+  // marker rebuild, but a component torn down while the pointer sits on a pin would
+  // otherwise leave a timer to fire setHovered on an unmounted tree.
+  useEffect(() => () => {
+    if (hoverClearRef.current) { clearTimeout(hoverClearRef.current); hoverClearRef.current = null }
   }, [])
 
   // ── Map bootstrap (once) ──────────────────────────────────────────────────
@@ -1026,8 +1055,24 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
       })
       // Hover uses NATIVE DOM events on the marker's own element — reliable, unlike
       // the legacy Marker's mouseover. Same in-memory property object, no request.
-      el.addEventListener("mouseenter", () => setHovered(p))
-      el.addEventListener("mouseleave", () => setHovered(null))
+      //
+      // ENTER IS IMMEDIATE and cancels any pending clear, so moving straight from one
+      // pin to another switches the card with no blank frame in between.
+      el.addEventListener("mouseenter", () => {
+        if (hoverClearRef.current) { clearTimeout(hoverClearRef.current); hoverClearRef.current = null }
+        setHovered(p)
+      })
+      // LEAVE IS DEFERRED AND GUARDED. Deferred so an adjacent pin's enter can cancel
+      // it; guarded so a late leave from THIS pin cannot wipe a hover that has since
+      // moved to another one. Compared by placeId rather than object identity because
+      // `visible` is rebuilt on each search and would otherwise hold a stale reference.
+      el.addEventListener("mouseleave", () => {
+        if (hoverClearRef.current) clearTimeout(hoverClearRef.current)
+        hoverClearRef.current = setTimeout(() => {
+          hoverClearRef.current = null
+          setHovered((cur) => (cur?.placeId === p.placeId ? null : cur))
+        }, HOVER_CLEAR_MS)
+      })
       // Click PERSISTS — unchanged: selects the card and fires onSelectProperty.
       marker.addListener("click", () => {
         setSelected(p)

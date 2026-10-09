@@ -106,7 +106,15 @@ const rec = (websiteUrl: string | null, googleRating: number | null = null): Cat
   ok(/starFillPercent\(value\)/.test(starSrc), "shared StarRating uses shared starFillPercent math")
   ok(/width: `\$\{pct\}%`/.test(starSrc), "star fill reflects the decimal (partial width)")
   // The hover/click handlers set local state only — no fetch, no Places call.
-  ok(/mouseenter", \(\) => setHovered\(p\)\)/.test(src), "hover only sets local state (no request)")
+  // Spelling-agnostic. This used to require the exact one-liner
+  // `mouseenter", () => setHovered(p))`; the handler became a block when hover gained
+  // a debounced, guarded clear (two nearby pins were flickering the card), and the
+  // assertion failed on a change that preserved everything it actually cares about.
+  // What matters is that entering a pin sets local state from that pin and issues no
+  // request — both asserted directly below.
+  const hoverBlock = src.slice(src.indexOf('addEventListener("mouseenter"'), src.indexOf('marker.addListener("click"'))
+  ok(/setHovered\(p\)/.test(hoverBlock), "hover sets local state from the marker's own property")
+  ok(!/fetch\(|searchNearby\(|importLibrary\(/.test(hoverBlock), "hover only sets local state (no request)")
   ok(!/onMouseEnter[\s\S]*fetch\(/.test(src), "no fetch introduced on hover")
   const cardBlock = src.slice(src.indexOf("{card && ("))
   ok(!/fetch\(/.test(cardBlock) && !/searchNearby\(/.test(cardBlock), "card render issues no fetch / Places call")
