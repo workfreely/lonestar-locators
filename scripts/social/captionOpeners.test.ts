@@ -28,6 +28,8 @@ const EXPECTED: [OverlayTemplate, string][] = [
   ["real_living", "Real townhome living in San Antonio."],
   ["what_mo_gets_you", "$1,800/month in San Antonio."],
   ["what_mo_gets_you_top", "What $1,800/month gets you in San Antonio."],
+  // T17 mirrors its own on-video sentence rather than inventing a second voice.
+  ["property_tour", "Come tour this townhome with me."],
 ]
 ok("every template is covered exactly once", EXPECTED.length === OVERLAY_TEMPLATES.length && EXPECTED.every(([t]) => (OVERLAY_TEMPLATES as readonly string[]).includes(t)))
 for (const [tpl, want] of EXPECTED) {

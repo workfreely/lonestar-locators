@@ -568,7 +568,12 @@ export function templateFamily(template: string): LayoutFamily {
   if (template === "upgrade" || template === "apartment_standards" || template === "pov_price"
     || template === "trade_up" || template === "wanted_luxury" || template === "real_living" || template === "hits_different"
     || template === "affordable_luxury" || template === "next_property" || template === "pov_upgrade"
-    || template === "your_sign") return "center_hook_detail"
+    // property_tour (T17) is Template 3's treatment with tour wording. Joining this list is the
+    // WHOLE layout change: centered placement, CENTER_HOOK sizing/fit, uppercase:false, side
+    // margins, line spacing, the hookDetailPxFor price size and the shared 17px gap all come with
+    // membership. No new constants and no new branch, so the preview and the FFmpeg render cannot
+    // drift — both read this one function.
+    || template === "your_sign" || template === "property_tour") return "center_hook_detail"
   return "hero" // market_type, market_type_centered (vertically centered in the hero branch), special_feature, unknown → hero
 }
 

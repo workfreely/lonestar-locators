@@ -295,6 +295,8 @@ export function captionOpener(template: OverlayTemplate, src: SourceMeta): strin
     // different", "High-rises just hit different", …) rather than restating the rule here.
     case "hits_different": return canonicalType ? `${buildTemplateHeadline("hits_different", src)}.` : null
     case "trade_up": return moving && `${moving}It's time to trade up.`
+    // Mirrors the on-video sentence rather than inventing a second voice for the same template.
+    case "property_tour": return noun ? `Come tour this ${noun} with me.` : moving && `${moving}Come tour this one with me.`
     case "wanted_luxury": return moving && `${moving}You wanted luxury.`
     case "real_living": return city && noun ? `Real ${noun} living in ${city}.` : null
     case "what_mo_gets_you": return city && price ? `${price} in ${city}.` : null
@@ -451,7 +453,7 @@ export function joinDetailParts(parts: (string | null | undefined)[]): string {
 // switch/lookup in this file and overlaySpec matches on — so reordering this array can never make a
 // saved post render as a different template. `hits_different` and `what_mo_gets_you` were swapped
 // (2026-09-29) purely so the two "$/mo Gets You" templates sit together at 15 and 16.
-export const OVERLAY_TEMPLATES = ["market_type", "market_type_centered", "your_sign", "special_feature", "next_property", "upgrade", "apartment_standards", "pov_upgrade", "affordable_luxury", "pov_price", "hits_different", "trade_up", "wanted_luxury", "real_living", "what_mo_gets_you", "what_mo_gets_you_top"] as const
+export const OVERLAY_TEMPLATES = ["market_type", "market_type_centered", "your_sign", "special_feature", "next_property", "upgrade", "apartment_standards", "pov_upgrade", "affordable_luxury", "pov_price", "hits_different", "trade_up", "wanted_luxury", "real_living", "what_mo_gets_you", "what_mo_gets_you_top", "property_tour"] as const
 export type OverlayTemplate = (typeof OVERLAY_TEMPLATES)[number]
 export const DEFAULT_OVERLAY_TEMPLATE: OverlayTemplate = "market_type"
 export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
@@ -471,6 +473,7 @@ export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
   real_living: "Real [Property Type] Living",
   hits_different: "Hits Different",
   what_mo_gets_you_top: "What $/mo Gets You — Top",
+  property_tour: "Property Tour",
 }
 
 // Template 6 (POV Upgrade) — EXPLICIT deterministic copy per canonical Property Type. The grammar
@@ -561,6 +564,22 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
       const amount = startingPriceAmount(src.budgetRange)
       return city && amount ? `What ${amount}${PER_MONTH_SUFFIX} gets you in ${city}` : ""
     }
+    // TOUR — Template 3's structure and geometry with a tour-specific sentence: "San Antonio
+    // apartment tour" / "Dallas penthouse tour". Sentence case, never a hero title — the
+    // center_hook_detail branch renders uppercase:false, so what is written here is what is drawn.
+    //
+    // `noun` is the shared lowercase singular every conversational template uses, so the compounds
+    // read correctly too ("Dallas split-level loft tour"), and the market goes through the same
+    // normalizer the other city-bearing templates use.
+    //
+    // Degrades rather than fabricates, matching startingPriceLabel's rule: market only gives
+    // "San Antonio tour", type only gives "apartment tour", neither gives "" — never "undefined
+    // tour", never an invented city.
+    case "property_tour": {
+      const city = clean(normalizeSocialMarket(src.market))
+      const parts = [city, noun, "tour"].filter(Boolean)
+      return parts.length > 1 ? parts.join(" ") : ""
+    }
     case "trade_up": {
       // APARTMENT TRADES FOR AN APARTMENT — the one destination type that cannot be phrased as a
       // trade. "…trade in your apartment for an apartment" is what the generic sentence produced,
@@ -635,6 +654,9 @@ export function buildTemplateDetail(template: OverlayTemplate, src: SourceMeta):
     // T3 your_sign now takes the SAME optional price line too. Its headline is unchanged and still
     // uses no metadata; the price is purely an additional, collapsible second line.
     case "your_sign":
+    // Tour takes the identical optional price line: startingPriceLabel resolves both label modes
+    // and returns "" for a missing/invalid price, so the line AND its gap collapse on their own.
+    case "property_tour":
       return price
     case "what_mo_gets_you": // the price+city sentence is the whole headline — no separate detail
     case "what_mo_gets_you_top": // T16 = T11's copy, top-anchored; same "no detail"

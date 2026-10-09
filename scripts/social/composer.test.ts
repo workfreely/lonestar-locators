@@ -374,7 +374,7 @@ ok("render graph still outputs the [v] label", /\[v\]$/.test(hugFilt))
 
 console.log("Overlay TEMPLATES 1–5 (headline/detail generation + layout families):")
 const tMeta = { market: "San Antonio", propertyType: "High-Rise", socialSpecial: "8 Weeks Free", budgetRange: "1600", amenities: "Private Yards, Rooftop Pool" }
-ok("16 templates defined", OVERLAY_TEMPLATES.length === 16)
+ok("17 templates defined", OVERLAY_TEMPLATES.length === 17)
 // T1 Market + Type (HERO)
 ok("T1 headline = CITY TYPE_PLURAL", buildTemplateHeadline("market_type", tMeta) === "SAN ANTONIO HIGH-RISES")
 ok("T1 detail = Starting at price", buildTemplateDetail("market_type", tMeta) === "Starting at $1,600/month")
@@ -494,7 +494,7 @@ ok("T6 generated strings recognized (so they re-sync on Property Type change)", 
 ok("T6 regenerates for the CURRENT type (Townhome vs Loft)", buildTemplateHeadline("pov_upgrade", { propertyType: "Townhome" }) === "POV: You upgraded to a townhome" && buildTemplateHeadline("pov_upgrade", { propertyType: "Loft" }) === "POV: You upgraded to a loft")
 ok("T7 fixed headline recognized as generated", isGeneratedHeadline("Luxury doesn't have to be expensive"))
 ok("a genuinely MANUAL hook is NOT treated as generated (override protected)", !isGeneratedHeadline("POV: You finally made it home"))
-ok("selector lists exactly 16 templates: T2 market_type_centered, T7 apartment_standards, T8-T11 pov_upgrade/affordable_luxury/pov_price/hits_different", OVERLAY_TEMPLATES.length === 16 && OVERLAY_TEMPLATES[1] === "market_type_centered" && OVERLAY_TEMPLATES[5] === "upgrade" && OVERLAY_TEMPLATES[6] === "apartment_standards" && OVERLAY_TEMPLATES[7] === "pov_upgrade" && OVERLAY_TEMPLATES[8] === "affordable_luxury" && OVERLAY_TEMPLATES[9] === "pov_price" && OVERLAY_TEMPLATES[10] === "hits_different")
+ok("selector lists exactly 17 templates: T2 market_type_centered, T7 apartment_standards, T8-T11 pov_upgrade/affordable_luxury/pov_price/hits_different", OVERLAY_TEMPLATES.length === 17 && OVERLAY_TEMPLATES[1] === "market_type_centered" && OVERLAY_TEMPLATES[5] === "upgrade" && OVERLAY_TEMPLATES[6] === "apartment_standards" && OVERLAY_TEMPLATES[7] === "pov_upgrade" && OVERLAY_TEMPLATES[8] === "affordable_luxury" && OVERLAY_TEMPLATES[9] === "pov_price" && OVERLAY_TEMPLATES[10] === "hits_different")
 
 console.log("Template 8 (POV + Price — CENTER HOOK + DETAIL):")
 // T8 headline = same explicit POV per-type mapping as T6.
@@ -646,7 +646,7 @@ console.log("\nTemplates 12–16 (registry + dropdown order):")
 ok("T12–T16 registered in order after T11", OVERLAY_TEMPLATES[11] === "trade_up" && OVERLAY_TEMPLATES[12] === "wanted_luxury" && OVERLAY_TEMPLATES[13] === "real_living" && OVERLAY_TEMPLATES[14] === "what_mo_gets_you" && OVERLAY_TEMPLATES[15] === "what_mo_gets_you_top")
 // The swap is DISPLAY ONLY — every key still exists exactly once, so no saved post can change meaning.
 ok("swap preserved every template identity (no key added, removed or duplicated)",
-  new Set(OVERLAY_TEMPLATES).size === 16 &&
+  new Set(OVERLAY_TEMPLATES).size === 17 &&
   (["what_mo_gets_you", "hits_different"] as const).every((k) => (OVERLAY_TEMPLATES as readonly string[]).includes(k)))
 ok("picker positions: 11 = Hits Different, 15 = What $/mo Gets You, 16 = — Top",
   OVERLAY_TEMPLATE_LABEL[OVERLAY_TEMPLATES[10]] === "Hits Different" &&
@@ -1124,6 +1124,49 @@ console.log("\nT3 your_sign — optional price detail:")
   const plan = buildDrawPlan(L)
   ok("the price line reaches the render plan at the same y", plan.find((x) => x.name === "sub")?.topPx === L.detail!.topPx)
   ok("and emits no 'sub' item when there is no price", !buildDrawPlan(none).some((x) => x.name === "sub"))
+}
+
+console.log("\nTemplate 17 (Property Tour — Template 3's treatment, tour wording):")
+{
+  const tour = (o: Record<string, unknown> = {}) => buildTemplateHeadline("property_tour", { market: "San Antonio", propertyType: "Apartment", ...o })
+  ok("T17 {Market} {type} tour", tour() === "San Antonio apartment tour")
+  ok("T17 Dallas penthouse tour", tour({ market: "Dallas", propertyType: "Penthouse" }) === "Dallas penthouse tour")
+  ok("T17 Houston townhome tour", tour({ market: "Houston", propertyType: "Townhome" }) === "Houston townhome tour")
+  ok("T17 hyphenated type reads naturally", tour({ propertyType: "High-Rise" }) === "San Antonio high-rise tour")
+  ok("T17 compound type reads naturally", tour({ market: "Dallas", propertyType: "Split-Level Loft" }) === "Dallas split-level loft tour")
+  // Sentence case, NOT a hero title — the center_hook_detail branch renders uppercase:false, so the
+  // string written here is the string drawn.
+  ok("T17 is sentence case, never ALL CAPS", tour() === tour() && tour() !== tour().toUpperCase())
+  // Degrades rather than fabricating, matching startingPriceLabel's rule.
+  ok("T17 no market → type only", tour({ market: null }) === "apartment tour")
+  ok("T17 no type → market only", tour({ propertyType: null }) === "San Antonio tour")
+  ok("T17 neither → empty, never 'undefined tour'", tour({ market: null, propertyType: null }) === "")
+
+  // The SHARED optional price line, identical to T3's.
+  const det = (o: Record<string, unknown> = {}) => buildTemplateDetail("property_tour", { market: "San Antonio", propertyType: "Apartment", budgetRange: "1495", priceLabelMode: "starting_at", ...o })
+  ok("T17 starting-at price line", det() === "Starting at $1,495/month")
+  ok("T17 exact-unit wording when that mode is set", det({ priceLabelMode: "exact_unit" }) === "Exact unit shown: $1,495/month")
+  ok("T17 no price → empty detail", det({ budgetRange: null }) === "")
+
+  // GEOMETRY PARITY: T17 must be Template 3 exactly — same family, same constants, no new tuning.
+  const shape = (t: string, detail: string) => {
+    const l = computeOverlayLayout(t, "San Antonio apartment tour", detail)
+    return JSON.stringify({ family: l.family, top: l.headline.topPx, px: l.headline.fontPx, upper: l.headline.uppercase,
+      margin: l.headline.sideMarginPx, ls: l.headline.lineSpacing,
+      detail: l.detail ? { top: l.detail.topPx, px: l.detail.fontPx, upper: l.detail.uppercase, margin: l.detail.sideMarginPx } : null })
+  }
+  ok("T17 geometry is IDENTICAL to T3 with a price", shape("property_tour", "Starting at $1,495/month") === shape("your_sign", "Starting at $1,495/month"))
+  ok("T17 geometry is IDENTICAL to T3 with no price", shape("property_tour", "") === shape("your_sign", ""))
+  ok("T17 joins the center_hook_detail family", templateFamily("property_tour") === "center_hook_detail")
+  // No price must reserve NO vertical space — the headline re-centres rather than leaving a gap.
+  const withP = computeOverlayLayout("property_tour", "San Antonio apartment tour", "Starting at $1,495/month")
+  const noP = computeOverlayLayout("property_tour", "San Antonio apartment tour", "")
+  ok("T17 no price → no detail block at all", noP.detail === null)
+  ok("T17 no price → headline re-centres (no reserved gap)", noP.headline.topPx > withP.headline.topPx)
+  // T3 itself must be untouched by any of this.
+  ok("T3 your_sign headline unchanged", buildTemplateHeadline("your_sign", { propertyType: "High-Rise" }) === "Your sign to get that new high-rise")
+  ok("T17 has a dropdown label", OVERLAY_TEMPLATE_LABEL.property_tour === "Property Tour")
+  ok("T17 is appended LAST so existing indices stay stable", OVERLAY_TEMPLATES[16] === "property_tour" && OVERLAY_TEMPLATES[11] === "trade_up")
 }
 
 console.log(`\nComposer unit: ${pass} passed, ${fail} failed`)
