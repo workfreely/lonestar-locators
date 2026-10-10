@@ -15,7 +15,7 @@
 import { readFileSync } from "node:fs"
 import path from "node:path"
 import { OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, buildTemplateHeadline, buildTemplateDetail, buildCaption, commentCtaKeyword, isGeneratedCaption } from "../../lib/social/composePost"
-import { computeOverlayLayout, templateFamily } from "../../lib/social/overlaySpec"
+import { computeOverlayLayout, templateFamily, CENTER_HOOK } from "../../lib/social/overlaySpec"
 
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
@@ -163,6 +163,40 @@ console.log("\n9. the superseded T18 opener is still recognised:")
   ok("the CURRENT opener reads as generated", isGeneratedCaption(current, src, "seed", "would_you_live_here" as never))
   ok("a genuinely manual caption is NOT overwritten",
     !isGeneratedCaption("My own words." + body, src, "seed", "would_you_live_here" as never))
+}
+
+// ── 10. T20's APPROVED TWO-STATEMENT SPACING ───────────────────────────────
+// T20 is the ONLY template whose headline carries an authored "\n", and the break separates two
+// speakers rather than two halves of a sentence. The approved look is ~19px of rendered ink
+// between them, which comes from line_spacing 14 (MEASURED on real 1080x1920 frames:
+// 8 -> 13px, 12 -> 17px, 14 -> 19px, 17 -> 22px).
+//
+// The value is asserted here rather than left to the constant alone because the two numbers that
+// could plausibly drive it are NOT interchangeable: DETAIL_GAP_PX (17) positions a separate draw
+// block and renders 13px, while this one is ffmpeg line_spacing inside a single multi-line draw.
+// Anyone "unifying" them would silently retighten T20 to the spacing Jay rejected.
+console.log("\n10. T20 keeps its approved two-statement spacing:")
+{
+  const src = meta({ market: "Dallas", propertyType: "High-Rise", budgetRange: "2500" })
+  const L = computeOverlayLayout("client_me" as never, buildTemplateHeadline("client_me" as never, src), buildTemplateDetail("client_me" as never, src))
+  ok("T20 still renders TWO authored lines", L.headline.lines.length === 2)
+  ok("...separated by the approved hard-break spacing (14)", L.headline.lineSpacing === CENTER_HOOK.hardBreakSpacing && CENTER_HOOK.hardBreakSpacing === 14)
+  ok("...which is NOT the wrap spacing", CENTER_HOOK.hardBreakSpacing !== CENTER_HOOK.lineSpacing)
+
+  // EVERY other template must still use the tighter wrap spacing. This is the assertion that would
+  // have caught the change being applied more widely than T20.
+  let others = 0, wrong = 0
+  for (const tpl of OVERLAY_TEMPLATES) {
+    if (tpl === "client_me") continue
+    for (const pt of [null, "High-Rise", "Split-Level Townhome"]) {
+      const s2 = meta({ market: "San Antonio", propertyType: pt, budgetRange: "2500" })
+      const l2 = computeOverlayLayout(tpl as never, buildTemplateHeadline(tpl as never, s2), buildTemplateDetail(tpl as never, s2))
+      if (templateFamily(tpl as never) === "hero") continue
+      others++
+      if (l2.headline.lineSpacing !== CENTER_HOOK.lineSpacing) wrong++
+    }
+  }
+  ok(`all ${others} other conversational layouts keep the 8px wrap spacing`, wrong === 0)
 }
 
 console.log(`\nTemplates 18-20: ${pass} passed, ${fail} failed`)

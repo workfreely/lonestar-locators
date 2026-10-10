@@ -481,7 +481,36 @@ export type LayoutFamily = "hero" | "center_hook" | "center_hook_detail"
 // needed — never wrapped or stacked). When a center-hook template carries a detail line (T5 Upgrade),
 // the detail uses `detailFontPx` (smaller than the hook) so the hook stays dominant.
 // Shared by preview + render (parity).
-export const CENTER_HOOK = { maxPx: HOOK_MAX_PX, minPx: HOOK_MIN_PX, lineSpacing: 8, detailFontPx: 30 } as const
+export const CENTER_HOOK = {
+  maxPx: HOOK_MAX_PX, minPx: HOOK_MIN_PX, lineSpacing: 8, detailFontPx: 30,
+  // A HARD BREAK IS A STATEMENT BOUNDARY, NOT A WRAP.
+  //
+  // `lineSpacing: 8` is continuation spacing: the gap between two halves of ONE sentence the
+  // wrapper had to split. T20 (client_me) is the only template whose headline carries an authored
+  // "\n", and there the break separates two SPEAKERS — "Client: …" / "Me: …". Two full statements
+  // of similar weight need more air than two halves of one sentence.
+  //
+  // ── WHY THIS IS NOT DETAIL_GAP_PX ───────────────────────────────────────────────────────────
+  // The obvious move is to reuse DETAIL_GAP_PX (17), the headline→detail gap T19 uses, on the
+  // theory that it is "the same gap". MEASURED, it is not. The two numbers are consumed by
+  // different mechanisms: DETAIL_GAP_PX positions a SEPARATE drawtext block, while this value
+  // becomes ffmpeg's `line_spacing` INSIDE one multi-line draw, which is added on top of the
+  // glyph box. Rendered ink gaps, measured off real 1080×1920 frames:
+  //
+  //     line_spacing   8 → 13px      17 → 22px      20 → 25px      24 → 29px
+  //     T19's headline→detail gap (DETAIL_GAP_PX 17) → 13px
+  //
+  // So T20 at 8 and T19 at 17 were ALREADY producing the identical 13px gap. Tying the two to one
+  // constant would have encoded an equivalence that does not survive rendering, and would have
+  // silently changed T20 every time the detail gap was tuned.
+  //
+  // 14 is therefore chosen on its own terms: it renders ~19px, roughly half again T19's 13px, which
+  // separates the two speakers without opening a hole the centred group has to carry.
+  //
+  // Scope: hard-break only. Soft-wrapped hooks (T12 is the only template that wraps) keep 8, so no
+  // existing template's spacing moves.
+  hardBreakSpacing: 14,
+} as const
 
 // ── Conversational (center-hook) scale ───────────────────────────────────────────────────────────
 // ONE rule: the ceiling IS the conversational scale, and the 900px safe box is the only width
@@ -771,7 +800,12 @@ export function computeOverlayLayout(template: string, headlineText: string, det
     hookPx = Math.min(...lines.map((l) => fitHookPx(l, hookMaxPx, hookMinPx, safeW)))
   }
   const n = Math.max(1, lines.length)
-  const headBlockH = n * hookPx + (n - 1) * CENTER_HOOK.lineSpacing
+  // Authored breaks get statement spacing; wrapped continuations keep the tighter value. Resolved
+  // ONCE and used for both the block height and the emitted lineSpacing — the vertical centering
+  // below derives from headBlockH, so a value used in one place and not the other would centre the
+  // group against a height it does not actually occupy.
+  const hookLineSpacing = hardLines ? CENTER_HOOK.hardBreakSpacing : CENTER_HOOK.lineSpacing
+  const headBlockH = n * hookPx + (n - 1) * hookLineSpacing
   const hasDetail = family === "center_hook_detail" && detail.length > 0
   // Detail is ONE line, FIT-TO-WIDTH at a larger price-detail size that stays below
   // the hook (see hookDetailPxFor) so it reads as a strong-but-secondary line. Shrinks only if
@@ -792,7 +826,7 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   // reuses T1's own yFrac constant, so the hook typography/fit stays identical to T11's.
   const topAnchored = template === "what_mo_gets_you_top"
   const groupTop = topAnchored ? CENTER_HOOK_TOP_YFRAC * H : (H - totalH) / 2
-  const headline: OverlayBlock = { lines, fontPx: hookPx, topPx: groupTop, uppercase: false, sideMarginPx: sideMarginPx(platform), lineSpacing: CENTER_HOOK.lineSpacing, face: "head" }
+  const headline: OverlayBlock = { lines, fontPx: hookPx, topPx: groupTop, uppercase: false, sideMarginPx: sideMarginPx(platform), lineSpacing: hookLineSpacing, face: "head" }
   const detailBlock: OverlayBlock | null = hasDetail
     ? { lines: detailLines, fontPx: detailPx, topPx: groupTop + headBlockH + gap, uppercase: false, sideMarginPx: sideMarginPx(platform), lineSpacing: OVERLAY_SPEC.sub.lineSpacing, face: "head" }
     : null
