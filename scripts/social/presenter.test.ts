@@ -182,7 +182,7 @@ console.log("\n7. the editor preview reads the SAME numbers as the renderer:")
   const renderer = read("lib/social/renderVideo.ts")
   ok("the renderer hardcodes NO presenter geometry of its own",
     !/overlay=x=\d+:y=H-h-\d+/.test(renderer) && renderer.includes("buildPresenterFilter"))
-  ok("...the numbers live only in the spec", spec.includes("xPx: 110") && spec.includes("widthPx: 360"))
+  ok("...the numbers live only in the spec", spec.includes("xPx: 110") && spec.includes("widthPx: 400"))
 }
 
 // ── 8. SCHEMA: OFF BY DEFAULT, MULTI-AGENT, NO CREDENTIALS ──────────────────
@@ -263,20 +263,20 @@ console.log("\n9. a presenter change invalidates the render AND enqueues new wor
 console.log("\n10. adjustable size and side, with the approved defaults intact:")
 {
   ok("the default side is still LEFT", PRESENTER.defaultSide === "left" && normalizeSide(null) === "left")
-  ok("...and the default width is still 360", clampWidthPx(null) === 360 && PRESENTER.widthPx === 360)
+  ok("...and the default width is the APPROVED 400", clampWidthPx(null) === 400 && PRESENTER.widthPx === 400)
   ok("anything that is not 'right' normalizes to left (including junk)",
     normalizeSide("RIGHT") === "left" && normalizeSide("middle") === "left" && normalizeSide(undefined) === "left")
   ok("'right' is honoured", normalizeSide("right") === "right")
   ok("width clamps to the 240-520 range", clampWidthPx(100) === 240 && clampWidthPx(900) === 520 && clampWidthPx(400) === 400)
-  ok("...and a non-finite width falls back to the default", clampWidthPx(NaN) === 360 && clampWidthPx(undefined) === 360)
+  ok("...and a non-finite width falls back to the default", clampWidthPx(NaN) === 400 && clampWidthPx(undefined) === 400)
 
   const railLeft = safeAreaFor("instagram").zones.find((z) => z.kind === "rail")!.rect.x
-  ok("LEFT placement is unchanged at x110", presenterXPx("left", 360) === 110)
+  ok("LEFT placement is unchanged at x110", presenterXPx("left", 400) === 110)
   ok("...at every width, because left is measured from the canvas edge",
     presenterXPx("left", 240) === 110 && presenterXPx("left", 520) === 110)
 
   // RIGHT is measured back from the engagement rail, not the canvas edge.
-  for (const w of [240, 360, 520]) {
+  for (const w of [240, 400, 520]) {
     const x = presenterXPx("right", w)
     ok(`RIGHT at ${w}px ends clear of the engagement rail (${x}+${w}=${x + w} <= ${railLeft - PRESENTER.railClearancePx})`,
       x + w <= railLeft - PRESENTER.railClearancePx)
@@ -292,7 +292,7 @@ console.log("\n10. adjustable size and side, with the approved defaults intact:"
     buildPresenterPlan({ inputIndex: 1, side: "left" }).bottomInsetPx === right520.bottomInsetPx)
 
   // Preview parity holds for the overrides too, not just the defaults.
-  for (const [side, w] of [["left", 360], ["right", 240], ["right", 520]] as const) {
+  for (const [side, w] of [["left", 400], ["right", 240], ["right", 520]] as const) {
     const fr = presenterPreviewFractions({ side, widthPx: w })
     ok(`preview matches the renderer for ${side}/${w}`,
       Math.abs(fr.leftFrac - presenterXPx(side, w) / SOCIAL_CANVAS.w) < 1e-12 && Math.abs(fr.widthFrac - w / SOCIAL_CANVAS.w) < 1e-12)

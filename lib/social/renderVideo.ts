@@ -38,6 +38,8 @@ export type RenderInput = {
   /** Per-post placement overrides. Null/omitted ⇒ the approved default (lower-left, 360px). */
   presenterSide?: string | null
   presenterWidthPx?: number | null
+  /** Calibration only — see buildPresenterPlan. Not set by the editor or any stored column. */
+  presenterBottomInsetPx?: number | null
 }
 
 // One drawtext item: pre-wrapped text file + its font size, top Y (canvas px), line spacing, and an
@@ -489,7 +491,7 @@ export async function renderReel(ffmpegPath: string, input: RenderInput): Promis
   // places — the filter graph and the input list — from this one value.
   const voiceCount = (input.hookPath ? 1 : 0) + (input.ctaPath ? 1 : 0)
   const presenterPlan = input.presenterPath
-    ? buildPresenterPlan({ inputIndex: 1 + voiceCount, introSeconds: input.presenterIntroSeconds ?? null, side: input.presenterSide ?? null, widthPx: input.presenterWidthPx ?? null, platform: input.platform })
+    ? buildPresenterPlan({ inputIndex: 1 + voiceCount, introSeconds: input.presenterIntroSeconds ?? null, side: input.presenterSide ?? null, widthPx: input.presenterWidthPx ?? null, bottomInsetPxOverride: input.presenterBottomInsetPx ?? null, platform: input.platform })
     : null
   const filter = buildVideoFilter(input.fontPath, items, buildSourceChain(sourceInfo), presenterPlan)
 

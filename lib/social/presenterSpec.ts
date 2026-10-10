@@ -33,8 +33,14 @@ export type PresenterSide = "left" | "right"
 export const PRESENTER = {
   /** Left edge, canvas units. Matches the headline box's left edge. */
   xPx: 110,
-  /** Rendered width. Height follows the clip's own aspect ratio (`-2` in the scale filter). */
-  widthPx: 360,
+  /**
+   * Rendered width. Height follows the clip's own aspect ratio (`-2` in the scale filter).
+   *
+   * 400, raised from 360 after reviewing a real HeyGen presenter against a mocked Reels interface:
+   * at 360 the figure read as an inset rather than a presenter. 400 is prominent without competing
+   * with the headline, which sits 320px above and is untouched by this.
+   */
+  widthPx: 400,
   /** Operator-adjustable width bounds, mirrored by a CHECK constraint on social_posts. */
   minWidthPx: 240,
   maxWidthPx: 520,
@@ -171,10 +177,15 @@ export type PresenterPlan = {
 export function buildPresenterPlan(input: {
   inputIndex: number
   introSeconds?: number | null
-  /** Operator overrides. Both omitted ⇒ the approved default: lower-LEFT at 360px. */
+  /** Operator overrides. Both omitted ⇒ the approved default: lower-LEFT at the default width. */
   side?: string | null
   widthPx?: number | null
   platform?: string
+  /** CALIBRATION ONLY. Overrides the computed bottom inset so placement candidates can be
+   *  compared through the REAL renderer instead of a hand-rolled ffmpeg command. Nothing in the
+   *  editor or database sets this — a second overlay path is how a correct fix once got silently
+   *  defeated for a whole release, so candidates go through this one path too. */
+  bottomInsetPxOverride?: number | null
 }): PresenterPlan {
   const platform = input.platform ?? "instagram"
   const side = normalizeSide(input.side)
@@ -185,7 +196,7 @@ export function buildPresenterPlan(input: {
     side,
     xPx: presenterXPx(side, widthPx, platform),
     widthPx,
-    bottomInsetPx: presenterBottomInsetPx(platform),
+    bottomInsetPx: typeof input.bottomInsetPxOverride === "number" ? input.bottomInsetPxOverride : presenterBottomInsetPx(platform),
     fadeSeconds: PRESENTER.fadeSeconds,
   }
 }

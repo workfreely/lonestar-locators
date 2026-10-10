@@ -60,3 +60,6 @@ pnpm-debug.log*
 # HeyGen test artifacts — local only, never committed
 heygen-avatars.html
 heygen-avatars.json
+
+# Local preview scratch (large media, never committed)
+public/_scratch/
