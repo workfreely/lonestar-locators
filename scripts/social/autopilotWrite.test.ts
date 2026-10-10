@@ -23,7 +23,8 @@ const T1 = "2026-10-09T12:30:00.000Z", T2 = "2026-10-09T19:30:00.000Z"
 const eligible = (over: Partial<EligibilityInput> = {}): EligibilityInput => ({
   status: "ready", renderStatus: "ready", renderedStoragePath: "renders/x.mp4",
   scheduledAt: null, publishedAt: null, externalPostId: null, connectionId: null,
-  platform: "instagram", ...over,
+  // Explicit human sign-off is part of eligibility now; this factory means "eligible".
+  platform: "instagram", approvedAt: "2026-10-01T00:00:00Z", ...over,
 })
 const planned = (postId: string, connectionId: string, at: string, i = 0): PlannedPost => ({
   postId, sourceContentId: `src-${postId}`, connectionId, dateKey: at.slice(0, 10),
@@ -140,6 +141,7 @@ async function main() {
       ["already published", { status: "published" }, "already_published"],
       ["has published_at", { publishedAt: T1 }, "already_published"],
       ["has external_post_id", { externalPostId: "ig_123" }, "already_published"],
+      ["rendered but NOT approved by a human", { approvedAt: null }, "not_approved"],
       ["already assigned to a connection", { connectionId: CONN_B }, "assigned_to_connection"],
       ["wrong platform", { platform: "tiktok" }, "wrong_platform"],
     ]

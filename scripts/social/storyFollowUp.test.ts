@@ -72,8 +72,11 @@ ok("terminal state beats everything — published wins over an unrendered flag",
   decideStoryFollowUp({ reel: REEL_PUBLISHED, story: { ...STORY_READY, publishedAt: "x", renderStatus: "none" } }).reason === "already_published")
 
 console.log("\na Story does not consume a Reel rotation slot:")
+// approvedAt included because eligibility now requires explicit human sign-off; this fixture is
+// meant to isolate the FOLLOW-UP exclusion, so everything else about it must be eligible.
 const base = { status: "ready", renderStatus: "ready", renderedStoragePath: "r/x.mp4", scheduledAt: null,
-  publishedAt: null, externalPostId: null, connectionId: null, platform: "instagram" }
+  publishedAt: null, externalPostId: null, connectionId: null, platform: "instagram",
+  approvedAt: "2026-10-01T00:00:00Z" }
 ok("a normal post is eligible for the rotation", ineligibleReason(base) === null)
 ok("a FOLLOW-UP post is excluded from it", ineligibleReason({ ...base, followsPostId: "reel-1" }) === "follow_up_post")
 

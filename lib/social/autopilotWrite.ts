@@ -90,6 +90,8 @@ export type ClaimRequest = {
    *  quietly relax them — a test double and the real client are held to the same contract. */
   requireStatus: "ready"
   requireNullColumns: readonly ("scheduled_at" | "connection_id" | "published_at" | "external_post_id")[]
+  /** Columns that must be SET for the claim to match. Today: approved_at. */
+  requireNotNullColumns?: readonly "approved_at"[]
   requireRenderStatus: "ready"
   requireRenderedArtifact: true
 }
@@ -105,11 +107,15 @@ export type ClaimExecutor = (req: ClaimRequest) => Promise<ClaimExecResult>
 /** The eligibility columns every claim re-asserts. One list, used by the request and the real SQL. */
 export const CLAIM_REQUIRED_NULLS = ["scheduled_at", "connection_id", "published_at", "external_post_id"] as const
 
+/** Columns the claim requires to be SET. approved_at is the only human-intent column in the row. */
+export const CLAIM_REQUIRED_NOT_NULLS = ["approved_at"] as const
+
 const requestFor = (c: Claim): ClaimRequest => ({
   postId: c.postId,
   connectionId: c.connectionId,
   scheduledAtUtc: c.scheduledAtUtc,
   requireStatus: "ready",
+  requireNotNullColumns: CLAIM_REQUIRED_NOT_NULLS,
   requireNullColumns: CLAIM_REQUIRED_NULLS,
   requireRenderStatus: "ready",
   requireRenderedArtifact: true,
@@ -272,6 +278,11 @@ export function supabaseClaimExecutor(client: SupabaseLike): ClaimExecutor {
       .eq("render_status", req.requireRenderStatus)
       .not("rendered_storage_path", "is", null)
     for (const col of req.requireNullColumns) q.is(col, null)
+    // APPROVAL, RE-ASSERTED IN THE CLAIM ITSELF. The planner already filtered on it, but a plan is
+    // computed from a snapshot and applied later — and this route accepts a plan from the REQUEST
+    // BODY, so the client's view of eligibility is never the authority. Putting it in the atomic
+    // UPDATE means a post un-approved between planning and claiming is simply not matched.
+    for (const col of req.requireNotNullColumns ?? []) q.not(col, "is", null)
 
     const { data, error } = await q.select("id")
     if (error) {

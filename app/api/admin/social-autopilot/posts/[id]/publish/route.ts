@@ -26,7 +26,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   // Ownership is enforced by RLS (owner-scoped): the admin can only read their own post.
   const { data: post } = await supabase
     .from("social_posts")
-    .select("id, destination, needs_review_at, needs_review_reason, status, render_status, rendered_storage_path, render_version, connection_id, caption, hashtags, external_post_id, platform, social_special, overlay_template, cover_thumb_offset_ms, cover_storage_path, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
+    .select("id, destination, approved_at, needs_review_at, needs_review_reason, status, render_status, rendered_storage_path, render_version, connection_id, caption, hashtags, external_post_id, platform, social_special, overlay_template, cover_thumb_offset_ms, cover_storage_path, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
     .eq("id", id)
     .maybeSingle()
   if (!post) return NextResponse.json({ error: "not_found" }, { status: 404 })
@@ -43,7 +43,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     }, { status: 409 })
   }
   const p = post as {
-    id: string; status: string; render_status: string; rendered_storage_path: string | null; render_version: number | null
+    id: string; status: string; render_status: string; rendered_storage_path: string | null; render_version: number | null; approved_at: string | null
     destination: string | null; connection_id: string | null; caption: string | null; hashtags: string[] | null; external_post_id: string | null; platform: string; overlay_template: string | null; cover_thumb_offset_ms: number | null; cover_storage_path: string | null
     social_special: string | null; source_content_id: string | null
     source: { market: string | null; property_type: string | null; special: string | null; budget_range: string | null; amenities: string | null } | { market: string | null; property_type: string | null; special: string | null; budget_range: string | null; amenities: string | null }[] | null
@@ -54,6 +54,11 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   if (p.platform !== "instagram") return NextResponse.json({ error: "unsupported_platform" }, { status: 400 })
   // Must have a CURRENT, non-stale render (editing overlay/audio resets render_status to 'none').
   if (p.render_status !== "ready" || !p.rendered_storage_path) return NextResponse.json({ error: "not_ready" }, { status: 409 })
+  // APPROVAL, even on the manual button. Clicking Publish is an intentional act, so this is the
+  // one gate that could arguably be skipped — but "approved_at IS NOT NULL before anything
+  // publishes" is only a guarantee if it holds on EVERY path. One exemption and the invariant
+  // becomes a convention again, and the next person has to know which door they came through.
+  if (!p.approved_at) return NextResponse.json({ error: "not_approved", detail: "Approve this post before publishing." }, { status: 409 })
   if (!p.connection_id) return NextResponse.json({ error: "no_destination" }, { status: 400 })
 
   // Resolve the EXACT selected destination + its token, server-side (service_role; never exposed).

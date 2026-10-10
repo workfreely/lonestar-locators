@@ -408,6 +408,20 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const raw = typeof body.scheduledAt === "string" ? body.scheduledAt : ""
     const when = raw ? new Date(raw) : null
     if (!when || isNaN(when.getTime())) return NextResponse.json({ error: "valid scheduledAt required" }, { status: 400 })
+    // ── APPROVAL GATE ───────────────────────────────────────────────────────────────────────
+    // Scheduling is the real entrance to publishing: the cron worker takes anything that is
+    // status='scheduled' and due. This was the live hole — an operator could schedule a post the
+    // library itself labels "RENDERED · NOT APPROVED" and it would go out.
+    //
+    // Read fresh rather than trusting `existing`, because approval may have been revoked by a
+    // re-render since this request began.
+    const { data: appr } = await supabase.from("social_posts").select("approved_at").eq("id", id).maybeSingle()
+    if (!(appr as { approved_at?: string | null } | null)?.approved_at) {
+      return NextResponse.json({
+        error: "not_approved",
+        detail: "This post has not been approved. Approve it before scheduling.",
+      }, { status: 409 })
+    }
     patch.scheduled_at = when.toISOString()
     patch.status = "scheduled"
   } else if (intent === "unschedule") {
@@ -423,8 +437,16 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (raw) {
       const when = new Date(raw)
       if (isNaN(when.getTime())) return NextResponse.json({ error: "invalid scheduledAt" }, { status: 400 })
+      // Same gate as intent:"schedule". This bare path sets a date WITHOUT touching status, so on
+      // its own it cannot publish anything — but a post already at status='scheduled' would have
+      // its slot moved, and gating both keeps "a date is only ever set on an approved post" true
+      // without anyone having to reason about which path they took.
+      const { data: appr } = await supabase.from("social_posts").select("approved_at").eq("id", id).maybeSingle()
+      if (!(appr as { approved_at?: string | null } | null)?.approved_at) {
+        return NextResponse.json({ error: "not_approved", detail: "This post has not been approved." }, { status: 409 })
+      }
       patch.scheduled_at = when.toISOString()
-    } else patch.scheduled_at = null
+    } else patch.scheduled_at = null   // UNSCHEDULING is always allowed — it only ever removes risk
   }
 
   const { data, error } = await supabase.from("social_posts").update(patch).eq("id", id).select("id, status, scheduled_at, render_status").maybeSingle()

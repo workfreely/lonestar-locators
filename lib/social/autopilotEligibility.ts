@@ -19,6 +19,8 @@ export type EligibilityInput = {
   externalPostId: string | null
   connectionId: string | null
   platform: string | null
+  /** EXPLICIT HUMAN APPROVAL. Null means nobody has signed off on this creative. */
+  approvedAt?: string | null
 }
 
 export type Ineligible =
@@ -31,6 +33,7 @@ export type Ineligible =
   | "no_rendered_artifact"
   | "wrong_platform"
   | "follow_up_post"       // a companion Story — scheduled by its Reel, not by the rotation
+  | "not_approved"         // rendered, but no human has signed off on it
 
 /**
  * Why this post cannot be scheduled, or null when it can.
@@ -64,6 +67,16 @@ export function ineligibleReason(p: EligibilityInput, platform = "instagram"): I
   // that means exactly that; 'draft'/'rendering'/'publishing' are not the planner's to take.
   if (p.status !== "ready") return "not_ready"
 
+  // ── EXPLICIT HUMAN APPROVAL ───────────────────────────────────────────────────────────────
+  // status='ready' is a MACHINE fact: renderPost sets it automatically when a render succeeds, so
+  // every rendered post has it and it expresses no human intent whatsoever. Before this check the
+  // library could label a post "RENDERED · NOT APPROVED" in amber while that same post sat in the
+  // autopilot's eligible pool — the UI and the automation used two different definitions of
+  // "ready" and the automation used the weaker one.
+  //
+  // approved_at is the only column a human sets deliberately. Nothing else in this predicate is.
+  if (!p.approvedAt) return "not_approved"
+
   if (p.platform && p.platform !== platform) return "wrong_platform"
 
   // A COMPANION STORY IS NOT A ROTATION ENTRY. It is the same property and the same creative as a
@@ -91,3 +104,7 @@ export const ELIGIBLE_POOL_FILTER = {
   external_post_id: null,
   connection_id: null,
 } as const
+
+/** Columns that must be NOT NULL for a post to be eligible. Separate from the equality filter
+ *  above because PostgREST expresses the two differently (`.eq` vs `.not(...,"is",null)`). */
+export const ELIGIBLE_POOL_NOT_NULL = ["approved_at"] as const

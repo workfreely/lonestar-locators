@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
   if (ids.length) {
     const { data, error } = await supabase
       .from("social_posts")
-      .select("id, status, render_status, rendered_storage_path, scheduled_at, published_at, external_post_id, connection_id, platform")
+      .select("id, status, render_status, rendered_storage_path, scheduled_at, published_at, external_post_id, connection_id, platform, approved_at")
       .in("id", ids)
     if (error) return NextResponse.json({ error: "load_failed", detail: error.message }, { status: 500 })
     for (const r of data ?? []) {
@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
         externalPostId: r.external_post_id as string | null,
         connectionId: r.connection_id as string | null,
         platform: r.platform as string | null,
+        approvedAt: r.approved_at as string | null,
       })
     }
   }

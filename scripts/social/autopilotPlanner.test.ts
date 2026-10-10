@@ -7,7 +7,9 @@ import { wallClockToUtcISO } from "@/lib/social/recurrence"
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean, d = "") => { if (c) { pass++; console.log("  ✓", l) } else { fail++; console.log("  ✗", l + (d ? ` — ${d}` : "")) } }
 
-const READY = { status: "ready", renderStatus: "ready", renderedStoragePath: "p/x.mp4", scheduledAt: null, publishedAt: null, externalPostId: null, connectionId: null, platform: "instagram" }
+// approvedAt is part of what makes a post ELIGIBLE now — explicit human sign-off, the one column
+// the renderer does not set for you. The fixture means "a post that is eligible", so it carries it.
+const READY = { status: "ready", renderStatus: "ready", renderedStoragePath: "p/x.mp4", scheduledAt: null, publishedAt: null, externalPostId: null, connectionId: null, platform: "instagram", approvedAt: "2026-10-01T00:00:00Z" }
 const post = (id: string, market: string, over: Partial<PoolPost> = {}): PoolPost =>
   ({ id, sourceContentId: `src-${id}`, placeId: `place-${id}`, market, propertyName: id, ...READY, ...over })
 /** Two creatives of the SAME property. They are now distinguished by place_id, not by a shared
@@ -37,6 +39,9 @@ console.log("ELIGIBILITY — every exclusion prevents a specific wrong outcome:"
     ["needs human review", { status: "needs_attention" }, "needs_attention"],
     ["publishing right now", { status: "publishing" }, "not_ready"],
     ["a different platform", { platform: "tiktok" }, "wrong_platform"],
+    // Rendered by the machine, never signed off by a human. status='ready' is set automatically
+    // by renderPost, so this is the case that used to slip through every gate.
+    ["rendered but NOT approved", { approvedAt: null }, "not_approved"],
   ]
   for (const [label, over, expected] of cases) {
     ok(`excluded: ${label}`, ineligibleReason({ ...READY, ...over } as PoolPost) === expected,

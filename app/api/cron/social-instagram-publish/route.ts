@@ -129,7 +129,7 @@ async function run(req: NextRequest) {
   }
 
   const now = new Date().toISOString()
-  const result = { reconciled: 0, published: 0, pending: 0, failed: 0, skippedNoRender: 0, claimed: 0, missedWhilePaused: 0, tooLate: 0, skippedDestinationPaused: 0, flaggedForReview: 0, heldForReview: 0 }
+  const result = { reconciled: 0, published: 0, pending: 0, failed: 0, skippedNoRender: 0, skippedNotApproved: 0, claimed: 0, missedWhilePaused: 0, tooLate: 0, skippedDestinationPaused: 0, flaggedForReview: 0, heldForReview: 0 }
 
   // ── 0) RECONCILE unacknowledged publishes FIRST ────────────────────────────────────────────
   // Rows whose media_publish call was claimed but never acknowledged locally. These are the crash
@@ -168,11 +168,15 @@ async function run(req: NextRequest) {
   // ── 1) SELECT due posts ────────────────────────────────────────────────────────────────────
   const { data: due, error: dueErr } = await supabaseAdmin
     .from("social_posts")
-    .select("id, needs_review_at, owner_user_id, connection_id, scheduled_at, caption, hashtags, social_special, overlay_template, cover_thumb_offset_ms, cover_storage_path, render_status, rendered_storage_path, render_version, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
+    .select("id, needs_review_at, owner_user_id, connection_id, scheduled_at, approved_at, caption, hashtags, social_special, overlay_template, cover_thumb_offset_ms, cover_storage_path, render_status, rendered_storage_path, render_version, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
     .eq("platform", "instagram")
     .eq("status", "scheduled")
     .lte("scheduled_at", now)
     .is("external_post_id", null)
+    // APPROVAL. The last line of defence and the broadest: whatever route put a row into
+    // status='scheduled' — the editor, auto-placement, a recurring rule, the autopilot, or a hand
+    // -written SQL statement — an unapproved post is never even READ here.
+    .not("approved_at", "is", null)
     // REVIEW HOLD. The price or special this post shows changed after it was scheduled, so its
     // burned-in overlay and caption may now state something untrue. It stays SCHEDULED and keeps
     // its slot — held, not cancelled, not reverted, not deleted — and publishes normally once the
@@ -224,6 +228,15 @@ async function run(req: NextRequest) {
         continue
       }
 
+      // PER-ROW APPROVAL GUARD. The due query already filtered on approval and the claim
+      // re-asserts it, so reaching this with a null is not expected — it exists so the run RESULT
+      // can report a skip rather than the row silently never appearing. A safety property nobody
+      // can observe is one nobody notices breaking.
+      if (!row.approved_at) {
+        result.skippedNotApproved++
+        continue
+      }
+
       // A scheduled post with no current render is NOT publishable and must not fall back to the
       // raw source. Left scheduled so a render makes it eligible on a later run.
       if (row.render_status !== "ready" || !row.rendered_storage_path) {
@@ -265,9 +278,14 @@ async function run(req: NextRequest) {
         .eq("id", postId)
         .eq("status", "scheduled")
         .is("external_post_id", null)
+        // RE-ASSERTED IN THE CLAIM. The due query read this row moments ago, but approval can be
+        // revoked in between — a re-render clears approved_at via trigger. Because the claim is a
+        // conditional UPDATE, a row un-approved in that window simply does not match and is left
+        // alone, with no partial state.
+        .not("approved_at", "is", null)
         .select("id")
         .maybeSingle()
-      if (!claimed) continue // another worker took it
+      if (!claimed) continue // another worker took it, or approval was revoked mid-flight
       result.claimed++
 
       const { data: signed, error: signErr } = await supabaseAdmin.storage
