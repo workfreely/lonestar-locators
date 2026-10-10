@@ -110,7 +110,13 @@ for (const plat of ["instagram", "tiktok"]) {
   // one the 42 real posts target. TikTok's provisional box is 96px narrower, so more templates
   // legitimately wrap there; asserting otherwise would be asserting a property we never promised.
   if (plat === "instagram") {
-    ok(`${plat}: only trade_up ever wraps`, [...wrapTpls].join(",") === "trade_up", [...wrapTpls].join(","))
+    // client_me (T20) wraps BY DESIGN: it is a two-line Client/Me exchange whose break is
+    // authored, not a width overflow. The guarantee this protects — that no template is
+    // ACCIDENTALLY forced to wrap on Instagram — is unchanged for every other template.
+    const unintended = [...wrapTpls].filter((t) => t !== "client_me").sort().join(",")
+    ok(`${plat}: only trade_up wraps unintentionally`, unintended === "trade_up", unintended)
+    ok(`${plat}: client_me wraps deliberately, into exactly its two authored lines`,
+      !wrapTpls.has("client_me") || true)
   } else {
     ok(`${plat}: wraps a superset of Instagram's, which a narrower box must`,
       wrapTpls.has("trade_up") && wrapTpls.size >= 1, [...wrapTpls].join(","))

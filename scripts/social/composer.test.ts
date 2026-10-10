@@ -374,7 +374,7 @@ ok("render graph still outputs the [v] label", /\[v\]$/.test(hugFilt))
 
 console.log("Overlay TEMPLATES 1–5 (headline/detail generation + layout families):")
 const tMeta = { market: "San Antonio", propertyType: "High-Rise", socialSpecial: "8 Weeks Free", budgetRange: "1600", amenities: "Private Yards, Rooftop Pool" }
-ok("17 templates defined", OVERLAY_TEMPLATES.length === 17)
+ok("20 templates defined", OVERLAY_TEMPLATES.length === 20)
 // T1 Market + Type (HERO)
 ok("T1 headline = CITY TYPE_PLURAL", buildTemplateHeadline("market_type", tMeta) === "SAN ANTONIO HIGH-RISES")
 ok("T1 detail = Starting at price", buildTemplateDetail("market_type", tMeta) === "Starting at $1,600/month")
@@ -494,7 +494,7 @@ ok("T6 generated strings recognized (so they re-sync on Property Type change)", 
 ok("T6 regenerates for the CURRENT type (Townhome vs Loft)", buildTemplateHeadline("pov_upgrade", { propertyType: "Townhome" }) === "POV: You upgraded to a townhome" && buildTemplateHeadline("pov_upgrade", { propertyType: "Loft" }) === "POV: You upgraded to a loft")
 ok("T7 fixed headline recognized as generated", isGeneratedHeadline("Luxury doesn't have to be expensive"))
 ok("a genuinely MANUAL hook is NOT treated as generated (override protected)", !isGeneratedHeadline("POV: You finally made it home"))
-ok("selector lists exactly 17 templates: T2 market_type_centered, T7 apartment_standards, T8-T11 pov_upgrade/affordable_luxury/pov_price/hits_different", OVERLAY_TEMPLATES.length === 17 && OVERLAY_TEMPLATES[1] === "market_type_centered" && OVERLAY_TEMPLATES[5] === "upgrade" && OVERLAY_TEMPLATES[6] === "apartment_standards" && OVERLAY_TEMPLATES[7] === "pov_upgrade" && OVERLAY_TEMPLATES[8] === "affordable_luxury" && OVERLAY_TEMPLATES[9] === "pov_price" && OVERLAY_TEMPLATES[10] === "hits_different")
+ok("selector lists exactly 20 templates: T2 market_type_centered, T7 apartment_standards, T8-T11 pov_upgrade/affordable_luxury/pov_price/hits_different", OVERLAY_TEMPLATES.length === 20 && OVERLAY_TEMPLATES[1] === "market_type_centered" && OVERLAY_TEMPLATES[5] === "upgrade" && OVERLAY_TEMPLATES[6] === "apartment_standards" && OVERLAY_TEMPLATES[7] === "pov_upgrade" && OVERLAY_TEMPLATES[8] === "affordable_luxury" && OVERLAY_TEMPLATES[9] === "pov_price" && OVERLAY_TEMPLATES[10] === "hits_different")
 
 console.log("Template 8 (POV + Price — CENTER HOOK + DETAIL):")
 // T8 headline = same explicit POV per-type mapping as T6.
@@ -646,8 +646,21 @@ console.log("\nTemplates 12–16 (registry + dropdown order):")
 ok("T12–T16 registered in order after T11", OVERLAY_TEMPLATES[11] === "trade_up" && OVERLAY_TEMPLATES[12] === "wanted_luxury" && OVERLAY_TEMPLATES[13] === "real_living" && OVERLAY_TEMPLATES[14] === "what_mo_gets_you" && OVERLAY_TEMPLATES[15] === "what_mo_gets_you_top")
 // The swap is DISPLAY ONLY — every key still exists exactly once, so no saved post can change meaning.
 ok("swap preserved every template identity (no key added, removed or duplicated)",
-  new Set(OVERLAY_TEMPLATES).size === 17 &&
+  new Set(OVERLAY_TEMPLATES).size === 20 &&
   (["what_mo_gets_you", "hits_different"] as const).every((k) => (OVERLAY_TEMPLATES as readonly string[]).includes(k)))
+// T18-T20 APPENDED, NOTHING DISPLACED. The seventeen original keys must still occupy indices
+// 0..16 in their original order — a saved post stores the KEY, so a reordering would silently
+// change what an existing draft renders.
+{
+  const ORIGINAL_17 = ["market_type","market_type_centered","your_sign","special_feature","next_property",
+    "upgrade","apartment_standards","pov_upgrade","affordable_luxury","pov_price","hits_different",
+    "trade_up","wanted_luxury","real_living","what_mo_gets_you","what_mo_gets_you_top","property_tour"] as const
+  ok("the original 17 keys are unchanged, in their original positions",
+    ORIGINAL_17.every((k, i) => OVERLAY_TEMPLATES[i] === k))
+  ok("T18-T20 are appended at 17, 18, 19",
+    OVERLAY_TEMPLATES[17] === "would_you_live_here" && OVERLAY_TEMPLATES[18] === "imagine_coming_home" && OVERLAY_TEMPLATES[19] === "client_me")
+  ok("every template has a dropdown label", OVERLAY_TEMPLATES.every((t) => !!OVERLAY_TEMPLATE_LABEL[t]))
+}
 ok("picker positions: 11 = Hits Different, 15 = What $/mo Gets You, 16 = — Top",
   OVERLAY_TEMPLATE_LABEL[OVERLAY_TEMPLATES[10]] === "Hits Different" &&
   OVERLAY_TEMPLATE_LABEL[OVERLAY_TEMPLATES[14]] === "What $/mo Gets You" &&

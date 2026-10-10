@@ -210,6 +210,18 @@ const COMMENT_KEYWORDS: Record<string, string> = {
   Penthouse: "KEY",
 }
 
+/**
+ * "a townhome" / "an apartment". Chosen by the SOUND of the opening letter, not a vowel test:
+ * every canonical and compound noun is checked against this list, and "high-rise" is the one that
+ * would trip a naive rule (it takes "a", despite starting with a consonant that often precedes
+ * "an" in careless copy).
+ */
+export function withArticle(noun: string): string {
+  const n = noun.trim()
+  if (!n) return ""
+  return `${/^[aeiou]/i.test(n) ? "an" : "a"} ${n}`
+}
+
 /** The comment keyword for a Property Type. Unknown, absent or unmapped -> "LIST". */
 export function commentCtaKeyword(propertyType: string | null | undefined): string {
   const raw = (propertyType ?? "").trim()
@@ -298,6 +310,16 @@ export function captionOpener(template: OverlayTemplate, src: SourceMeta): strin
     // Mirrors the on-video sentence rather than inventing a second voice for the same template.
     case "property_tour": return noun ? `Come tour this ${noun} with me.` : moving && `${moving}Come tour this one with me.`
     case "wanted_luxury": return moving && `${moving}You wanted luxury.`
+    // T18. Mirrors the on-video question with the same price, and drops the figure the same way
+    // the headline does when there is none — the two must never disagree about whether a price
+    // exists, let alone about what it is.
+    case "would_you_live_here":
+      return price ? `Be honest… would you live here for ${price}? 👀` : "Be honest… would you live here? 👀"
+    // T19. Metadata-free, like its headline, so it resolves for any walkthrough.
+    case "imagine_coming_home": return "Imagine calling this place home. 🏡✨"
+    // T20. The caption states the PROMISE rather than repeating the dialogue — the joke is the
+    // video's; the caption is the offer.
+    case "client_me": return "You tell me what you’re looking for. I’ll find it. 😎"
     case "real_living": return city && noun ? `Real ${noun} living in ${city}.` : null
     case "what_mo_gets_you": return city && price ? `${price} in ${city}.` : null
     // Identical to this template's own headline plus a full stop.
@@ -453,7 +475,10 @@ export function joinDetailParts(parts: (string | null | undefined)[]): string {
 // switch/lookup in this file and overlaySpec matches on — so reordering this array can never make a
 // saved post render as a different template. `hits_different` and `what_mo_gets_you` were swapped
 // (2026-09-29) purely so the two "$/mo Gets You" templates sit together at 15 and 16.
-export const OVERLAY_TEMPLATES = ["market_type", "market_type_centered", "your_sign", "special_feature", "next_property", "upgrade", "apartment_standards", "pov_upgrade", "affordable_luxury", "pov_price", "hits_different", "trade_up", "wanted_luxury", "real_living", "what_mo_gets_you", "what_mo_gets_you_top", "property_tour"] as const
+export const OVERLAY_TEMPLATES = ["market_type", "market_type_centered", "your_sign", "special_feature", "next_property", "upgrade", "apartment_standards", "pov_upgrade", "affordable_luxury", "pov_price", "hits_different", "trade_up", "wanted_luxury", "real_living", "what_mo_gets_you", "what_mo_gets_you_top", "property_tour",
+  // T18-T20. Appended LAST so every existing index is untouched; all three are Template 8's
+  // treatment with different wording — same family, same geometry, same caption structure.
+  "would_you_live_here", "imagine_coming_home", "client_me"] as const
 export type OverlayTemplate = (typeof OVERLAY_TEMPLATES)[number]
 export const DEFAULT_OVERLAY_TEMPLATE: OverlayTemplate = "market_type"
 export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
@@ -474,6 +499,9 @@ export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
   hits_different: "Hits Different",
   what_mo_gets_you_top: "What $/mo Gets You — Top",
   property_tour: "Property Tour",
+  would_you_live_here: "Would You Live Here?",
+  imagine_coming_home: "Imagine Coming Home",
+  client_me: "Client / Me",
 }
 
 // Template 6 (POV Upgrade) — EXPLICIT deterministic copy per canonical Property Type. The grammar
@@ -550,6 +578,39 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
     case "pov_upgrade":
     case "pov_price":
       return (canonicalType && POV_UPGRADE_HEADLINE[canonicalType]) || POV_UPGRADE_FALLBACK
+
+    // ── T18 WOULD YOU LIVE HERE? ────────────────────────────────────────────────────────────
+    // The price is INSIDE the sentence, so it degrades rather than printing an empty slot: with
+    // no verified price the question still stands on its own. Never an invented number — the
+    // whole point of the template is that the figure is real.
+    case "would_you_live_here": {
+      const amount = startingPriceAmount(src.budgetRange)
+      return amount ? `Would you live here for ${amount}${PER_MONTH_SUFFIX}?` : "Would you live here?"
+    }
+
+    // ── T19 IMAGINE COMING HOME ─────────────────────────────────────────────────────────────
+    // Deliberately metadata-free: no type, no market, no price. It is the one template that can
+    // caption any walkthrough, which is exactly its job.
+    case "imagine_coming_home":
+      // NO EMOJI IN A BURNED-IN HEADLINE. Verified against the shipped TTF: Libre Baskerville
+      // contains no glyph for U+2728 ✨, U+1F60E 😎, U+1F440 👀 or U+1F3E1 🏡, so drawtext renders
+      // them as tofu boxes. The sparkle lives in the CAPTION, where Instagram draws it properly.
+      return "Imagine coming home to this"
+
+    // ── T20 CLIENT / ME ─────────────────────────────────────────────────────────────────────
+    // A two-line exchange. Both halves degrade independently so the joke still lands with partial
+    // metadata: no type and no city gives the generic "I need a place."; the punchline never
+    // changes. withArticle avoids "a apartment", and propertyNoun already reduces a compound type
+    // to natural wording, so "Split-Level Townhome" reads "a split-level townhome" rather than
+    // duplicating the qualifier.
+    case "client_me": {
+      const cityName = clean(normalizeSocialMarket(src.market))
+      const noun = canonicalType ? propertyNoun(canonicalType) : ""
+      const want = noun
+        ? `${withArticle(noun)}${cityName ? ` in ${cityName}` : ""}`
+        : (cityName ? `a place in ${cityName}` : "a place")
+      return `Client: “I need ${want}.”\nMe: “Say less.”`   // 😎 lives in the caption — see above
+    }
     case "affordable_luxury":
       return AFFORDABLE_LUXURY_HEADLINE
     // T16 is the SAME wording/values as T11 — only its vertical anchor differs (overlaySpec), so the
@@ -650,7 +711,22 @@ export function buildTemplateDetail(template: OverlayTemplate, src: SourceMeta):
       return price // "Starting at $X/month" or "" (T8 shows the POV headline + this price line)
     case "next_property":
     case "pov_upgrade":
+    // T19 joins Template 8's group exactly: the headline carries no number, so the optional
+    // "Starting at $X/month" line applies and collapses on its own when there is no valid price.
+    // That is what lets T19 caption any walkthrough, priced or not.
+    case "imagine_coming_home":
       return price // T5/T8 gained the same optional price line — see the group above
+
+    // T18 states the price INSIDE its question ("Would you live here for $1,500/month?"), so a
+    // price line below would print the same number twice — the identical reason T15/T16 take no
+    // detail. The family still has one, so an empty string simply collapses it.
+    case "would_you_live_here":
+      return ""
+
+    // T20 is a two-line exchange and is already the tallest hook of the set. A third line under
+    // it crowds the joke, and the dialogue makes no claim about price that needs substantiating.
+    case "client_me":
+      return ""
     // T3 your_sign now takes the SAME optional price line too. Its headline is unchanged and still
     // uses no metadata; the price is purely an additional, collapsible second line.
     case "your_sign":

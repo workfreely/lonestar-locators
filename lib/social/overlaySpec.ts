@@ -139,6 +139,25 @@ export const OVERLAY_TEXT = {
 // SAME lines. Greedy by words; a single word longer than `maxChars` is HARD-split into
 // maxChars-sized chunks so even no-space text stays inside the box. Capped at `maxLines`.
 function wrapWords(text: string | null | undefined, maxChars: number, maxLines: number): string[] {
+  // HARD LINE BREAKS ARE HONOURED FIRST.
+  //
+  // A "\n" used to be swallowed by the /\s+/ split below and treated as an ordinary space, so a
+  // headline written as two deliberate lines was re-flowed into whatever the width allowed. T20's
+  // Client/Me exchange needs the break to survive — the second line is the punchline, and it only
+  // lands on its own line.
+  //
+  // For any text WITHOUT a newline this is a no-op: one segment in, the same wrapping out, so all
+  // seventeen existing templates are byte-identical.
+  const segments = (text ?? "").split("\n")
+  if (segments.length > 1) {
+    const out: string[] = []
+    for (const seg of segments) {
+      if (out.length >= maxLines) break
+      // Each segment wraps on its own, then the next break starts a new line regardless.
+      out.push(...wrapWords(seg, maxChars, maxLines - out.length))
+    }
+    return out.slice(0, maxLines)
+  }
   const raw = (text ?? "").trim().split(/\s+/).filter(Boolean)
   // Pre-split any over-long word into hard chunks (no whitespace to break on otherwise).
   const words: string[] = []
@@ -557,7 +576,12 @@ export function templateFamily(template: string): LayoutFamily {
   // cannot be generalised away: they already state the price INSIDE the headline sentence ("What
   // $1,495/month gets you in Dallas"), so a price line below would print the same number twice.
   // Every other template with a hook takes the shared optional price line.
-  if (template === "what_mo_gets_you" || template === "what_mo_gets_you_top") return "center_hook"
+  // T18 and T20 carry NO detail line — T18 states its price inside the question, T20 is a
+  // two-line exchange — so they join the detail-free bucket rather than reserving a slot they
+  // never fill. The hook typography is IDENTICAL to Template 8's (both families share
+  // CENTER_HOOK sizing, fit and line spacing); only the detail slot differs.
+  if (template === "what_mo_gets_you" || template === "what_mo_gets_you_top"
+    || template === "would_you_live_here" || template === "client_me") return "center_hook"
   // apartment_standards is an EXACT Upgrade variant → same center-hook+detail geometry. T12–T15 join
   // them: T11's centered composition plus an OPTIONAL "Starting at $X/mo" line that collapses to a
   // headline-only render when there is no valid price (hasDetail below is text-driven, not family-driven).
@@ -568,6 +592,13 @@ export function templateFamily(template: string): LayoutFamily {
   if (template === "upgrade" || template === "apartment_standards" || template === "pov_price"
     || template === "trade_up" || template === "wanted_luxury" || template === "real_living" || template === "hits_different"
     || template === "affordable_luxury" || template === "next_property" || template === "pov_upgrade"
+    // T18-T20 join Template 8's family rather than getting branches of their own. Membership IS
+    // the layout: centered placement, CENTER_HOOK sizing and fit, uppercase:false, the side
+    // margins, line spacing, hookDetailPxFor and the shared 17px gap all arrive with it. No new
+    // constants, no second code path, and the preview and the FFmpeg render stay identical for
+    // free. T18 and T20 simply return an empty detail, which the text-driven hasDetail collapses.
+    // T19 takes Template 8's optional price line, so it joins this family exactly.
+    || template === "imagine_coming_home"
     // property_tour (T17) is Template 3's treatment with tour wording. Joining this list is the
     // WHOLE layout change: centered placement, CENTER_HOOK sizing/fit, uppercase:false, side
     // margins, line spacing, the hookDetailPxFor price size and the shared 17px gap all come with
@@ -680,9 +711,16 @@ export function computeOverlayLayout(template: string, headlineText: string, det
     return { family, headline, detail: detailBlock }
   }
 
-  // Center hook (+ optional detail) — the hook is ONE line, FIT-TO-WIDTH per actual sentence (no
-  // wrapping, no manual breaks). Vertically center the group.
-  const oneLine = (headlineText ?? "").replace(/\s+/g, " ").trim()
+  // ── HARD LINE BREAKS ────────────────────────────────────────────────────────────────────────
+  // The hook is normally ONE line, fit-to-width per sentence. T20's Client/Me exchange is the
+  // first headline that is genuinely TWO statements: the break is the joke's timing, and
+  // collapsing it (as `replace(/\s+/g, " ")` did) ran the punchline onto the end of the setup.
+  //
+  // A headline WITHOUT "\n" takes the identical path it always did — `segments.length === 1`
+  // leaves `oneLine` exactly as before — so all seventeen existing templates are untouched.
+  const segments = (headlineText ?? "").split("\n").map((t) => t.replace(/\s+/g, " ").trim()).filter(Boolean)
+  const hardLines = segments.length > 1 ? segments : null
+  const oneLine = hardLines ? "" : (headlineText ?? "").replace(/\s+/g, " ").trim()
   // T5 (Next Property) used to take a smaller 40px max than the shared 46px cap for side-margin
   // breathing room. At a 28px ceiling that exception is obsolete (40 > 28 would make T5 the LARGEST
   // hook, inverting its intent), so every center-hook template now shares the one ceiling.
@@ -702,8 +740,13 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   const safeW = textAvailPx(platform)
   const oneLinePx = oneLine ? fitHookPx(oneLine, hookMaxPx, HOOK_ONE_LINE_MIN_PX, safeW) : 0
   const fitsOneLine = !!oneLine && headlineTextWidthPx(oneLine, oneLinePx) <= safeW
-  let lines = oneLine ? [oneLine] : []
-  let hookPx = fitsOneLine ? oneLinePx : hookMaxPx
+  // Hard-broken copy keeps its own lines and is sized so the WIDEST of them fits the box — the
+  // same per-line fit the wrap branch below performs, just with the breaks chosen by the author
+  // instead of by the wrapper.
+  let lines = hardLines ?? (oneLine ? [oneLine] : [])
+  let hookPx = hardLines
+    ? Math.min(...hardLines.map((l) => fitHookPx(l, hookMaxPx, hookMinPx, safeW)))
+    : (fitsOneLine ? oneLinePx : hookMaxPx)
   // Copy too wide for the box AT THE CEILING WRAPS rather than shrinking below the conversational
   // scale. The trigger is deliberately the CEILING, not the floor: at the floor, T12's sentence does
   // fit one line (837px at 22px) — but only by rendering ~5px smaller than every other template, which

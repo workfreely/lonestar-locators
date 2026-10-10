@@ -73,7 +73,9 @@ async function main() {
     const OLD = new Set(["market_type", "your_sign", "special_feature", "next_property", "upgrade"])
     const wereBroken = OVERLAY_TEMPLATES.filter((t) => !OLD.has(t))
     ok(`${wereBroken.length} templates were previously dropped and now pass`,
-      wereBroken.length === 12 && wereBroken.every((t) => isOverlayTemplate(t)),
+      // Was 12; grows with each template added after the original five. The POINT of the
+      // assertion is that every non-legacy key now persists, not the count itself.
+      wereBroken.length === OVERLAY_TEMPLATES.length - OLD.size && wereBroken.every((t) => isOverlayTemplate(t)),
       JSON.stringify(wereBroken))
   }
 
