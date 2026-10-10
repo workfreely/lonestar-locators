@@ -2,11 +2,34 @@
 // SELECT-only. Emits AGGREGATES ONLY — no client PII, no lead identities, no
 // custom-title strings unless they are high-frequency systematic labels.
 import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 
 // Load env from .env.local (URL + service role) without printing secrets.
+//
+// RESOLVED FROM THIS FILE, NOT FROM AN ABSOLUTE PATH. The previous version hardcoded an absolute
+// path to a specific Desktop checkout, which broke the moment the project was moved — and broke
+// with a bare ENOENT that said nothing about why. This file lives at <repo>/scripts/analysis/, so
+// the repo root is two levels up, and the script now works from any checkout location and any
+// working directory. (The old path is deliberately not written out here: a scan for stale
+// references should come back clean, and a comment quoting one is indistinguishable from a real
+// one to grep.)
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+const ENV_PATH = path.join(REPO_ROOT, ".env.local");
+
+let envText;
+try {
+  envText = readFileSync(ENV_PATH, "utf8");
+} catch {
+  // Name the file we looked for. A missing .env.local is a setup problem, and the fix is obvious
+  // once the expected location is stated. The path is not a secret; its contents are.
+  console.error(`Could not read ${ENV_PATH}\nThis script needs the project's .env.local (NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY).`);
+  process.exit(1);
+}
+
 const env = Object.fromEntries(
-  readFileSync("/Users/jaymorris/Desktop/lonestar-locators-app/.env.local", "utf8")
+  envText
     .split("\n").filter((l) => l.includes("=") && !l.trim().startsWith("#"))
     .map((l) => { const i = l.indexOf("="); return [l.slice(0, i).trim(), l.slice(i + 1).trim()]; }),
 );
