@@ -432,5 +432,98 @@ console.log("\n8. approval, cooldown, existing posts, isolation, duplicates:")
     re.inventory.distinctProperties === 2)
 }
 
+// ── 9. BOTH DAILY SLOTS GET FILLED ──────────────────────────────────────────
+// THE QUESTION: when both slots are open and there are enough approved videos, does the planner
+// fill BOTH, or does it leave the evening one empty?
+//
+// MEASURED, not reasoned about, across a matrix of pool sizes and run times — because the honest
+// answer has one exception and the exception only shows up at a specific inventory level.
+console.log("\n9. both daily slots, across pool sizes and run times:")
+{
+  const conns = [{ connectionId: CONN, staggerOffsetMinutes: 0, dailyTimes: BASELINE_DAILY_TIMES, timezone: DEFAULT_TIMEZONE }]
+  const DAYS = 4
+  const run = (poolSize: number, now: Date) => {
+    const pool = Array.from({ length: poolSize }, (_, i) => post(`p${i}`, `PLACE${i}`))
+    return planAutopilot({
+      rules: [rule()], pool, startDateKey: "2026-10-12", wallClockToUtc: wallClockToUtcISO,
+      occupancyByConnection: occupancyFromRows({ rows: [], connections: conns, now }),
+      cooldownDays: 21, maxDays: DAYS,
+    })
+  }
+  // 01:00 Central on the start day — both of that day's slots are still ahead.
+  const beforeBoth = new Date("2026-10-12T06:00:00Z")
+
+  console.log("   fresh calendar, run BEFORE 07:30 — both slots open:")
+  for (const n of [2, 4, 6, 8]) {
+    const r = run(n, beforeBoth)
+    // Group placements by day and look for both configured minutes.
+    const byDay = new Map<string, number[]>()
+    for (const p of r.planned) byDay.set(p.dateKey, [...(byDay.get(p.dateKey) ?? []), p.minute])
+    // Every day that received 2 placements must have received one of EACH time.
+    const fullDays = [...byDay.values()].filter((ms) => ms.length === 2)
+    const bothTimes = fullDays.every((ms) => ms.includes(450) && ms.includes(1170))
+    // And with enough inventory, the leading days must be complete rather than morning-only.
+    const expectFull = Math.floor(n / 2)
+    ok(`${n} videos -> ${r.planned.length} placed; ${fullDays.length} complete day(s), each with 07:30 AND 19:30`,
+      bothTimes && fullDays.length >= Math.min(expectFull, DAYS))
+  }
+
+  console.log("\n   the evening slot is never skipped while inventory remains:")
+  for (const n of [2, 3, 4, 5, 6, 7, 8]) {
+    const r = run(n, beforeBoth)
+    const slots: { dateKey: string; minute: number }[] = []
+    for (let d = 0; d < DAYS; d++) {
+      const dk = `2026-10-${String(12 + d).padStart(2, "0")}`
+      slots.push({ dateKey: dk, minute: 450 }, { dateKey: dk, minute: 1170 })
+    }
+    const filled = new Set(r.planned.map((p) => `${p.dateKey}@${p.minute}`))
+    // Walk the slots in chronological order. Once a gap appears, everything after it must also be
+    // empty — a filled slot AFTER a gap would mean the planner skipped an available earlier slot.
+    let firstGap = -1, skipped = 0
+    slots.forEach((s, i) => {
+      const has = filled.has(`${s.dateKey}@${s.minute}`)
+      if (!has && firstGap < 0) firstGap = i
+      if (has && firstGap >= 0) skipped++
+    })
+    ok(`${n} videos: ${r.planned.length} placed, no slot filled after an earlier empty one (${skipped} such)`, skipped === 0)
+  }
+
+  // ── THE ONE EXCEPTION, documented by measurement ───────────────────────────
+  // On a run AFTER 07:30, planDailyTimes bumps occurrence 0 (bound to 07:30) to the NEXT day. With
+  // two or more videos that costs nothing — the second fills tonight's 19:30. With exactly ONE
+  // video, the single placement goes to tomorrow 07:30 and tonight's 19:30 is left open.
+  console.log("\n   run AFTER 07:30 (the elapsed-morning case):")
+  const afterMorning = new Date("2026-10-12T19:00:00Z") // 14:00 Central
+  {
+    const r1 = run(1, afterMorning)
+    ok("1 video: tonight's 19:30 is left empty — placement goes to tomorrow 07:30",
+      r1.planned.length === 1 && r1.planned[0].dateKey === "2026-10-13" && r1.planned[0].minute === 450)
+    ok("...which is planDailyTimes' existing day-bump, not a new behaviour — and never the past",
+      Date.parse(r1.planned[0].scheduledAtUtc) > afterMorning.getTime())
+
+    for (const n of [2, 3, 4, 6]) {
+      const r = run(n, afterMorning)
+      const tonight = r.planned.some((p) => p.dateKey === "2026-10-12" && p.minute === 1170)
+      ok(`${n} videos: TONIGHT's 19:30 is filled`, tonight)
+    }
+    const r2 = run(2, afterMorning)
+    ok("...and today's already-elapsed 07:30 is never used",
+      !r2.planned.some((p) => p.dateKey === "2026-10-12" && p.minute === 450))
+  }
+
+  // Both slots keep filling day after day, not just on day 0.
+  console.log("\n   sustained over several days:")
+  {
+    const r = run(8, beforeBoth)
+    const perDay = new Map<string, Set<number>>()
+    for (const p of r.planned) perDay.set(p.dateKey, new Set([...(perDay.get(p.dateKey) ?? []), p.minute]))
+    const complete = [...perDay.entries()].filter(([, ms]) => ms.has(450) && ms.has(1170))
+    ok(`8 videos fill both slots on ${complete.length} consecutive day(s)`, complete.length === 4)
+    ok("...2 placements per day, never 3", [...perDay.values()].every((ms) => ms.size <= 2))
+    ok("...and every placement is at 07:30 or 19:30", r.planned.every((p) => p.minute === 450 || p.minute === 1170))
+    ok("...with no cooldown violations", r.inventory.cooldownViolations === 0)
+  }
+}
+
 console.log(`\nAutopilot trigger: ${pass} passed, ${fail} failed`)
 if (fail > 0) process.exit(1)

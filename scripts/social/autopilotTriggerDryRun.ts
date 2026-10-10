@@ -50,16 +50,36 @@ async function main() {
 
   // ── 0. THE SWITCHES, AS THEY ACTUALLY ARE ───────────────────────────────
   // Read and REPORTED, never set. This script is also the record of what is still required.
-  console.log("\n0. environment switches (read only — this script sets nothing):")
+  // LOCAL VALUES ONLY. These come from whatever env file this script was run with; Vercel's
+  // production environment is separate and must be checked with `vercel env ls production`.
+  // CRON_SECRET in particular IS set in production while absent from .env.local — reporting the
+  // local blank as the production state once already produced a wrong claim.
+  console.log("\n0. environment switches in THIS shell (read only — this script sets nothing;")
+  console.log("   production values live in Vercel and are not visible here):")
   for (const k of ["CRON_SECRET", "SOCIAL_AUTOPILOT_TRIGGER_ENABLED", "SOCIAL_AUTOPILOT_WRITE_ENABLED", "SOCIAL_INSTAGRAM_AUTOPUBLISH_ENABLED"]) {
     const v = process.env[k]
     const armed = (v ?? "").trim() === "true"
     console.log(`   ${k.padEnd(40)} ${v === undefined ? "UNSET" : armed ? "ARMED" : `set, not armed`}`)
   }
 
-  const { data: settings } = await supabaseAdmin.from("social_autopilot_settings").select("*").limit(1)
-  const auto = (settings?.[0] as Record<string, unknown> | undefined)?.auto_posting
-  console.log(`   social_autopilot_settings.auto_posting    ${String(auto ?? "(none)")}`)
+  // THE REAL TABLE IS social_settings. An earlier version of this script read a table named
+  // social_autopilot_settings, WHICH DOES NOT EXIST, and printed "(none)" — supabase-js returns the
+  // error in `error`, not by throwing, so destructuring only `data` turned a missing table into a
+  // confident-looking blank. The error is now surfaced, because "I could not read the pause state"
+  // and "autoposting is off" must never print the same way.
+  const { data: settings, error: settingsErr } = await supabaseAdmin
+    .from("social_settings").select("owner_user_id, auto_posting, auto_posting_resumed_at")
+  if (settingsErr) {
+    console.log(`   social_settings.auto_posting              UNREADABLE: ${settingsErr.message}`)
+    process.exitCode = 1
+  } else if (!settings?.length) {
+    console.log("   social_settings.auto_posting              no row (readAutoPosting falls back to PAUSED)")
+  } else {
+    for (const r of settings) {
+      const on = r.auto_posting === "on" // normalizeAutoPosting: anything but exactly "on" is paused
+      console.log(`   social_settings.auto_posting              ${String(r.auto_posting)}${on ? "  <-- ON" : " (paused)"}  owner=${String(r.owner_user_id).slice(0, 8)}`)
+    }
+  }
 
   // ── 1. LIVE STATE ───────────────────────────────────────────────────────
   console.log("\n1. live state:")
