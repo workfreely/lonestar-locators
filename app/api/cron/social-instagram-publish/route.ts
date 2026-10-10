@@ -136,14 +136,43 @@ async function run(req: NextRequest) {
   // Rows whose media_publish call was claimed but never acknowledged locally. These are the crash
   // set. They are checked against Meta — never republished — before any new work, so a duplicate
   // can never be created by this run.
-  const { data: unacked } = await supabaseAdmin
+  //
+  // TWO POPULATIONS, and the difference decides whether publishing is allowed:
+  //
+  //   claimed (media_publish_claimed_at SET)    media_publish MAY have reached Meta. Observe only.
+  //   unclaimed (NULL) but mid-flight           the claim is taken IMMEDIATELY before the publish
+  //                                             call, so a null claim PROVES Meta was never asked
+  //                                             to publish. Nothing exists to duplicate.
+  //
+  // The second population is the stranded slow transcode. A Reel whose container was still
+  // IN_PROGRESS after CONTAINER_WAIT_MS ended the run at status='publishing' with a container id
+  // and NO claim — matching neither this sweep (which required a claim) nor the due query (which
+  // requires status='scheduled'). It was never retried and never published: a silent permanent
+  // loss, invisible until someone noticed the Reel missing.
+  //
+  // Both are selected here. reconcileOnly is then set PER ROW from the claim, so recovery can
+  // publish a timed-out transcode but can still never republish a possibly-published one.
+  const { data: claimedRows } = await supabaseAdmin
     .from("social_posts")
-    .select("id, ig_container_id, connection_id")
+    .select("id, ig_container_id, connection_id, media_publish_claimed_at")
     .eq("platform", "instagram")
     .not("media_publish_claimed_at", "is", null)
     .is("external_post_id", null)
     .limit(MAX_PER_RUN)
-  for (const r of (unacked ?? []) as Row[]) {
+  const { data: strandedRows } = await supabaseAdmin
+    .from("social_posts")
+    .select("id, ig_container_id, connection_id, media_publish_claimed_at")
+    .eq("platform", "instagram")
+    .eq("status", "publishing")
+    .is("media_publish_claimed_at", null)
+    .not("ig_container_id", "is", null)
+    .is("external_post_id", null)
+    // Oldest first: a stranded row only gets older, and an unordered LIMIT could starve one
+    // forever — the same failure this fix exists to remove.
+    .order("updated_at", { ascending: true })
+    .limit(MAX_PER_RUN)
+  const unacked = [...(claimedRows ?? []), ...(strandedRows ?? [])]
+  for (const r of unacked as Row[]) {
     try {
       const dest = await resolveDestination(r.connection_id as string | null)
       // Any unusable destination — paused included — is skipped here, because the paused result
@@ -158,9 +187,13 @@ async function run(req: NextRequest) {
         containerId: r.ig_container_id as string,
         igUserId: dest.externalAccountId,
         token: dest.token,
-        reconcileOnly: true, // recovery may observe, never publish
+        // PER ROW, not blanket. A claimed row may have reached Meta, so it is observe-only. An
+        // unclaimed one provably did not, so it may complete — which is the whole point of
+        // recovering a timed-out transcode rather than losing it.
+        reconcileOnly: !!r.media_publish_claimed_at,
       })
       if (outcome.state === "published") result.reconciled++
+      else if (outcome.state === "pending") result.pending++
     } catch (e) {
       console.error("[ig-worker] reconcile failed", r.id, e instanceof Error ? e.message : e)
     }
@@ -437,9 +470,23 @@ async function resolveDestination(connectionId: string | null): Promise<Destinat
 
 /** Record a failure on ONE post. needs_attention keeps it visible and recoverable rather than
  *  silently dropped; the claim is released so a fix can re-schedule it. */
+/**
+ * Mark a post as needing a human, and RELEASE its media-publish claim.
+ *
+ * The claim used to survive a failure, leaving the row matching the reconcile sweep's filter
+ * (claimed, no external id) permanently. That sweep is LIMIT 5 and unordered, so a handful of
+ * unresolvable rows starved it and genuine crash rows behind them were never reconciled.
+ *
+ * Releasing it cannot cause a republish: needs_attention is terminal for automation — the due
+ * query takes only status='scheduled' and the eligibility predicate excludes needs_attention.
+ */
 async function fail(postId: string, message: string) {
   await supabaseAdmin
     .from("social_posts")
-    .update({ status: "needs_attention", error_message: message.slice(0, 400), updated_at: new Date().toISOString() })
+    .update({
+      status: "needs_attention", error_message: message.slice(0, 400),
+      media_publish_claimed_at: null,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", postId)
 }

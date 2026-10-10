@@ -111,7 +111,9 @@ async function main() {
     const claimAt = worker.indexOf('status: "publishing"')
     const metaAt = worker.indexOf("createReelContainer(")
     const dueAt = worker.indexOf('.eq("status", "scheduled")')
-    const reconcileAt = worker.indexOf("reconcileOnly: true")
+    // Anchored on the sweep QUERY. It used to key on "reconcileOnly: true", which no longer exists —
+  // the flag is derived per row now — and an assertion anchored on vanished text passes vacuously.
+  const reconcileAt = Math.min(worker.indexOf("const { data: claimedRows }"), worker.indexOf("const { data: strandedRows }"))
     ok("env gate precedes the setting gate", envAt > 0 && envAt < setAt)
     ok("both gates precede the due query", Math.max(envAt, setAt) < dueAt)
     ok("both gates precede the reconcile sweep", Math.max(envAt, setAt) < reconcileAt)

@@ -148,7 +148,10 @@ async function main() {
     // before deciding not to publish it, which is exactly what "inert" must not mean.
     const gateAt = worker.indexOf("if (!autopublishEnabled())")
     ok("the gate precedes the due query", gateAt > 0 && gateAt < worker.indexOf('.eq("status", "scheduled")'))
-    ok("…precedes the reconcile sweep", gateAt < worker.indexOf("reconcileOnly: true"))
+    // Anchored on the sweep QUERY, not on "reconcileOnly: true" — that literal is gone now the
+    // flag is derived per row, and an assertion anchored on vanished text passes vacuously.
+    ok("…precedes BOTH reconcile sweeps",
+      gateAt > 0 && gateAt < worker.indexOf("const { data: claimedRows }") && gateAt < worker.indexOf("const { data: strandedRows }"))
     ok("…precedes any claim", gateAt < worker.indexOf('status: "publishing"'))
     ok("…and precedes any Meta call", gateAt < worker.indexOf("createReelContainer("))
 
@@ -228,9 +231,18 @@ async function main() {
   console.log("\nTHE RETRY CONDITION IS NOT `external_post_id IS NULL` ALONE:")
   {
     // On the crash row that predicate is true while the Reel is already live.
-    ok("the unacknowledged sweep ALSO requires a publish claim",
-      /\.not\("media_publish_claimed_at", "is", null\)[\s\S]{0,80}\.is\("external_post_id", null\)/.test(worker))
-    ok("…and runs in reconcile-only mode", /reconcileOnly: true/.test(worker))
+    // TWO populations now. The claimed sweep is the original crash set; the stranded sweep picks
+    // up a transcode that outlived the run (status='publishing', container id, NO claim) which
+    // previously matched neither query and was lost outright.
+    ok("the CLAIMED sweep still requires a publish claim",
+      /\.not\("media_publish_claimed_at", "is", null\)[\s\S]{0,120}\.is\("external_post_id", null\)/.test(worker))
+    ok("a second sweep recovers UNCLAIMED mid-flight rows",
+      /\.eq\("status", "publishing"\)[\s\S]{0,200}\.is\("media_publish_claimed_at", null\)/.test(worker))
+    // The safety hinge: the claim is taken immediately before media_publish, so a null claim
+    // PROVES Meta was never asked. reconcileOnly is therefore per row, never blanket.
+    ok("…and reconcile-only is derived PER ROW from the claim",
+      /reconcileOnly: !!r\.media_publish_claimed_at/.test(worker))
+    ok("…so a possibly-published row is still observe-only", !/reconcileOnly: true/.test(worker))
     ok("reconcile-only can never call media_publish",
       /if \(reconcileOnly\) return \{ state: "not_claimed" \}/.test(finalize) &&
       finalize.indexOf("if (reconcileOnly)") < finalize.indexOf("publishReelContainer("))

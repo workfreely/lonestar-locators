@@ -116,7 +116,23 @@ export async function finalizeInstagramPublish(args: {
   }
   if (containerStatus === "ERROR" || containerStatus === "EXPIRED") {
     const reason = `container ${containerStatus}`
-    await db.from("social_posts").update({ status: "needs_attention", error_message: reason, updated_at: now() }).eq("id", postId)
+    // THE CLAIM IS RELEASED HERE, and this is why it must be.
+    //
+    // Meta has told us this container will never publish, so nothing is live and nothing can be
+    // duplicated. But the row kept media_publish_claimed_at set with external_post_id null — which
+    // is precisely the reconcile sweep's filter — so it matched that sweep forever. The sweep is
+    // LIMIT 5 and unordered, so five such rows permanently occupied every slot and starved genuine
+    // crash rows behind them: a Reel actually live on Instagram would stay locally "publishing"
+    // indefinitely, never reconciled.
+    //
+    // Clearing it cannot cause a republish: status becomes needs_attention, which is terminal for
+    // automation (the due query takes only status='scheduled', and the eligibility predicate
+    // excludes needs_attention outright).
+    await db.from("social_posts").update({
+      status: "needs_attention", error_message: reason,
+      media_publish_claimed_at: null,
+      updated_at: now(),
+    }).eq("id", postId)
     return { state: "failed", reason }
   }
 
