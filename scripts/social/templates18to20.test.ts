@@ -14,7 +14,7 @@
 // Run: npx tsx scripts/social/templates18to20.test.ts
 import { readFileSync } from "node:fs"
 import path from "node:path"
-import { OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, buildTemplateHeadline, buildTemplateDetail, buildCaption, commentCtaKeyword } from "../../lib/social/composePost"
+import { OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, buildTemplateHeadline, buildTemplateDetail, buildCaption, commentCtaKeyword, isGeneratedCaption } from "../../lib/social/composePost"
 import { computeOverlayLayout, templateFamily } from "../../lib/social/overlaySpec"
 
 let pass = 0, fail = 0
@@ -105,7 +105,12 @@ console.log("\n6. the caption body is Template 8's, verbatim:")
     ok(`${t}: body identical to T8's`, body(buildCaption(src, "seed", t as never)) === body(t8))
   }
   const c18 = buildCaption(src, "seed", "would_you_live_here" as never)
-  ok("T18 opener states the same price as its headline", c18.startsWith("Be honest… would you live here for $1,500/month? 👀"))
+  ok("T18 opener asks about the PRICE, with the same figure as the headline",
+    c18.startsWith("Be honest… would you pay $1,500/month? 👀"))
+  ok("...and the on-video headline still asks about the PLACE",
+    buildTemplateHeadline("would_you_live_here", src) === "Would you live here for $1,500/month?")
+  ok("...with no price, the opener falls back to the place question",
+    buildCaption(meta({ market: "Houston" }), "s", "would_you_live_here" as never).startsWith("Be honest… would you live here? 👀"))
   ok("T19 opener is verbatim", buildCaption(src, "s", "imagine_coming_home" as never).startsWith("Imagine calling this place home. 🏡✨"))
   ok("T20 opener is verbatim", buildCaption(src, "s", "client_me" as never).startsWith("You tell me what you’re looking for. I’ll find it. 😎"))
   // Assert the SECTION and its bullets, not a specific title-casing — the normaliser's casing
@@ -141,6 +146,23 @@ console.log("\n8. nothing in the frozen surface moved:")
     buildTemplateHeadline("market_type", meta({ market: "San Antonio", propertyType: "High-Rise" })) === "SAN ANTONIO HIGH-RISES")
   ok("T15 still prices inside its headline",
     buildTemplateHeadline("what_mo_gets_you", meta({ market: "Dallas", budgetRange: "1495" })) === "What $1,495/month gets you in Dallas")
+}
+
+// ── 9. A CAPTION WRITTEN WITH THE OLD T18 OPENER STAYS GENERATOR-OWNED ──────
+// T18's opener changed the day it shipped. A draft carrying the previous wording must still be
+// recognised as GENERATED — otherwise it freezes as a "manual override" and stops re-syncing when
+// the price or property type changes. The codebase keeps a supersededOpeners registry for exactly
+// this; the old wording is now in it.
+console.log("\n9. the superseded T18 opener is still recognised:")
+{
+  const src = meta({ market: "Dallas", propertyType: "Townhome", budgetRange: "1500", amenities: "Pool" })
+  const current = buildCaption(src, "seed", "would_you_live_here" as never)
+  const body = current.slice(current.indexOf("\n"))
+  const old = "Be honest… would you live here for $1,500/month? 👀" + body
+  ok("the PREVIOUS opener still reads as generated", isGeneratedCaption(old, src, "seed", "would_you_live_here" as never))
+  ok("the CURRENT opener reads as generated", isGeneratedCaption(current, src, "seed", "would_you_live_here" as never))
+  ok("a genuinely manual caption is NOT overwritten",
+    !isGeneratedCaption("My own words." + body, src, "seed", "would_you_live_here" as never))
 }
 
 console.log(`\nTemplates 18-20: ${pass} passed, ${fail} failed`)

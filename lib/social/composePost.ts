@@ -314,7 +314,10 @@ export function captionOpener(template: OverlayTemplate, src: SourceMeta): strin
     // the headline does when there is none — the two must never disagree about whether a price
     // exists, let alone about what it is.
     case "would_you_live_here":
-      return price ? `Be honest… would you live here for ${price}? 👀` : "Be honest… would you live here? 👀"
+      // The caption asks about the PRICE ("would you pay"); the on-video headline asks about the
+      // place ("would you live here for $X/month"). Deliberately different questions — the caption
+      // is not a transcript of the overlay. The no-price fallback is unchanged.
+      return price ? `Be honest… would you pay ${price}? 👀` : "Be honest… would you live here? 👀"
     // T19. Metadata-free, like its headline, so it resolves for any walkthrough.
     case "imagine_coming_home": return "Imagine calling this place home. 🏡✨"
     // T20. The caption states the PROMISE rather than repeating the dialogue — the joke is the
@@ -344,6 +347,10 @@ function supersededOpeners(src: SourceMeta): string[] {
     if (noun) out.push(`${moving}This could be your next ${noun}.`, `Real ${noun} living in ${city}.`, `This is real ${noun} living in ${city}.`)
     if (price) out.push(`POV: this is what ${price} gets you in ${city}.`, `What ${price} gets you in ${city}.`)
   }
+  // T18's first opener, replaced the same day it shipped. It needs no city, so it sits outside the
+  // city branch: a draft written with it must still be recognised as GENERATED, or it would freeze
+  // as a manual override and stop re-syncing when the price or property type changes.
+  if (price) out.push(`Be honest… would you live here for ${price}? 👀`)
   return out
 }
 

@@ -32,7 +32,7 @@ const EXPECTED: [OverlayTemplate, string][] = [
   ["property_tour", "Come tour this townhome with me."],
   // T18-T20. T18 mirrors its own headline's price so the two can never disagree; T19 needs no
   // metadata at all; T20 states the promise rather than repeating the video's dialogue.
-  ["would_you_live_here", "Be honest… would you live here for $1,800/month? 👀"],
+  ["would_you_live_here", "Be honest… would you pay $1,800/month? 👀"],
   ["imagine_coming_home", "Imagine calling this place home. 🏡✨"],
   ["client_me", "You tell me what you’re looking for. I’ll find it. 😎"],
 ]
