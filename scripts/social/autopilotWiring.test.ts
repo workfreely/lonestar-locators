@@ -25,6 +25,13 @@ let pass = 0, fail = 0
 const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
 const code = (f: string) => readFileSync(path.join(process.cwd(), f), "utf8").replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, "")
 const route = code("app/api/admin/social-autopilot/autopilot/plan/route.ts")
+// THE LOGIC MOVED, THE WIRING DID NOT. Computing and applying a plan now lives in a shared module
+// so the cron trigger executes the same code rather than a second copy of it. Assertions below are
+// anchored on whichever file now holds their subject: the route still owns authorisation, request
+// parsing and the mode decision, and these two together must still contain everything the single
+// file did. Left pointed at `route`, every one of them would pass vacuously against text that is
+// simply no longer in that file.
+const planRun = code("lib/social/autopilotPlanRun.ts")
 
 const APPROVED = "2026-10-01T00:00:00Z"
 const rule = (id: string, over: Partial<AutopilotRule> = {}): AutopilotRule => ({
@@ -42,21 +49,25 @@ const run = (rules: AutopilotRule[], pool: PoolPost[], history?: PostingHistory,
   planAutopilot({ rules, pool, startDateKey: start, wallClockToUtc: wallClockToUtcISO, history, cooldownDays: 21, maxDays: 3 })
 
 // ── 1. THE CONNECTION ITSELF ────────────────────────────────────────────────
-console.log("1. the route now computes a plan instead of demanding one:")
-ok("planAutopilot is called from the route", /planAutopilot\(\{/.test(route))
-ok("loadPostingHistory is called too — without it the cooldown cannot fire", /loadPostingHistory\(/.test(route))
-ok("the 'plan_required' 400 is gone", !/plan_required/.test(route))
+console.log("1. the server computes a plan instead of demanding one:")
+ok("planAutopilot is called", /planAutopilot\(\{/.test(planRun))
+ok("loadPostingHistory is called too — without it the cooldown cannot fire", /loadPostingHistory\(/.test(planRun))
+ok("the 'plan_required' 400 is gone", !/plan_required/.test(route) && !/plan_required/.test(planRun))
 ok("a SUPPLIED plan still takes precedence", /body\.plan as AutopilotPlan \| undefined/.test(route))
-ok("...and the response says which half produced it", /planSource: computed \? "computed_server_side" : "supplied_in_request"/.test(route))
-ok("it reuses the existing pool filter", /ELIGIBLE_POOL_FILTER/.test(route) && /ELIGIBLE_POOL_NOT_NULL/.test(route))
-ok("it reuses the existing claim executor", /applyAutopilotPlan\(/.test(route))
-ok("NO new scheduler module was introduced", /from "@\/lib\/social\/autopilotPlanner"/.test(route))
+ok("...and the response says which half produced it", /planSource: computed \? "computed_server_side" : "supplied_in_request"/.test(planRun))
+ok("it reuses the existing pool filter", /ELIGIBLE_POOL_FILTER/.test(planRun) && /ELIGIBLE_POOL_NOT_NULL/.test(planRun))
+ok("it reuses the existing claim executor", /applyAutopilotPlan\(/.test(planRun))
+ok("NO new scheduler module was introduced", /from "@\/lib\/social\/autopilotPlanner"/.test(planRun))
+// The route must not have kept a second way in. If it could still build claims itself, the shared
+// module would be one path of two rather than the path.
+ok("the route delegates and does not write on its own",
+  /runAutopilotPlan\(/.test(route) && !/applyAutopilotPlan|supabaseClaimExecutor|planAutopilot\(/.test(route))
 
 console.log("\n   the settings it feeds in are the existing ones, unchanged:")
 ok("times come from BASELINE_DAILY_TIMES (07:30 / 19:30)", BASELINE_DAILY_TIMES[0] === 450 && BASELINE_DAILY_TIMES[1] === 1170)
-ok("...and the route passes that constant, not literals", /dailyTimes: BASELINE_DAILY_TIMES/.test(route))
-ok("the cooldown is 21 days", /COOLDOWN_DAYS = 21/.test(route) && /cooldownDays: COOLDOWN_DAYS/.test(route))
-ok("the timezone is the existing DEFAULT_TIMEZONE", /timezone: DEFAULT_TIMEZONE/.test(route))
+ok("...and the constant is passed, not literals", /dailyTimes: BASELINE_DAILY_TIMES/.test(planRun))
+ok("the cooldown is 21 days", /COOLDOWN_DAYS = 21/.test(planRun) && /cooldownDays: COOLDOWN_DAYS/.test(planRun))
+ok("the timezone is the existing DEFAULT_TIMEZONE", /timezone: DEFAULT_TIMEZONE/.test(planRun))
 
 console.log("\n   both write switches survive:")
 ok("persist requires mode === 'persist' exactly", /body\.mode === "persist" \? "persist" : DEFAULT_WRITE_MODE/.test(route))

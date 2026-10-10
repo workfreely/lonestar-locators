@@ -131,7 +131,25 @@ async function main() {
     const vercel = JSON.parse(read("vercel.json")) as { crons: { path: string; schedule: string }[] }
     const cron = vercel.crons.find((c) => c.path === "/api/cron/social-instagram-publish")
     ok("the cron is registered in vercel.json", !!cron, JSON.stringify(vercel.crons.map((c) => c.path)))
-    ok("…and no OTHER social cron was added", vercel.crons.filter((c) => /social/.test(c.path)).length === 1)
+    // TIGHTENED, NOT RELAXED. This assertion used to count social crons and require exactly one.
+    // It fired correctly when the autopilot PLAN trigger was added — a second social cron that
+    // schedules and cannot publish. The thing worth forbidding was never "a second social cron";
+    // it was a second route that can publish to Instagram. So it now asserts that directly, which
+    // a bare count never did: a third cron that DID publish would have been admitted by simply
+    // bumping the expected number.
+    const socialCrons = vercel.crons.filter((c) => /social/.test(c.path))
+    ok("the only social crons are the publish worker and the plan trigger",
+      socialCrons.length === 2
+      && socialCrons.some((c) => c.path === "/api/cron/social-instagram-publish")
+      && socialCrons.some((c) => c.path === "/api/cron/social-autopilot-plan"),
+      JSON.stringify(socialCrons.map((c) => c.path)))
+    ok("…and this worker is the ONLY cron that can publish to Instagram",
+      socialCrons
+        .filter((c) => c.path !== "/api/cron/social-instagram-publish")
+        .every((c) => {
+          const src = read(`app${c.path}/route.ts`).replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, "")
+          return !/createReelContainer|createStoryContainer|finalizeInstagramPublish|media_publish|graph\.facebook/.test(src)
+        }))
   }
 
   console.log("\nTHE AUTOPUBLISH LAUNCH GATE (deployed but disarmed):")

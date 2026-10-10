@@ -63,9 +63,17 @@ for (const [label, patch, expect] of [
 console.log("\n2. the database narrows on approval too:")
 ok("approved_at is in the NOT NULL pool filter", (ELIGIBLE_POOL_NOT_NULL as readonly string[]).includes("approved_at"))
 {
+  // RE-ANCHORED. The planning and writing logic moved out of the route into autopilotPlanRun so
+  // the cron trigger could call the same code instead of a copy. These two assertions were about
+  // the re-read, which moved with it — pointing them at the route would now pass only because the
+  // text is absent from a file that no longer contains the logic.
+  const run = code("lib/social/autopilotPlanRun.ts")
+  ok("the autopilot run's re-read SELECTS approved_at", /approved_at/.test(run))
+  ok("...and maps it into the eligibility input", /approvedAt: r\.approved_at/.test(run))
+  // And the route still cannot bypass it: the ONLY way it reaches the write path is that function.
   const route = code("app/api/admin/social-autopilot/autopilot/plan/route.ts")
-  ok("the plan route's re-read SELECTS approved_at", /approved_at/.test(route))
-  ok("...and maps it into the eligibility input", /approvedAt: r\.approved_at/.test(route))
+  ok("the plan route reaches the write path only through runAutopilotPlan",
+    /runAutopilotPlan\(/.test(route) && !/applyAutopilotPlan|supabaseClaimExecutor/.test(route))
 }
 
 // ── 3. THE ATOMIC CLAIM ─────────────────────────────────────────────────────
