@@ -104,7 +104,7 @@ console.log("\n5. the publish worker never even reads an unapproved post:")
 {
   const cron = code("app/api/cron/social-instagram-publish/route.ts")
   ok("the DUE QUERY filters on approval", /\.lte\("scheduled_at", now\)[\s\S]{0,200}\.not\("approved_at", "is", null\)/.test(cron))
-  ok("...and selects the column", /select\("id, needs_review_at[^"]*approved_at/.test(cron))
+  ok("...and selects the column", /\.select\("id,[^"]*approved_at/.test(cron))
   ok("the CLAIM re-asserts it", /\.eq\("status", "scheduled"\)[\s\S]{0,220}\.not\("approved_at", "is", null\)/.test(cron))
   ok("a per-row guard reports the skip", /if \(!row\.approved_at\)[\s\S]{0,120}skippedNotApproved\+\+/.test(cron))
   ok("...and the counter is in the run result", /skippedNotApproved: 0/.test(cron))

@@ -1,3 +1,4 @@
+import { BASELINE_DAILY_TIMES } from "@/lib/social/autopilotDestination"
 /**
  * SOCIAL BEAST — the twice-daily cadence.
  *
@@ -144,8 +145,13 @@ async function main() {
     ok("non-finite values are dropped", normalizeDailyTimes([NaN, Infinity, NINE] as number[]).join(",") === String(NINE))
     ok("no times → no occurrences, rather than a guessed one",
       planDailyTimes({ intervalDays: 1, dailyTimes: [], days, occupancy: emptyOcc(), maxOccurrences: 4 }).length === 0)
-    ok("the approved default is 9:00 AM and 7:00 PM",
-      DEFAULT_DAILY_TIMES[0] === NINE && DEFAULT_DAILY_TIMES[1] === SEVEN_PM)
+    // CADENCE CHANGED, approved: 9:00/19:00 -> 7:30/19:30 Central. Three competing definitions of
+  // "the approved cadence" existed and the only one anything read was this one; it now points at
+  // BASELINE_DAILY_TIMES so there is a single definition.
+  ok("the approved default is 7:30 AM and 7:30 PM",
+      DEFAULT_DAILY_TIMES[0] === 7 * 60 + 30 && DEFAULT_DAILY_TIMES[1] === 19 * 60 + 30)
+  ok("…and it is the same object as BASELINE_DAILY_TIMES, not a copy that can drift",
+      (DEFAULT_DAILY_TIMES as unknown) === (BASELINE_DAILY_TIMES as unknown))
     // Unknown cadence must never resolve to the publishing-heavier mode.
     ok("an unrecognised cadence resolves to 'interval'",
       [null, undefined, "", "DAILY_TIMES", "twice", 2, {}].every((v) => normalizeCadence(v) === "interval"))
@@ -216,8 +222,8 @@ async function main() {
     ok("the existing 14/30/60 options are unchanged",
       /<option value="14">Every 14 days<\/option><option value="30">Every 30 days<\/option><option value="60">Every 60 days<\/option>/.test(ui))
     ok("two time controls exist", /First post/.test(ui) && /Second post/.test(ui))
-    ok("…defaulting to 9:00 AM and 7:00 PM",
-      /useState\(9 \* 60\)/.test(ui) && /useState\(19 \* 60\)/.test(ui))
+    ok("…defaulting to the ONE cadence constant rather than literals",
+      /useState\(DEFAULT_DAILY_TIMES\[0\]\)/.test(ui) && /useState\(DEFAULT_DAILY_TIMES\[1\]\)/.test(ui))
     ok("times are sent as minutes from local midnight", /dailyTimes: \[firstTimeMin, secondTimeMin\]/.test(ui))
     ok("a Twice Daily rule pins intervalDays to 1 rather than carrying a stale 14/30/60",
       /cadence === "daily_times" \? 1 : repeatEvery/.test(ui))

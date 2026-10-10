@@ -5,6 +5,7 @@ import { isValidPostType } from "@/lib/social/postTypes"
 import { normalizeHashtag, hashtagLimitForPlatform } from "@/lib/social/hashtags"
 import { isOverlayTemplate } from "@/lib/social/composePost"
 import { renderAffectingChanges, valueChanged } from "@/lib/social/renderInvalidation"
+import { ensureStoryCompanion } from "@/lib/social/storyCompanion"
 import { hasRender, isRenderedReady, type LaneFacts } from "@/lib/social/postLane"
 
 // One post: GET (composer load), PATCH (save fields / schedule / unschedule), DELETE.
@@ -380,6 +381,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   //
   // Applied AFTER the invalidation block so that approving and editing in the same request cannot
   // approve a creative that this very request changed.
+  let approvedNow = false
   if ("approved" in body) {
     if (body.approved === true) {
       const willHaveRender = patch.render_status === undefined
@@ -393,6 +395,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         }, { status: 409 })
       }
       patch.approved_at = new Date().toISOString()
+      approvedNow = true
     } else if (body.approved === false) {
       patch.approved_at = null
     }
@@ -453,7 +456,24 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (error) return NextResponse.json({ error: "update_failed" }, { status: 500 })
   if (!data) return NextResponse.json({ error: "not_found" }, { status: 404 })
   const out = data as { id: string; status: string; scheduled_at: string | null; render_status: string }
-  return NextResponse.json({ id: out.id, status: out.status, scheduledAt: out.scheduled_at, renderStatus: out.render_status })
+
+  // ── COMPANION STORY ───────────────────────────────────────────────────────────────────────
+  // Approving a Reel creates its companion Story, unscheduled. It is released 45 minutes after the
+  // Reel actually publishes, by releaseStoryForReel — never from here.
+  //
+  // Deliberately after the main update and deliberately non-fatal: a missing companion is a
+  // degraded feature, whereas failing the response would undo the approval the operator just made,
+  // which is the more important act. The outcome is returned so the UI can say what happened.
+  let companion: { created: boolean; reason?: string; storyId?: string } | undefined
+  if (approvedNow) {
+    try {
+      const r = await ensureStoryCompanion(supabase as never, id)
+      companion = r.created ? { created: true, storyId: r.storyId } : { created: false, reason: r.reason, storyId: r.storyId }
+    } catch {
+      companion = { created: false, reason: "companion_error" }
+    }
+  }
+  return NextResponse.json({ id: out.id, status: out.status, scheduledAt: out.scheduled_at, renderStatus: out.render_status, ...(companion ? { companionStory: companion } : {}) })
 }
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {

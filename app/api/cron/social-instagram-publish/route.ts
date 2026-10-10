@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic"
 import { shouldHoldForReview, publishHoldEnabled } from "@/lib/social/publishHold"
 import { NextResponse, type NextRequest } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
-import { instagramConfigured, createReelContainer } from "@/lib/social/instagram"
+import { instagramConfigured, createReelContainer, createStoryContainer } from "@/lib/social/instagram"
 import { buildInstagramCaptionPayload, isOverlayTemplate } from "@/lib/social/composePost"
 import { finalizeInstagramPublish } from "@/lib/social/instagramFinalize"
 import { chooseCover, resolveReelCover } from "@/lib/social/reelCover"
@@ -12,6 +12,7 @@ import {
   readAutoPosting, isEligibleAfterResume, isWithinLatenessWindow,
   AUTO_POSTING_FALLBACK, type AutoPostingSettings,
 } from "@/lib/social/autoPosting"
+import { DESTINATIONS, isSocialDestination, destinationFromLegacyPlatform } from "@/lib/social/destinations"
 
 /**
  * SOCIAL BEAST — the Instagram due-post worker.
@@ -168,7 +169,7 @@ async function run(req: NextRequest) {
   // ── 1) SELECT due posts ────────────────────────────────────────────────────────────────────
   const { data: due, error: dueErr } = await supabaseAdmin
     .from("social_posts")
-    .select("id, needs_review_at, owner_user_id, connection_id, scheduled_at, approved_at, caption, hashtags, social_special, overlay_template, cover_thumb_offset_ms, cover_storage_path, render_status, rendered_storage_path, render_version, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
+    .select("id, destination, follows_post_id, needs_review_at, owner_user_id, connection_id, scheduled_at, approved_at, caption, hashtags, social_special, overlay_template, cover_thumb_offset_ms, cover_storage_path, render_status, rendered_storage_path, render_version, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
     .eq("platform", "instagram")
     .eq("status", "scheduled")
     .lte("scheduled_at", now)
@@ -319,7 +320,24 @@ async function run(req: NextRequest) {
         continue
       }
 
-      const containerId = await createReelContainer(dest.externalAccountId, signed.signedUrl, caption, dest.token, cover)
+      // ── SURFACE BRANCH ──────────────────────────────────────────────────────────────────────
+      // Until now this worker called createReelContainer unconditionally. A Story row reaching it
+      // would therefore have gone out as a captioned REEL — the same property, the same footage,
+      // 45 minutes after the real Reel: a visible duplicate post. Nothing created Story rows yet,
+      // so the bug was latent; it had to be closed BEFORE anything started creating them.
+      //
+      // The manual route already branches this way. Same shape here, deliberately: a Story takes
+      // neither a caption nor a cover, so they are not sent rather than passed and ignored.
+      const destination = isSocialDestination(row.destination) ? row.destination : destinationFromLegacyPlatform("instagram")
+      const spec = DESTINATIONS[destination]
+      if (spec.publish !== "supported") {
+        await fail(postId, `destination ${destination} is not publishable`)
+        result.failed++
+        continue
+      }
+      const containerId = spec.surface === "story"
+        ? await createStoryContainer(dest.externalAccountId, signed.signedUrl, dest.token)
+        : await createReelContainer(dest.externalAccountId, signed.signedUrl, caption, dest.token, cover)
       // Persist the container id BEFORE media_publish — it is the reconciliation key if this
       // process dies during the publish call.
       await supabaseAdmin

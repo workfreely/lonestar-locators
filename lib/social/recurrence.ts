@@ -1,3 +1,4 @@
+import { BASELINE_DAILY_TIMES } from "@/lib/social/autopilotDestination"
 // Beast Social — recurring-post SCHEDULER (pure, deterministic). Turns a recurrence rule into a set
 // of occurrence PLACEMENTS across three approved posting WINDOWS, without random timestamps and
 // without ever moving an already-placed occupant. The API layer feeds real occupancy (manual +
@@ -213,9 +214,17 @@ export function planDailyTimes(input: DailyTimesInput): Placement[] {
   return out
 }
 
-/** The approved launch cadence: 9:00 AM and 7:00 PM local. Editable per rule; this is only the
- *  default a new Twice Daily rule starts from. */
-export const DEFAULT_DAILY_TIMES = [9 * 60, 19 * 60] as const
+/**
+ * The approved launch cadence: 7:30 AM and 7:30 PM Central. Editable per rule; this is only the
+ * default a new Twice Daily rule starts from.
+ *
+ * RE-EXPORTED, not restated. Three competing definitions of "the cadence" existed:
+ * BASELINE_DAILY_TIMES (7:30/19:30, read by nothing in production), the social_autopilot_rules
+ * column default (7:30/19:30, read by nothing at all), and this one (9:00/19:00) — the only one
+ * anything actually used. Two of the three carried a comment calling themselves the approved
+ * cadence. Pointing this at the constant leaves exactly one definition.
+ */
+export const DEFAULT_DAILY_TIMES = BASELINE_DAILY_TIMES
 
 export type Cadence = "interval" | "daily_times"
 /** Narrow a stored/unknown value. Anything unrecognised is 'interval' — the pre-existing behaviour

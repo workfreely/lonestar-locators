@@ -98,7 +98,7 @@ export async function releaseStoryForReel(
   client: FollowUpClient, reelId: string, env: NodeJS.ProcessEnv = process.env,
 ): Promise<{ scheduled: boolean; storyId?: string; dueAt?: string; reason: string }> {
   const { data: reelRow, error: reelErr } = await client.from("social_posts")
-    .select("id, status, published_at, external_post_id").eq("id", reelId).maybeSingle()
+    .select("id, status, published_at, external_post_id, connection_id").eq("id", reelId).maybeSingle()
   if (reelErr || !reelRow) return { scheduled: false, reason: "reel_lookup_failed" }
 
   const { data: storyRow } = await client.from("social_posts")
@@ -116,8 +116,23 @@ export async function releaseStoryForReel(
   })
   if (!decision.schedule) return { scheduled: false, storyId: storyRow?.id ?? undefined, reason: decision.reason }
 
+  // THE STORY INHERITS ITS REEL'S DESTINATION AND APPROVAL.
+  //
+  // connection_id: without it the worker cannot resolve a destination and faults the row to
+  // needs_attention — a Story that was correctly released would die one step later. It is the same
+  // account by definition: a companion Story goes where its Reel went.
+  //
+  // approved_at: the Reel it follows was explicitly approved, and the Story is the same creative on
+  // a second surface. Stamping it here means approval still comes from a human decision — the one
+  // made about the Reel — rather than the Story bypassing the gate. Without it the publish worker
+  // would correctly refuse to publish the Story at all.
+  const nowIso = new Date().toISOString()
   const { data: updated } = await client.from("social_posts")
-    .update({ scheduled_at: decision.dueAt, status: "scheduled", updated_at: new Date().toISOString() })
+    .update({
+      scheduled_at: decision.dueAt, status: "scheduled", updated_at: nowIso,
+      connection_id: (reelRow as { connection_id?: string | null }).connection_id ?? null,
+      approved_at: nowIso,
+    })
     .eq("id", storyRow!.id)
     .is("scheduled_at", null)          // the race guard: a second finalizer matches nothing
     .is("published_at", null)

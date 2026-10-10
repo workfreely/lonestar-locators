@@ -1,3 +1,4 @@
+import { DEFAULT_DAILY_TIMES } from "@/lib/social/recurrence"
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -239,8 +240,10 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // a number of days. Kept as its own piece of state so the existing interval options are
   // completely unaffected by it.
   const [cadence, setCadence] = useState<"interval" | "daily_times">("interval")
-  const [firstTimeMin, setFirstTimeMin] = useState(9 * 60)   // 9:00 AM
-  const [secondTimeMin, setSecondTimeMin] = useState(19 * 60) // 7:00 PM
+  // From the ONE cadence constant, not a second copy — the editor and the scheduler must start
+  // from the same default or a new rule silently disagrees with the approved cadence.
+  const [firstTimeMin, setFirstTimeMin] = useState(DEFAULT_DAILY_TIMES[0])   // 7:30 AM Central
+  const [secondTimeMin, setSecondTimeMin] = useState(DEFAULT_DAILY_TIMES[1]) // 7:30 PM Central
   const [repeatEvery, setRepeatEvery] = useState(14) // 14 | 30 | 60 (approved)
   const [durationMode, setDurationMode] = useState<"days" | "date" | "until_stopped">("until_stopped")
   const [durationDays, setDurationDays] = useState(30) // 30 | 60 | 90

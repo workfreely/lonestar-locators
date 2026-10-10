@@ -97,8 +97,17 @@ ok("the database enforces one Story per Reel",
   const src = read("lib/social/storyFollowUp.ts")
   const updates = src.match(/\.update\([\s\S]*?\.eq\("id", [a-zA-Z!.?]+\)/g) ?? []
   ok("exactly one UPDATE exists in the module", updates.length === 1)
-  ok("…and it targets the STORY row, never the Reel", updates.every((u) => /storyRow/.test(u) && !/reelId|reelRow/.test(u)))
-  ok("the Reel is only ever read", /\.select\("id, status, published_at, external_post_id"\)\.eq\("id", reelId\)/.test(src))
+  // The UPDATE now READS reelRow.connection_id to carry the destination onto the Story, so a
+  // bare "mentions reelRow" check no longer distinguishes reading from writing. What matters is
+  // the TARGET: the row being updated must be the story's.
+  ok("…and it targets the STORY row, never the Reel",
+    updates.every((u) => /\.eq\("id", storyRow!\.id\)/.test(u)) && !/\.eq\("id", reelId\)[\s\S]{0,120}\.update\(/.test(src))
+  ok("the Reel is only ever READ, never updated",
+    /\.select\("id, status, published_at, external_post_id, connection_id"\)\.eq\("id", reelId\)/.test(src) &&
+    !new RegExp('update\\([^)]*\\)[\\s\\S]{0,80}eq\\("id", reelId').test(src))
+  ok("the Story inherits the Reel's connection, so the worker can resolve a destination",
+    /connection_id: \(reelRow as \{ connection_id\?: string \| null \}\)\.connection_id/.test(src))
+  ok("…and inherits approval from the Reel a human already approved", /approved_at: nowIso/.test(src))
 }
 
 console.log(`\nStory follow-up: ${pass} passed, ${fail} failed`)
