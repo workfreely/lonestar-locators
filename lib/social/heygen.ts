@@ -54,8 +54,11 @@ export async function listAvatarLooks(opts: { avatarType?: string; ownership?: "
   if (opts.ownership) q.set("ownership", opts.ownership)
   q.set("limit", String(Math.min(50, Math.max(1, opts.limit ?? 50))))
   if (opts.token) q.set("token", opts.token)
-  const raw = (await call(`/v3/avatars/looks?${q.toString()}`)) as { data?: { looks?: unknown[]; avatars?: unknown[]; token?: string } }
-  const rows = (raw.data?.looks ?? raw.data?.avatars ?? []) as Record<string, unknown>[]
+  // VERIFIED AGAINST THE LIVE API, not assumed: `data` is the array itself (not data.looks), and
+  // the cursor is a top-level `next_token`. An earlier guess at data.looks/data.token parsed a
+  // successful 200 into zero results — a silent empty list, which is worse than an error.
+  const raw = (await call(`/v3/avatars/looks?${q.toString()}`)) as { data?: unknown[]; next_token?: string; has_more?: boolean }
+  const rows = (Array.isArray(raw.data) ? raw.data : []) as Record<string, unknown>[]
   const looks: HeyGenAvatarLook[] = rows.map((r) => ({
     id: String(r.id ?? r.avatar_id ?? ""),
     name: String(r.name ?? r.avatar_name ?? "(unnamed)"),
@@ -67,7 +70,7 @@ export async function listAvatarLooks(opts: { avatarType?: string; ownership?: "
     supportedEngines: Array.isArray(r.supported_api_engines) ? (r.supported_api_engines as string[]) : [],
     status: (r.status as string) ?? null,
   }))
-  return { looks, nextToken: raw.data?.token ?? null }
+  return { looks, nextToken: raw.has_more ? (raw.next_token ?? null) : null }
 }
 
 /** FREE. Uploads an audio file and returns its asset id. */
@@ -99,6 +102,9 @@ export async function createAvatarVideo(input: {
   aspectRatio?: "9:16" | "1:1" | "4:5" | "16:9"
   resolution?: "720p" | "1080p" | "4k"
   title?: string
+  /** REQUIRED for looks that do not support the default engine. The "(Upper Body)" portrait stock
+   *  avatars are avatar_iii ONLY — omitting this defaults to Avatar IV and the call fails. */
+  engine?: "avatar_iii" | "avatar_iv" | "avatar_v"
   confirmSpend: string
 }): Promise<{ videoId: string; status: string }> {
   if (input.confirmSpend !== "yes-spend-heygen-credit") {
@@ -112,6 +118,7 @@ export async function createAvatarVideo(input: {
     aspect_ratio: input.aspectRatio ?? "9:16",
     resolution: input.resolution ?? "1080p",
     title: input.title ?? "Social Beast AI Presenter test",
+    ...(input.engine ? { engine: { type: input.engine } } : {}),
   }
   const raw = (await call("/v3/videos", {
     method: "POST",
