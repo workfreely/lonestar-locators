@@ -24,8 +24,12 @@ import {
   computeOverlayLayout, templateFamily, headlineTextWidthPx, isCompoundHeadline,
   fitCompoundHeroPx, HEADLINE_TEXT_AVAIL_PX, DETAIL_TEXT_AVAIL_PX, HERO_MAX_PX, HERO_MIN_PX,
   COMPOUND_HERO_MIN_PX, OVERLAY_CANVAS, OVERLAY_SPEC, splitCompoundHeadline, MARKET_TYPE_DETAIL_PX,
-  COMPOUND_MARKET_SCALE, COMPOUND_DETAIL_SCALE,
-} from "@/lib/social/overlaySpec"
+  COMPOUND_MARKET_SCALE, COMPOUND_DETAIL_SCALE, HOOK_MAX_PX } from "@/lib/social/overlaySpec"
+
+// overlaySpec keeps these two floors module-private. Mirrored here, with the mirror asserted
+// against observed behaviour below so it cannot silently drift from the source of truth.
+const HOOK_ONE_LINE_MIN_PX_FOR_TEST = 26
+const HOOK_DETAIL_MIN_PX_FOR_TEST = 20
 
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
@@ -281,8 +285,22 @@ console.log("\nCONVERSATIONAL templates keep the approved 28px / 27px sizing:")
   // exactly the ones that land below the ceiling. The invariant is no longer "one flat size" but
   // "every render sits inside the allowed band, one line, detail strictly under the headline".
   const nums = [...sizes].map((s) => ({ kind: s.split(" ")[0], px: Number(s.split(" ")[1]) }))
-  ok("every conversational compound render sits in the 26–38px band",
-    nums.every((n) => n.px >= 26 && n.px <= 38), [...sizes].join(" | "))
+  // DERIVED FROM THE DESIGN FLOORS, not a hand-written band. The old literal was `>= 26`, which was
+  // calibrated when no detail-bearing template had variable-length copy: every detail then came from
+  // a short fixed hook and never approached its floor.
+  //
+  // T20 changed that. Its headline carries the property type and city, so the longest compound
+  // ("…an industrial-style apartment in San Antonio") fits one line at exactly HOOK_ONE_LINE_MIN_PX
+  // (26) — the designed one-line floor, not an overflow — and its detail is sized hookPx - 1 = 25,
+  // the same `hookDetailPxFor` rule T19's price line uses. 25 is well inside HOOK_DETAIL_MIN_PX (20).
+  //
+  // Expressing the bound as the constants makes the assertion say what it actually protects, and it
+  // tightens rather than loosens: a headline below the one-line floor, or a detail below the detail
+  // floor, now fails even if someone later widens a literal.
+  const headFloor = HOOK_ONE_LINE_MIN_PX_FOR_TEST, detailFloor = HOOK_DETAIL_MIN_PX_FOR_TEST
+  ok(`every conversational compound render sits inside its design floor (head >= ${headFloor}, detail >= ${detailFloor}, ceiling ${HOOK_MAX_PX})`,
+    nums.every((n) => n.px <= HOOK_MAX_PX && n.px >= (n.kind === "detail" ? detailFloor : headFloor)),
+    [...sizes].join(" | "))
   ok("…and every compound detail stays strictly under its headline",
     nums.filter((n) => n.kind === "detail").every((d) => d.px <= 37), [...sizes].join(" | "))
   // The compound hero must NOT leak its per-line geometry into the conversational family.

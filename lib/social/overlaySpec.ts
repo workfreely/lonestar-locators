@@ -483,33 +483,6 @@ export type LayoutFamily = "hero" | "center_hook" | "center_hook_detail"
 // Shared by preview + render (parity).
 export const CENTER_HOOK = {
   maxPx: HOOK_MAX_PX, minPx: HOOK_MIN_PX, lineSpacing: 8, detailFontPx: 30,
-  // A HARD BREAK IS A STATEMENT BOUNDARY, NOT A WRAP.
-  //
-  // `lineSpacing: 8` is continuation spacing: the gap between two halves of ONE sentence the
-  // wrapper had to split. T20 (client_me) is the only template whose headline carries an authored
-  // "\n", and there the break separates two SPEAKERS — "Client: …" / "Me: …". Two full statements
-  // of similar weight need more air than two halves of one sentence.
-  //
-  // ── WHY THIS IS NOT DETAIL_GAP_PX ───────────────────────────────────────────────────────────
-  // The obvious move is to reuse DETAIL_GAP_PX (17), the headline→detail gap T19 uses, on the
-  // theory that it is "the same gap". MEASURED, it is not. The two numbers are consumed by
-  // different mechanisms: DETAIL_GAP_PX positions a SEPARATE drawtext block, while this value
-  // becomes ffmpeg's `line_spacing` INSIDE one multi-line draw, which is added on top of the
-  // glyph box. Rendered ink gaps, measured off real 1080×1920 frames:
-  //
-  //     line_spacing   8 → 13px      17 → 22px      20 → 25px      24 → 29px
-  //     T19's headline→detail gap (DETAIL_GAP_PX 17) → 13px
-  //
-  // So T20 at 8 and T19 at 17 were ALREADY producing the identical 13px gap. Tying the two to one
-  // constant would have encoded an equivalence that does not survive rendering, and would have
-  // silently changed T20 every time the detail gap was tuned.
-  //
-  // 14 is therefore chosen on its own terms: it renders ~19px, roughly half again T19's 13px, which
-  // separates the two speakers without opening a hole the centred group has to carry.
-  //
-  // Scope: hard-break only. Soft-wrapped hooks (T12 is the only template that wraps) keep 8, so no
-  // existing template's spacing moves.
-  hardBreakSpacing: 14,
 } as const
 
 // ── Conversational (center-hook) scale ───────────────────────────────────────────────────────────
@@ -605,12 +578,17 @@ export function templateFamily(template: string): LayoutFamily {
   // cannot be generalised away: they already state the price INSIDE the headline sentence ("What
   // $1,495/month gets you in Dallas"), so a price line below would print the same number twice.
   // Every other template with a hook takes the shared optional price line.
-  // T18 and T20 carry NO detail line — T18 states its price inside the question, T20 is a
-  // two-line exchange — so they join the detail-free bucket rather than reserving a slot they
-  // never fill. The hook typography is IDENTICAL to Template 8's (both families share
-  // CENTER_HOOK sizing, fit and line spacing); only the detail slot differs.
+  // T18 carries NO detail line — it states its price inside the question — so it joins the
+  // detail-free bucket rather than reserving a slot it never fills.
+  //
+  // T20 (client_me) MOVED OUT of this bucket. It is a two-statement exchange, and it used to carry
+  // both statements in ONE headline separated by an authored "\n". That was the wrong shape: a
+  // headline is one element, so the second statement had no independent position and its spacing
+  // had to be faked with line-spacing tricks that the editor preview did not even honour. The
+  // exchange is now exactly what it always was structurally — a headline and a second line below
+  // it — which is the shape T19 already has. Same family, same geometry, same gap, no special case.
   if (template === "what_mo_gets_you" || template === "what_mo_gets_you_top"
-    || template === "would_you_live_here" || template === "client_me") return "center_hook"
+    || template === "would_you_live_here") return "center_hook"
   // apartment_standards is an EXACT Upgrade variant → same center-hook+detail geometry. T12–T15 join
   // them: T11's centered composition plus an OPTIONAL "Starting at $X/mo" line that collapses to a
   // headline-only render when there is no valid price (hasDetail below is text-driven, not family-driven).
@@ -625,9 +603,12 @@ export function templateFamily(template: string): LayoutFamily {
     // the layout: centered placement, CENTER_HOOK sizing and fit, uppercase:false, the side
     // margins, line spacing, hookDetailPxFor and the shared 17px gap all arrive with it. No new
     // constants, no second code path, and the preview and the FFmpeg render stay identical for
-    // free. T18 and T20 simply return an empty detail, which the text-driven hasDetail collapses.
+    // free. T18 returns an empty detail, which the text-driven hasDetail collapses; T20 fills the
+    // slot with the second half of its exchange, the same way T19 fills it with a price.
     // T19 takes Template 8's optional price line, so it joins this family exactly.
-    || template === "imagine_coming_home"
+    // T20 (client_me) joins it too: its "Me: …" reply occupies the SAME slot, at the same size,
+    // gap and alignment T19 gives "Starting at $X/month".
+    || template === "imagine_coming_home" || template === "client_me"
     // property_tour (T17) is Template 3's treatment with tour wording. Joining this list is the
     // WHOLE layout change: centered placement, CENTER_HOOK sizing/fit, uppercase:false, side
     // margins, line spacing, the hookDetailPxFor price size and the shared 17px gap all come with
@@ -800,12 +781,13 @@ export function computeOverlayLayout(template: string, headlineText: string, det
     hookPx = Math.min(...lines.map((l) => fitHookPx(l, hookMaxPx, hookMinPx, safeW)))
   }
   const n = Math.max(1, lines.length)
-  // Authored breaks get statement spacing; wrapped continuations keep the tighter value. Resolved
-  // ONCE and used for both the block height and the emitted lineSpacing — the vertical centering
-  // below derives from headBlockH, so a value used in one place and not the other would centre the
-  // group against a height it does not actually occupy.
-  const hookLineSpacing = hardLines ? CENTER_HOOK.hardBreakSpacing : CENTER_HOOK.lineSpacing
-  const headBlockH = n * hookPx + (n - 1) * hookLineSpacing
+  // Wrapped continuation spacing. T20 used to need a special case here — it carried two statements
+  // in one headline separated by an authored "\n" — but it now puts its second statement in the
+  // DETAIL slot like T19, so there is nothing left to special-case and the workaround is gone.
+  //
+  // hardLines itself stays: a hand-edited headline may still contain a newline, and honouring it is
+  // older than T20 and not specific to it. Such a headline simply uses the normal line spacing.
+  const headBlockH = n * hookPx + (n - 1) * CENTER_HOOK.lineSpacing
   const hasDetail = family === "center_hook_detail" && detail.length > 0
   // Detail is ONE line, FIT-TO-WIDTH at a larger price-detail size that stays below
   // the hook (see hookDetailPxFor) so it reads as a strong-but-secondary line. Shrinks only if
@@ -826,7 +808,7 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   // reuses T1's own yFrac constant, so the hook typography/fit stays identical to T11's.
   const topAnchored = template === "what_mo_gets_you_top"
   const groupTop = topAnchored ? CENTER_HOOK_TOP_YFRAC * H : (H - totalH) / 2
-  const headline: OverlayBlock = { lines, fontPx: hookPx, topPx: groupTop, uppercase: false, sideMarginPx: sideMarginPx(platform), lineSpacing: hookLineSpacing, face: "head" }
+  const headline: OverlayBlock = { lines, fontPx: hookPx, topPx: groupTop, uppercase: false, sideMarginPx: sideMarginPx(platform), lineSpacing: CENTER_HOOK.lineSpacing, face: "head" }
   const detailBlock: OverlayBlock | null = hasDetail
     ? { lines: detailLines, fontPx: detailPx, topPx: groupTop + headBlockH + gap, uppercase: false, sideMarginPx: sideMarginPx(platform), lineSpacing: OVERLAY_SPEC.sub.lineSpacing, face: "head" }
     : null

@@ -14,8 +14,8 @@
 // Run: npx tsx scripts/social/templates18to20.test.ts
 import { readFileSync } from "node:fs"
 import path from "node:path"
-import { OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, buildTemplateHeadline, buildTemplateDetail, buildCaption, commentCtaKeyword, isGeneratedCaption } from "../../lib/social/composePost"
-import { computeOverlayLayout, templateFamily, CENTER_HOOK } from "../../lib/social/overlaySpec"
+import { OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, buildTemplateHeadline, buildTemplateDetail, buildCaption, commentCtaKeyword, isGeneratedCaption, isGeneratedHeadline } from "../../lib/social/composePost"
+import { computeOverlayLayout, templateFamily, CENTER_HOOK, DETAIL_GAP_PX } from "../../lib/social/overlaySpec"
 
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
@@ -40,12 +40,18 @@ ok("T8 and T10 are untouched",
 // ── 2. GEOMETRY: TEMPLATE 8's FAMILY, NO NEW PATH ───────────────────────────
 console.log("\n2. Template 8's geometry, reused rather than copied:")
 ok("T19 is in Template 8's family exactly", templateFamily("imagine_coming_home") === templateFamily("pov_upgrade"))
-ok("T18 and T20 take the detail-free bucket, as what_mo_gets_you does",
-  templateFamily("would_you_live_here") === templateFamily("what_mo_gets_you") &&
-  templateFamily("client_me") === templateFamily("what_mo_gets_you"))
-ok("...which is why they return no detail line",
-  buildTemplateDetail("would_you_live_here", meta({ budgetRange: "1500" })) === "" &&
-  buildTemplateDetail("client_me", meta({ budgetRange: "1500" })) === "")
+ok("T18 takes the detail-free bucket, as what_mo_gets_you does",
+  templateFamily("would_you_live_here") === templateFamily("what_mo_gets_you"))
+ok("...which is why it returns no detail line",
+  buildTemplateDetail("would_you_live_here", meta({ budgetRange: "1500" })) === "")
+// T20 MOVED into T19's family: its reply is a real detail line, not an absent one. Asserted
+// against T19 rather than a literal so the two cannot drift apart.
+ok("T20 now shares T19's family (headline + detail), not the detail-free bucket",
+  templateFamily("client_me") === templateFamily("imagine_coming_home") &&
+  templateFamily("client_me") !== templateFamily("what_mo_gets_you"))
+ok("...and its detail line is the reply, independent of price",
+  buildTemplateDetail("client_me", meta({ budgetRange: "1500" })) === "Me: “Say less.”" &&
+  buildTemplateDetail("client_me", meta()) === "Me: “Say less.”")
 ok("T19 DOES take the optional price line, collapsing when absent",
   buildTemplateDetail("imagine_coming_home", meta({ budgetRange: "1500" })) === "Starting at $1,500/month" &&
   buildTemplateDetail("imagine_coming_home", meta()) === "")
@@ -70,17 +76,25 @@ for (const [type, city, want] of [
 }
 ok("T20 never writes 'a apartment'", !/\ba apartment\b/.test(buildTemplateHeadline("client_me", meta({ propertyType: "Apartment", market: "Dallas" }))))
 ok("T20 degrades with no metadata", buildTemplateHeadline("client_me", meta()).includes("I need a place."))
+// The punchline is fixed and now lives in the DETAIL, so it is asserted there — and the headline
+// must NOT contain it any more, which is the structural half of this change.
 ok("T20 keeps the punchline unchanged in every case",
-  ["Townhome", "Loft", null].every((t) => buildTemplateHeadline("client_me", meta({ propertyType: t, market: "Dallas" })).includes("Me: “Say less.”")))
+  ["Townhome", "Loft", null].every((t) => buildTemplateDetail("client_me", meta({ propertyType: t, market: "Dallas" })) === "Me: “Say less.”"))
+ok("...and the headline never carries it", 
+  ["Townhome", "Loft", null].every((t) => !buildTemplateHeadline("client_me", meta({ propertyType: t, market: "Dallas" })).includes("Say less")))
 
-// ── 4. THE TWO-LINE EXCHANGE SURVIVES THE FITTER ────────────────────────────
-console.log("\n4. T20 renders as two lines, at a size that fits:")
+// ── 4. THE EXCHANGE SURVIVES THE FITTER AS TWO ELEMENTS ─────────────────────
+// Previously this asserted ONE headline wrapping to two lines. The exchange is now a headline and
+// a detail, so the fit is checked on each element — the client's line must still fit on one line
+// at a readable size, and the reply must render as its own block.
+console.log("\n4. T20 renders as headline + detail, at sizes that fit:")
 for (const type of ["Loft", "Townhome", "Split-Level Penthouse"]) {
-  const h = buildTemplateHeadline("client_me", meta({ propertyType: type, market: "San Antonio" }))
-  const L = computeOverlayLayout("client_me", h, "", "instagram")
-  ok(`${type}: exactly two lines`, L.headline.lines.length === 2)
-  ok(`${type}: the punchline is on its OWN line`, L.headline.lines[1] === "Me: “Say less.”")
+  const src = meta({ propertyType: type, market: "San Antonio" })
+  const L = computeOverlayLayout("client_me", buildTemplateHeadline("client_me", src), buildTemplateDetail("client_me", src), "instagram")
+  ok(`${type}: the client's line is ONE line`, L.headline.lines.length === 1)
+  ok(`${type}: the reply is its own block below`, !!L.detail && L.detail.lines[0] === "Me: “Say less.”" && L.detail.topPx > L.headline.topPx)
   ok(`${type}: fitted size stays in the readable band`, L.headline.fontPx >= 20 && L.headline.fontPx <= 46)
+  ok(`${type}: the reply is secondary in size, as T19's price line is`, L.detail!.fontPx <= L.headline.fontPx)
 }
 
 // ── 5. NO EMOJI IN A BURNED-IN HEADLINE ─────────────────────────────────────
@@ -165,38 +179,71 @@ console.log("\n9. the superseded T18 opener is still recognised:")
     !isGeneratedCaption("My own words." + body, src, "seed", "would_you_live_here" as never))
 }
 
-// ── 10. T20's APPROVED TWO-STATEMENT SPACING ───────────────────────────────
-// T20 is the ONLY template whose headline carries an authored "\n", and the break separates two
-// speakers rather than two halves of a sentence. The approved look is ~19px of rendered ink
-// between them, which comes from line_spacing 14 (MEASURED on real 1080x1920 frames:
-// 8 -> 13px, 12 -> 17px, 14 -> 19px, 17 -> 22px).
-//
-// The value is asserted here rather than left to the constant alone because the two numbers that
-// could plausibly drive it are NOT interchangeable: DETAIL_GAP_PX (17) positions a separate draw
-// block and renders 13px, while this one is ffmpeg line_spacing inside a single multi-line draw.
-// Anyone "unifying" them would silently retighten T20 to the spacing Jay rejected.
-console.log("\n10. T20 keeps its approved two-statement spacing:")
+// ── 10. T20 IS BUILT ON T19's TWO-ELEMENT STRUCTURE ────────────────────────
+// T20's exchange used to live in ONE headline split by an authored "\n". That shape gave the reply
+// no independent position, so its spacing had to be faked with line-spacing values the editor
+// preview does not even read — a fix could measure "correct" in the FFmpeg render and change
+// nothing on screen. The reply now occupies the DETAIL slot, which both surfaces position the same
+// way, so the gap is structural rather than tuned.
+console.log("\n10. T20 uses T19's headline + detail structure:")
 {
-  const src = meta({ market: "Dallas", propertyType: "High-Rise", budgetRange: "2500" })
-  const L = computeOverlayLayout("client_me" as never, buildTemplateHeadline("client_me" as never, src), buildTemplateDetail("client_me" as never, src))
-  ok("T20 still renders TWO authored lines", L.headline.lines.length === 2)
-  ok("...separated by the approved hard-break spacing (14)", L.headline.lineSpacing === CENTER_HOOK.hardBreakSpacing && CENTER_HOOK.hardBreakSpacing === 14)
-  ok("...which is NOT the wrap spacing", CENTER_HOOK.hardBreakSpacing !== CENTER_HOOK.lineSpacing)
+  for (const pt of ["Townhome", "Split-Level Penthouse", null]) {
+    const src = meta({ market: "Dallas", propertyType: pt, budgetRange: "1500" })
+    const head = buildTemplateHeadline("client_me" as never, src)
+    const det = buildTemplateDetail("client_me" as never, src)
+    const L = computeOverlayLayout("client_me" as never, head, det)
+    const label = pt ?? "(no type)"
+    ok(`${label}: headline carries ONLY the client's line (no newline)`, !head.includes("\n") && /^Client: /.test(head))
+    ok(`${label}: the reply is the DETAIL line`, det === "Me: “Say less.”" && !!L.detail && L.detail.lines[0] === det)
+    ok(`${label}: same family as T19`, L.family === templateFamily("imagine_coming_home" as never))
+    ok(`${label}: headline is ONE line with no per-line geometry`, L.headline.lines.length === 1 && !L.headline.linePx)
+    ok(`${label}: gap is the shared DETAIL_GAP_PX`,
+      Math.round(L.detail!.topPx - (L.headline.topPx + L.headline.fontPx)) === DETAIL_GAP_PX)
+    ok(`${label}: detail sits BELOW the headline, centred on the same axis`,
+      L.detail!.topPx > L.headline.topPx && L.detail!.sideMarginPx === L.headline.sideMarginPx)
+  }
+  // The dynamic half still populates.
+  ok("property type + city populate the headline",
+    buildTemplateHeadline("client_me" as never, meta({ market: "Dallas", propertyType: "Townhome" })) === "Client: “I need a townhome in Dallas.”")
+  ok("a compound type reads naturally",
+    buildTemplateHeadline("client_me" as never, meta({ market: "Dallas", propertyType: "Split-Level Penthouse" })) === "Client: “I need a split-level penthouse in Dallas.”")
+  ok("it degrades with no type", /I need a place in Dallas/.test(buildTemplateHeadline("client_me" as never, meta({ market: "Dallas" }))))
 
-  // EVERY other template must still use the tighter wrap spacing. This is the assertion that would
-  // have caught the change being applied more widely than T20.
+  // T20 vs T19: identical geometry rules, which is the whole point of the change.
+  const s19 = meta({ market: "Dallas", propertyType: "Townhome", budgetRange: "1500" })
+  const L19 = computeOverlayLayout("imagine_coming_home" as never, buildTemplateHeadline("imagine_coming_home" as never, s19), buildTemplateDetail("imagine_coming_home" as never, s19))
+  const L20 = computeOverlayLayout("client_me" as never, buildTemplateHeadline("client_me" as never, s19), buildTemplateDetail("client_me" as never, s19))
+  const gapOf = (L: typeof L19) => Math.round(L.detail!.topPx - (L.headline.topPx + L.headline.fontPx))
+  ok(`T19 and T20 use the IDENTICAL headline->detail gap (${gapOf(L19)}px)`, gapOf(L19) === gapOf(L20))
+  ok("...and the same side margins", L19.detail!.sideMarginPx === L20.detail!.sideMarginPx)
+  ok("...and T19 itself is unchanged", gapOf(L19) === DETAIL_GAP_PX && !L19.headline.linePx)
+
+  // THE WORKAROUND IS GONE, and no template may regain per-line geometry in this family.
+  const spec = readFileSync(path.join(process.cwd(), "lib/social/overlaySpec.ts"), "utf8")
+  ok("the hard-break spacing workaround is removed", !/hardBreakSpacing|statementGap|hardBroken/.test(spec))
   let others = 0, wrong = 0
   for (const tpl of OVERLAY_TEMPLATES) {
-    if (tpl === "client_me") continue
     for (const pt of [null, "High-Rise", "Split-Level Townhome"]) {
       const s2 = meta({ market: "San Antonio", propertyType: pt, budgetRange: "2500" })
       const l2 = computeOverlayLayout(tpl as never, buildTemplateHeadline(tpl as never, s2), buildTemplateDetail(tpl as never, s2))
       if (templateFamily(tpl as never) === "hero") continue
       others++
-      if (l2.headline.lineSpacing !== CENTER_HOOK.lineSpacing) wrong++
+      if (l2.headline.lineSpacing !== CENTER_HOOK.lineSpacing || l2.headline.linePx) wrong++
     }
   }
-  ok(`all ${others} other conversational layouts keep the 8px wrap spacing`, wrong === 0)
+  ok(`all ${others} conversational layouts use the shared single-block path and 8px wrap spacing`, wrong === 0)
+
+  // Caption, hashtags and the superseded headline must all survive.
+  const capSrc = meta({ market: "Dallas", propertyType: "Townhome", budgetRange: "1500", amenities: "Resort-Style Pool" })
+  ok("T20's caption opener is unchanged", /You tell me what you.{0,3}re looking for/.test(buildCaption(capSrc, "seed", "client_me" as never)))
+  ok("the 😎 stays in the caption, never the overlay",
+    buildCaption(capSrc, "seed", "client_me" as never).includes("😎")
+    && !buildTemplateHeadline("client_me" as never, capSrc).includes("😎")
+    && !buildTemplateDetail("client_me" as never, capSrc).includes("😎"))
+  const legacy = 'Client: “I need a townhome in Dallas.”\nMe: “Say less.”'
+  ok("the SUPERSEDED combined headline is still recognised as generated", isGeneratedHeadline(legacy))
+  ok("the CURRENT headline is recognised too", isGeneratedHeadline("Client: “I need a townhome in Dallas.”"))
+  ok("a genuinely manual headline is still manual", !isGeneratedHeadline("Client: “I want a castle.”"))
 }
 
 console.log(`\nTemplates 18-20: ${pass} passed, ${fail} failed`)

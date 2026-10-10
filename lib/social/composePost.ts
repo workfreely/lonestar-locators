@@ -605,18 +605,26 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
       return "Imagine coming home to this"
 
     // ── T20 CLIENT / ME ─────────────────────────────────────────────────────────────────────
-    // A two-line exchange. Both halves degrade independently so the joke still lands with partial
-    // metadata: no type and no city gives the generic "I need a place."; the punchline never
-    // changes. withArticle avoids "a apartment", and propertyNoun already reduces a compound type
-    // to natural wording, so "Split-Level Townhome" reads "a split-level townhome" rather than
-    // duplicating the qualifier.
+    // A two-statement exchange, carried by TWO ELEMENTS — this HEADLINE holds the client's line and
+    // the DETAIL line holds the reply, exactly the way T19 pairs its hook with "Starting at $X".
+    //
+    // It used to be one headline with an authored "\n" in the middle. That was the wrong structure:
+    // a headline is a single element, so the reply had no independent position, and its spacing had
+    // to be faked with line-spacing values the editor preview did not even read. Splitting it means
+    // the pair inherits T19's gap, sizing and alignment with no special case anywhere.
+    //
+    // The client's line still degrades independently so the setup works with partial metadata: no
+    // type and no city gives the generic "I need a place." withArticle avoids "a apartment", and
+    // propertyNoun already reduces a compound type to natural wording, so "Split-Level Townhome"
+    // reads "a split-level townhome" rather than duplicating the qualifier. The reply is fixed and
+    // lives in buildTemplateDetail.
     case "client_me": {
       const cityName = clean(normalizeSocialMarket(src.market))
       const noun = canonicalType ? propertyNoun(canonicalType) : ""
       const want = noun
         ? `${withArticle(noun)}${cityName ? ` in ${cityName}` : ""}`
         : (cityName ? `a place in ${cityName}` : "a place")
-      return `Client: “I need ${want}.”\nMe: “Say less.”`   // 😎 lives in the caption — see above
+      return `Client: “I need ${want}.”`   // 😎 lives in the caption — see above
     }
     case "affordable_luxury":
       return AFFORDABLE_LUXURY_HEADLINE
@@ -730,10 +738,16 @@ export function buildTemplateDetail(template: OverlayTemplate, src: SourceMeta):
     case "would_you_live_here":
       return ""
 
-    // T20 is a two-line exchange and is already the tallest hook of the set. A third line under
-    // it crowds the joke, and the dialogue makes no claim about price that needs substantiating.
+    // T20's SECOND STATEMENT. This is the reply half of the exchange, and it lives here — in the
+    // same slot, at the same size, gap and alignment T19 gives "Starting at $X/month" — rather than
+    // inside the headline after an authored newline.
+    //
+    // Deliberately NOT the price: the dialogue makes no claim about rent that needs substantiating,
+    // and the slot can hold only one line. Fixed wording, so it needs no metadata and never
+    // degrades. The 😎 stays in the caption — Libre Baskerville has no emoji glyphs and would
+    // render tofu on the video.
     case "client_me":
-      return ""
+      return "Me: “Say less.”"
     // T3 your_sign now takes the SAME optional price line too. Its headline is unchanged and still
     // uses no metadata; the price is purely an additional, collapsible second line.
     case "your_sign":
@@ -806,6 +820,22 @@ export function isGeneratedHeadline(text: string | null | undefined): boolean {
   // frozen as a "manual override" and would never re-sync when its Property Type changes.
   //   • your_sign before "new" was added:        "Your sign to get that {noun}"
   //   • hits_different before sentence casing:   "{Title Cased Plural} just hit different"
+  // T20 BEFORE THE EXCHANGE WAS SPLIT INTO TWO ELEMENTS. It used to be one headline carrying both
+  // statements separated by an authored newline; the reply now lives in the detail line, so the
+  // generator never produces the combined form again. Rebuilt from the CURRENT headline rather
+  // than re-spelling the old string, so it cannot drift from whatever the client line becomes.
+  //
+  // No production rows carry this today (0 posts use client_me), but an in-flight draft would
+  // otherwise freeze as a "manual override" and stop re-syncing on a Market/Type change — the same
+  // failure the "/mo" and your_sign entries above exist to prevent.
+  {
+    const m = t.match(/^([\s\S]+)\n *Me: *[“"]Say less\.[”"]$/)
+    if (m) {
+      for (const mk of MARKETS_WITH_NULL) for (const pt of TYPES_WITH_NULL) {
+        if (buildTemplateHeadline("client_me", { market: mk, propertyType: pt }) === m[1]) return true
+      }
+    }
+  }
   const legacySign = t.match(/^Your sign to get that (.+)$/)
   const legacyHit = t.match(/^(.+) just hit different$/)
   for (const pt of TYPES_WITH_NULL) {
