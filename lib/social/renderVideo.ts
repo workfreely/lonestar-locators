@@ -11,6 +11,7 @@ import os from "node:os"
 import { OVERLAY_TEXT, computeOverlayLayout, type OverlayLayout, type OverlayFace } from "@/lib/social/overlaySpec"
 import { DELIVERY_SIZE } from "@/lib/social/deliverySize"
 import { buildPresenterFilter, buildPresenterPlan, decoderForPresenterClip, type PresenterPlan } from "@/lib/social/presenterSpec"
+import { trimPresenterClip } from "@/lib/social/presenterTrim"
 
 export type AudioChoice = "original" | "none" | "lb_track"
 
@@ -490,7 +491,27 @@ export async function renderReel(ffmpegPath: string, input: RenderInput): Promis
   // appended last precisely so it cannot renumber them. The plan is built here and consumed in two
   // places — the filter graph and the input list — from this one value.
   const voiceCount = (input.hookPath ? 1 : 0) + (input.ctaPath ? 1 : 0)
-  const presenterPlan = input.presenterPath
+
+  // ── TRIM THE PRESENTER'S TRANSPARENT PADDING ────────────────────────────────────────────────
+  // Generated avatars arrive centred in a full canvas with transparency around them, so the clip's
+  // bottom edge is not the figure's. Bottom-anchoring would then float the presenter above its
+  // intended footing — silently, with no error. Detection reads the ALPHA plane, so it works for
+  // any avatar from any vendor, not just the one we tested.
+  //
+  // Degrades to the original clip on any failure: a presenter sitting slightly high is cosmetic,
+  // a failed render is a broken post.
+  let presenterLocal = input.presenterPath ?? null
+  if (presenterLocal) {
+    const pInfo = parseSourceInfo(await probeStderr(ffmpegPath, presenterLocal))
+    const trim = await trimPresenterClip({
+      ffmpegPath, clipPath: presenterLocal,
+      decoder: decoderForPresenterClip(presenterLocal),
+      workDir: input.workDir, width: pInfo.width, height: pInfo.height,
+    })
+    presenterLocal = trim.path
+  }
+
+  const presenterPlan = presenterLocal
     ? buildPresenterPlan({ inputIndex: 1 + voiceCount, introSeconds: input.presenterIntroSeconds ?? null, side: input.presenterSide ?? null, widthPx: input.presenterWidthPx ?? null, bottomInsetPxOverride: input.presenterBottomInsetPx ?? null, platform: input.platform })
     : null
   const filter = buildVideoFilter(input.fontPath, items, buildSourceChain(sourceInfo), presenterPlan)
@@ -537,8 +558,8 @@ export async function renderReel(ffmpegPath: string, input: RenderInput): Promis
   const args = buildFfmpegArgs({
     sourcePath: input.sourcePath, outputPath: input.outputPath, filter,
     audioChoice: input.audioChoice, extraInputs, audioFilter, source: sourceInfo,
-    presenterInput: input.presenterPath
-      ? { path: input.presenterPath, decoder: decoderForPresenterClip(input.presenterPath) }
+    presenterInput: presenterLocal
+      ? { path: presenterLocal, decoder: decoderForPresenterClip(presenterLocal) }
       : null,
   })
 
