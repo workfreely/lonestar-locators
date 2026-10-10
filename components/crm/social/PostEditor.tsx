@@ -1,5 +1,9 @@
-import { DEFAULT_DAILY_TIMES } from "@/lib/social/recurrence"
 "use client"
+
+// NOTE: "use client" MUST be the first statement in the file. An import placed above it
+// silently demotes this to a Server Component — tsc passes, the dev server tolerates it, and only
+// the production build fails.
+import { DEFAULT_DAILY_TIMES } from "@/lib/social/recurrence"
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
