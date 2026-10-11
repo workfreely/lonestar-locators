@@ -114,6 +114,14 @@ console.log("\n6. a TikTok invitation creates a TikTok connection:")
   ok("the old 4-argument overload is dropped so there is exactly ONE function",
     /drop function if exists public\.sa_create_destination_invitation\(text, text, timestamptz, uuid\)/.test(mig))
   ok("the consume return type is left exactly as it was", /returns table \(status text, connection_id uuid\)/.test(mig))
+  // CONSUME VALIDATES TOO. create refuses an unsupported provider, but consume originally read
+  // whatever the row carried — measured: a directly-written provider='youtube' row minted a
+  // youtube connection, a destination no publish path can service. Validation belongs where the
+  // row is USED, not only where it is made.
+  const mig4 = raw("supabase/migrations/20261011000004_consume_validates_provider.sql")
+  ok("consume refuses an unsupported provider", /v_provider not in \('instagram', 'tiktok'\)/.test(mig4))
+  ok("...as a returned status, not an exception, so the public callback can render it",
+    /'unsupported_provider'::text/.test(mig4))
 }
 
 console.log(`\nTikTok readiness: ${pass} passed, ${fail} failed`)
