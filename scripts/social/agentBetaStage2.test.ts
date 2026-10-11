@@ -84,12 +84,26 @@ console.log("\n4. the agent surface cannot write:")
     }
   }
   walk(dir)
-  ok(`found ${routes.length} agent route(s)`, routes.length === 3)
+  ok(`found ${routes.length} agent route(s)`, routes.length >= 3)
   for (const r of routes) {
     const src = code(r)
     const name = r.replace("app/api/", "")
     ok(`${name}: guarded by requireSocialAgent`, /requireSocialAgent\(\)/.test(src))
-    ok(`${name}: refuses before doing anything`, /if \(!guard\.ok\) return guard\.response/.test(src))
+    // THE INVARIANT IS "returns immediately on !guard.ok", not "returns guard.response".
+    //
+    // Stage 3 added /access, which the NAV calls on every page load for every user. It answers a
+    // refusal with 200 { enabled: false } rather than a 401, deliberately: a menu asking a
+    // question should not log an authorization error for every normal user, which is how real
+    // errors get trained into noise. It still returns BEFORE doing any work and still discloses
+    // nothing — which is what this assertion actually needs to protect.
+    ok(`${name}: returns immediately on a failed guard`, /if \(!guard\.ok\) return /.test(src))
+    ok(`${name}: discloses nothing on refusal`, (() => {
+      const m = src.match(/if \(!guard\.ok\) return ([^\n]+)/)
+      if (!m) return false
+      const returned = m[1]
+      // Either the guard's own response, or a literal with no data in it.
+      return /guard\.response/.test(returned) || /enabled: false/.test(returned)
+    })())
     ok(`${name}: performs NO write`, !/\.(insert|update|upsert|delete)\(/.test(src))
     ok(`${name}: uses the RLS client, never the service role`, !/supabaseAdmin/.test(src))
     ok(`${name}: scopes to session-derived ids only`,

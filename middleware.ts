@@ -27,7 +27,7 @@ const LOCATOR_BEAST_PREFIX = "/locator-beast";
 // the CRM, OAuth callback, and API routes 404 on the live domain). Everything
 // else on that host is a marketing page served from app/locator-beast/*.
 const APP_PATH_PATTERN =
-  /^\/(login|signup|forgot-password|reset-password|onboarding|billing|verify-license|smart-lead-form|admin|api|auth|companion|ai|help|thank-you|authorize)(\/|$)/;
+  /^\/(login|signup|forgot-password|reset-password|onboarding|billing|verify-license|smart-lead-form|social|admin|api|auth|companion|ai|help|thank-you|authorize)(\/|$)/;
 
 // The CRM is premium. Everything under /admin requires an active trial or a
 // live subscription — EXCEPT /admin/billing, which must always be reachable so

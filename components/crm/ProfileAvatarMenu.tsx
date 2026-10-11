@@ -70,6 +70,11 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
   // hidden on any error (incl. before the Beast Network migrations are applied).
   const [showNetwork, setShowNetwork] = useState(false)
   const [isOwner, setIsOwner] = useState(false)
+  // Social Beast AGENT beta. Server-decided: /api/agent/social/access runs the same guard the real
+  // agent routes run (session + allowlist + a connected account), so this entry can never point at
+  // something the server would refuse. Hiding the link is honesty, not security — every agent route
+  // re-checks for itself.
+  const [showAgentSocial, setShowAgentSocial] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -106,6 +111,15 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
           setShowNetwork(false)
           setIsOwner(false)
         }
+      }
+      // Separate request, deliberately: a failure here must not also hide Beast Network or the
+      // Admin section, and a failure there must not reveal this.
+      try {
+        const res = await fetch("/api/agent/social/access")
+        const j = res.ok ? ((await res.json()) as { enabled?: boolean }) : { enabled: false }
+        if (active) setShowAgentSocial(j.enabled === true)
+      } catch {
+        if (active) setShowAgentSocial(false)
       }
     })()
     return () => {
@@ -248,6 +262,16 @@ export default function ProfileAvatarMenu({ variant = "dark" }: { variant?: "dar
           {/* ── MARKETING TOOLS ── */}
           <div className={sectionCls}>Marketing Tools</div>
           <Link href="/smart-lead-form" onClick={() => setOpen(false)} className={linkCls}>Smart Lead Form</Link>
+          {/* Social Beast — AGENT view, private beta. Directly below Smart Lead Form. This is NOT
+              the admin surface: it links to /social, which is read-only and agent-scoped, while the
+              admin's /admin/social-autopilot entry stays in the owner-only ADMIN section below and
+              is untouched. */}
+          {showAgentSocial && (
+            <Link href="/social" onClick={() => setOpen(false)} className={linkCls}>
+              Social Beast
+              <span className="ml-2 rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide bg-[var(--crm-border)] text-[var(--crm-text-muted)]">Beta</span>
+            </Link>
+          )}
 
           {/* ── ANALYTICS ── */}
           <div className={sectionCls}>Analytics</div>
