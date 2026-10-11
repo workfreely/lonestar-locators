@@ -41,3 +41,54 @@ export function publishHoldEnabled(env: NodeJS.ProcessEnv = process.env): boolea
 export function shouldHoldForReview(needsReviewAt: string | null | undefined, env: NodeJS.ProcessEnv = process.env): boolean {
   return publishHoldEnabled(env) && !!needsReviewAt
 }
+
+// ── THE AGENT-OWNED HOLD ────────────────────────────────────────────────────────────────────
+//
+// UNCONDITIONAL, and therefore NOT governed by PUBLISH_HOLD_FLAG. The flag above exists because a
+// review flag on an ADMIN post is only as trustworthy as the data behind it, and holding his queue
+// on a noisy signal costs more than it saves. Neither half of that reasoning survives for an agent:
+//
+//   * the admin knows what he changed; the agent does not
+//   * an agent's approval is a statement about SPECIFIC content, so a change invalidates it by
+//     definition rather than probabilistically
+//
+// So an agent-owned post with needs_review_at set does not publish. Full stop, no environment
+// variable, nothing to forget to turn on.
+//
+// AVAILABILITY IS CHECKED SEPARATELY AND AT PUBLISH TIME. A withdrawal trigger sets the flag, but a
+// flag can be cleared by a later write; the master's current availability cannot. Both are inputs
+// here so neither alone can let a withdrawn video out.
+export type AgentHoldInput = {
+  /** Is this post owned by an EXTERNAL agent? See lib/social/agentIdentity.ts. */
+  isAgentOwned: boolean
+  needsReviewAt?: string | null
+  /** social_content.available_to_agents for this post's master, read at publish time. */
+  availableToAgents?: boolean | null
+}
+
+export type HoldDecision =
+  | { hold: false }
+  | { hold: true; reason: "needs_review" | "withdrawn_from_agents" }
+
+/**
+ * Should this post be withheld right now?
+ *
+ * ONE function for both publish paths — the cron worker and the manual button — so they cannot
+ * drift into different answers. Admin posts keep exactly their existing behaviour: the env-gated,
+ * fail-open flag and nothing else.
+ */
+export function publishHoldDecision(input: AgentHoldInput, env: NodeJS.ProcessEnv = process.env): HoldDecision {
+  if (!input.isAgentOwned) {
+    // ADMIN ROW — unchanged. Governed by the global flag exactly as before.
+    return shouldHoldForReview(input.needsReviewAt, env) ? { hold: true, reason: "needs_review" } : { hold: false }
+  }
+  // AGENT ROW — unconditional.
+  //
+  // Availability first: a withdrawn video is a harder "no" than a stale one, and saying so
+  // precisely is what lets the agent tell "ask the admin" from "re-approve it yourself".
+  // `undefined` means the caller did not read it; only an explicit false withholds, so a caller
+  // that cannot resolve the master does not silently block every agent post.
+  if (input.availableToAgents === false) return { hold: true, reason: "withdrawn_from_agents" }
+  if (input.needsReviewAt) return { hold: true, reason: "needs_review" }
+  return { hold: false }
+}

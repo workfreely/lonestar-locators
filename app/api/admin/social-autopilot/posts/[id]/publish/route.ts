@@ -1,6 +1,13 @@
 export const runtime = "nodejs"
 
-import { shouldHoldForReview } from "@/lib/social/publishHold"
+import { publishHoldDecision } from "@/lib/social/publishHold"
+import { isAgentOwnedPost } from "@/lib/social/agentIdentity"
+
+/** PostgREST embeds a relation as an object or a one-element array; normalised here. */
+function joinedOne(v: unknown): Record<string, unknown> | null {
+  const x = Array.isArray(v) ? v[0] : v
+  return (x && typeof x === "object") ? (x as Record<string, unknown>) : null
+}
 import { NextResponse, type NextRequest } from "next/server"
 import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin"
 import { supabaseAdmin } from "@/lib/supabase/admin"
@@ -26,7 +33,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   // Ownership is enforced by RLS (owner-scoped): the admin can only read their own post.
   const { data: post } = await supabase
     .from("social_posts")
-    .select("id, destination, approved_at, needs_review_at, needs_review_reason, status, render_status, rendered_storage_path, render_version, connection_id, caption, hashtags, external_post_id, platform, social_special, overlay_template, cover_thumb_offset_ms, cover_storage_path, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
+    .select("id, destination, approved_at, needs_review_at, needs_review_reason, status, render_status, rendered_storage_path, render_version, connection_id, caption, hashtags, external_post_id, platform, social_special, overlay_template, cover_thumb_offset_ms, cover_storage_path, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities, available_to_agents), destination_connection:connection_id(agent_user_id, owner_user_id)")
     .eq("id", id)
     .maybeSingle()
   if (!post) return NextResponse.json({ error: "not_found" }, { status: 404 })
@@ -35,11 +42,26 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   // Same gate the cron worker applies, so the manual button cannot route around it — and equally
   // OFF by default, so today a flagged post publishes from here exactly as before.
   const review = post as unknown as { needs_review_at: string | null; needs_review_reason: string | null }
-  if (shouldHoldForReview(review.needs_review_at)) {
+  // THE SAME DECISION THE WORKER MAKES, from the same function. The manual button must not be a
+  // way around the hold — for an agent-owned post it is the only other door, and a door applying a
+  // weaker rule would make the safeguard decorative. ADMIN rows behave exactly as before.
+  const pubConn = joinedOne((post as Record<string, unknown>).destination_connection)
+  const pubSrc = joinedOne((post as Record<string, unknown>).source)
+  const decision = publishHoldDecision({
+    isAgentOwned: isAgentOwnedPost(post as { connection_id?: string | null }, pubConn),
+    needsReviewAt: review.needs_review_at,
+    availableToAgents: (pubSrc?.available_to_agents as boolean | null | undefined) ?? undefined,
+  })
+  if (decision.hold) {
+    const withdrawn = decision.reason === "withdrawn_from_agents"
     return NextResponse.json({
-      error: "needs_review",
-      detail: review.needs_review_reason ?? "the price or special behind this post changed after it was scheduled",
-      hint: "Re-render the post, or clear the review flag, then publish.",
+      error: withdrawn ? "withdrawn_from_agents" : "needs_review",
+      detail: withdrawn
+        ? "This video is no longer available to agents."
+        : review.needs_review_reason ?? "the price or special behind this post changed after it was scheduled",
+      hint: withdrawn
+        ? "Make the source video available to agents again, or delete this post."
+        : "Re-render the post, or clear the review flag, then publish.",
     }, { status: 409 })
   }
   const p = post as {

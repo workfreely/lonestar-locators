@@ -1,7 +1,8 @@
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-import { shouldHoldForReview, publishHoldEnabled } from "@/lib/social/publishHold"
+import { shouldHoldForReview, publishHoldEnabled, publishHoldDecision } from "@/lib/social/publishHold"
+import { isAgentOwnedPost } from "@/lib/social/agentIdentity"
 import { NextResponse, type NextRequest } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { instagramConfigured, createReelContainer, createStoryContainer } from "@/lib/social/instagram"
@@ -49,6 +50,13 @@ import { DESTINATIONS, isSocialDestination, destinationFromLegacyPlatform } from
 
 /** Hard ceiling per invocation, so one run cannot hold a serverless function open indefinitely or
  *  empty a backlog into Instagram in one burst. Remaining due posts are picked up next run. */
+/** PostgREST returns an embedded relation as an object OR a one-element array depending on the
+ *  shape it infers. Normalised in one place so no call site has to guess. */
+function joinedOne(v: unknown): Record<string, unknown> | null {
+  const x = Array.isArray(v) ? v[0] : v
+  return (x && typeof x === "object") ? (x as Record<string, unknown>) : null
+}
+
 const MAX_PER_RUN = 5
 
 /**
@@ -130,7 +138,9 @@ async function run(req: NextRequest) {
   }
 
   const now = new Date().toISOString()
-  const result = { reconciled: 0, published: 0, pending: 0, failed: 0, skippedNoRender: 0, skippedNotApproved: 0, claimed: 0, missedWhilePaused: 0, tooLate: 0, skippedDestinationPaused: 0, flaggedForReview: 0, heldForReview: 0 }
+  // heldReasons says WHY each held post was held. A bare count cannot distinguish "the agent needs
+  // to re-approve" from "the admin withdrew this video", and those need different actions.
+  const result = { reconciled: 0, published: 0, pending: 0, failed: 0, skippedNoRender: 0, skippedNotApproved: 0, claimed: 0, missedWhilePaused: 0, tooLate: 0, skippedDestinationPaused: 0, flaggedForReview: 0, heldForReview: 0, heldReasons: [] as { id: string; reason: string }[] }
 
   // ── 0) RECONCILE unacknowledged publishes FIRST ────────────────────────────────────────────
   // Rows whose media_publish call was claimed but never acknowledged locally. These are the crash
@@ -202,7 +212,7 @@ async function run(req: NextRequest) {
   // ── 1) SELECT due posts ────────────────────────────────────────────────────────────────────
   const { data: due, error: dueErr } = await supabaseAdmin
     .from("social_posts")
-    .select("id, destination, follows_post_id, needs_review_at, owner_user_id, connection_id, scheduled_at, approved_at, caption, hashtags, social_special, overlay_template, cover_thumb_offset_ms, cover_storage_path, render_status, rendered_storage_path, render_version, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
+    .select("id, destination, follows_post_id, needs_review_at, needs_review_reason, owner_user_id, connection_id, scheduled_at, approved_at, caption, hashtags, social_special, overlay_template, cover_thumb_offset_ms, cover_storage_path, render_status, rendered_storage_path, render_version, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities, available_to_agents), destination_connection:connection_id(agent_user_id, owner_user_id)")
     .eq("platform", "instagram")
     .eq("status", "scheduled")
     .lte("scheduled_at", now)
@@ -249,7 +259,24 @@ async function run(req: NextRequest) {
       // is deleted and no date is rewritten. A human reschedules it.
       // THE HOLD, when armed. Applied per row rather than in the query so the post keeps its slot
       // and still appears in this run's accounting instead of vanishing from it silently.
-      if (shouldHoldForReview(row.needs_review_at as string | null)) { result.heldForReview++; continue }
+      // ONE decision function, shared with the manual publish route, so the two paths cannot
+      // disagree about whether a post may go out.
+      //   ADMIN rows: unchanged — the env-gated, fail-open flag exactly as before.
+      //   AGENT rows: unconditional. A stale approval does not publish, and neither does a video
+      //   the admin has withdrawn from agents — re-read here rather than trusted from the flag a
+      //   trigger set, because a flag can be cleared and current availability cannot.
+      const rowConn = joinedOne((row as Record<string, unknown>).destination_connection)
+      const rowSrc = joinedOne((row as Record<string, unknown>).source)
+      const holdDecision = publishHoldDecision({
+        isAgentOwned: isAgentOwnedPost(row as { connection_id?: string | null }, rowConn),
+        needsReviewAt: row.needs_review_at as string | null,
+        availableToAgents: (rowSrc?.available_to_agents as boolean | null | undefined) ?? undefined,
+      })
+      if (holdDecision.hold) {
+        result.heldForReview++
+        result.heldReasons.push({ id: String(row.id), reason: holdDecision.reason })
+        continue
+      }
       if (!isEligibleAfterResume(row.scheduled_at as string | null, settings)) {
         result.missedWhilePaused++
         continue

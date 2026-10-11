@@ -104,8 +104,20 @@ console.log("\n4. the agent surface cannot write:")
       // Either the guard's own response, or a literal with no data in it.
       return /guard\.response/.test(returned) || /enabled: false/.test(returned)
     })())
-    ok(`${name}: performs NO write`, !/\.(insert|update|upsert|delete)\(/.test(src))
-    ok(`${name}: uses the RLS client, never the service role`, !/supabaseAdmin/.test(src))
+    // STAGE 4 ADDED TWO WRITERS. The rule is not "no agent route writes" — it is that only the
+    // two decision routes do, and that they are the only places using the service role. Stage 1
+    // deliberately added NO agent INSERT/UPDATE policy so exactly one file authorizes an agent
+    // write; naming those files here is what keeps a third from appearing unnoticed.
+    const MAY_WRITE = ["decide", "posting"]
+    const isWriter = MAY_WRITE.some((w) => r.includes(w))
+    if (isWriter) {
+      ok(`${name}: is an EXPECTED writer`, true)
+      ok(`${name}: still takes no caller-supplied account id`,
+        !/body\.(connectionId|connection_id|ownerId|agentId)/.test(src))
+    } else {
+      ok(`${name}: performs NO write`, !/\.(insert|update|upsert|delete)\(|\.rpc\(/.test(src))
+      ok(`${name}: uses the RLS client, never the service role`, !/supabaseAdmin/.test(src))
+    }
     ok(`${name}: scopes to session-derived ids only`,
       !/searchParams\.get\(["'](connectionId|ownerId|agentId|owner_user_id)["']\)/.test(src))
   }

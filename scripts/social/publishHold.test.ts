@@ -45,7 +45,12 @@ ok("neither reimplements the env check", !/SOCIAL_PUBLISH_HOLD_ON_REVIEW_ENABLED
 // ignoring the flag, and would also drop the post from the run's accounting.
 ok("the due query does NOT filter rows out by review state",
   !/\.is\("needs_review_at", null\)/.test(cron))
-ok("the hold is applied per row, through the shared helper", /shouldHoldForReview\(row\.needs_review_at/.test(cron))
+// The shared helper is now publishHoldDecision, which answers for BOTH regimes: admin rows keep
+// the env-gated flag, agent rows hold unconditionally. Asserted as "the decision comes from the
+// shared function with the row's flag as an input", which is what this ever meant to protect —
+// the previous literal named a helper that no longer makes the decision.
+ok("the hold is applied per row, through the shared helper",
+  /publishHoldDecision\(\{/.test(cron) && /needsReviewAt: row\.needs_review_at/.test(cron))
 ok("held rows are counted rather than vanishing", /result\.heldForReview\+\+/.test(cron))
 ok("flagged rows are counted even when the hold is off", /result\.flaggedForReview = /.test(cron))
 ok("the log says which mode it is in", /hold is OFF/.test(cron) && /HELD, not publishing/.test(cron))
