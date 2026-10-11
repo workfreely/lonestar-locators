@@ -18,6 +18,7 @@ import { planAutopilot, type AutopilotPlan, type AutopilotRule, type PoolPost } 
 import { loadPostingHistory } from "@/lib/social/postingHistory"
 import { BASELINE_DAILY_TIMES } from "@/lib/social/autopilotDestination"
 import { buildAutopilotOccupancy } from "@/lib/social/autopilotOccupancy"
+import { isPlannableConnection } from "@/lib/social/connectionHealth"
 import { wallClockToUtcISO, DEFAULT_TIMEZONE } from "@/lib/social/recurrence"
 
 /** The 21-day property cooldown. Named here rather than left as the planner's default parameter,
@@ -68,11 +69,16 @@ export function toPoolPost(r: Record<string, unknown>): PoolPost {
 export async function computeAutopilotPlan(now: Date = new Date()): Promise<AutopilotPlan> {
   const { data: conns } = await supabaseAdmin
     .from("social_connections")
-    .select("id, provider, status, posting_paused, posts_per_day, stagger_offset_minutes")
+    .select("id, provider, status, posting_paused, posts_per_day, stagger_offset_minutes, token_expires_at")
   const rules: AutopilotRule[] = (conns ?? []).map((c) => ({
     connectionId: String(c.id),
     platform: String(c.provider ?? "instagram"),
-    enabled: c.status === "connected" && c.posting_paused !== true,
+    // `status` alone is not enough: it is stamped at OAuth time and never revisited, so a row can
+    // read "connected" with an access token that expired days ago. isPlannableConnection keeps a
+    // REFRESHABLE account in the rotation (the publish path refreshes on the way through) and
+    // excludes a genuinely disconnected one, which would otherwise fill a queue that cannot drain.
+    enabled: isPlannableConnection(c as { status?: string | null; token_expires_at?: string | null }, now)
+      && c.posting_paused !== true,
     timezone: DEFAULT_TIMEZONE,
     dailyTimes: BASELINE_DAILY_TIMES,
     postsPerDay: typeof c.posts_per_day === "number" && c.posts_per_day > 0 ? c.posts_per_day : BASELINE_DAILY_TIMES.length,

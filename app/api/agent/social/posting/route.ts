@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic"
 
 import { NextResponse } from "next/server"
 import { requireSocialAgent } from "@/lib/auth/requireSocialAgent"
+import { connectionHealth, connectionHealthLabel } from "@/lib/social/connectionHealth"
 
 // GET  → posting state for the agent's own connections
 // POST → start or pause posting on them
@@ -40,10 +41,10 @@ export async function GET() {
     connectionId: c.id,
     provider: c.provider,
     username: c.username,
-    connected: c.status === "connected",
-    // A token past its expiry is NOT connected in any useful sense, whatever `status` says — the
-    // admin's own TikTok row has carried status='connected' with a dead token since September.
-    tokenExpired: typeof c.token_expires_at === "string" ? Date.parse(c.token_expires_at) < Date.now() : null,
+    // DERIVED, never echoed from `status`. That column is written at OAuth time and never
+    // revisited, so it says "connected" for a token that expired twelve days ago.
+    health: connectionHealth(c as { status?: string | null; token_expires_at?: string | null }),
+    healthLabel: connectionHealthLabel(connectionHealth(c as { status?: string | null; token_expires_at?: string | null })),
     posting: c.posting_paused === true ? "Paused" : "Running",
   }))
   return NextResponse.json({ accounts })
