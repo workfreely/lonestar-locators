@@ -160,8 +160,8 @@ const fitFor = (client: any, property: any) => evaluateLocationFit(resolveClient
     { desiredAreas: "The Pearl" },
     { propertyName: "Rosemont at Highland Park", propertySubmarket: "Northwest", propertyAddress: "" },
   )
-  ok(r.verdict === "bad", "a usable the external site location that matches no desired area → Outside desired area")
-  eq(r.detail, "Outside desired area", "…and says so plainly")
+  ok(r.verdict === "bad", "a usable the external site location that matches no desired area → Outside Preferred Area")
+  eq(r.detail, "Outside Preferred Area", "…and says so plainly")
 }
 
 // ── Containment (not equality) drives the area match ──────────────────────────
@@ -215,7 +215,11 @@ const fitFor = (client: any, property: any) => evaluateLocationFit(resolveClient
 }
 
 
-// ── V1 Location states: Desired area / Outside desired area / excluded ───────
+// ── V1 Location states: Desired area / Outside Preferred Area / excluded ───────
+// The verdict label was standardized to 'Within/Outside Preferred Area' across every surface
+// (d3afad0, copy-only — no geography or scoring changed). This suite still expected the older
+// 'Outside desired area' and had been failing on those two assertions ever since. Confirmed
+// 2026-10-12: production is correct, the expectation was stale.
 // Explicit matches are credited, explicit mismatches score zero for THIS dimension
 // only, and anything we cannot determine is excluded rather than guessed. No mileage,
 // drive time, coordinates or "surrounding metro" reasoning is involved.
@@ -284,14 +288,14 @@ const fitFor = (client: any, property: any) => evaluateLocationFit(resolveClient
 
   // Explicit mismatches score zero — NOT unknown
   eq(evaluateLocationFit(emily, sad("Georgetown", "30800 Ronald Reagan Blvd, Georgetown, TX 78633")).verdict, "bad",
-     "the external site 'Georgetown' vs 'Downtown Austin' → Outside desired area")
+     "the external site 'Georgetown' vs 'Downtown Austin' → Outside Preferred Area")
   eq(evaluateLocationFit(emily, sad("Cedar Park", "1200 Cypress Creek Rd, Cedar Park, TX 78613")).verdict, "bad",
-     "the external site 'Cedar Park' vs 'Downtown Austin' → Outside desired area, never a match")
+     "the external site 'Cedar Park' vs 'Downtown Austin' → Outside Preferred Area, never a match")
 
   // The SUBMARKET wins over the address city — the reason this rule exists
   const c2 = evaluateLocationFit(emily, sad("Cedar Park", "1200 Cypress Creek Rd, Austin, TX 78613"))
-  eq(c2.verdict, "bad", "the external site 'Cedar Park' outranks an Austin address → Outside desired area")
-  eq(c2.detail, "Outside desired area", "…and says so plainly")
+  eq(c2.verdict, "bad", "the external site 'Cedar Park' outranks an Austin address → Outside Preferred Area")
+  eq(c2.detail, "Outside Preferred Area", "…and says so plainly")
 
   // A specific desired area outranks the broad city: an Austin address alone is NOT
   // full credit for someone who asked for Downtown Austin.
