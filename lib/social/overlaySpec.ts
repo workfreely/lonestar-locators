@@ -609,6 +609,11 @@ export function templateFamily(template: string): LayoutFamily {
     // T20 (client_me) joins it too: its "Me: …" reply occupies the SAME slot, at the same size,
     // gap and alignment T19 gives "Starting at $X/month".
     || template === "imagine_coming_home" || template === "client_me"
+    // T21 is T20's treatment with different wording: same family, so it inherits the identical
+    // centred placement, CENTER_HOOK sizing and fit, side margins, hookDetailPxFor and the shared
+    // 17px gap. Membership IS the design reference — nothing about T20 is copied, so the two cannot
+    // drift apart and T20 itself is not touched.
+    || template === "client_me_bad_credit"
     // property_tour (T17) is Template 3's treatment with tour wording. Joining this list is the
     // WHOLE layout change: centered placement, CENTER_HOOK sizing/fit, uppercase:false, side
     // margins, line spacing, the hookDetailPxFor price size and the shared 17px gap all come with

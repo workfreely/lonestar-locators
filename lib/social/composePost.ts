@@ -354,11 +354,47 @@ function supersededOpeners(src: SourceMeta): string[] {
   return out
 }
 
+/**
+ * "Up to" for VARIABLE rent concessions — CAPTION ONLY.
+ *
+ * A free-weeks offer almost never applies to every unit, so a caption that states it flatly
+ * overstates it. The video overlay must keep saying "8 Weeks Free" exactly, which is why this is a
+ * separate function applied at ONE call site (captionSections) rather than inside
+ * resolveSocialSpecial or buildTemplateDetail — both of those feed the overlay.
+ *
+ * SCOPE IS NARROW ON PURPOSE. Only a duration concession is qualified:
+ *   "8 Weeks Free"  -> "Up to 8 weeks free!"      "2 Months Free" -> "Up to 2 months free!"
+ * Anything else is returned UNCHANGED — a waived fee or a fixed gift card is not variable, and
+ * "Up to $500 gift card" would invent uncertainty that does not exist.
+ *
+ * IDEMPOTENT. A stored Social Special that already reads "Up to 8 weeks free" is left alone, so
+ * the caption can never say "Up to up to". Checked against the whole string, case-insensitively.
+ */
+export function captionSpecialPhrase(special: string | null | undefined): string {
+  const s = (special ?? "").trim()
+  if (!s) return ""
+  // Already qualified — by the operator, or by an earlier pass over the same value.
+  if (/^up\s+to\b/i.test(s)) return s
+  // ONE shape: "<n> week(s)|month(s) free", optionally already punctuated. Anything else falls
+  // through untouched rather than being guessed at.
+  const m = s.match(/^(\d{1,2})\s+(weeks?|months?)\s+free[.!]?$/i)
+  if (!m) return s
+  const n = Number(m[1])
+  if (!Number.isFinite(n) || n <= 0) return s
+  const unit = /^month/i.test(m[2]) ? (n === 1 ? "month" : "months") : (n === 1 ? "week" : "weeks")
+  return `Up to ${n} ${unit} free!`
+}
+
 /** The caption BODY below the opener — unchanged by the template-aware opener work. Split out so the
  *  legacy-recognition pass can rebuild an older caption with its original rotating hook without
  *  duplicating the section logic. */
-function captionSections(src: SourceMeta, opener: string | null, ctaTail?: string): string {
-  const special = resolveSocialSpecial(src)
+function captionSections(src: SourceMeta, opener: string | null, ctaTail?: string, legacySpecialWording = false): string {
+  // CAPTION ONLY. resolveSocialSpecial stays untouched so buildTemplateDetail — and therefore every
+  // overlay and the FFmpeg render — keeps the exact stored wording. `legacySpecialWording` exists
+  // purely for recognition: a caption generated before this change says "8 Weeks Free", and without
+  // a way to rebuild that form it would freeze as a manual override.
+  const rawSpecial = resolveSocialSpecial(src)
+  const special = legacySpecialWording ? rawSpecial : captionSpecialPhrase(rawSpecial)
   const feats = features(src.amenities).slice(0, 3)
   const sections: string[] = []
   if (opener) sections.push(opener)
@@ -386,6 +422,29 @@ function captionSections(src: SourceMeta, opener: string | null, ctaTail?: strin
  *  name, area/neighborhood, notes, place_id, or any internal/source-only metadata. Hashtags are
  *  handled separately and merged at publish (composeFinalCaption). `seed` is the source id, so a
  *  given source video deterministically gets the same eligible hook. */
+/**
+ * T21's caption, verbatim and FIXED.
+ *
+ * Returned WHOLE rather than composed, because the approved copy carries no special line and no
+ * amenities block — routing it through captionSections would insert whichever of those the property
+ * happens to have, producing copy nobody approved. It also ends with a qualifier, and the section
+ * builder has no slot after the call to action.
+ *
+ * THE QUALIFIER IS LOAD-BEARING. "Applications approved on a case-by-case basis" is the sentence
+ * that keeps this from reading as a promise, and it is the reason the credit question never appears
+ * in the video overlay: a disclaimer that cannot be read at overlay size, attached to footage that
+ * gets re-used, is worse than no claim at all.
+ *
+ * Hashtags are unaffected — they are merged separately at publish by composeFinalCaption.
+ */
+export const BAD_CREDIT_CAPTION = [
+  "Bad credit? 😭",
+  "Some apartment communities offer flexible credit requirements.",
+  "My apartment locating service is completely FREE!",
+  "✅ Comment LIST and I'll help you find options that fit your budget and situation.",
+  "Applications approved on a case-by-case basis.",
+].join("\n\n")
+
 export function buildCaption(src: SourceMeta, seed?: string | number, template?: OverlayTemplate | null): string {
   const city = clean(normalizeSocialMarket(src.market))
   // Trim/normalize whitespace on the raw property type BEFORE canonicalization — a padded value
@@ -404,6 +463,9 @@ export function buildCaption(src: SourceMeta, seed?: string | number, template?:
   // OPENER: template-aware (captionOpener). When the chosen template's opener cannot be fully
   // resolved — or no template is supplied — it falls back to the original seed-rotated hooks, so the
   // caption never loses its first line and never emits an unresolved placeholder.
+  // T21 is the one template whose caption is fixed copy rather than composed sections. Checked
+  // BEFORE resolveOpener so no hook is selected and no special/amenity section can be appended.
+  if (template === "client_me_bad_credit") return BAD_CREDIT_CAPTION
   return captionSections(src, resolveOpener(src, seed, template ?? null))
 }
 
@@ -485,7 +547,10 @@ export function joinDetailParts(parts: (string | null | undefined)[]): string {
 export const OVERLAY_TEMPLATES = ["market_type", "market_type_centered", "your_sign", "special_feature", "next_property", "upgrade", "apartment_standards", "pov_upgrade", "affordable_luxury", "pov_price", "hits_different", "trade_up", "wanted_luxury", "real_living", "what_mo_gets_you", "what_mo_gets_you_top", "property_tour",
   // T18-T20. Appended LAST so every existing index is untouched; all three are Template 8's
   // treatment with different wording — same family, same geometry, same caption structure.
-  "would_you_live_here", "imagine_coming_home", "client_me"] as const
+  "would_you_live_here", "imagine_coming_home", "client_me",
+  // T21. Template 20's exact treatment with different wording — same family, same geometry, same
+  // headline/detail split. Appended LAST so every existing index is untouched.
+  "client_me_bad_credit"] as const
 export type OverlayTemplate = (typeof OVERLAY_TEMPLATES)[number]
 export const DEFAULT_OVERLAY_TEMPLATE: OverlayTemplate = "market_type"
 export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
@@ -509,6 +574,7 @@ export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
   would_you_live_here: "Would You Live Here?",
   imagine_coming_home: "Imagine Coming Home",
   client_me: "Client / Me",
+  client_me_bad_credit: "Client / Me — Bad Credit",
 }
 
 // Template 6 (POV Upgrade) — EXPLICIT deterministic copy per canonical Property Type. The grammar
@@ -626,6 +692,16 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
         : (cityName ? `a place in ${cityName}` : "a place")
       return `Client: “I need ${want}.”`   // 😎 lives in the caption — see above
     }
+    // ── T21 CLIENT / ME — BAD CREDIT ────────────────────────────────────────────────────────
+    // Template 20's structure exactly: the client's line is the HEADLINE, the reply is the DETAIL.
+    // Deliberately metadata-free — the question does not vary by property, and a credit question is
+    // not something to decorate with a market or a type.
+    //
+    // THE QUALIFYING LANGUAGE IS NOT HERE. "Applications approved on a case-by-case basis" lives in
+    // the caption only; burning a disclaimer into the video would be unreadable at this size and
+    // would follow the footage into every re-use of it.
+    case "client_me_bad_credit":
+      return "Client: “I have bad credit. Can you help me?”"
     case "affordable_luxury":
       return AFFORDABLE_LUXURY_HEADLINE
     // T16 is the SAME wording/values as T11 — only its vertical anchor differs (overlaySpec), so the
@@ -747,6 +823,9 @@ export function buildTemplateDetail(template: OverlayTemplate, src: SourceMeta):
     // degrades. The 😎 stays in the caption — Libre Baskerville has no emoji glyphs and would
     // render tofu on the video.
     case "client_me":
+    // T21's reply is identical to T20's and sits in the identical slot, so it shares the branch
+    // rather than duplicating the string — one definition, so they cannot drift apart.
+    case "client_me_bad_credit":
       return "Me: “Say less.”"
     // T3 your_sign now takes the SAME optional price line too. Its headline is unchanged and still
     // uses no metadata; the price is purely an additional, collapsible second line.
@@ -933,6 +1012,21 @@ export function isGeneratedCaption(text: string | null | undefined, src: SourceM
     }
     for (const legacy of supersededOpeners(s2)) {
       if (captionKey(captionSections(s2, legacy, LEGACY_FORM_CTA)) === t) return true
+    }
+    // ...and the SUPERSEDED SPECIAL WORDING. Every caption written before "Up to" says the stored
+    // form ("8 Weeks Free"); the generator now says "Up to 8 weeks free!". Without rebuilding the
+    // old form here, each of those captions would match nothing, be judged a manual override, and
+    // never re-sync again — the identical failure the legacy CTA and superseded openers above exist
+    // to prevent. Only reachable for a post that HAS a duration special, so it costs nothing
+    // otherwise.
+    for (const cta of [undefined, LEGACY_FORM_CTA] as const) {
+      if (captionKey(captionSections(s2, resolveOpener(s2, seed, null), cta, true)) === t) return true
+      for (const tpl of OVERLAY_TEMPLATES) {
+        if (captionKey(captionSections(s2, resolveOpener(s2, seed, tpl), cta, true)) === t) return true
+      }
+      for (const legacy of supersededOpeners(s2)) {
+        if (captionKey(captionSections(s2, legacy, cta, true)) === t) return true
+      }
     }
   }
   return false

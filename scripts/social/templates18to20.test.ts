@@ -26,12 +26,16 @@ const ORIGINAL_17 = ["market_type","market_type_centered","your_sign","special_f
   "wanted_luxury","real_living","what_mo_gets_you","what_mo_gets_you_top","property_tour"] as const
 
 // ── 1. REGISTRY ─────────────────────────────────────────────────────────────
-console.log("1. twenty templates, the first seventeen undisturbed:")
-ok("20 templates registered", OVERLAY_TEMPLATES.length === 20)
+console.log("1. twenty-one templates, the first twenty undisturbed:")
+// T21 was appended after this suite was written. The invariant it protects is "the earlier
+// templates keep their positions", which the next assertion states directly — the count is just
+// the tripwire, so it tracks the registry rather than being frozen at 20.
+ok(`${OVERLAY_TEMPLATES.length} templates registered`, OVERLAY_TEMPLATES.length === 21)
+ok("T21 is appended LAST, so no existing index moved", OVERLAY_TEMPLATES[20] === "client_me_bad_credit")
 ok("the original 17 keep their exact positions", ORIGINAL_17.every((k, i) => OVERLAY_TEMPLATES[i] === k))
 ok("T18-T20 are appended at the end",
   OVERLAY_TEMPLATES[17] === "would_you_live_here" && OVERLAY_TEMPLATES[18] === "imagine_coming_home" && OVERLAY_TEMPLATES[19] === "client_me")
-ok("no key is duplicated", new Set(OVERLAY_TEMPLATES).size === 20)
+ok("no key is duplicated", new Set(OVERLAY_TEMPLATES).size === OVERLAY_TEMPLATES.length)
 ok("every template has a dropdown label", OVERLAY_TEMPLATES.every((t) => !!OVERLAY_TEMPLATE_LABEL[t]))
 ok("T8 and T10 are untouched",
   buildTemplateHeadline("pov_upgrade", meta({ propertyType: "Townhome" })) === "POV: You upgraded to a townhome" &&

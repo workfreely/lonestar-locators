@@ -36,7 +36,19 @@ const EXPECTED: [OverlayTemplate, string][] = [
   ["imagine_coming_home", "Imagine calling this place home. 🏡✨"],
   ["client_me", "You tell me what you’re looking for. I’ll find it. 😎"],
 ]
-ok("every template is covered exactly once", EXPECTED.length === OVERLAY_TEMPLATES.length && EXPECTED.every(([t]) => (OVERLAY_TEMPLATES as readonly string[]).includes(t)))
+// T21 (client_me_bad_credit) has no OPENER: its caption is a fixed approved block returned whole,
+// because the copy carries no special line and no amenities section and ends with a qualifier the
+// section builder has no slot for. It is therefore excluded from the opener table and from the
+// shared-body invariant below — and that exclusion is ASSERTED, not assumed, so a future template
+// cannot fall out of this suite silently.
+const FIXED_CAPTION_TEMPLATES = ["client_me_bad_credit"] as const
+const OPENER_TEMPLATES = (OVERLAY_TEMPLATES as readonly string[]).filter((t) => !(FIXED_CAPTION_TEMPLATES as readonly string[]).includes(t))
+ok("every opener-driven template is covered exactly once", EXPECTED.length === OPENER_TEMPLATES.length && EXPECTED.every(([t]) => OPENER_TEMPLATES.includes(t)))
+ok("...and every excluded template really does return a fixed caption",
+  (FIXED_CAPTION_TEMPLATES as readonly string[]).every((t) => {
+    const c = buildCaption(SA, "seed-1", t as never)
+    return !c.includes("✨") && !c.includes("🏡")
+  }))
 for (const [tpl, want] of EXPECTED) {
   const got = captionOpener(tpl, SA)
   ok(`${tpl}: ${JSON.stringify(want)}`, got === want)
@@ -46,12 +58,12 @@ ok("the opener is the caption's FIRST line", EXPECTED.every(([tpl, want]) => fir
 
 console.log("\nonly the first line changes — the rest of the caption is untouched:")
 {
-  const bodies = new Set(OVERLAY_TEMPLATES.map((t) => body(buildCaption(SA, "seed-1", t))))
+  const bodies = new Set(OPENER_TEMPLATES.map((t) => body(buildCaption(SA, "seed-1", t as never))))
   ok("every template produces the SAME body below the opener", bodies.size === 1)
   const b = [...bodies][0]
   ok("the service line and the comment CTA are intact and unchanged",
     b.includes("My apartment locating service is completely free!") && /✅ Comment "[A-Z]+" and I’ll send you the best options within your budget\./.test(b))
-  ok("the special and amenities sections are intact", b.includes("✨ 1 Month Free") && b.includes("🏡 Amenities") && b.includes("• Rooftop Pool"))
+  ok("the special and amenities sections are intact (special now caption-qualified)", b.includes("✨ Up to 1 month free!") && b.includes("🏡 Amenities") && b.includes("• Rooftop Pool"))
   ok("the caption still carries no price LINE (price only appears in openers 10/15/16)",
     !b.includes("Starting at") && !b.includes("💰"))
 }

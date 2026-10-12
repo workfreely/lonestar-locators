@@ -32,7 +32,7 @@ const src = { market: "San Antonio", propertyType: "Townhome", special: "1 Month
 const prep = preparePost(src, "seed-A")
 ok("headline = MARKET + TYPE (not property name)", prep.overlayHeadline === "SAN ANTONIO TOWNHOMES")
 ok("subheadline = Starting-at lowest price (Template 1)", prep.overlaySubheadline === "Starting at $1,200/month")
-ok("caption includes special + bulleted amenities; NO price line (overlay-only)", prep.caption.includes("✨ 1 Month Free") && prep.caption.includes("🏡 Amenities\n\n• private yard\n• garage\n• pool") && !prep.caption.includes("💰"))
+ok("caption includes special + bulleted amenities; NO price line (overlay-only)", prep.caption.includes("✨ Up to 1 month free!") && prep.caption.includes("🏡 Amenities\n\n• private yard\n• garage\n• pool") && !prep.caption.includes("💰"))
 ok("caption at most 7 hashtags prepared separately", prep.hashtags.length <= 7 && prep.hashtags.length >= 1)
 // Even if a property name were somehow supplied, the type-level SourceMeta drops it — verify no
 // internal identity leaks into the public copy.
@@ -66,7 +66,7 @@ ok("Studio → 'studio'", buildCaption({ propertyType: "Studio" }).split("\n")[0
 ok("city substituted, no unresolved placeholder", buildCaption({ market: "Austin" }, "x").includes("Austin") && !buildCaption({ market: "Austin", propertyType: "Apartment" }, "x").includes("{"))
 // Conditional detail lines.
 const full = buildCaption({ market: "Dallas", propertyType: "Townhome", special: "8 weeks free", budgetRange: "Starting at $1,495", amenities: "Rooftop pool, fitness center, dog park, sauna" }, "z")
-ok("✨ line present (special normalized to social-display form)", full.includes("✨ 8 Weeks Free"))
+ok("✨ line present, caption-qualified (the OVERLAY still says '8 Weeks Free')", full.includes("✨ Up to 8 weeks free!"))
 ok("🏡 amenities bulleted, canonicalized, capped at 3, no 4th", full.includes("🏡 Amenities\n\n• Rooftop Pool\n• Fitness Center\n• Dog Park") && !full.includes("sauna"))
 ok("NO 💰 price line in caption (price lives in the overlay detail only)", !full.includes("💰"))
 const noSpecial = buildCaption({ market: "Dallas", propertyType: "Townhome", amenities: "Private yard", budgetRange: "Starting at $1,895" }, "z")
@@ -93,7 +93,11 @@ ok("' Dallas ' → clean city hook, no double space / no space before ?", (() =>
 ok("' Townhome ' → 'Need a new townhome?' (padded type still resolves)", buildCaption({ propertyType: " Townhome " }).split("\n")[0] === "Need a new townhome?")
 ok("' High-Rise ' padded → 'Need a new high-rise?'", buildCaption({ propertyType: " High-Rise " }).split("\n")[0] === "Need a new high-rise?")
 // Padded special / price → trimmed, single space after emoji (special normalized to display form).
-ok("' 8 weeks free ' → '✨ 8 Weeks Free' (trimmed + normalized)", buildCaption({ market: "Dallas", special: " 8 weeks free " }, "s0").includes("✨ 8 Weeks Free"))
+// The CAPTION now qualifies a variable duration concession ("Up to …"), while specialDisplay and
+// the overlay keep the stored wording — asserted separately below. The normalisation this line
+// protects (trim + canonical casing) is unchanged; only the caption's presentation moved.
+ok("' 8 weeks free ' → '✨ Up to 8 weeks free!' (trimmed, normalized, caption-qualified)", buildCaption({ market: "Dallas", special: " 8 weeks free " }, "s0").includes("✨ Up to 8 weeks free!"))
+ok("...while specialDisplay itself is UNCHANGED", specialDisplay(" 8 weeks free ") === "8 Weeks Free")
 ok("budgetRange present → still NO 💰 line (price is overlay-only)", !buildCaption({ market: "Dallas", budgetRange: " Starting at $1,495 " }, "s0").includes("💰"))
 // Amenities with surrounding + inter-item whitespace → exact bulleted list.
 ok("messy amenities → bulleted, canonicalized '🏡 Amenities' list", buildCaption({ market: "Dallas", amenities: "  Rooftop pool ,  fitness center , dog park  " }, "s0").includes("🏡 Amenities\n\n• Rooftop Pool\n• Fitness Center\n• Dog Park"))
@@ -257,7 +261,7 @@ ok("original metadata is untouched — specialDisplay is pure/derived", (() => {
 
 console.log("Instagram caption formatting (readable vertical spacing + bulleted amenities):")
 const houston = buildCaption({ market: "Houston", propertyType: "Townhome", special: "Receive up to 8 weeks free on select units when you move in by September 30. Restrictions apply.", budgetRange: "1495", amenities: "floor-to-ceiling windows\nmodern appliances\nkitchen counter" }, "seed-houston")
-ok("caption uses the concise special display in the ✨ section", houston.includes("✨ 8 Weeks Free") && !houston.includes("Restrictions apply"))
+ok("caption uses the concise special display in the ✨ section", houston.includes("✨ Up to 8 weeks free!") && !houston.includes("Restrictions apply"))
 ok("amenities render as a heading + '• ' bullets (canonicalized; not a comma line)", houston.includes("🏡 Amenities\n\n• Floor-to-Ceiling Windows\n• modern appliances\n• kitchen counter") && !houston.includes("windows, modern"))
 ok("ONE blank line between each present section (join with \\n\\n)", houston.split("\n").filter((l) => l === "").length >= 4 && !/\n\n\n/.test(houston))
 ok("blank line between the service line and the comment CTA", houston.includes(`${SERVICE_LINE}\n\n${TOWN_CTA}`))
@@ -374,7 +378,7 @@ ok("render graph still outputs the [v] label", /\[v\]$/.test(hugFilt))
 
 console.log("Overlay TEMPLATES 1–5 (headline/detail generation + layout families):")
 const tMeta = { market: "San Antonio", propertyType: "High-Rise", socialSpecial: "8 Weeks Free", budgetRange: "1600", amenities: "Private Yards, Rooftop Pool" }
-ok("20 templates defined", OVERLAY_TEMPLATES.length === 20)
+ok(`${OVERLAY_TEMPLATES.length} templates defined`, OVERLAY_TEMPLATES.length === 21)
 // T1 Market + Type (HERO)
 ok("T1 headline = CITY TYPE_PLURAL", buildTemplateHeadline("market_type", tMeta) === "SAN ANTONIO HIGH-RISES")
 ok("T1 detail = Starting at price", buildTemplateDetail("market_type", tMeta) === "Starting at $1,600/month")
@@ -494,7 +498,7 @@ ok("T6 generated strings recognized (so they re-sync on Property Type change)", 
 ok("T6 regenerates for the CURRENT type (Townhome vs Loft)", buildTemplateHeadline("pov_upgrade", { propertyType: "Townhome" }) === "POV: You upgraded to a townhome" && buildTemplateHeadline("pov_upgrade", { propertyType: "Loft" }) === "POV: You upgraded to a loft")
 ok("T7 fixed headline recognized as generated", isGeneratedHeadline("Luxury doesn't have to be expensive"))
 ok("a genuinely MANUAL hook is NOT treated as generated (override protected)", !isGeneratedHeadline("POV: You finally made it home"))
-ok("selector lists exactly 20 templates: T2 market_type_centered, T7 apartment_standards, T8-T11 pov_upgrade/affordable_luxury/pov_price/hits_different", OVERLAY_TEMPLATES.length === 20 && OVERLAY_TEMPLATES[1] === "market_type_centered" && OVERLAY_TEMPLATES[5] === "upgrade" && OVERLAY_TEMPLATES[6] === "apartment_standards" && OVERLAY_TEMPLATES[7] === "pov_upgrade" && OVERLAY_TEMPLATES[8] === "affordable_luxury" && OVERLAY_TEMPLATES[9] === "pov_price" && OVERLAY_TEMPLATES[10] === "hits_different")
+ok("selector lists exactly 21 templates: T2 market_type_centered, T7 apartment_standards, T8-T11 pov_upgrade/affordable_luxury/pov_price/hits_different", OVERLAY_TEMPLATES.length === 21 && OVERLAY_TEMPLATES[1] === "market_type_centered" && OVERLAY_TEMPLATES[5] === "upgrade" && OVERLAY_TEMPLATES[6] === "apartment_standards" && OVERLAY_TEMPLATES[7] === "pov_upgrade" && OVERLAY_TEMPLATES[8] === "affordable_luxury" && OVERLAY_TEMPLATES[9] === "pov_price" && OVERLAY_TEMPLATES[10] === "hits_different")
 
 console.log("Template 8 (POV + Price — CENTER HOOK + DETAIL):")
 // T8 headline = same explicit POV per-type mapping as T6.
@@ -646,7 +650,7 @@ console.log("\nTemplates 12–16 (registry + dropdown order):")
 ok("T12–T16 registered in order after T11", OVERLAY_TEMPLATES[11] === "trade_up" && OVERLAY_TEMPLATES[12] === "wanted_luxury" && OVERLAY_TEMPLATES[13] === "real_living" && OVERLAY_TEMPLATES[14] === "what_mo_gets_you" && OVERLAY_TEMPLATES[15] === "what_mo_gets_you_top")
 // The swap is DISPLAY ONLY — every key still exists exactly once, so no saved post can change meaning.
 ok("swap preserved every template identity (no key added, removed or duplicated)",
-  new Set(OVERLAY_TEMPLATES).size === 20 &&
+  new Set(OVERLAY_TEMPLATES).size === OVERLAY_TEMPLATES.length &&
   (["what_mo_gets_you", "hits_different"] as const).every((k) => (OVERLAY_TEMPLATES as readonly string[]).includes(k)))
 // T18-T20 APPENDED, NOTHING DISPLACED. The seventeen original keys must still occupy indices
 // 0..16 in their original order — a saved post stores the KEY, so a reordering would silently
