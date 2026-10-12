@@ -103,6 +103,13 @@ type Post = {
   source: Source | null
   previewUrl: string | null
   renderedPreviewUrl: string | null
+  /** The library thumbnail for this post's SOURCE — a ~20KB JPEG, painted immediately while the
+   *  video loads. Internal preview only; it is NOT the Instagram/TikTok cover. */
+  thumbUrl?: string | null
+  /** TRUE means the object exists and SIGNING failed — not that there is no video. The editor must
+   *  offer Retry rather than claim the clip is missing, which is what it used to do. */
+  previewUrlFailed?: boolean
+  renderedPreviewUrlFailed?: boolean
   /** Increments on every successful render. Used as the player's React key — see the <video>. */
   renderVersion: number | null
   coverThumbOffsetMs: number | null
@@ -214,6 +221,12 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // Null until the player reports it; SourceQualityBadge renders nothing until then, exactly as
   // it did when it loaded its own copy.
   const [sourceDims, setSourceDims] = useState<{ w: number; h: number } | null>(null)
+  // Has the player painted real pixels yet? Until it has, the thumbnail stays on top, so the frame
+  // is never an empty black box. Reset per post AND per source URL, so a re-signed URL or a
+  // different clip starts from the thumbnail again rather than showing the previous video's state.
+  const [videoReady, setVideoReady] = useState(false)
+  // Bumped by Retry to force a genuine refetch of the post (and therefore a fresh signing attempt).
+  const [retrying, setRetrying] = useState(false)
   const [caption, setCaption] = useState("")
   const [hashtags, setHashtags] = useState<string[]>([])
   // Manual-override flags: an AUTO-GENERATED field stays synced with metadata; once the user edits
@@ -304,6 +317,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // switch — otherwise the badge could describe the previous video for a moment. The component may
   // be reused across /posts/[id] navigations rather than remounted, so this is explicit.
   useEffect(() => { setSourceDims(null) }, [postId])
+  useEffect(() => { setVideoReady(false) }, [postId])
 
   const load = useCallback(async () => {
     setError(null)
@@ -978,9 +992,10 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               <>
                 {/* muted / controls / preload are DELIBERATELY unchanged: muted by default with
                     native controls, so audio can be unmuted by hand, and nothing autoplays.
-                    onLoadedMetadata is the only addition — it hands the badge the dimensions the
-                    player has already loaded, instead of a second element fetching them again. */}
+                    onLoadedMetadata hands the badge the dimensions the player already loaded;
+                    onLoadedData is what retires the thumbnail — the player has real pixels by then. */}
                 <video
+                  key={post.previewUrl}
                   src={post.previewUrl}
                   controls
                   controlsList="nofullscreen"
@@ -992,8 +1007,24 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                     const v = e.currentTarget
                     if (v.videoWidth > 0 && v.videoHeight > 0) setSourceDims({ w: v.videoWidth, h: v.videoHeight })
                   }}
+                  onLoadedData={() => setVideoReady(true)}
                   className="w-full h-full object-cover"
                 />
+                {/* THE IMMEDIATE PICTURE. A ~20KB JPEG that is already in storage, shown the moment
+                    the editor renders and removed as soon as the player has its first frame. It sits
+                    ON TOP of the video and is pointer-events-none, so the native controls underneath
+                    stay clickable the whole time — nothing about playback, muting or autoplay
+                    changes, the frame simply is not black while the source loads. */}
+                {post.thumbUrl && !videoReady && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={post.thumbUrl}
+                    alt=""
+                    aria-hidden
+                    decoding="async"
+                    className="pointer-events-none absolute inset-0 w-full h-full object-cover"
+                  />
+                )}
                 {/* Pre-render APPROXIMATION overlay (CSS) — SHARED with the enlarged lightbox so
                     both previews render the exact same overlay. Live: reflects Template/Headline
                     edits immediately; null (renders nothing) in 'Already has text' mode. Also the
@@ -1005,6 +1036,28 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 {/* Informational only — never blocks rendering. See SourceQualityBadge. */}
                 <div className="absolute bottom-2 left-2 z-10">
                   <SourceQualityBadge dims={sourceDims} />
+                </div>
+              </>
+            ) : post.previewUrlFailed || post.renderedPreviewUrlFailed ? (
+              // THE VIDEO IS THERE — only its signed URL could not be minted. This used to render
+              // the same "No preview" as a post with no footage at all, which is a dead end and a
+              // lie. The thumbnail (when there is one) stays visible behind the message, so the
+              // operator still sees WHICH clip this is rather than a black rectangle.
+              <>
+                {post.thumbUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={post.thumbUrl} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover opacity-60" />
+                )}
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/40">
+                  <p className="text-[12px] text-white/90">Couldn&apos;t load video</p>
+                  <button
+                    type="button"
+                    disabled={retrying}
+                    onClick={async () => { setRetrying(true); try { await load() } finally { setRetrying(false) } }}
+                    className="rounded-lg border border-white/40 px-3 py-1 text-[12px] font-semibold text-white hover:bg-white/10 disabled:opacity-50"
+                  >
+                    {retrying ? "Retrying…" : "Retry"}
+                  </button>
                 </div>
               </>
             ) : (

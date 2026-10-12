@@ -705,6 +705,52 @@ export default function SocialAutopilotClient() {
   // already in memory. Fire-and-forget: every failure path simply leaves thumb_storage_path null,
   // which the grid falls back from by mounting the video exactly as it did before thumbnails
   // existed. It never throws into the upload, and never retries destructively.
+  // DURABLE RECOVERY, not fire-and-forget only.
+  //
+  // The upload-time capture runs after the upload completes and is deliberately non-blocking — so
+  // closing the tab, or a clip the browser cannot decode, loses it silently. That happened: of the
+  // first two uploads after the feature shipped, one produced no thumbnail. This is the safety net:
+  // on every library load, any row still missing a thumbnail is regenerated FROM ITS SIGNED URL
+  // (storage CORS allows the canvas readback), so recovery no longer depends on the session that
+  // uploaded the file.
+  //
+  // Idempotent and bounded: it only touches rows whose thumbnail is absent, writes the same
+  // canonical path, re-registers through the same endpoint (which verifies the object exists), and
+  // does at most RECOVER_PER_LOAD per load so it can never become a burst of its own.
+  const recoverMissingThumbs = useCallback(async (list: Item[]) => {
+    const RECOVER_PER_LOAD = 3
+    const missing = list.filter((it) => it.kind !== "image" && it.previewUrl && !it.thumbUrl).slice(0, RECOVER_PER_LOAD)
+    if (missing.length === 0) return
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    let repaired = 0
+    for (const it of missing) {
+      try {
+        const blob = await captureLibraryThumb(it.previewUrl as string)
+        if (!blob) continue
+        const up = await supabase.storage.from("social-media").upload(thumbStoragePath(user.id, it.id), blob, {
+          contentType: THUMB_CONTENT_TYPE,
+          upsert: true, // a derivative: regenerating is always safe
+        })
+        if (up.error) continue
+        const res = await fetch(`/api/admin/social-autopilot/content/${it.id}/thumb`, { method: "POST" })
+        if (res.ok) repaired++
+      } catch {
+        /* a clip that will not decode simply keeps no thumbnail — the grid falls back to video */
+      }
+    }
+    if (repaired > 0) void load()
+  }, [load])
+
+  // Runs after every library load, on whatever the server just returned. Dependent on `items`
+  // only, so it fires once per load rather than per render; when it repairs something it reloads,
+  // and the next pass finds nothing missing and stops.
+  useEffect(() => {
+    if (!items || items.length === 0) return
+    void recoverMissingThumbs(items)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items])
+
   const generateThumb = useCallback(async (uf: UploadFile, userId: string) => {
     try {
       if ((uf.file.type || "").startsWith("image/")) return // images are their own preview

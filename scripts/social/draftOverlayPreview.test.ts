@@ -113,10 +113,11 @@ async function main() {
     // Neither has anything to do with the draft-overlay preview, which still writes nothing.
     {
       const writes = [...client.matchAll(/\.from\("social-media"\)\.upload\(([\s\S]*?),\s*[\w.]+\s*,\s*\{/g)].map((m) => m[1].trim())
-      ok(`exactly two storage writes, both named: ${JSON.stringify(writes)}`,
-        writes.length === 2
-        && writes.some((w) => w === "path")                                   // the source master
-        && writes.some((w) => /thumbStoragePath\(userId, uf\.contentId\)/.test(w))) // the library thumbnail
+      ok(`exactly three storage writes, all named: ${JSON.stringify(writes)}`,
+        writes.length === 3
+        && writes.some((w) => w === "path")                                        // the source master
+        && writes.some((w) => /thumbStoragePath\(userId, uf\.contentId\)/.test(w)) // thumbnail, at upload
+        && writes.some((w) => /thumbStoragePath\(user\.id, it\.id\)/.test(w)))     // thumbnail, recovery pass
     }
     ok("…the overlay derivation writes nothing", !/\.upload\(|storage\./.test(derivation))
     ok("…and the card component writes nothing", !/\.upload\(|storage\./.test(thumb))

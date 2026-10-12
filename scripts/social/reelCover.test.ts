@@ -208,7 +208,11 @@ async function main() {
   {
     ok("GET returns the offset", /coverThumbOffsetMs: /.test(posts))
     ok("…the custom path", /coverStoragePath: /.test(posts))
-    ok("…and a signed preview URL for it", /coverPreviewUrl: await sign/.test(posts))
+    // Still signed, still returned. Since 2026-10-12 the signing goes through signMedia (retry +
+    // re-use) instead of a local sign() helper; WHICH frame is the cover, and everything about how
+    // it is chosen and used, is untouched.
+    ok("…and a signed preview URL for it", /coverPreviewUrl: cover\.url/.test(posts)
+      && /signMedia\(supabase, \(r\.cover_storage_path as string \| null\) \?\? null, guard\.userId\)/.test(posts))
     ok("three nullable columns, no default",
       /add column if not exists cover_thumb_offset_ms integer/.test(mig) &&
       /add column if not exists cover_storage_path\s+text/.test(mig) &&

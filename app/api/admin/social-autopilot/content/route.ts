@@ -2,18 +2,18 @@ import { NextResponse, type NextRequest } from "next/server"
 import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin"
 import { buildSocialDisplayName } from "@/lib/social/displayName"
 import { isPropertyType } from "@/lib/social/propertyTypes"
+import { signMedia, mapWithConcurrency, SIGN_CONCURRENCY } from "@/lib/social/signedMedia"
 
 // Social Autopilot Content Library API — platform-admin ONLY (requirePlatformAdmin
 // gates every method). RLS on social_content + the social-media bucket is the second
 // layer. Internal property metadata lives here and is NEVER auto-exposed publicly.
-const SIGNED_URL_TTL = 60 * 30 // 30-min preview links
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // GET → this admin's source videos + short-lived signed previews (newest first).
 export async function GET() {
   const guard = await requirePlatformAdmin()
   if (!guard.ok) return guard.response
-  const { supabase } = guard
+  const { supabase, userId } = guard
 
   const { data, error } = await supabase
     .from("social_content")
@@ -23,23 +23,17 @@ export async function GET() {
     .order("created_at", { ascending: false })
   if (error) return NextResponse.json({ error: "list_failed" }, { status: 500 })
 
-  const items = await Promise.all(
-    (data ?? []).map(async (r: Record<string, unknown>) => {
-      let previewUrl: string | null = null
+  // BOUNDED, not Promise.all over the whole library. With a thumbnail per row this was 2 signings
+  // x every row fired at once — 284 for a 142-clip library, on every load. The ceiling bounds that
+  // burst; signMedia's re-use then makes a repeat load cost almost no signing at all.
+  const items = await mapWithConcurrency(data ?? [], SIGN_CONCURRENCY, async (r: Record<string, unknown>) => {
       const path = typeof r.storage_path === "string" ? r.storage_path : null
-      if (path) {
-        const { data: signed } = await supabase.storage.from("social-media").createSignedUrl(path, SIGNED_URL_TTL)
-        previewUrl = signed?.signedUrl ?? null
-      }
+      const previewUrl = (await signMedia(supabase, path, userId)).url
       // The INTERNAL library preview — a small JPEG beside the source, never a social cover and
       // never published. Signed separately so the grid can paint without the video URL at all;
       // null when a row has no thumbnail yet, which the grid falls back from.
-      let thumbUrl: string | null = null
       const thumbPath = typeof r.thumb_storage_path === "string" ? r.thumb_storage_path : null
-      if (thumbPath) {
-        const { data: signedThumb } = await supabase.storage.from("social-media").createSignedUrl(thumbPath, SIGNED_URL_TTL)
-        thumbUrl = signedThumb?.signedUrl ?? null
-      }
+      const thumbUrl = (await signMedia(supabase, thumbPath, userId)).url
       return {
         id: r.id,
         kind: r.kind,
@@ -69,8 +63,7 @@ export async function GET() {
             ? ((r.details as Record<string, unknown>).preparedPost ?? null)
             : null,
       }
-    }),
-  )
+  })
   return NextResponse.json({ items })
 }
 

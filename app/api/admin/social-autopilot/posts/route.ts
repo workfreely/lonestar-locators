@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { hasRender, isRenderedReady, workingReason, type LaneFacts } from "@/lib/social/postLane"
 import { requirePlatformAdmin, type PlatformAdminGuardOk } from "@/lib/auth/requirePlatformAdmin"
+import { signMedia, mapWithConcurrency, SIGN_CONCURRENCY } from "@/lib/social/signedMedia"
 import { QUEUE_STATUSES, isPostStatus } from "@/lib/social/postStatus"
 import { defaultPostType, isValidPostType } from "@/lib/social/postTypes"
 import { preparePost, priceLabelMode } from "@/lib/social/composePost"
@@ -8,7 +9,6 @@ import { preparePost, priceLabelMode } from "@/lib/social/composePost"
 // Social Autopilot post variations API — platform-admin ONLY (requirePlatformAdmin gates
 // every method); RLS on social_posts is the second layer. A post references an immutable
 // social_content source and NEVER modifies it. No external publishing anywhere here.
-const SIGNED_URL_TTL = 60 * 30
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const SELECT =
@@ -33,14 +33,14 @@ type SourceEmbed = {
   kind: string | null
 }
 
-async function shape(supabase: PlatformAdminGuardOk["supabase"], rows: Record<string, unknown>[]) {
-  return Promise.all(
-    rows.map(async (r) => {
+// BOUNDED: up to three signings per post, previously fired for every post at once (252 for 84
+// posts). The ceiling bounds the burst; signMedia's re-use makes a repeat load nearly free.
+async function shape(supabase: PlatformAdminGuardOk["supabase"], rows: Record<string, unknown>[], userId: string) {
+  return mapWithConcurrency(rows, SIGN_CONCURRENCY, async (r) => {
       const src = (r.source ?? null) as SourceEmbed | null
-      const sign = async (p: string | null) => (p ? (await supabase.storage.from("social-media").createSignedUrl(p, SIGNED_URL_TTL)).data?.signedUrl ?? null : null)
-      const previewUrl = await sign(src?.storage_path ?? null) // source video (editing view)
-      const thumbUrl = await sign(src?.thumb_storage_path ?? null) // internal library grid preview
-      const renderedPreviewUrl = await sign((r.rendered_storage_path as string | null) ?? null) // rendered derivative (final preview)
+      const previewUrl = (await signMedia(supabase, src?.storage_path ?? null, userId)).url // source video (editing view)
+      const thumbUrl = (await signMedia(supabase, src?.thumb_storage_path ?? null, userId)).url // internal library grid preview
+      const renderedPreviewUrl = (await signMedia(supabase, (r.rendered_storage_path as string | null) ?? null, userId)).url // rendered derivative
       return {
         id: r.id,
         platform: r.platform,
@@ -96,8 +96,7 @@ async function shape(supabase: PlatformAdminGuardOk["supabase"], rows: Record<st
         thumbUrl,
         renderedPreviewUrl,
       }
-    }),
-  )
+  })
 }
 
 // GET → this admin's posts. ?status=<one> filters to a single status; ?scope=queue
@@ -106,7 +105,7 @@ async function shape(supabase: PlatformAdminGuardOk["supabase"], rows: Record<st
 export async function GET(req: NextRequest) {
   const guard = await requirePlatformAdmin()
   if (!guard.ok) return guard.response
-  const { supabase } = guard
+  const { supabase, userId } = guard
 
   const { searchParams } = new URL(req.url)
   const status = searchParams.get("status")
@@ -119,7 +118,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: "list_failed" }, { status: 500 })
-  const items = await shape(supabase, (data ?? []) as unknown as Record<string, unknown>[])
+  const items = await shape(supabase, (data ?? []) as unknown as Record<string, unknown>[], userId)
   return NextResponse.json({ items })
 }
 

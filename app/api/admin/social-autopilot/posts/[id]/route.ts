@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { requirePlatformAdmin, type PlatformAdminGuardOk } from "@/lib/auth/requirePlatformAdmin"
+import { signMedia } from "@/lib/social/signedMedia"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { isValidPostType } from "@/lib/social/postTypes"
 import { normalizeHashtag, hashtagLimitForPlatform } from "@/lib/social/hashtags"
@@ -24,8 +25,7 @@ const SELECT =
   // but was missing from this projection — so the Post Editor could neither show it nor correct it and
   // the value was effectively write-once. Read here for EDITING only: it stays deliberately absent
   // from SourceMeta (lib/social/composePost.ts), so it still cannot reach a caption or an overlay.
-  "source:source_content_id(display_name, property_name, property_type, place_id, market, area_neighborhood, special, budget_range, price_label_mode, amenities, storage_path, original_filename, kind, overlay_mode)"
-const SIGNED_URL_TTL = 60 * 30
+  "source:source_content_id(display_name, property_name, property_type, place_id, market, area_neighborhood, special, budget_range, price_label_mode, amenities, storage_path, thumb_storage_path, original_filename, kind, overlay_mode)"
 const AUDIO_CHOICES = new Set(["original", "none", "lb_track"])
 
 /**
@@ -85,13 +85,30 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const src = (r.source ?? null) as {
     display_name: string | null; property_name: string | null; property_type: string | null; place_id: string | null
     market: string | null; area_neighborhood: string | null; special: string | null; budget_range: string | null; price_label_mode: string | null; amenities: string | null
-    storage_path: string | null; original_filename: string | null; kind: string | null
+    storage_path: string | null; thumb_storage_path: string | null; original_filename: string | null; kind: string | null
   } | null
-  const sign = async (p: string | null) => (p ? (await supabase.storage.from("social-media").createSignedUrl(p, SIGNED_URL_TTL)).data?.signedUrl ?? null : null)
-  const previewUrl = await sign(src?.storage_path ?? null)
-  const renderedPreviewUrl = await sign((r.rendered_storage_path as string | null) ?? null)
+  // THREE-STATE, not null-or-not. "absent" (no such object) and "failed" (it exists, signing broke)
+  // are reported separately so the editor can offer Retry instead of claiming the video is missing.
+  // signMedia re-uses a still-valid URL for this owner+path, so re-opening the same post hands the
+  // browser the SAME url and it can serve from cache / revalidate instead of re-downloading.
+  const [preview, renderedPreview, thumb, cover] = await Promise.all([
+    signMedia(supabase, src?.storage_path ?? null, guard.userId),
+    signMedia(supabase, (r.rendered_storage_path as string | null) ?? null, guard.userId),
+    // The library thumbnail — a ~20KB JPEG the editor paints immediately while the video loads.
+    signMedia(supabase, src?.thumb_storage_path ?? null, guard.userId),
+    // The post's own Instagram/TikTok COVER. Which frame is chosen, and everything about how it is
+    // used, is untouched — only how its URL is signed, which now retries and re-uses like the rest.
+    signMedia(supabase, (r.cover_storage_path as string | null) ?? null, guard.userId),
+  ])
+  const previewUrl = preview.url
+  const renderedPreviewUrl = renderedPreview.url
 
   return NextResponse.json({
+    // Why the video is not showing, when it is not showing. "failed" means the object is there and
+    // signing broke — the editor shows Retry. Absent stays silent, as it always did.
+    previewUrlFailed: preview.status === "failed",
+    renderedPreviewUrlFailed: renderedPreview.status === "failed",
+    thumbUrl: thumb.url,
     id: r.id,
     platform: r.platform,
     postType: r.post_type,
@@ -108,7 +125,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     coverThumbOffsetMs: (r.cover_thumb_offset_ms as number | null) ?? null,
     coverStoragePath: (r.cover_storage_path as string | null) ?? null,
     // Signed so the editor can SHOW the chosen custom cover without a second round trip.
-    coverPreviewUrl: await sign((r.cover_storage_path as string | null) ?? null),
+    coverPreviewUrl: cover.url,
     // Advisory: the chosen frame refers to a DIFFERENT render than the current one.
     coverMayHaveShifted:
       r.cover_thumb_offset_ms != null &&
