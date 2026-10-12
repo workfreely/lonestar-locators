@@ -209,6 +209,11 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [headline, setHeadline] = useState("")
   const [overlayMode, setOverlayMode] = useState<"generate" | "existing">("generate")
   const [overlayTemplate, setOverlayTemplate] = useState<OverlayTemplate>(DEFAULT_OVERLAY_TEMPLATE)
+  // The source clip's intrinsic size, read from the VISIBLE preview's own loadedmetadata rather
+  // than from a second hidden <video> on the same URL (which cost one extra request per open).
+  // Null until the player reports it; SourceQualityBadge renders nothing until then, exactly as
+  // it did when it loaded its own copy.
+  const [sourceDims, setSourceDims] = useState<{ w: number; h: number } | null>(null)
   const [caption, setCaption] = useState("")
   const [hashtags, setHashtags] = useState<string[]>([])
   // Manual-override flags: an AUTO-GENERATED field stays synced with metadata; once the user edits
@@ -294,6 +299,11 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // Per-SOURCE: what the Starting At number means for this footage. Absent → "starting_at".
   const [priceMode, setPriceMode] = useState<PriceLabelMode>("starting_at")
   const [amenities, setAmenities] = useState("")
+
+  // A different post means a different source clip, so the cached dimensions must not survive the
+  // switch — otherwise the badge could describe the previous video for a moment. The component may
+  // be reused across /posts/[id] navigations rather than remounted, so this is explicit.
+  useEffect(() => { setSourceDims(null) }, [postId])
 
   const load = useCallback(async () => {
     setError(null)
@@ -966,7 +976,24 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               <video key={post.renderVersion ?? 0} ref={previewVideoRef} src={post.renderedPreviewUrl!} controls controlsList="nofullscreen" disablePictureInPicture playsInline preload="metadata" className="w-full h-full object-cover" />
             ) : post.previewUrl ? (
               <>
-                <video src={post.previewUrl} controls controlsList="nofullscreen" disablePictureInPicture muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                {/* muted / controls / preload are DELIBERATELY unchanged: muted by default with
+                    native controls, so audio can be unmuted by hand, and nothing autoplays.
+                    onLoadedMetadata is the only addition — it hands the badge the dimensions the
+                    player has already loaded, instead of a second element fetching them again. */}
+                <video
+                  src={post.previewUrl}
+                  controls
+                  controlsList="nofullscreen"
+                  disablePictureInPicture
+                  muted
+                  playsInline
+                  preload="metadata"
+                  onLoadedMetadata={(e) => {
+                    const v = e.currentTarget
+                    if (v.videoWidth > 0 && v.videoHeight > 0) setSourceDims({ w: v.videoWidth, h: v.videoHeight })
+                  }}
+                  className="w-full h-full object-cover"
+                />
                 {/* Pre-render APPROXIMATION overlay (CSS) — SHARED with the enlarged lightbox so
                     both previews render the exact same overlay. Live: reflects Template/Headline
                     edits immediately; null (renders nothing) in 'Already has text' mode. Also the
@@ -977,7 +1004,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 )}
                 {/* Informational only — never blocks rendering. See SourceQualityBadge. */}
                 <div className="absolute bottom-2 left-2 z-10">
-                  <SourceQualityBadge videoUrl={post.previewUrl} />
+                  <SourceQualityBadge dims={sourceDims} />
                 </div>
               </>
             ) : (

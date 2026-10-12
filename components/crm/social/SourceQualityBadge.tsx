@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import { DELIVERY_SIZE } from "@/lib/social/deliverySize"
 
 // Flags a source clip that is SMALLER than the 1080×1920 delivery canvas.
@@ -11,29 +10,25 @@ import { DELIVERY_SIZE } from "@/lib/social/deliverySize"
 // immediately attributable to the source rather than to the renderer, which is otherwise an
 // expensive thing to re-diagnose each time.
 //
-// Dimensions are read from the <video> element's own metadata rather than stored on the row: it
+// Dimensions are read from a <video> element's own metadata rather than stored on the row: it
 // needs no column, no backfill, and no upload-time probe, and it is exact for the file actually
 // being shown.
-export default function SourceQualityBadge({ videoUrl, className = "" }: { videoUrl: string; className?: string }) {
-  const [dims, setDims] = useState<{ w: number; h: number } | null>(null)
-
+//
+// THEY ARE NOW PASSED IN. This used to mount its OWN hidden 1px <video> on the same signed URL as
+// the editor's visible player, purely to read videoWidth/videoHeight. Measured, that cost one
+// extra network request on every open — consistently, every run, every clip (1→2 warm; 3→5 cold on
+// a 4K master). The visible player already fires loadedmetadata with the identical values (verified
+// side by side: 720x1280 and 2160x3840 from both elements), so the second element was fetching the
+// same file to learn something the page already knew.
+//
+// Accuracy is unchanged because the SOURCE of the numbers is unchanged — the same metadata, from
+// the same file, just read once instead of twice. The badge still renders nothing until dimensions
+// are known, and its markup, copy and styling are untouched.
+export default function SourceQualityBadge({ dims, className = "" }: { dims: { w: number; h: number } | null; className?: string }) {
   const below = dims !== null && (dims.w < DELIVERY_SIZE.w || dims.h < DELIVERY_SIZE.h)
 
   return (
     <>
-      {/* A metadata-only load: no poster, no playback, no bandwidth beyond the header. */}
-      <video
-        src={videoUrl}
-        preload="metadata"
-        muted
-        playsInline
-        aria-hidden
-        className="pointer-events-none absolute h-px w-px opacity-0"
-        onLoadedMetadata={(e) => {
-          const v = e.currentTarget
-          if (v.videoWidth > 0 && v.videoHeight > 0) setDims({ w: v.videoWidth, h: v.videoHeight })
-        }}
-      />
       {below && (
         <span
           className={`inline-flex items-center gap-1 rounded-full border border-[#e3d6b0] bg-[#fbf6e7] px-2 py-0.5 text-[11px] font-medium text-[#7a6320] ${className}`}
