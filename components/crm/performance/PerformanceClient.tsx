@@ -38,6 +38,7 @@ import type { MetaSalesAnalytics as MetaSalesAnalyticsData } from "@/lib/meta/sa
 export default function PerformanceClient({
   leads,
   dashboardLeads,
+  yearLeads = [],
   monthlyGoal,
   avgCommission,
   projectionMethod,
@@ -45,6 +46,8 @@ export default function PerformanceClient({
 }: {
   leads: any[]
   dashboardLeads: any[]
+  // Year-scoped set for the Yearly Overview row only. Business Overview's own scope is unchanged.
+  yearLeads?: any[]
   monthlyGoal?: number
   avgCommission?: number
   projectionMethod?: ProjectionMethod
@@ -113,7 +116,7 @@ export default function PerformanceClient({
         {tab === "overview" && (
           <>
             <div className="bg-[var(--crm-panel)] border border-[var(--crm-border)] rounded-xl overflow-hidden shadow-[0_1px_4px_rgba(var(--crm-shadow-color),0.07)]">
-              <DashboardStats leads={dashboardLeads} monthlyGoal={monthlyGoal} avgCommission={avgCommission} projectionMethod={projectionMethod} />
+              <DashboardStats leads={dashboardLeads} yearLeads={yearLeads} monthlyGoal={monthlyGoal} avgCommission={avgCommission} projectionMethod={projectionMethod} />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <LeadsByCityCard leads={leads} />

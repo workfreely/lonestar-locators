@@ -54,6 +54,35 @@ async function getDashboardLeads() {
   return dedupeLeads(data || [])
 }
 
+// YEAR-SCOPED set for the Yearly Overview row. A SEPARATE query on purpose — Business Overview's
+// own 100-lead window stays exactly as it is, so no monthly calculation changes.
+//
+// WHY IT CANNOT REUSE EITHER EXISTING SCOPE: both are "newest N by created_at". A year total taken
+// from them silently under-counts the moment the workspace passes N leads in a year, with nothing
+// on screen to say so. It also misses the case that matters most for revenue — a lead CREATED last
+// year that CLOSED this year, which is in neither window but belongs in both yearly totals.
+//
+// So the filter is an OR on the two dates that define the year's work: created this year, or closed
+// this year. `.or()` is a single round trip; the limit is a sanity ceiling, not a window.
+async function getYearLeads() {
+  const supabase = await createClient()
+  const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString()
+  const { data, error } = await supabase
+    .from("leads")
+    .select("*")
+    .or(`created_at.gte.${yearStart},closed_at.gte.${yearStart}`)
+    .order("created_at", { ascending: false })
+    .limit(5000)
+
+  if (error) {
+    console.error("Error fetching leads for Yearly Overview:", error.message)
+    return []
+  }
+
+  // Deduped by the same rule as every other scope, so "leads this year" means unique people.
+  return dedupeLeads(data || [])
+}
+
 // Read the signed-in user's demo flag + commission goals so analytics are
 // goal-driven and reflect the sample workspace when demo_mode is on.
 async function getProfileContext() {
@@ -85,6 +114,7 @@ export default async function PerformancePage() {
       <PerformanceClient
         leads={DEMO_ALL_LEADS}
         dashboardLeads={DEMO_ALL_LEADS}
+        yearLeads={DEMO_ALL_LEADS}
         monthlyGoal={monthlyGoal}
         avgCommission={avgCommission}
         projectionMethod={projectionMethod}
@@ -92,7 +122,7 @@ export default async function PerformancePage() {
     )
   }
 
-  const [leads, dashboardLeads] = await Promise.all([getLeads(), getDashboardLeads()])
+  const [leads, dashboardLeads, yearLeads] = await Promise.all([getLeads(), getDashboardLeads(), getYearLeads()])
 
   // Meta Sales Analytics — reuses the RLS-scoped lead set for attribution and
   // reads the workspace's synced Meta performance through the same client.
@@ -106,6 +136,7 @@ export default async function PerformancePage() {
     <PerformanceClient
       leads={leads}
       dashboardLeads={dashboardLeads}
+      yearLeads={yearLeads}
       monthlyGoal={monthlyGoal}
       avgCommission={avgCommission}
       projectionMethod={projectionMethod}

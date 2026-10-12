@@ -70,8 +70,11 @@ for (const c of components) {
 }
 
 console.log("\nPROPS ARE UNCHANGED (the numbers cannot have moved):")
-ok("DashboardStats keeps dashboardLeads + goal + avg + method",
-  /<DashboardStats leads=\{dashboardLeads\} monthlyGoal=\{monthlyGoal\} avgCommission=\{avgCommission\} projectionMethod=\{projectionMethod\} \/>/.test(client))
+// The four ORIGINAL props must still arrive exactly as they did, or a monthly number could have
+// moved. `yearLeads` was added for the Yearly Overview row; it is listed explicitly so a FIFTH
+// addition fails here rather than slipping in unnoticed.
+ok("DashboardStats keeps dashboardLeads + goal + avg + method, plus yearLeads",
+  /<DashboardStats leads=\{dashboardLeads\} yearLeads=\{yearLeads\} monthlyGoal=\{monthlyGoal\} avgCommission=\{avgCommission\} projectionMethod=\{projectionMethod\} \/>/.test(client))
 for (const c of ["LeadsByCityCard", "ClosedDealsByCityCard", "LeadSourcesCard", "LandingPageTable", "PerformanceStats", "CampaignTable", "MonthlyPerformanceHistory"]) {
   ok(`${c} still receives leads={leads}`, new RegExp(`<${c} leads=\\{leads\\}`).test(client))
 }
@@ -173,8 +176,17 @@ console.log("\nOUT OF SCOPE — UNTOUCHED:")
 ok("Sales Goals is NOT pulled into analytics", !/SettingsClient|Sales Goals/.test(client))
 ok("the page still fetches once, server-side", !/fetch\(/.test(client))
 const page = read("app/admin/analytics/page.tsx")
-ok("the server page's queries are unchanged (still two select(*) fetches)",
-  (page.match(/\.select\("\*"\)/g) ?? []).length === 2)
+// Three now, and NAMED: the 500-lead analytics window, Business Overview's own 100-lead window,
+// and the year-scoped set the Yearly Overview row needs. Naming them means a fourth query — or
+// either existing window being re-scoped — fails here, which a bare count would not catch.
+{
+  const fns = [...page.matchAll(/async function (getLeads|getDashboardLeads|getYearLeads)\(\)/g)].map((m) => m[1])
+  ok(`the server page has exactly these three lead queries: ${fns.join(", ")}`,
+    (page.match(/\.select\("\*"\)/g) ?? []).length === 3 && fns.length === 3)
+  ok("the two PRE-EXISTING windows are byte-for-byte the same scope",
+    /async function getLeads\(\)[\s\S]{0,400}?\.order\("created_at", \{ ascending: false \}\)\s*\.limit\(500\)/.test(page)
+    && /async function getDashboardLeads\(\)[\s\S]{0,500}?\.order\("created_at", \{ ascending: false \}\)\s*\.limit\(100\)/.test(page))
+}
 ok("…still force-dynamic", /export const dynamic = "force-dynamic"/.test(page))
 
 console.log(`\n${pass} passed, ${failures.length} failed\n`)
