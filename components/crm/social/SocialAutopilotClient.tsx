@@ -19,6 +19,7 @@ import AreaSelect from "@/components/crm/social/AreaSelect"
 import SpecialSelect from "@/components/crm/social/SpecialSelect"
 import AmenitySelect from "@/components/crm/social/AmenitySelect"
 import { propertyNamePrefill } from "@/lib/social/intakeFields"
+import { uploadLabel } from "@/lib/social/uploadLabel"
 import { parseAmenities, serializeAmenities } from "@/lib/social/amenities"
 import { PRICE_LABEL_MODES, priceLabelMode as narrowPriceLabelMode, type PriceLabelMode } from "@/lib/social/composePost"
 
@@ -119,6 +120,12 @@ type UploadFile = {
   seq: number
   status: "pending" | "uploading" | "done" | "error"
   error?: string
+  // DISPLAY ONLY. The property name the operator typed, snapshotted per file when the batch
+  // starts — the same way `meta` is snapshotted — so the progress list cannot change wording if
+  // the batch form state is touched afterwards, and so a future per-file name needs no rework.
+  // Nothing here reaches storage: the upload still sends uf.file.name as originalFilename and
+  // still writes to the contentId path. It is a label, not an identifier.
+  propertyName: string
 }
 
 type BatchMeta = {
@@ -718,7 +725,7 @@ export default function SocialAutopilotClient() {
       }
       const batchId = uuidv4()
       const meta = { ...batch }
-      const files: UploadFile[] = pendingFiles.map((file, i) => ({ uid: `${batchId}-${i}`, contentId: uuidv4(), file, seq: i + 1, status: "pending" }))
+      const files: UploadFile[] = pendingFiles.map((file, i) => ({ uid: `${batchId}-${i}`, contentId: uuidv4(), file, seq: i + 1, status: "pending", propertyName: meta.propertyName }))
       setUploads(files)
       setPendingFiles(null)
       await runPool(files, UPLOAD_CONCURRENCY, (uf) => uploadOne(uf, batchId, meta, user.id))
@@ -1333,7 +1340,12 @@ export default function SocialAutopilotClient() {
             <ul className="text-[12px] rounded-lg border border-[var(--crm-border)] divide-y divide-[var(--crm-border)]">
               {uploads.map((u) => (
                 <li key={u.uid} className="flex items-center gap-2 px-2.5 py-1.5">
-                  <span className="truncate flex-1 text-[var(--crm-text-secondary)]" title={u.file.name}>{String(u.seq).padStart(2, "0")} · {u.file.name}</span>
+                  {/* The operator typed a property name; show THAT, not the source filename —
+                      which is often a camera UUID and means nothing to them. Identical label in
+                      the uploading and complete states (this one line serves both). Falls back to
+                      the filename when no name was entered, so the row is never blank. The real
+                      filename stays reachable in the tooltip, and is untouched everywhere else. */}
+                  <span className="truncate flex-1 text-[var(--crm-text-secondary)]" title={uploadLabel(u) === u.file.name ? u.file.name : `${uploadLabel(u)} — ${u.file.name}`}>{String(u.seq).padStart(2, "0")} · {uploadLabel(u)}</span>
                   {u.status === "pending" && <span className="text-[var(--crm-text-muted)] text-[11px]">Pending</span>}
                   {u.status === "uploading" && <span className="text-[var(--crm-text-primary)] text-[11px]">Uploading…</span>}
                   {u.status === "done" && <span className="text-[11px] font-semibold text-emerald-500">Complete</span>}
