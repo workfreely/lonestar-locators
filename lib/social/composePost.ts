@@ -437,41 +437,86 @@ function captionSections(src: SourceMeta, opener: string | null, ctaTail?: strin
  *
  * Hashtags are unaffected — they are merged separately at publish by composeFinalCaption.
  */
-// T21's caption below the opening line. Fixed approved copy, so it is stated once and reused by
-// both the current city-aware opening line and the superseded cityless one.
-const BAD_CREDIT_CAPTION_BODY = [
+// ── THE CLIENT / ME FIXED CAPTIONS (T21-T24) ────────────────────────────────────────────────────
+//
+// These four templates are the only ones whose caption is fixed copy rather than composed sections:
+// each is a short joke that carries no special line, no amenities section and no price, and T21 ends
+// with a qualifier the section builder has no slot for. buildCaption returns them whole.
+//
+// THE CLOSING CTA IS NOT RESTATED HERE. It is commentCta's sentence — the same one every other
+// template's caption ends with — with the keyword pinned to LIST (commentCta(null) resolves to
+// "LIST"), so these four and the composed captions cannot drift apart, and a future change to the
+// CTA wording reaches all of them from one place.
+const CLIENT_ME_CTA = commentCta(null)
+
+// The SUPERSEDED Client / Me CTA, kept for exactly the reason LEGACY_FORM_CTA is kept: a caption
+// written while it was live must stay generator-owned, or an existing draft freezes as a "manual
+// override" and never re-syncs again. Never generated — recognition only.
+const LEGACY_CLIENT_ME_CTA = "✅ Comment LIST and I'll help you find options that fit your budget and situation."
+
+/** T21. The city is the ONE variable; everything else is fixed copy. A missing or blank market
+ *  degrades to the cityless opening line rather than printing "Moving to  with Bad credit?" or
+ *  inventing a city — the same never-fabricate rule the headlines follow. The qualifying sentence
+ *  lives here and ONLY here: burning a disclaimer into the video would be unreadable at this size
+ *  and would follow the footage into every re-use of it. */
+const badCreditLines = (city: string, cta: string) => [
+  city ? `Moving to ${city} with Bad credit? 😭` : "Bad credit? 😭",
   "Some apartment communities offer flexible credit requirements.",
   "My apartment locating service is completely FREE!",
-  "✅ Comment LIST and I'll help you find options that fit your budget and situation.",
+  cta,
   "Applications approved on a case-by-case basis.",
-]
+].join("\n\n")
 
-// The CITYLESS form. Still generated — it is what T21 produces for a post with no market — and it is
-// ALSO the exact wording T21 produced before the city was added, which is why nothing extra is
-// needed to keep existing captions generator-owned: isGeneratedCaption already rebuilds every
-// template's caption across MARKETS_WITH_NULL, and the null market reproduces this string byte for
-// byte. Without that, every bad-credit caption already saved would freeze as a "manual override"
-// and stop re-syncing on a Market change.
-export const BAD_CREDIT_CAPTION = ["Bad credit? 😭", ...BAD_CREDIT_CAPTION_BODY].join("\n\n")
-
-/** T21's caption. The city is the ONE variable; everything below the opening line is fixed copy.
- *  A missing or blank market degrades to the cityless opening line rather than printing "Moving to
- *  with Bad credit?" or inventing a city — the same never-fabricate rule the headlines follow. */
 export function badCreditCaption(src: SourceMeta): string {
-  const city = clean(normalizeSocialMarket(src.market))
-  return [city ? `Moving to ${city} with Bad credit? 😭` : "Bad credit? 😭", ...BAD_CREDIT_CAPTION_BODY].join("\n\n")
+  return badCreditLines(clean(normalizeSocialMarket(src.market)), CLIENT_ME_CTA)
 }
 
-// T22's caption, fixed copy like T21's and for the same reasons: the joke is the whole post, so
-// there is no market/type/special/amenity section to compose, and nothing here may reach the video.
-// "Comment LIST" and the closing CTA line are deliberately BYTE-IDENTICAL to T21's so the two
-// siblings read as one voice. Short, FREE-service messaging, engagement-focused.
-export const EX_CHEATED_CAPTION = [
+// The CITYLESS form — what T21 produces for a post with no market, and ALSO the wording it produced
+// before the city was added. Nothing extra is needed to keep those captions generator-owned:
+// isGeneratedCaption already rebuilds every template's caption across MARKETS_WITH_NULL, and the
+// null market reproduces this string byte for byte.
+export const BAD_CREDIT_CAPTION = badCreditLines("", CLIENT_ME_CTA)
+
+// T22. Metadata-free fixed copy.
+const exCheatedLines = (cta: string) => [
   "My ex cheated. I need a new apartment. 😭",
   "Some apartment communities offer flexible options depending on your situation.",
   "My apartment locating service is completely FREE!",
-  "✅ Comment LIST and I'll help you find options that fit your budget and situation.",
+  cta,
 ].join("\n\n")
+export const EX_CHEATED_CAPTION = exCheatedLines(CLIENT_ME_CTA)
+
+// T23. Metadata-free fixed copy. Says communities MAY offer better pricing — never that they will.
+const rentIncreaseLines = (cta: string) => [
+  "Rent went up AGAIN? 😩",
+  "Some apartment communities may offer better pricing, specials, or a better overall fit for your budget.",
+  "My apartment locating service is completely FREE!",
+  cta,
+].join("\n\n")
+export const RENT_INCREASE_CAPTION = rentIncreaseLines(CLIENT_ME_CTA)
+
+// T24. Metadata-free fixed copy. The caption makes no claim about the current place beyond the
+// renter's own words, and promises help exploring options rather than an outcome.
+const roachesLines = (cta: string) => [
+  "Unwanted roommates? 😭 I got you!",
+  "If your current place isn't working out, I can help you explore other apartment options within your budget.",
+  "My apartment locating service is completely FREE!",
+  cta,
+].join("\n\n")
+export const ROACHES_CAPTION = roachesLines(CLIENT_ME_CTA)
+
+/** Every SUPERSEDED form of a fixed Client / Me caption, for isGeneratedCaption only. Rebuilt from
+ *  the CURRENT copy with the old CTA substituted, rather than re-spelling the old captions, so an
+ *  edit to the copy cannot leave a stale duplicate behind here. */
+function supersededFixedCaptions(template: OverlayTemplate | null | undefined, src: SourceMeta): string[] {
+  switch (template) {
+    case "client_me_bad_credit": return [badCreditLines(clean(normalizeSocialMarket(src.market)), LEGACY_CLIENT_ME_CTA)]
+    case "client_me_ex_cheated": return [exCheatedLines(LEGACY_CLIENT_ME_CTA)]
+    case "client_me_rent_increase": return [rentIncreaseLines(LEGACY_CLIENT_ME_CTA)]
+    case "client_me_roaches": return [roachesLines(LEGACY_CLIENT_ME_CTA)]
+    default: return []
+  }
+}
 
 export function buildCaption(src: SourceMeta, seed?: string | number, template?: OverlayTemplate | null): string {
   const city = clean(normalizeSocialMarket(src.market))
@@ -497,6 +542,9 @@ export function buildCaption(src: SourceMeta, seed?: string | number, template?:
   // T22 is the same shape: fixed copy, checked before resolveOpener so no hook is chosen and no
   // special / amenity section can be appended to it.
   if (template === "client_me_ex_cheated") return EX_CHEATED_CAPTION
+  // T23 and T24 are the same shape, checked here for the same reason.
+  if (template === "client_me_rent_increase") return RENT_INCREASE_CAPTION
+  if (template === "client_me_roaches") return ROACHES_CAPTION
   return captionSections(src, resolveOpener(src, seed, template ?? null))
 }
 
@@ -582,9 +630,9 @@ export const OVERLAY_TEMPLATES = ["market_type", "market_type_centered", "your_s
   // T21. Template 20's exact treatment with different wording — same family, same geometry, same
   // headline/detail split. Appended LAST so every existing index is untouched.
   "client_me_bad_credit",
-  // T22. Same again: Template 20's treatment, third wording. Appended LAST so every existing index
-  // — and therefore every saved post's stored template string — is untouched.
-  "client_me_ex_cheated"] as const
+  // T22-T24. Same again: Template 20's treatment, three more wordings. Appended LAST so every
+  // existing index — and therefore every saved post's stored template string — is untouched.
+  "client_me_ex_cheated", "client_me_rent_increase", "client_me_roaches"] as const
 export type OverlayTemplate = (typeof OVERLAY_TEMPLATES)[number]
 export const DEFAULT_OVERLAY_TEMPLATE: OverlayTemplate = "market_type"
 export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
@@ -610,6 +658,8 @@ export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
   client_me: "Client / Me",
   client_me_bad_credit: "Client / Me — Bad Credit",
   client_me_ex_cheated: "Client / Me — My Ex Cheated",
+  client_me_rent_increase: "Client / Me — Rent Increase",
+  client_me_roaches: "Client / Me — Roaches",
 }
 
 // Template 6 (POV Upgrade) — EXPLICIT deterministic copy per canonical Property Type. The grammar
@@ -737,6 +787,15 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
     // would follow the footage into every re-use of it.
     case "client_me_bad_credit":
       return "Client: “I have bad credit. Can you help me?”"
+    // ── T23 CLIENT / ME — RENT INCREASE ─────────────────────────────────────────────────────
+    // T24 CLIENT / ME — ROACHES follows it. Both are Template 20's structure: the client's line is
+    // the HEADLINE, the reply is the DETAIL. Deliberately metadata-free, like T21 — neither
+    // complaint varies by property or market, and neither is something to decorate with a city.
+    // The capitalisation ("AGAIN", "ROACHES", "OUT") is the approved emphasis, not a formatter.
+    case "client_me_rent_increase":
+      return "Client: “My rent went up AGAIN. I need to move.”"
+    case "client_me_roaches":
+      return "Client: “My apartment has ROACHES. I need OUT!”"
     // ── T22 CLIENT / ME — MY EX CHEATED ─────────────────────────────────────────────────────
     // Template 20's structure again: client's line in the HEADLINE, reply in the DETAIL.
     //
@@ -873,13 +932,18 @@ export function buildTemplateDetail(template: OverlayTemplate, src: SourceMeta):
     // and the slot can hold only one line. Fixed wording, so it needs no metadata and never
     // degrades. The 😎 stays in the caption — Libre Baskerville has no emoji glyphs and would
     // render tofu on the video.
-    case "client_me":
-    // T21's reply is identical to T20's and sits in the identical slot, so it shares the branch
-    // rather than duplicating the string — one definition, so they cannot drift apart.
+    // T21's reply is its OWN line. "I got you." answers a question about the renter's situation,
+    // where the other four answer a request — so this is the one Client / Me template that does not
+    // share the branch below. It is still the same slot, size, gap and alignment: only the words
+    // differ, and the family it belongs to is unchanged.
     case "client_me_bad_credit":
-    // T22's reply likewise. All three Client / Me templates return this one string from this one
-    // branch; there is no second copy to fall out of step.
+      return "Me: “I got you.”"
+    case "client_me":
+    // T22, T23 and T24 all reply with T20's line, from this one branch rather than four copies, so
+    // they cannot fall out of step with each other.
     case "client_me_ex_cheated":
+    case "client_me_rent_increase":
+    case "client_me_roaches":
       return "Me: “Say less.”"
     // T3 your_sign now takes the SAME optional price line too. Its headline is unchanged and still
     // uses no metadata; the price is purely an additional, collapsible second line.
@@ -1050,6 +1114,10 @@ export function isGeneratedCaption(text: string | null | undefined, src: SourceM
     if (captionKey(buildCaption(s2, seed)) === t) return true
     for (const tpl of OVERLAY_TEMPLATES) {
       if (captionKey(buildCaption(s2, seed, tpl)) === t) return true
+      // ...and every superseded form of a FIXED caption (currently: the old Client / Me CTA), so a
+      // caption written before the wording changed stays generator-owned instead of freezing as a
+      // manual override.
+      for (const old of supersededFixedCaptions(tpl, s2)) if (captionKey(old) === t) return true
     }
     // ...and every SUPERSEDED opener wording, so a caption written under an earlier mapping is still
     // generator-owned rather than frozen as a manual override.

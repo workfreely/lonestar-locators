@@ -378,7 +378,7 @@ ok("render graph still outputs the [v] label", /\[v\]$/.test(hugFilt))
 
 console.log("Overlay TEMPLATES 1–5 (headline/detail generation + layout families):")
 const tMeta = { market: "San Antonio", propertyType: "High-Rise", socialSpecial: "8 Weeks Free", budgetRange: "1600", amenities: "Private Yards, Rooftop Pool" }
-ok(`${OVERLAY_TEMPLATES.length} templates defined`, OVERLAY_TEMPLATES.length === 22)
+ok(`${OVERLAY_TEMPLATES.length} templates defined`, OVERLAY_TEMPLATES.length === 24)
 // T1 Market + Type (HERO)
 ok("T1 headline = CITY TYPE_PLURAL", buildTemplateHeadline("market_type", tMeta) === "SAN ANTONIO HIGH-RISES")
 ok("T1 detail = Starting at price", buildTemplateDetail("market_type", tMeta) === "Starting at $1,600/month")
@@ -498,7 +498,7 @@ ok("T6 generated strings recognized (so they re-sync on Property Type change)", 
 ok("T6 regenerates for the CURRENT type (Townhome vs Loft)", buildTemplateHeadline("pov_upgrade", { propertyType: "Townhome" }) === "POV: You upgraded to a townhome" && buildTemplateHeadline("pov_upgrade", { propertyType: "Loft" }) === "POV: You upgraded to a loft")
 ok("T7 fixed headline recognized as generated", isGeneratedHeadline("Luxury doesn't have to be expensive"))
 ok("a genuinely MANUAL hook is NOT treated as generated (override protected)", !isGeneratedHeadline("POV: You finally made it home"))
-ok("selector lists exactly 22 templates: T2 market_type_centered, T7 apartment_standards, T8-T11 pov_upgrade/affordable_luxury/pov_price/hits_different", OVERLAY_TEMPLATES.length === 22 && OVERLAY_TEMPLATES[1] === "market_type_centered" && OVERLAY_TEMPLATES[5] === "upgrade" && OVERLAY_TEMPLATES[6] === "apartment_standards" && OVERLAY_TEMPLATES[7] === "pov_upgrade" && OVERLAY_TEMPLATES[8] === "affordable_luxury" && OVERLAY_TEMPLATES[9] === "pov_price" && OVERLAY_TEMPLATES[10] === "hits_different")
+ok("selector lists exactly 24 templates: T2 market_type_centered, T7 apartment_standards, T8-T11 pov_upgrade/affordable_luxury/pov_price/hits_different", OVERLAY_TEMPLATES.length === 24 && OVERLAY_TEMPLATES[1] === "market_type_centered" && OVERLAY_TEMPLATES[5] === "upgrade" && OVERLAY_TEMPLATES[6] === "apartment_standards" && OVERLAY_TEMPLATES[7] === "pov_upgrade" && OVERLAY_TEMPLATES[8] === "affordable_luxury" && OVERLAY_TEMPLATES[9] === "pov_price" && OVERLAY_TEMPLATES[10] === "hits_different")
 
 console.log("Template 8 (POV + Price — CENTER HOOK + DETAIL):")
 // T8 headline = same explicit POV per-type mapping as T6.

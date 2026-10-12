@@ -619,6 +619,8 @@ export function templateFamily(template: string): LayoutFamily {
     // 17px gap from this one list, so the three Client / Me templates cannot drift apart and
     // neither T20 nor T21 is touched to add it.
     || template === "client_me_ex_cheated"
+    // T23 and T24 join on exactly the same terms — membership is the whole layout change.
+    || template === "client_me_rent_increase" || template === "client_me_roaches"
     // property_tour (T17) is Template 3's treatment with tour wording. Joining this list is the
     // WHOLE layout change: centered placement, CENTER_HOOK sizing/fit, uppercase:false, side
     // margins, line spacing, the hookDetailPxFor price size and the shared 17px gap all come with
