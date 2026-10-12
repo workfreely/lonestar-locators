@@ -12,7 +12,10 @@
  * path: it is device-token authenticated, workspace-scoped by the token, and
  * already attributes each message to a lead.
  *
- * It is deliberately NOT wired into app/api/sms/inbound (the Twilio webhook).
+ * Opt-outs arrive through Beast Sync (/api/companion/messages), which is the ONLY inbound path:
+ * there is no SMS gateway webhook. A legacy Twilio webhook at app/api/sms/inbound once wrote
+ * leads.sms_replied_at, which nothing read; it was removed on 2026-10-12 and this module was
+ * never wired into it.
  * That endpoint has no signature verification, so anything on the internet can
  * POST to it — wiring an opt-out there would hand an anonymous caller the ability
  * to silence texting for any phone number they can guess. The keyword matcher

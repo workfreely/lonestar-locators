@@ -16,6 +16,19 @@ import { evaluateSend } from "@/lib/followup/gate"
 import { runSnapshotFromRow } from "@/lib/followup/snapshot"
 import { InMemoryFollowupStore, type SeedLead } from "@/lib/followup/sim/inMemoryStore"
 
+// DETERMINISTIC OPENING-PAIR SPACING.
+//
+// Production randomizes the New-Lead t1→t2 gap to 30–45s. cadence.ts has always accepted an
+// injectable `spacingMs` for exactly this reason, but nothing threaded it as far as runAck — so
+// this simulator got the real random value and its exact-timing assertions could not hold. Every
+// scenario that had to reach Text 2 then derailed, and the run reported eight failures that were
+// the harness's, not the product's.
+//
+// Pinning it to the low end of the production range makes the timeline reproducible. It changes
+// nothing in production: `advanceRun` passes undefined there and cadence falls back to the real
+// generator. The range itself is covered by the follow-up suites, not here.
+const SIM_SPACING_MS = () => 30_000
+
 const WS = "ws1"
 const OWNER = "owner1"
 const DEV = "dev1"
@@ -112,7 +125,7 @@ async function doTick(w: World) { return tick(w.store, w.clock.now()) }
 async function claim(w: World): Promise<ClaimJob[]> { return runClaim(w.store, w.clock.now(), DEV, WS) }
 async function ack(w: World, jobs: ClaimJob[], status: "sent" | "failed" = "sent") {
   const out = []
-  for (const j of jobs) out.push(await runAck(w.store, { intentId: j.intentId, workspaceId: WS, deviceId: DEV, status, localSentAt: w.clock.iso() }))
+  for (const j of jobs) out.push(await runAck(w.store, { intentId: j.intentId, workspaceId: WS, deviceId: DEV, status, localSentAt: w.clock.iso(), spacingMs: SIM_SPACING_MS }))
   return out
 }
 function body(jobs: ClaimJob[], step: string): string {
@@ -439,8 +452,8 @@ async function main() {
     const l = seed(w, { id: 420, followup_opt_in: true })
     await doTick(w); w.clock.advMin(5); await doTick(w)
     const jobs = await claim(w)
-    const r1 = await runAck(w.store, { intentId: jobs[0].intentId, workspaceId: WS, deviceId: DEV, status: "sent", localSentAt: w.clock.iso() })
-    const r2 = await runAck(w.store, { intentId: jobs[0].intentId, workspaceId: WS, deviceId: DEV, status: "sent", localSentAt: w.clock.iso() })
+    const r1 = await runAck(w.store, { intentId: jobs[0].intentId, workspaceId: WS, deviceId: DEV, status: "sent", localSentAt: w.clock.iso(), spacingMs: SIM_SPACING_MS })
+    const r2 = await runAck(w.store, { intentId: jobs[0].intentId, workspaceId: WS, deviceId: DEV, status: "sent", localSentAt: w.clock.iso(), spacingMs: SIM_SPACING_MS })
     log(w, "ack x2", l.id, "", `r1=${r1.status} r2=${r2.already ? "already" : r2.status}`)
     ck(r2.already === true, "second ack is a no-op (already sent)")
     ck(runStr(w, l.id).startsWith("waiting/t2") || runStr(w, l.id).startsWith("due/t2"), "run advanced to t2 exactly once")

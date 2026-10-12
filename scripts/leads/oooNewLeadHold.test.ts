@@ -126,8 +126,12 @@ async function main() {
     const engine = strip(read("lib/followup/engine.ts"))
     // t2 is only ever scheduled by advanceRun after t1 is ACKed; with no run at all
     // there is nothing to advance.
+    // The call gained an options argument on 2026-10-12 (a test-only `spacingMs` seam, undefined in
+    // production). What matters here is unchanged and is what this now asserts: the ONLY place that
+    // schedules the next step is advanceRun, and there is exactly one such call site.
     ok("t2 is scheduled only from advanceRun, after a send is acknowledged",
-      /nextStepEligibility\(seq, justSent, sentAtIso\)/.test(engine))
+      /nextStepEligibility\(seq, justSent, sentAtIso/.test(engine)
+      && (engine.match(/nextStepEligibility\(/g) ?? []).length === 1)
     ok("…and advanceRun is reached only via an ACK", /if \(intent\.run_id\) await advanceRun/.test(engine))
     // Belt and braces: even if the stamp were cleared, the 6h window blocks a
     // back-filled opening pair for a lead created days earlier.

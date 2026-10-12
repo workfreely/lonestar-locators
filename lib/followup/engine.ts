@@ -525,6 +525,13 @@ export type AckInput = {
   localSentAt: string
   error?: string | null
   /**
+   * TEST SEAM ONLY. The New-Lead opening pair's gap is randomized 30-45s, which cadence.ts already
+   * allows callers to pin via `spacingMs` — but nothing threaded it this far, so the dry-run
+   * simulator could not make its timing assertions exact and reported eight false failures.
+   * Production passes nothing and keeps the real randomness.
+   */
+  spacingMs?: () => number
+  /**
    * chat.db guid of the message this send produced, when the Mac captured it.
    * Optional — provenance falls back to exact-body correlation without it.
    */
@@ -557,16 +564,17 @@ export async function runAck(store: FollowupStore, input: AckInput): Promise<Ack
     // written when present so an older build never blanks a guid.
     ...(input.messageGuid ? { message_guid: input.messageGuid } : {}),
   })
-  if (intent.run_id) await advanceRun(store, intent.run_id, input.localSentAt)
+  if (intent.run_id) await advanceRun(store, intent.run_id, input.localSentAt, input.spacingMs)
   return { ok: true, status: "sent" }
 }
 
-async function advanceRun(store: FollowupStore, runId: string, sentAtIso: string): Promise<void> {
+async function advanceRun(store: FollowupStore, runId: string, sentAtIso: string, spacingMs?: () => number): Promise<void> {
   const run = await store.runById(runId)
   if (!run) return
   const seq = run.sequence_key as SequenceKey
   const justSent = run.step_key
-  const next = nextStepEligibility(seq, justSent, sentAtIso)
+  // Undefined in production → cadence falls back to the real randomized generator.
+  const next = nextStepEligibility(seq, justSent, sentAtIso, { spacingMs })
   if (!next) {
     await store.updateRun(runId, { status: "completed", last_evaluated_at: new Date().toISOString() })
     return
