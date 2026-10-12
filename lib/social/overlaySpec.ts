@@ -614,6 +614,11 @@ export function templateFamily(template: string): LayoutFamily {
     // 17px gap. Membership IS the design reference — nothing about T20 is copied, so the two cannot
     // drift apart and T20 itself is not touched.
     || template === "client_me_bad_credit"
+    // T22, same reasoning as T21: membership IS the design reference. It inherits the identical
+    // centred placement, CENTER_HOOK sizing and fit, side margins, hookDetailPxFor and the shared
+    // 17px gap from this one list, so the three Client / Me templates cannot drift apart and
+    // neither T20 nor T21 is touched to add it.
+    || template === "client_me_ex_cheated"
     // property_tour (T17) is Template 3's treatment with tour wording. Joining this list is the
     // WHOLE layout change: centered placement, CENTER_HOOK sizing/fit, uppercase:false, side
     // margins, line spacing, the hookDetailPxFor price size and the shared 17px gap all come with

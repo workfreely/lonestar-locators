@@ -14,7 +14,7 @@
 import { buildHashtags, isCanonicalHashtag, MAX_HASHTAGS, PLATFORM_HASHTAG_LIMIT } from "@/lib/social/hashtags"
 import { parseAmenities } from "@/lib/social/amenities"
 import { normalizeSocialMarket, SOCIAL_MARKETS } from "@/lib/social/markets"
-import { propertyNoun, propertyNounPlural, normalizeToCanonical, PROPERTY_TYPES, COMPOUND_TYPE_QUALIFIERS } from "@/lib/social/propertyTypes"
+import { propertyNoun, propertyNounPlural, normalizeToCanonical, PROPERTY_TYPES, COMPOUND_TYPE_QUALIFIERS, SOCIAL_CANONICAL_ORDER } from "@/lib/social/propertyTypes"
 
 // Re-exported from lib/social/hashtags, which owns the canonical generation cap (5). Kept as a named
 // export here because callers already import it from this module.
@@ -437,12 +437,40 @@ function captionSections(src: SourceMeta, opener: string | null, ctaTail?: strin
  *
  * Hashtags are unaffected — they are merged separately at publish by composeFinalCaption.
  */
-export const BAD_CREDIT_CAPTION = [
-  "Bad credit? 😭",
+// T21's caption below the opening line. Fixed approved copy, so it is stated once and reused by
+// both the current city-aware opening line and the superseded cityless one.
+const BAD_CREDIT_CAPTION_BODY = [
   "Some apartment communities offer flexible credit requirements.",
   "My apartment locating service is completely FREE!",
   "✅ Comment LIST and I'll help you find options that fit your budget and situation.",
   "Applications approved on a case-by-case basis.",
+]
+
+// The CITYLESS form. Still generated — it is what T21 produces for a post with no market — and it is
+// ALSO the exact wording T21 produced before the city was added, which is why nothing extra is
+// needed to keep existing captions generator-owned: isGeneratedCaption already rebuilds every
+// template's caption across MARKETS_WITH_NULL, and the null market reproduces this string byte for
+// byte. Without that, every bad-credit caption already saved would freeze as a "manual override"
+// and stop re-syncing on a Market change.
+export const BAD_CREDIT_CAPTION = ["Bad credit? 😭", ...BAD_CREDIT_CAPTION_BODY].join("\n\n")
+
+/** T21's caption. The city is the ONE variable; everything below the opening line is fixed copy.
+ *  A missing or blank market degrades to the cityless opening line rather than printing "Moving to
+ *  with Bad credit?" or inventing a city — the same never-fabricate rule the headlines follow. */
+export function badCreditCaption(src: SourceMeta): string {
+  const city = clean(normalizeSocialMarket(src.market))
+  return [city ? `Moving to ${city} with Bad credit? 😭` : "Bad credit? 😭", ...BAD_CREDIT_CAPTION_BODY].join("\n\n")
+}
+
+// T22's caption, fixed copy like T21's and for the same reasons: the joke is the whole post, so
+// there is no market/type/special/amenity section to compose, and nothing here may reach the video.
+// "Comment LIST" and the closing CTA line are deliberately BYTE-IDENTICAL to T21's so the two
+// siblings read as one voice. Short, FREE-service messaging, engagement-focused.
+export const EX_CHEATED_CAPTION = [
+  "My ex cheated. I need a new apartment. 😭",
+  "Some apartment communities offer flexible options depending on your situation.",
+  "My apartment locating service is completely FREE!",
+  "✅ Comment LIST and I'll help you find options that fit your budget and situation.",
 ].join("\n\n")
 
 export function buildCaption(src: SourceMeta, seed?: string | number, template?: OverlayTemplate | null): string {
@@ -465,7 +493,10 @@ export function buildCaption(src: SourceMeta, seed?: string | number, template?:
   // caption never loses its first line and never emits an unresolved placeholder.
   // T21 is the one template whose caption is fixed copy rather than composed sections. Checked
   // BEFORE resolveOpener so no hook is selected and no special/amenity section can be appended.
-  if (template === "client_me_bad_credit") return BAD_CREDIT_CAPTION
+  if (template === "client_me_bad_credit") return badCreditCaption(src)
+  // T22 is the same shape: fixed copy, checked before resolveOpener so no hook is chosen and no
+  // special / amenity section can be appended to it.
+  if (template === "client_me_ex_cheated") return EX_CHEATED_CAPTION
   return captionSections(src, resolveOpener(src, seed, template ?? null))
 }
 
@@ -550,7 +581,10 @@ export const OVERLAY_TEMPLATES = ["market_type", "market_type_centered", "your_s
   "would_you_live_here", "imagine_coming_home", "client_me",
   // T21. Template 20's exact treatment with different wording — same family, same geometry, same
   // headline/detail split. Appended LAST so every existing index is untouched.
-  "client_me_bad_credit"] as const
+  "client_me_bad_credit",
+  // T22. Same again: Template 20's treatment, third wording. Appended LAST so every existing index
+  // — and therefore every saved post's stored template string — is untouched.
+  "client_me_ex_cheated"] as const
 export type OverlayTemplate = (typeof OVERLAY_TEMPLATES)[number]
 export const DEFAULT_OVERLAY_TEMPLATE: OverlayTemplate = "market_type"
 export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
@@ -575,6 +609,7 @@ export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
   imagine_coming_home: "Imagine Coming Home",
   client_me: "Client / Me",
   client_me_bad_credit: "Client / Me — Bad Credit",
+  client_me_ex_cheated: "Client / Me — My Ex Cheated",
 }
 
 // Template 6 (POV Upgrade) — EXPLICIT deterministic copy per canonical Property Type. The grammar
@@ -702,6 +737,22 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
     // would follow the footage into every re-use of it.
     case "client_me_bad_credit":
       return "Client: “I have bad credit. Can you help me?”"
+    // ── T22 CLIENT / ME — MY EX CHEATED ─────────────────────────────────────────────────────
+    // Template 20's structure again: client's line in the HEADLINE, reply in the DETAIL.
+    //
+    // ONE variable, and only the SEVEN SIMPLE nouns. propertyNoun turns the canonical value into
+    // natural lowercase wording ("high-rise", "rental home"), and SOCIAL_CANONICAL_ORDER is the
+    // gate: a Social-only COMPOUND type ("Split-Level Townhome", "Industrial-Style Apartment") is
+    // deliberately excluded, because "I need a new industrial-style penthouse" is neither short nor
+    // in this template's voice. Anything outside the seven — compound, non-canonical or absent —
+    // falls back to "apartment", so the sentence is always complete and always this short. The
+    // article is always "a" ("a new apartment"), so withArticle is not involved.
+    case "client_me_ex_cheated": {
+      const noun = canonicalType && (SOCIAL_CANONICAL_ORDER as readonly string[]).includes(canonicalType)
+        ? propertyNoun(canonicalType)
+        : "apartment"
+      return `Client: “My ex cheated. I need a new ${noun}.”`
+    }
     case "affordable_luxury":
       return AFFORDABLE_LUXURY_HEADLINE
     // T16 is the SAME wording/values as T11 — only its vertical anchor differs (overlaySpec), so the
@@ -826,6 +877,9 @@ export function buildTemplateDetail(template: OverlayTemplate, src: SourceMeta):
     // T21's reply is identical to T20's and sits in the identical slot, so it shares the branch
     // rather than duplicating the string — one definition, so they cannot drift apart.
     case "client_me_bad_credit":
+    // T22's reply likewise. All three Client / Me templates return this one string from this one
+    // branch; there is no second copy to fall out of step.
+    case "client_me_ex_cheated":
       return "Me: “Say less.”"
     // T3 your_sign now takes the SAME optional price line too. Its headline is unchanged and still
     // uses no metadata; the price is purely an additional, collapsible second line.

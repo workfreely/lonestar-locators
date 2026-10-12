@@ -29,7 +29,13 @@ export const COMPOUND_TYPE_QUALIFIERS = ["Split-Level", "Industrial-Style"] as c
 // this keeps Social Beast's existing order while still taking its MEMBERSHIP from the canonical
 // list — a value added to or removed from lib/formOptions still flows through, and the assertion
 // below fails loudly if one ever does, rather than letting the two drift apart unnoticed.
-const SOCIAL_CANONICAL_ORDER = ["Studio", "Apartment", "High-Rise", "Townhome", "Rental Home", "Penthouse", "Loft"] as const
+// EXPORTED because it is also the set of SIMPLE (non-compound) property nouns. Social Beast's
+// Template 22 may only name one of these seven; the Social-only compound types below ("Split-Level
+// Townhome", "Industrial-Style Apartment", …) are deliberately out of scope for that template's
+// short one-line sentence. Exporting the existing pinned list rather than restating the seven values
+// in composePost means the two cannot drift, and the membership assertion directly below still
+// fails loudly if the canonical taxonomy ever changes underneath it.
+export const SOCIAL_CANONICAL_ORDER = ["Studio", "Apartment", "High-Rise", "Townhome", "Rental Home", "Penthouse", "Loft"] as const
 {
   const derived = [...CANONICAL_PROPERTY_TYPES].filter((t) => t !== "Open to All").sort()
   const pinned = [...SOCIAL_CANONICAL_ORDER].sort()

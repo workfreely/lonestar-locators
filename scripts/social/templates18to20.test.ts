@@ -30,7 +30,7 @@ console.log("1. twenty-one templates, the first twenty undisturbed:")
 // T21 was appended after this suite was written. The invariant it protects is "the earlier
 // templates keep their positions", which the next assertion states directly — the count is just
 // the tripwire, so it tracks the registry rather than being frozen at 20.
-ok(`${OVERLAY_TEMPLATES.length} templates registered`, OVERLAY_TEMPLATES.length === 21)
+ok(`${OVERLAY_TEMPLATES.length} templates registered`, OVERLAY_TEMPLATES.length === 22)
 ok("T21 is appended LAST, so no existing index moved", OVERLAY_TEMPLATES[20] === "client_me_bad_credit")
 ok("the original 17 keep their exact positions", ORIGINAL_17.every((k, i) => OVERLAY_TEMPLATES[i] === k))
 ok("T18-T20 are appended at the end",
