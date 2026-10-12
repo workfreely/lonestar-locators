@@ -446,7 +446,16 @@ export default function PublishingDestinations({
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  {tiktok.expired && <a href={TT_CONNECT} className={btn}>Reconnect</a>}
+                  {/* ALWAYS available, not only once the access token has expired. Re-authorizing
+                      is the ordinary way to repair a connection, prove it still works, or re-grant
+                      after a scope or password change — and gating it on expiry meant the only
+                      visible control on a healthy connection was Disconnect, i.e. the one action
+                      that throws the connection away. It does NOT disconnect first: it opens the
+                      same OAuth flow, and sa_connect_tiktok upserts on
+                      (owner_user_id, provider, external_account_id), so the SAME account lands back
+                      on the SAME row with fresh tokens. If authorization is cancelled or fails, the
+                      callback returns before any write and the existing row is untouched. */}
+                  <a href={TT_CONNECT} className={btn} title="Re-authorize this TikTok account. Nothing is disconnected, and your account and scheduled posts are unaffected — sign in with the SAME TikTok account.">Reconnect</a>
                   <button type="button" className={btn} disabled={ttBusy} onClick={() => void tiktokDisconnect()}>Disconnect</button>
                 </div>
               </div>
