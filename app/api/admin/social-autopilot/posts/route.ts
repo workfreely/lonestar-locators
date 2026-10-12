@@ -15,7 +15,7 @@ const SELECT =
   "id, platform, post_type, post_name, caption, on_video_text, on_video_config, " +
   "overlay_headline, overlay_subheadline, overlay_mode, overlay_template, hashtags, audio_choice, audio_track_id, rendered_storage_path, render_status, render_error, render_version, source_storage_path, approved_at, draft_saved_at, " +
   "status, scheduled_at, published_at, external_post_url, created_at, updated_at, source_content_id, recurring_rule_id, recurrence_slot, " +
-  "source:source_content_id(display_name, property_name, property_type, market, special, budget_range, amenities, storage_path, original_filename, kind)"
+  "source:source_content_id(display_name, property_name, property_type, market, special, budget_range, amenities, storage_path, thumb_storage_path, original_filename, kind)"
 
 type SourceEmbed = {
   display_name: string | null
@@ -26,6 +26,9 @@ type SourceEmbed = {
   budget_range: string | null
   amenities: string | null
   storage_path: string | null
+  // INTERNAL library preview JPEG on the SOURCE row. Not a cover: the post's own Instagram/TikTok
+  // cover is cover_storage_path on social_posts and is read and written elsewhere, untouched.
+  thumb_storage_path: string | null
   original_filename: string | null
   kind: string | null
 }
@@ -36,6 +39,7 @@ async function shape(supabase: PlatformAdminGuardOk["supabase"], rows: Record<st
       const src = (r.source ?? null) as SourceEmbed | null
       const sign = async (p: string | null) => (p ? (await supabase.storage.from("social-media").createSignedUrl(p, SIGNED_URL_TTL)).data?.signedUrl ?? null : null)
       const previewUrl = await sign(src?.storage_path ?? null) // source video (editing view)
+      const thumbUrl = await sign(src?.thumb_storage_path ?? null) // internal library grid preview
       const renderedPreviewUrl = await sign((r.rendered_storage_path as string | null) ?? null) // rendered derivative (final preview)
       return {
         id: r.id,
@@ -89,6 +93,7 @@ async function shape(supabase: PlatformAdminGuardOk["supabase"], rows: Record<st
             }
           : null,
         previewUrl,
+        thumbUrl,
         renderedPreviewUrl,
       }
     }),

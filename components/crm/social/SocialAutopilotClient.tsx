@@ -19,6 +19,7 @@ import AreaSelect from "@/components/crm/social/AreaSelect"
 import SpecialSelect from "@/components/crm/social/SpecialSelect"
 import AmenitySelect from "@/components/crm/social/AmenitySelect"
 import { propertyNamePrefill } from "@/lib/social/intakeFields"
+import { captureLibraryThumb, thumbStoragePath, THUMB_CONTENT_TYPE } from "@/lib/social/libraryThumb"
 import { uploadLabel } from "@/lib/social/uploadLabel"
 import { parseAmenities, serializeAmenities } from "@/lib/social/amenities"
 import { PRICE_LABEL_MODES, priceLabelMode as narrowPriceLabelMode, type PriceLabelMode } from "@/lib/social/composePost"
@@ -59,6 +60,9 @@ type Item = {
   placeId: string | null
   createdAt: string
   previewUrl: string | null
+  // INTERNAL library preview JPEG. Not an Instagram/TikTok cover — those live on the POST
+  // (cover_storage_path) and are chosen by the operator; this one is generated for the grid.
+  thumbUrl: string | null
   preparedPost: PreparedPost | null // saved public-post overrides (from social_content.details)
 }
 
@@ -79,6 +83,9 @@ type Card = {
   sortDate: number
   originalFilename: string | null
   previewUrl: string | null
+  // The small JPEG the grid actually paints. When present the tile mounts NO video at all — the
+  // reason the library no longer decodes 140 clips to draw itself. Null falls back to the video.
+  thumbUrl: string | null
   // The saved draft's overlay, rebuilt from persisted values — null when this
   // source has no draft, or when the draft is in "existing" mode (the video
   // already carries its own text, so drawing ours would double it).
@@ -217,16 +224,41 @@ function Thumb({ card }: { card: Card }) {
       {card.raw?.kind === "image" ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={card.previewUrl} alt="" className="w-full h-full object-cover" />
+      ) : card.thumbUrl && !playing ? (
+        // THE FAST PATH, and the point of the whole change. A ~25KB JPEG instead of a <video>
+        // that must fetch and decode real media to show one frame. No video element exists on
+        // this tile until the operator presses play, so an off-screen — or merely unplayed —
+        // card costs one lazily-loaded image and nothing else.
+        //
+        // loading="lazy" + decoding="async" keep off-screen tiles off the network entirely, which
+        // is what makes the grid scale past 140. Same classes, same object-cover crop, same
+        // bg-black ground, so the tile looks and lays out exactly as it did.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={card.thumbUrl}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="w-full h-full object-cover bg-black"
+        />
       ) : (
+        // FALLBACK — and the live player once play is pressed.
+        //
+        // Reached when a row has no thumbnail yet (a brand-new upload whose capture has not
+        // landed, a clip the browser could not decode, a Rendered card) or as soon as the
+        // operator plays. Deliberately byte-identical to the behaviour that shipped before
+        // thumbnails existed, so a missing thumbnail is a slower tile, never a broken one.
         <video
           ref={ref}
           src={card.previewUrl}
           muted
           playsInline
           preload="metadata"
+          autoPlay={playing}
           controls={playing}
           onLoadedMetadata={(e) => {
             const v = e.currentTarget
+            if (playing) return // playing: let it run from the start rather than seeking away
             try {
               v.currentTime = Math.min(0.6, (isFinite(v.duration) ? v.duration : 2) / 2)
             } catch {
@@ -246,6 +278,10 @@ function Thumb({ card }: { card: Card }) {
           type="button"
           aria-label="Play preview"
           onClick={() => {
+            // With a thumbnail there is NO video element yet — this click is what mounts it, so
+            // ref.current is null here on the first press. autoPlay on the freshly mounted
+            // element starts it; the ref call still covers the fallback case, where the element
+            // was already on the page showing its seeked frame.
             setPlaying(true)
             ref.current?.play().catch(() => {})
           }}
@@ -480,6 +516,7 @@ export default function SocialAutopilotClient() {
         sortDate: new Date(it.createdAt).getTime() || 0,
         originalFilename: it.originalFilename,
         previewUrl: it.previewUrl,
+        thumbUrl: it.thumbUrl ?? null,
         draftOverlay: draftOverlayFor(postsBySource[it.id]),
         hue: null,
         demo: false,
@@ -497,6 +534,8 @@ export default function SocialAutopilotClient() {
         sortDate: DEMO_LIBRARY.length - i,
         originalFilename: d.originalFilename,
         previewUrl: null,
+        thumbUrl: null, // demo tiles are a colour block; they never touch storage
+
         draftOverlay: null,
         hue: d.hue,
         demo: true,
@@ -555,6 +594,10 @@ export default function SocialAutopilotClient() {
         originalFilename: src?.originalFilename ?? null,
         // The RENDERED derivative — what actually went out, overlay burned in.
         previewUrl: p.renderedPreviewUrl ?? null,
+        // No library thumbnail for a Rendered card: the artifact it shows is the RENDERED video,
+        // a different object from the source the thumbnail was cut from, and showing the source's
+        // frame here would misrepresent what was published. These tiles keep the video element.
+        thumbUrl: null,
         // The overlay is already in the pixels; drawing the CSS preview on top would double it.
         draftOverlay: null,
         hue: null,
@@ -658,6 +701,29 @@ export default function SocialAutopilotClient() {
     if (fileRef.current) fileRef.current.value = ""
   }
 
+  // Cut the library preview from the LOCAL file we just uploaded — no download, and the bytes are
+  // already in memory. Fire-and-forget: every failure path simply leaves thumb_storage_path null,
+  // which the grid falls back from by mounting the video exactly as it did before thumbnails
+  // existed. It never throws into the upload, and never retries destructively.
+  const generateThumb = useCallback(async (uf: UploadFile, userId: string) => {
+    try {
+      if ((uf.file.type || "").startsWith("image/")) return // images are their own preview
+      const blob = await captureLibraryThumb(uf.file)
+      if (!blob) return
+      const up = await supabase.storage.from("social-media").upload(thumbStoragePath(userId, uf.contentId), blob, {
+        contentType: THUMB_CONTENT_TYPE,
+        // A thumbnail is a derivative, not a master: regenerating one is always safe, so unlike
+        // the source upload (write-once, upsert:false) this one may overwrite itself.
+        upsert: true,
+      })
+      if (up.error) return
+      // The endpoint takes no path — it derives the canonical one and verifies the object exists.
+      await fetch(`/api/admin/social-autopilot/content/${uf.contentId}/thumb`, { method: "POST" })
+    } catch {
+      /* a missing thumbnail is a supported state — never surfaced as an upload failure */
+    }
+  }, [])
+
   const uploadOne = useCallback(async (uf: UploadFile, batchId: string, meta: BatchMeta, userId: string) => {
     setUploads((prev) => prev?.map((u) => (u.uid === uf.uid ? { ...u, status: "uploading", error: undefined } : u)) ?? prev)
     try {
@@ -705,7 +771,13 @@ export default function SocialAutopilotClient() {
         }),
       })
       if (!res.ok) throw new Error("record failed")
+      // THE UPLOAD IS COMPLETE HERE. Everything below is the library thumbnail, and it is
+      // deliberately AFTER the row is marked done and OUTSIDE the try that can fail it: a
+      // thumbnail is a convenience for the grid, and no failure to produce one may turn a
+      // successfully stored video into a failed upload. Nothing below touches the original, its
+      // filename, its metadata or any social cover.
       setUploads((prev) => prev?.map((u) => (u.uid === uf.uid ? { ...u, status: "done" } : u)) ?? prev)
+      void generateThumb(uf, userId)
     } catch (e) {
       setUploads((prev) => prev?.map((u) => (u.uid === uf.uid ? { ...u, status: "error", error: e instanceof Error ? e.message : "failed" } : u)) ?? prev)
     }

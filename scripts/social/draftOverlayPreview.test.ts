@@ -107,10 +107,17 @@ async function main() {
       /src=\{card\.previewUrl\}/.test(client))
     ok("the overlay is a sibling element, not a video transform",
       /<PreviewOverlay/.test(client) && !/filter:|drawImage|MediaRecorder/.test(client))
-    // The library's own Upload Videos flow still uploads, untouched — that is one
-    // call, in the upload path, and nothing to do with this feature.
-    ok("the pre-existing upload path is still the ONLY storage write",
-      (client.match(/\.upload\(/g) ?? []).length === 1)
+    // The library's own Upload Videos flow still uploads, untouched — and since 2026-10-12 the
+    // library thumbnail writes a second object beside it. NAMING the two permitted writes is
+    // stronger than counting them: a third one, or either of these being repointed, fails here.
+    // Neither has anything to do with the draft-overlay preview, which still writes nothing.
+    {
+      const writes = [...client.matchAll(/\.from\("social-media"\)\.upload\(([\s\S]*?),\s*[\w.]+\s*,\s*\{/g)].map((m) => m[1].trim())
+      ok(`exactly two storage writes, both named: ${JSON.stringify(writes)}`,
+        writes.length === 2
+        && writes.some((w) => w === "path")                                   // the source master
+        && writes.some((w) => /thumbStoragePath\(userId, uf\.contentId\)/.test(w))) // the library thumbnail
+    }
     ok("…the overlay derivation writes nothing", !/\.upload\(|storage\./.test(derivation))
     ok("…and the card component writes nothing", !/\.upload\(|storage\./.test(thumb))
     ok("no snake_case overlay column is written from the client",

@@ -18,7 +18,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from("social_content")
     .select(
-      "id, storage_path, kind, original_filename, content_type, size_bytes, duration_s, display_name, name_customized, upload_batch_id, batch_seq, property_name, property_type, market, area_neighborhood, special, budget_range, price_label_mode, amenities, tags, notes, place_id, details, created_at, updated_at",
+      "id, storage_path, thumb_storage_path, kind, original_filename, content_type, size_bytes, duration_s, display_name, name_customized, upload_batch_id, batch_seq, property_name, property_type, market, area_neighborhood, special, budget_range, price_label_mode, amenities, tags, notes, place_id, details, created_at, updated_at",
     )
     .order("created_at", { ascending: false })
   if (error) return NextResponse.json({ error: "list_failed" }, { status: 500 })
@@ -30,6 +30,15 @@ export async function GET() {
       if (path) {
         const { data: signed } = await supabase.storage.from("social-media").createSignedUrl(path, SIGNED_URL_TTL)
         previewUrl = signed?.signedUrl ?? null
+      }
+      // The INTERNAL library preview — a small JPEG beside the source, never a social cover and
+      // never published. Signed separately so the grid can paint without the video URL at all;
+      // null when a row has no thumbnail yet, which the grid falls back from.
+      let thumbUrl: string | null = null
+      const thumbPath = typeof r.thumb_storage_path === "string" ? r.thumb_storage_path : null
+      if (thumbPath) {
+        const { data: signedThumb } = await supabase.storage.from("social-media").createSignedUrl(thumbPath, SIGNED_URL_TTL)
+        thumbUrl = signedThumb?.signedUrl ?? null
       }
       return {
         id: r.id,
@@ -53,6 +62,7 @@ export async function GET() {
         placeId: r.place_id,
         createdAt: r.created_at,
         previewUrl,
+        thumbUrl,
         // SA-only prepared public-post overrides live in details.preparedPost (jsonb).
         preparedPost:
           r.details && typeof r.details === "object" && !Array.isArray(r.details)
