@@ -25,11 +25,29 @@ export const DEFAULT_CONFIG: SmartLeadFormConfig = {
   branding: {
     logoUrl: null,
     agentPhotoUrl: null,
-    agentPhotoSize: "medium",
-    profileImagePosition: "underHeadline",
+    // DEFAULTS FOR A FORM NOBODY HAS CONFIGURED YET.
+    //
+    // These three were medium / underHeadline / medium and are now large /
+    // overlapping / dark — the combination already proven on a live locator form
+    // rather than a guess. They apply ONLY where a value has never been saved:
+    // mergeSmartFormConfig layers a saved config OVER this object, so an agent who
+    // chose their own photo size, position or overlay keeps it untouched. Verified
+    // against production before the change: every saved config carries all three
+    // keys explicitly, so none of them inherits anything from here.
+    //
+    // Overlapping also brings the reassurance line with it — AgentProfile (which
+    // renders the green pill) is only mounted in the overlapping layout, and Under
+    // Headline never showed it. So this ADDS that line to new forms; it does not
+    // move, restyle or remove it anywhere.
+    agentPhotoSize: "large",
+    profileImagePosition: "overlapping",
+    // "custom" + a null image is the neutral dark hero, and it stays the fallback
+    // for a workspace with no market: buildInitialSmartFormConfig only writes
+    // heroTheme when defaultThemeForMarkets resolves one, so an unknown market
+    // keeps this dark background rather than borrowing another city's skyline.
     heroTheme: "custom",
     heroImageUrl: null,
-    heroOverlay: "medium",
+    heroOverlay: "dark",
     buttonColor: "#2f6bff",
   },
   copy: {
