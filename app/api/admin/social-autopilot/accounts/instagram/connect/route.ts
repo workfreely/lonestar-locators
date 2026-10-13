@@ -3,11 +3,18 @@ export const runtime = "nodejs"
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin"
-import { instagramConfigured, instagramRedirectUri, instagramAuthorizeUrl } from "@/lib/social/instagram"
+import {
+  INSTAGRAM_ADMIN_SCOPES,
+  instagramConfigured,
+  instagramRedirectUri,
+  instagramAuthorizeUrl,
+} from "@/lib/social/instagram"
 
 // GET → begin Instagram (Instagram Login) OAuth. Platform-admin ONLY. Generates a
 // cryptographically-secure state nonce, stores it in a short-lived httpOnly cookie, and
-// redirects to Instagram's authorization window requesting only instagram_business_basic.
+// redirects to Instagram's authorization window requesting INSTAGRAM_ADMIN_SCOPES (basic +
+// content_publish + manage_comments). The client invite flow is unaffected and still requests
+// INSTAGRAM_SCOPES, because the comments scope is only usable on an account we own.
 // When credentials are missing it bounces back to Accounts with ?error=not_configured.
 export async function GET(request: Request) {
   const guard = await requirePlatformAdmin()
@@ -22,7 +29,7 @@ export async function GET(request: Request) {
 
   const state = crypto.randomUUID()
   const redirectUri = instagramRedirectUri(origin)
-  const authorizeUrl = instagramAuthorizeUrl(redirectUri, state)
+  const authorizeUrl = instagramAuthorizeUrl(redirectUri, state, INSTAGRAM_ADMIN_SCOPES)
 
   const jar = await cookies()
   jar.set("ig_oauth_state", state, {

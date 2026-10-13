@@ -4,10 +4,11 @@ import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin"
 import {
-  INSTAGRAM_SCOPES,
+  INSTAGRAM_ADMIN_SCOPES,
   exchangeCodeForShortToken,
   exchangeForLongLivedToken,
   fetchInstagramProfile,
+  grantedScopes,
   instagramConfigured,
   instagramRedirectUri,
   expiryFromExpiresIn,
@@ -49,11 +50,15 @@ export async function GET(request: Request) {
     const profile = await fetchInstagramProfile(long.access_token)
 
     const externalId = String(profile.user_id ?? short.user_id ?? "")
+    // Store what Instagram says it GRANTED, not what we asked for. A partial grant stored as the
+    // full request would make a later publish failure unexplainable; `grantedScopes` falls back to
+    // the requested list only when the exchange reports nothing.
+    const scopes = grantedScopes(INSTAGRAM_ADMIN_SCOPES, short.permissions)
     const { error } = await supabase.rpc("sa_connect_instagram", {
       p_external_account_id: externalId || null,
       p_username: profile.username ?? null,
       p_account_type: profile.account_type ?? null,
-      p_scopes: INSTAGRAM_SCOPES,
+      p_scopes: scopes,
       p_token: long.access_token,
       p_expires_at: expiryFromExpiresIn(long.expires_in),
     })

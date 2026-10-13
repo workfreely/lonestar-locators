@@ -25,6 +25,43 @@ const GRAPH_BASE = "https://graph.instagram.com"
  *  RE-CONNECT (disconnect → connect) before the granted token can publish. */
 export const INSTAGRAM_SCOPES = ["instagram_business_basic", "instagram_business_content_publish"] as const
 
+/**
+ * Scopes for OUR OWN account (the platform-admin Connect/Reconnect flow only).
+ *
+ * WHY THIS IS SEPARATE FROM INSTAGRAM_SCOPES. The invite flow above authorizes OTHER PEOPLE's
+ * accounts. Meta grants a permission at Standard Access only to "app users who have a role on the
+ * requesting app", and comment reading on an account we do not own or manage needs ADVANCED Access,
+ * which needs App Review and Business Verification. So asking a client for the comments scope would
+ * at best be refused and at worst break an authorization that works today. The comments scope is
+ * therefore requested ONLY where it is actually usable: our own account.
+ *
+ * ADDITIVE BY CONSTRUCTION. Spreading INSTAGRAM_SCOPES rather than re-typing it means the publishing
+ * scope cannot be dropped here by editing one list and forgetting the other — a reconnect that lost
+ * instagram_business_content_publish would silently break Social Beast publishing.
+ */
+export const INSTAGRAM_ADMIN_SCOPES = [...INSTAGRAM_SCOPES, "instagram_business_manage_comments"] as const
+
+/**
+ * What the provider says it actually GRANTED, falling back to what we asked for.
+ *
+ * The token exchange may report a `permissions` array. When it does, that is the truth and the
+ * requested list is only an intention — storing the intention would let a partial grant look
+ * complete, so a later publish would fail with no record of why. When it does not report anything,
+ * the requested list is the best available answer and is stored as before.
+ */
+export function grantedScopes(requested: readonly string[], reported: readonly string[] | undefined): string[] {
+  const seen = (reported ?? []).map((p) => p.trim()).filter(Boolean)
+  return seen.length > 0 ? seen : [...requested]
+}
+
+/** Requested scopes the provider did NOT report as granted. Empty when nothing is missing, or when
+ *  the provider reported nothing at all (in which case we know nothing, rather than nothing missing). */
+export function missingScopes(requested: readonly string[], reported: readonly string[] | undefined): string[] {
+  const seen = (reported ?? []).map((p) => p.trim()).filter(Boolean)
+  if (seen.length === 0) return []
+  return requested.filter((r) => !seen.includes(r))
+}
+
 // Read env values defensively: trim stray whitespace so a copy/paste artifact never leaks
 // into the OAuth URL. The Instagram App ID is always numeric.
 function appId(): string {
@@ -57,13 +94,21 @@ export function isValidOAuthState(received: string | null | undefined, expected:
   return !!received && !!expected && received === expected
 }
 
-/** Instagram authorization-window URL. `state` is our CSRF nonce. */
-export function instagramAuthorizeUrl(redirectUri: string, state: string): string {
+/** Instagram authorization-window URL. `state` is our CSRF nonce.
+ *
+ *  `scopes` DEFAULTS TO THE INVITE SET so that adding a scope for our own account cannot change what
+ *  a client is asked to approve: the admin flow passes INSTAGRAM_ADMIN_SCOPES explicitly, every
+ *  other caller keeps the behaviour it already had. */
+export function instagramAuthorizeUrl(
+  redirectUri: string,
+  state: string,
+  scopes: readonly string[] = INSTAGRAM_SCOPES,
+): string {
   const params = new URLSearchParams({
     client_id: appId(),
     redirect_uri: redirectUri,
     response_type: "code",
-    scope: INSTAGRAM_SCOPES.join(","),
+    scope: scopes.join(","),
     state,
   })
   return `${AUTHORIZE_URL}?${params.toString()}`
