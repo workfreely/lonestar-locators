@@ -103,7 +103,14 @@ const render = read("lib/social/renderVideo.ts")
 // also means they now cover the BULK path, not just the interactive one.
 const route = read("lib/social/renderPost.ts")
 
-ok("PostEditor passes post.platform", /computeOverlayLayout\(overlayTemplate, headline, overlayDetail, post\.platform\)/.test(editor))
+// STRENGTHENED. The editor used to pass post.platform, which agreed with the renderer only because
+// every post was instagram_reel and both happened to land on Instagram — two different columns read
+// through two different functions. It now resolves destination -> safeAreaId exactly as renderPost
+// does, which is what makes preview/burn-in parity structural rather than coincidental.
+ok("PostEditor passes the destination-resolved safe area", /computeOverlayLayout\(overlayTemplate, headline, overlayDetail, previewSafeAreaId\)/.test(editor))
+ok("…resolved through DESTINATIONS, the same lookup renderPost uses", /previewSafeAreaId = DESTINATIONS\[currentDestination\]\.safeAreaId/.test(editor))
+ok("…from the post's destination, falling back to the legacy platform", /currentDestination = isSocialDestination\(post\.destination\) \? post\.destination : destinationFromLegacyPlatform\(post\.platform\)/.test(editor))
+ok("…and NOT the raw platform column any more", !/computeOverlayLayout\(overlayTemplate, headline, overlayDetail, post\.platform\)/.test(editor))
 ok("…not the UI-only platform selector", !/computeOverlayLayout\([^)]*selectedPlatforms/.test(editor))
 ok("the library card preview passes the draft's platform", /computeOverlayLayout\(tpl, headline, newest\.overlaySubheadline \?\? "", newest\.platform \?\? undefined\)/.test(client))
 ok("…and the rollup actually carries platform", /platform: p\.platform \?\? null,/.test(client))
@@ -118,8 +125,12 @@ ok("…and forwards it to renderReel", /platform: \(p\.platform as string \| nul
 const callSiteLines = [editor, client, bulk, render].flatMap((src) =>
   src.split("\n").filter((ln) => ln.includes("computeOverlayLayout(") && !/^\s*(\/\/|\*|\/\*)/.test(ln)))
 ok("exactly 4 live computeOverlayLayout call sites (add a new one ⇒ wire it here too)", callSiteLines.length === 4)
-ok("…and every one of them passes a platform argument", callSiteLines.every((ln) =>
-  /post\.platform|newest\.platform|DEFAULT_PLATFORM|input\.platform/.test(ln)))
+// A SAFE-AREA argument, not a platform column. The editor now passes previewSafeAreaId, resolved
+// from the post's destination the way renderPost resolves it; the others still pass a platform or
+// the explicit default. What matters is that no call site falls back to computeOverlayLayout's own
+// DEFAULT_PLATFORM by omission, which would silently fit a TikTok preview to Instagram's box.
+ok("…and every one of them passes an explicit geometry argument", callSiteLines.every((ln) =>
+  /previewSafeAreaId|post\.platform|newest\.platform|DEFAULT_PLATFORM|input\.platform|safeAreaId/.test(ln)))
 
 // BulkReview's explicit default is only correct while post creation is single-platform.
 console.log("\nBULK REVIEW'S DEFAULT STILL MATCHES WHAT POST CREATION ASSIGNS:")

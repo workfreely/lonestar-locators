@@ -508,6 +508,8 @@ const HOOK_FLOOR_PX = 22 // only reachable by copy too long for the box even at 
 // sit at ONE shared safe position so the three read as a family on the profile grid.
 //
 // So it reads OVERLAY_SPEC.headline.yFrac again, deliberately. There is exactly one top anchor.
+// Retained as the documented statement that T16 shares T1's anchor; the live value now comes
+// from topAnchorPx(platform), which resolves that same expression for Instagram.
 const CENTER_HOOK_TOP_YFRAC = OVERLAY_SPEC.headline.yFrac
 
 // ── Conversational safe box ──────────────────────────────────────────────────────────────────
@@ -658,6 +660,39 @@ export type OverlayLayout = { family: LayoutFamily; headline: OverlayBlock; deta
 
 /** Resolve the on-canvas (1080×1920) layout for a template + its already-computed headline/detail
  *  text. Shared by the CSS preview and the FFmpeg render so the two match. */
+
+// ── THE TOP ANCHOR IS NOW PER PLATFORM ──────────────────────────────────────────────────────────
+// The three top-anchored templates — T1 market_type, T4 special_feature and T16
+// what_mo_gets_you_top — share ONE vertical position, deliberately, so they read as a family on
+// the profile grid. That shared position is what this resolves; it does not give any template an
+// anchor of its own.
+//
+// INSTAGRAM IS FROZEN AT 427. Not approximately: the map below has no instagram entry, so
+// Instagram falls through to exactly the expression it has always used
+// (OVERLAY_SPEC.headline.yFrac * H = 427). There is no new arithmetic in Instagram's path, so it
+// cannot drift by a rounding step. 427 was arrived at through a round of trial and error and is
+// approved; nothing here may move it.
+//
+// TIKTOK IS 300, AND IT IS A TEST VALUE. Measured from two real published screenshots (the video
+// frame maps to screenshot y 129.5–1766.5 at scale 0.8527, verified by predicting the burned-in
+// headline's cap-top at 493.6 against a measured 495): TikTok's top chrome ends at canvas y 83 on
+// a profile view, its rail starts at x 970, and an EXPANDED caption climbs to y 831. 300 clears
+// all three with room, and keeps clear of a conservative 160 floor that allows for the For You
+// feed's lower Following/For You tabs, which neither screenshot shows.
+//
+// It is explicitly NOT final. It is authorised for one supervised SELF_ONLY test so the placement
+// can be judged on a phone against TikTok's real interface, which is the only way this gets
+// settled — a desktop preview cannot answer it. Expect to change this one number.
+const PLATFORM_TOP_ANCHOR_PX: Record<string, number> = {
+  tiktok: 300,
+}
+
+/** The shared top-anchor y for the top-anchored family, for this platform. Instagram and anything
+ *  unknown fall through to the historic yFrac expression, unchanged. */
+function topAnchorPx(platform: string): number {
+  return PLATFORM_TOP_ANCHOR_PX[(platform ?? "").toLowerCase()] ?? OVERLAY_SPEC.headline.yFrac * OVERLAY_CANVAS.h
+}
+
 export function computeOverlayLayout(template: string, headlineText: string, detailText: string, platform: string = DEFAULT_PLATFORM): OverlayLayout {
   const family = templateFamily(template)
   const H = OVERLAY_CANVAS.h
@@ -699,7 +734,7 @@ export function computeOverlayLayout(template: string, headlineText: string, det
     const gap = hasDetail ? heroGapPx : 0
     const totalH = headBlockH + gap + detailBlockH
     // Anchor: near-top (yFrac) for T1; vertical center of the group for the Centered variant.
-    const headTop = centered ? (H - totalH) / 2 : OVERLAY_SPEC.headline.yFrac * H
+    const headTop = centered ? (H - totalH) / 2 : topAnchorPx(platform)
     // Per-line tops for the compound two-line title: each line's top is the running sum of the
     // PRECEDING line sizes, so a smaller line 2 sits directly under line 1 with the same gap the
     // single-size path uses. Horizontal centring is not computed here — both lines inherit the same
@@ -819,7 +854,7 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   // mirror image of T2, which is T1's typography at a centered anchor. Only the anchor differs, and it
   // reuses T1's own yFrac constant, so the hook typography/fit stays identical to T11's.
   const topAnchored = template === "what_mo_gets_you_top"
-  const groupTop = topAnchored ? CENTER_HOOK_TOP_YFRAC * H : (H - totalH) / 2
+  const groupTop = topAnchored ? topAnchorPx(platform) : (H - totalH) / 2
   const headline: OverlayBlock = { lines, fontPx: hookPx, topPx: groupTop, uppercase: false, sideMarginPx: sideMarginPx(platform), lineSpacing: CENTER_HOOK.lineSpacing, face: "head" }
   const detailBlock: OverlayBlock | null = hasDetail
     ? { lines: detailLines, fontPx: detailPx, topPx: groupTop + headBlockH + gap, uppercase: false, sideMarginPx: sideMarginPx(platform), lineSpacing: OVERLAY_SPEC.sub.lineSpacing, face: "head" }

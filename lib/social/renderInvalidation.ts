@@ -34,7 +34,15 @@
  *   caption, hashtags, social_special  — Instagram caption text, never drawn into the video
  *   cover_thumb_offset_ms, cover_storage_path, cover_render_version
  *                                      — which frame Instagram SHOWS, not what the MP4 contains
- *   scheduled_at, status, destination, post_name, on_video_text/config
+ *   scheduled_at, status, post_name, on_video_text/config
+ *
+ * `destination` USED TO BE ON THAT LIST, and was correct there for as long as every destination
+ * resolved to Instagram's geometry. It no longer does: tiktok_video resolves to the `tiktok` safe
+ * area, whose top-anchored family sits at y300 rather than y427. The destination therefore decides
+ * the pixels now, and leaving it out would let a post switched to TikTok keep an
+ * Instagram-geometry MP4 marked `ready` — the exact "an Instagram render published as the TikTok
+ * version" failure this release exists to prevent. renderJobKey() already keyed on it; this is the
+ * invalidation side catching up.
  */
 export const RENDER_AFFECTING_COLUMNS = [
   "overlay_headline",
@@ -56,6 +64,9 @@ export const RENDER_AFFECTING_COLUMNS = [
   "presenter_audio_storage_path",
   "presenter_side",
   "presenter_width_px",
+  // THE SURFACE. Resolves to a safe area, and the safe area decides the geometry — see the note
+  // above. Mirrors renderJobKey(), which has always taken it.
+  "destination",
 ] as const
 
 export type RenderAffectingColumn = (typeof RENDER_AFFECTING_COLUMNS)[number]

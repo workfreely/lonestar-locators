@@ -16,6 +16,7 @@ import {
   type TikTokPrivacyLevel,
 } from "@/lib/social/tiktokPublish"
 import { truncateToRunes } from "@/lib/social/tiktok"
+import { DESTINATIONS, isSocialDestination, destinationFromLegacyPlatform } from "@/lib/social/destinations"
 
 // TikTok's Direct Post title limit (UTF-16 runes). The TikTok title is the Social Beast caption
 // BODY (same structure/spacing as Instagram, manual edits preserved) plus TikTok-specific hashtags
@@ -62,17 +63,37 @@ export async function POST(req: NextRequest) {
   // Reuse an existing, currently-rendered Social Beast post's video + caption (RLS owner-scoped).
   const { data: post } = await supabase
     .from("social_posts")
-    .select("id, render_status, rendered_storage_path, caption, hashtags, social_special, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
+    .select("id, destination, platform, render_status, rendered_storage_path, caption, hashtags, social_special, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
     .eq("id", body.postId)
     .maybeSingle()
   if (!post) return NextResponse.json({ error: "not_found" }, { status: 404 })
   const p = post as {
-    id: string; render_status: string; rendered_storage_path: string | null
+    id: string; destination: string | null; platform: string | null
+    render_status: string; rendered_storage_path: string | null
     caption: string | null; hashtags: string[] | null; social_special: string | null; source_content_id: string | null
     source: { market: string | null; property_type: string | null; special: string | null; budget_range: string | null; amenities: string | null } | { market: string | null; property_type: string | null; special: string | null; budget_range: string | null; amenities: string | null }[] | null
   }
   if (p.render_status !== "ready" || !p.rendered_storage_path) {
     return NextResponse.json({ error: "not_ready" }, { status: 409 })
+  }
+
+  // THE RENDER MUST HAVE BEEN MADE WITH TIKTOK'S GEOMETRY.
+  //
+  // Until now this route checked only that SOME render existed. Every post in the system is
+  // created as instagram_reel, so what it actually posted to TikTok was an Instagram-geometry MP4
+  // — headline at y427, fitted to Instagram's 860px box — and nothing anywhere said so. That is
+  // how the first Sandbox post went out.
+  //
+  // The destination is what resolves the safe area (DESTINATIONS[d].safeAreaId), and the safe area
+  // is what decides the pixels, so the destination is the thing to check. Refusing here is the
+  // only place this can be caught: by the time bytes are uploaded the geometry is already baked in,
+  // and TikTok will happily accept a video laid out for a different app.
+  const destination = isSocialDestination(p.destination) ? p.destination : destinationFromLegacyPlatform(p.platform)
+  if (DESTINATIONS[destination].provider !== "tiktok") {
+    return NextResponse.json({
+      error: "wrong_destination",
+      detail: `This post is set to ${DESTINATIONS[destination].label}, so its video was rendered with that app's safe area. Switch the post to TikTok and re-render before posting.`,
+    }, { status: 409 })
   }
 
   // Token (Vault; refreshed if expired) — server-only, never returned to the client.

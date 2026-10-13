@@ -15,6 +15,7 @@ import type { IconType } from "react-icons"
 import { buildHashtags, normalizeHashtag, hashtagLimitFor, MAX_HASHTAGS } from "@/lib/social/hashtags"
 import { PRICE_LABEL_MODES, priceLabelMode as narrowPriceLabelMode, type PriceLabelMode, buildCaption, specialDisplay, buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, DEFAULT_OVERLAY_TEMPLATE, type OverlayTemplate, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags, isOverlayPreviewStale, type OverlayPreviewBaseline, type SourceMeta } from "@/lib/social/composePost"
 import SpecialSelect from "@/components/crm/social/SpecialSelect"
+import { DESTINATIONS, isSocialDestination, destinationFromLegacyPlatform } from "@/lib/social/destinations"
 import { computeOverlayLayout } from "@/lib/social/overlaySpec"
 import ReelCoverControl from "@/components/crm/social/ReelCoverControl"
 import SafeAreaOverlay from "@/components/crm/social/SafeAreaOverlay"
@@ -70,6 +71,10 @@ type Post = {
   needsReviewAt?: string | null
   needsReviewReason?: string | null
   platform: string
+  /** The SURFACE this post is laid out for. Resolves the safe area, so it decides the geometry the
+   *  preview must draw and the renderer must burn in. Absent on rows written before destinations
+   *  existed — destinationFromLegacyPlatform covers those. */
+  destination?: string | null
   postType: string
   postName: string | null
   caption: string | null
@@ -198,13 +203,29 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // Selected publishing destinations (multi-select set; Instagram default so existing Instagram
   // posts/workflow are unchanged). UI-only — not wired to publishing/persistence in this task.
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(() => new Set(["instagram"]))
-  const togglePlatform = (id: string) =>
+  // THE SELECTOR NOW DRIVES THE RENDER, which it did not before: it was local state, reset to
+  // Instagram on every mount and never written back, so selecting TikTok changed the hashtag cap
+  // and nothing else. Every post stayed instagram_reel, every render used Instagram's safe area,
+  // and the TikTok publisher uploaded that Instagram-geometry MP4.
+  //
+  // UNAMBIGUOUS SELECTIONS ONLY. A post carries one destination, so the surface is written only
+  // when exactly one platform is chosen. With several selected the stored destination is left
+  // alone rather than guessed at — and if that leaves it pointing somewhere other than TikTok, the
+  // TikTok publish route refuses with a message naming the mismatch. Failing loudly there beats
+  // silently picking a surface the operator did not choose.
+  const togglePlatform = (id: string) => {
     setSelectedPlatforms((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
+      const only = next.size === 1 ? [...next][0] : null
+      const destination = only === "tiktok" ? "tiktok_video" : only === "instagram" ? "instagram_reel" : null
+      // Changing the surface changes the geometry, so the server invalidates the render — which is
+      // why this is a real save rather than local state. Published posts are refused server-side.
+      if (destination && destination !== currentDestination) void patch({ destination }, null).then((ok) => { if (ok) void load() })
       return next
     })
+  }
   // Platform-aware editor cap: the strictest (smallest) limit among the selected destinations (any
   // selection including TikTok → 5; Instagram and/or YouTube alone → 7), falling back to the Instagram
   // baseline (MAX_HASHTAGS) when nothing is selected. Existing tags above this cap are kept, not
@@ -837,6 +858,10 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // schedule, destination, post name) are deliberately NOT gated by this — they change nothing in
   // the MP4, and the PATCH route now agrees (lib/social/renderInvalidation).
   const hasRender = post.hasRender ?? (post.renderStatus === "ready" && !!post.renderedPreviewUrl)
+  // The post's surface and the safe area it implies — one resolution, shared by the preview above
+  // and the destination writes in togglePlatform.
+  const currentDestination = isSocialDestination(post.destination) ? post.destination : destinationFromLegacyPlatform(post.platform)
+  const previewSafeAreaId = DESTINATIONS[currentDestination].safeAreaId
   const locked = hasRender && !unlocked
   const previewSrc = rendered ? post.renderedPreviewUrl : post.previewUrl // source for the enlarge modal
   // The chosen template's layout drives the preview (Hero / Center Hook / Center Hook + Detail),
@@ -849,7 +874,14 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   //
   // Deliberately NOT `selectedPlatforms`: that selector is UI-only preparation for the eventual
   // multi-platform workflow and does not change post.platform or what gets rendered.
-  const overlayLayout = overlayMode === "existing" ? null : computeOverlayLayout(overlayTemplate, headline, overlayDetail, post.platform)
+  // PREVIEW GEOMETRY RESOLVES EXACTLY AS THE RENDERER DOES: destination -> safeAreaId.
+  //
+  // It used to pass post.platform straight in. That agreed with the render only because every post
+  // was instagram_reel and both happened to land on Instagram; the two were reading different
+  // columns through different functions. A destination id is NOT a safe-area id — safeAreaFor()
+  // falls back to Instagram for an unknown key, silently — so resolving it through DESTINATIONS is
+  // what keeps the preview honest rather than accidentally right.
+  const overlayLayout = overlayMode === "existing" ? null : computeOverlayLayout(overlayTemplate, headline, overlayDetail, previewSafeAreaId)
 
   // Posting mode toggle (Post Once / Recurring) — reused as-is in two positions: above the Repeat
   // settings form, and inline in the compact Posting|Scheduled row. Same handler/state either way.

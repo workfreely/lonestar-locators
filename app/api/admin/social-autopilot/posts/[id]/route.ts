@@ -6,6 +6,7 @@ import { isValidPostType } from "@/lib/social/postTypes"
 import { normalizeHashtag, hashtagLimitForPlatform } from "@/lib/social/hashtags"
 import { isOverlayTemplate } from "@/lib/social/composePost"
 import { renderAffectingChanges, valueChanged } from "@/lib/social/renderInvalidation"
+import { isSocialDestination } from "@/lib/social/destinations"
 import { ensureStoryCompanion } from "@/lib/social/storyCompanion"
 import { hasRender, isRenderedReady, type LaneFacts } from "@/lib/social/postLane"
 
@@ -17,7 +18,7 @@ import { hasRender, isRenderedReady, type LaneFacts } from "@/lib/social/postLan
 // 'none') — but ONLY when the value actually CHANGES, not merely because the editor posted the
 // key. See lib/social/renderInvalidation.
 const SELECT =
-  "id, platform, post_type, post_name, caption, social_special, on_video_text, on_video_config, " +
+  "id, platform, destination, post_type, post_name, caption, social_special, on_video_text, on_video_config, " +
   "overlay_headline, overlay_subheadline, overlay_mode, overlay_template, cover_thumb_offset_ms, cover_storage_path, cover_render_version, hashtags, audio_choice, audio_track_id, voice_hook_id, voice_cta_id, rendered_storage_path, render_status, render_error, render_version, " +
   "status, scheduled_at, published_at, external_post_id, external_post_url, created_at, updated_at, source_content_id, source_storage_path, approved_at, draft_saved_at, needs_review_at, needs_review_reason, " +
   "presenter_id, presenter_intro_seconds, presenter_side, presenter_width_px, presenter_clip_storage_path, presenter_audio_storage_path, " +
@@ -111,6 +112,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     thumbUrl: thumb.url,
     id: r.id,
     platform: r.platform,
+    // The SURFACE. The editor resolves its preview geometry from this, exactly as renderPost does,
+    // so the preview and the burned-in frame cannot disagree about which safe area applies.
+    destination: (r.destination as string | null) ?? null,
     postType: r.post_type,
     postName: r.post_name,
     caption: r.caption,
@@ -212,7 +216,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   // hashtags — so this is one query where there were two.
   const { data: storedRow } = await supabase
     .from("social_posts")
-    .select("id, platform, published_at, external_post_id, render_version, source_storage_path, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, audio_track_id, voice_hook_id, voice_cta_id")
+    .select("id, platform, destination, published_at, external_post_id, render_version, source_storage_path, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, audio_track_id, voice_hook_id, voice_cta_id")
     .eq("id", id)
     .maybeSingle()
   const stored = (storedRow ?? null) as Record<string, unknown> | null
@@ -220,6 +224,23 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   const str = (v: unknown, max = 2200) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null)
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  // THE SURFACE this post is laid out for. It resolves the safe area, so it decides the geometry —
+  // which is why it is in RENDER_AFFECTING_COLUMNS and why changing it invalidates the render.
+  //
+  // REFUSED ON A PUBLISHED POST. Re-pointing a post that is already live on Instagram would
+  // invalidate the very MP4 Instagram is serving, so a published post keeps its destination and
+  // a new post is the way to target another surface. `isPublished` is already computed above for
+  // the footage lock and means exactly the same thing here.
+  if ("destination" in body && isSocialDestination(body.destination) && !isPublished) {
+    patch.destination = body.destination
+    // The legacy `platform` column is deliberately NOT written alongside it. It is a protected
+    // column (owner, source, platform, published_at, render pointers are never patched here), and
+    // it does not need to follow: destinationFromLegacyPlatform is consulted only when destination
+    // is NULL, so once a destination exists every geometry path — renderPost, the TikTok publish
+    // guard, the editor preview — reads the destination and ignores platform entirely. The one
+    // other reader, the stored-hashtag cap, does not affect TikTok, whose hashtags are generated
+    // separately by buildTikTokCaptionPayload rather than taken from the stored set.
+  }
   if ("postName" in body) patch.post_name = str(body.postName, 300)
   if (typeof body.postType === "string" && isValidPostType("instagram", body.postType)) patch.post_type = body.postType
   if ("caption" in body) patch.caption = str(body.caption)

@@ -98,10 +98,13 @@ ok("stored null + no composer keys -> does not", !shouldInvalidateRender(null, {
 ok("renderAffectingChanges on a null stored row reports nothing", renderAffectingChanges(null, UNCHANGED_COMPOSER).length === 0)
 
 console.log("\nthe render-affecting list covers exactly the burned-in inputs:")
-for (const c of ["overlay_headline", "overlay_subheadline", "overlay_mode", "overlay_template", "audio_choice", "voice_hook_id", "voice_cta_id", "source_storage_path"]) {
+// `destination` MOVED into the render-affecting set. It was correctly excluded for as long as every
+// destination resolved to Instagram's geometry; tiktok_video now resolves to the `tiktok` safe
+// area, whose top-anchored family sits at y300 rather than y427, so the surface decides the pixels.
+for (const c of ["overlay_headline", "overlay_subheadline", "overlay_mode", "overlay_template", "audio_choice", "voice_hook_id", "voice_cta_id", "source_storage_path", "destination"]) {
   ok(`${c} is render-affecting`, (RENDER_AFFECTING_COLUMNS as readonly string[]).includes(c))
 }
-for (const c of ["caption", "hashtags", "scheduled_at", "cover_thumb_offset_ms", "cover_storage_path", "social_special", "post_name", "destination", "status"]) {
+for (const c of ["caption", "hashtags", "scheduled_at", "cover_thumb_offset_ms", "cover_storage_path", "social_special", "post_name", "status"]) {
   ok(`${c} is NOT render-affecting`, !(RENDER_AFFECTING_COLUMNS as readonly string[]).includes(c))
 }
 
@@ -134,7 +137,7 @@ ok("...and points the operator at Create Variation", /Create Variation[\s\S]{0,1
 ok("the column is nullable so every pre-existing row is unaffected", /add column if not exists source_storage_path text;/.test(migration))
 
 console.log("\nthe PATCH route is change-based, not presence-based:")
-ok("it reads the stored row before deciding", /\.select\("id, platform, published_at, external_post_id, render_version, source_storage_path/.test(patchRoute))
+ok("it reads the stored row before deciding", /\.select\("id, platform, destination, published_at, external_post_id, render_version, source_storage_path/.test(patchRoute))
 ok("it uses renderAffectingChanges", /renderAffectingChanges\(stored, patch\)/.test(patchRoute))
 ok("the old presence-based flag is gone", !/renderAffecting = true/.test(patchRoute))
 ok("invalidation is gated on a real change", /changed\.length > 0[\s\S]{0,120}render_status = "none"/.test(patchRoute))
