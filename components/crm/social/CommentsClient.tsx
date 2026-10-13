@@ -55,7 +55,7 @@ function ago(iso: string | null): string {
  * "nothing happened" is always explained — most importantly `no_stable_id`, which is the honest
  * case where we could not identify the person well enough to message them safely.
  */
-function outcomeOf(c: CommentRow): { text: string; tone: string } {
+function outcomeOf(c: CommentRow): { text: string; tone: string; hint?: string } {
   const dm = c.comment_actions?.find((a) => a.kind === "private_reply")
   const pub = c.comment_actions?.find((a) => a.kind === "public_reply")
   const bad = "bg-[color-mix(in_srgb,var(--crm-danger)_16%,transparent)] text-[var(--crm-danger)]"
@@ -71,7 +71,13 @@ function outcomeOf(c: CommentRow): { text: string; tone: string } {
   // A held comment is awaiting a human — shown before any action reason, because the hold is why
   // no action exists.
   if (c.hold_reason) return { text: `held — ${c.hold_reason.replace(/_/g, " ")}`, tone: warn }
-  if (dm?.reason === "no_stable_id") return { text: "no stable ID — no DM", tone: warn }
+  if (dm?.reason === "no_stable_id") {
+    return {
+      text: "not messaged",
+      tone: warn,
+      hint: "Instagram did not return a verified profile for this commenter, so no private message was sent.",
+    }
+  }
   if (dm?.reason === "already_messaged") return { text: "already messaged", tone: mute }
   if (dm?.reason === "own_account") return { text: "own account — skipped", tone: mute }
   if (!c.matched_keyword) return { text: "no match", tone: mute }
@@ -103,6 +109,9 @@ export default function CommentsClient({
     return byPerson
   }, [comments])
 
+  // True when no rule has a saved variation — the repeated per-row notice collapses into one line.
+  const noVariations = rules.length > 0 && rules.every((r) => r.comment_reply_variants.length === 0)
+
   const tab = (id: typeof view, text: string) => (
     <button
       key={id}
@@ -122,28 +131,27 @@ export default function CommentsClient({
 
   return (
     <div>
-      <div className="mb-3 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-panel)] px-4 py-2.5 text-[12.5px] text-[var(--crm-text-secondary)]">
-        <b className="text-[var(--crm-text-primary)]">Automation is off.</b>{" "}
-        Comment permissions have not been requested yet, so nothing is collected, replied to or messaged. This tab is
-        here to review the rules before any of that is turned on.
-      </div>
-
-      <div className="flex gap-1.5 flex-wrap mb-4">
-        {tab("inbox", "Inbox")}
-        {tab("rules", "Reply Bank")}
-        {tab("automation", "Automation")}
+      {/* The state is shown as a small persistent status, not a banner. It stays truthful without
+          explaining itself: the Automation view carries the detail. */}
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+        <div className="flex gap-1.5 flex-wrap">
+          {tab("inbox", "Inbox")}
+          {tab("rules", "Reply Bank")}
+          {tab("automation", "Automation")}
+        </div>
+        <span className="inline-flex items-center gap-1.5 text-[11.5px] text-[var(--crm-text-muted)] whitespace-nowrap">
+          <span className="w-1.5 h-1.5 rounded-full bg-[var(--crm-text-muted)]" aria-hidden="true" />
+          Automation off
+        </span>
       </div>
 
       {view === "inbox" && (
         <div className={card}>
-          <div className={label}>Inbox</div>
-          <p className="text-[12px] text-[var(--crm-text-muted)] mt-1 mb-3">
-            Comments on your connected accounts, newest first. Outcome comes from the action ledger, so a skip always
-            shows why.
-          </p>
+          <div className={`${label} mb-3`}>Inbox</div>
           {comments.length === 0 ? (
-            <div className="text-[12.5px] text-[var(--crm-text-muted)] py-8 text-center">
-              No comments collected yet. They appear here once comment permissions are granted and polling is enabled.
+            <div className="py-10 text-center">
+              <div className="text-[13px] font-semibold text-[var(--crm-text-secondary)]">No comments yet</div>
+              <div className="text-[12px] text-[var(--crm-text-muted)] mt-1">Comments will appear here once connected.</div>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -201,7 +209,7 @@ export default function CommentsClient({
                           )}
                         </td>
                         <td className="px-2 py-2 align-top">
-                          <span className={`${pill} ${outcome.tone}`}>{outcome.text}</span>
+                          <span className={`${pill} ${outcome.tone}`} title={outcome.hint}>{outcome.text}</span>
                         </td>
                         <td className="px-2 py-2 align-top text-[var(--crm-text-muted)] whitespace-nowrap tabular-nums">{ago(c.commented_at)}</td>
                         <td className="px-2 py-2 align-top whitespace-nowrap">
@@ -225,11 +233,16 @@ export default function CommentsClient({
 
       {view === "rules" && (
         <div className={card}>
-          <div className={label}>Reply Bank</div>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className={label}>Reply Bank</div>
+            {rulesArePreview && (
+              <span className={`${pill} border border-[var(--crm-border)] text-[var(--crm-text-muted)]`}>Preview — not saved</span>
+            )}
+          </div>
+          {/* An enabled rule and live automation are different things, and the distinction has to be
+              unmistakable: every rule below reads "Enabled" while nothing sends. */}
           <p className="text-[12px] text-[var(--crm-text-muted)] mt-1 mb-3">
-            {rulesArePreview
-              ? "Preview of the approved keyword set — not yet saved. Matching is case-insensitive, punctuation-tolerant and whole-word only; exactly one rule fires per comment."
-              : "Keyword → property interest → public reply variations. Exactly one rule fires per comment."}
+            Enabled rules do not send while automation is off.
           </p>
           <div>
             {rules.map((r) => (
@@ -239,21 +252,25 @@ export default function CommentsClient({
                   <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-1">{r.property_type ?? "general interest"}</div>
                 </div>
                 <div className="text-[12px] text-[var(--crm-text-secondary)]">
+                  {/* The empty case is stated ONCE, under the list, rather than on every row. */}
                   {r.comment_reply_variants.length === 0
-                    ? <span className="text-[var(--crm-text-muted)]">No variations configured yet.</span>
+                    ? <span className="text-[var(--crm-text-muted)]">—</span>
                     : r.comment_reply_variants.map((v) => <div key={v.id}>{v.body}</div>)}
                 </div>
-                <div className="text-[11.5px] text-[var(--crm-text-muted)]">{r.enabled ? "On" : "Off"}</div>
+                <div className="text-[11.5px] text-[var(--crm-text-muted)]">{r.enabled ? "Enabled" : "Disabled"}</div>
               </div>
             ))}
           </div>
+          {noVariations && (
+            <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-2">No reply variations saved yet.</p>
+          )}
 
           <div className="mt-4 pt-3 border-t border-[var(--crm-border)]">
             <div className={label}>Private message</div>
-            <p className="text-[12px] text-[var(--crm-text-muted)] mt-1 mb-2">Approved wording. Sent at most once per person, per connected account.</p>
+            <p className="text-[12px] text-[var(--crm-text-muted)] mt-1 mb-2">Approved wording.</p>
             <div className="rounded-lg border border-[var(--crm-border)] border-l-2 border-l-[var(--crm-accent)] bg-[var(--crm-card)] px-3 py-2.5 text-[12.5px] text-[var(--crm-text-primary)]">
               {APPROVED_DM_BODY}
-              <div className="text-[var(--crm-accent)] mt-2 break-all">locatorbeast.com/&lt;you&gt;/ig?utm_medium=comment&amp;utm_content=&lt;KEYWORD&gt;</div>
+              <div className="text-[var(--crm-accent)] mt-2 break-all">locatorbeast.com/&lt;you&gt;/ig</div>
             </div>
             <div className={`${label} mt-3`}>Public reply when no DM was sent</div>
             <div className="rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2.5 text-[12.5px] text-[var(--crm-text-secondary)] mt-1">
@@ -265,38 +282,55 @@ export default function CommentsClient({
 
       {view === "automation" && (
         <div className={card}>
-          <div className={label}>Automation</div>
-          <p className="text-[12px] text-[var(--crm-text-muted)] mt-1 mb-3">
-            Every switch defaults off, and the stricter one always wins.
-          </p>
+          <div className={`${label} mb-3`}>Automation</div>
+
+          {/* MASTER STATUS, NOT A SWITCH. There is deliberately no toggle here: comment reading and
+              sending are not implemented, so a control that looked switchable would promise
+              something the product cannot do. The underlying gate (accountAutomationGate) stays
+              fail-closed regardless of what this renders. */}
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-3">
+            <div>
+              <div className="text-[13px] font-semibold text-[var(--crm-text-primary)]">Auto Replies</div>
+              <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-[2px]">
+                {globalEnabled ? "Enabled, but not yet available" : "Not available yet"}
+              </div>
+            </div>
+            <span className={`${pill} border border-[var(--crm-border)] text-[var(--crm-text-muted)]`}>Off</span>
+          </div>
+
+          <div className={`${label} mt-4 mb-1`}>Accounts</div>
+          <div className="flex items-center justify-between gap-3 py-[7px] border-t border-[var(--crm-border)] text-[12.5px]">
+            <span className="inline-flex items-center gap-2 text-[var(--crm-text-primary)]">
+              <SiInstagram size={13} aria-hidden="true" />
+              {ig?.username ? `@${ig.username}` : "Instagram"}
+            </span>
+            <span className="text-[var(--crm-text-muted)] text-right" title={ig ? "Comment access has not been approved for this account yet." : undefined}>
+              {ig ? "Permissions needed" : "Not connected"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-3 py-[7px] border-t border-[var(--crm-border)] text-[12.5px]">
+            <span className="inline-flex items-center gap-2 text-[var(--crm-text-primary)]">
+              <SiTiktok size={13} aria-hidden="true" />
+              {tt?.username ?? "TikTok"}
+            </span>
+            <span className="text-[var(--crm-text-muted)] text-right" title="TikTok does not offer comment replies on this API.">
+              Unavailable
+            </span>
+          </div>
+
+          <div className={`${label} mt-4 mb-1`}>Settings</div>
           {[
-            ["Global auto replies", globalEnabled ? "On" : "Off"],
-            [`Instagram${ig?.username ? ` — @${ig.username}` : ""}`, ig ? "Off" : "Not connected"],
-            [`TikTok${tt?.username ? ` — ${tt.username}` : ""}`, "Unavailable — Business API"],
-            ["Read comments", "Permission needed"],
-            ["Public reply permission", "Permission needed"],
-            ["Private reply (DM) permission", "Permission needed"],
-            ["Like a comment", "Not offered by Instagram"],
-            ["Process comments from", "After activation only"],
+            ["Automatic public replies", "Off"],
             ["Maximum comment age", "24 hours"],
-            ["Automatic public replies", "Off — optional, separate from the DM"],
-            ["Public reply cooldown", "24 hours per person"],
-            ["Held for manual review", "Hostile · spam · negative context · nested replies"],
           ].map(([k, v]) => (
-            <div key={k} className="flex justify-between gap-3 py-[7px] border-t border-[var(--crm-border)] first:border-t-0 text-[12.5px]">
+            <div key={k} className="flex items-center justify-between gap-3 py-[7px] border-t border-[var(--crm-border)] text-[12.5px]">
               <span className="text-[var(--crm-text-primary)]">{k}</span>
               <span className="text-[var(--crm-text-muted)] text-right">{v}</span>
             </div>
           ))}
-          <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-3">
-            A private message is sent at most once per person per connected account, and only when the platform
-            returns a stable user ID. Without one, the commenter gets the public reply instead — a username is not a
-            reliable identity. Switching automation on stamps an activation time and only comments newer than it are
-            ever processed, so turning this on cannot answer a backlog. A send whose outcome could not be established
-            is held, never retried.
-          </p>
         </div>
       )}
+
     </div>
   )
 }
