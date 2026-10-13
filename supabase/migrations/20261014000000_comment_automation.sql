@@ -94,6 +94,11 @@ create table if not exists public.social_commenters (
   -- blocks further attempts, which is the correct failure direction for unsolicited messaging.
   dm_claimed_at    timestamptz,
   dm_sent_at       timestamptz,
+  -- Last automatic PUBLIC acknowledgment to this person on this account. Keyed on the same stable
+  -- id the DM rule uses, so a regular commenter is acknowledged at most once per cooldown across
+  -- EVERY post rather than once per post — three "check your inbox!" replies in an afternoon is
+  -- what a bot looks like. Separate from dm_sent_at, which is once per person for ever.
+  last_public_reply_at timestamptz,
   created_at       timestamptz not null default now()
 );
 create unique index if not exists social_commenters_account_person_uidx
@@ -122,6 +127,11 @@ create table if not exists public.social_comments (
   commented_at        timestamptz,
   matched_rule_id     uuid references public.comment_rules(id) on delete set null,
   matched_keyword     text,
+  -- Why a human should look at this one: hostile, spam_or_promo, negative_context, nested_reply,
+  -- too_old. NULL means screening found nothing. A hold is not a failure — the comment is surfaced
+  -- in the Inbox and nothing automatic happens to it. Ambiguity resolves here rather than to a
+  -- reply, because an automated sales pitch under a complaint is not recoverable.
+  hold_reason         text,
   created_at          timestamptz not null default now()
 );
 -- Re-polling the same comment must be free. This is what makes an overlapping poll window safe.
@@ -132,6 +142,10 @@ create index if not exists social_comments_recent_idx
 -- "Show me this person's history across posts" — the returning-commenter view.
 create index if not exists social_comments_commenter_idx
   on public.social_comments (commenter_id, commented_at desc);
+-- The manual-review queue.
+create index if not exists social_comments_held_idx
+  on public.social_comments (connection_id, commented_at desc)
+  where hold_reason is not null;
 
 -- ── ACTIONS — what we did, and what we are unsure about ─────────────────────────────────────
 -- status: pending | sent | failed | uncertain | skipped
@@ -172,6 +186,22 @@ create table if not exists public.comment_automation_settings (
 create table if not exists public.comment_account_settings (
   connection_id  uuid primary key references public.social_connections(id) on delete cascade,
   enabled        boolean not null default false,
+  -- ── NEW COMMENTS ONLY ─────────────────────────────────────────────────────────────────────
+  -- Stamped when automation is switched ON for this account. Comments older than it are skipped
+  -- outright, so enabling the feature cannot answer a backlog: somebody who commented three weeks
+  -- ago is not expecting a reply today, and a burst of messages into old threads is the clearest
+  -- way to look like a bot and have an account restricted. The same boundary covers a reconnection
+  -- after downtime, which is the other way a backlog appears.
+  --
+  -- NULL means never activated, and accountAutomationGate refuses on a NULL — an account switched
+  -- on without a stamp has no "new comments only" boundary, so nothing may run.
+  activated_at   timestamptz,
+  -- A second, independent ceiling on age, so a long outage cannot release a flood even when
+  -- activated_at is old. One day by default.
+  max_comment_age_minutes integer not null default 1440,
+  -- Public acknowledgments are OPTIONAL and separate from the DM. Off until chosen.
+  public_replies_enabled  boolean not null default false,
+  public_reply_cooldown_minutes integer not null default 1440,
   updated_at     timestamptz not null default now()
 );
 

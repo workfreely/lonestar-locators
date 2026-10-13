@@ -26,6 +26,7 @@ export type CommentRow = {
   permalink: string | null
   commented_at: string | null
   matched_keyword: string | null
+  hold_reason: string | null
   external_media_id: string | null
   social_commenters: { provider_user_id: string; username: string | null; profile_url: string | null; dm_sent_at: string | null } | null
   comment_actions: { kind: string; status: string; reason: string | null }[]
@@ -67,6 +68,9 @@ function outcomeOf(c: CommentRow): { text: string; tone: string } {
   if (dm?.status === "sent" && pub?.status === "sent") return { text: "DM + public reply", tone: good }
   if (dm?.status === "sent") return { text: "DM sent", tone: good }
   if (pub?.status === "sent") return { text: "public reply", tone: good }
+  // A held comment is awaiting a human — shown before any action reason, because the hold is why
+  // no action exists.
+  if (c.hold_reason) return { text: `held — ${c.hold_reason.replace(/_/g, " ")}`, tone: warn }
   if (dm?.reason === "no_stable_id") return { text: "no stable ID — no DM", tone: warn }
   if (dm?.reason === "already_messaged") return { text: "already messaged", tone: mute }
   if (dm?.reason === "own_account") return { text: "own account — skipped", tone: mute }
@@ -270,9 +274,14 @@ export default function CommentsClient({
             [`Instagram${ig?.username ? ` — @${ig.username}` : ""}`, ig ? "Off" : "Not connected"],
             [`TikTok${tt?.username ? ` — ${tt.username}` : ""}`, "Unavailable — Business API"],
             ["Read comments", "Permission needed"],
-            ["Public replies", "Permission needed"],
-            ["Private replies (DM)", "Permission needed"],
+            ["Public reply permission", "Permission needed"],
+            ["Private reply (DM) permission", "Permission needed"],
             ["Like a comment", "Not offered by Instagram"],
+            ["Process comments from", "After activation only"],
+            ["Maximum comment age", "24 hours"],
+            ["Automatic public replies", "Off — optional, separate from the DM"],
+            ["Public reply cooldown", "24 hours per person"],
+            ["Held for manual review", "Hostile · spam · negative context · nested replies"],
           ].map(([k, v]) => (
             <div key={k} className="flex justify-between gap-3 py-[7px] border-t border-[var(--crm-border)] first:border-t-0 text-[12.5px]">
               <span className="text-[var(--crm-text-primary)]">{k}</span>
@@ -282,7 +291,9 @@ export default function CommentsClient({
           <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-3">
             A private message is sent at most once per person per connected account, and only when the platform
             returns a stable user ID. Without one, the commenter gets the public reply instead — a username is not a
-            reliable identity.
+            reliable identity. Switching automation on stamps an activation time and only comments newer than it are
+            ever processed, so turning this on cannot answer a backlog. A send whose outcome could not be established
+            is held, never retried.
           </p>
         </div>
       )}

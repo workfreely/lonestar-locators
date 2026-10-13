@@ -49,7 +49,7 @@ export default async function CommentsPage() {
       supabase
         .from("social_comments")
         .select(
-          "id, provider, body, author_username, permalink, commented_at, matched_keyword, external_media_id, " +
+          "id, provider, body, author_username, permalink, commented_at, matched_keyword, hold_reason, external_media_id, " +
             "social_commenters(provider_user_id, username, profile_url, dm_sent_at), " +
             "comment_actions(kind, status, reason), social_posts(post_name)",
         )
