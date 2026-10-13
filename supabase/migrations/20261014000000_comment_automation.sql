@@ -67,11 +67,42 @@ create table if not exists public.social_commenters (
   profile_url      text,
   first_seen_at    timestamptz not null default now(),
   last_seen_at     timestamptz not null default now(),
+  -- ── THE ATOMIC CLAIM ──────────────────────────────────────────────────────────────────────
+  -- dm_sent_at alone cannot hold the one-DM rule. Reading it and then deciding is check-then-act:
+  -- two workers handling two comments from the SAME person both read NULL, both decide to send,
+  -- and the person gets two unsolicited messages. The unique index below prevents duplicate ROWS,
+  -- not duplicate SENDS.
+  --
+  -- So a send is CLAIMED before it is attempted, with a conditional update that only one caller
+  -- can win:
+  --
+  --     update social_commenters set dm_claimed_at = now()
+  --      where id = $1 and dm_claimed_at is null and dm_sent_at is null
+  --     returning id;
+  --
+  -- No row returned ⇒ somebody else owns this person's DM ⇒ do not send. Same compare-and-set the
+  -- follow-up engine's claimIntent uses, for the same reason.
+  --
+  -- CLAIM FIRST, STAMP AFTER. dm_claimed_at is taken BEFORE the API call and dm_sent_at written
+  -- only on a confirmed acceptance:
+  --   accepted  → dm_sent_at = now(); the claim has served its purpose.
+  --   failed    → release the claim (dm_claimed_at = null) so a later comment may try again.
+  --   UNCERTAIN → leave it claimed FOR EVER. Never released, never retried, surfaced for a human.
+  --
+  -- That last line is the important one. A send whose outcome we could not establish may well have
+  -- arrived; retrying it would be the duplicate we are trying to prevent. A claim nobody releases
+  -- blocks further attempts, which is the correct failure direction for unsolicited messaging.
+  dm_claimed_at    timestamptz,
   dm_sent_at       timestamptz,
   created_at       timestamptz not null default now()
 );
 create unique index if not exists social_commenters_account_person_uidx
   on public.social_commenters (connection_id, provider_user_id);
+-- Claims that were taken but never resolved — in flight, or uncertain and awaiting a human. The
+-- Automation view lists these; nothing retries them automatically.
+create index if not exists social_commenters_unresolved_claim_idx
+  on public.social_commenters (connection_id, dm_claimed_at)
+  where dm_claimed_at is not null and dm_sent_at is null;
 
 -- ── COMMENTS ────────────────────────────────────────────────────────────────────────────────
 create table if not exists public.social_comments (

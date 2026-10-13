@@ -128,14 +128,86 @@ export type CommenterRecord = {
   providerUserId: string
   /** When this person was last sent the automatic DM on THIS connected account. Null = never. */
   dmSentAt: string | null
+  /**
+   * When a send for this person was CLAIMED. Set before the API call, cleared only on a confirmed
+   * failure. Non-null with dmSentAt null means a send is in flight, or finished with an outcome we
+   * could not establish — either way nobody else may send.
+   */
+  dmClaimedAt: string | null
 }
 
-export type DmDecision = { send: boolean; reason: "ok" | "already_messaged" | "no_stable_id" | "own_account" | "automation_off" }
+/**
+ * THE ATOMIC CLAIM — the statement that actually enforces one DM per person.
+ *
+ * shouldSendPrivateReply below is a PRE-FILTER, not the guarantee: it reads state and then decides,
+ * which is check-then-act. Two workers handling two comments from the SAME person both read
+ * "never messaged", both decide to send, and the person gets two unsolicited messages. The unique
+ * index on (connection_id, provider_user_id) prevents duplicate ROWS, not duplicate SENDS.
+ *
+ * The guarantee is this conditional update, which only one caller can win. Exported as the single
+ * definition so the eventual sender cannot quietly use a different predicate — the same shape, and
+ * the same reasoning, as the follow-up engine's claimIntent.
+ *
+ *   No row returned ⇒ somebody else owns this person's DM ⇒ DO NOT SEND.
+ */
+export const DM_CLAIM_SQL = `
+update public.social_commenters
+   set dm_claimed_at = now()
+ where id = $1
+   and dm_claimed_at is null
+   and dm_sent_at is null
+returning id`
+
+/** What the platform told us about a private reply we attempted. */
+export type DmOutcome = "accepted" | "failed" | "uncertain"
+
+export type DmResolution = {
+  /** Stamp dm_sent_at — only ever on a confirmed acceptance. */
+  markSent: boolean
+  /** Clear dm_claimed_at so a later comment may try again. Only on a CONFIRMED failure. */
+  releaseClaim: boolean
+  /** The action row's status. */
+  status: "sent" | "failed" | "uncertain"
+  /** May the public reply claim a DM was sent? */
+  mayClaimDmPublicly: boolean
+  /** May an automatic retry ever happen? */
+  retryable: boolean
+}
+
+/**
+ * Resolve a finished send attempt.
+ *
+ * `uncertain` is the case worth stating plainly: a send whose outcome we could not establish may
+ * well have ARRIVED. Retrying it would be exactly the duplicate this feature must never produce,
+ * so the claim is NOT released, nothing is retried, and it is surfaced for a human instead. A claim
+ * nobody releases blocks further attempts to that person — the correct failure direction when the
+ * alternative is messaging a stranger twice.
+ *
+ * This is also why a lost acknowledgment is safe: the claim was taken BEFORE the call, so a reply
+ * that landed but whose response we never saw leaves the person claimed rather than unclaimed.
+ */
+export function resolveDmOutcome(outcome: DmOutcome): DmResolution {
+  if (outcome === "accepted") {
+    return { markSent: true, releaseClaim: false, status: "sent", mayClaimDmPublicly: true, retryable: false }
+  }
+  if (outcome === "failed") {
+    return { markSent: false, releaseClaim: true, status: "failed", mayClaimDmPublicly: false, retryable: true }
+  }
+  return { markSent: false, releaseClaim: false, status: "uncertain", mayClaimDmPublicly: false, retryable: false }
+}
+
+export type DmDecision = {
+  send: boolean
+  reason: "ok" | "already_messaged" | "no_stable_id" | "own_account" | "automation_off" | "claim_held"
+}
 
 /**
  * May we send the automatic private message to this commenter, on this account, right now?
  *
- * The one place that question is answered. Every condition is a REFUSAL — there is no path that
+ * A PRE-FILTER, NOT THE GUARANTEE. It reads state and then decides, so under concurrency it can go
+ * stale between the read and the send. DM_CLAIM_SQL above is what actually enforces the rule; this
+ * exists so the common cases are refused cheaply and with a reason worth showing in the Inbox.
+ * Nothing may send on the strength of this function alone. Every condition is a REFUSAL — there is no path that
  * sends on missing information. The `dmSentAt` stamp lives on the commenter row, keyed
  * (connection_id, provider_user_id), so the guarantee is per person per connected account and
  * survives restarts, retries and re-polling of the same comment.
@@ -152,6 +224,11 @@ export function shouldSendPrivateReply(input: {
   if (input.identity.reason === "own_account") return { send: false, reason: "own_account" }
   if (!input.identity.dmEligible || !input.identity.providerUserId) return { send: false, reason: "no_stable_id" }
   if (input.existing?.dmSentAt) return { send: false, reason: "already_messaged" }
+  // A claim with no send is in flight, or finished with an outcome we could not establish. Either
+  // way this person is spoken for. Refusing here saves a doomed claim attempt; DM_CLAIM_SQL is
+  // still what makes it safe under concurrency, because this check can go stale between read and
+  // write and that update cannot.
+  if (input.existing?.dmClaimedAt) return { send: false, reason: "claim_held" }
   return { send: true, reason: "ok" }
 }
 

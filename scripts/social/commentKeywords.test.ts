@@ -9,6 +9,7 @@ import {
 } from "@/lib/social/commentKeywords"
 import {
   resolveCommenter, resolveProfileUrl, shouldSendPrivateReply, publicReplyKind,
+  resolveDmOutcome, DM_CLAIM_SQL,
 } from "@/lib/social/commentIdentity"
 
 let pass = 0, fail = 0
@@ -123,9 +124,9 @@ console.log("\n7. ONE DM PER PERSON PER CONNECTED ACCOUNT:")
 
   ok("first time → send", shouldSendPrivateReply({ ...on, existing: null }).send)
   ok("already messaged → refused, whatever the comment",
-    shouldSendPrivateReply({ ...on, existing: { providerUserId: "IGSID_1", dmSentAt: "2026-10-13T00:00:00Z" } }).reason === "already_messaged")
+    shouldSendPrivateReply({ ...on, existing: { providerUserId: "IGSID_1", dmSentAt: "2026-10-13T00:00:00Z", dmClaimedAt: null } }).reason === "already_messaged")
   ok("a SECOND comment from the same person is still refused",
-    !shouldSendPrivateReply({ ...on, existing: { providerUserId: "IGSID_1", dmSentAt: "2026-10-01T00:00:00Z" } }).send)
+    !shouldSendPrivateReply({ ...on, existing: { providerUserId: "IGSID_1", dmSentAt: "2026-10-01T00:00:00Z", dmClaimedAt: null } }).send)
   ok("no stable id → refused even when never messaged",
     shouldSendPrivateReply({ automationEnabled: true, identity: resolveCommenter("instagram", { username: "ghost" }, "own"), existing: null }).reason === "no_stable_id")
   ok("automation off → refused", shouldSendPrivateReply({ ...on, automationEnabled: false, existing: null }).reason === "automation_off")
@@ -134,9 +135,60 @@ console.log("\n7. ONE DM PER PERSON PER CONNECTED ACCOUNT:")
   ok("EVERY refusal path is a refusal, never a send",
     [
       shouldSendPrivateReply({ ...on, automationEnabled: false, existing: null }),
-      shouldSendPrivateReply({ ...on, existing: { providerUserId: "IGSID_1", dmSentAt: "x" } }),
+      shouldSendPrivateReply({ ...on, existing: { providerUserId: "IGSID_1", dmSentAt: "x", dmClaimedAt: null } }),
       shouldSendPrivateReply({ automationEnabled: true, identity: resolveCommenter("instagram", {}, "own"), existing: null }),
     ].every((d) => !d.send))
+}
+
+console.log("\n7b. CONCURRENCY — the claim, not the read, is what enforces the rule:")
+{
+  const id = resolveCommenter("instagram", { providerUserId: "IGSID_2", username: "t.mendez" }, "own")
+  const on = { automationEnabled: true, identity: id }
+
+  // The pre-filter alone is check-then-act: two workers reading the SAME "never messaged" state
+  // both decide to send. That is precisely why it is not the guarantee.
+  const fresh = { providerUserId: "IGSID_2", dmSentAt: null, dmClaimedAt: null }
+  ok("two workers reading identical fresh state BOTH decide to send (so a claim is required)",
+    shouldSendPrivateReply({ ...on, existing: fresh }).send && shouldSendPrivateReply({ ...on, existing: fresh }).send)
+
+  // The claim statement is the compare-and-set that only one of them can win.
+  ok("the claim is conditional on dm_claimed_at IS NULL", /dm_claimed_at is null/.test(DM_CLAIM_SQL))
+  ok("…and on dm_sent_at IS NULL", /dm_sent_at is null/.test(DM_CLAIM_SQL))
+  ok("…and returns the row so the winner is identifiable", /returning id/.test(DM_CLAIM_SQL))
+  ok("…and sets the claim in the same statement", /set dm_claimed_at = now\(\)/.test(DM_CLAIM_SQL))
+
+  // Once claimed, the pre-filter refuses too — the loser does not even attempt a claim.
+  ok("a held claim refuses further sends",
+    shouldSendPrivateReply({ ...on, existing: { providerUserId: "IGSID_2", dmSentAt: null, dmClaimedAt: "2026-10-14T00:00:00Z" } }).reason === "claim_held")
+}
+
+console.log("\n7c. LOST ACKNOWLEDGMENTS ARE NEVER BLINDLY RETRIED:")
+{
+  const accepted = resolveDmOutcome("accepted")
+  ok("accepted → stamp sent, keep the claim, may say 'DM sent'",
+    accepted.markSent && !accepted.releaseClaim && accepted.status === "sent" && accepted.mayClaimDmPublicly)
+  ok("accepted is not retryable", !accepted.retryable)
+
+  const failed = resolveDmOutcome("failed")
+  ok("confirmed failure → release the claim so a later comment may try",
+    !failed.markSent && failed.releaseClaim && failed.status === "failed" && failed.retryable)
+  ok("…and a failure must NOT claim a DM publicly", !failed.mayClaimDmPublicly)
+
+  const unknown = resolveDmOutcome("uncertain")
+  ok("UNCERTAIN → claim is NOT released", !unknown.releaseClaim)
+  ok("UNCERTAIN → never retried automatically", !unknown.retryable)
+  ok("UNCERTAIN → not marked sent", !unknown.markSent)
+  ok("UNCERTAIN → must not claim a DM publicly", !unknown.mayClaimDmPublicly)
+  ok("UNCERTAIN → surfaced as its own status", unknown.status === "uncertain")
+
+  // The lost-ack scenario end to end: claimed, sent, response never seen.
+  const afterLostAck = { providerUserId: "IGSID_3", dmSentAt: null, dmClaimedAt: "2026-10-14T00:00:00Z" }
+  ok("a person whose ack was lost stays blocked, not re-messaged",
+    !shouldSendPrivateReply({
+      automationEnabled: true,
+      identity: resolveCommenter("instagram", { providerUserId: "IGSID_3", username: "x" }, "own"),
+      existing: afterLostAck,
+    }).send)
 }
 
 console.log("\n8. A PUBLIC REPLY NEVER CLAIMS AN UNSENT DM:")
