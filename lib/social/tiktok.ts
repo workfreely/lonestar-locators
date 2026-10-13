@@ -179,3 +179,24 @@ export function sanitizeDbError(error: { code?: string | null; message?: string 
   if (message.length > 300) message = `${message.slice(0, 300)}…`
   return message ? `${code} ${message}` : code
 }
+
+/**
+ * Truncate to at most `max` UTF-16 code units WITHOUT splitting a surrogate pair.
+ *
+ * The limit is unchanged — still 2200 UTF-16 units, the same contract as before — but a plain
+ * `.slice(0, 2200)` can cut an emoji in half when the 2200th unit is the high surrogate of a pair.
+ * That leaves a lone surrogate, which is not valid UTF-16: JSON.stringify emits it as a bare
+ * \\ud83c escape and TikTok receives malformed text at the very end of the caption. Our captions
+ * end in a hashtag block and are nowhere near the cap, so this has almost certainly never fired —
+ * but every caption here ends in emoji-rich copy, so the exposure is real rather than theoretical.
+ *
+ * Only the final code point is ever dropped, and only when it would otherwise be severed, so the
+ * result is never longer than `.slice` would give and is at most one unit shorter.
+ */
+export function truncateToRunes(text: string, max: number): string {
+  if (text.length <= max) return text
+  const cut = text.slice(0, max)
+  const last = cut.charCodeAt(cut.length - 1)
+  // A trailing HIGH surrogate (0xD800–0xDBFF) means its LOW half was cut off — drop it.
+  return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut
+}

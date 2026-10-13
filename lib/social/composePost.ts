@@ -1239,6 +1239,44 @@ export function buildInstagramCaptionPayload(input: {
 // separate named constant so a future platform-specific change does not silently move the shared rule.
 export const TIKTOK_MAX_HASHTAGS = 5
 
+/**
+ * TIKTOK-ONLY paragraph padding. U+2800 BRAILLE PATTERN BLANK, one per blank line.
+ *
+ * WHY THIS EXISTS. Social Beast stores and sends \n\n between every caption section, and that is
+ * verifiably what leaves our server — the publish route passes `title` to TikTok verbatim and
+ * JSON.stringify preserves \n. TikTok's published caption nevertheless renders the sections hard
+ * against each other: it keeps the single line break and drops the EMPTY line between paragraphs,
+ * so the hook, special, amenities, service statement, CTA and hashtags all run together.
+ *
+ * The fix is to stop the line being empty. U+2800 was chosen over the obvious U+200B ZERO WIDTH
+ * SPACE on one property: U+200B is category Cf, a format control, and that is precisely the class
+ * of character platforms strip — zero-width characters are the classic keyword-cloaking vector.
+ * U+2800 is category So, an ordinary printable glyph that happens to render blank, so it survives
+ * both whitespace-collapsing and control-character stripping. It is also what creators already use
+ * for caption spacing on TikTok and Instagram, so it is unremarkable rather than anomalous.
+ *
+ * NOT OFFICIALLY SUPPORTED. TikTok documents no rule for whitespace in post_info.title. This is
+ * matched to observed behaviour, not to a guarantee, and it degrades safely: if TikTok honours
+ * \n\n after all, \n<pad>\n still renders as exactly one blank line — never two.
+ *
+ * IDEMPOTENT BY CONSTRUCTION. The output contains no run of two or more newlines, so re-applying
+ * it cannot match again and invisible characters can never accumulate. `\n{2,}` rather than
+ * `\n\n` is deliberate: on "a\n\n\nb" a two-character pattern would leave a stray \n\n behind
+ * for the next pass to pad a second time.
+ *
+ * SCOPE. Applied ONLY to the outgoing TikTok payload, as the last step, and never written back —
+ * the stored caption stays clean and human-readable, which also keeps isGeneratedCaption working
+ * (a padded line is not whitespace, so it would survive that function's blank-line filter and make
+ * a generated caption look manual). Instagram is a different function and is untouched.
+ */
+export const TIKTOK_SECTION_PAD = "\u2800"
+
+/** Replace every blank-line boundary with a line holding TIKTOK_SECTION_PAD. Single newlines —
+ *  the amenity bullets — are left alone, and a caption with no blank lines is returned unchanged. */
+export function padTikTokSectionBreaks(text: string): string {
+  return text.replace(/\n{2,}/g, `\n${TIKTOK_SECTION_PAD}\n`)
+}
+
 /** THE single source of truth for the EXACT outgoing TikTok caption text. Mirrors the Instagram
  *  payload's CAPTION BODY exactly — same hook / blank line / "🏡 Amenities" bullets / blank line /
  *  service CTA / blank line / form CTA structure, and the same generated-vs-manual semantics
@@ -1263,5 +1301,7 @@ export function buildTikTokCaptionPayload(input: {
   const body = publishCaption(input.caption, meta, input.sourceContentId ?? undefined)
   // TikTok hashtags computed independently from Instagram's, limited to 5.
   const tags = buildHashtags(meta.market, TIKTOK_MAX_HASHTAGS, meta.propertyType)
-  return composeFinalCaption(body, tags)
+  // LAST STEP, TikTok only: make the blank lines survive TikTok's rendering. Applied after the
+  // body and hashtags are composed so every section boundary is covered, including CTA → hashtags.
+  return padTikTokSectionBreaks(composeFinalCaption(body, tags))
 }

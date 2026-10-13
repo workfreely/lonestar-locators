@@ -15,6 +15,7 @@ import {
   fetchTikTokPostStatus,
   type TikTokPrivacyLevel,
 } from "@/lib/social/tiktokPublish"
+import { truncateToRunes } from "@/lib/social/tiktok"
 
 // TikTok's Direct Post title limit (UTF-16 runes). The TikTok title is the Social Beast caption
 // BODY (same structure/spacing as Instagram, manual edits preserved) plus TikTok-specific hashtags
@@ -103,7 +104,7 @@ export async function POST(req: NextRequest) {
       sourceContentId: p.source_content_id,
       source: Array.isArray(p.source) ? p.source[0] : p.source,
     })
-    const title = fullCaption.length > TIKTOK_TITLE_MAX ? fullCaption.slice(0, TIKTOK_TITLE_MAX) : fullCaption
+    const title = truncateToRunes(fullCaption, TIKTOK_TITLE_MAX)
 
     // Download the rendered MP4 bytes server-side (private bucket; never a public URL).
     const { data: blob, error: dlErr } = await supabaseAdmin.storage.from("social-media").download(p.rendered_storage_path)
